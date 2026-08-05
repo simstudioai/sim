@@ -6,6 +6,7 @@ export {
   listProfiles,
   OUTPUT_FORMATS,
   type OutputFormat,
+  ProfileConfigError,
   type ProfileOverrides,
   type ResolvedProfile,
   readConfigProfile,

@@ -53,6 +53,10 @@ describe('buildRequest', () => {
     expect(built.body ?? {}).not.toHaveProperty('stream')
   })
 
+  it('sends an empty object when a declared body has no provided fields', () => {
+    expect(buildRequest('executeWorkflow', ['wf_1'], {}, WORKSPACE).body).toEqual({})
+  })
+
   it('percent-encodes path params so an id cannot retarget the request', () => {
     expect(buildRequest('getTable', ['a/b?c'], {}, WORKSPACE).path).toBe('/api/v2/tables/a%2Fb%3Fc')
   })

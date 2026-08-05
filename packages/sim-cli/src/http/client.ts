@@ -1,5 +1,4 @@
 import type { ResolvedProfile } from '../config/index.js'
-import { V2_OPERATIONS, type V2OperationName } from '../generated/v2-api.js'
 
 /**
  * A failure the CLI can explain. Anything thrown as a `SimApiError` is printed
@@ -17,11 +16,6 @@ export class SimApiError extends Error {
     super(message)
     this.name = 'SimApiError'
   }
-}
-
-/** `{ data }` — a single resource. */
-interface V2DataEnvelope<T> {
-  data: T
 }
 
 /** `{ data, nextCursor }` — one page of a list. */
@@ -195,65 +189,6 @@ export class SimClient {
     if (!raw) return undefined as T
     return JSON.parse(raw) as T
   }
-
-  /** Unwraps `{ data }`. */
-  async getData<T>(path: string, options: RequestOptions = {}): Promise<T> {
-    const body = await this.request<V2DataEnvelope<T>>(path, options)
-    return body.data
-  }
-
-  /** One page of `{ data, nextCursor }`. */
-  async getPage<T>(path: string, options: RequestOptions = {}): Promise<V2Page<T>> {
-    return this.request<V2Page<T>>(path, options)
-  }
-
-  /**
-   * Walks a cursor list until it is exhausted or `max` items are collected.
-   *
-   * `max` is required rather than optional: an unbounded auto-pager against a
-   * workspace with a million logs will happily fill memory and hammer the rate
-   * limiter, so the caller always states a ceiling.
-   */
-  async collect<T>(path: string, options: RequestOptions, max: number): Promise<T[]> {
-    const items: T[] = []
-    let cursor: string | null = null
-
-    do {
-      const page: V2Page<T> = await this.getPage<T>(path, {
-        ...options,
-        query: { ...options.query, cursor },
-      })
-      items.push(...page.data)
-      cursor = page.nextCursor
-    } while (cursor && items.length < max)
-
-    return items.slice(0, max)
-  }
-
-  /**
-   * Calls a generated operation by name.
-   *
-   * Method and path come from `V2_OPERATIONS`, so a route that moves or changes
-   * verb in a contract moves here on the next `generate:cli-api` rather than
-   * failing at runtime against a URL the CLI still remembers.
-   */
-  async call<K extends V2OperationName>(
-    operation: K,
-    options: OperationOptions = {}
-  ): Promise<unknown> {
-    const spec = V2_OPERATIONS[operation]
-    return this.request(resolvePath(spec.path, options.pathParams), {
-      method: spec.method as RequestOptions['method'],
-      query: options.query,
-      body: options.body,
-    })
-  }
-}
-
-export interface OperationOptions {
-  pathParams?: Record<string, string>
-  query?: Record<string, QueryValue>
-  body?: unknown
 }
 
 /**

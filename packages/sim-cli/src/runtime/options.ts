@@ -35,7 +35,7 @@ function addFieldOption(
     return
   }
 
-  if (descriptor.kind === 'boolean') {
+  if (descriptor.kind === 'boolean' || flag.boolean) {
     if (descriptor.required) {
       command.addOption(
         new Option(
@@ -49,7 +49,7 @@ function addFieldOption(
     }
 
     command.option(`${short}--${name}`, flag.describe ?? `Set ${field}`)
-    command.option(`--no-${name}`, `Set ${field} to false`)
+    if (!flag.boolean) command.option(`--no-${name}`, `Set ${field} to false`)
     return
   }
 
@@ -91,10 +91,19 @@ export function addOperationOptions(
   }
 
   if (operationSpec.opaqueBody) {
-    command.requiredOption(
-      '--body <json|@file>',
-      'Request body as JSON (or @path / @- to read a file or stdin) (required)'
-    )
+    if (commandSpec.bodyVariants) {
+      for (const variant of commandSpec.bodyVariants) {
+        command.option(
+          `--${variant.name} <json|@file>`,
+          `${variant.describe} (JSON, or @path / @-; choose exactly one body flag)`
+        )
+      }
+    } else {
+      command.requiredOption(
+        '--body <json|@file>',
+        'Request body as JSON (or @path / @- to read a file or stdin) (required)'
+      )
+    }
   }
 
   if (commandSpec.confirm) {

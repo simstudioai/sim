@@ -26,7 +26,15 @@ export type AbortFileUploadHeaders = {
 export type AbortFileUploadResponse = {
   data: {
     id: string
-    status: 'uploading' | 'finalizing' | 'completed' | 'failed' | 'aborted' | 'expired'
+    status:
+      | 'uploading'
+      | 'completing'
+      | 'finalizing'
+      | 'completed'
+      | 'failed'
+      | 'aborting'
+      | 'aborted'
+      | 'expired'
     name: string
     contentType: string
     size: number
@@ -64,7 +72,15 @@ export type AbortKnowledgeDocumentUploadResponse = {
   data: {
     id: string
     knowledgeBaseId: string
-    status: 'uploading' | 'finalizing' | 'completed' | 'failed' | 'aborted' | 'expired'
+    status:
+      | 'uploading'
+      | 'completing'
+      | 'finalizing'
+      | 'completed'
+      | 'failed'
+      | 'aborting'
+      | 'aborted'
+      | 'expired'
     name: string
     contentType: string
     size: number
@@ -345,15 +361,6 @@ export type CompleteFileUploadQuery = {
   workspaceId: string
 }
 
-export type CompleteFileUploadBody =
-  | {
-      parts: Array<{
-        partNumber: number
-        etag?: string
-      }>
-    }
-  | Record<string, unknown>
-
 export type CompleteFileUploadHeaders = {
   'upload-token': string
 }
@@ -361,7 +368,15 @@ export type CompleteFileUploadHeaders = {
 export type CompleteFileUploadResponse = {
   data: {
     id: string
-    status: 'uploading' | 'finalizing' | 'completed' | 'failed' | 'aborted' | 'expired'
+    status:
+      | 'uploading'
+      | 'completing'
+      | 'finalizing'
+      | 'completed'
+      | 'failed'
+      | 'aborting'
+      | 'aborted'
+      | 'expired'
     name: string
     contentType: string
     size: number
@@ -391,15 +406,6 @@ export type CompleteKnowledgeDocumentUploadQuery = {
   workspaceId: string
 }
 
-export type CompleteKnowledgeDocumentUploadBody =
-  | {
-      parts: Array<{
-        partNumber: number
-        etag?: string
-      }>
-    }
-  | Record<string, unknown>
-
 export type CompleteKnowledgeDocumentUploadHeaders = {
   'upload-token': string
 }
@@ -408,7 +414,15 @@ export type CompleteKnowledgeDocumentUploadResponse = {
   data: {
     id: string
     knowledgeBaseId: string
-    status: 'uploading' | 'finalizing' | 'completed' | 'failed' | 'aborted' | 'expired'
+    status:
+      | 'uploading'
+      | 'completing'
+      | 'finalizing'
+      | 'completed'
+      | 'failed'
+      | 'aborting'
+      | 'aborted'
+      | 'expired'
     name: string
     contentType: string
     size: number
@@ -438,15 +452,6 @@ export type CompleteTableImportParams = {
 export type CompleteTableImportQuery = {
   workspaceId: string
 }
-
-export type CompleteTableImportBody =
-  | {
-      parts: Array<{
-        partNumber: number
-        etag?: string
-      }>
-    }
-  | Record<string, unknown>
 
 export type CompleteTableImportHeaders = {
   'upload-token': string
@@ -623,7 +628,15 @@ export type CreateFileUploadResponse = {
   data: {
     session: {
       id: string
-      status: 'uploading' | 'finalizing' | 'completed' | 'failed' | 'aborted' | 'expired'
+      status:
+        | 'uploading'
+        | 'completing'
+        | 'finalizing'
+        | 'completed'
+        | 'failed'
+        | 'aborting'
+        | 'aborted'
+        | 'expired'
       name: string
       contentType: string
       size: number
@@ -755,7 +768,15 @@ export type CreateKnowledgeDocumentUploadResponse = {
     session: {
       id: string
       knowledgeBaseId: string
-      status: 'uploading' | 'finalizing' | 'completed' | 'failed' | 'aborted' | 'expired'
+      status:
+        | 'uploading'
+        | 'completing'
+        | 'finalizing'
+        | 'completed'
+        | 'failed'
+        | 'aborting'
+        | 'aborted'
+        | 'expired'
       name: string
       contentType: string
       size: number
@@ -1404,7 +1425,7 @@ export type DeleteFileResponse = {
 export type DeleteFileFolderQuery = {
   workspaceId: string
   path: string
-  recursive: string
+  recursive?: string
 }
 
 export type DeleteFileFolderResponse = {
@@ -1455,7 +1476,7 @@ export type DeleteKnowledgeDocumentResponse = {
 export type DeleteKnowledgeFolderQuery = {
   workspaceId: string
   path: string
-  recursive: string
+  recursive?: string
 }
 
 export type DeleteKnowledgeFolderResponse = {
@@ -1513,6 +1534,7 @@ export type DeleteTableQuery = {
 export type DeleteTableResponse = {
   data: {
     id: string
+    deleted: true
   }
 }
 
@@ -1549,7 +1571,7 @@ export type DeleteTableColumnResponse = {
 export type DeleteTableFolderQuery = {
   workspaceId: string
   path: string
-  recursive: string
+  recursive?: string
 }
 
 export type DeleteTableFolderResponse = {
@@ -1633,7 +1655,7 @@ export type DeleteWorkflowResponse = {
 export type DeleteWorkflowFolderQuery = {
   workspaceId: string
   path: string
-  recursive: string
+  recursive?: string
 }
 
 export type DeleteWorkflowFolderResponse = {
@@ -3867,6 +3889,7 @@ export type UpdateTableParams = {
 export type UpdateTableBody = {
   workspaceId: string
   name?: string
+  description?: string | null
   folderPath?: string
 }
 
@@ -4402,7 +4425,6 @@ export const V2_OPERATIONS = {
     query: {
       workspaceId: { kind: 'string', required: true },
     },
-    opaqueBody: true,
   },
   completeKnowledgeDocumentUpload: {
     method: 'POST',
@@ -4413,7 +4435,6 @@ export const V2_OPERATIONS = {
     query: {
       workspaceId: { kind: 'string', required: true },
     },
-    opaqueBody: true,
   },
   completeTableImport: {
     method: 'POST',
@@ -4424,7 +4445,6 @@ export const V2_OPERATIONS = {
     query: {
       workspaceId: { kind: 'string', required: true },
     },
-    opaqueBody: true,
   },
   createCredential: {
     method: 'POST',
@@ -4763,7 +4783,7 @@ export const V2_OPERATIONS = {
     query: {
       workspaceId: { kind: 'string', required: true },
       path: { kind: 'string', required: true },
-      recursive: { kind: 'string', required: true },
+      recursive: { kind: 'string', default: false },
     },
   },
   deleteKnowledgeBase: {
@@ -4795,7 +4815,7 @@ export const V2_OPERATIONS = {
     query: {
       workspaceId: { kind: 'string', required: true },
       path: { kind: 'string', required: true },
-      recursive: { kind: 'string', required: true },
+      recursive: { kind: 'string', default: false },
     },
   },
   deleteMcpServer: {
@@ -4848,7 +4868,7 @@ export const V2_OPERATIONS = {
     query: {
       workspaceId: { kind: 'string', required: true },
       path: { kind: 'string', required: true },
-      recursive: { kind: 'string', required: true },
+      recursive: { kind: 'string', default: false },
     },
   },
   deleteTableRow: {
@@ -4900,7 +4920,7 @@ export const V2_OPERATIONS = {
     query: {
       workspaceId: { kind: 'string', required: true },
       path: { kind: 'string', required: true },
-      recursive: { kind: 'string', required: true },
+      recursive: { kind: 'string', default: false },
     },
   },
   deleteWorkflowGroup: {
@@ -5814,6 +5834,7 @@ export const V2_OPERATIONS = {
     body: {
       workspaceId: { kind: 'string', required: true },
       name: { kind: 'string' },
+      description: { kind: 'string' },
       folderPath: { kind: 'string' },
     },
   },

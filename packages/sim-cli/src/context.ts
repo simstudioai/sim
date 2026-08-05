@@ -1,5 +1,10 @@
 import type { Command } from 'commander'
-import { type ProfileOverrides, type ResolvedProfile, resolveProfile } from './config/index.js'
+import {
+  type OutputFormat,
+  type ProfileOverrides,
+  type ResolvedProfile,
+  resolveProfile,
+} from './config/index.js'
 import { SimClient } from './http/client.js'
 
 /** Global flags, shared by every subcommand. */
@@ -7,6 +12,7 @@ export interface GlobalOptions {
   profile?: string
   endpoint?: string
   workspace?: string
+  output?: OutputFormat
 }
 
 /**
@@ -24,6 +30,7 @@ export function profileFrom(command: Command, extra: ProfileOverrides = {}): Res
     profile: globals.profile,
     endpoint: globals.endpoint,
     workspaceId: globals.workspace,
+    output: globals.output,
     ...extra,
   })
 }

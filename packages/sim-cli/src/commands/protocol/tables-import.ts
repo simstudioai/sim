@@ -8,7 +8,6 @@ import type {
   GetTableImportResponse,
 } from '../../generated/v2-api.js'
 import { SimApiError, type SimClient } from '../../http/client.js'
-import { normalizeFolderPath } from '../../runtime/folder-path.js'
 import { coerce, type FieldSpec } from '../../runtime/request.js'
 import { contentTypeFor, localFile } from '../../transfer/local-file.js'
 import { finishUploadSession } from '../../transfer/upload-session.js'
@@ -107,7 +106,7 @@ export function attachTableImport(tables: Command): void {
         'How to write into --table-id (default: append)'
       ).choices(['append', 'replace'])
     )
-    .option('--folder <path>', 'Canonical folder path for the new table')
+    .option('--folder <path>', 'Folder path for the new table')
     .option('--file-id <id>', 'Import a file already in the workspace instead of a local path')
     .option('--mapping <json|@file>', 'Column mapping (--table-id only)')
     .option('--create-columns <json|@file>', 'Columns to create (--table-id only)')
@@ -143,9 +142,7 @@ export function attachTableImport(tables: Command): void {
         target = {
           type: 'new',
           name,
-          ...(options.folder !== undefined
-            ? { folderPath: normalizeFolderPath(options.folder) }
-            : {}),
+          ...(options.folder !== undefined ? { folderPath: options.folder } : {}),
         }
       }
 

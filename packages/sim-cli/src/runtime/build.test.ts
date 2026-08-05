@@ -75,6 +75,7 @@ describe('commands parsed through commander', () => {
       credentials: 'credential',
       'custom-tools': 'custom-tool',
       files: 'file',
+      knowledge: 'kb',
       logs: 'log',
       'mcp-servers': 'mcp-server',
       skills: 'skill',
@@ -92,12 +93,35 @@ describe('commands parsed through commander', () => {
     expect(program().commands.some((command) => command.name() === 'folders')).toBe(false)
   })
 
+  it('describes generated resource and sub-resource groups', () => {
+    expect(commandAt('tables').description()).toBe('Manage tables')
+    expect(commandAt('tables', 'rows').description()).toBe('Manage table rows')
+  })
+
   it('dispatches generated commands through their singular resource alias', async () => {
     const [tablePath] = await run(['table', 'list'])
     expect(tablePath).toBe('/api/v2/tables')
 
     const [filePath] = await run(['file', 'list'])
     expect(filePath).toBe('/api/v2/files')
+
+    const [knowledgePath] = await run(['kb', 'list'])
+    expect(knowledgePath).toBe('/api/v2/knowledge')
+  })
+
+  it('uses billing as the usage summary and keeps detailed events under logs', async () => {
+    expect(commandAt('billing').commands.map((command) => command.name())).toContain('logs')
+    expect(commandAt('billing').commands.map((command) => command.name())).not.toContain('usage')
+
+    const [summaryPath, summaryOptions] = await run(['billing'], {
+      data: { plan: 'pro', totalCredits: 10 },
+    })
+    expect(summaryPath).toBe('/api/v2/billing/usage')
+    expect(summaryOptions.query).toEqual({ workspaceId: 'ws_local' })
+
+    const [logsPath, logsOptions] = await run(['billing', 'logs', '--period', '7d'])
+    expect(logsPath).toBe('/api/v2/billing/usage/logs')
+    expect(logsOptions.query).toMatchObject({ workspaceId: 'ws_local', period: '7d' })
   })
 
   it('carries every multi-word flag on a command, not just the first', async () => {
@@ -175,20 +199,20 @@ describe('commands parsed through commander', () => {
     expect(options.body).toEqual({
       workspaceId: 'ws_local',
       fileIds: ['file_1', 'file_2'],
-      targetFolderPath: '/Archive',
+      targetFolderPath: 'Archive',
     })
   })
 
   it('uses mv as the resource move alias', async () => {
     const [path, options] = await run(['table', 'mv', 'tbl_1', '--folder', 'Archive'])
     expect(path).toBe('/api/v2/tables/tbl_1')
-    expect(options.body).toEqual({ workspaceId: 'ws_local', folderPath: '/Archive' })
+    expect(options.body).toEqual({ workspaceId: 'ws_local', folderPath: 'Archive' })
   })
 
   it('exposes path-addressed folder commands under each resource', async () => {
     const [createPath, createOptions] = await run(['table', 'folders', 'create', 'Reports'])
     expect(createPath).toBe('/api/v2/tables/folders')
-    expect(createOptions.body).toEqual({ workspaceId: 'ws_local', path: '/Reports' })
+    expect(createOptions.body).toEqual({ workspaceId: 'ws_local', path: 'Reports' })
 
     const [movePath, moveOptions] = await run([
       'table',
@@ -200,13 +224,13 @@ describe('commands parsed through commander', () => {
     expect(movePath).toBe('/api/v2/tables/folders')
     expect(moveOptions.body).toEqual({
       workspaceId: 'ws_local',
-      path: '/Reports',
-      destinationPath: '/Archive/Reports',
+      path: 'Reports',
+      destinationPath: 'Archive/Reports',
     })
 
     const [listPath, listOptions] = await run(['table', 'folders', 'ls', '--parent', 'Reports'])
     expect(listPath).toBe('/api/v2/tables/folders')
-    expect(listOptions.query).toMatchObject({ workspaceId: 'ws_local', parentPath: '/Reports' })
+    expect(listOptions.query).toMatchObject({ workspaceId: 'ws_local', parentPath: 'Reports' })
 
     const [deletePath, deleteOptions] = await run([
       'table',
@@ -214,15 +238,31 @@ describe('commands parsed through commander', () => {
       'delete',
       'Archive/Reports',
       '--recursive',
-      'false',
       '--yes',
     ])
     expect(deletePath).toBe('/api/v2/tables/folders')
     expect(deleteOptions.query).toEqual({
       workspaceId: 'ws_local',
-      path: '/Archive/Reports',
-      recursive: 'false',
+      path: 'Archive/Reports',
+      recursive: true,
     })
+
+    const [, nonRecursiveOptions] = await run([
+      'table',
+      'folders',
+      'delete',
+      'Archive/Empty',
+      '--yes',
+    ])
+    expect(nonRecursiveOptions.query).toEqual({
+      workspaceId: 'ws_local',
+      path: 'Archive/Empty',
+    })
+
+    const help = commandAt('tables', 'folders', 'delete').helpInformation()
+    expect(help).toContain('--recursive')
+    expect(help).not.toContain('--recursive <value>')
+    expect(help).not.toContain('--no-recursive')
   })
 
   it('exposes credential data centers added by the v2 credential contract', async () => {
@@ -255,6 +295,29 @@ describe('commands parsed through commander', () => {
 
     const [, without] = await run(['workflows', 'list'])
     expect(without.query).not.toHaveProperty('deployedOnly')
+  })
+
+  it('runs a workflow without input and keeps output selection distinct from rendering', async () => {
+    const help = commandAt('workflows', 'run').helpInformation()
+    expect(help).toContain('--select-output <value...>')
+    expect(help).toContain('blockName.field')
+    expect(help).toContain('agent_1.content')
+    expect(help).not.toContain('--output <value...>')
+
+    const [, withoutInput] = await run(['workflows', 'run', 'wf_1'], { data: { success: true } })
+    expect(withoutInput.body).toEqual({})
+
+    const [, selected] = await run(
+      ['workflows', 'run', 'wf_1', '--select-output', 'agent.answer', 'save.result'],
+      { data: { success: true } }
+    )
+    expect(selected.body).toEqual({ selectedOutputs: ['agent.answer', 'save.result'] })
+  })
+
+  it('documents the table predicate and sort wire shapes in help', () => {
+    const help = commandAt('tables', 'rows', 'query').helpInformation()
+    expect(help).toContain('{"all":[{"field":"status","op":"eq","value":"active"}]}')
+    expect(help).toContain('[{"field":"createdAt","direction":"desc"}]')
   })
 
   it('refuses a destructive command without --yes, before any request', async () => {
@@ -650,8 +713,8 @@ describe('bodies and fields the generator cannot flatten', () => {
       'rows',
       'create',
       'tbl_1',
-      '--body',
-      '{"rows":[{"city":"Paris"}]}',
+      '--rows',
+      '[{"city":"Paris"}]',
     ])
 
     expect(path).toBe('/api/v2/tables/tbl_1/rows')
@@ -659,22 +722,38 @@ describe('bodies and fields the generator cannot flatten', () => {
     expect(options.body).toEqual({ workspaceId: 'ws_local', rows: [{ city: 'Paris' }] })
   })
 
-  it('lets the caller override a shared field', async () => {
+  it('offers a direct single-row flag', async () => {
     const [, options] = await run([
       'tables',
       'rows',
       'create',
       'tbl_1',
-      '--body',
-      '{"workspaceId":"ws_other","rows":[]}',
+      '--data',
+      '{"city":"Paris"}',
     ])
-    expect(options.body).toMatchObject({ workspaceId: 'ws_other' })
+    expect(options.body).toEqual({ workspaceId: 'ws_local', data: { city: 'Paris' } })
   })
 
-  it('refuses a union body that is not an object', async () => {
-    await expect(run(['tables', 'rows', 'create', 'tbl_1', '--body', '[1,2]'])).rejects.toThrow(
-      /--body must be a JSON object/
+  it('requires exactly one row-body form', async () => {
+    await expect(run(['tables', 'rows', 'create', 'tbl_1'])).rejects.toThrow(
+      /exactly one of --data or --rows/
     )
+    await expect(
+      run(['tables', 'rows', 'create', 'tbl_1', '--data', '{}', '--rows', '[]'])
+    ).rejects.toThrow(/exactly one of --data or --rows/)
+  })
+
+  it('rejects the wrong JSON shape for a row-body flag', async () => {
+    await expect(run(['tables', 'rows', 'create', 'tbl_1', '--data', '[1,2]'])).rejects.toThrow(
+      /--data must be a JSON object/
+    )
+  })
+
+  it('explains the single and batch row forms in help', () => {
+    const help = commandAt('tables', 'rows', 'create').helpInformation()
+    expect(help).toMatch(/--data.*One row keyed by column name/s)
+    expect(help).toMatch(/--rows.*Several rows keyed by column name/s)
+    expect(help).not.toContain('--body')
   })
 
   it('leaves a non-numeric `limit` alone', async () => {

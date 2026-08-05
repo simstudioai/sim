@@ -87,7 +87,7 @@ describe('resource directory', () => {
     expect(mockRequest).toHaveBeenCalledWith('/api/v2/tables/folders', {
       query: {
         workspaceId: 'ws_local',
-        parentPath: '/Reports',
+        parentPath: 'Reports',
         search: 'r',
         sortBy: 'name',
         sortOrder: 'asc',
@@ -96,7 +96,7 @@ describe('resource directory', () => {
     expect(mockRequest).toHaveBeenCalledWith('/api/v2/tables', {
       query: {
         workspaceId: 'ws_local',
-        folderPath: '/Reports',
+        folderPath: 'Reports',
         search: 'r',
         sortBy: 'name',
         sortOrder: 'asc',
@@ -140,7 +140,7 @@ describe('resource directory', () => {
 
     expect(mockRequest).toHaveBeenCalledWith('/api/v2/tables/folders', {
       method: 'POST',
-      body: { workspaceId: 'ws_local', path: '/Reports/Quarterly' },
+      body: { workspaceId: 'ws_local', path: 'Reports/Quarterly' },
     })
   })
 

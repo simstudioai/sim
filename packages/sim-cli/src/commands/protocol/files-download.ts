@@ -47,11 +47,28 @@ export async function streamToFile(
   }
 }
 
+/** Streams a fetch body to stdout without closing the process-wide stream. */
+export async function streamToStdout(
+  body: ReadableStream<Uint8Array>,
+  output: NodeJS.WriteStream = process.stdout
+): Promise<void> {
+  const reader = body.getReader()
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) return
+      if (!output.write(value)) await once(output, 'drain')
+    }
+  } finally {
+    reader.releaseLock()
+  }
+}
+
 export function attachFileDownload(files: Command): void {
   files
     .command('download <fileId>')
     .description('Download a file')
-    .option('-o, --output-file <path>', 'Where to write it (defaults to the file name)')
+    .option('-o, --output-file <path>', 'Where to write it (default: file name; -: stdout)')
     .option('--force', 'Overwrite the destination if it already exists')
     .action(
       async (
@@ -59,6 +76,10 @@ export function attachFileDownload(files: Command): void {
         options: { outputFile?: string; force?: boolean },
         command: Command
       ) => {
+        if (options.outputFile === '-' && options.force) {
+          throw new SimApiError('--force cannot be used when --output-file is -', 0)
+        }
+
         const { client, profile } = clientFrom(command)
         const workspaceId = client.requireWorkspace()
 
@@ -70,13 +91,20 @@ export function attachFileDownload(files: Command): void {
         url.searchParams.set('workspaceId', workspaceId)
 
         // boundary-raw-fetch: binary download cannot pass through the JSON client
-        const response = await fetch(url, { headers: { 'x-api-key': profile.apiKey } })
+        const response = await fetch(url, {
+          headers: { 'x-api-key': profile.apiKey },
+        })
         if (!response.ok || !response.body) {
           const raw = await response.text().catch(() => '')
           throw new SimApiError(
             raw || `Download failed with status ${response.status}`,
             response.status
           )
+        }
+
+        if (options.outputFile === '-') {
+          await streamToStdout(response.body)
+          return
         }
 
         const target =
@@ -90,7 +118,11 @@ export function attachFileDownload(files: Command): void {
           response.body,
           createWriteStream(target, { flags: options.force ? 'w' : 'wx' })
         )
-        printProtocolResult(profile.output, { id: fileId, path: target, status: 'saved' })
+        printProtocolResult(profile.output, {
+          id: fileId,
+          path: target,
+          status: 'saved',
+        })
       }
     )
 }

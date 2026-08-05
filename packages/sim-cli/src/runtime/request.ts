@@ -1,10 +1,9 @@
 import { existsSync, readFileSync, readSync } from 'node:fs'
 import { CLI_CONTRACT } from '../contract/commands.js'
-import type { FlagSpec } from '../contract/types.js'
+import type { CommandSpec, FlagSpec } from '../contract/types.js'
 import { V2_OPERATIONS, type V2OperationName } from '../generated/v2-api.js'
 import { type QueryValue, SimApiError } from '../http/client.js'
 import { camel, kebab } from './derive.js'
-import { normalizeFolderPath } from './folder-path.js'
 
 /** One request field, as the generator describes it. */
 export interface FieldSpec {
@@ -182,8 +181,7 @@ export function coerce(raw: unknown, field: FieldSpec, flag: FlagSpec, flagName:
    */
   if (flag.list) {
     const values = readListValues(raw, flagName)
-    const normalized = flag.normalize === 'folder-path' ? values.map(normalizeFolderPath) : values
-    return field.kind === 'string' ? normalized.join(',') : normalized
+    return field.kind === 'string' ? values.join(',') : values
   }
 
   if (takesJson(field, flag)) {
@@ -205,14 +203,14 @@ export function coerce(raw: unknown, field: FieldSpec, flag: FlagSpec, flagName:
     return value
   }
 
-  if (field.kind === 'boolean') return raw === true || raw === 'true'
+  if (field.kind === 'boolean' || flag.boolean) return raw === true || raw === 'true'
 
   const choices = flag.choices ?? field.values
   if (choices && !choices.includes(String(raw))) {
     throw new SimApiError(`--${flagName} must be one of: ${choices.join(', ')}`, 0)
   }
 
-  return flag.normalize === 'folder-path' ? normalizeFolderPath(String(raw)) : raw
+  return raw
 }
 
 export interface BuiltRequest {
@@ -246,6 +244,7 @@ export function buildRequest(
   flags: Record<string, unknown>,
   workspaceId: string | null
 ): BuiltRequest {
+  const commandSpec: CommandSpec = CLI_CONTRACT[operation] ?? {}
   const spec = V2_OPERATIONS[operation] as {
     method: string
     path: string
@@ -301,6 +300,29 @@ export function buildRequest(
   // which both branches require, so every insert came back as invalid input.
   // The caller's JSON still wins on any key it sets.
   if (spec.opaqueBody) {
+    if (commandSpec.bodyVariants) {
+      const provided = commandSpec.bodyVariants.filter(
+        (variant) => flags[camel(variant.name)] !== undefined
+      )
+      const names = commandSpec.bodyVariants.map((variant) => `--${variant.name}`).join(' or ')
+      if (provided.length !== 1) {
+        throw new SimApiError(`Pass exactly one of ${names}`, 0)
+      }
+
+      const variant = provided[0]
+      const raw = flags[camel(variant.name)]
+      if (typeof raw !== 'string') throw new SimApiError(`--${variant.name} is required`, 0)
+      const parsed = coerce(raw, { kind: variant.kind }, { json: true }, variant.name)
+      if (
+        (variant.kind === 'object' &&
+          (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))) ||
+        (variant.kind === 'array' && !Array.isArray(parsed))
+      ) {
+        throw new SimApiError(`--${variant.name} must be a JSON ${variant.kind}`, 0)
+      }
+      return { path, query, body: { ...body, [variant.property]: parsed } }
+    }
+
     const raw = flags.body
     if (typeof raw !== 'string') throw new SimApiError('--body is required', 0)
     const parsed = coerce(raw, { kind: 'object' }, { json: true }, 'body')
@@ -313,6 +335,10 @@ export function buildRequest(
   return {
     path,
     query,
-    body: Object.keys(body).length > 0 ? body : undefined,
+    /**
+     * A declared JSON body is still an object when all of its fields are optional.
+     * Sending no bytes makes the server reject before field defaults can apply.
+     */
+    body: spec.body ? body : undefined,
   }
 }

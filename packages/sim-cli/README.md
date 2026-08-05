@@ -3,7 +3,7 @@
 Talk to the [Sim](https://sim.ai) API from your terminal.
 
 ```bash
-npm install -g @sim/cli
+bun add --global @sim/cli
 sim login
 sim workflows list
 ```
@@ -53,7 +53,7 @@ Each setting resolves independently, first match wins:
 
 | Rank | Source |
 | --- | --- |
-| 1 | Command-line flag (`--endpoint`, `--workspace`) |
+| 1 | Command-line flag (`--endpoint`, `--workspace`, `--output`) |
 | 2 | Environment (`SIM_ENDPOINT`, `SIM_API_KEY`, `SIM_WORKSPACE`, `SIM_OUTPUT`) |
 | 3 | `~/.sim/config` / `~/.sim/credentials` for the selected profile |
 | 4 | Built-in default (`https://sim.ai`, `table`) |
@@ -112,12 +112,15 @@ also accepts its singular form: for example, `sim table list`,
 `sim file download`, and `sim workflow get` are equivalent to their plural
 spellings.
 
+`knowledge` also accepts the shorter `kb` alias.
+
 ```bash
 sim workflows ls [path] [--search <text>] [--limit <n>]
 sim workflows list [--folder <path>] [--deployed-only] [--limit <n>]
 sim workflows get <id>
 sim workflows mv <id> --folder <path>
 sim workflows deploy|undeploy|rollback <id>
+sim workflows run <id> [--input <json|@file>] [--select-output <path>…]
 
 sim logs list [--level error] [--workflow <id>…] [--trigger <name>…] [--start <date>]
 sim logs get <id>
@@ -129,7 +132,10 @@ sim tables get <tableId>
 sim tables mv <tableId> --folder <path>
 sim tables columns <tableId>
 sim tables rows list <tableId> [--limit <n>]
+sim tables rows create <tableId> --data <json|@file>
+sim tables rows create <tableId> --rows <json|@file>
 sim tables rows query <tableId> [--filter <json>] [--sort <json>] [--limit <n>]
+sim tables rows query <tableId> --filter '{"all":[{"field":"status","op":"eq","value":"active"}]}'
 sim tables upsert <tableId> --data <json>
 sim tables rows batch-delete <tableId> (--row <id>… | --filter <json>) --yes
 
@@ -138,10 +144,10 @@ sim files list [--folder <path>]
 sim files get <fileId>
 sim files create --name <name> [--folder <path>] [--content <value>] [--encoding utf-8|base64]
 sim files upload <path> [--name <name>] [--folder <path>]
-sim files download <fileId> [-o <path>]
+sim files download <fileId> [-o <path|->]
 sim files mv --file-ids <id>… [--to <path>]
 sim files batch-delete --file-ids <id>… --yes
-sim files delete <fileId>
+sim files delete <fileId> --yes
 
 sim knowledge ls [path] [--search <text>] [--limit <n>]
 sim knowledge list [--folder <path>]
@@ -150,7 +156,13 @@ sim knowledge mv <id> --folder <path>
 sim knowledge documents <id> [--search <text>]
 sim knowledge documents upload <id> <path> [--tag <value>...]
 sim knowledge search --query <text> --kb <id>… [--search-mode vector|hybrid]
+
+sim billing
+sim billing logs [--period 7d] [--limit <n>]
 ```
+
+Workflow output selectors use `blockName.field` syntax, such as
+`--select-output agent_1.content`; fields that are not produced are omitted.
 
 `ls` is a directory view: it combines the resources at its optional path with
 that folder's direct child folders. It never includes deeper descendants. Its
@@ -166,14 +178,13 @@ sim tables folders ls --parent Reports
 sim tables mkdir Reports/Quarterly
 sim tables folders create Reports/Quarterly
 sim tables folders mv Reports/Quarterly Archive/Quarterly
-sim tables folders delete Archive/Quarterly --recursive false --yes
+sim tables folders delete Archive/Quarterly --yes
+sim tables folders delete Archive --recursive --yes
 ```
 
 `mkdir` is the concise form of `folders create`. Replace `tables` with `files`,
-`workflows`, or `knowledge`. The leading `/` is optional on CLI inputs; the CLI
-adds it before calling the API. Omit the `ls` path to list root. A slash that
-belongs to a folder name is percent-encoded as `%2F` rather than treated as a
-separator.
+`workflows`, or `knowledge`. The leading `/` is optional on API inputs; the API
+returns the canonical leading-slash form. Omit the `ls` path to list root.
 
 ### List inputs
 
@@ -210,9 +221,9 @@ everything" default.
 
 ### Output formats
 
-Output format is a **profile setting**, not a per-command flag — there is no
-`--output`. Set it once with `sim configure --set-output <format>`, or override
-ambiently with `SIM_OUTPUT` for a one-off or for CI:
+Output format can be selected per command with `--output`, saved as a profile
+default with `sim configure --set-output <format>`, or set ambiently with
+`SIM_OUTPUT` for CI:
 
 | Format | For |
 | --- | --- |
@@ -230,7 +241,8 @@ parsing.
 sim configure --set-output json                      # for this profile, from now on
 sim configure --set-output text --profile scripts    # a profile dedicated to scripting
 
-SIM_OUTPUT=json sim logs list --level error | jq -r '.[].executionId'
+sim --output json logs list --level error | jq -r '.[].executionId'
+sim logs list --level error --output json | jq -r '.[].executionId'
 SIM_OUTPUT=yaml sim logs list --level error > logs.yaml
 
 SIM_OUTPUT=text sim files list | while IFS=$'\t' read -r id name size type uploaded; do
@@ -241,9 +253,9 @@ done
 An absent value is an em-dash in `table` and an **empty field** in `text`, so
 emptiness tests downstream behave.
 
-A bad `SIM_OUTPUT` or `output =` is ignored and falls back to `table`. Both are
-ambient — set once, then read by every later command — so one bad value should
-not break the CLI outright.
+An invalid active `SIM_OUTPUT` or `output =` value fails with the accepted
+formats. A valid higher-priority `--output` still overrides a stale lower tier,
+so `sim --output table configure --set-output json` can repair a profile.
 
 ## How this stays in sync with the API
 

@@ -13,6 +13,7 @@ const GROUP_ALIASES: Readonly<Record<string, string>> = {
   credentials: 'credential',
   'custom-tools': 'custom-tool',
   files: 'file',
+  knowledge: 'kb',
   logs: 'log',
   'mcp-servers': 'mcp-server',
   skills: 'skill',
@@ -20,9 +21,13 @@ const GROUP_ALIASES: Readonly<Record<string, string>> = {
   workflows: 'workflow',
 }
 
-function buildLeaf(operation: V2OperationName, spec: CommandSpec, leafName: string): Command {
+function configureOperation(
+  command: Command,
+  operation: V2OperationName,
+  spec: CommandSpec
+): Command {
   const operationSpec = V2_OPERATIONS[operation] as OperationSpec
-  const command = new Command(leafName).allowExcessArguments(false)
+  command.allowExcessArguments(false)
 
   for (const alias of spec.aliases ?? []) command.alias(alias)
 
@@ -47,22 +52,33 @@ function buildLeaf(operation: V2OperationName, spec: CommandSpec, leafName: stri
   return command
 }
 
+function buildLeaf(operation: V2OperationName, spec: CommandSpec, leafName: string): Command {
+  return configureOperation(new Command(leafName), operation, spec)
+}
+
 function groupFor(groups: Map<string, Command>, name: string): Command {
   const existing = groups.get(name)
   if (existing) return existing
 
-  const group = new Command(name)
+  const group = new Command(name).description(`Manage ${name.replaceAll('-', ' ')}`)
   const alias = GROUP_ALIASES[name]
   if (alias) group.alias(alias)
   groups.set(name, group)
   return group
 }
 
+function resourceLabel(name: string): string {
+  const label = name.endsWith('s') ? name.slice(0, -1) : name
+  return label.replaceAll('-', ' ')
+}
+
 function nestedGroup(parent: Command, name: string): Command {
   const existing = parent.commands.find((candidate) => candidate.name() === name)
   if (existing) return existing
 
-  const created = new Command(name)
+  const created = new Command(name).description(
+    `Manage ${resourceLabel(parent.name())} ${name.replaceAll('-', ' ')}`
+  )
   parent.addCommand(created)
   return created
 }
@@ -80,6 +96,15 @@ export function buildGeneratedCommands(): Command[] {
     const [groupName, ...rest] = segments
     const leafName = rest.join(' ') || 'run'
     const group = groupFor(groups, groupName)
+
+    if (spec.groupDefault) {
+      if (rest.length > 0) throw new Error(`${operation} groupDefault must name a command group`)
+      if (operationSpec.pathParams.length > 0 || spec.positionals?.length) {
+        throw new Error(`${operation} groupDefault cannot require positional arguments`)
+      }
+      configureOperation(group, operation, spec)
+      continue
+    }
 
     if (rest.length > 1) {
       const [subName, ...tail] = rest

@@ -2,16 +2,21 @@ import type { CliContract, ColumnSpec } from './types.js'
 
 const TABLE_NAME_HELP = 'Identifier: letters, numbers, and underscores; cannot start with a number'
 const TABLE_FILTER_HELP =
-  'Predicate tree using all/any and operators eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, or isNotNull'
+  'Predicate: {"all":[{"field":"status","op":"eq","value":"active"}]}; groups use all/any. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull'
+const TABLE_SORT_HELP =
+  'Ordered sort keys: [{"field":"createdAt","direction":"desc"}] (direction: asc or desc)'
 const CUSTOM_TOOL_SCHEMA_HELP =
   'OpenAI function schema: {"type":"function","function":{"name":"...","parameters":{"type":"object","properties":{}}}}'
 const FOLDER_PATH_INPUT = {
-  normalize: 'folder-path',
   describe: 'Folder path; the leading / is optional',
 } as const
 const FOLDER_PATH_FLAG = {
   ...FOLDER_PATH_INPUT,
   name: 'folder',
+} as const
+const FOLDER_DELETE_FLAGS = {
+  path: FOLDER_PATH_INPUT,
+  recursive: { boolean: true, describe: 'Delete the folder and its descendants' },
 } as const
 const FOLDER_LIST_COLUMNS: ColumnSpec[] = [
   { header: 'path' },
@@ -33,6 +38,31 @@ const FOLDER_LIST_COLUMNS: ColumnSpec[] = [
  *   upsertTableRow        → sim tables upsert <tableId>
  */
 export const CLI_CONTRACT: CliContract = {
+  getUsageSummary: {
+    command: 'billing',
+    groupDefault: true,
+    describe: 'Show current billing-period usage',
+    fields: [
+      { header: 'plan' },
+      { header: 'period start', path: 'period.start', format: 'timestamp' },
+      { header: 'period end', path: 'period.end', format: 'timestamp' },
+      { header: 'used credits', path: 'totalCredits' },
+      { header: 'limit credits', path: 'limitCredits' },
+      { header: 'by source', path: 'bySourceCredits' },
+    ],
+  },
+  listUsageLogs: {
+    command: 'billing logs',
+    describe: 'List credit usage events',
+    columns: [
+      { header: 'at', path: 'createdAt', format: 'timestamp' },
+      { header: 'source' },
+      { header: 'workflow', path: 'workflowName' },
+      { header: 'credits', path: 'creditCost' },
+      { header: 'id' },
+    ],
+  },
+
   // ─── Name collisions: REST overloads one path for single and bulk ─────────
   // The derived name is identical for both, so the bulk form is renamed. AWS's
   // `batch-` prefix rather than a `--all` flag: the plural is a different and
@@ -160,11 +190,27 @@ export const CLI_CONTRACT: CliContract = {
     command: 'tables rows query',
     flags: {
       predicate: { name: 'filter', json: true, describe: TABLE_FILTER_HELP },
-      sort: { json: true },
+      sort: { json: true, describe: TABLE_SORT_HELP },
     },
     // A row's cells live under `data`; without this the table showed an id and
     // two timestamps per row and none of the content anyone ran the query for.
     expand: 'data',
+  },
+  createTableRows: {
+    bodyVariants: [
+      {
+        name: 'data',
+        property: 'data',
+        kind: 'object',
+        describe: 'One row keyed by column name',
+      },
+      {
+        name: 'rows',
+        property: 'rows',
+        kind: 'array',
+        describe: 'Several rows keyed by column name',
+      },
+    ],
   },
   createTable: {
     flags: {
@@ -441,22 +487,22 @@ export const CLI_CONTRACT: CliContract = {
   },
   deleteFileFolder: {
     positionals: ['path'],
-    flags: { path: FOLDER_PATH_INPUT, recursive: { choices: ['true', 'false'] } },
+    flags: FOLDER_DELETE_FLAGS,
     confirm: 'This archives the file folder and, when recursive, everything inside it.',
   },
   deleteKnowledgeFolder: {
     positionals: ['path'],
-    flags: { path: FOLDER_PATH_INPUT, recursive: { choices: ['true', 'false'] } },
+    flags: FOLDER_DELETE_FLAGS,
     confirm: 'This archives the knowledge folder and, when recursive, everything inside it.',
   },
   deleteTableFolder: {
     positionals: ['path'],
-    flags: { path: FOLDER_PATH_INPUT, recursive: { choices: ['true', 'false'] } },
+    flags: FOLDER_DELETE_FLAGS,
     confirm: 'This archives the table folder and, when recursive, everything inside it.',
   },
   deleteWorkflowFolder: {
     positionals: ['path'],
-    flags: { path: FOLDER_PATH_INPUT, recursive: { choices: ['true', 'false'] } },
+    flags: FOLDER_DELETE_FLAGS,
     confirm: 'This archives the workflow folder and, when recursive, everything inside it.',
   },
 
@@ -478,7 +524,7 @@ export const CLI_CONTRACT: CliContract = {
     flags: {
       q: { describe: 'Value to find' },
       predicate: { name: 'filter', json: true, describe: TABLE_FILTER_HELP },
-      sort: { json: true },
+      sort: { json: true, describe: TABLE_SORT_HELP },
     },
     itemsPath: 'matches',
     columns: [{ header: 'ordinal' }, { header: 'row', path: 'rowId' }, { header: 'column' }],
@@ -530,7 +576,12 @@ export const CLI_CONTRACT: CliContract = {
     describe: 'Run a deployed workflow and wait for the result',
     flags: {
       input: { json: true, describe: 'Trigger input as JSON' },
-      selectedOutputs: { name: 'output', list: true },
+      selectedOutputs: {
+        name: 'select-output',
+        list: true,
+        describe:
+          'Return blockName.field values (e.g. agent_1.content); missing fields are omitted',
+      },
       // SSE, not JSON — the generic client cannot consume it. A `sim workflows
       // run --follow` that renders the stream is a separate, hand-written
       // command; advertising a flag that breaks the response is worse than

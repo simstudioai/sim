@@ -102,6 +102,35 @@ describe('files download', () => {
       target,
     ])
 
-    expect(JSON.parse(logged[0])).toEqual({ id: 'file_1', path: target, status: 'saved' })
+    expect(JSON.parse(logged[0])).toEqual({
+      id: 'file_1',
+      path: target,
+      status: 'saved',
+    })
+  })
+
+  it('streams raw bytes to stdout with the conventional - destination', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('downloaded', { status: 200 })))
+    const chunks: Uint8Array[] = []
+    vi.spyOn(process.stdout, 'write').mockImplementation((chunk: string | Uint8Array) => {
+      chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk)
+      return true
+    })
+    const logged = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    await program().parseAsync(['node', 'sim', 'file', 'download', 'file_1', '-o', '-'])
+
+    expect(Buffer.concat(chunks).toString('utf8')).toBe('downloaded')
+    expect(logged).not.toHaveBeenCalled()
+  })
+
+  it('rejects overwrite semantics for stdout', async () => {
+    const fetch = vi.fn()
+    vi.stubGlobal('fetch', fetch)
+
+    await expect(
+      program().parseAsync(['node', 'sim', 'file', 'download', 'file_1', '-o', '-', '--force'])
+    ).rejects.toThrow(/--force cannot be used/)
+    expect(fetch).not.toHaveBeenCalled()
   })
 })

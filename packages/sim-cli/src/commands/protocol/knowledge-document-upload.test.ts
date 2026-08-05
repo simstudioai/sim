@@ -166,8 +166,10 @@ describe('knowledge documents upload', () => {
     expect(mockRequest.mock.calls[2][0]).toBe(
       '/api/v2/knowledge/kb_1/documents/uploads/upload_1/complete'
     )
-    expect(mockRequest.mock.calls[2][1].body).toEqual({
-      parts: [{ partNumber: 1, etag: 'etag-1' }],
+    expect(mockRequest.mock.calls[2][1]).toEqual({
+      method: 'POST',
+      query: { workspaceId: 'ws_local' },
+      headers: { 'upload-token': 'secret-token' },
     })
     expect(JSON.parse(logged[0])).toEqual({
       id: 'doc_1',

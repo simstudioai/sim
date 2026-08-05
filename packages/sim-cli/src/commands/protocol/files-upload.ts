@@ -4,7 +4,6 @@ import type {
   CompleteFileUploadResponse,
   CreateFileUploadResponse,
 } from '../../generated/v2-api.js'
-import { normalizeFolderPath } from '../../runtime/folder-path.js'
 import { contentTypeFor, localFile } from '../../transfer/local-file.js'
 import { finishUploadSession } from '../../transfer/upload-session.js'
 import { printProtocolResult } from './result.js'
@@ -13,7 +12,7 @@ export function attachFileUpload(files: Command): void {
   files
     .command('upload <path>')
     .description('Upload a file to the workspace')
-    .option('--folder <path>', 'Canonical destination folder path (defaults to /)')
+    .option('--folder <path>', 'Destination folder path (defaults to /)')
     .option('--name <name>', 'Store it under a different name')
     .action(async (path: string, options: { folder?: string; name?: string }, command: Command) => {
       const { client, profile } = clientFrom(command)
@@ -27,9 +26,7 @@ export function attachFileUpload(files: Command): void {
           name,
           contentType: contentTypeFor(name),
           size,
-          ...(options.folder !== undefined
-            ? { folderPath: normalizeFolderPath(options.folder) }
-            : {}),
+          ...(options.folder !== undefined ? { folderPath: options.folder } : {}),
         },
       })
       const { session, uploadToken, transfer } = created.data
@@ -45,11 +42,9 @@ export function attachFileUpload(files: Command): void {
         path
       )
 
-      printProtocolResult(profile.output, {
-        id: completed.file?.id ?? session.id,
-        name,
-        size,
-        status: 'uploaded',
-      })
+      if (!completed.file) {
+        throw new Error(`File upload ${session.id} completed without a file`)
+      }
+      printProtocolResult(profile.output, completed.file)
     })
 }

@@ -44,7 +44,7 @@ function program(): Command {
 }
 
 describe('files upload', () => {
-  it('uses a signed PUT transfer and completes with an empty body', async () => {
+  it('uses a signed PUT transfer and completes without a request body', async () => {
     const path = join(dir, 'notes.txt')
     writeFileSync(path, 'hello')
     mockRequest
@@ -114,7 +114,7 @@ describe('files upload', () => {
           name: 'notes.txt',
           contentType: 'text/plain',
           size: 5,
-          folderPath: '/Reports',
+          folderPath: 'Reports',
         },
       },
     ])
@@ -124,14 +124,18 @@ describe('files upload', () => {
         method: 'POST',
         query: { workspaceId: 'ws_local' },
         headers: { 'upload-token': 'secret-token' },
-        body: {},
       },
     ])
     expect(JSON.parse(logged[0])).toEqual({
       id: 'file_1',
       name: 'notes.txt',
       size: 5,
-      status: 'uploaded',
+      type: 'text/plain',
+      key: 'workspace/ws_local/notes.txt',
+      folderPath: '/',
+      uploadedBy: 'user_1',
+      uploadedAt: '2026-08-04T19:00:00.000Z',
+      updatedAt: '2026-08-04T19:00:00.000Z',
     })
     expect(logged[0]).not.toContain('secret-token')
   })

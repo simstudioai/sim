@@ -115,7 +115,7 @@ describe('tables import output', () => {
       body: {
         workspaceId: 'ws_local',
         source: { type: 'workspace_file', fileId: 'file_1' },
-        target: { type: 'new', name: 'Customers', folderPath: '/Reports' },
+        target: { type: 'new', name: 'Customers', folderPath: 'Reports' },
       },
     })
 

@@ -24,6 +24,14 @@ export const DEFAULT_ENDPOINT = 'https://sim.ai'
 export const OUTPUT_FORMATS = ['table', 'json', 'yaml', 'text'] as const
 export type OutputFormat = (typeof OUTPUT_FORMATS)[number]
 
+/** An invalid active profile setting that the user can correct. */
+export class ProfileConfigError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'ProfileConfigError'
+  }
+}
+
 /** Everything a command needs to make a call, after the resolution chain runs. */
 export interface ResolvedProfile {
   name: string
@@ -47,6 +55,7 @@ export interface ProfileOverrides {
   endpoint?: string
   apiKey?: string
   workspaceId?: string
+  output?: OutputFormat
 }
 
 /**
@@ -127,12 +136,6 @@ function normalizeEndpoint(endpoint: string): string {
   return endpoint.replace(/\/+$/, '')
 }
 
-function parseOutput(value: string | undefined): OutputFormat | null {
-  return value && (OUTPUT_FORMATS as readonly string[]).includes(value)
-    ? (value as OutputFormat)
-    : null
-}
-
 /**
  * Resolves one setting through the precedence chain, reporting where it landed.
  * Order is flags → environment → files → built-in default, the same order every
@@ -185,19 +188,20 @@ export function resolveProfile(overrides: ProfileOverrides = {}): ResolvedProfil
     'unset'
   )
 
-  /**
-   * No flag tier: output format is a profile setting, not a per-command one.
-   * `SIM_OUTPUT` stays as the one-off escape hatch (`SIM_OUTPUT=json sim … | jq`)
-   * and as the file-less path for CI, but there is deliberately no `--output`.
-   */
-  const output = resolve<OutputFormat>(
+  const output = resolve<string>(
     [
-      ['env', parseOutput(process.env.SIM_OUTPUT)],
-      ['config', parseOutput(config.output)],
+      ['flag', overrides.output],
+      ['env', process.env.SIM_OUTPUT],
+      ['config', config.output],
     ],
     'table',
     'default'
   )
+  if (!(OUTPUT_FORMATS as readonly string[]).includes(output.value as string)) {
+    throw new ProfileConfigError(
+      `Unknown output format "${output.value}" from ${output.source}. Use one of: ${OUTPUT_FORMATS.join(', ')}`
+    )
+  }
 
   return {
     name,

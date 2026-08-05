@@ -49,8 +49,8 @@ export interface FlagSpec {
   describe?: string
   /** Accepted values when the generated descriptor cannot recover an enum. */
   choices?: readonly string[]
-  /** Normalizes a terminal-friendly value into its API wire representation. */
-  normalize?: 'folder-path'
+  /** Expose a string-backed API boolean as a conventional terminal toggle. */
+  boolean?: true
   /**
    * Never expose this field as a flag, and never send it.
    *
@@ -72,12 +72,25 @@ export interface ColumnSpec {
   format?: 'auto' | 'timestamp' | 'bytes' | 'duration' | 'bool' | 'cost' | 'count'
 }
 
+export interface BodyVariantSpec {
+  /** User-facing flag name, without `--`. */
+  name: string
+  /** Request-body property populated by this variant. */
+  property: string
+  /** JSON shape accepted by this variant. */
+  kind: 'object' | 'array'
+  /** One-line help describing when to use this variant. */
+  describe: string
+}
+
 export interface CommandSpec {
   /**
    * Command path, space-separated. Omit to accept the derived
    * `<resource> [sub-resource] <verb>` name.
    */
   command?: string
+  /** Run this operation when its top-level group is invoked without a subcommand. */
+  groupDefault?: boolean
   /** Alternate leaf command names, such as `ls` for `list`. */
   aliases?: readonly string[]
   /** Required query/body fields exposed as positional arguments, in order. */
@@ -86,6 +99,8 @@ export interface CommandSpec {
   describe?: string
   /** Per-field flag overrides, keyed by the contract's field name. */
   flags?: Record<string, FlagSpec>
+  /** Friendly mutually-exclusive flags for an otherwise opaque union body. */
+  bodyVariants?: readonly BodyVariantSpec[]
   /** Columns for table output. Omit on non-list commands to print a record. */
   columns?: ColumnSpec[]
   /** Fields shown for a single record in human formats. Machine output stays raw. */

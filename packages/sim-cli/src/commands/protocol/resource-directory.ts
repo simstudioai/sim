@@ -14,7 +14,6 @@ import {
 } from '../../generated/v2-api.js'
 import { SimApiError, type SimClient, type V2Page } from '../../http/client.js'
 import { type Column, printList, text, timestamp } from '../../output/render.js'
-import { normalizeFolderPath } from '../../runtime/folder-path.js'
 import { DEFAULT_LIMIT } from '../../runtime/options.js'
 import { renderResult } from '../../runtime/result.js'
 
@@ -179,7 +178,7 @@ export function attachResourceDirectoryCommands(
       }
 
       const limit = rawLimit === 0 ? Number.POSITIVE_INFINITY : rawLimit
-      const folderPath = normalizeFolderPath(path ?? '/')
+      const folderPath = path ?? '/'
       const { client, profile } = clientFrom(command)
       const workspaceId = client.requireWorkspace()
       const [folders, resources] = await Promise.all([
@@ -193,13 +192,13 @@ export function attachResourceDirectoryCommands(
   group
     .command('mkdir <path>')
     .allowExcessArguments(false)
-    .description(`Create a ${config.kind} directory at a canonical path`)
+    .description(`Create a ${config.kind} directory at a path`)
     .action(async (path: string, _options: Record<string, never>, command: Command) => {
       const { client, profile } = clientFrom(command)
       const operation = V2_OPERATIONS[config.createFolder]
       const result = await client.request<{ data?: unknown }>(operation.path, {
         method: operation.method,
-        body: { workspaceId: client.requireWorkspace(), path: normalizeFolderPath(path) },
+        body: { workspaceId: client.requireWorkspace(), path },
       })
       renderResult(config.createFolder, profile.output, result.data ?? result, {})
     })

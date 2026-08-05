@@ -46,7 +46,7 @@ async function uploadParts(
   session: UploadSession,
   transfer: Extract<UploadTransfer, { method: 'multipart' }>,
   blob: Blob
-): Promise<Array<{ partNumber: number; etag?: string }>> {
+): Promise<void> {
   const expectedPartCount = Math.ceil(session.size / transfer.partSize)
   if (expectedPartCount !== transfer.partCount) {
     throw new Error(
@@ -54,7 +54,6 @@ async function uploadParts(
     )
   }
 
-  const completed: Array<{ partNumber: number; etag?: string }> = []
   for (let first = 1; first <= transfer.partCount; first += PART_URL_BATCH) {
     const partNumbers = []
     for (let n = first; n < first + PART_URL_BATCH && n <= transfer.partCount; n++) {
@@ -87,12 +86,8 @@ async function uploadParts(
           response.status
         )
       }
-
-      const etag = response.headers.get('etag')?.replace(/"/g, '')
-      completed.push(etag ? { partNumber: part.partNumber, etag } : { partNumber: part.partNumber })
     }
   }
-  return completed
 }
 
 /** Uploads and completes a signed transfer, aborting its session if the transfer fails. */
@@ -104,19 +99,16 @@ export async function finishUploadSession<T>(
 ): Promise<T> {
   try {
     const blob = await openAsBlob(path)
-    let body: Record<string, unknown>
     if (session.transfer.method === 'put') {
       await uploadPut(session.transfer, blob)
-      body = {}
     } else {
-      body = { parts: await uploadParts(client, workspaceId, session, session.transfer, blob) }
+      await uploadParts(client, workspaceId, session, session.transfer, blob)
     }
 
     const completed = await client.request<{ data: T }>(`${session.basePath}/complete`, {
       method: 'POST',
       query: { workspaceId },
       headers: { 'upload-token': session.uploadToken },
-      body,
     })
     return completed.data
   } catch (error) {

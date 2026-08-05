@@ -96,24 +96,31 @@ describe('profile resolution', () => {
     expect(resolveProfile({ endpoint: 'https://sim.ai///' }).endpoint).toBe('https://sim.ai')
   })
 
-  it('ignores an unrecognized output format instead of failing the whole resolve', () => {
-    // Both output sources are ambient — set once, then every later command reads
-    // them — so a bad value falls back rather than breaking the CLI outright.
+  it('fails fast on an unrecognized active output format', () => {
     process.env.SIM_OUTPUT = 'xml'
-    expect(resolveProfile().output).toBe('table')
+    expect(() => resolveProfile()).toThrow(
+      'Unknown output format "xml" from env. Use one of: table, json, yaml, text'
+    )
 
-    process.env.SIM_OUTPUT = undefined
+    Reflect.deleteProperty(process.env, 'SIM_OUTPUT')
     writeConfigProfile('default', { output: 'xml' })
-    expect(resolveProfile().output).toBe('table')
+    expect(() => resolveProfile()).toThrow(
+      'Unknown output format "xml" from config. Use one of: table, json, yaml, text'
+    )
+    expect(resolveProfile({ output: 'json' }).output).toBe('json')
   })
 
-  it('takes the output format from the profile, and lets the env override it', () => {
-    // There is deliberately no `--output` flag: format is a profile setting.
+  it('resolves output from flag, environment, then profile', () => {
     writeConfigProfile('default', { output: 'yaml' })
     expect(resolveProfile()).toMatchObject({ output: 'yaml', sources: { output: 'config' } })
 
     process.env.SIM_OUTPUT = 'json'
     expect(resolveProfile()).toMatchObject({ output: 'json', sources: { output: 'env' } })
+
+    expect(resolveProfile({ output: 'text' })).toMatchObject({
+      output: 'text',
+      sources: { output: 'flag' },
+    })
   })
 
   it('accepts every documented output format from the environment', () => {

@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 
 import chalk from 'chalk'
-import { Command } from 'commander'
+import { Command, Option } from 'commander'
 import { loginCommand, logoutCommand, profilesCommand, whoamiCommand } from './commands/auth.js'
 import { configureCommand } from './commands/configure.js'
 import { attachProtocolCommands } from './commands/protocol/index.js'
+import { OUTPUT_FORMATS, ProfileConfigError } from './config/index.js'
 import { formatApiErrorDetails, SimApiError } from './http/client.js'
 import { sanitize } from './output/render.js'
 import { buildGeneratedCommands } from './runtime/build.js'
@@ -18,6 +19,9 @@ program
   .option('-p, --profile <name>', 'Profile to use (env: SIM_PROFILE)')
   .option('--endpoint <url>', 'Sim deployment to talk to (env: SIM_ENDPOINT)')
   .option('-w, --workspace <id>', 'Workspace to target (env: SIM_WORKSPACE)')
+  .addOption(
+    new Option('--output <format>', 'Output format for this command').choices([...OUTPUT_FORMATS])
+  )
 
 program.addCommand(loginCommand())
 program.addCommand(logoutCommand())
@@ -42,7 +46,8 @@ Examples:
   $ sim login --profile dev --endpoint http://localhost:3000
   $ sim workflows list
   $ sim logs list --level error --limit 20
-  $ sim configure --set-output json           Output format is a profile setting
+  $ sim --output json tables get tbl_123        Override output for one command
+  $ sim configure --set-output json             Save a profile output default
   $ sim knowledge search --query "refund policy" --kb kb_123
   $ sim workflows export wf_123 > wf.json        JSON flags read files with @
   $ sim workflows import --workflow @wf.json
@@ -59,6 +64,10 @@ async function main() {
   try {
     await program.parseAsync(process.argv)
   } catch (error) {
+    if (error instanceof ProfileConfigError) {
+      console.error(chalk.red(`Error: ${error.message}`))
+      process.exit(1)
+    }
     if (error instanceof SimApiError) {
       console.error(chalk.red(`Error: ${error.message}`))
       if (error.code) console.error(chalk.dim(`  code: ${error.code}`))
