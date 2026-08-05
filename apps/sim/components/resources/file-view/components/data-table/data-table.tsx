@@ -2,7 +2,7 @@
 
 import { forwardRef, memo, useCallback, useImperativeHandle, useRef, useState } from 'react'
 import { cn } from '@sim/emcn'
-import './document-table.css'
+import '../document-table.css'
 
 interface EditConfig {
   onCellChange: (row: number, col: number, value: string) => void
