@@ -166,7 +166,8 @@ export const CLI_CONTRACT: CliContract = {
     ],
   },
   getLog: {
-    describe: 'Show a log summary (execution data is available in JSON or YAML output)',
+    describe:
+      'Show a log summary (traceSpans and executionData are included in JSON or YAML output)',
     fields: [
       { header: 'id' },
       { header: 'execution', path: 'executionId' },

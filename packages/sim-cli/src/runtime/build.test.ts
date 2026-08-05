@@ -458,6 +458,10 @@ describe('commands parsed through commander', () => {
       /--encoding.*utf-8.*base64/s
     )
   })
+
+  it('points log detail users to complete trace output', () => {
+    expect(commandAt('logs', 'get').description()).toMatch(/traceSpans.*JSON or YAML/)
+  })
 })
 
 describe('single-resource rendering', () => {
@@ -555,7 +559,7 @@ describe('single-resource rendering', () => {
     expect(JSON.parse(printed[0])).toEqual({ row: { id: 'r1' }, operation: 'inserted' })
   })
 
-  it('keeps sensitive execution data out of human log output', async () => {
+  it('keeps sensitive execution detail out of human log output', async () => {
     const log = {
       id: 'log_1',
       executionId: 'exec_1',
@@ -568,14 +572,38 @@ describe('single-resource rendering', () => {
       cost: { total: 0.001 },
       files: [],
       executionData: { env: { SECRET_TOKEN: 'encrypted-value' } },
+      traceSpans: [
+        {
+          id: 'span_1',
+          name: 'Workflow Execution',
+          type: 'workflow',
+          children: [
+            {
+              id: 'span_2',
+              name: 'Send email',
+              type: 'block',
+              input: { recipient: 'private@example.com' },
+            },
+          ],
+        },
+      ],
     }
 
     const human = await lines(['logs', 'get', 'log_1'], log, 'text')
     expect(human.join('\n')).not.toContain('executionData')
     expect(human.join('\n')).not.toContain('SECRET_TOKEN')
+    expect(human.join('\n')).not.toContain('traceSpans')
+    expect(human.join('\n')).not.toContain('private@example.com')
 
     const machine = await lines(['logs', 'get', 'log_1'], log, 'json')
-    expect(JSON.parse(machine[0])).toMatchObject({ executionData: log.executionData })
+    expect(JSON.parse(machine[0])).toMatchObject({
+      executionData: log.executionData,
+      traceSpans: log.traceSpans,
+    })
+
+    const yaml = await lines(['logs', 'get', 'log_1'], log, 'yaml')
+    expect(yaml.join('\n')).toContain('traceSpans:')
+    expect(yaml.join('\n')).toContain('span_2')
   })
 })
 

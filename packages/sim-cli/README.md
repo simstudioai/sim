@@ -125,8 +125,8 @@ sim workflows deploy|undeploy|rollback <id>
 sim workflows run <id> [--input <json|@file>] [--select-output <path>…]
 
 sim logs list [--level error] [--workflow <id>…] [--trigger <name>…] [--start <date>]
-sim logs get <id>
-sim logs execution <executionId>
+sim logs get <logId>
+sim logs executions get <executionId>
 
 sim tables ls [path] [--search <text>] [--limit <n>]
 sim tables list [--folder <path>]
@@ -169,6 +169,13 @@ sim billing logs [--period 7d] [--source sim-chat] [--limit <n>]
 ```
 
 The `sim-chat` billing source combines Copilot and workspace chat usage.
+
+`sim logs get` keeps the default human output concise. Use JSON or YAML to
+inspect its complete `executionData` and recursive `traceSpans` tree:
+
+```bash
+sim logs get <logId> --output json | jq '.traceSpans'
+```
 
 Workflow output selectors use `blockName.field` syntax, such as
 `--select-output agent_1.content`; fields that are not produced are omitted.

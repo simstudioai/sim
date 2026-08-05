@@ -2175,6 +2175,39 @@ export type GetLogParams = {
   id: string
 }
 
+type GetLogResponseRef0 = {
+  id: string
+  name: string
+  type: string
+  duration?: number
+  durationMs?: number
+  startTime?: string
+  endTime?: string
+  status?: string
+  blockId?: string
+  input?: unknown
+  output?: unknown
+  tokens?:
+    | number
+    | {
+        total?: number
+        input?: number
+        output?: number
+      }
+  relativeStartMs?: number
+  toolCalls?: Array<{
+    id?: string
+    name?: string
+    arguments?: unknown
+    result?: unknown
+    error?: string
+    startTime?: string
+    endTime?: string
+    duration?: number
+  }>
+  children?: Array<GetLogResponseRef0>
+}
+
 export type GetLogResponse = {
   data: {
     id: string
@@ -2198,6 +2231,7 @@ export type GetLogResponse = {
       deleted: boolean
     }
     executionData: unknown
+    traceSpans: Array<GetLogResponseRef0>
     cost: {
       total: number
     } | null
@@ -2897,6 +2931,39 @@ export type ListLogsQuery = {
   folderPaths?: string
 }
 
+type ListLogsResponseRef0 = {
+  id: string
+  name: string
+  type: string
+  duration?: number
+  durationMs?: number
+  startTime?: string
+  endTime?: string
+  status?: string
+  blockId?: string
+  input?: unknown
+  output?: unknown
+  tokens?:
+    | number
+    | {
+        total?: number
+        input?: number
+        output?: number
+      }
+  relativeStartMs?: number
+  toolCalls?: Array<{
+    id?: string
+    name?: string
+    arguments?: unknown
+    result?: unknown
+    error?: string
+    startTime?: string
+    endTime?: string
+    duration?: number
+  }>
+  children?: Array<ListLogsResponseRef0>
+}
+
 export type ListLogsResponse = {
   data: Array<{
     id: string
@@ -2919,7 +2986,7 @@ export type ListLogsResponse = {
       deleted: boolean
     }
     finalOutput?: unknown
-    traceSpans?: unknown
+    traceSpans?: Array<ListLogsResponseRef0>
   }>
   nextCursor: string | null
 }
