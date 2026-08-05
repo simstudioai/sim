@@ -26,6 +26,7 @@ import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/provide
 import { useRunningActionSweep } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/action-bar/use-running-action-sweep'
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { validateTriggerPaste } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
+import { areRunFromBlockDependenciesSatisfied } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useExecutionStore } from '@/stores/execution'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -185,20 +186,11 @@ export const ActionBar = memo(
     const isInsideSubflow = parentId && (parentType === 'loop' || parentType === 'parallel')
 
     const snapshot = activeWorkflowId ? getLastExecutionSnapshot(activeWorkflowId) : null
-    const incomingEdges = edges.filter((edge) => edge.target === blockId)
-    const isTriggerBlock = incomingEdges.length === 0
-
-    // Check if each source block is either executed OR is a trigger block (triggers don't need prior execution)
-    const isSourceSatisfied = (sourceId: string) => {
-      if (snapshot?.executedBlocks.includes(sourceId)) return true
-      // Check if source is a trigger (has no incoming edges itself)
-      const sourceIncomingEdges = edges.filter((edge) => edge.target === sourceId)
-      return sourceIncomingEdges.length === 0
-    }
-
-    // Non-trigger blocks need a snapshot to exist (so upstream outputs are available)
-    const dependenciesSatisfied =
-      isTriggerBlock || (snapshot && incomingEdges.every((edge) => isSourceSatisfied(edge.source)))
+    const dependenciesSatisfied = areRunFromBlockDependenciesSatisfied(
+      blockId,
+      edges,
+      snapshot?.executedBlocks
+    )
     const canRunFromBlock =
       dependenciesSatisfied && !isNoteBlock && !isInsideSubflow && !isWorkflowRunning
     /*

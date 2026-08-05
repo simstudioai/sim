@@ -9,10 +9,10 @@ import {
   type NoteColor,
   type NoteContentEditorProps,
 } from '@sim/workflow-renderer'
+import dynamic from 'next/dynamic'
 import { type NodeProps, useReactFlow } from 'reactflow'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ActionBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/action-bar/action-bar'
-import { NoteMarkdownEditor } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/note-block/note-markdown-editor'
 import type { WorkflowBlockProps } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/types'
 import { useBlockVisual } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { useBlockDimensions } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-dimensions'
@@ -24,6 +24,20 @@ import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 interface NoteBlockNodeData extends WorkflowBlockProps {}
+
+/**
+ * Lazy for the same reason every other consumer of the markdown field is: it
+ * carries TipTap and the full extension set, and a Note only mounts it once the
+ * user clicks into the body. A static import would put all of that in the
+ * canvas's initial chunk, which every workflow pays for.
+ */
+const NoteMarkdownEditor = dynamic(
+  () =>
+    import(
+      '@/app/workspace/[workspaceId]/w/[workflowId]/components/note-block/note-markdown-editor'
+    ).then((m) => m.NoteMarkdownEditor),
+  { ssr: false, loading: () => <div className='min-h-full w-full' /> }
+)
 
 const NOTE_EXPAND_FOCUS_DURATION_MS = 300
 

@@ -35,16 +35,10 @@ type NoteEditingField = 'title' | 'content' | null
 
 export interface NoteContentEditorProps {
   value: string
+  /** The note colour's selection tint, applied to the editor's own prose. */
   selectionClassName: string
   /** Persists as the user types; the note has no uncommitted buffer. */
   onChange: (content: string) => void
-  /**
-   * Leaves inline editing. Blur and Escape both land here deliberately —
-   * `onChange` has already persisted every keystroke, so there is no draft for
-   * an Escape path to discard and a separate cancel callback would only look
-   * like one.
-   */
-  onEndEditing: () => void
 }
 
 interface EditPointerStart {
@@ -727,6 +721,21 @@ export function NoteBlockView({
                 className='nodrag nopan nowheel min-h-full w-full'
                 onClick={(event) => event.stopPropagation()}
                 onPointerDown={(event) => event.stopPropagation()}
+                /* Leaving edit mode is the card's concern, not the injected
+                   editor's — so the editor stays a plain value surface. Escape
+                   is only honoured when nothing already consumed it: the
+                   editor's `/` and `@` menus preventDefault it to close
+                   themselves, and that must not also close the note. */
+                onKeyDown={(event) => {
+                  if (event.key !== 'Escape' || event.defaultPrevented) return
+                  event.preventDefault()
+                  setEditingField(null)
+                }}
+                /* Focus moving inside the editor (a menu, a code block's
+                   language select) is not an exit. */
+                onBlur={(event) => {
+                  if (!event.currentTarget.contains(event.relatedTarget)) setEditingField(null)
+                }}
               >
                 {renderContentEditor({
                   value: draftContent,
@@ -735,7 +744,6 @@ export function NoteBlockView({
                     setDraftContent(nextContent)
                     onContentChange?.(nextContent)
                   },
-                  onEndEditing: () => setEditingField(null),
                 })}
               </div>
             ) : (

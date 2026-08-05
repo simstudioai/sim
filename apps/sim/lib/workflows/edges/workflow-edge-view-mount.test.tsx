@@ -5,10 +5,29 @@ import { act } from 'react'
 import { WorkflowEdgeView, type WorkflowEdgeViewProps } from '@sim/workflow-renderer'
 import { createRoot, type Root } from 'react-dom/client'
 import { Position } from 'reactflow'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 const mountedHosts = new Set<HTMLDivElement>()
 const mountedRoots = new Set<Root>()
+
+let prefersReducedMotion = false
+
+beforeAll(() => {
+  window.matchMedia = ((query: string) => ({
+    matches: query.includes('prefers-reduced-motion') ? prefersReducedMotion : false,
+    media: query,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    addListener: () => {},
+    removeListener: () => {},
+    onchange: null,
+    dispatchEvent: () => false,
+  })) as unknown as typeof window.matchMedia
+})
+
+beforeEach(() => {
+  prefersReducedMotion = false
+})
 
 function renderEdge(overrides: Partial<WorkflowEdgeViewProps> = {}) {
   const host = document.createElement('div')
@@ -76,7 +95,7 @@ describe('WorkflowEdgeView', () => {
     expect(host.querySelector('[data-workflow-edge-state="waiting"]')).not.toBeNull()
   })
 
-  it('moves a reduced-motion-safe signal toward the currently active target', () => {
+  it('moves a signal toward the currently active target', () => {
     const { host, pulseLayers, traversingPath, pulseGlow } = renderEdge({
       runStatus: 'success',
       isWorkflowRunning: true,
@@ -87,7 +106,6 @@ describe('WorkflowEdgeView', () => {
     expect(traversingPath).not.toBeNull()
     expect(pulseGlow).not.toBeNull()
     expect(pulseLayers).toHaveLength(4)
-    expect(traversingPath?.classList.contains('motion-reduce:hidden')).toBe(true)
     expect(traversingPath?.getAttribute('stroke-dasharray')).toBe('0.07 2.13')
     expect(traversingPath?.getAttribute('stroke')).toBe('var(--white)')
     expect(pulseGlow?.getAttribute('stroke-dasharray')).toBe('0.32 1.88')
@@ -108,6 +126,47 @@ describe('WorkflowEdgeView', () => {
       ['body', '0.15 2.05', '0.6'],
       ['core', '0.07 2.13', '1'],
     ])
+  })
+
+  it('renders no pulse under reduced motion, and still reports the edge as traversing', () => {
+    /*
+     * `motion-reduce:hidden` is `display: none`, which hides the four pulse
+     * layers but leaves their SMIL timelines running. Not rendering them stops
+     * the work; the edge must still read as traversing so its colour and width
+     * are unchanged.
+     */
+    prefersReducedMotion = true
+    const { host, pulseLayers, traversingPath, path } = renderEdge({
+      runStatus: 'success',
+      isWorkflowRunning: true,
+      isTargetActive: true,
+    })
+
+    expect(host.querySelector('[data-workflow-edge-state="traversing"]')).not.toBeNull()
+    expect(pulseLayers).toHaveLength(0)
+    expect(traversingPath).toBeNull()
+    expect(host.querySelector('filter')).toBeNull()
+    expect(path?.style.stroke).toBe('var(--text-secondary)')
+    expect(path?.style.strokeWidth).toBe('2')
+  })
+
+  it('sizes the glow filter in user space so a flat edge still renders it', () => {
+    /*
+     * The default `objectBoundingBox` units resolve against the path's bbox,
+     * and a straight horizontal edge — what an auto-laid-out chain produces —
+     * has zero height there, which zeroes the region and stops the referencing
+     * element rendering entirely. This fixture's endpoints share a Y.
+     */
+    const { host } = renderEdge({
+      runStatus: 'success',
+      isWorkflowRunning: true,
+      isTargetActive: true,
+    })
+
+    const filter = host.querySelector('filter')
+    expect(filter?.getAttribute('filterUnits')).toBe('userSpaceOnUse')
+    expect(Number(filter?.getAttribute('height'))).toBeGreaterThan(0)
+    expect(Number(filter?.getAttribute('width'))).toBeGreaterThan(0)
   })
 
   it('settles a taken edge when its target is no longer active', () => {

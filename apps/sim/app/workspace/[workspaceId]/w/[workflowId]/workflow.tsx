@@ -85,6 +85,7 @@ import {
   shouldHighlightContainerDropTarget,
   validateTriggerPaste,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
+import { areRunFromBlockDependenciesSatisfied } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
 import {
   defaultEdgeOptions,
   edgeTypes,
@@ -1442,21 +1443,11 @@ const WorkflowContent = React.memo(
       }
       const block = contextMenuBlocks[0]
       const snapshot = getLastExecutionSnapshot(workflowIdParam)
-      const incomingEdges = edges.filter((edge) => edge.target === block.id)
-      const isTriggerBlock = incomingEdges.length === 0
-
-      // Check if each source block is either executed OR is a trigger block (triggers don't need prior execution)
-      const isSourceSatisfied = (sourceId: string) => {
-        if (snapshot?.executedBlocks.includes(sourceId)) return true
-        // Check if source is a trigger (has no incoming edges itself)
-        const sourceIncomingEdges = edges.filter((edge) => edge.target === sourceId)
-        return sourceIncomingEdges.length === 0
-      }
-
-      // Non-trigger blocks need a snapshot to exist (so upstream outputs are available)
-      const dependenciesSatisfied =
-        isTriggerBlock ||
-        (snapshot && incomingEdges.every((edge) => isSourceSatisfied(edge.source)))
+      const dependenciesSatisfied = areRunFromBlockDependenciesSatisfied(
+        block.id,
+        edges,
+        snapshot?.executedBlocks
+      )
       const isNoteBlock = block.type === 'note'
       const isInsideSubflow =
         block.parentId && (block.parentType === 'loop' || block.parentType === 'parallel')

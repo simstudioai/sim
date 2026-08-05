@@ -1,4 +1,5 @@
 import { useId, useMemo } from 'react'
+import { usePrefersReducedMotion } from '@sim/emcn'
 import { X } from 'lucide-react'
 import { BaseEdge, EdgeLabelRenderer, type EdgeProps, getSmoothStepPath } from 'reactflow'
 import type { EdgeDiffStatus, EdgeRunStatus } from '../types'
@@ -90,6 +91,7 @@ export function WorkflowEdgeView({
   isTargetActive = false,
   isConnectedToSelection = false,
 }: WorkflowEdgeViewProps) {
+  const prefersReducedMotion = usePrefersReducedMotion()
   const pulseId = useId().replaceAll(':', '')
   const pulseGlowId = `workflow-edge-pulse-glow-${pulseId}`
   const isHorizontal = sourcePosition === 'right' || sourcePosition === 'left'
@@ -128,6 +130,13 @@ export function WorkflowEdgeView({
   const isErrorEdge = (sourceHandle ?? dataSourceHandle) === 'error'
   const hasRunStatus = runStatus === 'success' || runStatus === 'error'
   const isTraversing = isWorkflowRunning && hasRunStatus && isTargetActive && !diffStatus
+  /*
+   * Gated on the setting rather than `motion-reduce:hidden`: that compiles to
+   * `display: none`, which hides the pulse but leaves four SMIL timelines
+   * running per traversing edge. `isTraversing` itself stays semantic so
+   * `executionState` still reports the edge as traversing either way.
+   */
+  const showsPulse = isTraversing && !prefersReducedMotion
   const executionState = isWorkflowRunning
     ? isTraversing
       ? 'traversing'
@@ -193,7 +202,7 @@ export function WorkflowEdgeView({
     <>
       <g data-workflow-edge-state={executionState}>
         <BaseEdge path={edgePath} style={edgeStyle} interactionWidth={30} />
-        {isTraversing && (
+        {showsPulse && (
           <>
             <defs>
               {/*
@@ -233,7 +242,7 @@ export function WorkflowEdgeView({
                   vectorEffect='non-scaling-stroke'
                   filter={layer.id === 'tail' ? `url(#${pulseGlowId})` : undefined}
                   opacity={layer.opacity}
-                  className='pointer-events-none motion-reduce:hidden'
+                  className='pointer-events-none'
                 >
                   <animate
                     attributeName='stroke-dashoffset'

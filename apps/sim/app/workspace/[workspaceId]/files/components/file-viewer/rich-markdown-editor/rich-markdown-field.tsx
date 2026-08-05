@@ -52,6 +52,22 @@ interface RichMarkdownFieldProps {
    * markdown paste.
    */
   onPasteText?: (text: string) => boolean
+  /**
+   * Chrome around the editor.
+   *
+   * `'field'` is the bordered chip-field box every form surface uses. `'bare'`
+   * drops the box, its padding and its default height so a host that already
+   * owns a surface — the canvas Note card, which paints its own fill and text
+   * colour — renders the editor inline instead of nesting a second field
+   * inside it. Bare also omits the floating menus, which assume a bounded
+   * scroll container to position against.
+   */
+  surface?: 'field' | 'bare'
+  /**
+   * Typography for a `'bare'` surface, where the host owns the type scale and
+   * colour. Ignored by `'field'`, which keeps the shared prose styling.
+   */
+  proseClassName?: string
 }
 
 /**
@@ -66,14 +82,19 @@ function LoadedRichMarkdownField({
   disabled = false,
   isStreaming = false,
   autoFocus = false,
-  minHeight = 140,
+  minHeight,
   maxHeight,
   error = false,
   workspaceId,
   disableTagging,
   onPasteText,
+  surface = 'field',
+  proseClassName,
 }: RichMarkdownFieldProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const isBare = surface === 'bare'
+  /* A field keeps its 140px floor; a bare surface is sized by its host. */
+  const boxMinHeight = minHeight ?? (isBare ? undefined : 140)
 
   /**
    * Frontmatter is held out-of-band and re-attached on serialize, exactly like the file editor. Split
@@ -182,25 +203,34 @@ function LoadedRichMarkdownField({
     <div
       ref={containerRef}
       className={cn(
-        'flex flex-col px-3 py-2',
+        'flex flex-col',
         // Only a capped box scrolls itself. Uncapped, the box grows and the page
         // scrolls — making it a scroll container anyway would clip the bubble
         // menu against an edge that never moves.
         maxHeight !== undefined && 'overflow-y-auto',
-        chipFieldSurfaceClass,
-        error && 'border-[var(--text-error)]',
-        !disabled && !isStreaming && 'cursor-text',
-        // Match the chip fields' disabled chrome (dimmed, not copyable) while
-        // keeping the container scrollable; streaming stays full-strength.
-        disabled && !isStreaming && 'select-none opacity-50'
+        !isBare && [
+          'px-3 py-2',
+          chipFieldSurfaceClass,
+          error && 'border-[var(--text-error)]',
+          !disabled && !isStreaming && 'cursor-text',
+          // Match the chip fields' disabled chrome (dimmed, not copyable) while
+          // keeping the container scrollable; streaming stays full-strength.
+          disabled && !isStreaming && 'select-none opacity-50',
+        ],
+        isBare && 'min-h-full w-full'
       )}
-      style={{ minHeight, maxHeight }}
+      style={{ minHeight: boxMinHeight, maxHeight }}
     >
-      {editor && <EditorBubbleMenu editor={editor} scrollContainerRef={containerRef} />}
-      {editor && <LinkHoverCard editor={editor} />}
+      {editor && !isBare && <EditorBubbleMenu editor={editor} scrollContainerRef={containerRef} />}
+      {editor && !isBare && <LinkHoverCard editor={editor} />}
       <EditorContent
         editor={editor}
-        className='flex flex-1 flex-col selection:bg-[var(--selection-bg)] selection:text-[var(--text-primary)] dark:selection:bg-[var(--selection-dark)] dark:selection:text-white'
+        className={cn(
+          'flex flex-1 flex-col',
+          isBare
+            ? proseClassName
+            : 'selection:bg-[var(--selection-bg)] selection:text-[var(--text-primary)] dark:selection:bg-[var(--selection-dark)] dark:selection:text-white'
+        )}
       />
     </div>
   )
@@ -218,14 +248,18 @@ function RawMarkdownField({
   placeholder,
   disabled = false,
   isStreaming = false,
-  minHeight = 140,
+  minHeight,
   maxHeight,
   error = false,
   onPasteText,
+  surface = 'field',
+  proseClassName,
 }: RichMarkdownFieldProps) {
   // Disabled-look without the `disabled` attribute — a disabled textarea is
   // inert to wheel/scrollbar, but locked content must stay scrollable.
   const lockedView = disabled && !isStreaming
+  const isBare = surface === 'bare'
+  const boxMinHeight = minHeight ?? (isBare ? undefined : 140)
 
   /**
    * Uncapped, the textarea grows with its content so it matches the WYSIWYG
@@ -242,7 +276,7 @@ function RawMarkdownField({
 
     const measure = () => {
       el.style.height = 'auto'
-      el.style.height = `${Math.max(el.scrollHeight, minHeight)}px`
+      el.style.height = `${Math.max(el.scrollHeight, boxMinHeight ?? 0)}px`
     }
     measure()
 
@@ -252,24 +286,51 @@ function RawMarkdownField({
     const observer = new ResizeObserver(measure)
     observer.observe(el)
     return () => observer.disconnect()
-  }, [autoGrow, value, minHeight])
+  }, [autoGrow, value, boxMinHeight])
+
+  const handlePaste = (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const text = event.clipboardData.getData('text/plain')
+    if (text && onPasteText?.(text)) event.preventDefault()
+  }
+
+  /* A bare host paints its own surface, so the raw fallback is a plain
+     textarea inheriting the host's colour — a chip field nested inside a Note
+     card would draw a second, conflicting surface. */
+  if (isBare) {
+    return (
+      <textarea
+        ref={textareaRef}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        onPaste={handlePaste}
+        placeholder={placeholder}
+        readOnly={isStreaming || lockedView}
+        tabIndex={lockedView ? -1 : undefined}
+        className={cn(
+          'w-full resize-none border-none bg-transparent p-0 text-current caret-current outline-none focus-visible:outline-none',
+          'scrollbar-none placeholder:text-current placeholder:opacity-55',
+          lockedView && 'select-none opacity-50',
+          autoGrow && 'overflow-hidden',
+          proseClassName
+        )}
+        style={{ minHeight: boxMinHeight, maxHeight }}
+      />
+    )
+  }
 
   return (
     <ChipTextarea
       ref={textareaRef}
       value={value}
       onChange={(event) => onChange(event.target.value)}
-      onPaste={(event) => {
-        const text = event.clipboardData.getData('text/plain')
-        if (text && onPasteText?.(text)) event.preventDefault()
-      }}
+      onPaste={handlePaste}
       placeholder={placeholder}
       error={error}
       viewOnly={lockedView}
       readOnly={isStreaming}
       tabIndex={lockedView ? -1 : undefined}
       className={cn(lockedView && 'select-none opacity-50', autoGrow && 'overflow-hidden')}
-      style={{ minHeight, maxHeight }}
+      style={{ minHeight: boxMinHeight, maxHeight }}
     />
   )
 }

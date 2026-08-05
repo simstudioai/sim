@@ -5,6 +5,7 @@ import { resetTerminalConsoleMock, terminalConsoleMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   addExecutionErrorConsoleEntry,
+  areRunFromBlockDependenciesSatisfied,
   createBlockEventHandlers,
   handleExecutionErrorConsole,
   reconcileFinalBlockLogs,
@@ -18,6 +19,50 @@ describe('workflow-execution-utils', () => {
     vi.mocked(useExecutionStore.getState).mockReturnValue({
       getCurrentExecutionId: vi.fn(() => 'exec-1'),
     } as any)
+  })
+
+  describe('areRunFromBlockDependenciesSatisfied', () => {
+    /* The ActionBar's Run button, the canvas context menu and the handler that
+       actually starts the run all ask this. They used to hold byte-identical
+       copies, so the affordance and the action could drift apart. */
+    const chain = [
+      { source: 'trigger', target: 'a' },
+      { source: 'a', target: 'b' },
+    ]
+
+    it('always allows a block with no incoming edges', () => {
+      expect(areRunFromBlockDependenciesSatisfied('trigger', chain, undefined)).toBe(true)
+      expect(areRunFromBlockDependenciesSatisfied('orphan', chain, undefined)).toBe(true)
+    })
+
+    it('refuses a downstream block with no snapshot to read upstream output from', () => {
+      expect(areRunFromBlockDependenciesSatisfied('b', chain, undefined)).toBe(false)
+    })
+
+    it('allows a block whose sources all executed in the last run', () => {
+      expect(areRunFromBlockDependenciesSatisfied('b', chain, ['trigger', 'a'])).toBe(true)
+    })
+
+    it('refuses a block whose source has not executed', () => {
+      expect(areRunFromBlockDependenciesSatisfied('b', chain, ['trigger'])).toBe(false)
+    })
+
+    it('treats an unexecuted source that is itself a trigger as satisfied', () => {
+      /* A trigger never appears in executedBlocks when the run started
+         downstream of it, but it needs no prior output of its own. */
+      expect(areRunFromBlockDependenciesSatisfied('a', chain, [])).toBe(true)
+    })
+
+    it('requires every source of a join, not just one', () => {
+      const join = [
+        { source: 'trigger', target: 'a' },
+        { source: 'trigger', target: 'b' },
+        { source: 'a', target: 'c' },
+        { source: 'b', target: 'c' },
+      ]
+      expect(areRunFromBlockDependenciesSatisfied('c', join, ['a'])).toBe(false)
+      expect(areRunFromBlockDependenciesSatisfied('c', join, ['a', 'b'])).toBe(true)
+    })
   })
 
   describe('createBlockEventHandlers', () => {

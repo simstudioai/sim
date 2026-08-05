@@ -101,22 +101,13 @@ afterEach(() => {
  * so exercising it through this seam is exactly the path production takes,
  * rather than a second built-in editing surface only tests ever reached.
  */
-function renderTestContentEditor({
-  value,
-  selectionClassName,
-  onChange,
-  onEndEditing,
-}: NoteContentEditorProps) {
+function renderTestContentEditor({ value, selectionClassName, onChange }: NoteContentEditorProps) {
   return (
     <textarea
       aria-label='Note content'
       className={selectionClassName}
       value={value}
       onChange={(event) => onChange(event.target.value)}
-      onBlur={onEndEditing}
-      onKeyDown={(event) => {
-        if (event.key === 'Escape') onEndEditing()
-      }}
     />
   )
 }
@@ -636,8 +627,8 @@ describe('WorkflowBlockBorder mount', () => {
     expect(handleContentChange).toHaveBeenCalledWith(expect.stringContaining('Maximum height'))
     expect(host.querySelector('[data-note-card]')).toHaveStyle({ height: '400px' })
 
-    /* Escape leaves editing through the same path as blur — content is already
-       persisted per keystroke, so there is no draft for it to discard. */
+    /* Escape leaves editing, and the card owns that — the injected editor is a
+       plain value surface with no exit callback of its own. */
     act(() => {
       contentInput?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
     })

@@ -43,6 +43,7 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-attachment-upload'
 import {
   addHttpErrorConsoleEntry,
+  areRunFromBlockDependenciesSatisfied,
   type BlockEventHandlerConfig,
   createBlockEventHandlers,
   reconcileFinalBlockLogs,
@@ -1887,16 +1888,7 @@ export function useWorkflowExecution() {
     async (blockId: string, workflowId: string) => {
       const snapshot = getLastExecutionSnapshot(workflowId)
       const workflowEdges = useWorkflowStore.getState().edges
-      const incomingEdges = workflowEdges.filter((edge) => edge.target === blockId)
-      const isTriggerBlock = incomingEdges.length === 0
-
-      // Check if each source block is either executed OR is a trigger block (triggers don't need prior execution)
-      const isSourceSatisfied = (sourceId: string) => {
-        if (snapshot?.executedBlocks.includes(sourceId)) return true
-        // Check if source is a trigger (has no incoming edges itself)
-        const sourceIncomingEdges = workflowEdges.filter((edge) => edge.target === sourceId)
-        return sourceIncomingEdges.length === 0
-      }
+      const isTriggerBlock = !workflowEdges.some((edge) => edge.target === blockId)
 
       // Non-trigger blocks need a snapshot to exist (so upstream outputs are available)
       if (!snapshot && !isTriggerBlock) {
@@ -1904,8 +1896,11 @@ export function useWorkflowExecution() {
         return
       }
 
-      const dependenciesSatisfied =
-        isTriggerBlock || incomingEdges.every((edge) => isSourceSatisfied(edge.source))
+      const dependenciesSatisfied = areRunFromBlockDependenciesSatisfied(
+        blockId,
+        workflowEdges,
+        snapshot?.executedBlocks
+      )
 
       if (!dependenciesSatisfied) {
         logger.error('Upstream dependencies not satisfied for run-from-block', {

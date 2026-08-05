@@ -89,6 +89,45 @@ function shouldActivateEdgeClient(
   }
 }
 
+/**
+ * Whether a run may start at `blockId` using the last snapshot's results.
+ *
+ * A block with no incoming edges is a trigger and always runnable. Otherwise
+ * every source must either have executed in the last run or itself be a
+ * trigger, and a snapshot must exist at all for the upstream outputs to read
+ * from — pass `undefined` for `executedBlocks` when there is none.
+ *
+ * One definition for the three surfaces that ask the question: the ActionBar's
+ * Run button, the canvas context menu, and the run-from-block handler that
+ * actually starts the run. They previously carried byte-identical copies, and
+ * the handler expressed the snapshot requirement differently from the other
+ * two, so the affordance and the action could disagree.
+ *
+ * Indexed rather than filtered: each copy re-scanned `edges` once per incoming
+ * edge, so a card with k inputs walked the whole edge list k+1 times — on every
+ * ActionBar on the canvas, on every render.
+ */
+export function areRunFromBlockDependenciesSatisfied(
+  blockId: string,
+  edges: ReadonlyArray<{ source: string; target: string }>,
+  executedBlocks: readonly string[] | undefined
+): boolean {
+  const blocksWithIncomingEdges = new Set<string>()
+  const incomingSources: string[] = []
+  for (const edge of edges) {
+    blocksWithIncomingEdges.add(edge.target)
+    if (edge.target === blockId) incomingSources.push(edge.source)
+  }
+
+  if (incomingSources.length === 0) return true
+  if (!executedBlocks) return false
+
+  const executed = new Set(executedBlocks)
+  return incomingSources.every(
+    (sourceId) => executed.has(sourceId) || !blocksWithIncomingEdges.has(sourceId)
+  )
+}
+
 export function markOutgoingEdgesFromOutput(
   blockId: string,
   output: Record<string, any> | undefined,

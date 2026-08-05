@@ -1,16 +1,8 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
 import { cn } from '@sim/emcn'
 import type { NoteContentEditorProps } from '@sim/workflow-renderer'
-import type { JSONContent } from '@tiptap/core'
-import Placeholder from '@tiptap/extension-placeholder'
-import { EditorContent, useEditor } from '@tiptap/react'
-import { createMarkdownContentExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/extensions'
-import { postProcessSerializedMarkdown } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
-import { parseMarkdownToDoc } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-parse'
-
-type NoteMarkdownEditorProps = NoteContentEditorProps
+import { RichMarkdownField } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/rich-markdown-field'
 
 const NOTE_EDITOR_PROSE_CLASS_NAME = [
   'min-h-full w-full text-current',
@@ -36,57 +28,28 @@ const NOTE_EDITOR_PROSE_CLASS_NAME = [
   '[&_.ProseMirror_.is-editor-empty:first-child]:before:pointer-events-none [&_.ProseMirror_.is-editor-empty:first-child]:before:float-left [&_.ProseMirror_.is-editor-empty:first-child]:before:h-0 [&_.ProseMirror_.is-editor-empty:first-child]:before:text-current/55 [&_.ProseMirror_.is-editor-empty:first-child]:before:content-[attr(data-placeholder)]',
 ].join(' ')
 
-/** WYSIWYG markdown editing surface styled to match the rendered Note exactly. */
+/**
+ * The Note card's skin over the platform markdown field.
+ *
+ * Everything behind the surface — the TipTap extension set, frontmatter held
+ * out-of-band, the round-trip safety gate and its raw-source fallback, markdown
+ * paste — is {@link RichMarkdownField}'s. This module only supplies the Note's
+ * type scale and its per-colour selection tint, which have to match the
+ * Streamdown render underneath so the card does not jump when editing opens.
+ */
 export function NoteMarkdownEditor({
   value,
   selectionClassName,
   onChange,
-  onEndEditing,
-}: NoteMarkdownEditorProps) {
-  const onChangeRef = useRef(onChange)
-  const onEndEditingRef = useRef(onEndEditing)
-
-  /* Synced in an effect rather than during render: a render React discards
-     would otherwise leave these pointing at callbacks that never committed.
-     Every reader is a user-driven editor event, so it runs well after this. */
-  useEffect(() => {
-    onChangeRef.current = onChange
-    onEndEditingRef.current = onEndEditing
-  }, [onChange, onEndEditing])
-
-  const [extensions] = useState(() => [
-    ...createMarkdownContentExtensions(),
-    Placeholder.configure({ placeholder: 'Add note…' }),
-  ])
-  const [initialContent] = useState<JSONContent>(() => parseMarkdownToDoc(value))
-
-  const editor = useEditor({
-    extensions,
-    content: initialContent,
-    autofocus: 'end',
-    immediatelyRender: false,
-    shouldRerenderOnTransaction: false,
-    editorProps: {
-      attributes: {
-        class: 'min-h-full outline-none',
-      },
-      handleKeyDown: (_view, event) => {
-        if (event.key !== 'Escape' && !(event.key === 'Enter' && event.metaKey)) return false
-        event.preventDefault()
-        onEndEditingRef.current()
-        return true
-      },
-    },
-    onUpdate: ({ editor: currentEditor }) => {
-      onChangeRef.current(postProcessSerializedMarkdown(currentEditor.getMarkdown()))
-    },
-    onBlur: () => onEndEditingRef.current(),
-  })
-
+}: NoteContentEditorProps) {
   return (
-    <EditorContent
-      editor={editor}
-      className={cn('min-h-full w-full', NOTE_EDITOR_PROSE_CLASS_NAME, selectionClassName)}
+    <RichMarkdownField
+      value={value}
+      onChange={onChange}
+      surface='bare'
+      autoFocus
+      placeholder='Add note…'
+      proseClassName={cn(NOTE_EDITOR_PROSE_CLASS_NAME, selectionClassName)}
     />
   )
 }
