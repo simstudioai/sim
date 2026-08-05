@@ -35,9 +35,23 @@ describe('stripCodeFences', () => {
     expect(stripCodeFences(fenced)).toBe('if <flag>:\n    return "yes"\nreturn "no"')
   })
 
-  it('keeps every fenced region and drops prose between them', () => {
+  it('preserves fence lines embedded inside the fenced body', () => {
+    const fenced = '```javascript\nconst md = `\n```\nhello\n```\n`;\nreturn md;\n```'
+    expect(stripCodeFences(fenced)).toBe('const md = `\n```\nhello\n```\n`;\nreturn md;')
+  })
+
+  it('preserves a fenced docstring inside a Python body', () => {
+    const fenced = '```python\ntemplate = """\n```sql\nSELECT 1\n```\n"""\nreturn template\n```'
+    expect(stripCodeFences(fenced)).toBe(
+      'template = """\n```sql\nSELECT 1\n```\n"""\nreturn template'
+    )
+  })
+
+  it('keeps everything between the outer delimiters for a multi-block answer', () => {
+    // Prose survives rather than risk dropping code between two delimiters that
+    // may be a nested literal instead of a block boundary.
     const fenced = '```js\nconst a = 1;\n```\nThen send it:\n```js\nreturn a;\n```'
-    expect(stripCodeFences(fenced)).toBe('const a = 1;\nreturn a;')
+    expect(stripCodeFences(fenced)).toBe('const a = 1;\n```\nThen send it:\n```js\nreturn a;')
   })
 
   it('does not touch code that merely contains a fence later', () => {

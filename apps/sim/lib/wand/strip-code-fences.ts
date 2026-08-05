@@ -57,28 +57,41 @@ export function shouldStripCodeFences(generationType?: string): boolean {
  * a false positive here would corrupt working code, which is far worse than
  * leaving a rare unwrapped response for the user to fix.
  *
- * Within a fenced response every fenced region is kept and everything between
- * them is dropped: text outside a fence is prose, which is never valid code.
+ * Only the outermost delimiters are removed: everything between the first and
+ * last fence line is kept verbatim, including any fence lines inside it. A
+ * generated body may legitimately contain line-leading backticks (code that
+ * builds a markdown string), and pairing delimiters off would silently discard
+ * the lines between them. The cost is that a model which answers with several
+ * fenced blocks and prose between them keeps that prose — visibly wrong output
+ * the user can re-roll, rather than code quietly missing a chunk.
+ *
  * Falls back to the original text if stripping would leave nothing.
  */
 export function stripCodeFences(text: string): string {
   if (!text.trimStart().startsWith('```')) return text
 
-  const collected: string[] = []
-  let insideFence = false
+  const lines = text.split('\n')
+  const openingFence = lines.findIndex((line) => FENCE_LINE.test(line))
+  if (openingFence === -1) return text
 
-  for (const line of text.split('\n')) {
-    if (FENCE_LINE.test(line)) {
-      insideFence = !insideFence
-      continue
+  let closingFence = -1
+  for (let index = lines.length - 1; index > openingFence; index--) {
+    if (FENCE_LINE.test(lines[index])) {
+      closingFence = index
+      break
     }
-    if (insideFence) collected.push(line)
   }
+
+  // An unclosed fence (a truncated response) keeps everything after the opener.
+  const inner =
+    closingFence === -1
+      ? lines.slice(openingFence + 1)
+      : lines.slice(openingFence + 1, closingFence)
 
   // Trim blank lines only — leading whitespace on a kept line is indentation,
   // which is load-bearing in Python.
-  while (collected.length > 0 && collected[0].trim() === '') collected.shift()
-  while (collected.length > 0 && collected[collected.length - 1].trim() === '') collected.pop()
+  while (inner.length > 0 && inner[0].trim() === '') inner.shift()
+  while (inner.length > 0 && inner[inner.length - 1].trim() === '') inner.pop()
 
-  return collected.length > 0 ? collected.join('\n') : text
+  return inner.length > 0 ? inner.join('\n') : text
 }

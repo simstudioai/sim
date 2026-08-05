@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { filterUndefined } from '@sim/utils/object'
@@ -143,10 +143,22 @@ export function useWand({
    * correctly makes the first render a no-op.
    */
   const [prevHistoryResetKey, setPrevHistoryResetKey] = useState(historyResetKey)
+  const [historyEpoch, setHistoryEpoch] = useState(0)
   if (prevHistoryResetKey !== historyResetKey) {
     setPrevHistoryResetKey(historyResetKey)
     setConversationHistory([])
+    setHistoryEpoch((epoch) => epoch + 1)
   }
+
+  /**
+   * Mirrors {@link historyEpoch} for the in-flight request to read on completion.
+   * A request that started before a reset must not append its turn to the fresh
+   * history — its prompt and reply belong to the superseded context.
+   */
+  const historyEpochRef = useRef(historyEpoch)
+  useEffect(() => {
+    historyEpochRef.current = historyEpoch
+  }, [historyEpoch])
 
   const abortControllerRef = useRef<AbortController | null>(null)
 
@@ -191,6 +203,9 @@ export function useWand({
       setIsStreaming(true)
       setError(null)
       setPromptInputValue('')
+
+      /** The context this request belongs to; a reset while it streams retires it. */
+      const startedHistoryEpoch = historyEpochRef.current
 
       abortControllerRef.current = new AbortController()
 
@@ -258,9 +273,12 @@ export function useWand({
         if (generatedContent) {
           onGeneratedContent(generatedContent)
 
-          if (wandConfig?.maintainHistory) {
-            // The sanitized form goes into history so a single fenced reply
-            // cannot become the in-context example for every later turn.
+          /**
+           * The sanitized form goes into history so a single fenced reply cannot
+           * become the in-context example for every later turn. Skipped entirely
+           * when a reset retired this request's context mid-flight.
+           */
+          if (wandConfig?.maintainHistory && historyEpochRef.current === startedHistoryEpoch) {
             setConversationHistory((prev) => [
               ...prev,
               { role: 'user', content: currentPrompt },
