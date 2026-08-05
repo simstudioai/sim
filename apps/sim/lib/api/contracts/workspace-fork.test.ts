@@ -188,7 +188,7 @@ describe('getForkDiffContract response excluded-workflow lists', () => {
     const parsed = getForkDiffContract.response.schema.parse(baseDiffResponse)
     expect(parsed.excludedSourceWorkflows).toEqual([])
     expect(parsed.excludedTargetWorkflows).toEqual([])
-    expect(parsed.triggerUrlChanges).toEqual([])
+    expect(parsed.retiringTriggerUrls).toEqual([])
     expect(parsed.triggerMappings).toEqual([])
   })
 
@@ -215,12 +215,12 @@ describe('getForkDiffContract response excluded-workflow lists', () => {
           defaultAdoptPath: 'live-slack-path',
         },
       ],
-      triggerUrlChanges: [{ workflowName: 'ITSM intake', path: 'dead-path' }],
+      retiringTriggerUrls: [{ workflowName: 'ITSM intake', path: 'dead-path' }],
     })
     expect(parsed.triggerMappings[0].ownPath).toBe('prod-live-path')
     expect(parsed.triggerMappings[0].adoptablePaths).toEqual([])
     expect(parsed.triggerMappings[1].defaultAdoptPath).toBe('live-slack-path')
-    expect(parsed.triggerUrlChanges[0].path).toBe('dead-path')
+    expect(parsed.retiringTriggerUrls[0].path).toBe('dead-path')
   })
 
   it('accepts a trigger mapping choice on the promote body, including "new URL"', () => {

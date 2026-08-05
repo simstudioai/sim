@@ -604,10 +604,15 @@ export const getForkDiffContract = defineRouteContract({
        */
       clearedRefs: z.array(forkClearedRefSchema),
       /**
-       * Public trigger URLs this sync would stop serving in the target. Defaulted so a new client
-       * tolerates an old server's response during rollout.
+       * Every public trigger URL this sync retires in the target, BEFORE any adoption is applied.
+       *
+       * Deliberately pre-adoption: which of these actually stop being served depends on the
+       * caller's live picks in `triggerMappings`, which only exist client-side until the promote
+       * call. Returning the post-default set instead would freeze the preview at the server's
+       * guess, so choosing "Generate new URL" would kill a URL the confirm never warned about.
+       * Defaulted so a new client tolerates an old server's response during rollout.
        */
-      triggerUrlChanges: z.array(forkTriggerUrlChangeSchema).default([]),
+      retiringTriggerUrls: z.array(forkTriggerUrlChangeSchema).default([]),
       /** Arriving trigger blocks whose URL this sync decides, with their adoptable alternatives. */
       triggerMappings: z.array(forkTriggerMappingSchema).default([]),
     }),
