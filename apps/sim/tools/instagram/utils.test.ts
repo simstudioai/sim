@@ -2,7 +2,11 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { createPublishTransform, INSTAGRAM_RESPONSE_MAX_BYTES } from '@/tools/instagram/utils'
+import {
+  createPublishTransform,
+  INSTAGRAM_RESPONSE_MAX_BYTES,
+  parseCommaSeparated,
+} from '@/tools/instagram/utils'
 
 const FALLBACK_OUTPUT = {
   containerId: null,
@@ -83,4 +87,19 @@ describe('createPublishTransform', () => {
       `Instagram publish response exceeds maximum size of ${INSTAGRAM_RESPONSE_MAX_BYTES} bytes`
     )
   })
+})
+
+describe('parseCommaSeparated', () => {
+  it('parses nonempty comma-separated insight metrics', () => {
+    expect(parseCommaSeparated(' reach, views,likes ')).toEqual(['reach', 'views', 'likes'])
+  })
+
+  it.each([{ value: undefined }, { value: '' }, { value: ' , ' }, { value: [] }])(
+    'rejects invalid insight metrics: $value',
+    ({ value }) => {
+      expect(() => parseCommaSeparated(value)).toThrow(
+        'Instagram insight metrics must be a non-empty comma-separated string'
+      )
+    }
+  )
 })

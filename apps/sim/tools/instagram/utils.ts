@@ -180,12 +180,21 @@ function isCompleteInstagramPublishOutput(
   )
 }
 
-export function parseCommaSeparated(value?: string): string[] {
-  if (!value) return []
-  return value
+export function parseCommaSeparated(value: unknown): string[] {
+  if (typeof value !== 'string') {
+    throw new Error('Instagram insight metrics must be a non-empty comma-separated string')
+  }
+
+  const items = value
     .split(',')
     .map((part) => part.trim())
     .filter(Boolean)
+
+  if (items.length === 0) {
+    throw new Error('Instagram insight metrics must be a non-empty comma-separated string')
+  }
+
+  return items
 }
 
 /** Clamp Graph pagination `limit` to a safe range (default 25, max 100). */

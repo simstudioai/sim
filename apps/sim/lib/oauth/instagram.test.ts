@@ -61,17 +61,16 @@ describe('instagram oauth helpers', () => {
     expect(
       parseInstagramShortLivedToken({
         access_token: 'short-token',
-        user_id: 123,
+        user_id: 17_841_467_109_118_740,
         permissions: ['instagram_business_basic'],
       })
     ).toEqual({
       access_token: 'short-token',
-      user_id: 123,
       permissions: ['instagram_business_basic'],
     })
     expect(
       parseInstagramShortLivedToken({ data: [{ access_token: 'wrapped-token', user_id: '456' }] })
-    ).toEqual({ access_token: 'wrapped-token', user_id: '456' })
+    ).toEqual({ access_token: 'wrapped-token' })
   })
 
   it('rejects malformed or oversized token responses', () => {
