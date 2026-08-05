@@ -141,12 +141,13 @@ and leave the field unannotated.
   `mode: 'private-provenance'` when there is no textual projection. The route must call
   `validateOpaqueModelInputProvenance` before downloading or sending content to the model and must
   apply the workspace-file provenance guard before reading a persisted workspace file.
-- **Sim-owned durable storage** that can later re-enter a workflow/model (table cells, Agent
-  memory, knowledge documents/chunks, and workspace-file contents): transport encrypted
-  field-scoped provenance with
-  `request.secretProvenance`, persist it through the shared sidecar service, and load/import it at
-  every re-entry boundary. Preserve shared legacy behavior for rows/files whose provenance marker
-  is `NULL`; never invent a tool-local migration rule.
+- **Sim-owned durable storage or internal execution handoff** that can later enter a workflow/model
+  (table cells, Agent memory, knowledge documents/chunks, workspace-file contents, or child-workflow
+  input): transport encrypted field-scoped provenance with `request.secretProvenance`. The
+  authenticated receiver validates the exact selection and scope, strips the private envelope, and
+  persists, imports, or propagates it at the owning boundary. Preserve shared legacy behavior for
+  headerless internal calls and rows/files whose provenance marker is `NULL`; never invent a
+  tool-local migration rule.
 
 Hard rules:
 
@@ -586,7 +587,7 @@ If creating V2 versions (API-aligned outputs):
 - [ ] Created `index.ts` barrel export
 - [ ] Registered all tools in `tools/registry.ts`
 - [ ] Ran `bun run tool-metadata:generate` and committed the regenerated artifacts
-- [ ] Classified every model-visible, opaque, and Sim-durable request field
+- [ ] Classified every model-visible, opaque, Sim-durable, and internal-execution request field
 - [ ] Added shared model-input projection, centralized opaque rejection, or private provenance only
       where required
 - [ ] Confirmed ordinary third-party tool results are not generically sanitized

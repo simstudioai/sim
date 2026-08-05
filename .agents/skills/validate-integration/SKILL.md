@@ -151,8 +151,9 @@ search, extraction, or "AI-powered" marketing terminology.
 - [ ] Persisted workspace-file contents are checked with the shared provenance guard only when
       their bytes or decoded content cross into a model/tool-result boundary; ordinary file APIs
       remain unchanged. Unsupported secret-bearing file paths are rejected at `file_write`
-- [ ] Sim-owned durable writes that can re-enter workflows/models use field-scoped
-      `request.secretProvenance` and the shared sidecar/load/import services
+- [ ] Sim-owned durable writes and internal execution handoffs that can enter workflows/models use
+      field-scoped `request.secretProvenance`; authenticated receivers validate the exact selection
+      and scope, strip private metadata, and persist, import, or propagate it at the owning boundary
 - [ ] Private provenance is never attached to external URLs or `directExecution`; those paths use
       centralized `opaqueModelInput` rejection when their opaque values are model-bound
 - [ ] No tool performs raw secret plaintext/source substitution or serializes plaintext provenance
@@ -170,9 +171,10 @@ search, extraction, or "AI-powered" marketing terminology.
       or I/O with safe-byte preservation, headerless legacy requests, metadata stripping, and
       durable legacy/stale/scope cases when applicable
 
-Treat a missing or bypassed model/durable provenance boundary as **critical**. Do not fix it with a
-tool-specific string replacer or by sanitizing every provider result; repair the shared request,
-authenticated internal-route, persistence, or re-entry boundary that owns the data.
+Treat a missing or bypassed model, durable, or internal-execution provenance boundary as
+**critical**. Do not fix it with a tool-specific string replacer or by sanitizing every provider
+result; repair the shared request, authenticated internal-route, persistence, or re-entry boundary
+that owns the data.
 
 ## Step 4: Validate Block
 
@@ -349,7 +351,8 @@ Group findings by severity:
 - AI-consumed request fields bypass the shared projection, centralized opaque rejection, or
   private-provenance boundary
 - Opaque model input is downloaded or sent before provenance and workspace-file checks
-- A Sim-owned durable sink/re-entry path drops encrypted provenance or breaks legacy `NULL` data
+- A Sim-owned durable sink or internal execution handoff drops encrypted provenance or breaks
+  legacy headerless/`NULL` data
 - A tool substitutes secret plaintext into source, leaks private metadata, or generically sanitizes
   unrelated third-party results
 
@@ -426,7 +429,8 @@ After fixing, confirm:
 - [ ] Validated memory load safety using `.agents/skills/memory-load-check/SKILL.md` when tools list/search/download/import/export/batch data
 - [ ] Validated error handling (error checks, meaningful messages)
 - [ ] Validated registry entries (tools and block, alphabetical, correct imports)
-- [ ] Validated model-visible/opaque inputs and Sim-durable provenance at their owning boundaries
+- [ ] Validated model-visible/opaque inputs and Sim-durable/internal-execution provenance at their
+      owning boundaries
 - [ ] Confirmed legacy persisted data keeps working and tracked invalid provenance fails closed
 - [ ] Confirmed ordinary third-party results remain unchanged absent activated Sim provenance
 - [ ] Validated `{Service}BlockMeta` exported with at least 7 templates
