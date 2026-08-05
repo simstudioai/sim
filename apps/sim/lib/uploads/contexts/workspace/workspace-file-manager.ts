@@ -1312,6 +1312,13 @@ export async function updateWorkspaceFileContent(
             key: uploadResult.key,
             size: content.length,
             contentType: nextContentType,
+            // Replaced bytes: drop the old image's dimensions so the row never describes stale content.
+            // The next view reserves nothing (the baseline first-load reflow) rather than a wrong-sized
+            // box, then the browser's measurement backfills the correct value. No server-side decode here
+            // (avoids EXIF-orientation guesswork), and a late in-flight PATCH that lands after this is
+            // corrected on the next view since the client overwrites on mismatch.
+            width: null,
+            height: null,
             updatedAt: now,
             contentUpdatedAt,
           })
