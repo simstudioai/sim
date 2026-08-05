@@ -11,6 +11,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { executeResponsesProviderRequest } from '@/providers/openai/core'
 import type { ProviderRequest } from '@/providers/types'
 
+const { mockSupportsReasoningEffort } = vi.hoisted(() => ({
+  mockSupportsReasoningEffort: vi.fn(() => false),
+}))
+
 vi.mock('@/providers', () => ({ MAX_TOOL_ITERATIONS: 5 }))
 
 vi.mock('@/providers/utils', () => ({
@@ -26,7 +30,7 @@ vi.mock('@/providers/utils', () => ({
     hasFilteredTools: false,
   }),
   trackForcedToolUsage: () => ({ hasUsedForcedTool: false, usedForcedTools: [] }),
-  supportsReasoningEffort: () => false,
+  supportsReasoningEffort: mockSupportsReasoningEffort,
 }))
 
 vi.mock('@/tools', () => ({ executeTool: vi.fn() }))
@@ -51,7 +55,10 @@ const COMPLETED = {
 describe('OpenAI transport phase annotation', () => {
   const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } as never
 
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockSupportsReasoningEffort.mockReturnValue(false)
+  })
 
   function run(fetchMock: unknown, request: Partial<ProviderRequest> = {}) {
     return executeResponsesProviderRequest(
@@ -134,6 +141,42 @@ describe('OpenAI transport phase annotation', () => {
 
     const error = await run(vi.fn().mockResolvedValue(htmlError)).catch((e) => e)
     expect(error.message.length).toBeLessThan(700)
+  })
+
+  /**
+   * The bound applies only to non-JSON bodies. A structured provider error must survive
+   * intact, because the reasoning-summary strip-and-retry fallback matches on its text
+   * (`message.includes('reasoning.summary')`) — truncating it would silently disable
+   * that recovery path for any provider whose error message runs long.
+   */
+  it('does not truncate a structured provider error, so the summary fallback still matches', async () => {
+    // Markers deliberately placed beyond the 500-char bound so that truncating a
+    // structured error would drop them and the fallback would stop matching.
+    const longMessage = `${'context detail. '.repeat(40)}Invalid value for reasoning.summary: your organization must be verified to use this feature.`
+    expect(longMessage.indexOf('reasoning.summary')).toBeGreaterThan(500)
+
+    const completed = {
+      ok: true,
+      status: 200,
+      headers: new Headers(),
+      json: () => Promise.resolve(COMPLETED),
+    }
+    const verificationError = {
+      ok: false,
+      status: 400,
+      headers: new Headers(),
+      text: () => Promise.resolve(JSON.stringify({ error: { message: longMessage } })),
+    }
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(verificationError)
+      .mockResolvedValueOnce(completed)
+    // The fallback only applies when the payload actually carried reasoning.summary.
+    mockSupportsReasoningEffort.mockReturnValue(true)
+
+    await expect(run(fetchMock, { agentEvents: true })).resolves.toMatchObject({ content: 'ok' })
+    // Matched the verification error and retried without the summary, rather than failing.
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
   it('leaves a healthy response entirely unaffected', async () => {
