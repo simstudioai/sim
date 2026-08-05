@@ -276,6 +276,21 @@ function ModalBodyLockReleaser() {
 const InsideModalContext = React.createContext(false)
 
 /**
+ * Broadcasts {@link ModalContentProps.dismissDisabled} to every dismiss control
+ * in the subtree, so a modal states the interlock once on the content rather
+ * than each button remembering to disable itself.
+ */
+const ModalDismissDisabledContext = React.createContext(false)
+
+/**
+ * Whether an enclosing modal is currently refusing dismissal. Dismiss controls
+ * (a close X, a Cancel) should disable themselves when this is `true`.
+ */
+export function useModalDismissDisabled(): boolean {
+  return React.useContext(ModalDismissDisabledContext)
+}
+
+/**
  * Root modal component. Manages open state.
  */
 const Modal = DialogPrimitive.Root
@@ -449,6 +464,17 @@ export interface ModalContentProps
    * can fall into states where the dialog can't be re-opened cleanly.
    */
   srTitle?: string
+  /**
+   * Refuses every dismissal while an action is in flight: the Escape key,
+   * clicking outside, and `ModalHeader`'s close button. Descendants read it via
+   * {@link useModalDismissDisabled}.
+   *
+   * A consumer's own `onEscapeKeyDown` / `onInteractOutside` runs after this
+   * guard rather than replacing it, so neither the interlock nor the
+   * floating-layer guard can be dropped by passing a handler.
+   * @default false
+   */
+  dismissDisabled?: boolean
 }
 
 /**
@@ -467,8 +493,11 @@ const ModalContent = React.forwardRef<
       size = 'md',
       bare = false,
       srTitle,
+      dismissDisabled = false,
       style,
       onOpenAutoFocus,
+      onEscapeKeyDown,
+      onInteractOutside,
       'aria-describedby': ariaDescribedBy,
       ...props
     },
@@ -570,7 +599,10 @@ const ModalContent = React.forwardRef<
               visibility: nativeSurfaceReady ? style?.visibility : 'hidden',
             }}
             onEscapeKeyDown={(e) => {
+              // Radix reads `defaultPrevented`; stopPropagation alone would not block it.
+              if (dismissDisabled) e.preventDefault()
               e.stopPropagation()
+              onEscapeKeyDown?.(e)
             }}
             onPointerDown={(e) => {
               e.stopPropagation()
@@ -593,9 +625,10 @@ const ModalContent = React.forwardRef<
                * are merely animating closed, so a follow-up click during the
                * exit animation still dismisses the modal.
                */
-              if (hasOpenFloatingLayer()) {
+              if (dismissDisabled || hasOpenFloatingLayer()) {
                 e.preventDefault()
               }
+              onInteractOutside?.(e)
             }}
             onOpenAutoFocus={(event) => {
               // Radix fires this once when the (still invisible) Content
@@ -613,7 +646,11 @@ const ModalContent = React.forwardRef<
             {srTitle ? (
               <DialogPrimitive.Title className='sr-only'>{srTitle}</DialogPrimitive.Title>
             ) : null}
-            <InsideModalContext.Provider value={true}>{children}</InsideModalContext.Provider>
+            <InsideModalContext.Provider value={true}>
+              <ModalDismissDisabledContext.Provider value={dismissDisabled}>
+                {children}
+              </ModalDismissDisabledContext.Provider>
+            </InsideModalContext.Provider>
           </DialogPrimitive.Content>
         </div>
       </ModalPortal>
@@ -627,26 +664,30 @@ ModalContent.displayName = 'ModalContent'
  * Modal header component for title and description.
  */
 const ModalHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, children, ...props }, ref) => (
-    <div
-      ref={ref}
-      className={cn('flex min-w-0 items-center justify-between gap-2 px-4 pt-4 pb-2', className)}
-      {...props}
-    >
-      <DialogPrimitive.Title className='min-w-0 font-medium text-[var(--text-primary)] text-base leading-none'>
-        {children}
-      </DialogPrimitive.Title>
-      <DialogPrimitive.Close asChild>
-        <Button
-          variant='ghost'
-          className='relative size-[16px] flex-shrink-0 p-0 before:absolute before:inset-[-14px] before:content-[""]'
-        >
-          <X className='size-[16px]' />
-          <span className='sr-only'>Close</span>
-        </Button>
-      </DialogPrimitive.Close>
-    </div>
-  )
+  ({ className, children, ...props }, ref) => {
+    const dismissDisabled = useModalDismissDisabled()
+    return (
+      <div
+        ref={ref}
+        className={cn('flex min-w-0 items-center justify-between gap-2 px-4 pt-4 pb-2', className)}
+        {...props}
+      >
+        <DialogPrimitive.Title className='min-w-0 font-medium text-[var(--text-primary)] text-base leading-none'>
+          {children}
+        </DialogPrimitive.Title>
+        <DialogPrimitive.Close asChild>
+          <Button
+            variant='ghost'
+            disabled={dismissDisabled}
+            className='relative size-[16px] flex-shrink-0 p-0 before:absolute before:inset-[-14px] before:content-[""]'
+          >
+            <X className='size-[16px]' />
+            <span className='sr-only'>Close</span>
+          </Button>
+        </DialogPrimitive.Close>
+      </div>
+    )
+  }
 )
 
 ModalHeader.displayName = 'ModalHeader'

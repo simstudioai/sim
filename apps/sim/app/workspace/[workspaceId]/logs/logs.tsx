@@ -93,9 +93,11 @@ import {
   getDisplayStatus,
   type LogStatus,
   parseDuration,
+  resolveLogWorkflowId,
   STATUS_CONFIG,
   StatusBadge,
   TriggerBadge,
+  workflowEditorPath,
 } from './utils'
 
 const LOGS_PER_PAGE = 50 as const
@@ -525,9 +527,9 @@ export default function Logs() {
   }, [contextMenuLog, workspaceId])
 
   const handleOpenWorkflow = useCallback(() => {
-    const wfId = contextMenuLog?.workflow?.id || contextMenuLog?.workflowId
+    const wfId = contextMenuLog ? resolveLogWorkflowId(contextMenuLog) : null
     if (wfId) {
-      window.open(`/workspace/${workspaceId}/w/${wfId}`, '_blank')
+      window.open(workflowEditorPath(workspaceId, wfId), '_blank')
     }
   }, [contextMenuLog, workspaceId])
 

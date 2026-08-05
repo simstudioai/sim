@@ -1198,10 +1198,12 @@ export function LoadedRichMarkdownEditor({
         }}
       />
       {showPlaceholder && placeholderHtml && (
-        // Instant read-only content while the collaborative doc seeds; the editor stays mounted-but-
-        // hidden below so it renders the seeded doc before the swap. Same layout box → no reflow.
+        // Instant read-only content while the collaborative doc seeds, swapped for the live editor
+        // once ready. The `ProseMirror` class is load-bearing: it gives the placeholder the same base
+        // text layout as the live editable (prosemirror-view sets `white-space: break-spaces` and
+        // disables ligatures), so a line wraps identically and never re-wraps on the swap.
         <div
-          className='rich-markdown-prose mx-auto w-full max-w-[48rem] px-8 py-6'
+          className='ProseMirror rich-markdown-prose mx-auto w-full max-w-[48rem] px-8 py-6'
           dangerouslySetInnerHTML={{ __html: placeholderHtml }}
         />
       )}

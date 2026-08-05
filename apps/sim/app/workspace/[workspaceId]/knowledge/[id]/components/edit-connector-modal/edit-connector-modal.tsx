@@ -269,9 +269,10 @@ export function EditConnectorModal({
   return (
     <ChipModal
       open={open}
-      onOpenChange={(val) => !isSaving && onOpenChange(val)}
+      onOpenChange={onOpenChange}
       srTitle={`Edit ${displayName}`}
       size='md'
+      dismissDisabled={isSaving}
     >
       <ChipModalHeader icon={Icon ?? null} onClose={() => onOpenChange(false)}>
         Edit {displayName}
@@ -312,7 +313,6 @@ export function EditConnectorModal({
       {activeTab === 'settings' && (
         <ChipModalFooter
           onCancel={() => onOpenChange(false)}
-          cancelDisabled={isSaving}
           primaryAction={{
             label: isSaving ? 'Saving…' : 'Save',
             onClick: handleSave,
