@@ -169,9 +169,29 @@ export async function preserveWorkspaceFileSecretProvenanceInTx(
 /** Copies exact provenance for a byte-identical, same-owner-scope file copy; otherwise unknown. */
 export async function copyWorkspaceFileSecretProvenanceInTx(
   tx: DbOrTx,
-  expectedSource: WorkspaceFileSecretProvenanceCopySource,
+  expectedSource: WorkspaceFileSecretProvenanceCopySource | undefined,
   targetFileId: string
 ): Promise<void> {
+  const [target] = await tx
+    .select({
+      userId: workspaceFiles.userId,
+      workspaceId: workspaceFiles.workspaceId,
+      contentUpdatedAt: workspaceFiles.contentUpdatedAt,
+    })
+    .from(workspaceFiles)
+    .where(eq(workspaceFiles.id, targetFileId))
+    .limit(1)
+
+  if (!target) {
+    throw new Error('Workspace file provenance copy could not bind the target file version')
+  }
+  if (!expectedSource) {
+    await replaceWorkspaceFileSecretProvenanceInTx(tx, targetFileId, target.contentUpdatedAt, {
+      status: 'unknown',
+    })
+    return
+  }
+
   const [source] = await tx
     .select({
       key: workspaceFiles.key,
@@ -189,19 +209,6 @@ export async function copyWorkspaceFileSecretProvenanceInTx(
     )
     .where(eq(workspaceFiles.id, expectedSource.fileId))
     .limit(1)
-  const [target] = await tx
-    .select({
-      userId: workspaceFiles.userId,
-      workspaceId: workspaceFiles.workspaceId,
-      contentUpdatedAt: workspaceFiles.contentUpdatedAt,
-    })
-    .from(workspaceFiles)
-    .where(eq(workspaceFiles.id, targetFileId))
-    .limit(1)
-
-  if (!target) {
-    throw new Error('Workspace file provenance copy could not bind the target file version')
-  }
   if (
     !source ||
     source.key !== expectedSource.key ||
