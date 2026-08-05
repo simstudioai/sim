@@ -438,9 +438,7 @@ export function WorkflowGroupMetaCell({
         ) : (
           <Workflow className='size-[12px] shrink-0 text-[var(--text-icon)]' />
         )}
-        <span className='min-w-0 truncate font-medium text-[11px] text-[var(--text-secondary)]'>
-          {name}
-        </span>
+        <span className='min-w-0 truncate text-[var(--text-secondary)] text-xs'>{name}</span>
         {onRunColumn && (
           <DropdownMenu open={runMenuOpen} onOpenChange={setRunMenuOpen}>
             <DropdownMenuTrigger asChild>

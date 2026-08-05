@@ -658,6 +658,15 @@ html.sidebar-booting .sidebar-shell-inner {
     letter-spacing: 0.28px;
   }
 
+  /* Completes Preflight, which resets h1-h6 to `inherit` but leaves `th` at the
+     UA `bold`. Without this a table header, and every label, input, and button
+     inside it, silently renders at 700 — so `font-medium` on a header reads as
+     a step DOWN, and removing it makes the header heavier. Normalized here once
+     rather than neutralized at each `<th>`. */
+  th {
+    font-weight: inherit;
+  }
+
   /* Ensure visible text caret across inputs and editors */
   input,
   textarea,
