@@ -110,16 +110,20 @@ describe('OpenAI Responses status retries', () => {
     )
   }
 
-  /** Drives a run to completion under fake timers so backoff costs no wall time. */
+  /**
+   * Drives a run to completion under fake timers so backoff costs no wall time.
+   *
+   * Timers are restored on a single exit path rather than in a `finally` after a
+   * `return`: biome reads `vi.useRealTimers` as a React hook and rejects that shape
+   * as a conditionally-called hook.
+   */
   async function runWithTimers(fetchMock: unknown, request: Partial<ProviderRequest> = {}) {
     vi.useFakeTimers()
-    try {
-      const promise = run(fetchMock, request).catch((error: unknown) => error)
-      await vi.advanceTimersByTimeAsync(120_000)
-      return await promise
-    } finally {
-      vi.useRealTimers()
-    }
+    const promise = run(fetchMock, request).catch((error: unknown) => error)
+    await vi.advanceTimersByTimeAsync(120_000)
+    const settled = await promise
+    vi.useRealTimers()
+    return settled
   }
 
   it('retries a 429 and then succeeds', async () => {
