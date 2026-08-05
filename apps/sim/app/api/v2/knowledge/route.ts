@@ -16,7 +16,7 @@ import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
 import {
   folderPathForId,
   resolveFolderPathId,
-  withResolvedFolderPathMutation,
+  resolveFolderPathIdentity,
 } from '@/app/api/v2/lib/folders'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
@@ -118,25 +118,24 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
     if (access) return v2WorkspaceAccessError(access)
 
-    const mutation = await withResolvedFolderPathMutation({
+    const resolution = await resolveFolderPathIdentity({
       workspaceId,
       resourceType: 'knowledge_base',
       path: folderPath ?? '/',
-      mutate: (folderId) =>
-        performCreateKnowledgeBase({
-          userId,
-          source: 'api',
-          workspaceId,
-          name,
-          description,
-          chunkingConfig,
-          folderId,
-          requestId,
-          request,
-        }),
     })
-    if (!mutation.found) return v2Error('NOT_FOUND', 'Folder not found')
-    const outcome = mutation.value
+    if (!resolution.found) return v2Error('NOT_FOUND', 'Folder not found')
+
+    const outcome = await performCreateKnowledgeBase({
+      userId,
+      source: 'api',
+      workspaceId,
+      name,
+      description,
+      chunkingConfig,
+      folderId: resolution.folderId,
+      requestId,
+      request,
+    })
     if (!outcome.success) {
       return v2ErrorForOrchestration(outcome.errorCode, outcome.error)
     }
@@ -145,7 +144,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       {
         knowledgeBase: {
           ...formatKnowledgeBase(outcome.knowledgeBase),
-          folderPath: folderPathForId(mutation.index, outcome.knowledgeBase.folderId),
+          folderPath: folderPathForId(resolution.index, outcome.knowledgeBase.folderId),
         },
       },
       { rateLimit, status: 201 }

@@ -21,13 +21,11 @@ export function resolveFolderPathId(
   return path === ROOT_FOLDER_PATH ? null : index.idByPath.get(path)
 }
 
-export type ResolvedFolderPathMutation<T> =
+export type ResolvedFolderPathIdentity =
   | { found: false }
-  | { found: true; folderId: string | null; index: FolderPathIndex<FolderRow>; value: T }
+  | { found: true; folderId: string | null; index: FolderPathIndex<FolderRow> }
 
-export type ResolvedFolderPathIdentity = { found: false } | { found: true; folderId: string | null }
-
-/** Resolves a canonical path to its stable internal identity under the folder tree lock. */
+/** Resolves a path to its stable internal identity under a short-lived folder tree lock. */
 export async function resolveFolderPathIdentity(params: {
   workspaceId: string
   resourceType: FolderResourceType
@@ -36,23 +34,7 @@ export async function resolveFolderPathIdentity(params: {
   return withFolderTreeLock(params.workspaceId, params.resourceType, async (tx) => {
     const index = await loadActiveFolderPathIndex(params.workspaceId, params.resourceType, tx)
     const folderId = resolveFolderPathId(index, params.path)
-    return folderId === undefined ? { found: false } : { found: true, folderId }
-  })
-}
-
-/** Resolves a canonical path and keeps that folder tree stable through a resource mutation. */
-export async function withResolvedFolderPathMutation<T>(params: {
-  workspaceId: string
-  resourceType: FolderResourceType
-  path: string
-  mutate: (folderId: string | null) => Promise<T>
-}): Promise<ResolvedFolderPathMutation<T>> {
-  return withFolderTreeLock(params.workspaceId, params.resourceType, async (tx) => {
-    const index = await loadActiveFolderPathIndex(params.workspaceId, params.resourceType, tx)
-    const folderId = resolveFolderPathId(index, params.path)
-    if (folderId === undefined) return { found: false }
-    const value = await params.mutate(folderId)
-    return { found: true, folderId, index, value }
+    return folderId === undefined ? { found: false } : { found: true, folderId, index }
   })
 }
 

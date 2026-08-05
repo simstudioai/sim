@@ -11,6 +11,7 @@ import {
   v2CursorListResponse,
   v2DataResponse,
   v2DeleteFolderQuerySchema,
+  v2FolderPathInputSchema,
   v2FolderPathSchema,
   v2FolderSchema,
   v2ListFoldersQuerySchema,
@@ -68,7 +69,7 @@ export const v2CreateFileUploadBodySchema = z
     name: z.string().trim().min(1, 'name is required').max(255, 'name is too long'),
     contentType: z.string().trim().min(1, 'contentType is required').max(255),
     size: z.number().int().nonnegative().max(MAX_WORKSPACE_FILE_SIZE),
-    folderPath: v2FolderPathSchema.optional(),
+    folderPath: v2FolderPathInputSchema.optional(),
   })
   .strict()
 export type V2CreateFileUploadBody = z.input<typeof v2CreateFileUploadBodySchema>
@@ -135,7 +136,7 @@ export const v2CreateFileBodySchema = z
       .min(1, 'contentType cannot be empty')
       .max(255, 'contentType is too long')
       .optional(),
-    folderPath: v2FolderPathSchema.optional(),
+    folderPath: v2FolderPathInputSchema.optional(),
     content: z.string().max(70_000_000, 'content is too large').default(''),
     encoding: z.enum(['utf-8', 'base64']).default('utf-8'),
   })
@@ -170,7 +171,7 @@ export const v2ListFilesQuerySchema = z
   .object({
     workspaceId: workspaceIdSchema,
     /** Restrict to one file folder. Omit to list the whole workspace. */
-    folderPath: v2FolderPathSchema.optional(),
+    folderPath: v2FolderPathInputSchema.optional(),
     search: v2SearchSchema,
     ...v2SortFields(v2FileSortFields, { sortBy: 'uploadedAt', sortOrder: 'asc' }),
     limit: z.coerce
@@ -209,7 +210,7 @@ export const v2MoveFileItemsBodySchema = z
     workspaceId: workspaceIdSchema,
     ...fileSelectionSchema,
     /** Omission moves the files to the workspace root. */
-    targetFolderPath: v2FolderPathSchema.optional(),
+    targetFolderPath: v2FolderPathInputSchema.optional(),
   })
   .strict()
 

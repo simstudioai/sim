@@ -9,7 +9,6 @@ import {
 import { parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { withFolderTreeLock } from '@/lib/folders/locks'
 import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
 import {
   performDeleteKnowledgeBase,
@@ -18,7 +17,7 @@ import {
 import type { KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
 import { formatKnowledgeBase, resolveKnowledgeBase } from '@/app/api/v1/knowledge/utils'
 import { checkRateLimit, type RateLimitResult } from '@/app/api/v1/middleware'
-import { folderPathForId, resolveFolderPathId } from '@/app/api/v2/lib/folders'
+import { folderPathForId, resolveFolderPathIdentity } from '@/app/api/v2/lib/folders'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
   v2Data,
@@ -134,30 +133,32 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: Knowle
     const result = await resolveKnowledgeBaseScoped(id, workspaceId, userId, rateLimit, 'write')
     if (result instanceof NextResponse) return result
 
-    const mutation = await withFolderTreeLock(workspaceId, 'knowledge_base', async (tx) => {
-      const index = await loadActiveFolderPathIndex(workspaceId, 'knowledge_base', tx)
-      const folderId = folderPath === undefined ? undefined : resolveFolderPathId(index, folderPath)
-      if (folderPath !== undefined && folderId === undefined) return { found: false as const }
-
-      const outcome = await performUpdateKnowledgeBase({
-        knowledgeBaseId: id,
-        workspaceId,
-        userId,
-        source: 'api',
-        updates: { name, description, chunkingConfig, folderId },
-        requestId,
-        request,
-      })
-      return { found: true as const, index, outcome }
-    })
-    if (!mutation.found) {
+    const resolution =
+      folderPath === undefined
+        ? undefined
+        : await resolveFolderPathIdentity({
+            workspaceId,
+            resourceType: 'knowledge_base',
+            path: folderPath,
+          })
+    if (resolution && !resolution.found) {
       return v2Error('NOT_FOUND', 'Folder not found')
     }
-    const { index: folderIndex, outcome } = mutation
+
+    const outcome = await performUpdateKnowledgeBase({
+      knowledgeBaseId: id,
+      workspaceId,
+      userId,
+      source: 'api',
+      updates: { name, description, chunkingConfig, folderId: resolution?.folderId },
+      requestId,
+      request,
+    })
     if (!outcome.success) {
       return v2ErrorForOrchestration(outcome.errorCode, outcome.error)
     }
 
+    const folderIndex = await loadActiveFolderPathIndex(workspaceId, 'knowledge_base')
     return v2Data(
       {
         knowledgeBase: {

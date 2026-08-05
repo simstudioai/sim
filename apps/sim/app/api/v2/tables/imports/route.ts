@@ -9,7 +9,7 @@ import {
   toV2CreateTableImport,
 } from '@/lib/table/orchestration/import-resource'
 import { checkRateLimit, resolveWorkspaceScope } from '@/app/api/v1/middleware'
-import { withResolvedFolderPathMutation } from '@/app/api/v2/lib/folders'
+import { resolveFolderPathIdentity } from '@/app/api/v2/lib/folders'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
   v2CaughtOrchestrationError,
@@ -43,15 +43,18 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (scopeError) return v2WorkspaceAccessError(scopeError)
     let created: Awaited<ReturnType<typeof createTableImportResource>>
     if (parsed.data.body.target.type === 'new') {
-      const mutation = await withResolvedFolderPathMutation({
+      const resolution = await resolveFolderPathIdentity({
         workspaceId: parsed.data.body.workspaceId,
         resourceType: 'table',
         path: parsed.data.body.target.folderPath ?? '/',
-        mutate: (folderId) =>
-          createTableImportResource(parsed.data.body, userId, request.nextUrl.origin, folderId),
       })
-      if (!mutation.found) return v2Error('NOT_FOUND', 'Folder not found')
-      created = mutation.value
+      if (!resolution.found) return v2Error('NOT_FOUND', 'Folder not found')
+      created = await createTableImportResource(
+        parsed.data.body,
+        userId,
+        request.nextUrl.origin,
+        resolution.folderId
+      )
     } else {
       created = await createTableImportResource(parsed.data.body, userId, request.nextUrl.origin)
     }

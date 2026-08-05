@@ -15,6 +15,9 @@ const {
   mockIsFeatureEnabled,
   mockGetWorkspaceOrganizationId,
   mockLoadActiveFolderPathIndex,
+  mockResolveFolderPathIdentity,
+  mockCreateTable,
+  mockGetWorkspaceTableLimits,
 } = vi.hoisted(() => ({
   mockQueryTables: vi.fn(),
   mockCheckRateLimit: vi.fn(),
@@ -22,6 +25,9 @@ const {
   mockIsFeatureEnabled: vi.fn(),
   mockGetWorkspaceOrganizationId: vi.fn(),
   mockLoadActiveFolderPathIndex: vi.fn(),
+  mockResolveFolderPathIdentity: vi.fn(),
+  mockCreateTable: vi.fn(),
+  mockGetWorkspaceTableLimits: vi.fn(),
 }))
 
 vi.mock('@/app/api/v1/middleware', () => ({
@@ -31,7 +37,12 @@ vi.mock('@/app/api/v1/middleware', () => ({
 
 vi.mock('@/lib/table', async () => {
   const actual = await import('@/lib/table/column-keys')
-  return { ...actual, queryTables: mockQueryTables }
+  return {
+    ...actual,
+    queryTables: mockQueryTables,
+    createTable: mockCreateTable,
+    getWorkspaceTableLimits: mockGetWorkspaceTableLimits,
+  }
 })
 
 vi.mock('@/app/api/table/utils', () => ({
@@ -56,7 +67,17 @@ vi.mock('@/lib/folders/queries', () => ({
   loadActiveFolderPathIndex: mockLoadActiveFolderPathIndex,
 }))
 
-import { GET } from '@/app/api/v2/tables/route'
+vi.mock('@/app/api/v2/lib/folders', () => ({
+  folderPathForId: (_index: unknown, folderId: string | null | undefined) =>
+    folderId ? '/Reports' : '/',
+  resolveFolderPathId: (
+    index: { idByPath: Map<string, string> },
+    path: string
+  ): string | null | undefined => (path === '/' ? null : index.idByPath.get(path)),
+  resolveFolderPathIdentity: mockResolveFolderPathIdentity,
+}))
+
+import { GET, POST } from '@/app/api/v2/tables/route'
 
 const RATE_LIMIT_OK = {
   allowed: true,
@@ -87,6 +108,16 @@ function buildTable(): TableDefinition {
 function callList(query: string) {
   const req = new NextRequest(`http://localhost:3000/api/v2/tables?${query}`)
   return GET(req)
+}
+
+function callCreate(body: Record<string, unknown>) {
+  return POST(
+    new NextRequest('http://localhost:3000/api/v2/tables', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+  )
 }
 
 describe('GET /api/v2/tables', () => {
@@ -217,5 +248,45 @@ describe('GET /api/v2/tables', () => {
 
     expect(res.status).toBe(400)
     expect(first.status).toBe(200)
+  })
+})
+
+describe('POST /api/v2/tables', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
+    mockResolveWorkspaceAccess.mockResolvedValue(null)
+    mockGetWorkspaceTableLimits.mockResolvedValue({ maxTables: 100 })
+    mockResolveFolderPathIdentity.mockResolvedValue({
+      found: true,
+      folderId: 'folder-1',
+      index: {
+        rowById: new Map(),
+        pathById: new Map([['folder-1', '/Reports']]),
+        idByPath: new Map([['/Reports', 'folder-1']]),
+      },
+    })
+    mockCreateTable.mockResolvedValue({ ...buildTable(), folderId: 'folder-1' })
+  })
+
+  it('resolves a slashless folder path before creating the table outside the folder lock', async () => {
+    const res = await callCreate({
+      workspaceId: 'workspace-1',
+      name: 'People',
+      folderPath: 'Reports',
+      schema: { columns: [{ name: 'email', type: 'string' }] },
+    })
+
+    expect(res.status).toBe(201)
+    expect(mockResolveFolderPathIdentity).toHaveBeenCalledWith({
+      workspaceId: 'workspace-1',
+      resourceType: 'table',
+      path: '/Reports',
+    })
+    expect(mockCreateTable).toHaveBeenCalledWith(
+      expect.objectContaining({ folderId: 'folder-1' }),
+      expect.any(String)
+    )
+    expect((await res.json()).data.table.folderPath).toBe('/Reports')
   })
 })

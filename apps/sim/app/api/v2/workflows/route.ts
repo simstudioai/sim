@@ -31,7 +31,7 @@ import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
 import {
   folderPathForId,
   resolveFolderPathId,
-  withResolvedFolderPathMutation,
+  resolveFolderPathIdentity,
 } from '@/app/api/v2/lib/folders'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
@@ -224,24 +224,22 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
     if (access) return v2WorkspaceAccessError(access)
 
-    const mutation = await withResolvedFolderPathMutation({
+    const resolution = await resolveFolderPathIdentity({
       workspaceId,
       resourceType: 'workflow',
       path: folderPath ?? '/',
-      mutate: async (folderId) => {
-        await assertFolderMutable(folderId)
-        return performCreateWorkflow({
-          userId,
-          workspaceId,
-          name,
-          description,
-          folderId,
-          requestId,
-        })
-      },
     })
-    if (!mutation.found) return v2Error('NOT_FOUND', 'Folder not found')
-    const result = mutation.value
+    if (!resolution.found) return v2Error('NOT_FOUND', 'Folder not found')
+
+    await assertFolderMutable(resolution.folderId)
+    const result = await performCreateWorkflow({
+      userId,
+      workspaceId,
+      name,
+      description,
+      folderId: resolution.folderId,
+      requestId,
+    })
 
     if (!result.success || !result.workflow) {
       return v2ErrorForOrchestration(result.errorCode, result.error ?? 'Failed to create workflow')
@@ -252,7 +250,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       id: created.id,
       name: created.name,
       description: created.description ?? null,
-      folderPath: folderPathForId(mutation.index, created.folderId),
+      folderPath: folderPathForId(resolution.index, created.folderId),
       workspaceId: created.workspaceId,
       isDeployed: false,
       deployedAt: null,
