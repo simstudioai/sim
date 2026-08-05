@@ -9,11 +9,13 @@ const {
   mockResolveWorkspaceAccess,
   mockCreateUploadSession,
   mockLoadActiveFolderPathIndex,
+  mockWithFolderTreeLock,
 } = vi.hoisted(() => ({
   mockCheckRateLimit: vi.fn(),
   mockResolveWorkspaceAccess: vi.fn(),
   mockCreateUploadSession: vi.fn(),
   mockLoadActiveFolderPathIndex: vi.fn(),
+  mockWithFolderTreeLock: vi.fn(),
 }))
 
 vi.mock('@/app/api/v1/middleware', () => ({
@@ -27,6 +29,10 @@ vi.mock('@/app/api/v2/lib/gate', () => ({
 
 vi.mock('@/lib/folders/queries', () => ({
   loadActiveFolderPathIndex: mockLoadActiveFolderPathIndex,
+}))
+
+vi.mock('@/lib/folders/locks', () => ({
+  withFolderTreeLock: mockWithFolderTreeLock,
 }))
 
 vi.mock('@/lib/uploads/upload-session/service', () => ({
@@ -44,6 +50,41 @@ const RATE_LIMIT = {
   remaining: 99,
   resetAt: new Date('2026-08-03T22:00:00.000Z'),
 }
+const UPLOAD_SESSION = {
+  id: 'upload-1',
+  workspaceId: WORKSPACE_ID,
+  userId: 'user-1',
+  knowledgeBaseId: null,
+  workflowId: null,
+  executionId: null,
+  purpose: 'workspace_file',
+  method: 'put',
+  storageContext: 'workspace',
+  storageKey: `${WORKSPACE_ID}/file.csv`,
+  finalKey: `${WORKSPACE_ID}/file.csv`,
+  stagingKey: 'upload-sessions/upload-1/file.csv',
+  storageProvider: 's3',
+  providerUploadId: null,
+  fileName: 'file.csv',
+  contentType: 'text/csv',
+  fileSize: 10,
+  partSize: null,
+  partCount: null,
+  status: 'uploading',
+  uploadToken: 'signed-upload-token',
+  metadata: {},
+  completedFileId: null,
+  error: null,
+  expiresAt: new Date('2026-08-04T21:00:00.000Z'),
+  createdAt: new Date('2026-08-03T21:00:00.000Z'),
+  updatedAt: new Date('2026-08-03T21:00:00.000Z'),
+  completedAt: null,
+  transfer: {
+    method: 'put',
+    url: 'https://storage.example/upload',
+    headers: { 'content-type': 'text/csv' },
+  },
+}
 
 function request(body: Record<string, unknown>) {
   return POST(
@@ -60,46 +101,15 @@ describe('POST /api/v2/files/uploads', () => {
     vi.clearAllMocks()
     mockCheckRateLimit.mockResolvedValue(RATE_LIMIT)
     mockResolveWorkspaceAccess.mockResolvedValue(null)
+    mockWithFolderTreeLock.mockImplementation(async (_workspaceId, _resourceType, operation) =>
+      operation({})
+    )
     mockLoadActiveFolderPathIndex.mockResolvedValue({
       rowById: new Map(),
       pathById: new Map(),
       idByPath: new Map([['/Reports', 'folder-reports']]),
     })
-    mockCreateUploadSession.mockResolvedValue({
-      id: 'upload-1',
-      workspaceId: WORKSPACE_ID,
-      userId: 'user-1',
-      knowledgeBaseId: null,
-      workflowId: null,
-      executionId: null,
-      purpose: 'workspace_file',
-      method: 'put',
-      storageContext: 'workspace',
-      storageKey: `${WORKSPACE_ID}/file.csv`,
-      finalKey: `${WORKSPACE_ID}/file.csv`,
-      stagingKey: 'upload-sessions/upload-1/file.csv',
-      storageProvider: 's3',
-      providerUploadId: null,
-      fileName: 'file.csv',
-      contentType: 'text/csv',
-      fileSize: 10,
-      partSize: null,
-      partCount: null,
-      status: 'uploading',
-      uploadToken: 'signed-upload-token',
-      metadata: {},
-      completedFileId: null,
-      error: null,
-      expiresAt: new Date('2026-08-04T21:00:00.000Z'),
-      createdAt: new Date('2026-08-03T21:00:00.000Z'),
-      updatedAt: new Date('2026-08-03T21:00:00.000Z'),
-      completedAt: null,
-      transfer: {
-        method: 'put',
-        url: 'https://storage.example/upload',
-        headers: { 'content-type': 'text/csv' },
-      },
-    })
+    mockCreateUploadSession.mockResolvedValue(UPLOAD_SESSION)
   })
 
   it('creates one signed PUT session for a small file', async () => {
@@ -166,7 +176,21 @@ describe('POST /api/v2/files/uploads', () => {
     )
   })
 
-  it('resolves a canonical folder path while the upload session is created', async () => {
+  it('releases the folder tree lock before creating an upload session', async () => {
+    let lockHeld = false
+    mockWithFolderTreeLock.mockImplementation(async (_workspaceId, _resourceType, operation) => {
+      lockHeld = true
+      try {
+        return await operation({})
+      } finally {
+        lockHeld = false
+      }
+    })
+    mockCreateUploadSession.mockImplementationOnce(async () => {
+      expect(lockHeld).toBe(false)
+      return UPLOAD_SESSION
+    })
+
     const response = await request({
       workspaceId: WORKSPACE_ID,
       name: 'file.csv',

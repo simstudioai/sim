@@ -7,7 +7,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createUploadSession } from '@/lib/uploads/upload-session/service'
 import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
 import { toV2FileUpload } from '@/app/api/v2/files/uploads/utils'
-import { withResolvedFolderPathMutation } from '@/app/api/v2/lib/folders'
+import { resolveFolderPathIdentity } from '@/app/api/v2/lib/folders'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
   v2CaughtOrchestrationError,
@@ -40,24 +40,22 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const { workspaceId, name, contentType, size, folderPath } = parsed.data.body
     const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
     if (access) return v2WorkspaceAccessError(access)
-    const mutation = await withResolvedFolderPathMutation({
+    const resolution = await resolveFolderPathIdentity({
       workspaceId,
       resourceType: 'file',
       path: folderPath ?? '/',
-      mutate: (folderId) =>
-        createUploadSession({
-          workspaceId,
-          userId,
-          purpose: 'workspace_file',
-          fileName: name,
-          contentType,
-          fileSize: size,
-          metadata: { folderId },
-          localOrigin: request.nextUrl.origin,
-        }),
     })
-    if (!mutation.found) return v2Error('NOT_FOUND', 'Folder not found')
-    const session = mutation.value
+    if (!resolution.found) return v2Error('NOT_FOUND', 'Folder not found')
+    const session = await createUploadSession({
+      workspaceId,
+      userId,
+      purpose: 'workspace_file',
+      fileName: name,
+      contentType,
+      fileSize: size,
+      metadata: { folderId: resolution.folderId },
+      localOrigin: request.nextUrl.origin,
+    })
     return v2Data(
       {
         session: toV2FileUpload(session, null),

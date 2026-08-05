@@ -25,6 +25,21 @@ export type ResolvedFolderPathMutation<T> =
   | { found: false }
   | { found: true; folderId: string | null; index: FolderPathIndex<FolderRow>; value: T }
 
+export type ResolvedFolderPathIdentity = { found: false } | { found: true; folderId: string | null }
+
+/** Resolves a canonical path to its stable internal identity under the folder tree lock. */
+export async function resolveFolderPathIdentity(params: {
+  workspaceId: string
+  resourceType: FolderResourceType
+  path: string
+}): Promise<ResolvedFolderPathIdentity> {
+  return withFolderTreeLock(params.workspaceId, params.resourceType, async (tx) => {
+    const index = await loadActiveFolderPathIndex(params.workspaceId, params.resourceType, tx)
+    const folderId = resolveFolderPathId(index, params.path)
+    return folderId === undefined ? { found: false } : { found: true, folderId }
+  })
+}
+
 /** Resolves a canonical path and keeps that folder tree stable through a resource mutation. */
 export async function withResolvedFolderPathMutation<T>(params: {
   workspaceId: string
