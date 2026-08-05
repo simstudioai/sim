@@ -18,8 +18,8 @@ import {
   Switch,
   toast,
 } from '@sim/emcn'
+import { ArrowLeft, ChevronDown, ImageUp as ImageIcon, X } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
-import { ArrowLeft, ChevronDown, Image as ImageIcon, X } from 'lucide-react'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import {
   type FlattenOutputsBlockInput,

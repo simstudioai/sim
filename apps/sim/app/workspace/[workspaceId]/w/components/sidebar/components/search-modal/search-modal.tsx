@@ -3,11 +3,11 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { cn, Library, useNativeSurfaceOcclusionReady } from '@sim/emcn'
 import {
-  Calendar,
   Database,
   Duplicate,
   File,
   FolderPlus,
+  Hammer,
   HelpCircle,
   Home,
   Integration,
@@ -15,6 +15,7 @@ import {
   Play,
   Plus,
   Search,
+  SelectAll,
   Send,
   Settings,
   Table,
@@ -22,7 +23,6 @@ import {
 } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { Command } from 'cmdk'
-import { Scan } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { createPortal } from 'react-dom'
@@ -159,6 +159,13 @@ export function SearchModal({
           hidden: permissionConfig.hideIntegrationsTab,
         },
         {
+          id: 'skills',
+          name: 'Skills',
+          icon: Hammer,
+          href: `/workspace/${workspaceId}/skills`,
+          hidden: permissionConfig.hideIntegrationsTab,
+        },
+        {
           id: 'tables',
           name: 'Tables',
           icon: Table,
@@ -178,12 +185,6 @@ export function SearchModal({
           icon: Database,
           href: `/workspace/${workspaceId}/knowledge`,
           hidden: permissionConfig.hideKnowledgeBaseTab,
-        },
-        {
-          id: 'scheduled-tasks',
-          name: 'Scheduled tasks',
-          icon: Calendar,
-          href: `/workspace/${workspaceId}/scheduled-tasks`,
         },
         {
           id: 'logs',
@@ -282,7 +283,7 @@ export function SearchModal({
       id: 'fit-to-view',
       name: 'Fit workflow to view',
       keywords: 'zoom center recenter canvas reset',
-      icon: Scan,
+      icon: SelectAll,
       shortcut: '⌘⇧F',
       context: 'workflow',
       run: () => invokeCommand('fit-to-view'),

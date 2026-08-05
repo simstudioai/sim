@@ -1,18 +1,18 @@
 import { db, dbReplica } from '@sim/db'
-import { knowledgeBase, workflowSchedule } from '@sim/db/schema'
+import { knowledgeBase } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import {
   authorizeWorkflowByWorkspacePermission,
   getActiveWorkflowRecord,
 } from '@sim/platform-authz/workflow'
-import { and, eq, isNull, ne } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
+import { getBlockVisibilityForCopilot } from '@/lib/copilot/block-visibility'
 import {
   MAX_TABLE_SELECTION_CONTENT_LENGTH,
   safeBrowserSelectionUrl,
   truncateSelectionText,
 } from '@/lib/copilot/chat/selection-context'
 import { QueryLogs } from '@/lib/copilot/generated/tool-catalog-v1'
-import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
 import {
   buildVfsFolderPathMap,
   canonicalBlockVfsPath,
@@ -23,11 +23,15 @@ import {
   encodeVfsPathSegments,
   encodeVfsSegment,
 } from '@/lib/copilot/vfs/path-utils'
+import { EnvCapabilityConfigurationError } from '@/lib/core/config/env-capabilities'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
+import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
 import { toOverview } from '@/lib/logs/log-views'
 import type { TraceSpan } from '@/lib/logs/types'
 import { mcpService } from '@/lib/mcp/service'
 import { createMcpToolId } from '@/lib/mcp/utils'
+import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
+import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
 import { getColumnId } from '@/lib/table/column-keys'
 import { getRowsByIds } from '@/lib/table/rows/service'
 import { getTableById } from '@/lib/table/service'
@@ -278,16 +282,6 @@ export async function processContextsServer(
         if (!result) return null
         return {
           type: 'filefolder',
-          tag: ctx.label ? `@${ctx.label}` : '@',
-          content: result.content,
-          path: result.path,
-        }
-      }
-      if (ctx.kind === 'scheduledtask' && ctx.scheduleId && currentWorkspaceId) {
-        const result = await resolveScheduledTaskResource(ctx.scheduleId, currentWorkspaceId)
-        if (!result) return null
-        return {
-          type: 'active_resource',
           tag: ctx.label ? `@${ctx.label}` : '@',
           content: result.content,
           path: result.path,
@@ -609,11 +603,23 @@ async function processBlockMetadata(
   workspaceId?: string
 ): Promise<AgentContext | null> {
   try {
-    const permissionConfig =
-      userId && workspaceId ? await getUserPermissionConfig(userId, workspaceId) : null
-    const allowedIntegrations =
-      permissionConfig?.allowedIntegrations ?? getAllowedIntegrationsFromEnv()
-    if (allowedIntegrations != null && !allowedIntegrations.includes(blockId.toLowerCase())) {
+    const [permissionConfig, visibility] = await Promise.all([
+      userId && workspaceId ? getUserPermissionConfig(userId, workspaceId) : null,
+      userId ? getBlockVisibilityForCopilot(userId, workspaceId) : null,
+    ])
+    const allowedIntegrations = intersectIntegrationAllowlists(
+      permissionConfig?.allowedIntegrations ?? null,
+      getAllowedIntegrationsFromEnv()
+    )
+    if (!isIntegrationDeploymentAvailableForVisibility(blockId, visibility)) {
+      logger.debug('Block unavailable for this deployment', { blockId })
+      return null
+    }
+    if (
+      allowedIntegrations != null &&
+      !isBlockTypeAccessControlExempt(blockId) &&
+      !allowedIntegrations.includes(blockId.toLowerCase())
+    ) {
       logger.debug('Block not allowed by integration allowlist', { blockId, userId })
       return null
     }
@@ -626,6 +632,7 @@ async function processBlockMetadata(
 
     return { type: 'blocks', tag, content: '', path: canonicalBlockVfsPath(blockId) }
   } catch (error) {
+    if (error instanceof EnvCapabilityConfigurationError) throw error
     logger.error('Error processing block metadata', { blockId, error })
     return null
   }
@@ -848,9 +855,6 @@ export async function resolveActiveResourceContext(
       case 'filefolder': {
         return await resolveFileFolderResource(resourceId, workspaceId)
       }
-      case 'scheduledtask': {
-        return await resolveScheduledTaskResource(resourceId, workspaceId)
-      }
       default:
         return null
     }
@@ -871,38 +875,6 @@ async function resolveTableResource(
     tag: '@active_resource',
     content: '',
     path: canonicalTableVfsPath(table.name),
-  }
-}
-
-async function resolveScheduledTaskResource(
-  scheduleId: string,
-  workspaceId: string
-): Promise<AgentContext | null> {
-  const [row] = await db
-    .select({ id: workflowSchedule.id, jobTitle: workflowSchedule.jobTitle })
-    .from(workflowSchedule)
-    .where(
-      and(
-        eq(workflowSchedule.id, scheduleId),
-        eq(workflowSchedule.sourceWorkspaceId, workspaceId),
-        eq(workflowSchedule.sourceType, 'job'),
-        isNull(workflowSchedule.archivedAt),
-        // Mirror the VFS materializer (workspace-vfs `materializeJobs`), which
-        // excludes completed jobs — otherwise we'd point at a meta.json it never
-        // wrote and the agent's read would dangle.
-        ne(workflowSchedule.status, 'completed')
-      )
-    )
-    .limit(1)
-  if (!row) return null
-  // The VFS materializes jobs at `jobs/{sanitized title}/meta.json` (see
-  // workspace-vfs `materializeJobs`); emit the same lightweight path pointer so
-  // the agent reads it via the VFS instead of us inlining the (heavy) row.
-  return {
-    type: 'active_resource',
-    tag: '@active_resource',
-    content: '',
-    path: `jobs/${normalizeVfsSegment(row.jobTitle || row.id)}/meta.json`,
   }
 }
 

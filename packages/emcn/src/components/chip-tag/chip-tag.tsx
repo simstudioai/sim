@@ -37,10 +37,10 @@ const chipTagVariants = cva(
         mono: 'h-5 gap-[3px] px-1 bg-[var(--surface-5)] text-[var(--text-primary)] dark:bg-[var(--surface-4)]',
         field:
           'h-5 gap-[3px] px-1 bg-[var(--surface-6)] text-[var(--text-primary)] dark:bg-[var(--surface-3)]',
-        gray: 'h-5 gap-[3px] px-1 bg-[var(--surface-5)] text-[var(--text-secondary)] shadow-[inset_0_0_0_1px_var(--border-1)]',
+        gray: 'h-5 gap-[3px] px-1 border border-[var(--border-1)] bg-[var(--surface-5)] text-[var(--text-secondary)]',
         solid: 'h-5 gap-[3px] px-1 bg-[var(--text-secondary)] text-[var(--text-inverse)]',
         invite:
-          'h-5 gap-1.5 px-1 bg-[var(--surface-5)] text-[var(--text-body)] shadow-[inset_0_0_0_1px_var(--border-1)] dark:bg-[var(--surface-4)]',
+          'h-5 gap-1.5 px-1 border border-[var(--border-1)] bg-[var(--surface-5)] text-[var(--text-body)] dark:bg-[var(--surface-4)]',
       },
       invalid: { true: '', false: '' },
     },
@@ -48,7 +48,7 @@ const chipTagVariants = cva(
       {
         variant: 'invite',
         invalid: true,
-        className: 'bg-[var(--badge-error-bg)] text-[var(--text-error)] shadow-none',
+        className: 'bg-[var(--badge-error-bg)] text-[var(--text-error)] border-transparent',
       },
     ],
     defaultVariants: { variant: 'mono', invalid: false },

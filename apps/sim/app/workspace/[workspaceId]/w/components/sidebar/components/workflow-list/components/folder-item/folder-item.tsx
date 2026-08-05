@@ -2,12 +2,11 @@
 
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { chipVariants, cn, toast } from '@sim/emcn'
-import { Lock } from '@sim/emcn/icons'
+import { ChevronRight, Folder, FolderOpen, Lock, MoreHorizontal } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import clsx from 'clsx'
-import { ChevronRight, Folder, FolderOpen, MoreHorizontal } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { generateSubfolderName } from '@/lib/workspaces/naming'

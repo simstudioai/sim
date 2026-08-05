@@ -1,3 +1,8 @@
+import {
+  EMAIL_CAPABILITY,
+  inspectCapability,
+} from '../../apps/sim/lib/core/config/env-capabilities.ts'
+
 /**
  * Server/client feature-flag pairs that must be set together — server code
  * reads the bare var, the browser bundle reads the NEXT_PUBLIC_ twin
@@ -51,16 +56,13 @@ export const SELF_HOST_UNLOCKS: ReadonlyArray<{ server: string; label: string; h
   },
 ]
 
-const MAIL_PROVIDER_KEYS = [
-  'RESEND_API_KEY',
-  'AWS_SES_REGION',
-  'SMTP_HOST',
-  'AZURE_ACS_CONNECTION_STRING',
-  'GMAIL_CREDENTIALS_JSON',
-] as const
-
-export function hasMailProvider(vars: Map<string, string>): boolean {
-  return MAIL_PROVIDER_KEYS.some((key) => vars.get(key))
+export function getConfiguredMailProvider(vars: Map<string, string>): string {
+  const inspection = inspectCapability(EMAIL_CAPABILITY, vars)
+  return (
+    inspection.providerIds[0] ??
+    inspection.providers.find((provider) => provider.active)?.id ??
+    'console'
+  )
 }
 
 export const LOGIN_PROVIDERS = [

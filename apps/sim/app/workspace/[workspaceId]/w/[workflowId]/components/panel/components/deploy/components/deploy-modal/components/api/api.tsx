@@ -11,7 +11,7 @@ import {
   Skeleton,
   Tooltip,
 } from '@sim/emcn'
-import { Check, Clipboard } from 'lucide-react'
+import { Check, Clipboard } from '@sim/emcn/icons'
 import {
   AGENT_STREAM_PROTOCOL_HEADER_LABEL,
   AGENT_STREAM_PROTOCOL_V1,

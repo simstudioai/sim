@@ -22,9 +22,18 @@ import {
   Tooltip,
   useCopyToClipboard,
 } from '@sim/emcn'
-import { Workflow, Wrench } from '@sim/emcn/icons'
+import {
+  ArrowDown,
+  ArrowUp,
+  Check,
+  ChevronUp,
+  Clipboard,
+  Search,
+  Workflow,
+  Wrench,
+  X,
+} from '@sim/emcn/icons'
 import { formatDuration } from '@sim/utils/formatting'
-import { ArrowDown, ArrowUp, Check, ChevronUp, Clipboard, Search, X } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { createPortal } from 'react-dom'
@@ -543,7 +552,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                     <span className='font-medium text-[var(--text-tertiary)] text-caption'>
                       Snapshot
                     </span>
-                    <Chip leftIcon={Eye} flush onClick={() => setIsExecutionSnapshotOpen(true)}>
+                    <Chip leftIcon={Eye} onClick={() => setIsExecutionSnapshotOpen(true)}>
                       View Snapshot
                     </Chip>
                   </div>
@@ -555,7 +564,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                     <span className='font-medium text-[var(--text-tertiary)] text-caption'>
                       Troubleshoot
                     </span>
-                    <Chip leftIcon={Wrench} flush onClick={handleTroubleshoot}>
+                    <Chip leftIcon={Wrench} onClick={handleTroubleshoot}>
                       Troubleshoot in Chat
                     </Chip>
                   </div>

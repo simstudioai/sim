@@ -31,7 +31,7 @@ export function LandingPreviewChatTitleBar({
         </span>
         <span aria-hidden='true' className='w-px self-stretch bg-[var(--surface-2)]' />
         <span className='flex items-center rounded-r-lg px-1 transition-colors hover-hover:bg-[var(--surface-active)]'>
-          <ChevronDown className='h-[6px] w-[10px] flex-shrink-0 text-[var(--text-icon)]' />
+          <ChevronDown className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
         </span>
       </span>
       {showClose && (

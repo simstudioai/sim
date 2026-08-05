@@ -1,7 +1,6 @@
 import { createLogger } from '@sim/logger'
 import {
   CheckDeploymentStatus,
-  CompleteScheduledTask,
   Cp as CpTool,
   CreateWorkflow,
   CreateWorkspaceMcpServer,
@@ -29,7 +28,6 @@ import {
   ManageCredential,
   ManageCustomTool,
   ManageMcpTool,
-  ManageScheduledTask,
   ManageSkill,
   MaterializeFile,
   Mkdir as MkdirTool,
@@ -50,7 +48,6 @@ import {
   SetBlockEnabled,
   SetGlobalWorkflowVariables,
   UpdateDeploymentVersion,
-  UpdateScheduledTaskHistory,
   UpdateWorkspaceMcpServer,
 } from '@/lib/copilot/generated/tool-catalog-v1'
 import { createServerToolHandler } from '@/lib/copilot/tools/registry/server-tool-adapter'
@@ -76,11 +73,6 @@ import {
 } from '../tools/handlers/deployment/manage'
 import { executeFunctionExecute } from '../tools/handlers/function-execute'
 import { executeListIntegrationTools } from '../tools/handlers/integration-tools'
-import {
-  executeCompleteJob,
-  executeManageJob,
-  executeUpdateJobHistory,
-} from '../tools/handlers/jobs'
 import { executeManageCredential } from '../tools/handlers/management/manage-credential'
 import { executeManageCustomTool } from '../tools/handlers/management/manage-custom-tool'
 import { executeManageMcpTool } from '../tools/handlers/management/manage-mcp-tool'
@@ -177,10 +169,6 @@ function buildHandlerMap(): Record<string, ToolHandler> {
     [LoadDeployment.id]: h(executeLoadDeployment),
     [PromoteToLive.id]: h(executePromoteToLive),
     [UpdateDeploymentVersion.id]: h(executeUpdateDeploymentVersion),
-
-    [ManageScheduledTask.id]: h(executeManageJob),
-    [CompleteScheduledTask.id]: h(executeCompleteJob),
-    [UpdateScheduledTaskHistory.id]: h(executeUpdateJobHistory),
 
     [GrepTool.id]: h(executeVfsGrep),
     [GlobTool.id]: h(executeVfsGlob),

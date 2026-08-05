@@ -1,0 +1,226 @@
+/**
+ * @vitest-environment node
+ */
+import { describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/lib/core/config/env', () => ({ env: {} }))
+
+import {
+  OAUTH_CLIENT_CAPABILITIES,
+  resolveOAuthClientCapabilityId,
+} from '@/lib/core/config/env-capabilities'
+import {
+  getIntegrationTypesForOAuthServiceId,
+  type IntegrationAvailability,
+  isOAuthServiceAllowedByIntegrationTypes,
+  resolveIntegrationAvailability,
+  resolveIntegrationAvailabilityStateForVisibility,
+} from '@/lib/integrations/availability'
+import {
+  isIntegrationDeploymentAvailable,
+  isIntegrationDeploymentAvailableForVisibility,
+} from '@/lib/integrations/availability.server'
+import integrationsJson from '@/lib/integrations/integrations.json'
+import { SERVICE_ACCOUNT_METADATA_BY_OAUTH_SERVICE_ID } from '@/lib/integrations/service-account-metadata'
+import type { Integration } from '@/lib/integrations/types'
+import { getServiceConfigByServiceId } from '@/lib/oauth/utils'
+
+const integrations = integrationsJson.integrations as readonly Integration[]
+
+function availabilityFor(
+  type: string,
+  values: Parameters<typeof resolveIntegrationAvailability>[0] = {}
+): IntegrationAvailability {
+  const availability = resolveIntegrationAvailability(values).find((item) => item.type === type)
+  if (!availability) throw new Error(`Missing integration availability for ${type}`)
+  return availability
+}
+
+describe('integration availability', () => {
+  it('marks a configured OAuth integration ready', () => {
+    expect(
+      availabilityFor('slack', {
+        SLACK_CLIENT_ID: 'client',
+        SLACK_CLIENT_SECRET: 'secret',
+      })
+    ).toMatchObject({
+      name: 'Slack',
+      slug: 'slack',
+      state: 'ready',
+      oauthAvailable: true,
+      serviceAccountAvailable: false,
+      missingFields: [],
+      setupCommand: 'bun run setup integration slack',
+    })
+  })
+
+  it('marks an integration with an ungated service-account path as limited', () => {
+    expect(availabilityFor('notion_v2')).toMatchObject({
+      state: 'limited',
+      oauthAvailable: false,
+      serviceAccountAvailable: true,
+      missingFields: ['NOTION_CLIENT_ID', 'NOTION_CLIENT_SECRET'],
+      setupCommand: 'bun run setup integration notion',
+    })
+  })
+
+  it('keeps an ungated service-account path available when OAuth is partial', () => {
+    expect(availabilityFor('notion_v2', { NOTION_CLIENT_ID: 'client' })).toMatchObject({
+      state: 'limited',
+      oauthAvailable: false,
+      serviceAccountAvailable: true,
+      missingFields: ['NOTION_CLIENT_SECRET'],
+    })
+  })
+
+  it('marks an unconfigured OAuth-only integration unavailable', () => {
+    expect(availabilityFor('x')).toMatchObject({
+      state: 'unavailable',
+      oauthAvailable: false,
+      setupCommand: 'bun run setup integration x',
+    })
+  })
+
+  it('reports a partially configured OAuth client and its missing fields', () => {
+    expect(availabilityFor('slack', { SLACK_CLIENT_ID: 'client' })).toMatchObject({
+      state: 'misconfigured',
+      oauthAvailable: false,
+      serviceAccountAvailable: false,
+      missingFields: ['SLACK_CLIENT_SECRET'],
+      setupCommand: 'bun run setup integration slack',
+    })
+  })
+
+  it('projects a revealed preview service-account path as limited', () => {
+    const unavailableSlack = availabilityFor('slack')
+    const misconfiguredSlack = availabilityFor('slack', { SLACK_CLIENT_ID: 'client' })
+    const revealed = {
+      revealed: new Set(['slack_v2']),
+      disabled: new Set<string>(),
+      previewTagged: new Set(['slack_v2']),
+    }
+
+    expect(resolveIntegrationAvailabilityStateForVisibility(unavailableSlack, null)).toBe(
+      'unavailable'
+    )
+    expect(resolveIntegrationAvailabilityStateForVisibility(unavailableSlack, revealed)).toBe(
+      'limited'
+    )
+    expect(resolveIntegrationAvailabilityStateForVisibility(misconfiguredSlack, revealed)).toBe(
+      'limited'
+    )
+  })
+
+  it('keeps preview service accounts unavailable when their block is kill-switched', () => {
+    const unavailableSlack = availabilityFor('slack')
+    const disabled = {
+      revealed: new Set(['slack_v2']),
+      disabled: new Set(['slack_v2']),
+      previewTagged: new Set(['slack_v2']),
+    }
+
+    expect(resolveIntegrationAvailabilityStateForVisibility(unavailableSlack, disabled)).toBe(
+      'unavailable'
+    )
+    expect(resolveIntegrationAvailabilityStateForVisibility(availabilityFor('x'), disabled)).toBe(
+      'unavailable'
+    )
+  })
+
+  it('projects base and versioned deployment availability through explicit visibility', () => {
+    const revealed = {
+      revealed: new Set(['slack_v2']),
+      disabled: new Set<string>(),
+      previewTagged: new Set(['slack_v2']),
+    }
+    const disabled = {
+      ...revealed,
+      disabled: new Set(['slack_v2']),
+    }
+
+    expect(isIntegrationDeploymentAvailable('slack')).toBe(false)
+    expect(isIntegrationDeploymentAvailable('slack_v2')).toBe(false)
+    expect(isIntegrationDeploymentAvailable('slack-v2')).toBe(false)
+    expect(isIntegrationDeploymentAvailableForVisibility('slack', null)).toBe(false)
+    expect(isIntegrationDeploymentAvailableForVisibility('slack_v2', null)).toBe(false)
+    expect(isIntegrationDeploymentAvailableForVisibility('slack-v2', null)).toBe(false)
+    expect(isIntegrationDeploymentAvailableForVisibility('slack', revealed)).toBe(true)
+    expect(isIntegrationDeploymentAvailableForVisibility('slack_v2', revealed)).toBe(true)
+    expect(isIntegrationDeploymentAvailableForVisibility('slack-v2', revealed)).toBe(true)
+    expect(isIntegrationDeploymentAvailableForVisibility('x', revealed)).toBe(false)
+    expect(isIntegrationDeploymentAvailableForVisibility('slack', disabled)).toBe(false)
+    expect(isIntegrationDeploymentAvailableForVisibility('slack_v2', disabled)).toBe(false)
+    expect(isIntegrationDeploymentAvailableForVisibility('slack-v2', disabled)).toBe(false)
+  })
+
+  it('requires the deployment Trello API key for OAuth and pasted member tokens', () => {
+    expect(availabilityFor('trello')).toMatchObject({
+      state: 'unavailable',
+      serviceAccountAvailable: false,
+      missingFields: ['TRELLO_API_KEY'],
+      setupCommand: 'bun run setup integration trello',
+    })
+    expect(availabilityFor('trello', { TRELLO_API_KEY: 'trello-key' })).toMatchObject({
+      state: 'ready',
+      oauthAvailable: true,
+      serviceAccountAvailable: true,
+      missingFields: [],
+    })
+  })
+
+  it('maps OAuth service ids to the integration allowlist without loading registries', () => {
+    expect(getIntegrationTypesForOAuthServiceId('gmail')).toContain('gmail_v2')
+    expect(isOAuthServiceAllowedByIntegrationTypes('gmail', new Set(['slack']))).toBe(false)
+    expect(isOAuthServiceAllowedByIntegrationTypes('slack', new Set(['slack']))).toBe(true)
+    expect(isOAuthServiceAllowedByIntegrationTypes('spotify', null)).toBe(true)
+  })
+
+  it('returns every visible integration and only emits accepted setup commands', () => {
+    const availability = resolveIntegrationAvailability({})
+    expect(availability).toHaveLength(integrations.length)
+
+    for (const integration of availability) {
+      if (!integration.setupCommand) continue
+      const capabilityId = integration.setupCommand.replace('bun run setup integration ', '')
+      expect(Object.hasOwn(OAUTH_CLIENT_CAPABILITIES, capabilityId)).toBe(true)
+    }
+  })
+
+  it('keeps service-account metadata in parity with canonical OAuth services', () => {
+    const oauthServiceIds = [
+      ...new Set(
+        integrations.flatMap((integration) =>
+          integration.authType === 'oauth' && integration.oauthServiceId
+            ? [integration.oauthServiceId]
+            : []
+        )
+      ),
+    ]
+    const expectedServiceAccountIds: Record<string, string> = {}
+
+    for (const oauthServiceId of oauthServiceIds) {
+      const canonical = getServiceConfigByServiceId(oauthServiceId)
+      if (!canonical) throw new Error(`Missing canonical OAuth service ${oauthServiceId}`)
+      const projected = SERVICE_ACCOUNT_METADATA_BY_OAUTH_SERVICE_ID[oauthServiceId]
+      expect(projected?.providerId, oauthServiceId).toBe(canonical.serviceAccountProviderId)
+      if (canonical.serviceAccountProviderId) {
+        expectedServiceAccountIds[oauthServiceId] = canonical.serviceAccountProviderId
+      }
+    }
+
+    expect(
+      Object.fromEntries(
+        Object.entries(SERVICE_ACCOUNT_METADATA_BY_OAUTH_SERVICE_ID).map(
+          ([serviceId, metadata]) => [serviceId, metadata.providerId]
+        )
+      )
+    ).toEqual(expectedServiceAccountIds)
+    expect(SERVICE_ACCOUNT_METADATA_BY_OAUTH_SERVICE_ID.slack.deploymentRequirement).toBe(
+      'preview-gated'
+    )
+    expect(SERVICE_ACCOUNT_METADATA_BY_OAUTH_SERVICE_ID.trello.deploymentRequirement).toBe(
+      'oauth-client'
+    )
+    expect(resolveOAuthClientCapabilityId('trello')).toBe('trello')
+  })
+})

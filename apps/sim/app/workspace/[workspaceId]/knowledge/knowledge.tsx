@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ChipDropdownOption } from '@sim/emcn'
 import { Button, ChipConfirmModal, ChipDropdown, Plus, Tooltip, toast } from '@sim/emcn'
-import { Database, FolderPlus } from '@sim/emcn/icons'
+import { Database, FolderPlus, Pencil, Trash } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams, useRouter } from 'next/navigation'
@@ -925,6 +925,7 @@ export function Knowledge() {
             ? [
                 {
                   label: 'Rename',
+                  icon: Pencil,
                   onClick: () => {
                     const folder = breadcrumbs[breadcrumbs.length - 1]
                     breadcrumbRenameRef.current.startRename(folder.id, folder.name)
@@ -932,6 +933,7 @@ export function Knowledge() {
                 },
                 {
                   label: 'Delete',
+                  icon: Trash,
                   onClick: () => setFolderPendingDelete(breadcrumbs[breadcrumbs.length - 1]),
                 },
               ]
@@ -1019,7 +1021,6 @@ export function Knowledge() {
             onChange={(value) => setConnectorFilter(value === 'all' ? [] : [value])}
             align='start'
             fullWidth
-            flush
           />
         </div>
         <div className='flex flex-col gap-2'>
@@ -1041,7 +1042,6 @@ export function Knowledge() {
             onChange={(value) => setContentFilter(value === 'all' ? [] : [value])}
             align='start'
             fullWidth
-            flush
           />
         </div>
         {memberOptions.length > 0 && (
@@ -1068,7 +1068,6 @@ export function Knowledge() {
               searchPlaceholder='Search members...'
               align='start'
               fullWidth
-              flush
             />
           </div>
         )}

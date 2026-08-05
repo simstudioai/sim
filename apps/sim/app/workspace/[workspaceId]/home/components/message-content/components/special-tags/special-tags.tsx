@@ -1383,7 +1383,7 @@ function OptionsDisplay({ data, onSelect }: OptionsDisplayProps) {
           <span className='text-[var(--text-body)] text-sm'>Suggested follow-ups</span>
           <ChevronDown
             className={cn(
-              'h-[7px] w-[9px] text-[var(--text-icon)] transition-transform duration-150',
+              'size-[14px] text-[var(--text-icon)] transition-transform duration-150',
               !expanded && '-rotate-90'
             )}
           />
@@ -1404,7 +1404,7 @@ function OptionsDisplay({ data, onSelect }: OptionsDisplayProps) {
                   disabled={disabled}
                   onClick={() => onSelect?.(title)}
                   className={cn(
-                    'flex items-center gap-2 border-[var(--divider)] px-2 py-2 text-left transition-colors',
+                    'flex items-center gap-2 border-[var(--border)] px-2 py-2 text-left transition-colors',
                     disabled ? 'cursor-not-allowed' : 'hover-hover:bg-[var(--surface-5)]',
                     i > 0 && 'border-t'
                   )}
@@ -1637,7 +1637,7 @@ function SecretInputDisplay({ data }: { data: CredentialTagData }) {
             <Button
               type='button'
               variant='quiet'
-              className='size-[18px] rounded-sm p-0'
+              size='icon'
               onClick={() => void handleSave()}
               disabled={!canSave}
               aria-label='Save'
@@ -2018,7 +2018,7 @@ function UsageUpgradeDisplay({ data }: { data: UsageUpgradeTagData }) {
           <path d='M8 6.5v3' stroke='currentColor' strokeWidth='1.3' strokeLinecap='round' />
           <circle cx='8' cy='11.5' r='0.75' fill='currentColor' />
         </svg>
-        <span className='font-[500] text-amber-800 text-sm leading-5 dark:text-amber-300'>
+        <span className='font-medium text-amber-800 text-sm leading-5 dark:text-amber-300'>
           Usage Limit Reached
         </span>
       </div>
@@ -2031,13 +2031,13 @@ function UsageUpgradeDisplay({ data }: { data: UsageUpgradeTagData }) {
           target={isHosted ? undefined : '_blank'}
           rel={isHosted ? undefined : 'noopener noreferrer'}
           aria-label={isHosted ? undefined : `${buttonLabel} (opens in a new tab)`}
-          className='mt-2 inline-flex items-center gap-1 font-[500] text-amber-700 text-small underline decoration-dashed underline-offset-2 transition-colors hover-hover:text-amber-900 dark:text-amber-300 dark:hover-hover:text-amber-200'
+          className='mt-2 inline-flex items-center gap-1 font-medium text-amber-700 text-small underline decoration-dashed underline-offset-2 transition-colors hover-hover:text-amber-900 dark:text-amber-300 dark:hover-hover:text-amber-200'
         >
           {buttonLabel}
           {isHosted ? <ArrowRight className='size-3' /> : <SquareArrowUpRight className='size-3' />}
         </a>
       ) : (
-        <p className='mt-2 font-[500] text-amber-700 text-small dark:text-amber-300'>
+        <p className='mt-2 font-medium text-amber-700 text-small dark:text-amber-300'>
           {unavailableMessage}
         </p>
       )}

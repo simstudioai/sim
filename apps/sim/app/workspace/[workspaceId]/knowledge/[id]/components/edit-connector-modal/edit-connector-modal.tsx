@@ -15,8 +15,8 @@ import {
   Skeleton,
   Tooltip,
 } from '@sim/emcn'
+import { RefreshCw, SquareArrowUpRight } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import { ExternalLink, RotateCcw } from 'lucide-react'
 import { ConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-config-fields'
 import { hasWorkspaceMaxConnectorAccess } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-entitlements'
 import { SYNC_INTERVALS } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/consts'
@@ -269,9 +269,10 @@ export function EditConnectorModal({
   return (
     <ChipModal
       open={open}
-      onOpenChange={(val) => !isSaving && onOpenChange(val)}
+      onOpenChange={onOpenChange}
       srTitle={`Edit ${displayName}`}
       size='md'
+      dismissDisabled={isSaving}
     >
       <ChipModalHeader icon={Icon ?? null} onClose={() => onOpenChange(false)}>
         Edit {displayName}
@@ -312,7 +313,6 @@ export function EditConnectorModal({
       {activeTab === 'settings' && (
         <ChipModalFooter
           onCancel={() => onOpenChange(false)}
-          cancelDisabled={isSaving}
           primaryAction={{
             label: isSaving ? 'Saving…' : 'Save',
             onClick: handleSave,
@@ -459,7 +459,7 @@ function DocumentsTab({ knowledgeBaseId, connectorId }: DocumentsTabProps) {
                           rel='noopener noreferrer'
                           className='flex size-5 flex-shrink-0 items-center justify-center rounded-md text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-primary)]'
                         >
-                          <ExternalLink className='size-3' />
+                          <SquareArrowUpRight className='size-3' />
                         </a>
                       </Tooltip.Trigger>
                       <Tooltip.Content>Open source document</Tooltip.Content>
@@ -479,7 +479,7 @@ function DocumentsTab({ knowledgeBaseId, connectorId }: DocumentsTabProps) {
                 >
                   {doc.userExcluded ? (
                     <>
-                      <RotateCcw className='mr-1 size-3' />
+                      <RefreshCw className='mr-1 size-3' />
                       Restore
                     </>
                   ) : (

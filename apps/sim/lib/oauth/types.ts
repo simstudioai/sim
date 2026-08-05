@@ -168,10 +168,13 @@ export interface OAuthServiceConfig {
  * Service metadata without React components - safe for server-side use
  */
 export interface OAuthServiceMetadata {
+  serviceId: string
   providerId: string
+  serviceAccountProviderId?: string
   name: string
   description: string
   baseProvider: string
+  authType: OAuthAuthType
 }
 
 export interface Credential {

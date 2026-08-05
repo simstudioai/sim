@@ -139,7 +139,7 @@ type ChipDropdownProps = ChipDropdownSingleProps | ChipDropdownMultiProps
  *
  * The trigger reuses `chipVariants` for visual parity with `Chip`. The label
  * is `flex-1`, so the trailing chevron is pushed flush right. The chevron is
- * owned by the component and rendered at `h-[6px] w-[10px]` (matching the
+ * owned by the component and rendered at `size-[14px]` (matching the
  * workspace-header chevron) — there is intentionally no `rightIcon` prop. The
  * trigger and menu shell are identical across modes; only the selection
  * semantics (label, item handlers, open state, search) branch on `multiple`.
@@ -164,7 +164,6 @@ type ChipDropdownProps = ChipDropdownSingleProps | ChipDropdownMultiProps
  *   searchable
  *   searchPlaceholder='Search members...'
  *   fullWidth
- *   flush
  * />
  */
 const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
@@ -181,7 +180,6 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
       variant = 'filled',
       active,
       fullWidth,
-      flush,
       'aria-label': ariaLabel,
       'aria-labelledby': ariaLabelledBy,
       id,
@@ -308,7 +306,7 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
             aria-label={ariaLabel}
             aria-labelledby={ariaLabelledBy}
             className={cn(
-              chipVariants({ variant, active, fullWidth, flush }),
+              chipVariants({ variant, active, fullWidth }),
               hasTriggerBorder && TRIGGER_BORDER_CLASS,
               className
             )}
@@ -320,7 +318,7 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
               {displayLabel}
             </span>
             <span aria-hidden className={chevronSlotClass}>
-              <ChevronDown className='h-[6px] w-[10px]' />
+              <ChevronDown className='size-[14px]' />
             </span>
           </button>
         </DropdownMenuTrigger>

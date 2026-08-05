@@ -118,7 +118,6 @@ const emailTemplates = {
   'schedule-disabled': () =>
     renderScheduleDisabledEmail({
       recipientName: 'John',
-      kind: 'workflow',
       resourceName: 'Daily digest',
       reason: 'consecutive_failures',
       failedCount: 100,
@@ -127,10 +126,9 @@ const emailTemplates = {
   'schedule-disabled-auth': () =>
     renderScheduleDisabledEmail({
       recipientName: 'John',
-      kind: 'job',
       resourceName: 'Weekly report',
       reason: 'authentication_error',
-      manageLink: 'https://sim.ai/workspace/ws_123/scheduled-tasks',
+      manageLink: 'https://sim.ai/workspace/ws_123/w/wf_456',
     }),
 } as const
 

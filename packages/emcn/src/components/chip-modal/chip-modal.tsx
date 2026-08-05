@@ -39,8 +39,7 @@
 'use client'
 
 import * as React from 'react'
-import { X } from 'lucide-react'
-import { Loader } from '../../icons'
+import { Loader, X } from '../../icons'
 import { cn } from '../../lib/cn'
 import { Button } from '../button/button'
 import { Chip, type ChipProps } from '../chip/chip'
@@ -52,7 +51,7 @@ import { ChipInput } from '../chip-input/chip-input'
 import { ChipSwitch } from '../chip-switch/chip-switch'
 import { ChipTextarea } from '../chip-textarea/chip-textarea'
 import { Label } from '../label/label'
-import { Modal, ModalContent } from '../modal/modal'
+import { Modal, ModalContent, useModalDismissDisabled } from '../modal/modal'
 import { Tooltip } from '../tooltip/tooltip'
 
 /**
@@ -109,6 +108,14 @@ export interface ChipModalProps {
   size?: 'sm' | 'md' | 'lg' | 'xl' | 'full'
   /** Optional className forwarded to the outer panel ring. */
   className?: string
+  /**
+   * Refuses every exit while an action is in flight — Escape, outside-click,
+   * the header close button, and the footer Cancel. Stating it once here is the
+   * point: disabling only the buttons leaves Escape and outside-click open,
+   * which reads as handled without being handled.
+   * @default false
+   */
+  dismissDisabled?: boolean
   children?: React.ReactNode
 }
 
@@ -125,13 +132,20 @@ function ChipModal({
   srTitle = 'Dialog',
   size = 'md',
   className,
+  dismissDisabled = false,
   children,
 }: ChipModalProps) {
   const submitRef = React.useRef<ChipModalSubmit | null>(null)
   return (
     <ChipModalSubmitContext.Provider value={submitRef}>
       <Modal open={open} onOpenChange={onOpenChange}>
-        <ModalContent bare showClose={false} srTitle={srTitle} size={size}>
+        <ModalContent
+          bare
+          showClose={false}
+          srTitle={srTitle}
+          size={size}
+          dismissDisabled={dismissDisabled}
+        >
           <div
             className={cn(
               'flex min-h-0 w-full flex-col rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px] shadow-[var(--shadow-overlay)] dark:bg-[var(--surface-5)]',
@@ -155,6 +169,12 @@ export interface ChipModalHeaderProps extends React.HTMLAttributes<HTMLDivElemen
   icon?: React.ComponentType<{ className?: string }> | null
   /** Invoked when the trailing close button is activated. Always rendered. */
   onClose: () => void
+  /**
+   * Disables the trailing close button. Combines with
+   * {@link ChipModalProps.dismissDisabled}, which also blocks Escape and
+   * outside-click — prefer that for an in-flight operation.
+   */
+  closeDisabled?: boolean
   /** Accessible label for the close button. */
   closeAriaLabel?: string
 }
@@ -165,28 +185,40 @@ export interface ChipModalHeaderProps extends React.HTMLAttributes<HTMLDivElemen
  */
 const ChipModalHeader = React.forwardRef<HTMLDivElement, ChipModalHeaderProps>(
   (
-    { className, children, icon: Icon = null, onClose, closeAriaLabel = 'Close', ...props },
+    {
+      className,
+      children,
+      icon: Icon = null,
+      onClose,
+      closeDisabled,
+      closeAriaLabel = 'Close',
+      ...props
+    },
     ref
-  ) => (
-    <div ref={ref} className={cn('flex flex-col', className)} {...props}>
-      <div className='flex min-w-0 items-center justify-between gap-2 px-4 pt-3'>
-        <div className='flex min-w-0 items-center gap-2'>
-          {Icon ? <Icon className={chipContentIconClass} /> : null}
-          <span className={chipContentLabelClass}>{children}</span>
+  ) => {
+    const dismissDisabled = useModalDismissDisabled()
+    return (
+      <div ref={ref} className={cn('flex flex-col', className)} {...props}>
+        <div className='flex min-w-0 items-center justify-between gap-2 px-4 pt-3'>
+          <div className='flex min-w-0 items-center gap-2'>
+            {Icon ? <Icon className={chipContentIconClass} /> : null}
+            <span className={chipContentLabelClass}>{children}</span>
+          </div>
+          <Button
+            type='button'
+            variant='ghost'
+            onClick={onClose}
+            disabled={closeDisabled || dismissDisabled}
+            className='relative size-[14px] flex-shrink-0 p-0 before:absolute before:inset-[-14px] before:content-[""]'
+          >
+            <X className='size-[14px] text-[var(--text-icon)]' />
+            <span className='sr-only'>{closeAriaLabel}</span>
+          </Button>
         </div>
-        <Button
-          type='button'
-          variant='ghost'
-          onClick={onClose}
-          className='relative size-[14px] flex-shrink-0 p-0 before:absolute before:inset-[-14px] before:content-[""]'
-        >
-          <X className='size-[14px] text-[var(--text-icon)]' />
-          <span className='sr-only'>{closeAriaLabel}</span>
-        </Button>
+        <ChipModalSeparator className='mt-3' />
       </div>
-      <ChipModalSeparator className='mt-3' />
-    </div>
-  )
+    )
+  }
 )
 
 ChipModalHeader.displayName = 'ChipModalHeader'
@@ -887,10 +919,10 @@ export interface ChipModalFooterAction {
  * Escape hatch for the left-docked footer cluster: renders the given node in
  * place of a declarative action Chip. Reserve it for chip-chrome controls
  * (`ChipDatePicker`, `ChipTimePicker`, `ChipDropdown`, ...) so the footer
- * stays visually canonical — pass `flush` to the control so it sits on the
- * cluster's `gap-2` rhythm like the footer's own Chips. The primary action
- * stays declarative by design; only `secondaryActions` accepts custom
- * controls.
+ * stays visually canonical — the cluster's `gap-2` alone sets the rhythm, as
+ * it does for the footer's own Chips, so the control must carry no outer
+ * margin. The primary action stays declarative by design; only
+ * `secondaryActions` accepts custom controls.
  */
 export interface ChipModalFooterCustomAction {
   /** Chip-chrome control rendered verbatim in the slot. */
@@ -914,6 +946,10 @@ export interface ChipModalFooterProps {
    * Disables the Cancel button. Set this while a primary/secondary action is
    * in flight (e.g. an async delete or save) so the user cannot dismiss the
    * modal and assume the operation was aborted while the mutation keeps running.
+   *
+   * This covers the Cancel button only. For an in-flight operation reach for
+   * {@link ChipModalProps.dismissDisabled} instead, which also blocks Escape,
+   * outside-click and the header's X.
    * @default false
    */
   cancelDisabled?: boolean
@@ -989,7 +1025,7 @@ function ChipModalFooterShell({
 function renderFooterSlotAction(action: ChipModalFooterSlotAction): React.ReactNode {
   if ('custom' in action) return action.custom
   return (
-    <Chip variant={action.variant} flush onClick={action.onClick} disabled={action.disabled}>
+    <Chip variant={action.variant} onClick={action.onClick} disabled={action.disabled}>
       {action.label}
     </Chip>
   )
@@ -1015,6 +1051,7 @@ function ChipModalFooter({
   primaryAdjacentAction,
   secondaryActions,
 }: ChipModalFooterProps) {
+  const dismissDisabled = useModalDismissDisabled()
   const showsDisabledTooltip = Boolean(primaryAction.disabled && primaryAction.disabledTooltip)
 
   /**
@@ -1048,7 +1085,6 @@ function ChipModalFooter({
   const primaryChip = (
     <Chip
       variant={primaryAction.variant ?? 'primary'}
-      flush
       onClick={primaryAction.onClick}
       disabled={primaryAction.disabled}
       className={cn(showsDisabledTooltip && 'pointer-events-none')}
@@ -1070,7 +1106,7 @@ function ChipModalFooter({
       }
     >
       {hideCancel ? null : (
-        <Chip flush onClick={onCancel} disabled={cancelDisabled}>
+        <Chip onClick={onCancel} disabled={cancelDisabled || dismissDisabled}>
           Cancel
         </Chip>
       )}
@@ -1294,6 +1330,7 @@ function ChipConfirmModal({
       onOpenChange={onOpenChange}
       size={size}
       srTitle={srTitle ?? (typeof title === 'string' ? title : 'Confirm')}
+      dismissDisabled={confirm.pending}
     >
       <ChipModalHeader icon={icon} onClose={dismiss}>
         {title}
@@ -1307,12 +1344,11 @@ function ChipConfirmModal({
         {children}
       </ChipModalBody>
       <ChipModalFooterShell>
-        <Chip flush onClick={dismiss} disabled={confirm.pending}>
+        <Chip onClick={dismiss} disabled={confirm.pending}>
           {dismissLabel}
         </Chip>
         <Chip
           variant={confirm.variant ?? 'destructive'}
-          flush
           onClick={confirm.onClick}
           disabled={confirm.disabled || confirm.pending}
         >

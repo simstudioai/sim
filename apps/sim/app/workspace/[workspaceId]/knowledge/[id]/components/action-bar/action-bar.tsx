@@ -1,6 +1,6 @@
-import { Button, cn, Tooltip, Trash2 } from '@sim/emcn'
+import { Button, cn, Tooltip, Trash } from '@sim/emcn'
+import { Ban, Circle } from '@sim/emcn/icons'
 import { domAnimation, LazyMotion, m } from 'framer-motion'
-import { Circle, CircleOff } from 'lucide-react'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 
 interface ActionBarProps {
@@ -109,7 +109,7 @@ export function ActionBar({
                     disabled={isLoading}
                     className='hover-hover:!text-[var(--text-inverse)] size-[28px] rounded-lg bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover-hover:bg-[var(--brand-secondary)]'
                   >
-                    <CircleOff className='size-[12px]' />
+                    <Ban className='size-[12px]' />
                   </Button>
                 </Tooltip.Trigger>
                 <Tooltip.Content side='top'>Disable</Tooltip.Content>
@@ -125,7 +125,7 @@ export function ActionBar({
                     disabled={isLoading}
                     className='hover-hover:!text-[var(--text-inverse)] size-[28px] rounded-lg bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover-hover:bg-[var(--brand-secondary)]'
                   >
-                    <Trash2 className='size-[12px]' />
+                    <Trash className='size-[12px]' />
                   </Button>
                 </Tooltip.Trigger>
                 <Tooltip.Content side='top'>Delete</Tooltip.Content>

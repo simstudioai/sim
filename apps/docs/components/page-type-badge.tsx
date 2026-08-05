@@ -42,7 +42,7 @@ export function PageTypeBadge({ type, className }: PageTypeBadgeProps) {
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-md px-[9px] py-0.5 font-medium font-season text-[12px] transition-colors',
+        'inline-flex items-center gap-1.5 rounded-md px-[9px] py-0.5 font-medium font-season text-caption transition-colors',
         config.className,
         className
       )}

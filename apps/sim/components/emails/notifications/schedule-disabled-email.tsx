@@ -9,14 +9,12 @@ import { getBrandConfig } from '@/ee/whitelabeling'
 
 interface ScheduleDisabledEmailProps {
   recipientName?: string
-  /** Drives the noun and the CTA label. */
-  kind: 'workflow' | 'job'
-  /** Workflow name or job title. Absent when the source row could not be read. */
+  /** Workflow name. Absent when the source row could not be read. */
   resourceName?: string
   reason: ScheduleDisableReason
   /** Consecutive failures at disable time. Rendered only for `consecutive_failures`. */
   failedCount?: number
-  /** Deep link to the workflow or scheduled tasks. Absent when the workspace is unknown. */
+  /** Deep link to the workflow. Absent when the workspace is unknown. */
   manageLink?: string
 }
 
@@ -26,15 +24,13 @@ interface ScheduleDisabledEmailProps {
  */
 export function ScheduleDisabledEmail({
   recipientName,
-  kind,
   resourceName,
   reason,
   failedCount,
   manageLink,
 }: ScheduleDisabledEmailProps) {
   const brand = getBrandConfig()
-  const resourceLabel =
-    resourceName ?? (kind === 'job' ? 'a scheduled task' : 'a scheduled workflow')
+  const resourceLabel = resourceName ?? 'a scheduled workflow'
   const reasonCopy =
     reason === 'consecutive_failures' && failedCount
       ? `It failed ${failedCount.toLocaleString()} times in a row.`
@@ -64,9 +60,7 @@ export function ScheduleDisabledEmail({
 
       {manageLink ? (
         <Link href={manageLink} style={{ textDecoration: 'none' }}>
-          <Text style={baseStyles.button}>
-            {kind === 'job' ? 'Open scheduled tasks' : 'Open workflow'}
-          </Text>
+          <Text style={baseStyles.button}>Open workflow</Text>
         </Link>
       ) : null}
 

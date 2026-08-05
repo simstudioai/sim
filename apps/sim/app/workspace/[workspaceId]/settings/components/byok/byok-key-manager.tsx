@@ -13,9 +13,9 @@ import {
   ChipModalFooter,
   ChipModalHeader,
 } from '@sim/emcn'
+import { Eye, EyeOff, Search } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { Eye, EyeOff, Search } from 'lucide-react'
 import {
   CHIP_FIELD_INPUT,
   CHIP_FIELD_SHELL,
@@ -421,7 +421,8 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
               />
               <Button
                 variant='quiet'
-                className='size-[18px] shrink-0 rounded-sm p-0'
+                size='icon'
+                className='shrink-0'
                 onClick={() => setShowApiKey(!showApiKey)}
                 aria-label={showApiKey ? 'Hide API key' : 'Show API key'}
               >

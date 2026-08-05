@@ -10,8 +10,8 @@ import {
   highlight,
   languages,
 } from '@sim/emcn'
+import { Check, Wand } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import { Check, Wand2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import Editor from 'react-simple-code-editor'
 import { Button } from '@/components/ui/button'
@@ -865,7 +865,7 @@ export const Code = memo(function Code({
                 aria-label='Generate code with AI'
                 className='size-8 rounded-full border border-transparent bg-muted/80 text-muted-foreground shadow-sm transition-all duration-200 hover-hover:border-primary/20 hover-hover:bg-muted hover-hover:text-foreground hover-hover:shadow'
               >
-                <Wand2 className='size-4' />
+                <Wand className='size-4' />
               </Button>
             )}
         </div>
