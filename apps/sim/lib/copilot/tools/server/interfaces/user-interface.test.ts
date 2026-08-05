@@ -4,6 +4,7 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
+import { DEFAULT_FORM_SUBMIT_LABEL } from '@/lib/interfaces/constants'
 import type { InterfaceDefinition, InterfaceModule } from '@/lib/interfaces/types'
 
 const {
@@ -602,7 +603,7 @@ describe('userInterfaceServerTool', () => {
         placement: { row: 1, col: 0, rowSpan: 1, colSpan: 1 },
         config: {
           workflowId: 'wf_1',
-          submitLabel: 'Submit',
+          submitLabel: DEFAULT_FORM_SUBMIT_LABEL,
           fields: [
             {
               id: 'generated-id',
@@ -637,7 +638,7 @@ describe('userInterfaceServerTool', () => {
       expect(mockAddModule).toHaveBeenCalledWith(
         'int_1',
         expect.objectContaining({
-          config: expect.objectContaining({ submitLabel: 'Submit' }),
+          config: expect.objectContaining({ submitLabel: DEFAULT_FORM_SUBMIT_LABEL }),
         })
       )
     })

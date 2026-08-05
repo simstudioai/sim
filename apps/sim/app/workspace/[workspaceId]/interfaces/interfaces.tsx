@@ -311,7 +311,9 @@ export function Interfaces() {
 
   function handleCopyActiveId(): void {
     if (activeInterface) {
-      navigator.clipboard.writeText(activeInterface.id)
+      // Denied clipboard permission rejects; `void` keeps that from surfacing as
+      // an unhandled rejection, matching every other copy call site in the app.
+      void navigator.clipboard.writeText(activeInterface.id)
     }
   }
 

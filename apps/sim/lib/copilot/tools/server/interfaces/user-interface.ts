@@ -60,7 +60,7 @@ import {
  * routing them separately keeps grid arithmetic real in tests that stub the
  * service surface.
  */
-import { DEFAULT_MODULE_SPAN } from '@/lib/interfaces/constants'
+import { DEFAULT_FORM_SUBMIT_LABEL, DEFAULT_MODULE_SPAN } from '@/lib/interfaces/constants'
 import { overlappingModules } from '@/lib/interfaces/geometry'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
@@ -347,7 +347,7 @@ function normalizeFormConfig(raw: unknown): FormModuleConfig {
   }
   return {
     workflowId: nullableId(config, 'workflowId'),
-    submitLabel: configString(config, 'submitLabel', 'Submit'),
+    submitLabel: configString(config, 'submitLabel', DEFAULT_FORM_SUBMIT_LABEL),
     fields: Array.isArray(fields) ? fields.map(readFormField) : [],
   }
 }
