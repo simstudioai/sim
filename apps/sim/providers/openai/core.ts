@@ -1,7 +1,9 @@
 import { createHash } from 'node:crypto'
 import type { Logger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
 import { isRecordLike } from '@sim/utils/object'
+import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import { truncate } from '@sim/utils/string'
 import type OpenAI from 'openai'
 import type { NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
@@ -47,6 +49,66 @@ import {
  * wall (which is variable, unnamed, and cannot be retried against).
  */
 const RESPONSE_BODY_BUDGET_MS = 60_000
+
+/**
+ * Retry budget for a rejected `/v1/responses` request: 2 retries, 3 attempts in
+ * total. This path posted through the OpenAI SDK until it moved onto raw `fetch`,
+ * which silently dropped the SDK's own `maxRetries: 2`; every other provider we
+ * ship still constructs an SDK client and therefore still retries. The number
+ * matches both the OpenAI SDK and the AI SDK's `_retryWithExponentialBackoff`.
+ */
+const MAX_RESPONSES_RETRIES = 2
+
+/**
+ * Sub-500 statuses that both the OpenAI SDK and the AI SDK classify as retryable:
+ * request timeout, lock conflict, and rate limit.
+ */
+const RETRYABLE_RESPONSE_STATUSES = new Set([408, 409, 429])
+
+/**
+ * A non-2xx reply from `/v1/responses`, carrying the status and any server-supplied
+ * pacing so the caller can decide on a retry without re-reading a body that has
+ * already been consumed to build the message.
+ */
+class ResponsesHttpError extends Error {
+  readonly status: number
+  readonly retryAfterMs: number | null
+
+  constructor(message: string, status: number, retryAfterMs: number | null) {
+    super(message)
+    this.name = 'ResponsesHttpError'
+    this.status = status
+    this.retryAfterMs = retryAfterMs
+  }
+}
+
+/**
+ * Whether a rejected request may be re-sent.
+ *
+ * Restricted to the classes where the request was refused outright and no response
+ * was created server-side, so a retry cannot bill a second generation. Everything
+ * else — including a stalled body, which arrives only after a response exists — is
+ * surfaced. `/v1/responses` ignores `Idempotency-Key` (verified live: the same key
+ * with an identical body returns two distinct response ids), so there is no
+ * deduplication to fall back on and this boundary is the only guard.
+ */
+function isRetryableResponseStatus(status: number): boolean {
+  return RETRYABLE_RESPONSE_STATUSES.has(status) || status >= 500
+}
+
+/**
+ * Reads server-supplied retry pacing. OpenAI sends `retry-after-ms` alongside the
+ * standard `Retry-After` on rate limits and it carries sub-second precision, so it
+ * wins when present and parseable.
+ */
+function readRetryAfterMs(headers: Headers): number | null {
+  const raw = headers.get('retry-after-ms')
+  if (raw !== null) {
+    const ms = Number(raw.trim())
+    if (Number.isFinite(ms) && ms >= 0) return ms
+  }
+  return parseRetryAfter(headers.get('retry-after'))
+}
 
 type PreparedTools = ReturnType<typeof prepareToolsWithUsageControl>
 type ToolChoice = PreparedTools['toolChoice']
@@ -289,9 +351,9 @@ export async function executeResponsesProviderRequest(
 
   let reasoningSummariesUnavailable = false
 
-  const fetchResponsesWithSummaryFallback = async (
+  const fetchResponsesAttempt = async (
     requestedBody: Record<string, unknown>,
-    abortSignal = request.abortSignal
+    abortSignal: AbortSignal | undefined
   ): Promise<Response> => {
     const body = reasoningSummariesUnavailable
       ? (stripReasoningSummary(requestedBody) ?? requestedBody)
@@ -309,7 +371,11 @@ export async function executeResponsesProviderRequest(
       ? stripReasoningSummary(body)
       : null
     if (!strippedBody) {
-      throw new Error(`${config.providerLabel} API error (${response.status}): ${message}`)
+      throw new ResponsesHttpError(
+        `${config.providerLabel} API error (${response.status}): ${message}`,
+        response.status,
+        readRetryAfterMs(response.headers)
+      )
     }
 
     reasoningSummariesUnavailable = true
@@ -325,11 +391,59 @@ export async function executeResponsesProviderRequest(
     })
     if (!retryResponse.ok) {
       const retryMessage = await parseErrorResponse(retryResponse)
-      throw new Error(
-        `${config.providerLabel} API error (${retryResponse.status}): ${retryMessage}`
+      throw new ResponsesHttpError(
+        `${config.providerLabel} API error (${retryResponse.status}): ${retryMessage}`,
+        retryResponse.status,
+        readRetryAfterMs(retryResponse.headers)
       )
     }
     return retryResponse
+  }
+
+  /**
+   * Sends one Responses request, re-sending it on a refusal that created nothing
+   * server-side (408/409/429/5xx) with exponential backoff and any `Retry-After`
+   * the server supplied.
+   *
+   * The retry lives here rather than in `postResponses` so the streaming paths are
+   * covered too: a rejected request never yields a body, so no stream bytes have
+   * been handed to a consumer and no generation has started. Only transport
+   * failures reach the caller unretried — an abort belongs to whoever raised it,
+   * and a stalled body arrives after a response already exists, which makes it the
+   * one class a retry would double-bill.
+   */
+  const fetchResponsesWithSummaryFallback = async (
+    requestedBody: Record<string, unknown>,
+    abortSignal = request.abortSignal
+  ): Promise<Response> => {
+    for (let attempt = 1; ; attempt++) {
+      try {
+        return await fetchResponsesAttempt(requestedBody, abortSignal)
+      } catch (error) {
+        const exhausted = attempt > MAX_RESPONSES_RETRIES
+        if (
+          exhausted ||
+          abortSignal?.aborted ||
+          !(error instanceof ResponsesHttpError) ||
+          !isRetryableResponseStatus(error.status)
+        ) {
+          throw error
+        }
+
+        const delayMs = backoffWithJitter(attempt, error.retryAfterMs)
+        logger.warn(`${config.providerLabel} request failed with a retryable status; retrying`, {
+          attempt,
+          status: error.status,
+          delayMs,
+          model: config.modelName,
+          workflowId: request.workflowId,
+          blockId: request.blockId,
+          executionId: request.executionId,
+        })
+        await sleep(delayMs)
+        if (abortSignal?.aborted) throw error
+      }
+    }
   }
 
   /**
