@@ -1,9 +1,6 @@
 import { Folder } from '@sim/emcn/icons'
+import type { ResourceCell, ResourceRow } from '@/components/resource/resource'
 import { folderRowId } from '@/app/workspace/[workspaceId]/components/folders/folder-row-id'
-import type {
-  ResourceCell,
-  ResourceRow,
-} from '@/app/workspace/[workspaceId]/components/resource/resource'
 import type { WorkflowFolder } from '@/stores/folders/types'
 
 const FOLDER_ICON = <Folder className='size-[14px]' />

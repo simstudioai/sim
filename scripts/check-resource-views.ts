@@ -78,21 +78,23 @@ const RESOURCE_POLICY_BASELINE = {
    */
   wrapperMounts: 0,
   /**
-   * R1b — components whose NAME announces a per-consumer fork. All 8 are the
-   * mothership panel's `Embedded*` tab chrome.
-   *
-   * These do NOT all drop off as kinds get canonical views, which an earlier
-   * version of this note claimed: the `Embedded*Actions` members are tab chrome
-   * (open / export buttons), not views, and both `EmbeddedFileActions` and
-   * `EmbeddedTableActions` outlived their kinds' migrations. Only the content
-   * components (`EmbeddedWorkflow`, `EmbeddedFolder`, `EmbeddedLog`) go.
-   * Collapsing the `*Actions` into one kind-keyed component is the real fix and
-   * is its own change.
+   * R1b — components whose NAME announces a per-consumer fork. The 3 left are
+   * the mothership panel's `Embedded*` tab CONTENT, and each drops off with its
+   * kind's migration onto a canonical view.
    *
    * Lowered 11 → 8 when the scheduled-tasks retirement took
-   * `EmbeddedScheduledTask` and `EmbeddedScheduledTaskActions` with it.
+   * `EmbeddedScheduledTask` and `EmbeddedScheduledTaskActions` with it, then
+   * 8 → 3 when the five `Embedded*Actions` collapsed into the one kind-keyed
+   * `ResourceTabActions` — tab chrome was never per-kind work: the buttons
+   * differ only in icon, copy and destination, which is a config table — and
+   * 3 → 2 when the log kind gained `LogView` and the panel began constructing
+   * the axes and mounting it directly, retiring `EmbeddedLog`.
+   *
+   * The 2 that remain are deliberate: `EmbeddedWorkflow` (a workflow is a live
+   * collaborative session, not a document with an address) and `EmbeddedFolder`
+   * (a folder is structure inside a resource, not a resource).
    */
-  shadowNamedComponents: 8,
+  shadowNamedComponents: 2,
   /**
    * R2 — imports that reach past a unit barrel. At its floor: the three
    * legitimate deep imports are all `lazy()` code-split points, listed in
@@ -121,7 +123,7 @@ const RESOURCE_POLICY_BASELINE = {
    * tree grew its own `ee/` and billing surfaces and was never refreshed, so it
    * described a tree that no longer existed rather than a budget anyone spent.
    */
-  crossTreeWorkspaceImports: 38,
+  crossTreeWorkspaceImports: 37,
   /** R4a — unsanctioned capability/chrome attributes at a canonical-view mount. */
   viewPropVocabularyViolations: 0,
   /** R4b — unsanctioned capability/chrome props declared on a canonical view's props type. */
@@ -175,6 +177,25 @@ const CANONICAL_UNITS: readonly CanonicalUnit[] = [
     views: [],
   },
   {
+    barrel: '@/components/resources/log-view',
+    root: 'apps/sim/components/resources/log-view',
+    views: ['LogView'],
+    kind: 'log',
+  },
+  {
+    /**
+     * The knowledge base READ surface: the document list with its search,
+     * status and tag filters, sort, pagination, and unavailable state. The
+     * editing shell (upload, connectors, tags, rename, delete, bulk operations)
+     * stays in the route page and mounts this, exactly as the tables editing
+     * grid kept its write path.
+     */
+    barrel: '@/components/resources/knowledge-view',
+    root: 'apps/sim/components/resources/knowledge-view',
+    views: ['KnowledgeView'],
+    kind: 'knowledge',
+  },
+  {
     barrel: '@/components/resources/resource-provider',
     root: 'apps/sim/components/resources/resource-provider',
     views: ['ResourceProvider'],
@@ -187,7 +208,7 @@ const CANONICAL_UNITS: readonly CanonicalUnit[] = [
 ]
 
 /** Every resource kind, mirroring `apps/sim/resources/kinds.ts`. */
-const RESOURCE_KINDS = ['file', 'table', 'knowledge', 'log', 'schedule'] as const
+const RESOURCE_KINDS = ['file', 'table', 'knowledge', 'log'] as const
 
 /** The three-axis layer. Pure TypeScript, server-importable, no JSX. */
 const RESOURCE_AXIS_ROOT = 'apps/sim/resources'
@@ -366,7 +387,17 @@ const INTERNAL_IMPORT_ALLOWLIST: ReadonlyMap<string, readonly InternalImportExce
 ])
 
 const CROSS_TREE_ALLOWLIST = new Set<string>([
-  // (empty) — every anonymous-surface import of the workspace tree is a finding.
+  /**
+   * The log view's snapshot modal renders the frozen execution canvas, which IS
+   * the workflow editor's `Preview` — a ReactFlow subtree that cannot leave
+   * `w/` without dragging the editor with it.
+   *
+   * Safe here in a way it would not be for `file-view`: `ResourceSeedMap['log']`
+   * is `never`, so a log structurally cannot be addressed by a share token and
+   * no anonymous surface can mount this unit. R3a — the rule that actually
+   * guards anonymous surfaces — still covers it and stays at 0.
+   */
+  'apps/sim/components/resources/log-view/components/execution-snapshot/execution-snapshot.tsx',
 ])
 
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx'])

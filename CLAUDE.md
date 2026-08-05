@@ -416,7 +416,7 @@ Principles when building or migrating shared UI:
 
 ## Resource Views
 
-A **resource** is a thing a workspace holds that can also be shared — a file, a table, a knowledge base, a log, a scheduled task. A resource with a canonical view has exactly ONE, in `apps/sim/components/resources/<unit>/`, mounted by every consumer: the workspace route page, the mothership panel, the public share page.
+A **resource** is a thing a workspace holds that can also be shared — a file, a table, a knowledge base, a log. A resource with a canonical view has exactly ONE, in `apps/sim/components/resources/<unit>/`, mounted by every consumer: the workspace route page, the mothership panel, the public share page.
 
 Views are mounted against exactly **three axes**, defined in `apps/sim/resources/**` (pure TypeScript — no React, no `'use client'`, because a Server Component builds a share source during SSR):
 
@@ -424,7 +424,7 @@ Views are mounted against exactly **three axes**, defined in `apps/sim/resources
 - `grants` — what this viewer may do: `{ write, run }`. Replaces `canEdit`, `canRun`, `canAdmin`, `disableEdit/Insert/Delete`.
 - `host` — who owns the URL, the router, the document frame: `'page' | 'panel' | 'public'`. Replaces `embedded`. `hostOwnsUrl(host)` is the one place the "embedded views do not write nuqs keys" rule lives.
 
-There is no fourth axis; agent streaming is one optional prop on `FileView`. Consumers CONSTRUCT the axes and MOUNT the view — never wrap it in a passthrough, never reach past its barrel, never reimplement its UI because it lacks a seam (add the seam), never import `@/app/workspace/[workspaceId]/**` from an anonymous surface (`app/f/**`, `app/(interfaces)/**`), and never read `useRouter`/`useParams`/`useQueryState`/`useUserPermissionsContext` inside a unit. A kind with no canonical view yet (`knowledge`, `log`, `schedule`) is simply absent from the check's `CANONICAL_UNITS` — no flag, shim, or placeholder.
+There is no fourth axis; agent streaming is one optional prop on `FileView`. Consumers CONSTRUCT the axes and MOUNT the view — never wrap it in a passthrough, never reach past its barrel, never reimplement its UI because it lacks a seam (add the seam), never import `@/app/workspace/[workspaceId]/**` from an anonymous surface (`app/f/**`, `app/(interfaces)/**`), and never read `useRouter`/`useParams`/`useQueryState`/`useUserPermissionsContext` inside a unit. A kind with no canonical view yet (`knowledge`, `log`) is simply absent from the check's `CANONICAL_UNITS` — no flag, shim, or placeholder.
 
 Enforced by `bun run check:resources` (strict: `check:resources:strict`), which ratchets counters for wrappers, imports past a barrel, cross-tree imports, unsanctioned props, token-as-`workspaceId`, and context leaks. Escape hatches — reason mandatory, on the line directly above: `// boundary-resource-wrapper:`, `// boundary-resource-internal:`, `// boundary-resource-tree:`, `// boundary-resource-prop:`. Full rules in `.claude/rules/sim-resource-views.md`.
 

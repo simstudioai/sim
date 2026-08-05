@@ -1,6 +1,16 @@
 'use client'
 
-import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  type ElementType,
+  lazy,
+  memo,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { Button, PlayOutline, Skeleton, Tooltip, toast } from '@sim/emcn'
 import {
   Download,
@@ -15,6 +25,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
 import { FileView, type PreviewMode, resolveFileCategory } from '@/components/resources/file-view'
+import { LogView } from '@/components/resources/log-view'
 import { ResourceEmptyState } from '@/components/resources/resource-empty-state'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { useSession } from '@/lib/auth/auth-client'
@@ -40,9 +51,9 @@ import { hasRenderableFilePreviewContent } from '@/app/workspace/[workspaceId]/h
 import type {
   GenericResourceData,
   MothershipResource,
+  MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
-import { KnowledgeBase } from '@/app/workspace/[workspaceId]/knowledge/[id]/base'
-import { LogDetailsContent } from '@/app/workspace/[workspaceId]/logs/components'
+import { KnowledgeBase } from '@/app/workspace/[workspaceId]/knowledge/[id]/knowledge-base'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import {
   useUserPermissionsContext,
@@ -56,8 +67,14 @@ import { useLogDetail } from '@/hooks/queries/logs'
 import { downloadTableExport } from '@/hooks/queries/tables'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
-import { grantsFromPermissions, type ResourceGrants, workspaceSource } from '@/resources'
+import {
+  grantsFromPermissions,
+  type ResourceGrants,
+  type ResourceKind,
+  workspaceSource,
+} from '@/resources'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
@@ -238,6 +255,29 @@ export const ResourceContent = memo(function ResourceContent({
     [file, workspaceId]
   )
 
+  const isLogResource = resource.type === 'log'
+  const {
+    data: log,
+    isLoading: isLogLoading,
+    error: logError,
+  } = useLogDetail(resource.id, workspaceId, { enabled: isLogResource })
+
+  const logSource = useMemo(
+    () => workspaceSource({ kind: 'log' as const, workspaceId, resourceId: resource.id }),
+    [workspaceId, resource.id]
+  )
+  const { config: permissionConfig } = usePermissionConfig()
+
+  const onNotFoundRef = useRef(onNotFound)
+  onNotFoundRef.current = onNotFound
+
+  useEffect(() => {
+    if (!isLogResource) return
+    if (isApiClientError(logError) && logError.status === 404) {
+      onNotFoundRef.current?.(resource.id)
+    }
+  }, [isLogResource, logError, resource.id])
+
   if (isStreamingFile) {
     return (
       <div className='flex h-full flex-col overflow-hidden'>
@@ -320,21 +360,40 @@ export const ResourceContent = memo(function ResourceContent({
           id={resource.id}
           knowledgeBaseName={resource.title}
           workspaceId={workspaceId}
+          host='panel'
         />
       )
 
     case 'folder':
       return <EmbeddedFolder key={resource.id} workspaceId={workspaceId} folderId={resource.id} />
 
-    case 'log':
+    case 'log': {
+      if (isLogLoading) return LOADING_SKELETON
+
+      if (!log) {
+        return (
+          <ResourceEmptyState
+            icon={Library}
+            title='Log not found'
+            description='This log may have been deleted or is no longer available'
+          />
+        )
+      }
+
       return (
-        <EmbeddedLog
-          key={resource.id}
-          workspaceId={workspaceId}
-          logId={resource.id}
-          onNotFound={onNotFound ? () => onNotFound(resource.id) : undefined}
-        />
+        <div className='flex h-full flex-col overflow-hidden px-3.5 pt-3'>
+          <LogView
+            key={resource.id}
+            source={logSource}
+            grants={grants}
+            host='panel'
+            log={log}
+            showExecutionInternals={!permissionConfig.hideTraceSpans}
+            onNavigate={navigate}
+          />
+        </div>
       )
+    }
 
     case 'generic':
       return (
@@ -359,53 +418,227 @@ export const ResourceContent = memo(function ResourceContent({
   }
 })
 
-interface ResourceActionsProps {
+const actionsLogger = createLogger('ResourceTabActions')
+
+/** One tab-header affordance: a tooltip-wrapped icon button. */
+interface ResourceTabAction {
+  key: string
+  icon: ElementType
+  /** The button's `aria-label`. */
+  label: string
+  /** Tooltip copy. Shorter than {@link label} where the label spells out the object. */
+  tooltip: string
+  onClick: () => void
+  disabled?: boolean
+}
+
+/**
+ * Everything a per-kind builder may need beyond the resource itself. Resolved
+ * once by {@link ResourceTabActions} so the builders stay plain functions with
+ * no hooks of their own.
+ */
+interface ResourceTabActionContext {
+  workspaceId: string
+  resource: MothershipResource
+  /** Navigates the current tab. The host owns the router; builders only ask. */
+  navigate: (href: string) => void
+  /** The resolved workspace file record, when the tab shows a file. */
+  file: WorkspaceFileRecord | undefined
+  /** The log's execution id, when the tab shows a log and its detail has loaded. */
+  logExecutionId: string | undefined
+}
+
+type ResourceTabActionBuilder = (context: ResourceTabActionContext) => ResourceTabAction[]
+
+/** The "open this where it lives" button every actionable kind carries. */
+function openAction(label: string, onClick: () => void): ResourceTabAction {
+  return { key: 'open', icon: SquareArrowUpRight, label, tooltip: label, onClick }
+}
+
+/**
+ * The same button, addressed through the resource axis rather than a hand-built
+ * template string, so the route is declared exactly once in
+ * `resourceHref`. `hrefFor` is typed `string | null` because a share source has
+ * no in-app route; a workspace source always resolves one.
+ */
+function openResourceAction(
+  label: string,
+  kind: ResourceKind,
+  { workspaceId, resource, navigate }: ResourceTabActionContext
+): ResourceTabAction {
+  const source = workspaceSource({ kind, workspaceId, resourceId: resource.id })
+  return openAction(label, () => {
+    const href = source.hrefFor({ to: 'self' })
+    if (href) navigate(href)
+  })
+}
+
+/**
+ * The tab-header actions for each resource kind. A kind absent from this map
+ * (folder, generic, browser, terminal, …) has no header actions.
+ *
+ * Two destinations deliberately do NOT come from the resource axis, because
+ * routing them through it would change where the button goes:
+ *
+ * - `file` opens `/files/<id>`, the browser with the file selected. The axis
+ *   spells `/files/<id>/view`, the separate fullscreen route. Both exist.
+ * - `log` opens the logs page keyed on the *execution* id read off the fetched
+ *   detail. The axis builds `?executionId=<resourceId>`, but a log resource is
+ *   addressed by its log-row id, which is a different identifier.
+ */
+const RESOURCE_TAB_ACTIONS: Partial<Record<MothershipResourceType, ResourceTabActionBuilder>> = {
+  /**
+   * Not a resource kind — a workflow is a live collaborative session, not a
+   * document with an address — so its route is spelled here. It is also the one
+   * kind that opens a new browser tab instead of navigating in place.
+   */
+  workflow: ({ workspaceId, resource }) => [
+    openAction('Open workflow', () =>
+      window.open(`/workspace/${workspaceId}/w/${resource.id}`, '_blank')
+    ),
+  ],
+
+  file: (context) => {
+    const { workspaceId, resource, navigate, file } = context
+    const download = async () => {
+      if (!file) return
+      try {
+        await triggerFileDownload(file)
+      } catch (err) {
+        actionsLogger.error('Failed to download file:', err)
+      }
+    }
+    return [
+      openAction('Open in files', () =>
+        navigate(`/workspace/${workspaceId}/files/${encodeURIComponent(file?.id ?? resource.id)}`)
+      ),
+      {
+        key: 'download',
+        icon: Download,
+        label: 'Download file',
+        tooltip: 'Download',
+        disabled: !file,
+        onClick: () => void download(),
+      },
+    ]
+  },
+
+  knowledgebase: (context) => [openResourceAction('Open knowledge base', 'knowledge', context)],
+
+  table: (context) => {
+    const { resource } = context
+    const exportCsv = async () => {
+      try {
+        await downloadTableExport(resource.id, resource.title)
+      } catch (err) {
+        actionsLogger.error('Failed to export table:', err)
+      }
+    }
+    return [
+      openResourceAction('Open table', 'table', context),
+      {
+        key: 'export',
+        icon: Download,
+        label: 'Export table as CSV',
+        tooltip: 'Export CSV',
+        onClick: () => void exportCsv(),
+      },
+    ]
+  },
+
+  log: ({ workspaceId, navigate, logExecutionId }) => [
+    openAction('Open in logs', () =>
+      navigate(
+        `/workspace/${workspaceId}/logs${logExecutionId ? `?executionId=${logExecutionId}` : ''}`
+      )
+    ),
+  ],
+}
+
+function ResourceTabActionButton({
+  icon: Icon,
+  label,
+  tooltip,
+  onClick,
+  disabled,
+}: Omit<ResourceTabAction, 'key'>) {
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>
+        <Button
+          variant='subtle'
+          onClick={onClick}
+          disabled={disabled}
+          className={RESOURCE_TAB_ICON_BUTTON_CLASS}
+          aria-label={label}
+        >
+          <Icon className={RESOURCE_TAB_ICON_CLASS} />
+        </Button>
+      </Tooltip.Trigger>
+      <Tooltip.Content side='bottom'>
+        <p>{tooltip}</p>
+      </Tooltip.Content>
+    </Tooltip.Root>
+  )
+}
+
+interface ResourceTabActionsProps {
   workspaceId: string
   resource: MothershipResource
 }
 
-export function ResourceActions({ workspaceId, resource }: ResourceActionsProps) {
-  switch (resource.type) {
-    case 'workflow':
-      return <EmbeddedWorkflowActions workspaceId={workspaceId} workflowId={resource.id} />
-    case 'file':
-      return (
-        <EmbeddedFileActions
-          workspaceId={workspaceId}
-          fileId={resource.id}
-          filePath={resource.path}
-        />
-      )
-    case 'knowledgebase':
-      return (
-        <EmbeddedKnowledgeBaseActions workspaceId={workspaceId} knowledgeBaseId={resource.id} />
-      )
-    case 'table':
-      return (
-        <EmbeddedTableActions
-          workspaceId={workspaceId}
-          tableId={resource.id}
-          tableName={resource.title}
-        />
-      )
-    case 'log':
-      return <EmbeddedLogActions workspaceId={workspaceId} logId={resource.id} />
-    case 'folder':
-    case 'generic':
-    case 'browser':
-    case 'terminal':
-      return null
-    default:
-      return null
-  }
+/**
+ * The action buttons in the active tab's header, keyed by resource type through
+ * {@link RESOURCE_TAB_ACTIONS}.
+ *
+ * The two lookups a builder cannot do for itself are resolved here and gated on
+ * the kind that needs them, so a table tab mounts neither the file list nor a
+ * log detail. Workflow's run control stays a component of its own: it carries
+ * the execution machinery, the usage gate, and a `setActiveWorkflow` effect that
+ * must not run for any other kind.
+ */
+export function ResourceTabActions({ workspaceId, resource }: ResourceTabActionsProps) {
+  const router = useRouter()
+  const navigate = useCallback((href: string) => router.push(href), [router])
+
+  const isFile = resource.type === 'file'
+  const isLog = resource.type === 'log'
+
+  const { data: files = [] } = useWorkspaceFiles(workspaceId, 'active', { enabled: isFile })
+  const file = useMemo(
+    () => (isFile ? findWorkspaceFile(files, resource.id, resource.path) : undefined),
+    [isFile, files, resource.id, resource.path]
+  )
+  const { data: log } = useLogDetail(isLog ? resource.id : undefined, workspaceId)
+
+  const actions =
+    RESOURCE_TAB_ACTIONS[resource.type]?.({
+      workspaceId,
+      resource,
+      navigate,
+      file,
+      logExecutionId: log?.executionId ?? undefined,
+    }) ?? []
+
+  return (
+    <>
+      {actions.map(({ key, ...action }) => (
+        <ResourceTabActionButton key={key} {...action} />
+      ))}
+      {resource.type === 'workflow' && (
+        <WorkflowRunControl workspaceId={workspaceId} workflowId={resource.id} />
+      )}
+    </>
+  )
 }
 
-interface EmbeddedWorkflowActionsProps {
+interface WorkflowRunControlProps {
   workspaceId: string
   workflowId: string
 }
 
-function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWorkflowActionsProps) {
+/** Runs or stops the workflow shown in the active tab. */
+function WorkflowRunControl({ workspaceId, workflowId }: WorkflowRunControlProps) {
   const { navigateToSettings } = useSettingsNavigation()
   const { data: session } = useSession()
   const hostContext = useWorkspaceHostContext()
@@ -459,204 +692,14 @@ function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWorkflowAc
     await handleRunWorkflow()
   }
 
-  const handleOpenWorkflow = () => {
-    window.open(`/workspace/${workspaceId}/w/${workflowId}`, '_blank')
-  }
-
   return (
-    <>
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <Button
-            variant='subtle'
-            onClick={handleOpenWorkflow}
-            className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-            aria-label='Open workflow'
-          >
-            <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
-          </Button>
-        </Tooltip.Trigger>
-        <Tooltip.Content side='bottom'>
-          <p>Open workflow</p>
-        </Tooltip.Content>
-      </Tooltip.Root>
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <Button
-            variant='subtle'
-            onClick={() => void handleRun()}
-            disabled={isRunButtonDisabled}
-            className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-            aria-label={isExecuting ? 'Stop workflow' : 'Run workflow'}
-          >
-            {isExecuting ? (
-              <Square className={RESOURCE_TAB_ICON_CLASS} />
-            ) : (
-              <PlayOutline className={RESOURCE_TAB_ICON_CLASS} />
-            )}
-          </Button>
-        </Tooltip.Trigger>
-        <Tooltip.Content side='bottom'>
-          <p>{isExecuting ? 'Stop' : 'Run workflow'}</p>
-        </Tooltip.Content>
-      </Tooltip.Root>
-    </>
-  )
-}
-
-interface EmbeddedKnowledgeBaseActionsProps {
-  workspaceId: string
-  knowledgeBaseId: string
-}
-
-function EmbeddedKnowledgeBaseActions({
-  workspaceId,
-  knowledgeBaseId,
-}: EmbeddedKnowledgeBaseActionsProps) {
-  const router = useRouter()
-
-  const handleOpenKnowledgeBase = () => {
-    router.push(`/workspace/${workspaceId}/knowledge/${knowledgeBaseId}`)
-  }
-
-  return (
-    <Tooltip.Root>
-      <Tooltip.Trigger asChild>
-        <Button
-          variant='subtle'
-          onClick={handleOpenKnowledgeBase}
-          className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-          aria-label='Open knowledge base'
-        >
-          <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
-        </Button>
-      </Tooltip.Trigger>
-      <Tooltip.Content side='bottom'>
-        <p>Open knowledge base</p>
-      </Tooltip.Content>
-    </Tooltip.Root>
-  )
-}
-
-const tableLogger = createLogger('EmbeddedTableActions')
-
-interface EmbeddedTableActionsProps {
-  workspaceId: string
-  tableId: string
-  tableName: string
-}
-
-function EmbeddedTableActions({ workspaceId, tableId, tableName }: EmbeddedTableActionsProps) {
-  const router = useRouter()
-
-  const handleOpenTable = () => {
-    router.push(`/workspace/${workspaceId}/tables/${tableId}`)
-  }
-
-  const handleExport = async () => {
-    try {
-      await downloadTableExport(tableId, tableName)
-    } catch (err) {
-      tableLogger.error('Failed to export table:', err)
-    }
-  }
-
-  return (
-    <>
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <Button
-            variant='subtle'
-            onClick={handleOpenTable}
-            className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-            aria-label='Open table'
-          >
-            <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
-          </Button>
-        </Tooltip.Trigger>
-        <Tooltip.Content side='bottom'>
-          <p>Open table</p>
-        </Tooltip.Content>
-      </Tooltip.Root>
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <Button
-            variant='subtle'
-            onClick={() => void handleExport()}
-            className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-            aria-label='Export table as CSV'
-          >
-            <Download className={RESOURCE_TAB_ICON_CLASS} />
-          </Button>
-        </Tooltip.Trigger>
-        <Tooltip.Content side='bottom'>
-          <p>Export CSV</p>
-        </Tooltip.Content>
-      </Tooltip.Root>
-    </>
-  )
-}
-
-const fileLogger = createLogger('EmbeddedFileActions')
-
-interface EmbeddedFileActionsProps {
-  workspaceId: string
-  fileId: string
-  filePath?: string
-}
-
-function EmbeddedFileActions({ workspaceId, fileId, filePath }: EmbeddedFileActionsProps) {
-  const router = useRouter()
-  const { data: files = [] } = useWorkspaceFiles(workspaceId)
-  const file = useMemo(() => findWorkspaceFile(files, fileId, filePath), [files, fileId, filePath])
-
-  const handleDownload = async () => {
-    if (!file) return
-    try {
-      await triggerFileDownload(file)
-    } catch (err) {
-      fileLogger.error('Failed to download file:', err)
-    }
-  }
-
-  const handleOpenInFiles = () => {
-    router.push(`/workspace/${workspaceId}/files/${encodeURIComponent(file?.id ?? fileId)}`)
-  }
-
-  return (
-    <>
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <Button
-            variant='subtle'
-            onClick={handleOpenInFiles}
-            className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-            aria-label='Open in files'
-          >
-            <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
-          </Button>
-        </Tooltip.Trigger>
-        <Tooltip.Content side='bottom'>
-          <p>Open in files</p>
-        </Tooltip.Content>
-      </Tooltip.Root>
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <Button
-            variant='subtle'
-            onClick={() => void handleDownload()}
-            disabled={!file}
-            className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-            aria-label='Download file'
-          >
-            <Download className={RESOURCE_TAB_ICON_CLASS} />
-          </Button>
-        </Tooltip.Trigger>
-        <Tooltip.Content side='bottom'>
-          <p>Download</p>
-        </Tooltip.Content>
-      </Tooltip.Root>
-    </>
+    <ResourceTabActionButton
+      icon={isExecuting ? Square : PlayOutline}
+      label={isExecuting ? 'Stop workflow' : 'Run workflow'}
+      tooltip={isExecuting ? 'Stop' : 'Run workflow'}
+      disabled={isRunButtonDisabled}
+      onClick={() => void handleRun()}
+    />
   )
 }
 
@@ -736,75 +779,5 @@ function EmbeddedFolder({ workspaceId, folderId }: EmbeddedFolderProps) {
         </div>
       )}
     </div>
-  )
-}
-
-interface EmbeddedLogProps {
-  workspaceId: string
-  logId: string
-  onNotFound?: () => void
-}
-
-function EmbeddedLog({ workspaceId, logId, onNotFound }: EmbeddedLogProps) {
-  const { data: log, isLoading, error } = useLogDetail(logId, workspaceId)
-
-  const onNotFoundRef = useRef(onNotFound)
-  onNotFoundRef.current = onNotFound
-
-  useEffect(() => {
-    if (isApiClientError(error) && error.status === 404) {
-      onNotFoundRef.current?.()
-    }
-  }, [error])
-
-  if (isLoading) return LOADING_SKELETON
-
-  if (!log) {
-    return (
-      <ResourceEmptyState
-        icon={Library}
-        title='Log not found'
-        description='This log may have been deleted or is no longer available'
-      />
-    )
-  }
-
-  return (
-    <div className='flex h-full flex-col overflow-hidden px-3.5 pt-3'>
-      <LogDetailsContent log={log} />
-    </div>
-  )
-}
-
-interface EmbeddedLogActionsProps {
-  workspaceId: string
-  logId: string
-}
-
-function EmbeddedLogActions({ workspaceId, logId }: EmbeddedLogActionsProps) {
-  const router = useRouter()
-  const { data: log } = useLogDetail(logId, workspaceId)
-
-  const handleOpenInLogs = () => {
-    const param = log?.executionId ? `?executionId=${log.executionId}` : ''
-    router.push(`/workspace/${workspaceId}/logs${param}`)
-  }
-
-  return (
-    <Tooltip.Root>
-      <Tooltip.Trigger asChild>
-        <Button
-          variant='subtle'
-          onClick={handleOpenInLogs}
-          className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-          aria-label='Open in logs'
-        >
-          <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
-        </Button>
-      </Tooltip.Trigger>
-      <Tooltip.Content side='bottom'>
-        <p>Open in logs</p>
-      </Tooltip.Content>
-    </Tooltip.Root>
   )
 }

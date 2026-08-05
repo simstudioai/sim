@@ -12,7 +12,7 @@ paths:
 
 # Resource Views
 
-A **resource** is a thing a workspace holds that can also be shared: a file, a table, an interface, a knowledge base, a log, a scheduled task. A resource with a canonical view has **exactly one**, and every consumer mounts that one — the workspace route page, the mothership panel, an interface module, and the public share page.
+A **resource** is a thing a workspace holds that can also be shared: a file, a table, an interface, a knowledge base, a log. A resource with a canonical view has **exactly one**, and every consumer mounts that one — the workspace route page, the mothership panel, an interface module, and the public share page.
 
 **One view per resource. Consumers construct the axes and mount it. They never wrap it.**
 
@@ -30,14 +30,14 @@ Enforced by `bun run check:resources` (strict CI gate: `bun run check:resources:
 
 There is no fourth axis. Agent streaming is **one optional prop on `FileView`** (`streaming?: FileViewStreaming`), because only files stream.
 
-`ShareSource` declares `workspaceId?: never` and `resourceId?: never`, and `WorkspaceSource` declares `token?: never` and `seed?: never`. A share source **cannot** carry a workspace id — that is a compile error, not a convention. A kind whose seed is typed `never` (`knowledge`, `log`, `schedule`) structurally cannot construct a share source at all: "no public surface" is a compile-time fact.
+`ShareSource` declares `workspaceId?: never` and `resourceId?: never`, and `WorkspaceSource` declares `token?: never` and `seed?: never`. A share source **cannot** carry a workspace id — that is a compile error, not a convention. A kind whose seed is typed `never` (`table`, `knowledge`, `log`) structurally cannot construct a share source at all: "no public surface" is a compile-time fact.
 
 ```
 apps/sim/resources/                    # kinds.ts · source.ts · grants.ts · host.ts — pure TS
 apps/sim/components/resources/<unit>/  # 'use client' — THE view, one per resource
 ```
 
-A resource kind with no canonical view yet (`table`, `knowledge`, `log`, `schedule`) is simply **absent** from `CANONICAL_UNITS` in the check. That is the correct state for an unmigrated kind. Do not add a flag, a shim, or a placeholder entry for it.
+A resource kind with no canonical view yet (`table`, `knowledge`, `log`) is simply **absent** from `CANONICAL_UNITS` in the check. That is the correct state for an unmigrated kind. Do not add a flag, a shim, or a placeholder entry for it.
 
 ## Consume: construct the axes, then mount
 

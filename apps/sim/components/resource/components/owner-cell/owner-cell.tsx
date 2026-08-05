@@ -1,5 +1,5 @@
 import { memo, type ReactNode } from 'react'
-import type { ResourceCell } from '@/app/workspace/[workspaceId]/components/resource/resource'
+import type { ResourceCell } from '@/components/resource/resource'
 import type { WorkspaceMember } from '@/hooks/queries/workspace'
 
 interface OwnerAvatarProps {

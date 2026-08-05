@@ -4,7 +4,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { SortDropdown } from '@/app/workspace/[workspaceId]/components/resource/components/resource-options/resource-options'
+import { SortDropdown } from '@/components/resource/components/resource-options/resource-options'
 
 const LONG_COLUMN_LABEL = 'highest_current_champion_role_across_the_entire_company'
 

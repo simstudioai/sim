@@ -23,10 +23,10 @@ import {
 } from '@sim/emcn'
 import { ChevronLeft, ChevronRight, Pin } from '@sim/emcn/icons'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { InlineRenameInput } from '@/app/workspace/[workspaceId]/components/inline-rename-input'
-import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
-import { ResourceHeader } from '@/app/workspace/[workspaceId]/components/resource/components/resource-header'
-import { ResourceOptions } from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
+import { InlineRenameInput } from '@/components/inline-rename-input'
+import { FloatingOverflowText } from '@/components/resource/components/floating-overflow-text'
+import { ResourceHeader } from '@/components/resource/components/resource-header'
+import { ResourceOptions } from '@/components/resource/components/resource-options'
 
 export interface ResourceColumn {
   id: string

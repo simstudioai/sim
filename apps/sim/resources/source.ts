@@ -12,7 +12,6 @@ const RESOURCE_NOUN: Record<ResourceKind, string> = {
   table: 'table',
   knowledge: 'knowledge base',
   log: 'log',
-  schedule: 'scheduled task',
 }
 
 interface ResourceSourceBase {
@@ -95,8 +94,6 @@ function resourceHref(workspaceId: string, kind: ResourceKind, id: string): stri
       return `${workspace}/knowledge/${resource}`
     case 'log':
       return `${workspace}/logs?executionId=${resource}`
-    case 'schedule':
-      return `${workspace}/scheduled-tasks?taskId=${resource}`
   }
 }
 

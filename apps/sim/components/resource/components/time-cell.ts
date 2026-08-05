@@ -1,4 +1,4 @@
-import type { ResourceCell } from '@/app/workspace/[workspaceId]/components/resource/resource'
+import type { ResourceCell } from '@/components/resource/resource'
 
 const SECOND = 1000
 const MINUTE = 60 * SECOND

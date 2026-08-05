@@ -28,8 +28,6 @@ import { captureEvent } from '@/lib/posthog/client'
 import { getTriggersForSidebar, hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import { ToolbarItemContextMenu } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/toolbar/components'
 import { useToolbarItemInteractions } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/toolbar/hooks'
-import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/loop/loop-config'
-import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
 import {
   buildCustomBlockConfig,
   CUSTOM_BLOCK_TILE_COLOR,
@@ -39,6 +37,7 @@ import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { getCustomBlockIcon } from '@/blocks/custom/custom-block-icon'
 import { getTileIconColorClass } from '@/blocks/icon-color'
 import { getCanonicalBlocksByCategory } from '@/blocks/registry'
+import { LoopTool, ParallelTool } from '@/blocks/subflow-tools'
 import type { BlockConfig } from '@/blocks/types'
 import { useOrgBrandConfig } from '@/ee/whitelabeling/components/branding-provider'
 import { useCustomBlocks } from '@/hooks/queries/custom-blocks'

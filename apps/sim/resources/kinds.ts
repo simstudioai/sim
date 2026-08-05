@@ -7,7 +7,7 @@
  * collaborative socket session (it joins and leaves a room), so embedding one
  * ADDS lifecycle rather than re-hosting an existing view.
  */
-export const RESOURCE_KINDS = ['file', 'table', 'knowledge', 'log', 'schedule'] as const
+export const RESOURCE_KINDS = ['file', 'table', 'knowledge', 'log'] as const
 
 export type ResourceKind = (typeof RESOURCE_KINDS)[number]
 
@@ -39,7 +39,6 @@ export interface ResourceSeedMap {
   table: never
   knowledge: never
   log: never
-  schedule: never
 }
 
 export type ResourceSeed<K extends ResourceKind> = ResourceSeedMap[K]

@@ -31,7 +31,6 @@ import {
 } from '@sim/emcn/icons'
 import { formatDuration } from '@sim/utils/formatting'
 import { createPortal } from 'react-dom'
-import type { TraceSpan } from '@/lib/logs/types'
 import {
   adjustBgForContrast,
   formatCostAmount,
@@ -45,7 +44,8 @@ import {
   iconColorClass,
   isIterationType,
   parseTime,
-} from '@/app/workspace/[workspaceId]/logs/components/log-details/utils'
+} from '@/components/resources/log-view/utils/trace-utils'
+import type { TraceSpan } from '@/lib/logs/types'
 import { isCustomBlockType } from '@/blocks/custom/build-config'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
 

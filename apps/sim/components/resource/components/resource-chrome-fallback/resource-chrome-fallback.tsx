@@ -2,11 +2,8 @@
 
 import type { ComponentType } from 'react'
 import { noop } from '@sim/utils/helpers'
-import type { BreadcrumbItem } from '@/app/workspace/[workspaceId]/components/resource/components/resource-header'
-import {
-  Resource,
-  type ResourceColumn,
-} from '@/app/workspace/[workspaceId]/components/resource/resource'
+import type { BreadcrumbItem } from '@/components/resource/components/resource-header'
+import { Resource, type ResourceColumn } from '@/components/resource/resource'
 
 /**
  * The static visual shape of a header action chip. The loading fallback only
