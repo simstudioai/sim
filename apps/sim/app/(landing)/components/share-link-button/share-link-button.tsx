@@ -11,6 +11,7 @@ import {
 import { Duplicate } from '@sim/emcn/icons'
 import { LinkedInIcon, xIcon as XIcon } from '@/components/icons'
 import { buildLinkedInPostUrl, buildXShareUrl } from '@/lib/social-share'
+import { useBrandConfig } from '@/ee/whitelabeling'
 
 interface ShareLinkButtonProps {
   /** The resource name, shown in the composed post. */
@@ -25,21 +26,29 @@ interface ShareLinkButtonProps {
  * menu to copy the page link or post it to X / LinkedIn with a pre-drafted
  * message ("Check out my {brand} {kind}! / {name} / {link}").
  *
- * The brand mention differs by platform: X gets `@simdotai`, which the tweet
+ * The mention is brand-aware. On a whitelabeled instance every mention is
+ * `brand.name`, so an outbound post from a customer's public chat or shared file
+ * never advertises Sim — the same rule the email footer applies via
+ * `brand.isWhitelabeled`. This surface renders under {@link Navbar}'s `actions`
+ * slot, which is deliberately NOT gated by `hideBrand` (that hides only the
+ * wordmark), so the mention has to carry the whitelabel rule itself.
+ *
+ * Unbranded, the mention differs by platform: X gets `@simdotai`, which the tweet
  * intent renders as a real tag; LinkedIn cannot create `@`-mentions from a share
  * URL (its composer treats `text` as literal — a real mention only exists as an
- * org URN created live in the composer or via the API), so it uses plain "Sim" to
- * avoid a dead "@simdotai". LinkedIn also uses the feed composer, not
- * `share-offsite`, which can't pre-fill text. The X and LinkedIn glyphs are
+ * org URN created live in the composer or via the API), so it uses the plain
+ * brand name to avoid a dead "@simdotai". LinkedIn also uses the feed composer,
+ * not `share-offsite`, which can't pre-fill text. The X and LinkedIn glyphs are
  * `currentColor`, so they follow the menu item's text color; these surfaces are
  * pinned light by the theme provider (`forcedTheme`), so the portalled menu
  * resolves light tokens to match.
  */
 export function ShareLinkButton({ title, kind }: ShareLinkButtonProps) {
+  const brand = useBrandConfig()
   const { copied, copy } = useCopyToClipboard({ resetMs: 1500 })
 
-  const composePost = (brand: string) =>
-    `Check out my ${brand} ${kind}!\n\n${title}: ${window.location.href}`
+  const composePost = (mention: string) =>
+    `Check out my ${mention} ${kind}!\n\n${title}: ${window.location.href}`
 
   const openShare = (url: string) => {
     window.open(url, '_blank', 'noopener,noreferrer')
@@ -57,11 +66,15 @@ export function ShareLinkButton({ title, kind }: ShareLinkButtonProps) {
           <Duplicate />
           {copied ? 'Copied!' : 'Copy link'}
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => openShare(buildXShareUrl(composePost('@simdotai')))}>
+        <DropdownMenuItem
+          onSelect={() =>
+            openShare(buildXShareUrl(composePost(brand.isWhitelabeled ? brand.name : '@simdotai')))
+          }
+        >
           <XIcon />
           Post on X
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => openShare(buildLinkedInPostUrl(composePost('Sim')))}>
+        <DropdownMenuItem onSelect={() => openShare(buildLinkedInPostUrl(composePost(brand.name)))}>
           <LinkedInIcon />
           Post on LinkedIn
         </DropdownMenuItem>
