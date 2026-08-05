@@ -291,7 +291,7 @@
       "get": {
         "operationId": "getLog",
         "summary": "Get Log",
-        "description": "Retrieve a single log entry by its ID, including the workflow metadata captured at execution time, the materialized execution data, and the cost summary. Returns `{ data }`.",
+        "description": "Retrieve a single log entry by its ID, including workflow metadata, materialized execution data, a top-level `traceSpans` array, and the cost summary. Returns `{ data }`.",
         "tags": ["Logs"],
         "x-codeSamples": [
           {
@@ -315,7 +315,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The requested log entry with full execution data and cost summary.",
+            "description": "The requested log entry with full execution data, trace spans, and cost summary.",
             "headers": {
               "X-RateLimit-Limit": {
                 "$ref": "#/components/headers/X-RateLimit-Limit"
@@ -366,6 +366,7 @@
                         "result": "Hello, world!"
                       }
                     },
+                    "traceSpans": [],
                     "cost": {
                       "total": 0.0032
                     },
@@ -733,7 +734,7 @@
       },
       "LogDetail": {
         "type": "object",
-        "description": "Detailed log entry with full workflow metadata, materialized execution data, and cost summary.",
+        "description": "Detailed log entry with full workflow metadata, materialized execution data, top-level trace spans, and cost summary.",
         "required": [
           "id",
           "workflowId",
@@ -746,6 +747,7 @@
           "files",
           "workflow",
           "executionData",
+          "traceSpans",
           "cost",
           "createdAt"
         ],
@@ -821,6 +823,14 @@
                 "additionalProperties": true,
                 "description": "The workflow's final output after all blocks completed."
               }
+            }
+          },
+          "traceSpans": {
+            "type": "array",
+            "description": "Materialized block-level execution trace spans with timing, inputs, and outputs. Empty when the run has no spans.",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
             }
           },
           "cost": {

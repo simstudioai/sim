@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { traceSpansSchema } from '@/lib/api/contracts/logs'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   v1ExecutionParamsSchema,
@@ -47,7 +48,7 @@ export const v2LogListItemSchema = z.object({
   /** Present only when `details=full` and `includeFinalOutput=true`. */
   finalOutput: z.unknown().optional(),
   /** Present only when `details=full` and `includeTraceSpans=true`. */
-  traceSpans: z.unknown().optional(),
+  traceSpans: traceSpansSchema.optional(),
 })
 
 export type V2LogListItem = z.output<typeof v2LogListItemSchema>
@@ -75,6 +76,8 @@ export const v2LogDetailSchema = z.object({
   }),
   /** Materialized execution trace (block states, trace spans). */
   executionData: z.unknown(),
+  /** Materialized block-level execution trace spans. */
+  traceSpans: traceSpansSchema,
   cost: v2LogCostSchema,
   createdAt: z.string(),
 })

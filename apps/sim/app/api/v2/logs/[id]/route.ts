@@ -5,6 +5,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
+import { traceSpansSchema } from '@/lib/api/contracts/logs'
 import { type V2LogDetail, v2GetLogContract } from '@/lib/api/contracts/v2/logs'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -80,6 +81,7 @@ export const GET = withRouteHandler(
         log.executionData as Record<string, unknown> | null,
         { workspaceId: log.workspaceId, workflowId: log.workflowId, executionId: log.executionId }
       )
+      const traceSpans = traceSpansSchema.parse(executionData.traceSpans ?? [])
 
       const detail: V2LogDetail = {
         id: log.id,
@@ -105,6 +107,7 @@ export const GET = withRouteHandler(
           deleted: !log.workflowName || log.workflowArchivedAt !== null,
         },
         executionData,
+        traceSpans,
         cost: log.costTotal != null ? { total: Number(log.costTotal) } : null,
         createdAt: log.createdAt.toISOString(),
       }
