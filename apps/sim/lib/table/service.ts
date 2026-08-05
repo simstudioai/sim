@@ -798,6 +798,34 @@ export async function renameTable(
   }
 }
 
+/** Updates a table description without changing its schema or placement. */
+export async function updateTableDescription(
+  tableId: string,
+  workspaceId: string,
+  description: string | null,
+  requestId: string
+): Promise<{ name: string }> {
+  const result = await db
+    .update(userTableDefinitions)
+    .set({ description, updatedAt: new Date() })
+    .where(
+      and(
+        eq(userTableDefinitions.id, tableId),
+        eq(userTableDefinitions.workspaceId, workspaceId),
+        isNull(userTableDefinitions.archivedAt)
+      )
+    )
+    .returning({ name: userTableDefinitions.name })
+
+  if (result.length === 0) {
+    throw new OrchestrationError('not_found', `Table ${tableId} not found`)
+  }
+
+  logger.info(`[${requestId}] Updated description for table ${tableId}`)
+  await notifyWorkspaceTablesChanged(workspaceId)
+  return result[0]
+}
+
 /**
  * Moves a table into `folderId`, or to the workspace root when it is `null`.
  *

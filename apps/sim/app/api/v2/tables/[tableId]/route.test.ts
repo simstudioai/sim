@@ -15,6 +15,7 @@ const {
   mockCheckAccess,
   mockPerformDeleteTable,
   mockPerformRenameTable,
+  mockPerformUpdateTableDescription,
   mockPerformMoveTableToFolder,
   mockPerformUpdateTableLocks,
   mockRecordAudit,
@@ -28,6 +29,7 @@ const {
   mockCheckAccess: vi.fn(),
   mockPerformDeleteTable: vi.fn(),
   mockPerformRenameTable: vi.fn(),
+  mockPerformUpdateTableDescription: vi.fn(),
   mockPerformMoveTableToFolder: vi.fn(),
   mockPerformUpdateTableLocks: vi.fn(),
   mockRecordAudit: vi.fn(),
@@ -76,6 +78,7 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
 vi.mock('@/lib/table/orchestration', () => ({
   performDeleteTable: mockPerformDeleteTable,
   performRenameTable: mockPerformRenameTable,
+  performUpdateTableDescription: mockPerformUpdateTableDescription,
   performMoveTableToFolder: mockPerformMoveTableToFolder,
   performUpdateTableLocks: mockPerformUpdateTableLocks,
 }))
@@ -158,6 +161,7 @@ describe('DELETE /api/v2/tables/[tableId]', () => {
     expect(mockPerformDeleteTable).toHaveBeenCalledWith(
       expect.objectContaining({ table: TABLE, userId: 'user-1' })
     )
+    expect((await res.json()).data).toEqual({ id: 'table-1', deleted: true })
     // The route no longer audits: doing so out here fired TABLE_DELETED even
     // when the delete was a no-op on an already-archived table.
     expect(mockRecordAudit).not.toHaveBeenCalled()
@@ -204,6 +208,27 @@ describe('PATCH /api/v2/tables/[tableId]', () => {
     )
     expect(mockPerformMoveTableToFolder).not.toHaveBeenCalled()
     expect(mockPerformUpdateTableLocks).not.toHaveBeenCalled()
+  })
+
+  it('updates and clears the table description through orchestration', async () => {
+    mockPerformUpdateTableDescription.mockResolvedValue({ success: true })
+
+    const updateResponse = await callPatch({ workspaceId: 'ws-1', description: 'Finance data' })
+
+    expect(updateResponse.status).toBe(200)
+    expect(mockPerformUpdateTableDescription).toHaveBeenCalledWith(
+      expect.objectContaining({
+        table: TABLE,
+        description: 'Finance data',
+        userId: 'user-1',
+      })
+    )
+
+    const clearResponse = await callPatch({ workspaceId: 'ws-1', description: null })
+    expect(clearResponse.status).toBe(200)
+    expect(mockPerformUpdateTableDescription).toHaveBeenLastCalledWith(
+      expect.objectContaining({ description: null })
+    )
   })
 
   it('surfaces a running import so an async job is observable, not just startable', async () => {

@@ -191,6 +191,7 @@ export async function createFolderAtPath(
           parentId,
           tx
         )
+        const now = new Date()
         const [created] = await tx
           .insert(folderTable)
           .values({
@@ -201,6 +202,8 @@ export async function createFolderAtPath(
             workspaceId: params.workspaceId,
             parentId,
             sortOrder,
+            createdAt: now,
+            updatedAt: now,
           })
           .returning()
         return created
@@ -311,47 +314,53 @@ export async function deleteFolderByPath(
 ): Promise<DeleteFolderByPathResult> {
   try {
     requireNonRootFolderPath(params.path)
-    const result = await withFolderTreeLock(params.workspaceId, params.resourceType, async (tx) => {
-      const index = await loadActiveFolderPathIndex(params.workspaceId, params.resourceType, tx)
-      const folderId = resolveRequiredFolderId(index, params.path)
-      if (
-        folderResourceConfig(params.resourceType).supportsLocking &&
-        isEffectivelyLocked(index, folderId)
-      ) {
-        throw new Error('Folder is locked')
-      }
+    const resolved = await withFolderTreeLock(
+      params.workspaceId,
+      params.resourceType,
+      async (tx) => {
+        const index = await loadActiveFolderPathIndex(params.workspaceId, params.resourceType, tx)
+        const folderId = resolveRequiredFolderId(index, params.path)
+        if (
+          folderResourceConfig(params.resourceType).supportsLocking &&
+          isEffectivelyLocked(index, folderId)
+        ) {
+          throw new Error('Folder is locked')
+        }
 
-      if (!params.recursive) {
-        const hasChildFolder = [...index.pathById.values()].some((candidate) =>
-          candidate.startsWith(`${params.path}/`)
-        )
-        const config = folderResourceConfig(params.resourceType)
-        const [child] = await tx
-          .select({ id: config.idColumn })
-          .from(config.table)
-          .where(
-            and(
-              eq(config.folderIdColumn, folderId),
-              eq(config.workspaceColumn, params.workspaceId),
-              isNull(config.deletedColumn),
-              config.scope
-            )
+        if (!params.recursive) {
+          const hasChildFolder = [...index.pathById.values()].some((candidate) =>
+            candidate.startsWith(`${params.path}/`)
           )
-          .limit(1)
-        if (hasChildFolder || child) throw new Error('Folder is not empty')
-      }
+          const config = folderResourceConfig(params.resourceType)
+          const [child] = await tx
+            .select({ id: config.idColumn })
+            .from(config.table)
+            .where(
+              and(
+                eq(config.folderIdColumn, folderId),
+                eq(config.workspaceColumn, params.workspaceId),
+                isNull(config.deletedColumn),
+                config.scope
+              )
+            )
+            .limit(1)
+          if (hasChildFolder || child) throw new Error('Folder is not empty')
+        }
 
-      const row = index.rowById.get(folderId)
-      if (!row) throw new Error('Folder not found')
-      return deleteFolderWithoutTreeLock({
-        resourceType: params.resourceType,
-        folderId,
-        workspaceId: params.workspaceId,
-        userId: params.userId,
-        folderName: row.name,
-        folderPath: params.path,
-      })
-    })
+        const row = index.rowById.get(folderId)
+        if (!row) throw new Error('Folder not found')
+        return {
+          resourceType: params.resourceType,
+          folderId,
+          workspaceId: params.workspaceId,
+          userId: params.userId,
+          folderName: row.name,
+          folderPath: params.path,
+        }
+      }
+    )
+
+    const result = await deleteFolderWithoutTreeLock(resolved, null)
     return { ...result, path: result.success ? params.path : undefined }
   } catch (error) {
     return pathMutationError(error)
@@ -474,6 +483,7 @@ export async function createFolder(params: CreateFolderParams): Promise<FolderMu
             ? params.sortOrder
             : await nextFolderSortOrder(params.resourceType, params.workspaceId, parentId, tx)
 
+        const now = new Date()
         const [folder] = await tx
           .insert(folderTable)
           .values({
@@ -484,6 +494,8 @@ export async function createFolder(params: CreateFolderParams): Promise<FolderMu
             workspaceId: params.workspaceId,
             parentId,
             sortOrder,
+            createdAt: now,
+            updatedAt: now,
           })
           .returning()
         return { folder }
@@ -638,37 +650,39 @@ export async function updateFolder(params: UpdateFolderParams): Promise<FolderMu
  * the new stamp would never match on restore and would be stranded permanently.
  */
 export async function deleteFolder(params: DeleteFolderParams): Promise<DeleteFolderResult> {
-  return withFolderTreeLock(params.workspaceId, params.resourceType, () =>
-    deleteFolderWithoutTreeLock(params)
-  )
-}
-
-async function deleteFolderWithoutTreeLock(
-  params: DeleteFolderParams
-): Promise<DeleteFolderResult> {
-  const { resourceType, folderId, workspaceId, userId, folderName, folderPath } = params
-  const config = folderResourceConfig(resourceType)
-
-  const [existing] = await db
-    .select({ deletedAt: folderTable.deletedAt })
-    .from(folderTable)
-    .where(
-      and(
-        eq(folderTable.id, folderId),
-        eq(folderTable.workspaceId, workspaceId),
-        eq(folderTable.resourceType, resourceType)
+  const existing = await withFolderTreeLock(params.workspaceId, params.resourceType, async (tx) => {
+    const [row] = await tx
+      .select({ deletedAt: folderTable.deletedAt })
+      .from(folderTable)
+      .where(
+        and(
+          eq(folderTable.id, params.folderId),
+          eq(folderTable.workspaceId, params.workspaceId),
+          eq(folderTable.resourceType, params.resourceType)
+        )
       )
-    )
-    .limit(1)
+      .limit(1)
+    return row
+  })
 
   if (!existing) {
     return { success: false, error: 'Folder not found', errorCode: 'not_found' }
   }
 
+  return deleteFolderWithoutTreeLock(params, existing.deletedAt)
+}
+
+async function deleteFolderWithoutTreeLock(
+  params: DeleteFolderParams,
+  deletedAt: Date | null
+): Promise<DeleteFolderResult> {
+  const { resourceType, folderId, workspaceId, userId, folderName, folderPath } = params
+  const config = folderResourceConfig(resourceType)
+
   // Resolve the timestamp before the subtree, because the subtree walk needs it: on a retry
   // it is what distinguishes folders this cascade already stamped from folders archived
   // independently.
-  const timestamp = existing.deletedAt ?? new Date()
+  const timestamp = deletedAt ?? new Date()
   const folderIds = await collectCascadeSubtreeIds(
     db,
     workspaceId,

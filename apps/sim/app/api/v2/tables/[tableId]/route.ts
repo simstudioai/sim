@@ -17,6 +17,7 @@ import {
   performDeleteTable,
   performMoveTableToFolder,
   performRenameTable,
+  performUpdateTableDescription,
 } from '@/lib/table/orchestration'
 import { checkAccess } from '@/app/api/table/utils'
 import { checkRateLimit, resolveWorkspaceScope } from '@/app/api/v1/middleware'
@@ -45,7 +46,7 @@ const logger = createLogger('V2TableDetailAPI')
  * means "these changes are live despite the error".
  */
 function appliedDetails(
-  applied: readonly ('name' | 'folderPath')[]
+  applied: readonly ('name' | 'description' | 'folderPath')[]
 ): { applied: readonly string[] } | undefined {
   return applied.length > 0 ? { applied } : undefined
 }
@@ -124,7 +125,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Tabl
    * archived. Reporting a bare 500 there tells the caller nothing landed, and
    * it retries into a duplicate-name conflict or a repeated move.
    */
-  const applied: ('name' | 'folderPath')[] = []
+  const applied: ('name' | 'description' | 'folderPath')[] = []
 
   try {
     const rateLimit = await checkRateLimit(request, 'table-detail')
@@ -178,6 +179,18 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Tabl
       })
       if (outcome.success) applied.push('name')
       else failure = { outcome, fallback: 'Failed to rename table' }
+    }
+
+    if (!failure && validated.description !== undefined) {
+      const outcome = await performUpdateTableDescription({
+        table,
+        description: validated.description,
+        userId,
+        requestId,
+        request,
+      })
+      if (outcome.success) applied.push('description')
+      else failure = { outcome, fallback: 'Failed to update table description' }
     }
 
     if (!failure && validated.folderPath !== undefined) {
@@ -272,7 +285,7 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Tab
       return v2TableOrchestrationError(outcome, 'Failed to delete table')
     }
 
-    return v2Data({ id: tableId }, { rateLimit })
+    return v2Data({ id: tableId, deleted: true }, { rateLimit })
   } catch (error) {
     const lockError = v2TableLockError(error)
     if (lockError) return lockError
