@@ -126,10 +126,12 @@ const WORKFLOW_TYPE_ROLES = {
   file_v4: 'knowledge',
   file_v5: 'knowledge',
   function: 'logic',
+  generic_webhook: 'interface',
   guardrails: 'logic',
   human_in_the_loop: 'state',
   image_generator: 'generative',
   image_generator_v2: 'generative',
+  imap: 'interface',
   knowledge: 'knowledge',
   logs: 'records',
   logs_v2: 'records',
@@ -143,7 +145,11 @@ const WORKFLOW_TYPE_ROLES = {
   response: 'interface',
   router: 'flow',
   router_v2: 'flow',
+  rss: 'knowledge',
+  schedule: 'flow',
   search: 'knowledge',
+  sim_workspace_event: 'interface',
+  start_trigger: 'flow',
   starter: 'neutral',
   stt: 'generative',
   stt_v2: 'generative',
@@ -165,6 +171,9 @@ const WORKFLOW_TYPE_ROLES = {
 } as const satisfies Record<string, WorkflowTypeRole>
 
 const DEFAULT_WORKFLOW_TYPE_ROLE: WorkflowTypeRole = 'neutral'
+
+export const hasWorkflowTypeRole = (type: string): type is keyof typeof WORKFLOW_TYPE_ROLES =>
+  Object.hasOwn(WORKFLOW_TYPE_ROLES, type)
 
 export const getWorkflowTypeRole = (type: string): WorkflowTypeRole =>
   WORKFLOW_TYPE_ROLES[type as keyof typeof WORKFLOW_TYPE_ROLES] ?? DEFAULT_WORKFLOW_TYPE_ROLE

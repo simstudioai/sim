@@ -21,7 +21,7 @@ import {
   Info,
 } from '@sim/emcn'
 import { ChevronDown, Search } from '@sim/emcn/icons'
-import { WorkflowTypeIcon } from '@sim/workflow-renderer'
+import { hasWorkflowTypeRole, WorkflowTypeIcon } from '@sim/workflow-renderer'
 import clsx from 'clsx'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
@@ -210,6 +210,7 @@ function getTriggers(overlayVersion: number): BlockItem[] {
       config: trigger,
       icon: trigger.icon,
       bgColor: trigger.bgColor,
+      workflowType: hasWorkflowTypeRole(trigger.type) ? trigger.type : undefined,
       docsLink: trigger.docsLink,
     }))
   }
@@ -273,6 +274,7 @@ function ensureBlockCaches() {
     config: block,
     icon: block.icon,
     bgColor: block.bgColor,
+    workflowType: hasWorkflowTypeRole(block.type) ? block.type : undefined,
   }))
 
   regularBlockItems.sort((a, b) => a.name.localeCompare(b.name))

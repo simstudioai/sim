@@ -44,6 +44,7 @@ export {
   getNearestBranchCursorHandleId,
   getWorkflowTypeAccent,
   getWorkflowTypeRole,
+  hasWorkflowTypeRole,
   WorkflowBlockView,
   type WorkflowBlockViewProps,
   WorkflowTypeIcon,
