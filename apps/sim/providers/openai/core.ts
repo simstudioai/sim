@@ -292,9 +292,12 @@ export async function executeResponsesProviderRequest(
    * block error, so it is bounded and falls back to `statusText`. A structured provider
    * message is returned untruncated on purpose: the reasoning-summary strip-and-retry
    * fallback matches on its text.
+   *
+   * A failed body read is deliberately not caught: a deadline or a cancellation here must
+   * stay distinguishable from an error response that simply carried no body.
    */
   const parseErrorResponse = async (response: Response): Promise<string> => {
-    const text = await response.text().catch(() => '')
+    const text = await response.text()
     try {
       const payload = JSON.parse(text)
       if (payload?.error?.message) return payload.error.message

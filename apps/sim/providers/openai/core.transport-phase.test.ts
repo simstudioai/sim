@@ -174,6 +174,25 @@ describe('OpenAI transport phase annotation', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
+  /**
+   * Reading the error body of a non-OK response can itself hit the deadline or be
+   * cancelled. Swallowing that would report the HTTP status as the failure and lose both
+   * the transport detail and the fact that the user aborted.
+   */
+  it('propagates a deadline hit while reading a non-OK error body', async () => {
+    const unreadable = {
+      ok: false,
+      status: 502,
+      headers: new Headers(),
+      text: () => Promise.reject(timeoutError()),
+    }
+
+    const error = await run(vi.fn().mockResolvedValue(unreadable)).catch((e) => e)
+
+    expect(error.message).toContain('The operation timed out.')
+    expect(error.message).not.toContain('502')
+  })
+
   it('leaves a healthy response entirely unaffected', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
