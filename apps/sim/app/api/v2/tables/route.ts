@@ -6,9 +6,15 @@ import { v2CreateTableContract, v2ListTablesContract } from '@/lib/api/contracts
 import { isZodError, parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
 import { createTable, getWorkspaceTableLimits, queryTables, type TableSchema } from '@/lib/table'
 import { normalizeColumn } from '@/app/api/table/utils'
 import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
+import {
+  folderPathForId,
+  resolveFolderPathId,
+  withResolvedFolderPathMutation,
+} from '@/app/api/v2/lib/folders'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
   cursorSortKey,
@@ -53,10 +59,17 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     )
     if (!parsed.success) return parsed.response
 
-    const { workspaceId, folderId, search, sortBy, sortOrder, limit, cursor } = parsed.data.query
+    const { workspaceId, folderPath, search, sortBy, sortOrder, limit, cursor } = parsed.data.query
 
     const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'read')
     if (access) return v2WorkspaceAccessError(access)
+
+    const folderIndex = await loadActiveFolderPathIndex(workspaceId, 'table')
+    const folderId =
+      folderPath === undefined ? undefined : resolveFolderPathId(folderIndex, folderPath)
+    if (folderPath !== undefined && folderId === undefined) {
+      return v2Error('NOT_FOUND', 'Folder not found')
+    }
 
     const sort = cursorSortKey(sortBy, sortOrder)
     const decoded = decodeSortedCursor(cursor, sort)
@@ -71,7 +84,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       after: decoded.status === 'ok' ? decoded.keys : undefined,
     })
 
-    const items = tables.map(toApiTable)
+    const items = tables.map((table) =>
+      toApiTable(table, folderPathForId(folderIndex, table.folderId))
+    )
     const nextCursor = nextKeys ? encodeSortedCursor(sort, nextKeys) : null
 
     return v2CursorList(items, nextCursor, { rateLimit })
@@ -117,17 +132,26 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       columns: params.schema.columns.map(normalizeColumn),
     }
 
-    const table = await createTable(
-      {
-        name: params.name,
-        description: params.description,
-        schema: normalizedSchema,
-        workspaceId: params.workspaceId,
-        userId,
-        maxTables: planLimits.maxTables,
-      },
-      requestId
-    )
+    const mutation = await withResolvedFolderPathMutation({
+      workspaceId: params.workspaceId,
+      resourceType: 'table',
+      path: params.folderPath ?? '/',
+      mutate: (folderId) =>
+        createTable(
+          {
+            name: params.name,
+            description: params.description,
+            schema: normalizedSchema,
+            workspaceId: params.workspaceId,
+            userId,
+            maxTables: planLimits.maxTables,
+            folderId,
+          },
+          requestId
+        ),
+    })
+    if (!mutation.found) return v2Error('NOT_FOUND', 'Folder not found')
+    const table = mutation.value
 
     recordAudit({
       workspaceId: params.workspaceId,
@@ -141,7 +165,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       request,
     })
 
-    return v2Data({ table: toApiTable(table) }, { rateLimit, status: 201 })
+    return v2Data(
+      { table: toApiTable(table, folderPathForId(mutation.index, table.folderId)) },
+      { rateLimit, status: 201 }
+    )
   } catch (error) {
     if (isZodError(error)) return v2ValidationError(error)
 

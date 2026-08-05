@@ -1,12 +1,7 @@
 import { db } from '@sim/db'
 import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import {
-  assertFolderInWorkspace,
-  assertFolderMutable,
-  FolderLockedError,
-  FolderNotFoundError,
-} from '@sim/platform-authz/workflow'
+import { assertFolderMutable, FolderLockedError } from '@sim/platform-authz/workflow'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
@@ -30,8 +25,14 @@ import {
 } from '@/lib/api/list-query'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
 import { performCreateWorkflow } from '@/lib/workflows/orchestration'
 import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
+import {
+  folderPathForId,
+  resolveFolderPathId,
+  withResolvedFolderPathMutation,
+} from '@/app/api/v2/lib/folders'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
   cursorSortKey,
@@ -113,6 +114,15 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const access = await resolveWorkspaceAccess(rateLimit, userId, params.workspaceId, 'read')
     if (access) return v2WorkspaceAccessError(access)
 
+    const folderIndex = await loadActiveFolderPathIndex(params.workspaceId, 'workflow')
+    const folderId =
+      params.folderPath === undefined
+        ? undefined
+        : resolveFolderPathId(folderIndex, params.folderPath)
+    if (params.folderPath !== undefined && folderId === undefined) {
+      return v2Error('NOT_FOUND', 'Folder not found')
+    }
+
     const sortKey = cursorSortKey(params.sortBy, params.sortOrder)
     const keys: readonly KeysetKey<WorkflowRow>[] = WORKFLOW_SORTS[params.sortBy]
     const decoded = decodeSortedCursor(params.cursor, sortKey)
@@ -126,7 +136,13 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const conditions = [
       eq(workflow.workspaceId, params.workspaceId),
       isNull(workflow.archivedAt),
-      params.folderId ? eq(workflow.folderId, params.folderId) : undefined,
+      params.folderPath === undefined
+        ? undefined
+        : folderId === null
+          ? isNull(workflow.folderId)
+          : folderId === undefined
+            ? undefined
+            : eq(workflow.folderId, folderId),
       params.deployedOnly ? eq(workflow.isDeployed, true) : undefined,
       searchFilter(workflow.name, params.search),
       resumeAfter,
@@ -163,7 +179,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       id: w.id,
       name: w.name,
       description: w.description,
-      folderId: w.folderId,
+      folderPath: folderPathForId(folderIndex, w.folderId),
       workspaceId: w.workspaceId ?? params.workspaceId,
       isDeployed: w.isDeployed,
       deployedAt: w.deployedAt?.toISOString() ?? null,
@@ -203,28 +219,29 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     )
     if (!parsed.success) return parsed.response
 
-    const { workspaceId, name, description, folderId } = parsed.data.body
+    const { workspaceId, name, description, folderPath } = parsed.data.body
 
     const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
     if (access) return v2WorkspaceAccessError(access)
 
-    /**
-     * Ownership before lock state: `assertFolderMutable` walks the folder's
-     * ancestor chain without filtering on workspace, so checking it first would
-     * let a caller distinguish a locked folder in someone else's workspace
-     * (423) from one that simply does not exist (400).
-     */
-    if (folderId) await assertFolderInWorkspace(folderId, workspaceId)
-    await assertFolderMutable(folderId ?? null)
-
-    const result = await performCreateWorkflow({
-      userId,
+    const mutation = await withResolvedFolderPathMutation({
       workspaceId,
-      name,
-      description,
-      folderId,
-      requestId,
+      resourceType: 'workflow',
+      path: folderPath ?? '/',
+      mutate: async (folderId) => {
+        await assertFolderMutable(folderId)
+        return performCreateWorkflow({
+          userId,
+          workspaceId,
+          name,
+          description,
+          folderId,
+          requestId,
+        })
+      },
     })
+    if (!mutation.found) return v2Error('NOT_FOUND', 'Folder not found')
+    const result = mutation.value
 
     if (!result.success || !result.workflow) {
       return v2ErrorForOrchestration(result.errorCode, result.error ?? 'Failed to create workflow')
@@ -235,7 +252,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       id: created.id,
       name: created.name,
       description: created.description ?? null,
-      folderId: created.folderId ?? null,
+      folderPath: folderPathForId(mutation.index, created.folderId),
       workspaceId: created.workspaceId,
       isDeployed: false,
       deployedAt: null,
@@ -247,7 +264,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     return v2Data(item, { rateLimit, status: 201 })
   } catch (error) {
-    if (error instanceof FolderNotFoundError) return v2Error('BAD_REQUEST', error.message)
     if (error instanceof FolderLockedError) return v2Error('LOCKED', error.message)
 
     logger.error(`[${requestId}] Workflow create error`, {

@@ -1,6 +1,5 @@
 import { z } from 'zod'
 import {
-  folderIdSchema,
   isCanonicalBase64,
   workspaceFileIdSchema,
   workspaceIdSchema,
@@ -8,8 +7,14 @@ import {
 import { shareAuthTypeSchema, shareRecordSchema } from '@/lib/api/contracts/public-shares'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
+  v2CreateFolderBodySchema,
   v2CursorListResponse,
   v2DataResponse,
+  v2DeleteFolderQuerySchema,
+  v2FolderPathSchema,
+  v2FolderSchema,
+  v2ListFoldersQuerySchema,
+  v2RelocateFolderBodySchema,
   v2SearchSchema,
   v2SortFields,
 } from '@/lib/api/contracts/v2/shared'
@@ -29,14 +34,8 @@ import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
  * adds cursor pagination to the list. List and item routes carry the workspace
  * as a query parameter; upload-session creation carries it in the JSON body.
  *
- * Folders are referenced but not managed here. A file carries `folderId` /
- * `folderPath`, and `move` retargets it, but there are deliberately no
- * folder-CRUD routes on this surface: file folders already live in the shared
- * `folder` table (`resourceType: 'file'`), and the remaining file-specific
- * folder machinery is being folded into the generic folder engine. Publishing
- * `/api/v2/files/folders/**` would pin a transitional split into a public
- * contract; folder management belongs on `/api/v2/folders` once that surface
- * serves `resourceType: 'file'`.
+ * Folder placement is represented only by canonical paths. Database folder ids
+ * remain an internal storage detail.
  *
  * Uploads use a signed stateless control token. The storage provider owns the
  * multipart part state; completion atomically registers the workspace file.
@@ -49,10 +48,8 @@ export const v2FileSchema = z.object({
   size: z.number().nonnegative(),
   type: z.string(),
   key: z.string(),
-  /** Containing file folder, or `null` when the file sits at the workspace root. */
-  folderId: z.string().nullable(),
-  /** Slash-joined folder names for {@link v2FileSchema.folderId}; `null` at the root. */
-  folderPath: z.string().nullable(),
+  /** Canonical containing-folder path; `/` means the workspace root. */
+  folderPath: v2FolderPathSchema,
   uploadedBy: z.string(),
   /** ISO-8601 timestamp. */
   uploadedAt: z.string(),
@@ -71,7 +68,7 @@ export const v2CreateFileUploadBodySchema = z
     name: z.string().trim().min(1, 'name is required').max(255, 'name is too long'),
     contentType: z.string().trim().min(1, 'contentType is required').max(255),
     size: z.number().int().nonnegative().max(MAX_WORKSPACE_FILE_SIZE),
-    folderId: folderIdSchema.optional(),
+    folderPath: v2FolderPathSchema.optional(),
   })
   .strict()
 export type V2CreateFileUploadBody = z.input<typeof v2CreateFileUploadBodySchema>
@@ -100,7 +97,6 @@ export const v2CreateFileUploadDataSchema = z
   .strict()
 export type V2CreateFileUploadData = z.output<typeof v2CreateFileUploadDataSchema>
 
-/** Acknowledgement returned by a successful archive (soft delete). */
 export const v2DeleteFileResultSchema = z.object({
   id: z.string(),
   deleted: z.literal(true),
@@ -108,24 +104,11 @@ export const v2DeleteFileResultSchema = z.object({
 
 export type V2DeleteFileResult = z.output<typeof v2DeleteFileResultSchema>
 
-/** Counts of what a cascading archive or restore touched. */
-export const v2FileItemCountsSchema = z.object({
-  files: z.number().int(),
-  folders: z.number().int(),
-})
-
-export type V2FileItemCounts = z.output<typeof v2FileItemCountsSchema>
-
 export const v2FileParamsSchema = z.object({
   fileId: workspaceFileIdSchema,
 })
 
 export type V2FileParams = z.output<typeof v2FileParamsSchema>
-
-/** `active` lists live items; `archived` lists Recently Deleted. */
-export const v2FileScopeSchema = z.enum(['active', 'archived'])
-
-export type V2FileScope = z.output<typeof v2FileScopeSchema>
 
 /**
  * A file-folder name becomes a path segment, so path separators and dot
@@ -152,7 +135,7 @@ export const v2CreateFileBodySchema = z
       .min(1, 'contentType cannot be empty')
       .max(255, 'contentType is too long')
       .optional(),
-    folderId: folderIdSchema.optional(),
+    folderPath: v2FolderPathSchema.optional(),
     content: z.string().max(70_000_000, 'content is too large').default(''),
     encoding: z.enum(['utf-8', 'base64']).default('utf-8'),
   })
@@ -183,20 +166,21 @@ export type V2FileSortBy = (typeof v2FileSortFields)[number]
  * minted under and rejected if the request's sort has since changed. Filtering,
  * ordering, and the page slice all happen in the query.
  */
-export const v2ListFilesQuerySchema = z.object({
-  workspaceId: workspaceIdSchema,
-  scope: v2FileScopeSchema.default('active'),
-  /** Restrict to one file folder. Omit to list the whole workspace. */
-  folderId: z.string().min(1, 'folderId cannot be empty').optional(),
-  search: v2SearchSchema,
-  ...v2SortFields(v2FileSortFields, { sortBy: 'uploadedAt', sortOrder: 'asc' }),
-  limit: z.coerce
-    .number()
-    .optional()
-    .default(100)
-    .transform((v) => Math.min(Math.max(1, Math.trunc(v)), 1000)),
-  cursor: z.string().min(1).optional(),
-})
+export const v2ListFilesQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema,
+    /** Restrict to one file folder. Omit to list the whole workspace. */
+    folderPath: v2FolderPathSchema.optional(),
+    search: v2SearchSchema,
+    ...v2SortFields(v2FileSortFields, { sortBy: 'uploadedAt', sortOrder: 'asc' }),
+    limit: z.coerce
+      .number()
+      .optional()
+      .default(100)
+      .transform((v) => Math.min(Math.max(1, Math.trunc(v)), 1000)),
+    cursor: z.string().min(1).optional(),
+  })
+  .strict()
 
 export type V2ListFilesQuery = z.output<typeof v2ListFilesQuerySchema>
 
@@ -216,76 +200,77 @@ export const v2RenameFileBodySchema = z
 
 export type V2RenameFileBody = z.input<typeof v2RenameFileBodySchema>
 
-export const v2WorkspaceScopedBodySchema = z
-  .object({
-    workspaceId: workspaceIdSchema,
-  })
-  .strict()
-
-export type V2WorkspaceScopedBody = z.input<typeof v2WorkspaceScopedBodySchema>
-
-/** A restore acknowledgement carries no payload beyond the restored id. */
-export const v2RestoreFileResultSchema = z.object({
-  id: z.string(),
-  restored: z.literal(true),
-})
-
-export type V2RestoreFileResult = z.output<typeof v2RestoreFileResultSchema>
-
-const fileItemSelectionSchema = {
-  fileIds: z.array(z.string().min(1, 'fileIds entries cannot be empty')).max(1000).default([]),
-  folderIds: z.array(z.string().min(1, 'folderIds entries cannot be empty')).max(1000).default([]),
+const fileSelectionSchema = {
+  fileIds: z.array(z.string().min(1, 'fileIds entries cannot be empty')).min(1).max(1000),
 }
 
 export const v2MoveFileItemsBodySchema = z
   .object({
     workspaceId: workspaceIdSchema,
-    ...fileItemSelectionSchema,
-    /** Explicit `null` moves the selection to the workspace root. */
-    targetFolderId: z.string().min(1, 'targetFolderId cannot be empty').nullable().optional(),
+    ...fileSelectionSchema,
+    /** Omission moves the files to the workspace root. */
+    targetFolderPath: v2FolderPathSchema.optional(),
   })
   .strict()
-  .superRefine((body, ctx) => {
-    if (body.fileIds.length === 0 && body.folderIds.length === 0) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['fileIds'],
-        message: 'At least one of fileIds or folderIds must be non-empty',
-      })
-    }
-  })
 
 export type V2MoveFileItemsBody = z.input<typeof v2MoveFileItemsBodySchema>
 
 export const v2MoveFileItemsResultSchema = z.object({
-  movedItems: v2FileItemCountsSchema,
+  movedItems: z.object({ files: z.number().int() }),
 })
 
 export type V2MoveFileItemsResult = z.output<typeof v2MoveFileItemsResultSchema>
 
-export const v2BulkArchiveFileItemsBodySchema = z
+export const v2BulkDeleteFilesBodySchema = z
   .object({
     workspaceId: workspaceIdSchema,
-    ...fileItemSelectionSchema,
+    ...fileSelectionSchema,
   })
   .strict()
-  .superRefine((body, ctx) => {
-    if (body.fileIds.length === 0 && body.folderIds.length === 0) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['fileIds'],
-        message: 'At least one of fileIds or folderIds must be non-empty',
-      })
-    }
-  })
 
-export type V2BulkArchiveFileItemsBody = z.input<typeof v2BulkArchiveFileItemsBodySchema>
+export type V2BulkDeleteFilesBody = z.input<typeof v2BulkDeleteFilesBodySchema>
 
-export const v2BulkArchiveFileItemsResultSchema = z.object({
-  deletedItems: v2FileItemCountsSchema,
+export const v2BulkDeleteFilesResultSchema = z.object({
+  deletedItems: z.object({ files: z.number().int() }),
 })
 
-export type V2BulkArchiveFileItemsResult = z.output<typeof v2BulkArchiveFileItemsResultSchema>
+export type V2BulkDeleteFilesResult = z.output<typeof v2BulkDeleteFilesResultSchema>
+
+export const v2FileFolderDataSchema = z.object({ folder: v2FolderSchema })
+
+export const v2DeleteFileFolderDataSchema = z.object({
+  path: v2FolderPathSchema,
+  deleted: z.literal(true),
+  deletedItems: z.object({ folders: z.number().int(), files: z.number().int() }),
+})
+
+export const v2ListFileFoldersContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/files/folders',
+  query: v2ListFoldersQuerySchema,
+  response: { mode: 'json', schema: v2CursorListResponse(v2FolderSchema) },
+})
+
+export const v2CreateFileFolderContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/files/folders',
+  body: v2CreateFolderBodySchema,
+  response: { mode: 'json', schema: v2DataResponse(v2FileFolderDataSchema) },
+})
+
+export const v2RelocateFileFolderContract = defineRouteContract({
+  method: 'PATCH',
+  path: '/api/v2/files/folders',
+  body: v2RelocateFolderBodySchema,
+  response: { mode: 'json', schema: v2DataResponse(v2FileFolderDataSchema) },
+})
+
+export const v2DeleteFileFolderContract = defineRouteContract({
+  method: 'DELETE',
+  path: '/api/v2/files/folders',
+  query: v2DeleteFolderQuerySchema,
+  response: { mode: 'json', schema: v2DataResponse(v2DeleteFileFolderDataSchema) },
+})
 
 /**
  * Public share state. Reuses the internal {@link shareRecordSchema}, which is
@@ -457,17 +442,6 @@ export const v2DeleteFileContract = defineRouteContract({
   },
 })
 
-export const v2RestoreFileContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/v2/files/[fileId]/restore',
-  params: v2FileParamsSchema,
-  body: v2WorkspaceScopedBodySchema,
-  response: {
-    mode: 'json',
-    schema: v2DataResponse(v2RestoreFileResultSchema),
-  },
-})
-
 export const v2MoveFileItemsContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/files/move',
@@ -478,13 +452,13 @@ export const v2MoveFileItemsContract = defineRouteContract({
   },
 })
 
-export const v2BulkArchiveFileItemsContract = defineRouteContract({
+export const v2BulkDeleteFilesContract = defineRouteContract({
   method: 'POST',
-  path: '/api/v2/files/bulk-archive',
-  body: v2BulkArchiveFileItemsBodySchema,
+  path: '/api/v2/files/bulk-delete',
+  body: v2BulkDeleteFilesBodySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2BulkArchiveFileItemsResultSchema),
+    schema: v2DataResponse(v2BulkDeleteFilesResultSchema),
   },
 })
 

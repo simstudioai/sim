@@ -2,13 +2,17 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode, toError } from '@sim/utils/errors'
 import { asOrchestrationError, type OrchestrationErrorCode } from '@/lib/core/orchestration/types'
+import { FolderPathError } from '@/lib/folders/paths'
 import { notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
 import {
   bulkArchiveWorkspaceFileItems,
   createWorkspaceFileFolder,
+  createWorkspaceFileFolderAtPath,
+  deleteWorkspaceFileFolderByPath,
   FileConflictError,
   moveRenameWorkspaceFile,
   moveWorkspaceFileItems,
+  relocateWorkspaceFileFolderByPath,
   renameWorkspaceFile,
   restoreWorkspaceFile,
   restoreWorkspaceFileFolder,
@@ -49,6 +53,7 @@ export interface PerformMoveWorkspaceFileItemsParams {
   fileIds?: string[]
   folderIds?: string[]
   targetFolderId?: string | null
+  targetFolderPath?: string
 }
 
 export interface PerformMoveWorkspaceFileItemsResult {
@@ -128,6 +133,112 @@ export interface PerformRestoreWorkspaceFileFolderResult {
   restoredItems?: WorkspaceFileArchiveResult
 }
 
+export interface PerformFileFolderPathMutationResult {
+  success: boolean
+  error?: string
+  errorCode?: OrchestrationErrorCode
+  folder?: WorkspaceFileFolderRecord
+  path?: string
+}
+
+export interface PerformDeleteFileFolderByPathResult {
+  success: boolean
+  error?: string
+  errorCode?: OrchestrationErrorCode
+  deletedItems?: WorkspaceFileArchiveResult
+}
+
+function fileFolderPathError(error: unknown): {
+  error: string
+  errorCode: OrchestrationErrorCode
+} {
+  if (error instanceof FolderPathError) {
+    return { error: error.message, errorCode: 'validation' }
+  }
+  if (
+    error instanceof WorkspaceFileFolderConflictError ||
+    getPostgresErrorCode(error) === '23505'
+  ) {
+    return { error: toError(error).message, errorCode: 'conflict' }
+  }
+  const classified = asOrchestrationError(error)
+  if (classified) return { error: classified.message, errorCode: classified.code }
+  return { error: toError(error).message, errorCode: 'internal' }
+}
+
+export async function performCreateWorkspaceFileFolderAtPath(params: {
+  workspaceId: string
+  userId: string
+  path: string
+}): Promise<PerformFileFolderPathMutationResult> {
+  try {
+    const result = await createWorkspaceFileFolderAtPath(params)
+    recordAudit({
+      workspaceId: params.workspaceId,
+      actorId: params.userId,
+      action: AuditAction.FOLDER_CREATED,
+      resourceType: AuditResourceType.FOLDER,
+      resourceName: result.folder.name,
+      description: `Created file folder "${result.folder.name}"`,
+      metadata: { path: result.path },
+    })
+    await notifyWorkspaceFilesChanged(params.workspaceId)
+    return { success: true, folder: { ...result.folder, path: result.path }, path: result.path }
+  } catch (error) {
+    logger.error('Failed to create workspace file folder by path', { error })
+    return { success: false, ...fileFolderPathError(error) }
+  }
+}
+
+export async function performRelocateWorkspaceFileFolderByPath(params: {
+  workspaceId: string
+  userId: string
+  path: string
+  destinationPath: string
+}): Promise<PerformFileFolderPathMutationResult> {
+  try {
+    const result = await relocateWorkspaceFileFolderByPath(params)
+    recordAudit({
+      workspaceId: params.workspaceId,
+      actorId: params.userId,
+      action: AuditAction.FOLDER_MOVED,
+      resourceType: AuditResourceType.FOLDER,
+      resourceName: result.folder.name,
+      description: `Moved file folder to "${result.path}"`,
+      metadata: { sourcePath: params.path, destinationPath: result.path },
+    })
+    await notifyWorkspaceFilesChanged(params.workspaceId)
+    return { success: true, folder: { ...result.folder, path: result.path }, path: result.path }
+  } catch (error) {
+    logger.error('Failed to relocate workspace file folder by path', { error })
+    return { success: false, ...fileFolderPathError(error) }
+  }
+}
+
+export async function performDeleteWorkspaceFileFolderByPath(params: {
+  workspaceId: string
+  userId: string
+  path: string
+  recursive: boolean
+}): Promise<PerformDeleteFileFolderByPathResult> {
+  try {
+    const deletedItems = await deleteWorkspaceFileFolderByPath(params)
+    recordAudit({
+      workspaceId: params.workspaceId,
+      actorId: params.userId,
+      action: AuditAction.FOLDER_DELETED,
+      resourceType: AuditResourceType.FOLDER,
+      description: `Deleted file folder "${params.path}"`,
+      metadata: { path: params.path, affected: deletedItems },
+    })
+    await notifyWorkspaceFilesChanged(params.workspaceId)
+    return { success: true, deletedItems }
+  } catch (error) {
+    logger.error('Failed to delete workspace file folder by path', { error })
+    return { success: false, ...fileFolderPathError(error) }
+  }
+}
+
 export async function performDeleteWorkspaceFileItems(
   params: PerformDeleteWorkspaceFileItemsParams
 ): Promise<PerformDeleteWorkspaceFileItemsResult> {
@@ -204,7 +315,14 @@ export async function performDeleteWorkspaceFileItems(
 export async function performMoveWorkspaceFileItems(
   params: PerformMoveWorkspaceFileItemsParams
 ): Promise<PerformMoveWorkspaceFileItemsResult> {
-  const { workspaceId, userId, fileIds = [], folderIds = [], targetFolderId } = params
+  const {
+    workspaceId,
+    userId,
+    fileIds = [],
+    folderIds = [],
+    targetFolderId,
+    targetFolderPath,
+  } = params
 
   if (fileIds.length === 0 && folderIds.length === 0) {
     return {
@@ -220,6 +338,7 @@ export async function performMoveWorkspaceFileItems(
       fileIds,
       folderIds,
       targetFolderId,
+      targetFolderPath,
     })
     const movedItems = { files: moved.movedFiles, folders: moved.movedFolders }
 
@@ -228,6 +347,7 @@ export async function performMoveWorkspaceFileItems(
       fileIds,
       folderIds,
       targetFolderId,
+      targetFolderPath,
       movedItems,
     })
 
@@ -237,8 +357,8 @@ export async function performMoveWorkspaceFileItems(
         actorId: userId,
         action: AuditAction.FILE_MOVED,
         resourceType: AuditResourceType.FILE,
-        description: `Moved ${fileIds.length} file${fileIds.length === 1 ? '' : 's'}${targetFolderId ? ' to folder' : ' to root'}`,
-        metadata: { fileIds, targetFolderId },
+        description: `Moved ${fileIds.length} file${fileIds.length === 1 ? '' : 's'}${targetFolderId || (targetFolderPath && targetFolderPath !== '/') ? ' to folder' : ' to root'}`,
+        metadata: { fileIds, targetFolderId, targetFolderPath },
       })
     }
 
@@ -249,8 +369,8 @@ export async function performMoveWorkspaceFileItems(
         action: AuditAction.FOLDER_MOVED,
         resourceType: AuditResourceType.FOLDER,
         resourceId: folderIds.length === 1 ? folderIds[0] : undefined,
-        description: `Moved ${folderIds.length} file folder${folderIds.length === 1 ? '' : 's'}${targetFolderId ? ' to folder' : ' to root'}`,
-        metadata: { folderIds, targetFolderId },
+        description: `Moved ${folderIds.length} file folder${folderIds.length === 1 ? '' : 's'}${targetFolderId || (targetFolderPath && targetFolderPath !== '/') ? ' to folder' : ' to root'}`,
+        metadata: { folderIds, targetFolderId, targetFolderPath },
       })
     }
 

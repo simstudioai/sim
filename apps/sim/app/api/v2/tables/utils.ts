@@ -53,7 +53,7 @@ export function v2BulkPredicateToFilter(predicate: TablePredicate, schema: Table
  * exposes, with timestamps serialized to ISO strings. Shared by every v2 table
  * endpoint so the table payload is identical across the surface.
  */
-export function toApiTable(table: TableDefinition) {
+export function toApiTable(table: TableDefinition, folderPath: string) {
   return {
     id: table.id,
     name: table.name,
@@ -63,7 +63,7 @@ export function toApiTable(table: TableDefinition) {
     },
     rowCount: table.rowCount,
     maxRows: table.maxRows,
-    folderId: table.folderId ?? null,
+    folderPath,
     locks: table.locks,
     // `jobStatus` is the presence signal — the service leaves the whole group
     // null when the table is idle. Without this an async import could be

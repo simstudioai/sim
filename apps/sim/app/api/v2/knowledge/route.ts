@@ -8,10 +8,16 @@ import {
 import { parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
 import { performCreateKnowledgeBase } from '@/lib/knowledge/orchestration'
 import { getKnowledgeBases } from '@/lib/knowledge/service'
 import { formatKnowledgeBase } from '@/app/api/v1/knowledge/utils'
 import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
+import {
+  folderPathForId,
+  resolveFolderPathId,
+  withResolvedFolderPathMutation,
+} from '@/app/api/v2/lib/folders'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
   v2CursorList,
@@ -51,10 +57,17 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     )
     if (!parsed.success) return parsed.response
 
-    const { workspaceId, folderId, search, sortBy, sortOrder } = parsed.data.query
+    const { workspaceId, folderPath, search, sortBy, sortOrder } = parsed.data.query
 
     const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'read')
     if (access) return v2WorkspaceAccessError(access)
+
+    const folderIndex = await loadActiveFolderPathIndex(workspaceId, 'knowledge_base')
+    const folderId =
+      folderPath === undefined ? undefined : resolveFolderPathId(folderIndex, folderPath)
+    if (folderPath !== undefined && folderId === undefined) {
+      return v2Error('NOT_FOUND', 'Folder not found')
+    }
 
     const knowledgeBases = await getKnowledgeBases(userId, workspaceId, 'active', {
       folderId,
@@ -62,7 +75,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       sortBy,
       sortOrder,
     })
-    const items = knowledgeBases.map(formatKnowledgeBase)
+    const items = knowledgeBases.map((knowledgeBase) => ({
+      ...formatKnowledgeBase(knowledgeBase),
+      folderPath: folderPathForId(folderIndex, knowledgeBase.folderId),
+    }))
 
     // `getKnowledgeBases` returns the full bounded workspace set → single page.
     return v2CursorList(items, null, { rateLimit })
@@ -97,27 +113,41 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     )
     if (!parsed.success) return parsed.response
 
-    const { workspaceId, name, description, chunkingConfig } = parsed.data.body
+    const { workspaceId, name, description, chunkingConfig, folderPath } = parsed.data.body
 
     const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
     if (access) return v2WorkspaceAccessError(access)
 
-    const outcome = await performCreateKnowledgeBase({
-      userId,
-      source: 'api',
+    const mutation = await withResolvedFolderPathMutation({
       workspaceId,
-      name,
-      description,
-      chunkingConfig,
-      requestId,
-      request,
+      resourceType: 'knowledge_base',
+      path: folderPath ?? '/',
+      mutate: (folderId) =>
+        performCreateKnowledgeBase({
+          userId,
+          source: 'api',
+          workspaceId,
+          name,
+          description,
+          chunkingConfig,
+          folderId,
+          requestId,
+          request,
+        }),
     })
+    if (!mutation.found) return v2Error('NOT_FOUND', 'Folder not found')
+    const outcome = mutation.value
     if (!outcome.success) {
       return v2ErrorForOrchestration(outcome.errorCode, outcome.error)
     }
 
     return v2Data(
-      { knowledgeBase: formatKnowledgeBase(outcome.knowledgeBase) },
+      {
+        knowledgeBase: {
+          ...formatKnowledgeBase(outcome.knowledgeBase),
+          folderPath: folderPathForId(mutation.index, outcome.knowledgeBase.folderId),
+        },
+      },
       { rateLimit, status: 201 }
     )
   } catch (error) {

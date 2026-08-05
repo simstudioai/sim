@@ -4,10 +4,10 @@ import type { NextRequest } from 'next/server'
 import { v2CreateFileUploadContract } from '@/lib/api/contracts/v2/files'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { assertWorkspaceFileFolderTarget } from '@/lib/uploads/contexts/workspace'
 import { createUploadSession } from '@/lib/uploads/upload-session/service'
 import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
 import { toV2FileUpload } from '@/app/api/v2/files/uploads/utils'
+import { resolveFolderPathIdentity } from '@/app/api/v2/lib/folders'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
   v2CaughtOrchestrationError,
@@ -37,11 +37,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
     )
     if (!parsed.success) return parsed.response
-    const { workspaceId, name, contentType, size, folderId } = parsed.data.body
+    const { workspaceId, name, contentType, size, folderPath } = parsed.data.body
     const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
     if (access) return v2WorkspaceAccessError(access)
-    const normalizedFolderId = await assertWorkspaceFileFolderTarget(workspaceId, folderId)
-
+    const resolution = await resolveFolderPathIdentity({
+      workspaceId,
+      resourceType: 'file',
+      path: folderPath ?? '/',
+    })
+    if (!resolution.found) return v2Error('NOT_FOUND', 'Folder not found')
     const session = await createUploadSession({
       workspaceId,
       userId,
@@ -49,7 +53,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       fileName: name,
       contentType,
       fileSize: size,
-      metadata: { folderId: normalizedFolderId },
+      metadata: { folderId: resolution.folderId },
       localOrigin: request.nextUrl.origin,
     })
     return v2Data(

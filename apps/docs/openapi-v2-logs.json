@@ -60,9 +60,9 @@
             "example": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36,8a4c2e6b-0d1f-4b3a-9c5e-7f2d8b4a6c91"
           },
           {
-            "name": "folderIds",
+            "name": "folderPaths",
             "in": "query",
-            "description": "Comma-separated list of folder IDs. Returns logs for all workflows within these folders.",
+            "description": "Comma-separated list of folder paths. Returns logs for all workflows within these folders.",
             "schema": {
               "type": "string"
             }
@@ -353,7 +353,7 @@
                       "id": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
                       "name": "Customer Support Agent",
                       "description": "Routes incoming support tickets and drafts responses",
-                      "folderId": null,
+                      "folderPath": "/",
                       "userId": "usr_1a2b3c4d5e",
                       "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
                       "createdAt": "2025-01-10T09:00:00.000Z",
@@ -576,7 +576,7 @@
           "id",
           "name",
           "description",
-          "folderId",
+          "folderPath",
           "userId",
           "workspaceId",
           "createdAt",
@@ -599,10 +599,10 @@
             "description": "Workflow description, or null if none was set.",
             "example": "Routes incoming support tickets and drafts responses"
           },
-          "folderId": {
-            "type": ["string", "null"],
-            "description": "The folder the workflow belongs to. null if at the workspace root or the workflow is gone.",
-            "example": null
+          "folderPath": {
+            "type": "string",
+            "description": "Canonical containing-folder path. `/` is the workspace root.",
+            "example": "/Engineering"
           },
           "userId": {
             "type": ["string", "null"],

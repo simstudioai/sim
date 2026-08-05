@@ -1,8 +1,8 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Sim API v2 \u2014 Knowledge Bases",
-    "description": "The v2 Knowledge Bases API lets you create and manage knowledge bases, upload and inspect documents, and run vector and tag search over your indexed content.\n\n## Conventions\n\nAll endpoints live under the `/api/v2` base path and share a single set of conventions:\n\n- **Authentication** \u2014 Send your Sim API key in the `X-API-Key` header on every request. Keys are scoped to a workspace (or are personal keys that target a workspace); `workspaceId` is always required so the request can be tenant-scoped and rate-limited.\n- **Single-resource and mutation responses** return `{ \"data\": ... }`.\n- **List responses** use an opaque-cursor envelope: `{ \"data\": [ ... ], \"nextCursor\": string | null }`. Pass the returned `nextCursor` back as the `cursor` query parameter to fetch the next page. When `nextCursor` is `null` there are no more results. Cursors are opaque \u2014 do not parse or construct them.\n- **Errors** use a single envelope: `{ \"error\": { \"code\": string, \"message\": string, \"details\"?: unknown } }`. The HTTP status code and the stable `code` field move together (for example `404` \u21c4 `NOT_FOUND`).\n- **Rate limiting** \u2014 Every response carries the current limiter state in the `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset` headers. A throttled request returns `429` with a `Retry-After` header.",
+    "title": "Sim API v2 — Knowledge Bases",
+    "description": "The v2 Knowledge Bases API lets you create and manage knowledge bases, upload and inspect documents, and run vector and tag search over your indexed content.\n\n## Conventions\n\nAll endpoints live under the `/api/v2` base path and share a single set of conventions:\n\n- **Authentication** — Send your Sim API key in the `X-API-Key` header on every request. Keys are scoped to a workspace (or are personal keys that target a workspace); `workspaceId` is always required so the request can be tenant-scoped and rate-limited.\n- **Single-resource and mutation responses** return `{ \"data\": ... }`.\n- **List responses** use an opaque-cursor envelope: `{ \"data\": [ ... ], \"nextCursor\": string | null }`. Pass the returned `nextCursor` back as the `cursor` query parameter to fetch the next page. When `nextCursor` is `null` there are no more results. Cursors are opaque — do not parse or construct them.\n- **Errors** use a single envelope: `{ \"error\": { \"code\": string, \"message\": string, \"details\"?: unknown } }`. The HTTP status code and the stable `code` field move together (for example `404` ⇄ `NOT_FOUND`).\n- **Rate limiting** — Every response carries the current limiter state in the `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset` headers. A throttled request returns `429` with a `Retry-After` header.",
     "version": "2.0.0",
     "contact": {
       "name": "Sim Support",
@@ -50,18 +50,25 @@
             "$ref": "#/components/parameters/WorkspaceIdQuery"
           },
           {
-            "name": "folderId",
+            "name": "folderPath",
             "in": "query",
             "required": false,
             "description": "Restrict the list to one folder. Omit to list every knowledge base in the workspace.",
-            "schema": { "type": "string", "minLength": 1 }
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
           },
           {
             "name": "search",
             "in": "query",
             "required": false,
             "description": "Case-insensitive substring match against the knowledge base `name`. Matches nothing else — not ids, descriptions, or content. `%` and `_` are matched literally. Must be non-empty; omit the parameter instead of sending a blank one.",
-            "schema": { "type": "string", "minLength": 1, "maxLength": 200 }
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
           },
           {
             "name": "sortBy",
@@ -79,7 +86,11 @@
             "in": "query",
             "required": false,
             "description": "Sort direction.",
-            "schema": { "type": "string", "enum": ["asc", "desc"], "default": "asc" }
+            "schema": {
+              "type": "string",
+              "enum": ["asc", "desc"],
+              "default": "asc"
+            }
           }
         ],
         "responses": {
@@ -663,7 +674,7 @@
       "post": {
         "operationId": "uploadKnowledgeDocument",
         "summary": "Upload Document",
-        "description": "Upload a single document to a knowledge base as `multipart/form-data`. The workspace is supplied as the `workspaceId` query parameter (not a form field) so authorization runs before the file body is buffered. The maximum file size is 100 MB. Processing is asynchronous: the document is returned with `processingStatus: \"pending\"` and indexing continues in the background \u2014 poll the Get Document endpoint to observe progress.",
+        "description": "Upload a single document to a knowledge base as `multipart/form-data`. The workspace is supplied as the `workspaceId` query parameter (not a form field) so authorization runs before the file body is buffered. The maximum file size is 100 MB. Processing is asynchronous: the document is returned with `processingStatus: \"pending\"` and indexing continues in the background — poll the Get Document endpoint to observe progress.",
         "tags": ["Knowledge Bases"],
         "x-codeSamples": [
           {
@@ -821,30 +832,58 @@
               }
             }
           },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "402": { "$ref": "#/components/responses/UsageLimitExceeded" },
-          "403": { "$ref": "#/components/responses/Forbidden" },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "413": { "$ref": "#/components/responses/PayloadTooLarge" },
-          "415": { "$ref": "#/components/responses/UnsupportedMediaType" },
-          "429": { "$ref": "#/components/responses/RateLimited" },
-          "500": { "$ref": "#/components/responses/InternalError" }
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "402": {
+            "$ref": "#/components/responses/UsageLimitExceeded"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
         }
       }
     },
     "/api/v2/knowledge/{id}/documents/uploads/{uploadId}": {
       "parameters": [
-        { "$ref": "#/components/parameters/KnowledgeBaseId" },
-        { "$ref": "#/components/parameters/UploadId" },
-        { "$ref": "#/components/parameters/UploadTokenHeader" }
+        {
+          "$ref": "#/components/parameters/KnowledgeBaseId"
+        },
+        {
+          "$ref": "#/components/parameters/UploadId"
+        },
+        {
+          "$ref": "#/components/parameters/UploadTokenHeader"
+        }
       ],
       "delete": {
         "operationId": "abortKnowledgeDocumentUpload",
         "summary": "Abort Document Upload",
         "description": "Abort an incomplete knowledge-document upload and discard its provider parts. Aborting an already aborted session is safe.",
         "tags": ["Knowledge Bases"],
-        "parameters": [{ "$ref": "#/components/parameters/WorkspaceIdQuery" }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkspaceIdQuery"
+          }
+        ],
         "responses": {
           "200": {
             "description": "The aborted upload session.",
@@ -856,28 +895,52 @@
               }
             }
           },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": { "$ref": "#/components/responses/Forbidden" },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "409": { "$ref": "#/components/responses/Conflict" },
-          "429": { "$ref": "#/components/responses/RateLimited" },
-          "500": { "$ref": "#/components/responses/InternalError" }
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
         }
       }
     },
     "/api/v2/knowledge/{id}/documents/uploads/{uploadId}/parts": {
       "parameters": [
-        { "$ref": "#/components/parameters/KnowledgeBaseId" },
-        { "$ref": "#/components/parameters/UploadId" },
-        { "$ref": "#/components/parameters/UploadTokenHeader" }
+        {
+          "$ref": "#/components/parameters/KnowledgeBaseId"
+        },
+        {
+          "$ref": "#/components/parameters/UploadId"
+        },
+        {
+          "$ref": "#/components/parameters/UploadTokenHeader"
+        }
       ],
       "post": {
         "operationId": "createKnowledgeDocumentUploadPartUrls",
         "summary": "Create Document Upload Part URLs",
         "description": "Issue short-lived signed PUT URLs for up to 100 part numbers. PUT each byte range directly to the returned URL with the returned headers.",
         "tags": ["Knowledge Bases"],
-        "parameters": [{ "$ref": "#/components/parameters/WorkspaceIdQuery" }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkspaceIdQuery"
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -899,28 +962,52 @@
               }
             }
           },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": { "$ref": "#/components/responses/Forbidden" },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "409": { "$ref": "#/components/responses/Conflict" },
-          "429": { "$ref": "#/components/responses/RateLimited" },
-          "500": { "$ref": "#/components/responses/InternalError" }
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
         }
       }
     },
     "/api/v2/knowledge/{id}/documents/uploads/{uploadId}/complete": {
       "parameters": [
-        { "$ref": "#/components/parameters/KnowledgeBaseId" },
-        { "$ref": "#/components/parameters/UploadId" },
-        { "$ref": "#/components/parameters/UploadTokenHeader" }
+        {
+          "$ref": "#/components/parameters/KnowledgeBaseId"
+        },
+        {
+          "$ref": "#/components/parameters/UploadId"
+        },
+        {
+          "$ref": "#/components/parameters/UploadTokenHeader"
+        }
       ],
       "post": {
         "operationId": "completeKnowledgeDocumentUpload",
         "summary": "Complete Document Upload",
         "description": "Verify the single PUT or assemble all multipart parts, record knowledge-base storage ownership, create the knowledge document, and queue asynchronous processing. Repeating the same completion is idempotent and returns the same document. It never registers a general workspace file.",
         "tags": ["Knowledge Bases"],
-        "parameters": [{ "$ref": "#/components/parameters/WorkspaceIdQuery" }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkspaceIdQuery"
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -942,15 +1029,33 @@
               }
             }
           },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "402": { "$ref": "#/components/responses/UsageLimitExceeded" },
-          "403": { "$ref": "#/components/responses/Forbidden" },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "409": { "$ref": "#/components/responses/Conflict" },
-          "413": { "$ref": "#/components/responses/PayloadTooLarge" },
-          "429": { "$ref": "#/components/responses/RateLimited" },
-          "500": { "$ref": "#/components/responses/InternalError" }
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "402": {
+            "$ref": "#/components/responses/UsageLimitExceeded"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
         }
       }
     },
@@ -1094,6 +1199,386 @@
             "description": "Workspace that owns the knowledge base."
           }
         ]
+      }
+    },
+    "/api/v2/knowledge/folders": {
+      "get": {
+        "operationId": "listKnowledgeFolders",
+        "summary": "List Folders",
+        "description": "List active folders for this resource. Omit `parentPath` for the full tree, or pass a canonical path (including `/`) for immediate children only.",
+        "tags": ["Knowledge Bases"],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkspaceIdQuery"
+          },
+          {
+            "name": "parentPath",
+            "in": "query",
+            "required": false,
+            "description": "Canonical parent path. `/` lists root folders; omit for every folder.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Name search.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "description": "Sort field.",
+            "schema": {
+              "type": "string",
+              "enum": ["name", "createdAt", "updatedAt"],
+              "default": "name"
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "description": "Sort direction.",
+            "schema": {
+              "type": "string",
+              "enum": ["asc", "desc"],
+              "default": "asc"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Folders.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data", "nextCursor"],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/KnowledgeFolder"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": ["string", "null"]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createKnowledgeFolder",
+        "summary": "Create Folder",
+        "description": "Create exactly one folder leaf. Its parent path must already exist.",
+        "tags": ["Knowledge Bases"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["workspaceId", "path"],
+                "properties": {
+                  "workspaceId": {
+                    "type": "string"
+                  },
+                  "path": {
+                    "type": "string",
+                    "description": "Canonical non-root folder path."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Folder.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": ["folder"],
+                      "properties": {
+                        "folder": {
+                          "$ref": "#/components/schemas/KnowledgeFolder"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "relocateKnowledgeFolder",
+        "summary": "Rename or Move Folder",
+        "description": "Rename, move, or rename and move a folder. Descendant paths change with the folder.",
+        "tags": ["Knowledge Bases"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["workspaceId", "path", "destinationPath"],
+                "properties": {
+                  "workspaceId": {
+                    "type": "string"
+                  },
+                  "path": {
+                    "type": "string",
+                    "description": "Current canonical non-root path."
+                  },
+                  "destinationPath": {
+                    "type": "string",
+                    "description": "New canonical non-root path."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Folder.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": ["folder"],
+                      "properties": {
+                        "folder": {
+                          "$ref": "#/components/schemas/KnowledgeFolder"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteKnowledgeFolder",
+        "summary": "Delete Folder",
+        "description": "Delete a folder. With `recursive=false`, the folder must be empty. With `recursive=true`, its descendant folders and resources are deleted too.",
+        "tags": ["Knowledge Bases"],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkspaceIdQuery"
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "description": "Canonical non-root folder path.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "recursive",
+            "in": "query",
+            "required": true,
+            "description": "Whether to delete the subtree.",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deletion result.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": ["path", "deleted", "deletedItems"],
+                      "properties": {
+                        "path": {
+                          "type": "string"
+                        },
+                        "deleted": {
+                          "type": "boolean",
+                          "const": true
+                        },
+                        "deletedItems": {
+                          "type": "object",
+                          "required": ["folders", "knowledgeBases"],
+                          "properties": {
+                            "folders": {
+                              "type": "integer"
+                            },
+                            "knowledgeBases": {
+                              "type": "integer"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
       }
     }
   },
@@ -1289,7 +1774,8 @@
           "embeddingDimension",
           "chunkingConfig",
           "createdAt",
-          "updatedAt"
+          "updatedAt",
+          "folderPath"
         ],
         "properties": {
           "id": {
@@ -1349,6 +1835,10 @@
             "format": "date-time",
             "description": "ISO 8601 timestamp when the knowledge base was last modified.",
             "example": "2025-06-18T16:45:00Z"
+          },
+          "folderPath": {
+            "type": "string",
+            "description": "Canonical containing-folder path. `/` is the workspace root."
           }
         }
       },
@@ -1393,6 +1883,10 @@
           },
           "chunkingConfig": {
             "$ref": "#/components/schemas/ChunkingConfigInput"
+          },
+          "folderPath": {
+            "type": "string",
+            "description": "Canonical containing-folder path. `/` is the workspace root."
           }
         }
       },
@@ -1422,6 +1916,10 @@
           },
           "chunkingConfig": {
             "$ref": "#/components/schemas/ChunkingConfigInput"
+          },
+          "folderPath": {
+            "type": "string",
+            "description": "Canonical containing-folder path. `/` is the workspace root."
           }
         }
       },
@@ -1453,19 +1951,46 @@
             "maximum": 104857600,
             "description": "Exact file size in bytes."
           },
-          "tag1": { "type": "string", "maxLength": 1000 },
-          "tag2": { "type": "string", "maxLength": 1000 },
-          "tag3": { "type": "string", "maxLength": 1000 },
-          "tag4": { "type": "string", "maxLength": 1000 },
-          "tag5": { "type": "string", "maxLength": 1000 },
-          "tag6": { "type": "string", "maxLength": 1000 },
-          "tag7": { "type": "string", "maxLength": 1000 },
+          "tag1": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "tag2": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "tag3": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "tag4": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "tag5": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "tag6": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "tag7": {
+            "type": "string",
+            "maxLength": 1000
+          },
           "processingOptions": {
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "recipe": { "type": "string", "maxLength": 255 },
-              "lang": { "type": "string", "maxLength": 35 }
+              "recipe": {
+                "type": "string",
+                "maxLength": 255
+              },
+              "lang": {
+                "type": "string",
+                "maxLength": 35
+              }
             },
             "description": "Optional processing recipe and language, bound into the signed upload state."
           }
@@ -1515,7 +2040,14 @@
             "type": ["string", "null"]
           },
           "document": {
-            "oneOf": [{ "$ref": "#/components/schemas/DocumentSummary" }, { "type": "null" }],
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/DocumentSummary"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "description": "The queued document after completion; null while uploading or after abort."
           }
         }
@@ -1534,11 +2066,19 @@
         "additionalProperties": false,
         "required": ["method", "url", "headers"],
         "properties": {
-          "method": { "type": "string", "const": "put" },
-          "url": { "type": "string", "format": "uri" },
+          "method": {
+            "type": "string",
+            "const": "put"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
           "headers": {
             "type": "object",
-            "additionalProperties": { "type": "string" }
+            "additionalProperties": {
+              "type": "string"
+            }
           }
         }
       },
@@ -1547,17 +2087,33 @@
         "additionalProperties": false,
         "required": ["method", "partSize", "partCount"],
         "properties": {
-          "method": { "type": "string", "const": "multipart" },
-          "partSize": { "type": "integer", "minimum": 1 },
-          "partCount": { "type": "integer", "minimum": 1, "maximum": 640 }
+          "method": {
+            "type": "string",
+            "const": "multipart"
+          },
+          "partSize": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "partCount": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 640
+          }
         }
       },
       "UploadTransfer": {
         "oneOf": [
-          { "$ref": "#/components/schemas/PutUploadTransfer" },
-          { "$ref": "#/components/schemas/MultipartUploadTransfer" }
+          {
+            "$ref": "#/components/schemas/PutUploadTransfer"
+          },
+          {
+            "$ref": "#/components/schemas/MultipartUploadTransfer"
+          }
         ],
-        "discriminator": { "propertyName": "method" }
+        "discriminator": {
+          "propertyName": "method"
+        }
       },
       "CreateDocumentUploadEnvelope": {
         "type": "object",
@@ -1568,9 +2124,16 @@
             "additionalProperties": false,
             "required": ["session", "uploadToken", "transfer"],
             "properties": {
-              "session": { "$ref": "#/components/schemas/DocumentUpload" },
-              "uploadToken": { "type": "string", "minLength": 1 },
-              "transfer": { "$ref": "#/components/schemas/UploadTransfer" }
+              "session": {
+                "$ref": "#/components/schemas/DocumentUpload"
+              },
+              "uploadToken": {
+                "type": "string",
+                "minLength": 1
+              },
+              "transfer": {
+                "$ref": "#/components/schemas/UploadTransfer"
+              }
             }
           }
         }
@@ -2046,7 +2609,7 @@
           },
           "similarity": {
             "type": "number",
-            "description": "Similarity score in the range 0\u20131 for vector search (higher is more similar). 1 for tag-only matches.",
+            "description": "Similarity score in the range 0–1 for vector search (higher is more similar). 1 for tag-only matches.",
             "example": 0.8423
           }
         }
@@ -2151,6 +2714,32 @@
                 "description": "Optional structured context for the error, such as field-level validation issues."
               }
             }
+          }
+        }
+      },
+      "KnowledgeFolder": {
+        "type": "object",
+        "required": ["name", "path", "parentPath", "createdAt", "updatedAt"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Folder name."
+          },
+          "path": {
+            "type": "string",
+            "description": "Canonical folder path. This is the public folder identifier."
+          },
+          "parentPath": {
+            "type": "string",
+            "description": "Canonical parent path; `/` is the root."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       }

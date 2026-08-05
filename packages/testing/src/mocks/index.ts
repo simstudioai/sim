@@ -96,8 +96,10 @@ export {
   mockNextFetchResponse,
   setupGlobalFetchMock,
 } from './fetch.mock'
-// Generic folder engine mocks (for @/lib/folders/lifecycle)
-export { foldersLifecycleMock, foldersLifecycleMockFns } from './folders-lifecycle.mock'
+export {
+  foldersOrchestrationMock,
+  foldersOrchestrationMockFns,
+} from './folders-orchestration.mock'
 // Hybrid auth mocks
 export { hybridAuthMock, hybridAuthMockFns } from './hybrid-auth.mock'
 // Input validation mocks

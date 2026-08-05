@@ -9,11 +9,13 @@ const {
   mockResolveWorkspaceScope,
   mockCreateTableImportResource,
   mockToV2CreateTableImport,
+  mockLoadActiveFolderPathIndex,
 } = vi.hoisted(() => ({
   mockCheckRateLimit: vi.fn(),
   mockResolveWorkspaceScope: vi.fn(),
   mockCreateTableImportResource: vi.fn(),
   mockToV2CreateTableImport: vi.fn(),
+  mockLoadActiveFolderPathIndex: vi.fn(),
 }))
 
 vi.mock('@/app/api/v1/middleware', () => ({
@@ -34,6 +36,10 @@ vi.mock('@/lib/table/orchestration/import-resource', () => ({
   toV2CreateTableImport: mockToV2CreateTableImport,
 }))
 
+vi.mock('@/lib/folders/queries', () => ({
+  loadActiveFolderPathIndex: mockLoadActiveFolderPathIndex,
+}))
+
 import { POST } from '@/app/api/v2/tables/imports/route'
 
 const WORKSPACE_ID = '6fc7631d-88cd-46f8-9f0a-d4764daef7f8'
@@ -51,6 +57,11 @@ describe('POST /api/v2/tables/imports', () => {
     vi.clearAllMocks()
     mockCheckRateLimit.mockResolvedValue(RATE_LIMIT)
     mockResolveWorkspaceScope.mockResolvedValue(null)
+    mockLoadActiveFolderPathIndex.mockResolvedValue({
+      rowById: new Map(),
+      pathById: new Map(),
+      idByPath: new Map(),
+    })
   })
 
   it.each([
@@ -94,7 +105,8 @@ describe('POST /api/v2/tables/imports', () => {
     expect(mockCreateTableImportResource).toHaveBeenCalledWith(
       requestBody,
       'user-1',
-      'http://localhost:3000'
+      'http://localhost:3000',
+      null
     )
     expect(mockToV2CreateTableImport).toHaveBeenCalledWith(created)
     expect(await response.json()).toEqual({ data: responseData })

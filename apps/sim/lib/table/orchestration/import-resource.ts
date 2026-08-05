@@ -63,10 +63,11 @@ interface CreateTableImportResult {
 export async function createTableImportResource(
   body: V2CreateTableImportBody,
   userId: string,
-  localOrigin: string
+  localOrigin: string,
+  resolvedFolderId?: string | null
 ): Promise<CreateTableImportResult> {
   await assertWorkspaceWrite(userId, body.workspaceId)
-  await validateTarget(body.workspaceId, body.target)
+  await validateTarget(body.workspaceId, body.target, resolvedFolderId)
   const importId = generateId()
   const options = importOptions(body)
 
@@ -83,7 +84,7 @@ export async function createTableImportResource(
       fileName: body.source.name,
       contentType: body.source.contentType,
       fileSize: body.source.size,
-      metadata: { tableImport: body },
+      metadata: { tableImport: body, tableImportFolderId: resolvedFolderId ?? null },
       localOrigin,
     })
     return { record: resourceFromUpload(upload, body), upload }
@@ -98,6 +99,7 @@ export async function createTableImportResource(
       userId,
       source: body.source,
       target: body.target,
+      folderId: resolvedFolderId,
       options,
       fileKey: file.key,
       fileName: file.name,
@@ -119,12 +121,22 @@ export async function startUploadedTableImport(
     userId: upload.userId,
   })
   if (existing) return existing
+  const storedFolderId = upload.metadata.tableImportFolderId
+  let folderId: string | null | undefined
+  if (body.target.type === 'new') {
+    if (storedFolderId !== null && typeof storedFolderId !== 'string') {
+      throw new Error('Table import upload is missing its resolved folder target')
+    }
+    folderId = storedFolderId
+  }
+  await validateTarget(workspaceId, body.target, folderId)
   return startTableImport({
     id: upload.id,
     workspaceId,
     userId: upload.userId,
     source: body.source,
     target: body.target,
+    folderId,
     options: importOptions(body),
     fileKey: upload.storageKey,
     fileName: upload.fileName,
@@ -252,6 +264,7 @@ interface StartTableImportParams {
   userId: string
   source: V2TableImportSource
   target: V2TableImportTarget
+  folderId?: string | null
   options: TableImportJobPayload['options']
   fileKey: string
   fileName: string
@@ -278,7 +291,7 @@ async function startTableImport(params: StartTableImportParams): Promise<TableIm
           description: `Imported from ${params.fileName}`,
           schema: { columns: [{ name: 'column_1', type: 'string' }] },
           workspaceId: params.workspaceId,
-          folderId: params.target.folderId ?? null,
+          folderId: params.folderId ?? null,
           userId: params.userId,
           maxTables: limits.maxTables,
           jobStatus: 'running',
@@ -400,9 +413,13 @@ function parseImportJobPayload(payload: unknown): TableImportJobPayload {
   return candidate as TableImportJobPayload
 }
 
-async function validateTarget(workspaceId: string, target: V2TableImportTarget): Promise<void> {
+async function validateTarget(
+  workspaceId: string,
+  target: V2TableImportTarget,
+  resolvedFolderId?: string | null
+): Promise<void> {
   if (target.type === 'new') {
-    if (target.folderId && !(await findActiveFolder(target.folderId, workspaceId, 'table'))) {
+    if (resolvedFolderId && !(await findActiveFolder(resolvedFolderId, workspaceId, 'table'))) {
       throw new OrchestrationError('not_found', 'Folder not found in this workspace')
     }
     return

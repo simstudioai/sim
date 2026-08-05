@@ -12,13 +12,17 @@ import {
   v1CreateKnowledgeBaseBodySchema,
   v1KnowledgeSearchBodySchema,
   v1KnowledgeWorkspaceQuerySchema,
-  v1ListKnowledgeBasesQuerySchema,
   v1ListKnowledgeDocumentsQuerySchema,
-  v1UpdateKnowledgeBaseBodySchema,
 } from '@/lib/api/contracts/v1/knowledge'
 import {
+  v2CreateFolderBodySchema,
   v2CursorListResponse,
   v2DataResponse,
+  v2DeleteFolderQuerySchema,
+  v2FolderPathSchema,
+  v2FolderSchema,
+  v2ListFoldersQuerySchema,
+  v2RelocateFolderBodySchema,
   v2SearchSchema,
   v2SortFields,
 } from '@/lib/api/contracts/v2/shared'
@@ -54,19 +58,21 @@ import { MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE } from '@/lib/uploads/shared/types'
  * {@link KnowledgeBaseWithCounts}. `userId`, `workspaceId`, and `deletedAt` are
  * intentionally not exposed on the public surface.
  */
-export const v2KnowledgeBaseSchema = knowledgeBaseDataSchema.pick({
-  id: true,
-  name: true,
-  description: true,
-  tokenCount: true,
-  embeddingModel: true,
-  embeddingDimension: true,
-  chunkingConfig: true,
-  docCount: true,
-  connectorTypes: true,
-  createdAt: true,
-  updatedAt: true,
-})
+export const v2KnowledgeBaseSchema = knowledgeBaseDataSchema
+  .pick({
+    id: true,
+    name: true,
+    description: true,
+    tokenCount: true,
+    embeddingModel: true,
+    embeddingDimension: true,
+    chunkingConfig: true,
+    docCount: true,
+    connectorTypes: true,
+    createdAt: true,
+    updatedAt: true,
+  })
+  .extend({ folderPath: v2FolderPathSchema })
 export type V2KnowledgeBase = z.output<typeof v2KnowledgeBaseSchema>
 
 /** `{ knowledgeBase }` payload for single-KB reads and mutations. */
@@ -238,14 +244,44 @@ export type V2KnowledgeBaseSortBy = (typeof v2KnowledgeBaseSortFields)[number]
  * folder filter. v1's own list query stays untouched — it does not implement
  * these, and advertising a param a route ignores is worse than not having it.
  */
-export const v2ListKnowledgeBasesQuerySchema = v1ListKnowledgeBasesQuerySchema.extend({
-  /** Restrict to one knowledge-base folder. */
-  folderId: z.string().min(1, 'folderId cannot be empty').optional(),
-  search: v2SearchSchema,
-  ...v2SortFields(v2KnowledgeBaseSortFields, { sortBy: 'createdAt', sortOrder: 'asc' }),
-})
+export const v2ListKnowledgeBasesQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema,
+    folderPath: v2FolderPathSchema.optional(),
+    search: v2SearchSchema,
+    ...v2SortFields(v2KnowledgeBaseSortFields, { sortBy: 'createdAt', sortOrder: 'asc' }),
+  })
+  .strict()
 
 export type V2ListKnowledgeBasesQuery = z.output<typeof v2ListKnowledgeBasesQuerySchema>
+
+export const v2CreateKnowledgeBaseBodySchema = v1CreateKnowledgeBaseBodySchema
+  .extend({ folderPath: v2FolderPathSchema.optional() })
+  .strict()
+
+export const v2UpdateKnowledgeBaseBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema,
+    name: v1CreateKnowledgeBaseBodySchema.shape.name.optional(),
+    description: v1CreateKnowledgeBaseBodySchema.shape.description,
+    chunkingConfig: v1CreateKnowledgeBaseBodySchema.shape.chunkingConfig.optional(),
+    folderPath: v2FolderPathSchema.optional(),
+  })
+  .strict()
+  .superRefine((body, ctx) => {
+    if (
+      body.name === undefined &&
+      body.description === undefined &&
+      body.chunkingConfig === undefined &&
+      body.folderPath === undefined
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['name'],
+        message: 'At least one of name, description, chunkingConfig, or folderPath is required',
+      })
+    }
+  })
 
 /**
  * KB list. `getKnowledgeBases` returns the full workspace set (a small, bounded
@@ -267,7 +303,7 @@ export const v2ListKnowledgeBasesContract = defineRouteContract({
 export const v2CreateKnowledgeBaseContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/knowledge',
-  body: v1CreateKnowledgeBaseBodySchema,
+  body: v2CreateKnowledgeBaseBodySchema,
   response: {
     mode: 'json',
     schema: v2DataResponse(v2KnowledgeBaseDataSchema),
@@ -289,7 +325,7 @@ export const v2UpdateKnowledgeBaseContract = defineRouteContract({
   method: 'PUT',
   path: '/api/v2/knowledge/[id]',
   params: knowledgeBaseParamsSchema,
-  body: v1UpdateKnowledgeBaseBodySchema,
+  body: v2UpdateKnowledgeBaseBodySchema,
   response: {
     mode: 'json',
     schema: v2DataResponse(v2KnowledgeBaseDataSchema),
@@ -305,6 +341,42 @@ export const v2DeleteKnowledgeBaseContract = defineRouteContract({
     mode: 'json',
     schema: v2DataResponse(v2KnowledgeDeleteDataSchema),
   },
+})
+
+export const v2KnowledgeFolderDataSchema = z.object({ folder: v2FolderSchema })
+
+export const v2DeleteKnowledgeFolderDataSchema = z.object({
+  path: v2FolderPathSchema,
+  deleted: z.literal(true),
+  deletedItems: z.object({ folders: z.number().int(), knowledgeBases: z.number().int() }),
+})
+
+export const v2ListKnowledgeFoldersContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/knowledge/folders',
+  query: v2ListFoldersQuerySchema,
+  response: { mode: 'json', schema: v2CursorListResponse(v2FolderSchema) },
+})
+
+export const v2CreateKnowledgeFolderContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/knowledge/folders',
+  body: v2CreateFolderBodySchema,
+  response: { mode: 'json', schema: v2DataResponse(v2KnowledgeFolderDataSchema) },
+})
+
+export const v2RelocateKnowledgeFolderContract = defineRouteContract({
+  method: 'PATCH',
+  path: '/api/v2/knowledge/folders',
+  body: v2RelocateFolderBodySchema,
+  response: { mode: 'json', schema: v2DataResponse(v2KnowledgeFolderDataSchema) },
+})
+
+export const v2DeleteKnowledgeFolderContract = defineRouteContract({
+  method: 'DELETE',
+  path: '/api/v2/knowledge/folders',
+  query: v2DeleteFolderQuerySchema,
+  response: { mode: 'json', schema: v2DataResponse(v2DeleteKnowledgeFolderDataSchema) },
 })
 
 export const v2SearchKnowledgeContract = defineRouteContract({

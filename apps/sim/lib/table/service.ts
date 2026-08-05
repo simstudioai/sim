@@ -282,7 +282,8 @@ type TableRowSelection = Awaited<
 interface ListTablesOptions {
   scope?: TableScope
   /** Restrict to one table folder. */
-  folderId?: string
+  /** `undefined` lists every folder, `null` lists only workspace-root tables. */
+  folderId?: string | null
   /** Case-insensitive substring match on the table name. */
   search?: string
   sortBy?: V2TableSortBy
@@ -320,7 +321,11 @@ export async function listTables(
           : scope === 'archived'
             ? isNotNull(userTableDefinitions.archivedAt)
             : isNull(userTableDefinitions.archivedAt),
-        folderId ? eq(userTableDefinitions.folderId, folderId) : undefined,
+        folderId === undefined
+          ? undefined
+          : folderId === null
+            ? isNull(userTableDefinitions.folderId)
+            : eq(userTableDefinitions.folderId, folderId),
         searchFilter(userTableDefinitions.name, search)
       )
     )
@@ -363,7 +368,8 @@ async function hydrateTableRows(rows: TableRowSelection[]): Promise<TableDefinit
 export interface QueryTablesOptions {
   scope?: TableScope
   /** Restrict to one table folder. */
-  folderId?: string
+  /** `undefined` lists every folder, `null` lists only workspace-root tables. */
+  folderId?: string | null
   /** Case-insensitive substring match on the table name. */
   search?: string
   sortBy: V2TableSortBy
@@ -414,7 +420,11 @@ export async function queryTables(
           : scope === 'archived'
             ? isNotNull(userTableDefinitions.archivedAt)
             : isNull(userTableDefinitions.archivedAt),
-        folderId ? eq(userTableDefinitions.folderId, folderId) : undefined,
+        folderId === undefined
+          ? undefined
+          : folderId === null
+            ? isNull(userTableDefinitions.folderId)
+            : eq(userTableDefinitions.folderId, folderId),
         searchFilter(userTableDefinitions.name, search),
         resumeAfter
       )

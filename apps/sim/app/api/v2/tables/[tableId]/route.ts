@@ -10,7 +10,8 @@ import { parseRequest } from '@/lib/api/server'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { findActiveFolder } from '@/lib/folders/queries'
+import { withFolderTreeLock } from '@/lib/folders/locks'
+import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
 import { getTableById } from '@/lib/table'
 import { signalTableSchemaChanged } from '@/lib/table/events'
 import {
@@ -20,6 +21,7 @@ import {
 } from '@/lib/table/orchestration'
 import { checkAccess } from '@/app/api/table/utils'
 import { checkRateLimit, resolveWorkspaceScope } from '@/app/api/v1/middleware'
+import { folderPathForId, resolveFolderPathId } from '@/app/api/v2/lib/folders'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
   v2Data,
@@ -44,7 +46,7 @@ const logger = createLogger('V2TableDetailAPI')
  * means "these changes are live despite the error".
  */
 function appliedDetails(
-  applied: readonly ('name' | 'folderId')[]
+  applied: readonly ('name' | 'folderPath')[]
 ): { applied: readonly string[] } | undefined {
   return applied.length > 0 ? { applied } : undefined
 }
@@ -88,7 +90,11 @@ export const GET = withRouteHandler(async (request: NextRequest, context: TableR
       return v2Error('NOT_FOUND', 'Table not found')
     }
 
-    return v2Data({ table: toApiTable(result.table) }, { rateLimit })
+    const folderIndex = await loadActiveFolderPathIndex(workspaceId, 'table')
+    return v2Data(
+      { table: toApiTable(result.table, folderPathForId(folderIndex, result.table.folderId)) },
+      { rateLimit }
+    )
   } catch (error) {
     logger.error(`[${requestId}] Error getting table`, {
       error: getErrorMessage(error, 'Unknown error'),
@@ -119,7 +125,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Tabl
    * archived. Reporting a bare 500 there tells the caller nothing landed, and
    * it retries into a duplicate-name conflict or a repeated move.
    */
-  const applied: ('name' | 'folderId')[] = []
+  const applied: ('name' | 'folderPath')[] = []
 
   try {
     const rateLimit = await checkRateLimit(request, 'table-detail')
@@ -149,76 +155,75 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Tabl
       return v2Error('NOT_FOUND', 'Table not found')
     }
 
-    // The two operations are separate transactions, so a rejection discovered
-    // partway through would leave the earlier one persisted while the response
-    // reports failure. Everything a request can be rejected for is therefore
-    // checked up front: a rejected PATCH changes nothing.
-    if (validated.folderId != null) {
-      // Scoped to `resourceType: 'table'` so a folder id from another resource's
-      // tree can't file the table somewhere Tables never lists.
-      if (!(await findActiveFolder(validated.folderId, table.workspaceId, 'table'))) {
+    return await withFolderTreeLock(table.workspaceId, 'table', async (tx) => {
+      const folderIndex = await loadActiveFolderPathIndex(table.workspaceId, 'table', tx)
+      const folderId =
+        validated.folderPath === undefined
+          ? undefined
+          : resolveFolderPathId(folderIndex, validated.folderPath)
+      if (validated.folderPath !== undefined && folderId === undefined) {
         return v2Error('NOT_FOUND', 'Folder not found in this workspace')
       }
-    }
 
-    // Every deterministic rejection is already behind us, so a failure here is
-    // a genuine fault (lost race, archived mid-request, database error) rather
-    // than a bad request. The two operations commit independently — a single
-    // transaction would have to span two shared service functions that also
-    // back the first-party route and two copilot tools, and would break their
-    // per-operation audits — so instead of pretending atomicity the response
-    // states exactly which operations landed. A caller that gets an error can
-    // then reconcile rather than having to re-read and diff.
-    let failure: { outcome: OrchestrationOutcome; fallback: string } | null = null
+      // Rename and move retain their shared services' independent transactions and audits.
+      // Validate deterministic failures first and report `applied` so callers can reconcile
+      // if a later fault lands after an earlier operation commits.
+      let failure: { outcome: OrchestrationOutcome; fallback: string } | null = null
 
-    if (validated.name !== undefined) {
-      const outcome = await performRenameTable({
-        table,
-        newName: validated.name,
-        userId,
-        requestId,
-        request,
-      })
-      if (outcome.success) applied.push('name')
-      else failure = { outcome, fallback: 'Failed to rename table' }
-    }
+      if (validated.name !== undefined) {
+        const outcome = await performRenameTable({
+          table,
+          newName: validated.name,
+          userId,
+          requestId,
+          request,
+        })
+        if (outcome.success) applied.push('name')
+        else failure = { outcome, fallback: 'Failed to rename table' }
+      }
 
-    if (!failure && validated.folderId !== undefined) {
-      const outcome = await performMoveTableToFolder({
-        table,
-        folderId: validated.folderId,
-        userId,
-        requestId,
-        request,
-      })
-      if (outcome.success) {
-        applied.push('folderId')
-      } else {
-        // The move re-asserts workspace and active state, so a miss means the
-        // table was archived between `checkAccess` and the write.
-        failure = {
-          outcome:
-            outcome.errorCode === 'not_found' ? { ...outcome, error: 'Table not found' } : outcome,
-          fallback: 'Failed to move table',
+      if (!failure && validated.folderPath !== undefined) {
+        const outcome = await performMoveTableToFolder({
+          table,
+          folderId: folderId ?? null,
+          userId,
+          requestId,
+          request,
+        })
+        if (outcome.success) {
+          applied.push('folderPath')
+        } else {
+          // The move re-asserts workspace and active state, so a miss means the
+          // table was archived between `checkAccess` and the write.
+          failure = {
+            outcome:
+              outcome.errorCode === 'not_found'
+                ? { ...outcome, error: 'Table not found' }
+                : outcome,
+            fallback: 'Failed to move table',
+          }
         }
       }
-    }
 
-    // Live-collab: tell open viewers the definition changed so they refetch.
-    if (applied.length > 0) signalTableSchemaChanged(tableId)
-    if (failure) {
-      return v2TableOrchestrationError(failure.outcome, failure.fallback, appliedDetails(applied))
-    }
+      // Live-collab: tell open viewers the definition changed so they refetch.
+      if (applied.length > 0) signalTableSchemaChanged(tableId)
+      if (failure) {
+        return v2TableOrchestrationError(failure.outcome, failure.fallback, appliedDetails(applied))
+      }
 
-    // Re-read so the response reflects every applied change at once. A miss
-    // means the table was archived after the writes committed, so the caller
-    // still has to be told what landed.
-    const updated = await getTableById(tableId)
-    if (!updated) {
-      return v2Error('NOT_FOUND', 'Table not found', { details: appliedDetails(applied) })
-    }
+      // Re-read so the response reflects every applied change at once. A miss
+      // means the table was archived after the writes committed, so the caller
+      // still has to be told what landed.
+      const updated = await getTableById(tableId)
+      if (!updated) {
+        return v2Error('NOT_FOUND', 'Table not found', { details: appliedDetails(applied) })
+      }
 
-    return v2Data({ table: toApiTable(updated) }, { rateLimit })
+      return v2Data(
+        { table: toApiTable(updated, folderPathForId(folderIndex, updated.folderId)) },
+        { rateLimit }
+      )
+    })
   } catch (error) {
     const details = appliedDetails(applied)
 
@@ -242,7 +247,6 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Tabl
   }
 })
 
-/** DELETE /api/v2/tables/[tableId] — Archive a table. */
 export const DELETE = withRouteHandler(async (request: NextRequest, context: TableRouteParams) => {
   const requestId = generateRequestId()
 
