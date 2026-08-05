@@ -88,7 +88,10 @@ export function stripCodeFences(text: string): string {
   while (inner.length > 0 && inner[inner.length - 1].trim() === '') inner.pop()
 
   // Only the very last line may close the wrapper. A truncated response simply
-  // has no closer, and every line after the opener survives.
+  // has no closer, and every line after the opener survives. The one case this
+  // cannot get right is generation stopping exactly on an embedded delimiter,
+  // where that final line is content — indistinguishable from a real closer, and
+  // rarer than the wrap it would otherwise fail to strip.
   if (inner.length > 0 && FENCE_LINE.test(inner[inner.length - 1])) inner.pop()
 
   while (inner.length > 0 && inner[0].trim() === '') inner.shift()

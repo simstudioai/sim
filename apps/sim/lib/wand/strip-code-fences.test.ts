@@ -45,6 +45,14 @@ describe('stripCodeFences', () => {
     expect(stripCodeFences(truncated)).toBe('const md = `\n```\nhello\n`;\nreturn md;')
   })
 
+  it('treats a trailing bare fence as the closer even when the body was truncated at one', () => {
+    // Irreducibly ambiguous: a trailing bare fence closes the wrapper in every
+    // well-formed response, and is content only when generation stopped exactly
+    // at an embedded delimiter. Declining to strip it would leave a stray fence
+    // in the common case, which is the bug this util exists to fix.
+    expect(stripCodeFences('```javascript\nconst md = `\n```')).toBe('const md = `')
+  })
+
   it('preserves a fenced docstring inside a Python body', () => {
     const fenced = '```python\ntemplate = """\n```sql\nSELECT 1\n```\n"""\nreturn template\n```'
     expect(stripCodeFences(fenced)).toBe(
