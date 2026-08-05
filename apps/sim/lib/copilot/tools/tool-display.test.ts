@@ -116,7 +116,6 @@ describe('getToolDisplayTitle natural-language coverage', () => {
       'Managing table',
       'Preparing file',
       'Processing media',
-      'Scheduled task action',
       'Skill action',
     ])
     const unresolvedVariants: string[] = []

@@ -198,7 +198,7 @@ function unmountableNamespaceReason(filePath: string): string | null {
   if (path.startsWith('tables/')) {
     return 'tables are not mounted as files. Pass the table in inputs.tables instead and it is mounted as CSV.'
   }
-  const namespace = /^(workflows|knowledgebases|components|environment|agent|jobs|tasks)\//.exec(
+  const namespace = /^(workflows|knowledgebases|components|environment|agent|tasks)\//.exec(
     path
   )?.[1]
   if (namespace) {

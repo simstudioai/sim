@@ -116,8 +116,8 @@ export const mothershipExecuteBodySchema = z.object({
   fileAttachments: z.array(mothershipExecuteFileAttachmentSchema).optional(),
   /**
    * `@`-mentioned resources / `/`-invoked skills to resolve into the agent run,
-   * mirroring the interactive chat path. Used by scheduled tasks, whose
-   * captured contexts must reach the run without a live client.
+   * mirroring the interactive chat path. Headless executions use this to pass
+   * captured contexts into the run without a live client.
    */
   contexts: z.array(scheduleContextSchema).optional(),
   mcpTools: z.array(mothershipExecuteMcpToolSchema).optional(),
