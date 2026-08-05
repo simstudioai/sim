@@ -469,10 +469,9 @@ export interface ModalContentProps
    * clicking outside, and `ModalHeader`'s close button. Descendants read it via
    * {@link useModalDismissDisabled}.
    *
-   * The Radix paths are handled here rather than through a consumer-passed
-   * `onEscapeKeyDown` / `onInteractOutside` because `{...props}` is spread after
-   * this component's own handlers, so a consumer overriding either would
-   * silently drop the floating-layer guard below.
+   * A consumer's own `onEscapeKeyDown` / `onInteractOutside` runs after this
+   * guard rather than replacing it, so neither the interlock nor the
+   * floating-layer guard can be dropped by passing a handler.
    * @default false
    */
   dismissDisabled?: boolean
@@ -497,6 +496,8 @@ const ModalContent = React.forwardRef<
       dismissDisabled = false,
       style,
       onOpenAutoFocus,
+      onEscapeKeyDown,
+      onInteractOutside,
       'aria-describedby': ariaDescribedBy,
       ...props
     },
@@ -601,6 +602,7 @@ const ModalContent = React.forwardRef<
               // Radix reads `defaultPrevented`; stopPropagation alone would not block it.
               if (dismissDisabled) e.preventDefault()
               e.stopPropagation()
+              onEscapeKeyDown?.(e)
             }}
             onPointerDown={(e) => {
               e.stopPropagation()
@@ -626,6 +628,7 @@ const ModalContent = React.forwardRef<
               if (dismissDisabled || hasOpenFloatingLayer()) {
                 e.preventDefault()
               }
+              onInteractOutside?.(e)
             }}
             onOpenAutoFocus={(event) => {
               // Radix fires this once when the (still invisible) Content

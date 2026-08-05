@@ -4,6 +4,7 @@
 import { act, type ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { Modal, ModalContent, ModalHeader } from '../modal/modal'
 import { ChipConfirmModal, ChipModal, ChipModalFooter, ChipModalHeader } from './chip-modal'
 
 vi.mock('next/navigation', () => ({
@@ -144,6 +145,37 @@ describe('ChipModal dismissDisabled', () => {
 
     expect(closeButton().disabled).toBe(true)
     expect(buttonByText('Cancel').disabled).toBe(false)
+  })
+})
+
+describe('ModalContent dismissDisabled', () => {
+  it('runs a consumer escape handler without letting it drop the guard', () => {
+    const onOpenChange = vi.fn()
+    const onEscapeKeyDown = vi.fn()
+    mount(
+      <Modal open onOpenChange={onOpenChange}>
+        <ModalContent srTitle='Guarded' dismissDisabled onEscapeKeyDown={onEscapeKeyDown}>
+          <input aria-label='Field' />
+        </ModalContent>
+      </Modal>
+    )
+
+    pressEscape()
+    expect(onEscapeKeyDown).toHaveBeenCalled()
+    expect(onOpenChange).not.toHaveBeenCalled()
+  })
+
+  it('disables the built-in ModalHeader close button', () => {
+    const onOpenChange = vi.fn()
+    mount(
+      <Modal open onOpenChange={onOpenChange}>
+        <ModalContent srTitle='Guarded' dismissDisabled>
+          <ModalHeader>Title</ModalHeader>
+        </ModalContent>
+      </Modal>
+    )
+
+    expect(closeButton().disabled).toBe(true)
   })
 })
 
