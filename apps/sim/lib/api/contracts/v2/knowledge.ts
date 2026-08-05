@@ -19,6 +19,7 @@ import {
   v2CursorListResponse,
   v2DataResponse,
   v2DeleteFolderQuerySchema,
+  v2FolderPathInputSchema,
   v2FolderPathSchema,
   v2FolderSchema,
   v2ListFoldersQuerySchema,
@@ -247,7 +248,7 @@ export type V2KnowledgeBaseSortBy = (typeof v2KnowledgeBaseSortFields)[number]
 export const v2ListKnowledgeBasesQuerySchema = z
   .object({
     workspaceId: workspaceIdSchema,
-    folderPath: v2FolderPathSchema.optional(),
+    folderPath: v2FolderPathInputSchema.optional(),
     search: v2SearchSchema,
     ...v2SortFields(v2KnowledgeBaseSortFields, { sortBy: 'createdAt', sortOrder: 'asc' }),
   })
@@ -256,7 +257,7 @@ export const v2ListKnowledgeBasesQuerySchema = z
 export type V2ListKnowledgeBasesQuery = z.output<typeof v2ListKnowledgeBasesQuerySchema>
 
 export const v2CreateKnowledgeBaseBodySchema = v1CreateKnowledgeBaseBodySchema
-  .extend({ folderPath: v2FolderPathSchema.optional() })
+  .extend({ folderPath: v2FolderPathInputSchema.optional() })
   .strict()
 
 export const v2UpdateKnowledgeBaseBodySchema = z
@@ -265,7 +266,7 @@ export const v2UpdateKnowledgeBaseBodySchema = z
     name: v1CreateKnowledgeBaseBodySchema.shape.name.optional(),
     description: v1CreateKnowledgeBaseBodySchema.shape.description,
     chunkingConfig: v1CreateKnowledgeBaseBodySchema.shape.chunkingConfig.optional(),
-    folderPath: v2FolderPathSchema.optional(),
+    folderPath: v2FolderPathInputSchema.optional(),
   })
   .strict()
   .superRefine((body, ctx) => {

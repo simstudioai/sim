@@ -42,6 +42,7 @@ import {
   v2CursorListResponse,
   v2DataResponse,
   v2DeleteFolderQuerySchema,
+  v2FolderPathInputSchema,
   v2FolderPathSchema,
   v2FolderSchema,
   v2ListFoldersQuerySchema,
@@ -218,7 +219,7 @@ export type V2TableSortBy = (typeof v2TableSortFields)[number]
 export const v2ListTablesQuerySchema = z
   .object({
     workspaceId: workspaceIdSchema,
-    folderPath: v2FolderPathSchema.optional(),
+    folderPath: v2FolderPathInputSchema.optional(),
     search: v2SearchSchema,
     ...v2SortFields(v2TableSortFields, { sortBy: 'createdAt', sortOrder: 'asc' }),
     limit: z.coerce
@@ -234,7 +235,7 @@ export type V2ListTablesQuery = z.output<typeof v2ListTablesQuerySchema>
 
 export const v2CreateTableBodySchema = v1CreateTableBodySchema
   .omit({ folderId: true })
-  .extend({ folderPath: v2FolderPathSchema.optional() })
+  .extend({ folderPath: v2FolderPathInputSchema.optional() })
   .strict()
 
 /**
@@ -293,7 +294,7 @@ export const v2UpdateTableBodySchema = z
   .object({
     workspaceId: workspaceIdSchema,
     name: tableNameSchema.optional(),
-    folderPath: v2FolderPathSchema.optional(),
+    folderPath: v2FolderPathInputSchema.optional(),
   })
   .strict()
   .superRefine((body, ctx) => {
@@ -985,7 +986,7 @@ export const v2TableImportTargetSchema = z.discriminatedUnion('type', [
     .object({
       type: z.literal('new'),
       name: tableNameSchema,
-      folderPath: v2FolderPathSchema.optional(),
+      folderPath: v2FolderPathInputSchema.optional(),
     })
     .strict(),
   z

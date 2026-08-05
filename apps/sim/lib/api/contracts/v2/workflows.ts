@@ -19,6 +19,7 @@ import {
   v2CursorListResponse,
   v2DataResponse,
   v2DeleteFolderQuerySchema,
+  v2FolderPathInputSchema,
   v2FolderPathSchema,
   v2FolderSchema,
   v2ListFoldersQuerySchema,
@@ -72,7 +73,7 @@ export type V2WorkflowSortBy = (typeof v2WorkflowSortFields)[number]
 export const v2ListWorkflowsQuerySchema = z
   .object({
     workspaceId: workspaceIdSchema,
-    folderPath: v2FolderPathSchema.optional(),
+    folderPath: v2FolderPathInputSchema.optional(),
     deployedOnly: booleanQueryFlagSchema.optional().default(false),
     limit: z.coerce.number().min(1).max(100).optional().default(50),
     cursor: z.string().optional(),
@@ -159,7 +160,7 @@ export const v2CreateWorkflowBodySchema = z
     name: z.string().trim().min(1, 'name is required').max(255, 'name is too long'),
     description: z.string().max(50_000, 'description is too long').nullable().optional(),
     /** Omission creates the workflow at the workspace root. */
-    folderPath: v2FolderPathSchema.optional(),
+    folderPath: v2FolderPathInputSchema.optional(),
   })
   .strict()
 export type V2CreateWorkflowBody = z.input<typeof v2CreateWorkflowBodySchema>
@@ -169,7 +170,7 @@ export const v2UpdateWorkflowBodySchema = z
   .object({
     name: z.string().trim().min(1, 'name cannot be empty').max(255, 'name is too long').optional(),
     description: z.string().max(50_000, 'description is too long').nullable().optional(),
-    folderPath: v2FolderPathSchema.optional(),
+    folderPath: v2FolderPathInputSchema.optional(),
   })
   .strict()
   .superRefine((body, ctx) => {
@@ -500,7 +501,7 @@ export const v2WorkflowExportPayloadSchema = v1WorkflowExportPayloadSchema.exten
 export const v2ImportWorkflowBodySchema = v1ImportWorkflowBodySchema
   .omit({ folderId: true, name: true, description: true })
   .extend({
-    folderPath: v2FolderPathSchema.optional(),
+    folderPath: v2FolderPathInputSchema.optional(),
     name: z
       .string()
       .min(1, 'name cannot be empty')

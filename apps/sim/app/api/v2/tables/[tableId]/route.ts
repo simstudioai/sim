@@ -10,7 +10,6 @@ import { parseRequest } from '@/lib/api/server'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { withFolderTreeLock } from '@/lib/folders/locks'
 import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
 import { getTableById } from '@/lib/table'
 import { signalTableSchemaChanged } from '@/lib/table/events'
@@ -21,7 +20,7 @@ import {
 } from '@/lib/table/orchestration'
 import { checkAccess } from '@/app/api/table/utils'
 import { checkRateLimit, resolveWorkspaceScope } from '@/app/api/v1/middleware'
-import { folderPathForId, resolveFolderPathId } from '@/app/api/v2/lib/folders'
+import { folderPathForId, resolveFolderPathIdentity } from '@/app/api/v2/lib/folders'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
   v2Data,
@@ -155,75 +154,66 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Tabl
       return v2Error('NOT_FOUND', 'Table not found')
     }
 
-    return await withFolderTreeLock(table.workspaceId, 'table', async (tx) => {
-      const folderIndex = await loadActiveFolderPathIndex(table.workspaceId, 'table', tx)
-      const folderId =
-        validated.folderPath === undefined
-          ? undefined
-          : resolveFolderPathId(folderIndex, validated.folderPath)
-      if (validated.folderPath !== undefined && folderId === undefined) {
-        return v2Error('NOT_FOUND', 'Folder not found in this workspace')
-      }
+    const resolution =
+      validated.folderPath === undefined
+        ? undefined
+        : await resolveFolderPathIdentity({
+            workspaceId: table.workspaceId,
+            resourceType: 'table',
+            path: validated.folderPath,
+          })
+    if (resolution && !resolution.found) {
+      return v2Error('NOT_FOUND', 'Folder not found in this workspace')
+    }
 
-      // Rename and move retain their shared services' independent transactions and audits.
-      // Validate deterministic failures first and report `applied` so callers can reconcile
-      // if a later fault lands after an earlier operation commits.
-      let failure: { outcome: OrchestrationOutcome; fallback: string } | null = null
+    let failure: { outcome: OrchestrationOutcome; fallback: string } | null = null
 
-      if (validated.name !== undefined) {
-        const outcome = await performRenameTable({
-          table,
-          newName: validated.name,
-          userId,
-          requestId,
-          request,
-        })
-        if (outcome.success) applied.push('name')
-        else failure = { outcome, fallback: 'Failed to rename table' }
-      }
+    if (validated.name !== undefined) {
+      const outcome = await performRenameTable({
+        table,
+        newName: validated.name,
+        userId,
+        requestId,
+        request,
+      })
+      if (outcome.success) applied.push('name')
+      else failure = { outcome, fallback: 'Failed to rename table' }
+    }
 
-      if (!failure && validated.folderPath !== undefined) {
-        const outcome = await performMoveTableToFolder({
-          table,
-          folderId: folderId ?? null,
-          userId,
-          requestId,
-          request,
-        })
-        if (outcome.success) {
-          applied.push('folderPath')
-        } else {
-          // The move re-asserts workspace and active state, so a miss means the
-          // table was archived between `checkAccess` and the write.
-          failure = {
-            outcome:
-              outcome.errorCode === 'not_found'
-                ? { ...outcome, error: 'Table not found' }
-                : outcome,
-            fallback: 'Failed to move table',
-          }
+    if (!failure && validated.folderPath !== undefined) {
+      const outcome = await performMoveTableToFolder({
+        table,
+        folderId: resolution?.folderId ?? null,
+        userId,
+        requestId,
+        request,
+      })
+      if (outcome.success) {
+        applied.push('folderPath')
+      } else {
+        failure = {
+          outcome:
+            outcome.errorCode === 'not_found' ? { ...outcome, error: 'Table not found' } : outcome,
+          fallback: 'Failed to move table',
         }
       }
+    }
 
-      // Live-collab: tell open viewers the definition changed so they refetch.
-      if (applied.length > 0) signalTableSchemaChanged(tableId)
-      if (failure) {
-        return v2TableOrchestrationError(failure.outcome, failure.fallback, appliedDetails(applied))
-      }
+    if (applied.length > 0) signalTableSchemaChanged(tableId)
+    if (failure) {
+      return v2TableOrchestrationError(failure.outcome, failure.fallback, appliedDetails(applied))
+    }
 
-      // Re-read so the response reflects every applied change at once. A miss
-      // means the table was archived after the writes committed, so the caller
-      // still has to be told what landed.
-      const updated = await getTableById(tableId)
-      if (!updated) {
-        return v2Error('NOT_FOUND', 'Table not found', { details: appliedDetails(applied) })
-      }
+    const updated = await getTableById(tableId)
+    if (!updated) {
+      return v2Error('NOT_FOUND', 'Table not found', { details: appliedDetails(applied) })
+    }
 
-      return v2Data(
-        { table: toApiTable(updated, folderPathForId(folderIndex, updated.folderId)) },
-        { rateLimit }
-      )
-    })
+    const folderIndex = await loadActiveFolderPathIndex(table.workspaceId, 'table')
+    return v2Data(
+      { table: toApiTable(updated, folderPathForId(folderIndex, updated.folderId)) },
+      { rateLimit }
+    )
   } catch (error) {
     const details = appliedDetails(applied)
 

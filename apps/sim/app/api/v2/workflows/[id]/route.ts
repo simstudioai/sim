@@ -21,12 +21,11 @@ import {
 } from '@/lib/api/contracts/v2/workflows'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { withFolderTreeLock } from '@/lib/folders/locks'
 import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
 import { performDeleteWorkflow, performUpdateWorkflow } from '@/lib/workflows/orchestration'
 import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
-import { folderPathForId, resolveFolderPathId } from '@/app/api/v2/lib/folders'
+import { folderPathForId, resolveFolderPathIdentity } from '@/app/api/v2/lib/folders'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
   v2Data,
@@ -146,37 +145,40 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Rout
     )
     if (access) return v2Error('NOT_FOUND', 'Workflow not found')
 
-    const mutation = await withFolderTreeLock(workflowData.workspaceId, 'workflow', async (tx) => {
-      const index = await loadActiveFolderPathIndex(workflowData.workspaceId!, 'workflow', tx)
-      const folderId = folderPath === undefined ? undefined : resolveFolderPathId(index, folderPath)
-      if (folderPath !== undefined && folderId === undefined) return { found: false as const }
-
-      await assertWorkflowMutable(id)
-      if (folderId !== undefined) await assertFolderMutable(folderId)
-
-      const result = await performUpdateWorkflow({
-        workflowId: id,
-        userId,
-        workspaceId: workflowData.workspaceId!,
-        currentName: workflowData.name,
-        currentFolderId: workflowData.folderId,
-        name,
-        description,
-        folderId,
-        requestId,
-      })
-      return { found: true as const, index, result }
-    })
-    if (!mutation.found) {
+    const resolution =
+      folderPath === undefined
+        ? undefined
+        : await resolveFolderPathIdentity({
+            workspaceId: workflowData.workspaceId,
+            resourceType: 'workflow',
+            path: folderPath,
+          })
+    if (resolution && !resolution.found) {
       return v2Error('NOT_FOUND', 'Folder not found')
     }
-    const { index: folderIndex, result } = mutation
+
+    const folderId = resolution?.folderId
+    await assertWorkflowMutable(id)
+    if (folderId !== undefined) await assertFolderMutable(folderId)
+
+    const result = await performUpdateWorkflow({
+      workflowId: id,
+      userId,
+      workspaceId: workflowData.workspaceId,
+      currentName: workflowData.name,
+      currentFolderId: workflowData.folderId,
+      name,
+      description,
+      folderId,
+      requestId,
+    })
 
     if (!result.success || !result.workflow) {
       return v2ErrorForOrchestration(result.errorCode, result.error ?? 'Failed to update workflow')
     }
 
     const updated = result.workflow
+    const folderIndex = await loadActiveFolderPathIndex(workflowData.workspaceId, 'workflow')
     /**
      * Deployment and run counters are untouched by a metadata update, so they
      * come from the record read above rather than a second query.

@@ -115,6 +115,22 @@ export type V2FolderPath = z.output<typeof v2FolderPathSchema>
 /** Canonical path that identifies a real folder rather than the virtual root. */
 export const v2NonRootFolderPathSchema = canonicalFolderPathSchema(requireNonRootFolderPath)
 
+function normalizeFolderPathInput(path: string): string {
+  return path.length === 0 || path.startsWith('/') ? path : `/${path}`
+}
+
+/** Input path that accepts an omitted leading slash and emits the canonical form. */
+export const v2FolderPathInputSchema = z
+  .string()
+  .transform(normalizeFolderPathInput)
+  .pipe(v2FolderPathSchema)
+
+/** Non-root input path that accepts an omitted leading slash and emits the canonical form. */
+export const v2NonRootFolderPathInputSchema = z
+  .string()
+  .transform(normalizeFolderPathInput)
+  .pipe(v2NonRootFolderPathSchema)
+
 export const v2FolderSchema = z.object({
   name: z.string(),
   path: v2NonRootFolderPathSchema,
@@ -129,7 +145,7 @@ export const v2FolderSortFields = ['name', 'createdAt', 'updatedAt'] as const
 export const v2ListFoldersQuerySchema = z
   .object({
     workspaceId: workspaceIdSchema,
-    parentPath: v2FolderPathSchema.optional(),
+    parentPath: v2FolderPathInputSchema.optional(),
     search: v2SearchSchema,
     ...v2SortFields(v2FolderSortFields, { sortBy: 'name', sortOrder: 'asc' }),
   })
@@ -138,15 +154,15 @@ export const v2ListFoldersQuerySchema = z
 export const v2CreateFolderBodySchema = z
   .object({
     workspaceId: workspaceIdSchema,
-    path: v2NonRootFolderPathSchema,
+    path: v2NonRootFolderPathInputSchema,
   })
   .strict()
 
 export const v2RelocateFolderBodySchema = z
   .object({
     workspaceId: workspaceIdSchema,
-    path: v2NonRootFolderPathSchema,
-    destinationPath: v2NonRootFolderPathSchema,
+    path: v2NonRootFolderPathInputSchema,
+    destinationPath: v2NonRootFolderPathInputSchema,
   })
   .strict()
   .superRefine((body, ctx) => {
@@ -162,7 +178,7 @@ export const v2RelocateFolderBodySchema = z
 export const v2DeleteFolderQuerySchema = z
   .object({
     workspaceId: workspaceIdSchema,
-    path: v2NonRootFolderPathSchema,
+    path: v2NonRootFolderPathInputSchema,
     recursive: z.stringbool(),
   })
   .strict()

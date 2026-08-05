@@ -8,6 +8,7 @@ import {
 import {
   v2CursorListResponse,
   v2DataResponse,
+  v2FolderPathInputSchema,
   v2FolderPathSchema,
 } from '@/lib/api/contracts/v2/shared'
 
@@ -102,15 +103,24 @@ export const v2ListLogsQuerySchema = v1ListLogsQuerySchema
     folderPaths: z
       .string()
       .optional()
-      .superRefine((value, ctx) => {
-        if (!value) return
-        const paths = value.split(',').filter(Boolean)
-        if (
-          paths.length === 0 ||
-          paths.some((path) => !v2FolderPathSchema.safeParse(path).success)
-        ) {
-          ctx.addIssue({ code: 'custom', message: 'folderPaths must contain canonical paths' })
+      .transform((value, ctx) => {
+        if (value === undefined) return undefined
+        const paths = value.split(',')
+        if (paths.length === 0 || paths.some((path) => path.length === 0)) {
+          ctx.addIssue({ code: 'custom', message: 'folderPaths must contain valid paths' })
+          return z.NEVER
         }
+
+        const normalizedPaths: string[] = []
+        for (const path of paths) {
+          const parsed = v2FolderPathInputSchema.safeParse(path)
+          if (!parsed.success) {
+            ctx.addIssue({ code: 'custom', message: 'folderPaths must contain valid paths' })
+            return z.NEVER
+          }
+          normalizedPaths.push(parsed.data)
+        }
+        return normalizedPaths.join(',')
       }),
   })
   .strict()

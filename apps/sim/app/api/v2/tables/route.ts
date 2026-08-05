@@ -13,7 +13,7 @@ import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
 import {
   folderPathForId,
   resolveFolderPathId,
-  withResolvedFolderPathMutation,
+  resolveFolderPathIdentity,
 } from '@/app/api/v2/lib/folders'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
@@ -132,26 +132,25 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       columns: params.schema.columns.map(normalizeColumn),
     }
 
-    const mutation = await withResolvedFolderPathMutation({
+    const resolution = await resolveFolderPathIdentity({
       workspaceId: params.workspaceId,
       resourceType: 'table',
       path: params.folderPath ?? '/',
-      mutate: (folderId) =>
-        createTable(
-          {
-            name: params.name,
-            description: params.description,
-            schema: normalizedSchema,
-            workspaceId: params.workspaceId,
-            userId,
-            maxTables: planLimits.maxTables,
-            folderId,
-          },
-          requestId
-        ),
     })
-    if (!mutation.found) return v2Error('NOT_FOUND', 'Folder not found')
-    const table = mutation.value
+    if (!resolution.found) return v2Error('NOT_FOUND', 'Folder not found')
+
+    const table = await createTable(
+      {
+        name: params.name,
+        description: params.description,
+        schema: normalizedSchema,
+        workspaceId: params.workspaceId,
+        userId,
+        maxTables: planLimits.maxTables,
+        folderId: resolution.folderId,
+      },
+      requestId
+    )
 
     recordAudit({
       workspaceId: params.workspaceId,
@@ -166,7 +165,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     })
 
     return v2Data(
-      { table: toApiTable(table, folderPathForId(mutation.index, table.folderId)) },
+      { table: toApiTable(table, folderPathForId(resolution.index, table.folderId)) },
       { rateLimit, status: 201 }
     )
   } catch (error) {
