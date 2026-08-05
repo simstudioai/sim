@@ -302,6 +302,40 @@ describe('projectExecutionDataForDisplay', () => {
     }
   )
 
+  /**
+   * A re-run presents whatever trigger type its caller asked for, so the value
+   * copied out of a nested run would otherwise look inbound. The stamped source
+   * id keeps it gated.
+   */
+  it('gates workflowInput inherited from a prior execution regardless of trigger type', async () => {
+    const displayData = await projectExecutionDataForDisplay(
+      {
+        trigger: {
+          type: 'manual',
+          source: 'manual',
+          data: { inputSourceExecutionId: 'execution-source-1' },
+        },
+        workflowInput: { apiKey: 'INHERITED-FROM-CUSTOM-BLOCK-PARENT' },
+      },
+      CONTEXT
+    )
+
+    expect(displayData).not.toHaveProperty('workflowInput')
+    expect(JSON.stringify(displayData)).not.toContain('INHERITED-FROM-CUSTOM-BLOCK-PARENT')
+  })
+
+  it('keeps the exemption for a manual run whose trigger data carries no input source', async () => {
+    const displayData = await projectExecutionDataForDisplay(
+      {
+        trigger: { type: 'manual', source: 'manual', data: { correlation: { a: 1 } } },
+        workflowInput: { question: 'typed by the user' },
+      },
+      CONTEXT
+    )
+
+    expect(displayData.workflowInput).toEqual({ question: 'typed by the user' })
+  })
+
   it('still redacts and shows a nested execution input when provenance is complete', async () => {
     const displayData = await projectExecutionDataForDisplay(
       {

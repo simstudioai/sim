@@ -201,6 +201,7 @@ export class LoggingSession {
   private postExecutionPromise: Promise<void> | null = null
   private resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
   private traceLargeValueAccess: LargeValueStoreContext = {}
+  private inputSourceExecutionId?: string
 
   constructor(
     workflowId: string,
@@ -224,6 +225,20 @@ export class LoggingSession {
   /** Installs the run-scoped provenance used only at the terminal TraceSpan boundary. */
   setResolvedSecretTraceRegistry(registry: ResolvedSecretTraceRegistry): void {
     this.resolvedSecretTraceRegistry = registry
+  }
+
+  /**
+   * Records that this run's input was copied from a prior execution
+   * (`inputFromExecutionId`) rather than arriving with the trigger.
+   *
+   * The log display projection reads this to withhold the workflow-boundary
+   * exemption. An inherited input carries the SOURCE run's exposure - a value
+   * resolved inside a custom-block parent stays plaintext through the copy -
+   * and this run's own provenance cannot describe that resolution, so it must
+   * not be treated as a pre-resolution inbound payload.
+   */
+  setInputSourceExecutionId(sourceExecutionId: string): void {
+    this.inputSourceExecutionId = sourceExecutionId
   }
 
   /** Adds server-validated lifecycle correlation without exposing it to executor metadata. */
@@ -626,9 +641,18 @@ export class LoggingSession {
     }
 
     try {
-      const effectiveTriggerData = this.trustedExecutionCorrelation
-        ? { ...triggerData, correlation: this.trustedExecutionCorrelation }
-        : triggerData
+      const derivedTriggerData = {
+        ...(this.trustedExecutionCorrelation
+          ? { correlation: this.trustedExecutionCorrelation }
+          : {}),
+        ...(this.inputSourceExecutionId
+          ? { inputSourceExecutionId: this.inputSourceExecutionId }
+          : {}),
+      }
+      const effectiveTriggerData =
+        Object.keys(derivedTriggerData).length > 0 || triggerData
+          ? { ...triggerData, ...derivedTriggerData }
+          : undefined
       this.trigger = createTriggerObject(this.triggerType, effectiveTriggerData)
       this.correlation = effectiveTriggerData?.correlation
       this.environment = createEnvironmentObject(

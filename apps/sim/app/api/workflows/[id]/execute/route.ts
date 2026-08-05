@@ -1174,6 +1174,15 @@ async function handleExecutePost(
       loggingTriggerType,
       requestId
     )
+    /**
+     * Reusing a prior run's input copies that run's exposure with it, and this
+     * run's own provenance cannot describe a secret the source resolved. Record
+     * the source so the log display projection withholds the workflow-boundary
+     * exemption for this run.
+     */
+    if (inputFromExecutionId) {
+      loggingSession.setInputSourceExecutionId(inputFromExecutionId)
+    }
     if (copilotToolCallId) {
       loggingSession.setTrustedExecutionCorrelation({
         executionId,

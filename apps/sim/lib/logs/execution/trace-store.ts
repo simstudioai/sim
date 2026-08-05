@@ -246,11 +246,33 @@ const LOG_DISPLAY_BOUNDARY_SPAN_ID = 'secret-safe-log-display-boundary'
  */
 const NESTED_EXECUTION_TRIGGER_TYPES = new Set(['workflow', 'custom_block'])
 
-function isNestedExecution(executionData: Record<string, unknown>): boolean {
+function triggerRecord(
+  executionData: Record<string, unknown>
+): Record<string, unknown> | undefined {
   const trigger = executionData.trigger
-  if (!trigger || typeof trigger !== 'object' || Array.isArray(trigger)) return false
-  const type = (trigger as Record<string, unknown>).type
+  if (!trigger || typeof trigger !== 'object' || Array.isArray(trigger)) return undefined
+  return trigger as Record<string, unknown>
+}
+
+function isNestedExecution(executionData: Record<string, unknown>): boolean {
+  const type = triggerRecord(executionData)?.type
   return typeof type === 'string' && NESTED_EXECUTION_TRIGGER_TYPES.has(type)
+}
+
+/**
+ * Whether this run's input was copied from a prior execution
+ * (`inputFromExecutionId`), stamped by `LoggingSession.setInputSourceExecutionId`.
+ *
+ * A re-run presents whatever trigger type its caller asked for, so the nested
+ * check alone cannot see that the value originated in a nested run. Without
+ * this, a secret resolved inside a custom-block parent could be copied into a
+ * `manual` run and exempted. The inherited value carries the SOURCE run's
+ * exposure, which this run's provenance cannot describe, so it stays gated.
+ */
+function hasInheritedInput(executionData: Record<string, unknown>): boolean {
+  const data = triggerRecord(executionData)?.data
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return false
+  return typeof (data as Record<string, unknown>).inputSourceExecutionId === 'string'
 }
 
 /**
@@ -319,10 +341,11 @@ export async function projectExecutionDataForDisplay(
   }
 
   /**
-   * A nested run's input came from its parent's resolved outputs, so it gets no
-   * boundary exemption - every content key is gated for it.
+   * A nested run's input came from its parent's resolved outputs, and a re-run's
+   * came from another execution. Neither is a pre-resolution inbound payload, so
+   * both forgo the boundary exemption - every content key is gated for them.
    */
-  const nested = isNestedExecution(executionData)
+  const nested = isNestedExecution(executionData) || hasInheritedInput(executionData)
   const gatedKeys: readonly string[] = nested ? LOG_DISPLAY_CONTENT_KEYS : LOG_DISPLAY_GATED_KEYS
   const boundaryKeys: readonly string[] = nested ? [] : LOG_DISPLAY_BOUNDARY_KEYS
 
