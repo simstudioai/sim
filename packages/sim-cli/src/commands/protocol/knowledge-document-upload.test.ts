@@ -56,9 +56,6 @@ function uploadSession() {
     name: 'notes.doc',
     contentType: 'application/msword',
     size: 5,
-    partSize: 10,
-    partCount: 1,
-    uploadToken: 'secret-token',
     expiresAt: '2026-08-04T20:00:00.000Z',
     error: null,
     document: null,
@@ -81,7 +78,13 @@ describe('knowledge documents upload', () => {
     writeFileSync(path, 'hello')
     const session = uploadSession()
     mockRequest
-      .mockResolvedValueOnce({ data: session })
+      .mockResolvedValueOnce({
+        data: {
+          session,
+          uploadToken: 'secret-token',
+          transfer: { method: 'multipart', partSize: 10, partCount: 1 },
+        },
+      })
       .mockResolvedValueOnce({
         data: {
           parts: [

@@ -1,12 +1,13 @@
 import type { Command } from 'commander'
 import { clientFrom } from '../../context.js'
-import type { CreateKnowledgeDocumentUploadResponse } from '../../generated/v2-api.js'
+import type {
+  CompleteKnowledgeDocumentUploadResponse,
+  CreateKnowledgeDocumentUploadResponse,
+} from '../../generated/v2-api.js'
 import { SimApiError } from '../../http/client.js'
 import { contentTypeFor, localFile } from '../../transfer/local-file.js'
-import { finishTransfer } from '../../transfer/multipart.js'
+import { finishUploadSession } from '../../transfer/upload-session.js'
 import { printProtocolResult } from './result.js'
-
-type KnowledgeDocumentUpload = CreateKnowledgeDocumentUploadResponse['data']
 
 interface KnowledgeDocumentUploadOptions {
   name?: string
@@ -65,24 +66,25 @@ export function attachKnowledgeDocumentUpload(documents: Command): void {
             },
           }
         )
-        const upload = created.data
-        const completed = await finishTransfer<KnowledgeDocumentUpload>(
+        const { session, uploadToken, transfer } = created.data
+        const completed = await finishUploadSession<
+          CompleteKnowledgeDocumentUploadResponse['data']
+        >(
           client,
           workspaceId,
           {
             basePath: `/api/v2/knowledge/${encodeURIComponent(
               knowledgeBaseId
-            )}/documents/uploads/${encodeURIComponent(upload.id)}`,
-            uploadToken: upload.uploadToken,
-            partSize: upload.partSize,
-            partCount: upload.partCount,
+            )}/documents/uploads/${encodeURIComponent(session.id)}`,
+            uploadToken,
+            transfer,
             size,
           },
           path
         )
 
         if (!completed.document) {
-          throw new Error(`Knowledge upload ${completed.id} completed without a document`)
+          throw new Error(`Knowledge upload ${session.id} completed without a document`)
         }
         printProtocolResult(profile.output, {
           id: completed.document.id,

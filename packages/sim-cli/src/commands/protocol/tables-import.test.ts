@@ -86,12 +86,15 @@ describe('tables import output', () => {
   it('prints a normalized result without transfer secrets', async () => {
     mockRequest.mockResolvedValue({
       data: {
-        id: 'import_1',
-        status: 'queued',
-        tableId: 'table_1',
-        rowsProcessed: 0,
-        error: null,
-        upload: null,
+        session: {
+          id: 'import_1',
+          status: 'queued',
+          tableId: 'table_1',
+          rowsProcessed: 0,
+          error: null,
+        },
+        uploadToken: null,
+        transfer: null,
       },
     })
     const logged: string[] = []

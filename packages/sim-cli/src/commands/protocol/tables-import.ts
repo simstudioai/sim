@@ -2,20 +2,18 @@ import { setTimeout as sleep } from 'node:timers/promises'
 import chalk from 'chalk'
 import { type Command, Option } from 'commander'
 import { clientFrom } from '../../context.js'
+import type {
+  CompleteTableImportResponse,
+  CreateTableImportResponse,
+  GetTableImportResponse,
+} from '../../generated/v2-api.js'
 import { SimApiError, type SimClient } from '../../http/client.js'
-import { coerce } from '../../runtime/request.js'
+import { coerce, type FieldSpec } from '../../runtime/request.js'
 import { contentTypeFor, localFile } from '../../transfer/local-file.js'
-import { finishTransfer } from '../../transfer/multipart.js'
+import { finishUploadSession } from '../../transfer/upload-session.js'
 import { printProtocolResult } from './result.js'
 
-interface TableImport {
-  id: string
-  status: 'uploading' | 'queued' | 'processing' | 'completed' | 'failed' | 'canceled' | 'expired'
-  tableId: string | null
-  rowsProcessed: number
-  error: string | null
-  upload: { uploadToken: string; partSize: number; partCount: number } | null
-}
+type TableImport = GetTableImportResponse['data']
 
 interface ImportOptions {
   name?: string
@@ -39,8 +37,8 @@ function tableNameFrom(fileName: string): string {
   return (/^[0-9]/.test(cleaned) ? `_${cleaned}` : cleaned).slice(0, 128)
 }
 
-function jsonFlag(raw: string, flagName: string): unknown {
-  return coerce(raw, { kind: 'object' }, { json: true }, flagName)
+function jsonFlag(raw: string, flagName: string, kind: FieldSpec['kind']): unknown {
+  return coerce(raw, { kind }, { json: true }, flagName)
 }
 
 async function watchImport(
@@ -144,31 +142,33 @@ export function attachTableImport(tables: Command): void {
         target = { type: 'new', name, ...(options.folderId ? { folderId: options.folderId } : {}) }
       }
 
-      const started = await client.request<{ data: TableImport }>('/api/v2/tables/imports', {
+      const started = await client.request<CreateTableImportResponse>('/api/v2/tables/imports', {
         method: 'POST',
         body: {
           workspaceId,
           source,
           target,
-          ...(options.mapping ? { mapping: jsonFlag(options.mapping, 'mapping') } : {}),
+          ...(options.mapping ? { mapping: jsonFlag(options.mapping, 'mapping', 'object') } : {}),
           ...(options.createColumns
-            ? { createColumns: jsonFlag(options.createColumns, 'create-columns') }
+            ? { createColumns: jsonFlag(options.createColumns, 'create-columns', 'array') }
             : {}),
           ...(options.timezone ? { timezone: options.timezone } : {}),
         },
       })
 
-      let job = started.data
-      if (path && job.upload) {
-        job = await finishTransfer<TableImport>(
+      let job: TableImport = started.data.session
+      if (path) {
+        if (!local || !started.data.uploadToken || !started.data.transfer) {
+          throw new Error('Local table import did not return an upload transfer')
+        }
+        job = await finishUploadSession<CompleteTableImportResponse['data']>(
           client,
           workspaceId,
           {
             basePath: `/api/v2/tables/imports/${encodeURIComponent(job.id)}`,
-            uploadToken: job.upload.uploadToken,
-            partSize: job.upload.partSize,
-            partCount: job.upload.partCount,
-            size: local?.size ?? 0,
+            uploadToken: started.data.uploadToken,
+            transfer: started.data.transfer,
+            size: local.size,
           },
           path
         )

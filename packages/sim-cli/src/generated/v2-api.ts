@@ -30,9 +30,6 @@ export type AbortFileUploadResponse = {
     name: string
     contentType: string
     size: number
-    partSize: number
-    partCount: number
-    uploadToken: string
     expiresAt: string
     error: string | null
     file: {
@@ -72,9 +69,6 @@ export type AbortKnowledgeDocumentUploadResponse = {
     name: string
     contentType: string
     size: number
-    partSize: number
-    partCount: number
-    uploadToken: string
     expiresAt: string
     error: string | null
     document: {
@@ -297,12 +291,6 @@ export type CancelTableImportResponse = {
     tableId: string | null
     rowsProcessed: number
     error: string | null
-    upload: {
-      uploadToken: string
-      partSize: number
-      partCount: number
-      expiresAt: string
-    } | null
     createdAt: string
     updatedAt: string
     completedAt: string | null
@@ -360,12 +348,14 @@ export type CompleteFileUploadQuery = {
   workspaceId: string
 }
 
-export type CompleteFileUploadBody = {
-  parts: Array<{
-    partNumber: number
-    etag?: string
-  }>
-}
+export type CompleteFileUploadBody =
+  | {
+      parts: Array<{
+        partNumber: number
+        etag?: string
+      }>
+    }
+  | Record<string, unknown>
 
 export type CompleteFileUploadHeaders = {
   'upload-token': string
@@ -378,9 +368,6 @@ export type CompleteFileUploadResponse = {
     name: string
     contentType: string
     size: number
-    partSize: number
-    partCount: number
-    uploadToken: string
     expiresAt: string
     error: string | null
     file: {
@@ -408,12 +395,14 @@ export type CompleteKnowledgeDocumentUploadQuery = {
   workspaceId: string
 }
 
-export type CompleteKnowledgeDocumentUploadBody = {
-  parts: Array<{
-    partNumber: number
-    etag?: string
-  }>
-}
+export type CompleteKnowledgeDocumentUploadBody =
+  | {
+      parts: Array<{
+        partNumber: number
+        etag?: string
+      }>
+    }
+  | Record<string, unknown>
 
 export type CompleteKnowledgeDocumentUploadHeaders = {
   'upload-token': string
@@ -427,9 +416,6 @@ export type CompleteKnowledgeDocumentUploadResponse = {
     name: string
     contentType: string
     size: number
-    partSize: number
-    partCount: number
-    uploadToken: string
     expiresAt: string
     error: string | null
     document: {
@@ -457,12 +443,14 @@ export type CompleteTableImportQuery = {
   workspaceId: string
 }
 
-export type CompleteTableImportBody = {
-  parts: Array<{
-    partNumber: number
-    etag?: string
-  }>
-}
+export type CompleteTableImportBody =
+  | {
+      parts: Array<{
+        partNumber: number
+        etag?: string
+      }>
+    }
+  | Record<string, unknown>
 
 export type CompleteTableImportHeaders = {
   'upload-token': string
@@ -498,12 +486,6 @@ export type CompleteTableImportResponse = {
     tableId: string | null
     rowsProcessed: number
     error: string | null
-    upload: {
-      uploadToken: string
-      partSize: number
-      partCount: number
-      expiresAt: string
-    } | null
     createdAt: string
     updatedAt: string
     completedAt: string | null
@@ -526,6 +508,7 @@ export type CreateCredentialBody = {
   clientId?: string
   clientSecret?: string
   orgId?: string
+  dataCenter?: string
 }
 
 export type CreateCredentialResponse = {
@@ -589,6 +572,31 @@ export type CreateCustomToolResponse = {
   }
 }
 
+/** `POST /api/v2/files` */
+export type CreateFileBody = {
+  workspaceId: string
+  name: string
+  contentType?: string
+  folderId?: string
+  content?: string
+  encoding?: 'utf-8' | 'base64'
+}
+
+export type CreateFileResponse = {
+  data: {
+    id: string
+    name: string
+    size: number
+    type: string
+    key: string
+    folderId: string | null
+    folderPath: string | null
+    uploadedBy: string
+    uploadedAt: string
+    updatedAt: string
+  }
+}
+
 /** `POST /api/v2/files/uploads` */
 export type CreateFileUploadBody = {
   workspaceId: string
@@ -600,28 +608,39 @@ export type CreateFileUploadBody = {
 
 export type CreateFileUploadResponse = {
   data: {
-    id: string
-    status: 'uploading' | 'finalizing' | 'completed' | 'failed' | 'aborted' | 'expired'
-    name: string
-    contentType: string
-    size: number
-    partSize: number
-    partCount: number
-    uploadToken: string
-    expiresAt: string
-    error: string | null
-    file: {
+    session: {
       id: string
+      status: 'uploading' | 'finalizing' | 'completed' | 'failed' | 'aborted' | 'expired'
       name: string
+      contentType: string
       size: number
-      type: string
-      key: string
-      folderId: string | null
-      folderPath: string | null
-      uploadedBy: string
-      uploadedAt: string
-      updatedAt: string
-    } | null
+      expiresAt: string
+      error: string | null
+      file: {
+        id: string
+        name: string
+        size: number
+        type: string
+        key: string
+        folderId: string | null
+        folderPath: string | null
+        uploadedBy: string
+        uploadedAt: string
+        updatedAt: string
+      } | null
+    }
+    uploadToken: string
+    transfer:
+      | {
+          method: 'put'
+          url: string
+          headers: Record<string, string>
+        }
+      | {
+          method: 'multipart'
+          partSize: number
+          partCount: number
+        }
   }
 }
 
@@ -744,30 +763,41 @@ export type CreateKnowledgeDocumentUploadBody = {
 
 export type CreateKnowledgeDocumentUploadResponse = {
   data: {
-    id: string
-    knowledgeBaseId: string
-    status: 'uploading' | 'finalizing' | 'completed' | 'failed' | 'aborted' | 'expired'
-    name: string
-    contentType: string
-    size: number
-    partSize: number
-    partCount: number
-    uploadToken: string
-    expiresAt: string
-    error: string | null
-    document: {
+    session: {
       id: string
       knowledgeBaseId: string
-      filename: string
-      fileSize: number
-      mimeType: string
-      processingStatus: 'pending' | 'processing' | 'completed' | 'failed'
-      chunkCount: number
-      tokenCount: number
-      characterCount: number
-      enabled: boolean
-      createdAt: string | null
-    } | null
+      status: 'uploading' | 'finalizing' | 'completed' | 'failed' | 'aborted' | 'expired'
+      name: string
+      contentType: string
+      size: number
+      expiresAt: string
+      error: string | null
+      document: {
+        id: string
+        knowledgeBaseId: string
+        filename: string
+        fileSize: number
+        mimeType: string
+        processingStatus: 'pending' | 'processing' | 'completed' | 'failed'
+        chunkCount: number
+        tokenCount: number
+        characterCount: number
+        enabled: boolean
+        createdAt: string | null
+      } | null
+    }
+    uploadToken: string
+    transfer:
+      | {
+          method: 'put'
+          url: string
+          headers: Record<string, string>
+        }
+      | {
+          method: 'multipart'
+          partSize: number
+          partCount: number
+        }
   }
 }
 
@@ -983,51 +1013,99 @@ export type CreateTableImportBody = {
         tableId: string
         mode: 'append' | 'replace'
       }
-  mapping?: unknown
-  createColumns?: unknown
+  mapping?: Record<string, string | null>
+  createColumns?: Array<string>
   timezone?: string
 }
 
 export type CreateTableImportResponse = {
-  data: {
-    id: string
-    workspaceId: string
-    status: 'uploading' | 'queued' | 'processing' | 'completed' | 'failed' | 'canceled' | 'expired'
-    source:
-      | {
-          type: 'upload'
-          name: string
-          contentType: string
-          size: number
+  data:
+    | {
+        session: {
+          id: string
+          workspaceId: string
+          status:
+            | 'uploading'
+            | 'queued'
+            | 'processing'
+            | 'completed'
+            | 'failed'
+            | 'canceled'
+            | 'expired'
+          source: {
+            type: 'upload'
+            name: string
+            contentType: string
+            size: number
+          }
+          target:
+            | {
+                type: 'new'
+                name: string
+                folderId?: string
+              }
+            | {
+                type: 'existing'
+                tableId: string
+                mode: 'append' | 'replace'
+              }
+          tableId: string | null
+          rowsProcessed: number
+          error: string | null
+          createdAt: string
+          updatedAt: string
+          completedAt: string | null
         }
-      | {
-          type: 'workspace_file'
-          fileId: string
+        uploadToken: string
+        transfer:
+          | {
+              method: 'put'
+              url: string
+              headers: Record<string, string>
+            }
+          | {
+              method: 'multipart'
+              partSize: number
+              partCount: number
+            }
+      }
+    | {
+        session: {
+          id: string
+          workspaceId: string
+          status:
+            | 'uploading'
+            | 'queued'
+            | 'processing'
+            | 'completed'
+            | 'failed'
+            | 'canceled'
+            | 'expired'
+          source: {
+            type: 'workspace_file'
+            fileId: string
+          }
+          target:
+            | {
+                type: 'new'
+                name: string
+                folderId?: string
+              }
+            | {
+                type: 'existing'
+                tableId: string
+                mode: 'append' | 'replace'
+              }
+          tableId: string | null
+          rowsProcessed: number
+          error: string | null
+          createdAt: string
+          updatedAt: string
+          completedAt: string | null
         }
-    target:
-      | {
-          type: 'new'
-          name: string
-          folderId?: string
-        }
-      | {
-          type: 'existing'
-          tableId: string
-          mode: 'append' | 'replace'
-        }
-    tableId: string | null
-    rowsProcessed: number
-    error: string | null
-    upload: {
-      uploadToken: string
-      partSize: number
-      partCount: number
-      expiresAt: string
-    } | null
-    createdAt: string
-    updatedAt: string
-    completedAt: string | null
-  }
+        uploadToken: null
+        transfer: null
+      }
 }
 
 /** `POST /api/v2/tables/imports/[importId]/parts` */
@@ -2190,12 +2268,6 @@ export type GetTableImportResponse = {
     tableId: string | null
     rowsProcessed: number
     error: string | null
-    upload: {
-      uploadToken: string
-      partSize: number
-      partCount: number
-      expiresAt: string
-    } | null
     createdAt: string
     updatedAt: string
     completedAt: string | null
@@ -3405,6 +3477,7 @@ export type UpdateCredentialBody = {
   clientId?: string
   clientSecret?: string
   orgId?: string
+  dataCenter?: string
 }
 
 export type UpdateCredentialResponse = {
@@ -4209,9 +4282,7 @@ export const V2_OPERATIONS = {
     query: {
       workspaceId: { kind: 'string', required: true },
     },
-    body: {
-      parts: { kind: 'array', required: true },
-    },
+    opaqueBody: true,
   },
   completeKnowledgeDocumentUpload: {
     method: 'POST',
@@ -4222,9 +4293,7 @@ export const V2_OPERATIONS = {
     query: {
       workspaceId: { kind: 'string', required: true },
     },
-    body: {
-      parts: { kind: 'array', required: true },
-    },
+    opaqueBody: true,
   },
   completeTableImport: {
     method: 'POST',
@@ -4235,9 +4304,7 @@ export const V2_OPERATIONS = {
     query: {
       workspaceId: { kind: 'string', required: true },
     },
-    body: {
-      parts: { kind: 'array', required: true },
-    },
+    opaqueBody: true,
   },
   createCredential: {
     method: 'POST',
@@ -4264,6 +4331,7 @@ export const V2_OPERATIONS = {
       clientId: { kind: 'string' },
       clientSecret: { kind: 'string' },
       orgId: { kind: 'string' },
+      dataCenter: { kind: 'string' },
     },
   },
   createCustomTool: {
@@ -4277,6 +4345,21 @@ export const V2_OPERATIONS = {
       title: { kind: 'string', required: true },
       schema: { kind: 'object', required: true },
       code: { kind: 'string', required: true },
+    },
+  },
+  createFile: {
+    method: 'POST',
+    path: '/api/v2/files',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Create File',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      name: { kind: 'string', required: true },
+      contentType: { kind: 'string' },
+      folderId: { kind: 'string' },
+      content: { kind: 'string', default: '' },
+      encoding: { kind: 'enum', values: ['utf-8', 'base64'] as const, default: 'utf-8' },
     },
   },
   createFileUpload: {
@@ -4440,8 +4523,8 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true },
       source: { kind: 'unknown', required: true },
       target: { kind: 'unknown', required: true },
-      mapping: { kind: 'unknown' },
-      createColumns: { kind: 'unknown' },
+      mapping: { kind: 'object' },
+      createColumns: { kind: 'array' },
       timezone: { kind: 'string' },
     },
   },
@@ -5383,6 +5466,7 @@ export const V2_OPERATIONS = {
       clientId: { kind: 'string' },
       clientSecret: { kind: 'string' },
       orgId: { kind: 'string' },
+      dataCenter: { kind: 'string' },
     },
   },
   updateCustomTool: {

@@ -135,6 +135,40 @@ describe('commands parsed through commander', () => {
     expect(options.body).toMatchObject({ conflictTarget: 'email', data: { a: 1 } })
   })
 
+  it('exposes inline file creation added by the v2 files contract', async () => {
+    const [path, options] = await run([
+      'file',
+      'create',
+      '--name',
+      'notes.txt',
+      '--content',
+      'hello',
+      '--encoding',
+      'utf-8',
+    ])
+    expect(path).toBe('/api/v2/files')
+    expect(options.body).toEqual({
+      workspaceId: 'ws_local',
+      name: 'notes.txt',
+      content: 'hello',
+      encoding: 'utf-8',
+    })
+  })
+
+  it('exposes credential data centers added by the v2 credential contract', async () => {
+    const [, options] = await run([
+      'credential',
+      'create',
+      '--type',
+      'service_account',
+      '--display-name',
+      'Zoho',
+      '--data-center',
+      'eu',
+    ])
+    expect(options.body).toMatchObject({ dataCenter: 'eu' })
+  })
+
   it('comma-joins a repeated list flag', async () => {
     const [, options] = await run(['logs', 'list', '--workflow', 'wf_1', 'wf_2'])
     expect(options.query).toMatchObject({ workflowIds: 'wf_1,wf_2' })

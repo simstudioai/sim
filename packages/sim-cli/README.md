@@ -130,6 +130,8 @@ sim tables upsert <tableId> --data <json>
 sim tables rows batch-delete <tableId> (--row <id>… | --filter <json>) --yes
 
 sim files list
+sim files create --name <name> [--content <value>] [--encoding utf-8|base64]
+sim files upload <path> [--name <name>] [--folder-id <id>]
 sim files download <fileId> [-o <path>]
 sim files delete <fileId>
 
