@@ -33,7 +33,11 @@ import {
   TABLE_LIMITS,
 } from '@/lib/table/constants'
 import { CSV_MAX_FILE_SIZE_BYTES } from '@/lib/table/import'
-import { normalizeTablePredicate } from '@/lib/table/query-builder/predicate'
+import {
+  getTablePredicateTreeSizeError,
+  MAX_PREDICATE_GROUP_SIZE,
+  normalizeTablePredicate,
+} from '@/lib/table/query-builder/predicate'
 
 export const domainObjectSchema = <T>() => z.custom<T>(isRecordLike)
 
@@ -422,45 +426,8 @@ const filterSchema = domainObjectSchema<Filter>()
  */
 export const TABLE_QUERY_MAX_BODY_BYTES = 1024 * 1024
 
-/** Max members in one `all`/`any` group — a generous bound against pathological trees. */
-const MAX_PREDICATE_GROUP_SIZE = 100
 /** Max sort keys — more than a few is already a smell. */
 const MAX_SORT_KEYS = 16
-/** Max nesting levels of `all`/`any` groups. Ten is already unreadable. */
-const MAX_PREDICATE_DEPTH = 10
-/** Max nodes in the whole tree, so a wide-but-shallow tree can't amplify either. */
-const MAX_PREDICATE_NODES = 500
-
-/**
- * Iterative depth/size walk over an unvalidated predicate tree. Runs BEFORE the
- * recursive Zod schema: a few thousand nested `{all:[...]}` levels overflow the
- * stack inside `safeParse`, and a `RangeError` from a parser is a 500, not a 400.
- * The walk itself must stay iterative for the same reason.
- */
-function predicateTreeTooLarge(root: unknown): string | null {
-  const stack: Array<{ node: unknown; depth: number }> = [{ node: root, depth: 1 }]
-  let nodes = 0
-
-  while (stack.length > 0) {
-    const { node, depth } = stack.pop()!
-    if (++nodes > MAX_PREDICATE_NODES) {
-      return `Filter has too many conditions (max ${MAX_PREDICATE_NODES})`
-    }
-    if (depth > MAX_PREDICATE_DEPTH) {
-      return `Filter nesting is too deep (max ${MAX_PREDICATE_DEPTH} levels)`
-    }
-    if (typeof node !== 'object' || node === null) continue
-    const group = node as { all?: unknown; any?: unknown }
-    const members = Array.isArray(group.all)
-      ? group.all
-      : Array.isArray(group.any)
-        ? group.any
-        : null
-    if (!members) continue
-    for (const member of members) stack.push({ node: member, depth: depth + 1 })
-  }
-  return null
-}
 
 /**
  * v2 filter wire format: the typed `{ all | any: [...] }` predicate tree (same
@@ -512,7 +479,7 @@ const predicateTreeSchema: z.ZodType<TablePredicate> = z.lazy(() =>
 const predicateGroupSchema = predicateTreeSchema
 
 const predicateBoundarySchema = z.unknown().superRefine((value, ctx) => {
-  const problem = predicateTreeTooLarge(value)
+  const problem = getTablePredicateTreeSizeError(value)
   if (problem) ctx.addIssue({ code: 'custom', message: problem })
 })
 

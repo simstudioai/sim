@@ -2,6 +2,7 @@ import { isRecordLike } from '@sim/utils/object'
 import { getColumnId } from '@/lib/table/column-keys'
 import { NAME_PATTERN } from '@/lib/table/constants'
 import { TableQueryValidationError } from '@/lib/table/errors'
+import { getTablePredicateTreeSizeError } from '@/lib/table/query-builder/predicate'
 import type {
   ColumnDefinition,
   ColumnType,
@@ -119,6 +120,15 @@ export function validatePredicateShape(predicate: TablePredicateInput): void {
 }
 
 function validateNode(node: PredicateNode, typeByName: Map<string, ColumnType> | null): void {
+  const sizeError = getTablePredicateTreeSizeError(node)
+  if (sizeError) throw new TableQueryValidationError(sizeError, 'INVALID_FILTER')
+  validateNodeStructure(node, typeByName)
+}
+
+function validateNodeStructure(
+  node: PredicateNode,
+  typeByName: Map<string, ColumnType> | null
+): void {
   // Guard before the `in` checks below: an untrusted caller (copilot args, a raw
   // block value) can hand us a string/number/null, where `'all' in node` throws
   // a raw TypeError. Fail with a clean, actionable message instead.
@@ -166,7 +176,7 @@ function validateNode(node: PredicateNode, typeByName: Map<string, ColumnType> |
         'INVALID_FILTER'
       )
     }
-    for (const child of members) validateNode(child, typeByName)
+    for (const child of members) validateNodeStructure(child, typeByName)
     return
   }
   // Neither a group nor a leaf. Overwhelmingly this is the legacy `$`-grammar
