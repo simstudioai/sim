@@ -44,8 +44,10 @@ const InlineCode = Code.extend({ excludes: '' })
  * into phantom columns on round-trip (data loss). Escaping must happen on the `table` node —
  * `tableCell`/`tableHeader` have no markdown renderer; the table renders cell children directly. Only
  * `|` is escaped — `renderChildren` already escapes backslashes, so escaping them again would
- * double-escape and break round-trip idempotency (CodeQL's "missing backslash escape" is a false
- * positive here; covered by the table round-trip tests).
+ * double-escape and break round-trip idempotency (CodeQL `js/incomplete-sanitization` flags this as
+ * a missing backslash escape; it is a false positive). Pinned by the `table with backslash`,
+ * `table backslash before pipe` and `table trailing backslash` cases in `round-trip.test.ts` —
+ * adding the escape CodeQL asks for turns all three red, each growing a `\` per save.
  *
  * The upstream serializer also wraps the table in its own leading/trailing blank lines; left in,
  * the block joiner adds another, so an interior table churns its surrounding whitespace to
