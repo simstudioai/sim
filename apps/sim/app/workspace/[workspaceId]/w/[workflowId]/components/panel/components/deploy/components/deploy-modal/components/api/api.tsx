@@ -256,6 +256,7 @@ while (true) {
 
   const getAsyncCommand = (): string => {
     if (!info) return ''
+    if (info.isPublicApi) throw new Error('Async execution requires an API key')
     const endpoint = getBaseEndpoint()
     const v2WorkflowPrefix = '/api/v2/workflows/'
     if (!endpoint.includes(v2WorkflowPrefix) || !endpoint.endsWith('/execute')) {
@@ -538,49 +539,51 @@ console.log(limits);`
         />
       </div>
 
-      <div>
-        <div className='mb-[6.5px] flex items-center justify-between'>
-          <Label className='block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
-            Run workflow (async)
-          </Label>
-          <div className='flex items-center gap-1.5'>
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
-                <Button
-                  variant='ghost'
-                  onClick={() => handleCopy('async', getAsyncCommand())}
-                  aria-label='Copy command'
-                  className='!p-1.5 -my-1.5'
-                >
-                  {copied.async ? <Check className='size-3' /> : <Clipboard className='size-3' />}
-                </Button>
-              </Tooltip.Trigger>
-              <Tooltip.Content>
-                <span>{copied.async ? 'Copied' : 'Copy'}</span>
-              </Tooltip.Content>
-            </Tooltip.Root>
-            <Combobox
-              size='sm'
-              className='!w-fit !py-0.5 min-w-[100px] rounded-md px-[9px]'
-              options={[
-                { label: 'Start Execution', value: 'execute' },
-                { label: 'Check Status', value: 'status' },
-                { label: 'Usage Limits', value: 'rate-limits' },
-              ]}
-              value={asyncExampleType}
-              onChange={(value) => setAsyncExampleType(value as AsyncExampleType)}
-              align='end'
-              dropdownWidth={160}
-            />
+      {!info.isPublicApi && (
+        <div>
+          <div className='mb-[6.5px] flex items-center justify-between'>
+            <Label className='block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
+              Run workflow (async)
+            </Label>
+            <div className='flex items-center gap-1.5'>
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <Button
+                    variant='ghost'
+                    onClick={() => handleCopy('async', getAsyncCommand())}
+                    aria-label='Copy command'
+                    className='!p-1.5 -my-1.5'
+                  >
+                    {copied.async ? <Check className='size-3' /> : <Clipboard className='size-3' />}
+                  </Button>
+                </Tooltip.Trigger>
+                <Tooltip.Content>
+                  <span>{copied.async ? 'Copied' : 'Copy'}</span>
+                </Tooltip.Content>
+              </Tooltip.Root>
+              <Combobox
+                size='sm'
+                className='!w-fit !py-0.5 min-w-[100px] rounded-md px-[9px]'
+                options={[
+                  { label: 'Start Execution', value: 'execute' },
+                  { label: 'Check Status', value: 'status' },
+                  { label: 'Usage Limits', value: 'rate-limits' },
+                ]}
+                value={asyncExampleType}
+                onChange={(value) => setAsyncExampleType(value as AsyncExampleType)}
+                align='end'
+                dropdownWidth={160}
+              />
+            </div>
           </div>
+          <Code.Viewer
+            code={getAsyncCommand()}
+            language={LANGUAGE_SYNTAX[language]}
+            wrapText
+            className='!min-h-0 rounded-sm border border-[var(--border-1)]'
+          />
         </div>
-        <Code.Viewer
-          code={getAsyncCommand()}
-          language={LANGUAGE_SYNTAX[language]}
-          wrapText
-          className='!min-h-0 rounded-sm border border-[var(--border-1)]'
-        />
-      </div>
+      )}
     </div>
   )
 }
