@@ -249,7 +249,6 @@ export const ActionBar = memo(
         actionId === 'run' &&
           isRunning && [
             '!bg-[var(--text-secondary)] !text-[var(--text-inverse)]',
-            'dark:!bg-[var(--surface-4)] dark:!text-[var(--text-primary)]',
             'hover-hover:!bg-[var(--white)] hover-hover:!text-[var(--surface-inverted)]',
             'dark:hover-hover:!bg-[var(--surface-4)] dark:hover-hover:!text-[var(--text-primary)]',
             'focus-visible:!bg-[var(--white)] focus-visible:!text-[var(--surface-inverted)]',
