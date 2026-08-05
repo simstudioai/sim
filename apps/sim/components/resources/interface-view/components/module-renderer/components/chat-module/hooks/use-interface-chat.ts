@@ -359,13 +359,21 @@ export function useInterfaceChat({
         settle(succeeded ? NO_OUTPUT_NOTE : CHAT_ERROR_MESSAGES.GENERIC_ERROR)
       }
 
-      /**
-       * Read here rather than in the composer: only images arrive pre-read, so
-       * every other attachment is turned into its base64 payload at send time.
-       */
-      const filePayloads = await toChatFilePayloads(files)
-
       try {
+        /**
+         * Read here rather than in the composer: only images arrive pre-read, so
+         * every other attachment is turned into its base64 payload at send time.
+         *
+         * Inside the `try` because `FileReader` rejects on an unreadable file —
+         * a real case, since a file can be deleted or moved between selection
+         * and send. By this point the turn is already committed: `runningRef` is
+         * set and a streaming bubble is on screen. Escaping here would leave the
+         * bubble spinning forever and `runningRef` stuck true, so every later
+         * send would return early and the module would be dead until remount.
+         * The `finally` below is the only thing that clears that state.
+         */
+        const filePayloads = await toChatFilePayloads(files)
+
         await execute({
           workflowId: runId,
           endpoint: activeEndpoint,
