@@ -62,7 +62,9 @@ import {
   canUseProviderLargeFilePath,
   getInlineHydrationMaxBytes,
 } from '@/providers/file-attachments.server'
+import { normalizeFinishReason } from '@/providers/finish-reason'
 import { isAutoModel, SIM_AUTO_MODEL_ID } from '@/providers/models'
+import type { ProviderResponse } from '@/providers/types'
 import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 import { filterSchemaForLLM, type ToolSchema } from '@/tools/params'
@@ -1487,7 +1489,30 @@ export class AgentBlockHandler implements BlockHandler {
       },
       providerTiming: result.timing,
       cost: result.cost,
+      /**
+       * Read from the last model segment rather than threaded through each provider:
+       * every family already records its raw stop reason there for the trace, so this
+       * normalizes the value the enrichment layer has already collected. A run whose
+       * provider reported nothing simply has no reason, which stays distinct from one
+       * the vocabulary could not place.
+       */
+      finishReason: normalizeFinishReason(this.lastModelSegmentFinishReasonImpl(result.timing)),
     }
+  }
+
+  /**
+   * The raw stop reason from the most recent `model` segment. Later segments win
+   * because a tool loop appends one segment per turn and the final turn is the one
+   * that ended the generation.
+   */
+  private lastModelSegmentFinishReasonImpl(timing: ProviderResponse['timing']): string | undefined {
+    const segments = timing?.timeSegments
+    if (!segments) return undefined
+    for (let i = segments.length - 1; i >= 0; i--) {
+      const segment = segments[i]
+      if (segment.type === 'model' && segment.finishReason) return segment.finishReason
+    }
+    return undefined
   }
 
   private formatToolCall(tc: any) {

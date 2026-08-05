@@ -1,5 +1,6 @@
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { ProviderTimingSegment, StreamingExecution, UserFile } from '@/executor/types'
+import type { AgentFinishReason } from '@/providers/finish-reason'
 
 export type ProviderId =
   | 'openai'
@@ -95,6 +96,11 @@ export interface ProviderResponse {
   }
   toolCalls?: FunctionCallResponse[]
   toolResults?: Record<string, unknown>[]
+  /**
+   * Why generation stopped, normalized across providers. Absent when the provider
+   * reported nothing; see {@link AgentFinishReason}.
+   */
+  finishReason?: AgentFinishReason
   timing?: {
     startTime: string
     endTime: string

@@ -672,6 +672,11 @@ Return ONLY the JSON array.`,
     model: { type: 'string', description: 'Model used for generation' },
     tokens: { type: 'json', description: 'Token usage statistics' },
     toolCalls: { type: 'json', description: 'Tool calls made' },
+    finishReason: {
+      type: 'string',
+      description:
+        'Why generation stopped: stop, length (truncated by the token limit), tool_calls, content_filter, error, or other',
+    },
     providerTiming: {
       type: 'json',
       description: 'Provider timing information',
