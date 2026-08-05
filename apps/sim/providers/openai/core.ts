@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import type { Logger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
+import { truncate } from '@sim/utils/string'
 import type OpenAI from 'openai'
 import type { NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
@@ -33,11 +34,66 @@ import {
   createReadableStreamFromResponses,
   extractResponseText,
   extractResponseToolCalls,
+  isMaxOutputTokensIncompleteResponse,
   parseResponsesUsage,
   type ResponsesInputItem,
   type ResponsesToolCall,
+  responseContainsFunctionCall,
   toResponsesToolChoice,
 } from './utils'
+
+/**
+ * Rejects a `/v1/responses` body that reports a generation which did not succeed.
+ *
+ * The endpoint answers HTTP 200 for failures: `status: 'failed'` with a populated
+ * `error`, or `status: 'incomplete'` with an `incomplete_details.reason`. Reading only
+ * `output` therefore reports a failed generation as a success with empty content and
+ * billed tokens, while the trace independently records `finishReason: 'error'` — so the
+ * block and its own span contradict each other. `@ai-sdk/openai` throws on the same
+ * condition rather than returning empty content.
+ *
+ * The tolerated case is copied from `streamResponsesTurn` and must keep matching it: an
+ * `incomplete` response is accepted only when it was truncated by `max_output_tokens`
+ * AND carries no function call. Truncated prose is still a usable partial answer, but a
+ * truncated `function_call` holds half-written JSON — executing it makes
+ * `parseToolArguments` throw, surfacing a confusing tool failure rather than the
+ * truncation that actually happened.
+ *
+ * A status the API did not send is not asserted against: this path is shared with Azure
+ * OpenAI and OpenAI-compatible gateways, and inventing a failure for an absent field
+ * would break healthy responses instead of reporting broken ones.
+ */
+function assertUsableResponse(response: OpenAI.Responses.Response, providerLabel: string): void {
+  if (response.error) {
+    const code = response.error.code ? ` (${response.error.code})` : ''
+    throw new Error(`${providerLabel} generation failed${code}: ${response.error.message}`)
+  }
+
+  if (response.status === 'failed') {
+    throw new Error(
+      `${providerLabel} generation failed, and the API returned no error detail explaining why.`
+    )
+  }
+
+  if (response.status === 'incomplete') {
+    const reason = response.incomplete_details?.reason ?? 'unknown'
+    if (responseContainsFunctionCall(response)) {
+      throw new Error(
+        `${providerLabel} generation stopped before completion (${reason}), truncating a tool call mid-argument. Raise the max output tokens or reduce the tool schema size.`
+      )
+    }
+    if (!isMaxOutputTokensIncompleteResponse(response)) {
+      throw new Error(`${providerLabel} generation stopped before completion: ${reason}.`)
+    }
+    return
+  }
+
+  if (response.status && response.status !== 'completed') {
+    throw new Error(
+      `${providerLabel} returned a response with status "${response.status}", which carries no finished generation.`
+    )
+  }
+}
 
 type PreparedTools = ReturnType<typeof prepareToolsWithUsageControl>
 type ToolChoice = PreparedTools['toolChoice']
@@ -85,6 +141,13 @@ export async function executeResponsesProviderRequest(
 
   logger.info(`Preparing ${config.providerLabel} request`, {
     model: request.model,
+    /**
+     * Without these a provider call cannot be tied back to the execution that issued
+     * it, which leaves a stalled request indistinguishable from one never made.
+     */
+    workflowId: request.workflowId,
+    blockId: request.blockId,
+    executionId: request.executionId,
     hasSystemPrompt: !!request.systemPrompt,
     hasMessages: !!request.messages?.length,
     hasTools: !!request.tools?.length,
@@ -237,14 +300,20 @@ export async function executeResponsesProviderRequest(
     ...overrides,
   })
 
+  /**
+   * A non-JSON body here is usually a gateway or CDN error page, and this string reaches
+   * the user-facing block error and the trace span — so it is bounded rather than pasted
+   * in whole, and falls back to `statusText` when the body carries nothing useful.
+   * `@ai-sdk/provider-utils` likewise falls back to `statusText` and keeps the raw body
+   * on a separate field rather than in the message.
+   */
   const parseErrorResponse = async (response: Response): Promise<string> => {
-    const text = await response.text()
+    const text = await response.text().catch(() => '')
     try {
       const payload = JSON.parse(text)
-      return payload?.error?.message || text
-    } catch {
-      return text
-    }
+      if (payload?.error?.message) return payload.error.message
+    } catch {}
+    return truncate(text.trim(), 500) || response.statusText || `HTTP ${response.status}`
   }
 
   /**
@@ -313,11 +382,97 @@ export async function executeResponsesProviderRequest(
     return retryResponse
   }
 
+  /**
+   * Names the request phase an opaque transport failure died in.
+   *
+   * A stalled model call surfaces only the runtime's own message — under Bun, a
+   * `TimeoutError: The operation timed out.` from its socket deadline — which cannot
+   * distinguish "still generating, never answered" from "answered, but the body never
+   * arrived". Those have opposite owners and opposite fixes. undici draws the same line
+   * as two distinct error types (`UND_ERR_HEADERS_TIMEOUT` vs `UND_ERR_BODY_TIMEOUT`);
+   * this records the equivalent for a runtime that reports neither.
+   *
+   * The phase rides the error message because that reaches the block's trace span, and
+   * the trace survives even when a task has stopped shipping logs. `x-request-id` is
+   * carried for the same reason the OpenAI SDK captures it: it is the only handle the
+   * provider can trace a call by, and it is unavailable once the call has failed.
+   *
+   * Errors that already describe themselves — an API error carrying a status and a
+   * provider message — are left untouched; only `TimeoutError`/`AbortError`, which name
+   * nothing, are annotated.
+   */
+  const annotateTransportFailure = (
+    error: unknown,
+    phase: 'awaiting-response-headers' | 'reading-response-body',
+    startedAt: number,
+    detail?: Record<string, string | number | null>
+  ): unknown => {
+    if (!(error instanceof Error)) return error
+    if (error.name !== 'TimeoutError' && error.name !== 'AbortError') return error
+
+    const elapsedMs = Date.now() - startedAt
+    const fields = Object.entries(detail ?? {})
+      .filter(([, value]) => value !== null && value !== undefined)
+      .map(([key, value]) => `${key}=${value}`)
+    const context = [`phase=${phase}`, `elapsedMs=${elapsedMs}`, ...fields].join(' ')
+
+    logger.error(`${config.providerLabel} request failed in transport`, {
+      phase,
+      elapsedMs,
+      errorName: error.name,
+      model: config.modelName,
+      workflowId: request.workflowId,
+      blockId: request.blockId,
+      executionId: request.executionId,
+      ...detail,
+    })
+
+    /**
+     * A new Error rather than a mutation: the runtime raises these as `DOMException`,
+     * whose `message` is a readonly getter, so assigning to it throws a `TypeError` and
+     * destroys the very failure being reported. `name` is copied and the original hangs
+     * off `cause` so the classification survives the `ProviderError` wrapping below,
+     * which overwrites `name`.
+     */
+    const annotated = new Error(`${error.message} [${context}]`, { cause: error })
+    annotated.name = error.name
+    return annotated
+  }
+
   const postResponses = async (
     body: Record<string, unknown>
   ): Promise<OpenAI.Responses.Response> => {
-    const response = await fetchResponsesWithSummaryFallback(body)
-    return response.json()
+    const startedAt = Date.now()
+
+    let response: Response
+    try {
+      response = await fetchResponsesWithSummaryFallback(body)
+    } catch (error) {
+      throw annotateTransportFailure(error, 'awaiting-response-headers', startedAt)
+    }
+
+    const responseMeta = {
+      status: response.status,
+      ttfbMs: Date.now() - startedAt,
+      requestId: response.headers.get('x-request-id'),
+      contentLength: response.headers.get('content-length'),
+      contentEncoding: response.headers.get('content-encoding'),
+    }
+
+    let parsed: OpenAI.Responses.Response
+    try {
+      parsed = await response.json()
+    } catch (error) {
+      throw annotateTransportFailure(error, 'reading-response-body', startedAt, responseMeta)
+    }
+
+    /**
+     * Asserted here rather than at the call sites so the first turn and every tool-loop
+     * continuation are covered by construction, and outside the transport `try` so a
+     * rejected generation is never mistaken for a transport failure.
+     */
+    assertUsableResponse(parsed, config.providerLabel)
+    return parsed
   }
 
   const providerStartTime = Date.now()
@@ -722,10 +877,14 @@ export async function executeResponsesProviderRequest(
       throw error
     }
 
-    throw new ProviderError(toError(error).message, {
-      startTime: providerStartTimeISO,
-      endTime: providerEndTimeISO,
-      duration: totalDuration,
-    })
+    throw new ProviderError(
+      toError(error).message,
+      {
+        startTime: providerStartTimeISO,
+        endTime: providerEndTimeISO,
+        duration: totalDuration,
+      },
+      { cause: error }
+    )
   }
 }

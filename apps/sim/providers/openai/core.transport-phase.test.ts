@@ -1,0 +1,150 @@
+/**
+ * @vitest-environment node
+ *
+ * A stalled model call surfaces only the runtime's own `TimeoutError: The operation
+ * timed out.`, which cannot distinguish "still generating, never answered" from
+ * "answered, but the body never arrived" — opposite owners, opposite fixes. These
+ * cover the phase annotation that makes the distinction readable from the execution
+ * trace, which survives even when a task has stopped shipping logs.
+ */
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { executeResponsesProviderRequest } from '@/providers/openai/core'
+import type { ProviderRequest } from '@/providers/types'
+
+vi.mock('@/providers', () => ({ MAX_TOOL_ITERATIONS: 5 }))
+
+vi.mock('@/providers/utils', () => ({
+  isFunctionToolCall: () => false,
+  calculateCost: () => ({ input: 0, output: 0, total: 0 }),
+  sumToolCosts: () => 0,
+  enforceStrictSchema: (schema: unknown) => schema,
+  prepareToolExecution: () => ({ toolParams: {}, executionParams: {} }),
+  prepareToolsWithUsageControl: (tools: unknown[]) => ({
+    tools,
+    toolChoice: undefined,
+    forcedTools: [],
+    hasFilteredTools: false,
+  }),
+  trackForcedToolUsage: () => ({ hasUsedForcedTool: false, usedForcedTools: [] }),
+  supportsReasoningEffort: () => false,
+}))
+
+vi.mock('@/tools', () => ({ executeTool: vi.fn() }))
+
+/**
+ * Exactly what the runtime raises when a fetch deadline fires: a `DOMException`, NOT a
+ * plain `Error`. The distinction is load-bearing — `DOMException.message` is a readonly
+ * getter, so annotating by assignment throws a `TypeError` and replaces the real
+ * failure. Building a plain `Error` here would let that regression pass.
+ */
+function timeoutError() {
+  return new DOMException('The operation timed out.', 'TimeoutError')
+}
+
+const COMPLETED = {
+  id: 'resp_1',
+  status: 'completed',
+  output: [{ type: 'message', role: 'assistant', content: [{ type: 'output_text', text: 'ok' }] }],
+  usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+}
+
+describe('OpenAI transport phase annotation', () => {
+  const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } as never
+
+  beforeEach(() => vi.clearAllMocks())
+
+  function run(fetchMock: unknown, request: Partial<ProviderRequest> = {}) {
+    return executeResponsesProviderRequest(
+      { apiKey: 'k', model: 'gpt-5.5', messages: [{ role: 'user', content: 'hi' }], ...request },
+      {
+        providerId: 'openai',
+        providerLabel: 'OpenAI',
+        modelName: 'gpt-5.5',
+        endpoint: 'https://api.openai.com/v1/responses',
+        headers: { Authorization: 'Bearer k' },
+        logger,
+        fetch: fetchMock as typeof fetch,
+      }
+    )
+  }
+
+  /**
+   * The production case: `/v1/responses` withholds its 200 until generation finishes, so
+   * a runaway generation is still in the headers phase when the client gives up.
+   */
+  it('names the header phase when the request was never answered', async () => {
+    const error = await run(vi.fn().mockRejectedValue(timeoutError())).catch((e) => e)
+
+    expect(error.message).toContain('phase=awaiting-response-headers')
+    expect(error.message).toMatch(/elapsedMs=\d+/)
+    // No response existed, so no response metadata may be claimed.
+    expect(error.message).not.toContain('status=')
+  })
+
+  it('names the body phase when headers arrived but the body did not', async () => {
+    const stalled = {
+      ok: true,
+      status: 200,
+      headers: new Headers({ 'content-length': '32116', 'content-encoding': 'br' }),
+      json: () => Promise.reject(timeoutError()),
+    }
+
+    const error = await run(vi.fn().mockResolvedValue(stalled)).catch((e) => e)
+
+    expect(error.message).toContain('phase=reading-response-body')
+    expect(error.message).toContain('status=200')
+    expect(error.message).toContain('contentLength=32116')
+    expect(error.message).toContain('contentEncoding=br')
+    expect(error.message).toMatch(/ttfbMs=\d+/)
+  })
+
+  /** The only identifier the provider can trace a failed call by. */
+  it('carries the x-request-id of a failed response', async () => {
+    const stalled = {
+      ok: true,
+      status: 200,
+      headers: new Headers({ 'x-request-id': 'req_abc123' }),
+      json: () => Promise.reject(timeoutError()),
+    }
+
+    const error = await run(vi.fn().mockResolvedValue(stalled)).catch((e) => e)
+    expect(error.message).toContain('requestId=req_abc123')
+  })
+
+  it('leaves a self-describing API error untouched', async () => {
+    const apiError = {
+      ok: false,
+      status: 429,
+      headers: new Headers(),
+      text: () => Promise.resolve(JSON.stringify({ error: { message: 'Rate limit reached' } })),
+    }
+
+    const error = await run(vi.fn().mockResolvedValue(apiError)).catch((e) => e)
+    expect(error.message).toContain('Rate limit reached')
+    expect(error.message).not.toContain('phase=')
+  })
+
+  it('bounds a non-JSON error body instead of pasting a gateway page into the error', async () => {
+    const htmlError = {
+      ok: false,
+      status: 502,
+      headers: new Headers(),
+      text: () => Promise.resolve(`<html><body>${'x'.repeat(5000)}</body></html>`),
+    }
+
+    const error = await run(vi.fn().mockResolvedValue(htmlError)).catch((e) => e)
+    expect(error.message.length).toBeLessThan(700)
+  })
+
+  it('leaves a healthy response entirely unaffected', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers(),
+      json: () => Promise.resolve(COMPLETED),
+    })
+
+    await expect(run(fetchMock)).resolves.toMatchObject({ content: 'ok' })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+})

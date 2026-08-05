@@ -979,6 +979,49 @@ describe('AgentBlockHandler', () => {
       )
     })
 
+    /**
+     * A stalled model call reaches here as the runtime's own `TimeoutError`, whose bare
+     * message ("The operation timed out.") names nothing. It must become a Sim-level
+     * message WITHOUT discarding the phase detail the provider attached — that detail is
+     * the only thing distinguishing "never answered" from "body never completed".
+     */
+    it('maps a provider TimeoutError to a Sim message while keeping the phase detail', async () => {
+      const inputs = { model: 'gpt-4o', userPrompt: 'hi', apiKey: 'test-api-key' }
+      mockGetProviderFromModel.mockReturnValue('openai')
+
+      // Faithful to production: providers rewrap the transport failure in a
+      // ProviderError, which overwrites `name` — so only the cause still classifies it.
+      const transport = new Error(
+        'The operation timed out. [phase=reading-response-body elapsedMs=60001 status=200 contentLength=32116]'
+      )
+      transport.name = 'TimeoutError'
+      const wrapped = new Error(transport.message, { cause: transport })
+      wrapped.name = 'ProviderError'
+      mockExecuteProviderRequest.mockRejectedValueOnce(wrapped)
+
+      const error = await handler.execute(mockContext, mockBlock, inputs).catch((e) => e)
+
+      expect(error.message).toContain('Provider request timed out')
+      expect(error.message).toContain('phase=reading-response-body')
+      expect(error.message).toContain('status=200')
+    })
+
+    it('maps a provider AbortError the same way', async () => {
+      const inputs = { model: 'gpt-4o', userPrompt: 'hi', apiKey: 'test-api-key' }
+      mockGetProviderFromModel.mockReturnValue('openai')
+
+      const aborted = new Error('aborted [phase=awaiting-response-headers elapsedMs=12]')
+      aborted.name = 'AbortError'
+      const wrapped = new Error(aborted.message, { cause: aborted })
+      wrapped.name = 'ProviderError'
+      mockExecuteProviderRequest.mockRejectedValueOnce(wrapped)
+
+      const error = await handler.execute(mockContext, mockBlock, inputs).catch((e) => e)
+
+      expect(error.message).toContain('Provider request timed out')
+      expect(error.message).toContain('phase=awaiting-response-headers')
+    })
+
     it('should handle streaming responses with text/event-stream content type', async () => {
       const mockStreamBody = new ReadableStream({
         start(controller) {
