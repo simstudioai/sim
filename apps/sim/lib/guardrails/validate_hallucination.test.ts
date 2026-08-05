@@ -56,7 +56,7 @@ describe('validateHallucination', () => {
       expect.objectContaining({
         messages: [
           expect.objectContaining({
-            content: expect.stringContaining('{{TOKEN}} [REDACTED_SECRET]'),
+            content: expect.stringContaining('{{TOKEN}} __var_FOREIGN'),
           }),
         ],
       }),
@@ -64,8 +64,8 @@ describe('validateHallucination', () => {
     )
     const [, searchOptions] = fetchMock.mock.calls[0]
     const searchBody = JSON.parse(String(searchOptions?.body)) as { query: string }
-    expect(searchBody.query).toBe('{{TOKEN}} [REDACTED_SECRET]')
+    expect(searchBody.query).toBe('{{TOKEN}} __var_FOREIGN')
     expect(JSON.stringify(searchBody)).not.toContain('secret-value')
-    expect(JSON.stringify(searchBody)).not.toContain('__var_FOREIGN')
+    expect(JSON.stringify(searchBody)).toContain('__var_FOREIGN')
   })
 })

@@ -70,12 +70,12 @@ describe('projectToolResultForCopilot', () => {
         result: '[REDACTED_SECRET]',
         embedded: 'Bearer [REDACTED_SECRET]',
         legacy: '[REDACTED_SECRET]',
-        compiler: '[RUNTIME_BINDING]',
+        compiler: '__sim_code_0_binding_0',
       },
     })
     expect(JSON.stringify(projected)).not.toContain('Test')
     expect(JSON.stringify(projected)).not.toContain('__var_')
-    expect(JSON.stringify(projected)).not.toContain('__sim_code_')
+    expect(JSON.stringify(projected)).toContain('__sim_code_0_binding_0')
     expect(runtimeResult.output.result).toBe('Test')
   })
 
@@ -223,7 +223,7 @@ describe('projectToolResultForCopilot', () => {
     })
   })
 
-  it('removes internal runtime identifiers even when the registry has no secret literals', () => {
+  it('preserves foreign internal-looking tool output when the registry has no matching alias', () => {
     const registry = new ResolvedSecretTraceRegistry()
 
     expect(
@@ -235,6 +235,7 @@ describe('projectToolResultForCopilot', () => {
             binding: '__sim_code_12_binding_3',
             marker: '__sim_code_12_binding_3_marker_a__',
             runtime: '__sim_runtime_payload_4',
+            opaquePlaceholder: '{{[REDACTED_SECRET]}}',
           },
         },
         registry
@@ -242,10 +243,11 @@ describe('projectToolResultForCopilot', () => {
     ).toEqual({
       success: true,
       output: {
-        legacy: '[REDACTED_SECRET]',
-        binding: '[RUNTIME_BINDING]',
-        marker: '[RUNTIME_BINDING]',
-        runtime: '[RUNTIME_BINDING]',
+        legacy: '__var_FOREIGN_KEY',
+        binding: '__sim_code_12_binding_3',
+        marker: '__sim_code_12_binding_3_marker_a__',
+        runtime: '__sim_runtime_payload_4',
+        opaquePlaceholder: '{{[REDACTED_SECRET]}}',
       },
     })
   })

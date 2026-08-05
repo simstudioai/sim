@@ -1510,7 +1510,9 @@ export async function enforceTraceSpanSecretInvariant(
   try {
     if (!options.registry?.isComplete()) return structuralOnlyTraceSpans(traceSpans)
 
-    const matcher = createResolvedSecretMatcher(options.registry.getActiveMatches())
+    const matcher = createResolvedSecretMatcher(options.registry.getActiveMatches(), {
+      preserveNamedProvenanceLabels: true,
+    })
     if (!matcher) return traceSpans
 
     await assertPostTransformTraceSpansAreSafe(traceSpans, matcher, options.store)
@@ -1534,7 +1536,9 @@ export async function projectTraceSpansForSecrets(
   }
 
   try {
-    const matcher = createResolvedSecretMatcher(options.registry.getActiveMatches())
+    const matcher = createResolvedSecretMatcher(options.registry.getActiveMatches(), {
+      preserveNamedProvenanceLabels: true,
+    })
     if (!matcher) return cloneTraceSpansForProjection(traceSpans)
 
     const context = createProjectionContext(

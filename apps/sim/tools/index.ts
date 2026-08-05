@@ -55,7 +55,7 @@ import { isCustomTool, isMcpTool } from '@/executor/constants'
 import { resolveSkillContent } from '@/executor/handlers/agent/skills-resolver'
 import type { ExecutionContext, UserFile } from '@/executor/types'
 import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
-import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
+import { projectResolvedSecretDiagnosticContent } from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { ErrorInfo } from '@/tools/error-extractors'
 import { extractErrorMessage } from '@/tools/error-extractors'
@@ -83,7 +83,7 @@ function projectToolLogMetadata(
     return structuralOnlyWithoutRegistry ? { ...structuralFallback, redacted: true } : metadata
   }
 
-  const projection = projectResolvedSecretModelContent(metadata, registry)
+  const projection = projectResolvedSecretDiagnosticContent(metadata, registry)
   return projection.safe && isPlainRecord(projection.value)
     ? projection.value
     : { ...structuralFallback, redacted: true }

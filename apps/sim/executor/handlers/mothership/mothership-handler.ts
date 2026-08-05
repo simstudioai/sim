@@ -1,10 +1,15 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { isPlainRecord } from '@sim/utils/object'
 import {
   BILLING_ATTRIBUTION_HEADER,
   serializeBillingAttributionHeader,
 } from '@/lib/billing/core/billing-attribution'
+import {
+  collectModelVisibleSchemaContent,
+  restoreModelVisibleSchemaValues,
+} from '@/lib/copilot/model-visible-schema'
 import { normalizeSecretMountPolicy } from '@/lib/copilot/secret-mount-policy'
 import { env } from '@/lib/core/config/env'
 import { isExecutionCancelled, isRedisCancellationEnabled } from '@/lib/execution/cancellation'
@@ -32,7 +37,10 @@ import type {
   StreamingExecution,
 } from '@/executor/types'
 import { buildAPIUrl, buildAuthHeaders, extractAPIErrorMessage } from '@/executor/utils/http'
-import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
+import {
+  isResolvedSecretModelContentUnchanged,
+  projectResolvedSecretModelContent,
+} from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { SerializedBlock } from '@/serializer/types'
 
@@ -44,6 +52,24 @@ const MOTHERSHIP_EXECUTE_STREAM_VALUE = 'ndjson'
 
 type MothershipFileAttachment = MessageContent & {
   filename?: string
+}
+
+interface MothershipMcpToolSelection {
+  type: 'mcp'
+  title?: string
+  usageControl?: 'auto' | 'force'
+  schema?: Record<string, unknown>
+  params: {
+    serverId: string
+    toolName: string
+    serverName?: string
+  }
+}
+
+interface MothershipSkillContext {
+  kind: 'skill'
+  skillId: string
+  label: string
 }
 
 type MothershipExecuteResult = {
@@ -72,6 +98,160 @@ function projectMothershipPrompt(
     throw new Error('Mothership input could not be safely projected')
   }
   return projection.value
+}
+
+/**
+ * Projects attachment display names while preserving the explicitly attached file payload.
+ * This matches the provider boundary, where opaque file bytes are model input rather than text
+ * metadata and must remain byte-identical.
+ */
+function projectMothershipFileAttachmentNames(
+  attachments: MothershipFileAttachment[] | undefined,
+  registry: ResolvedSecretTraceRegistry | undefined
+): MothershipFileAttachment[] | undefined {
+  if (!attachments) return undefined
+
+  const projection = projectResolvedSecretModelContent(
+    attachments.map((attachment) => attachment.filename),
+    registry
+  )
+  if (!projection.safe) {
+    throw new Error('Mothership attachment names could not be safely projected')
+  }
+  const projectedFilenames = projection.value
+  if (!Array.isArray(projectedFilenames) || projectedFilenames.length !== attachments.length) {
+    throw new Error('Mothership attachment names could not be safely projected')
+  }
+
+  return attachments.map((attachment, index) => {
+    const filename = projectedFilenames[index]
+    if (attachment.filename === undefined) {
+      if (filename !== undefined) {
+        throw new Error('Mothership attachment names could not be safely projected')
+      }
+      return attachment
+    }
+    if (typeof filename !== 'string') {
+      throw new Error('Mothership attachment names could not be safely projected')
+    }
+    return { ...attachment, filename }
+  })
+}
+
+function projectMothershipMcpTools(
+  tools: unknown,
+  registry: ResolvedSecretTraceRegistry | undefined
+): MothershipMcpToolSelection[] {
+  if (!Array.isArray(tools)) return []
+
+  return tools.flatMap((candidate) => {
+    if (!isPlainRecord(candidate) || candidate.type !== 'mcp') return []
+    if (candidate.usageControl === 'none' || !isPlainRecord(candidate.params)) return []
+
+    const { serverId, toolName } = candidate.params
+    if (
+      typeof serverId !== 'string' ||
+      !serverId ||
+      typeof toolName !== 'string' ||
+      !toolName ||
+      !isResolvedSecretModelContentUnchanged([serverId, toolName], registry)
+    ) {
+      return []
+    }
+
+    const title = typeof candidate.title === 'string' ? candidate.title : undefined
+    const serverName =
+      typeof candidate.params.serverName === 'string' ? candidate.params.serverName : undefined
+    const schema = isPlainRecord(candidate.schema) ? candidate.schema : undefined
+    const schemaContent = schema
+      ? collectModelVisibleSchemaContent(schema)
+      : { projectedValues: [], guardedValues: [] }
+    if (!isResolvedSecretModelContentUnchanged(schemaContent.guardedValues, registry)) return []
+
+    const projection = projectResolvedSecretModelContent(
+      [title, serverName, schemaContent.projectedValues],
+      registry
+    )
+    if (!projection.safe || !Array.isArray(projection.value) || projection.value.length !== 3) {
+      throw new Error('Mothership MCP tool metadata could not be safely projected')
+    }
+    const [projectedTitle, projectedServerName, projectedSchemaValues] = projection.value
+    if (title === undefined && projectedTitle !== undefined) {
+      throw new Error('Mothership MCP tool metadata could not be safely projected')
+    }
+    if (title !== undefined && typeof projectedTitle !== 'string') {
+      throw new Error('Mothership MCP tool metadata could not be safely projected')
+    }
+    if (serverName === undefined && projectedServerName !== undefined) {
+      throw new Error('Mothership MCP tool metadata could not be safely projected')
+    }
+    if (serverName !== undefined && typeof projectedServerName !== 'string') {
+      throw new Error('Mothership MCP tool metadata could not be safely projected')
+    }
+
+    const projectedSchema = schema
+      ? restoreModelVisibleSchemaValues(schema, projectedSchemaValues)
+      : undefined
+    if (projectedSchema !== undefined && !isPlainRecord(projectedSchema)) {
+      throw new Error('Mothership MCP tool metadata could not be safely projected')
+    }
+
+    const usageControl =
+      candidate.usageControl === 'auto' || candidate.usageControl === 'force'
+        ? candidate.usageControl
+        : undefined
+    const selection: MothershipMcpToolSelection = {
+      type: 'mcp',
+      ...(projectedTitle !== undefined ? { title: projectedTitle } : {}),
+      ...(usageControl ? { usageControl } : {}),
+      ...(projectedSchema ? { schema: projectedSchema } : {}),
+      params: {
+        serverId,
+        toolName,
+        ...(projectedServerName !== undefined ? { serverName: projectedServerName } : {}),
+      },
+    }
+    return [selection]
+  })
+}
+
+function projectMothershipSkillContexts(
+  skills: unknown,
+  registry: ResolvedSecretTraceRegistry | undefined
+): MothershipSkillContext[] {
+  if (!Array.isArray(skills)) return []
+
+  const selected = skills.flatMap((candidate) => {
+    if (!isPlainRecord(candidate) || typeof candidate.skillId !== 'string' || !candidate.skillId) {
+      return []
+    }
+    if (!isResolvedSecretModelContentUnchanged(candidate.skillId, registry)) return []
+    return [
+      {
+        skillId: candidate.skillId,
+        label: typeof candidate.name === 'string' ? candidate.name : candidate.skillId,
+      },
+    ]
+  })
+  const projection = projectResolvedSecretModelContent(
+    selected.map((skill) => skill.label),
+    registry
+  )
+  if (!projection.safe) {
+    throw new Error('Mothership skill metadata could not be safely projected')
+  }
+  const projectedLabels = projection.value
+  if (!Array.isArray(projectedLabels) || projectedLabels.length !== selected.length) {
+    throw new Error('Mothership skill metadata could not be safely projected')
+  }
+
+  return selected.map((skill, index) => {
+    const label = projectedLabels[index]
+    if (typeof label !== 'string') {
+      throw new Error('Mothership skill metadata could not be safely projected')
+    }
+    return { kind: 'skill', skillId: skill.skillId, label }
+  })
 }
 
 async function consumeMothershipProvenance(
@@ -454,29 +634,15 @@ export class MothershipBlockHandler implements BlockHandler {
       secretScope: inputs.secretScope,
       mountedSecrets: inputs.mountedSecrets,
     })
-    const fileAttachments = await buildMothershipFileAttachments(inputs.files, ctx, requestId)
-    const mcpTools = Array.isArray(inputs.tools)
-      ? inputs.tools.filter(
-          (tool: Record<string, unknown>) =>
-            tool.type === 'mcp' &&
-            tool.usageControl !== 'none' &&
-            typeof (tool.params as Record<string, unknown> | undefined)?.serverId === 'string' &&
-            typeof (tool.params as Record<string, unknown> | undefined)?.toolName === 'string'
-        )
-      : []
-    const skillContexts = Array.isArray(inputs.skills)
-      ? inputs.skills.flatMap((skill: Record<string, unknown>) =>
-          typeof skill.skillId === 'string' && skill.skillId
-            ? [
-                {
-                  kind: 'skill',
-                  skillId: skill.skillId,
-                  label: typeof skill.name === 'string' ? skill.name : skill.skillId,
-                },
-              ]
-            : []
-        )
-      : []
+    const fileAttachments = projectMothershipFileAttachmentNames(
+      await buildMothershipFileAttachments(inputs.files, ctx, requestId),
+      ctx.resolvedSecretTraceRegistry
+    )
+    const mcpTools = projectMothershipMcpTools(inputs.tools, ctx.resolvedSecretTraceRegistry)
+    const skillContexts = projectMothershipSkillContexts(
+      inputs.skills,
+      ctx.resolvedSecretTraceRegistry
+    )
 
     const url = buildAPIUrl('/api/mothership/execute')
     const headers = await buildAuthHeaders(ctx.userId)

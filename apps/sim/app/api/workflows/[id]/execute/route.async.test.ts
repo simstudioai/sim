@@ -468,6 +468,44 @@ describe('workflow execute async route', () => {
     expect(body).toContain('execution:completed')
   })
 
+  it('executes a selected trigger as a fresh authenticated draft run', async () => {
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        {
+          stream: true,
+          input: { message: 'hello' },
+          startBlockId: 'start',
+          triggerType: 'manual',
+          useDraftState: true,
+          isClientSession: true,
+        },
+        {
+          'Content-Type': 'application/json',
+          Cookie: 'session=value',
+        }
+      ),
+      { params: Promise.resolve({ id: 'workflow-1' }) }
+    )
+    await response.text()
+
+    expect(response.status).toBe(200)
+    expect(mockAuthorizeWorkflowByWorkspacePermission).toHaveBeenCalledWith({
+      workflowId: 'workflow-1',
+      userId: 'session-user-1',
+      action: 'write',
+    })
+    const executionArgs = mockExecuteWorkflowCore.mock.calls[0][0]
+    expect(executionArgs.runFromBlock).toBeUndefined()
+    expect(executionArgs.snapshot.metadata).toMatchObject({
+      triggerType: 'manual',
+      triggerBlockId: 'start',
+      useDraftState: true,
+      isClientSession: true,
+      sessionUserId: 'session-user-1',
+    })
+  })
+
   /**
    * A terminal event the replay buffer rejected leaves the stream meta on
    * `active`, so a reconnecting reader polls until its deadline and then errors.
@@ -1529,10 +1567,31 @@ describe('workflow execute async route', () => {
         executionData: { executionState: sourceState },
       },
     ])
+    const workflowStateOverride = {
+      blocks: {
+        'start-block': {
+          id: 'start-block',
+          type: 'function',
+          name: 'Function 1',
+          position: { x: 0, y: 0 },
+          subBlocks: {
+            code: { id: 'code', type: 'code', value: 'return "current editor state"' },
+          },
+          outputs: {},
+          enabled: true,
+        },
+      },
+      edges: [],
+      loops: {},
+      parallels: {},
+    }
     const request = createMockRequest(
       'POST',
       {
         input: { hello: 'world' },
+        useDraftState: true,
+        isClientSession: true,
+        workflowStateOverride,
         runFromBlock: {
           startBlockId: 'start-block',
           executionId: 'source-execution',
@@ -1547,6 +1606,7 @@ describe('workflow execute async route', () => {
     const response = await POST(request, { params: Promise.resolve({ id: 'workflow-1' }) })
 
     expect(response.status).toBe(200)
+    const executionArgs = mockExecuteWorkflowCore.mock.calls[0]?.[0]
     expect(mockExecuteWorkflowCore).toHaveBeenCalledWith(
       expect.objectContaining({
         runFromBlock: {
@@ -1556,6 +1616,12 @@ describe('workflow execute async route', () => {
         },
       })
     )
+    expect(executionArgs?.snapshot.metadata).toMatchObject({
+      useDraftState: true,
+      isClientSession: true,
+      sessionUserId: 'session-user-1',
+      workflowStateOverride,
+    })
   })
 
   it('falls back to an untrusted client snapshot while stored run-from-block state is pending', async () => {

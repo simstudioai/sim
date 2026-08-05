@@ -28,8 +28,12 @@ describe('model-visible schema classification', () => {
     expect(content.projectedValues).toEqual(['Visible title', 'Visible description'])
     expect(content.guardedValues).toEqual(
       expect.arrayContaining([
+        'type',
+        'properties',
         'object',
         'tokenField',
+        'title',
+        'description',
         'string',
         ['semantic-value'],
         'semantic-default',
@@ -89,6 +93,21 @@ describe('model-visible schema classification', () => {
   ])('guards a canonical semantic value when it equals the secret %s', (secret, schema) => {
     expect(collectModelVisibleSchemaContent(schema).guardedValues).toContain(
       secret === 'true' ? true : secret
+    )
+  })
+
+  it('guards arbitrary keys at the root and within child schemas', () => {
+    const schema = {
+      'root-semantic-key': true,
+      properties: {
+        field: {
+          'child-semantic-key': 'value',
+        },
+      },
+    }
+
+    expect(collectModelVisibleSchemaContent(schema).guardedValues).toEqual(
+      expect.arrayContaining(['root-semantic-key', 'child-semantic-key'])
     )
   })
 

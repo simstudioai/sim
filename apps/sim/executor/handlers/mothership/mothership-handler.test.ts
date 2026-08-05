@@ -313,7 +313,9 @@ describe('MothershipBlockHandler', () => {
     const body = String(options.body)
     expect(body).toContain('[REDACTED_SECRET]')
     expect(body).not.toContain('cross-workspace-secret')
-    expect(body).not.toContain('__var_FOREIGN')
+    expect(JSON.parse(body)).toMatchObject({
+      messages: [{ content: 'Use [REDACTED_SECRET] and __var_FOREIGN' }],
+    })
   })
 
   it('drops a legacy response without poisoning later provenance', async () => {
@@ -598,8 +600,14 @@ describe('MothershipBlockHandler', () => {
           type: 'mcp',
           title: 'Search',
           usageControl: 'auto',
-          params: { serverId: 'mcp-server-1', toolName: 'search', serverName: 'Docs' },
+          params: {
+            serverId: 'mcp-server-1',
+            toolName: 'search',
+            serverName: 'Docs',
+            ignored: 'not-forwarded',
+          },
           schema: { type: 'object', properties: { query: { type: 'string' } } },
+          ignored: 'not-forwarded',
         },
         {
           type: 'mcp',
@@ -614,12 +622,185 @@ describe('MothershipBlockHandler', () => {
     const [, options] = fetchMock.mock.calls[0] as [string, RequestInit]
     const body = JSON.parse(String(options.body))
     expect(body.mcpTools).toEqual([
-      expect.objectContaining({
+      {
         type: 'mcp',
-        params: expect.objectContaining({ serverId: 'mcp-server-1', toolName: 'search' }),
-      }),
+        title: 'Search',
+        usageControl: 'auto',
+        schema: { type: 'object', properties: { query: { type: 'string' } } },
+        params: {
+          serverId: 'mcp-server-1',
+          toolName: 'search',
+          serverName: 'Docs',
+        },
+      },
     ])
     expect(body.contexts).toEqual([{ kind: 'skill', skillId: 'skill-1', label: 'sales-playbook' }])
+  })
+
+  it('projects Mothership display metadata while preserving explicit attachment payloads and dropping extras', async () => {
+    const secret = 'boundary-secret'
+    const replacement = '{{API_KEY}}'
+    const registry = createTraceRegistryMock()
+    const matches = [{ plaintext: secret, replacement }]
+    registry.getModelEgressSnapshot.mockReturnValue({
+      complete: true,
+      matches,
+      matcher: createResolvedSecretMatcher(matches),
+    })
+    context.resolvedSecretTraceRegistry = registry
+    mockGenerateId
+      .mockReturnValueOnce('chat-uuid')
+      .mockReturnValueOnce('message-uuid')
+      .mockReturnValueOnce('request-uuid')
+    const attachmentData = Buffer.from(`file contains ${secret}`, 'utf8').toString('base64')
+    mockReadUserFileContent.mockResolvedValueOnce(attachmentData)
+    fetchMock.mockResolvedValue(createJsonResponse({ content: 'done', toolCalls: [] }))
+
+    await handler.execute(context, block, {
+      prompt: 'Use the selected context',
+      files: [
+        {
+          name: `report-${secret}.txt`,
+          key: 'workspace/workspace-1/report.txt',
+          size: 32,
+          type: 'text/plain',
+        },
+      ],
+      tools: [
+        {
+          type: 'mcp',
+          title: `Search ${secret}`,
+          usageControl: 'force',
+          params: {
+            serverId: 'mcp-server-1',
+            toolName: 'search',
+            serverName: `Docs ${secret}`,
+            credential: secret,
+          },
+          schema: {
+            type: 'object',
+            title: `Query ${secret}`,
+            description: `Search using ${secret}`,
+            properties: {
+              query: { type: 'string', description: `Find ${secret}` },
+            },
+          },
+          credential: secret,
+        },
+      ],
+      skills: [{ skillId: 'skill-1', name: `Playbook ${secret}`, credential: secret }],
+    })
+
+    const [, options] = fetchMock.mock.calls[0] as [string, RequestInit]
+    const body = JSON.parse(String(options.body))
+    expect(body.fileAttachments).toEqual([
+      {
+        type: 'document',
+        source: {
+          type: 'base64',
+          media_type: 'text/plain',
+          data: attachmentData,
+        },
+        filename: `report-${replacement}.txt`,
+      },
+    ])
+    expect(body.mcpTools).toEqual([
+      {
+        type: 'mcp',
+        title: `Search ${replacement}`,
+        usageControl: 'force',
+        schema: {
+          type: 'object',
+          title: `Query ${replacement}`,
+          description: `Search using ${replacement}`,
+          properties: {
+            query: { type: 'string', description: `Find ${replacement}` },
+          },
+        },
+        params: {
+          serverId: 'mcp-server-1',
+          toolName: 'search',
+          serverName: `Docs ${replacement}`,
+        },
+      },
+    ])
+    expect(body.contexts).toEqual([
+      { kind: 'skill', skillId: 'skill-1', label: `Playbook ${replacement}` },
+    ])
+    const attachmentMetadata = {
+      type: body.fileAttachments[0].type,
+      filename: body.fileAttachments[0].filename,
+    }
+    expect(
+      JSON.stringify({
+        messages: body.messages,
+        attachmentMetadata,
+        mcpTools: body.mcpTools,
+        contexts: body.contexts,
+      })
+    ).not.toContain(secret)
+  })
+
+  it('drops Mothership selections whose protocol identifiers or schema semantics contain secrets', async () => {
+    const secret = 'boundary-secret'
+    const registry = createTraceRegistryMock()
+    const matches = [{ plaintext: secret, replacement: '{{API_KEY}}' }]
+    registry.getModelEgressSnapshot.mockReturnValue({
+      complete: true,
+      matches,
+      matcher: createResolvedSecretMatcher(matches),
+    })
+    context.resolvedSecretTraceRegistry = registry
+    mockGenerateId
+      .mockReturnValueOnce('chat-uuid')
+      .mockReturnValueOnce('message-uuid')
+      .mockReturnValueOnce('request-uuid')
+    fetchMock.mockResolvedValue(createJsonResponse({ content: 'done', toolCalls: [] }))
+
+    await handler.execute(context, block, {
+      prompt: 'Use safe selections only',
+      tools: [
+        {
+          type: 'mcp',
+          params: { serverId: secret, toolName: 'search' },
+        },
+        {
+          type: 'mcp',
+          params: { serverId: 'mcp-server-1', toolName: `search-${secret}` },
+        },
+        {
+          type: 'mcp',
+          params: { serverId: 'mcp-server-1', toolName: 'semantic-secret' },
+          schema: { type: 'string', enum: [secret] },
+        },
+        {
+          type: 'mcp',
+          params: { serverId: 'mcp-server-1', toolName: 'semantic-key-secret' },
+          schema: { [secret]: true },
+        },
+        {
+          type: 'mcp',
+          title: 'Safe search',
+          params: { serverId: 'mcp-server-1', toolName: 'search' },
+        },
+      ],
+      skills: [
+        { skillId: secret, name: 'Unsafe' },
+        { skillId: 'skill-1', name: 'Safe skill' },
+      ],
+    })
+
+    const [, options] = fetchMock.mock.calls[0] as [string, RequestInit]
+    const body = JSON.parse(String(options.body))
+    expect(body.mcpTools).toEqual([
+      {
+        type: 'mcp',
+        title: 'Safe search',
+        params: { serverId: 'mcp-server-1', toolName: 'search' },
+      },
+    ])
+    expect(body.contexts).toEqual([{ kind: 'skill', skillId: 'skill-1', label: 'Safe skill' }])
+    expect(JSON.stringify(body)).not.toContain(secret)
   })
 
   it('consumes mothership execute heartbeat streams until the final result', async () => {

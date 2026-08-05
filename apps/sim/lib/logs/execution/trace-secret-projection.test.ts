@@ -89,7 +89,7 @@ describe('projectTraceSpansForSecrets', () => {
     })
   })
 
-  it('uses an opaque marker when an exact secret name and value overlap', async () => {
+  it('preserves named provenance when an exact secret name and value overlap', async () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'Test', plaintext: 'Test', encryptedValue: 'ciphertext' },
     ])
@@ -108,14 +108,12 @@ describe('projectTraceSpansForSecrets', () => {
       store: STORE,
     })
 
-    expect(projected.input).toEqual({ code: 'return [REDACTED_SECRET]' })
+    expect(projected.input).toEqual({ code: 'return {{Test}}' })
     expect(projected.output).toEqual({
-      result: '[REDACTED_SECRET]',
+      result: '{{Test}}',
       legacy: '[REDACTED_SECRET]',
       compiler: '[RUNTIME_BINDING]',
     })
-    expect(JSON.stringify(projected.input)).not.toContain('Test')
-    expect(JSON.stringify(projected.output)).not.toContain('Test')
     expect(JSON.stringify(projected)).not.toContain('__var_')
     expect(JSON.stringify(projected)).not.toContain('__sim_code_')
     expect(source.input).toEqual({ code: 'return {{Test}}' })
@@ -270,7 +268,7 @@ describe('projectTraceSpansForSecrets', () => {
     )
 
     expect(result[0].output).toEqual({
-      value: '{{LONG}} {{SHORT}} [REDACTED_SECRET]',
+      value: '{{LONG}} {{SHORT}} {{A_SECRET}}',
     })
   })
 

@@ -51,7 +51,10 @@ import type { BlockHandler, ExecutionContext, StreamingExecution } from '@/execu
 import { collectBlockData } from '@/executor/utils/block-data'
 import { buildAPIUrl, buildAuthHeaders } from '@/executor/utils/http'
 import { stringifyJSON } from '@/executor/utils/json'
-import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
+import {
+  projectResolvedSecretDiagnosticContent,
+  projectResolvedSecretModelContent,
+} from '@/executor/utils/resolved-secret-content-projection'
 import { resolveVertexCredential } from '@/executor/utils/vertex-credential'
 import { executeProviderRequest } from '@/providers'
 import {
@@ -78,7 +81,10 @@ function projectAgentDiagnosticMetadata(
   metadata: Record<string, unknown>,
   fallback: Record<string, unknown>
 ): Record<string, unknown> {
-  const projection = projectResolvedSecretModelContent(metadata, ctx.resolvedSecretTraceRegistry)
+  const projection = projectResolvedSecretDiagnosticContent(
+    metadata,
+    ctx.resolvedSecretTraceRegistry
+  )
   return projection.safe && isPlainRecord(projection.value) ? projection.value : fallback
 }
 

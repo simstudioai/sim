@@ -96,6 +96,7 @@ export function collectModelVisibleSchemaContent(schema: unknown): ModelVisibleS
     state.ancestors.add(candidate)
     try {
       for (const [key, value] of Object.entries(candidate)) {
+        guardedValues.push(key)
         const action = getModelVisibleSchemaAction(undefined, key, value)
         if (action === 'project') {
           projectedValues.push(value)

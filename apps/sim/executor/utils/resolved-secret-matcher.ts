@@ -26,6 +26,16 @@ export interface ResolvedSecretMatcher {
   root: SecretTrieNode
   maxPatternLength: number
   exactReplacements: ReadonlyMap<string, string>
+  protectedReplacementPlaintexts: ReadonlyMap<string, ReadonlySet<string>>
+  protectedReplacementMatcher?: ResolvedSecretMatcher
+}
+
+export interface CreateResolvedSecretMatcherOptions {
+  /**
+   * Preserves matcher-issued `{{NAME}}` labels for user-visible trace projection only.
+   * Never enable this for model, provider, Copilot, or other untrusted egress boundaries.
+   */
+  preserveNamedProvenanceLabels?: boolean
 }
 
 class ResolvedSecretMatcherError extends Error {
@@ -88,6 +98,7 @@ function createMatcherFromReplacements(
     exactReplacements: new Map(
       replacements.map(({ plaintext, replacement }) => [plaintext, replacement])
     ),
+    protectedReplacementPlaintexts: new Map<string, ReadonlySet<string>>(),
   }
 }
 
@@ -103,7 +114,115 @@ function advanceMatcher(
   return current.children.get(character) ?? matcher.root
 }
 
+function isNamedResolvedSecretReplacement(value: string): boolean {
+  const match = /^\{\{([^{}]+)\}\}$/.exec(value)
+  return match !== null && match[1].trim().length > 0
+}
+
+interface ProtectedReplacementSpan {
+  start: number
+  end: number
+  plaintexts: ReadonlySet<string>
+}
+
+function createProtectedReplacementMatcher(
+  protectedReplacementPlaintexts: ReadonlyMap<string, ReadonlySet<string>>
+): ResolvedSecretMatcher | undefined {
+  const replacements = [...protectedReplacementPlaintexts.keys()]
+  if (
+    replacements.length === 0 ||
+    getResolvedSecretMatcherCapacityFailure(replacements) !== undefined
+  ) {
+    return undefined
+  }
+  return createMatcherFromReplacements(
+    replacements.map((replacement) => ({ plaintext: replacement, replacement: '' }))
+  )
+}
+
+function* iterateProtectedReplacementSpans(
+  value: string,
+  matcher: ResolvedSecretMatcher
+): Generator<ProtectedReplacementSpan> {
+  const replacementMatcher = matcher.protectedReplacementMatcher
+  if (!replacementMatcher) return
+
+  let node = replacementMatcher.root
+  for (let index = 0; index < value.length; index += 1) {
+    node = advanceMatcher(replacementMatcher, node, value[index])
+    const outputNode = node.replacement ? node : node.outputLink
+    const replacement = outputNode?.replacement?.plaintext
+    if (!replacement) continue
+
+    const plaintexts = matcher.protectedReplacementPlaintexts.get(replacement)
+    if (!plaintexts) continue
+    yield {
+      start: index - replacement.length + 1,
+      end: index + 1,
+      plaintexts,
+    }
+  }
+}
+
+function isMatchInsideProtectedReplacement(
+  start: number,
+  end: number,
+  plaintext: string,
+  protectedStart: number,
+  protectedEnd: number,
+  protectedPlaintexts: ReadonlySet<string> | undefined
+): boolean {
+  return (
+    protectedStart >= 0 &&
+    start >= protectedStart &&
+    end <= protectedEnd &&
+    protectedPlaintexts?.has(plaintext) === true
+  )
+}
+
+/** Detects secret literals except those wholly contained by a matcher-issued named placeholder. */
 export function containsResolvedSecret(value: string, matcher: ResolvedSecretMatcher): boolean {
+  let node = matcher.root
+  const protectedSpans = iterateProtectedReplacementSpans(value, matcher)
+  let protectedSpan = protectedSpans.next().value
+  let matchEvents = 0
+  for (let index = 0; index < value.length; index += 1) {
+    while (protectedSpan && protectedSpan.end <= index) {
+      protectedSpan = protectedSpans.next().value
+    }
+
+    node = advanceMatcher(matcher, node, value[index])
+    let outputNode: SecretTrieNode | undefined = node.replacement ? node : node.outputLink
+    while (outputNode?.replacement) {
+      matchEvents += 1
+      if (matchEvents > MAX_MATCH_EVENTS) {
+        throw new ResolvedSecretMatcherError('Secret matcher event limit exceeded')
+      }
+      const end = index + 1
+      const start = end - outputNode.replacement.plaintext.length
+      if (
+        !isMatchInsideProtectedReplacement(
+          start,
+          end,
+          outputNode.replacement.plaintext,
+          protectedSpan?.start ?? -1,
+          protectedSpan?.end ?? -1,
+          protectedSpan?.plaintexts
+        )
+      ) {
+        return true
+      }
+      outputNode = outputNode.outputLink
+    }
+  }
+  return false
+}
+
+/** Detects every literal match, including matches inside matcher-issued named placeholders. */
+export function containsResolvedSecretLiteral(
+  value: string,
+  matcher: ResolvedSecretMatcher
+): boolean {
   let node = matcher.root
   for (let index = 0; index < value.length; index += 1) {
     node = advanceMatcher(matcher, node, value[index])
@@ -190,7 +309,13 @@ export function sanitizeResolvedSecretString(
   }
 
   let node = matcher.root
+  const protectedSpans = iterateProtectedReplacementSpans(value, matcher)
+  let protectedSpan = protectedSpans.next().value
   for (let index = 0; index < value.length; index += 1) {
+    while (protectedSpan && protectedSpan.end <= index) {
+      protectedSpan = protectedSpans.next().value
+    }
+
     node = advanceMatcher(matcher, node, value[index])
     let outputNode: SecretTrieNode | undefined = node.replacement ? node : node.outputLink
     while (outputNode?.replacement) {
@@ -200,9 +325,19 @@ export function sanitizeResolvedSecretString(
         throw new ResolvedSecretMatcherError('Secret matcher event limit exceeded')
       }
       const start = index - outputNode.replacement.plaintext.length + 1
-      if (start >= emitCursor) {
+      const end = index + 1
+      if (
+        !isMatchInsideProtectedReplacement(
+          start,
+          end,
+          outputNode.replacement.plaintext,
+          protectedSpan?.start ?? -1,
+          protectedSpan?.end ?? -1,
+          protectedSpan?.plaintexts
+        ) &&
+        start >= emitCursor
+      ) {
         const slot = start % windowSize
-        const end = index + 1
         if (slotStarts[slot] !== start || end > slotEnds[slot]) {
           slotStarts[slot] = start
           slotEnds[slot] = end
@@ -236,7 +371,8 @@ export function sanitizeResolvedSecretPrimitive(
 }
 
 export function createResolvedSecretMatcher(
-  matches: readonly ResolvedSecretMatch[]
+  matches: readonly ResolvedSecretMatch[],
+  options: CreateResolvedSecretMatcherOptions = {}
 ): ResolvedSecretMatcher | undefined {
   const replacementByPlaintext = new Map<string, string>()
 
@@ -275,7 +411,25 @@ export function createResolvedSecretMatcher(
   const detector = createMatcherFromReplacements(
     provisional.map(({ plaintext }) => ({ plaintext, replacement: '' }))
   )
+  const candidateProtectedReplacementPlaintexts = new Map<string, Set<string>>()
+  if (options.preserveNamedProvenanceLabels) {
+    for (const { plaintext, replacement } of provisional) {
+      if (!isNamedResolvedSecretReplacement(replacement) || !replacement.includes(plaintext)) {
+        continue
+      }
+      const plaintexts =
+        candidateProtectedReplacementPlaintexts.get(replacement) ?? new Set<string>()
+      plaintexts.add(plaintext)
+      candidateProtectedReplacementPlaintexts.set(replacement, plaintexts)
+    }
+  }
+  detector.protectedReplacementPlaintexts = candidateProtectedReplacementPlaintexts
+  detector.protectedReplacementMatcher = createProtectedReplacementMatcher(
+    candidateProtectedReplacementPlaintexts
+  )
+
   const exactReplacements = new Map<string, string>()
+  const protectedReplacementPlaintexts = new Map<string, ReadonlySet<string>>()
   for (const { plaintext, replacement } of provisional) {
     let node = detector.root
     for (const character of plaintext) {
@@ -283,11 +437,17 @@ export function createResolvedSecretMatcher(
       if (!child) throw new ResolvedSecretMatcherError('Secret matcher construction failed')
       node = child
     }
-    const safeReplacement = containsResolvedSecret(replacement, detector)
-      ? containsResolvedSecret(OPAQUE_RESOLVED_SECRET_REPLACEMENT, detector)
+    const namedReplacement = isNamedResolvedSecretReplacement(replacement)
+    const replacementContainsSecret = containsResolvedSecret(replacement, detector)
+    const safeReplacement = !replacementContainsSecret
+      ? replacement
+      : containsResolvedSecret(OPAQUE_RESOLVED_SECRET_REPLACEMENT, detector)
         ? ''
         : OPAQUE_RESOLVED_SECRET_REPLACEMENT
-      : replacement
+    if (namedReplacement && safeReplacement === replacement) {
+      const plaintexts = candidateProtectedReplacementPlaintexts.get(replacement)
+      if (plaintexts) protectedReplacementPlaintexts.set(replacement, plaintexts)
+    }
     node.replacement = {
       plaintext,
       replacement: safeReplacement,
@@ -295,5 +455,9 @@ export function createResolvedSecretMatcher(
     exactReplacements.set(plaintext, safeReplacement)
   }
   detector.exactReplacements = exactReplacements
+  detector.protectedReplacementPlaintexts = protectedReplacementPlaintexts
+  detector.protectedReplacementMatcher = createProtectedReplacementMatcher(
+    protectedReplacementPlaintexts
+  )
   return detector
 }

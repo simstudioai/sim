@@ -1,8 +1,9 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
+  isResolvedSecretModelContentUnchanged,
   projectResolvedSecretDiagnosticError,
   projectResolvedSecretModelContent,
   projectResolvedSecretModelJsonStrings,
@@ -84,7 +85,7 @@ describe('projectResolvedSecretModelContent', () => {
     expect(JSON.stringify(projection)).not.toContain('__var_')
   })
 
-  it('removes foreign legacy aliases and opaque compiler identifiers without catalog names', () => {
+  it('preserves foreign internal-looking text that the execution did not register', () => {
     const registry = new ResolvedSecretTraceRegistry()
 
     const projection = projectResolvedSecretModelContent(
@@ -103,14 +104,41 @@ describe('projectResolvedSecretModelContent', () => {
     expect(projection).toEqual({
       safe: true,
       value: {
-        legacy: '[REDACTED_SECRET]',
-        binding: '[RUNTIME_BINDING]',
-        marker: '[RUNTIME_BINDING]',
-        privateInput: '[RUNTIME_BINDING]',
-        runtimeBinding: '[RUNTIME_BINDING]',
-        runtime: '[RUNTIME_BINDING]',
-        path: '[RUNTIME_BINDING]',
+        legacy: '__var_FOREIGN_KEY',
+        binding: '__sim_code_12_binding_3',
+        marker: '__sim_code_12_binding_3_marker_a__',
+        privateInput: '__sim_code_2_input_0',
+        runtimeBinding: '__sim_code_4_runtime_0',
+        runtime: '__sim_runtime_payload_4',
+        path: '__SIM_RUNTIME_PAYLOAD_PATH',
       },
+    })
+    expect(isResolvedSecretModelContentUnchanged('__var_FOREIGN_KEY', registry)).toBe(true)
+    expect(isResolvedSecretModelContentUnchanged('__sim_code_12_binding_3', registry)).toBe(true)
+  })
+
+  it('preserves an unregistered opaque-placeholder-shaped literal', () => {
+    const registry = new ResolvedSecretTraceRegistry()
+
+    expect(projectResolvedSecretModelContent('{{[REDACTED_SECRET]}}', registry)).toEqual({
+      safe: true,
+      value: '{{[REDACTED_SECRET]}}',
+    })
+  })
+
+  it('keeps longest-match semantics when a known opaque placeholder is nested in a secret', () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'Test', plaintext: 'Test', encryptedValue: 'test-ciphertext' },
+      {
+        name: 'COMPOSITE',
+        plaintext: 'x{{Test}}y',
+        encryptedValue: 'composite-ciphertext',
+      },
+    ])
+
+    expect(projectResolvedSecretModelContent('x{{Test}}y', registry)).toEqual({
+      safe: true,
+      value: '{{COMPOSITE}}',
     })
   })
 
@@ -177,7 +205,7 @@ describe('projectResolvedSecretModelContent', () => {
     expect(projectResolvedSecretModelContent(first.value, registry)).toEqual(first)
   })
 
-  it('uses an opaque marker when a provenance alias contains the secret plaintext', () => {
+  it('uses opaque model projection when a provenance label contains the secret plaintext', () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'Test', plaintext: 'Test', encryptedValue: 'ciphertext' },
     ])
@@ -199,6 +227,44 @@ describe('projectResolvedSecretModelContent', () => {
         error: "NameError: name '[REDACTED_SECRET]' is not defined",
       },
     })
+  })
+
+  it('atomically projects the selected provenance label when its name contains the value', () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: 'TOK', encryptedValue: 'ciphertext' },
+    ])
+
+    expect(projectResolvedSecretModelContent('Bearer {{TOKEN}}', registry)).toEqual({
+      safe: true,
+      value: 'Bearer [REDACTED_SECRET]',
+    })
+  })
+
+  it('fails closed when provenance-derived matcher patterns exceed capacity', () => {
+    const registry = new ResolvedSecretTraceRegistry()
+    const getModelEgressSnapshot = vi.spyOn(registry, 'getModelEgressSnapshot').mockReturnValue({
+      complete: true,
+      matches: [
+        {
+          plaintext: 'x'.repeat(64 * 1024),
+          replacement: '[REDACTED_SECRET]',
+        },
+      ],
+    })
+
+    expect(projectResolvedSecretModelContent('safe', registry)).toEqual({ safe: false })
+    expect(projectResolvedSecretModelContent('still-safe', registry)).toEqual({ safe: false })
+    expect(getModelEgressSnapshot).toHaveBeenCalledOnce()
+  })
+
+  it('does not treat attacker-authored provenance-shaped protocol content as unchanged', () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'Test', plaintext: 'Test', encryptedValue: 'ciphertext' },
+    ])
+
+    expect(isResolvedSecretModelContentUnchanged('{{Test}}', registry)).toBe(false)
+    expect(isResolvedSecretModelContentUnchanged(['resource', '{{Test}}'], registry)).toBe(false)
+    expect(isResolvedSecretModelContentUnchanged(['resource', 'safe'], registry)).toBe(true)
   })
 })
 

@@ -5,8 +5,10 @@ import { LARGE_VALUE_REF_MARKER } from '@/lib/execution/payloads/large-value-ref
 import { MAX_INLINE_MATERIALIZATION_BYTES } from '@/lib/execution/payloads/materialization.server'
 import {
   containsResolvedSecret,
+  containsResolvedSecretLiteral,
   createResolvedSecretMatcher,
   OPAQUE_RESOLVED_SECRET_REPLACEMENT,
+  type ResolvedSecretMatch,
   type ResolvedSecretMatcher,
   sanitizeResolvedSecretPrimitive,
   sanitizeResolvedSecretString,
@@ -23,13 +25,53 @@ export {
 
 const MAX_CONTENT_NODES = 100_000
 const MAX_CONTENT_DEPTH = 100
-const INTERNAL_MODEL_IDENTIFIER_PATTERN =
+const INTERNAL_DIAGNOSTIC_IDENTIFIER_PATTERN =
   /__var_[A-Za-z0-9_]+|__sim_code_\d+_(?:binding|input|runtime)_\d+[A-Za-z0-9_]*|__sim_placeholder_[a-f0-9]{64}__|__sim_runtime_[A-Za-z0-9_]+_\d+[A-Za-z0-9_]*|__SIM_RUNTIME_PAYLOAD_PATH/g
 
 const modelEgressMatcherCache = new WeakMap<
   ResolvedSecretTraceRegistry,
   { revision: number; complete: boolean; matcher?: ResolvedSecretMatcher }
 >()
+
+function createResolvedSecretModelMatcher(
+  matches: readonly ResolvedSecretMatch[]
+): ResolvedSecretMatcher | undefined {
+  const matcher = createResolvedSecretMatcher(matches)
+  if (!matcher) return undefined
+
+  const originalReplacementByPlaintext = new Map<string, string>()
+  for (const { plaintext, replacement } of matches) {
+    const current = originalReplacementByPlaintext.get(plaintext)
+    if (current === undefined || replacement < current) {
+      originalReplacementByPlaintext.set(plaintext, replacement)
+    }
+  }
+
+  const opaquePlaceholderMatches: ResolvedSecretMatch[] = []
+  for (const [plaintext, replacement] of matcher.exactReplacements) {
+    if (replacement !== OPAQUE_RESOLVED_SECRET_REPLACEMENT) continue
+    opaquePlaceholderMatches.push({
+      plaintext: `{{${plaintext}}}`,
+      replacement: OPAQUE_RESOLVED_SECRET_REPLACEMENT,
+    })
+    const originalReplacement = originalReplacementByPlaintext.get(plaintext)
+    if (originalReplacement && /^\{\{[^{}]+\}\}$/.test(originalReplacement)) {
+      opaquePlaceholderMatches.push({
+        plaintext: originalReplacement,
+        replacement: OPAQUE_RESOLVED_SECRET_REPLACEMENT,
+      })
+    }
+  }
+  if (opaquePlaceholderMatches.length === 0) return matcher
+
+  return createResolvedSecretMatcher([
+    ...[...matcher.exactReplacements].map(([plaintext, replacement]) => ({
+      plaintext,
+      replacement,
+    })),
+    ...opaquePlaceholderMatches,
+  ])
+}
 
 export type ResolvedSecretModelMatcherSnapshot =
   | { complete: true; matcher?: ResolvedSecretMatcher }
@@ -47,10 +89,12 @@ export interface ResolvedSecretContentProjectionOptions {
   isOpaqueSafeObject?: (value: object) => boolean
   /** Whether string-shaped secret literals should also match typed number/boolean/null values. */
   projectPrimitiveLiterals?: boolean
-  /** Whether internal legacy and compiler runtime identifiers must be removed from model content. */
+  /** Whether every internal-looking identifier must be removed at a diagnostic or trace boundary. */
   sanitizeInternalIdentifiers?: boolean
   /** Receives each exact string secret detected while traversing content. */
   onMatch?: (plaintext: string) => void
+  /** Rejects raw literals even when they appear inside matcher-issued provenance placeholders. */
+  rejectResolvedSecretLiterals?: boolean
 }
 
 export type ResolvedSecretContentProjection = { safe: true; value: unknown } | { safe: false }
@@ -62,21 +106,24 @@ class ResolvedSecretContentProjectionError extends Error {
   }
 }
 
-function internalModelIdentifierReplacement(identifier: string): string {
+function internalDiagnosticIdentifierReplacement(identifier: string): string {
   return identifier.startsWith('__var_') ? '[REDACTED_SECRET]' : '[RUNTIME_BINDING]'
 }
 
-function sanitizeInternalModelIdentifiers(value: string): string {
-  return value.replace(INTERNAL_MODEL_IDENTIFIER_PATTERN, internalModelIdentifierReplacement)
+function sanitizeInternalDiagnosticIdentifiers(value: string): string {
+  return value.replace(
+    INTERNAL_DIAGNOSTIC_IDENTIFIER_PATTERN,
+    internalDiagnosticIdentifierReplacement
+  )
 }
 
-function sanitizeCollisionProneInternalModelIdentifiers(
+function sanitizeCollisionProneInternalDiagnosticIdentifiers(
   value: string,
   matcher: ResolvedSecretMatcher
 ): string {
-  return value.replace(INTERNAL_MODEL_IDENTIFIER_PATTERN, (identifier) =>
+  return value.replace(INTERNAL_DIAGNOSTIC_IDENTIFIER_PATTERN, (identifier) =>
     containsResolvedSecret(identifier, matcher) && !matcher.exactReplacements.has(identifier)
-      ? internalModelIdentifierReplacement(identifier)
+      ? internalDiagnosticIdentifierReplacement(identifier)
       : identifier
   )
 }
@@ -233,19 +280,22 @@ function sanitizeProjectedString(
   maxBytes: number,
   options: ResolvedSecretContentProjectionOptions
 ): string {
+  if (
+    matcher &&
+    options.rejectResolvedSecretLiterals &&
+    containsResolvedSecretLiteral(value, matcher)
+  ) {
+    throw new ResolvedSecretContentProjectionError('Content contains a resolved secret literal')
+  }
   let sanitized =
     options.sanitizeInternalIdentifiers && matcher
-      ? sanitizeCollisionProneInternalModelIdentifiers(value, matcher)
+      ? sanitizeCollisionProneInternalDiagnosticIdentifiers(value, matcher)
       : value
   sanitized = matcher
     ? sanitizeResolvedSecretString(sanitized, matcher, maxBytes, options.onMatch)
     : sanitized
-  sanitized = sanitized.replaceAll(
-    `{{${OPAQUE_RESOLVED_SECRET_REPLACEMENT}}}`,
-    OPAQUE_RESOLVED_SECRET_REPLACEMENT
-  )
   if (options.sanitizeInternalIdentifiers) {
-    sanitized = sanitizeInternalModelIdentifiers(sanitized)
+    sanitized = sanitizeInternalDiagnosticIdentifiers(sanitized)
   }
   if (matcher && containsResolvedSecret(sanitized, matcher)) {
     sanitized = sanitizeResolvedSecretString(sanitized, matcher, maxBytes, options.onMatch)
@@ -304,20 +354,26 @@ export function getResolvedSecretModelMatcher(
 ): ResolvedSecretModelMatcherSnapshot {
   if (!registry) return { complete: false }
 
+  let revision: number | undefined
   try {
-    const revision = registry.getModelEgressRevision()
+    revision = registry.getModelEgressRevision()
     let cached = modelEgressMatcherCache.get(registry)
     if (!cached || cached.revision !== revision) {
       const snapshot = registry.getModelEgressSnapshot()
       cached = {
         revision,
         complete: snapshot.complete,
-        ...(snapshot.complete ? { matcher: createResolvedSecretMatcher(snapshot.matches) } : {}),
+        ...(snapshot.complete
+          ? { matcher: createResolvedSecretModelMatcher(snapshot.matches) }
+          : {}),
       }
       modelEgressMatcherCache.set(registry, cached)
     }
     return cached.complete ? { complete: true, matcher: cached.matcher } : { complete: false }
   } catch {
+    if (revision !== undefined) {
+      modelEgressMatcherCache.set(registry, { revision, complete: false })
+    }
     return { complete: false }
   }
 }
@@ -361,8 +417,22 @@ export function projectResolvedSecretModelContent(
 
   return projectContent(value, snapshot.matcher, maxBytes, {
     projectPrimitiveLiterals: true,
-    sanitizeInternalIdentifiers: true,
     ...options,
+  })
+}
+
+/**
+ * Projects logger-visible diagnostics and additionally removes internal-looking runtime names.
+ * Model and tool-result boundaries must use `projectResolvedSecretModelContent` so unrelated data
+ * remains byte-preserving unless it matches execution provenance.
+ */
+export function projectResolvedSecretDiagnosticContent(
+  value: unknown,
+  registry: ResolvedSecretTraceRegistry | undefined,
+  maxBytes = MAX_INLINE_MATERIALIZATION_BYTES
+): ResolvedSecretContentProjection {
+  return projectResolvedSecretModelContent(value, registry, maxBytes, {
+    sanitizeInternalIdentifiers: true,
   })
 }
 
@@ -391,7 +461,7 @@ export function projectResolvedSecretDiagnosticError(
             ...details,
             error: String(error),
           }
-    const projection = projectResolvedSecretModelContent(diagnostic, registry)
+    const projection = projectResolvedSecretDiagnosticContent(diagnostic, registry)
     if (projection.safe && isPlainRecord(projection.value)) return projection.value
   } catch {}
 
@@ -402,14 +472,20 @@ export function projectResolvedSecretDiagnosticError(
 }
 
 /**
- * Returns true only when model projection can prove that content needs no secret or internal-alias
- * substitution. Use this for protocol handles that must retain their exact bytes.
+ * Returns true only when model projection can prove that content needs no secret or registered
+ * internal-alias substitution. Use this for protocol handles that must retain their exact bytes.
  */
 export function isResolvedSecretModelContentUnchanged(
   value: unknown,
   registry: ResolvedSecretTraceRegistry | undefined
 ): boolean {
-  const projection = projectResolvedSecretModelContent(value, registry)
+  const snapshot = getResolvedSecretModelMatcher(registry)
+  if (!snapshot.complete) return false
+
+  const projection = projectContent(value, snapshot.matcher, MAX_INLINE_MATERIALIZATION_BYTES, {
+    projectPrimitiveLiterals: true,
+    rejectResolvedSecretLiterals: true,
+  })
   return projection.safe && isDeepStrictEqual(projection.value, value)
 }
 
@@ -429,7 +505,6 @@ export function projectResolvedSecretModelJsonStrings(
   let outputBytes = 0
   const options: ResolvedSecretContentProjectionOptions = {
     projectPrimitiveLiterals: true,
-    sanitizeInternalIdentifiers: true,
   }
 
   for (const value of values) {

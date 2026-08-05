@@ -5,7 +5,7 @@ import { isPlainRecord } from '@sim/utils/object'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { WorkflowBlockHandler } from '@/executor/handlers/workflow/workflow-handler'
 import type { ExecutionContext } from '@/executor/types'
-import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
+import { projectResolvedSecretDiagnosticContent } from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { SerializedBlock } from '@/serializer/types'
 import type { ToolResponse } from '@/tools/types'
@@ -146,7 +146,7 @@ export async function runCustomBlockTool(
     // child's own logging session already billed whatever it spent before failing,
     // so nothing is rolled up here.
     const message = getErrorMessage(error, 'Custom block execution failed')
-    const logProjection = projectResolvedSecretModelContent(
+    const logProjection = projectResolvedSecretDiagnosticContent(
       { blockType: params.blockType, message },
       options.resolvedSecretTraceRegistry
     )

@@ -272,7 +272,7 @@ describe('runCopilotLifecycle', () => {
     })
   })
 
-  it('projects every model-visible initial Go payload field and internal alias', async () => {
+  it('projects secrets in every model-visible initial Go payload field without rewriting foreign aliases', async () => {
     const secret = 'mothership-secret'
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
@@ -314,12 +314,13 @@ describe('runCopilotLifecycle', () => {
     )
 
     expect(capturedRequestBody).not.toContain(secret)
-    expect(capturedRequestBody).not.toContain('__var_')
-    expect(capturedRequestBody).not.toContain('__sim_code_')
+    expect(capturedRequestBody).toContain('__var_FOREIGN')
+    expect(capturedRequestBody).toContain('__sim_code_2_binding_0')
     expect(JSON.parse(capturedRequestBody)).toMatchObject({
-      message: 'message {{TOKEN}} [REDACTED_SECRET]',
+      message: 'message {{TOKEN}} __var_FOREIGN',
       messages: [{ role: 'user', content: '{{TOKEN}}' }],
       workspaceContext: 'workspace {{TOKEN}}',
+      mothershipTools: [{ name: 'mcp', description: '__sim_code_2_binding_0' }],
       workspaceId: 'ws-1',
       fileAttachments: [
         {
