@@ -66,6 +66,39 @@ describe('normalizeFinishReason', () => {
     expect(normalizeFinishReason('pause_turn')).toBe('other')
   })
 
+  /**
+   * Values confirmed against each vendor's own enum by a per-provider documentation
+   * sweep. Several are the routine success path on open-weight models, so leaving
+   * them unclassified would misreport healthy runs.
+   */
+  it('classifies the non-OpenAI vocabularies of compatible vendors', () => {
+    expect(normalizeFinishReason('model_length')).toBe('length') // Mistral
+    expect(normalizeFinishReason('eos')).toBe('stop') // Together
+    expect(normalizeFinishReason('eos_token')).toBe('stop') // LiteLLM/HuggingFace
+    expect(normalizeFinishReason('error')).toBe('error') // Mistral, OpenRouter, Together
+    expect(normalizeFinishReason('insufficient_system_resource')).toBe('error') // DeepSeek
+    expect(normalizeFinishReason('network_error')).toBe('error') // Z.ai
+    expect(normalizeFinishReason('sensitive')).toBe('content_filter') // Z.ai
+  })
+
+  it('classifies the Gemini and Vertex values absent from the TS enum', () => {
+    expect(normalizeFinishReason('MODEL_ARMOR')).toBe('content_filter') // Vertex only
+    expect(normalizeFinishReason('ESCALATION')).toBe('content_filter')
+    expect(normalizeFinishReason('MALFORMED_RESPONSE')).toBe('error')
+    expect(normalizeFinishReason('MISSING_THOUGHT_SIGNATURE')).toBe('error')
+  })
+
+  /**
+   * A server-aborted tool loop is not a request to execute tools, and a repetition
+   * cutoff is a normal finish rather than a failure — both would mislead a workflow
+   * branching on the value.
+   */
+  it('does not overclaim on aborted or degenerate stops', () => {
+    expect(normalizeFinishReason('too_many_tool_calls')).toBe('other')
+    expect(normalizeFinishReason('repetition')).toBe('other')
+    expect(normalizeFinishReason('abort')).toBe('other')
+  })
+
   it('degrades an unrecognized value to other rather than throwing', () => {
     expect(normalizeFinishReason('some_future_reason')).toBe('other')
     expect(normalizeFinishReason('OTHER')).toBe('other')

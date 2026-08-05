@@ -16,7 +16,7 @@ export type AgentFinishReason =
   | 'tool_calls'
   /** Blocked or refused by a safety system. */
   | 'content_filter'
-  /** The provider reported the generation itself as malformed. */
+  /** The provider reported the generation itself as failed or malformed. */
   | 'error'
   /** Reported, but not a case this vocabulary distinguishes. */
   | 'other'
@@ -40,6 +40,37 @@ const NORMALIZED_BY_RAW = new Map<string, AgentFinishReason>([
 
   // OpenAI Responses reports truncation through `incomplete_details.reason`.
   ['max_output_tokens', 'length'],
+
+  /** Mistral separates the model's own max length from the caller's `max_tokens`. */
+  ['model_length', 'length'],
+
+  /**
+   * Natural end-of-sequence. Together and HuggingFace-backed proxies report the
+   * model's EOS token separately from a caller-supplied stop sequence, so without
+   * these the routine success path on open-weight models is unclassified.
+   */
+  ['eos', 'stop'],
+  ['eos_token', 'stop'],
+
+  /**
+   * A generation the provider itself reported as failed. Mistral, OpenRouter,
+   * Together and Fireworks all spell this `error`; the DeepSeek and Z.ai values are
+   * the same class with a stated cause.
+   */
+  ['error', 'error'],
+  ['insufficient_system_resource', 'error'],
+  ['network_error', 'error'],
+
+  /** Z.ai (GLM) sensitive-content block. */
+  ['sensitive', 'content_filter'],
+
+  /**
+   * Cut short with no outcome to report, on vLLM and NIM-hosted models. vLLM treats
+   * a repetition cutoff as a normal finish rather than a failure, so it is not
+   * `error`.
+   */
+  ['abort', 'other'],
+  ['repetition', 'other'],
 
   // Anthropic Messages, shared by Bedrock's Converse API.
   ['end_turn', 'stop'],
@@ -72,6 +103,12 @@ const NORMALIZED_BY_RAW = new Map<string, AgentFinishReason>([
   ['image_recitation', 'content_filter'],
   ['malformed_function_call', 'error'],
   ['unexpected_tool_call', 'error'],
+  ['malformed_response', 'error'],
+  ['missing_thought_signature', 'error'],
+  ['model_armor', 'content_filter'],
+  ['escalation', 'content_filter'],
+  /** A runaway tool loop the server aborted, not a request to execute tools. */
+  ['too_many_tool_calls', 'other'],
   ['language', 'other'],
   ['other', 'other'],
   ['no_image', 'other'],
