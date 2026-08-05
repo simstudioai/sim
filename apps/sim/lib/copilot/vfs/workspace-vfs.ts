@@ -84,6 +84,7 @@ import {
   serializeMcpServer,
   serializeRecentExecutions,
   serializeSandbox,
+  serializeSandboxCatalog,
   serializeSkill,
   serializeTableMeta,
   serializeTaskChat,
@@ -538,6 +539,7 @@ function getStaticComponentFiles(): Map<string, string> {
  *   tasks/{title}/session.md
  *   tasks/{title}/chat.json
  *   custom-tools/{name}.json
+ *   agent/sandboxes/README.md
  *   agent/sandboxes/{name}.json
  *   environment/credentials.json
  *   environment/api-keys.json
@@ -2179,6 +2181,7 @@ export class WorkspaceVFS {
     try {
       const sandboxes = await listWorkspaceSandboxes(workspaceId)
       const strategy = currentSandboxStrategy()
+      this.files.set('agent/sandboxes/README.md', serializeSandboxCatalog(strategy))
       for (const sandbox of sandboxes) {
         this.files.set(
           `agent/sandboxes/${sanitizeName(sandbox.name)}.json`,

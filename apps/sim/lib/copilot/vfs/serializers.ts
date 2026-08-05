@@ -6,6 +6,11 @@ import {
   getServiceAccountConnectNoun,
   getServiceAccountGatingBlockType,
 } from '@/lib/credentials/service-account-provider-ids'
+import {
+  MAX_SANDBOX_CLI_TOOLS,
+  SANDBOX_CLI_TOOLS,
+  SANDBOX_SELECTABLE_CLI_TOOL_IDS,
+} from '@/lib/execution/remote-sandbox/cli-tools'
 import { type FilterFieldType, getOperatorsForFieldType } from '@/lib/knowledge/filters/types'
 import { getServiceAccountProviderForProviderId } from '@/lib/oauth/utils'
 import { isSubBlockHidden } from '@/lib/workflows/subblocks/visibility'
@@ -999,6 +1004,39 @@ export function serializeSandbox(sandbox: Sandbox, strategy: 'prebuilt' | 'runti
     null,
     2
   )
+}
+
+/**
+ * Generate the authoritative Sim-sandbox capability reference exposed in VFS.
+ * The managed-CLI rows come directly from the same client-safe registry used by
+ * validation and the settings UI, so adding or upgrading a CLI updates agent
+ * discovery without a second hand-maintained list.
+ */
+export function serializeSandboxCatalog(strategy: 'prebuilt' | 'runtime'): string {
+  const rows = SANDBOX_SELECTABLE_CLI_TOOL_IDS.map((id) => {
+    const tool = SANDBOX_CLI_TOOLS[id]
+    const aliases = tool.searchTerms?.join(', ') || '(none)'
+    return `| \`${tool.id}\` | ${tool.label} | ${tool.category} | ${tool.description} | ${aliases} |`
+  })
+
+  return [
+    '# Sim Sandbox Capabilities',
+    '',
+    'This file is generated from the active Sim sandbox registry. Treat it as the authoritative catalog; do not guess or reuse managed CLI ids from memory.',
+    '',
+    `- Active dependency strategy: \`${strategy}\``,
+    '- Dependency languages: `javascript` installs npm packages; `python` installs PyPI packages. Shell execution may select either language.',
+    '- `systemPackages` accepts Debian package coordinates in `package[:architecture][=version]` form.',
+    `- \`cliTools\` accepts at most ${MAX_SANDBOX_CLI_TOOLS} exact pinned ids from the catalog below.`,
+    '- A Sim sandbox may combine language dependencies, Debian system packages, and managed CLIs.',
+    '',
+    '## Managed CLI catalog',
+    '',
+    '| Exact id | Name | Category | What it provides | Search terms / executables |',
+    '|----------|------|----------|------------------|----------------------------|',
+    ...rows,
+    '',
+  ].join('\n')
 }
 
 /**

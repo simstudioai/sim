@@ -2,6 +2,11 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import {
+  MAX_SANDBOX_CLI_TOOLS,
+  SANDBOX_CLI_TOOLS,
+  SANDBOX_SELECTABLE_CLI_TOOL_IDS,
+} from '@/lib/execution/remote-sandbox/cli-tools'
 import type { BlockConfig } from '@/blocks/types'
 import { hostedKeyEnabledWhen } from '@/tools/hosting'
 import type { ToolConfig } from '@/tools/types'
@@ -14,6 +19,7 @@ import {
   serializeIntegrationSchema,
   serializeKBMeta,
   serializeSandbox,
+  serializeSandboxCatalog,
   serializeTableMeta,
   serializeWorkflowMeta,
 } from './serializers'
@@ -154,6 +160,19 @@ describe('VFS metadata serializers', () => {
       systemPackages: ['graphviz'],
       cliTools: ['kubectl@1.36.3-r1'],
     })
+  })
+
+  it('generates the sandbox capability reference from the authoritative CLI registry', () => {
+    const reference = serializeSandboxCatalog('prebuilt')
+
+    expect(reference).toContain('Active dependency strategy: `prebuilt`')
+    expect(reference).toContain(`accepts at most ${MAX_SANDBOX_CLI_TOOLS} exact pinned ids`)
+    for (const id of SANDBOX_SELECTABLE_CLI_TOOL_IDS) {
+      const tool = SANDBOX_CLI_TOOLS[id]
+      expect(reference).toContain(`\`${id}\``)
+      expect(reference).toContain(tool.label)
+      expect(reference).toContain(tool.description)
+    }
   })
 })
 
