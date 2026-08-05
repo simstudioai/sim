@@ -11,6 +11,7 @@ import {
   uploadWorkspaceFile,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 
 export type WorkspaceFileWriteMode = 'create' | 'overwrite'
 
@@ -170,6 +171,8 @@ export async function writeWorkspaceFileByPath(args: {
    * only a placeholder — e.g. `create_file`'s empty shell, whose real content lands via a later write.
    */
   syncLiveDoc?: boolean
+  /** Private provenance for the exact bytes being written. */
+  secretProvenance?: WorkspaceFileSecretProvenance
 }): Promise<WorkspaceFileWriteResult> {
   const contentType = args.target.mimeType || args.inferredMimeType
   if (args.target.mode === 'overwrite') {
@@ -184,7 +187,13 @@ export async function writeWorkspaceFileByPath(args: {
       args.userId,
       args.buffer,
       contentType || existing.type,
-      { syncLiveDoc: args.syncLiveDoc }
+      {
+        syncLiveDoc: args.syncLiveDoc,
+        secretProvenancePolicy: {
+          mode: 'replace',
+          provenance: args.secretProvenance ?? { status: 'exact', entries: [] },
+        },
+      }
     )
 
     return {
@@ -207,7 +216,7 @@ export async function writeWorkspaceFileByPath(args: {
     args.buffer,
     createTarget.fileName,
     contentType,
-    { folderId: createTarget.folderId }
+    { folderId: createTarget.folderId, secretProvenance: args.secretProvenance }
   )
 
   return {

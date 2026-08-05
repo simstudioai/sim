@@ -116,7 +116,7 @@ async function readStreamText(stream: ReadableStream): Promise<string> {
 function createTraceRegistryMock(): ResolvedSecretTraceRegistry & {
   getModelEgressRevision: ReturnType<typeof vi.fn>
   getModelEgressSnapshot: ReturnType<typeof vi.fn>
-  importProvenance: ReturnType<typeof vi.fn>
+  importProvenanceForValue: ReturnType<typeof vi.fn>
   markIncomplete: ReturnType<typeof vi.fn>
 } {
   return {
@@ -124,12 +124,12 @@ function createTraceRegistryMock(): ResolvedSecretTraceRegistry & {
     getModelEgressSnapshot: vi
       .fn()
       .mockReturnValue({ complete: true, matches: [], matcher: undefined }),
-    importProvenance: vi.fn().mockResolvedValue(true),
+    importProvenanceForValue: vi.fn().mockResolvedValue(true),
     markIncomplete: vi.fn(),
   } as unknown as ResolvedSecretTraceRegistry & {
     getModelEgressRevision: ReturnType<typeof vi.fn>
     getModelEgressSnapshot: ReturnType<typeof vi.fn>
-    importProvenance: ReturnType<typeof vi.fn>
+    importProvenanceForValue: ReturnType<typeof vi.fn>
     markIncomplete: ReturnType<typeof vi.fn>
   }
 }
@@ -276,9 +276,14 @@ describe('MothershipBlockHandler', () => {
     expect(options.headers).toMatchObject({
       'x-sim-request-private-tool-metadata': PRIVATE_PROVENANCE_TYPE,
     })
-    expect(registry.importProvenance).toHaveBeenCalledWith(PRIVATE_PROVENANCE, {
-      trusted: true,
-    })
+    expect(registry.importProvenanceForValue).toHaveBeenCalledWith(
+      PRIVATE_PROVENANCE,
+      expect.objectContaining({
+        content: 'raw secret remains functional',
+        __resolvedSecretTraceProvenance: undefined,
+      }),
+      { trusted: true }
+    )
     expect(registry.markIncomplete).not.toHaveBeenCalled()
     expect(result).toMatchObject({ content: 'raw secret remains functional' })
     expect(JSON.stringify(result)).not.toContain('__resolvedSecretTraceProvenance')
@@ -340,7 +345,7 @@ describe('MothershipBlockHandler', () => {
       'does not support private provenance metadata'
     )
 
-    expect(registry.importProvenance).not.toHaveBeenCalled()
+    expect(registry.importProvenanceForValue).not.toHaveBeenCalled()
     expect(registry.markIncomplete).not.toHaveBeenCalled()
   })
 
@@ -361,7 +366,7 @@ describe('MothershipBlockHandler', () => {
       'provenance metadata is invalid'
     )
 
-    expect(registry.importProvenance).not.toHaveBeenCalled()
+    expect(registry.importProvenanceForValue).not.toHaveBeenCalled()
     expect(registry.markIncomplete).toHaveBeenCalledOnce()
   })
 
@@ -398,9 +403,15 @@ describe('MothershipBlockHandler', () => {
       'Sim execution failed: secret-backed failure'
     )
 
-    expect(registry.importProvenance).toHaveBeenCalledWith(PRIVATE_PROVENANCE, {
-      trusted: true,
-    })
+    expect(registry.importProvenanceForValue).toHaveBeenCalledWith(
+      PRIVATE_PROVENANCE,
+      expect.objectContaining({
+        type: 'error',
+        error: 'secret-backed failure',
+        __resolvedSecretTraceProvenance: undefined,
+      }),
+      { trusted: true }
+    )
     expect(registry.markIncomplete).not.toHaveBeenCalled()
   })
 
@@ -435,9 +446,14 @@ describe('MothershipBlockHandler', () => {
     })) as StreamingExecution
 
     await expect(readStreamText(result.stream)).resolves.toBe('unchanged')
-    expect(registry.importProvenance).toHaveBeenCalledWith(PRIVATE_PROVENANCE, {
-      trusted: true,
-    })
+    expect(registry.importProvenanceForValue).toHaveBeenCalledWith(
+      PRIVATE_PROVENANCE,
+      expect.objectContaining({
+        content: 'unchanged',
+        __resolvedSecretTraceProvenance: undefined,
+      }),
+      { trusted: true }
+    )
     expect(registry.markIncomplete).not.toHaveBeenCalled()
     expect(JSON.stringify(result.execution.output)).not.toContain('__resolvedSecretTraceProvenance')
     expect(JSON.stringify(result.execution.output)).not.toContain('encrypted-secret')

@@ -8,11 +8,13 @@ const {
   mockAttachLargeFileRemoteUrls,
   mockGetApiKeyWithBYOK,
   mockExecuteRequest,
+  mockFilterModelSafeWorkspaceFileAttachments,
   mockUploadLargeFilesToProvider,
 } = vi.hoisted(() => ({
   mockAttachLargeFileRemoteUrls: vi.fn(),
   mockGetApiKeyWithBYOK: vi.fn(),
   mockExecuteRequest: vi.fn(),
+  mockFilterModelSafeWorkspaceFileAttachments: vi.fn(async (attachments: unknown[]) => attachments),
   mockUploadLargeFilesToProvider: vi.fn(),
 }))
 
@@ -29,6 +31,11 @@ vi.mock('@/providers/registry', () => ({
 vi.mock('@/providers/file-attachments.server', () => ({
   attachLargeFileRemoteUrls: (...args: unknown[]) => mockAttachLargeFileRemoteUrls(...args),
   uploadLargeFilesToProvider: (...args: unknown[]) => mockUploadLargeFilesToProvider(...args),
+}))
+
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
+  filterModelSafeWorkspaceFileAttachments: (...args: unknown[]) =>
+    mockFilterModelSafeWorkspaceFileAttachments(...args),
 }))
 
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
@@ -443,11 +450,12 @@ describe('executeProviderRequest — model secret projection', () => {
     } as ProviderResponse)
   })
 
-  it('projects only model-visible request content after structured instructions are added', async () => {
+  it('projects only model-visible request content before provider execution', async () => {
     const secret = 'quoted"secret\\with\nnewline'
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
     ])
+    registry.recordResolved('TOKEN', secret)
 
     await executeProviderRequest(
       'anthropic',
@@ -564,7 +572,7 @@ describe('executeProviderRequest — model secret projection', () => {
     expect(JSON.stringify(sent)).not.toContain('__var_')
   })
 
-  it('registers request-scoped environment values at the shared provider boundary', async () => {
+  it('does not infer provenance from a dormant request environment map', async () => {
     const registry = new ResolvedSecretTraceRegistry()
 
     await executeProviderRequest(
@@ -577,8 +585,175 @@ describe('executeProviderRequest — model secret projection', () => {
       { resolvedSecretTraceRegistry: registry }
     )
 
-    expect(mockExecuteRequest.mock.calls[0][0].messages[0].content).toBe('Use {{RUNTIME_TOKEN}}')
+    expect(mockExecuteRequest.mock.calls[0][0].messages[0].content).toBe('Use runtime-secret')
     expect(registry.getActiveMatches()).toEqual([])
+  })
+
+  it('does not let dormant low-entropy secrets invalidate ordinary prompts or JSON Schema', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TYPE_SECRET', plaintext: 'string', encryptedValue: 'encrypted-type' },
+      { name: 'BOOLEAN_SECRET', plaintext: 'true', encryptedValue: 'encrypted-boolean' },
+    ])
+
+    await executeProviderRequest(
+      'openai',
+      {
+        model: 'test-model',
+        systemPrompt: 'Return a string when the statement is true.',
+        responseFormat: {
+          name: 'ordinary_response',
+          schema: {
+            type: 'object',
+            properties: { message: { type: 'string' } },
+            required: ['message'],
+            additionalProperties: false,
+          },
+        },
+      },
+      { resolvedSecretTraceRegistry: registry }
+    )
+
+    expect(mockExecuteRequest.mock.calls[0][0]).toMatchObject({
+      systemPrompt: 'Return a string when the statement is true.',
+      responseFormat: {
+        schema: {
+          type: 'object',
+          properties: { message: { type: 'string' } },
+          required: ['message'],
+          additionalProperties: false,
+        },
+      },
+    })
+    expect(registry.getActiveMatches()).toEqual([])
+  })
+
+  it('does not carry an earlier active secret into unrelated public schema grammar', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TYPE_SECRET', plaintext: 'string', encryptedValue: 'encrypted-type' },
+    ])
+    registry.recordResolved('TYPE_SECRET', 'string')
+
+    await executeProviderRequest(
+      'openai',
+      {
+        model: 'test-model',
+        systemPrompt: 'Choose a loading status',
+        responseFormat: {
+          name: 'loading_status',
+          schema: {
+            type: 'object',
+            properties: { message: { type: 'string' } },
+            required: ['message'],
+            additionalProperties: false,
+          },
+        },
+      },
+      { resolvedSecretTraceRegistry: registry }
+    )
+
+    expect(mockExecuteRequest.mock.calls.at(-1)?.[0]).toMatchObject({
+      systemPrompt: 'Choose a loading status',
+      responseFormat: {
+        name: 'loading_status',
+        schema: {
+          type: 'object',
+          properties: { message: { type: 'string' } },
+          required: ['message'],
+          additionalProperties: false,
+        },
+      },
+    })
+  })
+
+  it('omits only the response format when an active secret collides with its semantic keys', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'SCHEMA_KEY', plaintext: 'messages', encryptedValue: 'encrypted-schema-key' },
+    ])
+    registry.recordResolved('SCHEMA_KEY', 'messages')
+
+    await executeProviderRequest(
+      'openai',
+      {
+        model: 'test-model',
+        systemPrompt: 'Choose loading messages',
+        messages: [{ role: 'user', content: 'Select messages for this request' }],
+        responseFormat: {
+          name: 'loading_messages',
+          schema: {
+            type: 'object',
+            properties: { messages: { type: 'array', items: { type: 'string' } } },
+            required: ['messages'],
+            additionalProperties: false,
+          },
+        },
+      },
+      { resolvedSecretTraceRegistry: registry }
+    )
+
+    const sent = mockExecuteRequest.mock.calls.at(-1)?.[0]
+    expect(sent).toMatchObject({
+      systemPrompt: 'Choose loading {{SCHEMA_KEY}}',
+      messages: [{ role: 'user', content: 'Select {{SCHEMA_KEY}} for this request' }],
+      responseFormat: undefined,
+    })
+  })
+
+  it('omits a safe schema when no deterministic response-format name avoids an active secret', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'UNDERSCORE', plaintext: '_', encryptedValue: 'encrypted-underscore' },
+    ])
+    registry.recordResolved('UNDERSCORE', '_')
+
+    await executeProviderRequest(
+      'openai',
+      {
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Continue safely' }],
+        responseFormat: {
+          name: 'unsafe_name',
+          schema: { type: 'object', properties: {} },
+        },
+      },
+      { resolvedSecretTraceRegistry: registry }
+    )
+
+    expect(mockExecuteRequest.mock.calls.at(-1)?.[0]).toMatchObject({
+      messages: [{ role: 'user', content: 'Continue safely' }],
+      responseFormat: undefined,
+    })
+  })
+
+  it('omits malformed and oversized optional schemas without failing the model call', async () => {
+    const registry = new ResolvedSecretTraceRegistry()
+    const oversizedSchema = { allOf: new Array(100_001) }
+
+    for (const schema of [{ properties: { field: 'not-a-schema' } }, oversizedSchema]) {
+      mockExecuteRequest.mockClear()
+      await executeProviderRequest(
+        'openai',
+        {
+          model: 'test-model',
+          messages: [{ role: 'user', content: 'Continue safely' }],
+          tools: [
+            {
+              id: 'unsafe_tool',
+              name: 'Unsafe tool',
+              description: 'Invalid optional schema',
+              params: {},
+              parameters: schema,
+            },
+          ],
+          responseFormat: { name: 'unsafe_response', schema },
+        },
+        { resolvedSecretTraceRegistry: registry }
+      )
+
+      expect(mockExecuteRequest.mock.calls.at(-1)?.[0]).toMatchObject({
+        messages: [{ role: 'user', content: 'Continue safely' }],
+        tools: [],
+        responseFormat: undefined,
+      })
+    }
   })
 
   it('projects attachment display names before storage resolution and provider upload', async () => {
@@ -587,6 +762,7 @@ describe('executeProviderRequest — model secret projection', () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
     ])
+    registry.recordResolved('TOKEN', secret)
 
     await executeProviderRequest(
       'openai',
@@ -625,10 +801,74 @@ describe('executeProviderRequest — model secret projection', () => {
     })
   })
 
+  it('omits only unsafe durable files before any provider attachment processing', async () => {
+    const unsafe = {
+      id: 'wf-unsafe',
+      name: 'unsafe.txt',
+      url: '/unsafe',
+      size: 10,
+      type: 'text/plain',
+      key: 'workspace/ws-1/unsafe.txt',
+    }
+    const safe = {
+      id: 'wf-safe',
+      name: 'safe.txt',
+      url: '/safe',
+      size: 10,
+      type: 'text/plain',
+      key: 'workspace/ws-1/safe.txt',
+    }
+    mockFilterModelSafeWorkspaceFileAttachments.mockResolvedValueOnce([safe])
+
+    await executeProviderRequest('openai', {
+      model: 'test-model',
+      workspaceId: 'ws-1',
+      messages: [{ role: 'user', content: 'Review files', files: [unsafe, safe] }],
+    })
+
+    expect(mockAttachLargeFileRemoteUrls.mock.calls[0][0].messages[0].files).toEqual([safe])
+    expect(mockUploadLargeFilesToProvider.mock.calls[0][0].messages[0].files).toEqual([safe])
+    expect(mockExecuteRequest.mock.calls[0][0].messages[0].files).toEqual([safe])
+  })
+
+  it('continues text-only when file provenance lookup is unavailable', async () => {
+    mockFilterModelSafeWorkspaceFileAttachments.mockRejectedValueOnce(new Error('db unavailable'))
+
+    await executeProviderRequest('openai', {
+      model: 'test-model',
+      workspaceId: 'ws-1',
+      messages: [
+        {
+          role: 'user',
+          content: 'Continue without the file',
+          files: [
+            {
+              id: 'wf-file',
+              name: 'file.txt',
+              url: '/file',
+              size: 10,
+              type: 'text/plain',
+              key: 'workspace/ws-1/file.txt',
+            },
+          ],
+        },
+      ],
+    })
+
+    expect(mockExecuteRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messages: [
+          expect.objectContaining({ content: 'Continue without the file', files: undefined }),
+        ],
+      })
+    )
+  })
+
   it('projects JSON arguments and attachment text exactly once when plaintext overlaps its alias', async () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'TOKEN', plaintext: 'TOKEN', encryptedValue: 'ciphertext' },
     ])
+    registry.recordResolved('TOKEN', 'TOKEN')
 
     await executeProviderRequest(
       'openai',
@@ -671,22 +911,23 @@ describe('executeProviderRequest — model secret projection', () => {
 
     const sent = mockExecuteRequest.mock.calls.at(-1)?.[0]
     expect(sent.messages[0]).toMatchObject({
-      content: '[REDACTED_SECRET]',
-      function_call: { arguments: JSON.stringify({ value: '[REDACTED_SECRET]' }) },
+      content: '{{TOKEN}}',
+      function_call: { arguments: JSON.stringify({ value: '{{TOKEN}}' }) },
       tool_calls: [
         {
-          function: { arguments: JSON.stringify({ value: '[REDACTED_SECRET]' }) },
+          function: { arguments: JSON.stringify({ value: '{{TOKEN}}' }) },
         },
       ],
       files: [
         {
-          name: '[REDACTED_SECRET].txt',
-          context: 'Context [REDACTED_SECRET]',
+          name: '{{TOKEN}}.txt',
+          context: 'Context {{TOKEN}}',
         },
       ],
     })
-    expect(JSON.stringify(sent)).not.toContain('TOKEN')
-    expect(JSON.stringify(sent)).not.toContain('{{{{TOKEN}}}}')
+    const serialized = JSON.stringify(sent)
+    expect(serialized.replaceAll('{{TOKEN}}', '')).not.toContain('TOKEN')
+    expect(serialized).not.toContain('{{{{TOKEN}}}}')
   })
 
   it.each(['123', 'true'])(
@@ -695,6 +936,7 @@ describe('executeProviderRequest — model secret projection', () => {
       const registry = new ResolvedSecretTraceRegistry([
         { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
       ])
+      registry.recordResolved('TOKEN', secret)
       const converted = secret === '123' ? 123 : true
 
       await executeProviderRequest(
@@ -864,12 +1106,13 @@ describe('executeProviderRequest — model secret projection', () => {
   )
 
   it.each(ARBITRARY_SCHEMA_CONTROL_KEYS)(
-    'guards arbitrary %s schema controls while preserving tool omission and response failure',
+    'guards arbitrary %s schema controls while omitting only the unsafe model capability',
     async (controlKey) => {
       const secret = `schema-control-secret-${controlKey}`
       const registry = new ResolvedSecretTraceRegistry([
         { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
       ])
+      registry.recordResolved('TOKEN', secret)
       const unsafeSchema = {
         type: 'object',
         properties: {},
@@ -905,69 +1148,77 @@ describe('executeProviderRequest — model secret projection', () => {
       ])
 
       mockExecuteRequest.mockClear()
-      await expect(
-        executeProviderRequest(
-          'openai',
-          {
-            model: 'test-model',
-            responseFormat: { name: 'unsafe_response', schema: unsafeSchema },
-          },
-          { resolvedSecretTraceRegistry: registry }
-        )
-      ).rejects.toThrow('Model input could not be safely projected')
-      expect(mockExecuteRequest).not.toHaveBeenCalled()
+      await executeProviderRequest(
+        'openai',
+        {
+          model: 'test-model',
+          messages: [{ role: 'user', content: 'Continue safely' }],
+          responseFormat: { name: 'unsafe_response', schema: unsafeSchema },
+        },
+        { resolvedSecretTraceRegistry: registry }
+      )
+      expect(mockExecuteRequest).toHaveBeenCalledWith(
+        expect.objectContaining({
+          messages: [{ role: 'user', content: 'Continue safely' }],
+          responseFormat: undefined,
+        })
+      )
+      expect(JSON.stringify(mockExecuteRequest.mock.calls.at(-1)?.[0])).not.toContain(secret)
     }
   )
 
   it.each([
     ['string', { type: 'string' }],
     ['true', { type: 'object', nullable: true }],
-  ])('guards canonical schema controls when they equal the secret %s', async (secret, schema) => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
-    ])
+  ])(
+    'preserves validated schema controls when they equal active secret bytes (%s)',
+    async (secret, schema) => {
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
+      ])
+      registry.recordResolved('TOKEN', secret)
 
-    await executeProviderRequest(
-      'openai',
-      {
-        model: 'test-model',
-        tools: [
-          {
-            id: 'unsafe_tool',
-            name: 'Unsafe tool',
-            description: 'Unsafe canonical control',
-            params: {},
-            parameters: schema,
-          },
-          {
-            id: 'safe_tool',
-            name: 'Safe tool',
-            description: 'Safe schema',
-            params: {},
-            parameters: { type: 'object', properties: {} },
-          },
-        ],
-      },
-      { resolvedSecretTraceRegistry: registry }
-    )
-
-    expect(mockExecuteRequest.mock.calls.at(-1)?.[0].tools).toEqual([
-      expect.objectContaining({ id: 'safe_tool' }),
-    ])
-
-    mockExecuteRequest.mockClear()
-    await expect(
-      executeProviderRequest(
+      await executeProviderRequest(
         'openai',
         {
           model: 'test-model',
-          responseFormat: { name: 'unsafe_response', schema },
+          tools: [
+            {
+              id: 'canonical_tool',
+              name: 'Canonical tool',
+              description: 'Canonical control',
+              params: {},
+              parameters: schema,
+            },
+            {
+              id: 'safe_tool',
+              name: 'Safe tool',
+              description: 'Safe schema',
+              params: {},
+              parameters: { type: 'object', properties: {} },
+            },
+          ],
         },
         { resolvedSecretTraceRegistry: registry }
       )
-    ).rejects.toThrow('Model input could not be safely projected')
-    expect(mockExecuteRequest).not.toHaveBeenCalled()
-  })
+
+      expect(mockExecuteRequest.mock.calls.at(-1)?.[0].tools).toEqual([
+        expect.objectContaining({ id: 'canonical_tool', parameters: schema }),
+        expect.objectContaining({ id: 'safe_tool' }),
+      ])
+
+      mockExecuteRequest.mockClear()
+      await executeProviderRequest(
+        'openai',
+        {
+          model: 'test-model',
+          responseFormat: { name: 'canonical_response', schema },
+        },
+        { resolvedSecretTraceRegistry: registry }
+      )
+      expect(mockExecuteRequest.mock.calls.at(-1)?.[0].responseFormat?.schema).toEqual(schema)
+    }
+  )
 
   it('forwards safe canonical schema controls byte-for-byte', async () => {
     const registry = new ResolvedSecretTraceRegistry([
@@ -993,27 +1244,33 @@ describe('executeProviderRequest — model secret projection', () => {
   })
 
   it.each(['123', 'true'])(
-    'fails closed when a response schema semantic value equals a secret (%s)',
+    'omits a response schema whose semantic value equals a secret (%s)',
     async (secret) => {
       const registry = new ResolvedSecretTraceRegistry([
         { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
       ])
+      registry.recordResolved('TOKEN', secret)
       const semanticValue = secret === '123' ? 123 : true
 
-      await expect(
-        executeProviderRequest(
-          'openai',
-          {
-            model: 'test-model',
-            responseFormat: {
-              name: 'safe_response',
-              schema: { type: 'object', properties: {}, enum: [semanticValue] },
-            },
+      await executeProviderRequest(
+        'openai',
+        {
+          model: 'test-model',
+          messages: [{ role: 'user', content: 'Continue safely' }],
+          responseFormat: {
+            name: 'safe_response',
+            schema: { type: 'object', properties: {}, enum: [semanticValue] },
           },
-          { resolvedSecretTraceRegistry: registry }
-        )
-      ).rejects.toThrow('Model input could not be safely projected')
-      expect(mockExecuteRequest).not.toHaveBeenCalled()
+        },
+        { resolvedSecretTraceRegistry: registry }
+      )
+      expect(mockExecuteRequest).toHaveBeenCalledWith(
+        expect.objectContaining({
+          messages: [{ role: 'user', content: 'Continue safely' }],
+          responseFormat: undefined,
+        })
+      )
+      expect(mockExecuteRequest.mock.calls.at(-1)?.[0].systemPrompt).toBeUndefined()
     }
   )
 

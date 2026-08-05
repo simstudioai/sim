@@ -7,6 +7,7 @@ import {
   organizationIdSchema,
   piiStagePolicySchema,
   piiStagesSchema,
+  resolvedSecretTraceProvenanceSchema,
   workflowIdSchema,
   workspaceFileIdSchema,
   workspaceIdSchema,
@@ -104,6 +105,39 @@ describe('piiStagesSchema', () => {
     })
     expect(parsed.blockOutputs.entityTypes).toEqual([])
     expect(parsed.blockOutputs.enabled).toBe(true)
+  })
+})
+
+describe('resolvedSecretTraceProvenanceSchema', () => {
+  it('accepts a complete bounded provenance envelope', () => {
+    expect(
+      resolvedSecretTraceProvenanceSchema.safeParse({
+        version: 1,
+        complete: true,
+        entries: [{ name: 'TOKEN', encryptedValue: 'encrypted-token' }],
+      }).success
+    ).toBe(true)
+  })
+
+  it('rejects entries on an incomplete envelope', () => {
+    expect(
+      resolvedSecretTraceProvenanceSchema.safeParse({
+        version: 1,
+        complete: false,
+        entries: [{ name: 'TOKEN', encryptedValue: 'encrypted-token' }],
+      }).success
+    ).toBe(false)
+  })
+
+  it('rejects an aggregate envelope larger than the provenance budget', () => {
+    const encryptedValue = 'a'.repeat(4_300_000)
+    expect(
+      resolvedSecretTraceProvenanceSchema.safeParse({
+        version: 1,
+        complete: true,
+        entries: [{ encryptedValue }, { encryptedValue }],
+      }).success
+    ).toBe(false)
   })
 })
 

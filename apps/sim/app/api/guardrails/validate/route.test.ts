@@ -15,6 +15,10 @@ const {
   mockValidateHallucination,
   mockRecordUsage,
   mockCheckAndBillPayerOverageThreshold,
+  mockPrepareCopilotEnvironmentContext,
+  mockImportProvenance,
+  mockExportModelEgressProvenanceForValue,
+  mockRegistryIsComplete,
 } = vi.hoisted(() => ({
   mockAuthorizeCredentialUse: vi.fn(),
   mockCheckActorUsageLimits: vi.fn(),
@@ -26,6 +30,10 @@ const {
   mockValidateHallucination: vi.fn(),
   mockRecordUsage: vi.fn(),
   mockCheckAndBillPayerOverageThreshold: vi.fn(),
+  mockPrepareCopilotEnvironmentContext: vi.fn(),
+  mockImportProvenance: vi.fn(),
+  mockExportModelEgressProvenanceForValue: vi.fn(),
+  mockRegistryIsComplete: vi.fn(),
 }))
 
 vi.mock('@/lib/auth/credential-access', () => ({
@@ -54,6 +62,10 @@ vi.mock('@/lib/billing/threshold-billing', () => ({
 
 vi.mock('@/lib/guardrails/validate_hallucination', () => ({
   validateHallucination: mockValidateHallucination,
+}))
+
+vi.mock('@/lib/copilot/environment-context', () => ({
+  prepareCopilotEnvironmentContext: mockPrepareCopilotEnvironmentContext,
 }))
 
 vi.mock('@/lib/guardrails/validate_json', () => ({
@@ -109,6 +121,22 @@ describe('POST /api/guardrails/validate', () => {
       },
     })
     mockValidateHallucination.mockResolvedValue({ passed: true, score: 8 })
+    mockImportProvenance.mockResolvedValue(true)
+    mockExportModelEgressProvenanceForValue.mockReturnValue({
+      version: 1,
+      complete: true,
+      entries: [],
+    })
+    mockRegistryIsComplete.mockReturnValue(true)
+    mockPrepareCopilotEnvironmentContext.mockResolvedValue({
+      resolvedSecretTraceRegistry: {
+        exportModelEgressProvenanceForValue: mockExportModelEgressProvenanceForValue,
+        importProvenance: mockImportProvenance,
+        importProvenanceForValue: mockImportProvenance,
+        isComplete: mockRegistryIsComplete,
+        markIncomplete: vi.fn(),
+      },
+    })
   })
 
   it('rejects a vertexCredential the caller does not have access to before calling validateHallucination', async () => {
@@ -190,6 +218,82 @@ describe('POST /api/guardrails/validate', () => {
     expect(res.status).toBe(200)
     expect(mockAuthorizeCredentialUse).not.toHaveBeenCalled()
     expect(mockValidateHallucination).toHaveBeenCalled()
+  })
+
+  it('imports transported active provenance before hallucination model egress', async () => {
+    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
+      success: true,
+      userId: 'user-1',
+      authType: 'internal_jwt',
+    })
+    const provenance = {
+      version: 1,
+      complete: true,
+      entries: [{ encryptedValue: 'encrypted-secret', name: 'TOKEN' }],
+      scope: { userId: 'user-1', workspaceId: 'ws-1' },
+    }
+    const res = await POST(
+      createMockRequest(
+        'POST',
+        {
+          validationType: 'hallucination',
+          input: 'secret value',
+          knowledgeBaseId: 'kb-1',
+          model: 'gpt-4o',
+          workflowId: 'wf-1',
+          __resolvedSecretTraceProvenance: provenance,
+        },
+        { 'x-sim-private-model-input-provenance': 'resolved-secret-provenance-v1' }
+      )
+    )
+
+    expect(res.status).toBe(200)
+    expect(mockImportProvenance).toHaveBeenCalledWith(provenance, 'secret value', {
+      trusted: true,
+    })
+    expect(mockExportModelEgressProvenanceForValue).not.toHaveBeenCalled()
+  })
+
+  it('rejects private provenance supplied through session authentication', async () => {
+    const provenance = { version: 1, complete: true, entries: [] }
+
+    const res = await POST(
+      createMockRequest(
+        'POST',
+        {
+          validationType: 'hallucination',
+          input: 'test input',
+          knowledgeBaseId: 'kb-1',
+          model: 'gpt-4o',
+          workflowId: 'wf-1',
+          __resolvedSecretTraceProvenance: provenance,
+        },
+        { 'x-sim-private-model-input-provenance': 'resolved-secret-provenance-v1' }
+      )
+    )
+
+    expect(res.status).toBe(400)
+    expect(mockImportProvenance).not.toHaveBeenCalled()
+    expect(mockValidateHallucination).not.toHaveBeenCalled()
+  })
+
+  it('rejects a partial hallucination provenance envelope before model egress', async () => {
+    const res = await POST(
+      createMockRequest(
+        'POST',
+        {
+          validationType: 'hallucination',
+          input: 'test input',
+          knowledgeBaseId: 'kb-1',
+          model: 'gpt-4o',
+          workflowId: 'wf-1',
+        },
+        { 'x-sim-private-model-input-provenance': 'resolved-secret-provenance-v1' }
+      )
+    )
+
+    expect(res.status).toBe(400)
+    expect(mockValidateHallucination).not.toHaveBeenCalled()
   })
 
   it('does not gate on a leftover vertexCredential when the resolved model is not vertex', async () => {

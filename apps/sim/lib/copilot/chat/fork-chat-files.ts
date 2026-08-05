@@ -6,6 +6,7 @@ import { and, eq, isNull } from 'drizzle-orm'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import type { DbOrTx } from '@/lib/db/types'
 import { generateWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { copyWorkspaceFileSecretProvenanceInTx } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { downloadFile, uploadFile } from '@/lib/uploads/core/storage-service'
 import type { StorageContext } from '@/lib/uploads/shared/types'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
@@ -144,6 +145,19 @@ export async function planChatFileCopies(params: {
   // no per-row round trips while the fork transaction is held open.
   if (copyRows.length > 0) {
     await tx.insert(workspaceFiles).values(copyRows)
+    for (const source of rows) {
+      const targetId = idMap.get(source.id)
+      if (!targetId) continue
+      await copyWorkspaceFileSecretProvenanceInTx(
+        tx,
+        {
+          fileId: source.id,
+          key: source.key,
+          contentUpdatedAtMs: source.contentUpdatedAt.getTime(),
+        },
+        targetId
+      )
+    }
   }
 
   return { idMap, keyMap, blobTasks }

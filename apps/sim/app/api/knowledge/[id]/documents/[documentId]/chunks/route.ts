@@ -8,10 +8,14 @@ import {
   listKnowledgeChunksQuerySchema,
 } from '@/lib/api/contracts/knowledge'
 import { isZodError, parseJsonBody, parseRequest } from '@/lib/api/server'
-import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { batchChunkOperation, createChunk, queryChunks } from '@/lib/knowledge/chunks/service'
+import {
+  prepareKnowledgeModelInputProvenance,
+  runWithKnowledgeModelInputProvenance,
+} from '@/lib/knowledge/model-input-provenance'
 import { checkDocumentAccess, checkDocumentWriteAccess } from '@/app/api/knowledge/utils'
 import { calculateCost } from '@/providers/utils'
 
@@ -172,6 +176,21 @@ export const POST = withRouteHandler(
       try {
         const validatedData = createChunkBodySchema.parse(searchParams)
 
+        const modelInputProvenance = await prepareKnowledgeModelInputProvenance({
+          headers: req.headers,
+          payload: parsedBody.data,
+          isInternalRequest: auth.authType === AuthType.INTERNAL_JWT,
+          userId,
+          workspaceId: accessCheck.knowledgeBase?.workspaceId ?? undefined,
+          modelInput: validatedData.content,
+        })
+        if (!modelInputProvenance.success) {
+          return NextResponse.json(
+            { error: modelInputProvenance.error },
+            { status: modelInputProvenance.status }
+          )
+        }
+
         const docTags = {
           tag1: doc.tag1 ?? null,
           tag2: doc.tag2 ?? null,
@@ -192,13 +211,17 @@ export const POST = withRouteHandler(
           boolean3: doc.boolean3 ?? null,
         }
 
-        const newChunk = await createChunk(
-          knowledgeBaseId,
-          documentId,
-          docTags,
-          validatedData,
-          requestId,
-          accessCheck.knowledgeBase?.workspaceId
+        const newChunk = await runWithKnowledgeModelInputProvenance(
+          modelInputProvenance.registry,
+          () =>
+            createChunk(
+              knowledgeBaseId,
+              documentId,
+              docTags,
+              validatedData,
+              requestId,
+              accessCheck.knowledgeBase?.workspaceId
+            )
         )
 
         let cost = null

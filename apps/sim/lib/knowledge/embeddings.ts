@@ -17,6 +17,7 @@ import {
   SUPPORTED_EMBEDDING_MODELS,
   type TokenizerProviderId,
 } from '@/lib/knowledge/embedding-models'
+import { projectKnowledgeModelInputs } from '@/lib/knowledge/model-input-provenance'
 import { batchByTokenLimit, estimateTokenCount } from '@/lib/tokenization'
 import { calculateCost } from '@/providers/utils'
 
@@ -266,9 +267,10 @@ async function callEmbeddingAPI(
   provider: ResolvedProvider,
   inputType: EmbeddingInputType
 ): Promise<{ embeddings: number[][]; totalTokens: number }> {
+  const modelInputs = projectKnowledgeModelInputs(inputs)
   return retryWithExponentialBackoff(
     async () => {
-      const request = provider.buildRequest(inputs, inputType)
+      const request = provider.buildRequest(modelInputs, inputType)
 
       const controller = new AbortController()
       const timeout = setTimeout(() => controller.abort(), EMBEDDING_REQUEST_TIMEOUT_MS)
@@ -294,7 +296,7 @@ async function callEmbeddingAPI(
       const totalTokens =
         usage?.total_tokens ??
         // Gemini does not return usage.total_tokens — estimate with the provider's tokenizer
-        inputs.reduce(
+        modelInputs.reduce(
           (sum, text) => sum + estimateTokenCount(text, provider.tokenizerProvider).count,
           0
         )

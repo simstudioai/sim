@@ -20,42 +20,38 @@ describe('provider runtime context', () => {
   })
 
   it('isolates concurrent tool executions without adding registry data to params', async () => {
-    const registryA = { id: 'a' }
-    const registryB = { id: 'b' }
+    const registryA = new ResolvedSecretTraceRegistry()
+    const registryB = new ResolvedSecretTraceRegistry()
 
     await Promise.all([
-      runWithProviderRuntimeContext(
-        { resolvedSecretTraceRegistry: registryA as never },
-        async () => {
-          await Promise.resolve()
-          await executeProviderTool('tool-a', { visible: 'a' })
-        }
-      ),
-      runWithProviderRuntimeContext(
-        { resolvedSecretTraceRegistry: registryB as never },
-        async () => {
-          await Promise.resolve()
-          await executeProviderTool('tool-b', { visible: 'b' })
-        }
-      ),
+      runWithProviderRuntimeContext({ resolvedSecretTraceRegistry: registryA }, async () => {
+        await Promise.resolve()
+        await executeProviderTool('tool-a', { visible: 'a' })
+      }),
+      runWithProviderRuntimeContext({ resolvedSecretTraceRegistry: registryB }, async () => {
+        await Promise.resolve()
+        await executeProviderTool('tool-b', { visible: 'b' })
+      }),
     ])
 
-    expect(mockExecuteTool).toHaveBeenCalledWith(
-      'tool-a',
-      { visible: 'a' },
-      { resolvedSecretTraceRegistry: registryA }
-    )
-    expect(mockExecuteTool).toHaveBeenCalledWith(
-      'tool-b',
-      { visible: 'b' },
-      { resolvedSecretTraceRegistry: registryB }
-    )
+    const toolACall = mockExecuteTool.mock.calls.find(([toolId]) => toolId === 'tool-a')
+    const toolBCall = mockExecuteTool.mock.calls.find(([toolId]) => toolId === 'tool-b')
+    const toolARegistry = toolACall?.[2]?.resolvedSecretTraceRegistry
+    const toolBRegistry = toolBCall?.[2]?.resolvedSecretTraceRegistry
+
+    expect(toolACall?.[1]).toEqual({ visible: 'a' })
+    expect(toolBCall?.[1]).toEqual({ visible: 'b' })
+    expect(toolARegistry).toBeInstanceOf(ResolvedSecretTraceRegistry)
+    expect(toolBRegistry).toBeInstanceOf(ResolvedSecretTraceRegistry)
+    expect(toolARegistry).not.toBe(registryA)
+    expect(toolBRegistry).not.toBe(registryB)
+    expect(toolARegistry).not.toBe(toolBRegistry)
   })
 
   it('preserves runtime context in a stream consumed after the provider call returns', async () => {
-    const registry = { id: 'stream' }
+    const registry = new ResolvedSecretTraceRegistry()
     const stream = runWithProviderRuntimeContext(
-      { resolvedSecretTraceRegistry: registry as never },
+      { resolvedSecretTraceRegistry: registry },
       () =>
         new ReadableStream({
           async pull(controller) {
@@ -68,14 +64,13 @@ describe('provider runtime context', () => {
 
     await new Response(stream).text()
 
-    expect(mockExecuteTool).toHaveBeenCalledWith(
-      'stream-tool',
-      { visible: true },
-      { resolvedSecretTraceRegistry: registry }
-    )
+    const toolCall = mockExecuteTool.mock.calls.find(([toolId]) => toolId === 'stream-tool')
+    expect(toolCall?.[1]).toEqual({ visible: true })
+    expect(toolCall?.[2]?.resolvedSecretTraceRegistry).toBeInstanceOf(ResolvedSecretTraceRegistry)
+    expect(toolCall?.[2]?.resolvedSecretTraceRegistry).not.toBe(registry)
   })
 
-  it('projects dormant catalog values without mutating the raw tool result', async () => {
+  it('does not treat an arbitrary tool-result collision as secret provenance', async () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
     ])
@@ -91,11 +86,72 @@ describe('provider runtime context', () => {
     )
 
     expect(result.output).toEqual({
-      direct: '{{TOKEN}}',
-      quoted: 'line\n"{{TOKEN}}"',
-      alias: '{{TOKEN}}',
+      direct: 'secret-value',
+      quoted: 'line\n"secret-value"',
+      alias: '__var_TOKEN',
     })
     expect(rawResult.output.direct).toBe('secret-value')
+    expect(registry.getActiveMatches()).toEqual([])
+  })
+
+  it('preserves public low-entropy output that is unrelated to the current tool input', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TEXT', plaintext: 'Test', encryptedValue: 'encrypted-text' },
+      { name: 'BOOLEAN', plaintext: 'true', encryptedValue: 'encrypted-boolean' },
+      { name: 'NUMBER', plaintext: '123', encryptedValue: 'encrypted-number' },
+    ])
+    registry.recordResolved('TEXT', 'Test')
+    registry.recordResolved('BOOLEAN', 'true')
+    registry.recordResolved('NUMBER', '123')
+    const rawResult = {
+      success: true,
+      output: { text: 'Test', boolean: true, booleanText: 'true', number: 123, numberText: '123' },
+    }
+    mockExecuteTool.mockResolvedValueOnce(rawResult)
+
+    const result = await runWithProviderRuntimeContext(
+      { resolvedSecretTraceRegistry: registry },
+      () => executeProviderTool('custom-tool', { visible: 'unrelated' })
+    )
+
+    expect(result).toEqual(rawResult)
+    expect(registry.isComplete()).toBe(true)
+  })
+
+  it('does not treat a static tool parameter name as secret-bearing input', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'PARAM_NAME', plaintext: 'prompt', encryptedValue: 'encrypted-param-name' },
+    ])
+    registry.recordResolved('PARAM_NAME', 'prompt')
+    const rawResult = { success: true, output: { value: 'prompt' } }
+    mockExecuteTool.mockResolvedValueOnce(rawResult)
+
+    const result = await runWithProviderRuntimeContext(
+      { resolvedSecretTraceRegistry: registry },
+      () => executeProviderTool('custom-tool', { prompt: 'unrelated' })
+    )
+
+    expect(result).toEqual(rawResult)
+    expect(registry.isComplete()).toBe(true)
+  })
+
+  it('projects a secret inherited through the exact current tool input', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
+    ])
+    registry.recordResolved('TOKEN', 'secret-value')
+    mockExecuteTool.mockResolvedValueOnce({
+      success: true,
+      output: { authorization: 'Bearer secret-value' },
+    })
+
+    const result = await runWithProviderRuntimeContext(
+      { resolvedSecretTraceRegistry: registry },
+      () => executeProviderTool('custom-tool', { token: 'secret-value' })
+    )
+
+    expect(result.output).toEqual({ authorization: 'Bearer {{TOKEN}}' })
+    expect(registry.isComplete()).toBe(true)
   })
 
   it.each([
@@ -122,7 +178,10 @@ describe('provider runtime context', () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
     ])
-    mockExecuteTool.mockResolvedValueOnce({ success: true, output: 'secret-value' })
+    mockExecuteTool.mockImplementationOnce(async (_toolId, _params, options) => {
+      options.resolvedSecretTraceRegistry?.recordResolved('TOKEN', 'secret-value')
+      return { success: true, output: 'secret-value' }
+    })
 
     const result = await runWithProviderRuntimeContext(
       { resolvedSecretTraceRegistry: registry },
@@ -138,20 +197,23 @@ describe('provider runtime context', () => {
       const registry = new ResolvedSecretTraceRegistry([
         { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
       ])
-      mockExecuteTool.mockResolvedValueOnce({
-        success: true,
-        output: {
-          value: `Result ${secret}`,
-          converted: secret === '123' ? 123 : true,
-        },
-        resources: [
-          {
-            type: 'file',
-            id: secret,
-            title: `Report ${secret}`,
-            path: `files/${secret}.txt`,
+      mockExecuteTool.mockImplementationOnce(async (_toolId, _params, options) => {
+        options.resolvedSecretTraceRegistry?.recordResolved('TOKEN', secret)
+        return {
+          success: true,
+          output: {
+            value: `Result ${secret}`,
+            converted: secret === '123' ? 123 : true,
           },
-        ],
+          resources: [
+            {
+              type: 'file',
+              id: secret,
+              title: `Report ${secret}`,
+              path: `files/${secret}.txt`,
+            },
+          ],
+        }
       })
 
       const result = await runWithProviderRuntimeContext(
@@ -171,23 +233,26 @@ describe('provider runtime context', () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
     ])
-    mockExecuteTool.mockResolvedValueOnce({
-      success: true,
-      output: {},
-      resources: [
-        {
-          type: 'file',
-          id: 'safe-file',
-          title: 'secret-value report',
-          path: '/workspace/safe/report.txt',
-        },
-        {
-          type: 'file',
-          id: 'unsafe-file',
-          title: 'report.txt',
-          path: '/workspace/secret-value/report.txt',
-        },
-      ],
+    mockExecuteTool.mockImplementationOnce(async (_toolId, _params, options) => {
+      options.resolvedSecretTraceRegistry?.recordResolved('TOKEN', 'secret-value')
+      return {
+        success: true,
+        output: {},
+        resources: [
+          {
+            type: 'file',
+            id: 'safe-file',
+            title: 'secret-value report',
+            path: '/workspace/safe/report.txt',
+          },
+          {
+            type: 'file',
+            id: 'unsafe-file',
+            title: 'report.txt',
+            path: '/workspace/secret-value/report.txt',
+          },
+        ],
+      }
     })
 
     const result = await runWithProviderRuntimeContext(
@@ -205,29 +270,126 @@ describe('provider runtime context', () => {
     ])
   })
 
-  it('fails a completed tool closed while a parallel sibling activation remains pending', async () => {
+  it('projects and merges a completed tool while a parallel sibling activation remains pending', async () => {
     const registry = new ResolvedSecretTraceRegistry([
-      { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
+      { name: 'COMPLETED', plaintext: 'completed-secret', encryptedValue: 'completed-ciphertext' },
+      { name: 'SIBLING', plaintext: 'sibling-secret', encryptedValue: 'sibling-ciphertext' },
     ])
     let releaseSibling: (() => void) | undefined
     const siblingGate = new Promise<void>((resolve) => {
       releaseSibling = resolve
     })
-    mockExecuteTool.mockImplementation(async (toolId: string) => {
-      const finish = registry.beginPendingActivation()
+    mockExecuteTool.mockImplementation(async (toolId: string, _params, options) => {
+      const toolCallRegistry = options.resolvedSecretTraceRegistry
+      if (!toolCallRegistry) throw new Error('Missing tool-call registry')
+      const finish = toolCallRegistry.beginPendingActivation()
       if (toolId === 'sibling') await siblingGate
+      const name = toolId === 'sibling' ? 'SIBLING' : 'COMPLETED'
+      const plaintext = toolId === 'sibling' ? 'sibling-secret' : 'completed-secret'
+      toolCallRegistry.recordResolved(name, plaintext)
       finish()
-      return { success: true, output: { value: 'secret-value' } }
+      return { success: true, output: { value: plaintext } }
     })
 
     await runWithProviderRuntimeContext({ resolvedSecretTraceRegistry: registry }, async () => {
       const sibling = executeProviderTool('sibling', {})
       const completed = await executeProviderTool('completed', {})
-      expect(completed.output).toEqual({})
-      expect(JSON.stringify(completed)).not.toContain('secret-value')
+      expect(completed.output).toEqual({ value: '{{COMPLETED}}' })
+      expect(registry.getActiveMatches()).toEqual([
+        { plaintext: 'completed-secret', replacement: '{{COMPLETED}}' },
+      ])
       releaseSibling?.()
-      expect((await sibling).output).toEqual({ value: '{{TOKEN}}' })
+      expect((await sibling).output).toEqual({ value: '{{SIBLING}}' })
+      expect(registry.getActiveMatches()).toEqual([
+        { plaintext: 'completed-secret', replacement: '{{COMPLETED}}' },
+        { plaintext: 'sibling-secret', replacement: '{{SIBLING}}' },
+      ])
     })
+  })
+
+  it('omits an incomplete tool result without poisoning the parent registry', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
+    ])
+    mockExecuteTool.mockImplementationOnce(async (_toolId, _params, options) => {
+      options.resolvedSecretTraceRegistry?.markIncomplete()
+      return { success: true, output: { value: 'secret-value' } }
+    })
+
+    const result = await runWithProviderRuntimeContext(
+      { resolvedSecretTraceRegistry: registry },
+      () => executeProviderTool('custom-tool', {})
+    )
+
+    expect(result).toEqual({ success: true, output: {} })
+    expect(registry.isComplete()).toBe(true)
+    expect(registry.getActiveMatches()).toEqual([])
+  })
+
+  it('structurally omits an incomplete failed tool result without poisoning the parent registry', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
+    ])
+    mockExecuteTool.mockImplementationOnce(async (_toolId, _params, options) => {
+      options.resolvedSecretTraceRegistry?.markIncomplete()
+      return {
+        success: false,
+        output: { value: 'secret-value' },
+        error: 'secret-value',
+      }
+    })
+
+    const result = await runWithProviderRuntimeContext(
+      { resolvedSecretTraceRegistry: registry },
+      () => executeProviderTool('custom-tool', {})
+    )
+
+    expect(result).toEqual({ success: false, output: {} })
+    expect(registry.isComplete()).toBe(true)
+    expect(registry.getActiveMatches()).toEqual([])
+  })
+
+  it('discards child provenance when response projection fails', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
+    ])
+    mockExecuteTool.mockImplementationOnce(async (_toolId, _params, options) => {
+      const toolCallRegistry = options.resolvedSecretTraceRegistry
+      if (!toolCallRegistry) throw new Error('Missing tool-call registry')
+      toolCallRegistry.recordResolved('TOKEN', 'secret-value')
+      const output: Record<string, unknown> = { value: 'secret-value' }
+      output.self = output
+      return { success: true, output }
+    })
+
+    const result = await runWithProviderRuntimeContext(
+      { resolvedSecretTraceRegistry: registry },
+      () => executeProviderTool('custom-tool', {})
+    )
+
+    expect(result).toEqual({ success: true, output: {} })
+    expect(registry.isComplete()).toBe(true)
+    expect(registry.getActiveMatches()).toEqual([])
+  })
+
+  it('omits an incomplete tool error without poisoning the parent registry', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
+    ])
+    mockExecuteTool.mockImplementationOnce(async (_toolId, _params, options) => {
+      options.resolvedSecretTraceRegistry?.markIncomplete()
+      throw new Error('secret-value')
+    })
+
+    const error = await runWithProviderRuntimeContext(
+      { resolvedSecretTraceRegistry: registry },
+      () => executeProviderTool('custom-tool', {}).catch((caught) => caught)
+    )
+
+    expect(error).toBeInstanceOf(Error)
+    expect(error.message).toBe('')
+    expect(registry.isComplete()).toBe(true)
+    expect(registry.getActiveMatches()).toEqual([])
   })
 
   it('fails closed for an incomplete registry', async () => {
@@ -276,7 +438,10 @@ describe('provider runtime context', () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
     ])
-    mockExecuteTool.mockRejectedValueOnce(new DOMException('secret-value', 'AbortError'))
+    mockExecuteTool.mockImplementationOnce(async (_toolId, _params, options) => {
+      options.resolvedSecretTraceRegistry?.recordResolved('TOKEN', 'secret-value')
+      throw new DOMException('secret-value', 'AbortError')
+    })
 
     const error = await runWithProviderRuntimeContext(
       { resolvedSecretTraceRegistry: registry },

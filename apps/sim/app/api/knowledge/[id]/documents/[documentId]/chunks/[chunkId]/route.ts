@@ -2,10 +2,15 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { updateKnowledgeChunkContract } from '@/lib/api/contracts/knowledge'
-import { parseRequest } from '@/lib/api/server'
+import { parseJsonBody, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { deleteChunk, updateChunk } from '@/lib/knowledge/chunks/service'
+import {
+  prepareKnowledgeModelInputProvenance,
+  runWithKnowledgeModelInputProvenance,
+} from '@/lib/knowledge/model-input-provenance'
 import { checkChunkAccess, checkChunkWriteAccess } from '@/app/api/knowledge/utils'
 
 const logger = createLogger('ChunkByIdAPI')
@@ -69,18 +74,17 @@ export const PUT = withRouteHandler(
     const { id: knowledgeBaseId, documentId, chunkId } = await context.params
 
     try {
-      const session = await getSession()
-      if (!session?.user?.id) {
+      const auth = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
+      if (!auth.success || !auth.userId) {
         logger.warn(`[${requestId}] Unauthorized chunk update attempt`)
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
+      const userId = auth.userId
 
-      const accessCheck = await checkChunkWriteAccess(
-        knowledgeBaseId,
-        documentId,
-        chunkId,
-        session.user.id
-      )
+      const rawBody = await parseJsonBody(req.clone())
+      if (!rawBody.success) return rawBody.response
+
+      const accessCheck = await checkChunkWriteAccess(knowledgeBaseId, documentId, chunkId, userId)
 
       if (!accessCheck.hasAccess) {
         if (accessCheck.notFound) {
@@ -90,14 +94,14 @@ export const PUT = withRouteHandler(
           return NextResponse.json({ error: accessCheck.reason }, { status: 404 })
         }
         logger.warn(
-          `[${requestId}] User ${session.user.id} attempted unauthorized chunk update: ${accessCheck.reason}`
+          `[${requestId}] User ${userId} attempted unauthorized chunk update: ${accessCheck.reason}`
         )
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
       if (accessCheck.document?.connectorId) {
         logger.warn(
-          `[${requestId}] User ${session.user.id} attempted to update chunk on connector-synced document: Doc=${documentId}`
+          `[${requestId}] User ${userId} attempted to update chunk on connector-synced document: Doc=${documentId}`
         )
         return NextResponse.json(
           { error: 'Chunks from connector-synced documents are read-only' },
@@ -110,11 +114,24 @@ export const PUT = withRouteHandler(
 
       const validatedData = parsed.data.body
 
-      const updatedChunk = await updateChunk(
-        chunkId,
-        validatedData,
-        requestId,
-        accessCheck.knowledgeBase?.workspaceId
+      const modelInputProvenance = await prepareKnowledgeModelInputProvenance({
+        headers: req.headers,
+        payload: rawBody.data,
+        isInternalRequest: auth.authType === AuthType.INTERNAL_JWT,
+        userId,
+        workspaceId: accessCheck.knowledgeBase?.workspaceId ?? undefined,
+        modelInput: validatedData.content,
+      })
+      if (!modelInputProvenance.success) {
+        return NextResponse.json(
+          { error: modelInputProvenance.error },
+          { status: modelInputProvenance.status }
+        )
+      }
+
+      const updatedChunk = await runWithKnowledgeModelInputProvenance(
+        modelInputProvenance.registry,
+        () => updateChunk(chunkId, validatedData, requestId, accessCheck.knowledgeBase?.workspaceId)
       )
 
       logger.info(

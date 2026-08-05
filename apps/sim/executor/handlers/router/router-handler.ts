@@ -1,6 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import {
+  addModelInputProvenanceToRequest,
+  createModelInputProvenanceRequestMetadata,
+} from '@/lib/execution/model-input-provenance'
+import {
   type AutoRoutingResult,
   addAutoRoutingCost,
   resolveAutoModel,
@@ -20,7 +24,9 @@ import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import { buildAuthHeaders } from '@/executor/utils/http'
 import { resolveVertexCredential } from '@/executor/utils/vertex-credential'
 import { resolveProxiedModelCost } from '@/providers/cost-policy'
+import { collectProviderModelInputProvenanceValues } from '@/providers/model-input-provenance'
 import { isAutoModel, SIM_AUTO_MODEL_ID } from '@/providers/models'
+import type { ProviderRequest } from '@/providers/types'
 import { getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 
@@ -107,8 +113,7 @@ export class RouterBlockHandler implements BlockHandler {
         })
       }
 
-      const providerRequest: Record<string, any> = {
-        provider: providerId,
+      const providerRequest: ProviderRequest = {
         model: resolved.model,
         systemPrompt: resolved.systemPrompt,
         context: JSON.stringify(messages),
@@ -125,10 +130,19 @@ export class RouterBlockHandler implements BlockHandler {
         workspaceId: ctx.workspaceId,
       }
 
+      const headers = new Headers(await buildAuthHeaders(ctx.userId))
+      const requestBody = addModelInputProvenanceToRequest(
+        { provider: providerId, ...providerRequest },
+        headers,
+        createModelInputProvenanceRequestMetadata(
+          ctx.resolvedSecretTraceRegistry,
+          collectProviderModelInputProvenanceValues(providerRequest)
+        )
+      )
       const response = await fetch(url.toString(), {
         method: 'POST',
-        headers: await buildAuthHeaders(ctx.userId),
-        body: JSON.stringify(providerRequest),
+        headers,
+        body: JSON.stringify(requestBody),
       })
 
       if (!response.ok) {
@@ -252,8 +266,7 @@ export class RouterBlockHandler implements BlockHandler {
         })
       }
 
-      const providerRequest: Record<string, any> = {
-        provider: providerId,
+      const providerRequest: ProviderRequest = {
         model: resolved.model,
         systemPrompt: resolved.systemPrompt,
         context: JSON.stringify(messages),
@@ -289,10 +302,19 @@ export class RouterBlockHandler implements BlockHandler {
         },
       }
 
+      const headers = new Headers(await buildAuthHeaders(ctx.userId))
+      const requestBody = addModelInputProvenanceToRequest(
+        { provider: providerId, ...providerRequest },
+        headers,
+        createModelInputProvenanceRequestMetadata(
+          ctx.resolvedSecretTraceRegistry,
+          collectProviderModelInputProvenanceValues(providerRequest)
+        )
+      )
       const response = await fetch(url.toString(), {
         method: 'POST',
-        headers: await buildAuthHeaders(ctx.userId),
-        body: JSON.stringify(providerRequest),
+        headers,
+        body: JSON.stringify(requestBody),
       })
 
       if (!response.ok) {

@@ -17,6 +17,10 @@ import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billi
 import { prepareCopilotEnvironmentContext } from '@/lib/copilot/environment-context'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import {
+  inspectModelInputProvenanceRequest,
+  reconstructLegacyModelInputProvenance,
+} from '@/lib/execution/model-input-provenance'
 import type { CustomPiiPattern } from '@/lib/guardrails/pii-entities'
 import { validateHallucination } from '@/lib/guardrails/validate_hallucination'
 import { validateJson } from '@/lib/guardrails/validate_json'
@@ -250,6 +254,30 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     const inputStr = convertInputToString(input)
+
+    if (validationType === 'hallucination' && resolvedSecretTraceRegistry) {
+      const provenanceInspection = inspectModelInputProvenanceRequest(request.headers, body)
+      if (provenanceInspection.status === 'invalid') {
+        return NextResponse.json({ error: 'Invalid model input provenance' }, { status: 400 })
+      }
+      if (provenanceInspection.status === 'verified' && auth.authType !== AuthType.INTERNAL_JWT) {
+        return NextResponse.json({ error: 'Invalid model input provenance' }, { status: 400 })
+      }
+      const provenanceReady =
+        provenanceInspection.status === 'verified'
+          ? await resolvedSecretTraceRegistry.importProvenanceForValue(
+              provenanceInspection.value,
+              inputStr,
+              { trusted: true }
+            )
+          : await reconstructLegacyModelInputProvenance(resolvedSecretTraceRegistry, inputStr)
+      if (!provenanceReady || !resolvedSecretTraceRegistry.isComplete()) {
+        return NextResponse.json(
+          { error: 'Model input provenance is unavailable' },
+          { status: provenanceInspection.status === 'verified' ? 400 : 500 }
+        )
+      }
+    }
 
     logger.info(`[${requestId}] Executing validation locally`, {
       validationType,

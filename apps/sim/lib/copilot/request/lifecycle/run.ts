@@ -38,7 +38,10 @@ import {
   COPILOT_VFS_ROUTING_KEYS,
   isCopilotModelTextKey,
 } from '@/lib/copilot/model-visible-content'
-import { getModelVisibleSchemaAction } from '@/lib/copilot/model-visible-schema'
+import {
+  collectModelVisibleSchemaContent,
+  getModelVisibleSchemaAction,
+} from '@/lib/copilot/model-visible-schema'
 import { getAutoAllowedTools } from '@/lib/copilot/persistence/tool-permission/auto-allow'
 import { createStreamingContext } from '@/lib/copilot/request/context/request-context'
 import { buildToolCallSummaries } from '@/lib/copilot/request/context/result'
@@ -79,6 +82,7 @@ import {
   isCopilotToolPermissionsEnabled,
   isHosted,
 } from '@/lib/core/config/env-flags'
+import { filterModelSafeWorkspaceFileAttachments } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import {
   isResolvedSecretModelContentUnchanged,
   projectResolvedSecretModelContent,
@@ -129,6 +133,7 @@ type SelectedContentAction =
   | 'project-json'
   | 'traverse'
   | 'traverse-verify-key'
+  | 'verify-key-value'
   | 'verify'
 type SelectedContentSelector = (
   path: readonly string[],
@@ -198,6 +203,8 @@ function collectSelectedContent(
         selected.jsonStrings.push(item)
       } else if (action === 'verify') {
         selected.guarded.push(item)
+      } else if (action === 'verify-key-value') {
+        selected.guarded.push(key, item)
       } else if (action === 'traverse' || action === 'traverse-verify-key') {
         if (action === 'traverse-verify-key') selected.guarded.push(key)
         collectSelectedContent(item, selector, selected, [...path, key], state, depth + 1)
@@ -410,6 +417,11 @@ function projectModelSafeToolPayloads(
     if (!isPlainRecord(candidate) || typeof candidate.name !== 'string') continue
 
     try {
+      for (const schemaKey of TOOL_SCHEMA_KEYS) {
+        if (Object.hasOwn(candidate, schemaKey)) {
+          collectModelVisibleSchemaContent(candidate[schemaKey])
+        }
+      }
       projected.push(projectStructuredContent(candidate, registry, toolContentSelector, 'record'))
     } catch {
       // Tool definitions are independent protocol entities. Reject an unsafe definition without
@@ -581,10 +593,43 @@ function projectAttachmentDisplayNames(
   return projected
 }
 
-function projectInitialCopilotPayload(
+async function omitUnsafeInitialCopilotAttachments(
   payload: Record<string, unknown>,
-  registry: ResolvedSecretTraceRegistry
-): Record<string, unknown> {
+  workspaceId?: string
+): Promise<Record<string, unknown>> {
+  let projected = payload
+  for (const key of ['attachments', 'fileAttachments'] as const) {
+    if (!Object.hasOwn(projected, key)) continue
+    const attachments = projected[key]
+    if (!Array.isArray(attachments)) throw new CopilotModelContentProjectionError()
+
+    let safeAttachments: unknown[]
+    try {
+      safeAttachments = await filterModelSafeWorkspaceFileAttachments(attachments, { workspaceId })
+    } catch (error) {
+      logger.warn('Workspace file secret provenance could not be verified; omitting attachments', {
+        attachmentCount: attachments.length,
+        error: toError(error).message,
+      })
+      safeAttachments = []
+    }
+
+    if (safeAttachments.length === attachments.length) continue
+    logger.warn('Omitting Copilot attachments with unsafe secret provenance', {
+      attachmentCount: attachments.length,
+      omittedCount: attachments.length - safeAttachments.length,
+    })
+    projected =
+      safeAttachments.length > 0 ? { ...projected, [key]: safeAttachments } : omit(projected, [key])
+  }
+  return projected
+}
+
+async function projectInitialCopilotPayload(
+  payload: Record<string, unknown>,
+  registry: ResolvedSecretTraceRegistry,
+  workspaceId?: string
+): Promise<Record<string, unknown>> {
   projectModelContent([], registry)
   let projectedPayload = { ...payload }
   const simpleContent: Record<string, unknown> = {}
@@ -642,15 +687,26 @@ function projectInitialCopilotPayload(
     }
   }
   if (Object.hasOwn(payload, 'responseFormat')) {
-    projectedPayload.responseFormat =
-      typeof payload.responseFormat === 'string'
-        ? projectModelContent(payload.responseFormat, registry)
-        : projectStructuredContent(
-            payload.responseFormat,
-            registry,
-            responseFormatContentSelector,
-            'record'
-          )
+    try {
+      if (
+        isPlainRecord(payload.responseFormat) &&
+        Object.hasOwn(payload.responseFormat, 'schema')
+      ) {
+        collectModelVisibleSchemaContent(payload.responseFormat.schema)
+      }
+      projectedPayload.responseFormat =
+        typeof payload.responseFormat === 'string'
+          ? projectModelContent(payload.responseFormat, registry)
+          : projectStructuredContent(
+              payload.responseFormat,
+              registry,
+              responseFormatContentSelector,
+              'record'
+            )
+    } catch {
+      logger.warn('Omitting a Copilot response format with unsafe model-input provenance')
+      projectedPayload = omit(projectedPayload, ['responseFormat'])
+    }
   }
   if (Object.hasOwn(payload, 'vfs')) {
     projectedPayload.vfs = projectStructuredContent(
@@ -677,7 +733,7 @@ function projectInitialCopilotPayload(
     )
   }
   Object.assign(projectedPayload, projectAttachmentDisplayNames(payload, registry))
-  return projectedPayload
+  return omitUnsafeInitialCopilotAttachments(projectedPayload, workspaceId)
 }
 
 async function ensureModelEgressRegistry(
@@ -864,9 +920,10 @@ export async function runCopilotLifecycle(
 
   try {
     const modelEgressRegistry = await ensureModelEgressRegistry(execContext, lifecycleOptions)
-    const modelSafeRequestPayload = projectInitialCopilotPayload(
+    const modelSafeRequestPayload = await projectInitialCopilotPayload(
       requestPayload,
-      modelEgressRegistry
+      modelEgressRegistry,
+      lifecycleOptions.workspaceId
     )
     await runCheckpointLoop(
       modelSafeRequestPayload,

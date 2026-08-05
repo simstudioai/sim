@@ -1,14 +1,107 @@
 import '@sim/testing/mocks/executor'
 
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { executeTool, completeAsyncToolCall, markAsyncToolRunning, upsertAsyncToolCall, onEvent } =
+  vi.hoisted(() => ({
+    executeTool: vi.fn(),
+    completeAsyncToolCall: vi.fn(),
+    markAsyncToolRunning: vi.fn(),
+    upsertAsyncToolCall: vi.fn(),
+    onEvent: vi.fn(),
+  }))
+
+vi.mock('@/lib/copilot/tool-executor', () => ({
+  ensureHandlersRegistered: vi.fn(),
+  executeTool,
+}))
+
+vi.mock('@/lib/copilot/async-runs/repository', () => ({
+  completeAsyncToolCall,
+  markAsyncToolRunning,
+  upsertAsyncToolCall,
+}))
+
+vi.mock('@/lib/copilot/persistence/tool-confirm', () => ({
+  publishToolConfirmation: vi.fn(),
+}))
+
+vi.mock('@/lib/copilot/request/metrics', () => ({
+  recordSimToolMetric: vi.fn(),
+}))
+
+vi.mock('@/lib/copilot/request/otel', () => ({
+  withCopilotToolSpan: vi.fn(async (_input: unknown, callback: (span: unknown) => unknown) =>
+    callback({ setAttribute: vi.fn() })
+  ),
+}))
+
+vi.mock('@/lib/copilot/request/sse-utils', () => ({
+  markToolResultSeen: vi.fn(),
+}))
+
+vi.mock('@/lib/copilot/request/tools/files', () => ({
+  maybeWriteOutputToFile: vi.fn(async (_toolName, _params, result) => result),
+}))
+
+vi.mock('@/lib/copilot/request/tools/resources', () => ({
+  handleResourceSideEffects: vi.fn(),
+}))
+
+vi.mock('@/lib/copilot/request/tools/tables', () => ({
+  maybeWriteOutputToTable: vi.fn(async (_toolName, _params, result) => result),
+  maybeWriteReadCsvToTable: vi.fn(async (_toolName, _params, result) => result),
+}))
+
+vi.mock('@/lib/copilot/request/tools/workflow-context', () => ({
+  applyCreateWorkflowOutputToContext: vi.fn(),
+}))
+
 import { TOOL_WATCHDOG_DEFAULT_MS, TOOL_WATCHDOG_LONG_RUNNING_MS } from '@/lib/copilot/constants'
+import { MothershipStreamV1ToolOutcome } from '@/lib/copilot/generated/mothership-stream-v1'
 import {
   buildToolExecutionContext,
+  executeToolAndReport,
   pendingToolWaitBudgetMs,
   toolWatchdogTimeoutMs,
 } from '@/lib/copilot/request/tools/executor'
-import type { ExecutionContext } from '@/lib/copilot/request/types'
+import { TraceCollector } from '@/lib/copilot/request/trace'
+import type { ExecutionContext, StreamingContext, ToolCallState } from '@/lib/copilot/request/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+
+function buildStreamingContext(toolCall: ToolCallState): StreamingContext {
+  return {
+    runId: 'run-1',
+    messageId: 'message-1',
+    accumulatedContent: '',
+    finalAssistantContent: '',
+    sawMainToolCall: false,
+    trace: new TraceCollector(),
+    contentBlocks: [],
+    toolCalls: new Map([[toolCall.id, toolCall]]),
+    pendingToolPromises: new Map(),
+    currentThinkingBlock: null,
+    subagentThinkingBlocks: new Map(),
+    isInThinkingBlock: false,
+    subAgentContent: {},
+    subAgentToolCalls: {},
+    pendingContent: '',
+    streamComplete: false,
+    wasAborted: false,
+    errors: [],
+    activeFileIntents: new Map(),
+    toolPermissions: { enabled: false, autoAllowed: new Set() },
+  }
+}
+
+function buildPendingToolCall(): ToolCallState {
+  return {
+    id: 'tool-call-1',
+    name: 'test_tool',
+    status: 'pending',
+    params: {},
+  }
+}
 
 describe('toolWatchdogTimeoutMs', () => {
   it('gives request-scoped MCP tools the long-running watchdog', () => {
@@ -90,5 +183,145 @@ describe('buildToolExecutionContext', () => {
     expect(parentRegistry.getActiveMatches()).toEqual([
       { plaintext: 'secret', replacement: '{{TOKEN}}' },
     ])
+  })
+})
+
+describe('executeToolAndReport provenance isolation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    completeAsyncToolCall.mockResolvedValue(null)
+    markAsyncToolRunning.mockResolvedValue(null)
+    upsertAsyncToolCall.mockResolvedValue(null)
+  })
+
+  it('merges a complete child only after its projected result is safe', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
+    ])
+    executeTool.mockImplementationOnce(
+      async (
+        _toolName: string,
+        _params: Record<string, unknown>,
+        toolContext: ExecutionContext
+      ) => {
+        toolContext.resolvedSecretTraceRegistry?.recordResolved('TOKEN', 'secret-value')
+        return { success: true, output: { value: 'secret-value' } }
+      }
+    )
+    const toolCall = buildPendingToolCall()
+
+    const completion = await executeToolAndReport(
+      toolCall.id,
+      buildStreamingContext(toolCall),
+      { userId: 'user-1', workflowId: 'workflow-1', resolvedSecretTraceRegistry: registry },
+      { onEvent }
+    )
+
+    expect(completion).toEqual({
+      status: MothershipStreamV1ToolOutcome.success,
+      message: 'Tool completed',
+      data: { value: '{{TOKEN}}' },
+    })
+    expect(registry.getActiveMatches()).toEqual([
+      { plaintext: 'secret-value', replacement: '{{TOKEN}}' },
+    ])
+  })
+
+  it('structurally omits an incomplete result without poisoning the parent turn', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
+    ])
+    executeTool.mockImplementationOnce(
+      async (
+        _toolName: string,
+        _params: Record<string, unknown>,
+        toolContext: ExecutionContext
+      ) => {
+        toolContext.resolvedSecretTraceRegistry?.markIncomplete()
+        return { success: true, output: { value: 'secret-value' } }
+      }
+    )
+    const toolCall = buildPendingToolCall()
+
+    const completion = await executeToolAndReport(
+      toolCall.id,
+      buildStreamingContext(toolCall),
+      { userId: 'user-1', workflowId: 'workflow-1', resolvedSecretTraceRegistry: registry },
+      { onEvent }
+    )
+
+    expect(completion).toEqual({
+      status: MothershipStreamV1ToolOutcome.success,
+      message: 'Tool completed',
+      data: { success: true },
+    })
+    expect(registry.isComplete()).toBe(true)
+    expect(registry.getActiveMatches()).toEqual([])
+    expect(JSON.stringify([completion, onEvent.mock.calls])).not.toContain('secret-value')
+  })
+
+  it('structurally fails an incomplete thrown error without poisoning the parent turn', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
+    ])
+    executeTool.mockImplementationOnce(
+      async (
+        _toolName: string,
+        _params: Record<string, unknown>,
+        toolContext: ExecutionContext
+      ) => {
+        toolContext.resolvedSecretTraceRegistry?.markIncomplete()
+        throw new Error('secret-value')
+      }
+    )
+    const toolCall = buildPendingToolCall()
+
+    const completion = await executeToolAndReport(
+      toolCall.id,
+      buildStreamingContext(toolCall),
+      { userId: 'user-1', workflowId: 'workflow-1', resolvedSecretTraceRegistry: registry },
+      { onEvent }
+    )
+
+    expect(completion.status).toBe(MothershipStreamV1ToolOutcome.error)
+    expect(registry.isComplete()).toBe(true)
+    expect(registry.getActiveMatches()).toEqual([])
+    expect(JSON.stringify([completion, onEvent.mock.calls])).not.toContain('secret-value')
+  })
+
+  it('discards an incomplete child when execution is aborted before result delivery', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
+    ])
+    const abortController = new AbortController()
+    executeTool.mockImplementationOnce(
+      async (
+        _toolName: string,
+        _params: Record<string, unknown>,
+        toolContext: ExecutionContext
+      ) => {
+        toolContext.resolvedSecretTraceRegistry?.markIncomplete()
+        abortController.abort()
+        return { success: true, output: { value: 'secret-value' } }
+      }
+    )
+    const toolCall = buildPendingToolCall()
+
+    const completion = await executeToolAndReport(
+      toolCall.id,
+      buildStreamingContext(toolCall),
+      {
+        userId: 'user-1',
+        workflowId: 'workflow-1',
+        abortSignal: abortController.signal,
+        resolvedSecretTraceRegistry: registry,
+      },
+      { onEvent }
+    )
+
+    expect(completion.status).toBe(MothershipStreamV1ToolOutcome.cancelled)
+    expect(registry.isComplete()).toBe(true)
+    expect(registry.getActiveMatches()).toEqual([])
+    expect(JSON.stringify([completion, onEvent.mock.calls])).not.toContain('secret-value')
   })
 })

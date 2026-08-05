@@ -11,7 +11,7 @@ import {
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 describe('projectResolvedSecretModelContent', () => {
-  it('projects dormant catalog literals in values, keys, errors, and output streams', () => {
+  it('projects activated literals in values, keys, errors, and output streams', () => {
     const registry = new ResolvedSecretTraceRegistry([
       {
         name: 'API_KEY',
@@ -19,6 +19,7 @@ describe('projectResolvedSecretModelContent', () => {
         encryptedValue: 'encrypted-value',
       },
     ])
+    registry.recordResolved('API_KEY', 'quoted"secret\\with\nnewline')
     const input = {
       'key-quoted"secret\\with\nnewline': {
         name: 'Error',
@@ -48,13 +49,17 @@ describe('projectResolvedSecretModelContent', () => {
     expect(JSON.stringify(input)).toContain('quoted\\"secret')
   })
 
-  it('fails closed for pending, permanent, or missing registry state', () => {
+  it('ignores sibling pending work but fails closed for permanent or missing registry state', () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
     ])
+    registry.recordResolved('TOKEN', 'secret-value')
     const finish = registry.beginPendingActivation()
 
-    expect(projectResolvedSecretModelContent('secret-value', registry)).toEqual({ safe: false })
+    expect(projectResolvedSecretModelContent('secret-value', registry)).toEqual({
+      safe: true,
+      value: '{{TOKEN}}',
+    })
 
     finish()
     expect(projectResolvedSecretModelContent('secret-value', registry)).toEqual({
@@ -71,6 +76,7 @@ describe('projectResolvedSecretModelContent', () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
     ])
+    registry.recordResolved('TOKEN', 'secret-value')
 
     const projection = projectResolvedSecretModelContent(
       { value: 'secret-value', internal: '__var_TOKEN' },
@@ -135,6 +141,8 @@ describe('projectResolvedSecretModelContent', () => {
         encryptedValue: 'composite-ciphertext',
       },
     ])
+    registry.recordResolved('Test', 'Test')
+    registry.recordResolved('COMPOSITE', 'x{{Test}}y')
 
     expect(projectResolvedSecretModelContent('x{{Test}}y', registry)).toEqual({
       safe: true,
@@ -148,6 +156,9 @@ describe('projectResolvedSecretModelContent', () => {
       { name: 'BOOLEAN', plaintext: 'true', encryptedValue: 'boolean-ciphertext' },
       { name: 'NULL', plaintext: 'null', encryptedValue: 'null-ciphertext' },
     ])
+    registry.recordResolved('NUMBER', '123')
+    registry.recordResolved('BOOLEAN', 'true')
+    registry.recordResolved('NULL', 'null')
 
     expect(
       projectResolvedSecretModelContent(
@@ -178,6 +189,7 @@ describe('projectResolvedSecretModelContent', () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
     ])
+    registry.recordResolved('TOKEN', secret)
     const typedValue = secret === '123' ? 123 : true
 
     const projection = projectResolvedSecretModelJsonStrings(
@@ -198,17 +210,19 @@ describe('projectResolvedSecretModelContent', () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'TOKEN', plaintext: 'TOKEN', encryptedValue: 'ciphertext' },
     ])
+    registry.recordResolved('TOKEN', 'TOKEN')
 
     const first = projectResolvedSecretModelContent('Bearer TOKEN', registry)
-    expect(first).toEqual({ safe: true, value: 'Bearer [REDACTED_SECRET]' })
+    expect(first).toEqual({ safe: true, value: 'Bearer {{TOKEN}}' })
     if (!first.safe) return
     expect(projectResolvedSecretModelContent(first.value, registry)).toEqual(first)
   })
 
-  it('uses opaque model projection when a provenance label contains the secret plaintext', () => {
+  it('preserves the canonical provenance label when its name equals the secret plaintext', () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'Test', plaintext: 'Test', encryptedValue: 'ciphertext' },
     ])
+    registry.recordResolved('Test', 'Test')
 
     expect(
       projectResolvedSecretModelContent(
@@ -222,9 +236,9 @@ describe('projectResolvedSecretModelContent', () => {
     ).toEqual({
       safe: true,
       value: {
-        result: '[REDACTED_SECRET]',
-        source: 'return [REDACTED_SECRET]',
-        error: "NameError: name '[REDACTED_SECRET]' is not defined",
+        result: '{{Test}}',
+        source: 'return {{Test}}',
+        error: "NameError: name '{{Test}}' is not defined",
       },
     })
   })
@@ -233,10 +247,11 @@ describe('projectResolvedSecretModelContent', () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'TOKEN', plaintext: 'TOK', encryptedValue: 'ciphertext' },
     ])
+    registry.recordResolved('TOKEN', 'TOK')
 
     expect(projectResolvedSecretModelContent('Bearer {{TOKEN}}', registry)).toEqual({
       safe: true,
-      value: 'Bearer [REDACTED_SECRET]',
+      value: 'Bearer {{TOKEN}}',
     })
   })
 
@@ -257,11 +272,16 @@ describe('projectResolvedSecretModelContent', () => {
     expect(getModelEgressSnapshot).toHaveBeenCalledOnce()
   })
 
-  it('does not treat attacker-authored provenance-shaped protocol content as unchanged', () => {
+  it('keeps provenance-shaped content deterministic without trusting it as a protocol handle', () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'Test', plaintext: 'Test', encryptedValue: 'ciphertext' },
     ])
+    registry.recordResolved('Test', 'Test')
 
+    expect(projectResolvedSecretModelContent('{{Test}}', registry)).toEqual({
+      safe: true,
+      value: '{{Test}}',
+    })
     expect(isResolvedSecretModelContentUnchanged('{{Test}}', registry)).toBe(false)
     expect(isResolvedSecretModelContentUnchanged(['resource', '{{Test}}'], registry)).toBe(false)
     expect(isResolvedSecretModelContentUnchanged(['resource', 'safe'], registry)).toBe(true)
@@ -274,6 +294,7 @@ describe('projectResolvedSecretDiagnosticError', () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'API_KEY', plaintext: secret, encryptedValue: 'ciphertext' },
     ])
+    registry.recordResolved('API_KEY', secret)
     const message = `request failed: ${secret} __var_API_KEY __sim_code_4_binding_2`
     const error = new Error(message)
     error.stack = `Error: ${message}\n at __sim_runtime_payload_1`

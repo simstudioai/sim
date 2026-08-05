@@ -36,10 +36,14 @@ function omittedProviderToolResponse(
   }
 }
 
+type ProviderToolResponseProjection =
+  | { safe: true; response: ToolResponse }
+  | { safe: false; response: ToolResponse }
+
 function projectProviderToolResponse(
   result: ToolResponse,
   registry: ResolvedSecretTraceRegistry
-): ToolResponse {
+): ProviderToolResponseProjection {
   const sourceResources = result.resources?.filter((resource) =>
     isResolvedSecretModelContentUnchanged([resource.type, resource.id, resource.path], registry)
   )
@@ -57,17 +61,17 @@ function projectProviderToolResponse(
     registry
   )
   if (!projection.safe || !Array.isArray(projection.value) || projection.value.length !== 3) {
-    return omittedProviderToolResponse(result, registry)
+    return { safe: false, response: omittedProviderToolResponse(result, registry) }
   }
 
   const [output, error, resourceTitles] = projection.value
   if (output === undefined || (error !== undefined && typeof error !== 'string')) {
-    return omittedProviderToolResponse(result, registry)
+    return { safe: false, response: omittedProviderToolResponse(result, registry) }
   }
   let resources = sourceResources
   if (resources !== undefined) {
     if (!Array.isArray(resourceTitles) || resourceTitles.length !== resources.length) {
-      return omittedProviderToolResponse(result, registry)
+      return { safe: false, response: omittedProviderToolResponse(result, registry) }
     }
     const projectedResources: NonNullable<ToolResponse['resources']> = []
     for (let index = 0; index < resources.length; index += 1) {
@@ -83,7 +87,7 @@ function projectProviderToolResponse(
           ? projectedResource[3] !== undefined
           : typeof projectedResource[3] !== 'string')
       ) {
-        return omittedProviderToolResponse(result, registry)
+        return { safe: false, response: omittedProviderToolResponse(result, registry) }
       }
       if (projectedResource[0] !== resource.type || projectedResource[1] !== resource.id) continue
       projectedResources.push({
@@ -95,14 +99,17 @@ function projectProviderToolResponse(
     }
     resources = projectedResources
   } else if (resourceTitles !== undefined) {
-    return omittedProviderToolResponse(result, registry)
+    return { safe: false, response: omittedProviderToolResponse(result, registry) }
   }
 
   return {
-    success: result.success === true,
-    output: output as ToolResponse['output'],
-    ...(error !== undefined ? { error } : {}),
-    ...(resources !== undefined ? { resources } : {}),
+    safe: true,
+    response: {
+      success: result.success === true,
+      output: output as ToolResponse['output'],
+      ...(error !== undefined ? { error } : {}),
+      ...(resources !== undefined ? { resources } : {}),
+    },
   }
 }
 
@@ -116,16 +123,30 @@ export async function executeProviderTool(
     options.resolvedSecretTraceRegistry ?? runtimeContext?.resolvedSecretTraceRegistry
 
   if (runtimeContext && !registry) return { success: false, output: {} }
+  const toolCallRegistry = registry?.forkForToolInputValues(Object.values(params))
 
   try {
     const result = await executeTool(toolId, params, {
       ...options,
-      resolvedSecretTraceRegistry: registry,
+      resolvedSecretTraceRegistry: toolCallRegistry,
     })
-    return registry ? projectProviderToolResponse(result, registry) : result
+    if (!registry || !toolCallRegistry) return result
+
+    const projection = projectProviderToolResponse(result, toolCallRegistry)
+    if (projection.safe && toolCallRegistry.isComplete()) {
+      registry.mergeToolCallRegistry(toolCallRegistry)
+    }
+    return projection.response
   } catch (error) {
-    if (!registry) throw error
-    const message = projectResolvedSecretModelControlMessage(getErrorMessage(error), registry) ?? ''
+    if (!registry || !toolCallRegistry) throw error
+    const projectedMessage = projectResolvedSecretModelControlMessage(
+      getErrorMessage(error),
+      toolCallRegistry
+    )
+    if (projectedMessage !== undefined && toolCallRegistry.isComplete()) {
+      registry.mergeToolCallRegistry(toolCallRegistry)
+    }
+    const message = projectedMessage ?? ''
     const errorName =
       error && typeof error === 'object' && 'name' in error ? String(error.name) : undefined
     if (errorName === 'AbortError' || errorName === 'APIUserAbortError') {

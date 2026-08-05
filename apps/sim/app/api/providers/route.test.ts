@@ -10,12 +10,20 @@ const {
   mockCheckWorkspaceAccess,
   mockAuthorizeCredentialUse,
   mockPrepareCopilotEnvironmentContext,
+  mockCollectProviderModelInputProvenanceValues,
+  mockReconstructLegacyProviderModelInputProvenance,
+  mockImportProvenance,
+  mockRegistryIsComplete,
 } = vi.hoisted(() => ({
   mockExecuteProviderRequest: vi.fn(),
   mockRequireBillingAttributionHeader: vi.fn(),
   mockCheckWorkspaceAccess: vi.fn(),
   mockAuthorizeCredentialUse: vi.fn(),
   mockPrepareCopilotEnvironmentContext: vi.fn(),
+  mockCollectProviderModelInputProvenanceValues: vi.fn(),
+  mockReconstructLegacyProviderModelInputProvenance: vi.fn(),
+  mockImportProvenance: vi.fn(),
+  mockRegistryIsComplete: vi.fn(),
 }))
 
 vi.mock('@/providers', () => ({
@@ -37,6 +45,11 @@ vi.mock('@/lib/auth/credential-access', () => ({
 
 vi.mock('@/lib/copilot/environment-context', () => ({
   prepareCopilotEnvironmentContext: mockPrepareCopilotEnvironmentContext,
+}))
+
+vi.mock('@/providers/model-input-provenance', () => ({
+  collectProviderModelInputProvenanceValues: mockCollectProviderModelInputProvenanceValues,
+  reconstructLegacyProviderModelInputProvenance: mockReconstructLegacyProviderModelInputProvenance,
 }))
 
 vi.mock('@/app/api/auth/oauth/utils', () => ({
@@ -82,8 +95,15 @@ describe('POST /api/providers', () => {
       model: 'gpt-4o',
       tokens: { input: 1, output: 1, total: 2 },
     })
+    mockReconstructLegacyProviderModelInputProvenance.mockResolvedValue(true)
+    mockCollectProviderModelInputProvenanceValues.mockReturnValue(['selected-model-input'])
+    mockImportProvenance.mockResolvedValue(true)
+    mockRegistryIsComplete.mockReturnValue(true)
     mockPrepareCopilotEnvironmentContext.mockResolvedValue({
-      resolvedSecretTraceRegistry: {},
+      resolvedSecretTraceRegistry: {
+        importProvenanceForValue: mockImportProvenance,
+        isComplete: mockRegistryIsComplete,
+      },
     })
   })
 
@@ -145,6 +165,46 @@ describe('POST /api/providers', () => {
       }),
       expect.objectContaining({ resolvedSecretTraceRegistry: expect.anything() })
     )
+  })
+
+  it('imports authenticated active provenance instead of reconstructing dormant catalog values', async () => {
+    const provenance = {
+      version: 1,
+      complete: true,
+      entries: [{ encryptedValue: 'encrypted-secret', name: 'TOKEN' }],
+      scope: { userId: 'user-1', workspaceId: 'ws-1' },
+    }
+    const res = await POST(
+      createMockRequest(
+        'POST',
+        {
+          provider: 'openai',
+          model: 'gpt-4o',
+          workspaceId: 'ws-1',
+          __resolvedSecretTraceProvenance: provenance,
+        },
+        { 'x-sim-private-model-input-provenance': 'resolved-secret-provenance-v1' }
+      )
+    )
+
+    expect(res.status).toBe(200)
+    expect(mockImportProvenance).toHaveBeenCalledWith(provenance, expect.any(Array), {
+      trusted: true,
+    })
+    expect(mockReconstructLegacyProviderModelInputProvenance).not.toHaveBeenCalled()
+  })
+
+  it('rejects a partial private provenance envelope', async () => {
+    const res = await POST(
+      createMockRequest(
+        'POST',
+        { provider: 'openai', model: 'gpt-4o', workspaceId: 'ws-1' },
+        { 'x-sim-private-model-input-provenance': 'resolved-secret-provenance-v1' }
+      )
+    )
+
+    expect(res.status).toBe(400)
+    expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
   })
 
   it('omits provisional stream output from the execution header', async () => {

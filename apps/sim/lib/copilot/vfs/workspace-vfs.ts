@@ -129,6 +129,7 @@ import {
   listWorkspaceFiles,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import type { WorkspaceFileSecretProvenanceEnvelope } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { listCustomBlocksWithInputsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
@@ -157,6 +158,20 @@ const logger = createLogger('WorkspaceVFS')
 // double-cast-allowed: a no-op stands in for the unused SVG-typed BlockIcon slot
 const PLACEHOLDER_BLOCK_ICON = (() => null) as unknown as BlockIcon
 const MAX_COMPILED_ATTACHMENT_BYTES = 5 * 1024 * 1024
+
+function bindWorkspaceFileResult<T>(
+  record: WorkspaceFileRecord,
+  value: T
+): WorkspaceFileSecretProvenanceEnvelope<T> {
+  return {
+    value,
+    file: {
+      fileId: record.id,
+      key: record.key,
+      context: record.storageContext ?? 'workspace',
+    },
+  }
+}
 
 /**
  * Static component files, computed once and shared across all VFS instances.
@@ -970,6 +985,14 @@ export class WorkspaceVFS {
     pattern: string,
     options?: GrepOptions
   ): Promise<GrepMatch[] | string[] | ops.GrepCountEntry[]> {
+    return (await this.grepFileWithProvenance(path, pattern, options)).value
+  }
+
+  async grepFileWithProvenance(
+    path: string,
+    pattern: string,
+    options?: GrepOptions
+  ): Promise<WorkspaceFileSecretProvenanceEnvelope<GrepMatch[] | string[] | ops.GrepCountEntry[]>> {
     const normalized = path.replace(/^\/+/, '')
     // Prefer the path verbatim when it is itself a file leaf (e.g. a file literally
     // named "content"); otherwise drop a trailing "/content" read suffix.
@@ -988,12 +1011,15 @@ export class WorkspaceVFS {
     }
 
     const contentPath = `${leaf}/content`
-    const result = await this.readFileContent(contentPath)
+    const result = await this.readFileContentWithProvenance(contentPath)
     if (!result) {
       throw new ops.WorkspaceFileGrepError(`Workspace file content not found for "${path}".`)
     }
 
-    return ops.grepReadResult(leaf, result, pattern, contentPath, options)
+    return {
+      value: ops.grepReadResult(leaf, result.value, pattern, contentPath, options),
+      file: result.file,
+    }
   }
 
   glob(pattern: string): string[] {
@@ -1114,6 +1140,12 @@ export class WorkspaceVFS {
    * Returns null if the path doesn't match a dynamic file path or the file isn't found.
    */
   async readFileContent(path: string): Promise<FileReadResult | null> {
+    return (await this.readFileContentWithProvenance(path))?.value ?? null
+  }
+
+  async readFileContentWithProvenance(
+    path: string
+  ): Promise<WorkspaceFileSecretProvenanceEnvelope<FileReadResult> | null> {
     const compiledMatch = /^files\/.+\/compiled$/.test(path)
     if (compiledMatch) {
       let record: WorkspaceFileRecord | null = null
@@ -1134,30 +1166,33 @@ export class WorkspaceVFS {
         if (ext !== 'pdf') {
           if (isRenderableDocExt(ext)) {
             const compiledName = record.name
-            return await this.renderDocRecordResult(
+            return bindWorkspaceFileResult(
               record,
-              ext,
-              (pageCount) =>
-                `${compiledName}: the raw ${ext.toUpperCase()} binary isn't model-readable, so it was rendered to ${pageCount} page image(s) for inspection.`
+              await this.renderDocRecordResult(
+                record,
+                ext,
+                (pageCount) =>
+                  `${compiledName}: the raw ${ext.toUpperCase()} binary isn't model-readable, so it was rendered to ${pageCount} page image(s) for inspection.`
+              )
             )
           }
           const extractPath = `${canonicalWorkspaceFilePath({
             folderPath: record.folderPath,
             name: record.name,
           })}/extract`
-          return {
+          return bindWorkspaceFileResult(record, {
             content: `${record.name} is a spreadsheet — read "${extractPath}" for its contents.`,
             totalLines: 1,
-          }
+          })
         }
 
         const buffer = await fetchWorkspaceFileBuffer(record)
         const code = buffer.toString('utf-8')
         if (Buffer.byteLength(code, 'utf-8') > MAX_DOCUMENT_PREVIEW_CODE_BYTES) {
-          return {
+          return bindWorkspaceFileResult(record, {
             content: JSON.stringify({ ok: false, error: 'File source exceeds maximum size' }),
             totalLines: 1,
-          }
+          })
         }
         const compiled = e2bFmt
           ? (
@@ -1169,12 +1204,12 @@ export class WorkspaceVFS {
             ).buffer
           : await runSandboxTask(taskId, { code, workspaceId: this._workspaceId })
         if (compiled.length > MAX_COMPILED_ATTACHMENT_BYTES) {
-          return {
+          return bindWorkspaceFileResult(record, {
             content: `[Compiled artifact too large: ${record.name} (${compiled.length} bytes, limit ${MAX_COMPILED_ATTACHMENT_BYTES})]`,
             totalLines: 1,
-          }
+          })
         }
-        return {
+        return bindWorkspaceFileResult(record, {
           content: `Compiled file: ${record.name} (${compiled.length} bytes, application/pdf)`,
           totalLines: 1,
           attachment: {
@@ -1186,7 +1221,7 @@ export class WorkspaceVFS {
               data: compiled.toString('base64'),
             },
           },
-        }
+        })
       } catch (err) {
         logger.warn('Compiled artifact read failed via VFS', {
           workspaceId: this._workspaceId,
@@ -1200,7 +1235,9 @@ export class WorkspaceVFS {
             error: toError(err).message,
             errorName: err.name,
           })
-          return { content: json, totalLines: 1 }
+          return record
+            ? bindWorkspaceFileResult(record, { content: json, totalLines: 1 })
+            : { value: { content: json, totalLines: 1 } }
         }
         return null
       }
@@ -1214,20 +1251,23 @@ export class WorkspaceVFS {
         if (!record) return null
         const ext = record.name.split('.').pop()?.toLowerCase() ?? ''
         if (!isRenderableDocExt(ext)) {
-          return {
+          return bindWorkspaceFileResult(record, {
             content: JSON.stringify({
               ok: false,
               error: 'Render supports .pptx, .docx, and .pdf only',
             }),
             totalLines: 1,
-          }
+          })
         }
         const renderName = record.name
-        return await this.renderDocRecordResult(
+        return bindWorkspaceFileResult(
           record,
-          ext,
-          (pageCount) =>
-            `Rendered ${pageCount} page(s) of ${renderName} as a contact-sheet grid for visual QA. Inspect each page for text overflow/cutoff, overlapping elements, low contrast, misalignment, and leftover placeholder text; fix and re-render until clean.`
+          await this.renderDocRecordResult(
+            record,
+            ext,
+            (pageCount) =>
+              `Rendered ${pageCount} page(s) of ${renderName} as a contact-sheet grid for visual QA. Inspect each page for text overflow/cutoff, overlapping elements, low contrast, misalignment, and leftover placeholder text; fix and re-render until clean.`
+          )
         )
       } catch (err) {
         logger.warn('Render read failed via VFS', {
@@ -1239,10 +1279,11 @@ export class WorkspaceVFS {
         // Return an explicit error (not null) once the file resolved — a null read
         // looks like a missing path and sends the agent hunting for the "correct"
         // render path instead of surfacing the real compile/render failure.
-        return {
+        const errorResult = {
           content: JSON.stringify({ ok: false, error: toError(err).message }),
           totalLines: 1,
         }
+        return record ? bindWorkspaceFileResult(record, errorResult) : { value: errorResult }
       }
     }
 
@@ -1254,47 +1295,47 @@ export class WorkspaceVFS {
         if (!record) return null
         const ext = record.name.split('.').pop()?.toLowerCase() ?? ''
         if (!isExtractableDocExt(ext)) {
-          return {
+          return bindWorkspaceFileResult(record, {
             content: JSON.stringify({
               ok: false,
               error: 'Extraction supports .pdf, .pptx, .docx, and .xlsx only',
             }),
             totalLines: 1,
-          }
+          })
         }
         // Bound the input before downloading + base64-staging it in-process.
         if (typeof record.size === 'number' && record.size > MAX_DOC_READ_INPUT_BYTES) {
-          return {
+          return bindWorkspaceFileResult(record, {
             content: JSON.stringify({ ok: false, error: 'File is too large to extract' }),
             totalLines: 1,
-          }
+          })
         }
         const buffer = await fetchWorkspaceFileBuffer(record)
         if (buffer.length > MAX_DOC_READ_INPUT_BYTES) {
-          return {
+          return bindWorkspaceFileResult(record, {
             content: JSON.stringify({ ok: false, error: 'File is too large to extract' }),
             totalLines: 1,
-          }
+          })
         }
         // Extraction reads the binary. A source-backed generated doc (text source,
         // no binary magic) should be read directly instead — point the agent there.
         if (!isBinaryDocBuffer(buffer, ext)) {
-          return {
+          return bindWorkspaceFileResult(record, {
             content: JSON.stringify({
               ok: false,
               error: 'This is a source-backed generated file; read its content directly instead.',
             }),
             totalLines: 1,
-          }
+          })
         }
         const { text, truncated } = await extractDocText({ binary: buffer, ext })
         const note = truncated
           ? '\n\n[... truncated — read the file directly for the full content]'
           : ''
-        return {
+        return bindWorkspaceFileResult(record, {
           content: `${text || '[no extractable text found]'}${note}`,
           totalLines: 1,
-        }
+        })
       } catch (err) {
         logger.warn('Extract read failed via VFS', {
           workspaceId: this._workspaceId,
@@ -1302,10 +1343,11 @@ export class WorkspaceVFS {
           fileId: record?.id,
           error: toError(err).message,
         })
-        return {
+        const errorResult = {
           content: JSON.stringify({ ok: false, error: toError(err).message }),
           totalLines: 1,
         }
+        return record ? bindWorkspaceFileResult(record, errorResult) : { value: errorResult }
       }
     }
 
@@ -1323,15 +1365,15 @@ export class WorkspaceVFS {
         const buffer = await fetchWorkspaceFileBuffer(record)
         const code = buffer.toString('utf-8')
         if (Buffer.byteLength(code, 'utf-8') > MAX_DOCUMENT_PREVIEW_CODE_BYTES) {
-          return {
+          return bindWorkspaceFileResult(record, {
             content: JSON.stringify({ ok: false, error: 'File source exceeds maximum size' }),
             totalLines: 1,
-          }
+          })
         }
         if (isMermaidFile) {
           const result = await validateMermaidSource(code)
           const json = JSON.stringify(result)
-          return { content: json, totalLines: 1 }
+          return bindWorkspaceFileResult(record, { content: json, totalLines: 1 })
         }
         let result: { ok: boolean; error?: string; errorName?: string }
         if (e2bFmt) {
@@ -1358,7 +1400,7 @@ export class WorkspaceVFS {
           }
         }
         const json = JSON.stringify(result)
-        return { content: json, totalLines: 1 }
+        return bindWorkspaceFileResult(record, { content: json, totalLines: 1 })
       } catch (err) {
         logger.warn('Compiled check failed via VFS', {
           workspaceId: this._workspaceId,
@@ -1383,7 +1425,10 @@ export class WorkspaceVFS {
         const summary = await extractDocumentStyle(buffer, ext)
         if (!summary) return null
         const json = JSON.stringify(summary, null, 2)
-        return { content: json, totalLines: json.split('\n').length }
+        return bindWorkspaceFileResult(record, {
+          content: json,
+          totalLines: json.split('\n').length,
+        })
       } catch (err) {
         logger.warn('Failed to extract document style via VFS', {
           workspaceId: this._workspaceId,
@@ -1412,7 +1457,8 @@ export class WorkspaceVFS {
       const files = await listWorkspaceFiles(this._workspaceId, { scope })
       const record = findWorkspaceFileRecord(files, fileReference)
       if (!record) return null
-      return readFileRecord(record)
+      const result = await readFileRecord(record)
+      return result ? bindWorkspaceFileResult(record, result) : null
     } catch (err) {
       logger.warn('Failed to list workspace files for readFileContent', {
         workspaceId: this._workspaceId,

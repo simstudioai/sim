@@ -32,8 +32,8 @@ export interface ResolvedSecretMatcher {
 
 export interface CreateResolvedSecretMatcherOptions {
   /**
-   * Preserves matcher-issued `{{NAME}}` labels for user-visible trace projection only.
-   * Never enable this for model, provider, Copilot, or other untrusted egress boundaries.
+   * Treats canonical `{{NAME}}` replacements as atomic provenance labels. A label protects only
+   * the exact plaintext that produced it; overlapping secret literals remain detectable.
    */
   preserveNamedProvenanceLabels?: boolean
 }

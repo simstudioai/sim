@@ -10,6 +10,8 @@ import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secr
 
 export const TOOL_RESULT_UNAVAILABLE_ERROR =
   'Tool execution settled, but its result could not be returned safely. Do not retry a mutation automatically.'
+export const TOOL_OUTPUT_PERSISTENCE_UNAVAILABLE_ERROR =
+  'Tool output could not be persisted safely because secret provenance was unavailable.'
 
 function structuralResult(result: ToolExecutionResult): ToolExecutionResult {
   return { success: result.success === true }
@@ -81,14 +83,40 @@ function omittedResult(
   return { success: false, error }
 }
 
+export type CopilotToolResultProjection =
+  | { safe: true; result: ToolExecutionResult }
+  | { safe: false; result: ToolExecutionResult }
+
+export type CopilotPersistedOutputProjection =
+  | { safe: true; value: unknown }
+  | { safe: false; error: string }
+
 /**
- * Projects terminal tool content before it can cross back into Copilot.
- * Runtime output remains unchanged for raw post-processing and context updates.
+ * Projects only the exact value a Copilot tool is about to persist. The isolated per-tool registry
+ * makes this causal: values activated by this tool become canonical `{{NAME}}` aliases, while a
+ * public low-entropy value cannot be rewritten merely because an earlier sibling activated the
+ * same bytes. Persisting the alias makes later reads safe without a second provenance store.
  */
-export function projectToolResultForCopilot(
+export function projectToolOutputForPersistence(
+  value: unknown,
+  registry: ResolvedSecretTraceRegistry | undefined
+): CopilotPersistedOutputProjection {
+  const projection = projectResolvedSecretModelContent(value, registry)
+  return projection.safe
+    ? { safe: true, value: projection.value }
+    : { safe: false, error: TOOL_OUTPUT_PERSISTENCE_UNAVAILABLE_ERROR }
+}
+
+/**
+ * Projects terminal tool content and reports whether the complete content was safe to cross.
+ * Callers that isolate provenance per tool call may merge that child registry only when `safe`
+ * is true and the child is complete. The returned result is always safe to expose: an unsafe
+ * projection is reduced to a structural success or failure.
+ */
+export function inspectToolResultForCopilot(
   result: ToolExecutionResult,
   registry: ResolvedSecretTraceRegistry | undefined
-): ToolExecutionResult {
+): CopilotToolResultProjection {
   try {
     const content: Record<string, unknown> = {}
     const resources =
@@ -98,19 +126,23 @@ export function projectToolResultForCopilot(
     if (resources !== undefined) content.resources = resourceContent(resources)
     const projection = projectResolvedSecretModelContent(content, registry)
     if (!projection.safe || !projection.value || typeof projection.value !== 'object') {
-      return omittedResult(result, registry)
+      return { safe: false, result: omittedResult(result, registry) }
     }
 
     const projectedContent = projection.value as Record<string, unknown>
     const projected = structuralResult(result)
     if (Object.hasOwn(projectedContent, 'output')) projected.output = projectedContent.output
     if (Object.hasOwn(projectedContent, 'error')) {
-      if (typeof projectedContent.error !== 'string') return omittedResult(result, registry)
+      if (typeof projectedContent.error !== 'string') {
+        return { safe: false, result: omittedResult(result, registry) }
+      }
       projected.error = projectedContent.error
     }
     if (resources !== undefined) {
       const projectedResources = restoreProjectedResources(resources, projectedContent.resources)
-      if (!projectedResources) return omittedResult(result, registry)
+      if (!projectedResources) {
+        return { safe: false, result: omittedResult(result, registry) }
+      }
       projected.resources = projectedResources
     }
     if (!projected.success && !projected.error) {
@@ -119,10 +151,21 @@ export function projectToolResultForCopilot(
         registry
       )
     }
-    return projected
+    return { safe: true, result: projected }
   } catch {
-    return omittedResult(result, registry)
+    return { safe: false, result: omittedResult(result, registry) }
   }
+}
+
+/**
+ * Projects terminal tool content before it can cross back into Copilot.
+ * Runtime output remains unchanged for raw post-processing and context updates.
+ */
+export function projectToolResultForCopilot(
+  result: ToolExecutionResult,
+  registry: ResolvedSecretTraceRegistry | undefined
+): ToolExecutionResult {
+  return inspectToolResultForCopilot(result, registry).result
 }
 
 /** Projects an error before post-processing can attach it to application logs or OTel events. */

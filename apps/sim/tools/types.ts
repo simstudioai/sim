@@ -176,6 +176,24 @@ export interface ToolConfig<P = any, R = any> {
     method: HttpMethod | ((params: P) => HttpMethod)
     headers: (params: P) => Record<string, string>
     body?: (params: P) => Record<string, any> | string | FormData | undefined
+    /** Defines the exact request fields that may become model-visible. */
+    modelInput?:
+      | {
+          /**
+           * Projects selected top-level params to canonical placeholders before formatting the
+           * request. The selector must return a plain partial params record.
+           */
+          mode: 'project'
+          select: (params: P) => Record<string, unknown>
+        }
+      | {
+          /**
+           * Sends encrypted provenance out-of-band to an authenticated internal route that owns
+           * the corresponding projection boundary.
+           */
+          mode: 'private-provenance'
+          select: (params: P) => unknown
+        }
     retry?: ToolRetryConfig
     /**
      * Drop the `Authorization` header when following a redirect. Set this on any

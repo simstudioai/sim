@@ -9,6 +9,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { knowledgeSearchTool } from '@/tools/knowledge/search'
+import { knowledgeUpdateChunkTool } from '@/tools/knowledge/update_chunk'
 import { knowledgeUploadChunkTool } from '@/tools/knowledge/upload_chunk'
 
 /**
@@ -23,6 +24,33 @@ function createMockResponse(data: unknown): Response {
 }
 
 describe('Knowledge Tools', () => {
+  it('selects only model-bound text for private provenance transport', () => {
+    expect(
+      knowledgeSearchTool.request.modelInput?.select({
+        knowledgeBaseId: 'kb-1',
+        query: 'search secret',
+        apiKey: 'credential',
+        tagFilters: [{ tagName: 'team', tagValue: 'support' }],
+      })
+    ).toBe('search secret')
+    expect(
+      knowledgeUploadChunkTool.request.modelInput?.select({
+        knowledgeBaseId: 'kb-1',
+        documentId: 'doc-1',
+        content: 'chunk secret',
+      })
+    ).toBe('chunk secret')
+    expect(
+      knowledgeUpdateChunkTool.request.modelInput?.select({
+        knowledgeBaseId: 'kb-1',
+        documentId: 'doc-1',
+        chunkId: 'chunk-1',
+        content: 'updated secret',
+        enabled: true,
+      })
+    ).toBe('updated secret')
+  })
+
   describe('knowledgeSearchTool', () => {
     describe('transformResponse', () => {
       it('should restructure cost information for logging', async () => {

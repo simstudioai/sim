@@ -792,7 +792,8 @@ async function executeWebhookJobInternal(
       snapshot,
       callbacks: {},
       loggingSession,
-      trustedInitialResolvedSecretTraceProvenance: resolvedSecretTraceRegistry.exportProvenance(),
+      trustedInitialResolvedSecretTraceProvenance:
+        resolvedSecretTraceRegistry.exportProvenanceForValue(triggerInput),
       includeFileBase64: false,
       base64MaxBytes: undefined,
       abortSignal: timeoutController.signal,

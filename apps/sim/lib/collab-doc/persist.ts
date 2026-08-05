@@ -87,6 +87,7 @@ export async function persistFileDoc(
         syncLiveDoc: false,
         // If-Match: only if the durable file is still at the version the live doc synced from.
         expectedUpdatedAt: expectedVersion !== undefined ? new Date(expectedVersion) : undefined,
+        secretProvenancePolicy: { mode: 'preserve' },
       }
     )
 

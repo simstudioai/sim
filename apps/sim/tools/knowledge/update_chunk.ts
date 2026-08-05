@@ -44,6 +44,10 @@ export const knowledgeUpdateChunkTool: ToolConfig<any, KnowledgeUpdateChunkRespo
     url: (params) =>
       `/api/knowledge/${params.knowledgeBaseId}/documents/${params.documentId}/chunks/${params.chunkId}`,
     method: 'PUT',
+    modelInput: {
+      mode: 'private-provenance',
+      select: (params) => params.content,
+    },
     headers: () => ({
       'Content-Type': 'application/json',
     }),

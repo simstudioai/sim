@@ -249,7 +249,7 @@ describe('mothership private trace provenance transport', () => {
       workspaceDecrypted: {},
       decryptionFailures: [],
     })
-    mockDecryptSecret.mockResolvedValueOnce({ decrypted: '123' })
+    mockDecryptSecret.mockResolvedValue({ decrypted: '123' })
     mockRunHeadlessCopilotLifecycle.mockResolvedValue(successResult())
 
     const response = await POST(
@@ -454,13 +454,19 @@ describe('mothership private trace provenance transport', () => {
     expect(mockGetPersonalAndWorkspaceEnv).toHaveBeenCalledTimes(1)
   })
 
-  it('imports MCP schema-discovery provenance before starting the lifecycle', async () => {
+  it('imports only MCP provenance present in the discovered schemas', async () => {
     const provenance = {
       version: 1,
       complete: true,
-      entries: [{ name: 'API_KEY', encryptedValue: 'encrypted-secret' }],
+      entries: [
+        { name: 'API_KEY', encryptedValue: 'encrypted-secret' },
+        { name: 'UNRELATED', encryptedValue: 'encrypted-unrelated' },
+      ],
       scope: { userId: 'user-1', workspaceId: 'workspace-1' },
     }
+    mockDecryptSecret.mockImplementation(async (encryptedValue: string) => ({
+      decrypted: encryptedValue === 'encrypted-secret' ? 'secret-value' : 'unrelated-value',
+    }))
     mockBuildTaggedMcpToolSchemas.mockImplementationOnce(
       async (
         _userId: string,
@@ -469,7 +475,7 @@ describe('mothership private trace provenance transport', () => {
         report: (value: unknown) => void
       ) => {
         report(provenance)
-        return []
+        return [{ name: 'mcp-docs', description: 'Uses secret-value' }]
       }
     )
     mockRunHeadlessCopilotLifecycle.mockImplementation(
@@ -477,7 +483,10 @@ describe('mothership private trace provenance transport', () => {
         const registry =
           options.environmentContext?.resolvedSecretTraceRegistry ??
           options.resolvedSecretTraceRegistry
-        expect(registry?.exportProvenance()).toEqual(provenance)
+        expect(registry?.exportProvenance()).toEqual({
+          ...provenance,
+          entries: [{ name: 'API_KEY', encryptedValue: 'encrypted-secret' }],
+        })
         expect(JSON.stringify(payload)).not.toContain('encrypted-secret')
         expect(JSON.stringify(payload)).not.toContain('__resolvedSecretTraceProvenance')
         return successResult()
@@ -501,13 +510,17 @@ describe('mothership private trace provenance transport', () => {
     )
     const body = await response.json()
 
+    expect(body.error, JSON.stringify(body)).toBeUndefined()
     expect({ status: response.status, provenance: body.__resolvedSecretTraceProvenance }).toEqual({
       status: 200,
-      provenance,
+      provenance: {
+        ...provenance,
+        entries: [{ name: 'API_KEY', encryptedValue: 'encrypted-secret' }],
+      },
     })
   })
 
-  it('marks the lifecycle registry incomplete for malformed MCP discovery provenance', async () => {
+  it('omits MCP tools with malformed discovery provenance without poisoning the lifecycle', async () => {
     mockBuildTaggedMcpToolSchemas.mockImplementationOnce(
       async (
         _userId: string,
@@ -520,11 +533,12 @@ describe('mothership private trace provenance transport', () => {
       }
     )
     mockRunHeadlessCopilotLifecycle.mockImplementation(
-      async (_payload: Record<string, unknown>, options: CopilotLifecycleOptions) => {
+      async (payload: Record<string, unknown>, options: CopilotLifecycleOptions) => {
         const registry =
           options.environmentContext?.resolvedSecretTraceRegistry ??
           options.resolvedSecretTraceRegistry
-        expect(registry?.isComplete()).toBe(false)
+        expect(registry?.isComplete()).toBe(true)
+        expect(payload).not.toHaveProperty('mothershipTools')
         return successResult()
       }
     )
@@ -549,7 +563,7 @@ describe('mothership private trace provenance transport', () => {
     expect(response.status).toBe(200)
     expect(body.__resolvedSecretTraceProvenance).toEqual({
       version: 1,
-      complete: false,
+      complete: true,
       entries: [],
       scope: { userId: 'user-1', workspaceId: 'workspace-1' },
     })

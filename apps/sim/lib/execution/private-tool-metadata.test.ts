@@ -9,6 +9,7 @@ import {
   isPrivateToolMetadataType,
   PRIVATE_TOOL_METADATA_REQUEST_HEADER,
   PRIVATE_TOOL_METADATA_RESPONSE_HEADER,
+  RESOLVED_SECRET_NAMES_DURABLE_FILES_METADATA_V2,
   RESOLVED_SECRET_NAMES_FIELD,
   RESOLVED_SECRET_NAMES_METADATA_V1,
   RESOLVED_SECRET_PROVENANCE_FIELD,
@@ -22,6 +23,9 @@ describe('private tool metadata protocol', () => {
     expect(PRIVATE_TOOL_METADATA_REQUEST_HEADER).toBe('x-sim-request-private-tool-metadata')
     expect(PRIVATE_TOOL_METADATA_RESPONSE_HEADER).toBe('x-sim-private-tool-metadata')
     expect(RESOLVED_SECRET_NAMES_METADATA_V1).toBe('resolved-secret-names-v1')
+    expect(RESOLVED_SECRET_NAMES_DURABLE_FILES_METADATA_V2).toBe(
+      'resolved-secret-names-durable-files-v2'
+    )
     expect(RESOLVED_SECRET_PROVENANCE_METADATA_V1).toBe('resolved-secret-provenance-v1')
     expect(RESOLVED_SECRET_NAMES_FIELD).toBe('__resolvedSecretNames')
     expect(RESOLVED_SECRET_PROVENANCE_FIELD).toBe('__resolvedSecretTraceProvenance')
@@ -51,10 +55,14 @@ describe('private tool metadata protocol', () => {
 
   it('maps each marker to its private payload field', () => {
     expect(isPrivateToolMetadataType(RESOLVED_SECRET_NAMES_METADATA_V1)).toBe(true)
+    expect(isPrivateToolMetadataType(RESOLVED_SECRET_NAMES_DURABLE_FILES_METADATA_V2)).toBe(true)
     expect(isPrivateToolMetadataType(RESOLVED_SECRET_PROVENANCE_METADATA_V1)).toBe(true)
     expect(isPrivateToolMetadataType('resolved-secret-provenance-v2')).toBe(false)
     expect(isPrivateToolMetadataType(null)).toBe(false)
     expect(getPrivateToolMetadataField(RESOLVED_SECRET_NAMES_METADATA_V1)).toBe(
+      RESOLVED_SECRET_NAMES_FIELD
+    )
+    expect(getPrivateToolMetadataField(RESOLVED_SECRET_NAMES_DURABLE_FILES_METADATA_V2)).toBe(
       RESOLVED_SECRET_NAMES_FIELD
     )
     expect(getPrivateToolMetadataField(RESOLVED_SECRET_PROVENANCE_METADATA_V1)).toBe(

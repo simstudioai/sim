@@ -47,7 +47,7 @@ describe('projectToolResultForCopilot', () => {
     }
   )
 
-  it('projects an exact-name/exact-value Function result to an opaque marker', () => {
+  it('projects an exact-name/exact-value Function result to its named placeholder', () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'Test', plaintext: 'Test', encryptedValue: 'ciphertext' },
     ])
@@ -67,13 +67,13 @@ describe('projectToolResultForCopilot', () => {
     expect(projected).toEqual({
       success: true,
       output: {
-        result: '[REDACTED_SECRET]',
-        embedded: 'Bearer [REDACTED_SECRET]',
-        legacy: '[REDACTED_SECRET]',
+        result: '{{Test}}',
+        embedded: 'Bearer {{Test}}',
+        legacy: '{{Test}}',
         compiler: '__sim_code_0_binding_0',
       },
     })
-    expect(JSON.stringify(projected)).not.toContain('Test')
+    expect(JSON.stringify(projected)).not.toContain('"Test"')
     expect(JSON.stringify(projected)).not.toContain('__var_')
     expect(JSON.stringify(projected)).toContain('__sim_code_0_binding_0')
     expect(runtimeResult.output.result).toBe('Test')
@@ -160,8 +160,8 @@ describe('projectToolResultForCopilot', () => {
 
     expect(projected).toEqual({
       success: false,
-      output: { '[REDACTED_SECRET]': 'first', '': 'second' },
-      error: '[REDACTED_SECRET]',
+      output: { '{{F_SECRET}}': 'first', '': 'second' },
+      error: '{{F_SECRET}}',
     })
   })
 
@@ -181,6 +181,9 @@ describe('projectToolResultForCopilot', () => {
       { name: 'BOOLEAN', plaintext: 'true', encryptedValue: 'boolean-ciphertext' },
       { name: 'NULL', plaintext: 'null', encryptedValue: 'null-ciphertext' },
     ])
+    registry.recordResolved('NUMBER', '123')
+    registry.recordResolved('BOOLEAN', 'true')
+    registry.recordResolved('NULL', 'null')
 
     expect(
       projectToolResultForCopilot(
@@ -210,7 +213,7 @@ describe('projectToolResultForCopilot', () => {
     })
   })
 
-  it('projects configured values before any resolver records them as active', () => {
+  it('preserves configured values until the resolver records them as active', () => {
     const registry = createRegistry()
     const result = {
       success: true,
@@ -219,7 +222,7 @@ describe('projectToolResultForCopilot', () => {
 
     expect(projectToolResultForCopilot(result, registry)).toEqual({
       success: true,
-      output: { result: '{{SECRET}}', stdout: '' },
+      output: { result: 'secret-value', stdout: '' },
     })
   })
 
@@ -320,6 +323,7 @@ describe('projectToolResultForCopilot', () => {
     },
   ])('omits resources whose routing controls contain a secret', (resource) => {
     const registry = createRegistry()
+    registry.recordResolved('SECRET', 'secret-value')
     const projected = projectToolResultForCopilot(
       {
         success: true,

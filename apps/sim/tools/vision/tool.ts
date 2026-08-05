@@ -42,6 +42,10 @@ export const visionTool: ToolConfig<VisionParams, VisionResponse> = {
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({ prompt: params.prompt }),
+    },
     method: 'POST',
     url: '/api/tools/vision/analyze',
     headers: () => ({

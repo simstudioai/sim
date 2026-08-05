@@ -5,6 +5,7 @@ import {
   collectModelVisibleSchemaContent,
   restoreModelVisibleSchemaValues as restoreSchemaDisplayValues,
 } from '@/lib/copilot/model-visible-schema'
+import { filterModelSafeWorkspaceFileAttachments } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import type { StreamingExecution } from '@/executor/types'
 import {
   isResolvedSecretModelContentUnchanged,
@@ -25,6 +26,7 @@ import {
   attachLargeFileRemoteUrls,
   uploadLargeFilesToProvider,
 } from '@/providers/file-attachments.server'
+import { collectProviderModelInputProvenanceValues } from '@/providers/model-input-provenance'
 import { isKnownModelId } from '@/providers/models'
 import { getProviderExecutor } from '@/providers/registry'
 import {
@@ -253,11 +255,17 @@ function projectProviderModelContent(
   let sourceResponseFormat = request.responseFormat
   if (request.responseFormat) {
     if (!hasModelSafeSchema(request.responseFormat.schema, registry)) {
-      throw new ModelContentProjectionError()
+      logger.warn('Omitting a response format with unsafe model-input provenance')
+      sourceResponseFormat = undefined
+    } else {
+      const name = modelSafeResponseFormatName(request.responseFormat.name, registry)
+      if (!name) {
+        logger.warn('Omitting a response format whose name could not be safely projected')
+        sourceResponseFormat = undefined
+      } else {
+        sourceResponseFormat = { ...request.responseFormat, name }
+      }
     }
-    const name = modelSafeResponseFormatName(request.responseFormat.name, registry)
-    if (!name) throw new ModelContentProjectionError()
-    sourceResponseFormat = { ...request.responseFormat, name }
   }
 
   const projection = projectResolvedSecretModelContent(
@@ -340,6 +348,41 @@ function projectProviderAttachmentDisplayNames(
           return { ...file, name }
         }),
       }
+    }),
+  }
+}
+
+async function omitUnsafeProviderFileAttachments(
+  request: ProviderRequest
+): Promise<ProviderRequest> {
+  const attachments = (request.messages ?? []).flatMap((message) => message.files ?? [])
+  if (attachments.length === 0) return request
+
+  let safeAttachments: typeof attachments
+  try {
+    safeAttachments = await filterModelSafeWorkspaceFileAttachments(attachments, {
+      workspaceId: request.workspaceId,
+    })
+  } catch (error) {
+    logger.warn('Workspace file secret provenance could not be verified; omitting attachments', {
+      attachmentCount: attachments.length,
+      error: toError(error).message,
+    })
+    safeAttachments = []
+  }
+
+  if (safeAttachments.length === attachments.length) return request
+  const safe = new Set(safeAttachments)
+  logger.warn('Omitting model attachments with unsafe secret provenance', {
+    attachmentCount: attachments.length,
+    omittedCount: attachments.length - safeAttachments.length,
+  })
+  return {
+    ...request,
+    messages: request.messages?.map((message) => {
+      if (!message.files) return message
+      const files = message.files.filter((file) => safe.has(file))
+      return { ...message, ...(files.length > 0 ? { files } : { files: undefined }) }
     }),
   }
 }
@@ -440,6 +483,15 @@ export async function executeProviderRequest(
   request: ProviderRequest,
   runtimeContext?: ProviderRuntimeContext
 ): Promise<ProviderResponse | ReadableStream | StreamingExecution> {
+  const projectionRuntimeContext = runtimeContext
+    ? {
+        ...runtimeContext,
+        resolvedSecretTraceRegistry:
+          runtimeContext.resolvedSecretTraceRegistry?.forkForToolInputValues(
+            collectProviderModelInputProvenanceValues(request)
+          ),
+      }
+    : undefined
   const provider = await getProviderExecutor(providerId as ProviderId)
   if (!provider) {
     throw new Error(`Provider not found: ${providerId}`)
@@ -448,10 +500,6 @@ export async function executeProviderRequest(
   if (!provider.executeRequest) {
     throw new Error(`Provider ${providerId} does not implement executeRequest`)
   }
-
-  runtimeContext?.resolvedSecretTraceRegistry?.addModelEgressValues(
-    request.environmentVariables ?? {}
-  )
 
   let resolvedRequest = sanitizeRequest(request)
   let isBYOK = false
@@ -485,38 +533,35 @@ export async function executeProviderRequest(
   resolvedRequest.isBYOK = isBYOK
   const sanitizedRequest = resolvedRequest
 
-  if (sanitizedRequest.responseFormat) {
-    if (
-      typeof sanitizedRequest.responseFormat === 'string' &&
-      sanitizedRequest.responseFormat === ''
-    ) {
-      logger.info('Empty response format provided, ignoring it')
-      sanitizedRequest.responseFormat = undefined
-    } else {
-      const structuredOutputInstructions = generateStructuredOutputInstructions(
-        sanitizedRequest.responseFormat
-      )
+  if (
+    typeof sanitizedRequest.responseFormat === 'string' &&
+    sanitizedRequest.responseFormat === ''
+  ) {
+    logger.info('Empty response format provided, ignoring it')
+    sanitizedRequest.responseFormat = undefined
+  }
 
-      if (structuredOutputInstructions.trim()) {
-        const originalPrompt = sanitizedRequest.systemPrompt || ''
-        sanitizedRequest.systemPrompt =
-          `${originalPrompt}\n\n${structuredOutputInstructions}`.trim()
+  const provenanceSafeRequest = await omitUnsafeProviderFileAttachments(sanitizedRequest)
+  const attachmentRequest = projectionRuntimeContext
+    ? projectProviderAttachmentDisplayNames(provenanceSafeRequest, projectionRuntimeContext)
+    : provenanceSafeRequest
+  const modelSafeRequest = projectionRuntimeContext
+    ? projectProviderModelContent(attachmentRequest, projectionRuntimeContext)
+    : attachmentRequest
 
-        logger.info('Added structured output instructions to system prompt')
-      }
+  if (modelSafeRequest.responseFormat) {
+    const structuredOutputInstructions = generateStructuredOutputInstructions(
+      modelSafeRequest.responseFormat
+    )
+    if (structuredOutputInstructions.trim()) {
+      const originalPrompt = modelSafeRequest.systemPrompt || ''
+      modelSafeRequest.systemPrompt = `${originalPrompt}\n\n${structuredOutputInstructions}`.trim()
+      logger.info('Added structured output instructions to system prompt')
     }
   }
 
-  const attachmentRequest = runtimeContext
-    ? projectProviderAttachmentDisplayNames(sanitizedRequest, runtimeContext)
-    : sanitizedRequest
-
-  await attachLargeFileRemoteUrls(attachmentRequest, providerId)
-  await uploadLargeFilesToProvider(attachmentRequest, providerId)
-
-  const modelSafeRequest = runtimeContext
-    ? projectProviderModelContent(attachmentRequest, runtimeContext)
-    : attachmentRequest
+  await attachLargeFileRemoteUrls(modelSafeRequest, providerId)
+  await uploadLargeFilesToProvider(modelSafeRequest, providerId)
 
   const response = await runWithProviderRuntimeContext(runtimeContext, () =>
     provider.executeRequest(modelSafeRequest)

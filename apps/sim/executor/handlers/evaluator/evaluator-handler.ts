@@ -1,5 +1,9 @@
 import { createLogger } from '@sim/logger'
 import {
+  addModelInputProvenanceToRequest,
+  createModelInputProvenanceRequestMetadata,
+} from '@/lib/execution/model-input-provenance'
+import {
   type AutoRoutingResult,
   addAutoRoutingCost,
   resolveAutoModel,
@@ -13,7 +17,9 @@ import { buildAPIUrl, buildAuthHeaders, extractAPIErrorMessage } from '@/executo
 import { isJSONString, parseJSON, stringifyJSON } from '@/executor/utils/json'
 import { resolveVertexCredential } from '@/executor/utils/vertex-credential'
 import { resolveProxiedModelCost } from '@/providers/cost-policy'
+import { collectProviderModelInputProvenanceValues } from '@/providers/model-input-provenance'
 import { isAutoModel, SIM_AUTO_MODEL_ID } from '@/providers/models'
+import type { ProviderRequest } from '@/providers/types'
 import { getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 
@@ -146,8 +152,7 @@ export class EvaluatorBlockHandler implements BlockHandler {
     try {
       const url = buildAPIUrl('/api/providers', ctx.userId ? { userId: ctx.userId } : {})
 
-      const providerRequest: Record<string, any> = {
-        provider: providerId,
+      const providerRequest: ProviderRequest = {
         model,
         systemPrompt: systemPromptObj.systemPrompt,
         responseFormat: systemPromptObj.responseFormat,
@@ -172,10 +177,19 @@ export class EvaluatorBlockHandler implements BlockHandler {
         workspaceId: ctx.workspaceId,
       }
 
+      const headers = new Headers(await buildAuthHeaders(ctx.userId))
+      const requestBody = addModelInputProvenanceToRequest(
+        { provider: providerId, ...providerRequest },
+        headers,
+        createModelInputProvenanceRequestMetadata(
+          ctx.resolvedSecretTraceRegistry,
+          collectProviderModelInputProvenanceValues(providerRequest)
+        )
+      )
       const response = await fetch(url.toString(), {
         method: 'POST',
-        headers: await buildAuthHeaders(ctx.userId),
-        body: stringifyJSON(providerRequest),
+        headers,
+        body: stringifyJSON(requestBody),
       })
 
       if (!response.ok) {

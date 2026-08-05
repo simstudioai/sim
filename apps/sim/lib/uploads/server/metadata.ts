@@ -52,6 +52,7 @@ export async function insertFileMetadata(
         size,
         deletedAt: null,
         uploadedAt: new Date(),
+        contentUpdatedAt: sql<Date>`GREATEST(CURRENT_TIMESTAMP, ${workspaceFiles.contentUpdatedAt} + INTERVAL '1 millisecond')`,
       })
       .where(eq(workspaceFiles.id, existingDeleted[0].id))
       .returning()

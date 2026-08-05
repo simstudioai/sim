@@ -1970,6 +1970,38 @@ export const workspaceFiles = pgTable(
   })
 )
 
+export interface WorkspaceFileSecretProvenanceEntry {
+  name: string
+  encryptedValue: string
+}
+
+/**
+ * Private, durable provenance for bytes stored in `workspace_files`.
+ *
+ * Absence is reserved for legacy files that predate provenance tracking. `exact` records carry the
+ * encrypted values found in one content version (including an empty set); `unknown` records fail
+ * closed at model attachment boundaries. Keeping this one-to-one state outside `workspace_files`
+ * prevents private metadata from leaking through broad workspace-file record projections.
+ */
+export const workspaceFileSecretProvenance = pgTable(
+  'workspace_file_secret_provenance',
+  {
+    fileId: text('file_id')
+      .primaryKey()
+      .references(() => workspaceFiles.id, { onDelete: 'cascade' }),
+    contentUpdatedAt: timestamp('content_updated_at').notNull(),
+    status: text('status').notNull(),
+    entries: jsonb('entries').$type<WorkspaceFileSecretProvenanceEntry[]>().notNull().default([]),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    statusCheck: check(
+      'workspace_file_secret_provenance_status_check',
+      sql`${table.status} IN ('exact', 'unknown')`
+    ),
+  })
+)
+
 /**
  * Cached collaborative-document state for a workspace markdown file: the last-persisted Yjs binary and
  * a hash of the markdown it was derived from. On a cold room open the seed loads this binary directly

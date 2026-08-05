@@ -17,6 +17,7 @@ import {
   type Mock,
   vi,
 } from 'vitest'
+import type { AutoRoutingSignals } from '@/lib/model-router/resolve'
 import { getAllBlocks } from '@/blocks'
 import { AGENT, BlockType, isMcpTool } from '@/executor/constants'
 import { AgentBlockHandler } from '@/executor/handlers/agent/agent-handler'
@@ -329,86 +330,17 @@ describe('AgentBlockHandler', () => {
         }
       ).buildAutoRoutingSignals(inputs, undefined)
 
-    const projectAutoRoutingSignalsFor = (
-      context: ExecutionContext,
-      signals: Record<string, unknown>
-    ) =>
-      (
-        handler as unknown as {
-          projectAutoRoutingSignals: (
-            ctx: ExecutionContext,
-            value: Record<string, unknown>
-          ) => Record<string, unknown>
-        }
-      ).projectAutoRoutingSignals(context, signals)
+    it('leaves auto-routing signal projection to the shared model router boundary', () => {
+      const signals = buildAutoRoutingSignalsFor({
+        systemPrompt: 'Keep routing-secret-value private',
+        userPrompt: 'Use routing-secret-value',
+        tools: [{ title: 'routing-secret-value' }],
+      }) as AutoRoutingSignals
 
-    it('projects resolved secrets before auto-routing sees prompt signals', () => {
-      const registry = new ResolvedSecretTraceRegistry([
-        {
-          name: 'ROUTING_SECRET',
-          plaintext: 'routing-secret-value',
-          encryptedValue: 'encrypted-routing-secret-value',
-        },
-      ])
-      registry.recordResolved('ROUTING_SECRET', 'routing-secret-value')
-
-      expect(
-        projectAutoRoutingSignalsFor(
-          { ...mockContext, resolvedSecretTraceRegistry: registry },
-          {
-            systemPrompt: 'Keep routing-secret-value private',
-            lastMessage: 'Use routing-secret-value',
-            messageCount: 1,
-            toolNames: [],
-            mediaKind: 'none',
-            hasResponseFormat: false,
-            approxInputTokens: 5,
-          }
-        )
-      ).toEqual({
-        systemPrompt: 'Keep {{ROUTING_SECRET}} private',
-        lastMessage: 'Use {{ROUTING_SECRET}}',
-        messageCount: 1,
-        toolNames: [],
-        mediaKind: 'none',
-        hasResponseFormat: false,
-        approxInputTokens: 5,
-      })
+      expect(signals.systemPrompt).toBe('Keep routing-secret-value private')
+      expect(signals.lastMessage).toBe('Use routing-secret-value')
+      expect(signals.toolNames).toEqual(['routing-secret-value'])
     })
-
-    it.each(['123', 'true'])(
-      'preserves typed auto-routing controls while projecting low-entropy secret %s from model-visible strings',
-      (secret) => {
-        const registry = new ResolvedSecretTraceRegistry([
-          {
-            name: 'ROUTING_SECRET',
-            plaintext: secret,
-            encryptedValue: 'encrypted-routing-secret',
-          },
-        ])
-        const signals = {
-          systemPrompt: `System ${secret}`,
-          lastMessage: `Message ${secret}`,
-          messageCount: 123,
-          toolNames: [secret],
-          mediaKind: 'none',
-          hasResponseFormat: true,
-          approxInputTokens: 123,
-        }
-
-        expect(
-          projectAutoRoutingSignalsFor(
-            { ...mockContext, resolvedSecretTraceRegistry: registry },
-            signals
-          )
-        ).toEqual({
-          ...signals,
-          systemPrompt: 'System {{ROUTING_SECRET}}',
-          lastMessage: 'Message {{ROUTING_SECRET}}',
-          toolNames: ['{{ROUTING_SECRET}}'],
-        })
-      }
-    )
 
     const png = { id: 'f1', type: 'image/png' }
     const pdf = { id: 'f2', type: 'application/pdf' }
@@ -2617,6 +2549,7 @@ describe('AgentBlockHandler', () => {
           encryptedValue: 'encrypted-diagnostic-secret',
         },
       ])
+      registry.recordResolved('TOKEN', 'diagnostic-secret')
       const ctx = { ...mockContext, resolvedSecretTraceRegistry: registry }
 
       privateHandler().handleExecutionError(
@@ -2678,6 +2611,7 @@ describe('AgentBlockHandler', () => {
           encryptedValue: 'encrypted-tool-secret',
         },
       ])
+      registry.recordResolved('TOKEN', 'tool-secret')
       const ctx = { ...mockContext, resolvedSecretTraceRegistry: registry }
       vi.spyOn(handler as never, 'createCustomTool' as never).mockRejectedValueOnce(
         new Error('tool-secret __var_TOKEN __sim_runtime_test_1') as never
@@ -2754,6 +2688,7 @@ describe('AgentBlockHandler', () => {
           encryptedValue: 'encrypted-format-secret',
         },
       ])
+      registry.recordResolved('TOKEN', 'format-secret')
       const ctx = { ...mockContext, resolvedSecretTraceRegistry: registry }
       const content = 'not-json format-secret __var_TOKEN __sim_runtime_test_1'
 

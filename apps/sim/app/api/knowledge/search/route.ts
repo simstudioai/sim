@@ -21,6 +21,10 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { ALL_TAG_SLOTS } from '@/lib/knowledge/constants'
 import { getEmbeddingModelInfo } from '@/lib/knowledge/embedding-models'
+import {
+  prepareKnowledgeModelInputProvenance,
+  runWithKnowledgeModelInputProvenance,
+} from '@/lib/knowledge/model-input-provenance'
 import { rerank } from '@/lib/knowledge/reranker'
 import { getDocumentTagDefinitions } from '@/lib/knowledge/tags/service'
 import { buildUndefinedTagsError, validateTagValue } from '@/lib/knowledge/tags/utils'
@@ -290,8 +294,25 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
     }
 
+    const modelInputProvenance = await prepareKnowledgeModelInputProvenance({
+      headers: request.headers,
+      payload: body,
+      isInternalRequest: auth.authType === AuthType.INTERNAL_JWT,
+      userId,
+      workspaceId: workspaceId ?? undefined,
+      modelInput: validatedData.query,
+    })
+    if (!modelInputProvenance.success) {
+      return NextResponse.json(
+        { error: modelInputProvenance.error },
+        { status: modelInputProvenance.status }
+      )
+    }
+
     const queryEmbeddingPromise = hasQuery
-      ? generateSearchEmbedding(validatedData.query!, queryEmbeddingModel, workspaceId)
+      ? runWithKnowledgeModelInputProvenance(modelInputProvenance.registry, () =>
+          generateSearchEmbedding(validatedData.query!, queryEmbeddingModel, workspaceId)
+        )
       : Promise.resolve(null)
 
     let results: SearchResult[]
@@ -354,15 +375,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (useReranker && rerankerModel && results.length > 0) {
       const candidateCount = results.length
       try {
-        const { results: ranked, isBYOK } = await rerank(
-          validatedData.query!,
-          results.map((r) => ({ id: r.id, text: r.content })),
-          {
-            model: rerankerModel,
-            topN: validatedData.topK,
-            workspaceId,
-            apiKey: validatedData.rerankerApiKey,
-          }
+        const { results: ranked, isBYOK } = await runWithKnowledgeModelInputProvenance(
+          modelInputProvenance.registry,
+          () =>
+            rerank(
+              validatedData.query!,
+              results.map((r) => ({ id: r.id, text: r.content })),
+              {
+                model: rerankerModel,
+                topN: validatedData.topK,
+                workspaceId,
+                apiKey: validatedData.rerankerApiKey,
+              }
+            )
         )
         rerankBilled = true
         rerankIsBYOK = isBYOK

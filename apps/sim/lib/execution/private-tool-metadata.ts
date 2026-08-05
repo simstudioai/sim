@@ -2,6 +2,8 @@ export const PRIVATE_TOOL_METADATA_REQUEST_HEADER = 'x-sim-request-private-tool-
 export const PRIVATE_TOOL_METADATA_RESPONSE_HEADER = 'x-sim-private-tool-metadata'
 
 export const RESOLVED_SECRET_NAMES_METADATA_V1 = 'resolved-secret-names-v1'
+export const RESOLVED_SECRET_NAMES_DURABLE_FILES_METADATA_V2 =
+  'resolved-secret-names-durable-files-v2'
 export const RESOLVED_SECRET_PROVENANCE_METADATA_V1 = 'resolved-secret-provenance-v1'
 
 export const RESOLVED_SECRET_NAMES_FIELD = '__resolvedSecretNames'
@@ -9,6 +11,7 @@ export const RESOLVED_SECRET_PROVENANCE_FIELD = '__resolvedSecretTraceProvenance
 
 export type PrivateToolMetadataType =
   | typeof RESOLVED_SECRET_NAMES_METADATA_V1
+  | typeof RESOLVED_SECRET_NAMES_DURABLE_FILES_METADATA_V2
   | typeof RESOLVED_SECRET_PROVENANCE_METADATA_V1
 
 export type PrivateToolMetadataResponseCapability =
@@ -27,7 +30,9 @@ interface HeaderReader {
 
 export function isPrivateToolMetadataType(value: string | null): value is PrivateToolMetadataType {
   return (
-    value === RESOLVED_SECRET_NAMES_METADATA_V1 || value === RESOLVED_SECRET_PROVENANCE_METADATA_V1
+    value === RESOLVED_SECRET_NAMES_METADATA_V1 ||
+    value === RESOLVED_SECRET_NAMES_DURABLE_FILES_METADATA_V2 ||
+    value === RESOLVED_SECRET_PROVENANCE_METADATA_V1
   )
 }
 
@@ -62,7 +67,8 @@ export function inspectPrivateToolMetadataResponseCapability(
 export function getPrivateToolMetadataField(
   type: PrivateToolMetadataType
 ): typeof RESOLVED_SECRET_NAMES_FIELD | typeof RESOLVED_SECRET_PROVENANCE_FIELD {
-  return type === RESOLVED_SECRET_NAMES_METADATA_V1
+  return type === RESOLVED_SECRET_NAMES_METADATA_V1 ||
+    type === RESOLVED_SECRET_NAMES_DURABLE_FILES_METADATA_V2
     ? RESOLVED_SECRET_NAMES_FIELD
     : RESOLVED_SECRET_PROVENANCE_FIELD
 }

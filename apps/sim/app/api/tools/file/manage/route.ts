@@ -14,6 +14,12 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { ensureAbsoluteUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import {
+  PRIVATE_TOOL_METADATA_RESPONSE_HEADER,
+  RESOLVED_SECRET_PROVENANCE_FIELD,
+  RESOLVED_SECRET_PROVENANCE_METADATA_V1,
+  requestsPrivateToolMetadata,
+} from '@/lib/execution/private-tool-metadata'
 import { isSupportedFileType, parseBuffer } from '@/lib/file-parsers'
 import {
   getShareForResource,
@@ -35,6 +41,10 @@ import {
   updateWorkspaceFileContent,
   uploadWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import {
+  getBoundWorkspaceFileSecretProvenance,
+  type WorkspaceFileSecretProvenanceIdentity,
+} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { getFileMetadataByKey } from '@/lib/uploads/server/metadata'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 import {
@@ -55,6 +65,11 @@ import {
   validatePublicFileSharing,
 } from '@/ee/access-control/utils/permission-check'
 import type { UserFile } from '@/executor/types'
+import {
+  ResolvedSecretTraceProvenanceAccumulator,
+  type ResolvedSecretTraceProvenanceV1,
+  type ResolvedSecretTraceScopeV1,
+} from '@/executor/utils/resolved-secret-trace-registry'
 
 export const dynamic = 'force-dynamic'
 
@@ -227,6 +242,83 @@ const extractUserFileTextContent = async (
   return `[Binary file: ${userFile.name} (${userFile.type || 'application/octet-stream'}, ${buffer.length} bytes). Cannot extract text content.]`
 }
 
+interface FileContentSource {
+  file: UserFile
+  identity?: WorkspaceFileSecretProvenanceIdentity
+  ownerUserId?: string
+}
+
+async function bindSelectedContentFile(
+  workspaceId: string,
+  file: UserFile
+): Promise<FileContentSource> {
+  if (!file.key) return { file }
+
+  const metadata = await getFileMetadataByKey(file.key, 'workspace')
+  if (!metadata || metadata.workspaceId !== workspaceId || metadata.context !== 'workspace') {
+    return { file }
+  }
+
+  return {
+    file,
+    identity: { fileId: metadata.id, key: metadata.key, context: 'workspace' },
+    ownerUserId: metadata.userId,
+  }
+}
+
+async function getFileContentProvenance(
+  workspaceId: string,
+  sources: readonly FileContentSource[]
+): Promise<ResolvedSecretTraceProvenanceV1> {
+  const ownerIds = new Set(
+    sources
+      .map((source) => source.ownerUserId)
+      .filter((ownerUserId): ownerUserId is string => Boolean(ownerUserId))
+  )
+  const ownerUserId = ownerIds.size === 1 ? ownerIds.values().next().value : undefined
+  const scope: ResolvedSecretTraceScopeV1 | undefined = ownerUserId
+    ? { userId: ownerUserId, workspaceId }
+    : undefined
+  const accumulator = new ResolvedSecretTraceProvenanceAccumulator(scope)
+
+  for (const source of sources) {
+    if (!source.identity || !source.ownerUserId) {
+      accumulator.markIncomplete()
+      continue
+    }
+    const provenance = await getBoundWorkspaceFileSecretProvenance(workspaceId, source.identity)
+    if (provenance.status === 'unknown') {
+      accumulator.markIncomplete()
+      continue
+    }
+    accumulator.record({
+      version: 1,
+      complete: true,
+      entries: [...provenance.entries],
+      ...(scope ? { scope } : {}),
+    })
+  }
+
+  return accumulator.exportProvenance()
+}
+
+function fileContentJsonResponse(
+  body: Record<string, unknown>,
+  includePrivateProvenance: boolean,
+  init?: ResponseInit,
+  provenance: ResolvedSecretTraceProvenanceV1 = { version: 1, complete: true, entries: [] }
+): NextResponse {
+  if (!includePrivateProvenance) return NextResponse.json(body, init)
+
+  const headers = new Headers(init?.headers)
+  headers.delete('content-length')
+  headers.set(PRIVATE_TOOL_METADATA_RESPONSE_HEADER, RESOLVED_SECRET_PROVENANCE_METADATA_V1)
+  return NextResponse.json(
+    { ...body, [RESOLVED_SECRET_PROVENANCE_FIELD]: provenance },
+    { ...init, headers }
+  )
+}
+
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const auth = await checkInternalAuth(request, { requireWorkflowId: false })
   if (!auth.success) {
@@ -246,6 +338,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   if (!workspaceId) {
     return NextResponse.json({ success: false, error: 'workspaceId is required' }, { status: 400 })
   }
+  const includePrivateContentProvenance =
+    body.operation === 'content' &&
+    requestsPrivateToolMetadata(request.headers, RESOLVED_SECRET_PROVENANCE_METADATA_V1)
+  const contentResponse = (
+    responseBody: Record<string, unknown>,
+    init?: ResponseInit,
+    provenance?: ResolvedSecretTraceProvenanceV1
+  ) => fileContentJsonResponse(responseBody, includePrivateContentProvenance, init, provenance)
 
   try {
     await assertActiveWorkspaceAccess(workspaceId, userId)
@@ -366,7 +466,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         const selectedInputFiles = fileId ? [] : extractUserFilesFromInput(fileInput)
 
         if (selectedFileIds.length === 0 && selectedInputFiles.length === 0) {
-          return NextResponse.json({ success: false, error: 'File is required' }, { status: 400 })
+          return contentResponse({ success: false, error: 'File is required' }, { status: 400 })
         }
 
         const workspaceFiles = await Promise.all(
@@ -374,29 +474,45 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         )
         const missingFileId = selectedFileIds.find((_, index) => !workspaceFiles[index])
         if (missingFileId) {
-          return NextResponse.json(
+          return contentResponse(
             { success: false, error: `File not found: "${missingFileId}"` },
             { status: 404 }
           )
         }
 
-        const userFiles: UserFile[] = workspaceFiles
-          .map((file) => workspaceFileToUserFile(file))
-          .filter((file): file is NonNullable<ReturnType<typeof workspaceFileToUserFile>> =>
-            Boolean(file)
-          )
-          .concat(selectedInputFiles)
+        const canonicalSources: FileContentSource[] = workspaceFiles.flatMap((file) => {
+          const userFile = workspaceFileToUserFile(file)
+          if (!file || !userFile) return []
+          return [
+            {
+              file: userFile,
+              identity: { fileId: file.id, key: file.key, context: 'workspace' },
+              ownerUserId: file.uploadedBy,
+            },
+          ]
+        })
+        const selectedSources = await Promise.all(
+          selectedInputFiles.map((file) => bindSelectedContentFile(workspaceId, file))
+        )
+        const sources = canonicalSources.concat(selectedSources)
 
         const contents: string[] = []
         let totalBytes = 0
-        for (const userFile of userFiles) {
-          const denied = await assertToolFileAccess(userFile.key, userId, requestId, logger)
-          if (denied) return denied
+        for (const source of sources) {
+          const denied = await assertToolFileAccess(source.file.key, userId, requestId, logger)
+          if (denied) {
+            const deniedBody = (await denied.clone().json()) as Record<string, unknown>
+            return contentResponse(deniedBody, {
+              status: denied.status,
+              statusText: denied.statusText,
+              headers: denied.headers,
+            })
+          }
 
-          const content = await extractUserFileTextContent(userFile, requestId)
+          const content = await extractUserFileTextContent(source.file, requestId)
           totalBytes += Buffer.byteLength(content, 'utf8')
           if (totalBytes > MAX_GET_CONTENT_TOTAL_BYTES) {
-            return NextResponse.json(
+            return contentResponse(
               {
                 success: false,
                 error: `Combined file content is too large to return safely. Maximum is ${
@@ -410,11 +526,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         }
 
         logger.info('File content extracted', { count: contents.length })
+        const provenance = includePrivateContentProvenance
+          ? await getFileContentProvenance(workspaceId, sources)
+          : undefined
 
-        return NextResponse.json({
-          success: true,
-          data: { contents },
-        })
+        return contentResponse({ success: true, data: { contents } }, undefined, provenance)
       }
 
       case 'write': {
@@ -862,23 +978,28 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
   } catch (error) {
     if (isWorkspaceAccessDeniedError(error)) {
-      return NextResponse.json(
-        { success: false, error: 'Workspace access denied' },
-        { status: 403 }
-      )
+      return contentResponse({ success: false, error: 'Workspace access denied' }, { status: 403 })
     }
     const notReady = docNotReadyResponse(error)
-    if (notReady) return notReady
+    if (notReady) {
+      if (!includePrivateContentProvenance) return notReady
+      const notReadyBody = (await notReady.clone().json()) as Record<string, unknown>
+      return contentResponse(notReadyBody, {
+        status: notReady.status,
+        statusText: notReady.statusText,
+        headers: notReady.headers,
+      })
+    }
     // A file over its per-file cap is a size rejection, not a fault. Rendered
     // documents can cross it even when the stored source was well under.
     if (isPayloadSizeLimitError(error)) {
-      return NextResponse.json({ success: false, error: error.message }, { status: 413 })
+      return contentResponse({ success: false, error: error.message }, { status: 413 })
     }
     if (error instanceof ShareValidationError) {
-      return NextResponse.json({ success: false, error: error.message }, { status: 400 })
+      return contentResponse({ success: false, error: error.message }, { status: 400 })
     }
     const message = getErrorMessage(error, 'Unknown error')
     logger.error('File operation failed', { operation: body.operation, error: message })
-    return NextResponse.json({ success: false, error: message }, { status: 500 })
+    return contentResponse({ success: false, error: message }, { status: 500 })
   }
 })

@@ -51,10 +51,7 @@ import type { BlockHandler, ExecutionContext, StreamingExecution } from '@/execu
 import { collectBlockData } from '@/executor/utils/block-data'
 import { buildAPIUrl, buildAuthHeaders } from '@/executor/utils/http'
 import { stringifyJSON } from '@/executor/utils/json'
-import {
-  projectResolvedSecretDiagnosticContent,
-  projectResolvedSecretModelContent,
-} from '@/executor/utils/resolved-secret-content-projection'
+import { projectResolvedSecretDiagnosticContent } from '@/executor/utils/resolved-secret-content-projection'
 import { resolveVertexCredential } from '@/executor/utils/vertex-credential'
 import { executeProviderRequest } from '@/providers'
 import {
@@ -128,20 +125,6 @@ function getToolDiagnosticFallback(tool: ToolInput): Record<string, unknown> {
   }
 }
 
-function isAutoRoutingSignals(value: unknown): value is AutoRoutingSignals {
-  if (!isPlainRecord(value)) return false
-  return (
-    (value.systemPrompt === undefined || typeof value.systemPrompt === 'string') &&
-    (value.lastMessage === undefined || typeof value.lastMessage === 'string') &&
-    typeof value.messageCount === 'number' &&
-    Array.isArray(value.toolNames) &&
-    value.toolNames.every((name) => typeof name === 'string') &&
-    (value.mediaKind === 'none' || value.mediaKind === 'image' || value.mediaKind === 'file') &&
-    typeof value.hasResponseFormat === 'boolean' &&
-    typeof value.approxInputTokens === 'number'
-  )
-}
-
 /**
  * Handler for Agent blocks that process LLM requests with optional tools.
  */
@@ -170,14 +153,10 @@ export class AgentBlockHandler implements BlockHandler {
     let model = configuredModel
     let autoRouting: AutoRoutingResult | null = null
     if (isAutoModel(configuredModel)) {
-      const routingSignals = this.projectAutoRoutingSignals(
-        ctx,
-        this.buildAutoRoutingSignals(filteredInputs, responseFormat)
-      )
       autoRouting = await resolveAutoModel({
         ctx,
         blockId: block.id,
-        signals: routingSignals,
+        signals: this.buildAutoRoutingSignals(filteredInputs, responseFormat),
         fallbackModel: AGENT.DEFAULT_MODEL,
       })
       model = autoRouting.model
@@ -308,28 +287,6 @@ export class AgentBlockHandler implements BlockHandler {
       hasResponseFormat: Boolean(responseFormat),
       approxInputTokens: Math.ceil(approxChars / 4),
     }
-  }
-
-  private projectAutoRoutingSignals(
-    ctx: ExecutionContext,
-    signals: AutoRoutingSignals
-  ): AutoRoutingSignals {
-    const projection = projectResolvedSecretModelContent(
-      {
-        systemPrompt: signals.systemPrompt,
-        lastMessage: signals.lastMessage,
-        toolNames: signals.toolNames,
-      },
-      ctx.resolvedSecretTraceRegistry
-    )
-    if (!projection.safe || !isPlainRecord(projection.value)) {
-      throw new Error('Model routing input could not be safely projected')
-    }
-    const projectedSignals = { ...signals, ...projection.value }
-    if (!isAutoRoutingSignals(projectedSignals)) {
-      throw new Error('Model routing input could not be safely projected')
-    }
-    return projectedSignals
   }
 
   /**

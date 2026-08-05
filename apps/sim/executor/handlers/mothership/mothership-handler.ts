@@ -276,7 +276,7 @@ async function consumeMothershipProvenance(
     throw new Error('Mothership response provenance metadata is invalid')
   }
 
-  const imported = await registry.importProvenance(provenance, { trusted: true })
+  const imported = await registry.importProvenanceForValue(provenance, payload, { trusted: true })
   if (!imported) throw new Error('Mothership response provenance metadata is invalid')
   return true
 }

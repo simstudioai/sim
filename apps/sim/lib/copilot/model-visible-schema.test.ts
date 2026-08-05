@@ -8,7 +8,7 @@ import {
 } from '@/lib/copilot/model-visible-schema'
 
 describe('model-visible schema classification', () => {
-  it('projects display text while guarding semantic keys and values', () => {
+  it('projects display text, preserves public grammar, and guards dynamic semantics', () => {
     const schema = {
       type: 'object',
       properties: {
@@ -27,18 +27,7 @@ describe('model-visible schema classification', () => {
 
     expect(content.projectedValues).toEqual(['Visible title', 'Visible description'])
     expect(content.guardedValues).toEqual(
-      expect.arrayContaining([
-        'type',
-        'properties',
-        'object',
-        'tokenField',
-        'title',
-        'description',
-        'string',
-        ['semantic-value'],
-        'semantic-default',
-        ['tokenField'],
-      ])
+      expect.arrayContaining(['tokenField', ['semantic-value'], 'semantic-default', ['tokenField']])
     )
     expect(
       restoreModelVisibleSchemaValues(schema, ['Projected title', 'Projected description'])
@@ -57,7 +46,7 @@ describe('model-visible schema classification', () => {
     })
   })
 
-  it('exact-verifies canonical and arbitrary schema controls without projecting them', () => {
+  it('preserves validated controls while guarding arbitrary or invalid semantic values', () => {
     const schema = {
       type: ['object', 'null'],
       nullable: true,
@@ -74,14 +63,13 @@ describe('model-visible schema classification', () => {
 
     expect(collectModelVisibleSchemaContent(schema).guardedValues).toEqual(
       expect.arrayContaining([
-        ['object', 'null'],
-        true,
-        false,
         'secret-format',
         'secret-schema-uri',
         'secret-encoding',
         'secret-media-type',
+        'invalidType',
         'secret-type',
+        'invalidBoolean',
         'secret-deprecated',
       ])
     )
@@ -90,10 +78,35 @@ describe('model-visible schema classification', () => {
   it.each([
     ['string', { type: 'string' }],
     ['true', { nullable: true }],
-  ])('guards a canonical semantic value when it equals the secret %s', (secret, schema) => {
-    expect(collectModelVisibleSchemaContent(schema).guardedValues).toContain(
-      secret === 'true' ? true : secret
+  ])('preserves the validated public control %s outside secret matching', (_secret, schema) => {
+    expect(collectModelVisibleSchemaContent(schema).guardedValues).toEqual([])
+  })
+
+  it.each([
+    { items: 'not-a-schema' },
+    { allOf: ['not-a-schema'] },
+    { properties: { field: 'not-a-schema' } },
+  ])('rejects malformed child schemas instead of silently preserving them', (schema) => {
+    expect(() => collectModelVisibleSchemaContent(schema)).toThrow(
+      'Model-visible schema content could not be safely projected'
     )
+    expect(() => restoreModelVisibleSchemaValues(schema, [])).toThrow(
+      'Model-visible schema content could not be safely projected'
+    )
+  })
+
+  it('accepts boolean schemas at every schema-child position', () => {
+    const schema = {
+      additionalProperties: false,
+      allOf: [true],
+      properties: { field: false },
+    }
+
+    expect(collectModelVisibleSchemaContent(schema)).toEqual({
+      projectedValues: [],
+      guardedValues: ['field'],
+    })
+    expect(restoreModelVisibleSchemaValues(schema, [])).toEqual(schema)
   })
 
   it('guards arbitrary keys at the root and within child schemas', () => {
@@ -120,5 +133,17 @@ describe('model-visible schema classification', () => {
     }
 
     expect(restoreModelVisibleSchemaValues(schema, [])).toEqual(schema)
+  })
+
+  it('rejects oversized schema collections before duplicating them', () => {
+    const oversized = new Array(100_001)
+    const schema = { allOf: oversized }
+
+    expect(() => collectModelVisibleSchemaContent(schema)).toThrow(
+      'Model-visible schema content could not be safely projected'
+    )
+    expect(() => restoreModelVisibleSchemaValues(schema, [])).toThrow(
+      'Model-visible schema content could not be safely projected'
+    )
   })
 })

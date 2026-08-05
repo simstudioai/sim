@@ -29,6 +29,7 @@ vi.mock('@/lib/copilot/request/otel', () => ({
 }))
 
 import { FunctionExecute, Read as ReadTool } from '@/lib/copilot/generated/tool-catalog-v1'
+import { projectToolResultForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
 import {
   maybeWriteOutputToTable,
   maybeWriteReadCsvToTable,
@@ -51,6 +52,7 @@ function buildTable(overrides: Partial<TableDefinition> = {}): TableDefinition {
       columns: [
         { id: 'col_name', name: 'name', type: 'string' },
         { id: 'col_age', name: 'age', type: 'number' },
+        { id: 'col_status', name: 'status', type: 'string' },
       ],
     },
     metadata: null,
@@ -72,6 +74,7 @@ function buildContext(overrides: Partial<ExecutionContext> = {}): ExecutionConte
     workflowId: 'wf-1',
     workspaceId: 'workspace-1',
     userPermission: 'write',
+    resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
     ...overrides,
   }
 }
@@ -140,6 +143,60 @@ describe('maybeWriteOutputToTable', () => {
       ],
     })
     expect(table.id).toBe('tbl_1')
+  })
+
+  it('persists canonical aliases and leaves unrelated low-entropy public cells unchanged', async () => {
+    const parentRegistry = new ResolvedSecretTraceRegistry([
+      {
+        name: 'OUTPUT_SECRET',
+        plaintext: 'secret-value',
+        encryptedValue: 'encrypted-output-secret',
+      },
+      {
+        name: 'UNRELATED',
+        plaintext: 'true',
+        encryptedValue: 'encrypted-unrelated',
+      },
+    ])
+    parentRegistry.recordResolved('UNRELATED', 'true')
+    const toolRegistry = parentRegistry.forkForToolInput({ code: 'return {{OUTPUT_SECRET}}' })
+    toolRegistry.recordResolved('OUTPUT_SECRET', 'secret-value')
+    const runtimeRows = [{ name: 'secret-value', age: 30, status: 'true' }]
+
+    const result = await maybeWriteOutputToTable(
+      FunctionExecute.id,
+      { outputTable: 'tbl_1' },
+      { success: true, output: { result: runtimeRows } },
+      buildContext({ resolvedSecretTraceRegistry: toolRegistry })
+    )
+
+    expect(result.success).toBe(true)
+    const persistedRows = mockReplaceTableRows.mock.calls[0][0].rows
+    expect(persistedRows).toEqual([
+      { col_name: '{{OUTPUT_SECRET}}', col_age: 30, col_status: 'true' },
+    ])
+    expect(runtimeRows).toEqual([{ name: 'secret-value', age: 30, status: 'true' }])
+
+    const laterRead = projectToolResultForCopilot(
+      { success: true, output: { data: { rows: persistedRows } } },
+      new ResolvedSecretTraceRegistry()
+    )
+    expect(laterRead.output).toEqual({ data: { rows: persistedRows } })
+  })
+
+  it('does not replace rows when exact persistence provenance is unavailable', async () => {
+    const result = await maybeWriteOutputToTable(
+      FunctionExecute.id,
+      { outputTable: 'tbl_1' },
+      { success: true, output: { result: [{ name: 'unknown' }] } },
+      buildContext({ resolvedSecretTraceRegistry: undefined })
+    )
+
+    expect(result).toEqual({
+      success: false,
+      error: 'Tool output could not be persisted safely because secret provenance was unavailable.',
+    })
+    expect(mockReplaceTableRows).not.toHaveBeenCalled()
   })
 
   it('fails fast when no row keys match the table columns', async () => {

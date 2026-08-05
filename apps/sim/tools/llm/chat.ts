@@ -133,6 +133,10 @@ export const llmChatTool: ToolConfig<LLMChatParams, LLMChatResponse> = {
     headers: () => ({
       'Content-Type': 'application/json',
     }),
+    modelInput: {
+      mode: 'private-provenance',
+      select: (params) => [params.systemPrompt, params.context],
+    },
     body: (params) => {
       const provider = getProviderFromModel(params.model)
 

@@ -71,6 +71,13 @@ export const quiverTextToSvgTool: ToolConfig<QuiverTextToSvgParams, QuiverSvgRes
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({
+        prompt: params.prompt,
+        instructions: params.instructions,
+      }),
+    },
     url: '/api/tools/quiver/text-to-svg',
     method: 'POST',
     headers: () => ({ 'Content-Type': 'application/json' }),

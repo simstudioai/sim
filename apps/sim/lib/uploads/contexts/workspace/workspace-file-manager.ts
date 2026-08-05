@@ -25,6 +25,12 @@ import type { DbOrTx } from '@/lib/db/types'
 import { mergeEditIntoLiveFileDoc, notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
 import { getServePathPrefix } from '@/lib/uploads'
 import {
+  preserveWorkspaceFileSecretProvenanceInTx,
+  replaceWorkspaceFileSecretProvenanceInTx,
+  type WorkspaceFileSecretProvenance,
+  type WorkspaceFileSecretProvenancePolicy,
+} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import {
   deleteFile,
   downloadFile,
   hasCloudStorage,
@@ -304,7 +310,11 @@ export async function uploadWorkspaceFile(
   fileBuffer: Buffer,
   fileName: string,
   contentType: string,
-  options?: { folderId?: string | null; exactName?: boolean }
+  options?: {
+    folderId?: string | null
+    exactName?: boolean
+    secretProvenance?: WorkspaceFileSecretProvenance
+  }
 ): Promise<UserFile> {
   logger.info(`Uploading workspace file: ${fileName} for workspace ${workspaceId}`)
 
@@ -365,6 +375,14 @@ export async function uploadWorkspaceFile(
           })
           if (!inserted) {
             throw new FileConflictError(uniqueName)
+          }
+          if (options?.secretProvenance) {
+            await replaceWorkspaceFileSecretProvenanceInTx(
+              tx,
+              inserted.id,
+              inserted.contentUpdatedAt,
+              options.secretProvenance
+            )
           }
           const usage = await incrementStorageUsageForBillingContextInTx(
             tx,
@@ -1190,6 +1208,11 @@ export async function updateWorkspaceFileContent(
      * projecting the live doc back to markdown can never silently overwrite an out-of-band edit.
      */
     expectedUpdatedAt?: Date
+    /**
+     * Derived edits must explicitly preserve; trusted whole replacements must explicitly replace.
+     * Omitting the policy leaves prior provenance on the old content version, which reads as unknown.
+     */
+    secretProvenancePolicy?: WorkspaceFileSecretProvenancePolicy
   }
 ): Promise<WorkspaceFileRecord> {
   logger.info(`Updating workspace file content: ${fileId} for workspace ${workspaceId}`)
@@ -1294,6 +1317,22 @@ export async function updateWorkspaceFileContent(
           .returning()
         if (!updatedFile) {
           throw new Error('File not found or could not be updated')
+        }
+
+        if (options?.secretProvenancePolicy?.mode === 'replace') {
+          await replaceWorkspaceFileSecretProvenanceInTx(
+            tx,
+            fileId,
+            updatedFile.contentUpdatedAt,
+            options.secretProvenancePolicy.provenance
+          )
+        } else if (options?.secretProvenancePolicy?.mode === 'preserve') {
+          await preserveWorkspaceFileSecretProvenanceInTx(
+            tx,
+            fileId,
+            currentFile.contentUpdatedAt,
+            updatedFile.contentUpdatedAt
+          )
         }
 
         let updatedUsage: number | undefined

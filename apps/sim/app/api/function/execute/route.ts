@@ -22,6 +22,7 @@ import {
   isTimeoutAbortReason,
   type TimeoutAbortController,
 } from '@/lib/core/execution-limits'
+import { encryptSecret } from '@/lib/core/security/encryption'
 import { setRecordValue } from '@/lib/core/utils/records'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -50,6 +51,7 @@ import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import { materializeLargeValueRef } from '@/lib/execution/payloads/store'
 import {
   PRIVATE_TOOL_METADATA_RESPONSE_HEADER,
+  RESOLVED_SECRET_NAMES_DURABLE_FILES_METADATA_V2,
   RESOLVED_SECRET_NAMES_FIELD,
   RESOLVED_SECRET_NAMES_METADATA_V1,
   requestsPrivateToolMetadata,
@@ -69,6 +71,7 @@ import {
   fetchWorkspaceFileBuffer,
   resolveWorkspaceFileReference,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { getWorkflowById } from '@/lib/workflows/utils'
 import { escapeRegExp, normalizeName, REFERENCE } from '@/executor/constants'
 import { type OutputSchema, resolveBlockReference } from '@/executor/utils/block-reference'
@@ -80,6 +83,7 @@ import {
   createResolvedSecretMatcher,
   projectResolvedSecretContent,
   type ResolvedSecretMatcher,
+  scanResolvedSecretString,
 } from '@/executor/utils/resolved-secret-content-projection'
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -93,8 +97,10 @@ const TAG_PATTERN = createReferencePattern()
 const E2B_JS_WRAPPER_LINES = 3
 const E2B_PYTHON_WRAPPER_LINES = 1
 const MAX_SANDBOX_OUTPUT_FILES = 20
+const MAX_WORKSPACE_OUTPUT_PATH_BYTES = 16 * 1024
 const MAX_PRIVATE_RESOLVED_SECRET_NAMES = 10_000
 const MAX_PRIVATE_RESOLVED_SECRET_NAMES_BYTES = 1024 * 1024
+const MAX_PRIVATE_FILE_SECRET_MATCH_EVENTS = 1_000_000
 const SANDBOX_RUNTIME_PAYLOAD_PATH_ENV = '__SIM_RUNTIME_PAYLOAD_PATH'
 
 interface SandboxRuntimePayload {
@@ -962,9 +968,16 @@ interface FunctionRouteExecutionContext {
   requestId: string
   resolvedSecretNames: Set<string>
   includePrivateResolvedSecretNames: boolean
+  privateResolvedSecretNamesMetadataType?: ResolvedSecretNamesMetadataType
+  outputProvenanceComplete: boolean
   outputSecretMatcher?: ResolvedSecretMatcher
-  outputSecretNamesByPlaintext: Map<string, string[]>
+  outputSecretNamesByScanLiteral: Map<string, string[]>
+  outputSecretPlaintextsByName: Map<string, string>
 }
+
+type ResolvedSecretNamesMetadataType =
+  | typeof RESOLVED_SECRET_NAMES_METADATA_V1
+  | typeof RESOLVED_SECRET_NAMES_DURABLE_FILES_METADATA_V2
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -1105,13 +1118,27 @@ async function functionJsonResponse<T>(
     fileKeys: context.fileKeys,
   }
   if (context.includePrivateResolvedSecretNames) {
-    activateOutputSecretProvenance(responseBody, context)
+    activateOutputSecretProvenance(getFunctionResultProvenanceSurface(body), context)
   }
   const response = NextResponse.json(await compactFunctionRouteBody(responseBody, context), init)
   return appendPrivateResolvedSecretNames(
     response,
-    context.includePrivateResolvedSecretNames ? getPrivateResolvedSecretNames(context) : null
+    context.includePrivateResolvedSecretNames ? getPrivateResolvedSecretNames(context) : null,
+    context.privateResolvedSecretNamesMetadataType
   )
+}
+
+function getFunctionResultProvenanceSurface(body: unknown): unknown {
+  const record = asRecord(body)
+  const output = asRecord(record.output)
+  const debug = asRecord(record.debug)
+  return [
+    Object.hasOwn(record, 'error') ? record.error : undefined,
+    Object.hasOwn(output, 'result') ? output.result : undefined,
+    Object.hasOwn(output, 'stdout') ? output.stdout : undefined,
+    Object.hasOwn(debug, 'lineContent') ? debug.lineContent : undefined,
+    Object.hasOwn(debug, 'stack') ? debug.stack : undefined,
+  ]
 }
 
 function activateOutputSecretProvenance(
@@ -1130,19 +1157,79 @@ function activateOutputSecretProvenance(
     }
   )
   if (!projection.safe) {
-    for (const names of context.outputSecretNamesByPlaintext.values()) {
-      for (const name of names) context.resolvedSecretNames.add(name)
-    }
+    context.outputProvenanceComplete = false
     return
   }
   for (const plaintext of matchedPlaintexts) {
-    for (const name of context.outputSecretNamesByPlaintext.get(plaintext) ?? []) {
+    for (const name of context.outputSecretNamesByScanLiteral.get(plaintext) ?? []) {
       context.resolvedSecretNames.add(name)
     }
   }
 }
 
+async function getOutputFileSecretProvenance(
+  buffer: Buffer,
+  isBinary: boolean,
+  context: FunctionRouteExecutionContext
+): Promise<WorkspaceFileSecretProvenance> {
+  if (isBinary) return { status: 'unknown' }
+  if (context.outputSecretPlaintextsByName.size === 0) {
+    return { status: 'exact', entries: [] }
+  }
+  if (!context.outputSecretMatcher) return { status: 'unknown' }
+
+  const matchedNames = new Set<string>()
+  try {
+    scanResolvedSecretString(
+      buffer.toString('utf8'),
+      context.outputSecretMatcher,
+      (scanLiteral) => {
+        for (const name of context.outputSecretNamesByScanLiteral.get(scanLiteral) ?? []) {
+          matchedNames.add(name)
+        }
+      },
+      MAX_PRIVATE_FILE_SECRET_MATCH_EVENTS
+    )
+  } catch {
+    context.outputProvenanceComplete = false
+    return { status: 'unknown' }
+  }
+
+  try {
+    const entries = await Promise.all(
+      [...matchedNames].sort().map(async (name) => {
+        const plaintext = context.outputSecretPlaintextsByName.get(name)
+        if (plaintext === undefined) {
+          throw new Error('Resolved secret provenance name is outside the scoped catalog')
+        }
+        return { name, encryptedValue: (await encryptSecret(plaintext)).encrypted }
+      })
+    )
+    return { status: 'exact', entries }
+  } catch {
+    return { status: 'unknown' }
+  }
+}
+
+function projectWorkspaceOutputPath(path: string, context: FunctionRouteExecutionContext): string {
+  if (context.outputSecretPlaintextsByName.size === 0) return path
+  if (!context.outputSecretMatcher) {
+    throw new Error('Workspace output path secret provenance is unavailable')
+  }
+
+  const projection = projectResolvedSecretContent(
+    path,
+    context.outputSecretMatcher,
+    MAX_WORKSPACE_OUTPUT_PATH_BYTES
+  )
+  if (!projection.safe || typeof projection.value !== 'string') {
+    throw new Error('Workspace output path could not be projected safely')
+  }
+  return projection.value
+}
+
 function getPrivateResolvedSecretNames(context: FunctionRouteExecutionContext): string[] | null {
+  if (!context.outputProvenanceComplete) return null
   if (context.resolvedSecretNames.size > MAX_PRIVATE_RESOLVED_SECRET_NAMES) return null
 
   const names = Array.from(context.resolvedSecretNames).sort()
@@ -1156,32 +1243,30 @@ function getPrivateResolvedSecretNames(context: FunctionRouteExecutionContext): 
 
 async function appendResolvedSecretNames(
   response: NextResponse,
-  context: FunctionRouteExecutionContext
+  context: FunctionRouteExecutionContext,
+  provenanceValue: unknown
 ): Promise<NextResponse> {
   if (!context.includePrivateResolvedSecretNames) return response
-  try {
-    activateOutputSecretProvenance(await response.clone().json(), context)
-  } catch {
-    if (context.outputSecretMatcher) {
-      for (const names of context.outputSecretNamesByPlaintext.values()) {
-        for (const name of names) context.resolvedSecretNames.add(name)
-      }
-    }
-  }
-  return appendPrivateResolvedSecretNames(response, getPrivateResolvedSecretNames(context))
+  activateOutputSecretProvenance(provenanceValue, context)
+  return appendPrivateResolvedSecretNames(
+    response,
+    getPrivateResolvedSecretNames(context),
+    context.privateResolvedSecretNamesMetadataType
+  )
 }
 
 async function appendPrivateResolvedSecretNames(
   response: NextResponse,
-  names: string[] | null
+  names: string[] | null,
+  metadataType?: ResolvedSecretNamesMetadataType
 ): Promise<NextResponse> {
-  if (!names) return response
+  if (!names || !metadataType) return response
 
   try {
     const body = (await response.clone().json()) as Record<string, unknown>
     const headers = new Headers(response.headers)
     headers.delete('content-length')
-    headers.set(PRIVATE_TOOL_METADATA_RESPONSE_HEADER, RESOLVED_SECRET_NAMES_METADATA_V1)
+    headers.set(PRIVATE_TOOL_METADATA_RESPONSE_HEADER, metadataType)
     return NextResponse.json(
       {
         ...body,
@@ -1238,6 +1323,7 @@ function exportUnchangedNote(sandboxPath?: string): string {
 }
 
 async function maybeExportSandboxFileToWorkspace(args: {
+  routeContext: FunctionRouteExecutionContext
   authUserId: string
   workflowId?: string
   workspaceId?: string
@@ -1252,6 +1338,7 @@ async function maybeExportSandboxFileToWorkspace(args: {
   executionTime: number
 }) {
   const {
+    routeContext,
     authUserId,
     workflowId,
     workspaceId,
@@ -1305,7 +1392,21 @@ async function maybeExportSandboxFileToWorkspace(args: {
     )
   }
 
-  const fileName = normalizeOutputWorkspaceFileName(outputPath)
+  let projectedOutputPath: string
+  try {
+    projectedOutputPath = projectWorkspaceOutputPath(outputPath, routeContext)
+  } catch (error) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: getErrorMessage(error, 'Workspace output path could not be projected safely'),
+        output: { result: null, stdout: cleanStdout(stdout), executionTime },
+      },
+      { status: 400 }
+    )
+  }
+
+  const fileName = normalizeOutputWorkspaceFileName(projectedOutputPath)
 
   const TEXT_MIMES = new Set(Object.values(FORMAT_TO_CONTENT_TYPE))
   const resolvedMimeType =
@@ -1327,9 +1428,10 @@ async function maybeExportSandboxFileToWorkspace(args: {
   const fileBuffer = isBinary
     ? Buffer.from(exportedFileContent, 'base64')
     : Buffer.from(exportedFileContent, 'utf-8')
+  const secretProvenance = await getOutputFileSecretProvenance(fileBuffer, isBinary, routeContext)
 
-  const targetPath = overwriteFileId || outputPath
   const mode = outputMode ?? (overwriteFileId ? 'overwrite' : 'create')
+  const targetPath = mode === 'create' ? projectedOutputPath : overwriteFileId || outputPath
 
   let previousSize: number | undefined
   let unchanged = false
@@ -1351,6 +1453,7 @@ async function maybeExportSandboxFileToWorkspace(args: {
       },
       buffer: fileBuffer,
       inferredMimeType: resolvedMimeType,
+      secretProvenance,
     })
     logger.info('Sandbox file exported to workspace', {
       fileId: written.id,
@@ -1400,6 +1503,7 @@ async function maybeExportSandboxFileToWorkspace(args: {
 }
 
 async function maybeExportSandboxFilesToWorkspace(args: {
+  routeContext: FunctionRouteExecutionContext
   authUserId: string
   workflowId?: string
   workspaceId?: string
@@ -1429,6 +1533,7 @@ async function maybeExportSandboxFilesToWorkspace(args: {
   if (sandboxFiles.length === 1) {
     const file = sandboxFiles[0]
     return maybeExportSandboxFileToWorkspace({
+      routeContext: args.routeContext,
       authUserId: args.authUserId,
       workflowId: args.workflowId,
       workspaceId: args.workspaceId,
@@ -1482,7 +1587,24 @@ async function maybeExportSandboxFilesToWorkspace(args: {
         { status: 500 }
       )
     }
-    const fileName = normalizeOutputWorkspaceFileName(file.formatPath ?? file.path)
+    let projectedPath: string
+    try {
+      projectedPath = projectWorkspaceOutputPath(file.formatPath ?? file.path, args.routeContext)
+    } catch (error) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: getErrorMessage(error, 'Workspace output path could not be projected safely'),
+          output: {
+            result: null,
+            stdout: cleanStdout(args.stdout),
+            executionTime: args.executionTime,
+          },
+        },
+        { status: 400 }
+      )
+    }
+    const fileName = normalizeOutputWorkspaceFileName(projectedPath)
     const resolvedMimeType =
       file.mimeType ||
       FORMAT_TO_CONTENT_TYPE[resolveOutputFormat(fileName, file.format)] ||
@@ -1504,6 +1626,12 @@ async function maybeExportSandboxFilesToWorkspace(args: {
         { status: 400 }
       )
     }
+    const scanBuffer = isBinary ? Buffer.from(content, 'base64') : Buffer.from(content, 'utf-8')
+    const secretProvenance = await getOutputFileSecretProvenance(
+      scanBuffer,
+      isBinary,
+      args.routeContext
+    )
     preparedFiles.push({
       file,
       sandboxPath,
@@ -1511,8 +1639,9 @@ async function maybeExportSandboxFilesToWorkspace(args: {
       resolvedMimeType,
       isBinary,
       size,
+      secretProvenance,
       target: {
-        path: file.path,
+        path: (file.mode ?? 'create') === 'create' ? projectedPath : file.path,
         mode: file.mode ?? 'create',
         mimeType: file.mimeType,
       },
@@ -1583,6 +1712,7 @@ async function maybeExportSandboxFilesToWorkspace(args: {
         target: prepared.target,
         buffer,
         inferredMimeType: prepared.resolvedMimeType,
+        secretProvenance: prepared.secretProvenance,
       })
       logger.info('Sandbox file exported to workspace', {
         fileId: written.id,
@@ -1676,6 +1806,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
   let compilerRuntimeBindings: CodePlaceholderRuntimeBinding[] = []
   let routeContext: FunctionRouteExecutionContext | undefined
   let includePrivateResolvedSecretNames = false
+  let privateResolvedSecretNamesMetadataType: ResolvedSecretNamesMetadataType | undefined
   let timeoutForError: number | undefined
   let executionDeadlineAt: number | undefined
   let executionDeadlineController: TimeoutAbortController | undefined
@@ -1690,16 +1821,22 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     const usesMothershipSandbox = auth.sandboxProfile === 'mothership'
 
     executionDeadlineAt = parseExecutionDeadlineHeader(req.headers)
-    includePrivateResolvedSecretNames = requestsPrivateToolMetadata(
+    privateResolvedSecretNamesMetadataType = requestsPrivateToolMetadata(
       req.headers,
-      RESOLVED_SECRET_NAMES_METADATA_V1
+      RESOLVED_SECRET_NAMES_DURABLE_FILES_METADATA_V2
     )
+      ? RESOLVED_SECRET_NAMES_DURABLE_FILES_METADATA_V2
+      : requestsPrivateToolMetadata(req.headers, RESOLVED_SECRET_NAMES_METADATA_V1)
+        ? RESOLVED_SECRET_NAMES_METADATA_V1
+        : undefined
+    includePrivateResolvedSecretNames = privateResolvedSecretNamesMetadataType !== undefined
 
     const parsed = await parseRequest(functionExecuteContract, req, {})
     if (!parsed.success) {
       return appendPrivateResolvedSecretNames(
         parsed.response,
-        includePrivateResolvedSecretNames ? [] : null
+        includePrivateResolvedSecretNames ? [] : null,
+        privateResolvedSecretNamesMetadataType
       )
     }
     const { body } = parsed.data
@@ -1791,7 +1928,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
           },
           { status: 400 }
         ),
-        includePrivateResolvedSecretNames ? [] : null
+        includePrivateResolvedSecretNames ? [] : null,
+        privateResolvedSecretNamesMetadataType
       )
     }
 
@@ -1819,31 +1957,31 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       requestId,
       resolvedSecretNames: new Set<string>(),
       includePrivateResolvedSecretNames,
-      outputSecretNamesByPlaintext: new Map(),
+      privateResolvedSecretNamesMetadataType,
+      outputProvenanceComplete: true,
+      outputSecretNamesByScanLiteral: new Map(),
+      outputSecretPlaintextsByName: new Map(),
     }
-    if (includePrivateResolvedSecretNames) {
-      for (const [name, plaintext] of Object.entries(envVars)) {
-        if (!plaintext) continue
-        const names = routeContext.outputSecretNamesByPlaintext.get(plaintext) ?? []
+    for (const [name, plaintext] of Object.entries(envVars)) {
+      if (!plaintext) continue
+      routeContext.outputSecretPlaintextsByName.set(name, plaintext)
+      const scanLiterals = new Set([plaintext, JSON.stringify(plaintext).slice(1, -1)])
+      for (const scanLiteral of scanLiterals) {
+        const names = routeContext.outputSecretNamesByScanLiteral.get(scanLiteral) ?? []
         names.push(name)
-        routeContext.outputSecretNamesByPlaintext.set(plaintext, names)
+        routeContext.outputSecretNamesByScanLiteral.set(scanLiteral, names)
       }
+    }
+    if (routeContext.outputSecretNamesByScanLiteral.size > 0) {
       try {
         routeContext.outputSecretMatcher = createResolvedSecretMatcher(
-          [...routeContext.outputSecretNamesByPlaintext].map(([plaintext, names]) => ({
+          [...routeContext.outputSecretNamesByScanLiteral].map(([plaintext, names]) => ({
             plaintext,
             replacement: `{{${names[0]}}}`,
           }))
         )
       } catch {
-        /**
-         * Provenance scanning is auxiliary and must never make an otherwise valid persisted
-         * Function or Custom Tool stop executing. If the scoped secret catalog exceeds the
-         * bounded matcher, conservatively report every scoped name to downstream projectors.
-         */
-        for (const names of routeContext.outputSecretNamesByPlaintext.values()) {
-          for (const name of names) routeContext.resolvedSecretNames.add(name)
-        }
+        routeContext.outputProvenanceComplete = false
       }
     }
 
@@ -1880,12 +2018,6 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     for (const binding of compilation.bindings) {
       setRecordValue(contextVariables, binding.name, binding.value)
     }
-    if (includePrivateResolvedSecretNames) {
-      for (const name of compilation.resolvedSecretNames) {
-        routeContext.resolvedSecretNames.add(name)
-      }
-    }
-
     if (lang === CodeLanguage.Shell && containsLargeValueRef(contextVariables)) {
       throw new Error(
         'Large execution values require the JavaScript isolated-vm runtime. Select a nested field or read the value in a JavaScript function.'
@@ -1972,6 +2104,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
       if (outputSandboxPaths.length > 0 || outputSandboxPath) {
         const fileExportResponse = await maybeExportSandboxFilesToWorkspace({
+          routeContext,
           authUserId: auth.userId,
           workflowId,
           workspaceId,
@@ -1982,7 +2115,11 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
           executionTime,
         })
         if (fileExportResponse) {
-          return appendResolvedSecretNames(fileExportResponse, routeContext)
+          return appendResolvedSecretNames(
+            fileExportResponse,
+            routeContext,
+            cleanStdout(shellStdout)
+          )
         }
       }
 
@@ -2150,6 +2287,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
         if (outputSandboxPaths.length > 0 || outputSandboxPath) {
           const fileExportResponse = await maybeExportSandboxFilesToWorkspace({
+            routeContext,
             authUserId: auth.userId,
             workflowId,
             workspaceId,
@@ -2160,7 +2298,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
             executionTime,
           })
           if (fileExportResponse) {
-            return appendResolvedSecretNames(fileExportResponse, routeContext)
+            return appendResolvedSecretNames(fileExportResponse, routeContext, cleanStdout(stdout))
           }
         }
 
@@ -2239,6 +2377,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
       if (outputSandboxPaths.length > 0 || outputSandboxPath) {
         const fileExportResponse = await maybeExportSandboxFilesToWorkspace({
+          routeContext,
           authUserId: auth.userId,
           workflowId,
           workspaceId,
@@ -2249,7 +2388,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
           executionTime,
         })
         if (fileExportResponse) {
-          return appendResolvedSecretNames(fileExportResponse, routeContext)
+          return appendResolvedSecretNames(fileExportResponse, routeContext, cleanStdout(stdout))
         }
       }
 
@@ -2411,7 +2550,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         ? functionJsonResponse(abortResponse, routeContext, { status: timedOut ? 408 : 499 })
         : appendPrivateResolvedSecretNames(
             NextResponse.json(abortResponse, { status: timedOut ? 408 : 499 }),
-            includePrivateResolvedSecretNames ? [] : null
+            includePrivateResolvedSecretNames ? [] : null,
+            privateResolvedSecretNamesMetadataType
           )
     }
     if (error instanceof CodePlaceholderCompileError) {
@@ -2430,7 +2570,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         ? functionJsonResponse(compilerResponse, routeContext, { status: 422 })
         : appendPrivateResolvedSecretNames(
             NextResponse.json(compilerResponse, { status: 422 }),
-            includePrivateResolvedSecretNames ? [] : null
+            includePrivateResolvedSecretNames ? [] : null,
+            privateResolvedSecretNamesMetadataType
           )
     }
     if (isSandboxOutputLimitError(error) || isSandboxOutputFileError(error)) {
@@ -2443,7 +2584,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         ? functionJsonResponse(outputLimitResponse, routeContext, { status: 400 })
         : appendPrivateResolvedSecretNames(
             NextResponse.json(outputLimitResponse, { status: 400 }),
-            includePrivateResolvedSecretNames ? [] : null
+            includePrivateResolvedSecretNames ? [] : null,
+            privateResolvedSecretNamesMetadataType
           )
     }
     if (isExecutionResourceLimitError(error)) {
@@ -2481,7 +2623,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
           },
           { status: error.statusCode }
         ),
-        includePrivateResolvedSecretNames ? [] : null
+        includePrivateResolvedSecretNames ? [] : null,
+        privateResolvedSecretNamesMetadataType
       )
     }
 
@@ -2504,7 +2647,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         ? functionJsonResponse(killResponse, routeContext, { status: 500 })
         : appendPrivateResolvedSecretNames(
             NextResponse.json(killResponse, { status: 500 }),
-            includePrivateResolvedSecretNames ? [] : null
+            includePrivateResolvedSecretNames ? [] : null,
+            privateResolvedSecretNamesMetadataType
           )
     }
 
@@ -2553,7 +2697,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
     return appendPrivateResolvedSecretNames(
       NextResponse.json(errorResponse, { status: 500 }),
-      includePrivateResolvedSecretNames ? [] : null
+      includePrivateResolvedSecretNames ? [] : null,
+      privateResolvedSecretNamesMetadataType
     )
   } finally {
     executionDeadlineController?.cleanup()

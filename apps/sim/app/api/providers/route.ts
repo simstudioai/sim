@@ -16,6 +16,7 @@ import {
 import { prepareCopilotEnvironmentContext } from '@/lib/copilot/environment-context'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { inspectModelInputProvenanceRequest } from '@/lib/execution/model-input-provenance'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 import {
   getServiceAccountToken,
@@ -30,7 +31,12 @@ import {
 } from '@/ee/access-control/utils/permission-check'
 import type { StreamingExecution } from '@/executor/types'
 import { executeProviderRequest } from '@/providers'
+import {
+  collectProviderModelInputProvenanceValues,
+  reconstructLegacyProviderModelInputProvenance,
+} from '@/providers/model-input-provenance'
 import { projectStreamingExecutionToByteStream } from '@/providers/stream-pump'
+import type { ProviderRequest } from '@/providers/types'
 
 const logger = createLogger('ProvidersAPI')
 
@@ -221,41 +227,60 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       hasBillingAttribution: !!billingAttribution,
     })
 
+    const providerRequest: ProviderRequest = {
+      model,
+      systemPrompt,
+      context,
+      tools,
+      temperature,
+      maxTokens,
+      apiKey: finalApiKey,
+      azureEndpoint,
+      azureApiVersion,
+      vertexProject,
+      vertexLocation,
+      bedrockAccessKeyId,
+      bedrockSecretKey,
+      bedrockRegion,
+      responseFormat,
+      workflowId,
+      workspaceId,
+      userId: auth.userId,
+      stream,
+      messages,
+      environmentVariables,
+      workflowVariables,
+      blockData,
+      blockNameMapping,
+      billingAttribution,
+      reasoningEffort,
+      verbosity,
+    }
     const providerRuntimeContext = await prepareCopilotEnvironmentContext(auth.userId, workspaceId)
+    const provenanceInspection = inspectModelInputProvenanceRequest(request.headers, body)
+    if (provenanceInspection.status === 'invalid') {
+      return NextResponse.json({ error: 'Invalid model input provenance' }, { status: 400 })
+    }
 
-    const response = await executeProviderRequest(
-      provider,
-      {
-        model,
-        systemPrompt,
-        context,
-        tools,
-        temperature,
-        maxTokens,
-        apiKey: finalApiKey,
-        azureEndpoint,
-        azureApiVersion,
-        vertexProject,
-        vertexLocation,
-        bedrockAccessKeyId,
-        bedrockSecretKey,
-        bedrockRegion,
-        responseFormat,
-        workflowId,
-        workspaceId,
-        userId: auth.userId,
-        stream,
-        messages,
-        environmentVariables,
-        workflowVariables,
-        blockData,
-        blockNameMapping,
-        billingAttribution,
-        reasoningEffort,
-        verbosity,
-      },
-      providerRuntimeContext
-    )
+    const provenanceReady =
+      provenanceInspection.status === 'verified'
+        ? await providerRuntimeContext.resolvedSecretTraceRegistry.importProvenanceForValue(
+            provenanceInspection.value,
+            collectProviderModelInputProvenanceValues(providerRequest),
+            { trusted: true }
+          )
+        : await reconstructLegacyProviderModelInputProvenance(
+            providerRequest,
+            providerRuntimeContext.resolvedSecretTraceRegistry
+          )
+    if (!provenanceReady || !providerRuntimeContext.resolvedSecretTraceRegistry.isComplete()) {
+      return NextResponse.json(
+        { error: 'Model input provenance is unavailable' },
+        { status: provenanceInspection.status === 'verified' ? 400 : 500 }
+      )
+    }
+
+    const response = await executeProviderRequest(provider, providerRequest, providerRuntimeContext)
 
     const executionTime = Date.now() - startTime
     logger.info(`[${requestId}] Provider request completed successfully`, {

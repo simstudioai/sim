@@ -32,6 +32,10 @@ export const knowledgeUploadChunkTool: ToolConfig<any, KnowledgeUploadChunkRespo
     url: (params) =>
       `/api/knowledge/${params.knowledgeBaseId}/documents/${params.documentId}/chunks`,
     method: 'POST',
+    modelInput: {
+      mode: 'private-provenance',
+      select: (params) => params.content,
+    },
     headers: () => ({
       'Content-Type': 'application/json',
     }),

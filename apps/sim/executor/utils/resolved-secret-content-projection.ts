@@ -36,7 +36,9 @@ const modelEgressMatcherCache = new WeakMap<
 function createResolvedSecretModelMatcher(
   matches: readonly ResolvedSecretMatch[]
 ): ResolvedSecretMatcher | undefined {
-  const matcher = createResolvedSecretMatcher(matches)
+  const matcher = createResolvedSecretMatcher(matches, {
+    preserveNamedProvenanceLabels: true,
+  })
   if (!matcher) return undefined
 
   const originalReplacementByPlaintext = new Map<string, string>()
@@ -64,13 +66,16 @@ function createResolvedSecretModelMatcher(
   }
   if (opaquePlaceholderMatches.length === 0) return matcher
 
-  return createResolvedSecretMatcher([
-    ...[...matcher.exactReplacements].map(([plaintext, replacement]) => ({
-      plaintext,
-      replacement,
-    })),
-    ...opaquePlaceholderMatches,
-  ])
+  return createResolvedSecretMatcher(
+    [
+      ...[...matcher.exactReplacements].map(([plaintext, replacement]) => ({
+        plaintext,
+        replacement,
+      })),
+      ...opaquePlaceholderMatches,
+    ],
+    { preserveNamedProvenanceLabels: true }
+  )
 }
 
 export type ResolvedSecretModelMatcherSnapshot =
@@ -139,7 +144,11 @@ function visitNode(state: ProjectionState, depth: number): void {
 }
 
 function* enumerableDataEntries(value: object): Generator<[string, unknown]> {
-  for (const key of Reflect.ownKeys(value)) {
+  const keys = Reflect.ownKeys(value)
+  if (keys.length > MAX_CONTENT_NODES) {
+    throw new ResolvedSecretContentProjectionError('Content object exceeds traversal limit')
+  }
+  for (const key of keys) {
     if (typeof key !== 'string') {
       throw new ResolvedSecretContentProjectionError('Content cannot contain symbol properties')
     }
@@ -402,9 +411,10 @@ export function projectResolvedSecretModelControlMessage(
 }
 
 /**
- * Projects content that is about to become model-visible using every secret the execution could
- * access, not only values activated through placeholder resolution. Missing, pending, or
- * incomplete registry state fails closed.
+ * Projects content that is about to become model-visible using committed active provenance.
+ * Trusted runtime boundaries activate exact secret-bearing values before this point; unrelated
+ * configured secrets and sibling calls that have not committed output cannot affect projection.
+ * Missing or permanently incomplete registry state fails closed.
  */
 export function projectResolvedSecretModelContent(
   value: unknown,

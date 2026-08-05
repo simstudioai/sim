@@ -351,7 +351,7 @@ describe('executeWebhookJob fault vs error handling', () => {
     )
   })
 
-  it('passes encrypted webhook resolution provenance into workflow execution', async () => {
+  it('does not pass provider-config provenance absent from the trigger input', async () => {
     mockGetEffectiveEnvironmentSnapshot.mockResolvedValue({
       personalEncrypted: { WEBHOOK_SECRET: 'personal-ciphertext' },
       workspaceEncrypted: { WEBHOOK_SECRET: 'workspace-ciphertext' },
@@ -397,12 +397,61 @@ describe('executeWebhookJob fault vs error handling', () => {
         trustedInitialResolvedSecretTraceProvenance: {
           version: 1,
           complete: true,
-          entries: [{ name: 'WEBHOOK_SECRET', encryptedValue: 'workspace-ciphertext' }],
+          entries: [],
           scope: { userId: 'user-1', workspaceId: 'workspace-1' },
         },
       })
     )
     expect(mockSetResolvedSecretTraceRegistry).toHaveBeenCalledOnce()
+  })
+
+  it('passes provider-config provenance when its value crosses in the trigger input', async () => {
+    mockGetEffectiveEnvironmentSnapshot.mockResolvedValue({
+      personalEncrypted: {},
+      workspaceEncrypted: { WEBHOOK_SECRET: 'workspace-ciphertext' },
+      personalDecrypted: {},
+      workspaceDecrypted: { WEBHOOK_SECRET: 'workspace-value' },
+      conflicts: [],
+      decryptionFailures: [],
+    })
+    mockResolveWebhookRecordProviderConfig.mockImplementation(
+      async (record, _userId, _workspaceId, options) => {
+        options.onResolved('WEBHOOK_SECRET', options.envVars.WEBHOOK_SECRET)
+        return record
+      }
+    )
+    mockGetProviderHandler.mockReturnValue({
+      formatInput: vi.fn().mockResolvedValue({
+        input: { authorization: 'Bearer workspace-value' },
+      }),
+    })
+    mockExecuteWorkflowCore.mockResolvedValue({
+      success: true,
+      status: 'completed',
+      output: {},
+      logs: [],
+      executionState: {
+        blockStates: {},
+        executedBlocks: [],
+        blockLogs: [],
+        decisions: {},
+        completedLoops: [],
+        activeExecutionPath: [],
+      },
+    })
+
+    await executeWebhookJob(payload)
+
+    expect(mockExecuteWorkflowCore).toHaveBeenCalledWith(
+      expect.objectContaining({
+        trustedInitialResolvedSecretTraceProvenance: {
+          version: 1,
+          complete: true,
+          entries: [{ name: 'WEBHOOK_SECRET', encryptedValue: 'workspace-ciphertext' }],
+          scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+        },
+      })
+    )
   })
 
   it('installs provenance before a post-resolution webhook setup failure', async () => {

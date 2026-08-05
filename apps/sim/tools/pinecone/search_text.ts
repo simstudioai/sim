@@ -64,6 +64,10 @@ export const searchTextTool: ToolConfig<PineconeSearchTextParams, PineconeRespon
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({ searchQuery: params.searchQuery }),
+    },
     method: 'POST',
     url: (params) => `${params.indexHost}/records/namespaces/${params.namespace}/search`,
     headers: (params) => ({

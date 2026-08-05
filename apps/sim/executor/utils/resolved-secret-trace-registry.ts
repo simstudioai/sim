@@ -425,14 +425,13 @@ export class ResolvedSecretTraceProvenanceAccumulator {
 
 /**
  * Owns the execution's bounded secret catalog and activated cross-boundary provenance.
- * Trace projection uses activated entries; model egress also uses the dormant local catalog so
- * direct environment-map reads are projected without treating every configured value as resolved.
+ * The catalog verifies explicit resolutions and trusted runtime-boundary scans. Trace and model
+ * projection use only entries that those boundaries have activated, so unrelated configured
+ * values cannot alter otherwise public content merely because their bytes happen to match.
  */
 export class ResolvedSecretTraceRegistry {
   private readonly catalog = new Map<string, ResolvedSecretTraceCatalogEntry>()
   private catalogBytes = 0
-  private readonly modelEgressOnlyEntries = new Map<string, { name: string; plaintext: string }>()
-  private modelEgressOnlyBytes = 0
   private readonly activeEntries = new Map<string, ActiveSecretEntry>()
   private activeProvenanceEntryBytes = 0
   private complete = true
@@ -471,11 +470,54 @@ export class ResolvedSecretTraceRegistry {
    */
   forkForToolCall(): ResolvedSecretTraceRegistry {
     const fork = new ResolvedSecretTraceRegistry(this.catalog.values(), this.scope)
-    for (const entry of this.modelEgressOnlyEntries.values()) {
-      fork.addModelEgressValues({ [entry.name]: entry.plaintext })
-    }
     for (const entry of this.activeEntries.values()) {
       fork.addActiveEntry({ ...entry })
+    }
+    if (!this.complete) fork.markIncomplete()
+    return fork
+  }
+
+  /**
+   * Creates an isolated tool registry seeded only with committed parent provenance present in
+   * that call's resolved input. The full catalog remains available so the call can activate a
+   * direct environment read, while unrelated secrets resolved by earlier calls cannot rewrite an
+   * otherwise public result that happens to contain the same bytes.
+   */
+  forkForToolInput(input: unknown): ResolvedSecretTraceRegistry {
+    return this.forkForToolInputValues([input])
+  }
+
+  /**
+   * Creates an isolated tool registry from independent input roots without treating a synthetic
+   * container's keys as data. Callers use this when top-level parameter names are trusted grammar
+   * but nested object keys remain user-controlled input.
+   */
+  forkForToolInputValues(values: Iterable<unknown>): ResolvedSecretTraceRegistry {
+    const fork = new ResolvedSecretTraceRegistry(this.catalog.values(), this.scope)
+    if (!this.complete) {
+      fork.markIncomplete()
+      return fork
+    }
+    const provenance = this.exportProvenanceForValuesFromEntries(
+      values,
+      this.activeEntries.values(),
+      {}
+    )
+    if (!provenance.complete) {
+      fork.markIncomplete()
+      return fork
+    }
+
+    const selectedEntries = new Set(
+      provenance.entries.map((entry) => `${entry.name ?? ''}\u0000${entry.encryptedValue}`)
+    )
+    for (const entry of this.activeEntries.values()) {
+      const provenanceEntry = toProvenanceEntry(entry)
+      if (
+        selectedEntries.has(`${provenanceEntry.name ?? ''}\u0000${provenanceEntry.encryptedValue}`)
+      ) {
+        fork.addActiveEntry({ ...entry })
+      }
     }
     if (!this.complete) fork.markIncomplete()
     return fork
@@ -488,9 +530,6 @@ export class ResolvedSecretTraceRegistry {
       return
     }
 
-    for (const entry of child.modelEgressOnlyEntries.values()) {
-      this.addModelEgressValues({ [entry.name]: entry.plaintext })
-    }
     for (const entry of child.activeEntries.values()) {
       this.addActiveEntry({ ...entry })
     }
@@ -543,27 +582,35 @@ export class ResolvedSecretTraceRegistry {
     return importedAll
   }
 
-  /** Imports all same-scope provenance, or only anonymous literals crossing a trust boundary. */
+  /**
+   * Imports only provenance whose decrypted plaintext occurs in the exact value crossing this
+   * boundary. Staging in a scoped temporary registry prevents a valid but overbroad envelope from
+   * activating unrelated entries, while scope comparison still anonymizes cross-scope values.
+   */
+  async importProvenanceForValue(
+    provenance: unknown,
+    value: unknown,
+    options: { trusted: boolean }
+  ): Promise<boolean> {
+    if (!options.trusted || !isResolvedSecretTraceProvenanceV1(provenance)) {
+      this.markIncomplete()
+      return false
+    }
+
+    const sourceRegistry = new ResolvedSecretTraceRegistry([], provenance.scope)
+    const sourceImported = await sourceRegistry.importProvenance(provenance, { trusted: true })
+    const filteredProvenance = sourceRegistry.exportProvenanceForValue(value)
+    const filteredImported = await this.importProvenance(filteredProvenance, { trusted: true })
+    return sourceImported && filteredImported
+  }
+
+  /** Imports only provenance present in the exact crossing value, preserving names in-scope. */
   async importCrossingProvenance(
     provenance: unknown,
     crossingValue: unknown,
     options: { trusted: boolean }
   ): Promise<boolean> {
-    if (!options.trusted || !isResolvedSecretTraceProvenanceV1(provenance)) {
-      return this.importProvenance(provenance, { trusted: options.trusted })
-    }
-
-    if (scopesMatch(provenance.scope, this.scope)) {
-      return this.importProvenance(provenance, { trusted: true })
-    }
-
-    const sourceRegistry = new ResolvedSecretTraceRegistry([], provenance.scope)
-    const sourceImported = await sourceRegistry.importProvenance(provenance, { trusted: true })
-    const crossingProvenance = sourceRegistry.exportProvenanceForValue(crossingValue, {
-      anonymous: true,
-    })
-    const crossingImported = await this.importProvenance(crossingProvenance, { trusted: true })
-    return sourceImported && crossingImported
+    return this.importProvenanceForValue(provenance, crossingValue, options)
   }
 
   /** Returns deterministic literal replacements for the terminal TraceSpan projection. */
@@ -572,27 +619,15 @@ export class ResolvedSecretTraceRegistry {
   }
 
   /**
-   * Returns every literal that must be removed before content can cross into a model.
-   *
-   * Unlike trace projection, model egress includes the complete local catalog because code can
-   * read an environment value directly without resolving a placeholder. Projection still fails
-   * closed while any activation is pending because a concurrent boundary may be importing a
-   * foreign value that is not present in the local catalog yet.
+   * Returns committed literals that must be removed before content can cross into a model.
+   * Trusted execution boundaries scan their full local catalog and activate exact values before
+   * exposing a result. Temporary work in another call is intentionally excluded: until that call
+   * commits a result, its pending state is neither data nor provenance for this projection.
    */
   getModelEgressSnapshot(): ResolvedSecretModelEgressSnapshot {
-    if (!this.isComplete()) return { complete: false }
+    if (!this.complete) return { complete: false }
 
-    const catalogEntries = [...this.catalog.values()].map(
-      (entry): ActiveSecretEntry => ({ ...entry, anonymous: false })
-    )
-    const modelOnlyEntries = [...this.modelEgressOnlyEntries.values()].map(
-      (entry): ActiveSecretEntry => ({
-        ...entry,
-        encryptedValue: '',
-        anonymous: false,
-      })
-    )
-    const modelEntries = [...catalogEntries, ...modelOnlyEntries, ...this.activeEntries.values()]
+    const modelEntries = [...this.activeEntries.values()]
     const legacyAliasEntries = modelEntries
       .filter((entry) => entry.name.length > 0)
       .map(
@@ -613,29 +648,6 @@ export class ResolvedSecretTraceRegistry {
   /** Monotonic revision used to reuse model-egress matchers until registry state changes. */
   getModelEgressRevision(): number {
     return this.modelEgressRevision
-  }
-
-  /** Adds trusted runtime literals to model egress without claiming encrypted provenance. */
-  addModelEgressValues(values: Readonly<Record<string, string>>): boolean {
-    for (const [name, plaintext] of Object.entries(values)) {
-      if (!plaintext) continue
-      const catalogEntry = this.catalog.get(name)
-      if (catalogEntry?.plaintext === plaintext) continue
-      const key = `${name}\u0000${plaintext}`
-      if (this.modelEgressOnlyEntries.has(key)) continue
-      const entryBytes = Buffer.byteLength(name, 'utf8') + Buffer.byteLength(plaintext, 'utf8')
-      if (
-        this.catalog.size + this.modelEgressOnlyEntries.size >= MAX_TRACE_CATALOG_ENTRIES ||
-        this.catalogBytes + this.modelEgressOnlyBytes + entryBytes > MAX_TRACE_CATALOG_BYTES
-      ) {
-        this.markIncomplete()
-        return false
-      }
-      this.modelEgressOnlyEntries.set(key, { name, plaintext })
-      this.modelEgressOnlyBytes += entryBytes
-      this.modelEgressRevision += 1
-    }
-    return true
   }
 
   private withJsonStringEncodedMatches(
@@ -717,19 +729,19 @@ export class ResolvedSecretTraceRegistry {
   }
 
   /**
-   * Makes projections fail closed while an exact runtime substitution is being established.
-   * The returned completion callback is idempotent so every exit path can safely release it.
+   * Prevents durable provenance export while a runtime boundary is still establishing what its
+   * settled output contains. Model projection reads committed active entries directly, so a
+   * sibling call's temporary guard cannot block unrelated work. The completion callback is
+   * idempotent so every exit path can safely release it.
    */
   beginPendingActivation(): () => void {
     this.pendingActivations += 1
-    this.modelEgressRevision += 1
     let completed = false
 
     return () => {
       if (completed) return
       completed = true
       this.pendingActivations = Math.max(0, this.pendingActivations - 1)
-      this.modelEgressRevision += 1
     }
   }
 
@@ -773,6 +785,20 @@ export class ResolvedSecretTraceRegistry {
     options: ExportResolvedSecretTraceProvenanceForValueOptions = {}
   ): ResolvedSecretTraceProvenanceV1 {
     if (!this.isComplete()) return { version: 1, complete: false, entries: [] }
+
+    return this.exportProvenanceForValueFromEntries(value, this.activeEntries.values(), options)
+  }
+
+  /**
+   * Filters committed active provenance for an outbound value without treating a sibling call's
+   * temporary activation guard as missing data. In-flight work has not contributed to `value`, so
+   * it must not poison this independently settled transport boundary.
+   */
+  exportCommittedProvenanceForValue(
+    value: unknown,
+    options: ExportResolvedSecretTraceProvenanceForValueOptions = {}
+  ): ResolvedSecretTraceProvenanceV1 {
+    if (!this.complete) return { version: 1, complete: false, entries: [] }
 
     return this.exportProvenanceForValueFromEntries(value, this.activeEntries.values(), options)
   }
@@ -825,6 +851,14 @@ export class ResolvedSecretTraceRegistry {
     candidateEntries: Iterable<ActiveSecretEntry>,
     options: ExportResolvedSecretTraceProvenanceForValueOptions
   ): ResolvedSecretTraceProvenanceV1 {
+    return this.exportProvenanceForValuesFromEntries([value], candidateEntries, options)
+  }
+
+  private exportProvenanceForValuesFromEntries(
+    values: Iterable<unknown>,
+    candidateEntries: Iterable<ActiveSecretEntry>,
+    options: ExportResolvedSecretTraceProvenanceForValueOptions
+  ): ResolvedSecretTraceProvenanceV1 {
     const candidatesByPlaintext = new Map<string, ActiveSecretEntry>()
     const sortedCandidateEntries = [...candidateEntries].sort(
       (left, right) =>
@@ -839,11 +873,25 @@ export class ResolvedSecretTraceRegistry {
       }
     }
 
+    const candidatesByScanLiteral = new Map<string, ActiveSecretEntry[]>()
+    const addScanLiteral = (literal: string, entry: ActiveSecretEntry): void => {
+      if (literal.length === 0) return
+      const candidates = candidatesByScanLiteral.get(literal) ?? []
+      if (!candidates.some((candidate) => candidate.plaintext === entry.plaintext)) {
+        candidates.push(entry)
+        candidatesByScanLiteral.set(literal, candidates)
+      }
+    }
+    for (const entry of candidatesByPlaintext.values()) {
+      addScanLiteral(entry.plaintext, entry)
+      addScanLiteral(JSON.stringify(entry.plaintext).slice(1, -1), entry)
+    }
+
     const matchedEntries = new Map<string, ActiveSecretEntry>()
     let matcher: ResolvedSecretMatcher | undefined
     try {
       matcher = createResolvedSecretMatcher(
-        [...candidatesByPlaintext.keys()].map((plaintext) => ({ plaintext, replacement: '' }))
+        [...candidatesByScanLiteral.keys()].map((plaintext) => ({ plaintext, replacement: '' }))
       )
     } catch {
       return {
@@ -853,7 +901,27 @@ export class ResolvedSecretTraceRegistry {
         ...(this.scope ? { scope: cloneProvenanceScope(this.scope) } : {}),
       }
     }
-    const pendingValues: unknown[] = [value]
+    const pendingValues: unknown[] = []
+    try {
+      for (const value of values) {
+        if (pendingValues.length >= MAX_PROVENANCE_FILTER_NODES) {
+          return {
+            version: 1,
+            complete: false,
+            entries: [],
+            ...(this.scope ? { scope: cloneProvenanceScope(this.scope) } : {}),
+          }
+        }
+        pendingValues.push(value)
+      }
+    } catch {
+      return {
+        version: 1,
+        complete: false,
+        entries: [],
+        ...(this.scope ? { scope: cloneProvenanceScope(this.scope) } : {}),
+      }
+    }
     const visited = new WeakSet<object>()
     let scannedNodes = 0
     let scannedCharacters = 0
@@ -870,9 +938,10 @@ export class ResolvedSecretTraceRegistry {
         matchEvents += scanResolvedSecretString(
           candidate,
           matcher,
-          (plaintext) => {
-            const entry = candidatesByPlaintext.get(plaintext)
-            if (entry) matchedEntries.set(plaintext, entry)
+          (scanLiteral) => {
+            for (const entry of candidatesByScanLiteral.get(scanLiteral) ?? []) {
+              matchedEntries.set(entry.plaintext, entry)
+            }
           },
           MAX_PROVENANCE_FILTER_MATCH_EVENTS - matchEvents
         )

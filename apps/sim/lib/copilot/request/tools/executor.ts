@@ -60,7 +60,7 @@ import {
   setTerminalToolCallState,
 } from '@/lib/copilot/request/tool-call-state'
 import { maybeWriteOutputToFile } from '@/lib/copilot/request/tools/files'
-import { projectToolResultForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
+import { inspectToolResultForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
 import { handleResourceSideEffects } from '@/lib/copilot/request/tools/resources'
 import {
   maybeWriteOutputToTable,
@@ -271,13 +271,15 @@ class ToolExecutionTimeoutError extends Error {
 
 /** Builds the per-call context from the turn-scoped execution context. */
 export function buildToolExecutionContext(
-  toolCall: Pick<ToolCallState, 'id' | 'parentToolCallId'>,
+  toolCall: Pick<ToolCallState, 'id' | 'parentToolCallId' | 'params'>,
   execContext: ExecutionContext
 ): ExecutionContext {
   return {
     ...execContext,
     toolCallId: toolCall.id,
-    resolvedSecretTraceRegistry: execContext.resolvedSecretTraceRegistry?.forkForToolCall(),
+    resolvedSecretTraceRegistry: execContext.resolvedSecretTraceRegistry?.forkForToolInput(
+      toolCall.params
+    ),
     ...(toolCall.parentToolCallId ? { parentToolCallId: toolCall.parentToolCallId } : {}),
   }
 }
@@ -574,27 +576,27 @@ async function executeToolAndReportInner(
 
   const toolExecutionContext = buildToolExecutionContext(toolCall, execContext)
   let toolRegistryMerged = false
-  const mergeToolRegistry = () => {
-    if (toolRegistryMerged) return
+  const mergeToolRegistry = (projectionSafe: boolean) => {
+    if (!projectionSafe || toolRegistryMerged) return
+    const toolRegistry = toolExecutionContext.resolvedSecretTraceRegistry
+    if (!toolRegistry?.isComplete()) return
     toolRegistryMerged = true
     const parentRegistry = execContext.resolvedSecretTraceRegistry
-    const toolRegistry = toolExecutionContext.resolvedSecretTraceRegistry
     if (parentRegistry && toolRegistry) parentRegistry.mergeToolCallRegistry(toolRegistry)
   }
 
   try {
     ensureHandlersRegistered()
     let result = await executeToolWithWatchdog(toolCall, toolExecutionContext)
-    mergeToolRegistry()
     if (toolCall.endTime || isTerminalToolCallStatus(toolCall.status)) {
       endToolSpanFromTerminalState()
       return terminalCompletionFromToolCall(toolCall)
     }
     if (abortRequested(context, execContext, options)) {
-      const copilotResult = projectToolResultForCopilot(
+      const copilotResult = inspectToolResultForCopilot(
         result,
         toolExecutionContext.resolvedSecretTraceRegistry
-      )
+      ).result
       markToolCallCancelled('Request aborted during tool execution')
       markToolResultSeen(toolCall.id)
       await completeAsyncToolCall({
@@ -620,7 +622,12 @@ async function executeToolAndReportInner(
       })
       return cancelledCompletion('Request aborted during tool execution')
     }
-    result = await maybeWriteOutputToFile(toolCall.name, toolCall.params, result, execContext)
+    result = await maybeWriteOutputToFile(
+      toolCall.name,
+      toolCall.params,
+      result,
+      toolExecutionContext
+    )
     if (abortRequested(context, execContext, options)) {
       markToolCallCancelled('Request aborted during tool post-processing')
       markToolResultSeen(toolCall.id)
@@ -644,7 +651,12 @@ async function executeToolAndReportInner(
       endToolSpan('cancelled', { cancelReason: 'abort_during_post_processing_file' })
       return cancelledCompletion('Request aborted during tool post-processing')
     }
-    result = await maybeWriteOutputToTable(toolCall.name, toolCall.params, result, execContext)
+    result = await maybeWriteOutputToTable(
+      toolCall.name,
+      toolCall.params,
+      result,
+      toolExecutionContext
+    )
     if (abortRequested(context, execContext, options)) {
       markToolCallCancelled('Request aborted during tool post-processing')
       markToolResultSeen(toolCall.id)
@@ -668,7 +680,12 @@ async function executeToolAndReportInner(
       endToolSpan('cancelled', { cancelReason: 'abort_during_post_processing_table' })
       return cancelledCompletion('Request aborted during tool post-processing')
     }
-    result = await maybeWriteReadCsvToTable(toolCall.name, toolCall.params, result, execContext)
+    result = await maybeWriteReadCsvToTable(
+      toolCall.name,
+      toolCall.params,
+      result,
+      toolExecutionContext
+    )
     if (abortRequested(context, execContext, options)) {
       markToolCallCancelled('Request aborted during tool post-processing')
       markToolResultSeen(toolCall.id)
@@ -692,10 +709,12 @@ async function executeToolAndReportInner(
       endToolSpan('cancelled', { cancelReason: 'abort_during_post_processing_csv' })
       return cancelledCompletion('Request aborted during tool post-processing')
     }
-    const copilotResult = projectToolResultForCopilot(
+    const projection = inspectToolResultForCopilot(
       result,
       toolExecutionContext.resolvedSecretTraceRegistry
     )
+    const copilotResult = projection.result
+    mergeToolRegistry(projection.safe)
     const modelSucceeded = copilotResult.success
 
     toolSpan.attributes = {
@@ -820,12 +839,13 @@ async function executeToolAndReportInner(
       ...(terminalData !== undefined ? { data: terminalData } : {}),
     })
   } catch (error) {
-    mergeToolRegistry()
     const thrownMessage = toError(error).message
-    const copilotError = projectToolResultForCopilot(
+    const projection = inspectToolResultForCopilot(
       { success: false, error: thrownMessage },
       toolExecutionContext.resolvedSecretTraceRegistry
     )
+    const copilotError = projection.result
+    mergeToolRegistry(projection.safe)
     const safeThrownMessage = copilotError.error || 'Tool failed'
     if (abortRequested(context, execContext, options)) {
       markToolCallCancelled('Request aborted during tool execution')

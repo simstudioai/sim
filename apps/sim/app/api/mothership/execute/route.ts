@@ -240,18 +240,26 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         recordMcpDiscoveryProvenance
       ),
     ]).then(async (results) => {
-      if (activeResolvedSecretTraceRegistry) {
-        await activeResolvedSecretTraceRegistry.importProvenance(
-          mcpDiscoveryProvenance.exportProvenance(),
-          { trusted: true }
-        )
-      }
       const groups = results.map((result) => {
         if (result.status === 'rejected') throw result.reason
         return result.value
       })
       const byName = new Map(groups.flat().map((tool) => [tool.name, tool]))
-      return [...byName.values()]
+      const tools = [...byName.values()]
+      if (activeResolvedSecretTraceRegistry) {
+        const discoveryRegistry = activeResolvedSecretTraceRegistry.forkForToolInput(tools)
+        const imported = await discoveryRegistry.importProvenanceForValue(
+          mcpDiscoveryProvenance.exportProvenance(),
+          tools,
+          { trusted: true }
+        )
+        if (!imported || !discoveryRegistry.isComplete()) {
+          reqLogger.warn('Omitting MCP tools with unverifiable secret provenance')
+          return []
+        }
+        activeResolvedSecretTraceRegistry.mergeToolCallRegistry(discoveryRegistry)
+      }
+      return tools
     })
     const [workspaceContext, integrationTools, mothershipTools, entitlements, agentContexts] =
       await Promise.all([
