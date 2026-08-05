@@ -81,7 +81,11 @@ describe('OAuth2 authorize route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    setEnv({ NEXT_PUBLIC_APP_URL: BASE_URL })
+    setEnv({
+      NEXT_PUBLIC_APP_URL: BASE_URL,
+      GOOGLE_CLIENT_ID: 'google-client',
+      GOOGLE_CLIENT_SECRET: 'google-secret',
+    })
     mockGetSession.mockResolvedValue({ user: { id: USER_ID } })
     mockCheckWorkspaceAccess.mockResolvedValue({
       hasAccess: true,
@@ -137,6 +141,18 @@ describe('OAuth2 authorize route', () => {
 
       const [{ set }] = dbChainMockFns.onConflictDoUpdate.mock.calls[0]
       expect(set).toHaveProperty('credentialId', null)
+    })
+
+    it('rejects an OAuth client that is not configured for the deployment', async () => {
+      setEnv({ GOOGLE_CLIENT_ID: undefined, GOOGLE_CLIENT_SECRET: undefined })
+
+      const response = await GET(
+        authorizeRequest({ providerId: 'google-email', workspaceId: WORKSPACE_ID })
+      )
+
+      expect(response.headers.get('location')).toBe(`${BASE_URL}/workspace?error=oauth_link_failed`)
+      expect(dbChainMockFns.values).not.toHaveBeenCalled()
+      expect(mockOAuth2LinkAccount).not.toHaveBeenCalled()
     })
 
     it('redirects to login when unauthenticated', async () => {

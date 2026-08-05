@@ -408,6 +408,7 @@ export async function executeToolAndReport(
     {
       toolName: toolCall.name,
       toolCallId: toolCall.id,
+      agentName: toolCall.agentId ?? 'main',
       runId: context.runId,
       chatId: execContext.chatId,
       argsBytes: argsPayload?.length,
@@ -428,7 +429,12 @@ export async function executeToolAndReport(
         }
         // Durable Grafana signal for "which Sim tool is slowest" (executor=sim);
         // pairs with the Go executor-boundary metric (U15) as one series set.
-        recordSimToolMetric(toolCall.name, completion.status, durationMs)
+        recordSimToolMetric(
+          toolCall.name,
+          toolCall.agentId ?? 'main',
+          completion.status,
+          durationMs
+        )
         return completion
       } catch (err) {
         // executeToolAndReportInner threw (infra/unexpected error, not a normal
@@ -437,7 +443,12 @@ export async function executeToolAndReport(
         const durationMs = Date.now() - startedAt
         otelSpan.setAttribute(TraceAttr.ToolOutcome, 'error')
         otelSpan.setAttribute(TraceAttr.ToolDurationMs, durationMs)
-        recordSimToolMetric(toolCall.name, 'error', durationMs)
+        recordSimToolMetric(
+          toolCall.name,
+          toolCall.agentId ?? 'main',
+          MothershipStreamV1ToolOutcome.error,
+          durationMs
+        )
         throw err
       }
     }

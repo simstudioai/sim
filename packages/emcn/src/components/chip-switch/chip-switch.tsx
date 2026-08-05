@@ -80,7 +80,6 @@ export function ChipSwitch<T extends string>({
             className={cn(
               chipVariants({
                 variant: isActive ? 'border-shadow' : 'default',
-                flush: true,
               }),
               'justify-center',
               isActive

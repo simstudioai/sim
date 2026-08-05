@@ -233,13 +233,10 @@ export function LandingPreviewLogs() {
             <col style={{ width: '14%' }} />
             <col style={{ width: '18%' }} />
           </colgroup>
-          <thead className='shadow-[inset_0_-1px_0_var(--border)]'>
+          <thead className='border-[var(--border)] border-b'>
             <tr>
               {COL_HEADERS.map(({ key, label }) => (
-                <th
-                  key={key}
-                  className='h-10 px-6 py-1.5 text-left align-middle font-normal text-caption'
-                >
+                <th key={key} className='h-10 px-6 py-1.5 text-left align-middle text-caption'>
                   <button
                     type='button'
                     onClick={() => handleSort(key)}

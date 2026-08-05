@@ -11,7 +11,8 @@ Adding an integration involves these steps in order:
 4. **Add Icon** - Add the service's brand icon
 5. **Create Triggers** (optional) - If the service supports webhooks
 6. **Register** - Register tools, block, and triggers in their registries
-7. **Generate Docs** - Run the docs generation script
+7. **Configure Deployment Availability** - Wire OAuth client and service-account metadata
+8. **Generate and Validate the Catalog** - Regenerate docs/catalog artifacts and run drift checks
 
 ## Step 1: Research the API
 
@@ -459,14 +460,47 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
 }
 ```
 
-## Step 7: Generate Docs
+## Step 7: Configure Deployment Availability
+
+Do this for every visible OAuth integration. API-key and unauthenticated integrations do not need
+an OAuth client capability.
+
+The block's `oauth-input.serviceId` is the canonical link between the generated integration catalog,
+the OAuth service configuration, deployment availability, and the setup CLI.
+
+1. Ensure the block has exactly one distinct OAuth `serviceId` and that it matches the canonical
+   service entry in `apps/sim/lib/oauth/oauth.ts`.
+2. Confirm `resolveOAuthClientCapabilityId(serviceId)` resolves to the intended provider entry in
+   `OAUTH_CLIENT_CAPABILITIES` in `apps/sim/lib/core/config/env-capabilities.ts`. Google and
+   Microsoft service IDs deliberately share provider-level capabilities.
+3. For a new OAuth provider, add the required client fields to `OAUTH_CLIENT_CAPABILITIES`, add
+   every referenced field to the env schema in `apps/sim/lib/core/config/env.ts`, and add the
+   matching `text` or `secret` entries to `OAUTH_CLIENT_SETUP_FIELDS` in
+   `scripts/setup/capability-config.ts`. Do not create integration-specific setup logic or infer
+   secret fields from naming; the CLI mapping is exhaustively checked against the runtime fields.
+4. If the canonical OAuth service has `serviceAccountProviderId`, add the matching projection to
+   `SERVICE_ACCOUNT_METADATA_BY_OAUTH_SERVICE_ID` in
+   `apps/sim/lib/integrations/service-account-metadata.ts`. Use:
+   - no `deploymentRequirement` when the service-account path works independently of OAuth client fields;
+   - `'oauth-client'` when it requires the same deployment OAuth client fields;
+   - `'preview-gated'` when availability is controlled by the service-account preview block.
+
+Never add a permissive fallback for missing capability metadata. A visible OAuth integration without
+a resolvable capability must fail validation.
+
+## Step 8: Generate and Validate the Catalog
 
 Run the documentation generator:
 ```bash
 bun run scripts/generate-docs.ts
+bun run integration-catalog:check
 ```
 
 This creates `apps/docs/content/docs/en/integrations/{service}.mdx` — one page per service carrying the block's Actions and, if it has one, its Triggers section. Never hand-edit generated pages; the only editable region is the `{/* MANUAL-CONTENT */}` block (see `scripts/README.md`).
+
+The same generator refreshes `apps/sim/lib/integrations/integrations.json`. The catalog check then
+derives the deployment-relevant fields from the executable block registry and compares them with the
+committed projection. Review the generated diff and keep only intentional changes.
 
 ## V2 Integration Pattern
 
@@ -518,6 +552,13 @@ If creating V2 versions (API-aligned outputs):
 - [ ] Used `getCanonicalScopesForProvider()` in `auth.ts` (never hardcode)
 - [ ] Used `getScopesForService()` in block `requiredScopes` (never hardcode)
 
+### Deployment Availability (if OAuth service)
+- [ ] Block declares exactly one distinct `oauth-input.serviceId`
+- [ ] `resolveOAuthClientCapabilityId(serviceId)` resolves to the intended `OAUTH_CLIENT_CAPABILITIES` entry
+- [ ] Every new OAuth capability field exists in `apps/sim/lib/core/config/env.ts`
+- [ ] Runtime OAuth fields live in `OAUTH_CLIENT_CAPABILITIES`; matching CLI input modes live in the exhaustively checked `OAUTH_CLIENT_SETUP_FIELDS`
+- [ ] If `serviceAccountProviderId` is configured, `SERVICE_ACCOUNT_METADATA_BY_OAUTH_SERVICE_ID` has the matching projection and deployment requirement
+
 ### Icon
 - [ ] Asked user to provide SVG
 - [ ] Added icon to `components/icons.tsx`
@@ -536,6 +577,8 @@ If creating V2 versions (API-aligned outputs):
 ### Docs
 - [ ] Ran `bun run scripts/generate-docs.ts`
 - [ ] Verified docs file created
+- [ ] Reviewed and committed the generated `apps/sim/lib/integrations/integrations.json` change
+- [ ] `bun run integration-catalog:check` passes
 
 ### Final Validation (Required)
 - [ ] Read every tool file and cross-referenced inputs/outputs against the API docs
@@ -880,3 +923,5 @@ requiredScopes: getScopesForService('{service}'),
 10. **Complex inputs need wandConfig** - Timestamps, JSON arrays, and other hard-to-type values should have `wandConfig` enabled
 11. **Never hardcode scopes** - Use `getScopesForService()` in blocks and `getCanonicalScopesForProvider()` in auth.ts
 12. **Always add scope descriptions** - New scopes must have entries in `SCOPE_DESCRIPTIONS` within `lib/oauth/utils.ts`
+13. **OAuth service IDs need deployment capabilities** - Every visible OAuth integration must resolve through `OAUTH_CLIENT_CAPABILITIES`; shared Google/Microsoft aliases map to their provider capability
+14. **Keep runtime and presentation separate** - Runtime OAuth fields live in `env-capabilities.ts`; CLI input modes live in the exhaustively checked `scripts/setup/capability-config.ts` mapping

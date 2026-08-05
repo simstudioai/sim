@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Badge, cn, handleKeyboardActivation } from '@sim/emcn'
-import { RepeatIcon, SplitIcon } from 'lucide-react'
+import { Repeat, Split } from '@sim/emcn/icons'
 import { Handle, Position } from 'reactflow'
 import { HANDLE_POSITIONS } from '../dimensions'
 import { OverflowSpan } from '../lib/overflow-span'
@@ -99,7 +99,7 @@ export function SubflowNodeView({
 
   const startHandleId = data.kind === 'loop' ? 'loop-start-source' : 'parallel-start-source'
   const endHandleId = data.kind === 'loop' ? 'loop-end-source' : 'parallel-end-source'
-  const BlockIcon = data.kind === 'loop' ? RepeatIcon : SplitIcon
+  const BlockIcon = data.kind === 'loop' ? Repeat : Split
   const blockIconBg = data.kind === 'loop' ? '#2FB3FF' : '#FEE12B'
   const blockName = data.name || (data.kind === 'loop' ? 'Loop' : 'Parallel')
 

@@ -11,21 +11,19 @@ import {
   PopoverTrigger,
   Tooltip,
 } from '@sim/emcn'
-import { Download } from '@sim/emcn/icons'
-import clsx from 'clsx'
 import {
   ArrowDown,
   ArrowUp,
   Check,
   Clipboard,
-  Database,
+  Download,
   MoreHorizontal,
   Palette,
-  Pause,
   Search,
-  Trash2,
+  Trash,
   X,
-} from 'lucide-react'
+} from '@sim/emcn/icons'
+import clsx from 'clsx'
 import Link from 'next/link'
 import {
   AgentStreamThinkingChrome,
@@ -94,9 +92,6 @@ export interface OutputPanelProps {
   setShowInput: (show: boolean) => void
   hasInputData: boolean
   isPlaygroundEnabled: boolean
-  shouldShowTrainingButton: boolean
-  isTraining: boolean
-  handleTrainingClick: (e: React.MouseEvent) => void
   showCopySuccess: boolean
   handleCopy: () => void
   hasEntries: boolean
@@ -121,9 +116,6 @@ export const OutputPanel = React.memo(function OutputPanel({
   setShowInput,
   hasInputData,
   isPlaygroundEnabled,
-  shouldShowTrainingButton,
-  isTraining,
-  handleTrainingClick,
   showCopySuccess,
   handleCopy,
   hasEntries,
@@ -392,31 +384,6 @@ export const OutputPanel = React.memo(function OutputPanel({
               </Tooltip.Root>
             )}
 
-            {shouldShowTrainingButton && (
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <Button
-                    variant='ghost'
-                    onClick={handleTrainingClick}
-                    aria-label={isTraining ? 'Stop training' : 'Train Sim'}
-                    className={clsx(
-                      '!p-1.5 -m-1.5',
-                      isTraining && 'text-orange-600 dark:text-orange-400'
-                    )}
-                  >
-                    {isTraining ? (
-                      <Pause className='h-3.5 w-3.5' />
-                    ) : (
-                      <Database className='h-3.5 w-3.5' />
-                    )}
-                  </Button>
-                </Tooltip.Trigger>
-                <Tooltip.Content>
-                  <span>{isTraining ? 'Stop Training' : 'Train Sim'}</span>
-                </Tooltip.Content>
-              </Tooltip.Root>
-            )}
-
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
                 <Button
@@ -461,7 +428,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                       aria-label='Clear console'
                       className='!p-1.5 -m-1.5'
                     >
-                      <Trash2 className='h-3.5 w-3.5' />
+                      <Trash className='h-3.5 w-3.5' />
                     </Button>
                   </Tooltip.Trigger>
                   <Tooltip.Content>

@@ -2,7 +2,7 @@
 
 import React from 'react'
 import { Loader, Tooltip } from '@sim/emcn'
-import { X } from 'lucide-react'
+import { X } from '@sim/emcn/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import type { AttachedFile } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 

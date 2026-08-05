@@ -28,11 +28,6 @@ export const PLATFORM_MENU: NavMenu = {
       href: '/files',
     },
     {
-      title: 'Scheduled Tasks',
-      description: 'Run agents on a cadence',
-      href: '/scheduled-tasks',
-    },
-    {
       title: 'Logs',
       description: 'Trace every agent decision',
       href: '/logs',

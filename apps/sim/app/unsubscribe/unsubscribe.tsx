@@ -43,9 +43,7 @@ function UnsubscribeContent() {
           <h1 className={'font-medium text-[32px] text-[var(--text-primary)] tracking-tight'}>
             Loading
           </h1>
-          <p className={'font-[380] text-[var(--text-muted)] text-md'}>
-            Validating your unsubscribe link…
-          </p>
+          <p className={'text-[var(--text-muted)] text-md'}>Validating your unsubscribe link…</p>
         </div>
         <div className={'mt-8 flex w-full items-center justify-center py-8'}>
           <Loader className='size-8 text-[var(--text-muted)]' animate />
@@ -61,7 +59,7 @@ function UnsubscribeContent() {
           <h1 className={'font-medium text-[32px] text-[var(--text-primary)] tracking-tight'}>
             Invalid Unsubscribe Link
           </h1>
-          <p className={'font-[380] text-[var(--text-muted)] text-md'}>{error}</p>
+          <p className={'text-[var(--text-muted)] text-md'}>{error}</p>
         </div>
 
         <div className={'mt-8 w-full max-w-[410px] space-y-3'}>
@@ -80,7 +78,7 @@ function UnsubscribeContent() {
           <h1 className={'font-medium text-[32px] text-[var(--text-primary)] tracking-tight'}>
             Important Account Emails
           </h1>
-          <p className={'font-[380] text-[var(--text-muted)] text-md'}>
+          <p className={'text-[var(--text-muted)] text-md'}>
             Transactional emails like password resets, account confirmations, and security alerts
             cannot be unsubscribed from as they contain essential information for your account.
           </p>
@@ -102,7 +100,7 @@ function UnsubscribeContent() {
           <h1 className={'font-medium text-[32px] text-[var(--text-primary)] tracking-tight'}>
             Successfully Unsubscribed
           </h1>
-          <p className={'font-[380] text-[var(--text-muted)] text-md'}>
+          <p className={'text-[var(--text-muted)] text-md'}>
             You have been unsubscribed from our emails. You will stop receiving emails within 48
             hours.
           </p>
@@ -125,10 +123,10 @@ function UnsubscribeContent() {
         <h1 className={'font-medium text-[32px] text-[var(--text-primary)] tracking-tight'}>
           Email Preferences
         </h1>
-        <p className={'font-[380] text-[var(--text-muted)] text-md'}>
+        <p className={'text-[var(--text-muted)] text-md'}>
           Choose which emails you'd like to stop receiving.
         </p>
-        <p className={'mt-2 font-[380] text-[var(--text-muted)] text-sm'}>{data?.email}</p>
+        <p className={'mt-2 text-[var(--text-muted)] text-sm'}>{data?.email}</p>
       </div>
 
       <div className={'mt-8 w-full max-w-[410px] space-y-3'}>
@@ -145,14 +143,11 @@ function UnsubscribeContent() {
         </AuthSubmitButton>
 
         <div className='py-2 text-center'>
-          <span className={'font-[380] text-[var(--text-muted)] text-sm'}>
-            or choose specific types
-          </span>
+          <span className={'text-[var(--text-muted)] text-sm'}>or choose specific types</span>
         </div>
 
         <Chip
           fullWidth
-          flush
           onClick={() => handleUnsubscribe('marketing')}
           disabled={
             processing ||
@@ -168,7 +163,6 @@ function UnsubscribeContent() {
 
         <Chip
           fullWidth
-          flush
           onClick={() => handleUnsubscribe('updates')}
           disabled={
             processing ||
@@ -184,7 +178,6 @@ function UnsubscribeContent() {
 
         <Chip
           fullWidth
-          flush
           onClick={() => handleUnsubscribe('notifications')}
           disabled={
             processing ||
@@ -200,7 +193,7 @@ function UnsubscribeContent() {
       </div>
 
       <div className={'mt-6 max-w-[410px] text-center'}>
-        <p className='font-[380] text-[var(--text-muted)] text-small'>
+        <p className='text-[var(--text-muted)] text-small'>
           You'll continue receiving important account emails like password resets and security
           alerts.
         </p>
@@ -218,9 +211,7 @@ export default function Unsubscribe() {
             <h1 className={'font-medium text-[32px] text-[var(--text-primary)] tracking-tight'}>
               Loading
             </h1>
-            <p className={'font-[380] text-[var(--text-muted)] text-md'}>
-              Validating your unsubscribe link…
-            </p>
+            <p className={'text-[var(--text-muted)] text-md'}>Validating your unsubscribe link…</p>
           </div>
           <div className={'mt-8 flex w-full items-center justify-center py-8'}>
             <Loader className='size-8 text-[var(--text-muted)]' animate />

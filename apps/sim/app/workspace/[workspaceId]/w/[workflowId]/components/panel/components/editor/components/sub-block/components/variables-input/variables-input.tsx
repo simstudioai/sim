@@ -11,9 +11,8 @@ import {
   Textarea,
   Tooltip,
 } from '@sim/emcn'
-import { Trash } from '@sim/emcn/icons'
+import { ArrowLeftRight, Plus, Trash } from '@sim/emcn/icons'
 import { generateId } from '@sim/utils/id'
-import { ArrowLeftRight, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import {
@@ -350,7 +349,7 @@ export function VariablesInput({
             d='M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'
           />
         </svg>
-        <p className='mb-1 font-medium text-foreground text-sm'>No variable assignments defined</p>
+        <p className='mb-1 text-foreground text-sm'>No variable assignments defined</p>
         <p className='text-muted-foreground text-xs'>
           Add variables in the Variables panel to get started
         </p>
@@ -414,7 +413,7 @@ export function VariablesInput({
                   }}
                 >
                   <div className='flex min-w-0 flex-1 items-center gap-2'>
-                    <span className='block truncate font-medium text-[var(--text-tertiary)] text-sm'>
+                    <span className='block truncate text-[var(--text-tertiary)] text-sm'>
                       {assignment.variableName
                         ? formatDisplayText(assignment.variableName, {
                             workflowSearchHighlight: variableLabelHighlight,
@@ -570,7 +569,7 @@ export function VariablesInput({
                             }
                             disabled={isReadOnly}
                             className={cn(
-                              'min-h-[120px] font-mono text-sm text-transparent caret-foreground placeholder:text-muted-foreground/50',
+                              'min-h-[120px] font-mono text-sm text-transparent caret-foreground [letter-spacing:inherit] placeholder:text-muted-foreground/50',
                               dragHighlight[assignment.id] && 'ring-2 ring-blue-500 ring-offset-2'
                             )}
                             style={{
@@ -640,7 +639,7 @@ export function VariablesInput({
                             disabled={isReadOnly}
                             autoComplete='off'
                             className={cn(
-                              'allow-scroll w-full overflow-x-auto overflow-y-hidden text-transparent caret-foreground',
+                              'allow-scroll w-full overflow-x-auto overflow-y-hidden text-transparent caret-foreground [letter-spacing:inherit]',
                               dragHighlight[assignment.id] && 'ring-2 ring-blue-500 ring-offset-2'
                             )}
                             onDrop={(e) => handleDrop(e, assignment.id)}
@@ -652,7 +651,7 @@ export function VariablesInput({
                               if (el) overlayRefs.current[assignment.id] = el
                             }}
                             className={cn(
-                              'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 font-medium font-sans text-sm',
+                              'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 font-sans text-sm',
                               !isReadOnly && 'pointer-events-none'
                             )}
                             style={{ scrollbarWidth: 'none' }}

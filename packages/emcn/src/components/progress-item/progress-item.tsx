@@ -1,7 +1,6 @@
 import { forwardRef, type HTMLAttributes } from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
-import { AlertTriangle } from 'lucide-react'
-import { Check, Loader, Square, X } from '../../icons'
+import { Check, Loader, Square, TriangleAlert, X } from '../../icons'
 import { cn } from '../../lib/cn'
 
 const progressItemVariants = cva('flex items-start gap-2.5 px-3 py-3 text-[12px]', {
@@ -23,7 +22,7 @@ function StatusIcon({ status }: { status: ProgressStatus }) {
   if (status === 'success')
     return <Check className={cn(ICON_CLASS, 'text-[var(--badge-success-text)]')} />
   if (status === 'error')
-    return <AlertTriangle className={cn(ICON_CLASS, 'text-[var(--text-error)]')} />
+    return <TriangleAlert className={cn(ICON_CLASS, 'text-[var(--text-error)]')} />
   return <Loader animate className={cn(ICON_CLASS, 'text-[var(--text-icon)]')} />
 }
 
@@ -69,9 +68,7 @@ const ProgressItem = forwardRef<HTMLDivElement, ProgressItemProps>(function Prog
       <StatusIcon status={status} />
       <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
         <div className='flex items-center gap-2'>
-          <span className='min-w-0 flex-1 truncate font-medium text-[var(--text-primary)]'>
-            {title}
-          </span>
+          <span className='min-w-0 flex-1 truncate text-[var(--text-primary)]'>{title}</span>
           {meta != null && (
             <span className='shrink-0 text-[var(--text-secondary)] tabular-nums'>{meta}</span>
           )}

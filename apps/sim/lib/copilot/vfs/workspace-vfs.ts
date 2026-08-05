@@ -2,11 +2,9 @@ import { trace } from '@opentelemetry/api'
 import { db } from '@sim/db'
 import {
   chat as chatTable,
-  copilotChats,
   customTools as customToolsTable,
   document,
   folder as folderTable,
-  jobExecutionLogs,
   knowledgeBaseTagDefinitions,
   knowledgeConnector,
   mcpServers as mcpServersTable,
@@ -15,11 +13,10 @@ import {
   workflowExecutionLogs,
   workflowMcpServer,
   workflowMcpTool,
-  workflowSchedule,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { and, desc, eq, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNotNull, isNull, or } from 'drizzle-orm'
 import { listApiKeys } from '@/lib/api-key/service'
 import {
   buildWorkspaceContextMd,
@@ -28,7 +25,11 @@ import {
 } from '@/lib/copilot/chat/workspace-context'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
-import { getExposedIntegrationTools } from '@/lib/copilot/integration-tools'
+import {
+  type ExposedIntegrationTool,
+  filterExposedIntegrationTools,
+  getExposedIntegrationTools,
+} from '@/lib/copilot/integration-tools'
 import { recordVfsMaterialize } from '@/lib/copilot/request/metrics'
 import { markSpanForError } from '@/lib/copilot/request/otel'
 import { compileDoc, getE2BDocFormat } from '@/lib/copilot/tools/server/files/doc-compile'
@@ -72,21 +73,22 @@ import {
   serializeEnvironmentVariables,
   serializeFileMeta,
   serializeIntegrationSchema,
-  serializeJobMeta,
   serializeKBMeta,
   serializeMcpServer,
   serializeRecentExecutions,
   serializeSkill,
   serializeTableMeta,
-  serializeTaskChat,
-  serializeTaskSession,
   serializeTriggerOverview,
   serializeTriggerSchema,
   serializeVersions,
   serializeWorkflowMeta,
 } from '@/lib/copilot/vfs/serializers'
 import type { BlockVisibilityState } from '@/lib/core/config/block-visibility'
-import { isDocSandboxEnabled, isHosted } from '@/lib/core/config/env-flags'
+import {
+  getAllowedIntegrationsFromEnv,
+  isDocSandboxEnabled,
+  isHosted,
+} from '@/lib/core/config/env-flags'
 import {
   getAccessibleEnvCredentials,
   getAccessibleOAuthCredentials,
@@ -94,8 +96,15 @@ import {
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { BINARY_DOC_TASKS, MAX_DOCUMENT_PREVIEW_CODE_BYTES } from '@/lib/execution/constants'
 import { runSandboxTask, SandboxUserCodeError } from '@/lib/execution/sandbox/run-task'
+import {
+  isIntegrationDeploymentAvailableForVisibility,
+  isOAuthServiceDeploymentAvailable,
+} from '@/lib/integrations/availability.server'
+import { createIntegrationCredentialVisibility } from '@/lib/integrations/credential-visibility.server'
 import { getKnowledgeBases } from '@/lib/knowledge/service'
 import { validateMermaidSource } from '@/lib/mermaid/validate'
+import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
+import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
 import { getWorkspaceShares } from '@/lib/public-shares/share-manager'
 import { listTables } from '@/lib/table/service'
 import { listWorkspaceFileFolders } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
@@ -126,6 +135,7 @@ import { BLOCK_REGISTRY } from '@/blocks/registry-maps'
 import type { BlockConfig, BlockIcon } from '@/blocks/types'
 import { isHiddenUnder, overlayVisibility } from '@/blocks/visibility/context'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
+import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import type { ToolConfig } from '@/tools/types'
 import { TRIGGER_REGISTRY } from '@/triggers/registry'
@@ -152,7 +162,7 @@ let staticComponentFiles: Map<string, string> | null = null
  * basename, but integration paths use the version-stripped service name — so
  * their owners need this lookup for the stamp-time visibility filter.
  */
-const integrationPathOwners = new Map<string, Pick<BlockConfig, 'type' | 'preview'>>()
+const integrationPathOwners = new Map<string, Array<Pick<BlockConfig, 'type' | 'preview'>>>()
 
 /**
  * Owning block(s) for each `components/triggers/{provider}/{id}.json` file,
@@ -171,18 +181,126 @@ const triggerPathOwners = new Map<string, Array<Pick<BlockConfig, 'type' | 'prev
  * default with no context — and kill-switched types). Non-registry paths
  * (loop/parallel, connectors, overviews) are always visible.
  */
-function isStaticFileHidden(path: string, vis: BlockVisibilityState | null): boolean {
+function isBlockOwnerHidden(
+  owner: Pick<BlockConfig, 'type' | 'preview'>,
+  vis: BlockVisibilityState | null,
+  allowedIntegrationTypes: ReadonlySet<string> | null
+): boolean {
+  const config = BLOCK_REGISTRY[owner.type]
+  if (config?.hideFromToolbar) return true
+  if (!isIntegrationDeploymentAvailableForVisibility(owner.type, vis)) return true
+  if (
+    allowedIntegrationTypes !== null &&
+    !isBlockTypeAccessControlExempt(owner.type) &&
+    !allowedIntegrationTypes.has(owner.type.toLowerCase())
+  ) {
+    return true
+  }
+  return isHiddenUnder(vis, owner)
+}
+
+function isStaticFileHidden(
+  path: string,
+  vis: BlockVisibilityState | null,
+  allowedIntegrationTypes: ReadonlySet<string> | null = null
+): boolean {
   const blockMatch = path.match(/^components\/(?:blocks|triggers\/sim)\/([^/]+)\.json$/)
   if (blockMatch) {
     const config = BLOCK_REGISTRY[blockMatch[1]!]
-    return config ? isHiddenUnder(vis, config) : false
+    return config ? isBlockOwnerHidden(config, vis, allowedIntegrationTypes) : false
   }
   const triggerOwners = triggerPathOwners.get(path)
   if (triggerOwners) {
-    return triggerOwners.length > 0 && triggerOwners.every((owner) => isHiddenUnder(vis, owner))
+    return (
+      triggerOwners.length > 0 &&
+      triggerOwners.every((owner) => isBlockOwnerHidden(owner, vis, allowedIntegrationTypes))
+    )
   }
-  const owner = integrationPathOwners.get(path)
-  return owner ? isHiddenUnder(vis, owner) : false
+  const owners = integrationPathOwners.get(path)
+  return owners
+    ? owners.length > 0 &&
+        owners.every((owner) => isBlockOwnerHidden(owner, vis, allowedIntegrationTypes))
+    : false
+}
+
+function buildIntegrationAggregateFiles(
+  exposedTools: readonly ExposedIntegrationTool[]
+): Map<string, string> {
+  const oauthServices = new Map<
+    string,
+    {
+      provider: string
+      operations: string[]
+      oauthAvailable: boolean
+      serviceAccount?: VfsServiceAccountAuth
+    }
+  >()
+  for (const { config: tool, service, operation, blockType } of exposedTools) {
+    if (!tool.oauth?.required) continue
+    const oauthAvailable = isOAuthServiceDeploymentAvailable(tool.oauth.provider)
+    const serviceAccount = describeServiceAccountForOAuthProvider(tool.oauth.provider, blockType)
+    if (!oauthAvailable && !serviceAccount) continue
+    const existing = oauthServices.get(service)
+    if (existing) {
+      existing.operations.push(operation)
+      existing.oauthAvailable ||= oauthAvailable
+      existing.serviceAccount ??= serviceAccount
+    } else {
+      oauthServices.set(service, {
+        provider: tool.oauth.provider,
+        operations: [operation],
+        oauthAvailable,
+        serviceAccount,
+      })
+    }
+  }
+
+  return new Map([
+    [
+      'environment/oauth-integrations.json',
+      JSON.stringify(Object.fromEntries(oauthServices), null, 2),
+    ],
+    ['environment/api-key-integrations.json', serializeApiKeyIntegrations(exposedTools, isHosted)],
+  ])
+}
+
+function buildTriggerOverview(
+  vis: BlockVisibilityState | null,
+  allowedIntegrationTypes: ReadonlySet<string> | null
+): string {
+  const builtinTriggers = Object.values(BLOCK_REGISTRY)
+    .filter(
+      (block) =>
+        block.category === 'triggers' &&
+        !block.preview &&
+        !isStaticFileHidden(
+          `components/triggers/sim/${block.type}.json`,
+          vis,
+          allowedIntegrationTypes
+        )
+    )
+    .map((block) => ({
+      id: block.type,
+      name: block.name,
+      provider: 'sim',
+      description: block.description,
+    }))
+  const externalTriggers = Object.entries(TRIGGER_REGISTRY)
+    .filter(
+      ([id, trigger]) =>
+        !isStaticFileHidden(
+          `components/triggers/${trigger.provider}/${id}.json`,
+          vis,
+          allowedIntegrationTypes
+        )
+    )
+    .map(([id, trigger]) => ({
+      id,
+      name: trigger.name,
+      provider: trigger.provider,
+      description: trigger.description,
+    }))
+  return serializeTriggerOverview(builtinTriggers, externalTriggers)
 }
 
 // On-the-fly doc reads (render/extract) download the binary into the Sim process
@@ -217,11 +335,10 @@ function getStaticComponentFiles(): Map<string, string> {
 
   // Raw registry, never the visibility-projected getAllBlocks: this map is a
   // process-global shared cache, so it must hold the deterministic ungated
-  // universe. Preview blocks get schema files here (path-filterable at stamp
-  // time for revealed viewers) but are EXCLUDED from the shared aggregate
-  // files (overviews, oauth/api-key summaries) that all viewers receive.
+  // universe. Preview blocks get schema files here and are filtered per viewer
+  // at stamp time. Viewer-specific aggregate files are built during materialization.
   const allBlocks = Object.values(BLOCK_REGISTRY)
-  const visibleBlocks = allBlocks.filter((b) => !b.hideFromToolbar)
+  const visibleBlocks = allBlocks.filter((block) => !block.hideFromToolbar)
   const exposedTools = getExposedIntegrationTools()
   const toolConfigs = new Map<string, ToolConfig>()
   for (const { toolId, config } of exposedTools) {
@@ -238,52 +355,27 @@ function getStaticComponentFiles(): Map<string, string> {
 
   let integrationCount = 0
 
-  // `serviceAccount` marks services that also accept a shared service-account
-  // credential (connect AS AN APPLICATION, not as the user) — the same
-  // `auth.serviceAccount` shape the per-operation schemas carry, so the agent
-  // discovers all three auth modes (oauth / api_key / service account) from one
-  // uniform field instead of a separate file.
-  const oauthServices = new Map<
-    string,
-    { provider: string; operations: string[]; serviceAccount?: VfsServiceAccountAuth }
-  >()
-
   // Integration tools come from the shared exposed-tool set (latest version of
   // each operation owned by a visible block), the same set used to build the
   // deferred callable tools — so discovery and execution can never drift.
   for (const exposedTool of exposedTools) {
-    const { config: tool, service, operation, blockType, preview } = exposedTool
+    const { config: tool, service, operation } = exposedTool
     const path = `components/integrations/${service}/${operation}.json`
-    files.set(path, serializeIntegrationSchema(tool))
-    integrationPathOwners.set(path, { type: blockType, preview })
-    integrationCount++
-
-    // Preview-owned tools stay out of the shared oauth/api-key aggregates —
-    // those files are identical for every viewer.
-    if (preview) continue
-
-    if (tool.oauth?.required) {
-      const existing = oauthServices.get(service)
-      if (existing) {
-        existing.operations.push(operation)
-      } else {
-        oauthServices.set(service, {
-          provider: tool.oauth.provider,
-          operations: [operation],
-          serviceAccount: describeServiceAccountForOAuthProvider(tool.oauth.provider),
-        })
+    files.set(
+      path,
+      serializeIntegrationSchema(tool, {
+        oauthAvailable: !tool.oauth || isOAuthServiceDeploymentAvailable(tool.oauth.provider),
+      })
+    )
+    const owners = integrationPathOwners.get(path) ?? []
+    for (const owner of exposedTool.owners) {
+      if (!owners.some((existing) => existing.type === owner.blockType)) {
+        owners.push({ type: owner.blockType, preview: owner.preview })
       }
     }
+    integrationPathOwners.set(path, owners)
+    integrationCount++
   }
-
-  files.set(
-    'environment/oauth-integrations.json',
-    JSON.stringify(Object.fromEntries(oauthServices), null, 2)
-  )
-  files.set(
-    'environment/api-key-integrations.json',
-    serializeApiKeyIntegrations(exposedTools, isHosted)
-  )
 
   files.set(
     'components/blocks/loop.json',
@@ -392,33 +484,7 @@ function getStaticComponentFiles(): Map<string, string> {
     externalTriggerCount++
   }
 
-  files.set(
-    'components/triggers/triggers.md',
-    serializeTriggerOverview(
-      // The overview is a shared file — preview trigger blocks stay out of it
-      // (their per-type schema file remains discoverable for revealed viewers).
-      builtinTriggerBlocks
-        .filter((b) => !b.preview)
-        .map((b) => ({
-          id: b.type,
-          name: b.name,
-          provider: 'sim',
-          description: b.description,
-        })),
-      // Same for external triggers: a trigger owned solely by preview blocks is
-      // hidden under the null (no-viewer) state this shared file is built with.
-      Object.entries(TRIGGER_REGISTRY)
-        .filter(
-          ([id, t]) => !isStaticFileHidden(`components/triggers/${t.provider}/${id}.json`, null)
-        )
-        .map(([id, t]) => ({
-          id,
-          name: t.name,
-          provider: t.provider,
-          description: t.description,
-        }))
-    )
-  )
+  files.set('components/triggers/triggers.md', buildTriggerOverview(null, null))
 
   logger.info('Static component files built', {
     blocks: visibleBlocks.length,
@@ -452,11 +518,6 @@ function getStaticComponentFiles(): Map<string, string> {
  *   files/{name}                         (workspace file leaf; dynamic content on read)
  *   files/{path}/{name}/style            (dynamic — style extraction for .docx/.pptx/.pdf)
  *   files/{path}/{name}/compiled-check   (dynamic — compile generated source / validate diagrams, returns {ok,error?})
- *   jobs/{title}/meta.json
- *   jobs/{title}/history.json
- *   jobs/{title}/executions.json
- *   tasks/{title}/session.md
- *   tasks/{title}/chat.json
  *   custom-tools/{name}.json
  *   environment/credentials.json
  *   environment/api-keys.json
@@ -665,7 +726,6 @@ export class WorkspaceVFS {
         phaseMs[phase] = Date.now() - t0
       })
     }
-
     await trace
       .getTracer('sim-copilot-vfs', '1.0.0')
       .startActiveSpan(
@@ -673,6 +733,11 @@ export class WorkspaceVFS {
         { attributes: { [TraceAttr.WorkspaceId]: workspaceId } },
         async (span) => {
           try {
+            const blockVisibility = overlayVisibility()
+            const permissionConfigPromise = timed(
+              'permissions',
+              getUserPermissionConfig(userId, workspaceId)
+            )
             const [
               wfSummary,
               kbSummary,
@@ -683,26 +748,30 @@ export class WorkspaceVFS {
               customBlocksSummary,
               mcpServersSummary,
               skillsSummary,
-              jobsSummary,
               wsRow,
               members,
+              permissionConfig,
             ] = await Promise.all([
               timed('workflows', this.materializeWorkflows(workspaceId)),
               timed('knowledge_bases', this.materializeKnowledgeBases(workspaceId, userId)),
               timed('tables', this.materializeTables(workspaceId)),
               timed('files', this.materializeFiles(workspaceId)),
-              timed('environment', this.materializeEnvironment(workspaceId, userId)),
+              timed(
+                'environment',
+                this.materializeEnvironment(
+                  workspaceId,
+                  userId,
+                  permissionConfigPromise,
+                  blockVisibility
+                )
+              ),
               timed('custom_tools', this.materializeCustomTools(workspaceId, userId)),
               timed('custom_blocks', this.materializeCustomBlocks(workspaceId)),
               timed('mcp_servers', this.materializeMcpServers(workspaceId)),
               timed('skills', this.materializeSkills(workspaceId)),
-              timed('jobs', this.materializeJobs(workspaceId)),
               timed('workspace_row', getWorkspaceWithOwner(workspaceId)),
               timed('members', getUsersWithPermissions(workspaceId)),
-              // Writes tasks/ files only — WORKSPACE.md has no Tasks section
-              // (recent chats reorder every turn and would bust the cached
-              // prompt prefix), so nothing is destructured from this one.
-              timed('tasks', this.materializeTasks(workspaceId, userId)),
+              permissionConfigPromise,
             ])
 
             const workspaceMdData = {
@@ -718,7 +787,6 @@ export class WorkspaceVFS {
               customBlocks: customBlocksSummary,
               mcpServers: mcpServersSummary,
               skills: skillsSummary,
-              jobs: jobsSummary,
             }
 
             this.files.set('WORKSPACE.md', buildWorkspaceMd(workspaceMdData))
@@ -728,11 +796,43 @@ export class WorkspaceVFS {
 
             // Per-viewer gating happens HERE, not in the shared builder: files
             // owned by blocks hidden for this viewer are skipped at stamp time.
-            const blockVisibility = overlayVisibility()
+            const configuredAllowedIntegrations = intersectIntegrationAllowlists(
+              permissionConfig?.allowedIntegrations ?? null,
+              getAllowedIntegrationsFromEnv()
+            )
+            const allowedIntegrationTypes = configuredAllowedIntegrations
+              ? new Set(configuredAllowedIntegrations.map((type) => type.toLowerCase()))
+              : null
             for (const [path, content] of getStaticComponentFiles()) {
-              if (isStaticFileHidden(path, blockVisibility)) continue
+              if (isStaticFileHidden(path, blockVisibility, allowedIntegrationTypes)) continue
               this.files.set(path, content)
             }
+            const viewerIntegrationTools = filterExposedIntegrationTools(
+              getExposedIntegrationTools(),
+              blockVisibility,
+              (owner) =>
+                isIntegrationDeploymentAvailableForVisibility(owner.blockType, blockVisibility) &&
+                (allowedIntegrationTypes === null ||
+                  allowedIntegrationTypes.has(owner.blockType.toLowerCase()))
+            )
+            for (const exposedTool of viewerIntegrationTools) {
+              const { config: tool, service, operation, blockType } = exposedTool
+              this.files.set(
+                `components/integrations/${service}/${operation}.json`,
+                serializeIntegrationSchema(tool, {
+                  oauthAvailable:
+                    !tool.oauth || isOAuthServiceDeploymentAvailable(tool.oauth.provider),
+                  ownerBlockType: blockType,
+                })
+              )
+            }
+            for (const [path, content] of buildIntegrationAggregateFiles(viewerIntegrationTools)) {
+              this.files.set(path, content)
+            }
+            this.files.set(
+              'components/triggers/triggers.md',
+              buildTriggerOverview(blockVisibility, allowedIntegrationTypes)
+            )
 
             span.setAttributes({
               [TraceAttr.CopilotVfsMaterializeFileCount]: this.files.size,
@@ -2007,197 +2107,6 @@ export class WorkspaceVFS {
     }
   }
 
-  /**
-   * Materialize mothership task chats as browsable conversation files under
-   * `tasks/{title}/`. Nothing is returned: the inventory deliberately has no
-   * Tasks section, so these files are reached through glob/read only.
-   */
-  private async materializeTasks(workspaceId: string, userId: string): Promise<void> {
-    try {
-      const taskRows = await db
-        .select({
-          id: copilotChats.id,
-          title: copilotChats.title,
-          messageCount: sql<number>`COALESCE((
-            SELECT COUNT(*) FROM copilot_messages cm
-            WHERE cm.chat_id = ${copilotChats.id} AND cm.deleted_at IS NULL
-          ), 0)`,
-          messages: sql<unknown[]>`COALESCE((
-            SELECT jsonb_agg(
-              jsonb_build_object(
-                'role', cm.content->>'role',
-                'content', cm.content->'content',
-                'contentBlocks', COALESCE((
-                  SELECT jsonb_agg(jsonb_build_object('type', 'text', 'content', b.value->'content') ORDER BY b.ord)
-                  FROM jsonb_array_elements(
-                    CASE WHEN jsonb_typeof(cm.content->'contentBlocks') = 'array'
-                         THEN cm.content->'contentBlocks'
-                         ELSE '[]'::jsonb
-                    END
-                  ) WITH ORDINALITY AS b(value, ord)
-                  WHERE b.value->>'type' = 'text'
-                ), '[]'::jsonb)
-              )
-              ORDER BY cm.seq ASC NULLS LAST, cm.created_at ASC, cm.id ASC
-            )
-            FROM copilot_messages cm
-            WHERE cm.chat_id = ${copilotChats.id}
-              AND cm.deleted_at IS NULL
-              AND cm.content->>'role' IN ('user', 'assistant')
-          ), '[]'::jsonb)`,
-          createdAt: copilotChats.createdAt,
-          updatedAt: copilotChats.updatedAt,
-        })
-        .from(copilotChats)
-        .where(
-          and(
-            eq(copilotChats.workspaceId, workspaceId),
-            eq(copilotChats.userId, userId),
-            eq(copilotChats.type, 'mothership'),
-            isNull(copilotChats.deletedAt)
-          )
-        )
-        .orderBy(desc(copilotChats.updatedAt))
-        .limit(5)
-
-      for (const task of taskRows) {
-        const title = task.title || 'Untitled task'
-        const safeName = sanitizeName(title)
-        const prefix = `tasks/${safeName}/`
-        const messages = Array.isArray(task.messages) ? task.messages : []
-        const messageCount = Number(task.messageCount) || 0
-
-        this.files.set(
-          `${prefix}session.md`,
-          serializeTaskSession({
-            id: task.id,
-            title,
-            messageCount,
-            createdAt: task.createdAt,
-            updatedAt: task.updatedAt,
-          })
-        )
-
-        if (messages.length > 0) {
-          this.files.set(`${prefix}chat.json`, serializeTaskChat(messages))
-        }
-      }
-    } catch (err) {
-      logger.warn('Failed to materialize tasks', {
-        workspaceId,
-        error: toError(err).message,
-      })
-    }
-  }
-
-  /**
-   * Materialize scheduled jobs using the workflowSchedule table.
-   * Returns a summary for WORKSPACE.md generation.
-   */
-  private async materializeJobs(
-    workspaceId: string
-  ): Promise<NonNullable<WorkspaceMdData['jobs']>> {
-    try {
-      const jobRows = await db
-        .select({
-          id: workflowSchedule.id,
-          jobTitle: workflowSchedule.jobTitle,
-          prompt: workflowSchedule.prompt,
-          cronExpression: workflowSchedule.cronExpression,
-          timezone: workflowSchedule.timezone,
-          status: workflowSchedule.status,
-          lifecycle: workflowSchedule.lifecycle,
-          successCondition: workflowSchedule.successCondition,
-          maxRuns: workflowSchedule.maxRuns,
-          runCount: workflowSchedule.runCount,
-          nextRunAt: workflowSchedule.nextRunAt,
-          lastRanAt: workflowSchedule.lastRanAt,
-          sourceTaskName: workflowSchedule.sourceTaskName,
-          sourceChatId: workflowSchedule.sourceChatId,
-          jobHistory: workflowSchedule.jobHistory,
-          createdAt: workflowSchedule.createdAt,
-        })
-        .from(workflowSchedule)
-        .where(
-          and(
-            eq(workflowSchedule.sourceWorkspaceId, workspaceId),
-            eq(workflowSchedule.sourceType, 'job'),
-            isNull(workflowSchedule.archivedAt),
-            ne(workflowSchedule.status, 'completed')
-          )
-        )
-
-      for (const job of jobRows) {
-        const safeName = sanitizeName(job.jobTitle || job.id)
-        this.files.set(
-          `jobs/${safeName}/meta.json`,
-          serializeJobMeta({
-            id: job.id,
-            title: job.jobTitle,
-            prompt: job.prompt || '',
-            cronExpression: job.cronExpression,
-            timezone: job.timezone,
-            status: job.status,
-            lifecycle: job.lifecycle,
-            successCondition: job.successCondition,
-            maxRuns: job.maxRuns,
-            runCount: job.runCount,
-            nextRunAt: job.nextRunAt,
-            lastRanAt: job.lastRanAt,
-            sourceTaskName: job.sourceTaskName,
-            sourceChatId: job.sourceChatId,
-            createdAt: job.createdAt,
-          })
-        )
-
-        const history = job.jobHistory as Array<{ timestamp: string; summary: string }> | null
-        if (history && history.length > 0) {
-          this.files.set(`jobs/${safeName}/history.json`, JSON.stringify(history, null, 2))
-        }
-
-        // executions.json is lazy, advertised only when the job has run (cheap
-        // signal: lastRanAt) — no per-job query on a read/glob.
-        if (job.lastRanAt) {
-          this.registerLazy(`jobs/${safeName}/executions.json`, async () => {
-            const execRows = await db
-              .select({
-                id: jobExecutionLogs.id,
-                executionId: jobExecutionLogs.executionId,
-                status: jobExecutionLogs.status,
-                trigger: jobExecutionLogs.trigger,
-                startedAt: jobExecutionLogs.startedAt,
-                endedAt: jobExecutionLogs.endedAt,
-                totalDurationMs: jobExecutionLogs.totalDurationMs,
-              })
-              .from(jobExecutionLogs)
-              .where(eq(jobExecutionLogs.scheduleId, job.id))
-              .orderBy(desc(jobExecutionLogs.startedAt))
-              .limit(5)
-            return execRows.length > 0 ? serializeRecentExecutions(execRows) : null
-          })
-        }
-      }
-
-      return jobRows
-        .filter((j) => j.status !== 'completed')
-        .map((j) => ({
-          id: j.id,
-          title: j.jobTitle,
-          prompt: j.prompt || '',
-          cronExpression: j.cronExpression,
-          status: j.status,
-          lifecycle: j.lifecycle,
-          sourceTaskName: j.sourceTaskName,
-        }))
-    } catch (err) {
-      logger.warn('Failed to materialize jobs', {
-        workspaceId,
-        error: toError(err).message,
-      })
-      return []
-    }
-  }
-
   private async materializeRecentlyDeleted(workspaceId: string, userId: string): Promise<void> {
     try {
       const [
@@ -2346,19 +2255,39 @@ export class WorkspaceVFS {
    */
   private async materializeEnvironment(
     workspaceId: string,
-    userId: string
+    userId: string,
+    permissionConfigPromise: ReturnType<typeof getUserPermissionConfig>,
+    blockVisibility: BlockVisibilityState | null
   ): Promise<{
     oauthIntegrations: WorkspaceMdData['oauthIntegrations']
     envVariables: WorkspaceMdData['envVariables']
   }> {
     try {
       const isWorkspaceAdmin = await hasWorkspaceAdminAccess(userId, workspaceId)
-      const [envCredentials, oauthCredentials, apiKeyRows, envData] = await Promise.all([
-        getAccessibleEnvCredentials(workspaceId, userId, { isWorkspaceAdmin }),
-        getAccessibleOAuthCredentials(workspaceId, userId, { isWorkspaceAdmin }),
-        listApiKeys(workspaceId),
-        getPersonalAndWorkspaceEnv(userId, workspaceId),
-      ])
+      const [envCredentials, oauthCredentials, apiKeyRows, envData, permissionConfig] =
+        await Promise.all([
+          getAccessibleEnvCredentials(workspaceId, userId, { isWorkspaceAdmin }),
+          getAccessibleOAuthCredentials(workspaceId, userId, { isWorkspaceAdmin }),
+          listApiKeys(workspaceId),
+          getPersonalAndWorkspaceEnv(userId, workspaceId),
+          permissionConfigPromise,
+        ])
+      const configuredAllowedIntegrations = intersectIntegrationAllowlists(
+        permissionConfig?.allowedIntegrations ?? null,
+        getAllowedIntegrationsFromEnv()
+      )
+      const credentialVisibility = createIntegrationCredentialVisibility({
+        allowedIntegrationTypes: configuredAllowedIntegrations
+          ? new Set(configuredAllowedIntegrations.map((type) => type.toLowerCase()))
+          : null,
+        blockVisibility,
+      })
+      const visibleOAuthCredentials = oauthCredentials.filter((credential) =>
+        credentialVisibility.isCredentialVisible({
+          providerId: credential.providerId,
+          type: credential.type,
+        })
+      )
 
       this.files.set(
         'environment/credentials.json',
@@ -2368,7 +2297,7 @@ export class WorkspaceVFS {
             scope: c.type === 'env_workspace' ? 'workspace' : 'personal',
             createdAt: c.updatedAt,
           })),
-          ...oauthCredentials.map((c) => ({
+          ...visibleOAuthCredentials.map((c) => ({
             id: c.id,
             providerId: c.providerId,
             displayName: c.displayName,
@@ -2391,7 +2320,7 @@ export class WorkspaceVFS {
 
       const envKeys = [...new Set(envCredentials.map((c) => c.envKey))]
       return {
-        oauthIntegrations: oauthCredentials.map((c) => ({
+        oauthIntegrations: visibleOAuthCredentials.map((c) => ({
           id: c.id,
           providerId: c.providerId,
           displayName: c.displayName,

@@ -3,6 +3,7 @@ import { toError } from '@sim/utils/errors'
 import { omit } from '@sim/utils/object'
 import { validateSelectorIds } from '@/lib/copilot/validation/selector-validator'
 import { isHosted as isHostedDeployment } from '@/lib/core/config/env-flags'
+import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
@@ -16,6 +17,7 @@ import {
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { getModelOptions } from '@/blocks/utils'
+import { overlayVisibility } from '@/blocks/visibility/context'
 import { BlockType, EDGE, normalizeName } from '@/executor/constants'
 import { isAutoModel, isKnownModelId, suggestModelIdsForUnknownModel } from '@/providers/models'
 import { isPiByokOnlyMode } from '@/providers/pi-providers'
@@ -242,6 +244,9 @@ function validateAgentToolEntry(item: any, index: number): string | null {
     }
     if (!Array.isArray(block.tools?.access) || block.tools.access.length === 0) {
       return `${where} block type "${type}" cannot be attached as an agent tool (it exposes no callable tools)`
+    }
+    if (!isIntegrationDeploymentAvailableForVisibility(type, overlayVisibility())) {
+      return `${where} block type "${type}" is unavailable in this deployment`
     }
   }
 
@@ -924,6 +929,7 @@ export function isBlockTypeAllowed(
   blockType: string,
   permissionConfig: PermissionGroupConfig | null
 ): boolean {
+  if (!isIntegrationDeploymentAvailableForVisibility(blockType, overlayVisibility())) return false
   if (isBlockTypeAccessControlExempt(blockType)) {
     return true
   }

@@ -1,7 +1,7 @@
 # ========================================
 # Base Stage: Debian-based Bun with Node.js 24
 # ========================================
-FROM oven/bun:1.3.13-slim AS base
+FROM oven/bun:1.3.14-slim AS base
 
 # Install Node.js 24 (Active LTS) and common dependencies once in base stage.
 # Node runs only the isolated-vm sandbox worker (the app itself runs under Bun);

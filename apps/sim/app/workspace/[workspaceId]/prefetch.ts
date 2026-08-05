@@ -3,6 +3,7 @@ import { listWorkspacesContract, type WorkspaceHostContext } from '@/lib/api/con
 import { listMothershipChats } from '@/lib/copilot/chat/list-mothership-chats'
 import { isChatEnabled } from '@/lib/core/config/env-flags'
 import { listFoldersForWorkspace } from '@/lib/folders/queries'
+import { getUserProfile } from '@/lib/users/queries'
 import { listWorkflowsForUser } from '@/lib/workflows/queries'
 import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'
 import { listWorkspacesForViewer } from '@/lib/workspaces/list'
@@ -12,6 +13,11 @@ import {
   mapChat,
   mothershipChatKeys,
 } from '@/hooks/queries/mothership-chats'
+import {
+  mapUserProfileResponse,
+  USER_PROFILE_STALE_TIME,
+  userProfileKeys,
+} from '@/hooks/queries/user-profile'
 import { FOLDER_LIST_STALE_TIME, folderKeys, mapFolder } from '@/hooks/queries/utils/folder-keys'
 import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
 import { mapWorkflow, WORKFLOW_LIST_STALE_TIME } from '@/hooks/queries/utils/workflow-list-query'
@@ -42,10 +48,11 @@ export function prefetchWorkspaceHostContext(
 }
 
 /**
- * Prefetches the sidebar's workflow, chat, folder, workspace-permissions, and
- * workspace lists for a workspace and stores them under the same query keys +
- * mappers the client hooks use, so the persistent sidebar (including the
- * workspace switcher header) paints populated on the first server render
+ * Prefetches the sidebar's workflow, chat, folder, workspace-permissions,
+ * workspace, and viewer-profile reads for a workspace and stores them under the
+ * same query keys + mappers the client hooks use, so the persistent sidebar
+ * (including the workspace switcher header and the footer's profile row) paints
+ * populated on the first server render
  * instead of flashing skeletons on a cold load (e.g. after the browser
  * discards an idle tab). Calls the data layer directly — the same functions
  * the API routes use — with no internal HTTP hop.
@@ -124,6 +131,22 @@ export async function prefetchWorkspaceSidebar(
           hostContext.viewer.permission
         ),
       staleTime: WORKSPACE_PERMISSIONS_STALE_TIME,
+    }),
+    /**
+     * The sidebar footer renders the viewer's name and avatar, so the profile is
+     * sidebar data and joins this batch rather than trailing it as a client
+     * waterfall. Keyed identically to `useUserProfile`, so the footer paints
+     * hydrated. Unlike the settings prefetch this needs no session lookup — the
+     * caller already resolved the viewer.
+     */
+    queryClient.prefetchQuery({
+      queryKey: userProfileKeys.profile(),
+      queryFn: async () => {
+        const user = await getUserProfile(userId)
+        if (!user) throw new Error('User not found')
+        return mapUserProfileResponse(user)
+      },
+      staleTime: USER_PROFILE_STALE_TIME,
     }),
   ])
 }

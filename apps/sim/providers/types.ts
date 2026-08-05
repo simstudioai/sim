@@ -241,8 +241,17 @@ export class ProviderError extends Error {
     duration: number
   }
 
-  constructor(message: string, timing: { startTime: string; endTime: string; duration: number }) {
-    super(message)
+  /**
+   * `options.cause` should carry the error being wrapped. `name` is deliberately
+   * overwritten with `'ProviderError'`, so without a cause every classification the
+   * original carried — notably a transport `TimeoutError` — is lost to callers.
+   */
+  constructor(
+    message: string,
+    timing: { startTime: string; endTime: string; duration: number },
+    options?: ErrorOptions
+  ) {
+    super(message, options)
     this.name = 'ProviderError'
     this.timing = timing
   }

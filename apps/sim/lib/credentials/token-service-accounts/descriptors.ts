@@ -270,7 +270,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     ],
     docsUrl: 'https://docs.sim.ai/integrations/shopify-service-account',
     helpText:
-      'Legacy admin-created custom apps reveal the shpat_ token once; new Dev Dashboard apps issue tokens via OAuth, not a UI reveal. The token is store-bound and does not expire.',
+      'The token is revealed once, is bound to a single store, and does not expire. Dev Dashboard apps issue tokens through OAuth rather than a UI reveal.',
     invalidCredentialsHelp:
       'Shopify rejected this token. Make sure you copied the Admin API access token (starts with shpat_) — not the API key or API secret key — for an app installed on this exact store domain, and that it has not since been revoked or regenerated.',
   },
@@ -289,7 +289,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     ],
     docsUrl: 'https://docs.sim.ai/integrations/webflow-service-account',
     helpText:
-      'Create the token with at least the sites:read and CMS read/write scopes. Site tokens expire after 365 days without API activity, and each token grants access to a single site.',
+      'Site tokens expire after 365 days without API activity, and each token grants access to a single site.',
   },
   [TRELLO_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: TRELLO_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -300,15 +300,13 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       {
         id: 'apiToken',
         label: 'API token',
-        placeholder: 'ATTA...',
+        placeholder: 'Paste API token',
         secret: true,
-        hintPattern: /^ATTA/,
-        hintMessage: 'Trello API tokens usually start with ATTA.',
       },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/trello-service-account',
     helpText:
-      "Generate the token with the setup guide's authorize link (expiration=never) so it works with Sim and doesn't expire.",
+      'A read-only or short-expiration token validates here and then fails at run time — Sim cannot tell either from the token itself.',
   },
   [CALCOM_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: CALCOM_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -326,7 +324,8 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/calcom-service-account',
-    helpText: 'Choose a non-expiring key (or note the expiry date) when creating it in Cal.com.',
+    helpText:
+      'Cal.com preselects a 30-day expiry when you create a key — switch on "Never expires" or runs stop on that date.',
   },
   [WEALTHBOX_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: WEALTHBOX_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -344,6 +343,8 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     docsUrl: 'https://docs.sim.ai/integrations/wealthbox-service-account',
     helpText:
       'Trial accounts cannot use the Wealthbox API; contact Wealthbox support if API Access is missing from your Settings.',
+    invalidCredentialsHelp:
+      'Wealthbox rejected this token. Check that it is still active under API Access in your Wealthbox settings, and that the account is not on an expired trial. If the same token works elsewhere, note that Sim authenticates with a Bearer header — a token Wealthbox accepts only over its ACCESS_TOKEN header is refused here.',
   },
   [PIPEDRIVE_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: PIPEDRIVE_SERVICE_ACCOUNT_PROVIDER_ID,

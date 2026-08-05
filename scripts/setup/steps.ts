@@ -11,7 +11,7 @@ import {
 } from './env-files.ts'
 import * as p from './prompter.ts'
 import { link, theme } from './theme.ts'
-import { FLAG_TWINS, hasMailProvider, LOGIN_PROVIDERS, SELF_HOST_UNLOCKS } from './twins.ts'
+import { FLAG_TWINS, LOGIN_PROVIDERS, SELF_HOST_UNLOCKS } from './twins.ts'
 
 /** Where the Chat key is minted when SIM_CLI_AUTH_ORIGIN is unset. */
 const DEFAULT_CLI_AUTH_ORIGIN = 'https://www.sim.ai'
@@ -149,116 +149,6 @@ export async function promptLlmKeys(
   return values
 }
 
-type StorageBackend = 'local' | 's3' | 's3compat' | 'azure' | 'gcs'
-
-function detectStorageBackend(vars: Map<string, string>): StorageBackend {
-  if (vars.get('AZURE_CONNECTION_STRING') || vars.get('AZURE_ACCOUNT_NAME')) return 'azure'
-  if (vars.get('S3_ENDPOINT')) return 's3compat'
-  if (vars.get('S3_BUCKET_NAME') || vars.get('AWS_REGION')) return 's3'
-  if (vars.get('GCS_BUCKET_NAME')) return 'gcs'
-  return 'local'
-}
-
-async function required(message: string, initialValue?: string): Promise<string> {
-  return p.text({ message, initialValue, validate: (v) => (v ? undefined : 'required') })
-}
-
-/**
- * Custom-flow storage step. Local disk is the default; a cloud backend is
- * strongly recommended for containerized deployments (uploads are ephemeral
- * there). Returns the env vars for the chosen backend, or null to keep local.
- */
-export async function promptStorage(
-  vars: Map<string, string>,
-  containerized: boolean
-): Promise<Record<string, string> | null> {
-  const current = detectStorageBackend(vars)
-  const backend = await p.select<StorageBackend>({
-    message: 'File storage?',
-    options: [
-      {
-        value: 'local',
-        label: 'Local disk',
-        hint: containerized
-          ? 'files live in the container — LOST on restart; fine only for evaluation'
-          : 'fine for local dev (external-fetch flows like Instagram publish need cloud storage)',
-      },
-      { value: 's3', label: 'AWS S3', hint: 'region + bucket; keys optional with IAM/IRSA' },
-      {
-        value: 's3compat',
-        label: 'S3-compatible (R2, MinIO, B2)',
-        hint: 'custom endpoint — fully self-hostable with MinIO',
-      },
-      { value: 'azure', label: 'Azure Blob', hint: 'connection string or account name + key' },
-      {
-        value: 'gcs',
-        label: 'Google Cloud Storage',
-        hint: 'bucket; credentials via ADC by default',
-      },
-    ],
-    initialValue: current,
-  })
-  if (backend === 'local') return null
-
-  const values: Record<string, string> = {}
-  if (backend === 's3' || backend === 's3compat') {
-    if (backend === 's3compat') {
-      values.S3_ENDPOINT = await required(
-        'S3_ENDPOINT (e.g. https://<account>.r2.cloudflarestorage.com)',
-        vars.get('S3_ENDPOINT')
-      )
-      const pathStyle = await p.confirm({
-        message: 'Force path-style addressing? (required for MinIO/Ceph, not for R2)',
-        initialValue: false,
-      })
-      if (pathStyle) values.S3_FORCE_PATH_STYLE = 'true'
-    }
-    values.AWS_REGION = await required(
-      'AWS_REGION',
-      vars.get('AWS_REGION') ?? (backend === 's3compat' ? 'auto' : undefined)
-    )
-    values.S3_BUCKET_NAME = await required('S3_BUCKET_NAME', vars.get('S3_BUCKET_NAME'))
-    const accessKey = await p.password({
-      message: 'AWS_ACCESS_KEY_ID (empty = IAM/instance credential chain)',
-    })
-    if (accessKey) {
-      values.AWS_ACCESS_KEY_ID = accessKey
-      values.AWS_SECRET_ACCESS_KEY = await p.password({
-        message: 'AWS_SECRET_ACCESS_KEY',
-        validate: (v) => (v ? undefined : 'required when an access key id is set'),
-      })
-    }
-  } else if (backend === 'azure') {
-    const connectionString = await p.password({
-      message: 'AZURE_CONNECTION_STRING (empty = use account name + key)',
-    })
-    if (connectionString) {
-      values.AZURE_CONNECTION_STRING = connectionString
-    } else {
-      values.AZURE_ACCOUNT_NAME = await required(
-        'AZURE_ACCOUNT_NAME',
-        vars.get('AZURE_ACCOUNT_NAME')
-      )
-      values.AZURE_ACCOUNT_KEY = await p.password({
-        message: 'AZURE_ACCOUNT_KEY',
-        validate: (v) => (v ? undefined : 'required'),
-      })
-    }
-    values.AZURE_STORAGE_CONTAINER_NAME = await required(
-      'AZURE_STORAGE_CONTAINER_NAME',
-      vars.get('AZURE_STORAGE_CONTAINER_NAME') ?? 'sim-files'
-    )
-  } else {
-    values.GCS_BUCKET_NAME = await required('GCS_BUCKET_NAME', vars.get('GCS_BUCKET_NAME'))
-    p.log.info(
-      theme.muted(
-        'Credentials use Application Default Credentials unless GCS_CREDENTIALS_JSON is set.'
-      )
-    )
-  }
-  return values
-}
-
 const PROVIDER_CONSOLES: Record<string, string> = {
   google: 'https://console.cloud.google.com/apis/credentials',
   github: 'https://github.com/settings/developers',
@@ -276,7 +166,7 @@ export async function promptSignInProviders(
     options: LOGIN_PROVIDERS.map((prov) => ({
       value: prov.id,
       label: prov.label,
-      hint: configured.includes(prov.id) ? 'already configured' : undefined,
+      hint: configured.includes(prov.id) ? 'Currently used' : undefined,
     })),
     initialValues: configured,
   })
@@ -288,59 +178,20 @@ export async function promptSignInProviders(
       `${provider.label}: create an OAuth app at ${link(PROVIDER_CONSOLES[id], PROVIDER_CONSOLES[id])}\n   Redirect URI: ${theme.command(`${appUrl}/api/auth/callback/${id}`)}`
     )
     values[provider.idKey] = await p.text({
-      message: provider.idKey,
+      message: `${provider.idKey}${vars.has(provider.idKey) ? ' (Currently used)' : ''}`,
       initialValue: vars.get(provider.idKey),
       validate: (v) => (v ? undefined : 'required'),
     })
-    values[provider.secretKey] = await p.password({
-      message: provider.secretKey,
-      validate: (v) => (v ? undefined : 'required'),
+    const existingSecret = vars.get(provider.secretKey)
+    const secret = await p.password({
+      message: existingSecret
+        ? `${provider.secretKey} (Currently used); leave empty to keep it`
+        : provider.secretKey,
+      validate: (value) => (value || existingSecret ? undefined : 'required'),
     })
-  }
-  return values
-}
-
-/** Email step: console logging is the default; MailHog is the one-tap local option. */
-export async function promptEmail(vars: Map<string, string>): Promise<Record<string, string>> {
-  const choice = await p.select({
-    message: 'Email sending?',
-    options: [
-      {
-        value: 'console',
-        label: 'None',
-        hint: 'emails are logged to the console — fine for local',
-      },
-      { value: 'mailhog', label: 'MailHog (local)', hint: 'wires SMTP to localhost:1025' },
-      { value: 'resend', label: 'Resend', hint: 'paste an API key' },
-      { value: 'smtp', label: 'SMTP', hint: 'any SMTP relay' },
-    ],
-    initialValue: hasMailProvider(vars) ? (vars.get('SMTP_HOST') ? 'smtp' : 'resend') : 'console',
-  })
-  if (choice === 'console') return {}
-  if (choice === 'mailhog') return { SMTP_HOST: 'localhost', SMTP_PORT: '1025' }
-  if (choice === 'resend') {
-    return {
-      RESEND_API_KEY: await p.password({
-        message: 'RESEND_API_KEY',
-        validate: (v) => (v ? undefined : 'required'),
-      }),
-    }
-  }
-  const values: Record<string, string> = {
-    SMTP_HOST: await p.text({
-      message: 'SMTP_HOST',
-      initialValue: vars.get('SMTP_HOST'),
-      validate: (v) => (v ? undefined : 'required'),
-    }),
-    SMTP_PORT: await p.text({ message: 'SMTP_PORT', initialValue: vars.get('SMTP_PORT') ?? '587' }),
-  }
-  const user = await p.text({
-    message: 'SMTP_USER (empty for unauthenticated relays)',
-    defaultValue: '',
-  })
-  if (user) {
-    values.SMTP_USER = user
-    values.SMTP_PASS = await p.password({ message: 'SMTP_PASS' })
+    const resolvedSecret = secret || existingSecret
+    if (!resolvedSecret) throw new Error(`${provider.secretKey} was not provided`)
+    values[provider.secretKey] = resolvedSecret
   }
   return values
 }

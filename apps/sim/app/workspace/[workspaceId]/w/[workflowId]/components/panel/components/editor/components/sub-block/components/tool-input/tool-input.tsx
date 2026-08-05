@@ -14,8 +14,8 @@ import {
   Switch,
   Tooltip,
 } from '@sim/emcn'
+import { ArrowLeft, ChevronRight, Server, Wrench, X } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import { ArrowLeft, ChevronRight, ServerIcon, WrenchIcon, XIcon } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { McpIcon, WorkflowIcon } from '@/components/icons'
 import {
@@ -1415,7 +1415,7 @@ export const ToolInput = memo(function ToolInput({
         serverToolItems.push({
           label: `Use all ${toolCount} tools`,
           value: `mcp-server-all-${mcpServerDrilldown}`,
-          iconElement: createToolIcon('#6366F1', ServerIcon),
+          iconElement: createToolIcon('#6366F1', Server),
           onSelect: () => {
             if (allAlreadySelected) return
             // Remove existing individual tools from this server to avoid duplicates
@@ -1497,7 +1497,7 @@ export const ToolInput = memo(function ToolInput({
       actionItems.push({
         label: 'Create Tool',
         value: 'action-create-tool',
-        icon: WrenchIcon,
+        icon: Wrench,
         onSelect: () => {
           setCustomToolModalOpen(true)
           setOpen(false)
@@ -1535,7 +1535,7 @@ export const ToolInput = memo(function ToolInput({
           return {
             label: customTool.title,
             value: `custom-${customTool.id}`,
-            iconElement: createToolIcon('#3B82F6', WrenchIcon),
+            iconElement: createToolIcon('#3B82F6', Wrench),
             disabled: isPreview || alreadySelected,
             onSelect: () => {
               if (alreadySelected) return
@@ -1568,7 +1568,7 @@ export const ToolInput = memo(function ToolInput({
         serverItems.push({
           label: `${serverName} (${toolCount} tools)`,
           value: `mcp-server-folder-${serverId}`,
-          iconElement: createToolIcon('#6366F1', ServerIcon),
+          iconElement: createToolIcon('#6366F1', Server),
           suffixElement: <ChevronRight className='size-[12px] text-[var(--text-tertiary)]' />,
           onSelect: () => {
             setMcpServerDrilldown(serverId)
@@ -1883,7 +1883,7 @@ export const ToolInput = memo(function ToolInput({
                     }}
                   >
                     {isCustomTool ? (
-                      <WrenchIcon className={cn('size-[10px]', getTileIconColorClass('#3B82F6'))} />
+                      <Wrench className={cn('size-[10px]', getTileIconColorClass('#3B82F6'))} />
                     ) : isMcpTool ? (
                       <IconComponent
                         icon={McpIcon}
@@ -1904,7 +1904,7 @@ export const ToolInput = memo(function ToolInput({
                       />
                     )}
                   </div>
-                  <span className='truncate font-medium text-[var(--text-primary)] text-small'>
+                  <span className='truncate text-[var(--text-primary)] text-small'>
                     {formatDisplayText(toolDisplayName ?? '', {
                       workflowSearchHighlight: getToolTitleSearchHighlight(toolIndex),
                     })}
@@ -1952,7 +1952,7 @@ export const ToolInput = memo(function ToolInput({
                     >
                       <PopoverTrigger asChild>
                         <button
-                          className='flex items-center justify-center font-medium text-[var(--text-tertiary)] text-caption transition-colors hover-hover:text-[var(--text-primary)]'
+                          className='flex items-center justify-center text-[var(--text-tertiary)] text-caption transition-colors hover-hover:text-[var(--text-primary)]'
                           onClick={(e: React.MouseEvent) => e.stopPropagation()}
                           aria-label='Tool usage control'
                         >
@@ -2024,7 +2024,7 @@ export const ToolInput = memo(function ToolInput({
                           className='flex items-center justify-center text-[var(--text-tertiary)] transition-colors hover-hover:text-[var(--text-primary)]'
                           aria-label='Remove tool'
                         >
-                          <XIcon className='size-[13px]' />
+                          <X className='size-[13px]' />
                         </button>
                       </PopoverTrigger>
                       <PopoverContent
@@ -2062,7 +2062,7 @@ export const ToolInput = memo(function ToolInput({
                       className='flex items-center justify-center text-[var(--text-tertiary)] transition-colors hover-hover:text-[var(--text-primary)]'
                       aria-label='Remove tool'
                     >
-                      <XIcon className='size-[13px]' />
+                      <X className='size-[13px]' />
                     </button>
                   )}
                 </div>
@@ -2077,9 +2077,7 @@ export const ToolInput = memo(function ToolInput({
 
                     return hasOperations && operationOptions.length > 0 ? (
                       <div className='relative space-y-1.5'>
-                        <div className='font-medium text-[var(--text-primary)] text-small'>
-                          Operation
-                        </div>
+                        <div className='text-[var(--text-primary)] text-small'>Operation</div>
                         <Combobox
                           options={operationOptions
                             .filter((option) => option.id !== '')

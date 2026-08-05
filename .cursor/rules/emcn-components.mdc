@@ -1,6 +1,6 @@
 ---
 description: EMCN component library patterns
-globs: ["apps/sim/components/emcn/**"]
+globs: ["packages/emcn/**"]
 ---
 # EMCN Components
 
@@ -19,7 +19,7 @@ The menu surface intentionally diverges from the pill: `dropdown-menu.tsx` items
 
 ## Component catalogue
 
-- **`Chip` / `ChipLink`** — the pill button (`<button>` / Next `<Link>`). Variants: `ghost`, `filled`, `primary`, `destructive`, `border-shadow`. `leftIcon`/`rightIcon`, `active`, `fullWidth`, `flush`.
+- **`Chip` / `ChipLink`** — the pill button (`<button>` / Next `<Link>`). Variants: `primary`, `destructive`, `border-shadow`, `border`; the bare chip is implicit (omit `variant`). `filled` is deliberately NOT a `Chip` variant — it is reserved for chip fields/triggers. For a selected/toggle chip use the `active` prop, never a variant. `leftIcon`/`rightIcon`, `active`, `fullWidth`. Chips carry **no outer margin** — space between them is the parent's `gap`. The old `mx-0.5` default and its `flush` opt-out are gone; do not reintroduce either, and never add a margin to a chip through `className`.
 - **`ChipInput`** — single-line text field. `icon`, `endAdornment`, `error`, `inputClassName` (inner `<input>`); `className` styles the chrome wrapper.
 - **`ChipTextarea`** — multi-line sibling. `error`, `resizable` (off by default).
 - **`ChipDropdown`** — pill that opens a menu. Single OR multi-select via the discriminated `multiple` prop (one component, not two). Owns its trailing chevron — no `rightIcon`.

@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { authorizeOAuth2Contract } from '@/lib/api/contracts/oauth-connections'
 import { parseRequest } from '@/lib/api/server'
 import { auth, getSession } from '@/lib/auth/auth'
+import { requireConfiguredOAuthClient } from '@/lib/core/config/env-capabilities.server'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getCredentialActorContext } from '@/lib/credentials/access'
@@ -99,6 +100,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       }
       reconnectDisplayName = actor.credential.displayName
     }
+
+    requireConfiguredOAuthClient(providerId)
 
     // Create the draft before initiating the link so it is guaranteed to exist
     // (and freshly clocked) when the OAuth callback's `account.create.after`

@@ -100,7 +100,6 @@ export function UpgradePlanCard({
             chipVariants({
               variant: highlighted ? 'primary' : 'border-shadow',
               fullWidth: true,
-              flush: true,
             }),
             'w-full justify-center'
           )}

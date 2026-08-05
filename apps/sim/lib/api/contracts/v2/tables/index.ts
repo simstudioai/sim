@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import {
-  predicateSchema,
+  predicateInputSchema,
   sortSpecSchema,
   tableColumnSchema,
   tableIdParamsSchema,
@@ -11,9 +11,9 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 /**
  * Public v2 tables API — typed predicate grammar, cursor paging.
  *
- * Filters are the `{ all | any: [...] }` predicate tree (same shape the engine
- * consumes); no string querystring dialect. Response bodies are fully typed. Row
- * data is name-keyed and carries no storage internals (`position`/`orderKey`/
+ * A filter may be one `{ field, op, value }` condition or an `{ all | any: [...] }`
+ * predicate tree; no string querystring dialect. Response bodies are fully typed.
+ * Row data is name-keyed and carries no storage internals (`position`/`orderKey`/
  * `executions`) — the public wire is `{ id, data, createdAt, updatedAt }`.
  */
 
@@ -52,13 +52,14 @@ export const v2ListTablesQuerySchema = z.object({
 })
 
 /**
- * Rows query body. `predicate`/`sort` are the typed predicate tree / sort spec.
+ * Rows query body. `predicate` accepts one condition or a grouped tree; `sort`
+ * is the ordered sort spec.
  * `limit`: omitted → {@link V2_DEFAULT_ROW_LIMIT}; `0` → unbounded (whole result
  * or a 400 `TABLE_QUERY_RESULT_TOO_LARGE`); `1..{@link V2_MAX_ROW_LIMIT}` → page cap.
  */
 export const v2QueryRowsBodySchema = z.object({
   workspaceId: workspaceIdSchema,
-  predicate: predicateSchema.optional(),
+  predicate: predicateInputSchema.optional(),
   sort: sortSpecSchema.optional(),
   limit: z
     .number({ error: 'Limit must be a number' })

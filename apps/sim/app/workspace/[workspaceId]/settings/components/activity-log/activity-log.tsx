@@ -2,7 +2,7 @@
 
 import { type ReactNode, useState } from 'react'
 import { cn } from '@sim/emcn'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown } from '@sim/emcn/icons'
 import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components'
 
 /**

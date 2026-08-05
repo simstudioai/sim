@@ -6,17 +6,18 @@
 
 import { createLogger } from '@sim/logger'
 import { env } from '@/lib/core/config/env'
+import { inspectCapability, SANDBOX_CAPABILITY } from '@/lib/core/config/env-capabilities'
 import { getMaxExecutionTimeout, getRemainingExecutionMs } from '@/lib/core/execution-limits'
 
 const logger = createLogger('PiSandboxLifetime')
 
 /**
- * Read from `env` rather than the `env-flags` gate, and normalized the same way
- * `remote-sandbox/index.ts` normalizes it, so this module keeps the independence
- * its header describes: no provider adapters, no barrel, no config gate.
+ * Uses tolerant capability inspection because this module only needs to know
+ * whether an E2B lifetime applies. Strict credential validation remains at the
+ * point where the selected sandbox provider is created.
  */
 function isLifetimeProvider(): boolean {
-  return (env.SANDBOX_PROVIDER || 'e2b').toLowerCase() === 'e2b'
+  return inspectCapability(SANDBOX_CAPABILITY, env).providerId === 'e2b'
 }
 
 /**

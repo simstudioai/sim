@@ -5,6 +5,7 @@ import { AzureOpenAI } from 'openai'
 import type {
   ChatCompletion,
   ChatCompletionContentPart,
+  ChatCompletionCreateParams,
   ChatCompletionCreateParamsBase,
   ChatCompletionCreateParamsStreaming,
   ChatCompletionMessageParam,
@@ -44,10 +45,14 @@ import type {
 import { ProviderError } from '@/providers/types'
 import {
   calculateCost,
+  isFunctionToolCall,
   prepareToolExecution,
   prepareToolsWithUsageControl,
   sumToolCosts,
 } from '@/providers/utils'
+
+/** `verbosity` narrowed from `string` to a literal union in openai v5. */
+type ChatCompletionVerbosity = NonNullable<ChatCompletionCreateParams['verbosity']>
 
 const logger = createLogger('AzureOpenAIProvider')
 
@@ -138,7 +143,7 @@ async function executeChatCompletionsRequest(
   if (request.reasoningEffort !== undefined && request.reasoningEffort !== 'auto')
     payload.reasoning_effort = request.reasoningEffort as ReasoningEffort
   if (request.verbosity !== undefined && request.verbosity !== 'auto')
-    payload.verbosity = request.verbosity
+    payload.verbosity = request.verbosity as ChatCompletionVerbosity
 
   if (request.responseFormat) {
     payload.response_format = {
@@ -270,7 +275,7 @@ async function executeChatCompletionsRequest(
     enrichLastModelSegmentFromChatCompletions(
       timeSegments,
       currentResponse,
-      currentResponse.choices[0]?.message?.tool_calls,
+      currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall),
       { model: request.model, provider: 'azure_openai' }
     )
 
@@ -289,7 +294,8 @@ async function executeChatCompletionsRequest(
         content = currentResponse.choices[0].message.content
       }
 
-      const toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
+      const toolCallsInResponse =
+        currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)
       if (!toolCallsInResponse || toolCallsInResponse.length === 0) {
         break
       }
@@ -474,7 +480,7 @@ async function executeChatCompletionsRequest(
       enrichLastModelSegmentFromChatCompletions(
         timeSegments,
         currentResponse,
-        currentResponse.choices[0]?.message?.tool_calls,
+        currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall),
         { model: request.model, provider: 'azure_openai' }
       )
 
@@ -495,7 +501,7 @@ async function executeChatCompletionsRequest(
 
     if (
       iterationCount === MAX_TOOL_ITERATIONS &&
-      currentResponse.choices[0]?.message?.tool_calls?.length
+      currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)?.length
     ) {
       /**
        * The capped turn still requests tools, so make one tool-disabled call to
@@ -531,7 +537,7 @@ async function executeChatCompletionsRequest(
       enrichLastModelSegmentFromChatCompletions(
         timeSegments,
         synthesisResponse,
-        synthesisResponse.choices[0]?.message?.tool_calls,
+        synthesisResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall),
         { model: request.model, provider: 'azure_openai' }
       )
     }

@@ -12,6 +12,7 @@ const {
   mockGetCustomToolById,
   mockGetSkillById,
   mockGetHostedModels,
+  mockIsIntegrationDeploymentAvailable,
 } = vi.hoisted(() => ({
   mockValidateSelectorIds: vi.fn(),
   mockGetModelOptions: vi.fn(() => []),
@@ -19,6 +20,7 @@ const {
   mockGetCustomToolById: vi.fn(),
   mockGetSkillById: vi.fn(),
   mockGetHostedModels: vi.fn(() => [] as string[]),
+  mockIsIntegrationDeploymentAvailable: vi.fn(() => true),
 }))
 
 const conditionBlockConfig = {
@@ -243,7 +245,16 @@ vi.mock('@/lib/workflows/skills/operations', () => ({
 }))
 
 vi.mock('@/providers/utils', () => ({
+  isFunctionToolCall: (toolCall: unknown) =>
+    typeof toolCall === 'object' &&
+    toolCall !== null &&
+    'function' in toolCall &&
+    (toolCall as { function?: unknown }).function != null,
   getHostedModels: mockGetHostedModels,
+}))
+
+vi.mock('@/lib/integrations/availability.server', () => ({
+  isIntegrationDeploymentAvailableForVisibility: mockIsIntegrationDeploymentAvailable,
 }))
 
 import {
@@ -257,6 +268,10 @@ import {
 const CTX = { userId: 'user-1', workspaceId: 'workspace-1' }
 
 afterAll(resetEnvFlagsMock)
+
+beforeEach(() => {
+  mockIsIntegrationDeploymentAvailable.mockReturnValue(true)
+})
 
 describe('validateInputsForBlock', () => {
   beforeEach(() => {
@@ -1222,6 +1237,19 @@ describe('validateInputsForBlock - agent tools (tool-input)', () => {
     )
     expect(result.errors).toHaveLength(0)
     expect(result.validInputs.tools).toBeDefined()
+  })
+
+  it('rejects an integration tool unavailable in this deployment', () => {
+    mockIsIntegrationDeploymentAvailable.mockReturnValue(false)
+
+    const result = validateInputsForBlock(
+      'agent',
+      { tools: [{ type: 'slack', operation: 'send', usageControl: 'auto' }] },
+      'agent-1'
+    )
+
+    expect(result.validInputs.tools).toBeUndefined()
+    expect(result.errors[0]?.error).toContain('unavailable in this deployment')
   })
 
   it('rejects an unrecognized tool type', () => {

@@ -1106,19 +1106,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  complete_scheduled_task: {
-    parameters: {
-      type: 'object',
-      properties: {
-        jobId: {
-          type: 'string',
-          description: 'The ID of the scheduled task to mark as completed.',
-        },
-      },
-      required: ['jobId'],
-    },
-    resultSchema: undefined,
-  },
   cp: {
     parameters: {
       type: 'object',
@@ -2211,7 +2198,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         code: {
           type: 'string',
           description:
-            'Code to execute. For JS: raw statements auto-wrapped in async context. For Python: full script. For shell: bash script with pre-installed CLI tools. Request each needed secret with an explicit {{VAR_NAME}} reference.',
+            'Code to execute. For JS: raw statements auto-wrapped in async context. For Python: full script. For shell: bash script with pre-installed CLI tools. Use each needed secret as {{VAR_NAME}}; the reference resolves to the value exactly as stored.',
         },
         inputs: {
           type: 'object',
@@ -2921,31 +2908,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  get_scheduled_task_logs: {
-    parameters: {
-      type: 'object',
-      properties: {
-        executionId: {
-          type: 'string',
-          description: 'Optional execution ID for a specific run.',
-        },
-        includeDetails: {
-          type: 'boolean',
-          description: 'Include tool calls, outputs, and cost details.',
-        },
-        jobId: {
-          type: 'string',
-          description: 'The scheduled task (schedule) ID to get logs for.',
-        },
-        limit: {
-          type: 'number',
-          description: 'Max number of entries (default: 3, max: 5)',
-        },
-      },
-      required: ['jobId'],
-    },
-    resultSchema: undefined,
-  },
   get_workflow_data: {
     parameters: {
       type: 'object',
@@ -3376,7 +3338,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         operation: {
           type: 'string',
           description:
-            "The operation to perform: 'add', 'edit', 'list', or 'delete'. These verbs are tool-specific — manage_scheduled_task uses create/update instead of add/edit.",
+            "The operation to perform: 'add', 'edit', 'list', or 'delete'. These verbs are tool-specific — other manage_* tools may use create/update instead of add/edit.",
           enum: ['add', 'edit', 'delete', 'list'],
         },
         schema: {
@@ -3483,88 +3445,13 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         operation: {
           type: 'string',
           description:
-            "The operation to perform: 'add', 'edit', 'list', or 'delete'. These verbs are tool-specific — manage_scheduled_task uses create/update instead of add/edit.",
+            "The operation to perform: 'add', 'edit', 'list', or 'delete'. These verbs are tool-specific — other manage_* tools may use create/update instead of add/edit.",
           enum: ['add', 'edit', 'delete', 'list'],
         },
         serverId: {
           type: 'string',
           description:
             "The MCP server's id — the `id` field inside the VFS file agent/mcp-servers/{name}.json (the {name} filename is the display name, not the id). Required for edit and delete; omit for add and list.",
-        },
-      },
-      required: ['operation'],
-    },
-    resultSchema: undefined,
-  },
-  manage_scheduled_task: {
-    parameters: {
-      type: 'object',
-      properties: {
-        args: {
-          type: 'object',
-          description:
-            'Operation-specific arguments. For create: {title, prompt, cron?, time?, timezone?, lifecycle?, successCondition?, maxRuns?}. For get/delete: {jobId}. For update: {jobId, title?, prompt?, cron?, timezone?, status?, lifecycle?, successCondition?, maxRuns?}. For list: no args needed.',
-          properties: {
-            cron: {
-              type: 'string',
-              description:
-                "Cron expression for a recurring scheduled task (e.g. '0 9 * * *'). Provide cron, time, or both — with both, time anchors the recurring task's first fire.",
-            },
-            jobId: {
-              type: 'string',
-              description: 'Scheduled task ID (required for get, update)',
-            },
-            jobIds: {
-              type: 'array',
-              description: 'Array of scheduled task IDs (for batch delete)',
-              items: {
-                type: 'string',
-              },
-            },
-            lifecycle: {
-              type: 'string',
-              description:
-                "'persistent' (default) or 'until_complete'. Until_complete scheduled tasks stop when complete_scheduled_task is called.",
-              enum: ['persistent', 'until_complete'],
-            },
-            maxRuns: {
-              type: 'integer',
-              description: 'Max executions before auto-completing. Safety limit.',
-            },
-            prompt: {
-              type: 'string',
-              description: 'The prompt to execute when the scheduled task fires',
-            },
-            status: {
-              type: 'string',
-              description: 'Scheduled task status: active, paused',
-              enum: ['active', 'paused'],
-            },
-            successCondition: {
-              type: 'string',
-              description:
-                'What must happen for the scheduled task to be considered complete (until_complete lifecycle).',
-            },
-            time: {
-              type: 'string',
-              description:
-                "ISO 8601 datetime. One-time scheduled task -> set time and omit cron. May also anchor a recurring cron task's first-fire time.",
-            },
-            timezone: {
-              type: 'string',
-              description: 'IANA timezone (e.g. America/New_York). Defaults to UTC.',
-            },
-            title: {
-              type: 'string',
-              description: "Short descriptive title for the scheduled task (e.g. 'Email Poller')",
-            },
-          },
-        },
-        operation: {
-          type: 'string',
-          description:
-            'The operation to perform: create, list, get, update, delete. These verbs are tool-specific — the custom-tool/MCP/skill managers use add/edit instead of create/update.',
-          enum: ['create', 'list', 'get', 'update', 'delete'],
         },
       },
       required: ['operation'],
@@ -3591,7 +3478,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         operation: {
           type: 'string',
           description:
-            "The operation to perform: 'add', 'edit', 'list', or 'delete'. These verbs are tool-specific — manage_scheduled_task uses create/update instead of add/edit.",
+            "The operation to perform: 'add', 'edit', 'list', or 'delete'. These verbs are tool-specific — other manage_* tools may use create/update instead of add/edit.",
           enum: ['add', 'edit', 'delete', 'list'],
         },
         skillId: {
@@ -3746,7 +3633,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
               type: {
                 type: 'string',
                 description: 'The resource type.',
-                enum: ['workflow', 'table', 'knowledgebase', 'file', 'log', 'scheduledtask'],
+                enum: ['workflow', 'table', 'knowledgebase', 'file', 'log'],
               },
             },
             required: ['type'],
@@ -3903,7 +3790,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             filter: {
               type: 'object',
               description:
-                'Predicate filter object for query_rows. A predicate is a tree: {"all":[...]} (AND) or {"any":[...]} (OR); members are leaves {field, op, value} or nested groups. Ops: eq, ne, gt, gte, lt, lte, in, nin, like, ilike (use * as the wildcard), nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. in/nin take a non-empty array value. Examples: {"all":[{"field":"status","op":"eq","value":"active"}]}; {"any":[{"field":"status","op":"eq","value":"active"},{"field":"status","op":"eq","value":"pending"}]}; {"all":[{"field":"name","op":"ilike","value":"*jo*"}]}.',
+                'Predicate filter object for query_rows. A single condition is {field, op, value}; use {"all":[...]} (AND) or {"any":[...]} (OR) for multiple or nested conditions. Ops: eq, ne, gt, gte, lt, lte, in, nin, like, ilike (use * as the wildcard), nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. in/nin take a non-empty array value. Examples: {"field":"status","op":"eq","value":"active"}; {"any":[{"field":"status","op":"eq","value":"active"},{"field":"status","op":"eq","value":"pending"}]}; {"field":"name","op":"ilike","value":"*jo*"}.',
             },
             limit: {
               type: 'number',
@@ -4185,7 +4072,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         code: {
           type: 'string',
           description:
-            'Code to execute. For JS: raw statements auto-wrapped in async context. For Python: full script. For shell: bash script with pre-installed CLI tools. Request each needed secret with an explicit {{VAR_NAME}} reference.',
+            'Code to execute. For JS: raw statements auto-wrapped in async context. For Python: full script. For shell: bash script with pre-installed CLI tools. Use each needed secret as {{VAR_NAME}}; the reference resolves to the value exactly as stored.',
         },
         inputs: {
           type: 'object',
@@ -4381,19 +4268,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
       },
       required: ['stopAfterBlockId'],
-    },
-    resultSchema: undefined,
-  },
-  scheduled_task: {
-    parameters: {
-      properties: {
-        request: {
-          description: 'What scheduled task action is needed.',
-          type: 'string',
-        },
-      },
-      required: ['request'],
-      type: 'object',
     },
     resultSchema: undefined,
   },
@@ -4921,24 +4795,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  update_scheduled_task_history: {
-    parameters: {
-      type: 'object',
-      properties: {
-        jobId: {
-          type: 'string',
-          description: 'The scheduled task ID.',
-        },
-        summary: {
-          type: 'string',
-          description:
-            "A concise summary of what was done this run (e.g., 'Sent follow-up emails to 3 leads: Alice, Bob, Carol').",
-        },
-      },
-      required: ['jobId', 'summary'],
-    },
-    resultSchema: undefined,
-  },
   update_workspace_mcp_server: {
     parameters: {
       type: 'object',
@@ -5044,7 +4900,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             filter: {
               type: 'object',
               description:
-                'Predicate filter object for query_rows, update_rows_by_filter, delete_rows_by_filter. A predicate is a tree: {"all":[...]} (AND) or {"any":[...]} (OR); members are leaves {field, op, value} or nested groups. Ops: eq, ne, gt, gte, lt, lte, in, nin, like, ilike (use * as the wildcard), nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. in/nin take a non-empty array value. Examples: {"all":[{"field":"status","op":"eq","value":"active"}]}; {"all":[{"field":"wins","op":"gte","value":18},{"field":"status","op":"eq","value":"pending"}]}; {"any":[{"field":"status","op":"eq","value":"active"},{"field":"status","op":"eq","value":"pending"}]}; {"all":[{"field":"name","op":"ilike","value":"*jo*"}]}; {"all":[{"field":"slack_user_id","op":"in","value":["U1","U2"]}]}.',
+                'Predicate filter object for query_rows, update_rows_by_filter, delete_rows_by_filter. A single condition is {field, op, value}; use {"all":[...]} (AND) or {"any":[...]} (OR) for multiple or nested conditions. Ops: eq, ne, gt, gte, lt, lte, in, nin, like, ilike (use * as the wildcard), nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. in/nin take a non-empty array value. Examples: {"field":"status","op":"eq","value":"active"}; {"all":[{"field":"wins","op":"gte","value":18},{"field":"status","op":"eq","value":"pending"}]}; {"any":[{"field":"status","op":"eq","value":"active"},{"field":"status","op":"eq","value":"pending"}]}; {"field":"name","op":"ilike","value":"*jo*"}; {"field":"slack_user_id","op":"in","value":["U1","U2"]}.',
             },
             groupId: {
               type: 'string',

@@ -8,8 +8,8 @@ import {
   useState,
 } from 'react'
 import { cn, Textarea } from '@sim/emcn'
+import { ChevronsUpDown, Wand } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import { ChevronsUpDown, Wand2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { SubBlockInputController } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/sub-block-input-controller'
@@ -333,7 +333,7 @@ export function LongInput({
               <Textarea
                 ref={setRefs}
                 className={cn(
-                  'allow-scroll box-border min-h-full w-full resize-none text-transparent caret-foreground placeholder:text-muted-foreground/50',
+                  'allow-scroll box-border min-h-full w-full resize-none text-transparent caret-foreground [letter-spacing:inherit] placeholder:text-muted-foreground/50',
                   wandHook.isStreaming && 'pointer-events-none cursor-not-allowed opacity-50'
                 )}
                 rows={rows ?? DEFAULT_ROWS}
@@ -357,7 +357,7 @@ export function LongInput({
               <div
                 ref={overlayRef}
                 className={cn(
-                  'absolute inset-0 box-border overflow-auto whitespace-pre-wrap break-words border border-transparent bg-transparent px-2 py-2 font-medium font-sans text-sm',
+                  'absolute inset-0 box-border overflow-auto whitespace-pre-wrap break-words border border-transparent bg-transparent px-2 py-2 font-sans text-sm',
                   (isPreview || disabled) && 'opacity-50',
                   !(isPreview || disabled) && 'pointer-events-none'
                 )}
@@ -390,7 +390,7 @@ export function LongInput({
                     aria-label='Generate content with AI'
                     className='size-8 rounded-full border border-transparent bg-muted/80 text-muted-foreground shadow-sm transition-all duration-200 hover-hover:border-primary/20 hover-hover:bg-muted hover-hover:text-foreground hover-hover:shadow'
                   >
-                    <Wand2 className='size-4' />
+                    <Wand className='size-4' />
                   </Button>
                 </div>
               )}

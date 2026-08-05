@@ -2,8 +2,7 @@
 
 import type React from 'react'
 import { Button, ChipInput } from '@sim/emcn'
-import { Loader, X } from '@sim/emcn/icons'
-import { ChevronDown, ChevronUp } from 'lucide-react'
+import { ChevronDown, ChevronUp, Loader, X } from '@sim/emcn/icons'
 
 export interface TableFindProps {
   query: string

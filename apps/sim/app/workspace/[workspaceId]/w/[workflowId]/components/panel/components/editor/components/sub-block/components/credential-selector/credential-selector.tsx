@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { Button, Combobox, type ComboboxOptionGroup } from '@sim/emcn'
-import { ExternalLink, KeyRound } from 'lucide-react'
+import { Key, SquareArrowUpRight } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
 import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import {
@@ -231,7 +231,7 @@ export function CredentialSelector({
     const baseProviderConfig = OAUTH_PROVIDERS[baseProvider]
 
     if (!baseProviderConfig) {
-      return <ExternalLink className='size-3' />
+      return <SquareArrowUpRight className='size-3' />
     }
     const Icon: StyleableIcon = baseProviderConfig.icon
     return <Icon className='size-3 text-[var(--text-icon)]' style={getBareIconStyle(Icon)} />
@@ -278,7 +278,7 @@ export function CredentialSelector({
               ? `Connect another ${getProviderName(provider)} account`
               : `Connect ${getProviderName(provider)} account`,
         value: '__connect_account__',
-        iconElement: <ExternalLink className='size-3' />,
+        iconElement: <SquareArrowUpRight className='size-3' />,
       })
     }
 
@@ -315,7 +315,7 @@ export function CredentialSelector({
           {
             label: labels?.oauthConnect ?? `Connect ${getProviderName(provider)} account`,
             value: '__connect_account__',
-            iconElement: <ExternalLink className='size-3' />,
+            iconElement: <SquareArrowUpRight className='size-3' />,
           },
         ],
       },
@@ -333,7 +333,7 @@ export function CredentialSelector({
                     serviceAccountTarget?.label ??
                     `Add ${getProviderName(provider)} key`,
                   value: '__connect_service_account__',
-                  iconElement: <ExternalLink className='size-3' />,
+                  iconElement: <SquareArrowUpRight className='size-3' />,
                 },
               ]),
         ],
@@ -365,7 +365,7 @@ export function CredentialSelector({
       return (
         <div className='flex w-full items-center truncate'>
           <div className='mr-2 flex-shrink-0 opacity-90'>
-            <KeyRound className='size-3' />
+            <Key className='size-3' />
           </div>
           <span className='truncate'>
             {formatDisplayText(displayValue, { workflowSearchHighlight })}
@@ -453,7 +453,7 @@ export function CredentialSelector({
 
       {needsUpdate && (
         <div className='mt-2 flex flex-col gap-1 rounded-sm border bg-[var(--surface-2)] px-2 py-1.5'>
-          <div className='flex items-center font-medium text-caption'>
+          <div className='flex items-center text-caption'>
             <span className='mr-1.5 inline-block size-[6px] rounded-xs bg-amber-500' />
             Additional permissions required
           </div>
@@ -471,7 +471,7 @@ export function CredentialSelector({
               })
               setShowOAuthModal(true)
             }}
-            className='w-full px-2 py-1 font-medium text-caption'
+            className='w-full px-2 py-1 text-caption'
           >
             Update access
           </Button>

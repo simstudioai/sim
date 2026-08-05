@@ -77,14 +77,13 @@ import {
   ToastProvider,
   Tooltip,
   Trash,
-  Trash2,
   toast,
   Undo,
   Wrap,
   ZoomIn,
   ZoomOut,
 } from '@sim/emcn'
-import { ArrowLeft, Folder, Moon, Sun } from 'lucide-react'
+import { ArrowLeft, Folder, Moon, Sun } from '@sim/emcn/icons'
 import { notFound, useRouter } from 'next/navigation'
 import { env, isTruthy } from '@/lib/core/config/env'
 
@@ -1050,7 +1049,6 @@ export default function PlaygroundPage() {
                   { Icon: Redo, name: 'Redo' },
                   { Icon: Rocket, name: 'Rocket' },
                   { Icon: Trash, name: 'Trash' },
-                  { Icon: Trash2, name: 'Trash2' },
                   { Icon: Undo, name: 'Undo' },
                   { Icon: Wrap, name: 'Wrap' },
                   { Icon: ZoomIn, name: 'ZoomIn' },

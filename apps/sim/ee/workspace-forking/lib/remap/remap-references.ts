@@ -859,14 +859,20 @@ export function remapForkSubBlocks(
     // under a MANUAL (advanced-active) parent passes through verbatim; a condition-hidden
     // subblock is rewritten but never detected.
     const dormant = gates.isDormantMember(subBlockKey)
-    const verbatimManualDependent = !dormant && gates.isManualParentDependent(subBlockKey)
-    const detectionSkipped =
-      dormant || verbatimManualDependent || gates.isConditionHidden(subBlockKey)
+    // Verbatim (user-owned: never remapped, never a mapping requirement) covers the ACTIVE
+    // advanced member itself as well as every dependent scoped to it. `clearDependentsOnRemap`
+    // already spares an active manual member from a parent remap; naming it here applies the
+    // same policy on the detect/rewrite side, which until now held only because every shipped
+    // pair's advanced member is a plain `short-input` carrying no resource definition.
+    const verbatimManual =
+      !dormant &&
+      (gates.isActiveManualMember(subBlockKey) || gates.isManualParentDependent(subBlockKey))
+    const detectionSkipped = dormant || verbatimManual || gates.isConditionHidden(subBlockKey)
     if (dormant && isNonEmptyValue(value)) {
       value = ''
     }
 
-    if (definition && forkKind && subBlockType && !verbatimManualDependent) {
+    if (definition && forkKind && subBlockType && !verbatimManual) {
       const parsed = parseWorkflowSearchSubBlockResources(value, {
         type: subBlockType as SubBlockType,
       })

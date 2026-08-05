@@ -6,6 +6,7 @@ import { generateId } from '@sim/utils/id'
 import type { GenericOAuthConfig } from 'better-auth/plugins'
 import { syntheticConnectorEmail } from '@/lib/auth/connector-email'
 import { env } from '@/lib/core/config/env'
+import { inspectConfiguredOAuthClient } from '@/lib/core/config/env-capabilities.server'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseJsonWithLimit,
@@ -99,7 +100,7 @@ interface AttioWorkspaceMemberResponse {
  * `any`.
  */
 export function buildConnectorProviders(): GenericOAuthConfig[] {
-  return [
+  const providers: GenericOAuthConfig[] = [
     {
       providerId: 'google-email',
       clientId: env.GOOGLE_CLIENT_ID as string,
@@ -2498,4 +2499,8 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       },
     },
   ]
+
+  return providers.filter(
+    ({ providerId }) => inspectConfiguredOAuthClient(providerId).state === 'ready'
+  )
 }

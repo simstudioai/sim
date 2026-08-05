@@ -91,7 +91,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
 
   return (
     <div className='w-full max-w-full overflow-hidden pl-[2px] opacity-100 transition-opacity duration-200'>
-      <div className='whitespace-pre-wrap break-words font-[470] font-season text-[var(--text-primary)] text-sm leading-[1.25rem]'>
+      <div className='whitespace-pre-wrap break-words font-medium font-season text-[var(--text-primary)] text-sm leading-[1.25rem]'>
         <WordWrap text={formattedContent} />
         {message.isStreaming && <StreamingIndicator />}
       </div>

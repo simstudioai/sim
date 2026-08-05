@@ -2,17 +2,17 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, cn, DashedDividerLine, FieldDivider, Loader, Tooltip } from '@sim/emcn'
-import { isEqual } from 'es-toolkit'
 import {
   BookOpen,
   Check,
   ChevronDown,
   ChevronUp,
-  ExternalLink,
   Lock,
   Pencil,
+  SquareArrowUpRight,
   Unlock,
-} from 'lucide-react'
+} from '@sim/emcn/icons'
+import { isEqual } from 'es-toolkit'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { useShallow } from 'zustand/react/shallow'
@@ -399,11 +399,11 @@ export function Editor() {
                     handleCancelRename()
                   }
                 }}
-                className='min-w-0 flex-1 truncate bg-transparent pr-2 font-medium text-[var(--text-primary)] text-sm outline-none'
+                className='min-w-0 flex-1 truncate bg-transparent pr-2 text-[var(--text-primary)] text-sm outline-none'
               />
             ) : (
               <h2
-                className='min-w-0 flex-1 cursor-pointer select-none text-ellipsis whitespace-nowrap pr-2 font-medium text-[var(--text-primary)] text-sm [overflow-clip-margin:3px] [overflow:clip]'
+                className='min-w-0 flex-1 cursor-pointer select-none text-ellipsis whitespace-nowrap pr-2 text-[var(--text-primary)] text-sm [overflow-clip-margin:3px] [overflow:clip]'
                 title={title}
                 onDoubleClick={handleStartRename}
                 onMouseDown={(e) => {
@@ -538,7 +538,7 @@ export function Editor() {
                 {isWorkflowBlock && childWorkflowId && (
                   <>
                     <div className='subblock-content flex flex-col gap-[9.5px]'>
-                      <div className='pl-0.5 font-medium text-[var(--text-primary)] text-small leading-none'>
+                      <div className='pl-0.5 text-[var(--text-primary)] text-small leading-none'>
                         Workflow Preview
                       </div>
                       <div className='relative h-[160px] overflow-hidden rounded-sm border border-[var(--border)]'>
@@ -568,7 +568,7 @@ export function Editor() {
                                   onClick={handleOpenChildWorkflow}
                                   className='absolute right-[6px] bottom-1.5 z-10 size-[24px] cursor-pointer border border-[var(--border)] bg-[var(--surface-2)] p-0 hover-hover:bg-[var(--surface-4)]'
                                 >
-                                  <ExternalLink className='size-[12px]' />
+                                  <SquareArrowUpRight className='size-[12px]' />
                                 </Button>
                               </Tooltip.Trigger>
                               <Tooltip.Content side='top'>Open workflow</Tooltip.Content>
@@ -670,7 +670,7 @@ export function Editor() {
                         <button
                           type='button'
                           onClick={handleToggleAdvancedMode}
-                          className='flex items-center gap-1.5 whitespace-nowrap font-medium text-[var(--text-secondary)] text-small hover-hover:text-[var(--text-primary)]'
+                          className='flex items-center gap-1.5 whitespace-nowrap text-[var(--text-secondary)] text-small hover-hover:text-[var(--text-primary)]'
                         >
                           {displayAdvancedOptions
                             ? 'Hide additional fields'
@@ -685,7 +685,7 @@ export function Editor() {
                     {hasAdvancedOnlyFields && !canEditBlock && displayAdvancedOptions && (
                       <div className='flex items-center gap-2.5 px-0.5 pt-3.5 pb-3'>
                         <DashedDividerLine className='flex-1' />
-                        <span className='whitespace-nowrap font-medium text-[var(--text-secondary)] text-small'>
+                        <span className='whitespace-nowrap text-[var(--text-secondary)] text-small'>
                           Additional fields
                         </span>
                         <DashedDividerLine className='flex-1' />
@@ -774,9 +774,7 @@ export function Editor() {
                       (!isConnectionsAtMinHeight ? ' rotate-180' : '')
                     }
                   />
-                  <div className='font-medium text-[var(--text-primary)] text-small'>
-                    Connections
-                  </div>
+                  <div className='text-[var(--text-primary)] text-small'>Connections</div>
                 </div>
 
                 {/* Connections Content - Always visible */}

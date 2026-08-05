@@ -75,7 +75,7 @@ export function parseEnv(content: string): Map<string, string> {
   const vars = new Map<string, string>()
   for (const line of content.split('\n')) {
     const match = LINE_RE.exec(line)
-    if (match && !vars.has(match[1])) vars.set(match[1], parseValue(match[2]))
+    if (match) vars.set(match[1], parseValue(match[2]))
   }
   return vars
 }
@@ -95,7 +95,11 @@ export function upsertEnv(content: string, key: string, value: string): string {
   const lines = content.split('\n')
   const activeRe = new RegExp(`^\\s*(?:export\\s+)?${key}\\s*=`)
   const commentedRe = new RegExp(`^#\\s*${key}\\s*=`)
-  const activeIdx = lines.findIndex((l) => activeRe.test(l))
+  const activeIndexes = lines.flatMap((line, index) => (activeRe.test(line) ? [index] : []))
+  if (activeIndexes.length > 1) {
+    throw new Error(`Duplicate active ${key} entries found in environment file`)
+  }
+  const activeIdx = activeIndexes[0] ?? -1
   const idx = activeIdx !== -1 ? activeIdx : lines.findIndex((l) => commentedRe.test(l))
   const newLine = `${key}=${value}`
   if (idx === -1) {
@@ -108,8 +112,33 @@ export function upsertEnv(content: string, key: string, value: string): string {
   return lines.join('\n')
 }
 
-/** Writes values into an env file, seeding a missing file from its .env.example. */
-export function writeEnvValues(target: EnvTarget, values: Record<string, string>): void {
+/** Applies removals and replacements to one in-memory snapshot before it is written. */
+export function reconcileEnvContent(
+  content: string,
+  remove: readonly string[],
+  values: Record<string, string>
+): string {
+  const replacementKeys = new Set(Object.keys(values))
+  const removalKeys = new Set(remove.filter((key) => !replacementKeys.has(key)))
+  let reconciled = content
+    .split('\n')
+    .filter((line) => {
+      const match = LINE_RE.exec(line)
+      return !match || !removalKeys.has(match[1])
+    })
+    .join('\n')
+  for (const [key, value] of Object.entries(values)) {
+    reconciled = upsertEnv(reconciled, key, value)
+  }
+  return reconciled
+}
+
+/** Computes removals and replacements before writing the env file once. */
+export function reconcileEnvValues(
+  target: EnvTarget,
+  remove: readonly string[],
+  values: Record<string, string>
+): void {
   const filePath = ENV_PATHS[target]
   let content: string
   if (existsSync(filePath)) {
@@ -118,10 +147,12 @@ export function writeEnvValues(target: EnvTarget, values: Record<string, string>
     const example = EXAMPLE_PATHS[target]
     content = example && existsSync(example) ? readFileSync(example, 'utf8') : ''
   }
-  for (const [key, value] of Object.entries(values)) {
-    content = upsertEnv(content, key, value)
-  }
-  writeFileSync(filePath, content)
+  writeFileSync(filePath, reconcileEnvContent(content, remove, values))
+}
+
+/** Writes values into an env file, seeding a missing file from its .env.example. */
+export function writeEnvValues(target: EnvTarget, values: Record<string, string>): void {
+  reconcileEnvValues(target, [], values)
 }
 
 export function archiveEnvFile(target: EnvTarget): string | null {
@@ -162,7 +193,7 @@ export function secretRequirement(key: string): string {
 }
 
 export function isPlaceholder(value: string): boolean {
-  return PLACEHOLDER_VALUES.has(value) || value.startsWith('your_')
+  return PLACEHOLDER_VALUES.has(value) || value.startsWith('your_') || value.startsWith('your-')
 }
 
 /**

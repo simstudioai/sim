@@ -12,7 +12,7 @@
 :root {
   --sidebar-width: 0px; /* 0 outside workspace; blocking script always sets actual value on workspace pages */
   --sidebar-collapsed-width: 51px; /* icon rail on web; desktop overrides to 0 before first paint */
-  --sidebar-expanded-width: 248px; /* SIDEBAR_WIDTH.DEFAULT; the width to restore to, held even while collapsed */
+  --sidebar-expanded-width: 238px; /* SIDEBAR_WIDTH.DEFAULT; the width to restore to, held even while collapsed */
   --desktop-title-bar-height: 0px; /* macOS traffic-light lane; desktop overrides before first paint */
   --workspace-content-title-bar-inset: 0px; /* lane the content pane must leave clear; only non-zero when the pane, not the sidebar, sits under it */
   --desktop-title-bar-inset-x: 0px; /* clearance past the traffic lights; desktop overrides */
@@ -23,6 +23,12 @@
   --editor-connections-height: 172px; /* EDITOR_CONNECTIONS_HEIGHT.DEFAULT */
   --terminal-height: 206px; /* TERMINAL_HEIGHT.DEFAULT */
   --output-panel-width: 560px; /* OUTPUT_PANEL_WIDTH.DEFAULT */
+  /**
+   * Neutral border and divider thickness. Standard-density displays cannot draw
+   * a sub-pixel line crisply, so they keep a full pixel; the hidpi override below
+   * thins it. Consumed by Tailwind's `border*`, `divide-*`, and `h-px`/`w-px`.
+   */
+  --border-width: 1px;
   --auth-primary-btn-bg: #ffffff;
   --auth-primary-btn-border: #ffffff;
   --auth-primary-btn-text: #000000;
@@ -48,6 +54,26 @@
   --shadow-kbd: 0 4px 0 0 rgba(48, 48, 48, 1);
   --shadow-kbd-sm: 0 2px 0 0 rgba(48, 48, 48, 1);
   --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.04);
+  /**
+   * The scale's around-shape entry: one layer like every other, borrowing
+   * `--shadow-subtle`'s alpha and `--shadow-medium`'s blur, with the y-offset
+   * dropped so the spread lands evenly on all four sides instead of pooling
+   * underneath. For a raised surface that floats in open space (the chat input);
+   * the directional entries above still own menus, cards, and overlays.
+   */
+  --shadow-ambient: 0 0 12px 0 rgba(0, 0, 0, 0.08);
+}
+
+/**
+ * One device pixel on high-density displays. Browsers floor a border to whole
+ * device pixels, so every value in (0, 1px) collapses to this same hairline and
+ * the next drawable step is a full 1px — i.e. double. Line weight between those
+ * two is therefore tuned on `--border`, never here.
+ */
+@media (min-resolution: 2dppx) {
+  :root {
+    --border-width: 0.5px;
+  }
 }
 
 /**
@@ -312,9 +338,7 @@ html.sidebar-booting .sidebar-shell-inner {
     --surface-2: #ffffff; /* blocks, cards, modals - pure white */
     --surface-3: #f7f7f7; /* popovers, headers */
     --surface-4: #f5f5f5; /* buttons base */
-    --border: #dedede; /* primary border */
     --surface-5: #f3f3f3; /* inputs, form elements */
-    --border-1: #e0e0e0; /* stronger border */
     --surface-6: #e5e5e5; /* popovers, elevated surfaces */
     --surface-7: #d9d9d9;
     --surface-hover: #f2f2f2; /* hover state */
@@ -326,19 +350,23 @@ html.sidebar-booting .sidebar-shell-inner {
     --text-primary: #1a1a1a;
     --text-secondary: #525252;
     --text-tertiary: #5c5c5c;
-    --text-muted: #707070;
+    --text-muted: #7a7a7a;
     --text-subtle: #8c8c8c;
-    --text-body: #3b3b3b;
-    --text-icon: #525252;
+    --text-body: #434343;
+    --text-icon: #5a5a5a;
+    --text-icon-muted: #5c5c5c;
 
     --text-inverse: #ffffff;
     --text-muted-inverse: #a0a0a0;
     --text-error: #ef4444;
 
     /* Borders / dividers */
-    --divider: #ededed;
-    --border-muted: #e4e4e4;
+    --border: #d8d8d8;
     --border-success: #e0e0e0;
+
+    /** Legacy neutral-border aliases. New work should use --border. */
+    --border-1: var(--border);
+    --border-muted: var(--border);
 
     /* Brand & state */
     --brand-agent: #6f3dfa;
@@ -359,11 +387,6 @@ html.sidebar-booting .sidebar-shell-inner {
 
     /* Utility */
     --white: #ffffff;
-
-    /* Font weights - lighter for light mode */
-    --font-weight-base: 420;
-    --font-weight-medium: 440;
-    --font-weight-semibold: 500;
 
     /* Landing / marketing - text (static dark-section colors) */
     --landing-text: #ececec;
@@ -470,9 +493,7 @@ html.sidebar-booting .sidebar-shell-inner {
     --surface-2: #232323;
     --surface-3: #242424;
     --surface-4: #292929;
-    --border: #333333;
     --surface-5: #363636;
-    --border-1: #3d3d3d;
     --surface-6: #454545;
     --surface-7: #505050;
     --surface-hover: #262626; /* hover state */
@@ -484,19 +505,23 @@ html.sidebar-booting .sidebar-shell-inner {
     --text-primary: #e6e6e6;
     --text-secondary: #cccccc;
     --text-tertiary: #b3b3b3;
-    --text-muted: #787878;
+    --text-muted: #6e6e6e;
     --text-subtle: #7d7d7d;
-    --text-body: #cdcdcd;
-    --text-icon: #a0a0a0;
+    --text-body: #c1c1c1;
+    --text-icon: #969696;
+    --text-icon-muted: #949494;
 
     --text-inverse: #1b1b1b;
     --text-muted-inverse: #b3b3b3;
     --text-error: #ef4444;
 
-    /* --border-strong: #303030; */
-    --divider: #393939;
-    --border-muted: #424242;
+    /* Borders / dividers */
+    --border: #444444;
     --border-success: #575757;
+
+    /** Legacy neutral-border aliases. New work should use --border. */
+    --border-1: var(--border);
+    --border-muted: var(--border);
 
     /* Brand & state */
     --brand-agent: #701ffc;
@@ -517,11 +542,6 @@ html.sidebar-booting .sidebar-shell-inner {
 
     /* Utility */
     --white: #ffffff;
-
-    /* Font weights - standard weights for dark mode */
-    --font-weight-base: 420;
-    --font-weight-medium: 480;
-    --font-weight-semibold: 550;
 
     /* Code editor (dark mode overrides) */
     --code-bg: #1f1f1f;
@@ -598,6 +618,8 @@ html.sidebar-booting .sidebar-shell-inner {
 
     /* Shadow scale - dark */
     --shadow-overlay: 0 10px 30px rgba(0, 0, 0, 0.3);
+    /* Same 2.7x light-to-dark alpha step --shadow-overlay takes (0.11 -> 0.3). */
+    --shadow-ambient: 0 0 12px 0 rgba(0, 0, 0, 0.22);
   }
 }
 
@@ -634,6 +656,15 @@ html.sidebar-booting .sidebar-shell-inner {
     scrollbar-gutter: stable;
     text-rendering: optimizeSpeed;
     letter-spacing: 0.28px;
+  }
+
+  /* Completes Preflight, which resets h1-h6 to `inherit` but leaves `th` at the
+     UA `bold`. Without this a table header, and every label, input, and button
+     inside it, silently renders at 700 — so `font-medium` on a header reads as
+     a step DOWN, and removing it makes the header heavier. Normalized here once
+     rather than neutralized at each `<th>`. */
+  th {
+    font-weight: inherit;
   }
 
   /* Ensure visible text caret across inputs and editors */

@@ -316,7 +316,7 @@ If you prefer not to use Docker or Dev Containers. **All commands run from the r
    ```bash
    bun run type-check   # TypeScript across every workspace
    bun run lint:check   # Biome lint across every workspace
-   bun run test         # Vitest across every workspace
+   bun run test         # Setup CLI Bun tests, then Vitest across every workspace
    ```
 
 ### Email Template Development
