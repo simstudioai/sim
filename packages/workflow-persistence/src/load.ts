@@ -83,6 +83,7 @@ export async function loadWorkflowFromNormalizedTablesRaw(
         horizontalHandles: block.horizontalHandles,
         advancedMode: block.advancedMode,
         triggerMode: block.triggerMode,
+        retry: (block.retry as BlockState['retry']) ?? undefined,
         height: Number(block.height),
         subBlocks: (block.subBlocks as BlockState['subBlocks']) || {},
         outputs: (block.outputs as BlockState['outputs']) || {},

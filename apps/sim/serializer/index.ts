@@ -442,6 +442,7 @@ export class Serializer {
         serializedBlock.config?.params?.triggerMode === true ||
         serializedBlock.metadata?.category === 'triggers',
       advancedMode: serializedBlock.config?.params?.advancedMode === true,
+      ...(serializedBlock.retry ? { retry: serializedBlock.retry } : {}),
     }
   }
 }

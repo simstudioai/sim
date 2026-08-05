@@ -40,6 +40,7 @@ export async function saveWorkflowToNormalizedTables(
         horizontalHandles: block.horizontalHandles ?? true,
         advancedMode: block.advancedMode ?? false,
         triggerMode: block.triggerMode ?? false,
+        retry: block.retry ?? null,
         height: String(block.height || 0),
         subBlocks: block.subBlocks || {},
         outputs: block.outputs || {},

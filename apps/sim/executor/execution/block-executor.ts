@@ -428,6 +428,12 @@ export class BlockExecutor {
           error: normalizeError(error),
         })
         await sleep(delayMs)
+        /**
+         * Re-checked after the wait, not only before it: `sleep` is not abort-aware,
+         * so a run cancelled during backoff would otherwise start another attempt
+         * against a workflow that has already stopped.
+         */
+        if (ctx.abortSignal?.aborted === true) throw error
       }
     }
   }

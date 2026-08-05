@@ -1,3 +1,9 @@
+import {
+  BLOCK_RETRY_MAX_ATTEMPTS,
+  BLOCK_RETRY_MAX_WAIT_MS,
+  BLOCK_RETRY_MIN_ATTEMPTS,
+  BLOCK_RETRY_MIN_WAIT_MS,
+} from '@sim/workflow-types/workflow'
 import { z } from 'zod'
 import {
   requiredFieldSchema,
@@ -51,6 +57,20 @@ const workflowEdgeHandleSchema = z
   .nullish()
   .transform((value) => value ?? undefined)
 
+const workflowBlockRetrySchema = z.object({
+  maxAttempts: z
+    .number()
+    .int()
+    .min(BLOCK_RETRY_MIN_ATTEMPTS, `maxAttempts must be at least ${BLOCK_RETRY_MIN_ATTEMPTS}`)
+    .max(BLOCK_RETRY_MAX_ATTEMPTS, `maxAttempts cannot exceed ${BLOCK_RETRY_MAX_ATTEMPTS}`),
+  waitMs: z
+    .number()
+    .int()
+    .min(BLOCK_RETRY_MIN_WAIT_MS, 'waitMs cannot be negative')
+    .max(BLOCK_RETRY_MAX_WAIT_MS, `waitMs cannot exceed ${BLOCK_RETRY_MAX_WAIT_MS}ms`)
+    .optional(),
+})
+
 const workflowBlockStateSchema = z.object({
   id: z.string(),
   type: z.string(),
@@ -65,6 +85,7 @@ const workflowBlockStateSchema = z.object({
   triggerMode: z.boolean().optional(),
   data: workflowBlockDataSchema.optional(),
   locked: z.boolean().optional(),
+  retry: workflowBlockRetrySchema.optional(),
 })
 
 const workflowEdgeSchema = z.object({

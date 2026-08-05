@@ -107,7 +107,13 @@ export function isRetryableBlockError(error: unknown): boolean {
      */
     if (ChildWorkflowError.isChildWorkflowError(current)) return false
 
-    const candidate = current as { name?: string; code?: string; status?: number; message?: string }
+    const candidate = current as {
+      name?: string
+      code?: string
+      status?: number
+      statusCode?: number
+      message?: string
+    }
 
     /**
      * An abort is a deliberate stop — a user pressing Stop, or a block timeout
@@ -118,9 +124,13 @@ export function isRetryableBlockError(error: unknown): boolean {
 
     if (candidate.name === 'TimeoutError') return true
     if (candidate.code && RETRYABLE_ERROR_CODES.has(candidate.code)) return true
-    if (typeof candidate.status === 'number' && RETRYABLE_HTTP_STATUSES.has(candidate.status)) {
-      return true
-    }
+    /**
+     * Both spellings are read: `HttpError` and the generic tool layer expose
+     * `statusCode`, while provider and SDK errors use `status`. Reading only one
+     * silently excludes most integration blocks from status-based retry.
+     */
+    const httpStatus = candidate.status ?? candidate.statusCode
+    if (typeof httpStatus === 'number' && RETRYABLE_HTTP_STATUSES.has(httpStatus)) return true
     if (candidate.message?.includes(BUN_SOCKET_CLOSED_MESSAGE)) return true
 
     current = (current as { cause?: unknown }).cause
