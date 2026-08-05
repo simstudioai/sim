@@ -154,6 +154,8 @@ export interface ChipModalHeaderProps extends React.HTMLAttributes<HTMLDivElemen
   icon?: React.ComponentType<{ className?: string }> | null
   /** Invoked when the trailing close button is activated. Always rendered. */
   onClose: () => void
+  /** Disables the trailing close button while an operation is in flight. */
+  closeDisabled?: boolean
   /** Accessible label for the close button. */
   closeAriaLabel?: string
 }
@@ -164,7 +166,15 @@ export interface ChipModalHeaderProps extends React.HTMLAttributes<HTMLDivElemen
  */
 const ChipModalHeader = React.forwardRef<HTMLDivElement, ChipModalHeaderProps>(
   (
-    { className, children, icon: Icon = null, onClose, closeAriaLabel = 'Close', ...props },
+    {
+      className,
+      children,
+      icon: Icon = null,
+      onClose,
+      closeDisabled = false,
+      closeAriaLabel = 'Close',
+      ...props
+    },
     ref
   ) => (
     <div ref={ref} className={cn('flex flex-col', className)} {...props}>
@@ -177,6 +187,7 @@ const ChipModalHeader = React.forwardRef<HTMLDivElement, ChipModalHeaderProps>(
           type='button'
           variant='ghost'
           onClick={onClose}
+          disabled={closeDisabled}
           className='relative size-[14px] flex-shrink-0 p-0 before:absolute before:inset-[-14px] before:content-[""]'
         >
           <X className='size-[14px] text-[var(--text-icon)]' />
