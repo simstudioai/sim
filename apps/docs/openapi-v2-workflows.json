@@ -1536,6 +1536,173 @@
         }
       }
     },
+    "/api/v2/workflows/{id}/executions/{executionId}/resume": {
+      "post": {
+        "operationId": "resumeWorkflowExecutionV2",
+        "summary": "Resume a workflow execution",
+        "description": "Resumes one human-in-the-loop pause context on the parent execution. The resumed attempt receives a new execution ID. Sync attempts return the execution resource, stream attempts return Server-Sent Events, and async or serialized attempts return a 202 receipt whose `statusUrl` is the v2 execution resource.",
+        "tags": ["Workflows"],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkflowId"
+          },
+          {
+            "name": "executionId",
+            "in": "path",
+            "required": true,
+            "description": "The execution ID of the paused parent run.",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "The pause context to resume and its optional input. Bodies over 10 MB and unknown keys are rejected.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["contextId"],
+                "properties": {
+                  "contextId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "The context ID of the human-in-the-loop pause point."
+                  },
+                  "input": {
+                    "description": "Input supplied to the paused block."
+                  }
+                }
+              },
+              "example": {
+                "contextId": "ctx_123",
+                "input": {
+                  "approved": true,
+                  "comments": "Looks good to proceed"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The completed, failed, paused, or cancelled resume execution resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/ExecutionResource"
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "executionId": "resume_exec_1",
+                    "workflowId": "wf_123",
+                    "status": "completed",
+                    "output": {
+                      "result": "approved"
+                    },
+                    "error": null,
+                    "durationMs": 420
+                  }
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "The resume is queued. Poll `statusUrl` using the returned resume execution ID.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": ["executionId", "statusUrl"],
+                      "properties": {
+                        "executionId": {
+                          "type": "string"
+                        },
+                        "statusUrl": {
+                          "type": "string"
+                        },
+                        "queuePosition": {
+                          "type": "integer",
+                          "minimum": 1
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "executionId": "resume_exec_1",
+                    "statusUrl": "https://www.sim.ai/api/v2/workflows/wf_123/executions/resume_exec_1"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "The pause context cannot be resumed in its current state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "423": {
+            "$ref": "#/components/responses/Locked"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "description": "Resume execution infrastructure temporarily unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v2/workflows/{id}/executions/{executionId}/cancel": {
       "post": {
         "operationId": "cancelExecutionV2",

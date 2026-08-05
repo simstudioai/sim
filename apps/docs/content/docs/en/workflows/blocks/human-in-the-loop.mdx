@@ -88,14 +88,15 @@ Access resume data in downstream blocks using `<blockId.fieldName>`.
   <Tab>
     ### REST API
     
-    Programmatically resume workflows using the resume endpoint. The `contextId` is available from the block's `resumeEndpoint` output or from the `_resume` object in the paused execution response.
+    Programmatically resume workflows through the v2 execution resource. The `contextId` is available from the block's `resumeEndpoint` output or from the `_resume` object in the paused execution response.
     
     ```bash
-    POST /api/resume/{workflowId}/{executionId}/{contextId}
+    POST /api/v2/workflows/{workflowId}/executions/{executionId}/resume
     Content-Type: application/json
     X-API-Key: your-api-key
     
     {
+      "contextId": "<contextId>",
       "input": {
         "approved": true,
         "comments": "Looks good to proceed"
@@ -109,11 +110,16 @@ Access resume data in downstream blocks using `<blockId.fieldName>`.
     
     ```json
     {
-      "success": true,
-      "status": "completed",
-      "executionId": "<resumeExecutionId>",
-      "output": { ... },
-      "metadata": { "duration": 1234, "startTime": "...", "endTime": "..." }
+      "data": {
+        "executionId": "<resumeExecutionId>",
+        "workflowId": "<workflowId>",
+        "status": "completed",
+        "output": { ... },
+        "error": null,
+        "startedAt": "...",
+        "endedAt": "...",
+        "durationMs": 1234
+      }
     }
     ```
     
@@ -125,11 +131,10 @@ Access resume data in downstream blocks using `<blockId.fieldName>`.
     
     ```json
     {
-      "success": true,
-      "async": true,
-      "executionId": "<resumeExecutionId>",
-      "message": "Resume execution queued",
-      "statusUrl": "/api/v2/workflows/<workflowId>/executions/<resumeExecutionId>"
+      "data": {
+        "executionId": "<resumeExecutionId>",
+        "statusUrl": "/api/v2/workflows/<workflowId>/executions/<resumeExecutionId>"
+      }
     }
     ```
     
@@ -143,6 +148,14 @@ Access resume data in downstream blocks using `<blockId.fieldName>`.
     ```
     
     Returns the execution status and, when completed, the full workflow output.
+
+    The legacy endpoint remains available without behavior changes for existing integrations:
+
+    ```bash
+    POST /api/resume/{workflowId}/{executionId}/{contextId}
+    ```
+
+    Its async response continues to expose `jobId` and the legacy `/api/jobs/{jobId}` polling URL.
     
     To check on a paused execution's pause points and resume links:
     

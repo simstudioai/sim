@@ -874,9 +874,10 @@
                 "example": {
                   "success": true,
                   "async": true,
+                  "jobId": "job_4a3b2c1d0e",
                   "executionId": "f0b3d8c2-7e5a-4b9d-8c1f-6a4e2d0b9c58",
                   "message": "Resume execution queued",
-                  "statusUrl": "https://www.sim.ai/api/v2/workflows/81f661e1-d704-4861-b5c1-5bb3cf57e6a7/executions/f0b3d8c2-7e5a-4b9d-8c1f-6a4e2d0b9c58"
+                  "statusUrl": "https://www.sim.ai/api/jobs/job_4a3b2c1d0e"
                 }
               }
             }
