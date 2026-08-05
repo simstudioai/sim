@@ -1,5 +1,5 @@
 {
-  "id": "07492469-d5c5-4f3c-8533-7511d58f68e9",
+  "id": "69d4797a-bffe-4083-b484-50d8c8dd7329",
   "prevId": "8ffb620a-92ff-49d1-95be-a429b4c04e52",
   "version": "7",
   "dialect": "postgresql",
@@ -17200,6 +17200,66 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.workspace_file_secret_provenance": {
+      "name": "workspace_file_secret_provenance",
+      "schema": "",
+      "columns": {
+        "file_id": {
+          "name": "file_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "content_updated_at": {
+          "name": "content_updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entries": {
+          "name": "entries",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "workspace_file_secret_provenance_file_id_workspace_files_id_fk": {
+          "name": "workspace_file_secret_provenance_file_id_workspace_files_id_fk",
+          "tableFrom": "workspace_file_secret_provenance",
+          "tableTo": "workspace_files",
+          "columnsFrom": ["file_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "workspace_file_secret_provenance_status_check": {
+          "name": "workspace_file_secret_provenance_status_check",
+          "value": "\"workspace_file_secret_provenance\".\"status\" IN ('exact', 'unknown')"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.workspace_files": {
       "name": "workspace_files",
       "schema": "",
@@ -17302,6 +17362,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "secret_provenance_version": {
+          "name": "secret_provenance_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {

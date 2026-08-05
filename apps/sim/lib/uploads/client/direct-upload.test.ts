@@ -34,6 +34,7 @@ const presigned = (overrides?: Partial<PresignedUploadInfo>): PresignedUploadInf
 
 class MockXHR {
   static instances: MockXHR[] = []
+  static results: Array<{ event: 'load' | 'error'; status?: number; statusText?: string }> = []
   upload = { addEventListener: vi.fn() }
   status = 200
   statusText = 'OK'
@@ -42,7 +43,10 @@ class MockXHR {
   setRequestHeader = vi.fn()
   abort = vi.fn()
   send = vi.fn(() => {
-    queueMicrotask(() => this.listeners.load?.forEach((cb) => cb()))
+    const result = MockXHR.results.shift() ?? { event: 'load' as const, status: 200 }
+    this.status = result.status ?? this.status
+    this.statusText = result.statusText ?? this.statusText
+    queueMicrotask(() => this.listeners[result.event]?.forEach((cb) => cb()))
   })
   addEventListener = (event: string, cb: () => void) => {
     ;(this.listeners[event] ??= []).push(cb)
@@ -58,6 +62,7 @@ describe('runUploadStrategy', () => {
 
   beforeEach(() => {
     MockXHR.instances = []
+    MockXHR.results = []
     originalXHR = globalThis.XMLHttpRequest
     globalThis.XMLHttpRequest = MockXHR as unknown as typeof XMLHttpRequest
   })
@@ -80,6 +85,86 @@ describe('runUploadStrategy', () => {
     expect(result.key).toBe('workspace/ws-1/test.bin')
     expect(MockXHR.instances).toHaveLength(1)
     expect(MockXHR.instances[0].open).toHaveBeenCalledWith('PUT', 'https://s3/presigned')
+  })
+
+  it('accepts a lost PUT response only after the server verifies the signed object receipt', async () => {
+    const file = makeFile(ONE_MB)
+    MockXHR.results.push({ event: 'error' })
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ uploaded: true }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await runUploadStrategy({
+      file,
+      workspaceId: 'ws-1',
+      context: 'knowledge-base',
+      presignedOverride: presigned({ uploadToken: 'signed-receipt-token' }),
+    })
+
+    expect(result.key).toBe('workspace/ws-1/test.bin')
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/files/presigned/verify',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ uploadToken: 'signed-receipt-token' }),
+      })
+    )
+  })
+
+  it('rejects a create-only conflict when the object receipt does not match', async () => {
+    const file = makeFile(ONE_MB)
+    MockXHR.results.push({ event: 'load', status: 412, statusText: 'Precondition Failed' })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ uploaded: false }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          })
+      )
+    )
+
+    await expect(
+      runUploadStrategy({
+        file,
+        workspaceId: 'ws-1',
+        context: 'knowledge-base',
+        presignedOverride: presigned({ uploadToken: 'signed-receipt-token' }),
+      })
+    ).rejects.toMatchObject({
+      code: 'DIRECT_UPLOAD_ERROR',
+      status: 412,
+    })
+  })
+
+  it('accepts a create-only retry conflict when the same upload receipt is present', async () => {
+    const file = makeFile(ONE_MB)
+    MockXHR.results.push({ event: 'load', status: 409, statusText: 'Conflict' })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ uploaded: true }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          })
+      )
+    )
+
+    await expect(
+      runUploadStrategy({
+        file,
+        workspaceId: 'ws-1',
+        context: 'knowledge-base',
+        presignedOverride: presigned({ uploadToken: 'signed-receipt-token' }),
+      })
+    ).resolves.toMatchObject({ key: 'workspace/ws-1/test.bin' })
   })
 
   it('sets Content-Type exactly once when uploadHeaders already carry it (GCS signed uploads)', async () => {
@@ -193,6 +278,71 @@ describe('runUploadStrategy', () => {
         { partNumber: 2, etag: 'etag-x' },
       ],
     })
+  })
+
+  it('retries a lost completion response without aborting or re-uploading parts', async () => {
+    const file = makeFile(LARGE_THRESHOLD + ONE_MB)
+    let completionCalls = 0
+    let abortCalls = 0
+    let partCalls = 0
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input.toString()
+      if (url.includes('action=initiate')) {
+        return new Response(
+          JSON.stringify({
+            uploadId: 'u1',
+            key: '.sim-multipart/receipt/workspace/ws-1/big.bin',
+            uploadToken: 't',
+          }),
+          { status: 200 }
+        )
+      }
+      if (url.includes('action=get-part-urls')) {
+        return new Response(
+          JSON.stringify({
+            presignedUrls: [
+              { partNumber: 1, url: 'https://storage/part1' },
+              { partNumber: 2, url: 'https://storage/part2' },
+            ],
+          }),
+          { status: 200 }
+        )
+      }
+      if (url.startsWith('https://storage/part')) {
+        partCalls++
+        return new Response(null, { status: 200, headers: { ETag: 'etag-x' } })
+      }
+      if (url.includes('action=complete')) {
+        completionCalls++
+        if (completionCalls === 1) throw new TypeError('network response lost')
+        return new Response(
+          JSON.stringify({
+            key: 'workspace/ws-1/big.bin',
+            path: '/api/files/serve/workspace%2Fws-1%2Fbig.bin',
+          }),
+          { status: 200 }
+        )
+      }
+      if (url.includes('action=abort')) {
+        abortCalls++
+        return new Response(null, { status: 200 })
+      }
+      throw new Error(`unexpected url ${url}`)
+    })
+
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await runUploadStrategy({
+      file,
+      workspaceId: 'ws-1',
+      context: 'workspace',
+    })
+
+    expect(result.key).toBe('workspace/ws-1/big.bin')
+    expect(completionCalls).toBe(2)
+    expect(partCalls).toBe(2)
+    expect(abortCalls).toBe(0)
   })
 
   it('rejects with ABORTED when signal is already aborted before PUT begins', async () => {

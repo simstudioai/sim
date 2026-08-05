@@ -4,6 +4,11 @@ import { ExecutionState } from '@/executor/execution/state'
 import { BlockResolver } from './block'
 import { RESOLVED_EMPTY, type ResolutionContext } from './reference'
 
+vi.mock('@/lib/uploads/server/metadata', () => ({
+  insertFileMetadata: vi.fn().mockResolvedValue({ id: 'execution-payload-file' }),
+  deleteFileMetadata: vi.fn().mockResolvedValue(undefined),
+}))
+
 /**
  * Minimal block configs providing only the fields needed by getBlockSchema / getEffectiveBlockOutputs.
  * This avoids loading all 200+ block definition files via the real registry.

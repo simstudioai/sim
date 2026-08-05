@@ -145,7 +145,7 @@ describe('maybeWriteOutputToTable', () => {
     expect(table.id).toBe('tbl_1')
   })
 
-  it('persists canonical aliases and leaves unrelated low-entropy public cells unchanged', async () => {
+  it('preserves typed persistence values while projecting the same result at model egress', async () => {
     const parentRegistry = new ResolvedSecretTraceRegistry([
       {
         name: 'OUTPUT_SECRET',
@@ -161,7 +161,7 @@ describe('maybeWriteOutputToTable', () => {
     parentRegistry.recordResolved('UNRELATED', 'true')
     const toolRegistry = parentRegistry.forkForToolInput({ code: 'return {{OUTPUT_SECRET}}' })
     toolRegistry.recordResolved('OUTPUT_SECRET', 'secret-value')
-    const runtimeRows = [{ name: 'secret-value', age: 30, status: 'true' }]
+    const runtimeRows = [{ name: 'secret-value', age: '123', status: 'true' }]
 
     const result = await maybeWriteOutputToTable(
       FunctionExecute.id,
@@ -173,9 +173,19 @@ describe('maybeWriteOutputToTable', () => {
     expect(result.success).toBe(true)
     const persistedRows = mockReplaceTableRows.mock.calls[0][0].rows
     expect(persistedRows).toEqual([
-      { col_name: '{{OUTPUT_SECRET}}', col_age: 30, col_status: 'true' },
+      { col_name: 'secret-value', col_age: '123', col_status: 'true' },
     ])
-    expect(runtimeRows).toEqual([{ name: 'secret-value', age: 30, status: 'true' }])
+    expect(runtimeRows).toEqual([{ name: 'secret-value', age: '123', status: 'true' }])
+
+    const modelFacing = projectToolResultForCopilot(
+      { success: true, output: { data: { rows: persistedRows } } },
+      toolRegistry
+    )
+    expect(modelFacing.output).toEqual({
+      data: {
+        rows: [{ col_name: '{{OUTPUT_SECRET}}', col_age: '123', col_status: 'true' }],
+      },
+    })
 
     const laterRead = projectToolResultForCopilot(
       { success: true, output: { data: { rows: persistedRows } } },
@@ -184,7 +194,7 @@ describe('maybeWriteOutputToTable', () => {
     expect(laterRead.output).toEqual({ data: { rows: persistedRows } })
   })
 
-  it('does not replace rows when exact persistence provenance is unavailable', async () => {
+  it('preserves legacy table writes when execution provenance is unavailable', async () => {
     const result = await maybeWriteOutputToTable(
       FunctionExecute.id,
       { outputTable: 'tbl_1' },
@@ -192,11 +202,12 @@ describe('maybeWriteOutputToTable', () => {
       buildContext({ resolvedSecretTraceRegistry: undefined })
     )
 
-    expect(result).toEqual({
-      success: false,
-      error: 'Tool output could not be persisted safely because secret provenance was unavailable.',
-    })
-    expect(mockReplaceTableRows).not.toHaveBeenCalled()
+    expect(result.success).toBe(true)
+    expect(mockReplaceTableRows).toHaveBeenCalledWith(
+      expect.objectContaining({ rows: [{ col_name: 'unknown' }] }),
+      expect.anything(),
+      expect.any(String)
+    )
   })
 
   it('fails fast when no row keys match the table columns', async () => {
@@ -310,6 +321,31 @@ describe('maybeWriteReadCsvToTable', () => {
       { col_name: 'Alice', col_age: '30' },
       { col_name: 'Bob', col_age: '40' },
     ])
+  })
+
+  it('preserves typed CSV values when the same bytes are active secret literals', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'NUMBER', plaintext: '123', encryptedValue: 'encrypted-number' },
+      { name: 'BOOLEAN', plaintext: 'true', encryptedValue: 'encrypted-boolean' },
+    ])
+    registry.recordResolved('NUMBER', '123')
+    registry.recordResolved('BOOLEAN', 'true')
+
+    const result = await maybeWriteReadCsvToTable(
+      ReadTool.id,
+      { outputTable: 'tbl_1', path: 'files/people.csv' },
+      { success: true, output: { content: 'name,age,status\nAlice,123,true' } },
+      buildContext({ resolvedSecretTraceRegistry: registry })
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockReplaceTableRows).toHaveBeenCalledWith(
+      expect.objectContaining({
+        rows: [{ col_name: 'Alice', col_age: '123', col_status: 'true' }],
+      }),
+      expect.anything(),
+      expect.any(String)
+    )
   })
 
   it('fails fast when the file headers match no table columns', async () => {

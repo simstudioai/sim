@@ -49,6 +49,10 @@ export const knowledgeCreateDocumentTool: ToolConfig<any, KnowledgeCreateDocumen
   request: {
     url: (params) => `/api/knowledge/${params.knowledgeBaseId}/documents`,
     method: 'POST',
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({ content: params.content }),
+    },
     headers: () => ({
       'Content-Type': 'application/json',
     }),

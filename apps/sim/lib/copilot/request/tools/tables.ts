@@ -9,10 +9,7 @@ import { TraceEvent } from '@/lib/copilot/generated/trace-events-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { withCopilotSpan } from '@/lib/copilot/request/otel'
 import { denyOutputWriteWithoutWritePermission } from '@/lib/copilot/request/tools/permissions'
-import {
-  projectToolErrorMessageForCopilot,
-  projectToolOutputForPersistence,
-} from '@/lib/copilot/request/tools/resolved-secret-result'
+import { projectToolErrorMessageForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import type { RowData, TableDefinition } from '@/lib/table'
 import { buildIdByName, rowDataNameToId } from '@/lib/table/column-keys'
@@ -113,21 +110,6 @@ export async function maybeWriteOutputToTable(
           }
         }
 
-        const persistedRows = projectToolOutputForPersistence(
-          rows,
-          context.resolvedSecretTraceRegistry
-        )
-        if (!persistedRows.safe || !Array.isArray(persistedRows.value)) {
-          span.setAttribute(TraceAttr.CopilotTableOutcome, CopilotTableOutcome.InvalidShape)
-          return {
-            success: false,
-            error: persistedRows.safe
-              ? 'outputTable requires the code to return an array of objects'
-              : persistedRows.error,
-          }
-        }
-        rows = persistedRows.value as Array<Record<string, unknown>>
-
         span.setAttribute(TraceAttr.CopilotTableRowCount, rows.length)
 
         if (rows.length > MAX_OUTPUT_TABLE_ROWS) {
@@ -225,20 +207,11 @@ export async function maybeWriteReadCsvToTable(
         }
 
         const output = result.output as Record<string, unknown>
-        const projectedContent = projectToolOutputForPersistence(
-          (output.content as string) || '',
-          context.resolvedSecretTraceRegistry
-        )
-        if (!projectedContent.safe || typeof projectedContent.value !== 'string') {
+        const content = output.content
+        if (typeof content !== 'string') {
           span.setAttribute(TraceAttr.CopilotTableOutcome, CopilotTableOutcome.InvalidShape)
-          return {
-            success: false,
-            error: projectedContent.safe
-              ? 'File content must be text to import into a table'
-              : projectedContent.error,
-          }
+          return { success: false, error: 'File content must be text to import into a table' }
         }
-        const content = projectedContent.value
         if (!content.trim()) {
           span.setAttribute(TraceAttr.CopilotTableOutcome, CopilotTableOutcome.EmptyContent)
           return { success: false, error: 'File has no content to import into table' }

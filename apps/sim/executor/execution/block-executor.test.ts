@@ -382,7 +382,8 @@ describe('BlockExecutor', () => {
         expect.objectContaining({
           blockId: block.id,
           blockType: BlockType.FUNCTION,
-          error: 'completion failed {{API_KEY}} [RUNTIME_BINDING]',
+          errorType: 'error',
+          hasStack: true,
         })
       )
     })

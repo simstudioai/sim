@@ -8,9 +8,11 @@
  */
 
 import { describe, expect, it } from 'vitest'
+import { knowledgeCreateDocumentTool } from '@/tools/knowledge/create_document'
 import { knowledgeSearchTool } from '@/tools/knowledge/search'
 import { knowledgeUpdateChunkTool } from '@/tools/knowledge/update_chunk'
 import { knowledgeUploadChunkTool } from '@/tools/knowledge/upload_chunk'
+import { knowledgeUpsertDocumentTool } from '@/tools/knowledge/upsert_document'
 
 /**
  * Creates a mock Response object for testing transformResponse
@@ -24,7 +26,7 @@ function createMockResponse(data: unknown): Response {
 }
 
 describe('Knowledge Tools', () => {
-  it('selects only model-bound text for private provenance transport', () => {
+  it('uses private provenance for search and projection for persisted content', () => {
     expect(
       knowledgeSearchTool.request.modelInput?.select({
         knowledgeBaseId: 'kb-1',
@@ -39,7 +41,7 @@ describe('Knowledge Tools', () => {
         documentId: 'doc-1',
         content: 'chunk secret',
       })
-    ).toBe('chunk secret')
+    ).toEqual({ content: 'chunk secret' })
     expect(
       knowledgeUpdateChunkTool.request.modelInput?.select({
         knowledgeBaseId: 'kb-1',
@@ -48,7 +50,61 @@ describe('Knowledge Tools', () => {
         content: 'updated secret',
         enabled: true,
       })
-    ).toBe('updated secret')
+    ).toEqual({ content: 'updated secret' })
+    expect(
+      knowledgeCreateDocumentTool.request.modelInput?.select({
+        knowledgeBaseId: 'kb-1',
+        name: 'document.txt',
+        content: 'document secret',
+      })
+    ).toEqual({ content: 'document secret' })
+    expect(
+      knowledgeUpsertDocumentTool.request.modelInput?.select({
+        knowledgeBaseId: 'kb-1',
+        name: 'document.txt',
+        content: 'replacement secret',
+      })
+    ).toEqual({ content: 'replacement secret' })
+
+    expect(knowledgeSearchTool.request.modelInput?.mode).toBe('private-provenance')
+    expect(knowledgeUploadChunkTool.request.modelInput?.mode).toBe('project')
+    expect(knowledgeUpdateChunkTool.request.modelInput?.mode).toBe('project')
+    expect(knowledgeCreateDocumentTool.request.modelInput?.mode).toBe('project')
+    expect(knowledgeUpsertDocumentTool.request.modelInput?.mode).toBe('project')
+  })
+
+  it('formats projected placeholders into persisted document and chunk content', () => {
+    const createBody = knowledgeCreateDocumentTool.request.body?.({
+      knowledgeBaseId: 'kb-1',
+      name: 'document.txt',
+      content: '{{API_KEY}}',
+    }) as { documents: Array<{ fileUrl: string }> }
+    const createEncoded = createBody.documents[0].fileUrl.split(',')[1]
+    expect(Buffer.from(createEncoded, 'base64').toString('utf8')).toBe('{{API_KEY}}')
+
+    const upsertBody = knowledgeUpsertDocumentTool.request.body?.({
+      knowledgeBaseId: 'kb-1',
+      name: 'document.txt',
+      content: 'Bearer {{API_KEY}}',
+    }) as { fileUrl: string }
+    const upsertEncoded = upsertBody.fileUrl.split(',')[1]
+    expect(Buffer.from(upsertEncoded, 'base64').toString('utf8')).toBe('Bearer {{API_KEY}}')
+
+    expect(
+      knowledgeUploadChunkTool.request.body?.({
+        knowledgeBaseId: 'kb-1',
+        documentId: 'doc-1',
+        content: '{{API_KEY}}',
+      })
+    ).toEqual({ content: '{{API_KEY}}', enabled: true })
+    expect(
+      knowledgeUpdateChunkTool.request.body?.({
+        knowledgeBaseId: 'kb-1',
+        documentId: 'doc-1',
+        chunkId: 'chunk-1',
+        content: 'Bearer {{API_KEY}}',
+      })
+    ).toEqual({ content: 'Bearer {{API_KEY}}' })
   })
 
   describe('knowledgeSearchTool', () => {

@@ -4,7 +4,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { generateWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { copyWorkspaceFileSecretProvenanceInTx } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { downloadFile, uploadFile } from '@/lib/uploads/core/storage-service'
@@ -100,7 +100,7 @@ export function filterForkableChatFiles(
  * copy (`lib/workspaces/fork/copy/copy-files.ts`), adapted for chat-scoped rows.
  */
 export async function planChatFileCopies(params: {
-  tx: DbOrTx
+  tx: DbTransaction
   rows: ForkableChatFileRow[]
   newChatId: string
   userId: string

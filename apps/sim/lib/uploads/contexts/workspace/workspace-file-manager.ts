@@ -25,6 +25,8 @@ import type { DbOrTx } from '@/lib/db/types'
 import { mergeEditIntoLiveFileDoc, notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
 import { getServePathPrefix } from '@/lib/uploads'
 import {
+  EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE,
+  initializeWorkspaceFileSecretProvenanceInTx,
   preserveWorkspaceFileSecretProvenanceInTx,
   replaceWorkspaceFileSecretProvenanceInTx,
   type WorkspaceFileSecretProvenance,
@@ -376,14 +378,12 @@ export async function uploadWorkspaceFile(
           if (!inserted) {
             throw new FileConflictError(uniqueName)
           }
-          if (options?.secretProvenance) {
-            await replaceWorkspaceFileSecretProvenanceInTx(
-              tx,
-              inserted.id,
-              inserted.contentUpdatedAt,
-              options.secretProvenance
-            )
-          }
+          await replaceWorkspaceFileSecretProvenanceInTx(
+            tx,
+            inserted.id,
+            inserted.contentUpdatedAt,
+            options?.secretProvenance ?? EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE
+          )
           const usage = await incrementStorageUsageForBillingContextInTx(
             tx,
             storageBillingContext,
@@ -507,11 +507,23 @@ export async function registerUploadedWorkspaceFile(params: {
     contentType,
     size: verifiedSize,
   }
-  const existing = await findActiveWorkspaceFileByKey(db, key)
-  if (existing) {
-    if (!isSameWorkspaceFileRegistration(existing, registrationIdentity)) {
+  const existing = await db.transaction(async (tx) => {
+    const found = await findActiveWorkspaceFileByKey(tx, key)
+    if (!found) return undefined
+    if (!isSameWorkspaceFileRegistration(found, registrationIdentity)) {
       throw new WorkspaceFileRegistrationConflictError(key)
     }
+    if (found.secretProvenanceVersion === 1) {
+      await initializeWorkspaceFileSecretProvenanceInTx(
+        tx,
+        found.id,
+        found.contentUpdatedAt,
+        EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE
+      )
+    }
+    return found
+  })
+  if (existing) {
     logger.info(`Using existing metadata record for direct upload: ${key}`)
     const pathPrefix = getServePathPrefix()
     return {
@@ -554,6 +566,14 @@ export async function registerUploadedWorkspaceFile(params: {
         if (!isSameWorkspaceFileRegistration(raceWinner, registrationIdentity)) {
           throw new WorkspaceFileRegistrationConflictError(key)
         }
+        if (raceWinner.secretProvenanceVersion === 1) {
+          await initializeWorkspaceFileSecretProvenanceInTx(
+            tx,
+            raceWinner.id,
+            raceWinner.contentUpdatedAt,
+            EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE
+          )
+        }
         return { kind: 'existing', file: raceWinner } as const
       }
 
@@ -561,6 +581,12 @@ export async function registerUploadedWorkspaceFile(params: {
         tx,
         storageBillingContext,
         verifiedSize
+      )
+      await replaceWorkspaceFileSecretProvenanceInTx(
+        tx,
+        inserted.id,
+        inserted.contentUpdatedAt,
+        EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE
       )
       return { kind: 'created', file: inserted, updatedUsage } as const
     })
@@ -738,40 +764,52 @@ export async function trackChatUpload(
     const candidate = suffixedName(fileName, n)
     try {
       if (claimable.kind === 'update') {
-        const updated = await db
-          .update(workspaceFiles)
-          .set({
-            chatId,
-            messageId: messageId ?? null,
-            context: 'mothership',
-            displayName: candidate,
-          })
-          .where(
-            and(
-              eq(workspaceFiles.id, claimable.id),
-              eq(workspaceFiles.userId, userId),
-              eq(workspaceFiles.workspaceId, workspaceId),
-              eq(workspaceFiles.context, 'mothership'),
-              isNull(workspaceFiles.deletedAt),
-              // Compare-and-swap on the chat binding: an upload belongs to one
-              // chat. Two overlapping requests both observe `chat_id IS NULL`,
-              // but only the first satisfies this predicate — the loser matches
-              // zero rows and fails closed instead of stealing the binding and
-              // its delete-cascade lifecycle.
-              or(isNull(workspaceFiles.chatId), eq(workspaceFiles.chatId, chatId))
+        await db.transaction(async (tx) => {
+          const updated = await tx
+            .update(workspaceFiles)
+            .set({
+              chatId,
+              messageId: messageId ?? null,
+              context: 'mothership',
+              displayName: candidate,
+            })
+            .where(
+              and(
+                eq(workspaceFiles.id, claimable.id),
+                eq(workspaceFiles.userId, userId),
+                eq(workspaceFiles.workspaceId, workspaceId),
+                eq(workspaceFiles.context, 'mothership'),
+                isNull(workspaceFiles.deletedAt),
+                // Compare-and-swap on the chat binding: an upload belongs to one
+                // chat. Two overlapping requests both observe `chat_id IS NULL`,
+                // but only the first satisfies this predicate — the loser matches
+                // zero rows and fails closed instead of stealing the binding and
+                // its delete-cascade lifecycle.
+                or(isNull(workspaceFiles.chatId), eq(workspaceFiles.chatId, chatId))
+              )
             )
-          )
-          .returning({ id: workspaceFiles.id })
+            .returning({
+              id: workspaceFiles.id,
+              contentUpdatedAt: workspaceFiles.contentUpdatedAt,
+            })
 
-        if (updated.length === 0) {
-          // The ownership lookup is a separate statement, so re-assert every
-          // predicate here — this UPDATE is the atomic check. A concurrent
-          // `materialize_file` flips the same row to context='workspace' and
-          // clears chatId; matching on id alone would drag that saved file back
-          // into chat scope, hiding it from the Files listing and re-exposing it
-          // to the chat-delete cascade.
-          throw new WorkspaceFileKeyOwnershipError(s3Key)
-        }
+          if (updated.length === 0) {
+            // The ownership lookup is a separate statement, so re-assert every
+            // predicate here — this UPDATE is the atomic check. A concurrent
+            // `materialize_file` flips the same row to context='workspace' and
+            // clears chatId; matching on id alone would drag that saved file back
+            // into chat scope, hiding it from the Files listing and re-exposing it
+            // to the chat-delete cascade.
+            throw new WorkspaceFileKeyOwnershipError(s3Key)
+          }
+
+          await replaceWorkspaceFileSecretProvenanceInTx(
+            tx,
+            updated[0].id,
+            updated[0].contentUpdatedAt,
+            EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE
+          )
+        })
 
         logger.info(
           `Linked existing file record to chat: ${fileName} (display: ${candidate}) for chat ${chatId}`
@@ -781,18 +819,36 @@ export async function trackChatUpload(
 
       const fileId = `wf_${generateShortId()}`
 
-      await db.insert(workspaceFiles).values({
-        id: fileId,
-        key: s3Key,
-        userId,
-        workspaceId,
-        context: 'mothership',
-        chatId,
-        messageId: messageId ?? null,
-        originalName: fileName,
-        displayName: candidate,
-        contentType,
-        size,
+      await db.transaction(async (tx) => {
+        const [inserted] = await tx
+          .insert(workspaceFiles)
+          .values({
+            id: fileId,
+            key: s3Key,
+            userId,
+            workspaceId,
+            context: 'mothership',
+            chatId,
+            messageId: messageId ?? null,
+            originalName: fileName,
+            displayName: candidate,
+            contentType,
+            size,
+          })
+          .returning({
+            id: workspaceFiles.id,
+            contentUpdatedAt: workspaceFiles.contentUpdatedAt,
+          })
+
+        if (!inserted) {
+          throw new Error(`Failed to track chat upload for key: ${s3Key}`)
+        }
+        await replaceWorkspaceFileSecretProvenanceInTx(
+          tx,
+          inserted.id,
+          inserted.contentUpdatedAt,
+          EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE
+        )
       })
 
       logger.info(`Tracked chat upload: ${fileName} (display: ${candidate}) for chat ${chatId}`)
@@ -1210,7 +1266,7 @@ export async function updateWorkspaceFileContent(
     expectedUpdatedAt?: Date
     /**
      * Derived edits must explicitly preserve; trusted whole replacements must explicitly replace.
-     * Omitting the policy leaves prior provenance on the old content version, which reads as unknown.
+     * An omitted policy is classified as unknown rather than inheriting provenance across new bytes.
      */
     secretProvenancePolicy?: WorkspaceFileSecretProvenancePolicy
   }
@@ -1331,8 +1387,13 @@ export async function updateWorkspaceFileContent(
             tx,
             fileId,
             currentFile.contentUpdatedAt,
+            currentFile.secretProvenanceVersion,
             updatedFile.contentUpdatedAt
           )
+        } else {
+          await replaceWorkspaceFileSecretProvenanceInTx(tx, fileId, updatedFile.contentUpdatedAt, {
+            status: 'unknown',
+          })
         }
 
         let updatedUsage: number | undefined

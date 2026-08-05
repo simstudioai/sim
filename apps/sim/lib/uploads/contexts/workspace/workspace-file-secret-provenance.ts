@@ -4,8 +4,8 @@ import {
   workspaceFileSecretProvenance,
   workspaceFiles,
 } from '@sim/db/schema'
-import { and, eq, inArray, isNull } from 'drizzle-orm'
-import type { DbOrTx } from '@/lib/db/types'
+import { and, eq, inArray, isNull, or } from 'drizzle-orm'
+import type { DbTransaction } from '@/lib/db/types'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 export const MAX_WORKSPACE_FILE_SECRET_PROVENANCE_ENTRIES = 10_000
@@ -16,6 +16,11 @@ const MAX_FUNCTION_EXPORT_PROVENANCE_FILES = 20
 export type WorkspaceFileSecretProvenance =
   | { status: 'exact'; entries: readonly WorkspaceFileSecretProvenanceEntry[] }
   | { status: 'unknown' }
+
+export const EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE = Object.freeze({
+  status: 'exact' as const,
+  entries: Object.freeze([]),
+})
 
 export type WorkspaceFileSecretProvenancePolicy =
   | { mode: 'replace'; provenance: WorkspaceFileSecretProvenance }
@@ -41,6 +46,22 @@ export interface WorkspaceFileSecretProvenanceCopySource {
 export interface WorkspaceFileSecretProvenanceEnvelope<T> {
   value: T
   file?: WorkspaceFileSecretProvenanceIdentity
+}
+
+/** Combines byte-contributing classifications without broadening an unknown source. */
+export function mergeWorkspaceFileSecretProvenance(
+  ...provenances: readonly WorkspaceFileSecretProvenance[]
+): WorkspaceFileSecretProvenance {
+  if (provenances.some((provenance) => provenance.status === 'unknown')) {
+    return { status: 'unknown' }
+  }
+
+  return {
+    status: 'exact',
+    entries: provenances.flatMap((provenance) =>
+      provenance.status === 'exact' ? provenance.entries : []
+    ),
+  }
 }
 
 function compareStrings(left: string, right: string): number {
@@ -101,9 +122,34 @@ function isValidStoredEntries(value: unknown): value is WorkspaceFileSecretProve
   return true
 }
 
+async function markWorkspaceFileSecretProvenanceTrackedInTx(
+  tx: DbTransaction,
+  fileId: string,
+  contentUpdatedAt: Date
+): Promise<void> {
+  const [tracked] = await tx
+    .update(workspaceFiles)
+    .set({ secretProvenanceVersion: 1 })
+    .where(
+      and(
+        eq(workspaceFiles.id, fileId),
+        eq(workspaceFiles.contentUpdatedAt, contentUpdatedAt),
+        inArray(workspaceFiles.context, ['workspace', 'mothership']),
+        or(
+          isNull(workspaceFiles.secretProvenanceVersion),
+          eq(workspaceFiles.secretProvenanceVersion, 1)
+        )
+      )
+    )
+    .returning({ id: workspaceFiles.id })
+  if (!tracked) {
+    throw new Error('Workspace file provenance could not bind the tracked content version')
+  }
+}
+
 /** Atomically replaces the private provenance associated with the file's current bytes. */
 export async function replaceWorkspaceFileSecretProvenanceInTx(
-  tx: DbOrTx,
+  tx: DbTransaction,
   fileId: string,
   contentUpdatedAt: Date,
   provenance: WorkspaceFileSecretProvenance
@@ -117,6 +163,7 @@ export async function replaceWorkspaceFileSecretProvenanceInTx(
         target: workspaceFileSecretProvenance.fileId,
         set: { contentUpdatedAt, status: 'exact', entries, updatedAt: new Date() },
       })
+    await markWorkspaceFileSecretProvenanceTrackedInTx(tx, fileId, contentUpdatedAt)
     return
   }
 
@@ -127,13 +174,36 @@ export async function replaceWorkspaceFileSecretProvenanceInTx(
       target: workspaceFileSecretProvenance.fileId,
       set: { contentUpdatedAt, status: 'unknown', entries: [], updatedAt: new Date() },
     })
+  await markWorkspaceFileSecretProvenanceTrackedInTx(tx, fileId, contentUpdatedAt)
+}
+
+/** Initializes provenance for an exact file version without replacing an existing classification. */
+export async function initializeWorkspaceFileSecretProvenanceInTx(
+  tx: DbTransaction,
+  fileId: string,
+  contentUpdatedAt: Date,
+  provenance: WorkspaceFileSecretProvenance
+): Promise<void> {
+  const entries = provenance.status === 'exact' ? normalizeExactEntries(provenance.entries) : []
+  await tx
+    .insert(workspaceFileSecretProvenance)
+    .values({
+      fileId,
+      contentUpdatedAt,
+      status: provenance.status,
+      entries,
+      updatedAt: new Date(),
+    })
+    .onConflictDoNothing()
+  await markWorkspaceFileSecretProvenanceTrackedInTx(tx, fileId, contentUpdatedAt)
 }
 
 /** Advances an intentionally preserved classification to the file's new content version. */
 export async function preserveWorkspaceFileSecretProvenanceInTx(
-  tx: DbOrTx,
+  tx: DbTransaction,
   fileId: string,
   previousContentUpdatedAt: Date,
+  previousSecretProvenanceVersion: number | null,
   nextContentUpdatedAt: Date
 ): Promise<void> {
   const [stored] = await tx
@@ -141,7 +211,17 @@ export async function preserveWorkspaceFileSecretProvenanceInTx(
     .from(workspaceFileSecretProvenance)
     .where(eq(workspaceFileSecretProvenance.fileId, fileId))
     .limit(1)
-  if (!stored) return
+  if (!stored) {
+    await replaceWorkspaceFileSecretProvenanceInTx(
+      tx,
+      fileId,
+      nextContentUpdatedAt,
+      previousSecretProvenanceVersion === null
+        ? EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE
+        : { status: 'unknown' }
+    )
+    return
+  }
   if (stored.contentUpdatedAt.getTime() !== previousContentUpdatedAt.getTime()) {
     await replaceWorkspaceFileSecretProvenanceInTx(tx, fileId, nextContentUpdatedAt, {
       status: 'unknown',
@@ -163,12 +243,14 @@ export async function preserveWorkspaceFileSecretProvenanceInTx(
     await replaceWorkspaceFileSecretProvenanceInTx(tx, fileId, nextContentUpdatedAt, {
       status: 'unknown',
     })
+    return
   }
+  await markWorkspaceFileSecretProvenanceTrackedInTx(tx, fileId, nextContentUpdatedAt)
 }
 
 /** Copies exact provenance for a byte-identical, same-owner-scope file copy; otherwise unknown. */
 export async function copyWorkspaceFileSecretProvenanceInTx(
-  tx: DbOrTx,
+  tx: DbTransaction,
   expectedSource: WorkspaceFileSecretProvenanceCopySource | undefined,
   targetFileId: string
 ): Promise<void> {
@@ -197,6 +279,7 @@ export async function copyWorkspaceFileSecretProvenanceInTx(
       key: workspaceFiles.key,
       userId: workspaceFiles.userId,
       workspaceId: workspaceFiles.workspaceId,
+      secretProvenanceVersion: workspaceFiles.secretProvenanceVersion,
       fileContentUpdatedAt: workspaceFiles.contentUpdatedAt,
       provenanceContentUpdatedAt: workspaceFileSecretProvenance.contentUpdatedAt,
       status: workspaceFileSecretProvenance.status,
@@ -219,7 +302,13 @@ export async function copyWorkspaceFileSecretProvenanceInTx(
     })
     return
   }
-  if (source.status === null) {
+  if (source.secretProvenanceVersion !== null && source.secretProvenanceVersion !== 1) {
+    await replaceWorkspaceFileSecretProvenanceInTx(tx, targetFileId, target.contentUpdatedAt, {
+      status: 'unknown',
+    })
+    return
+  }
+  if (source.status === null && source.secretProvenanceVersion === null) {
     await replaceWorkspaceFileSecretProvenanceInTx(tx, targetFileId, target.contentUpdatedAt, {
       status: 'exact',
       entries: [],
@@ -289,6 +378,7 @@ export async function getBoundWorkspaceFileSecretProvenance(
   const [row] = await db
     .select({
       fileContentUpdatedAt: workspaceFiles.contentUpdatedAt,
+      secretProvenanceVersion: workspaceFiles.secretProvenanceVersion,
       provenanceContentUpdatedAt: workspaceFileSecretProvenance.contentUpdatedAt,
       status: workspaceFileSecretProvenance.status,
       entries: workspaceFileSecretProvenance.entries,
@@ -310,7 +400,14 @@ export async function getBoundWorkspaceFileSecretProvenance(
     .limit(1)
 
   if (!row) return { status: 'unknown' }
-  if (row.status === null) return { status: 'exact', entries: [] }
+  if (row.secretProvenanceVersion !== null && row.secretProvenanceVersion !== 1) {
+    return { status: 'unknown' }
+  }
+  if (row.status === null) {
+    return row.secretProvenanceVersion === null
+      ? { status: 'exact', entries: [] }
+      : { status: 'unknown' }
+  }
   if (
     row.provenanceContentUpdatedAt?.getTime() !== row.fileContentUpdatedAt.getTime() ||
     row.status !== 'exact' ||
@@ -378,7 +475,9 @@ export async function filterModelSafeWorkspaceFileAttachments<
       id: workspaceFiles.id,
       key: workspaceFiles.key,
       workspaceId: workspaceFiles.workspaceId,
+      context: workspaceFiles.context,
       fileContentUpdatedAt: workspaceFiles.contentUpdatedAt,
+      secretProvenanceVersion: workspaceFiles.secretProvenanceVersion,
       provenanceContentUpdatedAt: workspaceFileSecretProvenance.contentUpdatedAt,
       status: workspaceFileSecretProvenance.status,
       entries: workspaceFileSecretProvenance.entries,
@@ -395,9 +494,11 @@ export async function filterModelSafeWorkspaceFileAttachments<
     if (typeof attachment.key !== 'string' || attachment.key.length === 0) return true
     const row = rowByKey.get(attachment.key)
     if (!row) return true
+    if (row.context !== 'workspace' && row.context !== 'mothership') return true
     if (typeof attachment.id !== 'string' || attachment.id !== row.id) return false
     if (options.workspaceId && row.workspaceId !== options.workspaceId) return false
-    if (row.status === null) return true
+    if (row.secretProvenanceVersion !== null && row.secretProvenanceVersion !== 1) return false
+    if (row.status === null) return row.secretProvenanceVersion === null
     if (
       row.provenanceContentUpdatedAt?.getTime() !== row.fileContentUpdatedAt.getTime() ||
       row.status !== 'exact' ||

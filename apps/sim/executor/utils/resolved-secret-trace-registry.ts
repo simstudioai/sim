@@ -523,6 +523,33 @@ export class ResolvedSecretTraceRegistry {
     return fork
   }
 
+  /**
+   * Creates a diagnostic-only registry for compiler aliases present in one log payload.
+   * Every alias must bind to the local catalog; an unknown alias returns `undefined` so
+   * callers can fall back to text-free diagnostics instead of exposing adjacent plaintext.
+   */
+  forkForDiagnosticAliases(aliases: Iterable<string>): ResolvedSecretTraceRegistry | undefined {
+    const fork = this.forkForToolCall()
+    if (!this.complete) return fork
+
+    const requestedAliases = new Set(aliases)
+    const entriesByAlias = new Map<string, ResolvedSecretTraceCatalogEntry[]>()
+    for (const entry of this.catalog.values()) {
+      const alias = `__var_${entry.name.replace(/[^a-zA-Z0-9_]/g, '_')}`
+      const entries = entriesByAlias.get(alias) ?? []
+      entries.push(entry)
+      entriesByAlias.set(alias, entries)
+    }
+    for (const alias of requestedAliases) {
+      const entries = entriesByAlias.get(alias)
+      if (!entries) return undefined
+      for (const entry of entries) {
+        fork.addActiveEntry({ ...entry, anonymous: false })
+      }
+    }
+    return fork
+  }
+
   /** Merges one settled tool-call registry into the turn-scoped registry. */
   mergeToolCallRegistry(child: ResolvedSecretTraceRegistry): void {
     if (!scopesMatch(this.scope, child.scope) || !child.complete || child.pendingActivations > 0) {

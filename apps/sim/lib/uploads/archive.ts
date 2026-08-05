@@ -7,6 +7,7 @@ import {
   deleteWorkspaceFile,
   uploadWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 import type { UserFile } from '@/executor/types'
 
@@ -263,9 +264,16 @@ export async function decompressArchiveBufferToWorkspaceFiles(
     userId: string
     rootFolderSegments?: string[]
     skipNoiseEntries?: boolean
+    secretProvenance?: WorkspaceFileSecretProvenance
   }
 ): Promise<DecompressResult> {
-  const { workspaceId, userId, rootFolderSegments = [], skipNoiseEntries = false } = opts
+  const {
+    workspaceId,
+    userId,
+    rootFolderSegments = [],
+    skipNoiseEntries = false,
+    secretProvenance = { status: 'unknown' },
+  } = opts
 
   assertCentralDirWithinCaps(buffer)
 
@@ -366,6 +374,7 @@ export async function decompressArchiveBufferToWorkspaceFiles(
         mimeType,
         {
           folderId,
+          secretProvenance,
         }
       )
       extracted.push(uploaded)

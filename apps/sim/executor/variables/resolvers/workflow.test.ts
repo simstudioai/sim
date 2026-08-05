@@ -14,6 +14,11 @@ vi.mock('@/lib/workflows/variables/variable-manager', () => ({
   },
 }))
 
+vi.mock('@/lib/uploads/server/metadata', () => ({
+  insertFileMetadata: vi.fn().mockResolvedValue({ id: 'execution-payload-file' }),
+  deleteFileMetadata: vi.fn().mockResolvedValue(undefined),
+}))
+
 /**
  * Creates a minimal ResolutionContext for testing.
  * The WorkflowResolver only uses context.executionContext.workflowVariables,

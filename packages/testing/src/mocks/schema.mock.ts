@@ -596,6 +596,7 @@ export const schemaMock = {
     uploadedAt: 'uploadedAt',
     updatedAt: 'updatedAt',
     contentUpdatedAt: 'contentUpdatedAt',
+    secretProvenanceVersion: 'secretProvenanceVersion',
   },
   workspaceFileSecretProvenance: {
     fileId: 'fileId',

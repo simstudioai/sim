@@ -314,6 +314,35 @@ describe('projectResolvedSecretDiagnosticError', () => {
     })
   })
 
+  it('uses a known compiler alias as diagnostic-only provenance', () => {
+    const secret = 'diagnostic-secret-value'
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'API_KEY', plaintext: secret, encryptedValue: 'ciphertext' },
+    ])
+    const error = new Error(`request failed: ${secret} __var_API_KEY`)
+
+    expect(projectResolvedSecretDiagnosticError(error, registry)).toEqual(
+      expect.objectContaining({ error: 'request failed: {{API_KEY}} {{API_KEY}}' })
+    )
+    expect(registry.getActiveMatches()).toEqual([])
+  })
+
+  it('falls back to text-free diagnostics for unknown or runtime-only aliases', () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'API_KEY', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
+    ])
+
+    expect(
+      projectResolvedSecretDiagnosticError(new Error('secret-value __var_UNKNOWN'), registry)
+    ).toEqual({ errorType: 'error', hasStack: true })
+    expect(
+      projectResolvedSecretDiagnosticError(
+        new Error('secret-value __sim_code_1_binding_0'),
+        registry
+      )
+    ).toEqual({ errorType: 'error', hasStack: true })
+  })
+
   it('falls back to text-free structure when provenance is missing or incomplete', () => {
     const error = new Error('secret __var_API_KEY')
     const registry = new ResolvedSecretTraceRegistry()

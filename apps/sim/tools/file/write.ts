@@ -49,6 +49,10 @@ export const fileWriteTool: ToolConfig<FileWriteParams, ToolResponse> = {
       contentType: params.contentType,
       workspaceId: params.workspaceId || params._context?.workspaceId,
     }),
+    modelInput: {
+      mode: 'private-provenance',
+      select: (params) => params.content,
+    },
   },
 
   transformResponse: async (response) => {

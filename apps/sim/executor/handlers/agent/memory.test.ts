@@ -247,12 +247,12 @@ describe('Memory', () => {
       conversationId: 'conversation-1',
     }
 
-    it('projects dormant secrets before invoking the PII service', async () => {
+    it('does not reinterpret dormant catalog values as secret-bearing memory', async () => {
       const registry = new ResolvedSecretTraceRegistry([
         { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
       ])
       mockRedactObjectStrings.mockImplementationOnce(async (content: unknown) => {
-        expect(content).toBe('Bearer {{TOKEN}}')
+        expect(content).toBe('Bearer secret-value')
         return content
       })
 
@@ -264,7 +264,7 @@ describe('Memory', () => {
         { role: 'user', content: 'Bearer secret-value' }
       )
 
-      expect(result.content).toBe('Bearer {{TOKEN}}')
+      expect(result.content).toBe('Bearer secret-value')
       expect(mockRedactObjectStrings).toHaveBeenCalledOnce()
     })
 
@@ -284,7 +284,7 @@ describe('Memory', () => {
       expect(appendMessage).not.toHaveBeenCalled()
     })
 
-    it('reprojects legacy stored messages before returning them to an Agent', async () => {
+    it('preserves legacy stored messages when no current resolution activated the value', async () => {
       const registry = new ResolvedSecretTraceRegistry([
         { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
       ])
@@ -297,7 +297,7 @@ describe('Memory', () => {
         inputs
       )
 
-      expect(messages).toEqual([{ role: 'assistant', content: 'old {{TOKEN}}' }])
+      expect(messages).toEqual([{ role: 'assistant', content: 'old secret-value' }])
     })
 
     it('uses anonymous replacement for foreign-scope provenance before storage', async () => {
@@ -330,6 +330,7 @@ describe('Memory', () => {
         const registry = new ResolvedSecretTraceRegistry([
           { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
         ])
+        registry.recordResolved('TOKEN', secret)
         const converted = secret === '123' ? 123 : true
         const message: Message = {
           role: 'assistant',

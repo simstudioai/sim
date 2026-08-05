@@ -2,15 +2,11 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { updateKnowledgeChunkContract } from '@/lib/api/contracts/knowledge'
-import { parseJsonBody, parseRequest } from '@/lib/api/server'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { deleteChunk, updateChunk } from '@/lib/knowledge/chunks/service'
-import {
-  prepareKnowledgeModelInputProvenance,
-  runWithKnowledgeModelInputProvenance,
-} from '@/lib/knowledge/model-input-provenance'
 import { checkChunkAccess, checkChunkWriteAccess } from '@/app/api/knowledge/utils'
 
 const logger = createLogger('ChunkByIdAPI')
@@ -81,9 +77,6 @@ export const PUT = withRouteHandler(
       }
       const userId = auth.userId
 
-      const rawBody = await parseJsonBody(req.clone())
-      if (!rawBody.success) return rawBody.response
-
       const accessCheck = await checkChunkWriteAccess(knowledgeBaseId, documentId, chunkId, userId)
 
       if (!accessCheck.hasAccess) {
@@ -114,24 +107,11 @@ export const PUT = withRouteHandler(
 
       const validatedData = parsed.data.body
 
-      const modelInputProvenance = await prepareKnowledgeModelInputProvenance({
-        headers: req.headers,
-        payload: rawBody.data,
-        isInternalRequest: auth.authType === AuthType.INTERNAL_JWT,
-        userId,
-        workspaceId: accessCheck.knowledgeBase?.workspaceId ?? undefined,
-        modelInput: validatedData.content,
-      })
-      if (!modelInputProvenance.success) {
-        return NextResponse.json(
-          { error: modelInputProvenance.error },
-          { status: modelInputProvenance.status }
-        )
-      }
-
-      const updatedChunk = await runWithKnowledgeModelInputProvenance(
-        modelInputProvenance.registry,
-        () => updateChunk(chunkId, validatedData, requestId, accessCheck.knowledgeBase?.workspaceId)
+      const updatedChunk = await updateChunk(
+        chunkId,
+        validatedData,
+        requestId,
+        accessCheck.knowledgeBase?.workspaceId
       )
 
       logger.info(

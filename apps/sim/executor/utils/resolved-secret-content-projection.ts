@@ -89,6 +89,11 @@ interface ProjectionState {
   maxBytes: number
 }
 
+interface InternalDiagnosticIdentifierScan {
+  aliases: Set<string>
+  foundInternalIdentifier: boolean
+}
+
 export interface ResolvedSecretContentProjectionOptions {
   /** Values already materialized and verified by a boundary-specific projector. */
   isOpaqueSafeObject?: (value: object) => boolean
@@ -187,6 +192,65 @@ function* arrayDataEntries(value: readonly unknown[]): Generator<[number, unknow
     }
     yield [index, descriptor.value]
   }
+}
+
+function collectInternalDiagnosticIdentifiers(
+  value: unknown
+): InternalDiagnosticIdentifierScan | undefined {
+  const result: InternalDiagnosticIdentifierScan = {
+    aliases: new Set<string>(),
+    foundInternalIdentifier: false,
+  }
+  const ancestors = new WeakSet<object>()
+  let nodes = 0
+
+  const scanString = (candidate: string): void => {
+    for (const identifier of candidate.match(INTERNAL_DIAGNOSTIC_IDENTIFIER_PATTERN) ?? []) {
+      result.foundInternalIdentifier = true
+      if (identifier.startsWith('__var_')) result.aliases.add(identifier)
+    }
+  }
+
+  const visit = (candidate: unknown, depth: number): boolean => {
+    nodes += 1
+    if (nodes > MAX_CONTENT_NODES || depth > MAX_CONTENT_DEPTH) return false
+    if (typeof candidate === 'string') {
+      scanString(candidate)
+      return true
+    }
+    if (
+      candidate === null ||
+      candidate === undefined ||
+      typeof candidate === 'number' ||
+      typeof candidate === 'boolean'
+    ) {
+      return true
+    }
+    if (typeof candidate !== 'object') return false
+    if (!Array.isArray(candidate) && !isPlainRecord(candidate)) return false
+    if (ancestors.has(candidate)) return false
+
+    ancestors.add(candidate)
+    try {
+      if (Array.isArray(candidate)) {
+        for (const [, item] of arrayDataEntries(candidate)) {
+          if (!visit(item, depth + 1)) return false
+        }
+        return true
+      }
+      for (const [key, item] of enumerableDataEntries(candidate)) {
+        scanString(key)
+        if (!visit(item, depth + 1)) return false
+      }
+      return true
+    } catch {
+      return false
+    } finally {
+      ancestors.delete(candidate)
+    }
+  }
+
+  return visit(value, 0) ? result : undefined
 }
 
 function sanitizeContent(
@@ -441,7 +505,17 @@ export function projectResolvedSecretDiagnosticContent(
   registry: ResolvedSecretTraceRegistry | undefined,
   maxBytes = MAX_INLINE_MATERIALIZATION_BYTES
 ): ResolvedSecretContentProjection {
-  return projectResolvedSecretModelContent(value, registry, maxBytes, {
+  const identifiers = collectInternalDiagnosticIdentifiers(value)
+  if (!identifiers) return { safe: false }
+
+  let diagnosticRegistry = registry
+  if (identifiers.foundInternalIdentifier) {
+    if (!registry || identifiers.aliases.size === 0) return { safe: false }
+    diagnosticRegistry = registry.forkForDiagnosticAliases(identifiers.aliases)
+    if (!diagnosticRegistry) return { safe: false }
+  }
+
+  return projectResolvedSecretModelContent(value, diagnosticRegistry, maxBytes, {
     sanitizeInternalIdentifiers: true,
   })
 }

@@ -24,6 +24,7 @@ import {
 } from '@/lib/uploads/archive'
 import { findWorkspaceFileFolderIdByPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import { fetchWorkspaceFileBuffer } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { getBoundWorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { hasCloudStorage, headObject } from '@/lib/uploads/core/storage-service'
 import { isArchiveFileName } from '@/lib/uploads/utils/file-utils'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
@@ -412,6 +413,11 @@ async function executeExtract(
   let result: DecompressResult
   try {
     const buffer = await fetchWorkspaceFileBuffer(record, { maxBytes: MAX_ARCHIVE_BYTES })
+    const secretProvenance = await getBoundWorkspaceFileSecretProvenance(workspaceId, {
+      fileId: row.id,
+      key: row.key,
+      context: 'mothership',
+    })
     result = await decompressArchiveBufferToWorkspaceFiles(buffer, {
       workspaceId,
       userId,
@@ -419,6 +425,7 @@ async function executeExtract(
       // The agent-facing extract drops macOS/Windows filesystem cruft so the
       // unpacked files/ tree only contains meaningful entries.
       skipNoiseEntries: true,
+      secretProvenance,
     })
   } catch (err) {
     if (err instanceof ArchiveError) {

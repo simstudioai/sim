@@ -9,12 +9,14 @@ const {
   mockAssertBillingAttributionSnapshot,
   mockCheckKnowledgeBaseWriteAccess,
   mockFetch,
+  mockGetBoundWorkspaceFileSecretProvenance,
   mockGenerateInternalToken,
   mockSerializeBillingAttributionHeader,
 } = vi.hoisted(() => ({
   mockAssertBillingAttributionSnapshot: vi.fn(),
   mockCheckKnowledgeBaseWriteAccess: vi.fn(),
   mockFetch: vi.fn(),
+  mockGetBoundWorkspaceFileSecretProvenance: vi.fn(),
   mockGenerateInternalToken: vi.fn(),
   mockSerializeBillingAttributionHeader: vi.fn(),
 }))
@@ -72,6 +74,9 @@ vi.mock('@/lib/knowledge/tags/service', () => ({
 vi.mock('@/lib/uploads', () => ({ StorageService: {} }))
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   resolveWorkspaceFileReference: vi.fn(),
+}))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
+  getBoundWorkspaceFileSecretProvenance: mockGetBoundWorkspaceFileSecretProvenance,
 }))
 vi.mock('@/app/api/knowledge/search/utils', () => ({
   executeKnowledgeSearch: vi.fn(),
@@ -190,6 +195,10 @@ describe('knowledge base add_file usage gate', () => {
       id: 'knowledge-base-1',
       workspaceId: 'workspace-paid',
     } as Awaited<ReturnType<typeof getKnowledgeBaseById>>)
+    mockGetBoundWorkspaceFileSecretProvenance.mockResolvedValue({
+      status: 'exact',
+      entries: [],
+    })
   })
 
   function addFile() {
@@ -230,5 +239,32 @@ describe('knowledge base add_file usage gate', () => {
     await addFile()
 
     expect(checkAttributedUsageLimits).toHaveBeenCalledWith(BILLING_ATTRIBUTION)
+  })
+
+  it('does not index a workspace file containing resolved-secret provenance', async () => {
+    vi.mocked(checkAttributedUsageLimits).mockResolvedValue({
+      isExceeded: false,
+    } as Awaited<ReturnType<typeof checkAttributedUsageLimits>>)
+    vi.mocked(resolveWorkspaceFileReference).mockResolvedValue({
+      id: 'file-1',
+      key: 'workspace/workspace-paid/report.pdf',
+      name: 'report.pdf',
+      size: 100,
+      type: 'application/pdf',
+    } as Awaited<ReturnType<typeof resolveWorkspaceFileReference>>)
+    mockGetBoundWorkspaceFileSecretProvenance.mockResolvedValueOnce({
+      status: 'exact',
+      entries: [{ name: 'API_KEY', encryptedValue: 'encrypted-secret' }],
+    })
+
+    const result = await addFile()
+
+    expect(result.success).toBe(false)
+    expect(mockGetBoundWorkspaceFileSecretProvenance).toHaveBeenCalledWith('workspace-paid', {
+      fileId: 'file-1',
+      key: 'workspace/workspace-paid/report.pdf',
+      context: 'workspace',
+    })
+    expect(createSingleDocument).not.toHaveBeenCalled()
   })
 })

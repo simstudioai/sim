@@ -14,6 +14,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { ensureAbsoluteUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { inspectModelInputProvenanceRequest } from '@/lib/execution/model-input-provenance'
 import {
   PRIVATE_TOOL_METADATA_RESPONSE_HEADER,
   RESOLVED_SECRET_PROVENANCE_FIELD,
@@ -43,6 +44,8 @@ import {
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import {
   getBoundWorkspaceFileSecretProvenance,
+  mergeWorkspaceFileSecretProvenance,
+  type WorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenanceIdentity,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { getFileMetadataByKey } from '@/lib/uploads/server/metadata'
@@ -66,6 +69,7 @@ import {
 } from '@/ee/access-control/utils/permission-check'
 import type { UserFile } from '@/executor/types'
 import {
+  isResolvedSecretTraceProvenanceV1,
   ResolvedSecretTraceProvenanceAccumulator,
   type ResolvedSecretTraceProvenanceV1,
   type ResolvedSecretTraceScopeV1,
@@ -300,6 +304,64 @@ async function getFileContentProvenance(
   }
 
   return accumulator.exportProvenance()
+}
+
+function getTrustedWrittenContentProvenance(options: {
+  headers: Headers
+  payload: unknown
+  userId: string
+  workspaceId: string
+}): WorkspaceFileSecretProvenance {
+  const inspection = inspectModelInputProvenanceRequest(options.headers, options.payload)
+  if (
+    inspection.status !== 'verified' ||
+    !isResolvedSecretTraceProvenanceV1(inspection.value) ||
+    !inspection.value.complete
+  ) {
+    return { status: 'unknown' }
+  }
+
+  const entries = inspection.value.entries
+  if (entries.length === 0) return { status: 'exact', entries: [] }
+  if (
+    inspection.value.scope?.userId !== options.userId ||
+    inspection.value.scope.workspaceId !== options.workspaceId ||
+    entries.some((entry) => !entry.name)
+  ) {
+    return { status: 'unknown' }
+  }
+
+  return {
+    status: 'exact',
+    entries: entries.map((entry) => ({
+      name: entry.name as string,
+      encryptedValue: entry.encryptedValue,
+    })),
+  }
+}
+
+async function deriveWorkspaceFileSecretProvenance(options: {
+  workspaceId: string
+  targetOwnerUserId: string
+  sources: readonly FileContentSource[]
+}): Promise<WorkspaceFileSecretProvenance> {
+  const provenances: WorkspaceFileSecretProvenance[] = []
+  for (const source of options.sources) {
+    if (!source.identity || !source.ownerUserId) return { status: 'unknown' }
+    const provenance = await getBoundWorkspaceFileSecretProvenance(
+      options.workspaceId,
+      source.identity
+    )
+    if (
+      provenance.status === 'exact' &&
+      provenance.entries.length > 0 &&
+      source.ownerUserId !== options.targetOwnerUserId
+    ) {
+      return { status: 'unknown' }
+    }
+    provenances.push(provenance)
+  }
+  return mergeWorkspaceFileSecretProvenance(...provenances)
 }
 
 function fileContentJsonResponse(
@@ -543,13 +605,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         })
         const mimeType = contentType || getMimeTypeFromExtension(getFileExtension(leafName))
         const fileBuffer = Buffer.from(content ?? '', 'utf-8')
+        const secretProvenance = getTrustedWrittenContentProvenance({
+          headers: request.headers,
+          payload: body,
+          userId,
+          workspaceId,
+        })
         const result = await uploadWorkspaceFile(
           workspaceId,
           userId,
           fileBuffer,
           leafName,
           mimeType,
-          { folderId }
+          { folderId, secretProvenance }
         )
 
         logger.info('File created', {
@@ -727,10 +795,40 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         }
 
         try {
+          if (!existing.contentUpdatedAt) {
+            throw new Error('File content version is unavailable')
+          }
+          const existingProvenance = await getBoundWorkspaceFileSecretProvenance(workspaceId, {
+            fileId: existing.id,
+            key: existing.key,
+            context: 'workspace',
+          })
+          const appendedProvenance = getTrustedWrittenContentProvenance({
+            headers: request.headers,
+            payload: body,
+            userId,
+            workspaceId,
+          })
+          const secretProvenance =
+            appendedProvenance.status === 'exact' &&
+            appendedProvenance.entries.length > 0 &&
+            existing.uploadedBy !== userId
+              ? { status: 'unknown' as const }
+              : mergeWorkspaceFileSecretProvenance(existingProvenance, appendedProvenance)
           const existingBuffer = await fetchWorkspaceFileBuffer(existing)
           const finalContent = existingBuffer.toString('utf-8') + content
           const fileBuffer = Buffer.from(finalContent, 'utf-8')
-          await updateWorkspaceFileContent(workspaceId, existing.id, userId, fileBuffer)
+          await updateWorkspaceFileContent(
+            workspaceId,
+            existing.id,
+            userId,
+            fileBuffer,
+            undefined,
+            {
+              expectedUpdatedAt: existing.contentUpdatedAt,
+              secretProvenancePolicy: { mode: 'replace', provenance: secretProvenance },
+            }
+          )
 
           logger.info('File appended', {
             fileId: existing.id,
@@ -788,6 +886,25 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           selectedInputFiles.map((file) => ({ file, folderPath: null }))
         )
         const userFiles: UserFile[] = archiveEntries.map((entry) => entry.file)
+        const canonicalArchiveSources: FileContentSource[] = workspaceFiles.flatMap((file) => {
+          const userFile = workspaceFileToUserFile(file)
+          if (!file || !userFile) return []
+          return [
+            {
+              file: userFile,
+              identity: { fileId: file.id, key: file.key, context: 'workspace' },
+              ownerUserId: file.uploadedBy,
+            },
+          ]
+        })
+        const selectedArchiveSources = await Promise.all(
+          selectedInputFiles.map((file) => bindSelectedContentFile(workspaceId, file))
+        )
+        const archiveProvenance = await deriveWorkspaceFileSecretProvenance({
+          workspaceId,
+          targetOwnerUserId: userId,
+          sources: canonicalArchiveSources.concat(selectedArchiveSources),
+        })
 
         // Mirror the workspace folder layout, dropping the ancestor chain the whole
         // selection shares so archiving one folder does not nest it under its parents.
@@ -848,7 +965,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           zipBuffer,
           leafName,
           'application/zip',
-          { folderId }
+          { folderId, secretProvenance: archiveProvenance }
         )
 
         const compressedFile: UserFile = {
@@ -921,12 +1038,32 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         const archiveBuffer = await downloadFileFromStorage(archive, requestId, logger, {
           maxBytes: MAX_ARCHIVE_BYTES,
         })
+        const canonicalArchiveSource: FileContentSource[] = workspaceFiles.flatMap((file) => {
+          const userFile = workspaceFileToUserFile(file)
+          if (!file || !userFile) return []
+          return [
+            {
+              file: userFile,
+              identity: { fileId: file.id, key: file.key, context: 'workspace' },
+              ownerUserId: file.uploadedBy,
+            },
+          ]
+        })
+        const selectedArchiveSource = await Promise.all(
+          selectedInputFiles.map((file) => bindSelectedContentFile(workspaceId, file))
+        )
+        const archiveProvenance = await deriveWorkspaceFileSecretProvenance({
+          workspaceId,
+          targetOwnerUserId: userId,
+          sources: canonicalArchiveSource.concat(selectedArchiveSource),
+        })
 
         let result: DecompressResult
         try {
           result = await decompressArchiveBufferToWorkspaceFiles(archiveBuffer, {
             workspaceId,
             userId,
+            secretProvenance: archiveProvenance,
           })
         } catch (archiveError) {
           if (archiveError instanceof ArchiveError) {

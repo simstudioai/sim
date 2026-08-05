@@ -50,6 +50,7 @@ import {
 } from '@/lib/knowledge/tags/service'
 import { StorageService } from '@/lib/uploads'
 import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { getBoundWorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { executeKnowledgeSearch } from '@/app/api/knowledge/search/utils'
 import {
   checkDocumentWriteAccess,
@@ -366,6 +367,16 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           for (const fileRef of fileRefs) {
             const fileRecord = await resolveWorkspaceFileReference(kbWorkspaceId, fileRef)
             if (!fileRecord) {
+              failedFiles.push(fileRef)
+              continue
+            }
+
+            const fileProvenance = await getBoundWorkspaceFileSecretProvenance(kbWorkspaceId, {
+              fileId: fileRecord.id,
+              key: fileRecord.key,
+              context: 'workspace',
+            })
+            if (fileProvenance.status !== 'exact' || fileProvenance.entries.length > 0) {
               failedFiles.push(fileRef)
               continue
             }

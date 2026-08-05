@@ -128,11 +128,11 @@ describe('LoggingSession diagnostic projection', () => {
     const secret = 'logging-session-secret-7f3a91'
     const error = new Error(`failed ${secret} __var_API_KEY __sim_code_2_binding_1`)
     const session = new LoggingSession('workflow-1', 'execution-1', 'manual')
-    session.setResolvedSecretTraceRegistry(
-      new ResolvedSecretTraceRegistry([
-        { name: 'API_KEY', plaintext: secret, encryptedValue: 'encrypted-api-key' },
-      ])
-    )
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'API_KEY', plaintext: secret, encryptedValue: 'encrypted-api-key' },
+    ])
+    registry.recordResolved('API_KEY', secret)
+    session.setResolvedSecretTraceRegistry(registry)
 
     const diagnostic = session.projectDiagnosticError(error, { workflowId: 'workflow-1' })
 

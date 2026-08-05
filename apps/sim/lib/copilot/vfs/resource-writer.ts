@@ -11,7 +11,10 @@ import {
   uploadWorkspaceFile,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import {
+  EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE,
+  type WorkspaceFileSecretProvenance,
+} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 
 export type WorkspaceFileWriteMode = 'create' | 'overwrite'
 
@@ -216,7 +219,10 @@ export async function writeWorkspaceFileByPath(args: {
     args.buffer,
     createTarget.fileName,
     contentType,
-    { folderId: createTarget.folderId, secretProvenance: args.secretProvenance }
+    {
+      folderId: createTarget.folderId,
+      secretProvenance: args.secretProvenance ?? EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE,
+    }
   )
 
   return {

@@ -99,6 +99,7 @@ import {
   fetchWorkspaceFileBuffer,
   resolveWorkspaceFileReference,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { getBoundWorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import {
   type FlattenedBlockOutput,
   flattenWorkflowOutputs,
@@ -135,6 +136,18 @@ async function resolveWorkspaceFileRecordOrThrow(fileReference: string, workspac
       `File not found: "${fileReference}". Use glob("files/**") and read the canonical file path metadata to find workspace files.`
     )
   }
+
+  const provenance = await getBoundWorkspaceFileSecretProvenance(workspaceId, {
+    fileId: record.id,
+    key: record.key,
+    context: 'workspace',
+  })
+  if (provenance.status !== 'exact' || provenance.entries.length > 0) {
+    throw new Error(
+      `Cannot import "${fileReference}": the file cannot be verified as free of resolved secrets.`
+    )
+  }
+
   return record
 }
 

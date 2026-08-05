@@ -61,6 +61,10 @@ export const knowledgeUpsertDocumentTool: ToolConfig<
   request: {
     url: (params) => `/api/knowledge/${params.knowledgeBaseId}/documents/upsert`,
     method: 'POST',
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({ content: params.content }),
+    },
     headers: () => ({
       'Content-Type': 'application/json',
     }),

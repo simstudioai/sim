@@ -1934,6 +1934,13 @@ export const workspaceFiles = pgTable(
      * is covered without per-call plumbing. Only a content write (upload / overwrite) advances it.
      */
     contentUpdatedAt: timestamp('content_updated_at').notNull().defaultNow(),
+    /**
+     * Durable cutover marker for content secret provenance. NULL is reserved for legacy rows and
+     * writes from app versions that predate tracking. Provenance-aware writers set version 1 in the
+     * same transaction as the matching sidecar. A tracked version without a matching sidecar fails
+     * closed.
+     */
+    secretProvenanceVersion: integer('secret_provenance_version'),
   },
   (table) => ({
     keyActiveUniqueIdx: uniqueIndex('workspace_files_key_active_unique')
