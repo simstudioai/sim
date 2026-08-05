@@ -1,4 +1,4 @@
-import type { CliContract, ColumnSpec } from './types.js'
+import type { CliContract, ColumnSpec, CommandVariantSpec } from './types.js'
 
 const TABLE_NAME_HELP = 'Identifier: letters, numbers, and underscores; cannot start with a number'
 const TABLE_FILTER_HELP =
@@ -18,12 +18,28 @@ const FOLDER_DELETE_FLAGS = {
   path: FOLDER_PATH_INPUT,
   recursive: { boolean: true, describe: 'Delete the folder and its descendants' },
 } as const
+const KNOWLEDGE_DOCUMENT_SCOPE = {
+  id: {
+    name: 'kb',
+    placeholder: 'knowledgeBaseId',
+    describe: 'Knowledge base ID',
+  },
+} as const
 const FOLDER_LIST_COLUMNS: ColumnSpec[] = [
   { header: 'path' },
   { header: 'name' },
   { header: 'parent', path: 'parentPath' },
   { header: 'updated', path: 'updatedAt', format: 'timestamp' },
 ]
+
+function moveResource(command: string, resource: string): CommandVariantSpec {
+  return {
+    command,
+    positionals: ['folderPath'],
+    requestFields: ['folderPath'],
+    describe: `Move a ${resource} to a folder`,
+  }
+}
 
 /**
  * The CLI contract for the v2 surface.
@@ -34,7 +50,7 @@ const FOLDER_LIST_COLUMNS: ColumnSpec[] = [
  *
  * Derived by default:
  *   listTables            → sim tables list
- *   getKnowledgeDocument  → sim knowledge documents get <id> <documentId>
+ *   getKnowledgeDocument  → sim documents get <documentId> --kb <knowledgeBaseId>
  *   upsertTableRow        → sim tables upsert <tableId>
  */
 export const CLI_CONTRACT: CliContract = {
@@ -54,6 +70,12 @@ export const CLI_CONTRACT: CliContract = {
   listUsageLogs: {
     command: 'billing logs',
     describe: 'List credit usage events',
+    flags: {
+      source: { describe: 'Filter by usage source' },
+      period: { describe: 'Billing period' },
+      startDate: { describe: 'Custom period start (ISO 8601)' },
+      endDate: { describe: 'Custom period end (ISO 8601)' },
+    },
     columns: [
       { header: 'at', path: 'createdAt', format: 'timestamp' },
       { header: 'source' },
@@ -99,7 +121,11 @@ export const CLI_CONTRACT: CliContract = {
     fields: [{ header: 'remaining columns', path: 'columns', format: 'count' }],
   },
   deleteKnowledgeBase: { confirm: 'This deletes the knowledge base and every document in it.' },
-  deleteKnowledgeDocument: { confirm: 'This deletes the document and its embeddings.' },
+  deleteKnowledgeDocument: {
+    command: 'documents delete',
+    pathFlags: KNOWLEDGE_DOCUMENT_SCOPE,
+    confirm: 'This deletes the document and its embeddings.',
+  },
   deleteFile: { confirm: 'This archives the file.' },
   deleteSkill: { confirm: 'This deletes the skill.' },
   deleteCustomTool: { confirm: 'This deletes the custom tool.' },
@@ -223,7 +249,7 @@ export const CLI_CONTRACT: CliContract = {
     },
   },
   updateTable: {
-    aliases: ['mv'],
+    variants: [moveResource('tables mv', 'table')],
     flags: {
       name: { describe: TABLE_NAME_HELP },
       folderPath: FOLDER_PATH_FLAG,
@@ -231,9 +257,15 @@ export const CLI_CONTRACT: CliContract = {
   },
   createFile: { flags: { folderPath: FOLDER_PATH_FLAG } },
   createKnowledgeBase: { flags: { folderPath: FOLDER_PATH_FLAG } },
-  updateKnowledgeBase: { aliases: ['mv'], flags: { folderPath: FOLDER_PATH_FLAG } },
+  updateKnowledgeBase: {
+    variants: [moveResource('knowledge mv', 'knowledge base')],
+    flags: { folderPath: FOLDER_PATH_FLAG },
+  },
   createWorkflow: { flags: { folderPath: FOLDER_PATH_FLAG } },
-  updateWorkflow: { aliases: ['mv'], flags: { folderPath: FOLDER_PATH_FLAG } },
+  updateWorkflow: {
+    variants: [moveResource('workflows mv', 'workflow')],
+    flags: { folderPath: FOLDER_PATH_FLAG },
+  },
   importWorkflow: { flags: { folderPath: FOLDER_PATH_FLAG } },
   createCustomTool: { flags: { schema: { json: true, describe: CUSTOM_TOOL_SCHEMA_HELP } } },
   updateCustomTool: { flags: { schema: { json: true, describe: CUSTOM_TOOL_SCHEMA_HELP } } },
@@ -285,7 +317,13 @@ export const CLI_CONTRACT: CliContract = {
       { header: 'model', path: 'embeddingModel' },
     ],
   },
+  getKnowledgeDocument: {
+    command: 'documents get',
+    pathFlags: KNOWLEDGE_DOCUMENT_SCOPE,
+  },
   listKnowledgeDocuments: {
+    command: 'documents list',
+    pathFlags: KNOWLEDGE_DOCUMENT_SCOPE,
     columns: [
       { header: 'id' },
       { header: 'filename' },
@@ -601,7 +639,7 @@ export const CLI_CONTRACT: CliContract = {
   },
 
   // ─── Not a terminal-shaped operation ──────────────────────────────────────
-  // Multipart upload; `sim knowledge documents upload <id> <path>` needs its
+  // Multipart upload; `sim documents upload <path> --kb <id>` needs its
   // own file-reading command rather than a generated flag surface.
   uploadKnowledgeDocument: { hidden: true },
   createKnowledgeDocumentUpload: { hidden: true },

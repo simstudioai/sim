@@ -62,14 +62,16 @@ function uploadSession() {
   }
 }
 
-describe('knowledge documents upload', () => {
+describe('documents upload', () => {
   it('owns the multipart protocol while hiding its low-level operations', () => {
-    const knowledge = program().commands.find((command) => command.name() === 'knowledge')
+    const root = program()
+    const knowledge = root.commands.find((command) => command.name() === 'knowledge')
     expect(knowledge?.commands.map((command) => command.name())).not.toEqual(
-      expect.arrayContaining(['uploads', 'parts', 'complete'])
+      expect.arrayContaining(['documents', 'uploads', 'parts', 'complete'])
     )
 
-    const documents = knowledge?.commands.find((command) => command.name() === 'documents')
+    const documents = root.commands.find((command) => command.name() === 'documents')
+    expect(documents?.alias()).toBe('document')
     expect(documents?.commands.map((command) => command.name())).toContain('upload')
   })
 
@@ -131,11 +133,11 @@ describe('knowledge documents upload', () => {
     await program().parseAsync([
       'node',
       'sim',
-      'knowledge',
       'documents',
       'upload',
-      'kb_1',
       path,
+      '--kb',
+      'kb_1',
       '--tag',
       'customer',
       'priority',
@@ -189,11 +191,11 @@ describe('knowledge documents upload', () => {
       program().parseAsync([
         'node',
         'sim',
-        'knowledge',
         'documents',
         'upload',
-        'kb_1',
         path,
+        '--kb',
+        'kb_1',
         '--tag',
         '1',
         '2',
@@ -205,6 +207,16 @@ describe('knowledge documents upload', () => {
         '8',
       ])
     ).rejects.toThrow(/at most seven/)
+    expect(mockRequest).not.toHaveBeenCalled()
+  })
+
+  it('requires an explicit knowledge-base scope before reading the file', async () => {
+    const path = join(dir, 'notes.txt')
+    writeFileSync(path, 'hello')
+
+    await expect(
+      program().parseAsync(['node', 'sim', 'documents', 'upload', path])
+    ).rejects.toThrow(/required option '--kb <knowledgeBaseId>'/)
     expect(mockRequest).not.toHaveBeenCalled()
   })
 })

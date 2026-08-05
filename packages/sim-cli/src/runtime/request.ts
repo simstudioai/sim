@@ -34,6 +34,11 @@ export function flagNameFor(operation: V2OperationName, field: string): string {
   return flagSpecFor(operation, field).name ?? kebab(field)
 }
 
+/** The named option used for a path parameter that is contextual rather than primary. */
+export function pathFlagNameFor(commandSpec: CommandSpec, param: string): string {
+  return commandSpec.pathFlags?.[param]?.name ?? kebab(param)
+}
+
 export function takesJson(field: FieldSpec, flag: FlagSpec): boolean {
   return flag.json === true || JSON_KINDS.has(field.kind)
 }
@@ -234,9 +239,11 @@ function asQueryValue(value: unknown): QueryValue {
  * Assembles one operation's HTTP request from positional args, parsed flags,
  * and the profile's workspace.
  *
- * Path params come from positional arguments in declared order; every other
- * field is looked up by its flag name in the slot the contract declares it in,
- * so a field that moved from query to body moves here on the next regeneration.
+ * Primary path params come from positional arguments in declared order. A
+ * contextual path param can instead come from a named option declared by the
+ * CLI contract. Every other field is looked up by its flag name in the slot the
+ * API contract declares it in, so a field that moved from query to body moves
+ * here on the next regeneration.
  */
 export function buildRequest(
   operation: V2OperationName,
@@ -255,12 +262,23 @@ export function buildRequest(
   }
 
   let path = spec.path
-  spec.pathParams.forEach((param, index) => {
-    const value = positional[index]
-    if (value === undefined) throw new SimApiError(`Missing <${param}>`, 0)
+  let positionalIndex = 0
+  for (const param of spec.pathParams) {
+    const pathFlag = commandSpec.pathFlags?.[param]
+    const flagName = pathFlagNameFor(commandSpec, param)
+    const value = pathFlag ? flags[camel(flagName)] : positional[positionalIndex++]
+    if (value === undefined) {
+      throw new SimApiError(pathFlag ? `--${flagName} is required` : `Missing <${param}>`, 0)
+    }
+    if (typeof value !== 'string' || value.length === 0) {
+      throw new SimApiError(
+        pathFlag ? `--${flagName} cannot be empty` : `<${param}> cannot be empty`,
+        0
+      )
+    }
     // Ids are opaque; an unencoded `/` or `?` would silently retarget the request.
     path = path.replace(`[${param}]`, encodeURIComponent(value))
-  })
+  }
 
   const query: Record<string, QueryValue> = {}
   const body: Record<string, unknown> = {}

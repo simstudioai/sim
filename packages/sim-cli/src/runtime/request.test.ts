@@ -61,6 +61,14 @@ describe('buildRequest', () => {
     expect(buildRequest('getTable', ['a/b?c'], {}, WORKSPACE).path).toBe('/api/v2/tables/a%2Fb%3Fc')
   })
 
+  it('combines a named parent scope with a positional resource id in route order', () => {
+    expect(buildRequest('getKnowledgeDocument', ['doc_1'], { kb: 'kb_1' }, WORKSPACE)).toEqual({
+      path: '/api/v2/knowledge/kb_1/documents/doc_1',
+      query: { workspaceId: WORKSPACE },
+      body: undefined,
+    })
+  })
+
   describe('failures, all before any network call', () => {
     it('rejects a missing path arg', () => {
       expect(() => buildRequest('getTable', [], {}, WORKSPACE)).toThrow('Missing <tableId>')
@@ -69,6 +77,12 @@ describe('buildRequest', () => {
     it('rejects a missing required flag', () => {
       expect(() => buildRequest('upsertTableRow', ['t'], {}, WORKSPACE)).toThrow(
         '--data is required'
+      )
+    })
+
+    it('rejects a missing named path scope', () => {
+      expect(() => buildRequest('getKnowledgeDocument', ['doc_1'], {}, WORKSPACE)).toThrow(
+        '--kb is required'
       )
     })
 

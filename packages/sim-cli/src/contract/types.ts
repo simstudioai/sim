@@ -6,8 +6,7 @@ import type { V2OperationName } from '../generated/v2-api.js'
  * Most of a command is derivable and is NOT stated here. Method, path, path
  * params, field types, enum values, defaults, and required-ness all come from
  * the generated operation table, which comes from the Zod route contracts. The
- * command name itself derives from `<resource> <sub-resource> <verb>` for 41 of
- * the 44 operations.
+ * command name itself usually derives from `<resource> <sub-resource> <verb>`.
  *
  * This file carries only what a schema cannot say:
  *
@@ -17,6 +16,8 @@ import type { V2OperationName } from '../generated/v2-api.js'
  * - `flags` — when a field's *type* misdescribes its *meaning*. `workflowIds`
  *   is `z.string()` that the route splits on commas; nothing in the schema says
  *   "list". Also friendlier aliases (`conflictTarget` → `--on`).
+ * - `pathFlags` — when a parent path segment is command context rather than the
+ *   resource being acted on (`documents get <documentId> --kb <id>`).
  * - `columns` — which of a response's fields belong in a table. Editorial.
  * - `confirm` — which operations are destructive enough to demand `--yes`.
  *
@@ -62,6 +63,18 @@ export interface FlagSpec {
   omit?: boolean
 }
 
+/** How a route path parameter is exposed as a required named option. */
+export interface PathFlagSpec {
+  /** Flag name, kebab-case, without `--`. Defaults to the kebab-cased path parameter. */
+  name?: string
+  /** Help placeholder without angle brackets. Defaults to `value`. */
+  placeholder?: string
+  /** Short alias, e.g. `k` for `--kb`. */
+  short?: string
+  /** One-line help for the scope selected by this path parameter. */
+  describe?: string
+}
+
 /** A column in table-mode output. */
 export interface ColumnSpec {
   /** Header, and the default path into the row when `value` is omitted. */
@@ -83,6 +96,17 @@ export interface BodyVariantSpec {
   describe: string
 }
 
+export interface CommandVariantSpec {
+  /** Full alternate command path, such as `workflows mv`. */
+  command: string
+  /** Request fields exposed as required positional arguments. */
+  positionals?: readonly string[]
+  /** Request fields available on this narrower command surface. */
+  requestFields?: readonly string[]
+  /** One-line help for the alternate command. */
+  describe?: string
+}
+
 export interface CommandSpec {
   /**
    * Command path, space-separated. Omit to accept the derived
@@ -93,8 +117,14 @@ export interface CommandSpec {
   groupDefault?: boolean
   /** Alternate leaf command names, such as `ls` for `list`. */
   aliases?: readonly string[]
-  /** Required query/body fields exposed as positional arguments, in order. */
+  /** Route path parameters exposed as required named options instead of positionals. */
+  pathFlags?: Record<string, PathFlagSpec>
+  /** Request fields exposed as required positional arguments, in order. */
   positionals?: readonly string[]
+  /** Restrict this command to these request fields; profile fields remain implicit. */
+  requestFields?: readonly string[]
+  /** Additional command shapes backed by the same API operation. */
+  variants?: readonly CommandVariantSpec[]
   /** One-line help. Falls back to the OpenAPI summary for the operation. */
   describe?: string
   /** Per-field flag overrides, keyed by the contract's field name. */

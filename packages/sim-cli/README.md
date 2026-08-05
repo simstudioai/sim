@@ -112,13 +112,15 @@ also accepts its singular form: for example, `sim table list`,
 `sim file download`, and `sim workflow get` are equivalent to their plural
 spellings.
 
-`knowledge` also accepts the shorter `kb` alias.
+`knowledge` also accepts the shorter `kb` alias, and `documents` accepts
+`document`.
 
 ```bash
 sim workflows ls [path] [--search <text>] [--limit <n>]
 sim workflows list [--folder <path>] [--deployed-only] [--limit <n>]
 sim workflows get <id>
-sim workflows mv <id> --folder <path>
+sim workflows update <id> [--name <name>] [--description <text>] [--folder <path>]
+sim workflows mv <id> <folder>
 sim workflows deploy|undeploy|rollback <id>
 sim workflows run <id> [--input <json|@file>] [--select-output <path>…]
 
@@ -129,7 +131,8 @@ sim logs execution <executionId>
 sim tables ls [path] [--search <text>] [--limit <n>]
 sim tables list [--folder <path>]
 sim tables get <tableId>
-sim tables mv <tableId> --folder <path>
+sim tables update <tableId> [--name <name>] [--description <text>] [--folder <path>]
+sim tables mv <tableId> <folder>
 sim tables columns <tableId>
 sim tables rows list <tableId> [--limit <n>]
 sim tables rows create <tableId> --data <json|@file>
@@ -152,10 +155,14 @@ sim files delete <fileId> --yes
 sim knowledge ls [path] [--search <text>] [--limit <n>]
 sim knowledge list [--folder <path>]
 sim knowledge get <id>
-sim knowledge mv <id> --folder <path>
-sim knowledge documents <id> [--search <text>]
-sim knowledge documents upload <id> <path> [--tag <value>...]
+sim knowledge update <id> [--name <name>] [--description <text>] [--folder <path>]
+sim knowledge mv <id> <folder>
 sim knowledge search --query <text> --kb <id>… [--search-mode vector|hybrid]
+
+sim documents list --kb <knowledgeBaseId> [--search <text>]
+sim documents get <documentId> --kb <knowledgeBaseId>
+sim documents upload <path> --kb <knowledgeBaseId> [--tag <value>...]
+sim documents delete <documentId> --kb <knowledgeBaseId> --yes
 
 sim billing
 sim billing logs [--period 7d] [--limit <n>]

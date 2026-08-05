@@ -6,6 +6,7 @@ import {
   flagNameFor,
   flagSpecFor,
   PROFILE_INJECTED_FIELD,
+  pathFlagNameFor,
   takesJson,
 } from './request.js'
 import type { OperationSpec } from './types.js'
@@ -57,9 +58,7 @@ function addFieldOption(
   const wantsJson = takesJson(descriptor, flag)
   const placeholder = takesList ? '<value...>' : wantsJson ? '<json|@file>' : '<value>'
   const choices = flag.choices ?? descriptor.values
-  const describe = `${
-    flag.describe ?? (choices ? `One of: ${choices.join(', ')}` : `Set ${field}`)
-  }${
+  const describe = `${flag.describe ?? `Set ${name.replaceAll('-', ' ')}`}${
     takesList
       ? ' (space-separated, or @path / @- with one value per line)'
       : wantsJson
@@ -83,8 +82,23 @@ export function addOperationOptions(
   commandSpec: CommandSpec,
   operationSpec: OperationSpec
 ): void {
+  for (const param of operationSpec.pathParams) {
+    const flag = commandSpec.pathFlags?.[param]
+    if (!flag) continue
+
+    const name = pathFlagNameFor(commandSpec, param)
+    const short = flag.short ? `-${flag.short}, ` : ''
+    command.addOption(
+      new Option(
+        `${short}--${name} <${flag.placeholder ?? 'value'}>`,
+        `${flag.describe ?? `Set ${name.replaceAll('-', ' ')}`} (required)`
+      ).makeOptionMandatory()
+    )
+  }
+
   for (const slot of ['query', 'body'] as const) {
     for (const [field, descriptor] of Object.entries(operationSpec[slot] ?? {})) {
+      if (commandSpec.requestFields && !commandSpec.requestFields.includes(field)) continue
       if (commandSpec.positionals?.includes(field)) continue
       addFieldOption(command, operation, field, descriptor)
     }

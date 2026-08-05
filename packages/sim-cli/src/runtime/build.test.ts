@@ -74,6 +74,7 @@ describe('commands parsed through commander', () => {
       'audit-logs': 'audit-log',
       credentials: 'credential',
       'custom-tools': 'custom-tool',
+      documents: 'document',
       files: 'file',
       knowledge: 'kb',
       logs: 'log',
@@ -109,9 +110,63 @@ describe('commands parsed through commander', () => {
     expect(knowledgePath).toBe('/api/v2/knowledge')
   })
 
+  it('uses top-level document commands with a named knowledge-base scope', async () => {
+    expect(commandAt('knowledge').commands.map((command) => command.name())).not.toContain(
+      'documents'
+    )
+
+    const help = commandAt('documents', 'get').helpInformation()
+    expect(help).toContain('<documentId>')
+    expect(help).toMatch(/--kb <knowledgeBaseId>.*required/s)
+    expect(help).not.toContain('<id> <documentId>')
+
+    const [listPath, listOptions] = await run(['documents', 'list', '--kb', 'kb_1'])
+    expect(listPath).toBe('/api/v2/knowledge/kb_1/documents')
+    expect(listOptions.query).toMatchObject({ workspaceId: 'ws_local' })
+
+    const [getPathBefore, getOptionsBefore] = await run([
+      'documents',
+      'get',
+      '--kb',
+      'kb_1',
+      'doc_1',
+    ])
+    expect(getPathBefore).toBe('/api/v2/knowledge/kb_1/documents/doc_1')
+    expect(getOptionsBefore.query).toEqual({ workspaceId: 'ws_local' })
+
+    const [getPathAfter] = await run(['document', 'get', 'doc_1', '--kb', 'kb_1'])
+    expect(getPathAfter).toBe('/api/v2/knowledge/kb_1/documents/doc_1')
+
+    await expect(run(['documents', 'delete', 'doc_1', '--kb', 'kb_1'])).rejects.toThrow(
+      /document and its embeddings/
+    )
+    expect(mockRequest).not.toHaveBeenCalled()
+
+    const [deletePath, deleteOptions] = await run([
+      'documents',
+      'delete',
+      'doc_1',
+      '--kb',
+      'kb_1',
+      '--yes',
+    ])
+    expect(deletePath).toBe('/api/v2/knowledge/kb_1/documents/doc_1')
+    expect(deleteOptions.query).toEqual({ workspaceId: 'ws_local' })
+
+    await expect(run(['documents', 'get', 'doc_1'])).rejects.toThrow(
+      /required option '--kb <knowledgeBaseId>'/
+    )
+    expect(mockRequest).not.toHaveBeenCalled()
+  })
+
   it('uses billing as the usage summary and keeps detailed events under logs', async () => {
     expect(commandAt('billing').commands.map((command) => command.name())).toContain('logs')
     expect(commandAt('billing').commands.map((command) => command.name())).not.toContain('usage')
+
+    const help = commandAt('billing', 'logs').helpInformation()
+    expect(help).toContain('--source <value>')
+    expect(help).toContain('Filter by usage source (choices:')
+    expect(help).not.toContain('One of: workflow')
 
     const [summaryPath, summaryOptions] = await run(['billing'], {
       data: { plan: 'pro', totalCredits: 10 },
@@ -203,10 +258,26 @@ describe('commands parsed through commander', () => {
     })
   })
 
-  it('uses mv as the resource move alias', async () => {
-    const [path, options] = await run(['table', 'mv', 'tbl_1', '--folder', 'Archive'])
-    expect(path).toBe('/api/v2/tables/tbl_1')
-    expect(options.body).toEqual({ workspaceId: 'ws_local', folderPath: 'Archive' })
+  it('uses Linux-style resource move commands without changing update syntax', async () => {
+    const [tablePath, tableOptions] = await run(['table', 'mv', 'tbl_1', 'Archive'])
+    expect(tablePath).toBe('/api/v2/tables/tbl_1')
+    expect(tableOptions.body).toEqual({ workspaceId: 'ws_local', folderPath: 'Archive' })
+
+    const [workflowPath, workflowOptions] = await run(['workflow', 'mv', 'wf_1', 'Archive'])
+    expect(workflowPath).toBe('/api/v2/workflows/wf_1')
+    expect(workflowOptions.body).toEqual({ folderPath: 'Archive' })
+
+    const [knowledgePath, knowledgeOptions] = await run(['kb', 'mv', 'kb_1', 'Archive'])
+    expect(knowledgePath).toBe('/api/v2/knowledge/kb_1')
+    expect(knowledgeOptions.body).toEqual({ workspaceId: 'ws_local', folderPath: 'Archive' })
+
+    const [, updateOptions] = await run(['workflow', 'update', 'wf_1', '--description', 'Updated'])
+    expect(updateOptions.body).toEqual({ description: 'Updated' })
+
+    const moveHelp = commandAt('workflows', 'mv').helpInformation()
+    expect(moveHelp).toContain('<id> <folder>')
+    expect(moveHelp).not.toContain('--folder')
+    expect(commandAt('workflows', 'update').helpInformation()).not.toContain('update|mv')
   })
 
   it('exposes path-addressed folder commands under each resource', async () => {

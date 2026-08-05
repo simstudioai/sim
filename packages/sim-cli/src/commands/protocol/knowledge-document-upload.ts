@@ -10,6 +10,7 @@ import { finishUploadSession } from '../../transfer/upload-session.js'
 import { printProtocolResult } from './result.js'
 
 interface KnowledgeDocumentUploadOptions {
+  kb: string
   name?: string
   tag?: string[]
   recipe?: string
@@ -37,62 +38,54 @@ function uploadMetadata(options: KnowledgeDocumentUploadOptions): Record<string,
 
 export function attachKnowledgeDocumentUpload(documents: Command): void {
   documents
-    .command('upload <knowledgeBaseId> <path>')
+    .command('upload <path>')
     .description('Upload a document to a knowledge base')
+    .requiredOption('--kb <knowledgeBaseId>', 'Knowledge base ID (required)')
     .option('--name <name>', 'Store it under a different name')
     .option('--tag <value...>', 'Document tags, in tag1 through tag7 order')
     .option('--recipe <name>', 'Document processing recipe')
     .option('--lang <code>', 'Document language code')
-    .action(
-      async (
-        knowledgeBaseId: string,
-        path: string,
-        options: KnowledgeDocumentUploadOptions,
-        command: Command
-      ) => {
-        const { client, profile } = clientFrom(command)
-        const workspaceId = client.requireWorkspace()
-        const { name, size } = await localFile(path, options.name)
-        const created = await client.request<CreateKnowledgeDocumentUploadResponse>(
-          `/api/v2/knowledge/${encodeURIComponent(knowledgeBaseId)}/documents/uploads`,
-          {
-            method: 'POST',
-            body: {
-              workspaceId,
-              name,
-              contentType: contentTypeFor(name),
-              size,
-              ...uploadMetadata(options),
-            },
-          }
-        )
-        const { session, uploadToken, transfer } = created.data
-        const completed = await finishUploadSession<
-          CompleteKnowledgeDocumentUploadResponse['data']
-        >(
-          client,
-          workspaceId,
-          {
-            basePath: `/api/v2/knowledge/${encodeURIComponent(
-              knowledgeBaseId
-            )}/documents/uploads/${encodeURIComponent(session.id)}`,
-            uploadToken,
-            transfer,
+    .action(async (path: string, options: KnowledgeDocumentUploadOptions, command: Command) => {
+      const { client, profile } = clientFrom(command)
+      const workspaceId = client.requireWorkspace()
+      const { name, size } = await localFile(path, options.name)
+      const created = await client.request<CreateKnowledgeDocumentUploadResponse>(
+        `/api/v2/knowledge/${encodeURIComponent(options.kb)}/documents/uploads`,
+        {
+          method: 'POST',
+          body: {
+            workspaceId,
+            name,
+            contentType: contentTypeFor(name),
             size,
+            ...uploadMetadata(options),
           },
-          path
-        )
-
-        if (!completed.document) {
-          throw new Error(`Knowledge upload ${session.id} completed without a document`)
         }
-        printProtocolResult(profile.output, {
-          id: completed.document.id,
-          knowledgeBaseId: completed.document.knowledgeBaseId,
-          name: completed.document.filename,
-          size: completed.document.fileSize,
-          status: completed.document.processingStatus,
-        })
+      )
+      const { session, uploadToken, transfer } = created.data
+      const completed = await finishUploadSession<CompleteKnowledgeDocumentUploadResponse['data']>(
+        client,
+        workspaceId,
+        {
+          basePath: `/api/v2/knowledge/${encodeURIComponent(
+            options.kb
+          )}/documents/uploads/${encodeURIComponent(session.id)}`,
+          uploadToken,
+          transfer,
+          size,
+        },
+        path
+      )
+
+      if (!completed.document) {
+        throw new Error(`Knowledge upload ${session.id} completed without a document`)
       }
-    )
+      printProtocolResult(profile.output, {
+        id: completed.document.id,
+        knowledgeBaseId: completed.document.knowledgeBaseId,
+        name: completed.document.filename,
+        size: completed.document.fileSize,
+        status: completed.document.processingStatus,
+      })
+    })
 }

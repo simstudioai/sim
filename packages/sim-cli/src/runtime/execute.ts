@@ -24,11 +24,13 @@ export async function executeOperation(
 ): Promise<void> {
   const host = invocation[invocation.length - 1] as Command
   const flags = invocation[invocation.length - 2] as Record<string, unknown>
-  const positional = invocation.slice(0, operationSpec.pathParams.length) as string[]
+  const pathPositionalCount = operationSpec.pathParams.filter(
+    (param) => !commandSpec.pathFlags?.[param]
+  ).length
+  const positional = invocation.slice(0, pathPositionalCount) as string[]
   const requestFlags = { ...flags }
   for (const [index, field] of (commandSpec.positionals ?? []).entries()) {
-    requestFlags[camel(flagNameFor(operation, field))] =
-      invocation[operationSpec.pathParams.length + index]
+    requestFlags[camel(flagNameFor(operation, field))] = invocation[pathPositionalCount + index]
   }
 
   if (commandSpec.confirm && !requestFlags.yes) {
