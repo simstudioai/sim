@@ -503,7 +503,7 @@ export function McpDeploy({
     return (
       <>
         <div className='flex h-full flex-col items-center justify-center gap-3'>
-          <p className='text-[13px] text-[var(--text-muted)]'>
+          <p className='text-[var(--text-muted)] text-small'>
             Create an MCP Server to expose your workflows as tools.
           </p>
           <Button variant='tertiary' onClick={() => setShowCreateModal(true)}>
