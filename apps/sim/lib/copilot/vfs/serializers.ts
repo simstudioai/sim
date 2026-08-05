@@ -90,6 +90,14 @@ export interface ComponentSerializationOptions {
   ownerBlockType?: string
   /** Product-gated inputs removed from both subBlocks and the input schema. */
   hiddenInputIds?: ReadonlySet<string>
+  /** Product-gated inputs that remain discoverable but cannot be mutated by this viewer. */
+  restrictedInputs?: ReadonlyMap<
+    string,
+    {
+      requiredEntitlement: string
+      reason: string
+    }
+  >
 }
 
 /**
@@ -616,6 +624,12 @@ export function serializeBlockSchema(
 
   const subBlocks = visibleSubBlocks.map((sb) => {
     const serialized = serializeSubBlock(sb)
+    const restriction = options?.restrictedInputs?.get(sb.id)
+    if (restriction) {
+      serialized.readOnly = true
+      serialized.requiredEntitlement = restriction.requiredEntitlement
+      serialized.restrictionReason = restriction.reason
+    }
 
     if (sb.id === 'model' && sb.type === 'combobox' && typeof sb.options === 'function') {
       serialized.options = getStaticModelOptionsForVFS()
@@ -633,10 +647,28 @@ export function serializeBlockSchema(
     if (auth) toolAuth[toolId] = auth
   }
 
-  const inputs =
+  const visibleInputs =
     block.inputs && hiddenIds.size > 0
       ? Object.fromEntries(Object.entries(block.inputs).filter(([key]) => !hiddenIds.has(key)))
       : block.inputs
+  const inputs = visibleInputs
+    ? Object.fromEntries(
+        Object.entries(visibleInputs).map(([key, input]) => {
+          const restriction = options?.restrictedInputs?.get(key)
+          return restriction
+            ? [
+                key,
+                {
+                  ...input,
+                  readOnly: true,
+                  requiredEntitlement: restriction.requiredEntitlement,
+                  restrictionReason: restriction.reason,
+                },
+              ]
+            : [key, input]
+        })
+      )
+    : visibleInputs
 
   return JSON.stringify(
     {

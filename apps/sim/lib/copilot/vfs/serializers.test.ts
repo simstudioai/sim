@@ -177,7 +177,7 @@ describe('VFS metadata serializers', () => {
 })
 
 describe('entitlement-projected block schemas', () => {
-  it('removes a gated input from both subBlocks and inputs', () => {
+  it('keeps a gated input readable while marking it unavailable for mutation', () => {
     const block = {
       type: 'function',
       name: 'Function',
@@ -198,12 +198,35 @@ describe('entitlement-projected block schemas', () => {
     } as unknown as BlockConfig
 
     const schema = JSON.parse(
-      serializeBlockSchema(block, { hiddenInputIds: new Set(['sandboxId']) })
+      serializeBlockSchema(block, {
+        restrictedInputs: new Map([
+          [
+            'sandboxId',
+            {
+              requiredEntitlement: 'sim-sandboxes',
+              reason: 'Requires an active Max or Enterprise plan.',
+            },
+          ],
+        ]),
+      })
     )
 
-    expect(schema.subBlocks.map((subBlock: { id: string }) => subBlock.id)).toEqual(['code'])
+    expect(schema.subBlocks.map((subBlock: { id: string }) => subBlock.id)).toEqual([
+      'code',
+      'sandboxId',
+    ])
+    expect(schema.subBlocks[1]).toMatchObject({
+      readOnly: true,
+      requiredEntitlement: 'sim-sandboxes',
+      restrictionReason: 'Requires an active Max or Enterprise plan.',
+    })
     expect(schema.inputs).toHaveProperty('code')
-    expect(schema.inputs).not.toHaveProperty('sandboxId')
+    expect(schema.inputs.sandboxId).toMatchObject({
+      type: 'string',
+      readOnly: true,
+      requiredEntitlement: 'sim-sandboxes',
+      restrictionReason: 'Requires an active Max or Enterprise plan.',
+    })
   })
 })
 
