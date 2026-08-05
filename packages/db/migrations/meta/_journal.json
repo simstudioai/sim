@@ -1982,6 +1982,13 @@
       "when": 1785913915302,
       "tag": "0283_heavy_firebird",
       "breakpoints": true
+    },
+    {
+      "idx": 284,
+      "version": "7",
+      "when": 1785918550201,
+      "tag": "0284_utc_table_row_count_timestamps",
+      "breakpoints": true
     }
   ]
 }
