@@ -198,9 +198,7 @@ function unmountableNamespaceReason(filePath: string): string | null {
   if (path.startsWith('tables/')) {
     return 'tables are not mounted as files. Pass the table in inputs.tables instead and it is mounted as CSV.'
   }
-  const namespace = /^(workflows|knowledgebases|components|environment|agent|tasks)\//.exec(
-    path
-  )?.[1]
+  const namespace = /^(workflows|knowledgebases|components|environment|agent)\//.exec(path)?.[1]
   if (namespace) {
     return `${namespace}/ paths are VFS metadata views, not stored file bytes, so the sandbox cannot mount them. This path is correct — read or grep it and inline the values you need in code.`
   }
