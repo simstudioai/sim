@@ -191,24 +191,25 @@ describe('workspace file secret provenance', () => {
 
   it('copies exact provenance only when it belongs to the source content version', async () => {
     const targetContentUpdatedAt = new Date('2026-08-04T00:00:01.000Z')
-    queueTableRows(workspaceFiles, [
-      {
-        key: 'source-key',
-        userId: 'user-1',
-        workspaceId: 'workspace-1',
-        fileContentUpdatedAt: CONTENT_UPDATED_AT,
-        provenanceContentUpdatedAt: CONTENT_UPDATED_AT,
-        status: 'exact',
-        entries: [{ name: 'API_KEY', encryptedValue: 'encrypted' }],
-      },
-    ])
-    queueTableRows(workspaceFiles, [
-      {
-        userId: 'user-1',
-        workspaceId: 'workspace-1',
-        contentUpdatedAt: targetContentUpdatedAt,
-      },
-    ])
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([
+        {
+          userId: 'user-1',
+          workspaceId: 'workspace-1',
+          contentUpdatedAt: targetContentUpdatedAt,
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          key: 'source-key',
+          userId: 'user-1',
+          workspaceId: 'workspace-1',
+          fileContentUpdatedAt: CONTENT_UPDATED_AT,
+          provenanceContentUpdatedAt: CONTENT_UPDATED_AT,
+          status: 'exact',
+          entries: [{ name: 'API_KEY', encryptedValue: 'encrypted' }],
+        },
+      ])
 
     await copyWorkspaceFileSecretProvenanceInTx(
       dbChainMock.db as unknown as DbOrTx,
@@ -233,24 +234,25 @@ describe('workspace file secret provenance', () => {
   it('marks a copied file unknown when source provenance is stale', async () => {
     const sourceContentUpdatedAt = new Date('2026-08-04T00:00:01.000Z')
     const targetContentUpdatedAt = new Date('2026-08-04T00:00:02.000Z')
-    queueTableRows(workspaceFiles, [
-      {
-        key: 'source-key',
-        userId: 'user-1',
-        workspaceId: 'workspace-1',
-        fileContentUpdatedAt: sourceContentUpdatedAt,
-        provenanceContentUpdatedAt: CONTENT_UPDATED_AT,
-        status: 'exact',
-        entries: [{ name: 'API_KEY', encryptedValue: 'encrypted' }],
-      },
-    ])
-    queueTableRows(workspaceFiles, [
-      {
-        userId: 'user-1',
-        workspaceId: 'workspace-1',
-        contentUpdatedAt: targetContentUpdatedAt,
-      },
-    ])
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([
+        {
+          userId: 'user-1',
+          workspaceId: 'workspace-1',
+          contentUpdatedAt: targetContentUpdatedAt,
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          key: 'source-key',
+          userId: 'user-1',
+          workspaceId: 'workspace-1',
+          fileContentUpdatedAt: sourceContentUpdatedAt,
+          provenanceContentUpdatedAt: CONTENT_UPDATED_AT,
+          status: 'exact',
+          entries: [{ name: 'API_KEY', encryptedValue: 'encrypted' }],
+        },
+      ])
 
     await copyWorkspaceFileSecretProvenanceInTx(
       dbChainMock.db as unknown as DbOrTx,
@@ -274,24 +276,25 @@ describe('workspace file secret provenance', () => {
 
   it('does not remint named provenance into a copied file with a different owner scope', async () => {
     const targetContentUpdatedAt = new Date('2026-08-04T00:00:02.000Z')
-    queueTableRows(workspaceFiles, [
-      {
-        key: 'source-key',
-        userId: 'source-user',
-        workspaceId: 'source-workspace',
-        fileContentUpdatedAt: CONTENT_UPDATED_AT,
-        provenanceContentUpdatedAt: CONTENT_UPDATED_AT,
-        status: 'exact',
-        entries: [{ name: 'API_KEY', encryptedValue: 'encrypted' }],
-      },
-    ])
-    queueTableRows(workspaceFiles, [
-      {
-        userId: 'target-user',
-        workspaceId: 'target-workspace',
-        contentUpdatedAt: targetContentUpdatedAt,
-      },
-    ])
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([
+        {
+          userId: 'target-user',
+          workspaceId: 'target-workspace',
+          contentUpdatedAt: targetContentUpdatedAt,
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          key: 'source-key',
+          userId: 'source-user',
+          workspaceId: 'source-workspace',
+          fileContentUpdatedAt: CONTENT_UPDATED_AT,
+          provenanceContentUpdatedAt: CONTENT_UPDATED_AT,
+          status: 'exact',
+          entries: [{ name: 'API_KEY', encryptedValue: 'encrypted' }],
+        },
+      ])
 
     await copyWorkspaceFileSecretProvenanceInTx(
       dbChainMock.db as unknown as DbOrTx,
@@ -316,24 +319,25 @@ describe('workspace file secret provenance', () => {
   it('marks the copy unknown when the source changed after planning', async () => {
     const nextSourceContentUpdatedAt = new Date('2026-08-04T00:00:01.000Z')
     const targetContentUpdatedAt = new Date('2026-08-04T00:00:02.000Z')
-    queueTableRows(workspaceFiles, [
-      {
-        key: 'new-source-key',
-        userId: 'user-1',
-        workspaceId: 'workspace-1',
-        fileContentUpdatedAt: nextSourceContentUpdatedAt,
-        provenanceContentUpdatedAt: nextSourceContentUpdatedAt,
-        status: 'exact',
-        entries: [{ name: 'API_KEY', encryptedValue: 'new-encrypted-value' }],
-      },
-    ])
-    queueTableRows(workspaceFiles, [
-      {
-        userId: 'user-1',
-        workspaceId: 'workspace-1',
-        contentUpdatedAt: targetContentUpdatedAt,
-      },
-    ])
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([
+        {
+          userId: 'user-1',
+          workspaceId: 'workspace-1',
+          contentUpdatedAt: targetContentUpdatedAt,
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          key: 'new-source-key',
+          userId: 'user-1',
+          workspaceId: 'workspace-1',
+          fileContentUpdatedAt: nextSourceContentUpdatedAt,
+          provenanceContentUpdatedAt: nextSourceContentUpdatedAt,
+          status: 'exact',
+          entries: [{ name: 'API_KEY', encryptedValue: 'new-encrypted-value' }],
+        },
+      ])
 
     await copyWorkspaceFileSecretProvenanceInTx(
       dbChainMock.db as unknown as DbOrTx,
