@@ -3,7 +3,9 @@ import * as Y from 'yjs'
 /**
  * The Yjs `XmlFragment` name TipTap's Collaboration extension binds to (its default `field`). The
  * client configures `Collaboration.configure({ document })` with no explicit `field`, so it uses
- * TipTap's default, `'default'`.
+ * TipTap's default, `'default'`. Server-side conversion, seeding, and persistence MUST target the same
+ * fragment or the client would sync an empty document — so this is the single canonical source consumed
+ * by both bundles (it imports only `yjs`, making it safe from client and server alike).
  */
 export const COLLAB_DOC_FIELD = 'default'
 
@@ -22,13 +24,13 @@ export const COLLAB_DOC_FIELD = 'default'
  *
  * Idempotent, and only TOP-LEVEL paragraphs are touched — blank lines that carry meaning inside a
  * construct (e.g. a loose list) live below the fragment root and are left alone. Runs its own Yjs
- * transaction so the deletions commit atomically.
+ * transaction so the deletions commit atomically, iterating the fragment back-to-front so a deletion
+ * never shifts a not-yet-checked index.
  */
 export function stripEmptyTopLevelParagraphs(doc: Y.Doc): boolean {
   const fragment = doc.getXmlFragment(COLLAB_DOC_FIELD)
   let removed = false
   doc.transact(() => {
-    // Back-to-front so a deletion never shifts a not-yet-checked index.
     for (let i = fragment.length - 1; i >= 0; i--) {
       const node = fragment.get(i)
       if (node instanceof Y.XmlElement && node.nodeName === 'paragraph' && node.length === 0) {
