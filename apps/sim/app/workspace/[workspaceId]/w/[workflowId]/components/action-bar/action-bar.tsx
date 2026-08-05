@@ -417,13 +417,15 @@ export const ActionBar = memo(
                   </Button>
                 </span>
               </Tooltip.Trigger>
-              <Tooltip.Content side='top'>
-                {isLocked || isParentLocked
-                  ? 'Block is locked'
-                  : !isEnabled && isParentDisabled
-                    ? 'Parent container is disabled'
-                    : getTooltipMessage(isEnabled ? 'Disable' : 'Enable')}
-              </Tooltip.Content>
+              {!isWorkflowRunning && (
+                <Tooltip.Content side='top'>
+                  {isLocked || isParentLocked
+                    ? 'Block is locked'
+                    : !isEnabled && isParentDisabled
+                      ? 'Parent container is disabled'
+                      : getTooltipMessage(isEnabled ? 'Disable' : 'Enable')}
+                </Tooltip.Content>
+              )}
             </Tooltip.Root>
           )}
 
@@ -453,7 +455,7 @@ export const ActionBar = memo(
                     </Button>
                   </DropdownMenuTrigger>
                 </Tooltip.Trigger>
-                <Tooltip.Content side='top'>Color</Tooltip.Content>
+                {!isWorkflowRunning && <Tooltip.Content side='top'>Color</Tooltip.Content>}
               </Tooltip.Root>
               <DropdownMenuContent
                 align='center'
@@ -509,13 +511,15 @@ export const ActionBar = memo(
                   </Button>
                 </span>
               </Tooltip.Trigger>
-              <Tooltip.Content side='top'>
-                {isLocked && isParentLocked
-                  ? 'Parent container is locked'
-                  : isLocked
-                    ? 'Unlock'
-                    : 'Lock'}
-              </Tooltip.Content>
+              {!isWorkflowRunning && (
+                <Tooltip.Content side='top'>
+                  {isLocked && isParentLocked
+                    ? 'Parent container is locked'
+                    : isLocked
+                      ? 'Unlock'
+                      : 'Lock'}
+                </Tooltip.Content>
+              )}
             </Tooltip.Root>
           )}
 
@@ -538,9 +542,11 @@ export const ActionBar = memo(
                   </Button>
                 </span>
               </Tooltip.Trigger>
-              <Tooltip.Content side='top'>
-                {isLocked || isParentLocked ? 'Block is locked' : getTooltipMessage('Duplicate')}
-              </Tooltip.Content>
+              {!isWorkflowRunning && (
+                <Tooltip.Content side='top'>
+                  {isLocked || isParentLocked ? 'Block is locked' : getTooltipMessage('Duplicate')}
+                </Tooltip.Content>
+              )}
             </Tooltip.Root>
           )}
 
@@ -573,11 +579,13 @@ export const ActionBar = memo(
                   </Button>
                 </span>
               </Tooltip.Trigger>
-              <Tooltip.Content side='top'>
-                {isLocked || isParentLocked
-                  ? 'Block is locked'
-                  : getTooltipMessage('Remove from Subflow')}
-              </Tooltip.Content>
+              {!isWorkflowRunning && (
+                <Tooltip.Content side='top'>
+                  {isLocked || isParentLocked
+                    ? 'Block is locked'
+                    : getTooltipMessage('Remove from Subflow')}
+                </Tooltip.Content>
+              )}
             </Tooltip.Root>
           )}
 
@@ -599,9 +607,11 @@ export const ActionBar = memo(
                 </Button>
               </span>
             </Tooltip.Trigger>
-            <Tooltip.Content side='top'>
-              {isLocked || isParentLocked ? 'Block is locked' : getTooltipMessage('Delete')}
-            </Tooltip.Content>
+            {!isWorkflowRunning && (
+              <Tooltip.Content side='top'>
+                {isLocked || isParentLocked ? 'Block is locked' : getTooltipMessage('Delete')}
+              </Tooltip.Content>
+            )}
           </Tooltip.Root>
         </div>
       </div>
