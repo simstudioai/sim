@@ -85,6 +85,7 @@ export function addOperationOptions(
 ): void {
   for (const slot of ['query', 'body'] as const) {
     for (const [field, descriptor] of Object.entries(operationSpec[slot] ?? {})) {
+      if (commandSpec.positionals?.includes(field)) continue
       addFieldOption(command, operation, field, descriptor)
     }
   }

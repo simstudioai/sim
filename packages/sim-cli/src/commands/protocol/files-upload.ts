@@ -12,43 +12,41 @@ export function attachFileUpload(files: Command): void {
   files
     .command('upload <path>')
     .description('Upload a file to the workspace')
-    .option('--folder-id <id>', 'Target folder (defaults to the workspace root)')
+    .option('--folder <path>', 'Canonical destination folder path (defaults to /)')
     .option('--name <name>', 'Store it under a different name')
-    .action(
-      async (path: string, options: { folderId?: string; name?: string }, command: Command) => {
-        const { client, profile } = clientFrom(command)
-        const workspaceId = client.requireWorkspace()
-        const { name, size } = await localFile(path, options.name)
+    .action(async (path: string, options: { folder?: string; name?: string }, command: Command) => {
+      const { client, profile } = clientFrom(command)
+      const workspaceId = client.requireWorkspace()
+      const { name, size } = await localFile(path, options.name)
 
-        const created = await client.request<CreateFileUploadResponse>('/api/v2/files/uploads', {
-          method: 'POST',
-          body: {
-            workspaceId,
-            name,
-            contentType: contentTypeFor(name),
-            size,
-            ...(options.folderId ? { folderId: options.folderId } : {}),
-          },
-        })
-        const { session, uploadToken, transfer } = created.data
-        const completed = await finishUploadSession<CompleteFileUploadResponse['data']>(
-          client,
+      const created = await client.request<CreateFileUploadResponse>('/api/v2/files/uploads', {
+        method: 'POST',
+        body: {
           workspaceId,
-          {
-            basePath: `/api/v2/files/uploads/${encodeURIComponent(session.id)}`,
-            uploadToken,
-            transfer,
-            size,
-          },
-          path
-        )
-
-        printProtocolResult(profile.output, {
-          id: completed.file?.id ?? session.id,
           name,
+          contentType: contentTypeFor(name),
           size,
-          status: 'uploaded',
-        })
-      }
-    )
+          ...(options.folder ? { folderPath: options.folder } : {}),
+        },
+      })
+      const { session, uploadToken, transfer } = created.data
+      const completed = await finishUploadSession<CompleteFileUploadResponse['data']>(
+        client,
+        workspaceId,
+        {
+          basePath: `/api/v2/files/uploads/${encodeURIComponent(session.id)}`,
+          uploadToken,
+          transfer,
+          size,
+        },
+        path
+      )
+
+      printProtocolResult(profile.output, {
+        id: completed.file?.id ?? session.id,
+        name,
+        size,
+        status: 'uploaded',
+      })
+    })
 }

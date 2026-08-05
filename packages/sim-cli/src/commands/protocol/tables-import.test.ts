@@ -61,7 +61,7 @@ describe('tables import argument guards', () => {
     await expect(runImport(['f.csv', '--table-id', 't', '--name', 'x'])).rejects.toThrow(
       /--table-id already names the destination/
     )
-    await expect(runImport(['f.csv', '--table-id', 't', '--folder-id', 'f'])).rejects.toThrow(
+    await expect(runImport(['f.csv', '--table-id', 't', '--folder', '/Reports'])).rejects.toThrow(
       /--table-id already names the destination/
     )
   })
@@ -100,7 +100,24 @@ describe('tables import output', () => {
     const logged: string[] = []
     vi.spyOn(console, 'log').mockImplementation((line: string) => logged.push(line))
 
-    await runImport(['--file-id', 'file_1', '--name', 'Customers', '--no-wait'])
+    await runImport([
+      '--file-id',
+      'file_1',
+      '--name',
+      'Customers',
+      '--folder',
+      '/Reports',
+      '--no-wait',
+    ])
+
+    expect(mockRequest).toHaveBeenCalledWith('/api/v2/tables/imports', {
+      method: 'POST',
+      body: {
+        workspaceId: 'ws_local',
+        source: { type: 'workspace_file', fileId: 'file_1' },
+        target: { type: 'new', name: 'Customers', folderPath: '/Reports' },
+      },
+    })
 
     expect(JSON.parse(logged[0])).toEqual({
       id: 'import_1',

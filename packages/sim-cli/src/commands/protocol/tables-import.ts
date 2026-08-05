@@ -19,7 +19,7 @@ interface ImportOptions {
   name?: string
   tableId?: string
   mode?: string
-  folderId?: string
+  folder?: string
   fileId?: string
   mapping?: string
   createColumns?: string
@@ -71,7 +71,7 @@ function validateTargetOptions(options: ImportOptions): boolean {
   const misplaced = intoExisting
     ? ([
         ['--name', options.name],
-        ['--folder-id', options.folderId],
+        ['--folder', options.folder],
       ] as const)
     : ([
         ['--mode', options.mode],
@@ -106,7 +106,7 @@ export function attachTableImport(tables: Command): void {
         'How to write into --table-id (default: append)'
       ).choices(['append', 'replace'])
     )
-    .option('--folder-id <id>', 'Folder for the new table')
+    .option('--folder <path>', 'Canonical folder path for the new table')
     .option('--file-id <id>', 'Import a file already in the workspace instead of a local path')
     .option('--mapping <json|@file>', 'Column mapping (--table-id only)')
     .option('--create-columns <json|@file>', 'Columns to create (--table-id only)')
@@ -139,7 +139,7 @@ export function attachTableImport(tables: Command): void {
         if (!name) {
           throw new SimApiError('Pass --name <name> to say what the new table is called', 0)
         }
-        target = { type: 'new', name, ...(options.folderId ? { folderId: options.folderId } : {}) }
+        target = { type: 'new', name, ...(options.folder ? { folderPath: options.folder } : {}) }
       }
 
       const started = await client.request<CreateTableImportResponse>('/api/v2/tables/imports', {

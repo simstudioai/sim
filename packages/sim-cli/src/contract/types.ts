@@ -76,6 +76,10 @@ export interface CommandSpec {
    * `<resource> [sub-resource] <verb>` name.
    */
   command?: string
+  /** Alternate leaf command names, such as `ls` for `list`. */
+  aliases?: readonly string[]
+  /** Required query/body fields exposed as positional arguments, in order. */
+  positionals?: readonly string[]
   /** One-line help. Falls back to the OpenAPI summary for the operation. */
   describe?: string
   /** Per-field flag overrides, keyed by the contract's field name. */

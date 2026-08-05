@@ -75,7 +75,6 @@ describe('commands parsed through commander', () => {
       credentials: 'credential',
       'custom-tools': 'custom-tool',
       files: 'file',
-      folders: 'folder',
       logs: 'log',
       'mcp-servers': 'mcp-server',
       skills: 'skill',
@@ -90,6 +89,7 @@ describe('commands parsed through commander', () => {
           ?.alias()
       ).toBe(alias)
     }
+    expect(program().commands.some((command) => command.name() === 'folders')).toBe(false)
   })
 
   it('dispatches generated commands through their singular resource alias', async () => {
@@ -155,24 +155,73 @@ describe('commands parsed through commander', () => {
     })
   })
 
-  it('accepts space-separated file and folder ids', async () => {
+  it('exposes the v2 file metadata route as files get', async () => {
+    const [path, options] = await run(['file', 'get', 'file_1'], { data: { id: 'file_1' } })
+    expect(path).toBe('/api/v2/files/file_1/metadata')
+    expect(options.query).toEqual({ workspaceId: 'ws_local' })
+  })
+
+  it('moves space-separated file ids to a folder path', async () => {
     const [path, options] = await run([
       'file',
-      'move',
+      'mv',
       '--file-ids',
       'file_1',
       'file_2',
-      '--folder-ids',
-      'folder_1',
-      '--target-folder-id',
-      'folder_2',
+      '--to',
+      '/Archive',
     ])
     expect(path).toBe('/api/v2/files/move')
     expect(options.body).toEqual({
       workspaceId: 'ws_local',
       fileIds: ['file_1', 'file_2'],
-      folderIds: ['folder_1'],
-      targetFolderId: 'folder_2',
+      targetFolderPath: '/Archive',
+    })
+  })
+
+  it('uses mv as the resource move alias', async () => {
+    const [path, options] = await run(['table', 'mv', 'tbl_1', '--folder', '/Archive'])
+    expect(path).toBe('/api/v2/tables/tbl_1')
+    expect(options.body).toEqual({ workspaceId: 'ws_local', folderPath: '/Archive' })
+  })
+
+  it('exposes path-addressed folder commands under each resource', async () => {
+    const [createPath, createOptions] = await run(['table', 'folders', 'create', '/Reports'])
+    expect(createPath).toBe('/api/v2/tables/folders')
+    expect(createOptions.body).toEqual({ workspaceId: 'ws_local', path: '/Reports' })
+
+    const [movePath, moveOptions] = await run([
+      'table',
+      'folders',
+      'mv',
+      '/Reports',
+      '/Archive/Reports',
+    ])
+    expect(movePath).toBe('/api/v2/tables/folders')
+    expect(moveOptions.body).toEqual({
+      workspaceId: 'ws_local',
+      path: '/Reports',
+      destinationPath: '/Archive/Reports',
+    })
+
+    const [listPath, listOptions] = await run(['table', 'folders', 'ls', '--parent', '/'])
+    expect(listPath).toBe('/api/v2/tables/folders')
+    expect(listOptions.query).toMatchObject({ workspaceId: 'ws_local', parentPath: '/' })
+
+    const [deletePath, deleteOptions] = await run([
+      'table',
+      'folders',
+      'delete',
+      '/Archive/Reports',
+      '--recursive',
+      'false',
+      '--yes',
+    ])
+    expect(deletePath).toBe('/api/v2/tables/folders')
+    expect(deleteOptions.query).toEqual({
+      workspaceId: 'ws_local',
+      path: '/Archive/Reports',
+      recursive: 'false',
     })
   })
 
@@ -246,7 +295,7 @@ describe('commands parsed through commander', () => {
   it('documents space-separated and file-backed lists', () => {
     const help = commandAt('files', 'move').helpInformation()
     expect(help).toContain('--file-ids <value...>')
-    expect(help).toMatch(/space-separated.*@path.*one value per line/s)
+    expect(help).toMatch(/space-separated.*@path.*one\s+value\s+per\s+line/s)
   })
 
   it('advertises the file-content encoding choices', () => {

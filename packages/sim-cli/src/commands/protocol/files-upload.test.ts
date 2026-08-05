@@ -83,8 +83,7 @@ describe('files upload', () => {
             size: 5,
             type: 'text/plain',
             key: 'workspace/ws_local/notes.txt',
-            folderId: null,
-            folderPath: null,
+            folderPath: '/',
             uploadedBy: 'user_1',
             uploadedAt: '2026-08-04T19:00:00.000Z',
             updatedAt: '2026-08-04T19:00:00.000Z',
@@ -96,7 +95,7 @@ describe('files upload', () => {
     const logged: string[] = []
     vi.spyOn(console, 'log').mockImplementation((line: string) => logged.push(line))
 
-    await program().parseAsync(['node', 'sim', 'file', 'upload', path])
+    await program().parseAsync(['node', 'sim', 'file', 'upload', path, '--folder', '/Reports'])
 
     expect(fetchMock).toHaveBeenCalledWith(
       'https://storage.example/file',
@@ -106,6 +105,19 @@ describe('files upload', () => {
         body: expect.any(Blob),
       })
     )
+    expect(mockRequest.mock.calls[0]).toEqual([
+      '/api/v2/files/uploads',
+      {
+        method: 'POST',
+        body: {
+          workspaceId: 'ws_local',
+          name: 'notes.txt',
+          contentType: 'text/plain',
+          size: 5,
+          folderPath: '/Reports',
+        },
+      },
+    ])
     expect(mockRequest.mock.calls[1]).toEqual([
       '/api/v2/files/uploads/upload_1/complete',
       {

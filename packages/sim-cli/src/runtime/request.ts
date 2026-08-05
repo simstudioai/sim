@@ -172,7 +172,7 @@ export function coerce(raw: unknown, field: FieldSpec, flag: FlagSpec, flagName:
    * encoding follows the field's own kind, because the two are not the same
    * question:
    *
-   * - `string` — the route splits on commas (`workflowIds`, `folderIds`,
+   * - `string` — the route splits on commas (`workflowIds`, `folderPaths`,
    *   `triggers`), so the values are joined.
    * - anything else — the wire genuinely wants an array (`rowIds`,
    *   `selectedOutputs`) or a string-or-array union whose array branch is the

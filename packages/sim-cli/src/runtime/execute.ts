@@ -3,8 +3,9 @@ import { clientFrom } from '../context.js'
 import type { CommandSpec } from '../contract/types.js'
 import type { V2OperationName } from '../generated/v2-api.js'
 import { SimApiError, type V2Page } from '../http/client.js'
+import { camel } from './derive.js'
 import { DEFAULT_LIMIT } from './options.js'
-import { buildRequest, PROFILE_INJECTED_FIELD } from './request.js'
+import { buildRequest, flagNameFor, PROFILE_INJECTED_FIELD } from './request.js'
 import { renderPage, renderResult } from './result.js'
 import type { OperationSpec } from './types.js'
 
@@ -24,8 +25,13 @@ export async function executeOperation(
   const host = invocation[invocation.length - 1] as Command
   const flags = invocation[invocation.length - 2] as Record<string, unknown>
   const positional = invocation.slice(0, operationSpec.pathParams.length) as string[]
+  const requestFlags = { ...flags }
+  for (const [index, field] of (commandSpec.positionals ?? []).entries()) {
+    requestFlags[camel(flagNameFor(operation, field))] =
+      invocation[operationSpec.pathParams.length + index]
+  }
 
-  if (commandSpec.confirm && !flags.yes) {
+  if (commandSpec.confirm && !requestFlags.yes) {
     throw new SimApiError(`${commandSpec.confirm} Re-run with --yes to confirm.`, 0)
   }
 
@@ -37,13 +43,13 @@ export async function executeOperation(
   const request = buildRequest(
     operation,
     positional,
-    flags,
+    requestFlags,
     needsWorkspace ? client.requireWorkspace() : profile.workspaceId
   )
   const paging = cursorSlot(operationSpec)
 
   if (paging) {
-    const rawLimit = Number.parseInt(String(flags.limit ?? DEFAULT_LIMIT), 10)
+    const rawLimit = Number.parseInt(String(requestFlags.limit ?? DEFAULT_LIMIT), 10)
     if (Number.isNaN(rawLimit) || rawLimit < 0) {
       throw new SimApiError('--limit must be a non-negative number', 0)
     }

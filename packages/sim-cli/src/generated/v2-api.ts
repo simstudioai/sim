@@ -38,8 +38,7 @@ export type AbortFileUploadResponse = {
       size: number
       type: string
       key: string
-      folderId: string | null
-      folderPath: string | null
+      folderPath: string
       uploadedBy: string
       uploadedAt: string
       updatedAt: string
@@ -208,18 +207,16 @@ export type AddWorkflowGroupResponse = {
   }
 }
 
-/** `POST /api/v2/files/bulk-archive` */
-export type BulkArchiveFileItemsBody = {
+/** `POST /api/v2/files/bulk-delete` */
+export type BulkDeleteFilesBody = {
   workspaceId: string
-  fileIds?: Array<string>
-  folderIds?: Array<string>
+  fileIds: Array<string>
 }
 
-export type BulkArchiveFileItemsResponse = {
+export type BulkDeleteFilesResponse = {
   data: {
     deletedItems: {
       files: number
-      folders: number
     }
   }
 }
@@ -281,7 +278,7 @@ export type CancelTableImportResponse = {
       | {
           type: 'new'
           name: string
-          folderId?: string
+          folderPath?: string
         }
       | {
           type: 'existing'
@@ -376,8 +373,7 @@ export type CompleteFileUploadResponse = {
       size: number
       type: string
       key: string
-      folderId: string | null
-      folderPath: string | null
+      folderPath: string
       uploadedBy: string
       uploadedAt: string
       updatedAt: string
@@ -476,7 +472,7 @@ export type CompleteTableImportResponse = {
       | {
           type: 'new'
           name: string
-          folderId?: string
+          folderPath?: string
         }
       | {
           type: 'existing'
@@ -577,7 +573,7 @@ export type CreateFileBody = {
   workspaceId: string
   name: string
   contentType?: string
-  folderId?: string
+  folderPath?: string
   content?: string
   encoding?: 'utf-8' | 'base64'
 }
@@ -589,11 +585,28 @@ export type CreateFileResponse = {
     size: number
     type: string
     key: string
-    folderId: string | null
-    folderPath: string | null
+    folderPath: string
     uploadedBy: string
     uploadedAt: string
     updatedAt: string
+  }
+}
+
+/** `POST /api/v2/files/folders` */
+export type CreateFileFolderBody = {
+  workspaceId: string
+  path: string
+}
+
+export type CreateFileFolderResponse = {
+  data: {
+    folder: {
+      name: string
+      path: string
+      parentPath: string
+      createdAt: string
+      updatedAt: string
+    }
   }
 }
 
@@ -603,7 +616,7 @@ export type CreateFileUploadBody = {
   name: string
   contentType: string
   size: number
-  folderId?: string
+  folderPath?: string
 }
 
 export type CreateFileUploadResponse = {
@@ -622,8 +635,7 @@ export type CreateFileUploadResponse = {
         size: number
         type: string
         key: string
-        folderId: string | null
-        folderPath: string | null
+        folderPath: string
         uploadedBy: string
         uploadedAt: string
         updatedAt: string
@@ -672,31 +684,6 @@ export type CreateFileUploadPartUrlsResponse = {
   }
 }
 
-/** `POST /api/v2/folders` */
-export type CreateFolderBody = {
-  workspaceId: string
-  resourceType: 'workflow' | 'knowledge_base' | 'table'
-  name: string
-  parentId?: string | null
-  sortOrder?: number
-}
-
-export type CreateFolderResponse = {
-  data: {
-    folder: {
-      id: string
-      resourceType: 'workflow' | 'file' | 'knowledge_base' | 'table'
-      name: string
-      parentId: string | null
-      locked: boolean
-      sortOrder: number
-      createdAt: string
-      updatedAt: string
-      deletedAt: string | null
-    }
-  }
-}
-
 /** `POST /api/v2/knowledge` */
 export type CreateKnowledgeBaseBody = {
   workspaceId: string
@@ -707,6 +694,7 @@ export type CreateKnowledgeBaseBody = {
     minSize?: number
     overlap?: number
   }
+  folderPath?: string
 }
 
 export type CreateKnowledgeBaseResponse = {
@@ -734,6 +722,7 @@ export type CreateKnowledgeBaseResponse = {
       connectorTypes?: Array<string>
       createdAt: string
       updatedAt: string
+      folderPath: string
     }
   }
 }
@@ -830,6 +819,24 @@ export type CreateKnowledgeDocumentUploadPartUrlsResponse = {
   }
 }
 
+/** `POST /api/v2/knowledge/folders` */
+export type CreateKnowledgeFolderBody = {
+  workspaceId: string
+  path: string
+}
+
+export type CreateKnowledgeFolderResponse = {
+  data: {
+    folder: {
+      name: string
+      path: string
+      parentPath: string
+      createdAt: string
+      updatedAt: string
+    }
+  }
+}
+
 /** `POST /api/v2/mcp-servers` */
 export type CreateMcpServerBody = {
   workspaceId: string
@@ -916,7 +923,7 @@ export type CreateTableBody = {
     }>
   }
   workspaceId: string
-  folderId?: string | null
+  folderPath?: string
 }
 
 export type CreateTableResponse = {
@@ -943,7 +950,7 @@ export type CreateTableResponse = {
       }
       rowCount: number
       maxRows: number
-      folderId: string | null
+      folderPath: string
       locks: {
         schemaLocked: boolean
         insertLocked: boolean
@@ -988,6 +995,24 @@ export type CreateTableExportResponse = {
   }
 }
 
+/** `POST /api/v2/tables/folders` */
+export type CreateTableFolderBody = {
+  workspaceId: string
+  path: string
+}
+
+export type CreateTableFolderResponse = {
+  data: {
+    folder: {
+      name: string
+      path: string
+      parentPath: string
+      createdAt: string
+      updatedAt: string
+    }
+  }
+}
+
 /** `POST /api/v2/tables/imports` */
 export type CreateTableImportBody = {
   workspaceId: string
@@ -1006,7 +1031,7 @@ export type CreateTableImportBody = {
     | {
         type: 'new'
         name: string
-        folderId?: string
+        folderPath?: string
       }
     | {
         type: 'existing'
@@ -1042,7 +1067,7 @@ export type CreateTableImportResponse = {
             | {
                 type: 'new'
                 name: string
-                folderId?: string
+                folderPath?: string
               }
             | {
                 type: 'existing'
@@ -1089,7 +1114,7 @@ export type CreateTableImportResponse = {
             | {
                 type: 'new'
                 name: string
-                folderId?: string
+                folderPath?: string
               }
             | {
                 type: 'existing'
@@ -1289,7 +1314,7 @@ export type CreateWorkflowBody = {
   workspaceId: string
   name: string
   description?: string | null
-  folderId?: string | null
+  folderPath?: string
 }
 
 export type CreateWorkflowResponse = {
@@ -1297,7 +1322,7 @@ export type CreateWorkflowResponse = {
     id: string
     name: string
     description: string | null
-    folderId: string | null
+    folderPath: string
     workspaceId: string
     isDeployed: boolean
     deployedAt: string | null
@@ -1305,6 +1330,25 @@ export type CreateWorkflowResponse = {
     lastRunAt: string | null
     createdAt: string
     updatedAt: string
+  }
+}
+
+/** `POST /api/v2/workflows/folders` */
+export type CreateWorkflowFolderBody = {
+  workspaceId: string
+  path: string
+}
+
+export type CreateWorkflowFolderResponse = {
+  data: {
+    folder: {
+      name: string
+      path: string
+      parentPath: string
+      createdAt: string
+      updatedAt: string
+      locked: boolean
+    }
   }
 }
 
@@ -1356,26 +1400,20 @@ export type DeleteFileResponse = {
   }
 }
 
-/** `DELETE /api/v2/folders/[id]` */
-export type DeleteFolderParams = {
-  id: string
-}
-
-export type DeleteFolderQuery = {
+/** `DELETE /api/v2/files/folders` */
+export type DeleteFileFolderQuery = {
   workspaceId: string
-  resourceType: 'workflow' | 'knowledge_base' | 'table'
+  path: string
+  recursive: string
 }
 
-export type DeleteFolderResponse = {
+export type DeleteFileFolderResponse = {
   data: {
-    id: string
+    path: string
     deleted: true
-    deletedItems?: {
+    deletedItems: {
       folders: number
-      workflows?: number
-      files?: number
-      knowledgeBases?: number
-      tables?: number
+      files: number
     }
   }
 }
@@ -1410,6 +1448,24 @@ export type DeleteKnowledgeDocumentResponse = {
   data: {
     id: string
     deleted: true
+  }
+}
+
+/** `DELETE /api/v2/knowledge/folders` */
+export type DeleteKnowledgeFolderQuery = {
+  workspaceId: string
+  path: string
+  recursive: string
+}
+
+export type DeleteKnowledgeFolderResponse = {
+  data: {
+    path: string
+    deleted: true
+    deletedItems: {
+      folders: number
+      knowledgeBases: number
+    }
   }
 }
 
@@ -1489,6 +1545,24 @@ export type DeleteTableColumnResponse = {
   }
 }
 
+/** `DELETE /api/v2/tables/folders` */
+export type DeleteTableFolderQuery = {
+  workspaceId: string
+  path: string
+  recursive: string
+}
+
+export type DeleteTableFolderResponse = {
+  data: {
+    path: string
+    deleted: true
+    deletedItems: {
+      folders: number
+      tables: number
+    }
+  }
+}
+
 /** `DELETE /api/v2/tables/[tableId]/rows/[rowId]` */
 export type DeleteTableRowParams = {
   tableId: string
@@ -1552,6 +1626,24 @@ export type DeleteWorkflowResponse = {
   data: {
     id: string
     deleted: true
+  }
+}
+
+/** `DELETE /api/v2/workflows/folders` */
+export type DeleteWorkflowFolderQuery = {
+  workspaceId: string
+  path: string
+  recursive: string
+}
+
+export type DeleteWorkflowFolderResponse = {
+  data: {
+    path: string
+    deleted: true
+    deletedItems: {
+      folders: number
+      workflows: number
+    }
   }
 }
 
@@ -1695,7 +1787,7 @@ export type ExportWorkflowResponse = {
       name: string
       description: string | null
       workspaceId: string | null
-      folderId: string | null
+      folderPath: string
     }
     state: {
       blocks: Record<
@@ -1935,6 +2027,29 @@ export type GetExecutionResponse = {
   }
 }
 
+/** `GET /api/v2/files/[fileId]/metadata` */
+export type GetFileParams = {
+  fileId: string
+}
+
+export type GetFileQuery = {
+  workspaceId: string
+}
+
+export type GetFileResponse = {
+  data: {
+    id: string
+    name: string
+    size: number
+    type: string
+    key: string
+    folderPath: string
+    uploadedBy: string
+    uploadedAt: string
+    updatedAt: string
+  }
+}
+
 /** `GET /api/v2/files/[fileId]/share` */
 export type GetFileShareParams = {
   fileId: string
@@ -1957,32 +2072,6 @@ export type GetFileShareResponse = {
       hasPassword: boolean
       allowedEmails: Array<string>
     } | null
-  }
-}
-
-/** `GET /api/v2/folders/[id]` */
-export type GetFolderParams = {
-  id: string
-}
-
-export type GetFolderQuery = {
-  workspaceId: string
-  resourceType: 'workflow' | 'knowledge_base' | 'table'
-}
-
-export type GetFolderResponse = {
-  data: {
-    folder: {
-      id: string
-      resourceType: 'workflow' | 'file' | 'knowledge_base' | 'table'
-      name: string
-      parentId: string | null
-      locked: boolean
-      sortOrder: number
-      createdAt: string
-      updatedAt: string
-      deletedAt: string | null
-    }
   }
 }
 
@@ -2020,6 +2109,7 @@ export type GetKnowledgeBaseResponse = {
       connectorTypes?: Array<string>
       createdAt: string
       updatedAt: string
+      folderPath: string
     }
   }
 }
@@ -2078,7 +2168,7 @@ export type GetLogResponse = {
       id: string | null
       name: string
       description: string | null
-      folderId: string | null
+      folderPath: string | null
       userId: string | null
       workspaceId: string | null
       createdAt: string | null
@@ -2185,7 +2275,7 @@ export type GetTableResponse = {
       }
       rowCount: number
       maxRows: number
-      folderId: string | null
+      folderPath: string
       locks: {
         schemaLocked: boolean
         insertLocked: boolean
@@ -2258,7 +2348,7 @@ export type GetTableImportResponse = {
       | {
           type: 'new'
           name: string
-          folderId?: string
+          folderPath?: string
         }
       | {
           type: 'existing'
@@ -2420,7 +2510,7 @@ export type GetWorkflowResponse = {
     id: string
     name: string
     description: string | null
-    folderId: string | null
+    folderPath: string
     workspaceId: string
     isDeployed: boolean
     deployedAt: string | null
@@ -2511,10 +2601,10 @@ export type GetWorkflowVersionResponse = {
 /** `POST /api/v2/workflows/import` */
 export type ImportWorkflowBody = {
   workspaceId: string
-  folderId?: string
+  workflow: string | Record<string, unknown>
+  folderPath?: string
   name?: string
   description?: string
-  workflow: string | Record<string, unknown>
 }
 
 export type ImportWorkflowResponse = {
@@ -2523,7 +2613,7 @@ export type ImportWorkflowResponse = {
     name: string
     description: string | null
     workspaceId: string
-    folderId: string | null
+    folderPath: string
     createdAt: string
     updatedAt: string
   }
@@ -2619,11 +2709,30 @@ export type ListCustomToolsResponse = {
   nextCursor: string | null
 }
 
+/** `GET /api/v2/files/folders` */
+export type ListFileFoldersQuery = {
+  workspaceId: string
+  parentPath?: string
+  search?: string
+  sortBy?: 'name' | 'createdAt' | 'updatedAt'
+  sortOrder?: 'asc' | 'desc'
+}
+
+export type ListFileFoldersResponse = {
+  data: Array<{
+    name: string
+    path: string
+    parentPath: string
+    createdAt: string
+    updatedAt: string
+  }>
+  nextCursor: string | null
+}
+
 /** `GET /api/v2/files` */
 export type ListFilesQuery = {
   workspaceId: string
-  scope?: 'active' | 'archived'
-  folderId?: string
+  folderPath?: string
   search?: string
   sortBy?: 'name' | 'size' | 'uploadedAt' | 'updatedAt'
   sortOrder?: 'asc' | 'desc'
@@ -2638,8 +2747,7 @@ export type ListFilesResponse = {
     size: number
     type: string
     key: string
-    folderId: string | null
-    folderPath: string | null
+    folderPath: string
     uploadedBy: string
     uploadedAt: string
     updatedAt: string
@@ -2647,35 +2755,10 @@ export type ListFilesResponse = {
   nextCursor: string | null
 }
 
-/** `GET /api/v2/folders` */
-export type ListFoldersQuery = {
-  workspaceId: string
-  resourceType: 'workflow' | 'knowledge_base' | 'table'
-  scope?: 'active' | 'archived'
-  search?: string
-  sortBy?: 'position' | 'name' | 'createdAt' | 'updatedAt'
-  sortOrder?: 'asc' | 'desc'
-}
-
-export type ListFoldersResponse = {
-  data: Array<{
-    id: string
-    resourceType: 'workflow' | 'file' | 'knowledge_base' | 'table'
-    name: string
-    parentId: string | null
-    locked: boolean
-    sortOrder: number
-    createdAt: string
-    updatedAt: string
-    deletedAt: string | null
-  }>
-  nextCursor: string | null
-}
-
 /** `GET /api/v2/knowledge` */
 export type ListKnowledgeBasesQuery = {
   workspaceId: string
-  folderId?: string
+  folderPath?: string
   search?: string
   sortBy?: 'name' | 'createdAt' | 'updatedAt'
   sortOrder?: 'asc' | 'desc'
@@ -2705,6 +2788,7 @@ export type ListKnowledgeBasesResponse = {
     connectorTypes?: Array<string>
     createdAt: string
     updatedAt: string
+    folderPath: string
   }>
   nextCursor: string | null
 }
@@ -2748,11 +2832,30 @@ export type ListKnowledgeDocumentsResponse = {
   nextCursor: string | null
 }
 
+/** `GET /api/v2/knowledge/folders` */
+export type ListKnowledgeFoldersQuery = {
+  workspaceId: string
+  parentPath?: string
+  search?: string
+  sortBy?: 'name' | 'createdAt' | 'updatedAt'
+  sortOrder?: 'asc' | 'desc'
+}
+
+export type ListKnowledgeFoldersResponse = {
+  data: Array<{
+    name: string
+    path: string
+    parentPath: string
+    createdAt: string
+    updatedAt: string
+  }>
+  nextCursor: string | null
+}
+
 /** `GET /api/v2/logs` */
 export type ListLogsQuery = {
   workspaceId: string
   workflowIds?: string
-  folderIds?: string
   triggers?: string
   level?: 'info' | 'error'
   startDate?: string
@@ -2769,6 +2872,7 @@ export type ListLogsQuery = {
   limit?: number
   cursor?: string
   order?: 'desc' | 'asc'
+  folderPaths?: string
 }
 
 export type ListLogsResponse = {
@@ -2852,6 +2956,26 @@ export type ListSkillsResponse = {
   nextCursor: string | null
 }
 
+/** `GET /api/v2/tables/folders` */
+export type ListTableFoldersQuery = {
+  workspaceId: string
+  parentPath?: string
+  search?: string
+  sortBy?: 'name' | 'createdAt' | 'updatedAt'
+  sortOrder?: 'asc' | 'desc'
+}
+
+export type ListTableFoldersResponse = {
+  data: Array<{
+    name: string
+    path: string
+    parentPath: string
+    createdAt: string
+    updatedAt: string
+  }>
+  nextCursor: string | null
+}
+
 /** `GET /api/v2/tables/[tableId]/rows` */
 export type ListTableRowsParams = {
   tableId: string
@@ -2876,7 +3000,7 @@ export type ListTableRowsResponse = {
 /** `GET /api/v2/tables` */
 export type ListTablesQuery = {
   workspaceId: string
-  folderId?: string
+  folderPath?: string
   search?: string
   sortBy?: 'name' | 'createdAt' | 'updatedAt'
   sortOrder?: 'asc' | 'desc'
@@ -2907,7 +3031,7 @@ export type ListTablesResponse = {
     }
     rowCount: number
     maxRows: number
-    folderId: string | null
+    folderPath: string
     locks: {
       schemaLocked: boolean
       insertLocked: boolean
@@ -3064,6 +3188,27 @@ export type ListUsageLogsResponse = {
   nextCursor: string | null
 }
 
+/** `GET /api/v2/workflows/folders` */
+export type ListWorkflowFoldersQuery = {
+  workspaceId: string
+  parentPath?: string
+  search?: string
+  sortBy?: 'name' | 'createdAt' | 'updatedAt'
+  sortOrder?: 'asc' | 'desc'
+}
+
+export type ListWorkflowFoldersResponse = {
+  data: Array<{
+    name: string
+    path: string
+    parentPath: string
+    createdAt: string
+    updatedAt: string
+    locked: boolean
+  }>
+  nextCursor: string | null
+}
+
 /** `GET /api/v2/tables/[tableId]/groups` */
 export type ListWorkflowGroupsParams = {
   tableId: string
@@ -3102,7 +3247,7 @@ export type ListWorkflowGroupsResponse = {
 /** `GET /api/v2/workflows` */
 export type ListWorkflowsQuery = {
   workspaceId: string
-  folderId?: string
+  folderPath?: string
   deployedOnly?: boolean
   limit?: number
   cursor?: string
@@ -3116,7 +3261,7 @@ export type ListWorkflowsResponse = {
     id: string
     name: string
     description: string | null
-    folderId: string | null
+    folderPath: string
     workspaceId: string
     isDeployed: boolean
     deployedAt: string | null
@@ -3155,16 +3300,14 @@ export type ListWorkflowVersionsResponse = {
 /** `POST /api/v2/files/move` */
 export type MoveFileItemsBody = {
   workspaceId: string
-  fileIds?: Array<string>
-  folderIds?: Array<string>
-  targetFolderId?: string | null
+  fileIds: Array<string>
+  targetFolderPath?: string
 }
 
 export type MoveFileItemsResponse = {
   data: {
     movedItems: {
       files: number
-      folders: number
     }
   }
 }
@@ -3195,6 +3338,83 @@ export type QueryRowsResponse = {
   nextCursor: string | null
 }
 
+/** `PATCH /api/v2/files/folders` */
+export type RelocateFileFolderBody = {
+  workspaceId: string
+  path: string
+  destinationPath: string
+}
+
+export type RelocateFileFolderResponse = {
+  data: {
+    folder: {
+      name: string
+      path: string
+      parentPath: string
+      createdAt: string
+      updatedAt: string
+    }
+  }
+}
+
+/** `PATCH /api/v2/knowledge/folders` */
+export type RelocateKnowledgeFolderBody = {
+  workspaceId: string
+  path: string
+  destinationPath: string
+}
+
+export type RelocateKnowledgeFolderResponse = {
+  data: {
+    folder: {
+      name: string
+      path: string
+      parentPath: string
+      createdAt: string
+      updatedAt: string
+    }
+  }
+}
+
+/** `PATCH /api/v2/tables/folders` */
+export type RelocateTableFolderBody = {
+  workspaceId: string
+  path: string
+  destinationPath: string
+}
+
+export type RelocateTableFolderResponse = {
+  data: {
+    folder: {
+      name: string
+      path: string
+      parentPath: string
+      createdAt: string
+      updatedAt: string
+    }
+  }
+}
+
+/** `PATCH /api/v2/workflows/folders` */
+export type RelocateWorkflowFolderBody = {
+  workspaceId: string
+  path: string
+  destinationPath: string
+}
+
+export type RelocateWorkflowFolderResponse = {
+  data: {
+    folder: {
+      name: string
+      path: string
+      parentPath: string
+      createdAt: string
+      updatedAt: string
+      locked: boolean
+    }
+  }
+}
+
 /** `PATCH /api/v2/files/[fileId]` */
 export type RenameFileParams = {
   fileId: string
@@ -3212,80 +3432,10 @@ export type RenameFileResponse = {
     size: number
     type: string
     key: string
-    folderId: string | null
-    folderPath: string | null
+    folderPath: string
     uploadedBy: string
     uploadedAt: string
     updatedAt: string
-  }
-}
-
-/** `POST /api/v2/files/[fileId]/restore` */
-export type RestoreFileParams = {
-  fileId: string
-}
-
-export type RestoreFileBody = {
-  workspaceId: string
-}
-
-export type RestoreFileResponse = {
-  data: {
-    id: string
-    restored: true
-  }
-}
-
-/** `POST /api/v2/tables/[tableId]/restore` */
-export type RestoreTableParams = {
-  tableId: string
-}
-
-export type RestoreTableBody = {
-  workspaceId: string
-}
-
-export type RestoreTableResponse = {
-  data: {
-    table: {
-      id: string
-      name: string
-      description: string | null
-      schema: {
-        columns: Array<{
-          id?: string
-          name: string
-          type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
-          required: boolean
-          unique: boolean
-          workflowGroupId?: string
-          options?: Array<{
-            id: string
-            name: string
-          }>
-          multiple?: boolean
-          currencyCode?: unknown
-        }>
-      }
-      rowCount: number
-      maxRows: number
-      folderId: string | null
-      locks: {
-        schemaLocked: boolean
-        insertLocked: boolean
-        updateLocked: boolean
-        deleteLocked: boolean
-      }
-      job: {
-        id: string | null
-        type: 'import' | 'delete' | 'export' | 'backfill' | 'update' | null
-        status: 'running' | 'ready' | 'failed' | 'canceled'
-        rowsProcessed: number
-        error: string | null
-      } | null
-      createdAt: string
-      updatedAt: string
-    }
   }
 }
 
@@ -3563,41 +3713,10 @@ export type UpdateFileContentResponse = {
     size: number
     type: string
     key: string
-    folderId: string | null
-    folderPath: string | null
+    folderPath: string
     uploadedBy: string
     uploadedAt: string
     updatedAt: string
-  }
-}
-
-/** `PATCH /api/v2/folders/[id]` */
-export type UpdateFolderParams = {
-  id: string
-}
-
-export type UpdateFolderBody = {
-  workspaceId: string
-  resourceType: 'workflow' | 'knowledge_base' | 'table'
-  name?: string
-  locked?: boolean
-  parentId?: string | null
-  sortOrder?: number
-}
-
-export type UpdateFolderResponse = {
-  data: {
-    folder: {
-      id: string
-      resourceType: 'workflow' | 'file' | 'knowledge_base' | 'table'
-      name: string
-      parentId: string | null
-      locked: boolean
-      sortOrder: number
-      createdAt: string
-      updatedAt: string
-      deletedAt: string | null
-    }
   }
 }
 
@@ -3611,10 +3730,11 @@ export type UpdateKnowledgeBaseBody = {
   name?: string
   description?: string
   chunkingConfig?: {
-    maxSize: number
-    minSize: number
-    overlap: number
+    maxSize?: number
+    minSize?: number
+    overlap?: number
   }
+  folderPath?: string
 }
 
 export type UpdateKnowledgeBaseResponse = {
@@ -3642,6 +3762,7 @@ export type UpdateKnowledgeBaseResponse = {
       connectorTypes?: Array<string>
       createdAt: string
       updatedAt: string
+      folderPath: string
     }
   }
 }
@@ -3746,7 +3867,7 @@ export type UpdateTableParams = {
 export type UpdateTableBody = {
   workspaceId: string
   name?: string
-  folderId?: string | null
+  folderPath?: string
 }
 
 export type UpdateTableResponse = {
@@ -3773,7 +3894,7 @@ export type UpdateTableResponse = {
       }
       rowCount: number
       maxRows: number
-      folderId: string | null
+      folderPath: string
       locks: {
         schemaLocked: boolean
         insertLocked: boolean
@@ -3985,7 +4106,7 @@ export type UpdateWorkflowParams = {
 export type UpdateWorkflowBody = {
   name?: string
   description?: string | null
-  folderId?: string | null
+  folderPath?: string
 }
 
 export type UpdateWorkflowResponse = {
@@ -3993,7 +4114,7 @@ export type UpdateWorkflowResponse = {
     id: string
     name: string
     description: string | null
-    folderId: string | null
+    folderPath: string
     workspaceId: string
     isDeployed: boolean
     deployedAt: string | null
@@ -4220,16 +4341,15 @@ export const V2_OPERATIONS = {
       autoRun: { kind: 'boolean', default: false },
     },
   },
-  bulkArchiveFileItems: {
+  bulkDeleteFiles: {
     method: 'POST',
-    path: '/api/v2/files/bulk-archive',
+    path: '/api/v2/files/bulk-delete',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'Archive Files and Folders',
+    summary: 'Delete Files',
     body: {
       workspaceId: { kind: 'string', required: true },
-      fileIds: { kind: 'array', default: [] },
-      folderIds: { kind: 'array', default: [] },
+      fileIds: { kind: 'array', required: true },
     },
   },
   cancelTableExport: {
@@ -4357,9 +4477,20 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true },
       name: { kind: 'string', required: true },
       contentType: { kind: 'string' },
-      folderId: { kind: 'string' },
+      folderPath: { kind: 'string' },
       content: { kind: 'string', default: '' },
       encoding: { kind: 'enum', values: ['utf-8', 'base64'] as const, default: 'utf-8' },
+    },
+  },
+  createFileFolder: {
+    method: 'POST',
+    path: '/api/v2/files/folders',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Create Folder',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      path: { kind: 'string', required: true },
     },
   },
   createFileUpload: {
@@ -4373,7 +4504,7 @@ export const V2_OPERATIONS = {
       name: { kind: 'string', required: true },
       contentType: { kind: 'string', required: true },
       size: { kind: 'integer', required: true },
-      folderId: { kind: 'string' },
+      folderPath: { kind: 'string' },
     },
   },
   createFileUploadPartUrls: {
@@ -4389,24 +4520,6 @@ export const V2_OPERATIONS = {
       partNumbers: { kind: 'array', required: true },
     },
   },
-  createFolder: {
-    method: 'POST',
-    path: '/api/v2/folders',
-    pathParams: [] as const,
-    responseMode: 'json',
-    summary: 'Create Folder',
-    body: {
-      workspaceId: { kind: 'string', required: true },
-      resourceType: {
-        kind: 'enum',
-        required: true,
-        values: ['workflow', 'knowledge_base', 'table'] as const,
-      },
-      name: { kind: 'string', required: true },
-      parentId: { kind: 'string' },
-      sortOrder: { kind: 'integer' },
-    },
-  },
   createKnowledgeBase: {
     method: 'POST',
     path: '/api/v2/knowledge',
@@ -4418,6 +4531,7 @@ export const V2_OPERATIONS = {
       name: { kind: 'string', required: true },
       description: { kind: 'string' },
       chunkingConfig: { kind: 'object', default: { maxSize: 1024, minSize: 100, overlap: 200 } },
+      folderPath: { kind: 'string' },
     },
   },
   createKnowledgeDocumentUpload: {
@@ -4452,6 +4566,17 @@ export const V2_OPERATIONS = {
     },
     body: {
       partNumbers: { kind: 'array', required: true },
+    },
+  },
+  createKnowledgeFolder: {
+    method: 'POST',
+    path: '/api/v2/knowledge/folders',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Create Folder',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      path: { kind: 'string', required: true },
     },
   },
   createMcpServer: {
@@ -4499,7 +4624,7 @@ export const V2_OPERATIONS = {
       description: { kind: 'string' },
       schema: { kind: 'object', required: true },
       workspaceId: { kind: 'string', required: true },
-      folderId: { kind: 'string' },
+      folderPath: { kind: 'string' },
     },
   },
   createTableExport: {
@@ -4511,6 +4636,17 @@ export const V2_OPERATIONS = {
     body: {
       workspaceId: { kind: 'string', required: true },
       format: { kind: 'enum', values: ['csv', 'json'] as const, default: 'csv' },
+    },
+  },
+  createTableFolder: {
+    method: 'POST',
+    path: '/api/v2/tables/folders',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Create Folder',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      path: { kind: 'string', required: true },
     },
   },
   createTableImport: {
@@ -4574,7 +4710,18 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true },
       name: { kind: 'string', required: true },
       description: { kind: 'string' },
-      folderId: { kind: 'string' },
+      folderPath: { kind: 'string' },
+    },
+  },
+  createWorkflowFolder: {
+    method: 'POST',
+    path: '/api/v2/workflows/folders',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Create Folder',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      path: { kind: 'string', required: true },
     },
   },
   deleteCredential: {
@@ -4607,19 +4754,16 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true },
     },
   },
-  deleteFolder: {
+  deleteFileFolder: {
     method: 'DELETE',
-    path: '/api/v2/folders/[id]',
-    pathParams: ['id'] as const,
+    path: '/api/v2/files/folders',
+    pathParams: [] as const,
     responseMode: 'json',
     summary: 'Delete Folder',
     query: {
       workspaceId: { kind: 'string', required: true },
-      resourceType: {
-        kind: 'enum',
-        required: true,
-        values: ['workflow', 'knowledge_base', 'table'] as const,
-      },
+      path: { kind: 'string', required: true },
+      recursive: { kind: 'string', required: true },
     },
   },
   deleteKnowledgeBase: {
@@ -4640,6 +4784,18 @@ export const V2_OPERATIONS = {
     summary: 'Delete Document',
     query: {
       workspaceId: { kind: 'string', required: true },
+    },
+  },
+  deleteKnowledgeFolder: {
+    method: 'DELETE',
+    path: '/api/v2/knowledge/folders',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Delete Folder',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+      path: { kind: 'string', required: true },
+      recursive: { kind: 'string', required: true },
     },
   },
   deleteMcpServer: {
@@ -4683,6 +4839,18 @@ export const V2_OPERATIONS = {
       columnName: { kind: 'string', required: true },
     },
   },
+  deleteTableFolder: {
+    method: 'DELETE',
+    path: '/api/v2/tables/folders',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Delete Folder',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+      path: { kind: 'string', required: true },
+      recursive: { kind: 'string', required: true },
+    },
+  },
   deleteTableRow: {
     method: 'DELETE',
     path: '/api/v2/tables/[tableId]/rows/[rowId]',
@@ -4722,6 +4890,18 @@ export const V2_OPERATIONS = {
     pathParams: ['id'] as const,
     responseMode: 'json',
     summary: 'Delete Workflow',
+  },
+  deleteWorkflowFolder: {
+    method: 'DELETE',
+    path: '/api/v2/workflows/folders',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Delete Folder',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+      path: { kind: 'string', required: true },
+      recursive: { kind: 'string', required: true },
+    },
   },
   deleteWorkflowGroup: {
     method: 'DELETE',
@@ -4822,6 +5002,16 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Get Execution',
   },
+  getFile: {
+    method: 'GET',
+    path: '/api/v2/files/[fileId]/metadata',
+    pathParams: ['fileId'] as const,
+    responseMode: 'json',
+    summary: 'Get File Metadata',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+    },
+  },
   getFileShare: {
     method: 'GET',
     path: '/api/v2/files/[fileId]/share',
@@ -4830,21 +5020,6 @@ export const V2_OPERATIONS = {
     summary: 'Get File Share',
     query: {
       workspaceId: { kind: 'string', required: true },
-    },
-  },
-  getFolder: {
-    method: 'GET',
-    path: '/api/v2/folders/[id]',
-    pathParams: ['id'] as const,
-    responseMode: 'json',
-    summary: 'Get Folder',
-    query: {
-      workspaceId: { kind: 'string', required: true },
-      resourceType: {
-        kind: 'enum',
-        required: true,
-        values: ['workflow', 'knowledge_base', 'table'] as const,
-      },
     },
   },
   getKnowledgeBase: {
@@ -4987,10 +5162,10 @@ export const V2_OPERATIONS = {
     summary: 'Import a workflow',
     body: {
       workspaceId: { kind: 'string', required: true },
-      folderId: { kind: 'string' },
+      workflow: { kind: 'unknown', required: true },
+      folderPath: { kind: 'string' },
       name: { kind: 'string' },
       description: { kind: 'string' },
-      workflow: { kind: 'unknown', required: true },
     },
   },
   listAuditLogs: {
@@ -5051,6 +5226,24 @@ export const V2_OPERATIONS = {
       sortOrder: { kind: 'enum', values: ['asc', 'desc'] as const, default: 'desc' },
     },
   },
+  listFileFolders: {
+    method: 'GET',
+    path: '/api/v2/files/folders',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'List Folders',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+      parentPath: { kind: 'string' },
+      search: { kind: 'string' },
+      sortBy: {
+        kind: 'enum',
+        values: ['name', 'createdAt', 'updatedAt'] as const,
+        default: 'name',
+      },
+      sortOrder: { kind: 'enum', values: ['asc', 'desc'] as const, default: 'asc' },
+    },
+  },
   listFiles: {
     method: 'GET',
     path: '/api/v2/files',
@@ -5059,8 +5252,7 @@ export const V2_OPERATIONS = {
     summary: 'List Files',
     query: {
       workspaceId: { kind: 'string', required: true },
-      scope: { kind: 'enum', values: ['active', 'archived'] as const, default: 'active' },
-      folderId: { kind: 'string' },
+      folderPath: { kind: 'string' },
       search: { kind: 'string' },
       sortBy: {
         kind: 'enum',
@@ -5072,29 +5264,6 @@ export const V2_OPERATIONS = {
       cursor: { kind: 'string' },
     },
   },
-  listFolders: {
-    method: 'GET',
-    path: '/api/v2/folders',
-    pathParams: [] as const,
-    responseMode: 'json',
-    summary: 'List Folders',
-    query: {
-      workspaceId: { kind: 'string', required: true },
-      resourceType: {
-        kind: 'enum',
-        required: true,
-        values: ['workflow', 'knowledge_base', 'table'] as const,
-      },
-      scope: { kind: 'enum', values: ['active', 'archived'] as const, default: 'active' },
-      search: { kind: 'string' },
-      sortBy: {
-        kind: 'enum',
-        values: ['position', 'name', 'createdAt', 'updatedAt'] as const,
-        default: 'position',
-      },
-      sortOrder: { kind: 'enum', values: ['asc', 'desc'] as const, default: 'asc' },
-    },
-  },
   listKnowledgeBases: {
     method: 'GET',
     path: '/api/v2/knowledge',
@@ -5103,7 +5272,7 @@ export const V2_OPERATIONS = {
     summary: 'List Knowledge Bases',
     query: {
       workspaceId: { kind: 'string', required: true },
-      folderId: { kind: 'string' },
+      folderPath: { kind: 'string' },
       search: { kind: 'string' },
       sortBy: {
         kind: 'enum',
@@ -5145,6 +5314,24 @@ export const V2_OPERATIONS = {
       cursor: { kind: 'string' },
     },
   },
+  listKnowledgeFolders: {
+    method: 'GET',
+    path: '/api/v2/knowledge/folders',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'List Folders',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+      parentPath: { kind: 'string' },
+      search: { kind: 'string' },
+      sortBy: {
+        kind: 'enum',
+        values: ['name', 'createdAt', 'updatedAt'] as const,
+        default: 'name',
+      },
+      sortOrder: { kind: 'enum', values: ['asc', 'desc'] as const, default: 'asc' },
+    },
+  },
   listLogs: {
     method: 'GET',
     path: '/api/v2/logs',
@@ -5154,7 +5341,6 @@ export const V2_OPERATIONS = {
     query: {
       workspaceId: { kind: 'string', required: true },
       workflowIds: { kind: 'string' },
-      folderIds: { kind: 'string' },
       triggers: { kind: 'string' },
       level: { kind: 'enum', values: ['info', 'error'] as const },
       startDate: { kind: 'string' },
@@ -5171,6 +5357,7 @@ export const V2_OPERATIONS = {
       limit: { kind: 'number', default: 100 },
       cursor: { kind: 'string' },
       order: { kind: 'enum', values: ['desc', 'asc'] as const, default: 'desc' },
+      folderPaths: { kind: 'string' },
     },
   },
   listMcpServers: {
@@ -5207,6 +5394,24 @@ export const V2_OPERATIONS = {
       sortOrder: { kind: 'enum', values: ['asc', 'desc'] as const, default: 'desc' },
     },
   },
+  listTableFolders: {
+    method: 'GET',
+    path: '/api/v2/tables/folders',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'List Folders',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+      parentPath: { kind: 'string' },
+      search: { kind: 'string' },
+      sortBy: {
+        kind: 'enum',
+        values: ['name', 'createdAt', 'updatedAt'] as const,
+        default: 'name',
+      },
+      sortOrder: { kind: 'enum', values: ['asc', 'desc'] as const, default: 'asc' },
+    },
+  },
   listTableRows: {
     method: 'GET',
     path: '/api/v2/tables/[tableId]/rows',
@@ -5227,7 +5432,7 @@ export const V2_OPERATIONS = {
     summary: 'List Tables',
     query: {
       workspaceId: { kind: 'string', required: true },
-      folderId: { kind: 'string' },
+      folderPath: { kind: 'string' },
       search: { kind: 'string' },
       sortBy: {
         kind: 'enum',
@@ -5283,6 +5488,24 @@ export const V2_OPERATIONS = {
       cursor: { kind: 'string' },
     },
   },
+  listWorkflowFolders: {
+    method: 'GET',
+    path: '/api/v2/workflows/folders',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'List Folders',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+      parentPath: { kind: 'string' },
+      search: { kind: 'string' },
+      sortBy: {
+        kind: 'enum',
+        values: ['name', 'createdAt', 'updatedAt'] as const,
+        default: 'name',
+      },
+      sortOrder: { kind: 'enum', values: ['asc', 'desc'] as const, default: 'asc' },
+    },
+  },
   listWorkflowGroups: {
     method: 'GET',
     path: '/api/v2/tables/[tableId]/groups',
@@ -5301,7 +5524,7 @@ export const V2_OPERATIONS = {
     summary: 'List Workflows',
     query: {
       workspaceId: { kind: 'string', required: true },
-      folderId: { kind: 'string' },
+      folderPath: { kind: 'string' },
       deployedOnly: { kind: 'boolean' },
       limit: { kind: 'number', default: 50 },
       cursor: { kind: 'string' },
@@ -5333,9 +5556,8 @@ export const V2_OPERATIONS = {
     summary: 'Move Files and Folders',
     body: {
       workspaceId: { kind: 'string', required: true },
-      fileIds: { kind: 'array', default: [] },
-      folderIds: { kind: 'array', default: [] },
-      targetFolderId: { kind: 'string' },
+      fileIds: { kind: 'array', required: true },
+      targetFolderPath: { kind: 'string' },
     },
   },
   queryRows: {
@@ -5352,6 +5574,54 @@ export const V2_OPERATIONS = {
       cursor: { kind: 'string' },
     },
   },
+  relocateFileFolder: {
+    method: 'PATCH',
+    path: '/api/v2/files/folders',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Rename or Move Folder',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      path: { kind: 'string', required: true },
+      destinationPath: { kind: 'string', required: true },
+    },
+  },
+  relocateKnowledgeFolder: {
+    method: 'PATCH',
+    path: '/api/v2/knowledge/folders',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Rename or Move Folder',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      path: { kind: 'string', required: true },
+      destinationPath: { kind: 'string', required: true },
+    },
+  },
+  relocateTableFolder: {
+    method: 'PATCH',
+    path: '/api/v2/tables/folders',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Rename or Move Folder',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      path: { kind: 'string', required: true },
+      destinationPath: { kind: 'string', required: true },
+    },
+  },
+  relocateWorkflowFolder: {
+    method: 'PATCH',
+    path: '/api/v2/workflows/folders',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Rename or Move Folder',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      path: { kind: 'string', required: true },
+      destinationPath: { kind: 'string', required: true },
+    },
+  },
   renameFile: {
     method: 'PATCH',
     path: '/api/v2/files/[fileId]',
@@ -5361,26 +5631,6 @@ export const V2_OPERATIONS = {
     body: {
       workspaceId: { kind: 'string', required: true },
       name: { kind: 'string', required: true },
-    },
-  },
-  restoreFile: {
-    method: 'POST',
-    path: '/api/v2/files/[fileId]/restore',
-    pathParams: ['fileId'] as const,
-    responseMode: 'json',
-    summary: 'Restore File',
-    body: {
-      workspaceId: { kind: 'string', required: true },
-    },
-  },
-  restoreTable: {
-    method: 'POST',
-    path: '/api/v2/tables/[tableId]/restore',
-    pathParams: ['tableId'] as const,
-    responseMode: 'json',
-    summary: 'Restore Table',
-    body: {
-      workspaceId: { kind: 'string', required: true },
     },
   },
   rollbackWorkflow: {
@@ -5494,25 +5744,6 @@ export const V2_OPERATIONS = {
       encoding: { kind: 'enum', values: ['utf-8', 'base64'] as const, default: 'utf-8' },
     },
   },
-  updateFolder: {
-    method: 'PATCH',
-    path: '/api/v2/folders/[id]',
-    pathParams: ['id'] as const,
-    responseMode: 'json',
-    summary: 'Update Folder',
-    body: {
-      workspaceId: { kind: 'string', required: true },
-      resourceType: {
-        kind: 'enum',
-        required: true,
-        values: ['workflow', 'knowledge_base', 'table'] as const,
-      },
-      name: { kind: 'string' },
-      locked: { kind: 'boolean' },
-      parentId: { kind: 'string' },
-      sortOrder: { kind: 'integer' },
-    },
-  },
   updateKnowledgeBase: {
     method: 'PUT',
     path: '/api/v2/knowledge/[id]',
@@ -5523,7 +5754,8 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true },
       name: { kind: 'string' },
       description: { kind: 'string' },
-      chunkingConfig: { kind: 'object' },
+      chunkingConfig: { kind: 'object', default: { maxSize: 1024, minSize: 100, overlap: 200 } },
+      folderPath: { kind: 'string' },
     },
   },
   updateMcpServer: {
@@ -5582,7 +5814,7 @@ export const V2_OPERATIONS = {
     body: {
       workspaceId: { kind: 'string', required: true },
       name: { kind: 'string' },
-      folderId: { kind: 'string' },
+      folderPath: { kind: 'string' },
     },
   },
   updateTableColumn: {
@@ -5631,7 +5863,7 @@ export const V2_OPERATIONS = {
     body: {
       name: { kind: 'string' },
       description: { kind: 'string' },
-      folderId: { kind: 'string' },
+      folderPath: { kind: 'string' },
     },
   },
   updateWorkflowGroup: {

@@ -5,6 +5,7 @@ import { V2_OPERATIONS, type V2OperationName } from '../generated/v2-api.js'
 import { deriveCommandPath } from './derive.js'
 import { executeOperation } from './execute.js'
 import { addOperationOptions } from './options.js'
+import { flagNameFor } from './request.js'
 import type { OperationSpec } from './types.js'
 
 const GROUP_ALIASES: Readonly<Record<string, string>> = {
@@ -12,7 +13,6 @@ const GROUP_ALIASES: Readonly<Record<string, string>> = {
   credentials: 'credential',
   'custom-tools': 'custom-tool',
   files: 'file',
-  folders: 'folder',
   logs: 'log',
   'mcp-servers': 'mcp-server',
   skills: 'skill',
@@ -24,8 +24,17 @@ function buildLeaf(operation: V2OperationName, spec: CommandSpec, leafName: stri
   const operationSpec = V2_OPERATIONS[operation] as OperationSpec
   const command = new Command(leafName).allowExcessArguments(false)
 
+  for (const alias of spec.aliases ?? []) command.alias(alias)
+
   for (const param of operationSpec.pathParams) {
     command.argument(`<${param}>`)
+  }
+
+  for (const field of spec.positionals ?? []) {
+    const descriptor = operationSpec.query?.[field] ?? operationSpec.body?.[field]
+    if (!descriptor) throw new Error(`${operation}.${field} is not a request field`)
+    if (!descriptor.required) throw new Error(`${operation}.${field} is not required`)
+    command.argument(`<${flagNameFor(operation, field)}>`)
   }
 
   command.description(

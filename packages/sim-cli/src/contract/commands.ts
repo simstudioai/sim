@@ -1,10 +1,20 @@
-import type { CliContract } from './types.js'
+import type { CliContract, ColumnSpec } from './types.js'
 
 const TABLE_NAME_HELP = 'Identifier: letters, numbers, and underscores; cannot start with a number'
 const TABLE_FILTER_HELP =
   'Predicate tree using all/any and operators eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, or isNotNull'
 const CUSTOM_TOOL_SCHEMA_HELP =
   'OpenAI function schema: {"type":"function","function":{"name":"...","parameters":{"type":"object","properties":{}}}}'
+const FOLDER_PATH_FLAG = {
+  name: 'folder',
+  describe: 'Canonical folder path, starting with /',
+} as const
+const FOLDER_LIST_COLUMNS: ColumnSpec[] = [
+  { header: 'path' },
+  { header: 'name' },
+  { header: 'parent', path: 'parentPath' },
+  { header: 'updated', path: 'updatedAt', format: 'timestamp' },
+]
 
 /**
  * The CLI contract for the v2 surface.
@@ -77,19 +87,12 @@ export const CLI_CONTRACT: CliContract = {
       { header: 'remaining columns', path: 'columns', format: 'count' },
     ],
   },
-  deleteFolder: {
-    // The route archives the folder *and cascades to its contents*, so this is
-    // the broadest delete on the surface — the message says so rather than
-    // reading like a single-item removal.
-    confirm: 'This archives the folder and everything inside it.',
-  },
-
   // ─── Fields whose type misdescribes their meaning ─────────────────────────
   // `z.string()` that the route splits on commas. No generator can infer this.
   listLogs: {
     flags: {
       workflowIds: { name: 'workflow', list: true },
-      folderIds: { name: 'folder', list: true },
+      folderPaths: { name: 'folder', list: true },
       triggers: { name: 'trigger', list: true },
     },
     columns: [
@@ -162,35 +165,53 @@ export const CLI_CONTRACT: CliContract = {
   createTable: {
     flags: {
       name: { describe: TABLE_NAME_HELP },
+      folderPath: FOLDER_PATH_FLAG,
       schema: {
         json: true,
         describe: 'Table schema: {"columns":[{"name":"email","type":"string"}]}',
       },
     },
   },
-  updateTable: { flags: { name: { describe: TABLE_NAME_HELP } } },
+  updateTable: {
+    aliases: ['mv'],
+    flags: {
+      name: { describe: TABLE_NAME_HELP },
+      folderPath: FOLDER_PATH_FLAG,
+    },
+  },
+  createFile: { flags: { folderPath: FOLDER_PATH_FLAG } },
+  createKnowledgeBase: { flags: { folderPath: FOLDER_PATH_FLAG } },
+  updateKnowledgeBase: { aliases: ['mv'], flags: { folderPath: FOLDER_PATH_FLAG } },
+  createWorkflow: { flags: { folderPath: FOLDER_PATH_FLAG } },
+  updateWorkflow: { aliases: ['mv'], flags: { folderPath: FOLDER_PATH_FLAG } },
+  importWorkflow: { flags: { folderPath: FOLDER_PATH_FLAG } },
   createCustomTool: { flags: { schema: { json: true, describe: CUSTOM_TOOL_SCHEMA_HELP } } },
   updateCustomTool: { flags: { schema: { json: true, describe: CUSTOM_TOOL_SCHEMA_HELP } } },
 
   // ─── Output columns for list commands ─────────────────────────────────────
   listTables: {
+    flags: { folderPath: FOLDER_PATH_FLAG },
     columns: [
       { header: 'id' },
       { header: 'name' },
+      { header: 'folder', path: 'folderPath' },
       { header: 'rows', path: 'rowCount' },
       { header: 'updated', path: 'updatedAt', format: 'timestamp' },
     ],
   },
   listWorkflows: {
+    flags: { folderPath: FOLDER_PATH_FLAG },
     columns: [
       { header: 'id' },
       { header: 'name' },
+      { header: 'folder', path: 'folderPath' },
       { header: 'deployed', path: 'isDeployed', format: 'bool' },
       { header: 'runs', path: 'runCount' },
       { header: 'last run', path: 'lastRunAt', format: 'timestamp' },
     ],
   },
   listFiles: {
+    flags: { folderPath: FOLDER_PATH_FLAG },
     columns: [
       { header: 'id' },
       { header: 'name' },
@@ -204,9 +225,11 @@ export const CLI_CONTRACT: CliContract = {
   },
   listTableRows: { expand: 'data' },
   listKnowledgeBases: {
+    flags: { folderPath: FOLDER_PATH_FLAG },
     columns: [
       { header: 'id' },
       { header: 'name' },
+      { header: 'folder', path: 'folderPath' },
       { header: 'docs', path: 'docCount' },
       { header: 'tokens', path: 'tokenCount' },
       { header: 'model', path: 'embeddingModel' },
@@ -250,14 +273,6 @@ export const CLI_CONTRACT: CliContract = {
       { header: 'updated', path: 'updatedAt', format: 'timestamp' },
     ],
   },
-  listFolders: {
-    columns: [
-      { header: 'id' },
-      { header: 'name' },
-      { header: 'parent', path: 'parentId' },
-      { header: 'updated', path: 'updatedAt', format: 'timestamp' },
-    ],
-  },
   listCredentials: {
     columns: [
       { header: 'id' },
@@ -277,36 +292,36 @@ export const CLI_CONTRACT: CliContract = {
   },
 
   // ─── The expanded files surface ───────────────────────────────────────────
-  // Every one of these derives badly. `/files/move` and `/files/bulk-archive`
+  // Every one of these derives badly. `/files/move` and `/files/bulk-delete`
   // are verbs sitting where the deriver expects a sub-resource, so it made them
   // groups holding a lone `create`; and `GET /files/[id]/share` fetches one
   // share, which the deriver read as a collection and named `list`.
-  bulkArchiveFileItems: {
+  bulkDeleteFiles: {
     // `batch-` for the bulk form, matching `tables rows batch-delete`.
-    command: 'files batch-archive',
-    describe: 'Archive several files and folders at once',
+    command: 'files batch-delete',
+    describe: 'Delete several files at once',
     flags: {
       fileIds: { list: true },
-      folderIds: { list: true },
     },
-    confirm: 'This archives every listed file and folder, and everything inside those folders.',
+    confirm: 'This deletes every listed file.',
+  },
+  getFile: {
+    command: 'files get',
+    describe: 'Show file metadata',
   },
   moveFileItems: {
     command: 'files move',
-    describe: 'Move files and folders into another folder',
+    aliases: ['mv'],
+    describe: 'Move files into another folder',
     flags: {
       fileIds: { list: true },
-      folderIds: { list: true },
+      targetFolderPath: { name: 'to', describe: 'Destination folder path; omit for root' },
     },
   },
   renameFile: {
     // Derived to `files update`, which contradicted its own summary.
     command: 'files rename',
     describe: 'Rename a file',
-  },
-  restoreFile: {
-    command: 'files restore',
-    describe: 'Restore an archived file',
   },
   updateFileContent: {
     command: 'files set-content',
@@ -327,9 +342,89 @@ export const CLI_CONTRACT: CliContract = {
     },
   },
 
+  // ─── Resource-scoped, path-addressed folders ──────────────────────────────
+  listFileFolders: {
+    aliases: ['ls'],
+    flags: { parentPath: { name: 'parent', describe: 'Direct parent folder path' } },
+    columns: FOLDER_LIST_COLUMNS,
+  },
+  listKnowledgeFolders: {
+    aliases: ['ls'],
+    flags: { parentPath: { name: 'parent', describe: 'Direct parent folder path' } },
+    columns: FOLDER_LIST_COLUMNS,
+  },
+  listTableFolders: {
+    aliases: ['ls'],
+    flags: { parentPath: { name: 'parent', describe: 'Direct parent folder path' } },
+    columns: FOLDER_LIST_COLUMNS,
+  },
+  listWorkflowFolders: {
+    aliases: ['ls'],
+    flags: { parentPath: { name: 'parent', describe: 'Direct parent folder path' } },
+    columns: FOLDER_LIST_COLUMNS,
+  },
+  createFileFolder: { positionals: ['path'], describe: 'Create a file folder at a path' },
+  createKnowledgeFolder: {
+    positionals: ['path'],
+    describe: 'Create a knowledge folder at a path',
+  },
+  createTableFolder: { positionals: ['path'], describe: 'Create a table folder at a path' },
+  createWorkflowFolder: {
+    positionals: ['path'],
+    describe: 'Create a workflow folder at a path',
+  },
+  relocateFileFolder: {
+    command: 'files folders move',
+    aliases: ['mv'],
+    positionals: ['path', 'destinationPath'],
+    flags: { destinationPath: { name: 'destination' } },
+    describe: 'Rename or move a file folder',
+  },
+  relocateKnowledgeFolder: {
+    command: 'knowledge folders move',
+    aliases: ['mv'],
+    positionals: ['path', 'destinationPath'],
+    flags: { destinationPath: { name: 'destination' } },
+    describe: 'Rename or move a knowledge folder',
+  },
+  relocateTableFolder: {
+    command: 'tables folders move',
+    aliases: ['mv'],
+    positionals: ['path', 'destinationPath'],
+    flags: { destinationPath: { name: 'destination' } },
+    describe: 'Rename or move a table folder',
+  },
+  relocateWorkflowFolder: {
+    command: 'workflows folders move',
+    aliases: ['mv'],
+    positionals: ['path', 'destinationPath'],
+    flags: { destinationPath: { name: 'destination' } },
+    describe: 'Rename or move a workflow folder',
+  },
+  deleteFileFolder: {
+    positionals: ['path'],
+    flags: { recursive: { choices: ['true', 'false'] } },
+    confirm: 'This archives the file folder and, when recursive, everything inside it.',
+  },
+  deleteKnowledgeFolder: {
+    positionals: ['path'],
+    flags: { recursive: { choices: ['true', 'false'] } },
+    confirm: 'This archives the knowledge folder and, when recursive, everything inside it.',
+  },
+  deleteTableFolder: {
+    positionals: ['path'],
+    flags: { recursive: { choices: ['true', 'false'] } },
+    confirm: 'This archives the table folder and, when recursive, everything inside it.',
+  },
+  deleteWorkflowFolder: {
+    positionals: ['path'],
+    flags: { recursive: { choices: ['true', 'false'] } },
+    confirm: 'This archives the workflow folder and, when recursive, everything inside it.',
+  },
+
   // ─── The expanded tables surface ──────────────────────────────────────────
-  // `/cancel-runs`, `/rows/find`, `/restore`, `/columns/run` and the enrichment
-  // path all put a verb where the deriver expects a sub-resource, so each became
+  // `/cancel-runs`, `/rows/find`, `/columns/run` and the enrichment path all put
+  // a verb where the deriver expects a sub-resource, so each became
   // a group holding a lone `create`.
   cancelTableRuns: {
     command: 'tables cancel-runs',
@@ -350,7 +445,6 @@ export const CLI_CONTRACT: CliContract = {
     itemsPath: 'matches',
     columns: [{ header: 'ordinal' }, { header: 'row', path: 'rowId' }, { header: 'column' }],
   },
-  restoreTable: { command: 'tables restore', describe: 'Restore a deleted table' },
   runTableColumn: {
     command: 'tables columns run',
     describe: 'Run a column’s workflow',
