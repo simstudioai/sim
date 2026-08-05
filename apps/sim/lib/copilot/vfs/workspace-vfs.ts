@@ -19,6 +19,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { and, desc, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
 import { listApiKeys } from '@/lib/api-key/service'
+import { hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
 import {
   buildWorkspaceContextMd,
   buildWorkspaceMd,
@@ -37,6 +38,7 @@ import {
   filterSecretNamesByMountPolicy,
   type SecretMountPolicy,
 } from '@/lib/copilot/secret-mount-policy'
+import { HIDE_SIM_SANDBOX_INPUTS } from '@/lib/copilot/sim-sandbox-projection'
 import { compileDoc, getE2BDocFormat } from '@/lib/copilot/tools/server/files/doc-compile'
 import { extractDocText, isExtractableDocExt } from '@/lib/copilot/tools/server/files/doc-extract'
 import { runE2BCompiledCheck } from '@/lib/copilot/tools/server/files/doc-recalc'
@@ -81,6 +83,8 @@ import {
   serializeKBMeta,
   serializeMcpServer,
   serializeRecentExecutions,
+  serializeSandbox,
+  serializeSandboxCatalog,
   serializeSkill,
   serializeTableMeta,
   serializeTaskChat,
@@ -102,6 +106,10 @@ import {
 } from '@/lib/credentials/environment'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { BINARY_DOC_TASKS, MAX_DOCUMENT_PREVIEW_CODE_BYTES } from '@/lib/execution/constants'
+import {
+  currentSandboxStrategy,
+  listWorkspaceSandboxes,
+} from '@/lib/execution/remote-sandbox/workspace-sandboxes'
 import { runSandboxTask, SandboxUserCodeError } from '@/lib/execution/sandbox/run-task'
 import {
   isIntegrationDeploymentAvailableForVisibility,
@@ -158,6 +166,7 @@ const MAX_COMPILED_ATTACHMENT_BYTES = 5 * 1024 * 1024
  * (see {@link isStaticFileHidden}).
  */
 let staticComponentFiles: Map<string, string> | null = null
+let staticFunctionSchemaWithoutSimSandboxes: string | null = null
 
 /**
  * Owning block for each `components/integrations/**` file, recorded at build
@@ -353,6 +362,12 @@ function getStaticComponentFiles(): Map<string, string> {
   for (const block of visibleBlocks) {
     const path = `components/blocks/${block.type}.json`
     files.set(path, serializeBlockSchema(block, { toolConfigs }))
+    if (block.type === 'function') {
+      staticFunctionSchemaWithoutSimSandboxes = serializeBlockSchema(block, {
+        toolConfigs,
+        hiddenInputIds: new Set(['sandboxId']),
+      })
+    }
   }
   blocksFiltered = allBlocks.length - visibleBlocks.length
 
@@ -524,6 +539,8 @@ function getStaticComponentFiles(): Map<string, string> {
  *   tasks/{title}/session.md
  *   tasks/{title}/chat.json
  *   custom-tools/{name}.json
+ *   agent/sandboxes/README.md
+ *   agent/sandboxes/{name}.json
  *   environment/credentials.json
  *   environment/api-keys.json
  *   environment/variables.json
@@ -555,6 +572,9 @@ export class WorkspaceVFS {
   >()
   private deploymentCache = new Map<string, Promise<DeploymentData | null>>()
   private _workspaceId = ''
+  // Defaults to hidden so partial/failed materialization cannot leak a gated
+  // Function input. Set from the live Sim entitlement before the VFS is used.
+  private _simSandboxEntitled = false
   /**
    * Types of the org's CURRENT custom blocks (enabled + disabled — a disabled block
    * still resolves/renders). Populated by {@link materializeCustomBlocks}; used to
@@ -744,6 +764,10 @@ export class WorkspaceVFS {
               'permissions',
               getUserPermissionConfig(userId, workspaceId)
             )
+            const sandboxEntitlementPromise = timed(
+              'sandbox_entitlement',
+              hasWorkspaceSandboxAccess(workspaceId)
+            )
             const [
               wfSummary,
               kbSummary,
@@ -754,9 +778,11 @@ export class WorkspaceVFS {
               customBlocksSummary,
               mcpServersSummary,
               skillsSummary,
+              sandboxesSummary,
               wsRow,
               members,
               permissionConfig,
+              sandboxEntitled,
             ] = await Promise.all([
               timed('workflows', this.materializeWorkflows(workspaceId)),
               timed('knowledge_bases', this.materializeKnowledgeBases(workspaceId, userId)),
@@ -776,16 +802,24 @@ export class WorkspaceVFS {
               timed('custom_blocks', this.materializeCustomBlocks(workspaceId)),
               timed('mcp_servers', this.materializeMcpServers(workspaceId)),
               timed('skills', this.materializeSkills(workspaceId)),
+              timed(
+                'sandboxes',
+                sandboxEntitlementPromise.then((entitled) =>
+                  entitled ? this.materializeSandboxes(workspaceId) : []
+                )
+              ),
               timed('workspace_row', getWorkspaceWithOwner(workspaceId)),
               timed('members', getUsersWithPermissions(workspaceId)),
               permissionConfigPromise,
+              sandboxEntitlementPromise,
               // Writes tasks/ files only — WORKSPACE.md has no Tasks section
               // (recent chats reorder every turn and would bust the cached
               // prompt prefix), so nothing is destructured from this one.
               timed('tasks', this.materializeTasks(workspaceId, userId)),
             ])
+            this._simSandboxEntitled = sandboxEntitled
 
-            const workspaceMdData = {
+            const workspaceMdData: WorkspaceMdData = {
               workspace: wsRow,
               members,
               workflows: wfSummary,
@@ -798,6 +832,7 @@ export class WorkspaceVFS {
               customBlocks: customBlocksSummary,
               mcpServers: mcpServersSummary,
               skills: skillsSummary,
+              ...(sandboxEntitled ? { sandboxes: sandboxesSummary } : {}),
             }
 
             this.files.set('WORKSPACE.md', buildWorkspaceMd(workspaceMdData))
@@ -816,7 +851,11 @@ export class WorkspaceVFS {
               : null
             for (const [path, content] of getStaticComponentFiles()) {
               if (isStaticFileHidden(path, blockVisibility, allowedIntegrationTypes)) continue
-              this.files.set(path, content)
+              const projectedContent =
+                path === 'components/blocks/function.json' && !sandboxEntitled
+                  ? (staticFunctionSchemaWithoutSimSandboxes ?? content)
+                  : content
+              this.files.set(path, projectedContent)
             }
             const viewerIntegrationTools = filterExposedIntegrationTools(
               getExposedIntegrationTools(),
@@ -1507,12 +1546,15 @@ export class WorkspaceVFS {
           // workflow; it still exists and must be readable, so emit an
           // empty-but-valid state.json rather than a 404.
           const sanitized = normalized
-            ? sanitizeForCopilot({
-                blocks: normalized.blocks,
-                edges: normalized.edges,
-                loops: normalized.loops,
-                parallels: normalized.parallels,
-              } as any)
+            ? sanitizeForCopilot(
+                {
+                  blocks: normalized.blocks,
+                  edges: normalized.edges,
+                  loops: normalized.loops,
+                  parallels: normalized.parallels,
+                } as any,
+                this._simSandboxEntitled ? undefined : HIDE_SIM_SANDBOX_INPUTS
+              )
             : sanitizeForCopilot({ blocks: {}, edges: [], loops: {}, parallels: {} } as any)
           return JSON.stringify(sanitized, null, 2)
         })
@@ -2122,6 +2164,40 @@ export class WorkspaceVFS {
       return skillRows.map((s) => ({ id: s.id, name: s.name, description: s.description }))
     } catch (err) {
       logger.warn('Failed to materialize skills', {
+        workspaceId,
+        error: toError(err).message,
+      })
+      return []
+    }
+  }
+
+  /**
+   * Project the shared sandbox domain objects into discoverable VFS resources.
+   * Entitlement is checked by the caller before this method runs.
+   */
+  private async materializeSandboxes(
+    workspaceId: string
+  ): Promise<NonNullable<WorkspaceMdData['sandboxes']>> {
+    try {
+      const sandboxes = await listWorkspaceSandboxes(workspaceId)
+      const strategy = currentSandboxStrategy()
+      this.files.set('agent/sandboxes/README.md', serializeSandboxCatalog(strategy))
+      for (const sandbox of sandboxes) {
+        this.files.set(
+          `agent/sandboxes/${sanitizeName(sandbox.name)}.json`,
+          serializeSandbox(sandbox, strategy)
+        )
+      }
+      return sandboxes.map((sandbox) => ({
+        id: sandbox.id,
+        name: sandbox.name,
+        language: sandbox.language,
+        dependencies: sandbox.dependencies,
+        systemPackages: sandbox.systemPackages,
+        cliTools: sandbox.cliTools,
+      }))
+    } catch (err) {
+      logger.warn('Failed to materialize Sim sandboxes', {
         workspaceId,
         error: toError(err).message,
       })

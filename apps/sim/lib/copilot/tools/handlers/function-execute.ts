@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { omit } from '@sim/utils/object'
+import { hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
 import { applySecretMountPolicy } from '@/lib/copilot/secret-mount-policy'
 import type { ToolExecutionContext, ToolExecutionResult } from '@/lib/copilot/tool-executor/types'
 import {
@@ -10,6 +11,7 @@ import {
 import { decodeVfsPathSegments, encodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
+import { MAX_PLAN_REQUIRED } from '@/lib/execution/remote-sandbox/workspace-sandboxes'
 import { getColumnId } from '@/lib/table/column-keys'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { formatCsvCell, neutralizeCsvFormula, toCsvRow } from '@/lib/table/export-format'
@@ -479,6 +481,18 @@ export async function executeFunctionExecute(
   context: ToolExecutionContext
 ): Promise<ToolExecutionResult> {
   const enrichedParams = omit(params, ['sandboxProfile', 'internalSandboxProfile'])
+  if (params.sandboxId !== undefined) {
+    if (typeof params.sandboxId !== 'string' || !params.sandboxId.trim()) {
+      throw new Error('sandboxId must be a non-empty Sim sandbox id')
+    }
+    if (!context.workspaceId) {
+      throw new Error('A workspace is required to select a Sim sandbox')
+    }
+    if (!(await hasWorkspaceSandboxAccess(context.workspaceId))) {
+      throw new Error(MAX_PLAN_REQUIRED)
+    }
+    enrichedParams.sandboxId = params.sandboxId.trim()
+  }
   const requestedNames = applySecretMountPolicy(
     await extractCodeSecretNames(params.code, params.language),
     context.secretMountPolicy

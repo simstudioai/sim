@@ -277,7 +277,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       ])
     const requestPayload: Record<string, unknown> = {
       messages,
-      responseFormat,
+      ...(responseFormat !== undefined ? { responseFormat } : {}),
       userId,
       // Go's auth middleware reads workspaceId off the request body to forward
       // to /api/copilot/api-keys/validate (per-member org usage gate). Omitting

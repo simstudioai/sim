@@ -1,6 +1,8 @@
 import { toError } from '@sim/utils/errors'
 import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
+import { hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
+import { HIDE_SIM_SANDBOX_INPUTS } from '@/lib/copilot/sim-sandbox-projection'
 import { formatNormalizedWorkflowForCopilot } from '@/lib/copilot/tools/shared/workflow-utils'
 import { mcpService } from '@/lib/mcp/service'
 import { listWorkspaceFiles } from '@/lib/uploads/contexts/workspace'
@@ -503,16 +505,24 @@ export async function executeGetDeployedWorkflowState(
       return { success: false, error: 'workflowId is required' }
     }
 
-    const { workflow: workflowRecord } = await ensureWorkflowAccess(workflowId, context.userId)
+    const { workflow: workflowRecord, workspaceId } = await ensureWorkflowAccess(
+      workflowId,
+      context.userId
+    )
 
     try {
       const deployedState = await loadDeployedWorkflowState(workflowId)
-      const formatted = formatNormalizedWorkflowForCopilot({
-        blocks: deployedState.blocks,
-        edges: deployedState.edges,
-        loops: deployedState.loops as Record<string, Loop>,
-        parallels: deployedState.parallels as Record<string, Parallel>,
-      })
+      const formatted = formatNormalizedWorkflowForCopilot(
+        {
+          blocks: deployedState.blocks,
+          edges: deployedState.edges,
+          loops: deployedState.loops as Record<string, Loop>,
+          parallels: deployedState.parallels as Record<string, Parallel>,
+        },
+        workspaceId && (await hasWorkspaceSandboxAccess(workspaceId))
+          ? undefined
+          : HIDE_SIM_SANDBOX_INPUTS
+      )
 
       return {
         success: true,

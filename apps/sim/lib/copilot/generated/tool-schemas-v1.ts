@@ -1106,6 +1106,19 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  complete_scheduled_task: {
+    parameters: {
+      type: 'object',
+      properties: {
+        jobId: {
+          type: 'string',
+          description: 'The ID of the scheduled task to mark as completed.',
+        },
+      },
+      required: ['jobId'],
+    },
+    resultSchema: undefined,
+  },
   cp: {
     parameters: {
       type: 'object',
@@ -2320,6 +2333,11 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             },
           },
         },
+        sandboxId: {
+          type: 'string',
+          description:
+            'Optional Sim sandbox id from agent/sandboxes/{name}.json. DEFAULT-FIRST: omit this whenever the documented default function_execute environment can do the job. Select a ready existing Sim sandbox only when a required third-party dependency, Debian system package, or managed CLI is known to be absent, or a default attempt failed specifically because it was missing. Never guess an id.',
+        },
         timeout: {
           type: 'number',
           description:
@@ -2908,6 +2926,31 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  get_scheduled_task_logs: {
+    parameters: {
+      type: 'object',
+      properties: {
+        executionId: {
+          type: 'string',
+          description: 'Optional execution ID for a specific run.',
+        },
+        includeDetails: {
+          type: 'boolean',
+          description: 'Include tool calls, outputs, and cost details.',
+        },
+        jobId: {
+          type: 'string',
+          description: 'The scheduled task (schedule) ID to get logs for.',
+        },
+        limit: {
+          type: 'number',
+          description: 'Max number of entries (default: 3, max: 5)',
+        },
+      },
+      required: ['jobId'],
+    },
+    resultSchema: undefined,
+  },
   get_workflow_data: {
     parameters: {
       type: 'object',
@@ -3338,7 +3381,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         operation: {
           type: 'string',
           description:
-            "The operation to perform: 'add', 'edit', 'list', or 'delete'. These verbs are tool-specific — other manage_* tools may use create/update instead of add/edit.",
+            "The operation to perform: 'add', 'edit', 'list', or 'delete'. These verbs are tool-specific — manage_scheduled_task uses create/update instead of add/edit.",
           enum: ['add', 'edit', 'delete', 'list'],
         },
         schema: {
@@ -3445,13 +3488,142 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         operation: {
           type: 'string',
           description:
-            "The operation to perform: 'add', 'edit', 'list', or 'delete'. These verbs are tool-specific — other manage_* tools may use create/update instead of add/edit.",
+            "The operation to perform: 'add', 'edit', 'list', or 'delete'. These verbs are tool-specific — manage_scheduled_task uses create/update instead of add/edit.",
           enum: ['add', 'edit', 'delete', 'list'],
         },
         serverId: {
           type: 'string',
           description:
             "The MCP server's id — the `id` field inside the VFS file agent/mcp-servers/{name}.json (the {name} filename is the display name, not the id). Required for edit and delete; omit for add and list.",
+        },
+      },
+      required: ['operation'],
+    },
+    resultSchema: undefined,
+  },
+  manage_sandbox: {
+    parameters: {
+      type: 'object',
+      properties: {
+        cliTools: {
+          type: 'array',
+          description:
+            'Complete managed CLI id list (maximum 10). Use exact pinned ids returned by list. On edit, passing this replaces the whole list; pass [] to clear it.',
+          items: {
+            type: 'string',
+          },
+        },
+        dependencies: {
+          type: 'array',
+          description:
+            'Complete npm or PyPI dependency list (maximum 50). On edit, passing this replaces the whole list; pass [] to clear it.',
+          items: {
+            type: 'string',
+          },
+        },
+        language: {
+          type: 'string',
+          description:
+            'Dependency language. javascript installs from npm; python installs from PyPI. Required for add; optional for edit.',
+          enum: ['javascript', 'python'],
+        },
+        name: {
+          type: 'string',
+          description:
+            'Workspace-unique Sim sandbox name (1-64 characters). Required for add; optional for edit.',
+        },
+        operation: {
+          type: 'string',
+          description: "The operation to perform: 'add', 'edit', 'list', or 'delete'.",
+          enum: ['add', 'edit', 'delete', 'list'],
+        },
+        sandboxId: {
+          type: 'string',
+          description:
+            'The Sim sandbox id. Get it from list or the inner id field in agent/sandboxes/{name}.json; never guess it. Required for edit and delete.',
+        },
+        systemPackages: {
+          type: 'array',
+          description:
+            'Complete Debian package-coordinate list in package[:architecture][=version] form (maximum 50). On edit, passing this replaces the whole list; pass [] to clear it.',
+          items: {
+            type: 'string',
+          },
+        },
+      },
+      required: ['operation'],
+    },
+    resultSchema: undefined,
+  },
+  manage_scheduled_task: {
+    parameters: {
+      type: 'object',
+      properties: {
+        args: {
+          type: 'object',
+          description:
+            'Operation-specific arguments. For create: {title, prompt, cron?, time?, timezone?, lifecycle?, successCondition?, maxRuns?}. For get/delete: {jobId}. For update: {jobId, title?, prompt?, cron?, timezone?, status?, lifecycle?, successCondition?, maxRuns?}. For list: no args needed.',
+          properties: {
+            cron: {
+              type: 'string',
+              description:
+                "Cron expression for a recurring scheduled task (e.g. '0 9 * * *'). Provide cron, time, or both — with both, time anchors the recurring task's first fire.",
+            },
+            jobId: {
+              type: 'string',
+              description: 'Scheduled task ID (required for get, update)',
+            },
+            jobIds: {
+              type: 'array',
+              description: 'Array of scheduled task IDs (for batch delete)',
+              items: {
+                type: 'string',
+              },
+            },
+            lifecycle: {
+              type: 'string',
+              description:
+                "'persistent' (default) or 'until_complete'. Until_complete scheduled tasks stop when complete_scheduled_task is called.",
+              enum: ['persistent', 'until_complete'],
+            },
+            maxRuns: {
+              type: 'integer',
+              description: 'Max executions before auto-completing. Safety limit.',
+            },
+            prompt: {
+              type: 'string',
+              description: 'The prompt to execute when the scheduled task fires',
+            },
+            status: {
+              type: 'string',
+              description: 'Scheduled task status: active, paused',
+              enum: ['active', 'paused'],
+            },
+            successCondition: {
+              type: 'string',
+              description:
+                'What must happen for the scheduled task to be considered complete (until_complete lifecycle).',
+            },
+            time: {
+              type: 'string',
+              description:
+                "ISO 8601 datetime. One-time scheduled task -> set time and omit cron. May also anchor a recurring cron task's first-fire time.",
+            },
+            timezone: {
+              type: 'string',
+              description: 'IANA timezone (e.g. America/New_York). Defaults to UTC.',
+            },
+            title: {
+              type: 'string',
+              description: "Short descriptive title for the scheduled task (e.g. 'Email Poller')",
+            },
+          },
+        },
+        operation: {
+          type: 'string',
+          description:
+            'The operation to perform: create, list, get, update, delete. These verbs are tool-specific — the custom-tool/MCP/skill managers use add/edit instead of create/update.',
+          enum: ['create', 'list', 'get', 'update', 'delete'],
         },
       },
       required: ['operation'],
@@ -3478,7 +3650,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         operation: {
           type: 'string',
           description:
-            "The operation to perform: 'add', 'edit', 'list', or 'delete'. These verbs are tool-specific — other manage_* tools may use create/update instead of add/edit.",
+            "The operation to perform: 'add', 'edit', 'list', or 'delete'. These verbs are tool-specific — manage_scheduled_task uses create/update instead of add/edit.",
           enum: ['add', 'edit', 'delete', 'list'],
         },
         skillId: {
@@ -3633,7 +3805,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
               type: {
                 type: 'string',
                 description: 'The resource type.',
-                enum: ['workflow', 'table', 'knowledgebase', 'file', 'log'],
+                enum: ['workflow', 'table', 'knowledgebase', 'file', 'log', 'scheduledtask'],
               },
             },
             required: ['type'],
@@ -4271,6 +4443,19 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  scheduled_task: {
+    parameters: {
+      properties: {
+        request: {
+          description: 'What scheduled task action is needed.',
+          type: 'string',
+        },
+      },
+      required: ['request'],
+      type: 'object',
+    },
+    resultSchema: undefined,
+  },
   scrape_page: {
     parameters: {
       type: 'object',
@@ -4792,6 +4977,24 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
       },
       required: ['version'],
+    },
+    resultSchema: undefined,
+  },
+  update_scheduled_task_history: {
+    parameters: {
+      type: 'object',
+      properties: {
+        jobId: {
+          type: 'string',
+          description: 'The scheduled task ID.',
+        },
+        summary: {
+          type: 'string',
+          description:
+            "A concise summary of what was done this run (e.g., 'Sent follow-up emails to 3 leads: Alice, Bob, Carol').",
+        },
+      },
+      required: ['jobId', 'summary'],
     },
     resultSchema: undefined,
   },

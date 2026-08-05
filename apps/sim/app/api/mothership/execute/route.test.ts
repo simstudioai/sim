@@ -194,6 +194,24 @@ describe('mothership private trace provenance transport', () => {
     )
   })
 
+  it('omits an absent response format from the headless lifecycle payload', async () => {
+    mockRunHeadlessCopilotLifecycle.mockImplementation(async (payload: Record<string, unknown>) => {
+      expect(payload).not.toHaveProperty('responseFormat')
+      return successResult()
+    })
+
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        requestBody,
+        { Authorization: 'Bearer internal', 'x-sim-billing-attribution': 'billing' },
+        'http://localhost:3000/api/mothership/execute'
+      )
+    )
+
+    expect(response.status).toBe(200)
+  })
+
   it('keeps preprocessing inputs raw and delegates model projection to the lifecycle boundary', async () => {
     mockRunHeadlessCopilotLifecycle.mockImplementation(async (payload: Record<string, unknown>) => {
       expect(JSON.stringify(payload)).toContain('secret-value __var_FOREIGN')

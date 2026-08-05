@@ -116,7 +116,7 @@ try {
       showWhenEnvSet: 'NEXT_PUBLIC_SANDBOXES_ENABLED',
       placeholder: 'Default image',
       description:
-        'Packages and CLI tools available to this block. Shell can use sandboxes from either language. Manage sandboxes in Settings > Sandboxes. Leaving this empty runs on the default image.',
+        'Sim sandbox dependencies, system packages, and managed CLIs available to this block. Shell can use Sim sandboxes from either language. Manage them in Settings > Sandboxes. Leaving this empty runs on the default image.',
       options: [],
       fetchOptions: (blockId) => fetchWorkspaceSandboxOptions(blockId),
       fetchOptionById: (blockId, optionId) => fetchWorkspaceSandboxOption(blockId, optionId),
@@ -164,7 +164,7 @@ try {
     timeout: { type: 'number', description: 'Execution timeout' },
     sandboxId: {
       type: 'string',
-      description: 'Workspace sandbox providing importable packages and CLI tools',
+      description: 'Sim sandbox providing dependencies, system packages, and managed CLIs',
     },
     secretScope: { type: 'string', description: 'Secret access mode: all or selected' },
     mountedSecrets: {

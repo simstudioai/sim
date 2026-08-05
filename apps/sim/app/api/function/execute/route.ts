@@ -1688,15 +1688,6 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
     const usesMothershipSandbox = auth.sandboxProfile === 'mothership'
-    if (usesMothershipSandbox && !isMothershipSandboxEnabled) {
-      return NextResponse.json(
-        { success: false, error: 'Mothership code sandbox is not configured' },
-        { status: 503 }
-      )
-    }
-    const remoteSandboxEnabled = usesMothershipSandbox
-      ? isMothershipSandboxEnabled
-      : isRemoteSandboxEnabled
 
     executionDeadlineAt = parseExecutionDeadlineHeader(req.headers)
     includePrivateResolvedSecretNames = requestsPrivateToolMetadata(
@@ -1746,6 +1737,26 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       isCustomTool = false,
       _sandboxFiles,
     } = body
+    if (selectedSandboxId && !isRemoteSandboxEnabled) {
+      return NextResponse.json(
+        { success: false, error: 'The Function code sandbox is not configured' },
+        { status: 503 }
+      )
+    }
+    if (usesMothershipSandbox && !selectedSandboxId && !isMothershipSandboxEnabled) {
+      return NextResponse.json(
+        { success: false, error: 'Mothership code sandbox is not configured' },
+        { status: 503 }
+      )
+    }
+    // A selected Sim sandbox is layered on the Function base, even for a
+    // trusted Mothership call. Only an unselected Mothership call uses the
+    // separately built Mothership image.
+    const remoteSandboxEnabled = selectedSandboxId
+      ? isRemoteSandboxEnabled
+      : usesMothershipSandbox
+        ? isMothershipSandboxEnabled
+        : isRemoteSandboxEnabled
     const remainingExecutionMs =
       executionDeadlineAt === undefined ? undefined : Math.max(1, executionDeadlineAt - Date.now())
     const timeout =
@@ -1934,7 +1945,9 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         outputSandboxPaths,
         workspaceId,
         sandboxId: selectedSandboxId,
-        ...(usesMothershipSandbox ? { sandboxKind: 'mothership' as const } : {}),
+        ...(usesMothershipSandbox && !selectedSandboxId
+          ? { sandboxKind: 'mothership' as const }
+          : {}),
         signal: executionSignal,
       })
       const executionTime = Date.now() - execStart
@@ -1998,7 +2011,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       usesMothershipSandbox ||
       (remoteSandboxEnabled &&
         !isCustomTool &&
-        (lang === CodeLanguage.Python || (lang === CodeLanguage.JavaScript && hasImports)))
+        (lang === CodeLanguage.Python ||
+          (lang === CodeLanguage.JavaScript && (hasImports || Boolean(selectedSandboxId)))))
 
     if (useRemoteSandbox && containsLargeValueRef(contextVariables)) {
       throw new Error(
@@ -2098,7 +2112,9 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
           outputSandboxPaths,
           workspaceId,
           sandboxId: selectedSandboxId,
-          ...(usesMothershipSandbox ? { sandboxKind: 'mothership' as const } : {}),
+          ...(usesMothershipSandbox && !selectedSandboxId
+            ? { sandboxKind: 'mothership' as const }
+            : {}),
           signal: executionSignal,
         })
         const executionTime = Date.now() - execStart
@@ -2185,7 +2201,9 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         outputSandboxPaths,
         workspaceId,
         sandboxId: selectedSandboxId,
-        ...(usesMothershipSandbox ? { sandboxKind: 'mothership' as const } : {}),
+        ...(usesMothershipSandbox && !selectedSandboxId
+          ? { sandboxKind: 'mothership' as const }
+          : {}),
         signal: executionSignal,
       })
       const executionTime = Date.now() - execStart

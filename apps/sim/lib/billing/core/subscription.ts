@@ -688,7 +688,8 @@ export async function hasWorkspaceLiveSyncAccess(workspaceId: string): Promise<b
 }
 
 /**
- * Checks whether the exact workspace payer can create and edit custom sandboxes.
+ * Checks whether the exact workspace payer can discover, author, or directly
+ * select custom Sim sandboxes through Copilot.
  *
  * Same entitlement as the inbox (Sim Mailer), and the same shape: the
  * `SANDBOXES_ENABLED` self-hosted override wins first, then a deployment
@@ -696,9 +697,10 @@ export async function hasWorkspaceLiveSyncAccess(workspaceId: string): Promise<b
  * a usable Max or Enterprise subscription. Builds cost provider compute and
  * storage, so this deliberately sits above the plain paid tier.
  *
- * This gates creating and editing only. Execution deliberately does not consult
- * it (see `resolveWorkspaceSandbox`), so a workspace that downgrades keeps
- * running the sandboxes it already built.
+ * Existing Function execution deliberately does not consult it (see
+ * `resolveWorkspaceSandbox`), so a workspace that downgrades keeps running the
+ * sandboxes it already built. New Copilot discovery, mutations, attachments,
+ * and direct function_execute selections do re-check it.
  */
 export async function hasWorkspaceSandboxAccess(workspaceId: string): Promise<boolean> {
   try {

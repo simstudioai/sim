@@ -2,6 +2,11 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import {
+  MAX_SANDBOX_CLI_TOOLS,
+  SANDBOX_CLI_TOOLS,
+  SANDBOX_SELECTABLE_CLI_TOOL_IDS,
+} from '@/lib/execution/remote-sandbox/cli-tools'
 import type { BlockConfig } from '@/blocks/types'
 import { hostedKeyEnabledWhen } from '@/tools/hosting'
 import type { ToolConfig } from '@/tools/types'
@@ -13,6 +18,8 @@ import {
   serializeFileMeta,
   serializeIntegrationSchema,
   serializeKBMeta,
+  serializeSandbox,
+  serializeSandboxCatalog,
   serializeTableMeta,
   serializeWorkflowMeta,
 } from './serializers'
@@ -121,6 +128,82 @@ describe('VFS metadata serializers', () => {
 
     expect(metadata).not.toHaveProperty('description')
     expect(JSON.stringify(metadata)).not.toContain('PRIVATE WORKFLOW DESCRIPTION')
+  })
+
+  it('serializes the complete Sim sandbox discovery resource', () => {
+    const serialized = JSON.parse(
+      serializeSandbox(
+        {
+          id: 'sandbox-1',
+          name: 'Data Tools',
+          language: 'python',
+          dependencies: ['pandas'],
+          systemPackages: ['graphviz'],
+          cliTools: ['kubectl@1.36.3-r1'],
+          buildStatus: 'ready',
+          errorCode: null,
+          errorMessage: null,
+          errorDetail: null,
+          builtAt: '2026-08-04T12:00:00.000Z',
+          createdAt: '2026-08-04T11:00:00.000Z',
+          updatedAt: '2026-08-04T12:00:00.000Z',
+        },
+        'prebuilt'
+      )
+    )
+
+    expect(serialized).toMatchObject({
+      id: 'sandbox-1',
+      strategy: 'prebuilt',
+      buildStatus: 'ready',
+      dependencies: ['pandas'],
+      systemPackages: ['graphviz'],
+      cliTools: ['kubectl@1.36.3-r1'],
+    })
+  })
+
+  it('generates the sandbox capability reference from the authoritative CLI registry', () => {
+    const reference = serializeSandboxCatalog('prebuilt')
+
+    expect(reference).toContain('Active dependency strategy: `prebuilt`')
+    expect(reference).toContain(`accepts at most ${MAX_SANDBOX_CLI_TOOLS} exact pinned ids`)
+    for (const id of SANDBOX_SELECTABLE_CLI_TOOL_IDS) {
+      const tool = SANDBOX_CLI_TOOLS[id]
+      expect(reference).toContain(`\`${id}\``)
+      expect(reference).toContain(tool.label)
+      expect(reference).toContain(tool.description)
+    }
+  })
+})
+
+describe('entitlement-projected block schemas', () => {
+  it('removes a gated input from both subBlocks and inputs', () => {
+    const block = {
+      type: 'function',
+      name: 'Function',
+      description: 'Run code',
+      category: 'blocks',
+      bgColor: '#000000',
+      icon: () => null,
+      subBlocks: [
+        { id: 'code', title: 'Code', type: 'long-input' },
+        { id: 'sandboxId', title: 'Sandbox', type: 'combobox' },
+      ],
+      tools: { access: [] },
+      inputs: {
+        code: { type: 'string' },
+        sandboxId: { type: 'string' },
+      },
+      outputs: {},
+    } as unknown as BlockConfig
+
+    const schema = JSON.parse(
+      serializeBlockSchema(block, { hiddenInputIds: new Set(['sandboxId']) })
+    )
+
+    expect(schema.subBlocks.map((subBlock: { id: string }) => subBlock.id)).toEqual(['code'])
+    expect(schema.inputs).toHaveProperty('code')
+    expect(schema.inputs).not.toHaveProperty('sandboxId')
   })
 })
 
