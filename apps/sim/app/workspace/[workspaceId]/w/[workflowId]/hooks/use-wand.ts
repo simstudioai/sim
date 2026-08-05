@@ -8,6 +8,7 @@ import { requestRaw } from '@/lib/api/client'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { wandGenerateStreamContract } from '@/lib/api/contracts'
 import { readSSEStream } from '@/lib/core/utils/sse'
+import { shouldStripCodeFences, stripCodeFences } from '@/lib/wand/strip-code-fences'
 import type { GenerationType } from '@/blocks/types'
 import { subscriptionKeys } from '@/hooks/queries/subscription'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
@@ -100,6 +101,13 @@ interface UseWandProps {
   wandConfig?: WandConfig
   currentValue?: string
   contextParams?: WandContextParams
+  /**
+   * Clears the conversation history whenever this value changes. Pass anything
+   * that invalidates prior turns — a Function block switching language rewrites
+   * `wandConfig.prompt`, but replayed history would keep steering the model back
+   * to the previous language.
+   */
+  historyResetKey?: string
   onGeneratedContent: (content: string) => void
   onStreamChunk?: (chunk: string) => void
   onStreamStart?: () => void
@@ -110,6 +118,7 @@ export function useWand({
   wandConfig,
   currentValue,
   contextParams,
+  historyResetKey,
   onGeneratedContent,
   onStreamChunk,
   onStreamStart,
@@ -126,6 +135,18 @@ export function useWand({
   const [isStreaming, setIsStreaming] = useState(false)
 
   const [conversationHistory, setConversationHistory] = useState<ChatMessage[]>([])
+
+  /**
+   * Adjusted during render rather than in an effect so a generation started in
+   * the same commit as the change can never send the stale history. History is
+   * already empty on mount, so seeding the tracker with the current key
+   * correctly makes the first render a no-op.
+   */
+  const [prevHistoryResetKey, setPrevHistoryResetKey] = useState(historyResetKey)
+  if (prevHistoryResetKey !== historyResetKey) {
+    setPrevHistoryResetKey(historyResetKey)
+    setConversationHistory([])
+  }
 
   const abortControllerRef = useRef<AbortController | null>(null)
 
@@ -224,25 +245,38 @@ export function useWand({
           signal: abortControllerRef.current?.signal,
         })
 
-        if (accumulatedContent) {
-          onGeneratedContent(accumulatedContent)
+        /**
+         * Sanitized once the full response is known, then written back over the
+         * streamed text. Doing it per-chunk would mean guessing whether a
+         * trailing backtick run opens a fence or is part of the code, so the
+         * editor may briefly show a fence that the final value does not.
+         */
+        const generatedContent = shouldStripCodeFences(wandConfig?.generationType)
+          ? stripCodeFences(accumulatedContent)
+          : accumulatedContent
+
+        if (generatedContent) {
+          onGeneratedContent(generatedContent)
 
           if (wandConfig?.maintainHistory) {
+            // The sanitized form goes into history so a single fenced reply
+            // cannot become the in-context example for every later turn.
             setConversationHistory((prev) => [
               ...prev,
               { role: 'user', content: currentPrompt },
-              { role: 'assistant', content: accumulatedContent },
+              { role: 'assistant', content: generatedContent },
             ])
           }
 
           if (onGenerationComplete) {
-            onGenerationComplete(currentPrompt, accumulatedContent)
+            onGenerationComplete(currentPrompt, generatedContent)
           }
         }
 
         logger.debug('Wand generation completed', {
           prompt,
-          contentLength: accumulatedContent.length,
+          contentLength: generatedContent.length,
+          strippedFences: generatedContent !== accumulatedContent,
         })
 
         setTimeout(() => {
