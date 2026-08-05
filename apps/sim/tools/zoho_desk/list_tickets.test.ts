@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { ZohoDeskBlock } from '@/blocks/blocks/zoho-desk'
 import { zohoDeskListTicketsTool } from '@/tools/zoho_desk/list_tickets'
 
 describe('zohoDeskListTicketsTool request url', () => {
@@ -48,5 +49,38 @@ describe('zohoDeskListTicketsTool request url', () => {
     expect(query.get('channel')).toBe('Email,Web')
     // Interior spaces survive - "On Hold" is one status, not two.
     expect(query.get('status')).toBe('Open,On Hold')
+  })
+})
+
+/**
+ * The block maps subBlock values onto tool params, so a value the mapper drops
+ * never reaches the tool's validation and the request silently runs unfiltered.
+ * These cover the seam rather than either side of it.
+ */
+describe('ZohoDeskBlock receivedInDays reaches the tool intact', () => {
+  const buildParams = ZohoDeskBlock.tools.config?.params
+  const buildUrl = zohoDeskListTicketsTool.request.url as (p: Record<string, unknown>) => string
+
+  const throughBlock = (receivedInDays: unknown) => {
+    if (!buildParams) throw new Error('ZohoDeskBlock is missing tools.config.params')
+    const mapped = buildParams({ operation: 'list_tickets', receivedInDays }) as Record<
+      string,
+      unknown
+    >
+    return buildUrl({ accessToken: 'tok', orgId: '700', ...mapped })
+  }
+
+  it('carries a supported window through to the query', () => {
+    expect(new URL(throughBlock('30')).searchParams.get('receivedInDays')).toBe('30')
+  })
+
+  it('lets an unsupported value reach the tool and throw instead of silently unfiltering', () => {
+    for (const value of [7, '7', 30.5, 'abc']) {
+      expect(() => throughBlock(value)).toThrow(/must be 15, 30, or 90/)
+    }
+  })
+
+  it('treats the "Any time" option as no filter at all', () => {
+    expect(new URL(throughBlock('')).searchParams.has('receivedInDays')).toBe(false)
   })
 })

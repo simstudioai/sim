@@ -621,13 +621,17 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
           if (typeof rawChannelFilter === 'string' && rawChannelFilter.trim()) {
             result.channel = rawChannelFilter.trim()
           }
+          // Forward whatever was supplied and let the tool judge it. Filtering
+          // here on shape would swallow 30.5 or a non-numeric value, and the
+          // tool would then run without the filter and return the entire queue
+          // as though the requested window had applied. Only the empty
+          // "Any time" option is dropped, because that genuinely means no filter.
           if (
             rawReceivedInDays !== undefined &&
             rawReceivedInDays !== null &&
             rawReceivedInDays !== ''
           ) {
-            const receivedInDays = Number(rawReceivedInDays)
-            if (Number.isInteger(receivedInDays)) result.receivedInDays = receivedInDays
+            result.receivedInDays = Number(rawReceivedInDays)
           }
         }
 
