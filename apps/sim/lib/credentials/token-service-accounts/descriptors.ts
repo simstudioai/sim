@@ -344,7 +344,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     helpText:
       'Trial accounts cannot use the Wealthbox API; contact Wealthbox support if API Access is missing from your Settings.',
     invalidCredentialsHelp:
-      "Wealthbox rejected this token. Sim's Wealthbox tools authenticate with a Bearer header, so a token Wealthbox only accepts over its ACCESS_TOKEN header is refused here even though it is valid. Check that the token is active in Wealthbox under Settings, and that the account is not on an expired trial.",
+      'Wealthbox rejected this token. Check that it is still active under API Access in your Wealthbox settings, and that the account is not on an expired trial. If the same token works elsewhere, note that Sim authenticates with a Bearer header — a token Wealthbox accepts only over its ACCESS_TOKEN header is refused here.',
   },
   [PIPEDRIVE_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: PIPEDRIVE_SERVICE_ACCOUNT_PROVIDER_ID,
