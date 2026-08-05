@@ -113,64 +113,67 @@ also accepts its singular form: for example, `sim table list`,
 spellings.
 
 ```bash
-sim workflows ls [--folder </path>] [--search <text>] [--limit <n>]
-sim workflows list [--folder </path>] [--deployed-only] [--limit <n>]
+sim workflows ls [path] [--search <text>] [--limit <n>]
+sim workflows list [--folder <path>] [--deployed-only] [--limit <n>]
 sim workflows get <id>
-sim workflows mv <id> --folder </path>
+sim workflows mv <id> --folder <path>
 sim workflows deploy|undeploy|rollback <id>
 
 sim logs list [--level error] [--workflow <id>…] [--trigger <name>…] [--start <date>]
 sim logs get <id>
 sim logs execution <executionId>
 
-sim tables ls [--folder </path>] [--search <text>] [--limit <n>]
-sim tables list [--folder </path>]
+sim tables ls [path] [--search <text>] [--limit <n>]
+sim tables list [--folder <path>]
 sim tables get <tableId>
-sim tables mv <tableId> --folder </path>
+sim tables mv <tableId> --folder <path>
 sim tables columns <tableId>
 sim tables rows list <tableId> [--limit <n>]
 sim tables rows query <tableId> [--filter <json>] [--sort <json>] [--limit <n>]
 sim tables upsert <tableId> --data <json>
 sim tables rows batch-delete <tableId> (--row <id>… | --filter <json>) --yes
 
-sim files ls [--folder </path>] [--search <text>] [--limit <n>]
-sim files list [--folder </path>]
+sim files ls [path] [--search <text>] [--limit <n>]
+sim files list [--folder <path>]
 sim files get <fileId>
-sim files create --name <name> [--folder </path>] [--content <value>] [--encoding utf-8|base64]
-sim files upload <path> [--name <name>] [--folder </path>]
+sim files create --name <name> [--folder <path>] [--content <value>] [--encoding utf-8|base64]
+sim files upload <path> [--name <name>] [--folder <path>]
 sim files download <fileId> [-o <path>]
-sim files mv --file-ids <id>… [--to </path>]
+sim files mv --file-ids <id>… [--to <path>]
 sim files batch-delete --file-ids <id>… --yes
 sim files delete <fileId>
 
-sim knowledge ls [--folder </path>] [--search <text>] [--limit <n>]
-sim knowledge list [--folder </path>]
+sim knowledge ls [path] [--search <text>] [--limit <n>]
+sim knowledge list [--folder <path>]
 sim knowledge get <id>
-sim knowledge mv <id> --folder </path>
+sim knowledge mv <id> --folder <path>
 sim knowledge documents <id> [--search <text>]
 sim knowledge documents upload <id> <path> [--tag <value>...]
 sim knowledge search --query <text> --kb <id>… [--search-mode vector|hybrid]
 ```
 
-`ls` is a directory view: it combines the resources at `--folder` with that
-folder's direct child folders. Its `ref` column is the resource ID or canonical
-folder path to pass to the next command. Use `list` when you want resources only,
-or `folders ls` when you want folders only.
+`ls` is a directory view: it combines the resources at its optional path with
+that folder's direct child folders. It never includes deeper descendants. Its
+`ref` column is the resource ID or canonical folder path to pass to the next
+command. Use `list` when you want resources only, or `folders ls` when you want
+folders only.
 
 Each folder-backed resource has the same path commands:
 
 ```bash
-sim tables folders ls --parent /Reports
-sim tables mkdir /Reports/Quarterly
-sim tables folders create /Reports/Quarterly
-sim tables folders mv /Reports/Quarterly /Archive/Quarterly
-sim tables folders delete /Archive/Quarterly --recursive false --yes
+sim tables ls Reports
+sim tables folders ls --parent Reports
+sim tables mkdir Reports/Quarterly
+sim tables folders create Reports/Quarterly
+sim tables folders mv Reports/Quarterly Archive/Quarterly
+sim tables folders delete Archive/Quarterly --recursive false --yes
 ```
 
 `mkdir` is the concise form of `folders create`. Replace `tables` with `files`,
-`workflows`, or `knowledge`. Paths are canonical, start with `/`, and use `/` for
-root. A slash that belongs to a folder name is percent-encoded as `%2F` rather
-than treated as a separator.
+`workflows`, or `knowledge`. The leading `/` is optional on CLI inputs; the CLI
+adds it before calling the API. Omit the `ls` path to list root. A slash that
+belongs to a folder name is percent-encoded as `%2F` rather than treated as a
+separator.
 
 ### List inputs
 
@@ -178,9 +181,9 @@ Primitive lists take space-separated values. Prefix a path with `@` to read
 one value per line, or use `@-` to read the list from stdin.
 
 ```bash
-sim files mv --file-ids file_1 file_2 --to /Archive
-sim files mv --file-ids @file-ids.txt --to /Archive
-printf 'file_1\nfile_2\n' | sim files mv --file-ids @- --to /Archive
+sim files mv --file-ids file_1 file_2 --to Archive
+sim files mv --file-ids @file-ids.txt --to Archive
+printf 'file_1\nfile_2\n' | sim files mv --file-ids @- --to Archive
 ```
 
 Arrays of objects remain JSON inputs because they cannot be represented as a

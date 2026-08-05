@@ -169,7 +169,7 @@ describe('commands parsed through commander', () => {
       'file_1',
       'file_2',
       '--to',
-      '/Archive',
+      'Archive',
     ])
     expect(path).toBe('/api/v2/files/move')
     expect(options.body).toEqual({
@@ -180,13 +180,13 @@ describe('commands parsed through commander', () => {
   })
 
   it('uses mv as the resource move alias', async () => {
-    const [path, options] = await run(['table', 'mv', 'tbl_1', '--folder', '/Archive'])
+    const [path, options] = await run(['table', 'mv', 'tbl_1', '--folder', 'Archive'])
     expect(path).toBe('/api/v2/tables/tbl_1')
     expect(options.body).toEqual({ workspaceId: 'ws_local', folderPath: '/Archive' })
   })
 
   it('exposes path-addressed folder commands under each resource', async () => {
-    const [createPath, createOptions] = await run(['table', 'folders', 'create', '/Reports'])
+    const [createPath, createOptions] = await run(['table', 'folders', 'create', 'Reports'])
     expect(createPath).toBe('/api/v2/tables/folders')
     expect(createOptions.body).toEqual({ workspaceId: 'ws_local', path: '/Reports' })
 
@@ -194,8 +194,8 @@ describe('commands parsed through commander', () => {
       'table',
       'folders',
       'mv',
-      '/Reports',
-      '/Archive/Reports',
+      'Reports',
+      'Archive/Reports',
     ])
     expect(movePath).toBe('/api/v2/tables/folders')
     expect(moveOptions.body).toEqual({
@@ -204,15 +204,15 @@ describe('commands parsed through commander', () => {
       destinationPath: '/Archive/Reports',
     })
 
-    const [listPath, listOptions] = await run(['table', 'folders', 'ls', '--parent', '/'])
+    const [listPath, listOptions] = await run(['table', 'folders', 'ls', '--parent', 'Reports'])
     expect(listPath).toBe('/api/v2/tables/folders')
-    expect(listOptions.query).toMatchObject({ workspaceId: 'ws_local', parentPath: '/' })
+    expect(listOptions.query).toMatchObject({ workspaceId: 'ws_local', parentPath: '/Reports' })
 
     const [deletePath, deleteOptions] = await run([
       'table',
       'folders',
       'delete',
-      '/Archive/Reports',
+      'Archive/Reports',
       '--recursive',
       'false',
       '--yes',

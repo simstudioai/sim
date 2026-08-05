@@ -25,6 +25,11 @@ function program(): Command {
   const root = new Command('sim').exitOverride()
   for (const group of buildGeneratedCommands()) root.addCommand(group)
   attachProtocolCommands(root)
+  const override = (command: Command) => {
+    command.exitOverride()
+    command.commands.forEach(override)
+  }
+  override(root)
   return root
 }
 
@@ -77,16 +82,7 @@ describe('resource directory', () => {
     const logged: string[] = []
     vi.spyOn(console, 'log').mockImplementation((line: string) => logged.push(line))
 
-    await program().parseAsync([
-      'node',
-      'sim',
-      'table',
-      'ls',
-      '--folder',
-      '/Reports',
-      '--search',
-      'r',
-    ])
+    await program().parseAsync(['node', 'sim', 'table', 'ls', 'Reports', '--search', 'r'])
 
     expect(mockRequest).toHaveBeenCalledWith('/api/v2/tables/folders', {
       query: {
@@ -140,11 +136,18 @@ describe('resource directory', () => {
     })
     vi.spyOn(console, 'log').mockImplementation(() => {})
 
-    await program().parseAsync(['node', 'sim', 'table', 'mkdir', '/Reports/Quarterly'])
+    await program().parseAsync(['node', 'sim', 'table', 'mkdir', 'Reports/Quarterly'])
 
     expect(mockRequest).toHaveBeenCalledWith('/api/v2/tables/folders', {
       method: 'POST',
       body: { workspaceId: 'ws_local', path: '/Reports/Quarterly' },
     })
+  })
+
+  it('rejects extra directory arguments instead of silently ignoring them', async () => {
+    await expect(
+      program().parseAsync(['node', 'sim', 'file', 'ls', 'Reports', 'ignored'])
+    ).rejects.toThrow(/too many arguments/i)
+    expect(mockRequest).not.toHaveBeenCalled()
   })
 })

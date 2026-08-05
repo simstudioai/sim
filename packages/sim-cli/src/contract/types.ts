@@ -49,6 +49,8 @@ export interface FlagSpec {
   describe?: string
   /** Accepted values when the generated descriptor cannot recover an enum. */
   choices?: readonly string[]
+  /** Normalizes a terminal-friendly value into its API wire representation. */
+  normalize?: 'folder-path'
   /**
    * Never expose this field as a flag, and never send it.
    *

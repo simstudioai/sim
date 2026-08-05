@@ -8,6 +8,7 @@ import type {
   GetTableImportResponse,
 } from '../../generated/v2-api.js'
 import { SimApiError, type SimClient } from '../../http/client.js'
+import { normalizeFolderPath } from '../../runtime/folder-path.js'
 import { coerce, type FieldSpec } from '../../runtime/request.js'
 import { contentTypeFor, localFile } from '../../transfer/local-file.js'
 import { finishUploadSession } from '../../transfer/upload-session.js'
@@ -139,7 +140,13 @@ export function attachTableImport(tables: Command): void {
         if (!name) {
           throw new SimApiError('Pass --name <name> to say what the new table is called', 0)
         }
-        target = { type: 'new', name, ...(options.folder ? { folderPath: options.folder } : {}) }
+        target = {
+          type: 'new',
+          name,
+          ...(options.folder !== undefined
+            ? { folderPath: normalizeFolderPath(options.folder) }
+            : {}),
+        }
       }
 
       const started = await client.request<CreateTableImportResponse>('/api/v2/tables/imports', {

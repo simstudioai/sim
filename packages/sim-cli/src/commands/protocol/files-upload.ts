@@ -4,6 +4,7 @@ import type {
   CompleteFileUploadResponse,
   CreateFileUploadResponse,
 } from '../../generated/v2-api.js'
+import { normalizeFolderPath } from '../../runtime/folder-path.js'
 import { contentTypeFor, localFile } from '../../transfer/local-file.js'
 import { finishUploadSession } from '../../transfer/upload-session.js'
 import { printProtocolResult } from './result.js'
@@ -26,7 +27,9 @@ export function attachFileUpload(files: Command): void {
           name,
           contentType: contentTypeFor(name),
           size,
-          ...(options.folder ? { folderPath: options.folder } : {}),
+          ...(options.folder !== undefined
+            ? { folderPath: normalizeFolderPath(options.folder) }
+            : {}),
         },
       })
       const { session, uploadToken, transfer } = created.data

@@ -14,6 +14,7 @@ import {
 } from '../../generated/v2-api.js'
 import { SimApiError, type SimClient, type V2Page } from '../../http/client.js'
 import { type Column, printList, text, timestamp } from '../../output/render.js'
+import { normalizeFolderPath } from '../../runtime/folder-path.js'
 import { DEFAULT_LIMIT } from '../../runtime/options.js'
 import { renderResult } from '../../runtime/result.js'
 
@@ -70,7 +71,6 @@ type ResourceDirectoryConfig =
     }
 
 interface ListOptions {
-  folder: string
   search?: string
   limit: string
 }
@@ -163,27 +163,28 @@ export function attachResourceDirectoryCommands(
   config: ResourceDirectoryConfig
 ): void {
   group
-    .command('ls')
+    .command('ls [path]')
+    .allowExcessArguments(false)
     .description(`List ${config.kind} resources and child folders together`)
-    .option('--folder <path>', 'Canonical folder path to list', '/')
     .option('--search <text>', 'Filter folders and resources by name')
     .addOption(
       new Option('--limit <n>', 'Maximum combined items to return (0 for everything)').default(
         String(DEFAULT_LIMIT)
       )
     )
-    .action(async (options: ListOptions, command: Command) => {
+    .action(async (path: string | undefined, options: ListOptions, command: Command) => {
       const rawLimit = Number(options.limit)
       if (!Number.isSafeInteger(rawLimit) || rawLimit < 0) {
         throw new SimApiError('--limit must be a non-negative integer', 0)
       }
 
       const limit = rawLimit === 0 ? Number.POSITIVE_INFINITY : rawLimit
+      const folderPath = normalizeFolderPath(path ?? '/')
       const { client, profile } = clientFrom(command)
       const workspaceId = client.requireWorkspace()
       const [folders, resources] = await Promise.all([
-        listFolders(client, config.folders, workspaceId, options.folder, options.search),
-        listResources(client, config, workspaceId, options.folder, options.search, limit),
+        listFolders(client, config.folders, workspaceId, folderPath, options.search),
+        listResources(client, config, workspaceId, folderPath, options.search, limit),
       ])
       const entries = entriesFor(config, folders, resources)
       printList(profile.output, entries.slice(0, limit), COLUMNS)
@@ -191,13 +192,14 @@ export function attachResourceDirectoryCommands(
 
   group
     .command('mkdir <path>')
+    .allowExcessArguments(false)
     .description(`Create a ${config.kind} directory at a canonical path`)
     .action(async (path: string, _options: Record<string, never>, command: Command) => {
       const { client, profile } = clientFrom(command)
       const operation = V2_OPERATIONS[config.createFolder]
       const result = await client.request<{ data?: unknown }>(operation.path, {
         method: operation.method,
-        body: { workspaceId: client.requireWorkspace(), path },
+        body: { workspaceId: client.requireWorkspace(), path: normalizeFolderPath(path) },
       })
       renderResult(config.createFolder, profile.output, result.data ?? result, {})
     })

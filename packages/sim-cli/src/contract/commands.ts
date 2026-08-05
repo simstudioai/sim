@@ -5,9 +5,13 @@ const TABLE_FILTER_HELP =
   'Predicate tree using all/any and operators eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, or isNotNull'
 const CUSTOM_TOOL_SCHEMA_HELP =
   'OpenAI function schema: {"type":"function","function":{"name":"...","parameters":{"type":"object","properties":{}}}}'
+const FOLDER_PATH_INPUT = {
+  normalize: 'folder-path',
+  describe: 'Folder path; the leading / is optional',
+} as const
 const FOLDER_PATH_FLAG = {
+  ...FOLDER_PATH_INPUT,
   name: 'folder',
-  describe: 'Canonical folder path, starting with /',
 } as const
 const FOLDER_LIST_COLUMNS: ColumnSpec[] = [
   { header: 'path' },
@@ -92,7 +96,7 @@ export const CLI_CONTRACT: CliContract = {
   listLogs: {
     flags: {
       workflowIds: { name: 'workflow', list: true },
-      folderPaths: { name: 'folder', list: true },
+      folderPaths: { ...FOLDER_PATH_FLAG, list: true },
       triggers: { name: 'trigger', list: true },
     },
     columns: [
@@ -315,7 +319,11 @@ export const CLI_CONTRACT: CliContract = {
     describe: 'Move files into another folder',
     flags: {
       fileIds: { list: true },
-      targetFolderPath: { name: 'to', describe: 'Destination folder path; omit for root' },
+      targetFolderPath: {
+        ...FOLDER_PATH_INPUT,
+        name: 'to',
+        describe: 'Destination folder path; omit for root',
+      },
     },
   },
   renameFile: {
@@ -345,80 +353,110 @@ export const CLI_CONTRACT: CliContract = {
   // ─── Resource-scoped, path-addressed folders ──────────────────────────────
   listFileFolders: {
     aliases: ['ls'],
-    flags: { parentPath: { name: 'parent', describe: 'Direct parent folder path' } },
+    flags: {
+      parentPath: { ...FOLDER_PATH_INPUT, name: 'parent', describe: 'Direct parent folder path' },
+    },
     columns: FOLDER_LIST_COLUMNS,
   },
   listKnowledgeFolders: {
     aliases: ['ls'],
-    flags: { parentPath: { name: 'parent', describe: 'Direct parent folder path' } },
+    flags: {
+      parentPath: { ...FOLDER_PATH_INPUT, name: 'parent', describe: 'Direct parent folder path' },
+    },
     columns: FOLDER_LIST_COLUMNS,
   },
   listTableFolders: {
     aliases: ['ls'],
-    flags: { parentPath: { name: 'parent', describe: 'Direct parent folder path' } },
+    flags: {
+      parentPath: { ...FOLDER_PATH_INPUT, name: 'parent', describe: 'Direct parent folder path' },
+    },
     columns: FOLDER_LIST_COLUMNS,
   },
   listWorkflowFolders: {
     aliases: ['ls'],
-    flags: { parentPath: { name: 'parent', describe: 'Direct parent folder path' } },
+    flags: {
+      parentPath: { ...FOLDER_PATH_INPUT, name: 'parent', describe: 'Direct parent folder path' },
+    },
     columns: FOLDER_LIST_COLUMNS,
   },
-  createFileFolder: { positionals: ['path'], describe: 'Create a file folder at a path' },
+  createFileFolder: {
+    positionals: ['path'],
+    flags: { path: FOLDER_PATH_INPUT },
+    describe: 'Create a file folder at a path',
+  },
   createKnowledgeFolder: {
     positionals: ['path'],
+    flags: { path: FOLDER_PATH_INPUT },
     describe: 'Create a knowledge folder at a path',
   },
-  createTableFolder: { positionals: ['path'], describe: 'Create a table folder at a path' },
+  createTableFolder: {
+    positionals: ['path'],
+    flags: { path: FOLDER_PATH_INPUT },
+    describe: 'Create a table folder at a path',
+  },
   createWorkflowFolder: {
     positionals: ['path'],
+    flags: { path: FOLDER_PATH_INPUT },
     describe: 'Create a workflow folder at a path',
   },
   relocateFileFolder: {
     command: 'files folders move',
     aliases: ['mv'],
     positionals: ['path', 'destinationPath'],
-    flags: { destinationPath: { name: 'destination' } },
+    flags: {
+      path: FOLDER_PATH_INPUT,
+      destinationPath: { ...FOLDER_PATH_INPUT, name: 'destination' },
+    },
     describe: 'Rename or move a file folder',
   },
   relocateKnowledgeFolder: {
     command: 'knowledge folders move',
     aliases: ['mv'],
     positionals: ['path', 'destinationPath'],
-    flags: { destinationPath: { name: 'destination' } },
+    flags: {
+      path: FOLDER_PATH_INPUT,
+      destinationPath: { ...FOLDER_PATH_INPUT, name: 'destination' },
+    },
     describe: 'Rename or move a knowledge folder',
   },
   relocateTableFolder: {
     command: 'tables folders move',
     aliases: ['mv'],
     positionals: ['path', 'destinationPath'],
-    flags: { destinationPath: { name: 'destination' } },
+    flags: {
+      path: FOLDER_PATH_INPUT,
+      destinationPath: { ...FOLDER_PATH_INPUT, name: 'destination' },
+    },
     describe: 'Rename or move a table folder',
   },
   relocateWorkflowFolder: {
     command: 'workflows folders move',
     aliases: ['mv'],
     positionals: ['path', 'destinationPath'],
-    flags: { destinationPath: { name: 'destination' } },
+    flags: {
+      path: FOLDER_PATH_INPUT,
+      destinationPath: { ...FOLDER_PATH_INPUT, name: 'destination' },
+    },
     describe: 'Rename or move a workflow folder',
   },
   deleteFileFolder: {
     positionals: ['path'],
-    flags: { recursive: { choices: ['true', 'false'] } },
+    flags: { path: FOLDER_PATH_INPUT, recursive: { choices: ['true', 'false'] } },
     confirm: 'This archives the file folder and, when recursive, everything inside it.',
   },
   deleteKnowledgeFolder: {
     positionals: ['path'],
-    flags: { recursive: { choices: ['true', 'false'] } },
+    flags: { path: FOLDER_PATH_INPUT, recursive: { choices: ['true', 'false'] } },
     confirm: 'This archives the knowledge folder and, when recursive, everything inside it.',
   },
   deleteTableFolder: {
     positionals: ['path'],
-    flags: { recursive: { choices: ['true', 'false'] } },
+    flags: { path: FOLDER_PATH_INPUT, recursive: { choices: ['true', 'false'] } },
     confirm: 'This archives the table folder and, when recursive, everything inside it.',
   },
   deleteWorkflowFolder: {
     positionals: ['path'],
-    flags: { recursive: { choices: ['true', 'false'] } },
+    flags: { path: FOLDER_PATH_INPUT, recursive: { choices: ['true', 'false'] } },
     confirm: 'This archives the workflow folder and, when recursive, everything inside it.',
   },
 

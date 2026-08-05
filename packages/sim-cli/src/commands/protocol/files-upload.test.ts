@@ -95,7 +95,7 @@ describe('files upload', () => {
     const logged: string[] = []
     vi.spyOn(console, 'log').mockImplementation((line: string) => logged.push(line))
 
-    await program().parseAsync(['node', 'sim', 'file', 'upload', path, '--folder', '/Reports'])
+    await program().parseAsync(['node', 'sim', 'file', 'upload', path, '--folder', 'Reports'])
 
     expect(fetchMock).toHaveBeenCalledWith(
       'https://storage.example/file',

@@ -106,7 +106,7 @@ describe('tables import output', () => {
       '--name',
       'Customers',
       '--folder',
-      '/Reports',
+      'Reports',
       '--no-wait',
     ])
 

@@ -4,6 +4,7 @@ import type { FlagSpec } from '../contract/types.js'
 import { V2_OPERATIONS, type V2OperationName } from '../generated/v2-api.js'
 import { type QueryValue, SimApiError } from '../http/client.js'
 import { camel, kebab } from './derive.js'
+import { normalizeFolderPath } from './folder-path.js'
 
 /** One request field, as the generator describes it. */
 export interface FieldSpec {
@@ -181,7 +182,8 @@ export function coerce(raw: unknown, field: FieldSpec, flag: FlagSpec, flagName:
    */
   if (flag.list) {
     const values = readListValues(raw, flagName)
-    return field.kind === 'string' ? values.join(',') : values
+    const normalized = flag.normalize === 'folder-path' ? values.map(normalizeFolderPath) : values
+    return field.kind === 'string' ? normalized.join(',') : normalized
   }
 
   if (takesJson(field, flag)) {
@@ -210,7 +212,7 @@ export function coerce(raw: unknown, field: FieldSpec, flag: FlagSpec, flagName:
     throw new SimApiError(`--${flagName} must be one of: ${choices.join(', ')}`, 0)
   }
 
-  return raw
+  return flag.normalize === 'folder-path' ? normalizeFolderPath(String(raw)) : raw
 }
 
 export interface BuiltRequest {
