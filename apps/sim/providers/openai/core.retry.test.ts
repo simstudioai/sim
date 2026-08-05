@@ -244,6 +244,46 @@ describe('OpenAI Responses status retries', () => {
     }
   })
 
+  it('bounds a stalled error body instead of hanging on it', async () => {
+    // Non-2xx headers, then an error body that never settles.
+    const fetchMock = vi.fn().mockImplementation((_url: string, init: RequestInit) => ({
+      ok: false,
+      status: 400,
+      headers: new Headers(),
+      text: () =>
+        new Promise<string>((_resolve, reject) => {
+          if (init.signal?.aborted) {
+            reject(new DOMException('The operation timed out.', 'TimeoutError'))
+            return
+          }
+          init.signal?.addEventListener(
+            'abort',
+            () => reject(new DOMException('The operation timed out.', 'TimeoutError')),
+            { once: true }
+          )
+        }),
+    }))
+
+    const settled = await runWithTimers(fetchMock)
+
+    expect(settled).toBeInstanceOf(Error)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('abandons backoff immediately when the caller aborts, and reports the abort', async () => {
+    const caller = new AbortController()
+    const fetchMock = vi.fn().mockImplementation(() => {
+      queueMicrotask(() => caller.abort(new DOMException('timeout', 'AbortError')))
+      return errorResponse(429)
+    })
+
+    const settled = (await runWithTimers(fetchMock, { abortSignal: caller.signal })) as Error
+
+    // The cancellation must surface as the abort, not as the stale 429.
+    expect(settled.message).not.toContain('429')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
   it('does not retry when the caller aborts', async () => {
     const caller = new AbortController()
     const fetchMock = vi.fn().mockImplementation(() => {

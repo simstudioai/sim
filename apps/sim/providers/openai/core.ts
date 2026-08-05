@@ -1,7 +1,6 @@
 import { createHash } from 'node:crypto'
 import type { Logger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { sleep } from '@sim/utils/helpers'
 import { isRecordLike } from '@sim/utils/object'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import { truncate } from '@sim/utils/string'
@@ -110,6 +109,32 @@ function readRetryAfterMs(headers: Headers): number | null {
     if (Number.isFinite(ms) && ms >= 0) return ms
   }
   return parseRetryAfter(headers.get('retry-after'))
+}
+
+/**
+ * Waits out a retry backoff, resolving early — and rejecting with the caller's own
+ * abort reason — the moment the run is cancelled.
+ *
+ * A plain `sleep` would hold the provider slot for the full delay after a workflow was
+ * already cancelled, and the loop would then surface the stale HTTP error rather than
+ * the cancellation, reporting a cancelled run as a rate limit or a 5xx.
+ */
+function backoffDelay(ms: number, signal: AbortSignal | undefined): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(signal.reason)
+      return
+    }
+    const onAbort = () => {
+      clearTimeout(timer)
+      reject(signal?.reason)
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    signal?.addEventListener('abort', onAbort, { once: true })
+  })
 }
 
 type PreparedTools = ReturnType<typeof prepareToolsWithUsageControl>
@@ -406,6 +431,46 @@ export async function executeResponsesProviderRequest(
 
   let reasoningSummariesUnavailable = false
 
+  /**
+   * One POST, paired with a deadline that can bound any body read on the response.
+   *
+   * The deadline is created here rather than by the caller because a non-2xx body is
+   * read inside this function, before the caller ever sees the response — an error body
+   * that stalls would otherwise hang unbounded until the runtime's socket wall, which is
+   * exactly the failure this change exists to remove.
+   */
+  const postOnce = async (
+    bodyToSend: Record<string, unknown>,
+    abortSignal: AbortSignal | undefined
+  ): Promise<{ response: Response; bodyDeadline: AbortController }> => {
+    const bodyDeadline = new AbortController()
+    const signal = abortSignal
+      ? AbortSignal.any([abortSignal, bodyDeadline.signal])
+      : bodyDeadline.signal
+    const response = await fetchImpl(config.endpoint, {
+      method: 'POST',
+      headers: config.headers,
+      body: JSON.stringify(bodyToSend),
+      signal,
+    })
+    return { response, bodyDeadline }
+  }
+
+  /** Reads a non-2xx body under the same deadline that bounds a successful one. */
+  const readErrorBody = async (
+    response: Response,
+    bodyDeadline: AbortController
+  ): Promise<string> => {
+    const timer = setTimeout(() => {
+      bodyDeadline.abort(new DOMException('response body stalled', 'TimeoutError'))
+    }, RESPONSE_BODY_BUDGET_MS)
+    try {
+      return await parseErrorResponse(response)
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+
   const fetchResponsesAttempt = async (
     requestedBody: Record<string, unknown>,
     abortSignal: AbortSignal | undefined
@@ -413,15 +478,10 @@ export async function executeResponsesProviderRequest(
     const body = reasoningSummariesUnavailable
       ? (stripReasoningSummary(requestedBody) ?? requestedBody)
       : requestedBody
-    const response = await fetchImpl(config.endpoint, {
-      method: 'POST',
-      headers: config.headers,
-      body: JSON.stringify(body),
-      signal: abortSignal,
-    })
+    const { response, bodyDeadline } = await postOnce(body, abortSignal)
     if (response.ok) return response
 
-    const message = await parseErrorResponse(response)
+    const message = await readErrorBody(response, bodyDeadline)
     const strippedBody = isReasoningSummaryVerificationError(response.status, message)
       ? stripReasoningSummary(body)
       : null
@@ -438,14 +498,12 @@ export async function executeResponsesProviderRequest(
       `${config.providerLabel} rejected reasoning summaries (organization not verified); retrying without summary`,
       { model: config.modelName }
     )
-    const retryResponse = await fetchImpl(config.endpoint, {
-      method: 'POST',
-      headers: config.headers,
-      body: JSON.stringify(strippedBody),
-      signal: abortSignal,
-    })
+    const { response: retryResponse, bodyDeadline: retryDeadline } = await postOnce(
+      strippedBody,
+      abortSignal
+    )
     if (!retryResponse.ok) {
-      const retryMessage = await parseErrorResponse(retryResponse)
+      const retryMessage = await readErrorBody(retryResponse, retryDeadline)
       throw new ResponsesHttpError(
         `${config.providerLabel} API error (${retryResponse.status}): ${retryMessage}`,
         retryResponse.status,
@@ -475,10 +533,18 @@ export async function executeResponsesProviderRequest(
       try {
         return await fetchResponsesAttempt(requestedBody, abortSignal)
       } catch (error) {
+        /**
+         * A cancelled run reports the cancellation, never the status that happened to be
+         * in flight when it was cancelled — surfacing the stale error would report a
+         * cancelled run as a rate limit or a 5xx.
+         */
+        if (abortSignal?.aborted) {
+          throw abortSignal.reason ?? error
+        }
+
         const exhausted = attempt > MAX_RESPONSES_RETRIES
         if (
           exhausted ||
-          abortSignal?.aborted ||
           !(error instanceof ResponsesHttpError) ||
           !isRetryableResponseStatus(error.status)
         ) {
@@ -495,8 +561,7 @@ export async function executeResponsesProviderRequest(
           blockId: request.blockId,
           executionId: request.executionId,
         })
-        await sleep(delayMs)
-        if (abortSignal?.aborted) throw error
+        await backoffDelay(delayMs, abortSignal)
       }
     }
   }
