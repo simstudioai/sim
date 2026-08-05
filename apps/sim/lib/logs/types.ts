@@ -131,6 +131,7 @@ export interface WorkflowExecutionLog {
   }>
   // Execution details
   executionData: {
+    secretProjectionVersion?: 1
     environment?: ExecutionEnvironment
     trigger?: ExecutionTrigger
     billingAttribution?: BillingAttributionSnapshot

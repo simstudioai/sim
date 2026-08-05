@@ -12,6 +12,9 @@ import {
 
 const logger = createLogger('TraceStore')
 
+/** Marks execution data written under the resolved-secret display contract. */
+export const SECRET_PROJECTION_VERSION = 1 as const
+
 /**
  * Key under which the externalized-execution-data pointer (a `__simLargeValueRef`)
  * is stored on the slim `execution_data` row.
@@ -26,7 +29,12 @@ export const TRACE_STORE_REF_KEY = 'traceStoreRef'
  * (environment, trigger, tokens, models, truncation flags, and of course the
  * heavy payloads) are recovered from the stored object.
  */
-const INLINE_MARKER_KEYS = ['hasTraceSpans', 'traceSpanCount', 'correlation'] as const
+const INLINE_MARKER_KEYS = [
+  'secretProjectionVersion',
+  'hasTraceSpans',
+  'traceSpanCount',
+  'correlation',
+] as const
 
 /**
  * Read-path context. Resolves an externalized payload by storage key, authorized
@@ -206,6 +214,21 @@ const LOG_DISPLAY_CONTENT_KEYS = [
 
 const LOG_DISPLAY_PROJECTION_SPAN_ID = 'secret-safe-log-display-projection'
 
+/** Returns historical execution data using the display behavior from before secret provenance. */
+function projectLegacyExecutionDataForDisplay(
+  executionData: Record<string, unknown>
+): Record<string, unknown> {
+  const omittedKeys = [
+    'executionState',
+    'secretProjectionVersion',
+    ...(!Object.hasOwn(executionData, 'traceSpans') || Array.isArray(executionData.traceSpans)
+      ? []
+      : ['traceSpans']),
+  ]
+
+  return omit(executionData, omittedKeys) as Record<string, unknown>
+}
+
 /**
  * Materializes trusted execution data and returns its log-facing projection.
  * Functional readers must continue using {@link materializeExecutionData}.
@@ -220,8 +243,10 @@ export async function materializeExecutionDataForDisplay(
 
 /**
  * Projects execution-log content with the encrypted provenance saved by the
- * trusted executor. Missing or malformed provenance deliberately yields a
- * structural-only log instead of returning content that cannot be proven safe.
+ * trusted executor. Rows predating the projection contract retain their legacy
+ * display behavior. Contract-aware rows with missing or malformed provenance
+ * deliberately yield a structural-only log instead of returning content that
+ * cannot be proven safe.
  */
 export async function projectExecutionDataForDisplay(
   executionData: Record<string, unknown>,
@@ -234,6 +259,14 @@ export async function projectExecutionDataForDisplay(
       ? (executionData.executionState as Record<string, unknown>)
       : undefined
   const provenance = executionState?.resolvedSecretTraceProvenance
+  const hasProjectionContract =
+    Object.hasOwn(executionData, 'secretProjectionVersion') ||
+    (executionState !== undefined && Object.hasOwn(executionState, 'resolvedSecretTraceProvenance'))
+
+  if (!hasProjectionContract) {
+    return projectLegacyExecutionDataForDisplay(executionData)
+  }
+
   let registry: ResolvedSecretTraceRegistry | undefined
 
   if (isResolvedSecretTraceProvenanceV1(provenance)) {
@@ -274,6 +307,7 @@ export async function projectExecutionDataForDisplay(
   const displayData = omit(executionData, [
     ...LOG_DISPLAY_CONTENT_KEYS,
     'executionState',
+    'secretProjectionVersion',
     'traceSpans',
   ]) as Record<string, unknown>
 

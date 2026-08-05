@@ -29,6 +29,7 @@ import {
   projectTraceSpansForSecrets,
 } from '@/lib/logs/execution/trace-secret-projection'
 import { traceSpansIndicateFailure } from '@/lib/logs/execution/trace-spans/trace-spans'
+import { SECRET_PROJECTION_VERSION } from '@/lib/logs/execution/trace-store'
 import type {
   ExecutionEnvironment,
   ExecutionFinalizationPath,
@@ -1395,7 +1396,11 @@ export class LoggingSession {
       let executionData = sql`jsonb_set(
             jsonb_set(
               jsonb_set(
-                COALESCE(execution_data, '{}'::jsonb),
+                jsonb_set(
+                  COALESCE(execution_data, '{}'::jsonb),
+                  ARRAY['secretProjectionVersion'],
+                  to_jsonb(${SECRET_PROJECTION_VERSION}::integer)
+                ),
                 ARRAY['error'],
                 to_jsonb(${message}::text)
               ),

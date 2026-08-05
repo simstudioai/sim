@@ -54,6 +54,7 @@ import {
   copyTraceSpansWithoutCosts,
   externalizeExecutionData,
   materializeExecutionData,
+  SECRET_PROJECTION_VERSION,
   TRACE_STORE_REF_KEY,
 } from '@/lib/logs/execution/trace-store'
 import type {
@@ -447,6 +448,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
     }
 
     const minimal: ExecutionData = {
+      secretProjectionVersion: SECRET_PROJECTION_VERSION,
       ...(executionData.environment ? { environment: executionData.environment } : {}),
       ...(executionData.trigger ? { trigger: executionData.trigger } : {}),
       ...(executionData.billingAttribution
@@ -489,6 +491,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
       minimalWithSize.storedBytes > MAX_EXECUTION_DATA_BYTES
     ) {
       const metadataOnly: ExecutionData = {
+        secretProjectionVersion: SECRET_PROJECTION_VERSION,
         ...(executionData.billingAttribution
           ? { billingAttribution: executionData.billingAttribution }
           : {}),
@@ -582,6 +585,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
     )
 
     return {
+      secretProjectionVersion: SECRET_PROJECTION_VERSION,
       ...(existingExecutionData?.environment
         ? { environment: existingExecutionData.environment }
         : {}),
@@ -708,6 +712,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
         totalDurationMs: null,
         executionDeadlineAt: executionDeadlineAt ?? null,
         executionData: {
+          secretProjectionVersion: SECRET_PROJECTION_VERSION,
           environment,
           trigger,
           ...(billingAttribution ? { billingAttribution } : {}),

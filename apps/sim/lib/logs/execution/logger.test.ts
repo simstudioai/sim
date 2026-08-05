@@ -8,6 +8,7 @@ import {
 import { afterAll, beforeEach, describe, expect, test, vi } from 'vitest'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import { ExecutionLogger } from '@/lib/logs/execution/logger'
+import { SECRET_PROJECTION_VERSION } from '@/lib/logs/execution/trace-store'
 import type { WorkflowExecutionLog } from '@/lib/logs/types'
 import { emitExecutionCompletedEvent } from '@/lib/workspace-events/emitter'
 import type { SerializableExecutionState } from '@/executor/execution/types'
@@ -156,6 +157,52 @@ describe('ExecutionLogger', () => {
       expect(typeof logger.getWorkflowExecution).toBe('function')
     })
 
+    test('marks new execution rows as contract-aware before any provenance is available', async () => {
+      dbChainMockFns.limit.mockResolvedValueOnce([])
+      dbChainMockFns.returning.mockResolvedValueOnce([
+        {
+          id: 'log-1',
+          workflowId: 'workflow-123',
+          executionId: 'execution-123',
+          stateSnapshotId: 'snapshot-123',
+          level: 'info',
+          trigger: 'api',
+          startedAt: new Date('2026-08-04T00:00:00.000Z'),
+          endedAt: null,
+          totalDurationMs: null,
+          executionData: {},
+          createdAt: new Date('2026-08-04T00:00:00.000Z'),
+        },
+      ])
+
+      await logger.startWorkflowExecution({
+        workflowId: 'workflow-123',
+        workspaceId: 'workspace-123',
+        executionId: 'execution-123',
+        trigger: {
+          type: 'api',
+          source: 'api',
+          timestamp: '2026-08-04T00:00:00.000Z',
+        },
+        environment: {
+          variables: {},
+          workflowId: 'workflow-123',
+          executionId: 'execution-123',
+          userId: 'user-123',
+          workspaceId: 'workspace-123',
+        },
+        workflowState: { blocks: {}, edges: [], loops: {}, parallels: {} },
+      })
+
+      expect(dbChainMockFns.values).toHaveBeenCalledWith(
+        expect.objectContaining({
+          executionData: expect.objectContaining({
+            secretProjectionVersion: SECRET_PROJECTION_VERSION,
+          }),
+        })
+      )
+    })
+
     test('preserves a cancellation that wins the completion update race', async () => {
       const startedAt = new Date('2026-08-03T12:00:00.000Z')
       const createdAt = new Date('2026-08-03T12:00:00.000Z')
@@ -283,6 +330,7 @@ describe('ExecutionLogger', () => {
       })
       expect(completedData.correlation).toEqual(completedData.trigger?.data?.correlation)
       expect(completedData.finalOutput).toEqual({ ok: true })
+      expect(completedData.secretProjectionVersion).toBe(SECRET_PROJECTION_VERSION)
       expect(completedData.lastStartedBlock?.blockId).toBe('block-start')
       expect(completedData.lastCompletedBlock?.blockId).toBe('block-end')
       expect(completedData.finalizationPath).toBe('completed')
@@ -445,6 +493,7 @@ describe('ExecutionLogger', () => {
 
       expect(storedBytes).toBeLessThanOrEqual(3 * 1024 * 1024)
       expect(compacted.executionDataTruncated).toBe(true)
+      expect(compacted.secretProjectionVersion).toBe(SECRET_PROJECTION_VERSION)
       expect(compacted.executionState).toBeUndefined()
       expect(compacted.executionStateSummary).toEqual({
         executedBlockCount: 1,
@@ -481,6 +530,7 @@ describe('ExecutionLogger', () => {
             workspaceId: 'workspace-1',
           },
           correlation,
+          secretProjectionVersion: SECRET_PROJECTION_VERSION,
           hasTraceSpans: false,
           traceSpanCount: 0,
         },
@@ -488,6 +538,7 @@ describe('ExecutionLogger', () => {
       )
 
       expect(compacted.executionDataTruncated).toBe(true)
+      expect(compacted.secretProjectionVersion).toBe(SECRET_PROJECTION_VERSION)
       expect(compacted.correlation).toEqual(correlation)
       expect(compacted).not.toHaveProperty('environment')
     })

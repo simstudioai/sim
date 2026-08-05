@@ -1490,6 +1490,7 @@ describe('LoggingSession.markExecutionAsFailed workflowId scoping', () => {
       })
       .join(' ')
     expect(combined).toContain('force_failed')
+    expect(combined).toContain('secretprojectionversion')
   })
 
   it('does not overwrite a cancellation with a late force-failure', async () => {
