@@ -270,6 +270,7 @@ describe('validateInputsForBlock', () => {
       id: 'eventTypes',
       type: 'dropdown' as const,
       multiSelect: true,
+      required: true,
       options: [
         { id: 'created', label: 'Created' },
         { id: 'updated', label: 'Updated' },
@@ -292,6 +293,9 @@ describe('validateInputsForBlock', () => {
         'quickbooks',
         'quickbooks-1'
       ).valid
+    ).toBe(false)
+    expect(
+      validateValueForSubBlockType(config, [], 'eventTypes', 'quickbooks', 'quickbooks-1').valid
     ).toBe(false)
   })
 
