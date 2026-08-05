@@ -1116,7 +1116,12 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         serviceAccountProviderId: 'zoho-desk-service-account',
         icon: ZohoDeskIcon,
         baseProviderIcon: ZohoDeskIcon,
-        // Kept to exactly what the tools and the webhook trigger exercise:
+        // Kept to what the tools and the webhook trigger exercise. NOTE: Zoho
+        // lists `Desk.organization.READ , Desk.basic.READ` for GET /organizations
+        // and `Desk.departments.READ , Desk.basic.READ` for GET /departments, and
+        // does not document whether that comma means AND or OR. Both bootstrap
+        // endpoints are assumed covered by Desk.basic.READ alone - verify against
+        // a live Desk org and widen here if either returns SCOPE_MISMATCH.
         // tickets (incl. threads/comments), contacts (get_contact), basic
         // (list_organizations), agents (the `assigneeId` picker lists agents),
         // webhook create/delete (the trigger provisions and tears down its own
