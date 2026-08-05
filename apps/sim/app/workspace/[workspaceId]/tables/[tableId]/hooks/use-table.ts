@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import type { BlockIconInfo, ColumnSourceInfo } from '@/components/resources/table-view'
 import type {
   ColumnDefinition,
   TableDefinition,
@@ -22,7 +23,6 @@ import { countLoadedTableRows, hasMoreTableRows } from '@/hooks/queries/utils/ta
 import { useWorkflowStates, useWorkflows } from '@/hooks/queries/workflows'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import type { BlockIconInfo, ColumnSourceInfo } from '../components/table-grid/types'
 import type { QueryOptions } from '../types'
 
 const EMPTY_COLUMNS: ColumnDefinition[] = []

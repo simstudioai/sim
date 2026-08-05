@@ -1,6 +1,6 @@
 'use client'
 
-import { lazy, memo, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, PlayOutline, Skeleton, Tooltip, toast } from '@sim/emcn'
 import {
   Download,
@@ -14,6 +14,8 @@ import {
 } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
+import { FileView, type PreviewMode, resolveFileCategory } from '@/components/resources/file-view'
+import { ResourceEmptyState } from '@/components/resources/resource-empty-state'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { useSession } from '@/lib/auth/auth-client'
 import { getWorkspaceUsageLimitAction } from '@/lib/billing/workspace-permissions'
@@ -25,12 +27,7 @@ import {
 } from '@/lib/copilot/tools/client/run-tool-execution'
 import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
 import { triggerFileDownload } from '@/lib/uploads/client/download'
-import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
-import {
-  FileViewer,
-  type PreviewMode,
-  resolveFileCategory,
-} from '@/app/workspace/[workspaceId]/files/components/file-viewer'
+import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import type { BrowserPanelOverlayController } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion'
 import { BrowserSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-session'
 import { GenericResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/generic-resource-content'
@@ -60,6 +57,7 @@ import { downloadTableExport } from '@/hooks/queries/tables'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
+import { grantsFromPermissions, type ResourceGrants, workspaceSource } from '@/resources'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
@@ -72,6 +70,23 @@ const LOADING_SKELETON = (
     <Skeleton className='h-[16px] w-[40%]' />
   </div>
 )
+
+/**
+ * The mothership addresses a file either by its id or by the canonical workspace
+ * path the agent used when it wrote the file, so both spellings resolve here.
+ */
+function findWorkspaceFile(
+  files: WorkspaceFileRecord[],
+  fileId: string,
+  filePath: string | undefined
+): WorkspaceFileRecord | undefined {
+  return files.find(
+    (f) =>
+      f.id === fileId ||
+      (filePath &&
+        canonicalWorkspaceFilePath({ folderPath: f.folderPath, name: f.name }) === filePath)
+  )
+}
 
 interface ResourceContentProps {
   workspaceId: string
@@ -97,12 +112,8 @@ interface ResourceContentProps {
   onBrowserOverlayControllerChange?: (controller: BrowserPanelOverlayController | null) => void
 }
 
-/**
- * Renders the content for the currently active mothership resource.
- * Handles table, file, and workflow resource types with appropriate
- * embedded rendering for each.
- */
-const STREAMING_EPOCH = new Date(0)
+/** The agent owns the file while it is streaming; nothing is edited from here. */
+const STREAMING_FILE_GRANTS: ResourceGrants = { write: false, run: false }
 
 /**
  * Grace window kept locked after the agent stops streaming into the file, so the lock bridges the
@@ -148,6 +159,15 @@ function useAgentFileEditLock(isStreamingToFile: boolean, isAgentResponding: boo
   return locked
 }
 
+/**
+ * The body of the active mothership tab.
+ *
+ * A kind with a canonical view is addressed, not re-implemented: the panel
+ * builds a workspace {@link workspaceSource} and mounts that view at
+ * `host='panel'`, so the file a tab shows is the same component the Files page
+ * and a public share mount. The remaining kinds render their own surface here
+ * until they have one.
+ */
 export const ResourceContent = memo(function ResourceContent({
   workspaceId,
   desktopScopeId,
@@ -162,28 +182,10 @@ export const ResourceContent = memo(function ResourceContent({
   visible = true,
   onBrowserOverlayControllerChange,
 }: ResourceContentProps) {
+  const router = useRouter()
+  /** The host owns the router; the file view asks for a move, never holds one. */
+  const navigate = useCallback((path: string) => router.push(path), [router])
   const streamFileName = previewSession?.fileName || 'file.md'
-  const syntheticFile = useMemo(() => {
-    const ext = getFileExtension(streamFileName)
-    const SOURCE_MIME_MAP: Record<string, string> = {
-      pptx: 'text/x-pptxgenjs',
-      docx: 'text/x-docxjs',
-      pdf: 'text/x-pdflibjs',
-    }
-    const type = SOURCE_MIME_MAP[ext] ?? getMimeTypeFromExtension(ext)
-    return {
-      id: 'streaming-file',
-      workspaceId,
-      name: streamFileName,
-      key: '',
-      path: '',
-      size: 0,
-      type,
-      uploadedBy: '',
-      uploadedAt: STREAMING_EPOCH,
-      updatedAt: STREAMING_EPOCH,
-    }
-  }, [workspaceId, streamFileName])
 
   const disableStreamingAutoScroll = previewSession?.operation === 'patch'
   // `append`/`patch` stream complete full-file snapshots (built on the existing file), so the editor
@@ -209,19 +211,50 @@ export const ResourceContent = memo(function ResourceContent({
     Boolean(isAgentResponding)
   )
 
-  if (resource.id === 'streaming-file') {
+  const isStreamingFile = resource.id === 'streaming-file'
+  const isFileResource = resource.type === 'file' && !isStreamingFile
+
+  const permissions = useUserPermissionsContext()
+  const grants = useMemo(() => grantsFromPermissions(permissions), [permissions])
+
+  const {
+    data: files = [],
+    isLoading: isFilesLoading,
+    isFetching: isFilesFetching,
+  } = useWorkspaceFiles(workspaceId, 'active', { enabled: isFileResource })
+
+  const file = useMemo(
+    () => (isFileResource ? findWorkspaceFile(files, resource.id, resource.path) : undefined),
+    [isFileResource, files, resource.id, resource.path]
+  )
+
+  const streamingFileSource = useMemo(
+    () => workspaceSource({ kind: 'file', workspaceId, resourceId: 'streaming-file' }),
+    [workspaceId]
+  )
+
+  const fileSource = useMemo(
+    () => (file ? workspaceSource({ kind: 'file', workspaceId, resourceId: file.id }) : null),
+    [file, workspaceId]
+  )
+
+  if (isStreamingFile) {
     return (
       <div className='flex h-full flex-col overflow-hidden'>
-        <FileViewer
-          file={syntheticFile}
-          workspaceId={workspaceId}
-          canEdit={false}
+        <FileView
+          source={streamingFileSource}
+          grants={STREAMING_FILE_GRANTS}
+          host='panel'
+          onNavigate={navigate}
           previewMode={previewMode ?? 'preview'}
-          streamingContent={textStreamingContent}
-          isAgentEditing={isAgentEditing}
-          streamIsIncremental={streamIsIncremental}
-          disableStreamingAutoScroll={disableStreamingAutoScroll}
-          previewContextKey={previewContextKey}
+          streaming={{
+            fileName: streamFileName,
+            content: textStreamingContent,
+            isAgentEditing,
+            isIncremental: streamIsIncremental,
+            disableAutoScroll: disableStreamingAutoScroll,
+            contextKey: previewContextKey,
+          }}
         />
       </div>
     )
@@ -232,31 +265,48 @@ export const ResourceContent = memo(function ResourceContent({
       return (
         <Table
           key={resource.id}
+          host='panel'
           workspaceId={workspaceId}
           tableId={resource.id}
-          embedded
           viewsEnabled={tableViewsEnabled}
         />
       )
 
-    case 'file':
+    case 'file': {
+      if (isFilesLoading || (isFilesFetching && !file)) return LOADING_SKELETON
+
+      if (!file || !fileSource) {
+        return (
+          <ResourceEmptyState
+            icon={FileX}
+            title='File not found'
+            description='This file may have been deleted or moved'
+          />
+        )
+      }
+
       return (
-        <EmbeddedFile
-          key={resource.id}
-          workspaceId={workspaceId}
-          fileId={resource.id}
-          filePath={resource.path}
-          previewMode={previewMode}
-          streamingContent={
-            previewSession?.fileId === resource.id ? textStreamingContent : undefined
-          }
-          isAgentEditing={isAgentEditing}
-          streamIsIncremental={streamIsIncremental}
-          streamOperation={previewSession?.operation}
-          disableStreamingAutoScroll={disableStreamingAutoScroll}
-          previewContextKey={previewContextKey}
-        />
+        <div className='flex h-full flex-col overflow-hidden'>
+          <FileView
+            key={file.id}
+            source={fileSource}
+            grants={grants}
+            host='panel'
+            onNavigate={navigate}
+            previewMode={previewMode}
+            streaming={{
+              content: previewSession?.fileId === resource.id ? textStreamingContent : undefined,
+              isAgentEditing,
+              isIncremental: streamIsIncremental,
+              operation: previewSession?.operation,
+              disableAutoScroll: disableStreamingAutoScroll,
+              contextKey: previewContextKey,
+            }}
+            collaborative
+          />
+        </div>
       )
+    }
 
     case 'workflow':
       return (
@@ -355,7 +405,7 @@ interface EmbeddedWorkflowActionsProps {
   workflowId: string
 }
 
-export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWorkflowActionsProps) {
+function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWorkflowActionsProps) {
   const { navigateToSettings } = useSettingsNavigation()
   const { data: session } = useSession()
   const hostContext = useWorkspaceHostContext()
@@ -459,7 +509,7 @@ interface EmbeddedKnowledgeBaseActionsProps {
   knowledgeBaseId: string
 }
 
-export function EmbeddedKnowledgeBaseActions({
+function EmbeddedKnowledgeBaseActions({
   workspaceId,
   knowledgeBaseId,
 }: EmbeddedKnowledgeBaseActionsProps) {
@@ -558,16 +608,7 @@ interface EmbeddedFileActionsProps {
 function EmbeddedFileActions({ workspaceId, fileId, filePath }: EmbeddedFileActionsProps) {
   const router = useRouter()
   const { data: files = [] } = useWorkspaceFiles(workspaceId)
-  const file = useMemo(
-    () =>
-      files.find(
-        (f) =>
-          f.id === fileId ||
-          (filePath &&
-            canonicalWorkspaceFilePath({ folderPath: f.folderPath, name: f.name }) === filePath)
-      ),
-    [files, fileId, filePath]
-  )
+  const file = useMemo(() => findWorkspaceFile(files, fileId, filePath), [files, fileId, filePath])
 
   const handleDownload = async () => {
     if (!file) return
@@ -635,15 +676,11 @@ function EmbeddedWorkflow({ workspaceId, workflowId }: EmbeddedWorkflowProps) {
 
   if (!workflowExists || hasLoadError) {
     return (
-      <div className='flex h-full flex-col items-center justify-center gap-3'>
-        <WorkflowX className='size-[32px] text-[var(--text-icon)]' />
-        <div className='flex flex-col items-center gap-1'>
-          <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>Workflow not found</h2>
-          <p className='text-[var(--text-body)] text-small'>
-            This workflow may have been deleted or moved
-          </p>
-        </div>
-      </div>
+      <ResourceEmptyState
+        icon={WorkflowX}
+        title='Workflow not found'
+        description='This workflow may have been deleted or moved'
+      />
     )
   }
 
@@ -651,80 +688,6 @@ function EmbeddedWorkflow({ workspaceId, workflowId }: EmbeddedWorkflowProps) {
     <Suspense fallback={LOADING_SKELETON}>
       <Workflow workspaceId={workspaceId} workflowId={workflowId} embedded />
     </Suspense>
-  )
-}
-
-interface EmbeddedFileProps {
-  workspaceId: string
-  fileId: string
-  filePath?: string
-  previewMode?: PreviewMode
-  streamingContent?: string
-  isAgentEditing?: boolean
-  streamIsIncremental?: boolean
-  streamOperation?: string
-  disableStreamingAutoScroll?: boolean
-  previewContextKey?: string
-}
-
-function EmbeddedFile({
-  workspaceId,
-  fileId,
-  filePath,
-  previewMode,
-  streamingContent,
-  isAgentEditing,
-  streamIsIncremental,
-  streamOperation,
-  disableStreamingAutoScroll = false,
-  previewContextKey,
-}: EmbeddedFileProps) {
-  const { canEdit } = useUserPermissionsContext()
-  const { data: files = [], isLoading, isFetching } = useWorkspaceFiles(workspaceId)
-  const file = useMemo(
-    () =>
-      files.find(
-        (f) =>
-          f.id === fileId ||
-          (filePath &&
-            canonicalWorkspaceFilePath({ folderPath: f.folderPath, name: f.name }) === filePath)
-      ),
-    [files, fileId, filePath]
-  )
-
-  if (isLoading || (isFetching && !file)) return LOADING_SKELETON
-
-  if (!file) {
-    return (
-      <div className='flex h-full flex-col items-center justify-center gap-3'>
-        <FileX className='size-[32px] text-[var(--text-icon)]' />
-        <div className='flex flex-col items-center gap-1'>
-          <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>File not found</h2>
-          <p className='text-[var(--text-body)] text-small'>
-            This file may have been deleted or moved
-          </p>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className='flex h-full flex-col overflow-hidden'>
-      <FileViewer
-        key={file.id}
-        file={file}
-        workspaceId={workspaceId}
-        canEdit={canEdit}
-        previewMode={previewMode}
-        streamingContent={streamingContent}
-        isAgentEditing={isAgentEditing}
-        streamIsIncremental={streamIsIncremental}
-        streamOperation={streamOperation}
-        disableStreamingAutoScroll={disableStreamingAutoScroll}
-        previewContextKey={previewContextKey}
-        collaborative
-      />
-    </div>
   )
 }
 
@@ -744,15 +707,11 @@ function EmbeddedFolder({ workspaceId, folderId }: EmbeddedFolderProps) {
 
   if (!folder) {
     return (
-      <div className='flex h-full flex-col items-center justify-center gap-3'>
-        <FolderIcon className='size-[32px] text-[var(--text-icon)]' />
-        <div className='flex flex-col items-center gap-1'>
-          <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>Folder not found</h2>
-          <p className='text-[var(--text-body)] text-small'>
-            This folder may have been deleted or moved
-          </p>
-        </div>
-      </div>
+      <ResourceEmptyState
+        icon={FolderIcon}
+        title='Folder not found'
+        description='This folder may have been deleted or moved'
+      />
     )
   }
 
@@ -802,15 +761,11 @@ function EmbeddedLog({ workspaceId, logId, onNotFound }: EmbeddedLogProps) {
 
   if (!log) {
     return (
-      <div className='flex h-full flex-col items-center justify-center gap-3'>
-        <Library className='size-[32px] text-[var(--text-icon)]' />
-        <div className='flex flex-col items-center gap-1'>
-          <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>Log not found</h2>
-          <p className='text-[var(--text-body)] text-small'>
-            This log may have been deleted or is no longer available
-          </p>
-        </div>
-      </div>
+      <ResourceEmptyState
+        icon={Library}
+        title='Log not found'
+        description='This log may have been deleted or is no longer available'
+      />
     )
   }
 
@@ -826,7 +781,7 @@ interface EmbeddedLogActionsProps {
   logId: string
 }
 
-export function EmbeddedLogActions({ workspaceId, logId }: EmbeddedLogActionsProps) {
+function EmbeddedLogActions({ workspaceId, logId }: EmbeddedLogActionsProps) {
   const router = useRouter()
   const { data: log } = useLogDetail(logId, workspaceId)
 

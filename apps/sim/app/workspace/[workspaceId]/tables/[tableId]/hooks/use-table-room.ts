@@ -12,7 +12,7 @@ import {
   type TablePresenceUser,
 } from '@sim/realtime-protocol/table-presence'
 import { generateShortId } from '@sim/utils/id'
-import type { PresenceAvatarUser } from '@/app/workspace/[workspaceId]/components/presence/presence-avatars'
+import type { PresenceAvatarUser } from '@/components/presence'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 
 const logger = createLogger('TableRoom')
@@ -24,15 +24,9 @@ const JOIN_RETRY_BASE_MS = 1000
 const SELECTION_EMIT_THROTTLE_MS = 50
 
 /** The `table:presence-update` broadcast name, derived from the room type. */
-const TABLE_PRESENCE_UPDATE_EVENT = presenceEventName(ROOM_TYPES.TABLE)
+import type { RemoteTableSelection } from '@/components/resources/table-view'
 
-/** A remote viewer's current cell selection, ready to render as a presence overlay. */
-export interface RemoteTableSelection {
-  socketId: string
-  userId: string
-  userName: string
-  cell: NonNullable<TableCellSelection>
-}
+const TABLE_PRESENCE_UPDATE_EVENT = presenceEventName(ROOM_TYPES.TABLE)
 
 interface UseTableRoomResult {
   /** Collaborators viewing this table, excluding the current socket (for avatars). */

@@ -5,13 +5,17 @@ import { auditMock, authMockFns, permissionsMock, permissionsMockFns } from '@si
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetWorkspaceFile, mockGetShareForResource, mockUpsertFileShare, mockValidateSharing } =
-  vi.hoisted(() => ({
-    mockGetWorkspaceFile: vi.fn(),
-    mockGetShareForResource: vi.fn(),
-    mockUpsertFileShare: vi.fn(),
-    mockValidateSharing: vi.fn(),
-  }))
+const {
+  mockGetWorkspaceFile,
+  mockGetShareForResource,
+  mockUpsertResourceShare,
+  mockValidateSharing,
+} = vi.hoisted(() => ({
+  mockGetWorkspaceFile: vi.fn(),
+  mockGetShareForResource: vi.fn(),
+  mockUpsertResourceShare: vi.fn(),
+  mockValidateSharing: vi.fn(),
+}))
 
 vi.mock('@/lib/uploads/contexts/workspace', () => ({
   getWorkspaceFile: mockGetWorkspaceFile,
@@ -26,7 +30,7 @@ vi.mock('@/lib/public-shares/share-manager', () => {
   }
   return {
     getShareForResource: mockGetShareForResource,
-    upsertFileShare: mockUpsertFileShare,
+    upsertResourceShare: mockUpsertResourceShare,
     ShareValidationError,
   }
 })
@@ -80,7 +84,7 @@ describe('share route', () => {
     permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('write')
     mockGetWorkspaceFile.mockResolvedValue({ id: FILE_ID, name: 'report.pdf' })
     mockGetShareForResource.mockResolvedValue(SHARE)
-    mockUpsertFileShare.mockResolvedValue(SHARE)
+    mockUpsertResourceShare.mockResolvedValue(SHARE)
     mockValidateSharing.mockResolvedValue(undefined) // policy allows by default
   })
 
@@ -109,11 +113,11 @@ describe('share route', () => {
       permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValueOnce('read')
       const res = await PUT(putRequest({ isActive: true }), params())
       expect(res.status).toBe(403)
-      expect(mockUpsertFileShare).not.toHaveBeenCalled()
+      expect(mockUpsertResourceShare).not.toHaveBeenCalled()
     })
 
     it('maps a ShareValidationError to 400, not 500', async () => {
-      mockUpsertFileShare.mockRejectedValueOnce(
+      mockUpsertResourceShare.mockRejectedValueOnce(
         new ShareValidationError('Password is required for password-protected shares')
       )
       const res = await PUT(putRequest({ isActive: true, authType: 'password' }), params())
@@ -125,15 +129,16 @@ describe('share route', () => {
       mockGetWorkspaceFile.mockResolvedValueOnce(null)
       const res = await PUT(putRequest({ isActive: true }), params())
       expect(res.status).toBe(404)
-      expect(mockUpsertFileShare).not.toHaveBeenCalled()
+      expect(mockUpsertResourceShare).not.toHaveBeenCalled()
     })
 
     it('enables the share for a writer', async () => {
       const res = await PUT(putRequest({ isActive: true }), params())
       expect(res.status).toBe(200)
-      expect(mockUpsertFileShare).toHaveBeenCalledWith({
+      expect(mockUpsertResourceShare).toHaveBeenCalledWith({
+        resourceType: 'file',
+        resourceId: FILE_ID,
         workspaceId: WS,
-        fileId: FILE_ID,
         userId: 'user-1',
         isActive: true,
       })
@@ -147,7 +152,7 @@ describe('share route', () => {
       mockValidateSharing.mockRejectedValueOnce(new PublicFileSharingNotAllowedError())
       const res = await PUT(putRequest({ isActive: true }), params())
       expect(res.status).toBe(403)
-      expect(mockUpsertFileShare).not.toHaveBeenCalled()
+      expect(mockUpsertResourceShare).not.toHaveBeenCalled()
     })
 
     it('allows disabling a share even when policy disallows enabling', async () => {
@@ -155,9 +160,10 @@ describe('share route', () => {
       const res = await PUT(putRequest({ isActive: false }), params())
       expect(res.status).toBe(200)
       expect(mockValidateSharing).not.toHaveBeenCalled()
-      expect(mockUpsertFileShare).toHaveBeenCalledWith({
+      expect(mockUpsertResourceShare).toHaveBeenCalledWith({
+        resourceType: 'file',
+        resourceId: FILE_ID,
         workspaceId: WS,
-        fileId: FILE_ID,
         userId: 'user-1',
         isActive: false,
       })

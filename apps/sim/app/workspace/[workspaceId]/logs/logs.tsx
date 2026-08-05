@@ -27,6 +27,12 @@ import { formatDuration } from '@sim/utils/formatting'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'
+import {
+  getDisplayStatus,
+  type LogStatus,
+  STATUS_CONFIG,
+  StatusBadge,
+} from '@/components/execution-status'
 import type {
   WorkflowLogDetail,
   WorkflowLogRow,
@@ -86,16 +92,7 @@ import { useUrlSort } from '@/hooks/use-url-sort'
 import { useFilterStore } from '@/stores/logs/filters/store'
 import { CORE_TRIGGER_TYPES } from '@/stores/logs/filters/types'
 import { Dashboard, ExecutionSnapshot, LogDetails, LogRowContextMenu } from './components'
-import {
-  DELETED_WORKFLOW_LABEL,
-  formatDate,
-  getDisplayStatus,
-  type LogStatus,
-  parseDuration,
-  STATUS_CONFIG,
-  StatusBadge,
-  TriggerBadge,
-} from './utils'
+import { DELETED_WORKFLOW_LABEL, formatDate, parseDuration, TriggerBadge } from './utils'
 
 const LOGS_PER_PAGE = 50 as const
 const REFRESH_SPINNER_DURATION_MS = 1000 as const

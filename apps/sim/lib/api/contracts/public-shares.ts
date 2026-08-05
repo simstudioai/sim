@@ -2,7 +2,19 @@ import { z } from 'zod'
 import { inlineFileRefQuerySchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
+/**
+ * What a `public_share` row points at. The DB column is free-form text and the
+ * composite unique index is `(resourceType, resourceId)`, so widening this enum
+ * is the designed extension point — no migration is involved.
+ */
 export const shareResourceTypeSchema = z.enum(['file', 'folder'])
+
+/**
+ * Exported so server helpers (`share-manager`), client-safe helpers (`urls`),
+ * and query hooks can all name the same union instead of re-deriving it with
+ * `z.infer`, which clients are forbidden from writing.
+ */
+export type ShareResourceType = z.output<typeof shareResourceTypeSchema>
 
 /** How a public share is gated. */
 export const shareAuthTypeSchema = z.enum(['public', 'password', 'email', 'sso'])

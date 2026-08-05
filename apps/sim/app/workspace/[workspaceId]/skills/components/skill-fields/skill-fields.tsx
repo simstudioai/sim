@@ -15,7 +15,8 @@ import {
 const RichMarkdownField = dynamic(
   () =>
     import(
-      '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/rich-markdown-field'
+      // boundary-resource-internal: the standalone markdown form field, not a file view — the barrel exports no equivalent
+      '@/components/resources/file-view/components/rich-markdown-editor/rich-markdown-field'
     ).then((m) => m.RichMarkdownField),
   {
     ssr: false,

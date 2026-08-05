@@ -7,6 +7,7 @@ import {
   getFileShareContract,
   requestPublicFileOtpContract,
   type ShareRecord,
+  type ShareResourceType,
   type UpsertFileShareBody,
   upsertFileShareContract,
   type VerifyPublicFileOtpResponse,
@@ -14,16 +15,23 @@ import {
 } from '@/lib/api/contracts/public-shares'
 import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 
-export const FILE_SHARE_STALE_TIME = 30 * 1000
+export const RESOURCE_SHARE_STALE_TIME = 30 * 1000
+
+/** The resource families the share modal can publish. Folders ride the file page and have no share UI. */
+export type ShareableResourceType = Extract<ShareResourceType, 'file'>
 
 /**
- * Query key factories for public shares
+ * Query key factories for public shares.
+ *
+ * One namespace covers every shared resource family: `scopeId` is the workspace
+ * the resource belongs to and `resourceId` the resource itself, so a workspace's
+ * shares invalidate together under a single prefix.
  */
 export const shareKeys = {
   all: ['publicShares'] as const,
   details: () => [...shareKeys.all, 'detail'] as const,
-  detail: (workspaceId: string, fileId: string) =>
-    [...shareKeys.details(), workspaceId, fileId] as const,
+  detail: (resourceType: ShareResourceType, scopeId: string, resourceId: string) =>
+    [...shareKeys.details(), resourceType, scopeId, resourceId] as const,
 }
 
 async function fetchFileShare(
@@ -38,31 +46,68 @@ async function fetchFileShare(
   return data.share
 }
 
-export function useFileShare(workspaceId: string, fileId: string, options?: { enabled?: boolean }) {
+/**
+ * The share record for any shareable resource. One hook serves every resource
+ * family so the shared share modal cannot fork per resource: the query key and
+ * the fetch both branch on the same `resourceType`, which is part of the key.
+ */
+export function useResourceShare(
+  resourceType: ShareableResourceType,
+  workspaceId: string,
+  resourceId: string,
+  options?: { enabled?: boolean }
+) {
   return useQuery({
-    queryKey: shareKeys.detail(workspaceId, fileId),
-    queryFn: ({ signal }) => fetchFileShare(workspaceId, fileId, signal),
-    enabled: Boolean(workspaceId) && Boolean(fileId) && (options?.enabled ?? true),
-    staleTime: FILE_SHARE_STALE_TIME,
+    queryKey: shareKeys.detail(resourceType, workspaceId, resourceId),
+    queryFn: ({ signal }) => fetchFileShare(workspaceId, resourceId, signal),
+    enabled: Boolean(workspaceId) && Boolean(resourceId) && (options?.enabled ?? true),
+    staleTime: RESOURCE_SHARE_STALE_TIME,
   })
 }
 
-interface UpsertFileShareVariables extends UpsertFileShareBody {
+interface UpsertResourceShareVariables extends UpsertFileShareBody {
+  resourceType: ShareableResourceType
   workspaceId: string
-  fileId: string
+  resourceId: string
 }
 
-export function useUpsertFileShare() {
+/**
+ * Saves a share for any shareable resource. On success the detail cache is
+ * seeded with the saved record, and the files list is refreshed because its rows
+ * carry a share badge.
+ */
+export function useUpsertResourceShare() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ workspaceId, fileId, ...body }: UpsertFileShareVariables) =>
+    mutationFn: ({
+      resourceType,
+      workspaceId,
+      resourceId,
+      ...body
+    }: UpsertResourceShareVariables) =>
       requestJson(upsertFileShareContract, {
-        params: { id: workspaceId, fileId },
+        params: { id: workspaceId, fileId: resourceId },
         body,
       }),
-    onSuccess: (data, { workspaceId, fileId }) => {
-      queryClient.setQueryData(shareKeys.detail(workspaceId, fileId), data.share)
-      queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.workspaceLists(workspaceId) })
+    onSuccess: (data, { resourceType, workspaceId, resourceId }) => {
+      queryClient.setQueryData(shareKeys.detail(resourceType, workspaceId, resourceId), data.share)
+    },
+    /**
+     * Both the share record and the file row's share badge are reconciled on
+     * failure: a partial failure — share written, response lost — would
+     * otherwise leave the modal showing a pre-save record and the badge stale
+     * until something else happened to invalidate them. On success `onSuccess`
+     * already adopted the server's record, so only the list needs refreshing.
+     */
+    onSettled: (_data, error, { resourceType, workspaceId, resourceId }) => {
+      if (error) {
+        queryClient.invalidateQueries({
+          queryKey: shareKeys.detail(resourceType, workspaceId, resourceId),
+        })
+      }
+      if (resourceType === 'file') {
+        queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.workspaceLists(workspaceId) })
+      }
     },
     onError: (error) => {
       toast.error(error.message)

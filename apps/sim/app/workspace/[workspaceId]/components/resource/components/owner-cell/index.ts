@@ -1,1 +1,1 @@
-export { ownerCell } from './owner-cell'
+export { type MemberFilterOption, memberFilterOptions, ownerCell } from './owner-cell'

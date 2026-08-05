@@ -1,16 +1,15 @@
 import type { ReactNode } from 'react'
 import { cn } from '@sim/emcn'
-import Link from 'next/link'
 import { DesktopTitleBarLane } from '@/app/_shell/desktop-title-bar'
-import { LogoMark, SimWordmark } from '@/app/(landing)/components/navbar/components'
+import { Navbar } from '@/app/(landing)/components/navbar'
 
 /**
- * The canonical light, logo-only page frame - a Sim wordmark linking home, no
- * marketing menus, on the platform's light tokens (the `light` class pins
- * light mode regardless of visitor theme). It is the shared base for every
- * surface that wants minimal chrome: the global 404, and the `(interfaces)`
- * group (which adds a support footer). The `(auth)` group uses its own
- * `AuthShell` with the same look.
+ * The canonical light, logo-only page frame - the shared {@link Navbar} in
+ * `logoOnly` mode (Sim wordmark linking home, no marketing menus) on the
+ * platform's light tokens (the `light` class pins light mode regardless of
+ * visitor theme). It is the shared base for every surface that wants minimal
+ * chrome: the global 404, and the `(interfaces)` group (which adds a support
+ * footer). The `(auth)` group uses its own `AuthShell` with the same navbar.
  *
  * Children decide their own layout: pass `center` for a single centered column
  * (404 message, simple gates); omit it for full-width content (the live chat
@@ -29,15 +28,7 @@ export function LogoShell({ children, center = false, footer }: LogoShellProps) 
   return (
     <div className='light desktop-title-bar-page relative flex flex-col bg-[var(--bg)] text-[var(--text-primary)]'>
       <DesktopTitleBarLane />
-      <header>
-        <nav className='mx-auto flex w-full max-w-[1460px] items-center px-20 py-4 max-sm:px-5 max-lg:px-8'>
-          <Link href='/' aria-label='Sim home' className='flex h-[30px] items-center'>
-            <LogoMark>
-              <SimWordmark />
-            </LogoMark>
-          </Link>
-        </nav>
-      </header>
+      <Navbar logoOnly />
       <main
         className={cn('flex flex-1 flex-col', center && 'items-center justify-center px-4 pb-16')}
       >

@@ -10,6 +10,46 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
+import type { EditingCell, SaveReason } from '@/components/resources/table-view'
+import {
+  ADD_COL_WIDTH,
+  AddRowButton,
+  buildHeaderGroups,
+  buildTableSelectionContext,
+  type CellCoord,
+  COL_WIDTH,
+  ColumnHeaderMenu,
+  canWriteRowsWithChip,
+  checkboxColLayout,
+  chipRowCount,
+  classifyExecStatusMix,
+  cleanCellValue,
+  collectRowSnapshots,
+  computeNormalizedSelection,
+  DataRow,
+  type DisplayColumn,
+  drainTargetForChip,
+  type ExecStatusMix,
+  expandToDisplayColumns,
+  isCellInSelection,
+  moveCell,
+  RemoteSelectionOverlay,
+  type RemoteTableSelection,
+  ROW_SELECTION_ALL,
+  ROW_SELECTION_NONE,
+  type RowSelection,
+  rowSelectionCoversAll,
+  rowSelectionIncludes,
+  rowSelectionIsEmpty,
+  rowSelectionMaterialize,
+  SELECTION_TINT_BG,
+  SelectAllCheckbox,
+  selectedColumnIds,
+  generateColumnName as sharedGenerateColumnName,
+  TableColGroup,
+  TableFind,
+  WorkflowGroupMetaCell,
+} from '@/components/resources/table-view'
 import type { RunLimit, RunMode, TableFindMatch } from '@/lib/api/contracts/tables'
 import { attachSelectionContextToClipboard } from '@/lib/copilot/chat/selection-clipboard'
 import { captureEvent } from '@/lib/posthog/client'
@@ -25,7 +65,6 @@ import { getColumnId } from '@/lib/table/column-keys'
 import { columnTypeOf } from '@/lib/table/column-types'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import type { RemoteTableSelection } from '@/app/workspace/[workspaceId]/tables/[tableId]/hooks/use-table-room'
 import type { BlockedTableAction } from '@/app/workspace/[workspaceId]/tables/[tableId]/lock-copy'
 import { useTimezone } from '@/hooks/queries/general-settings'
 import {
@@ -48,44 +87,12 @@ import { extractCreatedRowId, useTableUndo } from '@/hooks/use-table-undo'
 import type { ChatContext } from '@/stores/panel'
 import type { DeletedRowSnapshot } from '@/stores/table/types'
 import { useContextMenu, useTable } from '../../hooks'
-import type { EditingCell, QueryOptions, SaveReason } from '../../types'
-import { cleanCellValue, generateColumnName as sharedGenerateColumnName } from '../../utils'
+import type { QueryOptions } from '../../types'
 import type { ColumnConfig } from '../column-config-sidebar'
 import { ContextMenu } from '../context-menu'
 import { NewColumnDropdown } from '../new-column-dropdown'
 import type { WorkflowConfig } from '../workflow-sidebar'
-import { ExpandedCellPopover } from './cells'
-import { ADD_COL_WIDTH, COL_WIDTH, SELECTION_TINT_BG } from './constants'
-import { DataRow } from './data-row'
-import { ColumnHeaderMenu, WorkflowGroupMetaCell } from './headers'
-import { RemoteSelectionOverlay } from './remote-selection-overlay'
-import { TableFind } from './table-find'
-import { AddRowButton, SelectAllCheckbox, TableColGroup } from './table-primitives'
-import type { DisplayColumn } from './types'
-import {
-  buildHeaderGroups,
-  buildTableSelectionContext,
-  type CellCoord,
-  canWriteRowsWithChip,
-  checkboxColLayout,
-  chipRowCount,
-  classifyExecStatusMix,
-  collectRowSnapshots,
-  computeNormalizedSelection,
-  drainTargetForChip,
-  type ExecStatusMix,
-  expandToDisplayColumns,
-  isCellInSelection,
-  moveCell,
-  ROW_SELECTION_ALL,
-  ROW_SELECTION_NONE,
-  type RowSelection,
-  rowSelectionCoversAll,
-  rowSelectionIncludes,
-  rowSelectionIsEmpty,
-  rowSelectionMaterialize,
-  selectedColumnIds,
-} from './utils'
+import { ExpandedCellPopover, InlineEditor } from './cells'
 
 const logger = createLogger('TableView')
 
@@ -3876,6 +3883,29 @@ export function TableGrid({
   const pendingUpdate = updateRowMutation.isPending ? updateRowMutation.variables : null
 
   /**
+   * The inline editing surface for a cell. Built here rather than inside `DataRow`
+   * because it is the write path: it closes over the pending-update state and the
+   * save/cancel handlers that own the mutation. A read-only surface passes no
+   * `renderCellEditor` at all and therefore renders — and bundles — no editor.
+   */
+  const renderCellEditor = useCallback(
+    ({ row, column }: { row: TableRowType; column: DisplayColumn }) => (
+      <InlineEditor
+        value={
+          pendingUpdate && pendingUpdate.rowId === row.id && column.key in pendingUpdate.data
+            ? pendingUpdate.data[column.key]
+            : row.data[column.key]
+        }
+        column={column}
+        initialCharacter={initialCharacter ?? undefined}
+        onSave={(value, reason) => handleInlineSave(row.id, column.key, value, reason)}
+        onCancel={handleInlineCancel}
+      />
+    ),
+    [pendingUpdate, initialCharacter, handleInlineSave, handleInlineCancel]
+  )
+
+  /**
    * Row ids for the current multi-row selection. Drives "Run N selected rows"
    * in the workflow-group run menu — `null` when there's no multi-selection so
    * the menu collapses to "Run all rows".
@@ -4466,9 +4496,6 @@ export function TableGrid({
                                 editingColumnName={
                                   editingCell?.rowId === row.id ? editingCell.columnName : null
                                 }
-                                initialCharacter={
-                                  editingCell?.rowId === row.id ? initialCharacter : null
-                                }
                                 pendingCellValue={
                                   pendingUpdate && pendingUpdate.rowId === row.id
                                     ? pendingUpdate.data
@@ -4477,8 +4504,7 @@ export function TableGrid({
                                 normalizedSelection={normalizedSelection}
                                 onClick={handleCellClick}
                                 onDoubleClick={handleCellDoubleClick}
-                                onSave={handleInlineSave}
-                                onCancel={handleInlineCancel}
+                                renderCellEditor={renderCellEditor}
                                 onContextMenu={handleRowContextMenu}
                                 onCellMouseDown={handleCellMouseDown}
                                 onCellMouseEnter={handleCellMouseEnter}

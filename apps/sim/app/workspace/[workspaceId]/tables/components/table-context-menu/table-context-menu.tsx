@@ -1,17 +1,15 @@
 'use client'
 
 import {
-  DropdownMenu,
-  DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
   Upload,
 } from '@sim/emcn'
 import { Database, Download, Duplicate, FolderInput, Pencil, Pin, Trash } from '@sim/emcn/icons'
+import { AnchoredContextMenu } from '@/components/anchored-context-menu'
 import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/components/folders'
 import { renderMoveOptions } from '@/app/workspace/[workspaceId]/components/folders'
 
@@ -57,85 +55,67 @@ export function TableContextMenu({
   disableImport = false,
   disableExport = false,
 }: TableContextMenuProps) {
+  /**
+   * Canonical resource-menu structure: navigation (View Schema) first, then the
+   * item actions in the shared order — Rename, Import, Export, Move — and finally
+   * the utilities (Pin, Copy ID) and Delete, each separated from the last.
+   */
   return (
-    <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
-      <DropdownMenuTrigger asChild>
-        <div
-          style={{
-            position: 'fixed',
-            left: `${position.x}px`,
-            top: `${position.y}px`,
-            width: '1px',
-            height: '1px',
-            pointerEvents: 'none',
-          }}
-          tabIndex={-1}
-          aria-hidden
-        />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align='start'
-        side='bottom'
-        sideOffset={4}
-        onCloseAutoFocus={(e) => e.preventDefault()}
-      >
-        {onViewSchema && (
-          <DropdownMenuItem onSelect={onViewSchema}>
-            <Database />
-            View Schema
-          </DropdownMenuItem>
-        )}
-        {onRename && (
-          <DropdownMenuItem disabled={disableRename} onSelect={onRename}>
-            <Pencil />
-            Rename
-          </DropdownMenuItem>
-        )}
-        {onImportCsv && (
-          <DropdownMenuItem disabled={disableImport} onSelect={onImportCsv}>
-            <Upload />
-            Import CSV…
-          </DropdownMenuItem>
-        )}
-        {onExportCsv && (
-          <DropdownMenuItem disabled={disableExport} onSelect={onExportCsv}>
-            <Download />
-            Export CSV
-          </DropdownMenuItem>
-        )}
-        {onMove && moveOptions && moveOptions.length > 0 && (
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger>
-              <FolderInput />
-              Move to
-            </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent>
-              {renderMoveOptions(moveOptions, onMove)}
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
-        )}
-        {(onViewSchema || onRename || onImportCsv || onExportCsv || onMove) &&
-          (onCopyId || onTogglePin || onDelete) && <DropdownMenuSeparator />}
-        {onTogglePin && (
-          <DropdownMenuItem onSelect={onTogglePin}>
-            <Pin />
-            {pinned ? 'Unpin' : 'Pin'}
-          </DropdownMenuItem>
-        )}
-        {onCopyId && (
-          <DropdownMenuItem onSelect={onCopyId}>
-            <Duplicate />
-            Copy ID
-          </DropdownMenuItem>
-        )}
-        {(onCopyId || onTogglePin) && onDelete && <DropdownMenuSeparator />}
-        {onDelete && (
-          <DropdownMenuItem disabled={disableDelete} onSelect={onDelete}>
-            <Trash />
-            Delete
-          </DropdownMenuItem>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <AnchoredContextMenu isOpen={isOpen} position={position} onClose={onClose}>
+      {onViewSchema && (
+        <DropdownMenuItem onSelect={onViewSchema}>
+          <Database />
+          View Schema
+        </DropdownMenuItem>
+      )}
+      {onRename && (
+        <DropdownMenuItem disabled={disableRename} onSelect={onRename}>
+          <Pencil />
+          Rename
+        </DropdownMenuItem>
+      )}
+      {onImportCsv && (
+        <DropdownMenuItem disabled={disableImport} onSelect={onImportCsv}>
+          <Upload />
+          Import CSV…
+        </DropdownMenuItem>
+      )}
+      {onExportCsv && (
+        <DropdownMenuItem disabled={disableExport} onSelect={onExportCsv}>
+          <Download />
+          Export CSV
+        </DropdownMenuItem>
+      )}
+      {onMove && moveOptions && moveOptions.length > 0 && (
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger>
+            <FolderInput />
+            Move to
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent>{renderMoveOptions(moveOptions, onMove)}</DropdownMenuSubContent>
+        </DropdownMenuSub>
+      )}
+      {(onViewSchema || onRename || onImportCsv || onExportCsv || onMove) &&
+        (onCopyId || onTogglePin || onDelete) && <DropdownMenuSeparator />}
+      {onTogglePin && (
+        <DropdownMenuItem onSelect={onTogglePin}>
+          <Pin />
+          {pinned ? 'Unpin' : 'Pin'}
+        </DropdownMenuItem>
+      )}
+      {onCopyId && (
+        <DropdownMenuItem onSelect={onCopyId}>
+          <Duplicate />
+          Copy ID
+        </DropdownMenuItem>
+      )}
+      {(onCopyId || onTogglePin) && onDelete && <DropdownMenuSeparator />}
+      {onDelete && (
+        <DropdownMenuItem disabled={disableDelete} onSelect={onDelete}>
+          <Trash />
+          Delete
+        </DropdownMenuItem>
+      )}
+    </AnchoredContextMenu>
   )
 }

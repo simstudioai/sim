@@ -133,6 +133,8 @@ export const deployedChatConfigSchema = z.object({
     (value) => value ?? undefined,
     z.array(deployedChatOutputConfigSchema).optional()
   ),
+  /** Display name of the deployer, for the header's "Shared by" credit. Omitted when unknown. */
+  sharedByName: z.string().min(1).optional(),
   /** Policy for thinking SSE; clients still need the X-Sim-Stream-Protocol opt-in. */
   includeThinking: z.preprocess((value) => value ?? false, z.boolean()),
   /** Policy for tool lifecycle SSE; clients still need the protocol opt-in. */

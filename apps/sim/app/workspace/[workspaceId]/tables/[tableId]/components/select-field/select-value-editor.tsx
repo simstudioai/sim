@@ -2,8 +2,8 @@
 
 import { useMemo } from 'react'
 import { ChipDropdown } from '@sim/emcn'
+import { SelectPill, selectedOptionIds } from '@/components/resources/table-view'
 import type { ColumnDefinition } from '@/lib/table'
-import { SelectPill, selectedOptionIds } from './select-pill'
 
 interface SelectValueEditorProps {
   column: ColumnDefinition

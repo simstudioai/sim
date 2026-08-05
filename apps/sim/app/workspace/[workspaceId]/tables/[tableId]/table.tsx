@@ -5,9 +5,15 @@ import { Chip, ChipConfirmModal, toast } from '@sim/emcn'
 import { Download, Lock, Pencil, Table as TableIcon, Trash, Upload } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useParams, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
+import { PresenceAvatars } from '@/components/presence'
+import {
+  COLUMN_SIDEBAR_WIDTH,
+  columnTypeIcon,
+  generateColumnName,
+} from '@/components/resources/table-view'
 import type { RunLimit, RunMode, TableViewWire } from '@/lib/api/contracts/tables'
 import { captureEvent } from '@/lib/posthog/client'
 import type {
@@ -28,7 +34,6 @@ import {
   Resource,
   type SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
-import { PresenceAvatars } from '@/app/workspace/[workspaceId]/components/presence/presence-avatars'
 import { LogDetails } from '@/app/workspace/[workspaceId]/logs/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ImportCsvDialog } from '@/app/workspace/[workspaceId]/tables/components/import-csv-dialog'
@@ -50,6 +55,7 @@ import {
 } from '@/hooks/queries/tables'
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
+import { hostOwnsUrl, type ResourceHost } from '@/resources'
 import { useLogDetailsUIStore } from '@/stores/logs/store'
 import type { DeletedRowSnapshot } from '@/stores/table/types'
 import {
@@ -71,8 +77,6 @@ import {
   type WorkflowConfig,
   WorkflowSidebar,
 } from './components'
-import { COLUMN_SIDEBAR_WIDTH } from './components/table-grid/constants'
-import { columnTypeIcon } from './components/table-grid/headers'
 import { useTable, useTableEventStream, useTableRoom } from './hooks'
 import { type BlockedTableAction, describeBlockedAction, lockedNouns } from './lock-copy'
 import {
@@ -82,7 +86,6 @@ import {
   tableDetailUrlKeys,
 } from './search-params'
 import type { QueryOptions } from './types'
-import { generateColumnName } from './utils'
 
 const logger = createLogger('Table')
 
@@ -90,12 +93,30 @@ const logger = createLogger('Table')
 const BLOCKED_TOAST_MS = 8000
 
 interface TableProps {
-  /** When set, the table renders without its page header / breadcrumbs / page-level
-   *  options bar. Used by the mothership chat panel to embed a table inline. */
-  embedded?: boolean
-  /** Identifiers — only set in embedded mode. Page mode reads from `useParams()`. */
-  workspaceId?: string
-  tableId?: string
+  /**
+   * Which surface this table is mounted on. `'page'` renders the full route
+   * chrome — header, breadcrumbs, page-level options bar; every other host
+   * renders the grid alone, as the mothership chat panel does.
+   *
+   * This replaces an `embedded` boolean so the shell speaks the same vocabulary
+   * as the canonical views it sits beside. `'public'` is not reachable here:
+   * the editing shell holds a write path, so an anonymous surface would mount a
+   * read-only view of this table's view layer rather than this component.
+   */
+  host: Extract<ResourceHost, 'page' | 'panel'>
+  /**
+   * The table's address. Required rather than derived: both mounts know it
+   * (`page.tsx` from its route params, the panel from the open resource), and a
+   * `useParams()` fallback meant this component could only ever exist once per
+   * page.
+   *
+   * Plain ids rather than a `ResourceSource` because `page.tsx` is a Server
+   * Component and a source carries functions, which cannot cross the RSC
+   * boundary — the same reason the public interface page hands over a plain
+   * seed and lets the client mint the source.
+   */
+  workspaceId: string
+  tableId: string
   /**
    * Whether an admin may CHANGE locks, resolved server-side by the page (the
    * flag's gating lives in AppConfig and has no client counterpart). Defaults
@@ -206,16 +227,20 @@ function isSameViewConfig(a: TableViewConfig, b: TableViewConfig): boolean {
  * Embedded mode skips the page header but otherwise renders the same surface.
  */
 export function Table({
-  embedded,
-  workspaceId: propWorkspaceId,
-  tableId: propTableId,
+  host,
+  workspaceId,
+  tableId,
   tableLocksEnabled = false,
   viewsEnabled = false,
-}: TableProps = {}) {
-  const params = useParams()
+}: TableProps) {
   const router = useRouter()
-  const workspaceId = propWorkspaceId || (params.workspaceId as string)
-  const tableId = propTableId || (params.tableId as string)
+
+  /**
+   * Read through {@link hostOwnsUrl} rather than comparing `host` here: that
+   * function is where the "only a page owns the address bar" rule lives, and it
+   * gates URL-param inheritance below as well as the header chrome.
+   */
+  const embedded = !hostOwnsUrl(host)
 
   const posthog = usePostHog()
   const posthogRef = useRef(posthog)

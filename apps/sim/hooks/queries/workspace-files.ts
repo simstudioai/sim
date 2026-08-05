@@ -23,7 +23,8 @@ import {
 } from '@/lib/uploads/client/direct-upload'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import type { UserFile } from '@/executor/types'
-import { useFileContentSource } from '@/hooks/use-file-content-source'
+import type { ResourceSource } from '@/resources'
+import { fileCacheScope, fileContentUrl } from '@/resources/file-source'
 
 const logger = createLogger('WorkspaceFilesQuery')
 
@@ -150,18 +151,18 @@ async function fetchWorkspaceFileContent(url: string, signal?: AbortSignal): Pro
  * as it flips — no re-render required.
  */
 export function useWorkspaceFileContent(
-  workspaceId: string,
+  source: ResourceSource<'file'>,
   fileId: string,
   key: string,
   raw?: boolean,
   options?: { refetchInterval?: number | false | (() => number | false) }
 ) {
-  const source = useFileContentSource()
+  const scope = fileCacheScope(source)
   return useQuery({
-    queryKey: workspaceFilesKeys.content(workspaceId, fileId, raw ? 'raw' : 'text', key),
+    queryKey: workspaceFilesKeys.content(scope, fileId, raw ? 'raw' : 'text', key),
     queryFn: ({ signal }) =>
-      fetchWorkspaceFileContent(source.buildUrl(key, { raw, bust: true }), signal),
-    enabled: !!workspaceId && !!fileId && !!key,
+      fetchWorkspaceFileContent(fileContentUrl(source, key, { raw, bust: true }), signal),
+    enabled: !!scope && !!fileId && !!key,
     staleTime: WORKSPACE_FILE_CONTENT_STALE_TIME,
     refetchOnWindowFocus: 'always',
     refetchInterval: options?.refetchInterval ?? false,
@@ -218,20 +219,20 @@ async function fetchWorkspaceFileBinary(
  * open, keyed to the current content rather than a stale cached entry).
  */
 export function useWorkspaceFileBinary(
-  workspaceId: string,
+  source: ResourceSource<'file'>,
   fileId: string,
   key: string,
   options?: { enabled?: boolean; version?: string | number }
 ) {
-  const source = useFileContentSource()
+  const scope = fileCacheScope(source)
   return useQuery({
     queryKey:
       options?.version != null
-        ? [...workspaceFilesKeys.content(workspaceId, fileId, 'binary', key), options.version]
-        : workspaceFilesKeys.content(workspaceId, fileId, 'binary', key),
+        ? [...workspaceFilesKeys.content(scope, fileId, 'binary', key), options.version]
+        : workspaceFilesKeys.content(scope, fileId, 'binary', key),
     queryFn: ({ signal }) =>
       fetchWorkspaceFileBinary(
-        source.buildUrl(key, { version: options?.version, bust: true }),
+        fileContentUrl(source, key, { version: options?.version, bust: true }),
         options?.version,
         signal
       ),
@@ -239,7 +240,7 @@ export function useWorkspaceFileBinary(
     // content) so we don't 409-poll the serve route for a generated doc whose
     // compiled artifact hasn't been written yet — the doc is fetched once, when
     // it's actually ready, instead of hammering the serve URL through generation.
-    enabled: !!workspaceId && !!fileId && !!key && (options?.enabled ?? true),
+    enabled: !!scope && !!fileId && !!key && (options?.enabled ?? true),
     staleTime: WORKSPACE_FILE_BINARY_STALE_TIME,
     refetchOnWindowFocus: 'always',
     placeholderData: keepPreviousData,

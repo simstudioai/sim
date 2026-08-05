@@ -7,6 +7,7 @@ import {
   ChipConfirmModal,
   ChipEmailsInput,
   ChipInput,
+  ChipPasswordInput,
   cn,
   Input,
   Label,
@@ -19,8 +20,8 @@ import {
 import { Check, TriangleAlert } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { GeneratedPasswordInput } from '@/components/ui'
 import { isSsoEnabled } from '@/lib/core/config/env-flags'
+import { generatePassword } from '@/lib/core/security/encryption'
 import { getBaseUrl, getEmailDomain } from '@/lib/core/utils/urls'
 import { validateAllowlistEntry } from '@/lib/messaging/email/validation'
 import { OutputSelect } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/chat/components/output-select/output-select'
@@ -747,9 +748,10 @@ function AuthSelector({
           <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
             Password
           </Label>
-          <GeneratedPasswordInput
+          <ChipPasswordInput
             value={password}
             onChange={handlePasswordChange}
+            onGenerate={() => generatePassword(24)}
             disabled={disabled}
             placeholder={hasExistingPassword ? '' : getPasswordPlaceholder(false)}
             required={!hasExistingPassword}

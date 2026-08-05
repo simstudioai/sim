@@ -2,14 +2,11 @@
 
 import { memo } from 'react'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
 } from '@sim/emcn'
 import {
   Duplicate,
@@ -20,6 +17,7 @@ import {
   TagIcon,
   Trash,
 } from '@sim/emcn/icons'
+import { AnchoredContextMenu } from '@/components/anchored-context-menu'
 import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/components/folders'
 import { renderMoveOptions } from '@/app/workspace/[workspaceId]/components/folders'
 
@@ -47,8 +45,9 @@ interface KnowledgeBaseContextMenuProps {
 }
 
 /**
- * Context menu component for knowledge base cards.
- * Displays open in new tab, view tags, edit, and delete options.
+ * Context menu for knowledge base cards. Canonical resource-menu structure:
+ * navigation (Open in new tab) above a single separator, then the item actions
+ * in the shared order — Edit, View tags, utilities, Delete.
  */
 export const KnowledgeBaseContextMenu = memo(function KnowledgeBaseContextMenu({
   isOpen,
@@ -77,84 +76,63 @@ export const KnowledgeBaseContextMenu = memo(function KnowledgeBaseContextMenu({
   const hasDestructiveSection = showDelete && !!onDelete
 
   return (
-    <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
-      <DropdownMenuTrigger asChild>
-        <div
-          style={{
-            position: 'fixed',
-            left: `${position.x}px`,
-            top: `${position.y}px`,
-            width: '1px',
-            height: '1px',
-            pointerEvents: 'none',
-          }}
-          tabIndex={-1}
-          aria-hidden
-        />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align='start'
-        side='bottom'
-        sideOffset={4}
-        onCloseAutoFocus={(e) => e.preventDefault()}
-      >
-        {hasNavigationSection && (
-          <DropdownMenuItem onSelect={onOpenInNewTab!}>
-            <SquareArrowUpRight />
-            Open in new tab
-          </DropdownMenuItem>
-        )}
-        {hasNavigationSection && (hasInfoSection || hasEditSection || hasDestructiveSection) && (
-          <DropdownMenuSeparator />
-        )}
+    <AnchoredContextMenu isOpen={isOpen} position={position} onClose={onClose}>
+      {hasNavigationSection && (
+        <DropdownMenuItem onSelect={onOpenInNewTab!}>
+          <SquareArrowUpRight />
+          Open in new tab
+        </DropdownMenuItem>
+      )}
+      {hasNavigationSection && (hasInfoSection || hasEditSection || hasDestructiveSection) && (
+        <DropdownMenuSeparator />
+      )}
 
-        {showViewTags && onViewTags && (
-          <DropdownMenuItem onSelect={onViewTags}>
-            <TagIcon />
-            View tags
-          </DropdownMenuItem>
-        )}
-        {onCopyId && (
-          <DropdownMenuItem onSelect={onCopyId}>
-            <Duplicate />
-            Copy ID
-          </DropdownMenuItem>
-        )}
-        {onTogglePin && (
-          <DropdownMenuItem onSelect={onTogglePin}>
-            <Pin />
-            {pinned ? 'Unpin' : 'Pin'}
-          </DropdownMenuItem>
-        )}
-        {hasInfoSection && (hasEditSection || hasDestructiveSection) && <DropdownMenuSeparator />}
+      {showViewTags && onViewTags && (
+        <DropdownMenuItem onSelect={onViewTags}>
+          <TagIcon />
+          View tags
+        </DropdownMenuItem>
+      )}
+      {onCopyId && (
+        <DropdownMenuItem onSelect={onCopyId}>
+          <Duplicate />
+          Copy ID
+        </DropdownMenuItem>
+      )}
+      {onTogglePin && (
+        <DropdownMenuItem onSelect={onTogglePin}>
+          <Pin />
+          {pinned ? 'Unpin' : 'Pin'}
+        </DropdownMenuItem>
+      )}
+      {hasInfoSection && (hasEditSection || hasDestructiveSection) && <DropdownMenuSeparator />}
 
-        {showEdit && onEdit && (
-          <DropdownMenuItem disabled={disableEdit} onSelect={onEdit}>
-            <Pencil />
-            Edit
-          </DropdownMenuItem>
-        )}
+      {showEdit && onEdit && (
+        <DropdownMenuItem disabled={disableEdit} onSelect={onEdit}>
+          <Pencil />
+          Edit
+        </DropdownMenuItem>
+      )}
 
-        {hasMoveSection && (
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger>
-              <FolderInput />
-              Move to
-            </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent>
-              {renderMoveOptions(moveOptions!, onMove!)}
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
-        )}
+      {hasMoveSection && (
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger>
+            <FolderInput />
+            Move to
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent>
+            {renderMoveOptions(moveOptions!, onMove!)}
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+      )}
 
-        {hasEditSection && hasDestructiveSection && <DropdownMenuSeparator />}
-        {showDelete && onDelete && (
-          <DropdownMenuItem disabled={disableDelete} onSelect={onDelete}>
-            <Trash />
-            Delete
-          </DropdownMenuItem>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+      {hasEditSection && hasDestructiveSection && <DropdownMenuSeparator />}
+      {showDelete && onDelete && (
+        <DropdownMenuItem disabled={disableDelete} onSelect={onDelete}>
+          <Trash />
+          Delete
+        </DropdownMenuItem>
+      )}
+    </AnchoredContextMenu>
   )
 })

@@ -21,6 +21,7 @@ import { useCopyToClipboard } from '../../hooks/use-copy-to-clipboard'
 import { Check, Duplicate } from '../../icons'
 import { cn } from '../../lib/cn'
 import { Button } from '../button/button'
+import { chipAdornmentIconClass } from '../chip/chip-chrome'
 import { ChipInput, type ChipInputProps } from '../chip-input/chip-input'
 import { Tooltip } from '../tooltip/tooltip'
 
@@ -56,7 +57,11 @@ export const ChipCopyInput = React.forwardRef<HTMLInputElement, ChipCopyInputPro
                 onClick={() => copy(value)}
                 aria-label={copyLabel}
               >
-                {copied ? <Check className='size-[13px]' /> : <Duplicate className='size-[13px]' />}
+                {copied ? (
+                  <Check className={chipAdornmentIconClass} />
+                ) : (
+                  <Duplicate className={chipAdornmentIconClass} />
+                )}
               </Button>
             </Tooltip.Trigger>
             <Tooltip.Content>{copied ? 'Copied!' : copyLabel}</Tooltip.Content>
