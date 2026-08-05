@@ -111,7 +111,6 @@ interface UseWandProps {
   onGeneratedContent: (content: string) => void
   onStreamChunk?: (chunk: string) => void
   onStreamStart?: () => void
-  onGenerationComplete?: (prompt: string, generatedContent: string) => void
 }
 
 export function useWand({
@@ -122,7 +121,6 @@ export function useWand({
   onGeneratedContent,
   onStreamChunk,
   onStreamStart,
-  onGenerationComplete,
 }: UseWandProps) {
   const queryClient = useQueryClient()
   const { navigateToSettings } = useSettingsNavigation()
@@ -285,10 +283,6 @@ export function useWand({
               { role: 'assistant', content: generatedContent },
             ])
           }
-
-          if (onGenerationComplete) {
-            onGenerationComplete(currentPrompt, generatedContent)
-          }
         }
 
         logger.debug('Wand generation completed', {
@@ -334,7 +328,6 @@ export function useWand({
       onGeneratedContent,
       onStreamChunk,
       onStreamStart,
-      onGenerationComplete,
       queryClient,
       contextParams?.tableId,
       contextParams?.sandboxId,
