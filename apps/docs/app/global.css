@@ -380,17 +380,14 @@ aside#nd-sidebar [data-radix-scroll-area-viewport] {
     width: var(--fd-sidebar-width);
   }
 
-  /* Sidebar divider line — pinned for the same reason, and to stay glued to the
-     sidebar's right edge. #nd-docs-layout is a CSS grid (see fumadocs' Container
-     slot); the pseudo-element spans the full grid so it reads as decorative
-     overlay rather than being auto-placed into a real content cell and skewing
-     that cell's sizing. */
+  /* Sidebar divider line — pinned for the same reason, and so it stays glued to
+     the sidebar's right edge. Being fixed takes it out of #nd-docs-layout's grid
+     entirely, so it needs no grid placement and cannot skew a content cell; its
+     position comes from `left`/`top` alone. */
   #nd-docs-layout::before {
     content: "";
     display: block;
     position: fixed;
-    grid-row: 1 / -1;
-    grid-column: 1 / -1;
     top: 92px; /* below navbar */
     height: calc(100dvh - 92px);
     left: calc(var(--sidebar-offset) + var(--fd-sidebar-width));
@@ -398,14 +395,6 @@ aside#nd-sidebar [data-radix-scroll-area-viewport] {
     background-color: var(--surface-active);
     pointer-events: none;
     z-index: 21;
-  }
-
-  /* The footer is opaque and now has to out-stack the pinned sidebar and its
-     divider (z-index 20 and 21), so it slides over them at the end of the page
-     rather than being drawn through. */
-  footer {
-    position: relative;
-    z-index: 22;
   }
 
   /* Hide fumadocs nav on desktop - we use custom navbar there */
