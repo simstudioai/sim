@@ -5,6 +5,7 @@ import {
   buildZohoDeskHeaders,
   getZohoDeskApiBase,
   getZohoDeskErrorMessage,
+  normalizeZohoDeskCommaList,
   requireZohoDeskId,
 } from '@/tools/zoho_desk/utils'
 
@@ -41,11 +42,22 @@ export const zohoDeskGetContactTool: ToolConfig<ZohoDeskGetContactParams, ZohoDe
       visibility: 'user-or-llm',
       description: 'Contact ID to retrieve',
     },
+    include: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Comma-separated related data to embed. Allowed: accounts, owner',
+    },
   },
 
   request: {
-    url: (params) =>
-      `${getZohoDeskApiBase(params)}/contacts/${encodeURIComponent(requireZohoDeskId(params.contactId, 'Contact ID'))}`,
+    url: (params) => {
+      const query = new URLSearchParams()
+      const include = normalizeZohoDeskCommaList(params.include)
+      if (include) query.set('include', include)
+      const qs = query.toString()
+      return `${getZohoDeskApiBase(params)}/contacts/${encodeURIComponent(requireZohoDeskId(params.contactId, 'Contact ID'))}${qs ? `?${qs}` : ''}`
+    },
     method: 'GET',
     headers: (params) => buildZohoDeskHeaders(params),
   },

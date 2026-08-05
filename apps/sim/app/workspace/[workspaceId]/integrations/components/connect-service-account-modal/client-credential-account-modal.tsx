@@ -42,8 +42,13 @@ function messageForClientCredentialError(
     switch (err.code) {
       case 'invalid_credentials':
         return `We couldn't authenticate with those credentials. Check that the ${fieldLabels} all belong to the same ${descriptor.serviceLabel} app and that the app is authorized.`
-      case 'site_not_found':
-        return `We couldn't find a ${descriptor.serviceLabel} account at that host. Check the spelling of the host field and try again.`
+      case 'site_not_found': {
+        // "host field" named a label no provider renders — Salesforce calls it
+        // My Domain host, and Zoom/Box/Zoho Desk have no host field at all.
+        const hostFieldLabel =
+          descriptor.fields.find((field) => field.id === 'orgId')?.label ?? 'host'
+        return `We couldn't find a ${descriptor.serviceLabel} account at that host. Check the ${hostFieldLabel} field and try again.`
+      }
       case 'provider_unavailable':
         return `We couldn't reach ${descriptor.serviceLabel} to verify these credentials. Try again in a moment.`
       case 'duplicate_display_name':
@@ -191,17 +196,12 @@ export function ClientCredentialAccountModal({
             placeholder={clientIdField.placeholder}
             autoComplete='off'
             required
-            hint={hintFor(clientIdField, trimmedClientId)}
+            hint={hintFor(clientIdField, trimmedClientId) ?? clientIdField.hint}
           />
         )}
 
         {clientSecretField && (
-          <ChipModalField
-            type='custom'
-            title={clientSecretField.label}
-            required
-            hint={descriptor.helpText}
-          >
+          <ChipModalField type='custom' title={clientSecretField.label} required>
             <SecretInput
               value={clientSecret}
               onChange={(value) => {
@@ -231,22 +231,28 @@ export function ClientCredentialAccountModal({
             placeholder={orgIdField.placeholder}
             autoComplete='off'
             required
-            hint={hintFor(orgIdField, trimmedOrgId)}
+            // helpText lands here, not on the client secret: every provider's
+            // caveat qualifies the org identifier or what the credential can
+            // reach (Box's Admin Console authorization, Zoom's Account ID,
+            // Salesforce's Run As user), never the secret being pasted. A live
+            // format hint still wins, matching the token modal's precedence.
+            hint={hintFor(orgIdField, trimmedOrgId) ?? orgIdField.hint ?? descriptor.helpText}
           />
         )}
 
-        {dataCenterField && (
+        {dataCenterField?.options && (
           <ChipModalField
-            type='input'
+            type='dropdown'
             title={dataCenterField.label}
-            value={dataCenter}
+            value={dataCenter || undefined}
             onChange={(value) => {
               setDataCenter(value)
               if (error) setError(null)
             }}
+            options={dataCenterField.options}
             placeholder={dataCenterField.placeholder}
-            autoComplete='off'
-            hint={hintFor(dataCenterField, trimmedDataCenter) ?? dataCenterField.hintMessage}
+            align='start'
+            hint={dataCenterField.hint}
           />
         )}
 

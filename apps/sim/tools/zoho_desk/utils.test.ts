@@ -10,6 +10,7 @@ import {
   deriveZohoContentText,
   getZohoDeskApiBase,
   getZohoDeskErrorMessage,
+  normalizeZohoDeskCommaList,
   resolveZohoAttachmentUrl,
   withDerivedContentText,
 } from '@/tools/zoho_desk/utils'
@@ -75,6 +76,64 @@ describe('zoho desk tool utils', () => {
         'INVALID_DATA'
       )
       expect(getZohoDeskErrorMessage(null, 'fallback')).toBe('fallback')
+    })
+
+    it('names the offending fields from a validation failure', () => {
+      expect(
+        getZohoDeskErrorMessage(
+          {
+            errorCode: 'INVALID_DATA',
+            message: 'The data does not comply to the validation restrictions defined.',
+            errors: [
+              { fieldName: '/contactId', errorType: 'invalid' },
+              { fieldName: '/departmentId', errorType: 'invalid' },
+            ],
+          },
+          'fallback'
+        )
+      ).toBe(
+        'The data does not comply to the validation restrictions defined. (/contactId: invalid; /departmentId: invalid)'
+      )
+    })
+
+    it('accepts the prose errorMessage shape and skips unusable entries', () => {
+      expect(
+        getZohoDeskErrorMessage(
+          {
+            message: 'Invalid',
+            errors: [{ fieldName: '/status', errorMessage: 'is not a valid status' }, {}, null],
+          },
+          'fallback'
+        )
+      ).toBe('Invalid (/status: is not a valid status)')
+    })
+
+    it('leaves the message untouched when there are no field errors', () => {
+      expect(getZohoDeskErrorMessage({ message: 'Not found', errors: [] }, 'fallback')).toBe(
+        'Not found'
+      )
+    })
+  })
+
+  describe('normalizeZohoDeskCommaList', () => {
+    it('collapses "a, b" to "a,b"', () => {
+      expect(normalizeZohoDeskCommaList('accounts, owner')).toBe('accounts,owner')
+    })
+
+    it('preserves interior spaces so multi-word filter values still match', () => {
+      expect(normalizeZohoDeskCommaList('Open, On Hold')).toBe('Open,On Hold')
+    })
+
+    it('accepts the array a multi-select subBlock stores', () => {
+      expect(normalizeZohoDeskCommaList(['a', 'b'])).toBe('a,b')
+      // An emptied picker stores `[]`; calling .split on it would throw.
+      expect(normalizeZohoDeskCommaList([])).toBeUndefined()
+    })
+
+    it('drops empty entries and returns undefined when nothing is left', () => {
+      expect(normalizeZohoDeskCommaList(' contacts , , assignee ')).toBe('contacts,assignee')
+      expect(normalizeZohoDeskCommaList('  ')).toBeUndefined()
+      expect(normalizeZohoDeskCommaList(undefined)).toBeUndefined()
     })
   })
 
