@@ -71,7 +71,7 @@ describe('GET /api/v2/billing/usage/logs', () => {
       {
         id: 'log-1',
         createdAt: '2026-07-01T00:00:00.000Z',
-        source: 'copilot',
+        source: 'sim-chat',
         workflowName: null,
         creditCost: 12,
       },
@@ -88,6 +88,27 @@ describe('GET /api/v2/billing/usage/logs', () => {
     mockGetUsageCreditsByLogId.mockResolvedValue({})
     const body = await (await callLogs()).json()
     expect(body.nextCursor).toBe('log-42')
+  })
+
+  it('filters sim-chat across both internal ledgers', async () => {
+    const res = await callLogs('?source=sim-chat')
+
+    expect(res.status).toBe(200)
+    expect(mockGetUserUsageLogs).toHaveBeenCalledWith(
+      'user-1',
+      expect.objectContaining({ source: ['copilot', 'workspace-chat'] })
+    )
+    expect(mockGetUsageCreditsByLogId).toHaveBeenCalledWith(
+      'user-1',
+      expect.objectContaining({ source: ['copilot', 'workspace-chat'] })
+    )
+  })
+
+  it('rejects internal chat source names', async () => {
+    const res = await callLogs('?source=copilot')
+
+    expect(res.status).toBe(400)
+    expect(mockGetUserUsageLogs).not.toHaveBeenCalled()
   })
 
   it('pins a workspace API key to its own workspace', async () => {
