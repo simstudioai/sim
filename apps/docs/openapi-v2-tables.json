@@ -4075,7 +4075,7 @@
       "delete": {
         "operationId": "deleteTablesFolder",
         "summary": "Delete Folder",
-        "description": "Delete a folder. With `recursive=false`, the folder must be empty. With `recursive=true`, its descendant folders and resources are deleted too.",
+        "description": "Delete a folder. By default the folder must be empty. With `recursive=true`, its descendant folders and resources are deleted too.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -4093,10 +4093,11 @@
           {
             "name": "recursive",
             "in": "query",
-            "required": true,
+            "required": false,
             "description": "Whether to delete the subtree.",
             "schema": {
-              "type": "boolean"
+              "type": "boolean",
+              "default": false
             }
           }
         ],

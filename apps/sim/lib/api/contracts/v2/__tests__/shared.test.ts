@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { v2ListLogsQuerySchema } from '@/lib/api/contracts/v2/logs'
 import {
+  v2DeleteFolderQuerySchema,
   v2FolderPathInputSchema,
   v2FolderPathSchema,
   v2NonRootFolderPathInputSchema,
@@ -41,6 +42,12 @@ describe('v2 folder path contracts', () => {
         destinationPath: '/Reports',
       }).success
     ).toBe(false)
+  })
+
+  it('defaults folder deletion to non-recursive', () => {
+    expect(v2DeleteFolderQuerySchema.parse({ workspaceId: WORKSPACE_ID, path: 'Reports' })).toEqual(
+      { workspaceId: WORKSPACE_ID, path: '/Reports', recursive: false }
+    )
   })
 
   it('normalizes every folder path in the logs filter', () => {
