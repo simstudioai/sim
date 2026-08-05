@@ -124,6 +124,12 @@ describe('zoho desk tool utils', () => {
       expect(normalizeZohoDeskCommaList('Open, On Hold')).toBe('Open,On Hold')
     })
 
+    it('accepts the array a multi-select subBlock stores', () => {
+      expect(normalizeZohoDeskCommaList(['a', 'b'])).toBe('a,b')
+      // An emptied picker stores `[]`; calling .split on it would throw.
+      expect(normalizeZohoDeskCommaList([])).toBeUndefined()
+    })
+
     it('drops empty entries and returns undefined when nothing is left', () => {
       expect(normalizeZohoDeskCommaList(' contacts , , assignee ')).toBe('contacts,assignee')
       expect(normalizeZohoDeskCommaList('  ')).toBeUndefined()

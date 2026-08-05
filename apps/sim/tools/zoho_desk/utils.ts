@@ -151,10 +151,18 @@ export function resolveZohoAttachmentUrl(href: string, apiBase: string): URL {
  * survive intact. Returns `undefined` when nothing usable remains, so the
  * caller omits the param entirely.
  */
-export function normalizeZohoDeskCommaList(value: string | undefined): string | undefined {
-  const normalized = value
-    ?.split(',')
-    .map((entry) => entry.trim())
+export function normalizeZohoDeskCommaList(value: unknown): string | undefined {
+  // Accepts an array as well as a string: a multi-select subBlock stores its
+  // value as one, and an emptied picker stores `[]`. Calling `.split` on that
+  // would throw and take the whole run down.
+  const entries = Array.isArray(value)
+    ? value
+    : typeof value === 'string'
+      ? value.split(',')
+      : undefined
+  if (!entries) return undefined
+  const normalized = entries
+    .map((entry) => String(entry).trim())
     .filter(Boolean)
     .join(',')
   return normalized || undefined
@@ -225,10 +233,11 @@ export function deriveAttachmentName(
 
 /**
  * Summarize the per-field entries Zoho attaches to a validation failure. Zoho
- * documents `errorType` (`{"fieldName": "/contactId", "errorType": "invalid"}`)
- * while its webhook responses carry a prose `errorMessage`; accept either, since
- * without them every `INVALID_DATA` reads as the useless "The data does not
- * comply to the validation restrictions defined." with no field named.
+ * documents the array form as `{"fieldName": "/contactId", "errorType": "invalid"}`;
+ * `errorMessage` is also accepted because other Desk surfaces carry a prose
+ * message under that key. Without this, every `INVALID_DATA` reads as the
+ * useless "The data does not comply to the validation restrictions defined."
+ * with no field named. A non-array `errors` value is ignored.
  */
 function summarizeZohoDeskFieldErrors(errors: unknown): string {
   if (!Array.isArray(errors)) return ''

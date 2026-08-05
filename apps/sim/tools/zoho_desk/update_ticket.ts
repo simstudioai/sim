@@ -165,10 +165,9 @@ export const zohoDeskUpdateTicketTool: ToolConfig<ZohoDeskUpdateTicketParams, Zo
         description: params.description,
         resolution: params.resolution,
         classification: params.classification,
-        // Zoho's ticket PATCH names the custom-field object `cf`. `customFields`
-        // exists only as a deprecated alias on other Desk resources (e.g. events)
-        // and on the separate validate-field-updates endpoint - sending it here
-        // is silently ignored, so the update reports success without applying.
+        // Zoho's ticket PATCH documents both `cf` and `customFields`, but marks
+        // `customFields` deprecated. Its own sample body sends `cf`, so that is
+        // what we use.
         cf: params.customFields,
       })
       // Zoho rejects an empty PATCH; fail early with an actionable message

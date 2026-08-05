@@ -18,6 +18,32 @@ const OPERATIONS_NEEDING_ORG = [
   'get_attachment',
 ]
 
+/**
+ * Collapse the three "not supplied" shapes to `undefined`. The workflow
+ * serializer initializes untouched subBlocks to `null`, and a cleared field
+ * arrives as `''`; both mean the same thing as absent.
+ */
+function orUndefined(value: unknown): unknown {
+  if (value === undefined || value === null || value === '') return undefined
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    return trimmed || undefined
+  }
+  return value
+}
+
+/**
+ * Coerce a pagination input to an integer at or above `min`, or `undefined`.
+ * Anything out of range is discarded rather than forwarded: Zoho answers a
+ * negative or fractional index with an opaque provider error.
+ */
+function toPaginationValue(value: unknown, min: number): number | undefined {
+  const resolved = orUndefined(value)
+  if (resolved === undefined) return undefined
+  const parsed = Number(resolved)
+  return Number.isInteger(parsed) && parsed >= min ? parsed : undefined
+}
+
 export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
   type: 'zoho_desk',
   name: 'Zoho Desk',
@@ -397,7 +423,20 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
       title: 'Include',
       type: 'short-input',
       placeholder: 'e.g. contacts,assignee',
-      condition: { field: 'operation', value: ['list_tickets', 'get_ticket'] },
+      condition: { field: 'operation', value: 'list_tickets' },
+      mode: 'advanced',
+    },
+    // Split from the list_tickets `include` above rather than shared: Get Ticket
+    // additionally accepts `contract` and `skills`, which List Tickets does not
+    // document. A shared subBlock keeps its value across an operation change, so
+    // `skills` set here would follow the user to List Tickets and put an
+    // undocumented token on the wire.
+    {
+      id: 'ticketInclude',
+      title: 'Include',
+      type: 'short-input',
+      placeholder: 'e.g. contacts,contract,skills',
+      condition: { field: 'operation', value: 'get_ticket' },
       mode: 'advanced',
     },
     {
@@ -485,9 +524,19 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
     config: {
       tool: (params) => `zoho_desk_${params.operation}`,
       params: (params) => {
-        // Pull raw pagination out of the spread so invalid values never reach the
-        // tool; only re-add them when Number() yields a finite value (a non-numeric
-        // typo would otherwise become NaN and produce an invalid Zoho query param).
+        // IMPORTANT: destructuring a key out of `rest` does NOT keep it from the
+        // tool. Both call sites merge this function's return value on top of the
+        // original inputs (`{ ...inputs, ...transformedParams }` in
+        // executor/handlers/generic/generic-handler.ts, and the same shape in
+        // providers/utils.ts), so a key left out of `result` is simply restored
+        // from `inputs`. The only way to scope a param to an operation is to
+        // OVERWRITE it with `undefined`, which every tool then treats as unset.
+        //
+        // This matters because a `mode: 'advanced'` subBlock with a retained
+        // value is serialized for every operation when the block's advanced
+        // toggle is off - serializer/index.ts returns on `isNonEmptyValue`
+        // without evaluating the subBlock's `condition` - so stale advanced
+        // values genuinely do arrive here under an unrelated operation.
         const {
           oauthCredential,
           from: rawFrom,
@@ -504,6 +553,7 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
           commentSortBy: rawCommentSortBy,
           threadSortBy: rawThreadSortBy,
           include: rawInclude,
+          ticketInclude: rawTicketInclude,
           contactInclude: rawContactInclude,
           threadInclude: rawThreadInclude,
           assigneeFilter: rawAssigneeFilter,
@@ -525,15 +575,19 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
           : typeof rawDepartmentIds === 'string'
             ? rawDepartmentIds.trim()
             : ''
-        if (departmentIds) result.departmentIds = departmentIds
+        // Always assigned, never conditionally: an emptied multi-select stores
+        // `[]`, and leaving the key unset would let that array through to the
+        // tool, where the comma-list normalizer would throw on `.split`.
+        result.departmentIds = departmentIds || undefined
 
         // contentType is the comment's content type; its default would otherwise
         // serialize for every operation (e.g. get_attachment, which has no such
         // param). Only forward it for add_comment so the UI can't imply an option
         // that has no effect elsewhere.
-        if (params.operation === 'add_comment' && typeof contentType === 'string' && contentType) {
-          result.contentType = contentType
-        }
+        result.contentType =
+          params.operation === 'add_comment' && typeof contentType === 'string' && contentType
+            ? contentType
+            : undefined
 
         // Zoho documents from >= 0 and limit >= 1 as integers; a negative or
         // fractional value reaches the API as an opaque provider error, so drop
@@ -541,21 +595,16 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
         // `null` is checked explicitly: the serializer initializes untouched
         // subBlocks to null, and Number(null) is 0 — which would otherwise inject
         // from=0 on every operation instead of leaving the param unset.
-        if (rawFrom !== undefined && rawFrom !== null && rawFrom !== '') {
-          const from = Number(rawFrom)
-          if (Number.isInteger(from) && from >= 0) result.from = from
-        }
-        if (rawLimit !== undefined && rawLimit !== null && rawLimit !== '') {
-          const limit = Number(rawLimit)
-          if (Number.isInteger(limit) && limit >= 1) result.limit = limit
-        }
+        result.from = toPaginationValue(rawFrom, 0)
+        result.limit = toPaginationValue(rawLimit, 1)
         // Gated for the same reason as contentType above: isPublic carries a
         // defaultValue, so forwarding it unconditionally would serialize a
         // comment-only field onto every other operation's params. Destructured
         // out of `rest` so the default never reaches non-comment operations.
-        if (params.operation === 'add_comment' && isPublic !== undefined) {
-          result.isPublic = isPublic === true || isPublic === 'true'
-        }
+        result.isPublic =
+          params.operation === 'add_comment' && isPublic !== undefined
+            ? isPublic === true || isPublic === 'true'
+            : undefined
         // Gated to update_ticket for the same reason as contentType and isPublic
         // above: the subBlock keeps its value when the operation changes, so
         // stale (or half-typed) JSON left behind after switching away from
@@ -576,12 +625,8 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
             : params.operation === 'update_ticket'
               ? rawPriority
               : undefined
-        if (activeStatus !== undefined && activeStatus !== null && activeStatus !== '') {
-          result.status = activeStatus
-        }
-        if (activePriority !== undefined && activePriority !== null && activePriority !== '') {
-          result.priority = activePriority
-        }
+        result.status = orUndefined(activeStatus)
+        result.priority = orUndefined(activePriority)
 
         // sortBy and include are per-operation for the same reason: three list
         // endpoints accept three different sort fields, and get_contact accepts a
@@ -596,44 +641,32 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
               : params.operation === 'list_threads'
                 ? rawThreadSortBy
                 : undefined
-        if (activeSortBy !== undefined && activeSortBy !== null && activeSortBy !== '') {
-          result.sortBy = activeSortBy
-        }
+        result.sortBy = orUndefined(activeSortBy)
 
         const activeInclude =
-          params.operation === 'list_tickets' || params.operation === 'get_ticket'
+          params.operation === 'list_tickets'
             ? rawInclude
-            : params.operation === 'get_contact'
-              ? rawContactInclude
-              : params.operation === 'get_thread'
-                ? rawThreadInclude
-                : undefined
-        if (activeInclude !== undefined && activeInclude !== null && activeInclude !== '') {
-          result.include = activeInclude
-        }
+            : params.operation === 'get_ticket'
+              ? rawTicketInclude
+              : params.operation === 'get_contact'
+                ? rawContactInclude
+                : params.operation === 'get_thread'
+                  ? rawThreadInclude
+                  : undefined
+        result.include = orUndefined(activeInclude)
 
         // Gated for the same stale-value reason as the filters above: these three
         // are list_tickets-only query params, and no other operation declares them.
-        if (params.operation === 'list_tickets') {
-          if (typeof rawAssigneeFilter === 'string' && rawAssigneeFilter.trim()) {
-            result.assignee = rawAssigneeFilter.trim()
-          }
-          if (typeof rawChannelFilter === 'string' && rawChannelFilter.trim()) {
-            result.channel = rawChannelFilter.trim()
-          }
-          // Forward whatever was supplied and let the tool judge it. Filtering
-          // here on shape would swallow 30.5 or a non-numeric value, and the
-          // tool would then run without the filter and return the entire queue
-          // as though the requested window had applied. Only the empty
-          // "Any time" option is dropped, because that genuinely means no filter.
-          if (
-            rawReceivedInDays !== undefined &&
-            rawReceivedInDays !== null &&
-            rawReceivedInDays !== ''
-          ) {
-            result.receivedInDays = Number(rawReceivedInDays)
-          }
-        }
+        const isListTickets = params.operation === 'list_tickets'
+        result.assignee = isListTickets ? orUndefined(rawAssigneeFilter) : undefined
+        result.channel = isListTickets ? orUndefined(rawChannelFilter) : undefined
+        // Forward whatever was supplied and let the tool judge it. Filtering here
+        // on shape would swallow 30.5 or a non-numeric value, and the tool would
+        // then run without the filter and return the entire queue as though the
+        // requested window had applied. Only the empty "Any time" option is
+        // dropped, because that genuinely means no filter.
+        const receivedInDays = isListTickets ? orUndefined(rawReceivedInDays) : undefined
+        result.receivedInDays = receivedInDays === undefined ? undefined : Number(receivedInDays)
 
         if (params.operation === 'update_ticket' && rawCustomFields !== undefined) {
           if (typeof rawCustomFields === 'string') {
@@ -686,7 +719,8 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
     customFields: { type: 'json', description: 'Custom field values' },
     href: { type: 'string', description: 'Attachment download href' },
     fileName: { type: 'string', description: 'Downloaded file name' },
-    include: { type: 'string', description: 'Related data to include on ticket operations' },
+    include: { type: 'string', description: 'Related data to include when listing tickets' },
+    ticketInclude: { type: 'string', description: 'Related data to include on a single ticket' },
     contactInclude: { type: 'string', description: 'Related data to include on a contact' },
     threadInclude: { type: 'string', description: 'Related data to include on a thread' },
     sortBy: { type: 'string', description: 'Sort field for listing tickets' },

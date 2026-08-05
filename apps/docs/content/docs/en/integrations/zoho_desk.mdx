@@ -54,12 +54,12 @@ List tickets from a Zoho Desk organization with optional filters. Returns a list
 | `apiDomain` | string | No | Zoho Desk data-center REST base URL |
 | `orgId` | string | Yes | Zoho Desk organization ID |
 | `from` | number | No | Pagination start index \(0-based\) |
-| `limit` | number | No | Number of tickets to return \(1-100, default 10\) |
+| `limit` | number | No | Number of tickets to return \(1-100\) |
 | `departmentIds` | string | No | Filter by department ID \(comma-separated for multiple\) |
 | `status` | string | No | Filter by status, including custom statuses. Comma-separate to match multiple \(e.g. "Open,On Hold"\) |
 | `priority` | string | No | Filter by priority. Comma-separate to match multiple \(e.g. "High,Urgent"\) |
 | `assignee` | string | No | Filter by assignee: an agent ID, or "Unassigned". Comma-separate to match multiple. |
-| `channel` | string | No | Filter by origin channel \(e.g. Email, Web, Phone\). Comma-separate to match multiple. |
+| `channel` | string | No | Filter by origin channel, spelled as your portal spells it. Comma-separate to match multiple. |
 | `receivedInDays` | number | No | Only tickets whose last customer response was within the last 15, 30, or 90 days \(Zoho filters on customerResponseTime, despite the name\) |
 | `sortBy` | string | No | Sort field: createdTime, customerResponseTime, or responseDueDate. Prefix with - for descending. |
 | `include` | string | No | Comma-separated related data to embed. Allowed: contacts, products, departments, team, isRead, assignee |

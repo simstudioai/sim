@@ -49,7 +49,7 @@ export const zohoDeskListTicketsTool: ToolConfig<ZohoDeskListTicketsParams, Zoho
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Number of tickets to return (1-100, default 10)',
+      description: 'Number of tickets to return (1-100)',
     },
     departmentIds: {
       type: 'string',
@@ -82,7 +82,7 @@ export const zohoDeskListTicketsTool: ToolConfig<ZohoDeskListTicketsParams, Zoho
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Filter by origin channel (e.g. Email, Web, Phone). Comma-separate to match multiple.',
+        'Filter by origin channel, spelled as your portal spells it. Comma-separate to match multiple.',
     },
     receivedInDays: {
       type: 'number',
