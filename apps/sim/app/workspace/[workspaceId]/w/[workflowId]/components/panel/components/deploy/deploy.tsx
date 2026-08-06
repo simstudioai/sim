@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Button, cn, Tooltip } from '@sim/emcn'
-import { Rocket } from '@sim/emcn/icons'
+import { Upload } from '@sim/emcn/icons'
 import { DeployModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/deploy-modal'
 import {
   useChangeDetection,
@@ -133,13 +133,19 @@ export function Deploy({
             <Button
               className={cn(compact ? 'h-[30px]' : 'h-[30px] gap-1.5 px-2.5', className)}
               variant={
-                isRegistryLoading ? 'active' : changeDetected || !isDeployed ? 'tertiary' : 'active'
+                compact
+                  ? 'subtle'
+                  : isRegistryLoading
+                    ? 'active'
+                    : changeDetected || !isDeployed
+                      ? 'tertiary'
+                      : 'active'
               }
               onClick={onDeployClick}
               disabled={isRegistryLoading || isDisabled}
               aria-label={compact ? buttonLabel : undefined}
             >
-              {compact ? <Rocket className='size-[16px] text-[var(--text-icon)]' /> : buttonLabel}
+              {compact ? <Upload className='size-[16px] text-[var(--text-icon)]' /> : buttonLabel}
             </Button>
           </span>
         </Tooltip.Trigger>

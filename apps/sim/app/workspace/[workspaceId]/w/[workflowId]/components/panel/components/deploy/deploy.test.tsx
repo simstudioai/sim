@@ -36,7 +36,7 @@ vi.mock('@sim/emcn', () => ({
 }))
 
 vi.mock('@sim/emcn/icons', () => ({
-  Rocket: () => <span data-testid='rocket-icon' />,
+  Upload: () => <span data-testid='upload-icon' />,
 }))
 
 vi.mock(
@@ -141,7 +141,8 @@ describe('Deploy compact mode', () => {
     const button = container.querySelector('button')
     expect(button?.getAttribute('aria-label')).toBe('Deploy')
     expect(button?.className).toContain('resource-action')
-    expect(container.querySelector('[data-testid="rocket-icon"]')).not.toBeNull()
+    expect(container.querySelector('[data-testid="upload-icon"]')).not.toBeNull()
+    expect(button?.getAttribute('variant')).toBe('subtle')
     expect(container.textContent).not.toContain('DeployLiveUpdate')
   })
 
