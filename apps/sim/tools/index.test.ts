@@ -2047,50 +2047,6 @@ describe('OAuth provider context propagation', () => {
     })
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
-
-  it('does not expose a non-JSON QuickBooks failure body in tool output', async () => {
-    mockGenerateInternalToken.mockResolvedValue('internal-token')
-    const fetchMock = vi.fn().mockImplementation(async (url: string) => {
-      if (url.includes('/api/auth/oauth/token')) {
-        return new Response(
-          JSON.stringify({
-            accessToken: 'fresh-access-token',
-            realmId: '123456789',
-          }),
-          { headers: { 'Content-Type': 'application/json' } }
-        )
-      }
-
-      return new Response('<html>sensitive gateway body</html>', {
-        status: 502,
-        statusText: 'Bad Gateway',
-        headers: { 'Content-Type': 'text/html' },
-      })
-    })
-    global.fetch = Object.assign(fetchMock, { preconnect: vi.fn() }) as typeof fetch
-
-    const result = await executeTool(
-      'test_quickbooks_context',
-      { credential: 'quickbooks-credential' },
-      {
-        executionContext: createToolExecutionContext({
-          userId: 'user-123',
-          workflowId: 'workflow-123',
-        }),
-      }
-    )
-
-    expect(result).toMatchObject({
-      success: false,
-      error: 'QuickBooks request failed with HTTP 502.',
-      output: {
-        status: 502,
-        statusText: 'Bad Gateway',
-        data: null,
-      },
-    })
-    expect(JSON.stringify(result)).not.toContain('sensitive gateway body')
-  })
 })
 
 describe('Copilot Env Variable Reference Resolution', () => {

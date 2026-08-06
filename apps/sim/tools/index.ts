@@ -49,9 +49,8 @@ import type { ExecutionContext, UserFile } from '@/executor/types'
 import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { ErrorInfo } from '@/tools/error-extractors'
-import { ErrorExtractorId, extractErrorMessage } from '@/tools/error-extractors'
+import { extractErrorMessage } from '@/tools/error-extractors'
 import { HostedKeyRateLimitedError, HostedKeyUnavailableError } from '@/tools/errors'
-import { sanitizeQuickBooksFaultData } from '@/tools/quickbooks/fault'
 import type {
   BYOKProviderId,
   OAuthTokenPayload,
@@ -981,16 +980,12 @@ const MCP_SYSTEM_PARAMETERS = new Set([
  * Uses the error extractor registry to find the best error message
  */
 function createTransformedErrorFromErrorInfo(errorInfo?: ErrorInfo, extractorId?: string): Error {
-  const safeErrorInfo =
-    extractorId === ErrorExtractorId.QUICKBOOKS_FAULT && errorInfo
-      ? { ...errorInfo, data: sanitizeQuickBooksFaultData(errorInfo.data) }
-      : errorInfo
-  const message = extractErrorMessage(safeErrorInfo, extractorId)
+  const message = extractErrorMessage(errorInfo, extractorId)
   const transformed = new Error(message)
   Object.assign(transformed, {
-    status: safeErrorInfo?.status,
-    statusText: safeErrorInfo?.statusText,
-    data: safeErrorInfo?.data,
+    status: errorInfo?.status,
+    statusText: errorInfo?.statusText,
+    data: errorInfo?.data,
   })
   return transformed
 }
