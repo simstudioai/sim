@@ -17,6 +17,7 @@ import {
 import { executeProviderTool } from '@/providers/runtime-context'
 import { createStreamingExecution } from '@/providers/streaming-execution'
 import { isAbortError, parseToolArguments } from '@/providers/streaming-tool-loop-shared'
+import { PROVIDER_REQUEST_TIMEOUT_MS } from '@/providers/timeouts'
 import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
 import type { Message, ProviderRequest, ProviderResponse, TimeSegment } from '@/providers/types'
 import { ProviderError } from '@/providers/types'
@@ -411,6 +412,26 @@ export async function executeResponsesProviderRequest(
   let reasoningSummariesUnavailable = false
 
   /**
+   * Bounds a non-streaming request, and deliberately leaves a streaming one alone.
+   *
+   * A non-streaming generation is silent on the wire until it completes, so there is no
+   * liveness signal an idle timer could act on — the deadline has to be explicit. A
+   * streaming response emits continuously, which is precisely what the runtime's idle
+   * timer is built for, and a total deadline there would cut off a long answer that is
+   * still arriving normally.
+   *
+   * The caller's own signal is preserved: a user pressing Stop must still win.
+   */
+  const withRequestDeadline = (
+    abortSignal: AbortSignal | undefined,
+    streaming: boolean
+  ): AbortSignal | undefined => {
+    if (streaming) return abortSignal
+    const deadline = AbortSignal.timeout(PROVIDER_REQUEST_TIMEOUT_MS)
+    return abortSignal ? AbortSignal.any([abortSignal, deadline]) : deadline
+  }
+
+  /**
    * The single point every Responses request leaves through, so a stall waiting for
    * headers is named on the streaming paths too — they call
    * {@link fetchResponsesWithSummaryFallback} directly and never reach `postResponses`,
@@ -426,7 +447,7 @@ export async function executeResponsesProviderRequest(
         method: 'POST',
         headers: config.headers,
         body: JSON.stringify(payload),
-        signal: abortSignal,
+        signal: withRequestDeadline(abortSignal, payload.stream === true),
       })
     } catch (error) {
       throw annotateTransportFailure(error, 'awaiting-response-headers', startedAt)
