@@ -636,12 +636,14 @@ export async function executeFunctionExecute(
           secretActorUserId ?? context.userId,
           mountedRegistry
         )
+        // Every mount ships its provenance envelope, tables included. The route classifies an
+        // output file from that envelope, so a mount without one is unclassifiable there — it
+        // cannot tell "nothing secret was mounted" from "nobody said". Emitting on the same
+        // condition that produces the mount keeps the two from drifting apart.
         if (resolved.length > 0) {
           const existing = (enrichedParams._sandboxFiles as SandboxFile[]) || []
           enrichedParams._sandboxFiles = [...existing, ...resolved]
-        }
 
-        if (inputFiles.length > 0 || inputDirectories.length > 0) {
           const provenance = mountedRegistry.exportProvenance()
           const bundle: PrivateSecretProvenanceBundleV1 = {
             version: 1,

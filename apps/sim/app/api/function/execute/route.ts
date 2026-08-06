@@ -989,6 +989,7 @@ interface FunctionRouteExecutionContext {
   outputSecretNamesByScanLiteral: Map<string, string[]>
   outputSecretPlaintextsByName: Map<string, string>
   mountedFileSecretProvenanceScanner?: MountedFileSecretProvenanceScanner
+  hasMountedSandboxFiles: boolean
 }
 
 type ResolvedSecretNamesMetadataType =
@@ -1213,12 +1214,16 @@ function activateOutputSecretProvenance(
  * True when any secret material was in scope for this execution — a mounted environment secret, or
  * a secret carried by a mounted input file. When false, nothing secret ever reached the sandbox, so
  * no export of any kind can carry one.
+ *
+ * Mounted bytes are classified from the caller's provenance envelope. Files mounted *without* one
+ * are unclassifiable rather than clean: absence of an envelope is absence of evidence, not evidence
+ * the mount carried nothing. Those fail closed here so the classification can never be stronger
+ * than what the caller actually attested to.
  */
 function hasSecretMaterialInScope(context: FunctionRouteExecutionContext): boolean {
-  return (
-    context.outputSecretPlaintextsByName.size > 0 ||
-    (context.mountedFileSecretProvenanceScanner?.hasSecrets ?? false)
-  )
+  if (context.outputSecretPlaintextsByName.size > 0) return true
+  const scanner = context.mountedFileSecretProvenanceScanner
+  return scanner ? scanner.hasSecrets : context.hasMountedSandboxFiles
 }
 
 /**
@@ -2025,6 +2030,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       outputSecretNamesByScanLiteral: new Map(),
       outputSecretPlaintextsByName: new Map(),
       mountedFileSecretProvenanceScanner,
+      hasMountedSandboxFiles: (_sandboxFiles?.length ?? 0) > 0,
     }
     for (const [name, plaintext] of Object.entries(envVars)) {
       if (!plaintext) continue
