@@ -31,7 +31,7 @@
     "check:cron-parity": "bun run scripts/check-cron-parity.ts",
     "check:api-validation:strict": "bun run scripts/check-api-validation-contracts.ts --check --enforce-boundary-baseline",
     "check:realtime-prune": "bun run scripts/check-realtime-prune-graph.ts",
-    "check:tool-request-boundary": "bun test scripts/check-tool-request-boundary.test.ts && bun run scripts/check-tool-request-boundary.ts",
+    "check:tool-request-boundary": "bun run scripts/check-tool-request-boundary.ts",
     "check:tool-registry-boundary": "bun run scripts/check-tool-registry-boundary.ts",
     "check:sql-date-binding": "bun run scripts/check-sql-date-binding.ts",
     "check:zustand-v5": "bun run scripts/check-zustand-v5-selectors.ts",

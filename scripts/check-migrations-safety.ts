@@ -330,7 +330,7 @@ const ANNOTATE_GUIDANCE =
   'is a contract-phase op. Confirm the old code no longer reads/writes it (it must have shipped in an earlier deploy — not this same PR), then acknowledge with a `-- migration-safe: <reason>` comment on the line above.'
 
 /** Lint a single migration's SQL. Returns only actionable findings. */
-export function lintSql(content: string): Finding[] {
+function lintSql(content: string): Finding[] {
   const lines = content.split('\n')
   const statements = parseStatements(content)
   const createdTables = new Set<string>()
