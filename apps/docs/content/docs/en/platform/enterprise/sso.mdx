@@ -166,7 +166,7 @@ Use this when your tenant is configured for SAML rather than OIDC. Both are supp
    - **Identifier (Entity ID)** — the **SP Entity ID** field
    - **Reply URL (Assertion Consumer Service URL)** — the **ACS URL** field
 4. Under **Attributes & Claims**, confirm the default claims are present. Sim reads the standard schema claim URIs for email, name, and name identifier
-5. Under **SAML Certificates**, download **Certificate (Base64)**, or copy the **App Federation Metadata Url** contents if you prefer to paste metadata
+5. Under **SAML Certificates**, download **Certificate (Base64)**. Its contents go in Sim's **Certificate** field, which is required. You can optionally also download **Federation Metadata XML** and paste it into Sim's **IDP Metadata XML** field under **Advanced Options** — it does not replace the certificate
 6. From the **Set up** panel for your application, copy the **Login URL** and the **Microsoft Entra Identifier**
 7. Under **Users and groups**, assign the people who should be able to sign in — Microsoft rejects unassigned users before they reach Sim
 
