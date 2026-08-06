@@ -47,7 +47,6 @@ describe('zohoDeskHandler', () => {
 
     it('rejects requests without the X-ZDesk-JWT header', async () => {
       const result = await zohoDeskHandler.verifyAuth?.(
-        // biome-ignore lint/suspicious/noExplicitAny: minimal context for the header-only path
         makeAuthContext({}, { orgId: '1', webhookId: '2' }) as any
       )
       expect(result).not.toBeNull()
@@ -58,13 +57,11 @@ describe('zohoDeskHandler', () => {
       vi.mocked(getCredentialOwner).mockResolvedValue({
         accountId: 'acct-1',
         userId: 'u1',
-        // biome-ignore lint/suspicious/noExplicitAny: partial owner shape is enough for this path
       } as any)
       await zohoDeskHandler.verifyAuth?.(
         makeAuthContext(
           { 'x-zdesk-jwt': 'not-a-real-jwt' },
           { orgId: '1', externalId: '2', credentialId: 'cred-1' }
-          // biome-ignore lint/suspicious/noExplicitAny: minimal context for the fallback path
         ) as any
       )
       expect(getCredentialOwner).toHaveBeenCalledWith('cred-1', 'test')
@@ -75,7 +72,6 @@ describe('zohoDeskHandler', () => {
         makeAuthContext(
           { 'x-zdesk-jwt': 'not-a-real-jwt' },
           { orgId: '1', externalId: '2', credentialId: 'cred-1', apiDomain: 'https://desk.zoho.eu' }
-          // biome-ignore lint/suspicious/noExplicitAny: minimal context for the fast path
         ) as any
       )
       expect(getCredentialOwner).not.toHaveBeenCalled()
@@ -90,7 +86,6 @@ describe('zohoDeskHandler', () => {
           workflow: {},
           userId: 'user-1',
           requestId: 'test',
-          // biome-ignore lint/suspicious/noExplicitAny: request is unused on these guard paths
           request: {} as any,
         })
       } catch (error) {
@@ -247,7 +242,6 @@ describe('zohoDeskHandler', () => {
       vi.mocked(getCredentialOwner).mockResolvedValue({
         accountId: 'acc-1',
         userId: 'user-1',
-        // biome-ignore lint/suspicious/noExplicitAny: partial owner shape for the test
       } as any)
       vi.mocked(refreshAccessTokenIfNeeded).mockResolvedValue('zoho-token')
 
@@ -270,7 +264,6 @@ describe('zohoDeskHandler', () => {
         workflow: {},
         userId: 'user-1',
         requestId: 'test',
-        // biome-ignore lint/suspicious/noExplicitAny: request is unused on this path
         request: {} as any,
       })
 
@@ -288,7 +281,6 @@ describe('zohoDeskHandler', () => {
       vi.mocked(getCredentialOwner).mockResolvedValue({
         accountId: 'acc-1',
         userId: 'user-1',
-        // biome-ignore lint/suspicious/noExplicitAny: partial owner shape for the test
       } as any)
       vi.mocked(refreshAccessTokenIfNeeded).mockResolvedValue('zoho-token')
 
@@ -311,7 +303,6 @@ describe('zohoDeskHandler', () => {
         workflow: {},
         userId: 'user-1',
         requestId: 'test',
-        // biome-ignore lint/suspicious/noExplicitAny: request is unused on this path
         request: {} as any,
       })
       return sentBody

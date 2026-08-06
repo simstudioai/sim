@@ -459,7 +459,7 @@ describe('Copilot Confirm API Route', () => {
     getAsyncToolCall.mockResolvedValue({
       ...existingRow,
       toolName: 'run_workflow',
-      args: { workflowId: 'workflow-1' },
+      args: { workflowId: 'workflow-1', async: true },
       status: 'running',
       claimedBy: null,
     })
@@ -469,6 +469,7 @@ describe('Copilot Confirm API Route', () => {
         toolCallId: 'tool-call-123',
         status: 'error',
         message: 'untrusted client detail',
+        data: { code: 'ASYNC_WORKFLOW_DEPLOYMENT_STALE' },
       })
     )
 
@@ -477,12 +478,45 @@ describe('Copilot Confirm API Route', () => {
     expect(completeAsyncToolCall).toHaveBeenCalledWith({
       toolCallId: 'tool-call-123',
       status: 'failed',
-      result: { success: false, workflowId: 'workflow-1' },
-      error: 'Workflow execution failed.',
+      result: {
+        success: false,
+        workflowId: 'workflow-1',
+        code: 'ASYNC_WORKFLOW_DEPLOYMENT_STALE',
+        error: 'Async execution requires the current workflow to match its deployed version',
+      },
+      error: 'Async execution requires the current workflow to match its deployed version',
     })
     expect(JSON.stringify(publishToolConfirmation.mock.calls)).not.toContain(
       'untrusted client detail'
     )
+  })
+
+  it('discards an unknown async workflow preflight failure', async () => {
+    getAsyncToolCall.mockResolvedValue({
+      ...existingRow,
+      toolName: 'run_workflow',
+      args: { workflowId: 'workflow-1', async: true },
+      status: 'running',
+      claimedBy: null,
+    })
+
+    const response = await POST(
+      createMockPostRequest({
+        toolCallId: 'tool-call-123',
+        status: 'error',
+        message: 'untrusted client detail',
+        data: { code: 'UNTRUSTED_CLIENT_CODE' },
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(completeAsyncToolCall).toHaveBeenCalledWith({
+      toolCallId: 'tool-call-123',
+      status: 'failed',
+      result: { success: false, workflowId: 'workflow-1' },
+      error: 'Workflow execution failed.',
+    })
+    expect(JSON.stringify(publishToolConfirmation.mock.calls)).not.toContain('untrusted')
   })
 
   it('downgrades an unverifiable success from a stale client to a structural failure', async () => {
