@@ -285,12 +285,21 @@ export async function executeVfsRead(
     }
     const offset = parseOptionalNumber(params.offset)
     const limit = parseOptionalNumber(params.limit)
+    /**
+     * Applies the caller's line window, clamped against the content's ACTUAL line count rather than
+     * the self-reported `totalLines`. Synthesized results report `totalLines: 1` for content that is
+     * not one line (e.g. `files/x.pdf/extract` returns a whole extracted document), and clamping to
+     * that collapses the read to its first line — or to nothing for any nonzero offset. An
+     * attachment result is skipped outright: its `content` is a one-line label beside the bytes, so
+     * a window can only blank the label while the model still receives the attachment.
+     */
     const applyWindow = <T extends { content: string; totalLines: number }>(result: T): T => {
       if (offset === undefined && limit === undefined) return result
+      if (hasModelAttachment(result)) return result
       const lines = result.content.split('\n')
-      const start = Math.max(0, Math.min(result.totalLines, offset ?? 0))
-      const endRaw = limit !== undefined ? start + Math.max(0, limit) : result.totalLines
-      const end = Math.max(start, Math.min(result.totalLines, endRaw))
+      const start = Math.max(0, Math.min(lines.length, offset ?? 0))
+      const endRaw = limit !== undefined ? start + Math.max(0, limit) : lines.length
+      const end = Math.max(start, Math.min(lines.length, endRaw))
       return {
         ...result,
         content: lines.slice(start, end).join('\n'),

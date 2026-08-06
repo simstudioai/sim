@@ -11,6 +11,12 @@ const MAX_MOUNTED_FILE_SECRET_MATCH_EVENTS = 1_000_000
 const ANONYMOUS_MOUNTED_FILE_SECRET_NAME = 'MOUNTED_FILE_SECRET'
 
 export interface MountedFileSecretProvenanceScanner {
+  /**
+   * True when the mount actually carried secret material. False means the mounted files were
+   * classified and contributed nothing, so no mounted secret can reach an output file — which lets
+   * callers classify content this scanner cannot soundly scan (binary bytes) instead of failing closed.
+   */
+  hasSecrets: boolean
   scan(buffer: Buffer): WorkspaceFileSecretProvenance
 }
 
@@ -57,7 +63,7 @@ export async function createMountedFileSecretProvenanceScanner(
   }
 
   if (entriesByScanLiteral.size === 0) {
-    return { scan: () => ({ status: 'exact', entries: [] }) }
+    return { hasSecrets: false, scan: () => ({ status: 'exact', entries: [] }) }
   }
 
   let matcher
@@ -69,10 +75,11 @@ export async function createMountedFileSecretProvenanceScanner(
     return undefined
   }
   if (!matcher) {
-    return { scan: () => ({ status: 'exact', entries: [] }) }
+    return { hasSecrets: false, scan: () => ({ status: 'exact', entries: [] }) }
   }
 
   return {
+    hasSecrets: true,
     scan(buffer) {
       const matched = new Map<string, WorkspaceFileSecretProvenanceEntry>()
       try {

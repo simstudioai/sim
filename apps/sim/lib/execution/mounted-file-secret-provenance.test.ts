@@ -52,6 +52,25 @@ describe('mounted file output provenance scanner', () => {
     })
   })
 
+  it('reports whether the mount carried any secret material', async () => {
+    const withSecrets = await createMountedFileSecretProvenanceScanner({
+      version: 1,
+      complete: true,
+      entries: [{ encryptedValue: 'encrypted-a' }],
+      scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+    })
+    expect(withSecrets?.hasSecrets).toBe(true)
+
+    const withoutSecrets = await createMountedFileSecretProvenanceScanner({
+      version: 1,
+      complete: true,
+      entries: [],
+      scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+    })
+    expect(withoutSecrets?.hasSecrets).toBe(false)
+    expect(withoutSecrets?.scan(Buffer.from('anything'))).toEqual({ status: 'exact', entries: [] })
+  })
+
   it('fails closed when encrypted provenance is incomplete or cannot be decrypted', async () => {
     await expect(
       createMountedFileSecretProvenanceScanner({ version: 1, complete: false, entries: [] })
