@@ -1,6 +1,12 @@
 import { toast } from '@sim/emcn'
 import { toError } from '@sim/utils/errors'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  keepPreviousData,
+  type QueryFunctionContext,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
   bulkArchiveWorkspaceFileItemsContract,
@@ -49,16 +55,31 @@ export function invalidateWorkspaceFileBrowsers(
   queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
 }
 
+/**
+ * Shared query options so non-hook consumers (the `sim.fileFolders` selector) read
+ * the exact cache entry the Files browser warms, rather than issuing a duplicate
+ * fetch under a parallel key.
+ */
+export function getWorkspaceFileFoldersQueryOptions(
+  workspaceId: string,
+  scope: WorkspaceFileFolderScope = 'active'
+) {
+  return {
+    queryKey: workspaceFileFolderKeys.list(workspaceId, scope),
+    queryFn: ({ signal }: QueryFunctionContext) =>
+      fetchWorkspaceFileFolders(workspaceId, scope, signal),
+    staleTime: WORKSPACE_FILE_FOLDERS_STALE_TIME,
+  }
+}
+
 export function useWorkspaceFileFolders(
   workspaceId: string,
   scope: WorkspaceFileFolderScope = 'active',
   options?: { enabled?: boolean }
 ) {
   return useQuery({
-    queryKey: workspaceFileFolderKeys.list(workspaceId, scope),
-    queryFn: ({ signal }) => fetchWorkspaceFileFolders(workspaceId, scope, signal),
+    ...getWorkspaceFileFoldersQueryOptions(workspaceId, scope),
     enabled: Boolean(workspaceId) && (options?.enabled ?? true),
-    staleTime: WORKSPACE_FILE_FOLDERS_STALE_TIME,
     placeholderData: keepPreviousData,
   })
 }

@@ -5,10 +5,63 @@ import type { SelectorKey } from '@/hooks/selectors/types'
  * Authentication configuration for a connector.
  * OAuth connectors reuse the existing credential system.
  * API key connectors store an encrypted key in the `encryptedApiKey` column.
+ * Sim connectors read this workspace's own data and store no credential at all.
  */
 export type ConnectorAuthConfig =
   | { mode: 'oauth'; provider: OAuthService; requiredScopes?: string[] }
   | { mode: 'apiKey'; label?: string; placeholder?: string }
+  /**
+   * Reads Sim's own data for the knowledge base's workspace. No credential is
+   * stored or resolved: authorization comes from the workspace permission the
+   * creator already had (`checkKnowledgeBaseWriteAccess`), and scope comes from
+   * {@link ConnectorSyncContext.workspaceId}, which the sync engine derives from
+   * the `knowledge_base` row and never from `sourceConfig`.
+   *
+   * A workspace API key would add nothing here: its only informational content is
+   * "which workspace", which the connector's own knowledge base already answers.
+   *
+   * The add-connector modal renders no auth row at all for this mode — the
+   * connector's own `description` already says it reads this workspace, and
+   * `sim-ui-copy` rules out restating that as helper text.
+   */
+  | { mode: 'sim' }
+
+/**
+ * Whether the add-connector UI must collect a credential for this auth mode.
+ * Single source of truth for both the modal's auth field and the selector
+ * field's readiness gate, so the two can never disagree.
+ */
+export function collectsCredential(auth: ConnectorAuthConfig): boolean {
+  return auth.mode !== 'sim'
+}
+
+/**
+ * Per-run state shared across every {@link ConnectorConfig.listDocuments} and
+ * {@link ConnectorConfig.getDocument} call of a single sync.
+ *
+ * Extends an index signature so connectors can keep stashing ad-hoc caches on it
+ * (`syncContext.allFiles`, schema lookups) without declaring them here.
+ *
+ * The engine-supplied fields are `readonly`: a connector must not be able to
+ * reassign the workspace it is reading from. For `sim`-mode connectors this is
+ * the entire tenancy boundary, so it is expressed in the type system rather than
+ * left to a convention.
+ */
+export interface ConnectorSyncContext extends Record<string, unknown> {
+  /** Identifies this sync run in logs. */
+  readonly syncRunId: string
+  /** Derived from the `knowledge_base` row. Never read from `sourceConfig`. */
+  readonly workspaceId: string
+  readonly knowledgeBaseId: string
+  /**
+   * Set by a connector when it could not enumerate the full source (a doc cap was
+   * hit, a scope lookup failed). Suppresses deletion reconciliation, because the
+   * engine hard-deletes anything absent from a listing it believes is complete.
+   */
+  listingCapped?: boolean
+  /** Set by the engine when pagination stopped at `MAX_PAGES`. */
+  listingTruncated?: boolean
+}
 
 /**
  * A single document fetched from an external source.
@@ -172,27 +225,35 @@ export interface ConnectorConfig extends ConnectorMeta {
   listDocuments: (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
-    cursor?: string,
-    syncContext?: Record<string, unknown>,
+    cursor: string | undefined,
+    syncContext: ConnectorSyncContext,
     lastSyncAt?: Date
   ) => Promise<ExternalDocumentList>
 
   /**
    * Fetch a single document by its external ID.
-   * syncContext is an optional mutable object for caching expensive lookups
-   * (e.g. tag maps, notebook lists) across multiple getDocument calls.
+   * syncContext is the same mutable object listDocuments received, so caches
+   * (tag maps, notebook lists) carry across both phases of the run.
    */
   getDocument: (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
     externalId: string,
-    syncContext?: Record<string, unknown>
+    syncContext: ConnectorSyncContext
   ) => Promise<ExternalDocument | null>
 
-  /** Validate that sourceConfig is correct and accessible (called on save) */
+  /**
+   * Validate that sourceConfig is correct and accessible (called on save).
+   *
+   * `context` carries the owning knowledge base's identifiers, resolved
+   * server-side from the KB row rather than from the submitted config. It is
+   * optional so existing connectors compile unchanged; `sim`-mode connectors use
+   * it to check that a referenced resource actually lives in this workspace.
+   */
   validateConfig: (
     accessToken: string,
-    sourceConfig: Record<string, unknown>
+    sourceConfig: Record<string, unknown>,
+    context?: { workspaceId?: string; knowledgeBaseId?: string }
   ) => Promise<{ valid: boolean; error?: string }>
 
   /** Map source metadata to semantic tag keys (translated to slots by the sync engine) */

@@ -7,6 +7,7 @@ import * as getQueryClientModule from '@/app/_shell/providers/get-query-client'
 import * as folderCacheModule from '@/hooks/queries/utils/folder-cache'
 import * as workflowCacheModule from '@/hooks/queries/utils/workflow-cache'
 import * as workflowListQueryModule from '@/hooks/queries/utils/workflow-list-query'
+import * as workspaceFileFoldersModule from '@/hooks/queries/workspace-file-folders'
 import { getSelectorDefinition } from '@/hooks/selectors/registry'
 
 const mockEnsureQueryData = vi.fn().mockResolvedValue(undefined)
@@ -36,7 +37,19 @@ const getWorkflowListQueryOptionsSpy = vi
       }) as unknown as ReturnType<typeof workflowListQueryModule.getWorkflowListQueryOptions>
   )
 
+const getWorkspaceFileFoldersQueryOptionsSpy = vi
+  .spyOn(workspaceFileFoldersModule, 'getWorkspaceFileFoldersQueryOptions')
+  .mockImplementation(
+    (workspaceId: string) =>
+      ({
+        queryKey: ['workspaceFileFolders', 'list', workspaceId, 'active'],
+      }) as unknown as ReturnType<
+        typeof workspaceFileFoldersModule.getWorkspaceFileFoldersQueryOptions
+      >
+  )
+
 afterAll(() => {
+  getWorkspaceFileFoldersQueryOptionsSpy.mockRestore()
   getQueryClientSpy.mockRestore()
   mockGetWorkflows.mockRestore()
   getWorkflowByIdSpy.mockRestore()
@@ -168,5 +181,84 @@ describe('sim.workflows selector', () => {
     })
 
     expect(option).toEqual({ id: 'wf-1', label: 'Pipeline (Alpha)' })
+  })
+})
+
+describe('sim.fileFolders selector', () => {
+  const FOLDERS = [
+    { id: 'f-specs', name: 'Specs', path: 'Docs/Specs' },
+    { id: 'f-docs', name: 'Docs', path: 'Docs' },
+    { id: 'f-root', name: 'Loose', path: '' },
+  ]
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockEnsureQueryData.mockResolvedValue(FOLDERS)
+    getQueryClientSpy.mockImplementation(
+      () => ({ ensureQueryData: mockEnsureQueryData }) as unknown as QueryClient
+    )
+    getWorkspaceFileFoldersQueryOptionsSpy.mockImplementation(
+      (workspaceId: string) =>
+        ({
+          queryKey: ['workspaceFileFolders', 'list', workspaceId, 'active'],
+        }) as unknown as ReturnType<
+          typeof workspaceFileFoldersModule.getWorkspaceFileFoldersQueryOptions
+        >
+    )
+  })
+
+  /**
+   * Guards the failure mode where the key is added to the `SelectorKey` union but the
+   * `satisfies Extract<...>` clause is not widened: the selector then type-checks
+   * everywhere yet is absent from the registry, and only throws once a field renders.
+   */
+  it('is registered and workspace-scoped', () => {
+    const definition = getSelectorDefinition('sim.fileFolders')
+
+    expect(definition.enabled?.({ key: 'sim.fileFolders', context: {} })).toBe(false)
+    expect(definition.enabled?.({ key: 'sim.fileFolders', context: { workspaceId: 'ws-1' } })).toBe(
+      true
+    )
+    expect(
+      definition.getQueryKey({ key: 'sim.fileFolders', context: { workspaceId: 'ws-1' } })
+    ).toEqual(['selectors', 'sim.fileFolders', 'ws-1'])
+  })
+
+  it('renders nested folders as spaced paths sorted so children follow their parent', async () => {
+    const definition = getSelectorDefinition('sim.fileFolders')
+
+    const options = await definition.fetchList!({
+      key: 'sim.fileFolders',
+      context: { workspaceId: 'ws-1' },
+    })
+
+    expect(mockEnsureQueryData).toHaveBeenCalledWith({
+      queryKey: ['workspaceFileFolders', 'list', 'ws-1', 'active'],
+    })
+    expect(options).toEqual([
+      { id: 'f-docs', label: 'Docs' },
+      { id: 'f-specs', label: 'Docs / Specs' },
+      { id: 'f-root', label: 'Loose' },
+    ])
+  })
+
+  it('labels a saved folder id so reopening the modal shows a name, not a uuid', async () => {
+    const definition = getSelectorDefinition('sim.fileFolders')
+
+    await expect(
+      definition.fetchById?.({
+        key: 'sim.fileFolders',
+        context: { workspaceId: 'ws-1' },
+        detailId: 'f-specs',
+      })
+    ).resolves.toEqual({ id: 'f-specs', label: 'Docs / Specs' })
+
+    await expect(
+      definition.fetchById?.({
+        key: 'sim.fileFolders',
+        context: { workspaceId: 'ws-1' },
+        detailId: 'deleted-folder',
+      })
+    ).resolves.toBeNull()
   })
 })

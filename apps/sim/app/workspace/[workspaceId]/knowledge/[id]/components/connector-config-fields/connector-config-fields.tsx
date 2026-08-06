@@ -7,7 +7,11 @@ import type {
   ConfigFieldMap,
   ConfigFieldValue,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
-import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
+import {
+  type ConnectorConfigField,
+  type ConnectorMeta,
+  collectsCredential,
+} from '@/connectors/types'
 import type { SelectorKey } from '@/hooks/selectors/types'
 
 export interface ConnectorConfigFieldsProps {
@@ -119,6 +123,7 @@ export function ConnectorConfigFields({
                 value={sourceConfig[field.id] ?? (field.multi ? [] : '')}
                 onChange={(value: ConfigFieldValue) => onFieldChange(field.id, value)}
                 credentialId={credentialId}
+                requiresCredential={collectsCredential(connectorConfig.auth)}
                 sourceConfig={sourceConfig}
                 configFields={connectorConfig.configFields}
                 canonicalModes={canonicalModes}

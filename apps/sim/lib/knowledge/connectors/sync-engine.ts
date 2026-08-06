@@ -28,6 +28,7 @@ import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
 import type {
   ConnectorAuthConfig,
+  ConnectorSyncContext,
   DocumentTags,
   ExternalDocument,
   SyncResult,
@@ -375,47 +376,106 @@ export function resolveTagMapping(
 }
 
 /**
- * Resolves an access token for a connector based on its auth mode.
- * OAuth connectors refresh via the credential system; API key connectors
- * decrypt the key stored in the dedicated `encryptedApiKey` column.
+ * A connector's resolved credential for one sync run.
  *
- * `userId` must be the user who owns the credential's OAuth account — not the
- * knowledge base owner. Workspace-scoped credentials are routinely authorized by
- * a different member, and token reads are scoped to `account.userId`.
+ * The `sim` arm carries no `accessToken` at all, so a credential-less connector
+ * cannot be handed an empty-string bearer by accident, and no caller can guard on
+ * a token's falsiness. Callers narrow on `mode` instead.
  */
-async function resolveAccessToken(
+export type ResolvedConnectorAuth =
+  | { mode: 'oauth'; accessToken: string; credentialUserId: string }
+  | { mode: 'apiKey'; accessToken: string }
+  | { mode: 'sim' }
+
+/**
+ * The value handed to a connector's `listDocuments`/`getDocument` as their first
+ * argument. Those signatures are shared by every connector, so `sim` connectors —
+ * which ignore the argument entirely and read the database directly — receive an
+ * empty string here. This is the only place the empty token exists; it never
+ * reaches control flow.
+ */
+export function tokenFor(auth: ResolvedConnectorAuth): string {
+  return auth.mode === 'sim' ? '' : auth.accessToken
+}
+
+/**
+ * Resolves a connector's credential based on its auth mode.
+ * OAuth connectors refresh via the credential system; API key connectors decrypt
+ * the key stored in the dedicated `encryptedApiKey` column; `sim` connectors have
+ * no credential to resolve and skip both.
+ *
+ * For OAuth this also resolves *whose* account the token is read from: workspace
+ * credentials are routinely authorized by a member who is not the knowledge base
+ * owner, and token reads are scoped to `account.userId`, so passing the KB owner
+ * resolves no token at all. Identity and token are resolved together so they can
+ * never disagree.
+ */
+export async function resolveConnectorAuth(
   connector: { credentialId: string | null; encryptedApiKey: string | null },
   connectorConfig: { auth: ConnectorAuthConfig },
-  userId: string
-): Promise<string> {
-  if (connectorConfig.auth.mode === 'apiKey') {
-    if (!connector.encryptedApiKey) {
-      throw new Error('API key connector is missing encrypted API key')
+  /**
+   * Non-null `workspaceId` is a precondition, not a convenience: it scopes the
+   * OAuth credential lookup and is the entire tenancy boundary for `sim` mode.
+   * `executeSync` asserts it before this call.
+   */
+  owner: { workspaceId: string; userId: string }
+): Promise<ResolvedConnectorAuth> {
+  switch (connectorConfig.auth.mode) {
+    case 'sim':
+      return { mode: 'sim' }
+
+    case 'apiKey': {
+      if (!connector.encryptedApiKey) {
+        throw new Error('API key connector is missing encrypted API key')
+      }
+      const { decrypted } = await decryptApiKey(connector.encryptedApiKey)
+      return { mode: 'apiKey', accessToken: decrypted }
     }
-    const { decrypted } = await decryptApiKey(connector.encryptedApiKey)
-    return decrypted
+
+    case 'oauth': {
+      if (!connector.credentialId) {
+        throw new Error('OAuth connector is missing credential ID')
+      }
+
+      const identity = await resolveCredentialTokenIdentity(
+        connector.credentialId,
+        owner.workspaceId
+      )
+      if (!identity) {
+        throw new Error(
+          `Credential ${connector.credentialId} is not usable from workspace ${owner.workspaceId} — reconnect the credential`
+        )
+      }
+      // Service accounts mint their own token and ignore the acting user.
+      const credentialUserId = identity.kind === 'oauth' ? identity.userId : owner.userId
+
+      const requestId = `sync-${connector.credentialId}`
+      const token = await refreshAccessTokenIfNeeded(
+        connector.credentialId,
+        credentialUserId,
+        requestId
+      )
+
+      if (!token) {
+        logger.error(`[${requestId}] refreshAccessTokenIfNeeded returned null`, {
+          credentialId: connector.credentialId,
+          userId: credentialUserId,
+          authMode: connectorConfig.auth.mode,
+          authProvider: connectorConfig.auth.provider,
+        })
+        throw new Error(
+          `Failed to obtain access token for credential ${connector.credentialId} (provider: ${connectorConfig.auth.provider})`
+        )
+      }
+
+      return { mode: 'oauth', accessToken: token, credentialUserId }
+    }
+
+    default: {
+      const _exhaustive: never = connectorConfig.auth
+      throw new Error(`Unsupported connector auth mode: ${JSON.stringify(_exhaustive)}`)
+    }
   }
-
-  if (!connector.credentialId) {
-    throw new Error('OAuth connector is missing credential ID')
-  }
-
-  const requestId = `sync-${connector.credentialId}`
-  const token = await refreshAccessTokenIfNeeded(connector.credentialId, userId, requestId)
-
-  if (!token) {
-    logger.error(`[${requestId}] refreshAccessTokenIfNeeded returned null`, {
-      credentialId: connector.credentialId,
-      userId,
-      authMode: connectorConfig.auth.mode,
-      authProvider: connectorConfig.auth.provider,
-    })
-    throw new Error(
-      `Failed to obtain access token for credential ${connector.credentialId} (provider: ${connectorConfig.auth.provider})`
-    )
-  }
-
-  return token
 }
 
 /**
@@ -489,14 +549,17 @@ export async function executeSync(
   }
 
   const userId = kbRows[0].userId
-  // Resolved once per sync and threaded into add/updateDocument so every synced
-  // kb/ object records a trusted ownership binding without an N+1 KB lookup.
-  const kbOwner: KnowledgeBaseOwner = { workspaceId: kbRows[0].workspaceId, userId }
-  if (!kbOwner.workspaceId) {
+  // Narrowed before `kbOwner` is built so the non-null value can flow into
+  // `resolveConnectorAuth` and `syncContext`, both of which require a real workspace.
+  const workspaceId = kbRows[0].workspaceId
+  if (!workspaceId) {
     throw new Error(
       `Knowledge base ${connector.knowledgeBaseId} is missing workspace billing context`
     )
   }
+  // Resolved once per sync and threaded into add/updateDocument so every synced
+  // kb/ object records a trusted ownership binding without an N+1 KB lookup.
+  const kbOwner: KnowledgeBaseOwner = { workspaceId, userId }
   if (billingAttribution.workspaceId !== kbOwner.workspaceId) {
     throw new Error(
       `Connector sync billing attribution does not match knowledge base workspace ${kbOwner.workspaceId}`
@@ -534,36 +597,25 @@ export async function executeSync(
   let syncExitedCleanly = false
 
   try {
-    /**
-     * OAuth credentials are workspace-scoped and shared, so the member who authorized
-     * one is often not the knowledge base owner. Resolve the credential's own account
-     * owner — token reads are scoped to `account.userId`, so passing the KB owner
-     * resolves no token at all. Resolved once here rather than inside
-     * `resolveAccessToken` so per-page refreshes don't repeat the lookup.
-     */
-    let credentialUserId = userId
-    if (connectorConfig.auth.mode === 'oauth' && connector.credentialId) {
-      const identity = await resolveCredentialTokenIdentity(
-        connector.credentialId,
-        kbOwner.workspaceId
-      )
-      if (!identity) {
-        throw new Error(
-          `Credential ${connector.credentialId} is not usable from workspace ${kbOwner.workspaceId} — reconnect the credential`
-        )
-      }
-      // Service accounts mint their own token and ignore the acting user.
-      if (identity.kind === 'oauth') {
-        credentialUserId = identity.userId
-      }
-    }
-
-    let accessToken = await resolveAccessToken(connector, connectorConfig, credentialUserId)
+    let resolvedAuth = await resolveConnectorAuth(connector, connectorConfig, {
+      workspaceId,
+      userId,
+    })
 
     const externalDocs: ExternalDocument[] = []
     let cursor: string | undefined
     let hasMore = true
-    const syncContext: Record<string, unknown> = { syncRunId: generateId() }
+    /**
+     * `workspaceId` and `knowledgeBaseId` come from the `knowledge_base` row read
+     * above, never from `sourceConfig`. For `sim`-mode connectors this is the whole
+     * tenancy boundary, and `ConnectorSyncContext` declares them `readonly` so a
+     * connector cannot widen its own scope.
+     */
+    const syncContext: ConnectorSyncContext = {
+      syncRunId: generateId(),
+      workspaceId,
+      knowledgeBaseId: connector.knowledgeBaseId,
+    }
 
     // Shared cutoff for both the tombstone-retry bound below and the stuck-document
     // retry near the end of this sync — same RETRY_WINDOW_DAYS window, one computation.
@@ -633,12 +685,17 @@ export async function executeSync(
     )
 
     for (let pageNum = 0; hasMore && pageNum < MAX_PAGES; pageNum++) {
-      if (pageNum > 0 && connectorConfig.auth.mode === 'oauth') {
-        accessToken = await resolveAccessToken(connector, connectorConfig, credentialUserId)
+      // Only OAuth access tokens expire mid-run; API keys and `sim` connectors
+      // hold for the whole sync.
+      if (pageNum > 0 && resolvedAuth.mode === 'oauth') {
+        resolvedAuth = await resolveConnectorAuth(connector, connectorConfig, {
+          workspaceId,
+          userId,
+        })
       }
 
       const page = await connectorConfig.listDocuments(
-        accessToken,
+        tokenFor(resolvedAuth),
         sourceConfig,
         cursor,
         syncContext,
@@ -823,14 +880,20 @@ export async function executeSync(
       const readyOps = contentOps.filter((op) => !op.extDoc.contentDeferred)
 
       if (deferredOps.length > 0) {
-        if (connectorConfig.auth.mode === 'oauth') {
-          accessToken = await resolveAccessToken(connector, connectorConfig, credentialUserId)
+        // Hydration can start long after the listing finished, so refresh the one
+        // credential kind that expires.
+        if (resolvedAuth.mode === 'oauth') {
+          resolvedAuth = await resolveConnectorAuth(connector, connectorConfig, {
+            workspaceId,
+            userId,
+          })
         }
+        const hydrationToken = tokenFor(resolvedAuth)
 
         const hydrated = await Promise.allSettled(
           deferredOps.map(async (op) => {
             const fullDoc = await connectorConfig.getDocument(
-              accessToken!,
+              hydrationToken,
               sourceConfig,
               op.extDoc.externalId,
               syncContext

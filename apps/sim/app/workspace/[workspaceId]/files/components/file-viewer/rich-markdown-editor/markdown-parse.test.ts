@@ -275,6 +275,10 @@ describe('chunked parse — property test over randomized documents', () => {
       }
     }
     expect(failures).toEqual([])
-    // 400 docs each parsed+serialized twice — generous timeout so it can't flake under parallel load.
-  }, 30000)
+    /**
+     * 400 docs each parsed+serialized twice. ~10s in isolation, so 30s left barely 3x
+     * headroom and still timed out during a full-suite run; 60s restores real margin
+     * without dropping seeds, since coverage here is the number of documents fuzzed.
+     */
+  }, 60000)
 })

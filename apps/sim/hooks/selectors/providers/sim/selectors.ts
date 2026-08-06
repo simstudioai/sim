@@ -5,6 +5,10 @@ import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
 import { collectDuplicateNames, disambiguateLabelByFolder } from '@/hooks/queries/utils/folder-tree'
 import { getWorkflowById, getWorkflows } from '@/hooks/queries/utils/workflow-cache'
 import { getWorkflowListQueryOptions } from '@/hooks/queries/utils/workflow-list-query'
+import {
+  getWorkspaceFileFoldersQueryOptions,
+  type WorkspaceFileFolderApi,
+} from '@/hooks/queries/workspace-file-folders'
 import { SELECTOR_STALE } from '@/hooks/selectors/providers/shared'
 import { selectorKeys } from '@/hooks/selectors/query-keys'
 import type {
@@ -14,6 +18,16 @@ import type {
   SelectorQueryArgs,
 } from '@/hooks/selectors/types'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
+
+/**
+ * The API already returns a slash-joined ancestor path, so spacing it out is the
+ * whole nesting affordance — and sorting by the rendered label groups children
+ * directly under their parent.
+ */
+function folderPathLabel(folder: WorkspaceFileFolderApi): string {
+  const path = folder.path.trim()
+  return path ? path.split('/').join(' / ') : folder.name
+}
 
 /** Matches the workflow list's own fallback for an unnamed workflow. */
 function workflowBaseLabel(workflow: WorkflowMetadata): string {
@@ -71,6 +85,32 @@ export const simSelectors = {
       }
     },
   },
+  'sim.fileFolders': {
+    key: 'sim.fileFolders',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) =>
+      context.workspaceId
+        ? selectorKeys.simFileFolders(context.workspaceId)
+        : [...selectorKeys.all, 'sim.fileFolders', 'none'],
+    enabled: ({ context }) => Boolean(context.workspaceId),
+    fetchList: async ({ context }: SelectorQueryArgs): Promise<SelectorOption[]> => {
+      if (!context.workspaceId) return []
+      const folders = await getQueryClient().ensureQueryData(
+        getWorkspaceFileFoldersQueryOptions(context.workspaceId)
+      )
+      return folders
+        .map((folder) => ({ id: folder.id, label: folderPathLabel(folder) }))
+        .sort((a, b) => a.label.localeCompare(b.label))
+    },
+    fetchById: async ({ context, detailId }: SelectorQueryArgs): Promise<SelectorOption | null> => {
+      if (!detailId || !context.workspaceId) return null
+      const folders = await getQueryClient().ensureQueryData(
+        getWorkspaceFileFoldersQueryOptions(context.workspaceId)
+      )
+      const folder = folders.find((f) => f.id === detailId)
+      return folder ? { id: folder.id, label: folderPathLabel(folder) } : null
+    },
+  },
   'table.columns': {
     key: 'table.columns',
     staleTime: SELECTOR_STALE,
@@ -100,4 +140,7 @@ export const simSelectors = {
       return col ? { id: getColumnId(col), label: col.name } : null
     },
   },
-} satisfies Record<Extract<SelectorKey, 'sim.workflows' | 'table.columns'>, SelectorDefinition>
+} satisfies Record<
+  Extract<SelectorKey, 'sim.workflows' | 'sim.fileFolders' | 'table.columns'>,
+  SelectorDefinition
+>

@@ -12,6 +12,7 @@ import { hasWorkspaceLiveSyncAccess } from '@/lib/billing/core/subscription'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { resolveCredentialTokenIdentity } from '@/lib/credentials/access'
+import { sanitizeConnectorSourceConfig } from '@/lib/knowledge/connectors/source-config'
 import { deleteDocumentStorageFiles } from '@/lib/knowledge/documents/service'
 import { cleanupUnusedTagDefinitions } from '@/lib/knowledge/tags/service'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -103,6 +104,13 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Rout
     if (!parsed.success) return parsed.response
     const body = parsed.data.body
 
+    /**
+     * Guarded on throughout instead of `body.sourceConfig` so the sanitized value is
+     * the only one that can reach validation or the database.
+     */
+    const sourceConfigUpdate =
+      body.sourceConfig === undefined ? undefined : sanitizeConnectorSourceConfig(body.sourceConfig)
+
     if (
       body.syncIntervalMinutes !== undefined &&
       body.syncIntervalMinutes > 0 &&
@@ -124,7 +132,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Rout
       }
     }
 
-    if (body.sourceConfig !== undefined) {
+    if (sourceConfigUpdate !== undefined) {
       const existingRows = await db
         .select()
         .from(knowledgeConnector)
@@ -152,60 +160,84 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Rout
         )
       }
 
-      let accessToken: string | null = null
-      if (connectorConfig.auth.mode === 'apiKey') {
-        if (!existing.encryptedApiKey) {
-          return NextResponse.json(
-            { error: 'API key not found. Please reconfigure the connector.' },
-            { status: 400 }
-          )
-        }
-        accessToken = (await decryptApiKey(existing.encryptedApiKey)).decrypted
-      } else {
-        if (!existing.credentialId) {
-          return NextResponse.json(
-            { error: 'OAuth credential not found. Please reconfigure the connector.' },
-            { status: 400 }
-          )
-        }
-        const connectorWorkspaceId = writeCheck.knowledgeBase.workspaceId
-        if (!connectorWorkspaceId) {
-          return NextResponse.json(
-            { error: 'Knowledge base is missing workspace context' },
-            { status: 409 }
-          )
-        }
-        /**
-         * Resolve the credential's own account owner, not the knowledge base owner:
-         * workspace credentials are shared, and token reads are scoped to
-         * `account.userId`.
-         */
-        const identity = await resolveCredentialTokenIdentity(
-          existing.credentialId,
-          connectorWorkspaceId
-        )
-        if (!identity) {
-          return NextResponse.json(
-            { error: 'Credential is no longer usable in this workspace. Please reconnect it.' },
-            { status: 400 }
-          )
-        }
-        accessToken = await refreshAccessTokenIfNeeded(
-          existing.credentialId,
-          // Service accounts mint their own token and ignore the acting user.
-          identity.kind === 'oauth' ? identity.userId : auth.userId,
-          `patch-${connectorId}`
-        )
-      }
-
-      if (!accessToken) {
+      const connectorWorkspaceId = writeCheck.knowledgeBase.workspaceId
+      if (!connectorWorkspaceId) {
         return NextResponse.json(
-          { error: 'Failed to refresh access token. Please reconnect your account.' },
-          { status: 401 }
+          { error: 'Knowledge base is missing workspace context' },
+          { status: 409 }
         )
       }
 
-      const validation = await connectorConfig.validateConfig(accessToken, body.sourceConfig)
+      /**
+       * Empty for `sim` connectors, which have no credential. Deliberately not
+       * guarded with a falsy check afterwards: every failure mode below returns its
+       * own response, so a falsy token here would only ever be a valid `sim` one.
+       */
+      let accessToken = ''
+
+      switch (connectorConfig.auth.mode) {
+        case 'sim':
+          break
+
+        case 'apiKey': {
+          if (!existing.encryptedApiKey) {
+            return NextResponse.json(
+              { error: 'API key not found. Please reconfigure the connector.' },
+              { status: 400 }
+            )
+          }
+          accessToken = (await decryptApiKey(existing.encryptedApiKey)).decrypted
+          break
+        }
+
+        case 'oauth': {
+          if (!existing.credentialId) {
+            return NextResponse.json(
+              { error: 'OAuth credential not found. Please reconfigure the connector.' },
+              { status: 400 }
+            )
+          }
+          /**
+           * Resolve the credential's own account owner, not the knowledge base owner:
+           * workspace credentials are shared, and token reads are scoped to
+           * `account.userId`.
+           */
+          const identity = await resolveCredentialTokenIdentity(
+            existing.credentialId,
+            connectorWorkspaceId
+          )
+          if (!identity) {
+            return NextResponse.json(
+              { error: 'Credential is no longer usable in this workspace. Please reconnect it.' },
+              { status: 400 }
+            )
+          }
+          const refreshed = await refreshAccessTokenIfNeeded(
+            existing.credentialId,
+            // Service accounts mint their own token and ignore the acting user.
+            identity.kind === 'oauth' ? identity.userId : auth.userId,
+            `patch-${connectorId}`
+          )
+          if (!refreshed) {
+            return NextResponse.json(
+              { error: 'Failed to refresh access token. Please reconnect your account.' },
+              { status: 401 }
+            )
+          }
+          accessToken = refreshed
+          break
+        }
+
+        default: {
+          const _exhaustive: never = connectorConfig.auth
+          return NextResponse.json({ error: 'Unsupported connector auth mode' }, { status: 400 })
+        }
+      }
+
+      const validation = await connectorConfig.validateConfig(accessToken, sourceConfigUpdate, {
+        workspaceId: connectorWorkspaceId,
+        knowledgeBaseId,
+      })
       if (!validation.valid) {
         return NextResponse.json(
           { error: validation.error || 'Invalid source configuration' },
@@ -215,8 +247,8 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Rout
     }
 
     const updates: Record<string, unknown> = { updatedAt: new Date() }
-    if (body.sourceConfig !== undefined) {
-      updates.sourceConfig = body.sourceConfig
+    if (sourceConfigUpdate !== undefined) {
+      updates.sourceConfig = sourceConfigUpdate
     }
     if (body.syncIntervalMinutes !== undefined) {
       updates.syncIntervalMinutes = body.syncIntervalMinutes
