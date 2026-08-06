@@ -56,33 +56,6 @@ export interface KnowledgeDocumentWriteSecretProvenance {
   }[]
 }
 
-interface KnowledgeDocumentTagProvenanceTarget {
-  tagName: string
-  value: unknown
-}
-
-/** Parses only tag entries that can causally contribute a persisted tag value. */
-export function parseKnowledgeDocumentTagProvenanceTargets(
-  documentTagsData: string | undefined
-): KnowledgeDocumentTagProvenanceTarget[] {
-  if (!documentTagsData) return []
-  try {
-    const parsed: unknown = JSON.parse(documentTagsData)
-    if (!Array.isArray(parsed)) return []
-    return parsed.flatMap((candidate) => {
-      if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return []
-      const record = candidate as Record<string, unknown>
-      const tagName = typeof record.tagName === 'string' ? record.tagName.trim() : ''
-      if (!tagName || record.value === undefined || record.value === null || record.value === '') {
-        return []
-      }
-      return [{ tagName, value: record.value }]
-    })
-  } catch {
-    return []
-  }
-}
-
 export type KnowledgeDocumentMetadataField = Exclude<
   keyof KnowledgeDocumentSourceValue,
   'fileUrl' | 'contentHash'

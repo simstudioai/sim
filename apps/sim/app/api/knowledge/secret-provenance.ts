@@ -19,13 +19,13 @@ import {
   importKnowledgePersistedResponseSecretProvenance,
   type KnowledgeDocumentSourceValue,
   type KnowledgeDocumentWriteSecretProvenance,
-  parseKnowledgeDocumentTagProvenanceTargets,
 } from '@/lib/knowledge/secret-provenance'
 import {
   knowledgeDocumentContentSelectionKey,
   knowledgeDocumentFilenameSelectionKey,
   knowledgeDocumentTagNameSelectionKey,
   knowledgeDocumentTagValueSelectionKey,
+  parseKnowledgeDocumentTagProvenanceTargets,
 } from '@/lib/knowledge/secret-provenance-selection'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
