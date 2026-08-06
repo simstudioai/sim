@@ -144,6 +144,63 @@ describe('Embeddings block', () => {
     })
   })
 
+  /**
+   * Every per-model Dimensions dropdown shares the `dimensions` id and nothing
+   * clears a stored subblock value when its `dependsOn` fields change, so a
+   * reduction chosen for one model outlives a switch to another.
+   */
+  it('drops a dimension the newly selected model no longer offers', () => {
+    const params = EmbeddingsBlock.tools.config?.params
+
+    // 3072 is valid for text-embedding-3-large but not for -3-small.
+    expect(
+      params?.({
+        provider: 'openai',
+        model: 'text-embedding-3-small',
+        input: 'hello',
+        apiKey: 'k',
+        dimensions: '3072',
+      })
+    ).toEqual({ apiKey: 'k', input: 'hello', model: 'text-embedding-3-small' })
+
+    // A model with no reduction support never forwards one.
+    expect(
+      params?.({
+        provider: 'mistral',
+        model: 'mistral-embed',
+        input: 'hello',
+        apiKey: 'k',
+        dimensions: '512',
+      })
+    ).toEqual({ apiKey: 'k', input: 'hello', model: 'mistral-embed' })
+  })
+
+  it('drops a task type the newly selected model no longer offers', () => {
+    const params = EmbeddingsBlock.tools.config?.params
+
+    // Gemini supports 'similarity'; Cohere does not.
+    expect(
+      params?.({
+        provider: 'cohere',
+        model: 'embed-v4.0',
+        input: 'hello',
+        apiKey: 'k',
+        taskType: 'similarity',
+      })
+    ).toEqual({ apiKey: 'k', input: 'hello', model: 'embed-v4.0' })
+
+    // A model with no task conditioning never forwards one.
+    expect(
+      params?.({
+        provider: 'openai',
+        model: 'text-embedding-3-small',
+        input: 'hello',
+        apiKey: 'k',
+        taskType: 'query',
+      })
+    ).toEqual({ apiKey: 'k', input: 'hello', model: 'text-embedding-3-small' })
+  })
+
   it('requires input text', () => {
     expect(() =>
       EmbeddingsBlock.tools.config?.params?.({ provider: 'openai', apiKey: 'k' })

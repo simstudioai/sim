@@ -12,7 +12,7 @@ import { EmbeddingsIcon } from '@/components/icons'
  * `embeddings.test.ts` drift test asserts the literals still match the catalog.
  */
 import { EMBEDDING_MODELS } from '@/lib/embeddings/catalog'
-import type { EmbeddingCatalogProvider } from '@/lib/embeddings/types'
+import type { EmbeddingCatalogProvider, EmbeddingTaskType } from '@/lib/embeddings/types'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { EmbeddingsResponse } from '@/tools/embeddings/types'
@@ -290,10 +290,21 @@ export const EmbeddingsBlock: BlockConfig<EmbeddingsResponse> = {
           input: params.input,
           model,
           /** Only send capabilities the selected model actually declares. */
-          ...(info?.supportedTaskTypes && params.taskType && { taskType: params.taskType }),
-          ...(info?.supportedDimensions &&
-            dimensions !== undefined &&
-            !Number.isNaN(dimensions) && { dimensions }),
+          ...(info?.supportedTaskTypes &&
+            params.taskType &&
+            info.supportedTaskTypes.includes(params.taskType as EmbeddingTaskType) && {
+              taskType: params.taskType,
+            }),
+          /**
+           * Every per-model Dimensions dropdown shares the `dimensions` id, and
+           * switching models does not clear the stored value — so a reduction
+           * picked for one model can outlive it. Drop anything the current model
+           * no longer offers and fall back to its native size, rather than
+           * sending a value the dropdown stopped presenting.
+           */
+          ...(dimensions !== undefined &&
+            !Number.isNaN(dimensions) &&
+            info?.supportedDimensions?.includes(dimensions) && { dimensions }),
         }
       },
     },
