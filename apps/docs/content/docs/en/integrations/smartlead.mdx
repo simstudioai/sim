@@ -1,0 +1,910 @@
+---
+title: Smartlead
+description: Manage Smartlead cold email campaigns, sequences, and leads
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="smartlead"
+  color="#000000"
+/>
+
+## Usage Instructions
+
+Integrate Smartlead into workflows. Create campaigns, write multi-step email sequences, import and categorize leads, pull campaign analytics, and register webhooks for engagement events.
+
+
+
+## Actions
+
+### `smartlead_list_campaigns`
+
+Retrieves all Smartlead campaigns for the authenticated account.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | number | No | Only return campaigns for this client \(agency accounts\) |
+| `includeTags` | boolean | No | Include campaign tags in the response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaigns` | array | List of campaigns |
+| `leads` | array | List of leads |
+| `sequences` | array | Email sequence steps |
+| `categories` | array | Lead categories |
+| `webhooks` | array | Campaign webhooks |
+| `stats` | array | Per-email statistics rows |
+| `history` | array | Lead message history |
+| `count` | number | Number of records returned |
+| `total_leads` | number | Total leads matching the request |
+| `total_stats` | number | Total statistics rows matching the filters |
+| `id` | number | Record ID |
+| `name` | string | Record name |
+| `status` | string | Campaign status |
+| `email` | string | Lead email address |
+| `webhook_url` | string | Webhook destination URL |
+| `event_types` | array | Webhook event types |
+| `sent_count` | number | Emails sent |
+| `open_count` | number | Email opens |
+| `click_count` | number | Link clicks |
+| `reply_count` | number | Replies |
+| `bounce_count` | number | Bounces |
+| `campaign_lead_stats` | json | Lead counts by state |
+| `upload_count` | number | Leads uploaded |
+| `success` | boolean | Whether the action succeeded |
+
+### `smartlead_get_campaign`
+
+Retrieves a single Smartlead campaign by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaigns` | array | List of campaigns |
+| `leads` | array | List of leads |
+| `sequences` | array | Email sequence steps |
+| `categories` | array | Lead categories |
+| `webhooks` | array | Campaign webhooks |
+| `stats` | array | Per-email statistics rows |
+| `history` | array | Lead message history |
+| `count` | number | Number of records returned |
+| `total_leads` | number | Total leads matching the request |
+| `total_stats` | number | Total statistics rows matching the filters |
+| `id` | number | Record ID |
+| `name` | string | Record name |
+| `status` | string | Campaign status |
+| `email` | string | Lead email address |
+| `webhook_url` | string | Webhook destination URL |
+| `event_types` | array | Webhook event types |
+| `sent_count` | number | Emails sent |
+| `open_count` | number | Email opens |
+| `click_count` | number | Link clicks |
+| `reply_count` | number | Replies |
+| `bounce_count` | number | Bounces |
+| `campaign_lead_stats` | json | Lead counts by state |
+| `upload_count` | number | Leads uploaded |
+| `success` | boolean | Whether the action succeeded |
+
+### `smartlead_create_campaign`
+
+Creates a Smartlead campaign. The campaign starts in DRAFTED status; add sequences, email accounts, and a schedule before starting it.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | Yes | Campaign name |
+| `clientId` | number | No | Client to own the campaign \(agency accounts\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaigns` | array | List of campaigns |
+| `leads` | array | List of leads |
+| `sequences` | array | Email sequence steps |
+| `categories` | array | Lead categories |
+| `webhooks` | array | Campaign webhooks |
+| `stats` | array | Per-email statistics rows |
+| `history` | array | Lead message history |
+| `count` | number | Number of records returned |
+| `total_leads` | number | Total leads matching the request |
+| `total_stats` | number | Total statistics rows matching the filters |
+| `id` | number | Record ID |
+| `name` | string | Record name |
+| `status` | string | Campaign status |
+| `email` | string | Lead email address |
+| `webhook_url` | string | Webhook destination URL |
+| `event_types` | array | Webhook event types |
+| `sent_count` | number | Emails sent |
+| `open_count` | number | Email opens |
+| `click_count` | number | Link clicks |
+| `reply_count` | number | Replies |
+| `bounce_count` | number | Bounces |
+| `campaign_lead_stats` | json | Lead counts by state |
+| `upload_count` | number | Leads uploaded |
+| `success` | boolean | Whether the action succeeded |
+
+### `smartlead_update_campaign_status`
+
+Starts, pauses, or stops a Smartlead campaign. START requires the campaign to already have a schedule, sequences, and at least one email account.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `status` | string | Yes | Target status: $\{SMARTLEAD_CAMPAIGN_STATUSES.join\(', '\)\} |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaigns` | array | List of campaigns |
+| `leads` | array | List of leads |
+| `sequences` | array | Email sequence steps |
+| `categories` | array | Lead categories |
+| `webhooks` | array | Campaign webhooks |
+| `stats` | array | Per-email statistics rows |
+| `history` | array | Lead message history |
+| `count` | number | Number of records returned |
+| `total_leads` | number | Total leads matching the request |
+| `total_stats` | number | Total statistics rows matching the filters |
+| `id` | number | Record ID |
+| `name` | string | Record name |
+| `status` | string | Campaign status |
+| `email` | string | Lead email address |
+| `webhook_url` | string | Webhook destination URL |
+| `event_types` | array | Webhook event types |
+| `sent_count` | number | Emails sent |
+| `open_count` | number | Email opens |
+| `click_count` | number | Link clicks |
+| `reply_count` | number | Replies |
+| `bounce_count` | number | Bounces |
+| `campaign_lead_stats` | json | Lead counts by state |
+| `upload_count` | number | Leads uploaded |
+| `success` | boolean | Whether the action succeeded |
+
+### `smartlead_update_campaign_schedule`
+
+Sets the sending window, timezone, and throughput limits for a Smartlead campaign. A campaign cannot be started until a schedule exists.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `timezone` | string | Yes | IANA timezone for the sending window, e.g. America/Los_Angeles |
+| `daysOfTheWeek` | array | Yes | Sending days as ISO weekday numbers, where 1 is Monday and 7 is Sunday |
+| `startHour` | string | Yes | Sending window start in 24-hour HH:MM format, e.g. 09:00 |
+| `endHour` | string | Yes | Sending window end in 24-hour HH:MM format, e.g. 17:00 |
+| `minTimeBetweenEmails` | number | No | Minimum minutes to wait between emails |
+| `maxNewLeadsPerDay` | number | No | Maximum new leads to contact per day |
+| `scheduleStartTime` | string | No | ISO 8601 timestamp to begin sending, omit to start immediately |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaigns` | array | List of campaigns |
+| `leads` | array | List of leads |
+| `sequences` | array | Email sequence steps |
+| `categories` | array | Lead categories |
+| `webhooks` | array | Campaign webhooks |
+| `stats` | array | Per-email statistics rows |
+| `history` | array | Lead message history |
+| `count` | number | Number of records returned |
+| `total_leads` | number | Total leads matching the request |
+| `total_stats` | number | Total statistics rows matching the filters |
+| `id` | number | Record ID |
+| `name` | string | Record name |
+| `status` | string | Campaign status |
+| `email` | string | Lead email address |
+| `webhook_url` | string | Webhook destination URL |
+| `event_types` | array | Webhook event types |
+| `sent_count` | number | Emails sent |
+| `open_count` | number | Email opens |
+| `click_count` | number | Link clicks |
+| `reply_count` | number | Replies |
+| `bounce_count` | number | Bounces |
+| `campaign_lead_stats` | json | Lead counts by state |
+| `upload_count` | number | Leads uploaded |
+| `success` | boolean | Whether the action succeeded |
+
+### `smartlead_update_campaign_settings`
+
+Updates tracking, stop-on-activity, and sending settings for a Smartlead campaign.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `trackSettings` | array | No | Tracking to disable. Allowed values: $\{SMARTLEAD_TRACK_SETTINGS.join\(', '\)\} |
+| `stopLeadSettings` | string | No | Lead activity that stops the sequence: $\{SMARTLEAD_STOP_LEAD_SETTINGS.join\(', '\)\} |
+| `sendAsPlainText` | boolean | No | Send campaign emails as plain text |
+| `followUpPercentage` | number | No | Percentage of leads that receive follow-ups |
+| `unsubscribeText` | string | No | Unsubscribe text appended to emails |
+| `enableAiEspMatching` | boolean | No | Match sending accounts to recipient email providers |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaigns` | array | List of campaigns |
+| `leads` | array | List of leads |
+| `sequences` | array | Email sequence steps |
+| `categories` | array | Lead categories |
+| `webhooks` | array | Campaign webhooks |
+| `stats` | array | Per-email statistics rows |
+| `history` | array | Lead message history |
+| `count` | number | Number of records returned |
+| `total_leads` | number | Total leads matching the request |
+| `total_stats` | number | Total statistics rows matching the filters |
+| `id` | number | Record ID |
+| `name` | string | Record name |
+| `status` | string | Campaign status |
+| `email` | string | Lead email address |
+| `webhook_url` | string | Webhook destination URL |
+| `event_types` | array | Webhook event types |
+| `sent_count` | number | Emails sent |
+| `open_count` | number | Email opens |
+| `click_count` | number | Link clicks |
+| `reply_count` | number | Replies |
+| `bounce_count` | number | Bounces |
+| `campaign_lead_stats` | json | Lead counts by state |
+| `upload_count` | number | Leads uploaded |
+| `success` | boolean | Whether the action succeeded |
+
+### `smartlead_get_campaign_analytics`
+
+Retrieves lifetime performance totals for a Smartlead campaign — sends, opens, clicks, replies, bounces, and lead counts by state.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaigns` | array | List of campaigns |
+| `leads` | array | List of leads |
+| `sequences` | array | Email sequence steps |
+| `categories` | array | Lead categories |
+| `webhooks` | array | Campaign webhooks |
+| `stats` | array | Per-email statistics rows |
+| `history` | array | Lead message history |
+| `count` | number | Number of records returned |
+| `total_leads` | number | Total leads matching the request |
+| `total_stats` | number | Total statistics rows matching the filters |
+| `id` | number | Record ID |
+| `name` | string | Record name |
+| `status` | string | Campaign status |
+| `email` | string | Lead email address |
+| `webhook_url` | string | Webhook destination URL |
+| `event_types` | array | Webhook event types |
+| `sent_count` | number | Emails sent |
+| `open_count` | number | Email opens |
+| `click_count` | number | Link clicks |
+| `reply_count` | number | Replies |
+| `bounce_count` | number | Bounces |
+| `campaign_lead_stats` | json | Lead counts by state |
+| `upload_count` | number | Leads uploaded |
+| `success` | boolean | Whether the action succeeded |
+
+### `smartlead_get_campaign_analytics_by_date`
+
+Retrieves Smartlead campaign performance totals for a date range. Smartlead rejects ranges longer than roughly one month.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `startDate` | string | Yes | Range start date in YYYY-MM-DD format |
+| `endDate` | string | Yes | Range end date in YYYY-MM-DD format |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaigns` | array | List of campaigns |
+| `leads` | array | List of leads |
+| `sequences` | array | Email sequence steps |
+| `categories` | array | Lead categories |
+| `webhooks` | array | Campaign webhooks |
+| `stats` | array | Per-email statistics rows |
+| `history` | array | Lead message history |
+| `count` | number | Number of records returned |
+| `total_leads` | number | Total leads matching the request |
+| `total_stats` | number | Total statistics rows matching the filters |
+| `id` | number | Record ID |
+| `name` | string | Record name |
+| `status` | string | Campaign status |
+| `email` | string | Lead email address |
+| `webhook_url` | string | Webhook destination URL |
+| `event_types` | array | Webhook event types |
+| `sent_count` | number | Emails sent |
+| `open_count` | number | Email opens |
+| `click_count` | number | Link clicks |
+| `reply_count` | number | Replies |
+| `bounce_count` | number | Bounces |
+| `campaign_lead_stats` | json | Lead counts by state |
+| `upload_count` | number | Leads uploaded |
+| `success` | boolean | Whether the action succeeded |
+
+### `smartlead_get_campaign_sequences`
+
+Retrieves the email sequence steps for a Smartlead campaign, including subjects, bodies, and per-step delays.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaigns` | array | List of campaigns |
+| `leads` | array | List of leads |
+| `sequences` | array | Email sequence steps |
+| `categories` | array | Lead categories |
+| `webhooks` | array | Campaign webhooks |
+| `stats` | array | Per-email statistics rows |
+| `history` | array | Lead message history |
+| `count` | number | Number of records returned |
+| `total_leads` | number | Total leads matching the request |
+| `total_stats` | number | Total statistics rows matching the filters |
+| `id` | number | Record ID |
+| `name` | string | Record name |
+| `status` | string | Campaign status |
+| `email` | string | Lead email address |
+| `webhook_url` | string | Webhook destination URL |
+| `event_types` | array | Webhook event types |
+| `sent_count` | number | Emails sent |
+| `open_count` | number | Email opens |
+| `click_count` | number | Link clicks |
+| `reply_count` | number | Replies |
+| `bounce_count` | number | Bounces |
+| `campaign_lead_stats` | json | Lead counts by state |
+| `upload_count` | number | Leads uploaded |
+| `success` | boolean | Whether the action succeeded |
+
+### `smartlead_save_campaign_sequences`
+
+Replaces the email sequence for a Smartlead campaign. Send every step in one call — steps omitted from the request are removed. An empty subject makes a step reply in the previous thread.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `sequences` | array | Yes | Ordered sequence steps. Each entry accepts seq_number, delay_in_days, subject, and email_body \(HTML\). Personalize with \{\{first_name\}\} or \{\{company_name\}\}. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaigns` | array | List of campaigns |
+| `leads` | array | List of leads |
+| `sequences` | array | Email sequence steps |
+| `categories` | array | Lead categories |
+| `webhooks` | array | Campaign webhooks |
+| `stats` | array | Per-email statistics rows |
+| `history` | array | Lead message history |
+| `count` | number | Number of records returned |
+| `total_leads` | number | Total leads matching the request |
+| `total_stats` | number | Total statistics rows matching the filters |
+| `id` | number | Record ID |
+| `name` | string | Record name |
+| `status` | string | Campaign status |
+| `email` | string | Lead email address |
+| `webhook_url` | string | Webhook destination URL |
+| `event_types` | array | Webhook event types |
+| `sent_count` | number | Emails sent |
+| `open_count` | number | Email opens |
+| `click_count` | number | Link clicks |
+| `reply_count` | number | Replies |
+| `bounce_count` | number | Bounces |
+| `campaign_lead_stats` | json | Lead counts by state |
+| `upload_count` | number | Leads uploaded |
+| `success` | boolean | Whether the action succeeded |
+
+### `smartlead_get_campaign_statistics`
+
+Retrieves per-email statistics rows for a Smartlead campaign, filterable by sequence step, engagement status, and sent-time range.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `offset` | number | No | Pagination offset \(default 0\) |
+| `limit` | number | No | Rows to return \(default 100\) |
+| `emailSequenceNumber` | number | No | Only return rows for this sequence step |
+| `emailStatus` | string | No | Only return rows with this engagement status: $\{SMARTLEAD_EMAIL_STATUSES.join\(', '\)\} |
+| `sentTimeStartDate` | string | No | Only return rows sent on or after this date \(YYYY-MM-DD\) |
+| `sentTimeEndDate` | string | No | Only return rows sent on or before this date \(YYYY-MM-DD\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaigns` | array | List of campaigns |
+| `leads` | array | List of leads |
+| `sequences` | array | Email sequence steps |
+| `categories` | array | Lead categories |
+| `webhooks` | array | Campaign webhooks |
+| `stats` | array | Per-email statistics rows |
+| `history` | array | Lead message history |
+| `count` | number | Number of records returned |
+| `total_leads` | number | Total leads matching the request |
+| `total_stats` | number | Total statistics rows matching the filters |
+| `id` | number | Record ID |
+| `name` | string | Record name |
+| `status` | string | Campaign status |
+| `email` | string | Lead email address |
+| `webhook_url` | string | Webhook destination URL |
+| `event_types` | array | Webhook event types |
+| `sent_count` | number | Emails sent |
+| `open_count` | number | Email opens |
+| `click_count` | number | Link clicks |
+| `reply_count` | number | Replies |
+| `bounce_count` | number | Bounces |
+| `campaign_lead_stats` | json | Lead counts by state |
+| `upload_count` | number | Leads uploaded |
+| `success` | boolean | Whether the action succeeded |
+
+### `smartlead_add_leads_to_campaign`
+
+Adds leads to a Smartlead campaign, up to 400 per call. Returns per-reason counts for leads that were skipped as duplicates, blocked, bounced, or invalid.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `leads` | array | Yes | Leads to add \(max 400\). Each entry requires email and accepts first_name, last_name, phone_number, company_name, website, location, linkedin_profile, company_url, and custom_fields. |
+| `ignoreGlobalBlockList` | boolean | No | Add leads even if they are on the global block list |
+| `ignoreUnsubscribeList` | boolean | No | Add leads even if they previously unsubscribed |
+| `ignoreDuplicateLeadsInOtherCampaign` | boolean | No | Add leads even if they already exist in another campaign |
+| `ignoreCommunityBounceList` | boolean | No | Add leads even if they are on the community bounce list |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaigns` | array | List of campaigns |
+| `leads` | array | List of leads |
+| `sequences` | array | Email sequence steps |
+| `categories` | array | Lead categories |
+| `webhooks` | array | Campaign webhooks |
+| `stats` | array | Per-email statistics rows |
+| `history` | array | Lead message history |
+| `count` | number | Number of records returned |
+| `total_leads` | number | Total leads matching the request |
+| `total_stats` | number | Total statistics rows matching the filters |
+| `id` | number | Record ID |
+| `name` | string | Record name |
+| `status` | string | Campaign status |
+| `email` | string | Lead email address |
+| `webhook_url` | string | Webhook destination URL |
+| `event_types` | array | Webhook event types |
+| `sent_count` | number | Emails sent |
+| `open_count` | number | Email opens |
+| `click_count` | number | Link clicks |
+| `reply_count` | number | Replies |
+| `bounce_count` | number | Bounces |
+| `campaign_lead_stats` | json | Lead counts by state |
+| `upload_count` | number | Leads uploaded |
+| `success` | boolean | Whether the action succeeded |
+
+### `smartlead_list_campaign_leads`
+
+Retrieves the leads in a Smartlead campaign with their per-campaign status.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `offset` | number | No | Pagination offset \(default 0\) |
+| `limit` | number | No | Leads to return per page \(default 100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaigns` | array | List of campaigns |
+| `leads` | array | List of leads |
+| `sequences` | array | Email sequence steps |
+| `categories` | array | Lead categories |
+| `webhooks` | array | Campaign webhooks |
+| `stats` | array | Per-email statistics rows |
+| `history` | array | Lead message history |
+| `count` | number | Number of records returned |
+| `total_leads` | number | Total leads matching the request |
+| `total_stats` | number | Total statistics rows matching the filters |
+| `id` | number | Record ID |
+| `name` | string | Record name |
+| `status` | string | Campaign status |
+| `email` | string | Lead email address |
+| `webhook_url` | string | Webhook destination URL |
+| `event_types` | array | Webhook event types |
+| `sent_count` | number | Emails sent |
+| `open_count` | number | Email opens |
+| `click_count` | number | Link clicks |
+| `reply_count` | number | Replies |
+| `bounce_count` | number | Bounces |
+| `campaign_lead_stats` | json | Lead counts by state |
+| `upload_count` | number | Leads uploaded |
+| `success` | boolean | Whether the action succeeded |
+
+### `smartlead_get_lead_by_email`
+
+Looks up a Smartlead lead by email address and returns the lead record plus every campaign it belongs to.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | Yes | Lead email address to look up |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaigns` | array | List of campaigns |
+| `leads` | array | List of leads |
+| `sequences` | array | Email sequence steps |
+| `categories` | array | Lead categories |
+| `webhooks` | array | Campaign webhooks |
+| `stats` | array | Per-email statistics rows |
+| `history` | array | Lead message history |
+| `count` | number | Number of records returned |
+| `total_leads` | number | Total leads matching the request |
+| `total_stats` | number | Total statistics rows matching the filters |
+| `id` | number | Record ID |
+| `name` | string | Record name |
+| `status` | string | Campaign status |
+| `email` | string | Lead email address |
+| `webhook_url` | string | Webhook destination URL |
+| `event_types` | array | Webhook event types |
+| `sent_count` | number | Emails sent |
+| `open_count` | number | Email opens |
+| `click_count` | number | Link clicks |
+| `reply_count` | number | Replies |
+| `bounce_count` | number | Bounces |
+| `campaign_lead_stats` | json | Lead counts by state |
+| `upload_count` | number | Leads uploaded |
+| `success` | boolean | Whether the action succeeded |
+
+### `smartlead_update_lead`
+
+Updates a lead in a Smartlead campaign. Smartlead requires the email field even when it is unchanged, and lead edits apply across every campaign the lead belongs to.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | Yes | Lead email address — required by Smartlead even when unchanged |
+| `firstName` | string | No | Lead first name |
+| `lastName` | string | No | Lead last name |
+| `phoneNumber` | string | No | Lead phone number |
+| `companyName` | string | No | Lead company name |
+| `website` | string | No | Lead website |
+| `location` | string | No | Lead location |
+| `linkedinProfile` | string | No | Lead LinkedIn profile URL |
+| `companyUrl` | string | No | Lead company URL |
+| `customFields` | object | No | Custom field values keyed by field name \(max 200 keys\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaigns` | array | List of campaigns |
+| `leads` | array | List of leads |
+| `sequences` | array | Email sequence steps |
+| `categories` | array | Lead categories |
+| `webhooks` | array | Campaign webhooks |
+| `stats` | array | Per-email statistics rows |
+| `history` | array | Lead message history |
+| `count` | number | Number of records returned |
+| `total_leads` | number | Total leads matching the request |
+| `total_stats` | number | Total statistics rows matching the filters |
+| `id` | number | Record ID |
+| `name` | string | Record name |
+| `status` | string | Campaign status |
+| `email` | string | Lead email address |
+| `webhook_url` | string | Webhook destination URL |
+| `event_types` | array | Webhook event types |
+| `sent_count` | number | Emails sent |
+| `open_count` | number | Email opens |
+| `click_count` | number | Link clicks |
+| `reply_count` | number | Replies |
+| `bounce_count` | number | Bounces |
+| `campaign_lead_stats` | json | Lead counts by state |
+| `upload_count` | number | Leads uploaded |
+| `success` | boolean | Whether the action succeeded |
+
+### `smartlead_update_lead_category`
+
+Sets the category of a lead in a Smartlead campaign, such as Interested or Not Interested. Use List Lead Categories to resolve a category ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `categoryId` | number | Yes | Lead category ID to apply |
+| `pauseLead` | boolean | No | Also pause the lead sequence when applying the category |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaigns` | array | List of campaigns |
+| `leads` | array | List of leads |
+| `sequences` | array | Email sequence steps |
+| `categories` | array | Lead categories |
+| `webhooks` | array | Campaign webhooks |
+| `stats` | array | Per-email statistics rows |
+| `history` | array | Lead message history |
+| `count` | number | Number of records returned |
+| `total_leads` | number | Total leads matching the request |
+| `total_stats` | number | Total statistics rows matching the filters |
+| `id` | number | Record ID |
+| `name` | string | Record name |
+| `status` | string | Campaign status |
+| `email` | string | Lead email address |
+| `webhook_url` | string | Webhook destination URL |
+| `event_types` | array | Webhook event types |
+| `sent_count` | number | Emails sent |
+| `open_count` | number | Email opens |
+| `click_count` | number | Link clicks |
+| `reply_count` | number | Replies |
+| `bounce_count` | number | Bounces |
+| `campaign_lead_stats` | json | Lead counts by state |
+| `upload_count` | number | Leads uploaded |
+| `success` | boolean | Whether the action succeeded |
+
+### `smartlead_pause_lead`
+
+Pauses a lead in a Smartlead campaign so it stops receiving sequence emails.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaigns` | array | List of campaigns |
+| `leads` | array | List of leads |
+| `sequences` | array | Email sequence steps |
+| `categories` | array | Lead categories |
+| `webhooks` | array | Campaign webhooks |
+| `stats` | array | Per-email statistics rows |
+| `history` | array | Lead message history |
+| `count` | number | Number of records returned |
+| `total_leads` | number | Total leads matching the request |
+| `total_stats` | number | Total statistics rows matching the filters |
+| `id` | number | Record ID |
+| `name` | string | Record name |
+| `status` | string | Campaign status |
+| `email` | string | Lead email address |
+| `webhook_url` | string | Webhook destination URL |
+| `event_types` | array | Webhook event types |
+| `sent_count` | number | Emails sent |
+| `open_count` | number | Email opens |
+| `click_count` | number | Link clicks |
+| `reply_count` | number | Replies |
+| `bounce_count` | number | Bounces |
+| `campaign_lead_stats` | json | Lead counts by state |
+| `upload_count` | number | Leads uploaded |
+| `success` | boolean | Whether the action succeeded |
+
+### `smartlead_resume_lead`
+
+Resumes a paused lead in a Smartlead campaign, optionally after a delay.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `resumeLeadWithDelayDays` | number | No | Days to wait before the next email; 0 resumes immediately |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaigns` | array | List of campaigns |
+| `leads` | array | List of leads |
+| `sequences` | array | Email sequence steps |
+| `categories` | array | Lead categories |
+| `webhooks` | array | Campaign webhooks |
+| `stats` | array | Per-email statistics rows |
+| `history` | array | Lead message history |
+| `count` | number | Number of records returned |
+| `total_leads` | number | Total leads matching the request |
+| `total_stats` | number | Total statistics rows matching the filters |
+| `id` | number | Record ID |
+| `name` | string | Record name |
+| `status` | string | Campaign status |
+| `email` | string | Lead email address |
+| `webhook_url` | string | Webhook destination URL |
+| `event_types` | array | Webhook event types |
+| `sent_count` | number | Emails sent |
+| `open_count` | number | Email opens |
+| `click_count` | number | Link clicks |
+| `reply_count` | number | Replies |
+| `bounce_count` | number | Bounces |
+| `campaign_lead_stats` | json | Lead counts by state |
+| `upload_count` | number | Leads uploaded |
+| `success` | boolean | Whether the action succeeded |
+
+### `smartlead_list_lead_categories`
+
+Retrieves the lead categories configured on the Smartlead account, with the category IDs needed to categorize a lead.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaigns` | array | List of campaigns |
+| `leads` | array | List of leads |
+| `sequences` | array | Email sequence steps |
+| `categories` | array | Lead categories |
+| `webhooks` | array | Campaign webhooks |
+| `stats` | array | Per-email statistics rows |
+| `history` | array | Lead message history |
+| `count` | number | Number of records returned |
+| `total_leads` | number | Total leads matching the request |
+| `total_stats` | number | Total statistics rows matching the filters |
+| `id` | number | Record ID |
+| `name` | string | Record name |
+| `status` | string | Campaign status |
+| `email` | string | Lead email address |
+| `webhook_url` | string | Webhook destination URL |
+| `event_types` | array | Webhook event types |
+| `sent_count` | number | Emails sent |
+| `open_count` | number | Email opens |
+| `click_count` | number | Link clicks |
+| `reply_count` | number | Replies |
+| `bounce_count` | number | Bounces |
+| `campaign_lead_stats` | json | Lead counts by state |
+| `upload_count` | number | Leads uploaded |
+| `success` | boolean | Whether the action succeeded |
+
+### `smartlead_get_lead_message_history`
+
+Retrieves the sent-and-received message history for a lead in a Smartlead campaign.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaigns` | array | List of campaigns |
+| `leads` | array | List of leads |
+| `sequences` | array | Email sequence steps |
+| `categories` | array | Lead categories |
+| `webhooks` | array | Campaign webhooks |
+| `stats` | array | Per-email statistics rows |
+| `history` | array | Lead message history |
+| `count` | number | Number of records returned |
+| `total_leads` | number | Total leads matching the request |
+| `total_stats` | number | Total statistics rows matching the filters |
+| `id` | number | Record ID |
+| `name` | string | Record name |
+| `status` | string | Campaign status |
+| `email` | string | Lead email address |
+| `webhook_url` | string | Webhook destination URL |
+| `event_types` | array | Webhook event types |
+| `sent_count` | number | Emails sent |
+| `open_count` | number | Email opens |
+| `click_count` | number | Link clicks |
+| `reply_count` | number | Replies |
+| `bounce_count` | number | Bounces |
+| `campaign_lead_stats` | json | Lead counts by state |
+| `upload_count` | number | Leads uploaded |
+| `success` | boolean | Whether the action succeeded |
+
+### `smartlead_list_campaign_webhooks`
+
+Retrieves the webhooks registered on a Smartlead campaign.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaigns` | array | List of campaigns |
+| `leads` | array | List of leads |
+| `sequences` | array | Email sequence steps |
+| `categories` | array | Lead categories |
+| `webhooks` | array | Campaign webhooks |
+| `stats` | array | Per-email statistics rows |
+| `history` | array | Lead message history |
+| `count` | number | Number of records returned |
+| `total_leads` | number | Total leads matching the request |
+| `total_stats` | number | Total statistics rows matching the filters |
+| `id` | number | Record ID |
+| `name` | string | Record name |
+| `status` | string | Campaign status |
+| `email` | string | Lead email address |
+| `webhook_url` | string | Webhook destination URL |
+| `event_types` | array | Webhook event types |
+| `sent_count` | number | Emails sent |
+| `open_count` | number | Email opens |
+| `click_count` | number | Link clicks |
+| `reply_count` | number | Replies |
+| `bounce_count` | number | Bounces |
+| `campaign_lead_stats` | json | Lead counts by state |
+| `upload_count` | number | Leads uploaded |
+| `success` | boolean | Whether the action succeeded |
+
+### `smartlead_upsert_campaign_webhook`
+
+Creates a webhook on a Smartlead campaign, or updates an existing one when a webhook ID is supplied. Smartlead requires at least one lead category.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | Yes | Webhook name |
+| `webhookUrl` | string | Yes | HTTPS URL Smartlead should post events to |
+| `eventTypes` | array | Yes | Events to subscribe to. Allowed values: $\{SMARTLEAD_WEBHOOK_EVENT_TYPES.join\(', '\)\} |
+| `categories` | array | Yes | Lead category names the webhook applies to, e.g. Interested. Smartlead rejects an empty list. |
+| `webhookId` | number | No | Existing webhook ID to update; omit to create a new webhook |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaigns` | array | List of campaigns |
+| `leads` | array | List of leads |
+| `sequences` | array | Email sequence steps |
+| `categories` | array | Lead categories |
+| `webhooks` | array | Campaign webhooks |
+| `stats` | array | Per-email statistics rows |
+| `history` | array | Lead message history |
+| `count` | number | Number of records returned |
+| `total_leads` | number | Total leads matching the request |
+| `total_stats` | number | Total statistics rows matching the filters |
+| `id` | number | Record ID |
+| `name` | string | Record name |
+| `status` | string | Campaign status |
+| `email` | string | Lead email address |
+| `webhook_url` | string | Webhook destination URL |
+| `event_types` | array | Webhook event types |
+| `sent_count` | number | Emails sent |
+| `open_count` | number | Email opens |
+| `click_count` | number | Link clicks |
+| `reply_count` | number | Replies |
+| `bounce_count` | number | Bounces |
+| `campaign_lead_stats` | json | Lead counts by state |
+| `upload_count` | number | Leads uploaded |
+| `success` | boolean | Whether the action succeeded |
+
+

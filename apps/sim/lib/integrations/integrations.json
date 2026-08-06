@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-02",
+  "updatedAt": "2026-08-06",
   "integrations": [
     {
       "type": "onepassword",
@@ -17718,6 +17718,113 @@
         },
         "aiDisclaimer": "Sim agents use AI models to generate messages and responses sent to Slack. AI-generated content can be inaccurate or incomplete, so review automated outputs before relying on them, especially for important communications."
       }
+    },
+    {
+      "type": "smartlead",
+      "slug": "smartlead",
+      "name": "Smartlead",
+      "description": "Manage Smartlead cold email campaigns, sequences, and leads",
+      "longDescription": "Integrate Smartlead into workflows. Create campaigns, write multi-step email sequences, import and categorize leads, pull campaign analytics, and register webhooks for engagement events.",
+      "bgColor": "#000000",
+      "iconName": "SmartleadIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/smartlead",
+      "operations": [
+        {
+          "name": "List Campaigns",
+          "description": "Retrieves all Smartlead campaigns for the authenticated account."
+        },
+        {
+          "name": "Get Campaign",
+          "description": "Retrieves a single Smartlead campaign by ID."
+        },
+        {
+          "name": "Create Campaign",
+          "description": "Creates a Smartlead campaign. The campaign starts in DRAFTED status; add sequences, email accounts, and a schedule before starting it."
+        },
+        {
+          "name": "Update Campaign Status",
+          "description": "Starts, pauses, or stops a Smartlead campaign. START requires the campaign to already have a schedule, sequences, and at least one email account."
+        },
+        {
+          "name": "Update Campaign Schedule",
+          "description": "Sets the sending window, timezone, and throughput limits for a Smartlead campaign. A campaign cannot be started until a schedule exists."
+        },
+        {
+          "name": "Update Campaign Settings",
+          "description": "Updates tracking, stop-on-activity, and sending settings for a Smartlead campaign."
+        },
+        {
+          "name": "Get Campaign Analytics",
+          "description": "Retrieves lifetime performance totals for a Smartlead campaign — sends, opens, clicks, replies, bounces, and lead counts by state."
+        },
+        {
+          "name": "Get Campaign Analytics by Date",
+          "description": "Retrieves Smartlead campaign performance totals for a date range. Smartlead rejects ranges longer than roughly one month."
+        },
+        {
+          "name": "Get Campaign Sequences",
+          "description": "Retrieves the email sequence steps for a Smartlead campaign, including subjects, bodies, and per-step delays."
+        },
+        {
+          "name": "Save Campaign Sequences",
+          "description": "Replaces the email sequence for a Smartlead campaign. Send every step in one call — steps omitted from the request are removed. An empty subject makes a step reply in the previous thread."
+        },
+        {
+          "name": "Get Campaign Statistics",
+          "description": "Retrieves per-email statistics rows for a Smartlead campaign, filterable by sequence step, engagement status, and sent-time range."
+        },
+        {
+          "name": "Add Leads to Campaign",
+          "description": "Adds leads to a Smartlead campaign, up to 400 per call. Returns per-reason counts for leads that were skipped as duplicates, blocked, bounced, or invalid."
+        },
+        {
+          "name": "List Campaign Leads",
+          "description": "Retrieves the leads in a Smartlead campaign with their per-campaign status."
+        },
+        {
+          "name": "Get Lead by Email",
+          "description": "Looks up a Smartlead lead by email address and returns the lead record plus every campaign it belongs to."
+        },
+        {
+          "name": "Update Lead",
+          "description": "Updates a lead in a Smartlead campaign. Smartlead requires the email field even when it is unchanged, and lead edits apply across every campaign the lead belongs to."
+        },
+        {
+          "name": "Update Lead Category",
+          "description": "Sets the category of a lead in a Smartlead campaign, such as Interested or Not Interested. Use List Lead Categories to resolve a category ID."
+        },
+        {
+          "name": "Pause Lead",
+          "description": "Pauses a lead in a Smartlead campaign so it stops receiving sequence emails."
+        },
+        {
+          "name": "Resume Lead",
+          "description": "Resumes a paused lead in a Smartlead campaign, optionally after a delay."
+        },
+        {
+          "name": "List Lead Categories",
+          "description": "Retrieves the lead categories configured on the Smartlead account, with the category IDs needed to categorize a lead."
+        },
+        {
+          "name": "Get Lead Message History",
+          "description": "Retrieves the sent-and-received message history for a lead in a Smartlead campaign."
+        },
+        {
+          "name": "List Campaign Webhooks",
+          "description": "Retrieves the webhooks registered on a Smartlead campaign."
+        },
+        {
+          "name": "Create or Update Webhook",
+          "description": "Creates a webhook on a Smartlead campaign, or updates an existing one when a webhook ID is supplied. Smartlead requires at least one lead category."
+        }
+      ],
+      "operationCount": 22,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "email",
+      "tags": ["sales-engagement", "email-marketing", "automation"]
     },
     {
       "type": "smtp",
