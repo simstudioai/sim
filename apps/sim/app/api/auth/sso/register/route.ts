@@ -643,14 +643,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       .limit(1)
 
     /**
-     * Mirrors Sim's own domain-ownership proof onto Better Auth's `domainVerified`
-     * flag, which is what lets an SSO sign-in auto-link to an existing same-email
-     * account. Must run after every write, not just on create: `registerSSOProvider`
-     * always persists `false`, and `updateSSOProvider` resets it to `false` whenever
-     * the domain changes. Callers re-check ownership immediately before granting it,
-     * so it can never mark an unproven domain as verified. Org-less (personal) SSO is
-     * not domain-gated by Sim and keeps its pre-existing trust here, matching how it
-     * behaved before the flag existed.
+     * Unconditional write of Better Auth's `domainVerified` flag — the value Sim
+     * mirrors from its own DNS proof, and what lets an SSO sign-in auto-link to an
+     * existing same-email account. Only used to *withdraw* trust, and to grant it on
+     * the org-less (personal) path that Sim never domain-gated. Granting on an
+     * org-scoped provider goes through {@link grantProviderDomainTrust}, which
+     * re-tests ownership in the same statement.
      */
     const setProviderDomainVerified = async (verified: boolean) => {
       await db.update(ssoProvider).set({ domainVerified: verified }).where(ownerClause)
@@ -669,12 +667,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
      * Org-less (personal) SSO is not domain-gated by Sim, so it grants
      * unconditionally as it always has.
      */
-    const grantProviderDomainTrust = async () => {
+    const grantProviderDomainTrust = async (): Promise<boolean> => {
       if (!orgId) {
         await setProviderDomainVerified(true)
-        return
+        return true
       }
-      await db
+      const granted = await db
         .update(ssoProvider)
         .set({ domainVerified: true })
         .where(
@@ -694,6 +692,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             )
           )
         )
+        .returning({ id: ssoProvider.id })
+      return granted.length > 0
     }
 
     if (existingOwnedProvider) {
@@ -709,10 +709,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       })
 
       // The verified sso_domain row can be deleted while updateSSOProvider is in
-      // flight. There is no newly-created row to roll back here, so on failure
-      // clear the flag: `updateSSOProvider` only resets it when the domain
-      // changes, so a same-domain edit would otherwise leave stale trust standing.
-      if (orgId && !(await isOrgDomainVerified())) {
+      // flight, in which case the conditional grant matches nothing. There is no
+      // newly-created row to roll back here, so clear the flag instead:
+      // `updateSSOProvider` only resets it when the domain changes, so a
+      // same-domain edit would otherwise leave stale trust standing. Reporting the
+      // failure keeps the response honest rather than saying "saved" while the
+      // provider is left unable to sign anyone in.
+      if (!(await grantProviderDomainTrust())) {
         await setProviderDomainVerified(false)
         logger.warn('Revoked SSO domain trust: verification was removed mid-update', {
           domain,
@@ -723,7 +726,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         return domainNotVerifiedResponse()
       }
 
-      await grantProviderDomainTrust()
       logger.info('SSO provider updated successfully', { providerId, providerType, domain })
       return NextResponse.json({
         success: true,
@@ -738,22 +740,25 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       headers,
     })
 
-    // Grant trust in the same statement that re-tests ownership, closing the
-    // window between Better Auth persisting the provider and this write. A failure
-    // means the verified sso_domain row was removed in that window, so roll the
-    // provider back. registerSSOProvider is create-only (it throws if the
+    // Granting trust re-tests ownership inside the same statement, so a failure
+    // here means the verified sso_domain row was removed between the pre-write
+    // check and Better Auth persisting the provider. That would leave a provider
+    // on a domain the org no longer proves, so roll it back.
+    // registerSSOProvider is create-only (it throws if the
     // providerId already exists), so a successful call always created a brand-new
     // row — we roll it back by its primary-key `id` (not the logical providerId,
     // which a concurrent delete+recreate could point at a different row). Personal
-    // SSO is not gated, so this only runs for org-scoped registration.
-    if (orgId && !(await isOrgDomainVerified())) {
+    // SSO is not gated, so grantProviderDomainTrust always succeeds there.
+    if (!(await grantProviderDomainTrust())) {
       // registerSSOProvider spreads the created row's `id` at runtime, but the
       // typed return omits it — read it defensively and only delete when it's a
       // real id, so a future shape change can't turn the rollback into a silent
-      // no-op that leaves a provider on an unverified domain.
+      // no-op that leaves a provider on an unverified domain. `orgId` is checked
+      // only to narrow it: the org-less path grants unconditionally, so a refused
+      // grant always means an org-scoped registration.
       // double-cast-allowed: Better Auth's return type omits the runtime `id`
       const createdRowId = (registration as unknown as { id?: unknown }).id
-      if (typeof createdRowId === 'string' && createdRowId.length > 0) {
+      if (orgId && typeof createdRowId === 'string' && createdRowId.length > 0) {
         await db
           .delete(ssoProvider)
           .where(and(eq(ssoProvider.id, createdRowId), eq(ssoProvider.organizationId, orgId)))
@@ -773,8 +778,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
       return domainNotVerifiedResponse()
     }
-
-    await grantProviderDomainTrust()
 
     logger.info('SSO provider registered successfully', {
       providerId,
