@@ -281,16 +281,15 @@ const MARKDOWN_COMPONENTS = {
             e.preventDefault()
             if (!type || !ref) return
             const linkText = label || ref
-            // A file link carries whichever the tag had (`path ?? id`), so
-            // classify before forwarding: a canonical VFS path is always
-            // `files/…`, and an id never contains a separator. Labelling an id
-            // as a path would throw away the only thing that identifies it.
-            const isVfsPath = type === 'file' && ref.includes('/')
+            // A file link carries whichever the tag had (`path ?? id`) with no
+            // way to tell them apart here, so it is forwarded as-is and the
+            // resolver tries every interpretation against the real file list.
             window.dispatchEvent(
               new CustomEvent('wsres-click', {
-                detail: isVfsPath
-                  ? { type, path: ref, title: linkText }
-                  : { type, id: ref, title: linkText },
+                detail:
+                  type === 'file'
+                    ? { type, path: ref, title: linkText }
+                    : { type, id: ref, title: linkText },
               })
             )
           }}

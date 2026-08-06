@@ -25,12 +25,18 @@ function ref(overrides: Partial<WorkspaceResourceRef> = {}): WorkspaceResourceRe
 }
 
 describe('resolveWorkspaceResourceRef', () => {
-  it('trusts an explicit id even when the file list has not caught up', () => {
-    expect(resolveWorkspaceResourceRef(ref({ id: 'wf_abc' }), [])).toEqual({
+  it('resolves an explicit id against the known files', () => {
+    const files = [file({ id: 'wf_abc', name: 'notes.md' })]
+    expect(resolveWorkspaceResourceRef(ref({ id: 'wf_abc' }), files)).toEqual({
       type: 'file',
       id: 'wf_abc',
       title: 'notes.md',
+      path: 'files/notes.md',
     })
+  })
+
+  it('refuses an id no file answers to, rather than opening a tab pointing at nothing', () => {
+    expect(resolveWorkspaceResourceRef(ref({ id: 'wf_gone' }), [])).toBeNull()
   })
 
   it('resolves a path against the known files', () => {
@@ -41,6 +47,18 @@ describe('resolveWorkspaceResourceRef', () => {
       title: 'notes.md',
       path: 'files/docs/notes.md',
     })
+  })
+
+  it('resolves a bare filename handed over as a path', () => {
+    // A rendered link collapses id and path into one value, and the agent may
+    // write a bare name into `path` — neither may be taken at face value.
+    const files = [file({ id: 'wf_abc', name: 'notes.md', folderPath: 'docs' })]
+    expect(resolveWorkspaceResourceRef(ref({ path: 'notes.md' }), files)?.id).toBe('wf_abc')
+  })
+
+  it('resolves an id handed over as a path', () => {
+    const files = [file({ id: 'wf_abc', name: 'notes.md' })]
+    expect(resolveWorkspaceResourceRef(ref({ path: 'wf_abc' }), files)?.id).toBe('wf_abc')
   })
 
   it('resolves a title when exactly one file answers to it', () => {

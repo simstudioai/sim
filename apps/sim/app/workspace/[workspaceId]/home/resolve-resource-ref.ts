@@ -1,4 +1,5 @@
 import type { MothershipResource, WorkspaceResourceRef } from '@/lib/copilot/resources/types'
+import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { findWorkspaceFileByPath } from '@/hooks/queries/utils/find-workspace-file-by-src'
 
@@ -21,14 +22,30 @@ function findFileByUniqueName(
   return match
 }
 
+/** A file answering to `reference` as an id, as a VFS path, or by name. */
+function findFileByReference(
+  files: readonly WorkspaceFileRecord[],
+  reference: string | undefined
+): WorkspaceFileRecord | undefined {
+  if (!reference) return undefined
+  return (
+    files.find((file) => file.id === reference) ??
+    findWorkspaceFileByPath(files, reference) ??
+    findFileByUniqueName(files, reference)
+  )
+}
+
 /**
  * Turns a chip's best-effort reference into a resource the panel can open, or
  * null when nothing identifies it.
  *
- * An explicit id is authoritative even when the file list has not caught up
- * with it — the id is addressable regardless of what this client has cached.
- * Everything else has to match a known file, by path first and then by a unique
- * name, because a path or a title is only an id if something answers to it.
+ * A file chip's reference is lossy — the agent writes the tag by hand, and
+ * rendering it as a link collapses id and path into one value — so each
+ * candidate is tried against every interpretation. The match must be a file
+ * this workspace actually has: an id the client's list has not caught up with
+ * resolves once the caller refetches, and one that never resolves was never an
+ * id. Trusting an unverified id would open a tab pointing at nothing, which is
+ * the state this whole path exists to prevent.
  */
 export function resolveWorkspaceResourceRef(
   ref: WorkspaceResourceRef,
@@ -40,14 +57,19 @@ export function resolveWorkspaceResourceRef(
     return id ? { type: ref.type, id, title: ref.title } : null
   }
 
-  const withPath = path ? { path } : {}
-  if (id) {
-    const title = ref.title || files.find((file) => file.id === id)?.name || 'File'
-    return { type: 'file', id, title, ...withPath }
+  let match: WorkspaceFileRecord | undefined
+  for (const candidate of [id, path, ref.title.trim()]) {
+    match = findFileByReference(files, candidate)
+    if (match) break
   }
-
-  const match =
-    findWorkspaceFileByPath(files, path) ?? findFileByUniqueName(files, ref.title.trim())
   if (!match) return null
-  return { type: 'file', id: match.id, title: ref.title || match.name, ...withPath }
+
+  return {
+    type: 'file',
+    id: match.id,
+    title: ref.title || match.name,
+    // Always the matched file's canonical path, never the reference we were
+    // handed — the viewer reads this as a real path.
+    path: canonicalWorkspaceFilePath({ folderPath: match.folderPath, name: match.name }),
+  }
 }
