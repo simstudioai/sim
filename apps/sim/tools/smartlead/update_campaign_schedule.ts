@@ -4,6 +4,7 @@ import {
   actionOutputs,
   isOk,
   jsonBody,
+  pathSegment,
   smartleadBaseParamFields,
   smartleadCampaignIdParamField,
   smartleadHeaders,
@@ -80,7 +81,8 @@ export const updateCampaignScheduleTool: ToolConfig<
     },
   },
   request: {
-    url: (params) => smartleadUrl(`/campaigns/${params.campaignId}/schedule`, params.apiKey),
+    url: (params) =>
+      smartleadUrl(`/campaigns/${pathSegment(params.campaignId)}/schedule`, params.apiKey),
     method: 'POST',
     headers: smartleadHeaders,
     body: (params) =>

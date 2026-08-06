@@ -1,33 +1,33 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import type {
-  SmartleadCampaignAnalyticsByDateResponse,
   SmartleadCampaignIdParams,
+  SmartleadTopLevelAnalyticsResponse,
 } from '@/tools/smartlead/types'
 import {
-  campaignAnalyticsByDateOutputs,
-  mapCampaignAnalyticsByDate,
+  mapTopLevelAnalytics,
   pathSegment,
   smartleadBaseParamFields,
   smartleadCampaignIdParamField,
+  smartleadExistingRecord,
   smartleadHeaders,
-  smartleadRecord,
   smartleadUrl,
+  topLevelAnalyticsOutputs,
 } from '@/tools/smartlead/utils'
 import type { ToolConfig } from '@/tools/types'
 
-interface GetCampaignAnalyticsByDateParams extends SmartleadCampaignIdParams {
+interface GetTopLevelAnalyticsParams extends SmartleadCampaignIdParams {
   startDate: string
   endDate: string
 }
 
-export const getCampaignAnalyticsByDateTool: ToolConfig<
-  GetCampaignAnalyticsByDateParams,
-  SmartleadCampaignAnalyticsByDateResponse
+export const getCampaignTopLevelAnalyticsByDateTool: ToolConfig<
+  GetTopLevelAnalyticsParams,
+  SmartleadTopLevelAnalyticsResponse
 > = {
-  id: 'smartlead_get_campaign_analytics_by_date',
-  name: 'Smartlead Get Campaign Analytics By Date',
+  id: 'smartlead_get_campaign_top_level_analytics_by_date',
+  name: 'Smartlead Get Campaign Top-Level Analytics By Date',
   description:
-    'Retrieves Smartlead campaign performance totals for a date range. Smartlead rejects ranges longer than roughly one month.',
+    'Retrieves top-level Smartlead campaign counts for a date range, including positive replies, skipped, failed, and stopped counts not present in the standard analytics.',
   version: '1.0.0',
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {
@@ -49,23 +49,20 @@ export const getCampaignAnalyticsByDateTool: ToolConfig<
   request: {
     url: (params) =>
       smartleadUrl(
-        `/campaigns/${pathSegment(params.campaignId)}/analytics-by-date`,
+        `/campaigns/${pathSegment(params.campaignId)}/top-level-analytics-by-date`,
         params.apiKey,
-        {
-          start_date: params.startDate,
-          end_date: params.endDate,
-        }
+        { start_date: params.startDate, end_date: params.endDate }
       ),
     method: 'GET',
     headers: smartleadHeaders,
   },
   transformResponse: async (response) => {
-    const record = await smartleadRecord(response, 'campaign analytics')
+    const record = await smartleadExistingRecord(response, 'campaign')
 
     return {
       success: true,
-      output: mapCampaignAnalyticsByDate(record),
+      output: mapTopLevelAnalytics(record),
     }
   },
-  outputs: campaignAnalyticsByDateOutputs,
+  outputs: topLevelAnalyticsOutputs,
 }

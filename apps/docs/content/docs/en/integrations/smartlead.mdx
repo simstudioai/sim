@@ -41,7 +41,7 @@ Retrieves all Smartlead campaigns for the authenticated account.
 | `stats` | array | Per-email statistics rows |
 | `history` | array | Lead message history |
 | `count` | number | Number of records returned |
-| `total_leads` | number | Total leads matching the request |
+| `total_leads` | number | Total leads in the campaign, or leads newly added when importing |
 | `total_stats` | number | Total statistics rows matching the filters |
 | `id` | number | Record ID |
 | `name` | string | Record name |
@@ -55,8 +55,17 @@ Retrieves all Smartlead campaigns for the authenticated account.
 | `reply_count` | number | Replies |
 | `bounce_count` | number | Bounces |
 | `campaign_lead_stats` | json | Lead counts by state |
-| `upload_count` | number | Leads uploaded |
+| `upload_count` | number | Leads submitted in the request |
 | `success` | boolean | Whether the action succeeded |
+| `items` | array | Records returned by Smartlead |
+| `rows` | array | Rows returned by Smartlead |
+| `lists` | array | Lead lists |
+| `summary` | array | Webhook delivery summary rows |
+| `csv` | string | Exported leads as CSV |
+| `row_count` | number | Rows in the exported CSV |
+| `has_more` | boolean | Whether more rows are available |
+| `list_name` | string | Lead list name |
+| `positive_reply_count` | number | Replies categorized as positive |
 
 ### `smartlead_get_campaign`
 
@@ -79,7 +88,7 @@ Retrieves a single Smartlead campaign by ID.
 | `stats` | array | Per-email statistics rows |
 | `history` | array | Lead message history |
 | `count` | number | Number of records returned |
-| `total_leads` | number | Total leads matching the request |
+| `total_leads` | number | Total leads in the campaign, or leads newly added when importing |
 | `total_stats` | number | Total statistics rows matching the filters |
 | `id` | number | Record ID |
 | `name` | string | Record name |
@@ -93,8 +102,17 @@ Retrieves a single Smartlead campaign by ID.
 | `reply_count` | number | Replies |
 | `bounce_count` | number | Bounces |
 | `campaign_lead_stats` | json | Lead counts by state |
-| `upload_count` | number | Leads uploaded |
+| `upload_count` | number | Leads submitted in the request |
 | `success` | boolean | Whether the action succeeded |
+| `items` | array | Records returned by Smartlead |
+| `rows` | array | Rows returned by Smartlead |
+| `lists` | array | Lead lists |
+| `summary` | array | Webhook delivery summary rows |
+| `csv` | string | Exported leads as CSV |
+| `row_count` | number | Rows in the exported CSV |
+| `has_more` | boolean | Whether more rows are available |
+| `list_name` | string | Lead list name |
+| `positive_reply_count` | number | Replies categorized as positive |
 
 ### `smartlead_create_campaign`
 
@@ -119,7 +137,7 @@ Creates a Smartlead campaign. The campaign starts in DRAFTED status; add sequenc
 | `stats` | array | Per-email statistics rows |
 | `history` | array | Lead message history |
 | `count` | number | Number of records returned |
-| `total_leads` | number | Total leads matching the request |
+| `total_leads` | number | Total leads in the campaign, or leads newly added when importing |
 | `total_stats` | number | Total statistics rows matching the filters |
 | `id` | number | Record ID |
 | `name` | string | Record name |
@@ -133,8 +151,17 @@ Creates a Smartlead campaign. The campaign starts in DRAFTED status; add sequenc
 | `reply_count` | number | Replies |
 | `bounce_count` | number | Bounces |
 | `campaign_lead_stats` | json | Lead counts by state |
-| `upload_count` | number | Leads uploaded |
+| `upload_count` | number | Leads submitted in the request |
 | `success` | boolean | Whether the action succeeded |
+| `items` | array | Records returned by Smartlead |
+| `rows` | array | Rows returned by Smartlead |
+| `lists` | array | Lead lists |
+| `summary` | array | Webhook delivery summary rows |
+| `csv` | string | Exported leads as CSV |
+| `row_count` | number | Rows in the exported CSV |
+| `has_more` | boolean | Whether more rows are available |
+| `list_name` | string | Lead list name |
+| `positive_reply_count` | number | Replies categorized as positive |
 
 ### `smartlead_update_campaign_status`
 
@@ -158,7 +185,7 @@ Starts, pauses, or stops a Smartlead campaign. START requires the campaign to al
 | `stats` | array | Per-email statistics rows |
 | `history` | array | Lead message history |
 | `count` | number | Number of records returned |
-| `total_leads` | number | Total leads matching the request |
+| `total_leads` | number | Total leads in the campaign, or leads newly added when importing |
 | `total_stats` | number | Total statistics rows matching the filters |
 | `id` | number | Record ID |
 | `name` | string | Record name |
@@ -172,8 +199,17 @@ Starts, pauses, or stops a Smartlead campaign. START requires the campaign to al
 | `reply_count` | number | Replies |
 | `bounce_count` | number | Bounces |
 | `campaign_lead_stats` | json | Lead counts by state |
-| `upload_count` | number | Leads uploaded |
+| `upload_count` | number | Leads submitted in the request |
 | `success` | boolean | Whether the action succeeded |
+| `items` | array | Records returned by Smartlead |
+| `rows` | array | Rows returned by Smartlead |
+| `lists` | array | Lead lists |
+| `summary` | array | Webhook delivery summary rows |
+| `csv` | string | Exported leads as CSV |
+| `row_count` | number | Rows in the exported CSV |
+| `has_more` | boolean | Whether more rows are available |
+| `list_name` | string | Lead list name |
+| `positive_reply_count` | number | Replies categorized as positive |
 
 ### `smartlead_update_campaign_schedule`
 
@@ -203,7 +239,7 @@ Sets the sending window, timezone, and throughput limits for a Smartlead campaig
 | `stats` | array | Per-email statistics rows |
 | `history` | array | Lead message history |
 | `count` | number | Number of records returned |
-| `total_leads` | number | Total leads matching the request |
+| `total_leads` | number | Total leads in the campaign, or leads newly added when importing |
 | `total_stats` | number | Total statistics rows matching the filters |
 | `id` | number | Record ID |
 | `name` | string | Record name |
@@ -217,8 +253,17 @@ Sets the sending window, timezone, and throughput limits for a Smartlead campaig
 | `reply_count` | number | Replies |
 | `bounce_count` | number | Bounces |
 | `campaign_lead_stats` | json | Lead counts by state |
-| `upload_count` | number | Leads uploaded |
+| `upload_count` | number | Leads submitted in the request |
 | `success` | boolean | Whether the action succeeded |
+| `items` | array | Records returned by Smartlead |
+| `rows` | array | Rows returned by Smartlead |
+| `lists` | array | Lead lists |
+| `summary` | array | Webhook delivery summary rows |
+| `csv` | string | Exported leads as CSV |
+| `row_count` | number | Rows in the exported CSV |
+| `has_more` | boolean | Whether more rows are available |
+| `list_name` | string | Lead list name |
+| `positive_reply_count` | number | Replies categorized as positive |
 
 ### `smartlead_update_campaign_settings`
 
@@ -247,7 +292,7 @@ Updates tracking, stop-on-activity, and sending settings for a Smartlead campaig
 | `stats` | array | Per-email statistics rows |
 | `history` | array | Lead message history |
 | `count` | number | Number of records returned |
-| `total_leads` | number | Total leads matching the request |
+| `total_leads` | number | Total leads in the campaign, or leads newly added when importing |
 | `total_stats` | number | Total statistics rows matching the filters |
 | `id` | number | Record ID |
 | `name` | string | Record name |
@@ -261,8 +306,17 @@ Updates tracking, stop-on-activity, and sending settings for a Smartlead campaig
 | `reply_count` | number | Replies |
 | `bounce_count` | number | Bounces |
 | `campaign_lead_stats` | json | Lead counts by state |
-| `upload_count` | number | Leads uploaded |
+| `upload_count` | number | Leads submitted in the request |
 | `success` | boolean | Whether the action succeeded |
+| `items` | array | Records returned by Smartlead |
+| `rows` | array | Rows returned by Smartlead |
+| `lists` | array | Lead lists |
+| `summary` | array | Webhook delivery summary rows |
+| `csv` | string | Exported leads as CSV |
+| `row_count` | number | Rows in the exported CSV |
+| `has_more` | boolean | Whether more rows are available |
+| `list_name` | string | Lead list name |
+| `positive_reply_count` | number | Replies categorized as positive |
 
 ### `smartlead_get_campaign_analytics`
 
@@ -285,7 +339,7 @@ Retrieves lifetime performance totals for a Smartlead campaign — sends, opens,
 | `stats` | array | Per-email statistics rows |
 | `history` | array | Lead message history |
 | `count` | number | Number of records returned |
-| `total_leads` | number | Total leads matching the request |
+| `total_leads` | number | Total leads in the campaign, or leads newly added when importing |
 | `total_stats` | number | Total statistics rows matching the filters |
 | `id` | number | Record ID |
 | `name` | string | Record name |
@@ -299,8 +353,17 @@ Retrieves lifetime performance totals for a Smartlead campaign — sends, opens,
 | `reply_count` | number | Replies |
 | `bounce_count` | number | Bounces |
 | `campaign_lead_stats` | json | Lead counts by state |
-| `upload_count` | number | Leads uploaded |
+| `upload_count` | number | Leads submitted in the request |
 | `success` | boolean | Whether the action succeeded |
+| `items` | array | Records returned by Smartlead |
+| `rows` | array | Rows returned by Smartlead |
+| `lists` | array | Lead lists |
+| `summary` | array | Webhook delivery summary rows |
+| `csv` | string | Exported leads as CSV |
+| `row_count` | number | Rows in the exported CSV |
+| `has_more` | boolean | Whether more rows are available |
+| `list_name` | string | Lead list name |
+| `positive_reply_count` | number | Replies categorized as positive |
 
 ### `smartlead_get_campaign_analytics_by_date`
 
@@ -325,7 +388,7 @@ Retrieves Smartlead campaign performance totals for a date range. Smartlead reje
 | `stats` | array | Per-email statistics rows |
 | `history` | array | Lead message history |
 | `count` | number | Number of records returned |
-| `total_leads` | number | Total leads matching the request |
+| `total_leads` | number | Total leads in the campaign, or leads newly added when importing |
 | `total_stats` | number | Total statistics rows matching the filters |
 | `id` | number | Record ID |
 | `name` | string | Record name |
@@ -339,8 +402,17 @@ Retrieves Smartlead campaign performance totals for a date range. Smartlead reje
 | `reply_count` | number | Replies |
 | `bounce_count` | number | Bounces |
 | `campaign_lead_stats` | json | Lead counts by state |
-| `upload_count` | number | Leads uploaded |
+| `upload_count` | number | Leads submitted in the request |
 | `success` | boolean | Whether the action succeeded |
+| `items` | array | Records returned by Smartlead |
+| `rows` | array | Rows returned by Smartlead |
+| `lists` | array | Lead lists |
+| `summary` | array | Webhook delivery summary rows |
+| `csv` | string | Exported leads as CSV |
+| `row_count` | number | Rows in the exported CSV |
+| `has_more` | boolean | Whether more rows are available |
+| `list_name` | string | Lead list name |
+| `positive_reply_count` | number | Replies categorized as positive |
 
 ### `smartlead_get_campaign_sequences`
 
@@ -363,7 +435,7 @@ Retrieves the email sequence steps for a Smartlead campaign, including subjects,
 | `stats` | array | Per-email statistics rows |
 | `history` | array | Lead message history |
 | `count` | number | Number of records returned |
-| `total_leads` | number | Total leads matching the request |
+| `total_leads` | number | Total leads in the campaign, or leads newly added when importing |
 | `total_stats` | number | Total statistics rows matching the filters |
 | `id` | number | Record ID |
 | `name` | string | Record name |
@@ -377,8 +449,17 @@ Retrieves the email sequence steps for a Smartlead campaign, including subjects,
 | `reply_count` | number | Replies |
 | `bounce_count` | number | Bounces |
 | `campaign_lead_stats` | json | Lead counts by state |
-| `upload_count` | number | Leads uploaded |
+| `upload_count` | number | Leads submitted in the request |
 | `success` | boolean | Whether the action succeeded |
+| `items` | array | Records returned by Smartlead |
+| `rows` | array | Rows returned by Smartlead |
+| `lists` | array | Lead lists |
+| `summary` | array | Webhook delivery summary rows |
+| `csv` | string | Exported leads as CSV |
+| `row_count` | number | Rows in the exported CSV |
+| `has_more` | boolean | Whether more rows are available |
+| `list_name` | string | Lead list name |
+| `positive_reply_count` | number | Replies categorized as positive |
 
 ### `smartlead_save_campaign_sequences`
 
@@ -402,7 +483,7 @@ Replaces the email sequence for a Smartlead campaign. Send every step in one cal
 | `stats` | array | Per-email statistics rows |
 | `history` | array | Lead message history |
 | `count` | number | Number of records returned |
-| `total_leads` | number | Total leads matching the request |
+| `total_leads` | number | Total leads in the campaign, or leads newly added when importing |
 | `total_stats` | number | Total statistics rows matching the filters |
 | `id` | number | Record ID |
 | `name` | string | Record name |
@@ -416,8 +497,17 @@ Replaces the email sequence for a Smartlead campaign. Send every step in one cal
 | `reply_count` | number | Replies |
 | `bounce_count` | number | Bounces |
 | `campaign_lead_stats` | json | Lead counts by state |
-| `upload_count` | number | Leads uploaded |
+| `upload_count` | number | Leads submitted in the request |
 | `success` | boolean | Whether the action succeeded |
+| `items` | array | Records returned by Smartlead |
+| `rows` | array | Rows returned by Smartlead |
+| `lists` | array | Lead lists |
+| `summary` | array | Webhook delivery summary rows |
+| `csv` | string | Exported leads as CSV |
+| `row_count` | number | Rows in the exported CSV |
+| `has_more` | boolean | Whether more rows are available |
+| `list_name` | string | Lead list name |
+| `positive_reply_count` | number | Replies categorized as positive |
 
 ### `smartlead_get_campaign_statistics`
 
@@ -446,7 +536,7 @@ Retrieves per-email statistics rows for a Smartlead campaign, filterable by sequ
 | `stats` | array | Per-email statistics rows |
 | `history` | array | Lead message history |
 | `count` | number | Number of records returned |
-| `total_leads` | number | Total leads matching the request |
+| `total_leads` | number | Total leads in the campaign, or leads newly added when importing |
 | `total_stats` | number | Total statistics rows matching the filters |
 | `id` | number | Record ID |
 | `name` | string | Record name |
@@ -460,8 +550,17 @@ Retrieves per-email statistics rows for a Smartlead campaign, filterable by sequ
 | `reply_count` | number | Replies |
 | `bounce_count` | number | Bounces |
 | `campaign_lead_stats` | json | Lead counts by state |
-| `upload_count` | number | Leads uploaded |
+| `upload_count` | number | Leads submitted in the request |
 | `success` | boolean | Whether the action succeeded |
+| `items` | array | Records returned by Smartlead |
+| `rows` | array | Rows returned by Smartlead |
+| `lists` | array | Lead lists |
+| `summary` | array | Webhook delivery summary rows |
+| `csv` | string | Exported leads as CSV |
+| `row_count` | number | Rows in the exported CSV |
+| `has_more` | boolean | Whether more rows are available |
+| `list_name` | string | Lead list name |
+| `positive_reply_count` | number | Replies categorized as positive |
 
 ### `smartlead_add_leads_to_campaign`
 
@@ -489,7 +588,7 @@ Adds leads to a Smartlead campaign, up to 400 per call. Returns per-reason count
 | `stats` | array | Per-email statistics rows |
 | `history` | array | Lead message history |
 | `count` | number | Number of records returned |
-| `total_leads` | number | Total leads matching the request |
+| `total_leads` | number | Total leads in the campaign, or leads newly added when importing |
 | `total_stats` | number | Total statistics rows matching the filters |
 | `id` | number | Record ID |
 | `name` | string | Record name |
@@ -503,8 +602,17 @@ Adds leads to a Smartlead campaign, up to 400 per call. Returns per-reason count
 | `reply_count` | number | Replies |
 | `bounce_count` | number | Bounces |
 | `campaign_lead_stats` | json | Lead counts by state |
-| `upload_count` | number | Leads uploaded |
+| `upload_count` | number | Leads submitted in the request |
 | `success` | boolean | Whether the action succeeded |
+| `items` | array | Records returned by Smartlead |
+| `rows` | array | Rows returned by Smartlead |
+| `lists` | array | Lead lists |
+| `summary` | array | Webhook delivery summary rows |
+| `csv` | string | Exported leads as CSV |
+| `row_count` | number | Rows in the exported CSV |
+| `has_more` | boolean | Whether more rows are available |
+| `list_name` | string | Lead list name |
+| `positive_reply_count` | number | Replies categorized as positive |
 
 ### `smartlead_list_campaign_leads`
 
@@ -529,7 +637,7 @@ Retrieves the leads in a Smartlead campaign with their per-campaign status.
 | `stats` | array | Per-email statistics rows |
 | `history` | array | Lead message history |
 | `count` | number | Number of records returned |
-| `total_leads` | number | Total leads matching the request |
+| `total_leads` | number | Total leads in the campaign, or leads newly added when importing |
 | `total_stats` | number | Total statistics rows matching the filters |
 | `id` | number | Record ID |
 | `name` | string | Record name |
@@ -543,8 +651,17 @@ Retrieves the leads in a Smartlead campaign with their per-campaign status.
 | `reply_count` | number | Replies |
 | `bounce_count` | number | Bounces |
 | `campaign_lead_stats` | json | Lead counts by state |
-| `upload_count` | number | Leads uploaded |
+| `upload_count` | number | Leads submitted in the request |
 | `success` | boolean | Whether the action succeeded |
+| `items` | array | Records returned by Smartlead |
+| `rows` | array | Rows returned by Smartlead |
+| `lists` | array | Lead lists |
+| `summary` | array | Webhook delivery summary rows |
+| `csv` | string | Exported leads as CSV |
+| `row_count` | number | Rows in the exported CSV |
+| `has_more` | boolean | Whether more rows are available |
+| `list_name` | string | Lead list name |
+| `positive_reply_count` | number | Replies categorized as positive |
 
 ### `smartlead_get_lead_by_email`
 
@@ -568,7 +685,7 @@ Looks up a Smartlead lead by email address and returns the lead record plus ever
 | `stats` | array | Per-email statistics rows |
 | `history` | array | Lead message history |
 | `count` | number | Number of records returned |
-| `total_leads` | number | Total leads matching the request |
+| `total_leads` | number | Total leads in the campaign, or leads newly added when importing |
 | `total_stats` | number | Total statistics rows matching the filters |
 | `id` | number | Record ID |
 | `name` | string | Record name |
@@ -582,8 +699,17 @@ Looks up a Smartlead lead by email address and returns the lead record plus ever
 | `reply_count` | number | Replies |
 | `bounce_count` | number | Bounces |
 | `campaign_lead_stats` | json | Lead counts by state |
-| `upload_count` | number | Leads uploaded |
+| `upload_count` | number | Leads submitted in the request |
 | `success` | boolean | Whether the action succeeded |
+| `items` | array | Records returned by Smartlead |
+| `rows` | array | Rows returned by Smartlead |
+| `lists` | array | Lead lists |
+| `summary` | array | Webhook delivery summary rows |
+| `csv` | string | Exported leads as CSV |
+| `row_count` | number | Rows in the exported CSV |
+| `has_more` | boolean | Whether more rows are available |
+| `list_name` | string | Lead list name |
+| `positive_reply_count` | number | Replies categorized as positive |
 
 ### `smartlead_update_lead`
 
@@ -616,7 +742,7 @@ Updates a lead in a Smartlead campaign. Smartlead requires the email field even 
 | `stats` | array | Per-email statistics rows |
 | `history` | array | Lead message history |
 | `count` | number | Number of records returned |
-| `total_leads` | number | Total leads matching the request |
+| `total_leads` | number | Total leads in the campaign, or leads newly added when importing |
 | `total_stats` | number | Total statistics rows matching the filters |
 | `id` | number | Record ID |
 | `name` | string | Record name |
@@ -630,8 +756,17 @@ Updates a lead in a Smartlead campaign. Smartlead requires the email field even 
 | `reply_count` | number | Replies |
 | `bounce_count` | number | Bounces |
 | `campaign_lead_stats` | json | Lead counts by state |
-| `upload_count` | number | Leads uploaded |
+| `upload_count` | number | Leads submitted in the request |
 | `success` | boolean | Whether the action succeeded |
+| `items` | array | Records returned by Smartlead |
+| `rows` | array | Rows returned by Smartlead |
+| `lists` | array | Lead lists |
+| `summary` | array | Webhook delivery summary rows |
+| `csv` | string | Exported leads as CSV |
+| `row_count` | number | Rows in the exported CSV |
+| `has_more` | boolean | Whether more rows are available |
+| `list_name` | string | Lead list name |
+| `positive_reply_count` | number | Replies categorized as positive |
 
 ### `smartlead_update_lead_category`
 
@@ -656,7 +791,7 @@ Sets the category of a lead in a Smartlead campaign, such as Interested or Not I
 | `stats` | array | Per-email statistics rows |
 | `history` | array | Lead message history |
 | `count` | number | Number of records returned |
-| `total_leads` | number | Total leads matching the request |
+| `total_leads` | number | Total leads in the campaign, or leads newly added when importing |
 | `total_stats` | number | Total statistics rows matching the filters |
 | `id` | number | Record ID |
 | `name` | string | Record name |
@@ -670,8 +805,17 @@ Sets the category of a lead in a Smartlead campaign, such as Interested or Not I
 | `reply_count` | number | Replies |
 | `bounce_count` | number | Bounces |
 | `campaign_lead_stats` | json | Lead counts by state |
-| `upload_count` | number | Leads uploaded |
+| `upload_count` | number | Leads submitted in the request |
 | `success` | boolean | Whether the action succeeded |
+| `items` | array | Records returned by Smartlead |
+| `rows` | array | Rows returned by Smartlead |
+| `lists` | array | Lead lists |
+| `summary` | array | Webhook delivery summary rows |
+| `csv` | string | Exported leads as CSV |
+| `row_count` | number | Rows in the exported CSV |
+| `has_more` | boolean | Whether more rows are available |
+| `list_name` | string | Lead list name |
+| `positive_reply_count` | number | Replies categorized as positive |
 
 ### `smartlead_pause_lead`
 
@@ -694,7 +838,7 @@ Pauses a lead in a Smartlead campaign so it stops receiving sequence emails.
 | `stats` | array | Per-email statistics rows |
 | `history` | array | Lead message history |
 | `count` | number | Number of records returned |
-| `total_leads` | number | Total leads matching the request |
+| `total_leads` | number | Total leads in the campaign, or leads newly added when importing |
 | `total_stats` | number | Total statistics rows matching the filters |
 | `id` | number | Record ID |
 | `name` | string | Record name |
@@ -708,8 +852,17 @@ Pauses a lead in a Smartlead campaign so it stops receiving sequence emails.
 | `reply_count` | number | Replies |
 | `bounce_count` | number | Bounces |
 | `campaign_lead_stats` | json | Lead counts by state |
-| `upload_count` | number | Leads uploaded |
+| `upload_count` | number | Leads submitted in the request |
 | `success` | boolean | Whether the action succeeded |
+| `items` | array | Records returned by Smartlead |
+| `rows` | array | Rows returned by Smartlead |
+| `lists` | array | Lead lists |
+| `summary` | array | Webhook delivery summary rows |
+| `csv` | string | Exported leads as CSV |
+| `row_count` | number | Rows in the exported CSV |
+| `has_more` | boolean | Whether more rows are available |
+| `list_name` | string | Lead list name |
+| `positive_reply_count` | number | Replies categorized as positive |
 
 ### `smartlead_resume_lead`
 
@@ -733,7 +886,7 @@ Resumes a paused lead in a Smartlead campaign, optionally after a delay.
 | `stats` | array | Per-email statistics rows |
 | `history` | array | Lead message history |
 | `count` | number | Number of records returned |
-| `total_leads` | number | Total leads matching the request |
+| `total_leads` | number | Total leads in the campaign, or leads newly added when importing |
 | `total_stats` | number | Total statistics rows matching the filters |
 | `id` | number | Record ID |
 | `name` | string | Record name |
@@ -747,8 +900,17 @@ Resumes a paused lead in a Smartlead campaign, optionally after a delay.
 | `reply_count` | number | Replies |
 | `bounce_count` | number | Bounces |
 | `campaign_lead_stats` | json | Lead counts by state |
-| `upload_count` | number | Leads uploaded |
+| `upload_count` | number | Leads submitted in the request |
 | `success` | boolean | Whether the action succeeded |
+| `items` | array | Records returned by Smartlead |
+| `rows` | array | Rows returned by Smartlead |
+| `lists` | array | Lead lists |
+| `summary` | array | Webhook delivery summary rows |
+| `csv` | string | Exported leads as CSV |
+| `row_count` | number | Rows in the exported CSV |
+| `has_more` | boolean | Whether more rows are available |
+| `list_name` | string | Lead list name |
+| `positive_reply_count` | number | Replies categorized as positive |
 
 ### `smartlead_list_lead_categories`
 
@@ -771,7 +933,7 @@ Retrieves the lead categories configured on the Smartlead account, with the cate
 | `stats` | array | Per-email statistics rows |
 | `history` | array | Lead message history |
 | `count` | number | Number of records returned |
-| `total_leads` | number | Total leads matching the request |
+| `total_leads` | number | Total leads in the campaign, or leads newly added when importing |
 | `total_stats` | number | Total statistics rows matching the filters |
 | `id` | number | Record ID |
 | `name` | string | Record name |
@@ -785,8 +947,17 @@ Retrieves the lead categories configured on the Smartlead account, with the cate
 | `reply_count` | number | Replies |
 | `bounce_count` | number | Bounces |
 | `campaign_lead_stats` | json | Lead counts by state |
-| `upload_count` | number | Leads uploaded |
+| `upload_count` | number | Leads submitted in the request |
 | `success` | boolean | Whether the action succeeded |
+| `items` | array | Records returned by Smartlead |
+| `rows` | array | Rows returned by Smartlead |
+| `lists` | array | Lead lists |
+| `summary` | array | Webhook delivery summary rows |
+| `csv` | string | Exported leads as CSV |
+| `row_count` | number | Rows in the exported CSV |
+| `has_more` | boolean | Whether more rows are available |
+| `list_name` | string | Lead list name |
+| `positive_reply_count` | number | Replies categorized as positive |
 
 ### `smartlead_get_lead_message_history`
 
@@ -809,7 +980,7 @@ Retrieves the sent-and-received message history for a lead in a Smartlead campai
 | `stats` | array | Per-email statistics rows |
 | `history` | array | Lead message history |
 | `count` | number | Number of records returned |
-| `total_leads` | number | Total leads matching the request |
+| `total_leads` | number | Total leads in the campaign, or leads newly added when importing |
 | `total_stats` | number | Total statistics rows matching the filters |
 | `id` | number | Record ID |
 | `name` | string | Record name |
@@ -823,8 +994,17 @@ Retrieves the sent-and-received message history for a lead in a Smartlead campai
 | `reply_count` | number | Replies |
 | `bounce_count` | number | Bounces |
 | `campaign_lead_stats` | json | Lead counts by state |
-| `upload_count` | number | Leads uploaded |
+| `upload_count` | number | Leads submitted in the request |
 | `success` | boolean | Whether the action succeeded |
+| `items` | array | Records returned by Smartlead |
+| `rows` | array | Rows returned by Smartlead |
+| `lists` | array | Lead lists |
+| `summary` | array | Webhook delivery summary rows |
+| `csv` | string | Exported leads as CSV |
+| `row_count` | number | Rows in the exported CSV |
+| `has_more` | boolean | Whether more rows are available |
+| `list_name` | string | Lead list name |
+| `positive_reply_count` | number | Replies categorized as positive |
 
 ### `smartlead_list_campaign_webhooks`
 
@@ -847,7 +1027,7 @@ Retrieves the webhooks registered on a Smartlead campaign.
 | `stats` | array | Per-email statistics rows |
 | `history` | array | Lead message history |
 | `count` | number | Number of records returned |
-| `total_leads` | number | Total leads matching the request |
+| `total_leads` | number | Total leads in the campaign, or leads newly added when importing |
 | `total_stats` | number | Total statistics rows matching the filters |
 | `id` | number | Record ID |
 | `name` | string | Record name |
@@ -861,8 +1041,17 @@ Retrieves the webhooks registered on a Smartlead campaign.
 | `reply_count` | number | Replies |
 | `bounce_count` | number | Bounces |
 | `campaign_lead_stats` | json | Lead counts by state |
-| `upload_count` | number | Leads uploaded |
+| `upload_count` | number | Leads submitted in the request |
 | `success` | boolean | Whether the action succeeded |
+| `items` | array | Records returned by Smartlead |
+| `rows` | array | Rows returned by Smartlead |
+| `lists` | array | Lead lists |
+| `summary` | array | Webhook delivery summary rows |
+| `csv` | string | Exported leads as CSV |
+| `row_count` | number | Rows in the exported CSV |
+| `has_more` | boolean | Whether more rows are available |
+| `list_name` | string | Lead list name |
+| `positive_reply_count` | number | Replies categorized as positive |
 
 ### `smartlead_upsert_campaign_webhook`
 
@@ -890,7 +1079,7 @@ Creates a webhook on a Smartlead campaign, or updates an existing one when a web
 | `stats` | array | Per-email statistics rows |
 | `history` | array | Lead message history |
 | `count` | number | Number of records returned |
-| `total_leads` | number | Total leads matching the request |
+| `total_leads` | number | Total leads in the campaign, or leads newly added when importing |
 | `total_stats` | number | Total statistics rows matching the filters |
 | `id` | number | Record ID |
 | `name` | string | Record name |
@@ -904,7 +1093,1220 @@ Creates a webhook on a Smartlead campaign, or updates an existing one when a web
 | `reply_count` | number | Replies |
 | `bounce_count` | number | Bounces |
 | `campaign_lead_stats` | json | Lead counts by state |
-| `upload_count` | number | Leads uploaded |
+| `upload_count` | number | Leads submitted in the request |
 | `success` | boolean | Whether the action succeeded |
+| `items` | array | Records returned by Smartlead |
+| `rows` | array | Rows returned by Smartlead |
+| `lists` | array | Lead lists |
+| `summary` | array | Webhook delivery summary rows |
+| `csv` | string | Exported leads as CSV |
+| `row_count` | number | Rows in the exported CSV |
+| `has_more` | boolean | Whether more rows are available |
+| `list_name` | string | Lead list name |
+| `positive_reply_count` | number | Replies categorized as positive |
+
+### `smartlead_delete_campaign_webhook`
+
+Deletes a webhook from a Smartlead campaign.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookId` | number | Yes | ID of the webhook to delete, from List Campaign Webhooks |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaigns` | array | List of campaigns |
+| `leads` | array | List of leads |
+| `sequences` | array | Email sequence steps |
+| `categories` | array | Lead categories |
+| `webhooks` | array | Campaign webhooks |
+| `stats` | array | Per-email statistics rows |
+| `history` | array | Lead message history |
+| `count` | number | Number of records returned |
+| `total_leads` | number | Total leads in the campaign, or leads newly added when importing |
+| `total_stats` | number | Total statistics rows matching the filters |
+| `id` | number | Record ID |
+| `name` | string | Record name |
+| `status` | string | Campaign status |
+| `email` | string | Lead email address |
+| `webhook_url` | string | Webhook destination URL |
+| `event_types` | array | Webhook event types |
+| `sent_count` | number | Emails sent |
+| `open_count` | number | Email opens |
+| `click_count` | number | Link clicks |
+| `reply_count` | number | Replies |
+| `bounce_count` | number | Bounces |
+| `campaign_lead_stats` | json | Lead counts by state |
+| `upload_count` | number | Leads submitted in the request |
+| `success` | boolean | Whether the action succeeded |
+| `items` | array | Records returned by Smartlead |
+| `rows` | array | Rows returned by Smartlead |
+| `lists` | array | Lead lists |
+| `summary` | array | Webhook delivery summary rows |
+| `csv` | string | Exported leads as CSV |
+| `row_count` | number | Rows in the exported CSV |
+| `has_more` | boolean | Whether more rows are available |
+| `list_name` | string | Lead list name |
+| `positive_reply_count` | number | Replies categorized as positive |
+
+### `smartlead_get_campaign_webhook_summary`
+
+Retrieves webhook delivery counts for a Smartlead campaign over a time window, for checking whether events are reaching their destination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fromTime` | string | Yes | Start of the window as an ISO 8601 timestamp |
+| `toTime` | string | Yes | End of the window as an ISO 8601 timestamp |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaigns` | array | List of campaigns |
+| `leads` | array | List of leads |
+| `sequences` | array | Email sequence steps |
+| `categories` | array | Lead categories |
+| `webhooks` | array | Campaign webhooks |
+| `stats` | array | Per-email statistics rows |
+| `history` | array | Lead message history |
+| `count` | number | Number of records returned |
+| `total_leads` | number | Total leads in the campaign, or leads newly added when importing |
+| `total_stats` | number | Total statistics rows matching the filters |
+| `id` | number | Record ID |
+| `name` | string | Record name |
+| `status` | string | Campaign status |
+| `email` | string | Lead email address |
+| `webhook_url` | string | Webhook destination URL |
+| `event_types` | array | Webhook event types |
+| `sent_count` | number | Emails sent |
+| `open_count` | number | Email opens |
+| `click_count` | number | Link clicks |
+| `reply_count` | number | Replies |
+| `bounce_count` | number | Bounces |
+| `campaign_lead_stats` | json | Lead counts by state |
+| `upload_count` | number | Leads submitted in the request |
+| `success` | boolean | Whether the action succeeded |
+| `items` | array | Records returned by Smartlead |
+| `rows` | array | Rows returned by Smartlead |
+| `lists` | array | Lead lists |
+| `summary` | array | Webhook delivery summary rows |
+| `csv` | string | Exported leads as CSV |
+| `row_count` | number | Rows in the exported CSV |
+| `has_more` | boolean | Whether more rows are available |
+| `list_name` | string | Lead list name |
+| `positive_reply_count` | number | Replies categorized as positive |
+
+### `smartlead_duplicate_campaign`
+
+Copies a Smartlead campaign, including its sequences and settings. The copy is named "<original> - copy" and starts in DRAFTED status.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaigns` | array | List of campaigns |
+| `leads` | array | List of leads |
+| `sequences` | array | Email sequence steps |
+| `categories` | array | Lead categories |
+| `webhooks` | array | Campaign webhooks |
+| `stats` | array | Per-email statistics rows |
+| `history` | array | Lead message history |
+| `count` | number | Number of records returned |
+| `total_leads` | number | Total leads in the campaign, or leads newly added when importing |
+| `total_stats` | number | Total statistics rows matching the filters |
+| `id` | number | Record ID |
+| `name` | string | Record name |
+| `status` | string | Campaign status |
+| `email` | string | Lead email address |
+| `webhook_url` | string | Webhook destination URL |
+| `event_types` | array | Webhook event types |
+| `sent_count` | number | Emails sent |
+| `open_count` | number | Email opens |
+| `click_count` | number | Link clicks |
+| `reply_count` | number | Replies |
+| `bounce_count` | number | Bounces |
+| `campaign_lead_stats` | json | Lead counts by state |
+| `upload_count` | number | Leads submitted in the request |
+| `success` | boolean | Whether the action succeeded |
+| `items` | array | Records returned by Smartlead |
+| `rows` | array | Rows returned by Smartlead |
+| `lists` | array | Lead lists |
+| `summary` | array | Webhook delivery summary rows |
+| `csv` | string | Exported leads as CSV |
+| `row_count` | number | Rows in the exported CSV |
+| `has_more` | boolean | Whether more rows are available |
+| `list_name` | string | Lead list name |
+| `positive_reply_count` | number | Replies categorized as positive |
+
+### `smartlead_delete_campaign`
+
+Permanently deletes a Smartlead campaign along with its sequences, leads, and webhooks. This cannot be undone.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaigns` | array | List of campaigns |
+| `leads` | array | List of leads |
+| `sequences` | array | Email sequence steps |
+| `categories` | array | Lead categories |
+| `webhooks` | array | Campaign webhooks |
+| `stats` | array | Per-email statistics rows |
+| `history` | array | Lead message history |
+| `count` | number | Number of records returned |
+| `total_leads` | number | Total leads in the campaign, or leads newly added when importing |
+| `total_stats` | number | Total statistics rows matching the filters |
+| `id` | number | Record ID |
+| `name` | string | Record name |
+| `status` | string | Campaign status |
+| `email` | string | Lead email address |
+| `webhook_url` | string | Webhook destination URL |
+| `event_types` | array | Webhook event types |
+| `sent_count` | number | Emails sent |
+| `open_count` | number | Email opens |
+| `click_count` | number | Link clicks |
+| `reply_count` | number | Replies |
+| `bounce_count` | number | Bounces |
+| `campaign_lead_stats` | json | Lead counts by state |
+| `upload_count` | number | Leads submitted in the request |
+| `success` | boolean | Whether the action succeeded |
+| `items` | array | Records returned by Smartlead |
+| `rows` | array | Rows returned by Smartlead |
+| `lists` | array | Lead lists |
+| `summary` | array | Webhook delivery summary rows |
+| `csv` | string | Exported leads as CSV |
+| `row_count` | number | Rows in the exported CSV |
+| `has_more` | boolean | Whether more rows are available |
+| `list_name` | string | Lead list name |
+| `positive_reply_count` | number | Replies categorized as positive |
+
+### `smartlead_export_campaign_leads`
+
+Exports every lead in a Smartlead campaign as CSV, including engagement counts and the sequence step last sent to each lead.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaigns` | array | List of campaigns |
+| `leads` | array | List of leads |
+| `sequences` | array | Email sequence steps |
+| `categories` | array | Lead categories |
+| `webhooks` | array | Campaign webhooks |
+| `stats` | array | Per-email statistics rows |
+| `history` | array | Lead message history |
+| `count` | number | Number of records returned |
+| `total_leads` | number | Total leads in the campaign, or leads newly added when importing |
+| `total_stats` | number | Total statistics rows matching the filters |
+| `id` | number | Record ID |
+| `name` | string | Record name |
+| `status` | string | Campaign status |
+| `email` | string | Lead email address |
+| `webhook_url` | string | Webhook destination URL |
+| `event_types` | array | Webhook event types |
+| `sent_count` | number | Emails sent |
+| `open_count` | number | Email opens |
+| `click_count` | number | Link clicks |
+| `reply_count` | number | Replies |
+| `bounce_count` | number | Bounces |
+| `campaign_lead_stats` | json | Lead counts by state |
+| `upload_count` | number | Leads submitted in the request |
+| `success` | boolean | Whether the action succeeded |
+| `items` | array | Records returned by Smartlead |
+| `rows` | array | Rows returned by Smartlead |
+| `lists` | array | Lead lists |
+| `summary` | array | Webhook delivery summary rows |
+| `csv` | string | Exported leads as CSV |
+| `row_count` | number | Rows in the exported CSV |
+| `has_more` | boolean | Whether more rows are available |
+| `list_name` | string | Lead list name |
+| `positive_reply_count` | number | Replies categorized as positive |
+
+### `smartlead_list_campaign_email_accounts`
+
+Retrieves the sending email accounts attached to a Smartlead campaign.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaigns` | array | List of campaigns |
+| `leads` | array | List of leads |
+| `sequences` | array | Email sequence steps |
+| `categories` | array | Lead categories |
+| `webhooks` | array | Campaign webhooks |
+| `stats` | array | Per-email statistics rows |
+| `history` | array | Lead message history |
+| `count` | number | Number of records returned |
+| `total_leads` | number | Total leads in the campaign, or leads newly added when importing |
+| `total_stats` | number | Total statistics rows matching the filters |
+| `id` | number | Record ID |
+| `name` | string | Record name |
+| `status` | string | Campaign status |
+| `email` | string | Lead email address |
+| `webhook_url` | string | Webhook destination URL |
+| `event_types` | array | Webhook event types |
+| `sent_count` | number | Emails sent |
+| `open_count` | number | Email opens |
+| `click_count` | number | Link clicks |
+| `reply_count` | number | Replies |
+| `bounce_count` | number | Bounces |
+| `campaign_lead_stats` | json | Lead counts by state |
+| `upload_count` | number | Leads submitted in the request |
+| `success` | boolean | Whether the action succeeded |
+| `items` | array | Records returned by Smartlead |
+| `rows` | array | Rows returned by Smartlead |
+| `lists` | array | Lead lists |
+| `summary` | array | Webhook delivery summary rows |
+| `csv` | string | Exported leads as CSV |
+| `row_count` | number | Rows in the exported CSV |
+| `has_more` | boolean | Whether more rows are available |
+| `list_name` | string | Lead list name |
+| `positive_reply_count` | number | Replies categorized as positive |
+
+### `smartlead_add_email_accounts_to_campaign`
+
+Attaches sending email accounts to a Smartlead campaign. A campaign needs at least one attached account before it can start.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `emailAccountIds` | array | Yes | IDs of the email accounts to attach, from List Email Accounts |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaigns` | array | List of campaigns |
+| `leads` | array | List of leads |
+| `sequences` | array | Email sequence steps |
+| `categories` | array | Lead categories |
+| `webhooks` | array | Campaign webhooks |
+| `stats` | array | Per-email statistics rows |
+| `history` | array | Lead message history |
+| `count` | number | Number of records returned |
+| `total_leads` | number | Total leads in the campaign, or leads newly added when importing |
+| `total_stats` | number | Total statistics rows matching the filters |
+| `id` | number | Record ID |
+| `name` | string | Record name |
+| `status` | string | Campaign status |
+| `email` | string | Lead email address |
+| `webhook_url` | string | Webhook destination URL |
+| `event_types` | array | Webhook event types |
+| `sent_count` | number | Emails sent |
+| `open_count` | number | Email opens |
+| `click_count` | number | Link clicks |
+| `reply_count` | number | Replies |
+| `bounce_count` | number | Bounces |
+| `campaign_lead_stats` | json | Lead counts by state |
+| `upload_count` | number | Leads submitted in the request |
+| `success` | boolean | Whether the action succeeded |
+| `items` | array | Records returned by Smartlead |
+| `rows` | array | Rows returned by Smartlead |
+| `lists` | array | Lead lists |
+| `summary` | array | Webhook delivery summary rows |
+| `csv` | string | Exported leads as CSV |
+| `row_count` | number | Rows in the exported CSV |
+| `has_more` | boolean | Whether more rows are available |
+| `list_name` | string | Lead list name |
+| `positive_reply_count` | number | Replies categorized as positive |
+
+### `smartlead_remove_email_accounts_from_campaign`
+
+Detaches sending email accounts from a Smartlead campaign.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `emailAccountIds` | array | Yes | IDs of the email accounts to detach |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaigns` | array | List of campaigns |
+| `leads` | array | List of leads |
+| `sequences` | array | Email sequence steps |
+| `categories` | array | Lead categories |
+| `webhooks` | array | Campaign webhooks |
+| `stats` | array | Per-email statistics rows |
+| `history` | array | Lead message history |
+| `count` | number | Number of records returned |
+| `total_leads` | number | Total leads in the campaign, or leads newly added when importing |
+| `total_stats` | number | Total statistics rows matching the filters |
+| `id` | number | Record ID |
+| `name` | string | Record name |
+| `status` | string | Campaign status |
+| `email` | string | Lead email address |
+| `webhook_url` | string | Webhook destination URL |
+| `event_types` | array | Webhook event types |
+| `sent_count` | number | Emails sent |
+| `open_count` | number | Email opens |
+| `click_count` | number | Link clicks |
+| `reply_count` | number | Replies |
+| `bounce_count` | number | Bounces |
+| `campaign_lead_stats` | json | Lead counts by state |
+| `upload_count` | number | Leads submitted in the request |
+| `success` | boolean | Whether the action succeeded |
+| `items` | array | Records returned by Smartlead |
+| `rows` | array | Rows returned by Smartlead |
+| `lists` | array | Lead lists |
+| `summary` | array | Webhook delivery summary rows |
+| `csv` | string | Exported leads as CSV |
+| `row_count` | number | Rows in the exported CSV |
+| `has_more` | boolean | Whether more rows are available |
+| `list_name` | string | Lead list name |
+| `positive_reply_count` | number | Replies categorized as positive |
+
+### `smartlead_list_email_accounts`
+
+Retrieves the sending email accounts on the Smartlead account, including their IDs for attaching to a campaign.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `offset` | number | No | Pagination offset \(default 0\) |
+| `limit` | number | No | Accounts to return per page \(default 100\) |
+| `clientId` | number | No | Only return accounts for this client \(agency accounts\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaigns` | array | List of campaigns |
+| `leads` | array | List of leads |
+| `sequences` | array | Email sequence steps |
+| `categories` | array | Lead categories |
+| `webhooks` | array | Campaign webhooks |
+| `stats` | array | Per-email statistics rows |
+| `history` | array | Lead message history |
+| `count` | number | Number of records returned |
+| `total_leads` | number | Total leads in the campaign, or leads newly added when importing |
+| `total_stats` | number | Total statistics rows matching the filters |
+| `id` | number | Record ID |
+| `name` | string | Record name |
+| `status` | string | Campaign status |
+| `email` | string | Lead email address |
+| `webhook_url` | string | Webhook destination URL |
+| `event_types` | array | Webhook event types |
+| `sent_count` | number | Emails sent |
+| `open_count` | number | Email opens |
+| `click_count` | number | Link clicks |
+| `reply_count` | number | Replies |
+| `bounce_count` | number | Bounces |
+| `campaign_lead_stats` | json | Lead counts by state |
+| `upload_count` | number | Leads submitted in the request |
+| `success` | boolean | Whether the action succeeded |
+| `items` | array | Records returned by Smartlead |
+| `rows` | array | Rows returned by Smartlead |
+| `lists` | array | Lead lists |
+| `summary` | array | Webhook delivery summary rows |
+| `csv` | string | Exported leads as CSV |
+| `row_count` | number | Rows in the exported CSV |
+| `has_more` | boolean | Whether more rows are available |
+| `list_name` | string | Lead list name |
+| `positive_reply_count` | number | Replies categorized as positive |
+
+### `smartlead_get_campaign_lead_statistics`
+
+Retrieves per-lead engagement statistics for a Smartlead campaign.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `limit` | number | No | Rows to return \(default 100\) |
+| `skip` | number | No | Rows to skip \(default 0\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaigns` | array | List of campaigns |
+| `leads` | array | List of leads |
+| `sequences` | array | Email sequence steps |
+| `categories` | array | Lead categories |
+| `webhooks` | array | Campaign webhooks |
+| `stats` | array | Per-email statistics rows |
+| `history` | array | Lead message history |
+| `count` | number | Number of records returned |
+| `total_leads` | number | Total leads in the campaign, or leads newly added when importing |
+| `total_stats` | number | Total statistics rows matching the filters |
+| `id` | number | Record ID |
+| `name` | string | Record name |
+| `status` | string | Campaign status |
+| `email` | string | Lead email address |
+| `webhook_url` | string | Webhook destination URL |
+| `event_types` | array | Webhook event types |
+| `sent_count` | number | Emails sent |
+| `open_count` | number | Email opens |
+| `click_count` | number | Link clicks |
+| `reply_count` | number | Replies |
+| `bounce_count` | number | Bounces |
+| `campaign_lead_stats` | json | Lead counts by state |
+| `upload_count` | number | Leads submitted in the request |
+| `success` | boolean | Whether the action succeeded |
+| `items` | array | Records returned by Smartlead |
+| `rows` | array | Rows returned by Smartlead |
+| `lists` | array | Lead lists |
+| `summary` | array | Webhook delivery summary rows |
+| `csv` | string | Exported leads as CSV |
+| `row_count` | number | Rows in the exported CSV |
+| `has_more` | boolean | Whether more rows are available |
+| `list_name` | string | Lead list name |
+| `positive_reply_count` | number | Replies categorized as positive |
+
+### `smartlead_get_campaign_mailbox_statistics`
+
+Retrieves per-mailbox sending statistics for a Smartlead campaign, for spotting which sending accounts are underperforming.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaigns` | array | List of campaigns |
+| `leads` | array | List of leads |
+| `sequences` | array | Email sequence steps |
+| `categories` | array | Lead categories |
+| `webhooks` | array | Campaign webhooks |
+| `stats` | array | Per-email statistics rows |
+| `history` | array | Lead message history |
+| `count` | number | Number of records returned |
+| `total_leads` | number | Total leads in the campaign, or leads newly added when importing |
+| `total_stats` | number | Total statistics rows matching the filters |
+| `id` | number | Record ID |
+| `name` | string | Record name |
+| `status` | string | Campaign status |
+| `email` | string | Lead email address |
+| `webhook_url` | string | Webhook destination URL |
+| `event_types` | array | Webhook event types |
+| `sent_count` | number | Emails sent |
+| `open_count` | number | Email opens |
+| `click_count` | number | Link clicks |
+| `reply_count` | number | Replies |
+| `bounce_count` | number | Bounces |
+| `campaign_lead_stats` | json | Lead counts by state |
+| `upload_count` | number | Leads submitted in the request |
+| `success` | boolean | Whether the action succeeded |
+| `items` | array | Records returned by Smartlead |
+| `rows` | array | Rows returned by Smartlead |
+| `lists` | array | Lead lists |
+| `summary` | array | Webhook delivery summary rows |
+| `csv` | string | Exported leads as CSV |
+| `row_count` | number | Rows in the exported CSV |
+| `has_more` | boolean | Whether more rows are available |
+| `list_name` | string | Lead list name |
+| `positive_reply_count` | number | Replies categorized as positive |
+
+### `smartlead_get_campaign_top_level_analytics_by_date`
+
+Retrieves top-level Smartlead campaign counts for a date range, including positive replies, skipped, failed, and stopped counts not present in the standard analytics.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `startDate` | string | Yes | Range start date in YYYY-MM-DD format |
+| `endDate` | string | Yes | Range end date in YYYY-MM-DD format |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaigns` | array | List of campaigns |
+| `leads` | array | List of leads |
+| `sequences` | array | Email sequence steps |
+| `categories` | array | Lead categories |
+| `webhooks` | array | Campaign webhooks |
+| `stats` | array | Per-email statistics rows |
+| `history` | array | Lead message history |
+| `count` | number | Number of records returned |
+| `total_leads` | number | Total leads in the campaign, or leads newly added when importing |
+| `total_stats` | number | Total statistics rows matching the filters |
+| `id` | number | Record ID |
+| `name` | string | Record name |
+| `status` | string | Campaign status |
+| `email` | string | Lead email address |
+| `webhook_url` | string | Webhook destination URL |
+| `event_types` | array | Webhook event types |
+| `sent_count` | number | Emails sent |
+| `open_count` | number | Email opens |
+| `click_count` | number | Link clicks |
+| `reply_count` | number | Replies |
+| `bounce_count` | number | Bounces |
+| `campaign_lead_stats` | json | Lead counts by state |
+| `upload_count` | number | Leads submitted in the request |
+| `success` | boolean | Whether the action succeeded |
+| `items` | array | Records returned by Smartlead |
+| `rows` | array | Rows returned by Smartlead |
+| `lists` | array | Lead lists |
+| `summary` | array | Webhook delivery summary rows |
+| `csv` | string | Exported leads as CSV |
+| `row_count` | number | Rows in the exported CSV |
+| `has_more` | boolean | Whether more rows are available |
+| `list_name` | string | Lead list name |
+| `positive_reply_count` | number | Replies categorized as positive |
+
+### `smartlead_list_lead_activities`
+
+Retrieves recent lead activity across Smartlead campaigns — opens, clicks, replies, and status changes.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `campaignId` | number | No | Only return activity for this campaign |
+| `offset` | number | No | Pagination offset \(default 0\) |
+| `limit` | number | No | Rows to return per page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaigns` | array | List of campaigns |
+| `leads` | array | List of leads |
+| `sequences` | array | Email sequence steps |
+| `categories` | array | Lead categories |
+| `webhooks` | array | Campaign webhooks |
+| `stats` | array | Per-email statistics rows |
+| `history` | array | Lead message history |
+| `count` | number | Number of records returned |
+| `total_leads` | number | Total leads in the campaign, or leads newly added when importing |
+| `total_stats` | number | Total statistics rows matching the filters |
+| `id` | number | Record ID |
+| `name` | string | Record name |
+| `status` | string | Campaign status |
+| `email` | string | Lead email address |
+| `webhook_url` | string | Webhook destination URL |
+| `event_types` | array | Webhook event types |
+| `sent_count` | number | Emails sent |
+| `open_count` | number | Email opens |
+| `click_count` | number | Link clicks |
+| `reply_count` | number | Replies |
+| `bounce_count` | number | Bounces |
+| `campaign_lead_stats` | json | Lead counts by state |
+| `upload_count` | number | Leads submitted in the request |
+| `success` | boolean | Whether the action succeeded |
+| `items` | array | Records returned by Smartlead |
+| `rows` | array | Rows returned by Smartlead |
+| `lists` | array | Lead lists |
+| `summary` | array | Webhook delivery summary rows |
+| `csv` | string | Exported leads as CSV |
+| `row_count` | number | Rows in the exported CSV |
+| `has_more` | boolean | Whether more rows are available |
+| `list_name` | string | Lead list name |
+| `positive_reply_count` | number | Replies categorized as positive |
+
+### `smartlead_get_lead_by_id`
+
+Looks up a Smartlead lead by its ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `leadId` | number | Yes | Smartlead lead ID — the nested lead.id from List Campaign Leads, NOT campaign_lead_map_id |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaigns` | array | List of campaigns |
+| `leads` | array | List of leads |
+| `sequences` | array | Email sequence steps |
+| `categories` | array | Lead categories |
+| `webhooks` | array | Campaign webhooks |
+| `stats` | array | Per-email statistics rows |
+| `history` | array | Lead message history |
+| `count` | number | Number of records returned |
+| `total_leads` | number | Total leads in the campaign, or leads newly added when importing |
+| `total_stats` | number | Total statistics rows matching the filters |
+| `id` | number | Record ID |
+| `name` | string | Record name |
+| `status` | string | Campaign status |
+| `email` | string | Lead email address |
+| `webhook_url` | string | Webhook destination URL |
+| `event_types` | array | Webhook event types |
+| `sent_count` | number | Emails sent |
+| `open_count` | number | Email opens |
+| `click_count` | number | Link clicks |
+| `reply_count` | number | Replies |
+| `bounce_count` | number | Bounces |
+| `campaign_lead_stats` | json | Lead counts by state |
+| `upload_count` | number | Leads submitted in the request |
+| `success` | boolean | Whether the action succeeded |
+| `items` | array | Records returned by Smartlead |
+| `rows` | array | Rows returned by Smartlead |
+| `lists` | array | Lead lists |
+| `summary` | array | Webhook delivery summary rows |
+| `csv` | string | Exported leads as CSV |
+| `row_count` | number | Rows in the exported CSV |
+| `has_more` | boolean | Whether more rows are available |
+| `list_name` | string | Lead list name |
+| `positive_reply_count` | number | Replies categorized as positive |
+
+### `smartlead_unsubscribe_lead_from_campaign`
+
+Unsubscribes a lead from a single Smartlead campaign, leaving it active in other campaigns.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaigns` | array | List of campaigns |
+| `leads` | array | List of leads |
+| `sequences` | array | Email sequence steps |
+| `categories` | array | Lead categories |
+| `webhooks` | array | Campaign webhooks |
+| `stats` | array | Per-email statistics rows |
+| `history` | array | Lead message history |
+| `count` | number | Number of records returned |
+| `total_leads` | number | Total leads in the campaign, or leads newly added when importing |
+| `total_stats` | number | Total statistics rows matching the filters |
+| `id` | number | Record ID |
+| `name` | string | Record name |
+| `status` | string | Campaign status |
+| `email` | string | Lead email address |
+| `webhook_url` | string | Webhook destination URL |
+| `event_types` | array | Webhook event types |
+| `sent_count` | number | Emails sent |
+| `open_count` | number | Email opens |
+| `click_count` | number | Link clicks |
+| `reply_count` | number | Replies |
+| `bounce_count` | number | Bounces |
+| `campaign_lead_stats` | json | Lead counts by state |
+| `upload_count` | number | Leads submitted in the request |
+| `success` | boolean | Whether the action succeeded |
+| `items` | array | Records returned by Smartlead |
+| `rows` | array | Rows returned by Smartlead |
+| `lists` | array | Lead lists |
+| `summary` | array | Webhook delivery summary rows |
+| `csv` | string | Exported leads as CSV |
+| `row_count` | number | Rows in the exported CSV |
+| `has_more` | boolean | Whether more rows are available |
+| `list_name` | string | Lead list name |
+| `positive_reply_count` | number | Replies categorized as positive |
+
+### `smartlead_unsubscribe_lead_globally`
+
+Unsubscribes a lead across every Smartlead campaign and adds it to the account-wide unsubscribe list.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `leadId` | number | Yes | Smartlead lead ID — the nested lead.id from List Campaign Leads, NOT campaign_lead_map_id |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaigns` | array | List of campaigns |
+| `leads` | array | List of leads |
+| `sequences` | array | Email sequence steps |
+| `categories` | array | Lead categories |
+| `webhooks` | array | Campaign webhooks |
+| `stats` | array | Per-email statistics rows |
+| `history` | array | Lead message history |
+| `count` | number | Number of records returned |
+| `total_leads` | number | Total leads in the campaign, or leads newly added when importing |
+| `total_stats` | number | Total statistics rows matching the filters |
+| `id` | number | Record ID |
+| `name` | string | Record name |
+| `status` | string | Campaign status |
+| `email` | string | Lead email address |
+| `webhook_url` | string | Webhook destination URL |
+| `event_types` | array | Webhook event types |
+| `sent_count` | number | Emails sent |
+| `open_count` | number | Email opens |
+| `click_count` | number | Link clicks |
+| `reply_count` | number | Replies |
+| `bounce_count` | number | Bounces |
+| `campaign_lead_stats` | json | Lead counts by state |
+| `upload_count` | number | Leads submitted in the request |
+| `success` | boolean | Whether the action succeeded |
+| `items` | array | Records returned by Smartlead |
+| `rows` | array | Rows returned by Smartlead |
+| `lists` | array | Lead lists |
+| `summary` | array | Webhook delivery summary rows |
+| `csv` | string | Exported leads as CSV |
+| `row_count` | number | Rows in the exported CSV |
+| `has_more` | boolean | Whether more rows are available |
+| `list_name` | string | Lead list name |
+| `positive_reply_count` | number | Replies categorized as positive |
+
+### `smartlead_mark_lead_complete`
+
+Marks a lead as completed in a Smartlead campaign so it stops receiving further sequence steps.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `campaignLeadMapId` | number | Yes | The campaign_lead_map_id from List Campaign Leads — this endpoint takes the map ID, NOT lead.id |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaigns` | array | List of campaigns |
+| `leads` | array | List of leads |
+| `sequences` | array | Email sequence steps |
+| `categories` | array | Lead categories |
+| `webhooks` | array | Campaign webhooks |
+| `stats` | array | Per-email statistics rows |
+| `history` | array | Lead message history |
+| `count` | number | Number of records returned |
+| `total_leads` | number | Total leads in the campaign, or leads newly added when importing |
+| `total_stats` | number | Total statistics rows matching the filters |
+| `id` | number | Record ID |
+| `name` | string | Record name |
+| `status` | string | Campaign status |
+| `email` | string | Lead email address |
+| `webhook_url` | string | Webhook destination URL |
+| `event_types` | array | Webhook event types |
+| `sent_count` | number | Emails sent |
+| `open_count` | number | Email opens |
+| `click_count` | number | Link clicks |
+| `reply_count` | number | Replies |
+| `bounce_count` | number | Bounces |
+| `campaign_lead_stats` | json | Lead counts by state |
+| `upload_count` | number | Leads submitted in the request |
+| `success` | boolean | Whether the action succeeded |
+| `items` | array | Records returned by Smartlead |
+| `rows` | array | Rows returned by Smartlead |
+| `lists` | array | Lead lists |
+| `summary` | array | Webhook delivery summary rows |
+| `csv` | string | Exported leads as CSV |
+| `row_count` | number | Rows in the exported CSV |
+| `has_more` | boolean | Whether more rows are available |
+| `list_name` | string | Lead list name |
+| `positive_reply_count` | number | Replies categorized as positive |
+
+### `smartlead_delete_lead_from_campaign`
+
+Removes a lead from a Smartlead campaign. The lead record itself remains on the account.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaigns` | array | List of campaigns |
+| `leads` | array | List of leads |
+| `sequences` | array | Email sequence steps |
+| `categories` | array | Lead categories |
+| `webhooks` | array | Campaign webhooks |
+| `stats` | array | Per-email statistics rows |
+| `history` | array | Lead message history |
+| `count` | number | Number of records returned |
+| `total_leads` | number | Total leads in the campaign, or leads newly added when importing |
+| `total_stats` | number | Total statistics rows matching the filters |
+| `id` | number | Record ID |
+| `name` | string | Record name |
+| `status` | string | Campaign status |
+| `email` | string | Lead email address |
+| `webhook_url` | string | Webhook destination URL |
+| `event_types` | array | Webhook event types |
+| `sent_count` | number | Emails sent |
+| `open_count` | number | Email opens |
+| `click_count` | number | Link clicks |
+| `reply_count` | number | Replies |
+| `bounce_count` | number | Bounces |
+| `campaign_lead_stats` | json | Lead counts by state |
+| `upload_count` | number | Leads submitted in the request |
+| `success` | boolean | Whether the action succeeded |
+| `items` | array | Records returned by Smartlead |
+| `rows` | array | Rows returned by Smartlead |
+| `lists` | array | Lead lists |
+| `summary` | array | Webhook delivery summary rows |
+| `csv` | string | Exported leads as CSV |
+| `row_count` | number | Rows in the exported CSV |
+| `has_more` | boolean | Whether more rows are available |
+| `list_name` | string | Lead list name |
+| `positive_reply_count` | number | Replies categorized as positive |
+
+### `smartlead_list_inbox_replies`
+
+Retrieves replies from the Smartlead master inbox, optionally limited to unread replies or a single campaign.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `unreadOnly` | boolean | No | Return only unread replies |
+| `campaignId` | number | No | Only return replies for this campaign |
+| `offset` | number | No | Pagination offset \(default 0\) |
+| `limit` | number | No | Replies to return per page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaigns` | array | List of campaigns |
+| `leads` | array | List of leads |
+| `sequences` | array | Email sequence steps |
+| `categories` | array | Lead categories |
+| `webhooks` | array | Campaign webhooks |
+| `stats` | array | Per-email statistics rows |
+| `history` | array | Lead message history |
+| `count` | number | Number of records returned |
+| `total_leads` | number | Total leads in the campaign, or leads newly added when importing |
+| `total_stats` | number | Total statistics rows matching the filters |
+| `id` | number | Record ID |
+| `name` | string | Record name |
+| `status` | string | Campaign status |
+| `email` | string | Lead email address |
+| `webhook_url` | string | Webhook destination URL |
+| `event_types` | array | Webhook event types |
+| `sent_count` | number | Emails sent |
+| `open_count` | number | Email opens |
+| `click_count` | number | Link clicks |
+| `reply_count` | number | Replies |
+| `bounce_count` | number | Bounces |
+| `campaign_lead_stats` | json | Lead counts by state |
+| `upload_count` | number | Leads submitted in the request |
+| `success` | boolean | Whether the action succeeded |
+| `items` | array | Records returned by Smartlead |
+| `rows` | array | Rows returned by Smartlead |
+| `lists` | array | Lead lists |
+| `summary` | array | Webhook delivery summary rows |
+| `csv` | string | Exported leads as CSV |
+| `row_count` | number | Rows in the exported CSV |
+| `has_more` | boolean | Whether more rows are available |
+| `list_name` | string | Lead list name |
+| `positive_reply_count` | number | Replies categorized as positive |
+
+### `smartlead_list_lead_lists`
+
+Retrieves the lead lists on the Smartlead account with their lead counts.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `offset` | number | No | Pagination offset \(default 0\) |
+| `limit` | number | No | Lists to return per page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaigns` | array | List of campaigns |
+| `leads` | array | List of leads |
+| `sequences` | array | Email sequence steps |
+| `categories` | array | Lead categories |
+| `webhooks` | array | Campaign webhooks |
+| `stats` | array | Per-email statistics rows |
+| `history` | array | Lead message history |
+| `count` | number | Number of records returned |
+| `total_leads` | number | Total leads in the campaign, or leads newly added when importing |
+| `total_stats` | number | Total statistics rows matching the filters |
+| `id` | number | Record ID |
+| `name` | string | Record name |
+| `status` | string | Campaign status |
+| `email` | string | Lead email address |
+| `webhook_url` | string | Webhook destination URL |
+| `event_types` | array | Webhook event types |
+| `sent_count` | number | Emails sent |
+| `open_count` | number | Email opens |
+| `click_count` | number | Link clicks |
+| `reply_count` | number | Replies |
+| `bounce_count` | number | Bounces |
+| `campaign_lead_stats` | json | Lead counts by state |
+| `upload_count` | number | Leads submitted in the request |
+| `success` | boolean | Whether the action succeeded |
+| `items` | array | Records returned by Smartlead |
+| `rows` | array | Rows returned by Smartlead |
+| `lists` | array | Lead lists |
+| `summary` | array | Webhook delivery summary rows |
+| `csv` | string | Exported leads as CSV |
+| `row_count` | number | Rows in the exported CSV |
+| `has_more` | boolean | Whether more rows are available |
+| `list_name` | string | Lead list name |
+| `positive_reply_count` | number | Replies categorized as positive |
+
+### `smartlead_get_lead_list`
+
+Retrieves a single Smartlead lead list by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `leadListId` | number | Yes | Lead list ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaigns` | array | List of campaigns |
+| `leads` | array | List of leads |
+| `sequences` | array | Email sequence steps |
+| `categories` | array | Lead categories |
+| `webhooks` | array | Campaign webhooks |
+| `stats` | array | Per-email statistics rows |
+| `history` | array | Lead message history |
+| `count` | number | Number of records returned |
+| `total_leads` | number | Total leads in the campaign, or leads newly added when importing |
+| `total_stats` | number | Total statistics rows matching the filters |
+| `id` | number | Record ID |
+| `name` | string | Record name |
+| `status` | string | Campaign status |
+| `email` | string | Lead email address |
+| `webhook_url` | string | Webhook destination URL |
+| `event_types` | array | Webhook event types |
+| `sent_count` | number | Emails sent |
+| `open_count` | number | Email opens |
+| `click_count` | number | Link clicks |
+| `reply_count` | number | Replies |
+| `bounce_count` | number | Bounces |
+| `campaign_lead_stats` | json | Lead counts by state |
+| `upload_count` | number | Leads submitted in the request |
+| `success` | boolean | Whether the action succeeded |
+| `items` | array | Records returned by Smartlead |
+| `rows` | array | Rows returned by Smartlead |
+| `lists` | array | Lead lists |
+| `summary` | array | Webhook delivery summary rows |
+| `csv` | string | Exported leads as CSV |
+| `row_count` | number | Rows in the exported CSV |
+| `has_more` | boolean | Whether more rows are available |
+| `list_name` | string | Lead list name |
+| `positive_reply_count` | number | Replies categorized as positive |
+
+### `smartlead_create_lead_list`
+
+Creates a lead list on the Smartlead account.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `listName` | string | Yes | Name for the new lead list |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaigns` | array | List of campaigns |
+| `leads` | array | List of leads |
+| `sequences` | array | Email sequence steps |
+| `categories` | array | Lead categories |
+| `webhooks` | array | Campaign webhooks |
+| `stats` | array | Per-email statistics rows |
+| `history` | array | Lead message history |
+| `count` | number | Number of records returned |
+| `total_leads` | number | Total leads in the campaign, or leads newly added when importing |
+| `total_stats` | number | Total statistics rows matching the filters |
+| `id` | number | Record ID |
+| `name` | string | Record name |
+| `status` | string | Campaign status |
+| `email` | string | Lead email address |
+| `webhook_url` | string | Webhook destination URL |
+| `event_types` | array | Webhook event types |
+| `sent_count` | number | Emails sent |
+| `open_count` | number | Email opens |
+| `click_count` | number | Link clicks |
+| `reply_count` | number | Replies |
+| `bounce_count` | number | Bounces |
+| `campaign_lead_stats` | json | Lead counts by state |
+| `upload_count` | number | Leads submitted in the request |
+| `success` | boolean | Whether the action succeeded |
+| `items` | array | Records returned by Smartlead |
+| `rows` | array | Rows returned by Smartlead |
+| `lists` | array | Lead lists |
+| `summary` | array | Webhook delivery summary rows |
+| `csv` | string | Exported leads as CSV |
+| `row_count` | number | Rows in the exported CSV |
+| `has_more` | boolean | Whether more rows are available |
+| `list_name` | string | Lead list name |
+| `positive_reply_count` | number | Replies categorized as positive |
+
+### `smartlead_update_lead_list`
+
+Renames a Smartlead lead list.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `leadListId` | number | Yes | Lead list ID to update |
+| `listName` | string | Yes | New name for the lead list |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaigns` | array | List of campaigns |
+| `leads` | array | List of leads |
+| `sequences` | array | Email sequence steps |
+| `categories` | array | Lead categories |
+| `webhooks` | array | Campaign webhooks |
+| `stats` | array | Per-email statistics rows |
+| `history` | array | Lead message history |
+| `count` | number | Number of records returned |
+| `total_leads` | number | Total leads in the campaign, or leads newly added when importing |
+| `total_stats` | number | Total statistics rows matching the filters |
+| `id` | number | Record ID |
+| `name` | string | Record name |
+| `status` | string | Campaign status |
+| `email` | string | Lead email address |
+| `webhook_url` | string | Webhook destination URL |
+| `event_types` | array | Webhook event types |
+| `sent_count` | number | Emails sent |
+| `open_count` | number | Email opens |
+| `click_count` | number | Link clicks |
+| `reply_count` | number | Replies |
+| `bounce_count` | number | Bounces |
+| `campaign_lead_stats` | json | Lead counts by state |
+| `upload_count` | number | Leads submitted in the request |
+| `success` | boolean | Whether the action succeeded |
+| `items` | array | Records returned by Smartlead |
+| `rows` | array | Rows returned by Smartlead |
+| `lists` | array | Lead lists |
+| `summary` | array | Webhook delivery summary rows |
+| `csv` | string | Exported leads as CSV |
+| `row_count` | number | Rows in the exported CSV |
+| `has_more` | boolean | Whether more rows are available |
+| `list_name` | string | Lead list name |
+| `positive_reply_count` | number | Replies categorized as positive |
+
+### `smartlead_delete_lead_list`
+
+Deletes a Smartlead lead list.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `leadListId` | number | Yes | Lead list ID to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaigns` | array | List of campaigns |
+| `leads` | array | List of leads |
+| `sequences` | array | Email sequence steps |
+| `categories` | array | Lead categories |
+| `webhooks` | array | Campaign webhooks |
+| `stats` | array | Per-email statistics rows |
+| `history` | array | Lead message history |
+| `count` | number | Number of records returned |
+| `total_leads` | number | Total leads in the campaign, or leads newly added when importing |
+| `total_stats` | number | Total statistics rows matching the filters |
+| `id` | number | Record ID |
+| `name` | string | Record name |
+| `status` | string | Campaign status |
+| `email` | string | Lead email address |
+| `webhook_url` | string | Webhook destination URL |
+| `event_types` | array | Webhook event types |
+| `sent_count` | number | Emails sent |
+| `open_count` | number | Email opens |
+| `click_count` | number | Link clicks |
+| `reply_count` | number | Replies |
+| `bounce_count` | number | Bounces |
+| `campaign_lead_stats` | json | Lead counts by state |
+| `upload_count` | number | Leads submitted in the request |
+| `success` | boolean | Whether the action succeeded |
+| `items` | array | Records returned by Smartlead |
+| `rows` | array | Rows returned by Smartlead |
+| `lists` | array | Lead lists |
+| `summary` | array | Webhook delivery summary rows |
+| `csv` | string | Exported leads as CSV |
+| `row_count` | number | Rows in the exported CSV |
+| `has_more` | boolean | Whether more rows are available |
+| `list_name` | string | Lead list name |
+| `positive_reply_count` | number | Replies categorized as positive |
+
+### `smartlead_list_clients`
+
+Retrieves the clients on a Smartlead agency account, including the client IDs used to scope campaigns and email accounts.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaigns` | array | List of campaigns |
+| `leads` | array | List of leads |
+| `sequences` | array | Email sequence steps |
+| `categories` | array | Lead categories |
+| `webhooks` | array | Campaign webhooks |
+| `stats` | array | Per-email statistics rows |
+| `history` | array | Lead message history |
+| `count` | number | Number of records returned |
+| `total_leads` | number | Total leads in the campaign, or leads newly added when importing |
+| `total_stats` | number | Total statistics rows matching the filters |
+| `id` | number | Record ID |
+| `name` | string | Record name |
+| `status` | string | Campaign status |
+| `email` | string | Lead email address |
+| `webhook_url` | string | Webhook destination URL |
+| `event_types` | array | Webhook event types |
+| `sent_count` | number | Emails sent |
+| `open_count` | number | Email opens |
+| `click_count` | number | Link clicks |
+| `reply_count` | number | Replies |
+| `bounce_count` | number | Bounces |
+| `campaign_lead_stats` | json | Lead counts by state |
+| `upload_count` | number | Leads submitted in the request |
+| `success` | boolean | Whether the action succeeded |
+| `items` | array | Records returned by Smartlead |
+| `rows` | array | Rows returned by Smartlead |
+| `lists` | array | Lead lists |
+| `summary` | array | Webhook delivery summary rows |
+| `csv` | string | Exported leads as CSV |
+| `row_count` | number | Rows in the exported CSV |
+| `has_more` | boolean | Whether more rows are available |
+| `list_name` | string | Lead list name |
+| `positive_reply_count` | number | Replies categorized as positive |
 
 

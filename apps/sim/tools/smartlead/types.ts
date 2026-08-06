@@ -308,6 +308,100 @@ export interface SmartleadUpsertWebhookResponse extends ToolResponse {
   output: SmartleadSavedWebhook
 }
 
+export interface SmartleadLeadList {
+  id: number | null
+  list_name: string | null
+  created_at: string | null
+  updated_at: string | null
+  leads_count: number | null
+  active_leads_count: number | null
+}
+
+export interface SmartleadDuplicateCampaignResponse extends ToolResponse {
+  output: {
+    success: boolean
+    id: number | null
+  }
+}
+
+export interface SmartleadExportLeadsResponse extends ToolResponse {
+  output: {
+    csv: string
+    row_count: number
+  }
+}
+
+export interface SmartleadOpaqueListResponse extends ToolResponse {
+  output: {
+    items: unknown[]
+    count: number
+  }
+}
+
+export interface SmartleadPaginatedRowsResponse extends ToolResponse {
+  output: {
+    rows: unknown[]
+    count: number
+    has_more: boolean | null
+    offset: number | null
+    limit: number | null
+  }
+}
+
+export interface SmartleadTopLevelAnalyticsResponse extends ToolResponse {
+  output: {
+    id: number | null
+    name: string | null
+    status: string | null
+    start_date: string | null
+    end_date: string | null
+    total_count: number | null
+    sent_count: number | null
+    skipped_count: number | null
+    open_count: number | null
+    click_count: number | null
+    reply_count: number | null
+    positive_reply_count: number | null
+    bounce_count: number | null
+    failed_count: number | null
+    stopped_count: number | null
+    unsubscribed_count: number | null
+  }
+}
+
+export interface SmartleadLeadByIdResponse extends ToolResponse {
+  output: SmartleadLeadDetail
+}
+
+export interface SmartleadMarkCompleteResponse extends ToolResponse {
+  output: {
+    success: boolean
+    is_last_sequence: boolean | null
+    next_sequence: number | null
+  }
+}
+
+export interface SmartleadWebhookSummaryResponse extends ToolResponse {
+  output: {
+    summary: unknown[]
+    count: number
+    from: string | null
+    to: string | null
+  }
+}
+
+export interface SmartleadLeadListsResponse extends ToolResponse {
+  output: {
+    lists: SmartleadLeadList[]
+    total_count: number | null
+    count: number
+  }
+}
+
+export interface SmartleadLeadListResponse extends ToolResponse {
+  output: SmartleadLeadList
+}
+
 export type SmartleadResponse =
   | SmartleadListCampaignsResponse
   | SmartleadCampaignResponse
@@ -325,3 +419,13 @@ export type SmartleadResponse =
   | SmartleadMessageHistoryResponse
   | SmartleadListWebhooksResponse
   | SmartleadUpsertWebhookResponse
+  | SmartleadDuplicateCampaignResponse
+  | SmartleadExportLeadsResponse
+  | SmartleadOpaqueListResponse
+  | SmartleadPaginatedRowsResponse
+  | SmartleadTopLevelAnalyticsResponse
+  | SmartleadLeadByIdResponse
+  | SmartleadMarkCompleteResponse
+  | SmartleadWebhookSummaryResponse
+  | SmartleadLeadListsResponse
+  | SmartleadLeadListResponse

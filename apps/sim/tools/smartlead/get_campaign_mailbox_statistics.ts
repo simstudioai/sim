@@ -1,28 +1,28 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import type {
-  SmartleadCampaignAnalyticsResponse,
   SmartleadCampaignIdParams,
+  SmartleadOpaqueListResponse,
 } from '@/tools/smartlead/types'
 import {
-  campaignAnalyticsOutputs,
-  mapCampaignAnalytics,
+  opaqueListOutputs,
+  opaqueRows,
   pathSegment,
   smartleadBaseParamFields,
   smartleadCampaignIdParamField,
-  smartleadExistingRecord,
   smartleadHeaders,
+  smartleadRecord,
   smartleadUrl,
 } from '@/tools/smartlead/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export const getCampaignAnalyticsTool: ToolConfig<
+export const getCampaignMailboxStatisticsTool: ToolConfig<
   SmartleadCampaignIdParams,
-  SmartleadCampaignAnalyticsResponse
+  SmartleadOpaqueListResponse
 > = {
-  id: 'smartlead_get_campaign_analytics',
-  name: 'Smartlead Get Campaign Analytics',
+  id: 'smartlead_get_campaign_mailbox_statistics',
+  name: 'Smartlead Get Campaign Mailbox Statistics',
   description:
-    'Retrieves lifetime performance totals for a Smartlead campaign — sends, opens, clicks, replies, bounces, and lead counts by state.',
+    'Retrieves per-mailbox sending statistics for a Smartlead campaign, for spotting which sending accounts are underperforming.',
   version: '1.0.0',
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {
@@ -31,17 +31,21 @@ export const getCampaignAnalyticsTool: ToolConfig<
   },
   request: {
     url: (params) =>
-      smartleadUrl(`/campaigns/${pathSegment(params.campaignId)}/analytics`, params.apiKey),
+      smartleadUrl(
+        `/campaigns/${pathSegment(params.campaignId)}/mailbox-statistics`,
+        params.apiKey
+      ),
     method: 'GET',
     headers: smartleadHeaders,
   },
   transformResponse: async (response) => {
-    const record = await smartleadExistingRecord(response, 'campaign')
+    const record = await smartleadRecord(response, 'mailbox statistics')
+    const items = opaqueRows(record.data)
 
     return {
       success: true,
-      output: mapCampaignAnalytics(record),
+      output: { items, count: items.length },
     }
   },
-  outputs: campaignAnalyticsOutputs,
+  outputs: opaqueListOutputs,
 }

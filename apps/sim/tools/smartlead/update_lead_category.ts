@@ -4,6 +4,7 @@ import {
   actionOutputs,
   isOk,
   jsonBody,
+  pathSegment,
   smartleadBaseParamFields,
   smartleadCampaignIdParamField,
   smartleadHeaders,
@@ -46,7 +47,7 @@ export const updateLeadCategoryTool: ToolConfig<UpdateLeadCategoryParams, Smartl
     request: {
       url: (params) =>
         smartleadUrl(
-          `/campaigns/${params.campaignId}/leads/${params.leadId}/category`,
+          `/campaigns/${pathSegment(params.campaignId)}/leads/${pathSegment(params.leadId)}/category`,
           params.apiKey
         ),
       method: 'POST',

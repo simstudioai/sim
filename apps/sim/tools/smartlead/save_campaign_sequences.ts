@@ -7,6 +7,7 @@ import type {
 import {
   isOk,
   mapSavedSequence,
+  pathSegment,
   saveSequencesOutputs,
   smartleadBaseParamFields,
   smartleadCampaignIdParamField,
@@ -42,6 +43,7 @@ function toSequencePayload(value: unknown, index: number): Record<string, unknow
   }
 
   if (record.id !== undefined) payload.id = record.id
+  if (record.variant_label !== undefined) payload.variant_label = record.variant_label
   if (record.sequence_variants !== undefined) {
     payload.sequence_variants = record.sequence_variants
   }
@@ -75,7 +77,8 @@ export const saveCampaignSequencesTool: ToolConfig<
     },
   },
   request: {
-    url: (params) => smartleadUrl(`/campaigns/${params.campaignId}/sequences`, params.apiKey),
+    url: (params) =>
+      smartleadUrl(`/campaigns/${pathSegment(params.campaignId)}/sequences`, params.apiKey),
     method: 'POST',
     headers: smartleadHeaders,
     body: (params) => ({

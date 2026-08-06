@@ -5,6 +5,7 @@ import type {
 } from '@/tools/smartlead/types'
 import {
   mapSavedWebhook,
+  pathSegment,
   SMARTLEAD_WEBHOOK_EVENT_TYPES,
   smartleadBaseParamFields,
   smartleadCampaignIdParamField,
@@ -71,7 +72,8 @@ export const upsertCampaignWebhookTool: ToolConfig<
     },
   },
   request: {
-    url: (params) => smartleadUrl(`/campaigns/${params.campaignId}/webhooks`, params.apiKey),
+    url: (params) =>
+      smartleadUrl(`/campaigns/${pathSegment(params.campaignId)}/webhooks`, params.apiKey),
     method: 'POST',
     headers: smartleadHeaders,
     body: (params) => ({

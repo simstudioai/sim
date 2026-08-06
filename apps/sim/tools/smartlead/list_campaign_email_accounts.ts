@@ -1,11 +1,10 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import type {
   SmartleadCampaignIdParams,
-  SmartleadListWebhooksResponse,
+  SmartleadOpaqueListResponse,
 } from '@/tools/smartlead/types'
 import {
-  listWebhooksOutputs,
-  mapWebhook,
+  opaqueListOutputs,
   pathSegment,
   smartleadArray,
   smartleadBaseParamFields,
@@ -15,13 +14,13 @@ import {
 } from '@/tools/smartlead/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export const listCampaignWebhooksTool: ToolConfig<
+export const listCampaignEmailAccountsTool: ToolConfig<
   SmartleadCampaignIdParams,
-  SmartleadListWebhooksResponse
+  SmartleadOpaqueListResponse
 > = {
-  id: 'smartlead_list_campaign_webhooks',
-  name: 'Smartlead List Campaign Webhooks',
-  description: 'Retrieves the webhooks registered on a Smartlead campaign.',
+  id: 'smartlead_list_campaign_email_accounts',
+  name: 'Smartlead List Campaign Email Accounts',
+  description: 'Retrieves the sending email accounts attached to a Smartlead campaign.',
   version: '1.0.0',
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {
@@ -30,21 +29,17 @@ export const listCampaignWebhooksTool: ToolConfig<
   },
   request: {
     url: (params) =>
-      smartleadUrl(`/campaigns/${pathSegment(params.campaignId)}/webhooks`, params.apiKey),
+      smartleadUrl(`/campaigns/${pathSegment(params.campaignId)}/email-accounts`, params.apiKey),
     method: 'GET',
     headers: smartleadHeaders,
   },
   transformResponse: async (response) => {
-    const data = await smartleadArray(response, 'webhooks')
-    const webhooks = data.map(mapWebhook)
+    const items = await smartleadArray(response, 'campaign email accounts')
 
     return {
       success: true,
-      output: {
-        webhooks,
-        count: webhooks.length,
-      },
+      output: { items, count: items.length },
     }
   },
-  outputs: listWebhooksOutputs,
+  outputs: opaqueListOutputs,
 }

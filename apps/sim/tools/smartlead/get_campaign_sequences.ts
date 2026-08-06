@@ -2,6 +2,7 @@ import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { SmartleadCampaignIdParams, SmartleadSequencesResponse } from '@/tools/smartlead/types'
 import {
   mapSequence,
+  pathSegment,
   sequenceOutputs,
   smartleadArray,
   smartleadBaseParamFields,
@@ -26,7 +27,8 @@ export const getCampaignSequencesTool: ToolConfig<
     ...smartleadCampaignIdParamField,
   },
   request: {
-    url: (params) => smartleadUrl(`/campaigns/${params.campaignId}/sequences`, params.apiKey),
+    url: (params) =>
+      smartleadUrl(`/campaigns/${pathSegment(params.campaignId)}/sequences`, params.apiKey),
     method: 'GET',
     headers: smartleadHeaders,
   },

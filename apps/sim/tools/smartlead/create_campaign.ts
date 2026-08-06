@@ -3,6 +3,7 @@ import type { SmartleadBaseParams, SmartleadCreateCampaignResponse } from '@/too
 import {
   createCampaignOutputs,
   jsonBody,
+  mapCreatedCampaign,
   smartleadBaseParamFields,
   smartleadHeaders,
   smartleadRecord,
@@ -53,11 +54,7 @@ export const createCampaignTool: ToolConfig<CreateCampaignParams, SmartleadCreat
 
       return {
         success: true,
-        output: {
-          id: typeof record.id === 'number' ? record.id : Number(record.id) || null,
-          name: typeof record.name === 'string' ? record.name : null,
-          created_at: typeof record.created_at === 'string' ? record.created_at : null,
-        },
+        output: mapCreatedCampaign(record),
       }
     },
     outputs: createCampaignOutputs,

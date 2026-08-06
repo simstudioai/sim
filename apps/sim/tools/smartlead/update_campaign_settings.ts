@@ -4,6 +4,7 @@ import {
   actionOutputs,
   isOk,
   jsonBody,
+  pathSegment,
   SMARTLEAD_STOP_LEAD_SETTINGS,
   SMARTLEAD_TRACK_SETTINGS,
   smartleadBaseParamFields,
@@ -74,7 +75,8 @@ export const updateCampaignSettingsTool: ToolConfig<
     },
   },
   request: {
-    url: (params) => smartleadUrl(`/campaigns/${params.campaignId}/settings`, params.apiKey),
+    url: (params) =>
+      smartleadUrl(`/campaigns/${pathSegment(params.campaignId)}/settings`, params.apiKey),
     method: 'POST',
     headers: smartleadHeaders,
     body: (params) =>

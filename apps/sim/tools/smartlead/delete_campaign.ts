@@ -1,21 +1,22 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
-import type { SmartleadCampaignIdParams, SmartleadCampaignResponse } from '@/tools/smartlead/types'
+import type { SmartleadActionResponse, SmartleadCampaignIdParams } from '@/tools/smartlead/types'
 import {
-  campaignOutputs,
-  mapCampaign,
+  actionOutputs,
+  isOk,
   pathSegment,
   smartleadBaseParamFields,
   smartleadCampaignIdParamField,
-  smartleadExistingRecord,
   smartleadHeaders,
+  smartleadRecord,
   smartleadUrl,
 } from '@/tools/smartlead/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export const getCampaignTool: ToolConfig<SmartleadCampaignIdParams, SmartleadCampaignResponse> = {
-  id: 'smartlead_get_campaign',
-  name: 'Smartlead Get Campaign',
-  description: 'Retrieves a single Smartlead campaign by ID.',
+export const deleteCampaignTool: ToolConfig<SmartleadCampaignIdParams, SmartleadActionResponse> = {
+  id: 'smartlead_delete_campaign',
+  name: 'Smartlead Delete Campaign',
+  description:
+    'Permanently deletes a Smartlead campaign along with its sequences, leads, and webhooks. This cannot be undone.',
   version: '1.0.0',
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {
@@ -24,16 +25,16 @@ export const getCampaignTool: ToolConfig<SmartleadCampaignIdParams, SmartleadCam
   },
   request: {
     url: (params) => smartleadUrl(`/campaigns/${pathSegment(params.campaignId)}`, params.apiKey),
-    method: 'GET',
+    method: 'DELETE',
     headers: smartleadHeaders,
   },
   transformResponse: async (response) => {
-    const record = await smartleadExistingRecord(response, 'campaign')
+    const record = await smartleadRecord(response, 'campaign delete')
 
     return {
       success: true,
-      output: mapCampaign(record),
+      output: { success: isOk(record) },
     }
   },
-  outputs: campaignOutputs,
+  outputs: actionOutputs,
 }

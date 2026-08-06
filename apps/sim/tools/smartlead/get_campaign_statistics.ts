@@ -5,6 +5,7 @@ import type {
 } from '@/tools/smartlead/types'
 import {
   campaignStatisticsOutputs,
+  pathSegment,
   SMARTLEAD_EMAIL_STATUSES,
   smartleadBaseParamFields,
   smartleadCampaignIdParamField,
@@ -75,7 +76,7 @@ export const getCampaignStatisticsTool: ToolConfig<
   },
   request: {
     url: (params) =>
-      smartleadUrl(`/campaigns/${params.campaignId}/statistics`, params.apiKey, {
+      smartleadUrl(`/campaigns/${pathSegment(params.campaignId)}/statistics`, params.apiKey, {
         offset: params.offset,
         limit: params.limit,
         email_sequence_number: params.emailSequenceNumber,

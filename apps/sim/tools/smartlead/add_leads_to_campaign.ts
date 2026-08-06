@@ -5,6 +5,7 @@ import {
   addLeadsOutputs,
   jsonBody,
   mapLeadImportResult,
+  pathSegment,
   smartleadBaseParamFields,
   smartleadCampaignIdParamField,
   smartleadHeaders,
@@ -95,7 +96,8 @@ export const addLeadsToCampaignTool: ToolConfig<
     },
   },
   request: {
-    url: (params) => smartleadUrl(`/campaigns/${params.campaignId}/leads`, params.apiKey),
+    url: (params) =>
+      smartleadUrl(`/campaigns/${pathSegment(params.campaignId)}/leads`, params.apiKey),
     method: 'POST',
     headers: smartleadHeaders,
     body: (params) => ({

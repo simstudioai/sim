@@ -6,6 +6,7 @@ import type {
 import {
   listCampaignLeadsOutputs,
   mapCampaignLead,
+  pathSegment,
   smartleadBaseParamFields,
   smartleadCampaignIdParamField,
   smartleadHeaders,
@@ -46,7 +47,7 @@ export const listCampaignLeadsTool: ToolConfig<
   },
   request: {
     url: (params) =>
-      smartleadUrl(`/campaigns/${params.campaignId}/leads`, params.apiKey, {
+      smartleadUrl(`/campaigns/${pathSegment(params.campaignId)}/leads`, params.apiKey, {
         offset: params.offset,
         limit: params.limit,
       }),

@@ -11,6 +11,7 @@ import type {
   SmartleadLeadCategory,
   SmartleadLeadDetail,
   SmartleadLeadImportResult,
+  SmartleadLeadList,
   SmartleadSavedSequence,
   SmartleadSavedWebhook,
   SmartleadSchedulerCron,
@@ -84,7 +85,8 @@ export const smartleadLeadIdParamField = {
     type: 'number',
     required: true,
     visibility: 'user-or-llm',
-    description: 'Smartlead lead ID',
+    description:
+      'Smartlead lead ID — the nested lead.id from List Campaign Leads, NOT campaign_lead_map_id',
   },
 } satisfies ToolConfig['params']
 
@@ -116,6 +118,11 @@ export function jsonBody(fields: Record<string, unknown>): Record<string, unknow
   return filterUndefined(fields)
 }
 
+/** Trims and escapes a path id so an LLM-supplied `"123 "` cannot produce a 404. */
+export function pathSegment(value: string | number): string {
+  return encodeURIComponent(String(value).trim())
+}
+
 async function readJson(response: Response): Promise<unknown> {
   const text = await response.text()
   if (!text) return null
@@ -142,6 +149,30 @@ export async function smartleadRecord(
   if (!isRecordLike(payload)) {
     throw new Error(`Smartlead did not return a valid ${label} object`)
   }
+  return payload
+}
+
+/**
+ * Reads a record for a lookup that must resolve to a real resource.
+ *
+ * Smartlead answers HTTP 200 with `{}` — or a zero-byte body — when a campaign or
+ * lead does not exist, so a missing resource has to be rejected here. Mapping it
+ * would otherwise produce an all-null payload reported as a success.
+ */
+export async function smartleadExistingRecord(
+  response: Response,
+  label: string,
+  identifyingKeys: readonly string[] = ['id']
+): Promise<Record<string, unknown>> {
+  const payload = await readJson(response)
+  if (payload === null) throw new Error(`Smartlead ${label} not found`)
+  if (!isRecordLike(payload)) {
+    throw new Error(`Smartlead did not return a valid ${label} object`)
+  }
+  const identified = identifyingKeys.some(
+    (key) => payload[key] !== undefined && payload[key] !== null && payload[key] !== ''
+  )
+  if (!identified) throw new Error(`Smartlead ${label} not found`)
   return payload
 }
 
@@ -419,19 +450,59 @@ export function isOk(record: Record<string, unknown>): boolean {
   return record.ok === true
 }
 
-export function parseCommaSeparated(value: unknown): string[] | undefined {
-  if (Array.isArray(value)) {
-    const items = value.map((item) => String(item).trim()).filter((item) => item !== '')
-    return items.length > 0 ? items : undefined
+export function mapLeadList(value: unknown): SmartleadLeadList {
+  const record = toRecord(value)
+
+  return {
+    id: toNullableNumber(record.id),
+    list_name: toStringOrNull(record.list_name),
+    created_at: toStringOrNull(record.created_at),
+    updated_at: toStringOrNull(record.updated_at),
+    leads_count: toNullableNumber(record.leads_count),
+    active_leads_count: toNullableNumber(record.active_leads_count),
   }
-  if (typeof value !== 'string' || value.trim() === '') return undefined
+}
 
-  const items = value
-    .split(',')
-    .map((item) => item.trim())
-    .filter((item) => item !== '')
+export function mapTopLevelAnalytics(record: Record<string, unknown>) {
+  return {
+    id: toNullableNumber(record.id),
+    name: toStringOrNull(record.name),
+    status: toStringOrNull(record.status),
+    start_date: toStringOrNull(record.start_date),
+    end_date: toStringOrNull(record.end_date),
+    total_count: toNullableNumber(record.total_count),
+    sent_count: toNullableNumber(record.sent_count),
+    skipped_count: toNullableNumber(record.skipped_count),
+    open_count: toNullableNumber(record.open_count),
+    click_count: toNullableNumber(record.click_count),
+    reply_count: toNullableNumber(record.reply_count),
+    positive_reply_count: toNullableNumber(record.positive_reply_count),
+    bounce_count: toNullableNumber(record.bounce_count),
+    failed_count: toNullableNumber(record.failed_count),
+    stopped_count: toNullableNumber(record.stopped_count),
+    unsubscribed_count: toNullableNumber(record.unsubscribed_count),
+  }
+}
 
-  return items.length > 0 ? items : undefined
+/**
+ * Several list endpoints only ever returned an empty collection on the account
+ * used to verify this integration, so their rows are passed through untouched
+ * rather than mapped against field names that were never observed.
+ */
+export function opaqueRows(value: unknown): unknown[] {
+  return toArray(value)
+}
+
+export function mapCreatedCampaign(record: Record<string, unknown>): {
+  id: number | null
+  name: string | null
+  created_at: string | null
+} {
+  return {
+    id: toNullableNumber(record.id),
+    name: toStringOrNull(record.name),
+    created_at: toStringOrNull(record.created_at),
+  }
 }
 
 function toRecord(value: unknown): Record<string, unknown> {
@@ -784,3 +855,95 @@ export const listWebhooksOutputs = {
 } satisfies NonNullable<ToolConfig['outputs']>
 
 export const upsertWebhookOutputs = webhookProperties satisfies NonNullable<ToolConfig['outputs']>
+
+export const duplicateCampaignOutputs = {
+  success: { type: 'boolean', description: 'Whether Smartlead duplicated the campaign' },
+  id: { type: 'number', description: 'ID of the newly created campaign' },
+} satisfies NonNullable<ToolConfig['outputs']>
+
+export const exportLeadsOutputs = {
+  csv: {
+    type: 'string',
+    description:
+      'Campaign leads as CSV. Columns: id, campaign_lead_map_id, status, category, is_interested, created_at, first_name, last_name, email, phone_number, company_name, website, location, custom_fields, linkedin_profile, company_url, is_unsubscribed, unsubscribed_client_id_map, last_email_sequence_sent, open_count, click_count, reply_count.',
+  },
+  row_count: { type: 'number', description: 'Number of data rows in the CSV' },
+} satisfies NonNullable<ToolConfig['outputs']>
+
+/** Rows are passed through unmapped — see `opaqueRows`. */
+export const opaqueListOutputs = {
+  items: { type: 'array', description: 'Records returned by Smartlead, passed through unchanged' },
+  count: { type: 'number', description: 'Number of records returned' },
+} satisfies NonNullable<ToolConfig['outputs']>
+
+export const paginatedRowsOutputs = {
+  rows: { type: 'array', description: 'Rows returned by Smartlead, passed through unchanged' },
+  count: { type: 'number', description: 'Number of rows returned in this page' },
+  has_more: { type: 'boolean', description: 'Whether more rows are available', optional: true },
+  offset: { type: 'number', description: 'Pagination offset used', optional: true },
+  limit: { type: 'number', description: 'Pagination limit used', optional: true },
+} satisfies NonNullable<ToolConfig['outputs']>
+
+export const topLevelAnalyticsOutputs = {
+  id: { type: 'number', description: 'Campaign ID' },
+  name: { type: 'string', description: 'Campaign name' },
+  status: { type: 'string', description: 'Campaign status' },
+  start_date: { type: 'string', description: 'Start of the reported range' },
+  end_date: { type: 'string', description: 'End of the reported range' },
+  total_count: { type: 'number', description: 'Total emails in the range' },
+  sent_count: { type: 'number', description: 'Emails sent' },
+  skipped_count: { type: 'number', description: 'Emails skipped' },
+  open_count: { type: 'number', description: 'Email opens' },
+  click_count: { type: 'number', description: 'Link clicks' },
+  reply_count: { type: 'number', description: 'Replies' },
+  positive_reply_count: { type: 'number', description: 'Replies categorized as positive' },
+  bounce_count: { type: 'number', description: 'Bounces' },
+  failed_count: { type: 'number', description: 'Failed sends' },
+  stopped_count: { type: 'number', description: 'Stopped leads' },
+  unsubscribed_count: { type: 'number', description: 'Unsubscribes' },
+} satisfies NonNullable<ToolConfig['outputs']>
+
+export const markCompleteOutputs = {
+  success: { type: 'boolean', description: 'Whether the lead was marked complete' },
+  is_last_sequence: {
+    type: 'boolean',
+    description: 'Whether the lead was on the final sequence step',
+    optional: true,
+  },
+  next_sequence: {
+    type: 'number',
+    description: 'Next sequence step, or null when none remains',
+    optional: true,
+  },
+} satisfies NonNullable<ToolConfig['outputs']>
+
+export const webhookSummaryOutputs = {
+  summary: {
+    type: 'array',
+    description: 'Per-webhook delivery summary rows, passed through unchanged',
+  },
+  count: { type: 'number', description: 'Number of summary rows returned' },
+  from: { type: 'string', description: 'Start of the reported window', optional: true },
+  to: { type: 'string', description: 'End of the reported window', optional: true },
+} satisfies NonNullable<ToolConfig['outputs']>
+
+const leadListProperties = {
+  id: { type: 'number', description: 'Lead list ID' },
+  list_name: { type: 'string', description: 'Lead list name' },
+  created_at: { type: 'string', description: 'Creation timestamp', optional: true },
+  updated_at: { type: 'string', description: 'Last update timestamp', optional: true },
+  leads_count: { type: 'number', description: 'Leads in the list', optional: true },
+  active_leads_count: { type: 'number', description: 'Active leads in the list', optional: true },
+} satisfies Record<string, OutputProperty>
+
+export const leadListsOutputs = {
+  lists: {
+    type: 'array',
+    description: 'Lead lists on the account',
+    items: { type: 'object', properties: leadListProperties },
+  },
+  total_count: { type: 'number', description: 'Total lead lists on the account', optional: true },
+  count: { type: 'number', description: 'Number of lead lists returned' },
+} satisfies NonNullable<ToolConfig['outputs']>
+
+export const leadListOutputs = leadListProperties satisfies NonNullable<ToolConfig['outputs']>

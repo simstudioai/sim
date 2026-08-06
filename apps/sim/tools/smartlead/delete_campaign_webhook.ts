@@ -4,7 +4,6 @@ import {
   actionOutputs,
   isOk,
   pathSegment,
-  SMARTLEAD_CAMPAIGN_STATUSES,
   smartleadBaseParamFields,
   smartleadCampaignIdParamField,
   smartleadHeaders,
@@ -13,39 +12,39 @@ import {
 } from '@/tools/smartlead/utils'
 import type { ToolConfig } from '@/tools/types'
 
-interface UpdateCampaignStatusParams extends SmartleadCampaignIdParams {
-  status: (typeof SMARTLEAD_CAMPAIGN_STATUSES)[number]
+interface DeleteCampaignWebhookParams extends SmartleadCampaignIdParams {
+  webhookId: number
 }
 
-export const updateCampaignStatusTool: ToolConfig<
-  UpdateCampaignStatusParams,
+export const deleteCampaignWebhookTool: ToolConfig<
+  DeleteCampaignWebhookParams,
   SmartleadActionResponse
 > = {
-  id: 'smartlead_update_campaign_status',
-  name: 'Smartlead Update Campaign Status',
-  description:
-    'Starts, pauses, or stops a Smartlead campaign. START requires the campaign to already have a schedule, sequences, and at least one email account.',
+  id: 'smartlead_delete_campaign_webhook',
+  name: 'Smartlead Delete Campaign Webhook',
+  description: 'Deletes a webhook from a Smartlead campaign.',
   version: '1.0.0',
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {
     ...smartleadBaseParamFields,
     ...smartleadCampaignIdParamField,
-    status: {
-      type: 'string',
+    webhookId: {
+      type: 'number',
       required: true,
       visibility: 'user-or-llm',
-      description: `Target status: ${SMARTLEAD_CAMPAIGN_STATUSES.join(', ')}`,
+      description: 'ID of the webhook to delete, from List Campaign Webhooks',
     },
   },
   request: {
+    // Smartlead takes the webhook id in the body here, not the path.
     url: (params) =>
-      smartleadUrl(`/campaigns/${pathSegment(params.campaignId)}/status`, params.apiKey),
-    method: 'POST',
+      smartleadUrl(`/campaigns/${pathSegment(params.campaignId)}/webhooks`, params.apiKey),
+    method: 'DELETE',
     headers: smartleadHeaders,
-    body: (params) => ({ status: params.status }),
+    body: (params) => ({ id: params.webhookId }),
   },
   transformResponse: async (response) => {
-    const record = await smartleadRecord(response, 'status update')
+    const record = await smartleadRecord(response, 'webhook delete')
 
     return {
       success: true,

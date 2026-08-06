@@ -5,6 +5,7 @@ import type {
 } from '@/tools/smartlead/types'
 import {
   messageHistoryOutputs,
+  pathSegment,
   smartleadBaseParamFields,
   smartleadCampaignIdParamField,
   smartleadHeaders,
@@ -32,7 +33,7 @@ export const getLeadMessageHistoryTool: ToolConfig<
   request: {
     url: (params) =>
       smartleadUrl(
-        `/campaigns/${params.campaignId}/leads/${params.leadId}/message-history`,
+        `/campaigns/${pathSegment(params.campaignId)}/leads/${pathSegment(params.leadId)}/message-history`,
         params.apiKey
       ),
     method: 'GET',

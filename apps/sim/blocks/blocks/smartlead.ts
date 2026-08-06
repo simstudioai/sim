@@ -22,6 +22,20 @@ const CAMPAIGN_ID_OPERATIONS = [
   'get_lead_message_history',
   'list_campaign_webhooks',
   'upsert_campaign_webhook',
+  'delete_campaign_webhook',
+  'get_campaign_webhook_summary',
+  'duplicate_campaign',
+  'delete_campaign',
+  'export_campaign_leads',
+  'list_campaign_email_accounts',
+  'add_email_accounts_to_campaign',
+  'remove_email_accounts_from_campaign',
+  'get_campaign_lead_statistics',
+  'get_campaign_mailbox_statistics',
+  'get_campaign_top_level_analytics_by_date',
+  'unsubscribe_lead_from_campaign',
+  'mark_lead_complete',
+  'delete_lead_from_campaign',
 ] as const
 
 const LEAD_ID_OPERATIONS = [
@@ -30,6 +44,32 @@ const LEAD_ID_OPERATIONS = [
   'pause_lead',
   'resume_lead',
   'get_lead_message_history',
+  'unsubscribe_lead_from_campaign',
+  'delete_lead_from_campaign',
+  'get_lead_by_id',
+  'unsubscribe_lead_globally',
+] as const
+
+const LEAD_LIST_ID_OPERATIONS = ['get_lead_list', 'update_lead_list', 'delete_lead_list'] as const
+
+const DATE_RANGE_OPERATIONS = [
+  'get_campaign_analytics_by_date',
+  'get_campaign_top_level_analytics_by_date',
+] as const
+
+const PAGINATED_OPERATIONS = [
+  'list_campaign_leads',
+  'get_campaign_statistics',
+  'get_campaign_lead_statistics',
+  'list_lead_activities',
+  'list_inbox_replies',
+  'list_email_accounts',
+  'list_lead_lists',
+] as const
+
+const EMAIL_ACCOUNT_ID_OPERATIONS = [
+  'add_email_accounts_to_campaign',
+  'remove_email_accounts_from_campaign',
 ] as const
 
 export const SmartleadBlock: BlockConfig<SmartleadResponse> = {
@@ -72,6 +112,37 @@ export const SmartleadBlock: BlockConfig<SmartleadResponse> = {
         { label: 'Get Lead Message History', id: 'get_lead_message_history' },
         { label: 'List Campaign Webhooks', id: 'list_campaign_webhooks' },
         { label: 'Create or Update Webhook', id: 'upsert_campaign_webhook' },
+        { label: 'Delete Campaign Webhook', id: 'delete_campaign_webhook' },
+        { label: 'Get Webhook Summary', id: 'get_campaign_webhook_summary' },
+        { label: 'Duplicate Campaign', id: 'duplicate_campaign' },
+        { label: 'Delete Campaign', id: 'delete_campaign' },
+        { label: 'Export Campaign Leads (CSV)', id: 'export_campaign_leads' },
+        { label: 'List Campaign Email Accounts', id: 'list_campaign_email_accounts' },
+        { label: 'Add Email Accounts to Campaign', id: 'add_email_accounts_to_campaign' },
+        {
+          label: 'Remove Email Accounts from Campaign',
+          id: 'remove_email_accounts_from_campaign',
+        },
+        { label: 'List Email Accounts', id: 'list_email_accounts' },
+        { label: 'Get Campaign Lead Statistics', id: 'get_campaign_lead_statistics' },
+        { label: 'Get Campaign Mailbox Statistics', id: 'get_campaign_mailbox_statistics' },
+        {
+          label: 'Get Top-Level Analytics by Date',
+          id: 'get_campaign_top_level_analytics_by_date',
+        },
+        { label: 'List Lead Activities', id: 'list_lead_activities' },
+        { label: 'Get Lead by ID', id: 'get_lead_by_id' },
+        { label: 'Unsubscribe Lead from Campaign', id: 'unsubscribe_lead_from_campaign' },
+        { label: 'Unsubscribe Lead Globally', id: 'unsubscribe_lead_globally' },
+        { label: 'Mark Lead Complete', id: 'mark_lead_complete' },
+        { label: 'Delete Lead from Campaign', id: 'delete_lead_from_campaign' },
+        { label: 'List Inbox Replies', id: 'list_inbox_replies' },
+        { label: 'List Lead Lists', id: 'list_lead_lists' },
+        { label: 'Get Lead List', id: 'get_lead_list' },
+        { label: 'Create Lead List', id: 'create_lead_list' },
+        { label: 'Update Lead List', id: 'update_lead_list' },
+        { label: 'Delete Lead List', id: 'delete_lead_list' },
+        { label: 'List Clients', id: 'list_clients' },
       ],
       value: () => 'list_campaigns',
     },
@@ -203,8 +274,8 @@ export const SmartleadBlock: BlockConfig<SmartleadResponse> = {
       title: 'Start Date',
       type: 'short-input',
       placeholder: '2026-08-01',
-      required: { field: 'operation', value: 'get_campaign_analytics_by_date' },
-      condition: { field: 'operation', value: 'get_campaign_analytics_by_date' },
+      required: { field: 'operation', value: [...DATE_RANGE_OPERATIONS] },
+      condition: { field: 'operation', value: [...DATE_RANGE_OPERATIONS] },
       wandConfig: {
         enabled: true,
         prompt:
@@ -217,8 +288,8 @@ export const SmartleadBlock: BlockConfig<SmartleadResponse> = {
       title: 'End Date',
       type: 'short-input',
       placeholder: '2026-08-31',
-      required: { field: 'operation', value: 'get_campaign_analytics_by_date' },
-      condition: { field: 'operation', value: 'get_campaign_analytics_by_date' },
+      required: { field: 'operation', value: [...DATE_RANGE_OPERATIONS] },
+      condition: { field: 'operation', value: [...DATE_RANGE_OPERATIONS] },
       wandConfig: {
         enabled: true,
         prompt:
@@ -264,6 +335,104 @@ export const SmartleadBlock: BlockConfig<SmartleadResponse> = {
       type: 'short-input',
       placeholder: 'Leave empty to create a new webhook',
       condition: { field: 'operation', value: 'upsert_campaign_webhook' },
+      mode: 'advanced',
+    },
+    {
+      id: 'deleteWebhookId',
+      title: 'Webhook ID',
+      type: 'short-input',
+      placeholder: '718494',
+      required: { field: 'operation', value: 'delete_campaign_webhook' },
+      condition: { field: 'operation', value: 'delete_campaign_webhook' },
+    },
+    {
+      id: 'fromTime',
+      title: 'From',
+      type: 'short-input',
+      placeholder: '2026-08-01T00:00:00Z',
+      required: { field: 'operation', value: 'get_campaign_webhook_summary' },
+      condition: { field: 'operation', value: 'get_campaign_webhook_summary' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate an ISO 8601 timestamp for the start of the reporting window. Return ONLY the timestamp string.',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'toTime',
+      title: 'To',
+      type: 'short-input',
+      placeholder: '2026-08-31T23:59:59Z',
+      required: { field: 'operation', value: 'get_campaign_webhook_summary' },
+      condition: { field: 'operation', value: 'get_campaign_webhook_summary' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate an ISO 8601 timestamp for the end of the reporting window. Return ONLY the timestamp string.',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'emailAccountIds',
+      title: 'Email Account IDs',
+      type: 'short-input',
+      placeholder: '101,102',
+      required: { field: 'operation', value: [...EMAIL_ACCOUNT_ID_OPERATIONS] },
+      condition: { field: 'operation', value: [...EMAIL_ACCOUNT_ID_OPERATIONS] },
+    },
+    {
+      id: 'campaignLeadMapId',
+      title: 'Campaign Lead Map ID',
+      type: 'short-input',
+      placeholder: '3499513771',
+      required: { field: 'operation', value: 'mark_lead_complete' },
+      condition: { field: 'operation', value: 'mark_lead_complete' },
+    },
+    {
+      id: 'leadListId',
+      title: 'Lead List ID',
+      type: 'short-input',
+      placeholder: '76264',
+      required: { field: 'operation', value: [...LEAD_LIST_ID_OPERATIONS] },
+      condition: { field: 'operation', value: [...LEAD_LIST_ID_OPERATIONS] },
+    },
+    {
+      id: 'listName',
+      title: 'List Name',
+      type: 'short-input',
+      placeholder: 'Q1 Prospects',
+      required: { field: 'operation', value: ['create_lead_list', 'update_lead_list'] },
+      condition: { field: 'operation', value: ['create_lead_list', 'update_lead_list'] },
+    },
+    {
+      id: 'unreadOnly',
+      title: 'Unread Only',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
+      condition: { field: 'operation', value: 'list_inbox_replies' },
+    },
+    {
+      id: 'activityCampaignId',
+      title: 'Campaign ID',
+      type: 'short-input',
+      placeholder: 'Leave empty for all campaigns',
+      condition: {
+        field: 'operation',
+        value: ['list_lead_activities', 'list_inbox_replies'],
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'skip',
+      title: 'Skip',
+      type: 'short-input',
+      placeholder: '0',
+      condition: { field: 'operation', value: 'get_campaign_lead_statistics' },
       mode: 'advanced',
     },
     {
@@ -369,11 +538,12 @@ export const SmartleadBlock: BlockConfig<SmartleadResponse> = {
       title: 'Stop Lead On',
       type: 'dropdown',
       options: [
+        { label: 'Leave unchanged', id: '' },
         { label: 'Reply to an Email', id: 'REPLY_TO_AN_EMAIL' },
         { label: 'Click on a Link', id: 'CLICK_ON_A_LINK' },
         { label: 'Open an Email', id: 'OPEN_AN_EMAIL' },
       ],
-      value: () => 'REPLY_TO_AN_EMAIL',
+      value: () => '',
       condition: { field: 'operation', value: 'update_campaign_settings' },
       mode: 'advanced',
     },
@@ -382,10 +552,11 @@ export const SmartleadBlock: BlockConfig<SmartleadResponse> = {
       title: 'Send as Plain Text',
       type: 'dropdown',
       options: [
+        { label: 'Leave unchanged', id: '' },
         { label: 'No', id: 'false' },
         { label: 'Yes', id: 'true' },
       ],
-      value: () => 'false',
+      value: () => '',
       condition: { field: 'operation', value: 'update_campaign_settings' },
       mode: 'advanced',
     },
@@ -450,14 +621,126 @@ export const SmartleadBlock: BlockConfig<SmartleadResponse> = {
       mode: 'advanced',
     },
     {
+      id: 'ignoreGlobalBlockList',
+      title: 'Ignore Global Block List',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
+      condition: { field: 'operation', value: 'add_leads_to_campaign' },
+      mode: 'advanced',
+    },
+    {
+      id: 'ignoreUnsubscribeList',
+      title: 'Ignore Unsubscribe List',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
+      condition: { field: 'operation', value: 'add_leads_to_campaign' },
+      mode: 'advanced',
+    },
+    {
+      id: 'ignoreDuplicateLeadsInOtherCampaign',
+      title: 'Ignore Duplicates in Other Campaigns',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
+      condition: { field: 'operation', value: 'add_leads_to_campaign' },
+      mode: 'advanced',
+    },
+    {
+      id: 'ignoreCommunityBounceList',
+      title: 'Ignore Community Bounce List',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
+      condition: { field: 'operation', value: 'add_leads_to_campaign' },
+      mode: 'advanced',
+    },
+    {
+      id: 'followUpPercentage',
+      title: 'Follow-up Percentage',
+      type: 'short-input',
+      placeholder: '100',
+      condition: { field: 'operation', value: 'update_campaign_settings' },
+      mode: 'advanced',
+    },
+    {
+      id: 'unsubscribeText',
+      title: 'Unsubscribe Text',
+      type: 'short-input',
+      placeholder: 'Unsubscribe',
+      condition: { field: 'operation', value: 'update_campaign_settings' },
+      mode: 'advanced',
+    },
+    {
+      id: 'enableAiEspMatching',
+      title: 'AI ESP Matching',
+      type: 'dropdown',
+      options: [
+        { label: 'Leave unchanged', id: '' },
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: 'update_campaign_settings' },
+      mode: 'advanced',
+    },
+    {
+      id: 'scheduleStartTime',
+      title: 'Schedule Start Time',
+      type: 'short-input',
+      placeholder: 'Leave empty to start immediately',
+      condition: { field: 'operation', value: 'update_campaign_schedule' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate an ISO 8601 timestamp for when campaign sending should begin. Return ONLY the timestamp string.',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'companyUrl',
+      title: 'Company URL',
+      type: 'short-input',
+      placeholder: 'https://acme.com',
+      condition: { field: 'operation', value: 'update_lead' },
+      mode: 'advanced',
+    },
+    {
+      id: 'sentTimeStartDate',
+      title: 'Sent After',
+      type: 'short-input',
+      placeholder: '2026-08-01',
+      condition: { field: 'operation', value: 'get_campaign_statistics' },
+      mode: 'advanced',
+    },
+    {
+      id: 'sentTimeEndDate',
+      title: 'Sent Before',
+      type: 'short-input',
+      placeholder: '2026-08-31',
+      condition: { field: 'operation', value: 'get_campaign_statistics' },
+      mode: 'advanced',
+    },
+    {
       id: 'offset',
       title: 'Offset',
       type: 'short-input',
       placeholder: '0',
-      condition: {
-        field: 'operation',
-        value: ['list_campaign_leads', 'get_campaign_statistics'],
-      },
+      condition: { field: 'operation', value: [...PAGINATED_OPERATIONS] },
       mode: 'advanced',
     },
     {
@@ -465,10 +748,7 @@ export const SmartleadBlock: BlockConfig<SmartleadResponse> = {
       title: 'Limit',
       type: 'short-input',
       placeholder: '100',
-      condition: {
-        field: 'operation',
-        value: ['list_campaign_leads', 'get_campaign_statistics'],
-      },
+      condition: { field: 'operation', value: [...PAGINATED_OPERATIONS] },
       mode: 'advanced',
     },
   ],
@@ -496,15 +776,52 @@ export const SmartleadBlock: BlockConfig<SmartleadResponse> = {
       'smartlead_get_lead_message_history',
       'smartlead_list_campaign_webhooks',
       'smartlead_upsert_campaign_webhook',
+      'smartlead_delete_campaign_webhook',
+      'smartlead_get_campaign_webhook_summary',
+      'smartlead_duplicate_campaign',
+      'smartlead_delete_campaign',
+      'smartlead_export_campaign_leads',
+      'smartlead_list_campaign_email_accounts',
+      'smartlead_add_email_accounts_to_campaign',
+      'smartlead_remove_email_accounts_from_campaign',
+      'smartlead_list_email_accounts',
+      'smartlead_get_campaign_lead_statistics',
+      'smartlead_get_campaign_mailbox_statistics',
+      'smartlead_get_campaign_top_level_analytics_by_date',
+      'smartlead_list_lead_activities',
+      'smartlead_get_lead_by_id',
+      'smartlead_unsubscribe_lead_from_campaign',
+      'smartlead_unsubscribe_lead_globally',
+      'smartlead_mark_lead_complete',
+      'smartlead_delete_lead_from_campaign',
+      'smartlead_list_inbox_replies',
+      'smartlead_list_lead_lists',
+      'smartlead_get_lead_list',
+      'smartlead_create_lead_list',
+      'smartlead_update_lead_list',
+      'smartlead_delete_lead_list',
+      'smartlead_list_clients',
     ],
     config: {
       tool: (params) => `smartlead_${params.operation}`,
       params: (params) => ({
-        campaignId: toNumberParam(params.campaignId),
+        // `list_lead_activities` and `list_inbox_replies` scope by campaign through their
+        // own optional field, since they are not campaign-scoped operations.
+        campaignId: toNumberParam(params.campaignId || params.activityCampaignId),
         leadId: toNumberParam(params.leadId),
         clientId: toNumberParam(params.clientId),
         categoryId: toNumberParam(params.categoryId),
-        webhookId: toNumberParam(params.webhookId),
+        webhookId: toNumberParam(
+          params.operation === 'delete_campaign_webhook' ? params.deleteWebhookId : params.webhookId
+        ),
+        campaignLeadMapId: toNumberParam(params.campaignLeadMapId),
+        leadListId: toNumberParam(params.leadListId),
+        emailAccountIds: parseNumberList(params.emailAccountIds),
+        listName: emptyToUndefined(params.listName),
+        fromTime: emptyToUndefined(params.fromTime),
+        toTime: emptyToUndefined(params.toTime),
+        unreadOnly: toBooleanParam(params.unreadOnly),
+        skip: toNumberParam(params.skip),
         offset: toNumberParam(params.offset),
         limit: toNumberParam(params.limit),
         emailSequenceNumber: toNumberParam(params.emailSequenceNumber),
@@ -522,9 +839,33 @@ export const SmartleadBlock: BlockConfig<SmartleadResponse> = {
         trackSettings: parseStringList(params.trackSettings),
         eventTypes: parseStringList(params.eventTypes),
         categories: parseStringList(params.categories),
-        leads: parseJsonArray(params.leads),
-        sequences: parseJsonArray(params.sequences),
-        customFields: parseJsonObject(params.customFields),
+        followUpPercentage: toNumberParam(params.followUpPercentage),
+        enableAiEspMatching: toBooleanParam(params.enableAiEspMatching),
+        unsubscribeText: emptyToUndefined(params.unsubscribeText),
+        scheduleStartTime: emptyToUndefined(params.scheduleStartTime),
+        companyUrl: emptyToUndefined(params.companyUrl),
+        sentTimeStartDate: emptyToUndefined(params.sentTimeStartDate),
+        sentTimeEndDate: emptyToUndefined(params.sentTimeEndDate),
+        ignoreGlobalBlockList: toBooleanParam(params.ignoreGlobalBlockList),
+        ignoreUnsubscribeList: toBooleanParam(params.ignoreUnsubscribeList),
+        ignoreDuplicateLeadsInOtherCampaign: toBooleanParam(
+          params.ignoreDuplicateLeadsInOtherCampaign
+        ),
+        ignoreCommunityBounceList: toBooleanParam(params.ignoreCommunityBounceList),
+        // Parsed only for the operation that consumes them, so a stale value left in a
+        // hidden field cannot fail an unrelated operation.
+        leads:
+          params.operation === 'add_leads_to_campaign'
+            ? parseJsonArray(params.leads, 'Leads')
+            : undefined,
+        sequences:
+          params.operation === 'save_campaign_sequences'
+            ? parseJsonArray(params.sequences, 'Sequences')
+            : undefined,
+        customFields:
+          params.operation === 'update_lead'
+            ? parseJsonObject(params.customFields, 'Custom Fields')
+            : undefined,
       }),
     },
   },
@@ -567,10 +908,37 @@ export const SmartleadBlock: BlockConfig<SmartleadResponse> = {
     maxNewLeadsPerDay: { type: 'number', description: 'Maximum new leads per day' },
     pauseLead: { type: 'boolean', description: 'Pause the lead when setting its category' },
     resumeLeadWithDelayDays: { type: 'number', description: 'Days to wait before resuming' },
+    followUpPercentage: { type: 'number', description: 'Percentage of leads that get follow-ups' },
+    unsubscribeText: { type: 'string', description: 'Unsubscribe text appended to emails' },
+    enableAiEspMatching: { type: 'boolean', description: 'Match senders to recipient providers' },
+    scheduleStartTime: { type: 'string', description: 'When sending should begin' },
+    companyUrl: { type: 'string', description: 'Lead company URL' },
+    sentTimeStartDate: { type: 'string', description: 'Only rows sent on or after this date' },
+    sentTimeEndDate: { type: 'string', description: 'Only rows sent on or before this date' },
+    ignoreGlobalBlockList: { type: 'boolean', description: 'Import despite the global block list' },
+    ignoreUnsubscribeList: { type: 'boolean', description: 'Import despite prior unsubscribes' },
+    ignoreDuplicateLeadsInOtherCampaign: {
+      type: 'boolean',
+      description: 'Import leads already in another campaign',
+    },
+    ignoreCommunityBounceList: {
+      type: 'boolean',
+      description: 'Import despite the community bounce list',
+    },
     emailStatus: { type: 'string', description: 'Engagement status filter' },
     emailSequenceNumber: { type: 'number', description: 'Sequence step filter' },
     offset: { type: 'number', description: 'Pagination offset' },
     limit: { type: 'number', description: 'Pagination limit' },
+    skip: { type: 'number', description: 'Rows to skip' },
+    deleteWebhookId: { type: 'number', description: 'Webhook ID to delete' },
+    fromTime: { type: 'string', description: 'Start of the reporting window' },
+    toTime: { type: 'string', description: 'End of the reporting window' },
+    emailAccountIds: { type: 'array', description: 'Email account IDs' },
+    campaignLeadMapId: { type: 'number', description: 'Campaign-lead association ID' },
+    leadListId: { type: 'number', description: 'Lead list ID' },
+    listName: { type: 'string', description: 'Lead list name' },
+    unreadOnly: { type: 'boolean', description: 'Return only unread inbox replies' },
+    activityCampaignId: { type: 'number', description: 'Campaign to scope results to' },
   },
   outputs: {
     campaigns: { type: 'array', description: 'List of campaigns' },
@@ -581,7 +949,10 @@ export const SmartleadBlock: BlockConfig<SmartleadResponse> = {
     stats: { type: 'array', description: 'Per-email statistics rows' },
     history: { type: 'array', description: 'Lead message history' },
     count: { type: 'number', description: 'Number of records returned' },
-    total_leads: { type: 'number', description: 'Total leads matching the request' },
+    total_leads: {
+      type: 'number',
+      description: 'Total leads in the campaign, or leads newly added when importing',
+    },
     total_stats: { type: 'number', description: 'Total statistics rows matching the filters' },
     id: { type: 'number', description: 'Record ID' },
     name: { type: 'string', description: 'Record name' },
@@ -595,8 +966,17 @@ export const SmartleadBlock: BlockConfig<SmartleadResponse> = {
     reply_count: { type: 'number', description: 'Replies' },
     bounce_count: { type: 'number', description: 'Bounces' },
     campaign_lead_stats: { type: 'json', description: 'Lead counts by state' },
-    upload_count: { type: 'number', description: 'Leads uploaded' },
+    upload_count: { type: 'number', description: 'Leads submitted in the request' },
     success: { type: 'boolean', description: 'Whether the action succeeded' },
+    items: { type: 'array', description: 'Records returned by Smartlead' },
+    rows: { type: 'array', description: 'Rows returned by Smartlead' },
+    lists: { type: 'array', description: 'Lead lists' },
+    summary: { type: 'array', description: 'Webhook delivery summary rows' },
+    csv: { type: 'string', description: 'Exported leads as CSV' },
+    row_count: { type: 'number', description: 'Rows in the exported CSV' },
+    has_more: { type: 'boolean', description: 'Whether more rows are available' },
+    list_name: { type: 'string', description: 'Lead list name' },
+    positive_reply_count: { type: 'number', description: 'Replies categorized as positive' },
   },
 }
 
@@ -632,32 +1012,41 @@ function parseStringList(value: unknown): string[] | undefined {
   return items.length > 0 ? items : undefined
 }
 
-function parseJsonArray(value: unknown): unknown[] | undefined {
+/**
+ * Malformed JSON raises instead of resolving to `undefined`: returning `undefined`
+ * would overwrite the raw string the executor falls back on, dropping the field
+ * silently rather than reporting the syntax error.
+ */
+function parseJsonArray(value: unknown, label: string): unknown[] | undefined {
   if (Array.isArray(value)) return value
   if (typeof value !== 'string' || value.trim() === '') return undefined
 
+  let parsed: unknown
   try {
-    const parsed: unknown = JSON.parse(value)
-    return Array.isArray(parsed) ? parsed : undefined
+    parsed = JSON.parse(value)
   } catch {
-    return undefined
+    throw new Error(`${label} is not valid JSON`)
   }
+  if (!Array.isArray(parsed)) throw new Error(`${label} must be a JSON array`)
+  return parsed
 }
 
-function parseJsonObject(value: unknown): Record<string, unknown> | undefined {
+function parseJsonObject(value: unknown, label: string): Record<string, unknown> | undefined {
   if (value && typeof value === 'object' && !Array.isArray(value)) {
     return value as Record<string, unknown>
   }
   if (typeof value !== 'string' || value.trim() === '') return undefined
 
+  let parsed: unknown
   try {
-    const parsed: unknown = JSON.parse(value)
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>)
-      : undefined
+    parsed = JSON.parse(value)
   } catch {
-    return undefined
+    throw new Error(`${label} is not valid JSON`)
   }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error(`${label} must be a JSON object`)
+  }
+  return parsed as Record<string, unknown>
 }
 
 function toNumberParam(value: unknown): number | undefined {

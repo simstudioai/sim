@@ -4,6 +4,7 @@ import {
   actionOutputs,
   isOk,
   jsonBody,
+  pathSegment,
   smartleadBaseParamFields,
   smartleadCampaignIdParamField,
   smartleadHeaders,
@@ -100,7 +101,10 @@ export const updateLeadTool: ToolConfig<UpdateLeadParams, SmartleadActionRespons
   },
   request: {
     url: (params) =>
-      smartleadUrl(`/campaigns/${params.campaignId}/leads/${params.leadId}`, params.apiKey),
+      smartleadUrl(
+        `/campaigns/${pathSegment(params.campaignId)}/leads/${pathSegment(params.leadId)}`,
+        params.apiKey
+      ),
     method: 'POST',
     headers: smartleadHeaders,
     body: (params) =>

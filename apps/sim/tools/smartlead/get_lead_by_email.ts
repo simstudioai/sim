@@ -4,8 +4,8 @@ import {
   leadDetailOutputs,
   mapLeadDetail,
   smartleadBaseParamFields,
+  smartleadExistingRecord,
   smartleadHeaders,
-  smartleadRecord,
   smartleadUrl,
 } from '@/tools/smartlead/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -36,7 +36,7 @@ export const getLeadByEmailTool: ToolConfig<GetLeadByEmailParams, SmartleadLeadD
     headers: smartleadHeaders,
   },
   transformResponse: async (response) => {
-    const record = await smartleadRecord(response, 'lead')
+    const record = await smartleadExistingRecord(response, 'lead', ['id', 'email'])
 
     return {
       success: true,
