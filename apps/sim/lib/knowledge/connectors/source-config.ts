@@ -27,3 +27,34 @@ export function sanitizeConnectorSourceConfig(
 ): Record<string, unknown> {
   return omit(sourceConfig, [...RESERVED_SOURCE_CONFIG_KEYS])
 }
+
+/**
+ * The reserved keys that are legitimately *persisted*, just never by the caller.
+ *
+ * `workspaceId` and `knowledgeBaseId` are stripped and never stored at all — the
+ * engine derives them per run. `tagSlotMapping` is different: it is computed once
+ * during creation from the knowledge base's free slots and must survive edits.
+ */
+const SERVER_OWNED_PERSISTED_KEYS = ['tagSlotMapping'] as const
+
+/**
+ * Re-applies server-owned keys from the stored row onto a sanitized update.
+ *
+ * Update replaces `sourceConfig` wholesale, so sanitizing alone would drop
+ * `tagSlotMapping` — which the client never re-sends. Losing it makes
+ * `resolveTagMapping` return undefined and the connector silently stops writing
+ * tags on every later sync, for every connector that declares `tagDefinitions`.
+ * Reading it back from the stored row rather than the request keeps the key
+ * server-owned while still surviving an edit.
+ */
+export function preserveServerOwnedSourceConfig(
+  sanitizedUpdate: Record<string, unknown>,
+  storedSourceConfig: unknown
+): Record<string, unknown> {
+  const stored = (storedSourceConfig ?? {}) as Record<string, unknown>
+  const preserved: Record<string, unknown> = {}
+  for (const key of SERVER_OWNED_PERSISTED_KEYS) {
+    if (stored[key] !== undefined) preserved[key] = stored[key]
+  }
+  return { ...sanitizedUpdate, ...preserved }
+}

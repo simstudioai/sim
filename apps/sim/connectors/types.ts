@@ -32,7 +32,17 @@ export type ConnectorAuthConfig =
  * field's readiness gate, so the two can never disagree.
  */
 export function collectsCredential(auth: ConnectorAuthConfig): boolean {
-  return auth.mode !== 'sim'
+  switch (auth.mode) {
+    case 'sim':
+      return false
+    case 'apiKey':
+    case 'oauth':
+      return true
+    default: {
+      const _exhaustive: never = auth
+      return true
+    }
+  }
 }
 
 /**

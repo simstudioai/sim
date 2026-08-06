@@ -14,6 +14,12 @@ import {
   renderTranscript,
 } from '@/connectors/sim-conversations/sim-conversations'
 
+/** Shape the drizzle `sql` mock produces (see packages/testing database.mock). */
+interface SqlFragment {
+  strings?: readonly string[]
+  values?: unknown[]
+}
+
 const BASE_ROW: ConversationRow = {
   id: 'mem-1',
   key: 'support-123',
@@ -57,13 +63,16 @@ describe('escapeLikePrefix', () => {
 })
 
 describe('buildConversationListingFilters', () => {
-  /** The tenancy invariant: only the engine-supplied workspace can scope the query. */
-  it('always binds the supplied workspace, and nothing else can widen it', () => {
+  /**
+   * The builder takes no `sourceConfig`, so this proves only that the supplied
+   * workspace is bound. That the connector never READS `sourceConfig.workspaceId`
+   * is proven end to end by the sync harness, not here.
+   */
+  it('binds the supplied workspace', () => {
     const nodes = conditionsOf({ workspaceId: 'ws-real', prefix: '' })
     const workspaceClause = nodes.find((node) => node.left === 'workspaceId')
 
     expect(workspaceClause).toMatchObject({ type: 'eq', right: 'ws-real' })
-    expect(JSON.stringify(nodes)).not.toContain('victim-ws')
   })
 
   /**
@@ -78,6 +87,22 @@ describe('buildConversationListingFilters', () => {
   it('adds a prefix filter only when a prefix is configured', () => {
     expect(conditionsOf({ workspaceId: 'ws-1', prefix: '' })).toHaveLength(2)
     expect(conditionsOf({ workspaceId: 'ws-1', prefix: 'support-' }).length).toBeGreaterThan(2)
+  })
+
+  /**
+   * Asserts the WIRING, not just that `escapeLikePrefix` works in isolation.
+   * Without this, deleting the escape call from the builder still passes every
+   * other test while a prefix of `%` exports every conversation in the workspace.
+   */
+  it('binds the ESCAPED prefix as the LIKE parameter', () => {
+    const filters = buildConversationListingFilters({ workspaceId: 'ws-1', prefix: '100%_done' })
+    const bound = JSON.stringify(filters.map((f) => (f as unknown as SqlFragment).values ?? null))
+
+    expect(bound).toContain('100\\\\%\\\\_done%')
+    expect(bound).not.toContain('"100%_done%"')
+    expect(
+      JSON.stringify(filters.map((f) => (f as unknown as SqlFragment).strings ?? null))
+    ).toContain('ESCAPE')
   })
 
   it('adds a keyset clause only when paginating', () => {

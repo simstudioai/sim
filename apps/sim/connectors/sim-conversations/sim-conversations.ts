@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
-import { memory } from '@sim/db/schema'
+import { memory, memorySecretProvenance } from '@sim/db/schema'
 import { and, asc, eq, gt, isNull, or, type SQL, sql } from 'drizzle-orm'
+import { readBoundMemorySecretProvenance } from '@/lib/memory/secret-provenance'
 import { simConversationsConnectorMeta } from '@/connectors/sim-conversations/meta'
 import type {
   ConnectorConfig,
@@ -283,9 +284,18 @@ export const simConversationsConnector: ConnectorConfig = {
     const workspaceId = syncContext.workspaceId
 
     // Re-read through the same predicates: never fetch by external id alone.
+    // Left-joins the provenance sidecar so the secret check below has its inputs.
     const rows = await db
-      .select({ ...CONVERSATION_ROW_COLUMNS, data: memory.data })
+      .select({
+        ...CONVERSATION_ROW_COLUMNS,
+        data: memory.data,
+        secretProvenanceVersion: memory.secretProvenanceVersion,
+        provenanceContentHash: memorySecretProvenance.contentHash,
+        provenanceStatus: memorySecretProvenance.status,
+        provenanceEntries: memorySecretProvenance.entries,
+      })
       .from(memory)
+      .leftJoin(memorySecretProvenance, eq(memorySecretProvenance.memoryId, memory.id))
       .where(
         and(
           eq(memory.id, externalId),
@@ -299,6 +309,32 @@ export const simConversationsConnector: ConnectorConfig = {
     if (!row) return null
 
     const stub = conversationToStub(row)
+
+    /**
+     * Agent memory is where resolved credentials and env values land in message
+     * text, so every other reader of `memory.data` pairs it with this sidecar
+     * (see `app/api/memory/route.ts`). Indexing a transcript copies it into KB
+     * chunks and embeddings, which are readable by anyone with *any* permission on
+     * the workspace — a wider audience than the write/admin needed to create the
+     * connector — so only a provably secret-free conversation is indexed.
+     *
+     * `readBoundMemorySecretProvenance` returns exact-empty for untracked legacy
+     * rows and `unknown` for malformed ones, so this fails closed.
+     */
+    const provenance = readBoundMemorySecretProvenance({
+      secretProvenanceVersion: row.secretProvenanceVersion,
+      data: row.data,
+      provenanceContentHash: row.provenanceContentHash,
+      status: row.provenanceStatus,
+      entries: row.provenanceEntries,
+    })
+    if (provenance.status !== 'exact' || provenance.entries.length > 0) {
+      return markSkipped(
+        stub,
+        'Conversation contains secret-derived values or its provenance is unavailable, so it was not indexed'
+      )
+    }
+
     const content = renderTranscript(
       {
         conversationId: row.key,

@@ -12,7 +12,10 @@ import { hasWorkspaceLiveSyncAccess } from '@/lib/billing/core/subscription'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { resolveCredentialTokenIdentity } from '@/lib/credentials/access'
-import { sanitizeConnectorSourceConfig } from '@/lib/knowledge/connectors/source-config'
+import {
+  preserveServerOwnedSourceConfig,
+  sanitizeConnectorSourceConfig,
+} from '@/lib/knowledge/connectors/source-config'
 import { deleteDocumentStorageFiles } from '@/lib/knowledge/documents/service'
 import { cleanupUnusedTagDefinitions } from '@/lib/knowledge/tags/service'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -110,6 +113,8 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Rout
      */
     const sourceConfigUpdate =
       body.sourceConfig === undefined ? undefined : sanitizeConnectorSourceConfig(body.sourceConfig)
+    /** Sanitized update plus the server-owned keys carried over from the stored row. */
+    let sourceConfigToPersist: Record<string, unknown> | undefined
 
     if (
       body.syncIntervalMinutes !== undefined &&
@@ -151,6 +156,10 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Rout
       }
 
       const existing = existingRows[0]
+      sourceConfigToPersist = preserveServerOwnedSourceConfig(
+        sourceConfigUpdate,
+        existing.sourceConfig
+      )
       const connectorConfig = CONNECTOR_REGISTRY[existing.connectorType]
 
       if (!connectorConfig) {
@@ -247,8 +256,8 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Rout
     }
 
     const updates: Record<string, unknown> = { updatedAt: new Date() }
-    if (sourceConfigUpdate !== undefined) {
-      updates.sourceConfig = sourceConfigUpdate
+    if (sourceConfigToPersist !== undefined) {
+      updates.sourceConfig = sourceConfigToPersist
     }
     if (body.syncIntervalMinutes !== undefined) {
       updates.syncIntervalMinutes = body.syncIntervalMinutes

@@ -137,16 +137,15 @@ describe('fileRowToStub', () => {
 
 describe('buildFileListingFilters', () => {
   /**
-   * The tenancy invariant of the whole connector: the workspace comes from the sync
-   * engine, and a `sourceConfig` carrying its own `workspaceId` must be inert. This
-   * asserts the filters are built solely from the passed workspace.
+   * The builder takes no `sourceConfig`, so this proves only that the supplied
+   * workspace is bound. That the connector never READS `sourceConfig.workspaceId`
+   * is proven end to end by the sync harness, not here.
    */
-  it('always binds the supplied workspace, and nothing else can widen it', () => {
+  it('binds the supplied workspace', () => {
     const nodes = conditionsOf({ workspaceId: 'ws-real', folderIds: null, rootOnly: false })
     const workspaceClause = nodes.find((node) => node.left === 'workspaceId')
 
     expect(workspaceClause).toMatchObject({ type: 'eq', right: 'ws-real' })
-    expect(JSON.stringify(nodes)).not.toContain('victim-ws')
   })
 
   /**

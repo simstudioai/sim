@@ -10,6 +10,10 @@ import {
   fetchServableWorkspaceFileBuffer,
   getWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import {
+  isModelSafeWorkspaceFileKey,
+  MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
+} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { simFilesConnectorMeta } from '@/connectors/sim-files/meta'
 import type {
   ConnectorConfig,
@@ -93,8 +97,7 @@ export function decodeCursor(cursor: string): Cursor {
 export function normalizeExt(value: string): string {
   const trimmed = value.trim().toLowerCase()
   const dot = trimmed.lastIndexOf('.')
-  const ext = dot === -1 ? trimmed : trimmed.slice(dot + 1)
-  return ext === trimmed && dot === -1 ? trimmed.replace(/^\.+/, '') : ext
+  return dot === -1 ? trimmed : trimmed.slice(dot + 1)
 }
 
 /**
@@ -409,6 +412,22 @@ export const simFilesConnector: ConnectorConfig = {
      */
     const fileRecord = await getWorkspaceFile(workspaceId, externalId, { throwOnError: true })
     if (!fileRecord) return null
+
+    /**
+     * The same gate the manual knowledge-base upload path enforces
+     * (`assertDocumentFileModelSafe` in `documents/document-processor.ts`).
+     *
+     * It has to run HERE rather than being inherited: the sync engine re-uploads the
+     * extracted text under a fresh `kb/...` key, and that key has no `workspace_files`
+     * row — so the processor's own check resolves zero rows and passes vacuously. A
+     * file whose provenance is unknown would otherwise be laundered into embeddings.
+     *
+     * Skipped rather than dropped so it surfaces as a visible failed document.
+     */
+    const provenanceSafe = await isModelSafeWorkspaceFileKey(fileRecord.key, { workspaceId })
+    if (!provenanceSafe) {
+      return markSkipped(stub, MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE)
+    }
 
     let buffer: Buffer
     try {

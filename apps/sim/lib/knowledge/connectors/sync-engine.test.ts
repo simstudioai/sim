@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { authOAuthUtilsMock } from '@sim/testing'
+import { authOAuthUtilsMock, authOAuthUtilsMockFns } from '@sim/testing'
 import { generateShortId } from '@sim/utils/id'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -19,6 +19,15 @@ vi.mock('@/lib/knowledge/documents/service', () => ({
 }))
 vi.mock('@/lib/uploads', () => ({ StorageService: {} }))
 vi.mock('@/app/api/auth/oauth/utils', () => authOAuthUtilsMock)
+
+const { mockResolveCredentialTokenIdentity, mockDecryptApiKey } = vi.hoisted(() => ({
+  mockResolveCredentialTokenIdentity: vi.fn(),
+  mockDecryptApiKey: vi.fn(),
+}))
+vi.mock('@/lib/credentials/access', () => ({
+  resolveCredentialTokenIdentity: mockResolveCredentialTokenIdentity,
+}))
+vi.mock('@/lib/api-key/crypto', () => ({ decryptApiKey: mockDecryptApiKey }))
 vi.mock('@/background/knowledge-connector-sync', () => ({
   knowledgeConnectorSync: { trigger: vi.fn() },
 }))
@@ -535,5 +544,146 @@ describe('chunkOpsByByteBudget', () => {
       5
     )
     expect(chunks).toHaveLength(1)
+  })
+})
+
+/**
+ * `resolveConnectorAuth` is on the credential path for every connector, not just the
+ * `sim` ones — it absorbed the credential-identity lookup that used to sit inline in
+ * `executeSync`, including the service-account-vs-oauth choice of WHICH user's token
+ * to read. That swap is the regression this refactor is most likely to reintroduce.
+ */
+describe('resolveConnectorAuth', () => {
+  const owner = { workspaceId: 'ws-1', userId: 'kb-owner' }
+  const noCredential = { credentialId: null, encryptedApiKey: null }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('resolves sim mode without touching any credential system', async () => {
+    const { resolveConnectorAuth } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    await expect(
+      resolveConnectorAuth(noCredential, { auth: { mode: 'sim' } }, owner)
+    ).resolves.toEqual({ mode: 'sim' })
+    expect(mockResolveCredentialTokenIdentity).not.toHaveBeenCalled()
+    expect(authOAuthUtilsMockFns.mockRefreshAccessTokenIfNeeded).not.toHaveBeenCalled()
+    expect(mockDecryptApiKey).not.toHaveBeenCalled()
+  })
+
+  /** The `sim` arm must carry no token field at all, or the empty-bearer sentinel returns. */
+  it('exposes no accessToken for sim mode', async () => {
+    const { resolveConnectorAuth, tokenFor } = await import(
+      '@/lib/knowledge/connectors/sync-engine'
+    )
+
+    const resolved = await resolveConnectorAuth(noCredential, { auth: { mode: 'sim' } }, owner)
+    expect(resolved).not.toHaveProperty('accessToken')
+    expect(tokenFor(resolved)).toBe('')
+  })
+
+  it('decrypts the stored key for apiKey mode', async () => {
+    const { resolveConnectorAuth, tokenFor } = await import(
+      '@/lib/knowledge/connectors/sync-engine'
+    )
+    mockDecryptApiKey.mockResolvedValue({ decrypted: 'secret-key' })
+
+    const resolved = await resolveConnectorAuth(
+      { credentialId: null, encryptedApiKey: 'enc' },
+      { auth: { mode: 'apiKey' } },
+      owner
+    )
+    expect(resolved).toEqual({ mode: 'apiKey', accessToken: 'secret-key' })
+    expect(tokenFor(resolved)).toBe('secret-key')
+  })
+
+  it('throws when an apiKey connector has no stored key', async () => {
+    const { resolveConnectorAuth } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    await expect(
+      resolveConnectorAuth(noCredential, { auth: { mode: 'apiKey' } }, owner)
+    ).rejects.toThrow(/missing encrypted API key/)
+  })
+
+  it('throws when an oauth connector has no credential id', async () => {
+    const { resolveConnectorAuth } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    await expect(
+      resolveConnectorAuth(noCredential, { auth: { mode: 'oauth', provider: 'jira' } }, owner)
+    ).rejects.toThrow(/missing credential ID/)
+  })
+
+  /**
+   * Workspace credentials are routinely authorized by someone other than the KB
+   * owner, and token reads are scoped to `account.userId` — reading as the KB owner
+   * resolves no token at all.
+   */
+  it('reads the token as the credential owner, not the knowledge base owner', async () => {
+    const { resolveConnectorAuth } = await import('@/lib/knowledge/connectors/sync-engine')
+    mockResolveCredentialTokenIdentity.mockResolvedValue({
+      kind: 'oauth',
+      userId: 'credential-owner',
+    })
+    authOAuthUtilsMockFns.mockRefreshAccessTokenIfNeeded.mockResolvedValue('tok')
+
+    const resolved = await resolveConnectorAuth(
+      { credentialId: 'cred-1', encryptedApiKey: null },
+      { auth: { mode: 'oauth', provider: 'jira' } },
+      owner
+    )
+
+    expect(authOAuthUtilsMockFns.mockRefreshAccessTokenIfNeeded).toHaveBeenCalledWith(
+      'cred-1',
+      'credential-owner',
+      expect.any(String)
+    )
+    expect(resolved).toMatchObject({ mode: 'oauth', credentialUserId: 'credential-owner' })
+  })
+
+  /** Service accounts mint their own token and ignore the acting user. */
+  it('falls back to the acting user for a service-account identity', async () => {
+    const { resolveConnectorAuth } = await import('@/lib/knowledge/connectors/sync-engine')
+    mockResolveCredentialTokenIdentity.mockResolvedValue({ kind: 'service_account' })
+    authOAuthUtilsMockFns.mockRefreshAccessTokenIfNeeded.mockResolvedValue('tok')
+
+    await resolveConnectorAuth(
+      { credentialId: 'cred-1', encryptedApiKey: null },
+      { auth: { mode: 'oauth', provider: 'jira' } },
+      owner
+    )
+
+    expect(authOAuthUtilsMockFns.mockRefreshAccessTokenIfNeeded).toHaveBeenCalledWith(
+      'cred-1',
+      'kb-owner',
+      expect.any(String)
+    )
+  })
+
+  it('throws when the credential is not usable from the workspace', async () => {
+    const { resolveConnectorAuth } = await import('@/lib/knowledge/connectors/sync-engine')
+    mockResolveCredentialTokenIdentity.mockResolvedValue(null)
+
+    await expect(
+      resolveConnectorAuth(
+        { credentialId: 'cred-1', encryptedApiKey: null },
+        { auth: { mode: 'oauth', provider: 'jira' } },
+        owner
+      )
+    ).rejects.toThrow(/not usable from workspace/)
+  })
+
+  it('throws when the refresh yields no token', async () => {
+    const { resolveConnectorAuth } = await import('@/lib/knowledge/connectors/sync-engine')
+    mockResolveCredentialTokenIdentity.mockResolvedValue({ kind: 'oauth', userId: 'u' })
+    authOAuthUtilsMockFns.mockRefreshAccessTokenIfNeeded.mockResolvedValue(null)
+
+    await expect(
+      resolveConnectorAuth(
+        { credentialId: 'cred-1', encryptedApiKey: null },
+        { auth: { mode: 'oauth', provider: 'jira' } },
+        owner
+      )
+    ).rejects.toThrow(/Failed to obtain access token/)
   })
 })
