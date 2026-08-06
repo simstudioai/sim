@@ -10,7 +10,16 @@ import {
 } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { isInternalFileUrl, processSingleFileToUserFile } from '@/lib/uploads/utils/file-utils'
+import { validateOpaqueModelInputProvenance } from '@/lib/execution/model-input-provenance'
+import {
+  isModelSafeWorkspaceFileKey,
+  MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
+} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import {
+  extractStorageKey,
+  isInternalFileUrl,
+  processSingleFileToUserFile,
+} from '@/lib/uploads/utils/file-utils'
 import {
   downloadServableFileFromStorage,
   resolveInternalFileUrl,
@@ -64,6 +73,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (!parsed.success) return parsed.response
 
     const validatedData = parsed.data.body
+    const modelInputProvenance = validateOpaqueModelInputProvenance({
+      headers: request.headers,
+      payload: validatedData,
+      isInternalRequest: true,
+    })
+    if (!modelInputProvenance.success) {
+      return NextResponse.json(
+        { success: false, error: modelInputProvenance.error },
+        { status: modelInputProvenance.status }
+      )
+    }
 
     const fileData = validatedData.file || validatedData.fileData
     const filePath = typeof fileData === 'string' ? fileData : validatedData.filePath
@@ -125,6 +145,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       if (!base64) {
         const denied = await assertToolFileAccess(userFile.key, userId, requestId, logger)
         if (denied) return denied
+        if (!(await isModelSafeWorkspaceFileKey(userFile.key))) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
+            },
+            { status: 400 }
+          )
+        }
         const { buffer, contentType } = await downloadServableFileFromStorage(
           userFile,
           requestId,
@@ -168,6 +197,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           )
         }
         fileUrl = resolution.fileUrl || fileUrl
+        if (!(await isModelSafeWorkspaceFileKey(extractStorageKey(filePath)))) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
+            },
+            { status: 400 }
+          )
+        }
       } else if (filePath.startsWith('/')) {
         logger.warn(`[${requestId}] Invalid internal path`, {
           userId,

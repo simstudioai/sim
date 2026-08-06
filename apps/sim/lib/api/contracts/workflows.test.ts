@@ -4,6 +4,7 @@ import {
   updateWorkflowBodySchema,
   workflowListItemSchema,
 } from '@/lib/api/contracts/workflows'
+import { PRIVATE_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
 
 describe('workflow contracts', () => {
   /**
@@ -32,6 +33,28 @@ describe('workflow contracts', () => {
     expect(
       executeWorkflowBodySchema.parse({ inputFromExecutionId: 'execution-123' })
     ).toMatchObject({ inputFromExecutionId: 'execution-123' })
+  })
+
+  it('retains a private workflow-input provenance envelope for boundary validation', () => {
+    const bundle = {
+      version: 1 as const,
+      complete: true,
+      selections: [
+        {
+          key: 'input',
+          provenance: {
+            version: 1 as const,
+            complete: true,
+            entries: [{ name: 'TOKEN', encryptedValue: 'encrypted-token' }],
+            scope: { userId: 'parent-owner', workspaceId: 'workspace-1' },
+          },
+        },
+      ],
+    }
+
+    expect(
+      executeWorkflowBodySchema.parse({ [PRIVATE_SECRET_PROVENANCE_FIELD]: bundle })
+    ).toMatchObject({ [PRIVATE_SECRET_PROVENANCE_FIELD]: bundle })
   })
 
   it('normalizes null React Flow edge handles in execution overrides', () => {

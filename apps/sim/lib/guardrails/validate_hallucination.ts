@@ -1,14 +1,41 @@
 import { db } from '@sim/db'
 import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { isPlainRecord } from '@sim/utils/object'
 import { eq } from 'drizzle-orm'
-import { BILLING_ATTRIBUTION_HEADER } from '@/lib/billing/core/billing-attribution'
+import { generateInternalToken } from '@/lib/auth/internal'
+import {
+  BILLING_ATTRIBUTION_HEADER,
+  type BillingAttributionSnapshot,
+  serializeBillingAttributionHeader,
+} from '@/lib/billing/core/billing-attribution'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
+import {
+  addModelInputProvenanceToRequest,
+  createModelInputProvenanceRequestMetadata,
+} from '@/lib/execution/model-input-provenance'
+import {
+  inspectPrivateToolMetadataEnvelope,
+  PRIVATE_TOOL_METADATA_REQUEST_HEADER,
+  RESOLVED_SECRET_PROVENANCE_FIELD,
+  RESOLVED_SECRET_PROVENANCE_METADATA_V1,
+} from '@/lib/execution/private-tool-metadata'
 import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
+import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { executeProviderRequest } from '@/providers'
+import { isAbortError } from '@/providers/streaming-tool-loop-shared'
 import { getProviderFromModel } from '@/providers/utils'
 
 const logger = createLogger('HallucinationValidator')
+const KNOWLEDGE_PROVENANCE_ERROR = 'Knowledge result secret provenance is unavailable'
+
+class KnowledgeProvenanceError extends Error {
+  constructor() {
+    super(KNOWLEDGE_PROVENANCE_ERROR)
+    this.name = 'KnowledgeProvenanceError'
+  }
+}
 
 export interface HallucinationValidationResult {
   passed: boolean
@@ -38,12 +65,16 @@ export interface HallucinationValidationInput {
   }
   workflowId?: string
   workspaceId?: string
-  authHeaders?: {
-    cookie?: string
-    authorization?: string
-    billingAttribution?: string
-  }
+  actorUserId: string
+  billingAttribution: BillingAttributionSnapshot
   requestId: string
+  resolvedSecretTraceRegistry: ResolvedSecretTraceRegistry
+  /**
+   * The caller's cancellation signal, forwarded to the scoring model exactly as the
+   * agent handler forwards `ctx.abortSignal`. Without it the scoring request outlives
+   * a cancelled request and keeps burning a provider slot until the transport gives up.
+   */
+  abortSignal?: AbortSignal
 }
 
 /**
@@ -54,29 +85,38 @@ async function queryKnowledgeBase(
   query: string,
   topK: number,
   requestId: string,
-  workflowId?: string,
-  authHeaders?: { cookie?: string; authorization?: string; billingAttribution?: string }
+  actorUserId: string,
+  billingAttribution: BillingAttributionSnapshot,
+  workflowId: string | undefined,
+  resolvedSecretTraceRegistry: ResolvedSecretTraceRegistry
 ): Promise<string[]> {
   try {
-    // Call the knowledge base search API directly
     const searchUrl = `${getInternalApiBaseUrl()}/api/knowledge/search`
+    const internalToken = await generateInternalToken(actorUserId)
+    const headers = new Headers({
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${internalToken}`,
+      [BILLING_ATTRIBUTION_HEADER]: serializeBillingAttributionHeader(billingAttribution),
+      [PRIVATE_TOOL_METADATA_REQUEST_HEADER]: RESOLVED_SECRET_PROVENANCE_METADATA_V1,
+    })
+    const requestBody = {
+      knowledgeBaseIds: [knowledgeBaseId],
+      query,
+      topK,
+      workflowId,
+    }
+    const modelInputMetadata = createModelInputProvenanceRequestMetadata(
+      resolvedSecretTraceRegistry,
+      query
+    )
+    if (!modelInputMetadata) throw new Error('Knowledge model input provenance is unavailable')
+    const body = addModelInputProvenanceToRequest(requestBody, headers, modelInputMetadata)
 
+    // boundary-raw-fetch: authenticated internal Knowledge call with private provenance envelopes
     const response = await fetch(searchUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(authHeaders?.cookie ? { Cookie: authHeaders.cookie } : {}),
-        ...(authHeaders?.authorization ? { Authorization: authHeaders.authorization } : {}),
-        ...(authHeaders?.billingAttribution
-          ? { [BILLING_ATTRIBUTION_HEADER]: authHeaders.billingAttribution }
-          : {}),
-      },
-      body: JSON.stringify({
-        knowledgeBaseIds: [knowledgeBaseId],
-        query,
-        topK,
-        workflowId,
-      }),
+      headers,
+      body: JSON.stringify(body),
     })
 
     if (!response.ok) {
@@ -86,13 +126,42 @@ async function queryKnowledgeBase(
       return []
     }
 
-    const result = await response.json()
-    const results = result.data?.results || []
+    const payload: unknown = await response.json()
+    if (!isPlainRecord(payload)) throw new KnowledgeProvenanceError()
 
-    const chunks = results.map((r: any) => r.content || '').filter((c: string) => c.length > 0)
+    const inspection = inspectPrivateToolMetadataEnvelope(
+      response.headers,
+      payload,
+      RESOLVED_SECRET_PROVENANCE_METADATA_V1
+    )
+    if (inspection.status !== 'verified') throw new KnowledgeProvenanceError()
 
-    return chunks
+    const functionalResponse = { ...payload }
+    delete functionalResponse[RESOLVED_SECRET_PROVENANCE_FIELD]
+    const imported = await resolvedSecretTraceRegistry.importProvenanceForValue(
+      inspection.value,
+      functionalResponse,
+      { trusted: true }
+    )
+    if (!imported || !resolvedSecretTraceRegistry.isComplete()) {
+      throw new KnowledgeProvenanceError()
+    }
+
+    const data = isPlainRecord(functionalResponse.data) ? functionalResponse.data : undefined
+    const results = Array.isArray(data?.results) ? data.results : []
+
+    return results.flatMap((result) => {
+      if (
+        !isPlainRecord(result) ||
+        typeof result.content !== 'string' ||
+        result.content.length === 0
+      ) {
+        return []
+      }
+      return [result.content]
+    })
   } catch (error: any) {
+    if (error instanceof KnowledgeProvenanceError) throw error
     logger.error(`[${requestId}] Error querying knowledge base`, {
       error: error.message,
     })
@@ -113,7 +182,9 @@ async function scoreHallucinationWithLLM(
   apiKey: string | undefined,
   providerCredentials: HallucinationValidationInput['providerCredentials'],
   workspaceId: string | undefined,
-  requestId: string
+  requestId: string,
+  resolvedSecretTraceRegistry: ResolvedSecretTraceRegistry,
+  abortSignal: AbortSignal | undefined
 ): Promise<{ score: number; reasoning: string; cost: number }> {
   try {
     const contextText = ragContext.join('\n\n---\n\n')
@@ -167,26 +238,31 @@ Evaluate the consistency and provide your score and reasoning in JSON format.`
       }
     }
 
-    const response = await executeProviderRequest(providerId, {
-      model,
-      systemPrompt,
-      messages: [
-        {
-          role: 'user',
-          content: userPrompt,
-        },
-      ],
-      temperature: 0.1, // Low temperature for consistent scoring
-      apiKey: finalApiKey,
-      azureEndpoint: providerCredentials?.azureEndpoint,
-      azureApiVersion: providerCredentials?.azureApiVersion,
-      vertexProject: providerCredentials?.vertexProject,
-      vertexLocation: providerCredentials?.vertexLocation,
-      bedrockAccessKeyId: providerCredentials?.bedrockAccessKeyId,
-      bedrockSecretKey: providerCredentials?.bedrockSecretKey,
-      bedrockRegion: providerCredentials?.bedrockRegion,
-      workspaceId,
-    })
+    const response = await executeProviderRequest(
+      providerId,
+      {
+        model,
+        systemPrompt,
+        messages: [
+          {
+            role: 'user',
+            content: userPrompt,
+          },
+        ],
+        temperature: 0.1, // Low temperature for consistent scoring
+        apiKey: finalApiKey,
+        azureEndpoint: providerCredentials?.azureEndpoint,
+        azureApiVersion: providerCredentials?.azureApiVersion,
+        vertexProject: providerCredentials?.vertexProject,
+        vertexLocation: providerCredentials?.vertexLocation,
+        bedrockAccessKeyId: providerCredentials?.bedrockAccessKeyId,
+        bedrockSecretKey: providerCredentials?.bedrockSecretKey,
+        bedrockRegion: providerCredentials?.bedrockRegion,
+        workspaceId,
+        abortSignal,
+      },
+      { resolvedSecretTraceRegistry }
+    )
 
     if (response instanceof ReadableStream || ('stream' in response && 'execution' in response)) {
       throw new Error('Unexpected streaming response from LLM')
@@ -223,6 +299,11 @@ Evaluate the consistency and provide your score and reasoning in JSON format.`
       cost,
     }
   } catch (error: any) {
+    /**
+     * A cancelled run is not a scoring failure. Rewrapping it would erase the
+     * `AbortError` name the outer handler classifies on, so it propagates as-is.
+     */
+    if (isAbortError(error)) throw error
     logger.error(`[${requestId}] Error scoring with LLM`, {
       error: error.message,
     })
@@ -246,8 +327,11 @@ export async function validateHallucination(
     providerCredentials,
     workflowId,
     workspaceId,
-    authHeaders,
+    actorUserId,
+    billingAttribution,
     requestId,
+    resolvedSecretTraceRegistry,
+    abortSignal,
   } = input
 
   try {
@@ -264,15 +348,26 @@ export async function validateHallucination(
         error: 'Knowledge base ID is required',
       }
     }
+    const projection = projectResolvedSecretModelContent(userInput, resolvedSecretTraceRegistry)
+    if (!projection.safe || typeof projection.value !== 'string') {
+      throw new Error('Hallucination input could not be safely projected')
+    }
+    const modelSafeUserInput = projection.value
+    const providerRegistry = resolvedSecretTraceRegistry.forkForToolInput(modelSafeUserInput)
+    if (!providerRegistry.isComplete()) {
+      throw new Error('Hallucination model input provenance is unavailable')
+    }
 
     // Step 1: Query knowledge base with RAG
     const ragContext = await queryKnowledgeBase(
       knowledgeBaseId,
-      userInput,
+      modelSafeUserInput,
       topK,
       requestId,
+      actorUserId,
+      billingAttribution,
       workflowId,
-      authHeaders
+      providerRegistry
     )
 
     if (ragContext.length === 0) {
@@ -284,13 +379,15 @@ export async function validateHallucination(
 
     // Step 2: Use LLM to score confidence
     const { score, reasoning, cost } = await scoreHallucinationWithLLM(
-      userInput,
+      modelSafeUserInput,
       ragContext,
       model,
       apiKey,
       providerCredentials,
       workspaceId,
-      requestId
+      requestId,
+      providerRegistry,
+      abortSignal
     )
 
     logger.info(`[${requestId}] Confidence score: ${score}`, {
@@ -311,6 +408,12 @@ export async function validateHallucination(
         : `Low confidence: score ${score}/10 is below threshold ${threshold}`,
     }
   } catch (error: any) {
+    /**
+     * Cancellation is surfaced as cancellation, not as a guardrail verdict. Returning
+     * `passed: false` here would fail content on a run the caller abandoned, which is
+     * indistinguishable to a consumer from the model actually hallucinating.
+     */
+    if (isAbortError(error)) throw error
     logger.error(`[${requestId}] Hallucination validation error`, {
       error: error.message,
     })

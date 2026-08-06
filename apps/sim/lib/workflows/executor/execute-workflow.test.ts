@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { ExecutionSnapshot } from '@/executor/execution/snapshot'
@@ -10,13 +11,19 @@ const {
   executeWorkflowCoreMock,
   handlePostExecutionPauseStateMock,
   loggingSessionConstructorMock,
+  projectDiagnosticErrorMock,
   safeStartMock,
+  waitForPostExecutionMock,
+  setTrustedExecutionCorrelationMock,
 } = vi.hoisted(() => ({
   captureServerEventMock: vi.fn(),
   executeWorkflowCoreMock: vi.fn(),
   handlePostExecutionPauseStateMock: vi.fn(),
   loggingSessionConstructorMock: vi.fn(),
+  projectDiagnosticErrorMock: vi.fn(),
   safeStartMock: vi.fn(),
+  waitForPostExecutionMock: vi.fn(),
+  setTrustedExecutionCorrelationMock: vi.fn(),
 }))
 
 vi.mock('@sim/utils/id', () => ({
@@ -25,7 +32,10 @@ vi.mock('@sim/utils/id', () => ({
 
 vi.mock('@/lib/logs/execution/logging-session', () => ({
   LoggingSession: class {
+    projectDiagnosticError = projectDiagnosticErrorMock
     safeStart = safeStartMock
+    waitForPostExecution = waitForPostExecutionMock
+    setTrustedExecutionCorrelation = setTrustedExecutionCorrelationMock
 
     constructor(...args: unknown[]) {
       loggingSessionConstructorMock(...args)
@@ -46,6 +56,13 @@ vi.mock('@/lib/workflows/executor/pause-persistence', () => ({
 }))
 
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
+
+const workflowExecutionLoggerCallIndex = loggerMock.createLogger.mock.calls.findIndex(
+  ([name]) => name === 'WorkflowExecution'
+)
+const workflowExecutionLogger =
+  loggerMock.createLogger.mock.results[workflowExecutionLoggerCallIndex]?.value
+if (!workflowExecutionLogger) throw new Error('WorkflowExecution logger mock was not initialized')
 
 const billingAttribution: BillingAttributionSnapshot = {
   actorUserId: 'actor-1',
@@ -75,10 +92,18 @@ const workflow = {
   variables: {},
 }
 
-describe('executeWorkflow billing attribution', () => {
+describe('executeWorkflow', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     safeStartMock.mockResolvedValue(true)
+    waitForPostExecutionMock.mockResolvedValue(undefined)
+    projectDiagnosticErrorMock.mockImplementation(
+      (error: unknown, details: Record<string, unknown> = {}) => ({
+        ...details,
+        errorType: error instanceof Error ? 'error' : typeof error,
+        hasStack: error instanceof Error && typeof error.stack === 'string',
+      })
+    )
     handlePostExecutionPauseStateMock.mockResolvedValue(undefined)
     executeWorkflowCoreMock.mockImplementation(
       async (params: {
@@ -185,5 +210,151 @@ describe('executeWorkflow billing attribution', () => {
     expect(executeWorkflowCoreMock).toHaveBeenCalledWith(
       expect.objectContaining({ trustedInitialResolvedSecretTraceProvenance: provenance })
     )
+  })
+
+  it('waits for post-execution persistence before resolving', async () => {
+    let resolvePostExecution!: () => void
+    waitForPostExecutionMock.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        resolvePostExecution = resolve
+      })
+    )
+
+    let executionSettled = false
+    const executionPromise = executeWorkflow(
+      workflow,
+      'request-1',
+      { prompt: 'hello' },
+      'actor-1',
+      {
+        enabled: true,
+        billingAttribution,
+      }
+    ).then((result) => {
+      executionSettled = true
+      return result
+    })
+
+    await vi.waitFor(() => expect(waitForPostExecutionMock).toHaveBeenCalledOnce())
+    expect(executionSettled).toBe(false)
+
+    resolvePostExecution()
+    await executionPromise
+
+    expect(executionSettled).toBe(true)
+  })
+
+  it('waits for post-execution persistence before rejecting', async () => {
+    const executionError = new Error('Request body size limit exceeded (10MB)')
+    executeWorkflowCoreMock.mockRejectedValueOnce(executionError)
+
+    let resolvePostExecution!: () => void
+    waitForPostExecutionMock.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        resolvePostExecution = resolve
+      })
+    )
+
+    let executionSettled = false
+    const executionPromise = executeWorkflow(workflow, 'request-1', undefined, 'actor-1', {
+      enabled: true,
+      billingAttribution,
+    }).catch((error: unknown) => {
+      executionSettled = true
+      throw error
+    })
+
+    await vi.waitFor(() => expect(waitForPostExecutionMock).toHaveBeenCalledOnce())
+    expect(executionSettled).toBe(false)
+
+    resolvePostExecution()
+    await expect(executionPromise).rejects.toBe(executionError)
+    expect(executionSettled).toBe(true)
+  })
+
+  it('transfers post-execution ownership with successful streaming metadata', async () => {
+    const result = await executeWorkflow(workflow, 'request-1', undefined, 'actor-1', {
+      enabled: true,
+      skipLoggingComplete: true,
+      billingAttribution,
+    })
+
+    expect(waitForPostExecutionMock).not.toHaveBeenCalled()
+    expect(result._streamingMetadata?.loggingSession).toBeDefined()
+  })
+
+  it('retains post-execution ownership when streaming execution rejects', async () => {
+    const executionError = new Error('Streaming execution failed')
+    executeWorkflowCoreMock.mockRejectedValueOnce(executionError)
+
+    await expect(
+      executeWorkflow(workflow, 'request-1', undefined, 'actor-1', {
+        enabled: true,
+        skipLoggingComplete: true,
+        billingAttribution,
+      })
+    ).rejects.toBe(executionError)
+
+    expect(waitForPostExecutionMock).toHaveBeenCalledOnce()
+  })
+
+  it('persists server-issued workflow-group correlation in execution metadata', async () => {
+    const correlation = {
+      executionId: 'execution-1',
+      requestId: 'wfgrp-execution-1',
+      source: 'workflow_group' as const,
+      workflowId: 'workflow-1',
+      triggerType: 'table',
+      tableId: 'table-1',
+      rowId: 'row-1',
+      groupId: 'group-1',
+    }
+
+    await executeWorkflow(workflow, 'request-1', { rowId: 'row-1' }, 'actor-1', {
+      enabled: true,
+      workflowTriggerType: 'table',
+      billingAttribution,
+      trustedExecutionCorrelation: correlation,
+    })
+
+    const coreParams = executeWorkflowCoreMock.mock.calls[0]?.[0] as {
+      snapshot: ExecutionSnapshot
+    }
+    expect(coreParams.snapshot.metadata.correlation).toEqual(correlation)
+    expect(setTrustedExecutionCorrelationMock).toHaveBeenCalledWith(correlation)
+  })
+
+  it('uses the shared diagnostic projection for operational logs and failure telemetry', async () => {
+    const secret = 'workflow-telemetry-secret-7f3a91'
+    const error = new Error(`failed ${secret} __var_API_KEY __sim_code_1_binding_0`)
+    const projectedError = 'failed {{API_KEY}} {{API_KEY}} [RUNTIME_BINDING]'
+    executeWorkflowCoreMock.mockRejectedValueOnce(error)
+    projectDiagnosticErrorMock.mockReturnValueOnce({ error: projectedError, errorName: 'Error' })
+
+    await expect(
+      executeWorkflow(workflow, 'request-1', undefined, 'actor-1', {
+        enabled: true,
+        billingAttribution,
+      })
+    ).rejects.toBe(error)
+
+    expect(workflowExecutionLogger.error).toHaveBeenCalledWith(
+      '[request-1] Workflow execution failed',
+      { error: projectedError, errorName: 'Error' }
+    )
+    expect(captureServerEventMock).toHaveBeenCalledWith(
+      'actor-1',
+      'workflow_execution_failed',
+      expect.objectContaining({ error_message: projectedError }),
+      expect.anything()
+    )
+    const observabilityPayload = JSON.stringify({
+      logger: workflowExecutionLogger.error.mock.calls,
+      telemetry: captureServerEventMock.mock.calls,
+    })
+    expect(observabilityPayload).not.toContain(secret)
+    expect(observabilityPayload).not.toContain('__var_')
+    expect(observabilityPayload).not.toContain('__sim_')
+    expect(error.message).toContain(secret)
   })
 })

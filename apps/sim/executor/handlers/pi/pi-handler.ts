@@ -50,6 +50,7 @@ import type {
   NormalizedBlockOutput,
   StreamingExecution,
 } from '@/executor/types'
+import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import { isPiSupportedProvider, resolvePiModelId } from '@/providers/pi-providers'
 import { getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
@@ -160,8 +161,16 @@ export class PiBlockHandler implements BlockHandler {
     inputs: Record<string, any>
   ): Promise<BlockOutput | StreamingExecution> {
     const mode = parsePiMode(inputs.mode)
-    const task = asOptString(inputs.task)
-    if (!task) throw new Error('Task is required')
+    const resolvedTask = asOptString(inputs.task)
+    if (!resolvedTask) throw new Error('Task is required')
+    const taskProjection = projectResolvedSecretModelContent(
+      resolvedTask,
+      ctx.resolvedSecretTraceRegistry
+    )
+    if (!taskProjection.safe || typeof taskProjection.value !== 'string') {
+      throw new Error('Pi input could not be safely projected')
+    }
+    const task = taskProjection.value
     const model = asOptString(inputs.model) ?? DEFAULT_MODEL
 
     const providerId = getProviderFromModel(model)

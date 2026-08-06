@@ -395,11 +395,16 @@ export async function buildCopilotRequestPayload(
           content: lines.join('\n'),
         })
       } catch (err) {
+        const cause = toError(err)
         logger.warn('Failed to track chat upload', {
           filename,
           chatId,
-          error: toError(err).message,
+          error: cause.message,
         })
+        throw new Error(
+          `Failed to prepare attached file "${filename}" for Copilot. Please try again.`,
+          { cause }
+        )
       }
     }
   }

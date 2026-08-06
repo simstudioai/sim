@@ -1,5 +1,6 @@
 import type { BlockStateController } from '@/executor/execution/types'
 import type { BlockState, NormalizedBlockOutput } from '@/executor/types'
+import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
 import { SubflowNodeIdCodec } from '@/executor/utils/subflow-node-id-codec'
 import {
   buildOuterBranchScopedId,
@@ -31,6 +32,8 @@ export interface LoopScope {
   skippedAtStart?: boolean
   /** Error message if loop validation failed (e.g., exceeded max iterations) */
   validationError?: string
+  inputResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
+  resolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
 }
 
 export interface ParallelScope {
@@ -46,6 +49,8 @@ export interface ParallelScope {
   validationError?: string
   /** Whether the parallel has an empty distribution and should be skipped */
   isEmpty?: boolean
+  inputResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
+  resolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
 }
 
 export class ExecutionState implements BlockStateController {
@@ -65,16 +70,16 @@ export class ExecutionState implements BlockStateController {
     return this.executedBlocks
   }
 
-  getBlockOutput(blockId: string, currentNodeId?: string): NormalizedBlockOutput | undefined {
+  getBlockState(blockId: string, currentNodeId?: string): BlockState | undefined {
     const normalizedId = normalizeLookupId(blockId)
     if (normalizedId !== blockId) {
-      return this.blockStates.get(blockId)?.output
+      return this.blockStates.get(blockId)
     }
 
     if (currentNodeId) {
-      const scopedOutput = this.getScopedBlockOutput(blockId, currentNodeId)
-      if (scopedOutput !== undefined) {
-        return scopedOutput
+      const scopedState = this.getScopedBlockState(blockId, currentNodeId)
+      if (scopedState !== undefined) {
+        return scopedState
       }
 
       if (extractOuterBranchIndex(currentNodeId) !== undefined) {
@@ -82,40 +87,39 @@ export class ExecutionState implements BlockStateController {
       }
     }
 
-    const direct = this.blockStates.get(blockId)?.output
+    const direct = this.blockStates.get(blockId)
     if (direct !== undefined) {
       return direct
     }
 
     if (currentNodeId && extractBranchSuffix(currentNodeId) === '') {
-      const stableBranchZeroOutput = this.blockStates.get(
-        buildOuterBranchScopedId(blockId, 0)
-      )?.output
-      if (stableBranchZeroOutput !== undefined) {
-        return stableBranchZeroOutput
+      const stableBranchZeroState = this.blockStates.get(buildOuterBranchScopedId(blockId, 0))
+      if (stableBranchZeroState !== undefined) {
+        return stableBranchZeroState
       }
 
-      const branchZeroOutput = this.blockStates.get(
+      const branchZeroState = this.blockStates.get(
         `${blockId}₍0₎${extractLoopSuffix(currentNodeId)}`
-      )?.output
-      if (branchZeroOutput !== undefined) {
-        return branchZeroOutput
+      )
+      if (branchZeroState !== undefined) {
+        return branchZeroState
       }
     }
 
     for (const [storedId, state] of this.blockStates.entries()) {
       if (normalizeLookupId(storedId) === blockId) {
-        return state.output
+        return state
       }
     }
 
     return undefined
   }
 
-  private getScopedBlockOutput(
-    blockId: string,
-    currentNodeId: string
-  ): NormalizedBlockOutput | undefined {
+  getBlockOutput(blockId: string, currentNodeId?: string): NormalizedBlockOutput | undefined {
+    return this.getBlockState(blockId, currentNodeId)?.output
+  }
+
+  private getScopedBlockState(blockId: string, currentNodeId: string): BlockState | undefined {
     const currentBranchSuffix = extractBranchSuffix(currentNodeId)
     const loopSuffix = extractLoopSuffix(currentNodeId)
 
@@ -127,28 +131,40 @@ export class ExecutionState implements BlockStateController {
         if (extractBranchSuffix(storedId) !== currentBranchSuffix) continue
         if (extractLoopSuffix(storedId) !== loopSuffix) continue
 
-        return state.output
+        return state
       }
 
-      const siblingBranchOutput = this.blockStates.get(
-        `${blockId}₍${currentOuterBranchIndex}₎`
-      )?.output
-      if (siblingBranchOutput !== undefined) {
-        return siblingBranchOutput
+      const siblingBranchState = this.blockStates.get(`${blockId}₍${currentOuterBranchIndex}₎`)
+      if (siblingBranchState !== undefined) {
+        return siblingBranchState
       }
     } else {
       const withSuffix = `${blockId}${currentBranchSuffix}${loopSuffix}`
-      const suffixedOutput = this.blockStates.get(withSuffix)?.output
-      if (suffixedOutput !== undefined) {
-        return suffixedOutput
+      const suffixedState = this.blockStates.get(withSuffix)
+      if (suffixedState !== undefined) {
+        return suffixedState
       }
     }
 
     return undefined
   }
 
-  setBlockOutput(blockId: string, output: NormalizedBlockOutput, executionTime = 0): void {
-    this.blockStates.set(blockId, { output, executed: true, executionTime })
+  setBlockOutput(
+    blockId: string,
+    output: NormalizedBlockOutput,
+    executionTime = 0,
+    resolvedSecretTraceProvenance?: BlockState['resolvedSecretTraceProvenance']
+  ): void {
+    const existingState = this.blockStates.get(blockId)
+    const effectiveProvenance =
+      resolvedSecretTraceProvenance ??
+      (existingState?.output === output ? existingState.resolvedSecretTraceProvenance : undefined)
+    this.blockStates.set(blockId, {
+      output,
+      executed: true,
+      executionTime,
+      ...(effectiveProvenance ? { resolvedSecretTraceProvenance: effectiveProvenance } : {}),
+    })
     this.executedBlocks.add(blockId)
   }
 

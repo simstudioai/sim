@@ -30,6 +30,7 @@ import {
 } from '@/lib/table/column-keys'
 import { TableQueryValidationError } from '@/lib/table/errors'
 import { signalTableRowsChanged } from '@/lib/table/events'
+import { createExactEmptyTableRowSecretProvenance } from '@/lib/table/rows/secret-provenance'
 import { queryRows } from '@/lib/table/rows/service'
 import { resolveFilterSelectValues } from '@/lib/table/select-values'
 import { accessError, checkAccess, rowWriteErrorResponse } from '@/app/api/table/utils'
@@ -86,6 +87,7 @@ async function handleBatchInsert(
         rows,
         workspaceId: validated.workspaceId,
         userId: actorUserId,
+        secretProvenance: rows.map(createExactEmptyTableRowSecretProvenance),
       },
       table,
       requestId
@@ -280,6 +282,7 @@ export const POST = withRouteHandler(
           data: rowData,
           workspaceId: validated.workspaceId,
           userId: actorUserId,
+          secretProvenance: createExactEmptyTableRowSecretProvenance(rowData),
         },
         table,
         requestId
@@ -367,6 +370,7 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: TableR
         data: patchData,
         limit: validated.limit,
         actorUserId,
+        secretProvenance: createExactEmptyTableRowSecretProvenance(patchData),
       },
       requestId
     )

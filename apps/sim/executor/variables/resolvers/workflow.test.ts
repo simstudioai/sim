@@ -4,6 +4,7 @@ import {
   isLargeArrayManifest,
 } from '@/lib/execution/payloads/large-array-manifest'
 import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { navigatePathAsync } from '@/executor/variables/resolvers/reference-async.server'
 import type { ResolutionContext } from './reference'
 import { WorkflowResolver } from './workflow'
@@ -12,6 +13,15 @@ vi.mock('@/lib/workflows/variables/variable-manager', () => ({
   VariableManager: {
     resolveForExecution: vi.fn((value) => value),
   },
+}))
+
+vi.mock('@/lib/uploads/server/metadata', () => ({
+  insertFileMetadata: vi.fn().mockResolvedValue({ id: 'execution-payload-file' }),
+  deleteFileMetadata: vi.fn().mockResolvedValue(undefined),
+}))
+
+vi.mock('@/lib/core/security/encryption', () => ({
+  decryptSecret: vi.fn(async (encryptedValue: string) => ({ decrypted: encryptedValue })),
 }))
 
 /**
@@ -167,6 +177,29 @@ describe('WorkflowResolver', () => {
         const result = resolver.resolve(`<variable.${refName}>`, createTestContext(variables))
         expect(result).toBe(value)
       }
+    })
+
+    it('imports provenance from the exact persisted workflow variable', async () => {
+      const variables = {
+        'var-1': { id: 'var-1', name: 'token', type: 'plain', value: 'secret-value' },
+      }
+      const registry = new ResolvedSecretTraceRegistry()
+      const context = createTestContext(variables)
+      context.executionContext.resolvedSecretTraceRegistry = registry
+      context.executionContext.workflowVariableResolvedSecretTraceProvenance = {
+        'var-1': {
+          version: 1,
+          complete: true,
+          entries: [{ name: 'API_KEY', encryptedValue: 'secret-value' }],
+        },
+      }
+
+      await expect(
+        new WorkflowResolver(variables).resolveAsync('<variable.token>', context)
+      ).resolves.toBe('secret-value')
+      expect(registry.getActiveMatches()).toEqual([
+        { plaintext: 'secret-value', replacement: '{{API_KEY}}' },
+      ])
     })
 
     it('returns whole large workflow variable manifests only when refs are allowed', async () => {

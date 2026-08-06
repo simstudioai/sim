@@ -14,7 +14,7 @@ import {
 import {
   MAX_DURABLE_LARGE_VALUE_BYTES,
   MAX_INLINE_MATERIALIZATION_BYTES,
-} from '@/lib/execution/payloads/materialization.server'
+} from '@/lib/execution/payloads/limits'
 import type { LargeValueStoreContext } from '@/lib/execution/payloads/store'
 import { materializeLargeValueRef, storeLargeValue } from '@/lib/execution/payloads/store'
 import type { ToolCall, TraceSpan } from '@/lib/logs/types'
@@ -562,6 +562,7 @@ async function sanitizeMaterializedValue(
   const withSafeRefs = await replaceLargeValues(value, context, path, withinRefWorker)
   const projection = projectResolvedSecretContent(withSafeRefs, context.matcher, maxBytes, {
     isOpaqueSafeObject: (candidate) => context.safeLargeValues.has(candidate),
+    sanitizeInternalIdentifiers: true,
   })
   if (!projection.safe) {
     throw new TraceSecretProjectionError('Trace content could not be sanitized')
@@ -900,7 +901,7 @@ async function sanitizeTraceSpan(
     throw new TraceSecretProjectionError('Trace span structure limit exceeded')
   }
 
-  let projected: TraceSpan = { ...span }
+  let projected = omit(span, ['displayResolvedSecretTraceProvenance']) as TraceSpan
 
   for (const key of ['input', 'output', 'thinking', 'errorMessage'] as const) {
     const value = span[key]
@@ -1040,6 +1041,7 @@ function structuralOnlySpan(
     errorMessage: _errorMessage,
     children,
     providerTiming,
+    displayResolvedSecretTraceProvenance: _displayResolvedSecretTraceProvenance,
     ...structural
   } = span
 
@@ -1121,8 +1123,12 @@ function cloneTraceSpanForProjection(
   depth = 0
 ): TraceSpan | undefined {
   if (!takeTraceStructureNode(state, depth)) return undefined
+  const {
+    displayResolvedSecretTraceProvenance: _displayResolvedSecretTraceProvenance,
+    ...publicSpan
+  } = span
   return {
-    ...span,
+    ...publicSpan,
     ...(span.modelToolCalls
       ? {
           modelToolCalls: projectBoundedArray(span.modelToolCalls, (call) =>
@@ -1509,7 +1515,9 @@ export async function enforceTraceSpanSecretInvariant(
   try {
     if (!options.registry?.isComplete()) return structuralOnlyTraceSpans(traceSpans)
 
-    const matcher = createResolvedSecretMatcher(options.registry.getActiveMatches())
+    const matcher = createResolvedSecretMatcher(options.registry.getActiveMatches(), {
+      preserveNamedProvenanceLabels: true,
+    })
     if (!matcher) return traceSpans
 
     await assertPostTransformTraceSpansAreSafe(traceSpans, matcher, options.store)
@@ -1533,7 +1541,9 @@ export async function projectTraceSpansForSecrets(
   }
 
   try {
-    const matcher = createResolvedSecretMatcher(options.registry.getActiveMatches())
+    const matcher = createResolvedSecretMatcher(options.registry.getActiveMatches(), {
+      preserveNamedProvenanceLabels: true,
+    })
     if (!matcher) return cloneTraceSpansForProjection(traceSpans)
 
     const context = createProjectionContext(

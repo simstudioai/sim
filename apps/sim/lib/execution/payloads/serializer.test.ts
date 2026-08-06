@@ -1,7 +1,8 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
 import {
   isLargeArrayManifest,
   LARGE_ARRAY_MANIFEST_VERSION,
@@ -14,6 +15,24 @@ import {
 import { compactExecutionPayload, compactSubflowResults } from '@/lib/execution/payloads/serializer'
 import type { UserFile } from '@/executor/types'
 
+const { mockDownloadFile, mockRegisterLargeValueOwner, mockUploadFile } = vi.hoisted(() => ({
+  mockDownloadFile: vi.fn(),
+  mockRegisterLargeValueOwner: vi.fn(),
+  mockUploadFile: vi.fn(),
+}))
+
+vi.mock('@/lib/uploads', () => ({
+  StorageService: {
+    downloadFile: mockDownloadFile,
+    uploadFile: mockUploadFile,
+  },
+}))
+
+vi.mock('@/lib/execution/payloads/large-value-metadata', () => ({
+  addLargeValueReference: vi.fn(),
+  registerLargeValueOwner: mockRegisterLargeValueOwner,
+}))
+
 const TEST_EXECUTION_CONTEXT = {
   workspaceId: 'workspace-1',
   workflowId: 'workflow-1',
@@ -22,6 +41,13 @@ const TEST_EXECUTION_CONTEXT = {
 }
 
 describe('compactExecutionPayload', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    clearLargeValueCacheForTests()
+    mockUploadFile.mockImplementation(async ({ customKey }) => ({ key: customKey }))
+    mockRegisterLargeValueOwner.mockResolvedValue(true)
+  })
+
   it('keeps small JSON payloads inline', async () => {
     const value = { result: { id: 'event-1', text: 'hello' } }
 

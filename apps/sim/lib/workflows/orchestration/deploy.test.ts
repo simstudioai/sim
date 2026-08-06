@@ -340,7 +340,7 @@ describe('performFullDeploy workspace event emission', () => {
     expect(firstKey).not.toBe(secondKey)
   })
 
-  it('keeps the request hash stable across snapshot timestamps and edge order', async () => {
+  it('keeps retry identity stable across snapshot timestamps, edge order, and label wording', async () => {
     queueTableRows(schemaMock.workflow, [
       { id: 'workflow-1', name: 'My Workflow', workspaceId: 'workspace-1' },
       { id: 'workflow-1', name: 'My Workflow', workspaceId: 'workspace-1' },
@@ -367,14 +367,23 @@ describe('performFullDeploy workspace event emission', () => {
       userId: 'user-1',
       idempotencyKey: 'copilot:execution-1:tool-call:call-1',
     }
-    await performFullDeploy(params)
-    await performFullDeploy(params)
+    await performFullDeploy({
+      ...params,
+      versionName: 'First wording',
+      versionDescription: 'First description',
+    })
+    await performFullDeploy({
+      ...params,
+      versionName: 'Retry wording',
+      versionDescription: 'Rephrased description',
+    })
 
     expect(mockPrepareWorkflowDeployment.mock.calls[0][0].requestHash).toBe(
       mockPrepareWorkflowDeployment.mock.calls[1][0].requestHash
     )
-    expect(mockPrepareWorkflowDeployment.mock.calls[0][0].idempotencyKey).toBe(
-      'copilot:execution-1:tool-call:call-1'
+    const firstRequest = mockPrepareWorkflowDeployment.mock.calls[0][0]
+    expect(firstRequest.idempotencyKey).toBe(
+      `copilot:execution-1:tool-call:call-1:request:${firstRequest.requestHash}`
     )
   })
 

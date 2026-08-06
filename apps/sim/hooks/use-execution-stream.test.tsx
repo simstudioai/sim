@@ -1,9 +1,35 @@
 /**
- * @vitest-environment node
+ * @vitest-environment jsdom
  */
-import { describe, expect, it, vi } from 'vitest'
+import { act } from 'react'
+import { createRoot, type Root } from 'react-dom/client'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutionEvent } from '@/lib/workflows/executor/execution-events'
-import { processSSEStream } from '@/hooks/use-execution-stream'
+import { processSSEStream, useExecutionStream } from '@/hooks/use-execution-stream'
+
+interface HookHarness {
+  result: () => ReturnType<typeof useExecutionStream>
+  unmount: () => void
+}
+
+function renderExecutionStreamHook(): HookHarness {
+  ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+  const container = document.createElement('div')
+  const root: Root = createRoot(container)
+  let latest: ReturnType<typeof useExecutionStream>
+
+  function Probe() {
+    latest = useExecutionStream()
+    return null
+  }
+
+  act(() => root.render(<Probe />))
+
+  return {
+    result: () => latest,
+    unmount: () => act(() => root.unmount()),
+  }
+}
 
 function streamEvents(events: ExecutionEvent[]): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder()
@@ -180,5 +206,94 @@ describe('processSSEStream', () => {
     ).rejects.toThrow('boom')
 
     expect(stream.locked).toBe(false)
+  })
+})
+
+describe('useExecutionStream executeFromBlock', () => {
+  const fetchMock = vi.fn()
+
+  beforeEach(() => {
+    vi.stubGlobal('fetch', fetchMock)
+    fetchMock.mockResolvedValue(
+      new Response('data: [DONE]\n\n', {
+        status: 200,
+        headers: { 'X-Execution-Id': 'execution-2' },
+      })
+    )
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('sends current draft state and client identity without changing snapshot resume fields', async () => {
+    const sourceSnapshot = {
+      blockStates: { start: { output: { value: 'cached' } } },
+      executedBlocks: ['start'],
+      blockLogs: [],
+      decisions: { router: {}, condition: {} },
+      completedLoops: [],
+      activeExecutionPath: ['start'],
+    }
+    const workflowStateOverride = {
+      blocks: {
+        function: {
+          id: 'function',
+          type: 'function',
+          name: 'Function',
+          position: { x: 0, y: 0 },
+          enabled: true,
+          subBlocks: {
+            code: { id: 'code', type: 'code', value: 'return "current editor state"' },
+          },
+          outputs: {},
+        },
+      },
+      edges: [
+        {
+          id: 'start-function',
+          source: 'start',
+          target: 'function',
+          sourceHandle: null,
+          targetHandle: null,
+        },
+      ],
+      loops: {},
+      parallels: {},
+    }
+    const { result, unmount } = renderExecutionStreamHook()
+
+    await act(async () => {
+      await result().executeFromBlock({
+        workflowId: 'workflow-1',
+        startBlockId: 'function',
+        sourceSnapshot,
+        sourceExecutionId: 'execution-1',
+        input: { message: 'hello' },
+        useDraftState: true,
+        isClientSession: true,
+        workflowStateOverride,
+      })
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/workflows/workflow-1/execute',
+      expect.objectContaining({ method: 'POST' })
+    )
+    const request = fetchMock.mock.calls[0]?.[1] as RequestInit
+    expect(JSON.parse(request.body as string)).toEqual({
+      stream: true,
+      input: { message: 'hello' },
+      useDraftState: true,
+      isClientSession: true,
+      workflowStateOverride,
+      runFromBlock: {
+        startBlockId: 'function',
+        executionId: 'execution-1',
+        sourceSnapshot,
+      },
+    })
+
+    unmount()
   })
 })

@@ -55,7 +55,14 @@ export const PUT = withRouteHandler(
         workspaceId,
         fileId,
         session.user.id,
-        buffer
+        buffer,
+        undefined,
+        {
+          secretProvenancePolicy: {
+            mode: 'replace',
+            provenance: { status: 'exact', entries: [] },
+          },
+        }
       )
 
       logger.info(`Updated content for workspace file: ${updatedFile.name}`)

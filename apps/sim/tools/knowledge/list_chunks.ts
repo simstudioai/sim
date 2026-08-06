@@ -59,6 +59,7 @@ export const knowledgeListChunksTool: ToolConfig<any, KnowledgeListChunksRespons
       return `/api/knowledge/${params.knowledgeBaseId}/documents/${params.documentId}/chunks${qs ? `?${qs}` : ''}`
     },
     method: 'GET',
+    secretProvenance: { response: { incomplete: 'reject' } },
     headers: () => ({
       'Content-Type': 'application/json',
     }),

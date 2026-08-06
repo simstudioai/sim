@@ -8,9 +8,9 @@
  */
 
 import { db } from '@sim/db'
-import { userTableDefinitions } from '@sim/db/schema'
+import { userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, isNull, sql } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 import {
   columnMatchesRef,
@@ -21,6 +21,7 @@ import {
 import { NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
 import { assertColumnDestructive, assertSchemaMutable } from '@/lib/table/mutation-locks'
 import { stripGroupExecutions } from '@/lib/table/rows/executions'
+import { updateTableRowsWithDerivedSecretProvenance } from '@/lib/table/rows/secret-provenance'
 import { getTableById, withLockedTable } from '@/lib/table/service'
 import { setTableTxTimeouts } from '@/lib/table/tx'
 import type {
@@ -501,20 +502,16 @@ export async function updateWorkflowGroup(
         .update(userTableDefinitions)
         .set({ schema: updatedSchema, metadata: updatedMetadata, updatedAt: now })
         .where(eq(userTableDefinitions.id, data.tableId))
-      for (const id of removedColumnIds) {
-        await trx.execute(
-          sql`UPDATE user_table_rows SET data = data - ${id}::text WHERE table_id = ${data.tableId} AND data ? ${id}::text`
-        )
-      }
       // Remapped columns: clear stale values in-tx so rows the backfill can't
       // repopulate (no log, no matching span output) end up empty rather than
       // retaining the previous mapping's value. The backfill below then writes
       // the new mapping's value into rows where it can find one.
-      for (const id of remappedColumnIds) {
-        if (removedColumnIds.has(id)) continue
-        await trx.execute(
-          sql`UPDATE user_table_rows SET data = data - ${id}::text WHERE table_id = ${data.tableId} AND data ? ${id}::text`
-        )
+      const clearedColumnIds = [...new Set([...removedColumnIds, ...remappedColumnIds])]
+      if (clearedColumnIds.length > 0) {
+        await updateTableRowsWithDerivedSecretProvenance(trx, {
+          rowWhere: eq(userTableRows.tableId, data.tableId),
+          transformation: { mode: 'remove-columns', columnIds: clearedColumnIds },
+        })
       }
 
       logger.info(
@@ -905,9 +902,10 @@ export async function deleteWorkflowGroupOutput(
       .update(userTableDefinitions)
       .set({ schema: updatedSchema, metadata: updatedMetadata, updatedAt: now })
       .where(eq(userTableDefinitions.id, data.tableId))
-    await trx.execute(
-      sql`UPDATE user_table_rows SET data = data - ${columnId}::text WHERE table_id = ${data.tableId} AND data ? ${columnId}::text`
-    )
+    await updateTableRowsWithDerivedSecretProvenance(trx, {
+      rowWhere: eq(userTableRows.tableId, data.tableId),
+      transformation: { mode: 'remove-columns', columnIds: [columnId] },
+    })
 
     logger.info(
       `[${requestId}] Removed output "${data.columnName}" from workflow group "${data.groupId}" in table ${data.tableId}`
@@ -963,10 +961,12 @@ export async function deleteWorkflowGroup(
       .update(userTableDefinitions)
       .set({ schema: updatedSchema, metadata: updatedMetadata, updatedAt: now })
       .where(eq(userTableDefinitions.id, data.tableId))
-    for (const id of removedColumnIds) {
-      await trx.execute(
-        sql`UPDATE user_table_rows SET data = data - ${id}::text WHERE table_id = ${data.tableId} AND data ? ${id}::text`
-      )
+    const removedIds = [...removedColumnIds]
+    if (removedIds.length > 0) {
+      await updateTableRowsWithDerivedSecretProvenance(trx, {
+        rowWhere: eq(userTableRows.tableId, data.tableId),
+        transformation: { mode: 'remove-columns', columnIds: removedIds },
+      })
     }
     await stripGroupExecutions(trx, data.tableId, [data.groupId])
 

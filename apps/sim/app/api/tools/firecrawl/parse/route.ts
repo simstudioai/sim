@@ -6,10 +6,16 @@ import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { validateOpaqueModelInputProvenance } from '@/lib/execution/model-input-provenance'
+import {
+  isModelSafeWorkspaceFileKey,
+  MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
+} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
+import { hasFirecrawlParseModelInput } from '@/tools/firecrawl/model-input'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,6 +40,28 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const parsed = await parseRequest(firecrawlParseContract, request, {})
     if (!parsed.success) return parsed.response
     const validatedData = parsed.data.body
+    const hasModelInput = hasFirecrawlParseModelInput({
+      file: validatedData.file,
+      formats: Array.isArray(validatedData.options?.formats)
+        ? validatedData.options.formats
+        : undefined,
+      parsers: Array.isArray(validatedData.options?.parsers)
+        ? validatedData.options.parsers
+        : undefined,
+    })
+    if (hasModelInput) {
+      const modelInputProvenance = validateOpaqueModelInputProvenance({
+        headers: request.headers,
+        payload: validatedData,
+        isInternalRequest: true,
+      })
+      if (!modelInputProvenance.success) {
+        return NextResponse.json(
+          { success: false, error: modelInputProvenance.error },
+          { status: modelInputProvenance.status }
+        )
+      }
+    }
 
     const [userFile] = processFilesToUserFiles([validatedData.file], requestId, logger)
     if (!userFile) {
@@ -47,6 +75,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const denied = await assertToolFileAccess(userFile.key, authResult.userId, requestId, logger)
     if (denied) return denied
+    if (hasModelInput && !(await isModelSafeWorkspaceFileKey(userFile.key))) {
+      return NextResponse.json(
+        { success: false, error: MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE },
+        { status: 400 }
+      )
+    }
 
     const { buffer, contentType } = await downloadServableFileFromStorage(
       userFile,

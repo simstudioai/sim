@@ -73,7 +73,10 @@ describe('resource writer', () => {
       Buffer.from('content'),
       'summary.csv',
       'text/csv',
-      { folderId: 'folder-nested' }
+      {
+        folderId: 'folder-nested',
+        secretProvenance: { status: 'exact', entries: [] },
+      }
     )
     expect(result).toMatchObject({
       id: 'file-report',

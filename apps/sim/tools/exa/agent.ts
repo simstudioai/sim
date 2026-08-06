@@ -78,6 +78,14 @@ export const agentTool: ToolConfig<ExaAgentParams, ExaAgentResponse> = {
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({
+        query: params.query,
+        outputSchema: params.outputSchema,
+        systemPrompt: params.systemPrompt,
+      }),
+    },
     url: 'https://api.exa.ai/agent/runs',
     method: 'POST',
     headers: (params) => ({

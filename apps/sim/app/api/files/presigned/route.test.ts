@@ -24,12 +24,13 @@ const {
   mockIsUsingCloudStorageUploads,
   mockGetUserEntityPermissions,
   mockGenerateWorkspaceFileKey,
-  mockGenerateExecutionFileKey,
+  mockGenerateExecutionAttachmentKey,
   mockInsertFileMetadata,
   mockCheckStorageQuotaForBillingContext,
   mockDecrementStorageUsageForBillingContext,
   mockIncrementStorageUsageForBillingContext,
   mockResolveStorageBillingContext,
+  mockSignUploadToken,
 } = vi.hoisted(() => ({
   mockVerifyFileAccess: vi.fn().mockResolvedValue(true),
   mockVerifyWorkspaceFileAccess: vi.fn().mockResolvedValue(true),
@@ -51,15 +52,16 @@ const {
   mockGenerateWorkspaceFileKey: vi.fn(
     (workspaceId: string, fileName: string) => `workspace/${workspaceId}/${fileName}`
   ),
-  mockGenerateExecutionFileKey: vi.fn(
+  mockGenerateExecutionAttachmentKey: vi.fn(
     (ctx: { workspaceId: string; workflowId: string; executionId: string }, fileName: string) =>
-      `execution/${ctx.workspaceId}/${ctx.workflowId}/${ctx.executionId}/${fileName}`
+      `execution/${ctx.workspaceId}/${ctx.workflowId}/${ctx.executionId}/attachment-${fileName}`
   ),
   mockInsertFileMetadata: vi.fn().mockResolvedValue({ id: 'wf_test' }),
   mockCheckStorageQuotaForBillingContext: vi.fn(),
   mockDecrementStorageUsageForBillingContext: vi.fn(),
   mockIncrementStorageUsageForBillingContext: vi.fn(),
   mockResolveStorageBillingContext: vi.fn(),
+  mockSignUploadToken: vi.fn(),
 }))
 
 vi.mock('@/app/api/files/authorization', () => ({
@@ -83,6 +85,10 @@ vi.mock('@/lib/uploads/config', () => ({
 
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
+vi.mock('@/lib/uploads/core/upload-token', () => ({
+  signUploadToken: mockSignUploadToken,
+}))
+
 vi.mock('@/lib/billing/storage', () => ({
   checkStorageQuotaForBillingContext: mockCheckStorageQuotaForBillingContext,
   decrementStorageUsageForBillingContext: mockDecrementStorageUsageForBillingContext,
@@ -104,11 +110,11 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
 }))
 
 vi.mock('@/lib/uploads/contexts/execution/utils', () => ({
-  generateExecutionFileKey: mockGenerateExecutionFileKey,
+  generateExecutionAttachmentKey: mockGenerateExecutionAttachmentKey,
 }))
 
 vi.mock('@/lib/uploads/server/metadata', () => ({
-  insertFileMetadata: mockInsertFileMetadata,
+  insertImmutableFileMetadata: mockInsertFileMetadata,
   recordKnowledgeBaseFileOwnership: (ownership: Record<string, unknown>) =>
     mockInsertFileMetadata({ ...ownership, context: 'knowledge-base' }),
 }))
@@ -181,6 +187,7 @@ function setupFileApiMocks(
       return {
         url: 'https://example.com/presigned-url',
         key,
+        uploadId: `receipt-${key}`,
       }
     }
   )
@@ -207,6 +214,7 @@ describe('/api/files/presigned', () => {
     vi.stubGlobal('crypto', {
       randomUUID: vi.fn().mockReturnValue('mock-uuid-1234-5678'),
     })
+    mockSignUploadToken.mockReturnValue('signed-receipt-token')
   })
 
   afterEach(() => {
@@ -742,6 +750,39 @@ describe('/api/files/presigned', () => {
   })
 
   describe('execution uploads', () => {
+    it('allocates distinct create-only keys for duplicate attachment names', async () => {
+      setupFileApiMocks({ cloudEnabled: true, storageProvider: 's3' })
+      mockGenerateExecutionAttachmentKey
+        .mockReturnValueOnce('execution/ws-1/wf-1/exec-1/one-output.txt')
+        .mockReturnValueOnce('execution/ws-1/wf-1/exec-1/two-output.txt')
+
+      const makeExecutionRequest = (fileSize: number) =>
+        new NextRequest(
+          'http://localhost:3000/api/files/presigned?type=execution&workspaceId=ws-1&workflowId=wf-1&executionId=exec-1',
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              fileName: 'output.txt',
+              contentType: 'text/plain',
+              fileSize,
+            }),
+          }
+        )
+
+      const first = await POST(makeExecutionRequest(3))
+      const second = await POST(makeExecutionRequest(12))
+      const firstBody = await first.json()
+      const secondBody = await second.json()
+
+      expect(first.status).toBe(200)
+      expect(second.status).toBe(200)
+      expect(firstBody.fileInfo.key).toBe('execution/ws-1/wf-1/exec-1/one-output.txt')
+      expect(secondBody.fileInfo.key).toBe('execution/ws-1/wf-1/exec-1/two-output.txt')
+      expect(firstBody.fileInfo.key).not.toBe(secondBody.fileInfo.key)
+      expect(firstBody.uploadToken).toBe('signed-receipt-token')
+      expect(secondBody.uploadToken).toBe('signed-receipt-token')
+    })
+
     it('uses validateAttachmentFileType — accepts video', async () => {
       setupFileApiMocks({ cloudEnabled: true, storageProvider: 's3' })
 

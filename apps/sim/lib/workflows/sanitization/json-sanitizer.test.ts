@@ -54,6 +54,18 @@ const mothershipConfig = {
   ],
 }
 
+const functionConfig = {
+  type: 'function',
+  name: 'Function',
+  category: 'blocks',
+  outputs: {},
+  subBlocks: [
+    { id: 'code', type: 'code' },
+    { id: 'language', type: 'dropdown' },
+    { id: 'sandboxId', type: 'combobox' },
+  ],
+}
+
 vi.mock('@/blocks/registry', () => ({
   getBlock: (type: string) =>
     type === 'generic_webhook'
@@ -62,7 +74,9 @@ vi.mock('@/blocks/registry', () => ({
         ? multiTriggerConfig
         : type === 'mothership'
           ? mothershipConfig
-          : undefined,
+          : type === 'function'
+            ? functionConfig
+            : undefined,
 }))
 
 /**
@@ -146,6 +160,27 @@ describe('sanitizeForCopilot server-only block inputs', () => {
     )
 
     expect(result.blocks['chat-1'].inputs).toEqual({ prompt: 'Help me' })
+  })
+})
+
+describe('sanitizeForCopilot product-gated block inputs', () => {
+  it('retains a persisted Function sandbox selection for model-visible read access', () => {
+    const state = makeSingleBlockWorkflow('function-1', {
+      type: 'function',
+      name: 'Function 1',
+      enabled: true,
+      subBlocks: {
+        code: { id: 'code', type: 'code', value: 'return 1' },
+        language: { id: 'language', type: 'dropdown', value: 'javascript' },
+        sandboxId: { id: 'sandboxId', type: 'combobox', value: 'sandbox-1' },
+      },
+    })
+
+    expect(sanitizeForCopilot(state).blocks['function-1'].inputs).toEqual({
+      code: 'return 1',
+      language: 'javascript',
+      sandboxId: 'sandbox-1',
+    })
   })
 })
 

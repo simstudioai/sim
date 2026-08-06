@@ -48,6 +48,27 @@ interface SSOProvider {
   providerType: 'oidc' | 'saml'
 }
 
+/** Claim names each protocol uses out of the box; shown as input placeholders. */
+const OIDC_DEFAULT_MAPPING = { id: 'sub', email: 'email', name: 'name', image: 'picture' } as const
+const SAML_DEFAULT_MAPPING = {
+  id: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier',
+  email: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress',
+  name: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name',
+} as const
+
+const SAML_NAMEID_FORMATS = [
+  { label: 'Provider default', value: '' },
+  {
+    label: 'Email address',
+    value: 'urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress',
+  },
+  { label: 'Persistent', value: 'urn:oasis:names:tc:SAML:2.0:nameid-format:persistent' },
+  { label: 'Transient', value: 'urn:oasis:names:tc:SAML:2.0:nameid-format:transient' },
+  { label: 'Unspecified', value: 'urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified' },
+] as const
+
+const PROVIDER_ID_SUGGESTIONS = SSO_TRUSTED_PROVIDERS.map((id) => ({ label: id, value: id }))
+
 const DEFAULT_FORM_DATA = {
   providerType: 'oidc' as 'oidc' | 'saml',
   providerId: '',
@@ -62,6 +83,13 @@ const DEFAULT_FORM_DATA = {
   audience: '',
   wantAssertionsSigned: true,
   idpMetadata: '',
+  mapId: '',
+  mapEmail: '',
+  mapName: '',
+  identifierFormat: '',
+  authorizationEndpoint: '',
+  tokenEndpoint: '',
+  jwksEndpoint: '',
 }
 
 const DEFAULT_ERRORS = {
@@ -109,6 +137,7 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
   const [showClientSecret, setShowClientSecret] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
+  const [showMapping, setShowMapping] = useState(false)
 
   const [formData, setFormData] = useState(DEFAULT_FORM_DATA)
   const [originalFormData, setOriginalFormData] = useState(DEFAULT_FORM_DATA)
@@ -226,30 +255,6 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
     setShowAdvanced(false)
   }
 
-  const isFormValid = () => {
-    const requiredFields = ['providerId', 'issuerUrl', 'domain']
-    const hasRequiredFields = requiredFields.every((field) => {
-      const value = formData[field as keyof typeof formData]
-      return typeof value === 'string' && value.trim() !== ''
-    })
-
-    const providerType = formData.providerType || 'oidc'
-
-    if (providerType === 'oidc') {
-      return (
-        hasRequiredFields &&
-        formData.clientId.trim() !== '' &&
-        formData.clientSecret.trim() !== '' &&
-        formData.scopes.trim() !== ''
-      )
-    }
-    if (providerType === 'saml') {
-      return hasRequiredFields && formData.entryPoint.trim() !== '' && formData.cert.trim() !== ''
-    }
-
-    return false
-  }
-
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault()
 
@@ -271,14 +276,23 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
               domain: formData.domain,
               orgId: organizationId,
               mapping: {
-                id: 'sub',
-                email: 'email',
-                name: 'name',
-                image: 'picture',
+                id: formData.mapId.trim() || OIDC_DEFAULT_MAPPING.id,
+                email: formData.mapEmail.trim() || OIDC_DEFAULT_MAPPING.email,
+                name: formData.mapName.trim() || OIDC_DEFAULT_MAPPING.name,
+                image: OIDC_DEFAULT_MAPPING.image,
               },
               clientId: formData.clientId,
               clientSecret: formData.clientSecret,
               scopes: formData.scopes.split(',').map((s) => s.trim()),
+              ...(formData.authorizationEndpoint.trim()
+                ? { authorizationEndpoint: formData.authorizationEndpoint.trim() }
+                : {}),
+              ...(formData.tokenEndpoint.trim()
+                ? { tokenEndpoint: formData.tokenEndpoint.trim() }
+                : {}),
+              ...(formData.jwksEndpoint.trim()
+                ? { jwksEndpoint: formData.jwksEndpoint.trim() }
+                : {}),
             }
           : {
               providerType: 'saml',
@@ -287,9 +301,9 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
               domain: formData.domain,
               orgId: organizationId,
               mapping: {
-                id: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier',
-                email: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress',
-                name: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name',
+                id: formData.mapId.trim() || SAML_DEFAULT_MAPPING.id,
+                email: formData.mapEmail.trim() || SAML_DEFAULT_MAPPING.email,
+                name: formData.mapName.trim() || SAML_DEFAULT_MAPPING.name,
               },
               entryPoint: formData.entryPoint,
               cert: formData.cert,
@@ -297,6 +311,7 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
               ...(formData.callbackUrl ? { callbackUrl: formData.callbackUrl } : {}),
               ...(formData.audience ? { audience: formData.audience } : {}),
               ...(formData.idpMetadata ? { idpMetadata: formData.idpMetadata } : {}),
+              identifierFormat: formData.identifierFormat,
             }
 
       await configureSSOMutation.mutateAsync(requestBody)
@@ -318,8 +333,11 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
 
   const handleInputChange = (field: keyof typeof formData, value: string | boolean) => {
     const next = { ...formData, [field]: value }
-
+    // Claim names are protocol-specific, so an override must not survive a switch.
     if (field === 'providerType') {
+      next.mapId = ''
+      next.mapEmail = ''
+      next.mapName = ''
       setShowErrors(false)
     }
 
@@ -328,6 +346,7 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
   }
 
   const isSaml = formData.providerType === 'saml'
+  const mappingDefaults = isSaml ? SAML_DEFAULT_MAPPING : OIDC_DEFAULT_MAPPING
   const callbackUrl = `${getBaseUrl()}/api/auth/${isSaml ? 'sso/saml2/callback' : 'sso/callback'}/${formData.providerId || existingProvider?.providerId || 'provider-id'}`
 
   const handleEdit = () => {
@@ -343,12 +362,23 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
       let audience = ''
       let wantAssertionsSigned = true
       let idpMetadata = ''
+      // Blank means "use the protocol default", so only carry over a stored value
+      // that differs — otherwise editing rewrites a default as an explicit override.
+      let mapping: { id?: string; email?: string; name?: string } = {}
+      let identifierFormat = ''
+      let authorizationEndpoint = ''
+      let tokenEndpoint = ''
+      let jwksEndpoint = ''
 
       if (existingProvider.providerType === 'oidc' && existingProvider.oidcConfig) {
         const config = JSON.parse(existingProvider.oidcConfig)
         clientId = config.clientId || ''
         clientSecret = config.clientSecret || ''
         scopes = config.scopes?.join(',') || 'openid,profile,email'
+        mapping = config.mapping ?? {}
+        authorizationEndpoint = config.authorizationEndpoint || ''
+        tokenEndpoint = config.tokenEndpoint || ''
+        jwksEndpoint = config.jwksEndpoint || ''
       } else if (existingProvider.providerType === 'saml' && existingProvider.samlConfig) {
         const config = JSON.parse(existingProvider.samlConfig)
         entryPoint = config.entryPoint || ''
@@ -356,8 +386,21 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
         callbackUrl = config.callbackUrl || ''
         audience = config.audience || ''
         wantAssertionsSigned = config.wantAssertionsSigned ?? true
-        idpMetadata = config.idpMetadata?.metadata || config.idpMetadata || ''
+        // Two stored shapes: `{ metadata }` from the route, a bare string from older
+        // rows. Narrow on type, not truthiness — `{ metadata: '' }` is falsy at
+        // `.metadata` but truthy as an object, putting an object in a string field.
+        idpMetadata =
+          typeof config.idpMetadata === 'string'
+            ? config.idpMetadata
+            : (config.idpMetadata?.metadata ?? '')
+        mapping = config.mapping ?? {}
+        identifierFormat = config.identifierFormat || ''
       }
+
+      const defaults =
+        existingProvider.providerType === 'saml' ? SAML_DEFAULT_MAPPING : OIDC_DEFAULT_MAPPING
+      const overrideOf = (value: string | undefined, fallback: string) =>
+        value && value !== fallback ? value : ''
 
       const snapshot = {
         providerType: existingProvider.providerType,
@@ -373,12 +416,20 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
         audience,
         wantAssertionsSigned,
         idpMetadata,
+        mapId: overrideOf(mapping.id, defaults.id),
+        mapEmail: overrideOf(mapping.email, defaults.email),
+        mapName: overrideOf(mapping.name, defaults.name),
+        identifierFormat,
+        authorizationEndpoint,
+        tokenEndpoint,
+        jwksEndpoint,
       }
       setFormData(snapshot)
       setOriginalFormData(snapshot)
       setIsEditing(true)
       setShowErrors(false)
       setShowAdvanced(false)
+      setShowMapping(Boolean(snapshot.mapId || snapshot.mapEmail || snapshot.mapName))
     } catch (err) {
       logger.error('Failed to parse provider config', { error: err })
       toast.error('Failed to load provider configuration')
@@ -414,12 +465,22 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
               </p>
             </SettingRow>
 
-            <SettingRow label='Callback URL'>
+            <SettingRow
+              label={
+                existingProvider.providerType === 'saml' ? 'ACS URL (Reply URL)' : 'Callback URL'
+              }
+            >
               <ChipCopyInput value={providerCallbackUrl} copyLabel='Copy callback URL' />
               <p className='text-[var(--text-muted)] text-small'>
                 Configure this in your identity provider
               </p>
             </SettingRow>
+
+            {existingProvider.providerType === 'saml' && (
+              <SettingRow label='SP Entity ID'>
+                <ChipCopyInput value={getBaseUrl()} copyLabel='Copy entity ID' />
+              </SettingRow>
+            )}
           </div>
         </SettingsSection>
       </SettingsPanel>
@@ -468,7 +529,8 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
           ...saveDiscardActions({
             dirty: hasChanges,
             saving: configureSSOMutation.isPending,
-            saveDisabled: hasAnyErrors(errors) || !isFormValid(),
+            // Never disabled on validation errors: showErrors is only set by
+            // handleSubmit, so disabling Save left a greyed button and no message.
             saveLabel: isEditing ? 'Update' : 'Save',
             savingLabel: isEditing ? 'Updating...' : 'Saving...',
             onSave: () => void handleSubmit(),
@@ -506,16 +568,30 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
                 showErrors && errors.providerId.length > 0 ? errors.providerId.join(' ') : undefined
               }
             >
-              <ChipCombobox
-                value={formData.providerId}
-                onChange={(value: string) => handleInputChange('providerId', value)}
-                options={SSO_TRUSTED_PROVIDERS.map((id) => ({
-                  label: id,
-                  value: id,
-                }))}
-                placeholder='Select or enter a provider ID'
-                editable
-              />
+              {isEditing ? (
+                <>
+                  <ChipCopyInput value={formData.providerId} copyLabel='Copy provider ID' />
+                  <p className='text-[var(--text-muted)] text-small'>
+                    Fixed once saved — it forms the redirect URL registered with your identity
+                    provider.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <ChipCombobox
+                    value={formData.providerId}
+                    onChange={(value: string) => handleInputChange('providerId', value)}
+                    options={PROVIDER_ID_SUGGESTIONS}
+                    placeholder='Select or enter a provider ID'
+                    editable
+                  />
+                  <p className='text-[var(--text-muted)] text-small'>
+                    Must be unique across all Sim organizations — include something specific to you,
+                    like <span className='font-mono'>azure-ad-acme</span>. It cannot be changed
+                    later.
+                  </p>
+                </>
+              )}
             </SettingRow>
 
             <SettingRow
@@ -630,6 +706,71 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
                     }
                   />
                 </SettingRow>
+
+                <div className='flex flex-col gap-2'>
+                  <Button
+                    type='button'
+                    variant='ghost'
+                    onClick={() => setShowAdvanced((v) => !v)}
+                    className='w-fit gap-1.5 px-0 text-[var(--text-muted)] hover:bg-transparent hover:text-[var(--text-primary)]'
+                  >
+                    <ChevronDown
+                      className={cn(
+                        'size-[14px] transition-transform',
+                        showAdvanced && 'rotate-180'
+                      )}
+                    />
+                    Advanced Options
+                  </Button>
+
+                  <Expandable expanded={showAdvanced}>
+                    <ExpandableContent>
+                      <div className='flex flex-col gap-4.5 pt-2'>
+                        <SettingRow label='Authorization endpoint' optional>
+                          <ChipInput
+                            type='url'
+                            placeholder='Discovered from the issuer'
+                            value={formData.authorizationEndpoint}
+                            autoComplete='off'
+                            autoCapitalize='none'
+                            spellCheck={false}
+                            onChange={(e) =>
+                              handleInputChange('authorizationEndpoint', e.target.value)
+                            }
+                          />
+                        </SettingRow>
+
+                        <SettingRow label='Token endpoint' optional>
+                          <ChipInput
+                            type='url'
+                            placeholder='Discovered from the issuer'
+                            value={formData.tokenEndpoint}
+                            autoComplete='off'
+                            autoCapitalize='none'
+                            spellCheck={false}
+                            onChange={(e) => handleInputChange('tokenEndpoint', e.target.value)}
+                          />
+                        </SettingRow>
+
+                        <SettingRow label='JWKS endpoint' optional>
+                          <ChipInput
+                            type='url'
+                            placeholder='Discovered from the issuer'
+                            value={formData.jwksEndpoint}
+                            autoComplete='off'
+                            autoCapitalize='none'
+                            spellCheck={false}
+                            onChange={(e) => handleInputChange('jwksEndpoint', e.target.value)}
+                          />
+                          <p className='text-[var(--text-muted)] text-small'>
+                            Sim reads these from the issuer's discovery document. Set them only if
+                            your provider does not publish one.
+                          </p>
+                        </SettingRow>
+                      </div>
+                    </ExpandableContent>
+                  </Expandable>
+                </div>
 
                 <SettingRow
                   label='Scopes'
@@ -746,6 +887,18 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
                           />
                         </SettingRow>
 
+                        <SettingRow label='NameID format' optional>
+                          <ChipSelect
+                            align='start'
+                            value={formData.identifierFormat}
+                            onChange={(value: string) =>
+                              handleInputChange('identifierFormat', value)
+                            }
+                            options={[...SAML_NAMEID_FORMATS]}
+                            placeholder='Provider default'
+                          />
+                        </SettingRow>
+
                         <SettingRow label='IDP Metadata XML' optional>
                           <ChipTextarea
                             placeholder='Paste IDP metadata XML here'
@@ -765,12 +918,85 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
               </>
             )}
 
-            <SettingRow label='Callback URL'>
+            <SettingRow label={isSaml ? 'ACS URL (Reply URL)' : 'Callback URL'}>
               <ChipCopyInput value={callbackUrl} copyLabel='Copy callback URL' />
               <p className='text-[var(--text-muted)] text-small'>
                 Configure this in your identity provider
               </p>
             </SettingRow>
+
+            {/* Sim publishes no SP metadata document; these are the values it would carry. */}
+            {isSaml && (
+              <SettingRow label='SP Entity ID'>
+                <ChipCopyInput value={getBaseUrl()} copyLabel='Copy entity ID' />
+                <p className='text-[var(--text-muted)] text-small'>
+                  Sim's identifier in your IdP. With the ACS URL above, this is everything needed to
+                  add Sim as a service provider.
+                </p>
+              </SettingRow>
+            )}
+
+            <div className='flex flex-col gap-2'>
+              <Button
+                type='button'
+                variant='ghost'
+                onClick={() => setShowMapping((v) => !v)}
+                className='w-fit gap-1.5 px-0 text-[var(--text-muted)] hover:bg-transparent hover:text-[var(--text-primary)]'
+              >
+                <ChevronDown
+                  className={cn('size-[14px] transition-transform', showMapping && 'rotate-180')}
+                />
+                Attribute mapping
+              </Button>
+
+              <Expandable expanded={showMapping}>
+                <ExpandableContent>
+                  <div className='flex flex-col gap-4.5 pt-2'>
+                    <SettingRow label='Email attribute' optional>
+                      <ChipInput
+                        type='text'
+                        placeholder={mappingDefaults.email}
+                        value={formData.mapEmail}
+                        autoComplete='off'
+                        autoCapitalize='none'
+                        spellCheck={false}
+                        inputClassName='font-mono'
+                        onChange={(e) => handleInputChange('mapEmail', e.target.value)}
+                      />
+                    </SettingRow>
+
+                    <SettingRow label='Name attribute' optional>
+                      <ChipInput
+                        type='text'
+                        placeholder={mappingDefaults.name}
+                        value={formData.mapName}
+                        autoComplete='off'
+                        autoCapitalize='none'
+                        spellCheck={false}
+                        inputClassName='font-mono'
+                        onChange={(e) => handleInputChange('mapName', e.target.value)}
+                      />
+                    </SettingRow>
+
+                    <SettingRow label='User ID attribute' optional>
+                      <ChipInput
+                        type='text'
+                        placeholder={mappingDefaults.id}
+                        value={formData.mapId}
+                        autoComplete='off'
+                        autoCapitalize='none'
+                        spellCheck={false}
+                        inputClassName='font-mono'
+                        onChange={(e) => handleInputChange('mapId', e.target.value)}
+                      />
+                      <p className='text-[var(--text-muted)] text-small'>
+                        Must be stable and unique per user — changing it later re-links accounts.
+                      </p>
+                    </SettingRow>
+                  </div>
+                </ExpandableContent>
+              </Expandable>
+            </div>
           </div>
         </SettingsSection>
       </SettingsPanel>

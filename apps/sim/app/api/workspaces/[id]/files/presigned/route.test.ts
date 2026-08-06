@@ -78,7 +78,7 @@ describe('POST /api/workspaces/[id]/files/presigned', () => {
     storageServiceMockFns.mockGeneratePresignedUploadUrl.mockResolvedValue({
       url: 'https://s3/presigned',
       key: `workspace/${WS}/123-abc-video.mp4`,
-      uploadHeaders: { 'Content-Type': 'video/mp4' },
+      uploadHeaders: { 'If-None-Match': '*' },
     })
   })
 
@@ -146,7 +146,7 @@ describe('POST /api/workspaces/[id]/files/presigned', () => {
     expect(body.fileInfo.key).toBe(`workspace/${WS}/123-abc-video.mp4`)
     expect(body.fileInfo.path).toContain('?context=workspace')
     expect(body.fileInfo.path).toContain('s3')
-    expect(body.uploadHeaders).toEqual({ 'Content-Type': 'video/mp4' })
+    expect(body.uploadHeaders).toEqual({ 'If-None-Match': '*' })
 
     expect(mockGenerateWorkspaceFileKey).toHaveBeenCalledWith(WS, 'video.mp4')
     expect(mockResolveStorageBillingContext).toHaveBeenCalledWith(WS)

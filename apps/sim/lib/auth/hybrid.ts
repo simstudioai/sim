@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-key/service'
 import { getSession } from '@/lib/auth'
-import { verifyInternalToken } from '@/lib/auth/internal'
+import { type InternalSandboxProfile, verifyInternalToken } from '@/lib/auth/internal'
 
 const logger = createLogger('HybridAuth')
 
@@ -36,6 +36,7 @@ export interface AuthResult {
   userEmail?: string | null
   authType?: AuthTypeValue
   apiKeyType?: 'personal' | 'workspace'
+  sandboxProfile?: InternalSandboxProfile
   error?: string
 }
 
@@ -44,18 +45,27 @@ export interface AuthResult {
  * Only trusts the userId embedded in the JWT payload — never from user-controlled sources.
  */
 function resolveUserFromJwt(
-  verificationUserId: string | null,
+  verification: { userId?: string; sandboxProfile?: InternalSandboxProfile },
   options: { requireWorkflowId?: boolean }
 ): AuthResult {
-  if (verificationUserId) {
-    return { success: true, userId: verificationUserId, authType: AuthType.INTERNAL_JWT }
+  if (verification.userId) {
+    return {
+      success: true,
+      userId: verification.userId,
+      authType: AuthType.INTERNAL_JWT,
+      ...(verification.sandboxProfile ? { sandboxProfile: verification.sandboxProfile } : {}),
+    }
   }
 
   if (options.requireWorkflowId !== false) {
     return { success: false, error: 'userId required but not present in JWT' }
   }
 
-  return { success: true, authType: AuthType.INTERNAL_JWT }
+  return {
+    success: true,
+    authType: AuthType.INTERNAL_JWT,
+    ...(verification.sandboxProfile ? { sandboxProfile: verification.sandboxProfile } : {}),
+  }
 }
 
 /**
@@ -96,7 +106,7 @@ export async function checkInternalAuth(
       return { success: false, error: 'Invalid internal token' }
     }
 
-    return resolveUserFromJwt(verification.userId || null, options)
+    return resolveUserFromJwt(verification, options)
   } catch (error) {
     logger.error('Error in internal authentication:', error)
     return {
@@ -136,7 +146,7 @@ export async function checkSessionOrInternalAuth(
       const verification = await verifyInternalToken(token)
 
       if (verification.valid) {
-        return resolveUserFromJwt(verification.userId || null, options)
+        return resolveUserFromJwt(verification, options)
       }
     }
 
@@ -184,7 +194,7 @@ export async function checkHybridAuth(
       const verification = await verifyInternalToken(token)
 
       if (verification.valid) {
-        return resolveUserFromJwt(verification.userId || null, options)
+        return resolveUserFromJwt(verification, options)
       }
     }
 
