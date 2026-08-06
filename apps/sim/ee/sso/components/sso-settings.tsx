@@ -67,6 +67,8 @@ const SAML_NAMEID_FORMATS = [
   { label: 'Unspecified', value: 'urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified' },
 ] as const
 
+const PROVIDER_ID_SUGGESTIONS = SSO_TRUSTED_PROVIDERS.map((id) => ({ label: id, value: id }))
+
 const DEFAULT_FORM_DATA = {
   providerType: 'oidc' as 'oidc' | 'saml',
   providerId: '',
@@ -563,20 +565,30 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
                 showErrors && errors.providerId.length > 0 ? errors.providerId.join(' ') : undefined
               }
             >
-              <ChipCombobox
-                value={formData.providerId}
-                onChange={(value: string) => handleInputChange('providerId', value)}
-                options={SSO_TRUSTED_PROVIDERS.map((id) => ({
-                  label: id,
-                  value: id,
-                }))}
-                placeholder='Select or enter a provider ID'
-                editable
-              />
-              <p className='text-[var(--text-muted)] text-small'>
-                Must be unique across all Sim organizations — include something specific to you,
-                like <span className='font-mono'>azure-ad-acme</span>.
-              </p>
+              {isEditing ? (
+                <>
+                  <ChipCopyInput value={formData.providerId} copyLabel='Copy provider ID' />
+                  <p className='text-[var(--text-muted)] text-small'>
+                    Fixed once saved — it forms the redirect URL registered with your identity
+                    provider.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <ChipCombobox
+                    value={formData.providerId}
+                    onChange={(value: string) => handleInputChange('providerId', value)}
+                    options={PROVIDER_ID_SUGGESTIONS}
+                    placeholder='Select or enter a provider ID'
+                    editable
+                  />
+                  <p className='text-[var(--text-muted)] text-small'>
+                    Must be unique across all Sim organizations — include something specific to you,
+                    like <span className='font-mono'>azure-ad-acme</span>. It cannot be changed
+                    later.
+                  </p>
+                </>
+              )}
             </SettingRow>
 
             <SettingRow
