@@ -50,6 +50,23 @@ interface RemoteSelectionOverlayProps {
   scrollElement: HTMLElement | null
 }
 
+/**
+ * Whether a selection endpoint lands in the frozen left zone. Rows are virtualized, so an
+ * endpoint's own cell may not exist; fall back to any rendered row's cell in that column,
+ * since pinning is a per-column property. An endpoint whose column is gone entirely (hidden
+ * or deleted locally) can't be classified and is treated as unpinned — the safe direction,
+ * since the frozen zone then occludes it rather than being painted over.
+ */
+function endpointIsPinned(
+  scrollEl: HTMLElement,
+  cell: HTMLElement | null,
+  columnIndex: number | undefined
+): boolean {
+  if (cell !== null) return cell.hasAttribute('data-pinned')
+  if (columnIndex === undefined) return false
+  return scrollEl.querySelector(`[data-col="${columnIndex}"][data-pinned]`) !== null
+}
+
 /** The cell `<td>` for a (rowId, columnIndex), or null when virtualized off-window. */
 function cellElement(
   scrollEl: HTMLElement,
@@ -177,15 +194,11 @@ export function RemoteSelectionOverlay({
       const cells = [anchorCell, focusCell].filter((cell): cell is HTMLElement => cell !== null)
       if (cells.length === 0) continue
       const rects = cells.map((cell) => cell.getBoundingClientRect())
-      // Both endpoints must be resolved AND pinned. Anything else — a range straddling the
-      // boundary, or one whose other endpoint is virtualized off-window and so can't be
-      // classified — defers to the frozen zone, where the worst case is a selection the zone
-      // hides rather than one painting over the gutter.
+      // Only a selection pinned at BOTH ends renders above the frozen zone. One that straddles
+      // the boundary goes below it, so its unpinned half can't paint over the gutter.
       const pinned =
-        anchorCell !== null &&
-        focusCell !== null &&
-        anchorCell.hasAttribute('data-pinned') &&
-        focusCell.hasAttribute('data-pinned')
+        endpointIsPinned(scrollEl, anchorCell, anchorCol) &&
+        endpointIsPinned(scrollEl, focusCell, focusCol)
 
       const viewportTop = Math.min(...rects.map((r) => r.top))
       const viewportLeft = Math.min(...rects.map((r) => r.left))
