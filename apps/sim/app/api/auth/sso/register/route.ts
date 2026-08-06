@@ -680,8 +680,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           .for('share')
         if (!proof) return false
 
-        await tx.update(ssoProvider).set({ domainVerified: true }).where(ownerClause)
-        return true
+        const granted = await tx
+          .update(ssoProvider)
+          .set({ domainVerified: true })
+          .where(ownerClause)
+          .returning({ id: ssoProvider.id })
+        return granted.length > 0
       })
     }
 

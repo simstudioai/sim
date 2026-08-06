@@ -116,6 +116,8 @@ describe('POST /api/auth/sso/register', () => {
     mockSecureFetchWithPinnedIP.mockRejectedValue(new Error('discovery not mocked for this test'))
     mockRegisterSSOProvider.mockResolvedValue({ id: 'row-1', providerId: 'acme-oidc' })
     mockUpdateSSOProvider.mockResolvedValue({ providerId: 'acme-oidc' })
+    // The trust UPDATE reports the row it matched; by default the provider exists.
+    dbChainMockFns.returning.mockResolvedValue([{ id: 'provider-row' }])
     // Default: the org has already verified the domain, so the ownership gate
     // passes and each test exercises the logic beyond it. A successful org-scoped
     // registration reads it three times: the fail-fast entry gate, the
