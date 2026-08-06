@@ -647,13 +647,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
      * flag, which is what lets an SSO sign-in auto-link to an existing same-email
      * account. Must run after every write, not just on create: `registerSSOProvider`
      * always persists `false`, and `updateSSOProvider` resets it to `false` whenever
-     * the domain changes. Only ever called once the verification gate above has
-     * passed for this exact domain, so it can never mark an unproven domain as
-     * verified. Org-less (personal) SSO is not domain-gated by Sim and keeps its
-     * pre-existing trust here, matching how it behaved before the flag existed.
+     * the domain changes. Callers re-check ownership immediately before granting it,
+     * so it can never mark an unproven domain as verified. Org-less (personal) SSO is
+     * not domain-gated by Sim and keeps its pre-existing trust here, matching how it
+     * behaved before the flag existed.
      */
-    const markProviderDomainVerified = async () => {
-      await db.update(ssoProvider).set({ domainVerified: true }).where(ownerClause)
+    const setProviderDomainVerified = async (verified: boolean) => {
+      await db.update(ssoProvider).set({ domainVerified: verified }).where(ownerClause)
     }
 
     if (existingOwnedProvider) {
@@ -667,7 +667,24 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         },
         headers,
       })
-      await markProviderDomainVerified()
+
+      // Compensating re-check, mirroring the create path below: the verified
+      // sso_domain row can be deleted while updateSSOProvider is in flight.
+      // Granting trust here would re-authorize same-email account linking for a
+      // domain the org no longer proves it owns, so clear the flag instead —
+      // that both denies linking and blocks sign-in until it is re-verified.
+      if (orgId && !(await isOrgDomainVerified())) {
+        await setProviderDomainVerified(false)
+        logger.warn('Revoked SSO domain trust: verification was removed mid-update', {
+          domain,
+          orgId,
+          providerId,
+          userId: session.user.id,
+        })
+        return domainNotVerifiedResponse()
+      }
+
+      await setProviderDomainVerified(true)
       logger.info('SSO provider updated successfully', { providerId, providerType, domain })
       return NextResponse.json({
         success: true,
@@ -717,7 +734,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return domainNotVerifiedResponse()
     }
 
-    await markProviderDomainVerified()
+    await setProviderDomainVerified(true)
 
     logger.info('SSO provider registered successfully', {
       providerId,

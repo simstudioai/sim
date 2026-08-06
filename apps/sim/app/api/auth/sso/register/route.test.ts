@@ -275,6 +275,29 @@ describe('POST /api/auth/sso/register', () => {
     expect(dbChainMockFns.set).toHaveBeenCalledWith({ domainVerified: true })
   })
 
+  /**
+   * The create path rolls the provider back when verification is revoked during the
+   * write; the update path has no row to roll back, so it must instead strip the
+   * trust flag. Leaving it set would re-authorize same-email account linking for a
+   * domain the org no longer proves it owns.
+   */
+  it('revokes domain trust when verification is removed during an update', async () => {
+    resetDbChainMock()
+    queueMembers([{ organizationId: 'org1', role: 'owner' }])
+    // Verified for the entry gate and the pre-write re-check, revoked afterwards.
+    queueTableRows(schemaMock.ssoDomain, [{ id: 'verified-domain' }])
+    queueTableRows(schemaMock.ssoDomain, [{ id: 'verified-domain' }])
+    queueTableRows(schemaMock.ssoDomain, [])
+    queueProviders([])
+    queueTableRows(schemaMock.ssoProvider, [{ id: 'p1' }]) // provider already owned → update path
+
+    const res = await POST(request({ ...OIDC_BODY, orgId: 'org1' }))
+    expect(res.status).toBe(403)
+    expect(mockUpdateSSOProvider).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({ domainVerified: false })
+    expect(dbChainMockFns.set).not.toHaveBeenCalledWith({ domainVerified: true })
+  })
+
   it('does not mark domain-verified when the registration is rolled back', async () => {
     queueMembers([{ organizationId: 'org1', role: 'owner' }])
     resetDbChainMock()
