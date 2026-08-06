@@ -746,7 +746,7 @@ describe('vfs handlers docs corpus routing', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('greps exactly one docs page and rejects multi-page scopes verbatim', async () => {
+  it('greps one docs page or a docs directory without touching the workspace VFS', async () => {
     fetchMock.mockResolvedValue({
       ok: true,
       status: 200,
@@ -756,9 +756,16 @@ describe('vfs handlers docs corpus routing', () => {
     const single = await executeVfsGrep({ pattern: 'cron', path: DOCS_PAGE }, GREP_CTX)
     expect(single.success).toBe(true)
 
-    const multi = await executeVfsGrep({ pattern: 'cron', path: 'docs/workflows' }, GREP_CTX)
-    expect(multi.success).toBe(false)
-    expect(multi.error).toContain('single page')
+    const multi = await executeVfsGrep(
+      { pattern: 'cron', path: 'docs/workflows', maxResults: 10_000 },
+      GREP_CTX
+    )
+    expect(multi.success).toBe(true)
+    expect(fetchMock.mock.calls.length).toBeGreaterThan(1)
+
+    const invalid = await executeVfsGrep({ pattern: 'cron', path: 'docs/not-a-page.mdx' }, GREP_CTX)
+    expect(invalid.success).toBe(false)
+    expect(invalid.error).toContain('not a docs page or directory')
     expect(getOrMaterializeVFS).not.toHaveBeenCalled()
   })
 
