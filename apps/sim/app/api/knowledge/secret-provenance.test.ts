@@ -34,7 +34,7 @@ function createHeaderlessRequest(payload: Record<string, unknown>): NextRequest 
 }
 
 describe('knowledge write secret provenance', () => {
-  it('does not track durable provenance for a headerless external chunk write', () => {
+  it('classifies a headerless external chunk write as exact-empty', () => {
     const payload = { content: 'manual content' }
 
     const result = resolveKnowledgeWriteSecretProvenance({
@@ -46,13 +46,15 @@ describe('knowledge write secret provenance', () => {
       selectionKeys: ['chunk-content'],
     })
 
-    expect(result).toEqual({ success: true })
+    expect(result).toEqual({
+      success: true,
+      provenances: [{ status: 'exact', entries: [] }],
+    })
   })
 
-  it('does not track durable provenance for a headerless external document write', () => {
+  it('classifies a headerless external document write as exact-empty', () => {
     const payload = {
       filename: 'manual.txt',
-      documentTagsData: JSON.stringify([{ tagName: 'source', tagValue: 'manual' }]),
     }
 
     const result = resolveKnowledgeDocumentWriteSecretProvenance({
@@ -64,7 +66,16 @@ describe('knowledge write secret provenance', () => {
       documents: [payload],
     })
 
-    expect(result).toEqual({ success: true })
+    expect(result).toEqual({
+      success: true,
+      provenances: [
+        {
+          filename: { status: 'exact', entries: [] },
+          content: { status: 'exact', entries: [] },
+          tags: [],
+        },
+      ],
+    })
   })
 
   it('does not track durable provenance for a legacy headerless internal write', () => {

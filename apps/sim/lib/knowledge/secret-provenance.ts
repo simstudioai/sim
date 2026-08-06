@@ -167,40 +167,9 @@ export function rebindKnowledgeDocumentSecretProvenance(
   previousSource: KnowledgeDocumentSourceValue,
   nextSource: KnowledgeDocumentSourceValue
 ): DurableSecretProvenance {
-  return rebindKnowledgeDocumentSecretProvenanceFields(
-    provenance,
-    previousSource,
-    nextSource,
-    new Set()
-  )
-}
-
-/** Rebinds unchanged source fields while dropping provenance for metadata fields being cleared. */
-export function rebindKnowledgeDocumentSecretProvenanceAfterMetadataClear(
-  provenance: DurableSecretProvenance,
-  previousSource: KnowledgeDocumentSourceValue,
-  nextSource: KnowledgeDocumentSourceValue,
-  clearedFields: ReadonlySet<KnowledgeDocumentMetadataField>
-): DurableSecretProvenance {
-  return rebindKnowledgeDocumentSecretProvenanceFields(
-    provenance,
-    previousSource,
-    nextSource,
-    clearedFields
-  )
-}
-
-function rebindKnowledgeDocumentSecretProvenanceFields(
-  provenance: DurableSecretProvenance,
-  previousSource: KnowledgeDocumentSourceValue,
-  nextSource: KnowledgeDocumentSourceValue,
-  excludedFields: ReadonlySet<KnowledgeDocumentMetadataField>
-): DurableSecretProvenance {
   if (provenance.status === 'unknown') return provenance
   if (provenance.entries.some((entry) => !entry.sourceValueHash)) return { status: 'unknown' }
-  const rebound = KNOWLEDGE_DOCUMENT_METADATA_FIELDS.filter(
-    (field) => !excludedFields.has(field)
-  ).map((field) =>
+  const rebound = KNOWLEDGE_DOCUMENT_METADATA_FIELDS.map((field) =>
     bindKnowledgeDocumentFieldSecretProvenance(
       filterDurableSecretProvenanceBySourceValues(provenance, [
         createKnowledgeDocumentFieldBinding(field, previousSource[field]),
