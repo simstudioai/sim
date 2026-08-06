@@ -6,6 +6,16 @@ import { vi } from 'vitest'
  */
 export function createMockSql() {
   const sqlFn = (strings: TemplateStringsArray, ...values: any[]) => {
+    // Same hazard as `sql.param(date)` below, and the form that actually shipped:
+    // an interpolated `Date` carries no column context, so drizzle skips
+    // `PgTimestamp.mapToDriverValue` and postgres-js receives a Date it cannot serialize.
+    if (values.some((value) => value instanceof Date)) {
+      throw new Error(
+        'sql`…${date}` interpolates a Date without an encoder, which reaches ' +
+          'postgres-js as a Date object its unsafe path cannot serialize. Bind ' +
+          'through the matching column: sql.param(date, table.timestampColumn).'
+      )
+    }
     const fragment = {
       strings,
       values,
