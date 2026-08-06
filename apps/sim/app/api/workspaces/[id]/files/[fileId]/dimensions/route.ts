@@ -46,7 +46,7 @@ export const PATCH = withRouteHandler(
       })
       return NextResponse.json({ success: written })
     } catch (error) {
-      logger.error('Failed to backfill workspace file dimensions', {
+      logger.error('Failed to store workspace file dimensions', {
         workspaceId,
         fileId,
         error: getErrorMessage(error),

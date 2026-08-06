@@ -28,13 +28,17 @@ export interface ImageDimensions {
 
 /**
  * Optional per-context capability: reserve layout space for an embedded image from its intrinsic size,
- * so it never reflows on load. The workspace source backs this with file-list metadata plus a lazy
- * backfill; public/embedded sources omit it and fall back to on-load measurement (one reflow, no persist).
+ * so it never reflows on load. The workspace source backs this with file-list metadata plus a self-
+ * correcting metadata write; public/embedded sources omit it and fall back to on-load measurement (one
+ * reflow, no persist).
  */
 export interface ImageDimensionsSource {
   /** Intrinsic dimensions for an embedded image `src` if already known — read synchronously at render. */
   getImageDimensions: (src: string | undefined) => ImageDimensions | null
-  /** Persist an image's measured intrinsic dimensions (fire-and-forget; a no-op once already stored). */
+  /**
+   * Persist an image's measured intrinsic dimensions (fire-and-forget). Overwrites a stored value that
+   * disagrees so a stale size self-corrects; a no-op only when the stored value already matches.
+   */
   reportImageDimensions: (src: string | undefined, dimensions: ImageDimensions) => void
 }
 
