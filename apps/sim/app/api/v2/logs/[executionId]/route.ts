@@ -1,16 +1,14 @@
-import { db } from '@sim/db'
-import { workflow, workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { traceSpansSchema } from '@/lib/api/contracts/logs'
-import { type V2LogDetail, v2GetLogContract } from '@/lib/api/contracts/v2/logs'
+import { type V2LogDetail, v2GetLogContract, v2LogStatusSchema } from '@/lib/api/contracts/v2/logs'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
 import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
+import { getPublicWorkflowLog } from '@/lib/logs/public-queries'
 import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import { v2Data, v2Error, v2RateLimitError, v2ValidationError } from '@/app/api/v2/lib/response'
@@ -19,8 +17,13 @@ const logger = createLogger('V2LogDetailAPI')
 
 export const revalidate = 0
 
+/**
+ * Returns the diagnostic representation of an execution. The execution ID is
+ * the sole public identity; the workflow-execution-log row key remains an
+ * internal storage and pagination detail.
+ */
 export const GET = withRouteHandler(
-  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ executionId: string }> }) => {
     const requestId = generateId().slice(0, 8)
 
     try {
@@ -37,56 +40,26 @@ export const GET = withRouteHandler(
       })
       if (!parsed.success) return parsed.response
 
-      const { id } = parsed.data.params
+      const { executionId } = parsed.data.params
 
-      const rows = await db
-        .select({
-          id: workflowExecutionLogs.id,
-          workflowId: workflowExecutionLogs.workflowId,
-          workspaceId: workflowExecutionLogs.workspaceId,
-          executionId: workflowExecutionLogs.executionId,
-          level: workflowExecutionLogs.level,
-          trigger: workflowExecutionLogs.trigger,
-          startedAt: workflowExecutionLogs.startedAt,
-          endedAt: workflowExecutionLogs.endedAt,
-          totalDurationMs: workflowExecutionLogs.totalDurationMs,
-          executionData: workflowExecutionLogs.executionData,
-          costTotal: workflowExecutionLogs.costTotal,
-          files: workflowExecutionLogs.files,
-          createdAt: workflowExecutionLogs.createdAt,
-          workflowName: workflow.name,
-          workflowDescription: workflow.description,
-          workflowFolderId: workflow.folderId,
-          workflowUserId: workflow.userId,
-          workflowWorkspaceId: workflow.workspaceId,
-          workflowCreatedAt: workflow.createdAt,
-          workflowUpdatedAt: workflow.updatedAt,
-          workflowArchivedAt: workflow.archivedAt,
-        })
-        .from(workflowExecutionLogs)
-        .leftJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
-        .where(eq(workflowExecutionLogs.id, id))
-        .limit(1)
+      const log = await getPublicWorkflowLog({ column: 'executionId', value: executionId })
 
-      const log = rows[0]
       if (!log) return v2Error('NOT_FOUND', 'Log not found')
 
-      // Convert an authorization failure into 404 so existence is not leaked.
       const access = await resolveWorkspaceAccess(rateLimit, userId, log.workspaceId)
       if (access) return v2Error('NOT_FOUND', 'Log not found')
 
       const folderIndex = await loadActiveFolderPathIndex(log.workspaceId, 'workflow')
-
       const executionData = await materializeExecutionData(
         log.executionData as Record<string, unknown> | null,
         { workspaceId: log.workspaceId, workflowId: log.workflowId, executionId: log.executionId }
       )
-      const traceSpans = traceSpansSchema.parse(executionData.traceSpans ?? [])
 
       const detail: V2LogDetail = {
-        id: log.id,
-        workflowId: log.workflowId,
         executionId: log.executionId,
+        workflowId: log.workflowId,
+        deploymentVersionId: log.deploymentVersionId,
+        status: v2LogStatusSchema.parse(log.status),
         level: log.level,
         trigger: log.trigger,
         startedAt: log.startedAt.toISOString(),
@@ -106,8 +79,9 @@ export const GET = withRouteHandler(
           updatedAt: log.workflowUpdatedAt ? log.workflowUpdatedAt.toISOString() : null,
           deleted: !log.workflowName || log.workflowArchivedAt !== null,
         },
-        executionData,
-        traceSpans,
+        workflowState: log.workflowState,
+        traceSpans: traceSpansSchema.parse(executionData.traceSpans ?? []),
+        finalOutput: executionData.finalOutput ?? null,
         cost: log.costTotal != null ? { total: Number(log.costTotal) } : null,
         createdAt: log.createdAt.toISOString(),
       }

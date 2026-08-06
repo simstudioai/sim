@@ -1,12 +1,5 @@
 import { db } from '@sim/db'
-import {
-  jobExecutionLogs,
-  pausedExecutions,
-  usageLog,
-  workflow,
-  workflowDeploymentVersion,
-  workflowExecutionLogs,
-} from '@sim/db/schema'
+import { jobExecutionLogs, usageLog } from '@sim/db/schema'
 import { and, eq, type SQL } from 'drizzle-orm'
 import type { CostLedger } from '@/lib/api/contracts/logs'
 import {
@@ -16,6 +9,7 @@ import {
   pickLatestStartedMarker,
 } from '@/lib/logs/execution/progress-markers'
 import { materializeExecutionDataForDisplay } from '@/lib/logs/execution/trace-store'
+import { getPublicWorkflowLog } from '@/lib/logs/public-queries'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 type LookupColumn = 'id' | 'executionId'
@@ -97,51 +91,7 @@ export async function fetchLogDetail({
   const access = await checkWorkspaceAccess(workspaceId, userId)
   if (!access.hasAccess) return null
 
-  const workflowMatch: SQL =
-    lookupColumn === 'id'
-      ? eq(workflowExecutionLogs.id, lookupValue)
-      : eq(workflowExecutionLogs.executionId, lookupValue)
-
-  const rows = await db
-    .select({
-      id: workflowExecutionLogs.id,
-      workflowId: workflowExecutionLogs.workflowId,
-      executionId: workflowExecutionLogs.executionId,
-      deploymentVersionId: workflowExecutionLogs.deploymentVersionId,
-      level: workflowExecutionLogs.level,
-      status: workflowExecutionLogs.status,
-      trigger: workflowExecutionLogs.trigger,
-      startedAt: workflowExecutionLogs.startedAt,
-      endedAt: workflowExecutionLogs.endedAt,
-      totalDurationMs: workflowExecutionLogs.totalDurationMs,
-      executionData: workflowExecutionLogs.executionData,
-      costTotal: workflowExecutionLogs.costTotal,
-      files: workflowExecutionLogs.files,
-      createdAt: workflowExecutionLogs.createdAt,
-      workflowName: workflow.name,
-      workflowDescription: workflow.description,
-      workflowFolderId: workflow.folderId,
-      workflowUserId: workflow.userId,
-      workflowWorkspaceId: workflow.workspaceId,
-      workflowCreatedAt: workflow.createdAt,
-      workflowUpdatedAt: workflow.updatedAt,
-      deploymentVersion: workflowDeploymentVersion.version,
-      deploymentVersionName: workflowDeploymentVersion.name,
-      pausedStatus: pausedExecutions.status,
-      pausedTotalPauseCount: pausedExecutions.totalPauseCount,
-      pausedResumedCount: pausedExecutions.resumedCount,
-    })
-    .from(workflowExecutionLogs)
-    .leftJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
-    .leftJoin(
-      workflowDeploymentVersion,
-      eq(workflowDeploymentVersion.id, workflowExecutionLogs.deploymentVersionId)
-    )
-    .leftJoin(pausedExecutions, eq(pausedExecutions.executionId, workflowExecutionLogs.executionId))
-    .where(and(workflowMatch, eq(workflowExecutionLogs.workspaceId, workspaceId)))
-    .limit(1)
-
-  const log = rows[0]
+  const log = await getPublicWorkflowLog({ column: lookupColumn, value: lookupValue }, workspaceId)
 
   if (log) {
     const workflowSummary = log.workflowId

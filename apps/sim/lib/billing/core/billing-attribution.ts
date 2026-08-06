@@ -449,7 +449,7 @@ export function requireAccountBillingDecisionHeader(
   }
 }
 
-function toUsageSubscription(attribution: BillingAttributionSnapshot) {
+export function toUsageLimitSubscription(attribution: BillingAttributionSnapshot) {
   const snapshot = attribution.payerSubscription
   if (!snapshot) {
     if (!attribution.organizationId) return null
@@ -691,7 +691,7 @@ export async function checkAttributedUsageLimits(
 
   const payerUsage = await checkUsageStatus(
     validatedAttribution.billedAccountUserId,
-    toUsageSubscription(validatedAttribution)
+    toUsageLimitSubscription(validatedAttribution)
   )
   const payerSnapshot = {
     currentUsage: payerUsage.currentUsage,

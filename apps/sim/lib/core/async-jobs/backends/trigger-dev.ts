@@ -63,6 +63,7 @@ function mapTriggerDevStatus(status: string): JobStatus {
     case 'COMPLETED':
       return JOB_STATUS.COMPLETED
     case 'CANCELED':
+      return JOB_STATUS.CANCELLED
     case 'FAILED':
     case 'CRASHED':
     case 'INTERRUPTED':
@@ -221,7 +222,7 @@ export class TriggerDevJobQueue implements JobQueueBackend {
       }
 
       return {
-        id: jobId,
+        id: run.id,
         type: run.taskIdentifier as JobType,
         payload: run.payload,
         status: mapTriggerDevStatus(run.status),

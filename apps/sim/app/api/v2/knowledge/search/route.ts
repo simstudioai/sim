@@ -15,18 +15,15 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { ALL_TAG_SLOTS } from '@/lib/knowledge/constants'
 import { recordSearchEmbeddingUsage } from '@/lib/knowledge/embeddings'
+import {
+  executeKnowledgeSearch,
+  generateSearchEmbedding,
+  getDocumentMetadataByIds,
+  type SearchResult,
+} from '@/lib/knowledge/search/queries'
 import { getDocumentTagDefinitions } from '@/lib/knowledge/tags/service'
 import { buildUndefinedTagsError, validateTagValue } from '@/lib/knowledge/tags/utils'
 import type { StructuredFilter } from '@/lib/knowledge/types'
-import {
-  generateSearchEmbedding,
-  getDocumentMetadataByIds,
-  getQueryStrategy,
-  handleTagAndVectorSearch,
-  handleTagOnlySearch,
-  handleVectorOnlySearch,
-  type SearchResult,
-} from '@/app/api/knowledge/search/utils'
 import { checkKnowledgeBaseAccess, type KnowledgeBaseAccessResult } from '@/app/api/knowledge/utils'
 import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
@@ -197,49 +194,31 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
     const queryEmbeddingModel = embeddingModels[0]
 
-    let results: SearchResult[]
-    let queryEmbeddingIsBYOK: boolean | null = null
-
-    if (!hasQuery && hasFilters) {
-      results = await handleTagOnlySearch({
-        knowledgeBaseIds: accessibleKbIds,
-        topK,
-        structuredFilters,
-      })
-    } else if (hasQuery && hasFilters) {
-      const strategy = getQueryStrategy(accessibleKbIds.length, topK)
-      const queryEmbeddingResult = await generateSearchEmbedding(
-        query!,
-        queryEmbeddingModel,
-        workspaceId
-      )
-      queryEmbeddingIsBYOK = queryEmbeddingResult.isBYOK
-      const queryVector = JSON.stringify(queryEmbeddingResult.embedding)
-      results = await handleTagAndVectorSearch({
-        knowledgeBaseIds: accessibleKbIds,
-        topK,
-        structuredFilters,
-        queryVector,
-        distanceThreshold: strategy.distanceThreshold,
-      })
-    } else if (hasQuery) {
-      const strategy = getQueryStrategy(accessibleKbIds.length, topK)
-      const queryEmbeddingResult = await generateSearchEmbedding(
-        query!,
-        queryEmbeddingModel,
-        workspaceId
-      )
-      queryEmbeddingIsBYOK = queryEmbeddingResult.isBYOK
-      const queryVector = JSON.stringify(queryEmbeddingResult.embedding)
-      results = await handleVectorOnlySearch({
-        knowledgeBaseIds: accessibleKbIds,
-        topK,
-        queryVector,
-        distanceThreshold: strategy.distanceThreshold,
-      })
-    } else {
+    if (!hasQuery && !hasFilters) {
       return v2Error('BAD_REQUEST', 'Either query or tagFilters must be provided')
     }
+
+    let queryEmbeddingIsBYOK: boolean | null = null
+    let queryVector: string | undefined
+
+    if (hasQuery) {
+      const queryEmbeddingResult = await generateSearchEmbedding(
+        query!,
+        queryEmbeddingModel,
+        workspaceId
+      )
+      queryEmbeddingIsBYOK = queryEmbeddingResult.isBYOK
+      queryVector = JSON.stringify(queryEmbeddingResult.embedding)
+    }
+
+    const results: SearchResult[] = await executeKnowledgeSearch({
+      knowledgeBaseIds: accessibleKbIds,
+      topK,
+      searchMode: 'vector',
+      query,
+      queryVector,
+      structuredFilters,
+    })
 
     if (queryEmbeddingIsBYOK !== null) {
       await recordSearchEmbeddingUsage({

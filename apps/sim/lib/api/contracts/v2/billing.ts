@@ -4,7 +4,7 @@ import { usageLogPeriodSchema, usageLogSourceSchema } from '@/lib/api/contracts/
 import { v2CursorListResponse, v2DataResponse } from '@/lib/api/contracts/v2/shared'
 
 /**
- * v2 billing contracts — the read-only, API-key-facing usage surface.
+ * v2 billing contracts — separate read-only status and ledger resources.
  *
  * Deliberately separate from the session-only `/api/users/me/usage-logs`
  * endpoints that back the Billing settings UI: the internal surface can evolve
@@ -19,43 +19,45 @@ const parseableDateSchema = z
   .min(1)
   .refine((value) => !Number.isNaN(Date.parse(value)), { error: 'Invalid date' })
 
-export const v2UsageSummaryQuerySchema = z.object({
+export const v2BillingStatusQuerySchema = z.object({
   /**
-   * Restrict the breakdown to one workspace. A workspace-scoped API key is
-   * always pinned to its own workspace; passing a different id returns 403.
+   * Resolve status against one workspace's payer. A workspace-scoped API key
+   * is always pinned to its own workspace; passing a different id returns 403.
    */
   workspaceId: z.string().optional(),
 })
 
 /**
- * Current-billing-period usage summary. `bySourceCredits` is the source-aware
- * breakdown (workflow, sim-chat, knowledge-base, …) of the account's ledger for
- * the period, so a monitor can watch one source's consumption directly instead
- * of estimating it by subtraction.
+ * Current billing standing and credit allowance. Ledger rows and source
+ * analytics deliberately live outside this status resource.
  */
-export const v2UsageSummaryDataSchema = z.object({
+export const v2BillingStatusDataSchema = z.object({
+  workspaceId: z.string().nullable(),
   period: z.object({ start: z.string(), end: z.string() }),
-  totalCredits: z.number(),
-  bySourceCredits: z.record(z.string(), z.number()),
-  limitCredits: z.number(),
   plan: z.string(),
+  status: z.enum(['active', 'limit_exceeded', 'billing_blocked']),
+  credits: z.object({
+    used: z.number(),
+    limit: z.number(),
+    remaining: z.number(),
+  }),
 })
-export type V2UsageSummaryData = z.output<typeof v2UsageSummaryDataSchema>
+export type V2BillingStatusData = z.output<typeof v2BillingStatusDataSchema>
 
-export const v2GetUsageSummaryContract = defineRouteContract({
+export const v2GetBillingStatusContract = defineRouteContract({
   method: 'GET',
-  path: '/api/v2/billing/usage',
-  query: v2UsageSummaryQuerySchema,
+  path: '/api/v2/billing/status',
+  query: v2BillingStatusQuerySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2UsageSummaryDataSchema),
+    schema: v2DataResponse(v2BillingStatusDataSchema),
   },
 })
 
-export const v2UsageLogsQuerySchema = z
+export const v2BillingLogsQuerySchema = z
   .object({
     source: usageLogSourceSchema.optional(),
-    /** See {@link v2UsageSummaryQuerySchema}'s `workspaceId` — same pinning rules. */
+    /** See {@link v2BillingStatusQuerySchema}'s `workspaceId` — same pinning rules. */
     workspaceId: z.string().optional(),
     period: usageLogPeriodSchema.optional().default('30d'),
     /** Required when `period` is `'custom'`. */
@@ -76,22 +78,28 @@ export const v2UsageLogsQuerySchema = z
  * legitimately be 0 for a sub-credit event once a sibling row absorbs the
  * shared rounding remainder.
  */
-export const v2UsageLogEntrySchema = z.object({
+export const v2BillingLogEntrySchema = z.object({
   id: z.string(),
   createdAt: z.string(),
   source: usageLogSourceSchema,
-  /** Populated only when `source` is `'workflow'`. */
-  workflowName: z.string().nullable(),
+  workspaceId: z.string().nullable(),
+  workflow: z
+    .object({
+      id: z.string(),
+      name: z.string().nullable(),
+    })
+    .nullable(),
+  executionId: z.string().nullable(),
   creditCost: z.number(),
 })
-export type V2UsageLogEntry = z.output<typeof v2UsageLogEntrySchema>
+export type V2BillingLogEntry = z.output<typeof v2BillingLogEntrySchema>
 
-export const v2ListUsageLogsContract = defineRouteContract({
+export const v2ListBillingLogsContract = defineRouteContract({
   method: 'GET',
-  path: '/api/v2/billing/usage/logs',
-  query: v2UsageLogsQuerySchema,
+  path: '/api/v2/billing/logs',
+  query: v2BillingLogsQuerySchema,
   response: {
     mode: 'json',
-    schema: v2CursorListResponse(v2UsageLogEntrySchema),
+    schema: v2CursorListResponse(v2BillingLogEntrySchema),
   },
 })

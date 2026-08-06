@@ -2,7 +2,7 @@ import { asyncJobs, db } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
-import { eq, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import {
   AsyncJobEnqueueError,
   type EnqueueOptions,
@@ -261,7 +261,7 @@ export class DatabaseJobQueue implements JobQueueBackend {
         attempts: sql`${asyncJobs.attempts} + 1`,
         updatedAt: now,
       })
-      .where(eq(asyncJobs.id, jobId))
+      .where(and(eq(asyncJobs.id, jobId), eq(asyncJobs.status, JOB_STATUS.PENDING)))
 
     logger.debug('Started job', { jobId })
   }
@@ -277,7 +277,12 @@ export class DatabaseJobQueue implements JobQueueBackend {
         output: output as Record<string, unknown>,
         updatedAt: now,
       })
-      .where(eq(asyncJobs.id, jobId))
+      .where(
+        and(
+          eq(asyncJobs.id, jobId),
+          inArray(asyncJobs.status, [JOB_STATUS.PENDING, JOB_STATUS.PROCESSING])
+        )
+      )
 
     logger.debug('Completed job', { jobId })
   }
@@ -293,33 +298,45 @@ export class DatabaseJobQueue implements JobQueueBackend {
         error,
         updatedAt: now,
       })
-      .where(eq(asyncJobs.id, jobId))
+      .where(
+        and(
+          eq(asyncJobs.id, jobId),
+          inArray(asyncJobs.status, [JOB_STATUS.PENDING, JOB_STATUS.PROCESSING])
+        )
+      )
 
     logger.debug('Marked job as failed', { jobId })
   }
 
   async cancelJob(jobId: string): Promise<void> {
-    // Abort any in-process inline execution first so the running workflow
-    // observes the signal and stops mid-flight. Then mark the row failed so
-    // any future poller skips it.
-    const controller = inlineAbortControllers.get(jobId)
-    let aborted = false
-    if (controller) {
-      controller.abort('Cancelled')
-      inlineAbortControllers.delete(jobId)
-      aborted = true
-    }
-
     const now = new Date()
-    await db
+    const cancelledJobs = await db
       .update(asyncJobs)
       .set({
-        status: JOB_STATUS.FAILED,
+        status: JOB_STATUS.CANCELLED,
         completedAt: now,
         error: 'Cancelled',
         updatedAt: now,
       })
-      .where(eq(asyncJobs.id, jobId))
+      .where(
+        and(
+          eq(asyncJobs.id, jobId),
+          inArray(asyncJobs.status, [JOB_STATUS.PENDING, JOB_STATUS.PROCESSING])
+        )
+      )
+      .returning({ id: asyncJobs.id })
+
+    if (cancelledJobs.length === 0) {
+      logger.debug('Cancel target is no longer active in DB queue', { jobId })
+      return
+    }
+
+    const controller = inlineAbortControllers.get(jobId)
+    const aborted = Boolean(controller)
+    if (controller) {
+      controller.abort('Cancelled')
+      inlineAbortControllers.delete(jobId)
+    }
 
     logger.debug('Marked job as cancelled (DB queue)', { jobId, abortedInline: aborted })
   }
@@ -353,10 +370,16 @@ export class DatabaseJobQueue implements JobQueueBackend {
         await acquireSlot(concurrencyKey, concurrencyLimit)
       }
       try {
+        abortController.signal.throwIfAborted()
         await this.startJob(jobId)
+        abortController.signal.throwIfAborted()
         await runner(payload, abortController.signal)
         await this.completeJob(jobId, null)
       } catch (err) {
+        if (abortController.signal.aborted) {
+          logger.info(`[${type}] Inline job ${jobId} cancelled`)
+          return
+        }
         const message = toError(err).message
         logger.error(`[${type}] Inline job ${jobId} failed`, { error: message })
         try {

@@ -1,6 +1,7 @@
 import { workflow, workflowExecutionLogs } from '@sim/db/schema'
 import { and, asc, desc, eq, gte, inArray, lte, type SQL, sql } from 'drizzle-orm'
 
+/** Query filters shared by the v1 and v2 public log adapters. */
 export interface LogFilters {
   workspaceId: string
   workflowIds?: string[]

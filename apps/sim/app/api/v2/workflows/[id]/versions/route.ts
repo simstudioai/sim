@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { getActiveWorkflowRecord } from '@sim/platform-authz/workflow'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import type { NextRequest } from 'next/server'
@@ -10,7 +9,7 @@ import {
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { listWorkflowVersions } from '@/lib/workflows/persistence/utils'
-import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
+import { checkRateLimit } from '@/app/api/v1/middleware'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
   decodeCursor,
@@ -20,6 +19,7 @@ import {
   v2RateLimitError,
   v2ValidationError,
 } from '@/app/api/v2/lib/response'
+import { resolveV2WorkflowTarget } from '@/app/api/v2/workflows/utils'
 
 const logger = createLogger('V2WorkflowVersionsAPI')
 
@@ -57,12 +57,8 @@ export const GET = withRouteHandler(
       const { id } = parsed.data.params
       const { limit, cursor } = parsed.data.query
 
-      const workflowData = await getActiveWorkflowRecord(id)
-      if (!workflowData?.workspaceId) return v2Error('NOT_FOUND', 'Workflow not found')
-
-      // Mask an authorization failure as 404 so existence is not leaked.
-      const access = await resolveWorkspaceAccess(rateLimit, userId, workflowData.workspaceId)
-      if (access) return v2Error('NOT_FOUND', 'Workflow not found')
+      const target = await resolveV2WorkflowTarget(rateLimit, userId, id)
+      if (!target) return v2Error('NOT_FOUND', 'Workflow not found')
 
       /**
        * A cursor that decodes to anything other than a version number is

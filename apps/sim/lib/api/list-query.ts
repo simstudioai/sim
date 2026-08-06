@@ -12,7 +12,8 @@ import {
   type SQLWrapper,
   sql,
 } from 'drizzle-orm'
-import type { V2SortOrder } from '@/lib/api/contracts/v2/shared'
+
+export type ListSortOrder = 'asc' | 'desc'
 
 /**
  * Runtime half of the v2 list convention declared in
@@ -121,7 +122,7 @@ export function timestampKey<Row>(column: Column, read: (row: Row) => Date): Key
   }
 }
 
-export function sortDirection(order: V2SortOrder): typeof asc {
+export function sortDirection(order: ListSortOrder): typeof asc {
   return order === 'asc' ? asc : desc
 }
 
@@ -130,7 +131,7 @@ export function sortDirection(order: V2SortOrder): typeof asc {
  * On a paginated list these are the keyset's keys; on a single-page list they
  * are just the sort plus its tiebreaker.
  */
-export function listOrderBy(keys: readonly SQLWrapper[], order: V2SortOrder): SQL[] {
+export function listOrderBy(keys: readonly SQLWrapper[], order: ListSortOrder): SQL[] {
   const direction = sortDirection(order)
   return keys.map((key) => direction(key))
 }
@@ -157,7 +158,7 @@ export function encodeKeyset<Row>(keys: readonly KeysetKey<Row>[], row: Row): Cu
 export function keysetAfter<Row>(
   keys: readonly KeysetKey<Row>[],
   values: CursorKey[],
-  order: V2SortOrder
+  order: ListSortOrder
 ): SQL | null {
   if (values.length !== keys.length) return null
 

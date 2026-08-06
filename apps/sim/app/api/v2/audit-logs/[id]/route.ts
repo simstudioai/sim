@@ -22,12 +22,9 @@ export const revalidate = 0
 /**
  * GET /api/v2/audit-logs/[id]
  *
- * Returns a single audit log entry scoped to the authenticated user's
- * organization. Org-scoped (not workspace-scoped). Unlike v1, authorization
- * (`checkRateLimit` → `validateEnterpriseAuditAccess`) runs BEFORE the untrusted
- * param is parsed, fixing the v1 ordering inconsistency. The org-scope predicate
- * is folded into the lookup so a non-org log reads as 404 (existence is not
- * leaked).
+ * Returns a single audit log entry scoped to an explicitly selected
+ * organization. Audit logs are personal-key-only because a workspace-scoped
+ * key must never expand into organization-wide visibility.
  */
 export const GET = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
@@ -42,13 +39,20 @@ export const GET = withRouteHandler(
       const gate = await v2ApiGateError(userId)
       if (gate) return gate
 
-      const authResult = await resolveEnterpriseAuditAccess(userId)
-      if (!authResult.success) return v2Error('FORBIDDEN', authResult.message)
-
       const parsed = await parseRequest(v2GetAuditLogContract, request, context, {
         validationErrorResponse: v2ValidationError,
       })
       if (!parsed.success) return parsed.response
+
+      if (rateLimit.keyType !== 'personal') {
+        return v2Error('FORBIDDEN', 'Audit logs require a personal API key')
+      }
+
+      const authResult = await resolveEnterpriseAuditAccess(
+        userId,
+        parsed.data.query.organizationId
+      )
+      if (!authResult.success) return v2Error('FORBIDDEN', authResult.message)
 
       const { id } = parsed.data.params
       const { organizationId, orgMemberIds } = authResult.context

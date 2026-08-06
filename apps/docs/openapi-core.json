@@ -32,6 +32,10 @@
     {
       "name": "Usage",
       "description": "Check rate limits and billing usage"
+    },
+    {
+      "name": "Billing",
+      "description": "Inspect billing status and credit-denominated ledger events"
     }
   ],
   "security": [
@@ -1014,12 +1018,12 @@
         "parameters": []
       }
     },
-    "/api/v2/billing/usage": {
+    "/api/v2/billing/status": {
       "get": {
-        "operationId": "getUsageSummary",
-        "summary": "Get Usage Summary",
-        "description": "Current-billing-period usage with the per-source credit breakdown (`workflow`, `sim-chat`, `knowledge-base`, …) — monitor one source's consumption directly instead of estimating it by subtraction. Sim Chat combines the internal Copilot and workspace-chat ledgers. All values are credits (1,000 credits = $5); dollar costs are not part of this surface.",
-        "tags": ["Usage"],
+        "operationId": "getBillingStatus",
+        "summary": "Get Billing Status",
+        "description": "Return the current plan, billing standing, period, and credit allowance. This endpoint never embeds ledger rows or per-source analytics; use `GET /api/v2/billing/logs` for billing history.",
+        "tags": ["Billing"],
         "security": [
           {
             "apiKey": []
@@ -1033,12 +1037,12 @@
             "schema": {
               "type": "string"
             },
-            "description": "Restrict to one workspace. A workspace-scoped API key is always pinned to its own workspace; passing a different id returns 403."
+            "description": "Resolve the status against this workspace's actual payer. A workspace-scoped API key is pinned to its own workspace; passing a different id returns 403."
           }
         ],
         "responses": {
           "200": {
-            "description": "The current billing period's usage summary.",
+            "description": "The current billing status.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1047,14 +1051,12 @@
                   "properties": {
                     "data": {
                       "type": "object",
-                      "required": [
-                        "period",
-                        "totalCredits",
-                        "bySourceCredits",
-                        "limitCredits",
-                        "plan"
-                      ],
+                      "required": ["workspaceId", "period", "plan", "status", "credits"],
                       "properties": {
+                        "workspaceId": {
+                          "type": ["string", "null"],
+                          "description": "The workspace whose payer was resolved, or null for account billing."
+                        },
                         "period": {
                           "type": "object",
                           "required": ["start", "end"],
@@ -1069,21 +1071,27 @@
                             }
                           }
                         },
-                        "totalCredits": {
-                          "type": "number"
-                        },
-                        "bySourceCredits": {
-                          "type": "object",
-                          "additionalProperties": {
-                            "type": "number"
-                          },
-                          "description": "Credits consumed per usage source over the billing period."
-                        },
-                        "limitCredits": {
-                          "type": "number"
-                        },
                         "plan": {
                           "type": "string"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": ["active", "limit_exceeded", "billing_blocked"]
+                        },
+                        "credits": {
+                          "type": "object",
+                          "required": ["used", "limit", "remaining"],
+                          "properties": {
+                            "used": {
+                              "type": "number"
+                            },
+                            "limit": {
+                              "type": "number"
+                            },
+                            "remaining": {
+                              "type": "number"
+                            }
+                          }
                         }
                       }
                     }
@@ -1091,18 +1099,18 @@
                 },
                 "example": {
                   "data": {
+                    "workspaceId": null,
                     "period": {
                       "start": "2026-07-01T00:00:00.000Z",
                       "end": "2026-08-01T00:00:00.000Z"
                     },
-                    "totalCredits": 512,
-                    "bySourceCredits": {
-                      "workflow": 380,
-                      "sim-chat": 120,
-                      "knowledge-base": 12
-                    },
-                    "limitCredits": 20000,
-                    "plan": "pro"
+                    "plan": "pro",
+                    "status": "active",
+                    "credits": {
+                      "used": 512,
+                      "limit": 20000,
+                      "remaining": 19488
+                    }
                   }
                 }
               }
@@ -1123,12 +1131,12 @@
         }
       }
     },
-    "/api/v2/billing/usage/logs": {
+    "/api/v2/billing/logs": {
       "get": {
-        "operationId": "listUsageLogs",
-        "summary": "List Usage Logs",
-        "description": "Cursor-paged, credit-denominated ledger of the account's usage events. The per-source aggregate lives on `GET /api/v2/billing/usage`; this is the row-level detail. Page by passing `nextCursor` back as `cursor` and stop when it is null.",
-        "tags": ["Usage"],
+        "operationId": "listBillingLogs",
+        "summary": "List Billing Logs",
+        "description": "Cursor-paged, credit-denominated billing ledger. This endpoint returns history only and never embeds the current billing status. Page by passing `nextCursor` back as `cursor` and stop when it is null.",
+        "tags": ["Billing"],
         "security": [
           {
             "apiKey": []
@@ -1226,7 +1234,15 @@
                       "type": "array",
                       "items": {
                         "type": "object",
-                        "required": ["id", "createdAt", "source", "workflowName", "creditCost"],
+                        "required": [
+                          "id",
+                          "createdAt",
+                          "source",
+                          "workspaceId",
+                          "workflow",
+                          "executionId",
+                          "creditCost"
+                        ],
                         "properties": {
                           "id": {
                             "type": "string"
@@ -1249,9 +1265,30 @@
                               "voice-output"
                             ]
                           },
-                          "workflowName": {
-                            "type": ["string", "null"],
-                            "description": "Populated only when `source` is `workflow`."
+                          "workspaceId": {
+                            "type": ["string", "null"]
+                          },
+                          "workflow": {
+                            "oneOf": [
+                              {
+                                "type": "object",
+                                "required": ["id", "name"],
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": ["string", "null"]
+                                  }
+                                }
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "executionId": {
+                            "type": ["string", "null"]
                           },
                           "creditCost": {
                             "type": "number",
@@ -1272,7 +1309,9 @@
                       "id": "log_1",
                       "createdAt": "2026-07-29T18:04:11.000Z",
                       "source": "sim-chat",
-                      "workflowName": null,
+                      "workspaceId": "ws_1",
+                      "workflow": null,
+                      "executionId": null,
                       "creditCost": 12
                     }
                   ],
@@ -1445,7 +1484,7 @@
           },
           "status": {
             "type": "string",
-            "enum": ["queued", "processing", "completed", "failed"],
+            "enum": ["queued", "processing", "completed", "failed", "cancelled"],
             "description": "Current status of the job.",
             "example": "completed"
           },

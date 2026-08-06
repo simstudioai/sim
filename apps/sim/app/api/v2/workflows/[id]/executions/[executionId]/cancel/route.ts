@@ -4,7 +4,10 @@ import type { NextRequest } from 'next/server'
 import { v2CancelWorkflowExecutionContract } from '@/lib/api/contracts/v2/workflows'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { cancelWorkflowExecution } from '@/lib/execution/cancel-workflow-execution'
+import {
+  cancelWorkflowExecution,
+  WorkflowExecutionNotFoundError,
+} from '@/lib/execution/cancel-workflow-execution'
 import { v2Data, v2Error, v2ValidationError } from '@/app/api/v2/lib/response'
 import { resolveV2WorkflowAccess } from '@/app/api/v2/workflows/lib/access'
 
@@ -37,6 +40,9 @@ export const POST = withRouteHandler(
 
       return v2Data(result)
     } catch (error) {
+      if (error instanceof WorkflowExecutionNotFoundError) {
+        return v2Error('NOT_FOUND', error.message)
+      }
       logger.error('Failed to cancel execution', {
         workflowId,
         executionId,
