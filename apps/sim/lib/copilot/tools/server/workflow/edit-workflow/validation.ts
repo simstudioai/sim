@@ -11,7 +11,6 @@ import { getSkillById } from '@/lib/workflows/skills/operations'
 import {
   buildCanonicalIndex,
   buildSubBlockValues,
-  evaluateSubBlockCondition,
   isCanonicalPair,
   resolveCanonicalMode,
 } from '@/lib/workflows/subblocks/visibility'
@@ -58,13 +57,7 @@ export function findBlockWithDuplicateNormalizedName(
 export function validateInputsForBlock(
   blockType: string,
   inputs: Record<string, any>,
-  blockId: string,
-  /**
-   * The block's already-saved subblock values, when editing an existing block.
-   * Lets a partial mutation resolve conditional field variants against state it
-   * is not itself rewriting.
-   */
-  existingValues?: Record<string, unknown>
+  blockId: string
 ): ValidationResult {
   const errors: ValidationError[] = []
 
@@ -91,21 +84,12 @@ export function validateInputsForBlock(
   }
 
   const validatedInputs: Record<string, any> = {}
+  const subBlockMap = new Map<string, SubBlockConfig>()
 
-  /**
-   * A field id can be declared more than once, each variant conditioned on
-   * another field, so every candidate is kept and the active one is resolved
-   * per field below.
-   */
-  const subBlockCandidates = new Map<string, SubBlockConfig[]>()
+  // Build map of subBlock id -> config
   for (const subBlock of blockConfig.subBlocks) {
-    const existing = subBlockCandidates.get(subBlock.id)
-    if (existing) existing.push(subBlock)
-    else subBlockCandidates.set(subBlock.id, [subBlock])
+    subBlockMap.set(subBlock.id, subBlock)
   }
-
-  /** Incoming values win over saved ones so a single mutation resolves itself. */
-  const effectiveValues: Record<string, unknown> = { ...existingValues, ...inputs }
 
   for (const [key, value] of Object.entries(inputs)) {
     // Skip runtime subblock IDs
@@ -113,10 +97,7 @@ export function validateInputsForBlock(
       continue
     }
 
-    const candidates = subBlockCandidates.get(key)
-    const subBlockConfig = candidates
-      ? (resolveActiveSubBlock(candidates, effectiveValues) ?? unionSubBlock(candidates))
-      : undefined
+    const subBlockConfig = subBlockMap.get(key)
 
     // If subBlock doesn't exist in config, skip it (unless it's a known dynamic field)
     if (!subBlockConfig) {
@@ -160,10 +141,10 @@ export function validateInputsForBlock(
       continue
     }
 
-    // A field is never rejected for being conditionally hidden — conditions are
-    // UI display logic, and any field in the block schema stays writable. They
-    // are consulted only to pick which same-id variant defines this field, and
-    // an unresolved condition widens the accepted set rather than narrowing it.
+    // Note: We do NOT check subBlockConfig.condition here.
+    // Conditions are for UI display logic (show/hide fields in the editor).
+    // For API/Copilot, any valid field in the block schema should be accepted.
+    // The runtime will use the relevant fields based on the actual operation.
 
     // Validate value based on subBlock type
     const validationResult = validateValueForSubBlockType(
@@ -294,69 +275,6 @@ function validateAgentSkillEntry(item: any, index: number): string | null {
   return null
 }
 
-/** Reads a subblock's options list, which may be declared as a thunk. */
-function readOptions(subBlockConfig: SubBlockConfig) {
-  return typeof subBlockConfig.options === 'function'
-    ? subBlockConfig.options()
-    : subBlockConfig.options
-}
-
-/**
- * Picks which of several same-id subblock definitions applies.
- *
- * A block may declare one field id several times, each variant conditioned on
- * another field — the embeddings block declares `model`, `dimensions`, and
- * `taskType` once per provider, and the image/video generators do the same.
- * Keying a map by id alone silently keeps whichever variant happens to be
- * declared last, so a value valid for the selected provider is checked against
- * an unrelated provider's option list.
- *
- * Conditions are evaluated against the mutation's inputs merged over the
- * block's saved values, so a write that sets only `model` still resolves
- * against an already-persisted `provider`.
- *
- * Returns null when no variant's condition matches, which leaves the caller to
- * fall back to accepting anything valid for any variant rather than guessing.
- */
-function resolveActiveSubBlock(
-  candidates: SubBlockConfig[],
-  effectiveValues: Record<string, unknown>
-): SubBlockConfig | null {
-  if (candidates.length === 1) return candidates[0]
-  const active = candidates.filter((candidate) =>
-    evaluateSubBlockCondition(candidate.condition, effectiveValues)
-  )
-  if (active.length === 0) return null
-  /**
-   * An unconditioned variant matches everything, so it would shadow a genuinely
-   * selected one purely by being declared earlier. Prefer a variant that
-   * actually asserted something about the current values.
-   */
-  return active.find((candidate) => candidate.condition) ?? active[0]
-}
-
-/**
- * Collapses same-id variants into one definition whose options are the union of
- * every variant's. Used only when the active variant cannot be resolved, so an
- * unresolvable write is never rejected for a value that is legal somewhere.
- */
-function unionSubBlock(candidates: SubBlockConfig[]): SubBlockConfig {
-  const seen = new Set<string>()
-  const merged: Array<{ id: string; label?: string }> = []
-  for (const candidate of candidates) {
-    const options = readOptions(candidate)
-    if (!Array.isArray(options)) continue
-    for (const option of options) {
-      if (seen.has(option.id)) continue
-      seen.add(option.id)
-      merged.push(option)
-    }
-  }
-  return merged.length > 0
-    ? ({ ...candidates[0], options: merged } as SubBlockConfig)
-    : candidates[0]
-}
-
 /**
  * Validates a value against its expected subBlock type
  * Returns validation result with the value or an error
@@ -378,7 +296,10 @@ export function validateValueForSubBlockType(
   switch (type) {
     case 'dropdown': {
       // Validate against allowed options
-      const options = readOptions(subBlockConfig)
+      const options =
+        typeof subBlockConfig.options === 'function'
+          ? subBlockConfig.options()
+          : subBlockConfig.options
       if (options && Array.isArray(options)) {
         const validIds = options.map((opt) => opt.id)
         if (!validIds.includes(value)) {
