@@ -21,7 +21,11 @@ import {
   createUpdateParentEntry,
 } from '@sim/testing'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { runWithUndoRedoRecordingSuspended, useUndoRedoStore } from '@/stores/undo-redo/store'
+import {
+  runWithUndoRedoRecordingSuspended,
+  trimPersistedStateToBudget,
+  useUndoRedoStore,
+} from '@/stores/undo-redo/store'
 import type { UpdateParentOperation } from '@/stores/undo-redo/types'
 
 describe('useUndoRedoStore', () => {
@@ -760,6 +764,133 @@ describe('useUndoRedoStore', () => {
 
       const parentEntry = undo(workflowId, userId)
       expect(parentEntry?.operation.type).toBe('update-parent')
+    })
+  })
+
+  describe('persisted size budget (issue #4737)', () => {
+    // Build an entry whose operation + inverse each carry a large block snapshot,
+    // approximating the multi-KB snapshots real editing produces.
+    const bigEntry = (index: number, approxBytes = 15_000) => {
+      const snapshot = {
+        id: `block-${index}`,
+        type: 'action',
+        name: `Block ${index}`,
+        position: { x: index, y: index },
+        subBlocks: { note: { id: 'note', type: 'long-input', value: 'x'.repeat(approxBytes) } },
+      }
+      return createRemoveBlockEntry(`block-${index}`, snapshot, {
+        workflowId,
+        userId,
+        createdAt: index,
+      })
+    }
+
+    it('keeps the persisted payload within a sane byte budget under heavy editing', () => {
+      const { push } = useUndoRedoStore.getState()
+
+      // A single stack at default capacity (100) of ~30 KB entries serializes to
+      // ~3 MB — enough on its own to exhaust the origin's shared ~5 MB budget and
+      // make an unrelated persisted store throw QuotaExceededError on its next
+      // write. The persisted footprint must stay bounded regardless of op count.
+      for (let i = 0; i < 100; i++) {
+        push(workflowId, userId, bigEntry(i))
+      }
+
+      const persisted = global.localStorage.getItem('workflow-undo-redo')
+      expect(persisted).not.toBeNull()
+
+      // A sane share of the ~5 MB origin budget, leaving room for sibling stores.
+      const SANE_BUDGET_BYTES = 2 * 1024 * 1024
+      expect(persisted!.length).toBeLessThanOrEqual(SANE_BUDGET_BYTES)
+    })
+
+    it('keeps recent history usable after trimming (newest ops survive)', () => {
+      const { push, getStackSizes } = useUndoRedoStore.getState()
+
+      for (let i = 0; i < 100; i++) {
+        push(workflowId, userId, bigEntry(i))
+      }
+
+      // Trimming targets storage only; the in-memory stack stays fully intact, so
+      // the current session remains undoable to its capacity.
+      expect(getStackSizes(workflowId, userId).undoSize).toBe(100)
+
+      const persisted = JSON.parse(global.localStorage.getItem('workflow-undo-redo')!)
+      const undo = persisted.state.stacks[`${workflowId}:${userId}`].undo
+      // Some history is persisted, and it's the newest slice (oldest evicted first).
+      expect(undo.length).toBeGreaterThan(0)
+      expect(undo.length).toBeLessThan(100)
+      const createdAts = undo.map((e: { createdAt: number }) => e.createdAt)
+      expect(createdAts[createdAts.length - 1]).toBe(99)
+      expect(Math.min(...createdAts)).toBeGreaterThan(0)
+    })
+  })
+
+  describe('trimPersistedStateToBudget', () => {
+    const entryOfSize = (createdAt: number, chars: number) => ({
+      id: `e-${createdAt}`,
+      createdAt,
+      operation: { id: `op-${createdAt}`, data: { blob: 'x'.repeat(chars) } },
+      inverse: { id: `inv-${createdAt}`, data: {} },
+    })
+
+    it('returns the state unchanged when already within budget', () => {
+      const state = {
+        capacity: 100,
+        stacks: { 'wf:user': { undo: [entryOfSize(1, 10)], redo: [], lastUpdated: 1 } },
+      } as any
+      expect(trimPersistedStateToBudget(state, 1024 * 1024)).toBe(state)
+    })
+
+    it('evicts oldest-first across stacks until under budget', () => {
+      const state = {
+        capacity: 100,
+        stacks: {
+          a: {
+            undo: [entryOfSize(1, 5000), entryOfSize(4, 5000)],
+            redo: [entryOfSize(2, 5000)],
+            lastUpdated: 4,
+          },
+          b: { undo: [entryOfSize(3, 5000)], redo: [], lastUpdated: 3 },
+        },
+      } as any
+
+      const budget = 12_000
+      const trimmed = trimPersistedStateToBudget(state, budget)
+
+      expect(JSON.stringify(trimmed).length).toBeLessThanOrEqual(budget)
+      // The oldest entries (createdAt 1, 2) are gone; the newest (3, 4) survive.
+      const survivors = Object.values(trimmed.stacks)
+        .flatMap((s: any) => [...s.undo, ...s.redo])
+        .map((e: any) => e.createdAt)
+        .sort((x, y) => x - y)
+      expect(survivors).toEqual([3, 4])
+    })
+
+    it('does not mutate the input state', () => {
+      const state = {
+        capacity: 100,
+        stacks: {
+          a: { undo: [entryOfSize(1, 5000), entryOfSize(2, 5000)], redo: [], lastUpdated: 2 },
+        },
+      } as any
+
+      trimPersistedStateToBudget(state, 6000)
+      expect(state.stacks.a.undo).toHaveLength(2)
+    })
+
+    it('drops stacks emptied by eviction', () => {
+      const state = {
+        capacity: 100,
+        stacks: {
+          old: { undo: [entryOfSize(1, 8000)], redo: [], lastUpdated: 1 },
+          fresh: { undo: [entryOfSize(2, 100)], redo: [], lastUpdated: 2 },
+        },
+      } as any
+
+      const trimmed = trimPersistedStateToBudget(state, 4000)
+      expect(trimmed.stacks.old).toBeUndefined()
+      expect(trimmed.stacks.fresh).toBeDefined()
     })
   })
 })

@@ -20,6 +20,24 @@ const logger = createLogger('UndoRedoStore')
 const DEFAULT_CAPACITY = 100
 const MAX_STACKS = 5
 
+/**
+ * Upper bound on the *serialized* size of the persisted history.
+ *
+ * DEFAULT_CAPACITY and MAX_STACKS bound how many operations are retained, not how
+ * many bytes they occupy — and a single operation can carry several KB of block
+ * snapshots. Left unbounded by size, the history can still grow to multiple
+ * megabytes and exhaust the origin's shared ~5 MB localStorage budget; the
+ * resulting QuotaExceededError then surfaces in whichever *other* persisted store
+ * writes next (notification-storage, panel state, …), so the store that throws is
+ * the victim, not the culprit. Capping the footprint here keeps undo/redo from
+ * starving its siblings. Only the persisted copy is trimmed (oldest operations
+ * first); the in-memory history is left intact, so the current session stays
+ * fully undoable.
+ */
+// ~2 MB: a conservative minority of the typical ~5 MB origin budget, so the
+// majority stays available to sibling persisted stores.
+export const MAX_PERSISTED_BYTES = 2 * 1024 * 1024
+
 let recordingSuspendDepth = 0
 
 function isRecordingSuspended(): boolean {
@@ -118,6 +136,72 @@ function isOperationApplicable(
     default:
       return true
   }
+}
+
+type PersistedUndoRedoState = Pick<UndoRedoState, 'stacks' | 'capacity'>
+
+function serializedLength(value: unknown): number {
+  return JSON.stringify(value)?.length ?? 0
+}
+
+/**
+ * Returns a copy of the persisted state trimmed so its serialized size fits
+ * `maxBytes`, evicting the oldest operations (by `createdAt`) across every stack
+ * first and dropping any stack left empty. The input is never mutated, so the
+ * live in-memory history is unaffected — only what gets written to storage shrinks.
+ */
+export function trimPersistedStateToBudget(
+  state: PersistedUndoRedoState,
+  maxBytes: number
+): PersistedUndoRedoState {
+  if (serializedLength(state) <= maxBytes) return state
+
+  // Clone stacks (and their arrays) so eviction never touches the live state.
+  const stacks: PersistedUndoRedoState['stacks'] = {}
+  for (const [key, stack] of Object.entries(state.stacks)) {
+    stacks[key] = { ...stack, undo: [...stack.undo], redo: [...stack.redo] }
+  }
+
+  // Every removable entry, oldest first.
+  const removable = Object.entries(stacks)
+    .flatMap(([key, stack]) => [
+      ...stack.undo.map((entry) => ({ key, list: 'undo' as const, entry })),
+      ...stack.redo.map((entry) => ({ key, list: 'redo' as const, entry })),
+    ])
+    .sort((a, b) => a.entry.createdAt - b.entry.createdAt)
+
+  const drop = ({ key, list, entry }: (typeof removable)[number]): void => {
+    const stack = stacks[key]
+    if (!stack) return
+    const arr = stack[list]
+    const idx = arr.indexOf(entry)
+    if (idx !== -1) arr.splice(idx, 1)
+    // Reclaim the key/overhead of a stack emptied by eviction.
+    if (stack.undo.length === 0 && stack.redo.length === 0) delete stacks[key]
+  }
+
+  // Pass 1: estimate-based bulk eviction. Subtracting each entry's own serialized
+  // length (plus a separating comma) avoids re-serializing the whole payload on
+  // every eviction, which would be O(n²) over the megabytes involved.
+  let approxBytes = serializedLength(state)
+  let i = 0
+  for (; i < removable.length && approxBytes > maxBytes; i++) {
+    approxBytes -= serializedLength(removable[i].entry) + 1
+    drop(removable[i])
+  }
+
+  // Pass 2: the estimate can undershoot the true reduction (structural overhead it
+  // doesn't attribute to entries), so verify exactly and keep dropping the oldest
+  // survivors until the invariant holds. In practice this runs zero or one times.
+  while (
+    i < removable.length &&
+    serializedLength({ stacks, capacity: state.capacity }) > maxBytes
+  ) {
+    drop(removable[i])
+    i++
+  }
+
+  return { stacks, capacity: state.capacity }
 }
 
 export const useUndoRedoStore = create<UndoRedoState>()(
@@ -502,10 +586,11 @@ export const useUndoRedoStore = create<UndoRedoState>()(
     {
       name: 'workflow-undo-redo',
       storage: createJSONStorage(() => safeStorageAdapter),
-      partialize: (state) => ({
-        stacks: state.stacks,
-        capacity: state.capacity,
-      }),
+      partialize: (state) =>
+        trimPersistedStateToBudget(
+          { stacks: state.stacks, capacity: state.capacity },
+          MAX_PERSISTED_BYTES
+        ),
     }
   )
 )
