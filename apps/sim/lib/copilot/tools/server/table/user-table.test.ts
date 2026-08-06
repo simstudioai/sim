@@ -806,6 +806,21 @@ describe('userTableServerTool.query_rows', () => {
     expect(options.limit).toBeUndefined()
   })
 
+  it('normalizes a root condition before querying', async () => {
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'query_rows',
+        args: { tableId: 'tbl_1', filter: { field: 'name', op: 'eq', value: 'r1' } },
+      },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockQueryRows.mock.calls[0][1].predicate).toEqual({
+      all: [{ field: 'name', op: 'eq', value: 'r1' }],
+    })
+  })
+
   it('decodes an opaque cursor into after/offset and skips the count', async () => {
     const cursor = encodeCursor({
       lastRow: { id: 'row_9', orderKey: 'a9' },
@@ -929,6 +944,19 @@ describe('userTableServerTool.delete_rows_by_filter', () => {
     // Inline delete still claims (and releases) the table's write-job slot.
     expect(mockMarkTableJobRunning).toHaveBeenCalledWith('tbl_1', expect.any(String), 'delete')
     expect(mockReleaseJobClaim).toHaveBeenCalled()
+  })
+
+  it('normalizes a root condition before deleting', async () => {
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'delete_rows_by_filter',
+        args: { tableId: 'tbl_1', filter: { field: 'name', op: 'eq', value: 'x' } },
+      },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockDeleteRowsByFilter.mock.calls[0][1].filter).toEqual({ $and: [{ name: 'x' }] })
   })
 
   it('rejects an inline delete while another job holds the table slot', async () => {
@@ -1088,6 +1116,23 @@ describe('userTableServerTool.update_rows_by_filter', () => {
     expect(result.data?.affectedCount).toBe(5)
     expect(mockUpdateRowsByFilter).toHaveBeenCalledTimes(1)
     expect(mockMarkTableJobRunning).not.toHaveBeenCalled()
+  })
+
+  it('normalizes a root condition before updating', async () => {
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'update_rows_by_filter',
+        args: {
+          tableId: 'tbl_1',
+          filter: { field: 'name', op: 'eq', value: 'x' },
+          data: { age: 1 },
+        },
+      },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockUpdateRowsByFilter.mock.calls[0][1].filter).toEqual({ $and: [{ name: 'x' }] })
   })
 
   it('dispatches a background update when the unbounded match count exceeds the cap', async () => {

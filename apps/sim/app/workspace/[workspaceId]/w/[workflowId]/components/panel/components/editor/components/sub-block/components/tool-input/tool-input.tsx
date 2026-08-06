@@ -1904,7 +1904,7 @@ export const ToolInput = memo(function ToolInput({
                       />
                     )}
                   </div>
-                  <span className='truncate font-medium text-[var(--text-primary)] text-small'>
+                  <span className='truncate text-[var(--text-primary)] text-small'>
                     {formatDisplayText(toolDisplayName ?? '', {
                       workflowSearchHighlight: getToolTitleSearchHighlight(toolIndex),
                     })}
@@ -1952,7 +1952,7 @@ export const ToolInput = memo(function ToolInput({
                     >
                       <PopoverTrigger asChild>
                         <button
-                          className='flex items-center justify-center font-medium text-[var(--text-tertiary)] text-caption transition-colors hover-hover:text-[var(--text-primary)]'
+                          className='flex items-center justify-center text-[var(--text-tertiary)] text-caption transition-colors hover-hover:text-[var(--text-primary)]'
                           onClick={(e: React.MouseEvent) => e.stopPropagation()}
                           aria-label='Tool usage control'
                         >
@@ -2077,9 +2077,7 @@ export const ToolInput = memo(function ToolInput({
 
                     return hasOperations && operationOptions.length > 0 ? (
                       <div className='relative space-y-1.5'>
-                        <div className='font-medium text-[var(--text-primary)] text-small'>
-                          Operation
-                        </div>
+                        <div className='text-[var(--text-primary)] text-small'>Operation</div>
                         <Combobox
                           options={operationOptions
                             .filter((option) => option.id !== '')

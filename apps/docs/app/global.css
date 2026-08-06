@@ -5,6 +5,19 @@
 @source "../../../packages/emcn/src";
 @source "../../../packages/workflow-renderer/src";
 
+/* Every @sim/emcn component expresses hover through `hover-hover:` so touch
+   devices never latch a sticky hover state. The app registers it as a plugin
+   variant in apps/sim/tailwind.config.ts; docs is CSS-first Tailwind v4 with no
+   config, so without this declaration the variant compiles to nothing and every
+   emcn hover state silently no-ops here. */
+@custom-variant hover-hover {
+  @media (hover: hover) and (pointer: fine) {
+    &:hover {
+      @slot;
+    }
+  }
+}
+
 /* Prevent overscroll bounce effect on the page */
 html,
 body {
@@ -114,11 +127,24 @@ body {
   --badge-error-text: #dc2626;
   --badge-gray-bg: #e7e5e4;
   --badge-gray-text: #57534e;
+  --code-bg: #f5f5f5;
+  --code-foreground: #1a1a1a;
+  --code-line-number: #737373;
+  --selection-bg: #add6ff;
+  --selection-dark: #264f78;
+  --highlight-search-active: #f6ad55;
   --scrollbar-thumb-color: #c0c0c0;
   --scrollbar-thumb-hover-color: #a8a8a8;
   --shadow-subtle: 0 2px 4px 0 rgba(0, 0, 0, 0.08);
   --shadow-medium: 0 4px 12px rgba(0, 0, 0, 0.1);
+  --shadow-overlay: 0 10px 30px rgba(0, 0, 0, 0.11);
   --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.04);
+  /* z-index scale — poppers sit above the modal so menus stay clickable over
+     the modal overlay. Mirrors apps/sim/app/_styles/globals.css. */
+  --z-toast: 150;
+  --z-modal: 200;
+  --z-popover: 300;
+  --z-tooltip: 400;
 }
 
 .dark {
@@ -185,8 +211,13 @@ body {
   --badge-error-text: #fca5a5;
   --badge-gray-bg: #3a3a3a;
   --badge-gray-text: #a8a8a8;
+  --code-bg: #1f1f1f;
+  --code-foreground: #eeeeee;
+  --code-line-number: #a8a8a8;
+  --selection-bg: #264f78;
   --scrollbar-thumb-color: #5a5a5a;
   --scrollbar-thumb-hover-color: #6a6a6a;
+  --shadow-overlay: 0 10px 30px rgba(0, 0, 0, 0.3);
 }
 
 /* Scrollbars — platform thumb tokens, transparent track */
@@ -331,18 +362,32 @@ aside#nd-sidebar [data-radix-scroll-area-viewport] {
     min-height: var(--fd-docs-height) !important;
   }
 
-  /* Sidebar divider line — sticky within the docs layout box, so it ends where
-     the layout does instead of bleeding into (or past) the footer below it.
-     #nd-docs-layout is a CSS grid (see fumadocs' Container slot); a sticky
-     pseudo-element stays in normal flow, so without an explicit grid-area it
-     gets auto-placed into a real content cell and skews that cell's sizing.
-     Spanning the full grid keeps it purely decorative/overlaid instead. */
+  /* Pin the sidebar to the viewport instead of letting fumadocs' `sticky` do it.
+     A sticky box is bottom-limited by its containing block, and #nd-docs-layout
+     ends ~660px above the document bottom because the site footer is a sibling
+     of the layout, not a grid child. So across the whole footer the sidebar gets
+     pushed upward — and any content-height change while the reader is in that
+     zone (expanding an FAQ row, say) makes it visibly jump. A fixed box ignores
+     both the container's end and the document's height, so neither happens.
+
+     Safe because the grid columns are explicit (`0px 300px 1fr 268px 0px`), so
+     removing the placeholder from flow leaves its track intact. `left`/`width`
+     are restated because a fixed box no longer derives them from its grid cell,
+     and `top`/`height` already come from fumadocs' own utility classes. */
+  [data-sidebar-placeholder] {
+    position: fixed !important;
+    left: var(--sidebar-offset);
+    width: var(--fd-sidebar-width);
+  }
+
+  /* Sidebar divider line — pinned for the same reason, and so it stays glued to
+     the sidebar's right edge. Being fixed takes it out of #nd-docs-layout's grid
+     entirely, so it needs no grid placement and cannot skew a content cell; its
+     position comes from `left`/`top` alone. */
   #nd-docs-layout::before {
     content: "";
     display: block;
-    position: sticky;
-    grid-row: 1 / -1;
-    grid-column: 1 / -1;
+    position: fixed;
     top: 92px; /* below navbar */
     height: calc(100dvh - 92px);
     left: calc(var(--sidebar-offset) + var(--fd-sidebar-width));
@@ -358,10 +403,10 @@ aside#nd-sidebar [data-radix-scroll-area-viewport] {
   }
 }
 
-/* Sidebar spacing — left padding aligns item text with navbar content (item has 14px internal padding) */
+/* Sidebar spacing — left padding aligns item text with navbar content (item has 8px internal padding) */
 [data-sidebar-viewport],
 #nd-sidebar > div {
-  padding: 0 14px 0 calc(var(--nav-inset) - 14px) !important;
+  padding: 0 14px 0 calc(var(--nav-inset) - 8px) !important;
   background: transparent !important;
 }
 
@@ -386,15 +431,20 @@ html #nd-sidebar [data-radix-scroll-area-viewport] > div {
 /* Target Link and button elements in sidebar - override Fumadocs itemVariants */
 /* Exclude the small chevron-only toggle buttons */
 /* Using html prefix for higher specificity over Tailwind v4 utilities */
+/* NEVER set `display` here. This selector scores (1,2,2) and carries
+   `!important`, so it out-specifies every rule below that hides the language
+   selector, theme toggle, and search button — a `display` declaration here
+   forces all of them back into the sidebar. The 30px chip height therefore
+   comes from line-height + padding (20 + 5 + 5), not from flex centering. */
 html #nd-sidebar a:not(:has(span.font-mono)),
 html #nd-sidebar button:not([aria-label*="ollapse"]):not([aria-label*="xpand"]) {
   font-size: 0.875rem !important; /* 14px to match navbar items */
-  line-height: 1.4 !important;
-  padding: 0.375rem 0.875rem !important;
-  font-weight: 450 !important;
+  line-height: 20px !important;
+  padding: 5px 0.5rem !important; /* 30px tall overall — the app's chip pill, at its px-2 */
+  font-weight: 400 !important;
   border-radius: 0.5rem !important; /* platform rounded-lg */
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial,
-    sans-serif !important;
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
 }
 
 /* Sidebar text — platform --text-body */
@@ -428,26 +478,22 @@ html #nd-sidebar button:not([aria-label*="ollapse"]):not([aria-label*="xpand"]) 
   margin-bottom: 0 !important;
 }
 
-/* Section separator headers — styling handled by component, override fumadocs defaults */
+/* Section separator headers — match the app sidebar's group label: 12px,
+   sentence case, normal weight. Only the fumadocs defaults are overridden here;
+   size and color stay on the component. */
 [data-sidebar-viewport] [data-separator] p,
 #nd-sidebar [data-separator] p {
-  font-size: 0.625rem !important; /* 10px */
-  font-weight: 600 !important;
-  text-transform: uppercase !important;
-  letter-spacing: 0.06em !important;
+  font-weight: 400 !important;
+  text-transform: none !important;
+  letter-spacing: normal !important;
   margin: 0 !important;
   padding: 0 !important;
 }
 
-/* First separator has no top margin or divider; subsequent ones show the divider on desktop */
+/* The first group sits flush against the top padding — it has nothing to be
+   separated from. */
 [data-separator]:not([data-separator] ~ [data-separator]) {
   margin-top: 0;
-}
-
-@media (min-width: 1024px) {
-  [data-separator] ~ [data-separator] > .separator-divider {
-    display: block;
-  }
 }
 
 /* Active state — aligned with platform --surface-active */
@@ -709,7 +755,7 @@ main article h4,
 [data-content] h4,
 #nd-page h3,
 #nd-page h4 {
-  font-size: 1rem !important;
+  font-size: var(--text-md) !important;
   font-weight: 470 !important;
   letter-spacing: -0.01em;
   color: var(--text-body);
@@ -751,18 +797,26 @@ main article li,
   border-left: none !important;
 }
 
+/* The clerk TOC draws its active range twice: a track segment, plus a dot that
+   animates along the track to the current heading. The dot is redundant with the
+   segment and reads as a stray artifact, so hide it and keep the segment. It is
+   the only node fumadocs gives an inline offset-path, which is what anchors it. */
+#nd-toc [style*="offset-path"] {
+  display: none !important;
+}
+
 /* TOC heading — align weight with landing */
 #nd-toc h3,
 #nd-toc [class*="title"] {
   font-weight: 480 !important;
-  font-size: 0.8125rem !important;
+  font-size: var(--text-small) !important;
   color: var(--text-muted);
 }
 
 /* TOC links — softer colors aligned with landing muted text */
 #nd-toc a {
   font-weight: 430 !important;
-  font-size: 0.8125rem !important;
+  font-size: var(--text-small) !important;
   color: var(--text-muted);
   transition: color 0.2s;
 }
@@ -905,7 +959,7 @@ html #nd-sidebar a:has(span.font-mono.font-medium) {
   align-items: center;
   justify-content: center;
   width: 2.625rem;
-  font-size: 0.625rem !important;
+  font-size: var(--text-micro) !important;
   line-height: 1 !important;
   padding: 0.15625rem 0.25rem;
   border-radius: 0.375rem;
@@ -917,7 +971,7 @@ html #nd-sidebar a:has(span.font-mono.font-medium) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.625rem !important;
+  font-size: var(--text-micro) !important;
   line-height: 1 !important;
   padding: 0.15625rem 0.375rem;
   border-radius: 0.375rem;
@@ -984,7 +1038,7 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   span.font-mono.font-medium {
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif !important;
   font-weight: 600 !important;
-  font-size: 0.6875rem !important;
+  font-size: var(--text-xs) !important;
   letter-spacing: 0.025em;
   text-transform: uppercase;
   padding: 0.125rem 0.5rem !important;
@@ -1033,7 +1087,7 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   background: none !important;
   border: none !important;
   padding: 0 !important;
-  font-size: 0.8125rem !important;
+  font-size: var(--text-small) !important;
 }
 /* Inline code in API pages — neutral color aligned with sim design.
    Exclude code inside the method+path bar (handled above). */
@@ -1213,7 +1267,7 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   color: var(--text-secondary);
   padding: 0.1875rem 0.5rem;
   border-radius: 0.375rem;
-  font-size: 0.6875rem;
+  font-size: var(--text-xs);
   line-height: 1.125rem;
   font-weight: 500;
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
@@ -1223,7 +1277,6 @@ html.dark
   .flex.flex-wrap.items-center.gap-3.not-prose
   > span.text-sm.font-mono.text-fd-muted-foreground {
   background-color: var(--surface-4);
-  color: var(--text-secondary);
 }
 
 /* Hide the "*" inside the name span — we'll add "required" as a ::after on the flex row */
@@ -1242,7 +1295,7 @@ html.dark
   color: var(--badge-error-text);
   padding: 0.1875rem 0.5rem;
   border-radius: 0.375rem;
-  font-size: 0.6875rem;
+  font-size: var(--text-xs);
   line-height: 1.125rem;
   font-weight: 500;
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
@@ -1284,7 +1337,7 @@ html.dark
   > .flex.flex-wrap.items-center.gap-3.not-prose
   > span.text-sm.font-mono.text-fd-muted-foreground::after {
   content: "string";
-  font-size: 0.6875rem;
+  font-size: var(--text-xs);
   line-height: 1.125rem;
   font-weight: 500;
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
@@ -1301,7 +1354,6 @@ html.dark
   > .flex.flex-wrap.items-center.gap-3.not-prose
   > span.text-sm.font-mono.text-fd-muted-foreground::after {
   background-color: var(--surface-4);
-  color: var(--text-secondary);
 }
 
 /* "header" badge via ::before on the auth flex row */
@@ -1314,7 +1366,7 @@ html.dark
   color: var(--text-secondary);
   padding: 0.1875rem 0.5rem;
   border-radius: 0.375rem;
-  font-size: 0.6875rem;
+  font-size: var(--text-xs);
   line-height: 1.125rem;
   font-weight: 500;
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
@@ -1324,7 +1376,6 @@ html.dark
   div.my-4
   > .flex.flex-wrap.items-center.gap-3.not-prose::before {
   background-color: var(--surface-4);
-  color: var(--text-secondary);
 }
 
 /* "required" badge via ::after on the auth flex row — red pill */
@@ -1337,7 +1388,7 @@ html.dark
   color: var(--badge-error-text);
   padding: 0.1875rem 0.5rem;
   border-radius: 0.375rem;
-  font-size: 0.6875rem;
+  font-size: var(--text-xs);
   line-height: 1.125rem;
   font-weight: 500;
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
@@ -1389,7 +1440,7 @@ html.dark
   color: var(--text-secondary);
   padding: 0.1875rem 0.5rem;
   border-radius: 0.375rem;
-  font-size: 0.6875rem;
+  font-size: var(--text-xs);
   line-height: 1.125rem;
   font-weight: 500;
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
@@ -1400,7 +1451,6 @@ html.dark
   .flex.flex-wrap.items-center.gap-3.not-prose
   > span:has(> button) {
   background-color: var(--surface-4);
-  color: var(--text-secondary);
 }
 
 /* Section headings (Authorization, Path Parameters, etc.) — consistent top spacing */
@@ -1562,10 +1612,6 @@ div > figure.shiki {
   box-shadow: none !important;
 }
 
-html.dark div > figure.shiki {
-  background-color: transparent !important;
-}
-
 /* Tabbed code block container (cURL/JS/Go tabs) */
 div:has(> [role="tablist"]):has(> div > figure.shiki) {
   border-radius: 0.5rem !important;
@@ -1610,16 +1656,8 @@ figure.shiki pre {
   background-color: transparent !important;
 }
 
-html.dark figure.shiki pre {
-  background-color: transparent !important;
-}
-
 /* Code viewport scroll area — transparent bg */
 figure.shiki > div[role="region"] {
-  background-color: transparent !important;
-}
-
-html.dark figure.shiki > div[role="region"] {
   background-color: transparent !important;
 }
 
@@ -1690,7 +1728,7 @@ figure.shiki > div:has(> button[aria-label]) {
 .grid > a[data-card] p,
 .grid > a[data-card] div {
   color: var(--text-muted) !important;
-  font-size: 0.8125rem !important;
+  font-size: var(--text-small) !important;
 }
 
 /* Steps — lighter styling aligned with platform */
