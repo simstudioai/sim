@@ -273,38 +273,54 @@ export const EmbeddingsBlock: BlockConfig<EmbeddingsResponse> = {
         const provider = params.provider as EmbeddingCatalogProvider
         return TOOL_ID_BY_PROVIDER[provider] ?? TOOL_ID_BY_PROVIDER.openai
       },
+      /**
+       * Every per-provider dropdown shares one subblock id (`model`,
+       * `taskType`, `dimensions`) and nothing clears a stored value when its
+       * `dependsOn` fields change, so a choice made for one provider or model
+       * outlives a switch away from it.
+       *
+       * Each stale field is therefore rewritten to an explicit `undefined`
+       * rather than omitted. The generic handler merges this result over the
+       * original inputs (`{ ...inputs, ...transformedParams }`), so an omitted
+       * key leaves the stale value untouched — only an explicit `undefined`
+       * overrides it.
+       */
       params: (params) => {
         const provider = (params.provider as EmbeddingCatalogProvider) || 'openai'
         if (!params.input) {
           throw new Error('Input text is required')
         }
-        const model = params.model || DEFAULT_MODEL_BY_PROVIDER[provider]
+
+        /** A model saved under a previous provider must not survive the switch. */
+        const savedModel = params.model as string | undefined
+        const model =
+          savedModel && EMBEDDING_MODELS[savedModel]?.provider === provider
+            ? savedModel
+            : DEFAULT_MODEL_BY_PROVIDER[provider]
+
         const info = EMBEDDING_MODELS[model]
-        const dimensions =
+        const requested =
           params.dimensions !== undefined && params.dimensions !== ''
             ? Number(params.dimensions)
+            : undefined
+        const dimensions =
+          requested !== undefined &&
+          !Number.isNaN(requested) &&
+          info?.supportedDimensions?.includes(requested)
+            ? requested
+            : undefined
+        const taskType =
+          params.taskType &&
+          info?.supportedTaskTypes?.includes(params.taskType as EmbeddingTaskType)
+            ? (params.taskType as EmbeddingTaskType)
             : undefined
 
         return {
           apiKey: params.apiKey,
           input: params.input,
           model,
-          /** Only send capabilities the selected model actually declares. */
-          ...(info?.supportedTaskTypes &&
-            params.taskType &&
-            info.supportedTaskTypes.includes(params.taskType as EmbeddingTaskType) && {
-              taskType: params.taskType,
-            }),
-          /**
-           * Every per-model Dimensions dropdown shares the `dimensions` id, and
-           * switching models does not clear the stored value — so a reduction
-           * picked for one model can outlive it. Drop anything the current model
-           * no longer offers and fall back to its native size, rather than
-           * sending a value the dropdown stopped presenting.
-           */
-          ...(dimensions !== undefined &&
-            !Number.isNaN(dimensions) &&
-            info?.supportedDimensions?.includes(dimensions) && { dimensions }),
+          taskType,
+          dimensions,
         }
       },
     },

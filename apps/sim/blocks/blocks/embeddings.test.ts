@@ -149,6 +149,67 @@ describe('Embeddings block', () => {
    * clears a stored subblock value when its `dependsOn` fields change, so a
    * reduction chosen for one model outlives a switch to another.
    */
+  /**
+   * The generic handler merges this result over the original inputs
+   * (`{ ...inputs, ...transformedParams }`), so omitting a stale key leaves the
+   * old value in place. Only an explicit `undefined` overrides it — asserting
+   * the merged result is what actually pins the behavior.
+   */
+  describe('stale values are overridden, not merely omitted', () => {
+    const mergeLikeExecutor = (inputs: Record<string, unknown>) => ({
+      ...inputs,
+      ...EmbeddingsBlock.tools.config?.params?.(inputs),
+    })
+
+    it('overrides a dimension the selected model does not offer', () => {
+      const merged = mergeLikeExecutor({
+        provider: 'openai',
+        model: 'text-embedding-3-small',
+        input: 'hello',
+        apiKey: 'k',
+        dimensions: '3072',
+      })
+
+      expect(merged.dimensions).toBeUndefined()
+    })
+
+    it('overrides a task type the selected model does not offer', () => {
+      const merged = mergeLikeExecutor({
+        provider: 'openai',
+        model: 'text-embedding-3-small',
+        input: 'hello',
+        apiKey: 'k',
+        taskType: 'similarity',
+      })
+
+      expect(merged.taskType).toBeUndefined()
+    })
+
+    it('replaces a model left over from a previous provider', () => {
+      // Selecting Cohere with OpenAI's model still stored must not reach the
+      // route, which rejects it as a provider mismatch.
+      const merged = mergeLikeExecutor({
+        provider: 'cohere',
+        model: 'text-embedding-3-large',
+        input: 'hello',
+        apiKey: 'k',
+      })
+
+      expect(merged.model).toBe('embed-v4.0')
+    })
+
+    it('keeps a model that does belong to the selected provider', () => {
+      const merged = mergeLikeExecutor({
+        provider: 'openai',
+        model: 'text-embedding-3-large',
+        input: 'hello',
+        apiKey: 'k',
+      })
+
+      expect(merged.model).toBe('text-embedding-3-large')
+    })
+  })
+
   it('drops a dimension the newly selected model no longer offers', () => {
     const params = EmbeddingsBlock.tools.config?.params
 
