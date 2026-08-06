@@ -35,6 +35,8 @@ import {
   ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
 import { fileGetContentTool } from '@/tools/file/get'
+import { memoryAddTool } from '@/tools/memory/add'
+import { tableBatchInsertRowsTool } from '@/tools/table/batch_insert_rows'
 import { workflowExecutorTool } from '@/tools/workflow/executor'
 
 // Hoisted mock state - these are available to vi.mock factories
@@ -123,6 +125,8 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () 
 const mockRegistryTools: Record<string, any> = {
   workflow_executor: workflowExecutorTool,
   file_get_content: fileGetContentTool,
+  memory_add: memoryAddTool,
+  table_batch_insert_rows: tableBatchInsertRowsTool,
   http_request: {
     id: 'http_request',
     name: 'HTTP Request',
@@ -753,6 +757,92 @@ describe('executeTool Function', () => {
     expect(registry.getActiveMatches()).toEqual([
       { plaintext: 'secret-value', replacement: '{{API_KEY}}' },
     ])
+  })
+
+  it.each([
+    {
+      name: 'table propagate policy',
+      toolId: 'table_batch_insert_rows',
+      status: 400,
+      params: {
+        tableId: 'table-1',
+        rows: [{ name: 'duplicate' }],
+        _context: { userId: 'user-1', workspaceId: 'workspace-1' },
+      },
+    },
+    {
+      name: 'memory isolated policy',
+      toolId: 'memory_add',
+      status: 500,
+      params: {
+        id: 'memory-1',
+        role: 'user',
+        content: { owner: 'user-1' },
+        _context: { userId: 'user-1', workspaceId: 'workspace-1' },
+      },
+    },
+  ])(
+    'preserves an unverified error status for the $name without exposing its body or headers',
+    async ({ toolId, status, params }) => {
+      const registry = new ResolvedSecretTraceRegistry([], {
+        userId: 'user-1',
+        workspaceId: 'workspace-1',
+      })
+      const untrustedDetail = 'route-secret-plaintext'
+      const untrustedHeader = 'route-secret-header-value'
+      global.fetch = Object.assign(
+        vi.fn().mockResolvedValue(
+          new Response(JSON.stringify({ error: untrustedDetail }), {
+            status,
+            headers: {
+              'content-type': 'application/json',
+              'x-route-error-detail': untrustedHeader,
+            },
+          })
+        ),
+        { preconnect: vi.fn() }
+      ) as typeof fetch
+
+      const result = await executeTool(toolId, params, { resolvedSecretTraceRegistry: registry })
+      const error = `Internal tool request failed (HTTP ${status})`
+
+      expect(result).toMatchObject({
+        success: false,
+        output: { status, data: { success: false, error } },
+        error,
+      })
+      expect(JSON.stringify(result)).not.toContain(untrustedDetail)
+      expect(JSON.stringify(result)).not.toContain(untrustedHeader)
+      expect(JSON.stringify(mockToolsLogger.error.mock.calls)).not.toContain(untrustedDetail)
+      expect(JSON.stringify(mockToolsLogger.error.mock.calls)).not.toContain(untrustedHeader)
+      expect(registry.isComplete()).toBe(true)
+    }
+  )
+
+  it('maps an unverified non-error HTTP status to a metadata failure', async () => {
+    const registry = new ResolvedSecretTraceRegistry()
+    global.fetch = Object.assign(vi.fn().mockResolvedValue(new Response(null, { status: 304 })), {
+      preconnect: vi.fn(),
+    }) as typeof fetch
+
+    const result = await executeTool(
+      'function_execute',
+      { code: 'return "unreachable"', envVars: {} },
+      { resolvedSecretTraceRegistry: registry }
+    )
+
+    expect(result).toMatchObject({
+      success: false,
+      output: {
+        status: 502,
+        data: {
+          success: false,
+          error: 'Internal tool response metadata could not be verified',
+        },
+      },
+      error: 'Internal tool response metadata could not be verified',
+    })
+    expect(registry.isComplete()).toBe(true)
   })
 
   it('contains incomplete File Get Content provenance within that tool call', async () => {

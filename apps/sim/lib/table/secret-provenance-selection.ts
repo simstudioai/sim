@@ -3,13 +3,15 @@ import type { RowData } from '@/lib/table/types'
 
 /** Stable keyed selections shared by table tool descriptors and authenticated routes. */
 export function selectTableRowSecretProvenance(
-  rows: readonly RowData[]
+  rows: readonly Partial<RowData>[]
 ): PrivateSecretProvenanceSelection[] {
   return rows.flatMap((row, rowIndex) =>
-    Object.entries(row).map(([columnKey, value]) => ({
-      key: tableRowSecretProvenanceSelectionKey(rowIndex, columnKey),
-      value,
-    }))
+    Object.entries(row)
+      .filter(([, value]) => value !== undefined)
+      .map(([columnKey, value]) => ({
+        key: tableRowSecretProvenanceSelectionKey(rowIndex, columnKey),
+        value,
+      }))
   )
 }
 

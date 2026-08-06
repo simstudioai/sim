@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { AuthType, type AuthTypeValue } from '@/lib/auth/hybrid'
+import { isPrivateSecretProvenanceScopeCompatible } from '@/lib/execution/durable-secret-provenance'
 import {
   inspectPrivateSecretProvenanceRequest,
   isPrivateSecretProvenanceBundleV1,
@@ -138,8 +139,10 @@ export function resolveTableWriteSecretProvenance(options: {
     const target = targetBySelectionKey.get(selection.key)
     if (
       !target ||
-      selection.provenance.scope?.userId !== options.userId ||
-      selection.provenance.scope?.workspaceId !== options.workspaceId
+      !isPrivateSecretProvenanceScopeCompatible(selection.provenance.scope, {
+        userId: options.userId,
+        workspaceId: options.workspaceId,
+      })
     ) {
       return { success: false, response: invalidProvenanceResponse() }
     }
