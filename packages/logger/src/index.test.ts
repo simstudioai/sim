@@ -254,5 +254,46 @@ describe('Logger', () => {
       expect(parsed.module).toBe('Test')
       expect(parsed.serializationError).toBe(true)
     })
+
+    test('should not throw when withMetadata receives a throwing getter', () => {
+      const hostile = {
+        safe: 'kept',
+        get boom() {
+          throw new Error('getter exploded')
+        },
+      } as unknown as Parameters<Logger['withMetadata']>[0]
+
+      let child: Logger | undefined
+      expect(() => {
+        child = createEnabledLogger().withMetadata(hostile)
+      }).not.toThrow()
+
+      expect(() => child?.info('hello')).not.toThrow()
+      const parsed = JSON.parse(consoleLogSpy.mock.calls[0][0] as string)
+      expect(parsed.message).toBe('hello')
+      expect(parsed.safe).toBe('kept')
+      expect(parsed.boom).toBe('[Unreadable]')
+    })
+
+    test('should not throw when withMetadata receives a hostile proxy', () => {
+      const hostile = new Proxy(
+        {},
+        {
+          ownKeys() {
+            throw new Error('ownKeys exploded')
+          },
+        }
+      ) as Parameters<Logger['withMetadata']>[0]
+
+      let child: Logger | undefined
+      expect(() => {
+        child = createEnabledLogger().withMetadata(hostile)
+      }).not.toThrow()
+
+      expect(() => child?.info('hello')).not.toThrow()
+      const parsed = JSON.parse(consoleLogSpy.mock.calls[0][0] as string)
+      expect(parsed.message).toBe('hello')
+      expect(parsed.metadataError).toBe(true)
+    })
   })
 })

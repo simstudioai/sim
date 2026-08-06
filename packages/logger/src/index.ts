@@ -189,6 +189,34 @@ const serializeEntry = (base: Record<string, unknown>, args: unknown[]): string 
 }
 
 /**
+ * Copies caller-supplied metadata into a plain object without ever throwing.
+ *
+ * `LoggerMetadata` is structurally typed, so nothing stops a caller from handing
+ * over an object carrying a throwing getter or a hostile proxy. A spread invokes
+ * those traps, so the copy degrades key-by-key and finally to a marker rather
+ * than raising inside the caller's code path.
+ */
+const materializeMetadata = (metadata: LoggerMetadata): LoggerMetadata => {
+  try {
+    return { ...metadata }
+  } catch {}
+
+  const safe: LoggerMetadata = {}
+  try {
+    for (const key of Object.keys(metadata)) {
+      try {
+        safe[key] = metadata[key]
+      } catch {
+        safe[key] = '[Unreadable]'
+      }
+    }
+    return safe
+  } catch {}
+
+  return { metadataError: true }
+}
+
+/**
  * Logger class for standardized console logging
  *
  * Provides methods for logging at different severity levels
@@ -240,7 +268,7 @@ export class Logger {
     child.module = this.module
     child.config = this.config
     child.isDev = this.isDev
-    child.metadata = { ...this.metadata, ...metadata }
+    child.metadata = { ...this.metadata, ...materializeMetadata(metadata) }
     return child
   }
 
