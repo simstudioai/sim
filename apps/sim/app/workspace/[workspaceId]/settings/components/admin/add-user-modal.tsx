@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import {
   ChipModal,
   ChipModalBody,
@@ -8,10 +8,15 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  Label,
+  Switch,
+  toast,
 } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isValidEmailSyntax } from '@sim/utils/string'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import { type AdminUser, useAddUser } from '@/hooks/queries/admin-users'
+import { useResetPassword } from '@/hooks/queries/user-profile'
 
 const EMAIL_STATUS_OPTIONS = [
   { value: 'verified', label: 'Verified' },
@@ -26,12 +31,15 @@ interface AddUserModalProps {
 
 export function AddUserModal({ open, onOpenChange, onCreated }: AddUserModalProps) {
   const addUser = useAddUser()
+  const resetPassword = useResetPassword()
+  const resetEmailToggleId = useId()
   const submissionInFlightRef = useRef(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [emailVerified, setEmailVerified] = useState(true)
+  const [sendResetEmail, setSendResetEmail] = useState(false)
 
   const normalizedName = name.trim()
   const normalizedEmail = email.trim().toLowerCase()
@@ -42,7 +50,7 @@ export function AddUserModal({ open, onOpenChange, onCreated }: AddUserModalProp
     password.length > 0 && password.length < 8
       ? 'Password must be at least 8 characters'
       : undefined
-  const isSubmissionPending = isSubmitting || addUser.isPending
+  const isSubmissionPending = isSubmitting || addUser.isPending || resetPassword.isPending
   const canSubmit =
     normalizedName.length > 0 &&
     isValidEmailSyntax(normalizedEmail) &&
@@ -54,7 +62,9 @@ export function AddUserModal({ open, onOpenChange, onCreated }: AddUserModalProp
     setEmail('')
     setPassword('')
     setEmailVerified(true)
+    setSendResetEmail(false)
     addUser.reset()
+    resetPassword.reset()
   }
 
   const handleClose = () => {
@@ -76,7 +86,20 @@ export function AddUserModal({ open, onOpenChange, onCreated }: AddUserModalProp
         emailVerified,
       },
       {
-        onSuccess: (user) => {
+        onSuccess: async (user) => {
+          if (sendResetEmail) {
+            try {
+              await resetPassword.mutateAsync({
+                email: normalizedEmail,
+                redirectTo: `${getBaseUrl()}/reset-password`,
+              })
+              toast.success(`Password reset email sent to ${normalizedEmail}`)
+            } catch (error) {
+              toast.error(
+                `User created, but the password reset email failed to send: ${getErrorMessage(error, 'Unknown error')}`
+              )
+            }
+          }
           reset()
           onOpenChange(false)
           onCreated(user)
@@ -160,6 +183,18 @@ export function AddUserModal({ open, onOpenChange, onCreated }: AddUserModalProp
           disabled={isSubmissionPending}
           required
         />
+        <div className='flex items-center justify-between px-2'>
+          <Label htmlFor={resetEmailToggleId}>Send password reset email</Label>
+          <Switch
+            id={resetEmailToggleId}
+            checked={sendResetEmail}
+            disabled={isSubmissionPending}
+            onCheckedChange={(checked) => {
+              setSendResetEmail(checked)
+              addUser.reset()
+            }}
+          />
+        </div>
         <ChipModalError>
           {addUser.error ? getErrorMessage(addUser.error, 'Failed to add user') : null}
         </ChipModalError>

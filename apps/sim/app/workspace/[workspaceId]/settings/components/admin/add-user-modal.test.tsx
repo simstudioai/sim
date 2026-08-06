@@ -7,7 +7,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
-const { addUserMutation, mockMutate, mockReset } = vi.hoisted(() => ({
+const {
+  addUserMutation,
+  mockMutate,
+  mockReset,
+  mockResetPassword,
+  mockToast,
+  resetPasswordMutation,
+} = vi.hoisted(() => ({
   addUserMutation: {
     current: {
       isPending: false,
@@ -16,6 +23,9 @@ const { addUserMutation, mockMutate, mockReset } = vi.hoisted(() => ({
   },
   mockMutate: vi.fn(),
   mockReset: vi.fn(),
+  mockResetPassword: vi.fn(),
+  mockToast: { success: vi.fn(), error: vi.fn() },
+  resetPasswordMutation: { current: { isPending: false } },
 }))
 
 vi.mock('@sim/emcn', () => ({
@@ -58,6 +68,29 @@ vi.mock('@sim/emcn', () => ({
       </button>
     </footer>
   ),
+  Label: ({ htmlFor, children }: { htmlFor?: string; children: ReactNode }) => (
+    <label htmlFor={htmlFor}>{children}</label>
+  ),
+  Switch: ({
+    id,
+    checked,
+    onCheckedChange,
+    disabled,
+  }: {
+    id?: string
+    checked: boolean
+    onCheckedChange: (checked: boolean) => void
+    disabled?: boolean
+  }) => (
+    <input
+      id={id}
+      type='checkbox'
+      checked={checked}
+      disabled={disabled}
+      onChange={(event) => onCheckedChange(event.target.checked)}
+    />
+  ),
+  toast: mockToast,
   ChipModalField: ({
     type,
     inputType,
@@ -114,6 +147,18 @@ vi.mock('@/hooks/queries/admin-users', () => ({
   }),
 }))
 
+vi.mock('@/hooks/queries/user-profile', () => ({
+  useResetPassword: () => ({
+    mutateAsync: mockResetPassword,
+    isPending: resetPasswordMutation.current.isPending,
+    reset: vi.fn(),
+  }),
+}))
+
+vi.mock('@/lib/core/utils/urls', () => ({
+  getBaseUrl: () => 'https://sim.test',
+}))
+
 import { AddUserModal } from '@/app/workspace/[workspaceId]/settings/components/admin/add-user-modal'
 import type { AddUserInput, AdminUser } from '@/hooks/queries/admin-users'
 
@@ -157,6 +202,38 @@ async function changeField(label: string, value: string) {
   })
 }
 
+/** Resolves a switch through its `<label for>` association, mirroring a real click on the label. */
+async function toggleField(label: string) {
+  const labelElement = [...container.querySelectorAll('label')].find(
+    (candidate) => candidate.textContent === label
+  )
+  if (!labelElement?.htmlFor) throw new Error(`No label "${label}" bound to a control`)
+  const element = document.getElementById(labelElement.htmlFor) as HTMLInputElement | null
+  if (!element) throw new Error(`Label "${label}" points at a missing control`)
+  const checkedSetter = Object.getOwnPropertyDescriptor(
+    Object.getPrototypeOf(element),
+    'checked'
+  )?.set
+  if (!checkedSetter) throw new Error(`Field labelled "${label}" has no checked setter`)
+  await act(async () => {
+    checkedSetter.call(element, !element.checked)
+    element.dispatchEvent(new Event('click', { bubbles: true }))
+    element.dispatchEvent(new Event('change', { bubbles: true }))
+  })
+}
+
+/**
+ * Mirrors query-core's mutate-scoped callback contract: `onSuccess`'s return value is
+ * discarded (an async callback is never awaited) and `onSettled` follows synchronously.
+ */
+function succeedWithCreatedUser(
+  _input: AddUserInput,
+  options: { onSuccess: (user: AdminUser) => void | Promise<void>; onSettled: () => void }
+) {
+  options.onSuccess(CREATED_USER)
+  options.onSettled()
+}
+
 function buttonLabelled(text: string): HTMLButtonElement {
   const button = [...container.querySelectorAll('button')].find(
     (candidate) => candidate.textContent === text
@@ -179,6 +256,11 @@ describe('AddUserModal', () => {
     onCreated = vi.fn()
     onOpenChange = vi.fn()
     addUserMutation.current = { isPending: false, error: null }
+    resetPasswordMutation.current = { isPending: false }
+    mockResetPassword.mockResolvedValue({ success: true })
+    // vi.clearAllMocks() does not drop implementations, so re-arm the default (a
+    // request that never settles) rather than inheriting the previous test's.
+    mockMutate.mockImplementation(() => {})
   })
 
   afterEach(() => {
@@ -202,11 +284,7 @@ describe('AddUserModal', () => {
   })
 
   it('creates a verified credential user and returns it to the admin view', async () => {
-    mockMutate.mockImplementation(
-      (_input: AddUserInput, options: { onSuccess: (user: AdminUser) => void }) => {
-        options.onSuccess(CREATED_USER)
-      }
-    )
+    mockMutate.mockImplementation(succeedWithCreatedUser)
     await renderModal()
     await fillRequiredFields()
 
@@ -227,6 +305,57 @@ describe('AddUserModal', () => {
     )
     expect(onOpenChange).toHaveBeenCalledWith(false)
     expect(onCreated).toHaveBeenCalledWith(CREATED_USER)
+    expect(mockResetPassword).not.toHaveBeenCalled()
+  })
+
+  it('sends a password reset email when the toggle is on', async () => {
+    mockMutate.mockImplementation(succeedWithCreatedUser)
+    await renderModal()
+    await fillRequiredFields()
+    await toggleField('Send password reset email')
+
+    await act(async () => {
+      buttonLabelled('Add user').dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await Promise.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(mockResetPassword).toHaveBeenCalledWith({
+      email: 'writer@synthetics.example.com',
+      redirectTo: 'https://sim.test/reset-password',
+    })
+    expect(mockToast.success).toHaveBeenCalled()
+    expect(onCreated).toHaveBeenCalledWith(CREATED_USER)
+  })
+
+  it('keeps the submit path locked while the reset email is still in flight', async () => {
+    resetPasswordMutation.current = { isPending: true }
+    await renderModal()
+    await fillRequiredFields()
+
+    expect(buttonLabelled('Adding...').disabled).toBe(true)
+    expect(buttonLabelled('Close').disabled).toBe(true)
+    expect(buttonLabelled('Cancel').disabled).toBe(true)
+  })
+
+  it('still reports the created user when the reset email fails', async () => {
+    mockResetPassword.mockRejectedValue(new Error('SMTP unavailable'))
+    mockMutate.mockImplementation(succeedWithCreatedUser)
+    await renderModal()
+    await fillRequiredFields()
+    await toggleField('Send password reset email')
+
+    await act(async () => {
+      buttonLabelled('Add user').dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await Promise.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(mockToast.error).toHaveBeenCalledWith(expect.stringContaining('SMTP unavailable'))
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+    expect(onCreated).toHaveBeenCalledWith(CREATED_USER)
   })
 
   it('ignores repeated submissions before the pending state renders', async () => {
@@ -245,11 +374,7 @@ describe('AddUserModal', () => {
   })
 
   it('supports unverified accounts without exposing a platform-role control', async () => {
-    mockMutate.mockImplementation(
-      (_input: AddUserInput, options: { onSuccess: (user: AdminUser) => void }) => {
-        options.onSuccess(CREATED_USER)
-      }
-    )
+    mockMutate.mockImplementation(succeedWithCreatedUser)
     await renderModal()
     await fillRequiredFields()
     await changeField('Email status', 'unverified')
