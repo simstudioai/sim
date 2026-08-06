@@ -356,6 +356,51 @@ describe('POST /api/auth/sso/register', () => {
     expect(sent.samlConfig).toHaveProperty('identifierFormat', '')
   })
 
+  /**
+   * Persisting generated IdP metadata made re-saving destructive: the form loaded
+   * it back, resent it, and it then won over the certificate — so rotating a SAML
+   * cert through the form silently did nothing.
+   */
+  it('does not persist generated IdP metadata when the admin supplied none', async () => {
+    queueMembers([{ organizationId: 'org1', role: 'owner' }])
+    queueProviders([])
+    await POST(
+      request({
+        providerType: 'saml',
+        providerId: 'acme-saml',
+        issuer: 'https://idp.acme.com',
+        domain: 'acme.com',
+        orgId: 'org1',
+        entryPoint: 'https://idp.acme.com/sso',
+        cert: 'ORIGINAL-CERT',
+      })
+    )
+    const sent = mockRegisterSSOProvider.mock.calls[0][0].body
+    expect(sent.samlConfig.idpMetadata).toBeUndefined()
+    expect(sent.samlConfig.cert).toBe('ORIGINAL-CERT')
+  })
+
+  it('persists IdP metadata the admin did supply', async () => {
+    queueMembers([{ organizationId: 'org1', role: 'owner' }])
+    queueProviders([])
+    await POST(
+      request({
+        providerType: 'saml',
+        providerId: 'acme-saml',
+        issuer: 'https://idp.acme.com',
+        domain: 'acme.com',
+        orgId: 'org1',
+        entryPoint: 'https://idp.acme.com/sso',
+        cert: 'CERT',
+        idpMetadata: '<EntityDescriptor>supplied</EntityDescriptor>',
+      })
+    )
+    const sent = mockRegisterSSOProvider.mock.calls[0][0].body
+    expect(sent.samlConfig.idpMetadata).toEqual({
+      metadata: '<EntityDescriptor>supplied</EntityDescriptor>',
+    })
+  })
+
   it('nests the attribute mapping inside oidcConfig (Better Auth reads it there)', async () => {
     queueMembers([{ organizationId: 'org1', role: 'owner' }])
     await POST(

@@ -514,28 +514,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   </md:SPSSODescriptor>
 </md:EntityDescriptor>`
 
-      const certBase64 = cert
-        .replace(/-----BEGIN CERTIFICATE-----/g, '')
-        .replace(/-----END CERTIFICATE-----/g, '')
-        .replace(/\s/g, '')
-
-      const computedIdpMetadataXml =
-        idpMetadata ||
-        `<?xml version="1.0"?>
-<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" entityID="${escapeXml(issuer)}">
-  <IDPSSODescriptor WantAuthnRequestsSigned="false" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
-    <KeyDescriptor use="signing">
-      <ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
-        <ds:X509Data>
-          <ds:X509Certificate>${certBase64}</ds:X509Certificate>
-        </ds:X509Data>
-      </ds:KeyInfo>
-    </KeyDescriptor>
-    <SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="${escapeXml(entryPoint)}"/>
-    <SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="${escapeXml(entryPoint)}"/>
-  </IDPSSODescriptor>
-</EntityDescriptor>`
-
       const samlConfig: any = {
         entryPoint,
         cert,
@@ -543,10 +521,18 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         spMetadata: {
           metadata: spMetadataXml,
         },
-        idpMetadata: {
-          metadata: computedIdpMetadataXml,
-        },
       }
+
+      /**
+       * Only persist IdP metadata the admin actually supplied. Storing a document
+       * generated from `cert` + `entryPoint` made re-saving destructive: the form
+       * loads it back into the optional metadata field, resends it, and it then
+       * wins over the certificate — so a cert rotation entered through the form
+       * silently did nothing. With no metadata stored, Better Auth's createIdP
+       * builds the IdP from issuer/entryPoint/cert, which are the fields the form
+       * actually edits.
+       */
+      if (idpMetadata) samlConfig.idpMetadata = { metadata: idpMetadata }
 
       if (audience) samlConfig.audience = audience
       if (wantAssertionsSigned !== undefined) samlConfig.wantAssertionsSigned = wantAssertionsSigned
