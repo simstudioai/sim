@@ -8,6 +8,7 @@ import {
   adminV1SingleResponseSchema,
 } from '@/lib/api/contracts/v1/admin/shared'
 import { MAX_BILLING_CONCURRENCY_LIMIT } from '@/lib/billing/concurrency-defaults'
+import { MAX_WORKFLOW_EXECUTION_TIMEOUT_SECONDS } from '@/lib/billing/execution-timeout-defaults'
 
 const dollarAmountSchema = z
   .number()
@@ -41,6 +42,11 @@ export const adminDashboardProvisioningSchema = z.object({
   usageLimitDollars: creditAlignedDollarAmountSchema,
   seats: z.number().int().positive(),
   concurrencyLimit: z.number().int().positive().max(MAX_BILLING_CONCURRENCY_LIMIT),
+  workflowExecutionTimeoutSeconds: z
+    .number()
+    .int()
+    .positive()
+    .max(MAX_WORKFLOW_EXECUTION_TIMEOUT_SECONDS),
   pausePaymentCollection: z.boolean(),
   stripeSubscriptionId: z.string().nullable(),
   error: z.string().nullable(),
@@ -60,6 +66,12 @@ export const adminDashboardOrganizationSummarySchema = z.object({
   externalCollaboratorCount: z.number().int().min(0),
   seats: z.number().int().min(0),
   concurrencyLimit: z.number().int().positive().max(MAX_BILLING_CONCURRENCY_LIMIT).nullable(),
+  workflowExecutionTimeoutSeconds: z
+    .number()
+    .int()
+    .positive()
+    .max(MAX_WORKFLOW_EXECUTION_TIMEOUT_SECONDS)
+    .nullable(),
   planAllowanceDollars: dollarAmountSchema.nullable(),
   usageLimitDollars: dollarAmountSchema,
   effectiveUsageLimitDollars: dollarAmountSchema,
@@ -81,6 +93,12 @@ export const adminDashboardOrganizationDetailSchema =
           .int()
           .positive()
           .max(MAX_BILLING_CONCURRENCY_LIMIT)
+          .nullable(),
+        requestedWorkflowExecutionTimeoutSeconds: z
+          .number()
+          .int()
+          .positive()
+          .max(MAX_WORKFLOW_EXECUTION_TIMEOUT_SECONDS)
           .nullable(),
         error: z.string().nullable(),
       })
@@ -129,6 +147,12 @@ export const adminDashboardIssueEnterpriseBodySchema = z.object({
   usageLimitDollars: creditAlignedDollarAmountSchema.optional(),
   seats: z.number().int().positive().max(100_000),
   concurrencyLimit: z.number().int().positive().max(MAX_BILLING_CONCURRENCY_LIMIT).optional(),
+  workflowExecutionTimeoutSeconds: z
+    .number()
+    .int()
+    .positive()
+    .max(MAX_WORKFLOW_EXECUTION_TIMEOUT_SECONDS)
+    .optional(),
   pausePaymentCollection: z.boolean().optional(),
 })
 
@@ -146,9 +170,19 @@ export const adminDashboardLimitsBodySchema = z
       .max(MAX_BILLING_CONCURRENCY_LIMIT)
       .nullable()
       .optional(),
+    workflowExecutionTimeoutSeconds: z
+      .number()
+      .int()
+      .positive()
+      .max(MAX_WORKFLOW_EXECUTION_TIMEOUT_SECONDS)
+      .nullable()
+      .optional(),
   })
   .refine(
-    (value) => value.usageLimitDollars !== undefined || value.concurrencyLimit !== undefined,
+    (value) =>
+      value.usageLimitDollars !== undefined ||
+      value.concurrencyLimit !== undefined ||
+      value.workflowExecutionTimeoutSeconds !== undefined,
     { error: 'At least one limit must be provided' }
   )
 

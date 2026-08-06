@@ -28,6 +28,7 @@ import {
   type TableSchema,
 } from '@/lib/table'
 import { sniffCsvDelimiterFromStream } from '@/lib/table/csv-delimiter-stream'
+import { createExactEmptyTableRowSecretProvenance } from '@/lib/table/rows/secret-provenance'
 import { getUserSettings } from '@/lib/users/queries'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import {
@@ -155,7 +156,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       if (rows.length === 0) return 0
       const coerced = coerceRowsForTable(rows, state.schema, state.headerToColumn, { timezone })
       const result = await batchInsertRows(
-        { tableId: state.table.id, rows: coerced, workspaceId, userId },
+        {
+          tableId: state.table.id,
+          rows: coerced,
+          workspaceId,
+          userId,
+          secretProvenance: coerced.map(createExactEmptyTableRowSecretProvenance),
+        },
         // The created table's rowCount is frozen at 0; pass the running total so the
         // per-batch capacity check sees cumulative rows, not an always-empty table.
         { ...state.table, rowCount: currentRowCount },

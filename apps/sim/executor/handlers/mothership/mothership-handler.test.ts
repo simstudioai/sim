@@ -1,10 +1,11 @@
 import '@sim/testing/mocks/executor'
 
-import { resetEnvMock, setEnv } from '@sim/testing'
+import { loggerMock, resetEnvMock, setEnv } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { BlockType } from '@/executor/constants'
 import { MothershipBlockHandler } from '@/executor/handlers/mothership/mothership-handler'
 import type { ExecutionContext, StreamingExecution } from '@/executor/types'
+import { createResolvedSecretMatcher } from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { SerializedBlock } from '@/serializer/types'
 
@@ -22,6 +23,7 @@ const BILLING_ATTRIBUTION = {
 } as const
 
 const PRIVATE_PROVENANCE_TYPE = 'resolved-secret-provenance-v1'
+const PRIVATE_PROVENANCE_FIELD = '__resolvedSecretTraceProvenance'
 const PRIVATE_PROVENANCE = {
   version: 1,
   complete: true,
@@ -29,6 +31,7 @@ const PRIVATE_PROVENANCE = {
 }
 
 const {
+  mockAreModelSafeWorkspaceFileKeys,
   mockBuildAuthHeaders,
   mockBuildAPIUrl,
   mockExtractAPIErrorMessage,
@@ -37,6 +40,7 @@ const {
   mockIsRedisCancellationEnabled,
   mockReadUserFileContent,
 } = vi.hoisted(() => ({
+  mockAreModelSafeWorkspaceFileKeys: vi.fn(),
   mockBuildAuthHeaders: vi.fn(),
   mockBuildAPIUrl: vi.fn(),
   mockExtractAPIErrorMessage: vi.fn(),
@@ -44,6 +48,12 @@ const {
   mockIsExecutionCancelled: vi.fn(),
   mockIsRedisCancellationEnabled: vi.fn(),
   mockReadUserFileContent: vi.fn(),
+}))
+
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
+  areModelSafeWorkspaceFileKeys: mockAreModelSafeWorkspaceFileKeys,
+  MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE:
+    'File cannot be sent to a model because its secret provenance is unavailable',
 }))
 
 vi.mock('@/executor/utils/http', () => ({
@@ -64,6 +74,12 @@ vi.mock('@/lib/execution/cancellation', () => ({
 vi.mock('@/lib/execution/payloads/materialization.server', () => ({
   readUserFileContent: mockReadUserFileContent,
 }))
+
+const mockMothershipLogger = vi.mocked(loggerMock.createLogger).mock.results[
+  vi
+    .mocked(loggerMock.createLogger)
+    .mock.calls.findIndex(([name]) => name === 'MothershipBlockHandler')
+].value
 
 function createAbortError(): Error {
   const error = new Error('The operation was aborted')
@@ -105,14 +121,22 @@ async function readStreamText(stream: ReadableStream): Promise<string> {
 }
 
 function createTraceRegistryMock(): ResolvedSecretTraceRegistry & {
-  importProvenance: ReturnType<typeof vi.fn>
+  getModelEgressRevision: ReturnType<typeof vi.fn>
+  getModelEgressSnapshot: ReturnType<typeof vi.fn>
+  importProvenanceForValue: ReturnType<typeof vi.fn>
   markIncomplete: ReturnType<typeof vi.fn>
 } {
   return {
-    importProvenance: vi.fn().mockResolvedValue(true),
+    getModelEgressRevision: vi.fn().mockReturnValue(0),
+    getModelEgressSnapshot: vi
+      .fn()
+      .mockReturnValue({ complete: true, matches: [], matcher: undefined }),
+    importProvenanceForValue: vi.fn().mockResolvedValue(true),
     markIncomplete: vi.fn(),
   } as unknown as ResolvedSecretTraceRegistry & {
-    importProvenance: ReturnType<typeof vi.fn>
+    getModelEgressRevision: ReturnType<typeof vi.fn>
+    getModelEgressSnapshot: ReturnType<typeof vi.fn>
+    importProvenanceForValue: ReturnType<typeof vi.fn>
     markIncomplete: ReturnType<typeof vi.fn>
   }
 }
@@ -136,6 +160,8 @@ describe('MothershipBlockHandler', () => {
     mockIsRedisCancellationEnabled.mockReset()
     mockIsRedisCancellationEnabled.mockReturnValue(false)
     mockReadUserFileContent.mockReset()
+    mockAreModelSafeWorkspaceFileKeys.mockReset()
+    mockAreModelSafeWorkspaceFileKeys.mockResolvedValue(true)
     // The handler refuses to run without the mothership credential.
     setEnv({ COPILOT_API_KEY: 'test-copilot-key' })
 
@@ -163,6 +189,7 @@ describe('MothershipBlockHandler', () => {
       completedLoops: new Set(),
       executedBlocks: new Set(),
       activeExecutionPath: new Set(),
+      resolvedSecretTraceRegistry: createTraceRegistryMock(),
     } as ExecutionContext
   })
 
@@ -173,12 +200,45 @@ describe('MothershipBlockHandler', () => {
     resetEnvMock()
   })
 
+  function createJsonResponse(payload: Record<string, unknown>, status = 200): Response {
+    return new Response(
+      JSON.stringify({
+        ...payload,
+        [PRIVATE_PROVENANCE_FIELD]: PRIVATE_PROVENANCE,
+      }),
+      {
+        status,
+        headers: {
+          'Content-Type': 'application/json',
+          'x-sim-private-tool-metadata': PRIVATE_PROVENANCE_TYPE,
+        },
+      }
+    )
+  }
+
   function createNdjsonResponse(events: unknown[], headers: Record<string, string> = {}): Response {
     const encoder = new TextEncoder()
+    const enrichedEvents = events.map((event) => {
+      if (!event || typeof event !== 'object' || Array.isArray(event)) return event
+      const record = event as Record<string, unknown>
+      if (record.type === 'error') {
+        return { ...record, [PRIVATE_PROVENANCE_FIELD]: PRIVATE_PROVENANCE }
+      }
+      if (record.type === 'final' && record.data && typeof record.data === 'object') {
+        return {
+          ...record,
+          data: {
+            ...(record.data as Record<string, unknown>),
+            [PRIVATE_PROVENANCE_FIELD]: PRIVATE_PROVENANCE,
+          },
+        }
+      }
+      return event
+    })
     return new Response(
       new ReadableStream({
         start(controller) {
-          for (const event of events) {
+          for (const event of enrichedEvents) {
             controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`))
           }
           controller.close()
@@ -186,7 +246,11 @@ describe('MothershipBlockHandler', () => {
       }),
       {
         status: 200,
-        headers: { 'Content-Type': 'application/x-ndjson; charset=utf-8', ...headers },
+        headers: {
+          'Content-Type': 'application/x-ndjson; charset=utf-8',
+          'x-sim-private-tool-metadata': PRIVATE_PROVENANCE_TYPE,
+          ...headers,
+        },
       }
     )
   }
@@ -221,16 +285,54 @@ describe('MothershipBlockHandler', () => {
     expect(options.headers).toMatchObject({
       'x-sim-request-private-tool-metadata': PRIVATE_PROVENANCE_TYPE,
     })
-    expect(registry.importProvenance).toHaveBeenCalledWith(PRIVATE_PROVENANCE, {
-      trusted: true,
-    })
+    expect(registry.importProvenanceForValue).toHaveBeenCalledWith(
+      PRIVATE_PROVENANCE,
+      expect.objectContaining({
+        content: 'raw secret remains functional',
+        __resolvedSecretTraceProvenance: undefined,
+      }),
+      { trusted: true }
+    )
     expect(registry.markIncomplete).not.toHaveBeenCalled()
     expect(result).toMatchObject({ content: 'raw secret remains functional' })
     expect(JSON.stringify(result)).not.toContain('__resolvedSecretTraceProvenance')
     expect(JSON.stringify(result)).not.toContain('encrypted-secret')
   })
 
-  it('rejects unmarked provenance while keeping private metadata out of block output', async () => {
+  it('projects parent execution secrets before sending a Mothership prompt', async () => {
+    const registry = createTraceRegistryMock()
+    const matches = [
+      {
+        plaintext: 'cross-workspace-secret',
+        replacement: '[REDACTED_SECRET]',
+      },
+    ]
+    registry.getModelEgressSnapshot.mockReturnValue({
+      complete: true,
+      matches,
+      matcher: createResolvedSecretMatcher(matches),
+    })
+    context.resolvedSecretTraceRegistry = registry
+    mockGenerateId
+      .mockReturnValueOnce('chat-uuid')
+      .mockReturnValueOnce('message-uuid')
+      .mockReturnValueOnce('request-uuid')
+    fetchMock.mockResolvedValue(createJsonResponse({ content: 'done', toolCalls: [] }))
+
+    await handler.execute(context, block, {
+      prompt: 'Use cross-workspace-secret and __var_FOREIGN',
+    })
+
+    const [, options] = fetchMock.mock.calls[0] as [string, RequestInit]
+    const body = String(options.body)
+    expect(body).toContain('[REDACTED_SECRET]')
+    expect(body).not.toContain('cross-workspace-secret')
+    expect(JSON.parse(body)).toMatchObject({
+      messages: [{ content: 'Use [REDACTED_SECRET] and __var_FOREIGN' }],
+    })
+  })
+
+  it('drops a legacy response without poisoning later provenance', async () => {
     const registry = createTraceRegistryMock()
     context.resolvedSecretTraceRegistry = registry
     mockGenerateId
@@ -248,13 +350,42 @@ describe('MothershipBlockHandler', () => {
       )
     )
 
-    const result = await handler.execute(context, block, { prompt: 'Hello' })
+    await expect(handler.execute(context, block, { prompt: 'Hello' })).rejects.toThrow(
+      'does not support private provenance metadata'
+    )
 
-    expect(registry.importProvenance).not.toHaveBeenCalled()
+    expect(registry.importProvenanceForValue).not.toHaveBeenCalled()
+    expect(registry.markIncomplete).not.toHaveBeenCalled()
+  })
+
+  it('poisons provenance when a declared response omits its private field', async () => {
+    const registry = createTraceRegistryMock()
+    context.resolvedSecretTraceRegistry = registry
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ content: 'unsafe output', toolCalls: [] }), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'x-sim-private-tool-metadata': PRIVATE_PROVENANCE_TYPE,
+        },
+      })
+    )
+
+    await expect(handler.execute(context, block, { prompt: 'Hello' })).rejects.toThrow(
+      'provenance metadata is invalid'
+    )
+
+    expect(registry.importProvenanceForValue).not.toHaveBeenCalled()
     expect(registry.markIncomplete).toHaveBeenCalledOnce()
-    expect(result).toMatchObject({ content: 'unchanged output' })
-    expect(JSON.stringify(result)).not.toContain('__resolvedSecretTraceProvenance')
-    expect(JSON.stringify(result)).not.toContain('encrypted-secret')
+  })
+
+  it('fails closed before the request when the model-egress registry is unavailable', async () => {
+    context.resolvedSecretTraceRegistry = undefined
+
+    await expect(handler.execute(context, block, { prompt: 'Hello' })).rejects.toThrow(
+      'Mothership input could not be safely projected'
+    )
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('imports provenance from a terminal NDJSON error without forcing structural fallback', async () => {
@@ -281,9 +412,15 @@ describe('MothershipBlockHandler', () => {
       'Sim execution failed: secret-backed failure'
     )
 
-    expect(registry.importProvenance).toHaveBeenCalledWith(PRIVATE_PROVENANCE, {
-      trusted: true,
-    })
+    expect(registry.importProvenanceForValue).toHaveBeenCalledWith(
+      PRIVATE_PROVENANCE,
+      expect.objectContaining({
+        type: 'error',
+        error: 'secret-backed failure',
+        __resolvedSecretTraceProvenance: undefined,
+      }),
+      { trusted: true }
+    )
     expect(registry.markIncomplete).not.toHaveBeenCalled()
   })
 
@@ -318,9 +455,14 @@ describe('MothershipBlockHandler', () => {
     })) as StreamingExecution
 
     await expect(readStreamText(result.stream)).resolves.toBe('unchanged')
-    expect(registry.importProvenance).toHaveBeenCalledWith(PRIVATE_PROVENANCE, {
-      trusted: true,
-    })
+    expect(registry.importProvenanceForValue).toHaveBeenCalledWith(
+      PRIVATE_PROVENANCE,
+      expect.objectContaining({
+        content: 'unchanged',
+        __resolvedSecretTraceProvenance: undefined,
+      }),
+      { trusted: true }
+    )
     expect(registry.markIncomplete).not.toHaveBeenCalled()
     expect(JSON.stringify(result.execution.output)).not.toContain('__resolvedSecretTraceProvenance')
     expect(JSON.stringify(result.execution.output)).not.toContain('encrypted-secret')
@@ -332,19 +474,13 @@ describe('MothershipBlockHandler', () => {
     mockGenerateId.mockReturnValueOnce('request-uuid')
 
     fetchMock.mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          content: 'done',
-          model: 'mothership',
-          conversationId: 'chat-uuid',
-          tokens: { total: 5 },
-          toolCalls: [],
-        }),
-        {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      )
+      createJsonResponse({
+        content: 'done',
+        model: 'mothership',
+        conversationId: 'chat-uuid',
+        tokens: { total: 5 },
+        toolCalls: [],
+      })
     )
 
     const result = await handler.execute(context, block, { prompt: 'Hello from workflow' })
@@ -407,19 +543,13 @@ describe('MothershipBlockHandler', () => {
     mockGenerateId.mockReturnValueOnce('request-uuid')
 
     fetchMock.mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          content: 'continued',
-          model: 'mothership',
-          conversationId: 'existing-chat-id',
-          tokens: {},
-          toolCalls: [],
-        }),
-        {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      )
+      createJsonResponse({
+        content: 'continued',
+        model: 'mothership',
+        conversationId: 'existing-chat-id',
+        tokens: {},
+        toolCalls: [],
+      })
     )
 
     const result = await handler.execute(context, block, {
@@ -453,17 +583,40 @@ describe('MothershipBlockHandler', () => {
     expect(mockGenerateId).toHaveBeenCalledTimes(2)
   })
 
+  it('keeps a resolved conversation ID out of logs while forwarding it unchanged', async () => {
+    const conversationId = 'chat-plaintext-secret-__var_API_KEY-__sim_secret_API_KEY'
+    mockGenerateId.mockReturnValueOnce('message-uuid').mockReturnValueOnce('request-uuid')
+    fetchMock.mockResolvedValue(
+      createJsonResponse({
+        content: 'continued',
+        model: 'mothership',
+        conversationId,
+        tokens: {},
+        toolCalls: [],
+      })
+    )
+
+    await handler.execute(context, block, {
+      prompt: 'Continue this thread',
+      conversationId,
+    })
+
+    const [, options] = fetchMock.mock.calls[0] as [string, RequestInit]
+    const body = JSON.parse(String(options.body))
+    expect(body.chatId).toBe(conversationId)
+
+    const logged = JSON.stringify(mockMothershipLogger.info.mock.calls)
+    expect(logged).not.toContain('chat-plaintext-secret')
+    expect(logged).not.toContain('__var_')
+    expect(logged).not.toContain('__sim_')
+  })
+
   it('forwards only enabled MCP tools and selected skills', async () => {
     mockGenerateId
       .mockReturnValueOnce('chat-uuid')
       .mockReturnValueOnce('message-uuid')
       .mockReturnValueOnce('request-uuid')
-    fetchMock.mockResolvedValue(
-      new Response(JSON.stringify({ content: 'done', toolCalls: [] }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      })
-    )
+    fetchMock.mockResolvedValue(createJsonResponse({ content: 'done', toolCalls: [] }))
 
     await handler.execute(context, block, {
       prompt: 'Use my tools',
@@ -472,8 +625,14 @@ describe('MothershipBlockHandler', () => {
           type: 'mcp',
           title: 'Search',
           usageControl: 'auto',
-          params: { serverId: 'mcp-server-1', toolName: 'search', serverName: 'Docs' },
+          params: {
+            serverId: 'mcp-server-1',
+            toolName: 'search',
+            serverName: 'Docs',
+            ignored: 'not-forwarded',
+          },
           schema: { type: 'object', properties: { query: { type: 'string' } } },
+          ignored: 'not-forwarded',
         },
         {
           type: 'mcp',
@@ -488,12 +647,205 @@ describe('MothershipBlockHandler', () => {
     const [, options] = fetchMock.mock.calls[0] as [string, RequestInit]
     const body = JSON.parse(String(options.body))
     expect(body.mcpTools).toEqual([
-      expect.objectContaining({
+      {
         type: 'mcp',
-        params: expect.objectContaining({ serverId: 'mcp-server-1', toolName: 'search' }),
-      }),
+        usageControl: 'auto',
+        schema: { type: 'object', properties: { query: { type: 'string' } } },
+        params: {
+          serverId: 'mcp-server-1',
+          toolName: 'search',
+          serverName: 'Docs',
+        },
+      },
     ])
     expect(body.contexts).toEqual([{ kind: 'skill', skillId: 'skill-1', label: 'sales-playbook' }])
+  })
+
+  it('projects proven model metadata without rewriting arbitrary attachment names or payloads', async () => {
+    const secret = 'boundary-secret'
+    const replacement = '{{API_KEY}}'
+    const registry = createTraceRegistryMock()
+    const matches = [{ plaintext: secret, replacement }]
+    registry.getModelEgressSnapshot.mockReturnValue({
+      complete: true,
+      matches,
+      matcher: createResolvedSecretMatcher(matches),
+    })
+    context.resolvedSecretTraceRegistry = registry
+    mockGenerateId
+      .mockReturnValueOnce('chat-uuid')
+      .mockReturnValueOnce('message-uuid')
+      .mockReturnValueOnce('request-uuid')
+    const attachmentData = Buffer.from(`file contains ${secret}`, 'utf8').toString('base64')
+    mockReadUserFileContent.mockResolvedValueOnce(attachmentData)
+    fetchMock.mockResolvedValue(createJsonResponse({ content: 'done', toolCalls: [] }))
+
+    await handler.execute(context, block, {
+      prompt: 'Use the selected context',
+      files: [
+        {
+          name: `report-${secret}.txt`,
+          key: 'workspace/workspace-1/report.txt',
+          size: 32,
+          type: 'text/plain',
+        },
+      ],
+      tools: [
+        {
+          type: 'mcp',
+          title: `Search ${secret}`,
+          usageControl: 'force',
+          params: {
+            serverId: 'mcp-server-1',
+            toolName: 'search',
+            serverName: `Docs ${secret}`,
+            credential: secret,
+          },
+          schema: {
+            type: 'object',
+            title: `Query ${secret}`,
+            description: `Search using ${secret}`,
+            properties: {
+              query: { type: 'string', description: `Find ${secret}` },
+            },
+          },
+          credential: secret,
+        },
+      ],
+      skills: [{ skillId: 'skill-1', name: `Playbook ${secret}`, credential: secret }],
+    })
+
+    const [, options] = fetchMock.mock.calls[0] as [string, RequestInit]
+    const body = JSON.parse(String(options.body))
+    expect(body.fileAttachments).toEqual([
+      {
+        type: 'document',
+        source: {
+          type: 'base64',
+          media_type: 'text/plain',
+          data: attachmentData,
+        },
+        filename: `report-${secret}.txt`,
+      },
+    ])
+    expect(body.mcpTools).toEqual([
+      {
+        type: 'mcp',
+        usageControl: 'force',
+        schema: {
+          type: 'object',
+          title: `Query ${replacement}`,
+          description: `Search using ${replacement}`,
+          properties: {
+            query: { type: 'string', description: `Find ${replacement}` },
+          },
+        },
+        params: {
+          serverId: 'mcp-server-1',
+          toolName: 'search',
+          serverName: `Docs ${replacement}`,
+        },
+      },
+    ])
+    expect(body.contexts).toEqual([
+      { kind: 'skill', skillId: 'skill-1', label: `Playbook ${replacement}` },
+    ])
+    const attachmentMetadata = {
+      type: body.fileAttachments[0].type,
+    }
+    expect(
+      JSON.stringify({
+        messages: body.messages,
+        attachmentMetadata,
+        mcpTools: body.mcpTools,
+        contexts: body.contexts,
+      })
+    ).not.toContain(secret)
+  })
+
+  it('rejects a canonical tracked file whose exact byte provenance is not model-safe', async () => {
+    mockGenerateId
+      .mockReturnValueOnce('chat-uuid')
+      .mockReturnValueOnce('message-uuid')
+      .mockReturnValueOnce('request-uuid')
+    mockAreModelSafeWorkspaceFileKeys.mockResolvedValueOnce(false)
+
+    await expect(
+      handler.execute(context, block, {
+        prompt: 'Read this file',
+        files: [
+          {
+            name: 'report.txt',
+            key: 'workspace/workspace-1/report.txt',
+            size: 32,
+            type: 'text/plain',
+          },
+        ],
+      })
+    ).rejects.toThrow('File cannot be sent to a model because its secret provenance is unavailable')
+    expect(mockReadUserFileContent).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('drops Mothership selections whose protocol identifiers or schema semantics contain secrets', async () => {
+    const secret = 'boundary-secret'
+    const registry = createTraceRegistryMock()
+    const matches = [{ plaintext: secret, replacement: '{{API_KEY}}' }]
+    registry.getModelEgressSnapshot.mockReturnValue({
+      complete: true,
+      matches,
+      matcher: createResolvedSecretMatcher(matches),
+    })
+    context.resolvedSecretTraceRegistry = registry
+    mockGenerateId
+      .mockReturnValueOnce('chat-uuid')
+      .mockReturnValueOnce('message-uuid')
+      .mockReturnValueOnce('request-uuid')
+    fetchMock.mockResolvedValue(createJsonResponse({ content: 'done', toolCalls: [] }))
+
+    await handler.execute(context, block, {
+      prompt: 'Use safe selections only',
+      tools: [
+        {
+          type: 'mcp',
+          params: { serverId: secret, toolName: 'search' },
+        },
+        {
+          type: 'mcp',
+          params: { serverId: 'mcp-server-1', toolName: `search-${secret}` },
+        },
+        {
+          type: 'mcp',
+          params: { serverId: 'mcp-server-1', toolName: 'semantic-secret' },
+          schema: { type: 'string', enum: [secret] },
+        },
+        {
+          type: 'mcp',
+          params: { serverId: 'mcp-server-1', toolName: 'semantic-key-secret' },
+          schema: { [secret]: true },
+        },
+        {
+          type: 'mcp',
+          title: 'Safe search',
+          params: { serverId: 'mcp-server-1', toolName: 'search' },
+        },
+      ],
+      skills: [
+        { skillId: secret, name: 'Unsafe' },
+        { skillId: 'skill-1', name: 'Safe skill' },
+      ],
+    })
+
+    const [, options] = fetchMock.mock.calls[0] as [string, RequestInit]
+    const body = JSON.parse(String(options.body))
+    expect(body.mcpTools).toEqual([
+      {
+        type: 'mcp',
+        params: { serverId: 'mcp-server-1', toolName: 'search' },
+      },
+    ])
+    expect(body.contexts).toEqual([{ kind: 'skill', skillId: 'skill-1', label: 'Safe skill' }])
+    expect(JSON.stringify(body)).not.toContain(secret)
   })
 
   it('consumes mothership execute heartbeat streams until the final result', async () => {
@@ -695,19 +1047,13 @@ describe('MothershipBlockHandler', () => {
     mockReadUserFileContent.mockResolvedValueOnce(fileContent)
 
     fetchMock.mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          content: 'analyzed',
-          model: 'mothership',
-          conversationId: 'chat-uuid',
-          tokens: {},
-          toolCalls: [],
-        }),
-        {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      )
+      createJsonResponse({
+        content: 'analyzed',
+        model: 'mothership',
+        conversationId: 'chat-uuid',
+        tokens: {},
+        toolCalls: [],
+      })
     )
 
     const result = await handler.execute(context, block, {
@@ -821,7 +1167,10 @@ describe('MothershipBlockHandler', () => {
           }),
           {
             status: 200,
-            headers: { 'Content-Type': 'application/x-ndjson; charset=utf-8' },
+            headers: {
+              'Content-Type': 'application/x-ndjson; charset=utf-8',
+              'x-sim-private-tool-metadata': PRIVATE_PROVENANCE_TYPE,
+            },
           }
         )
       )

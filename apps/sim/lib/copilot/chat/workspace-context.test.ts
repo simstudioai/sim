@@ -129,6 +129,35 @@ describe('buildWorkspaceMd - connected integrations / credentials', () => {
   })
 })
 
+describe('buildWorkspaceMd - Sim sandbox entitlement projection', () => {
+  it('omits all sandbox knowledge when sandboxes are not projected', () => {
+    const data = baseData()
+
+    expect(buildWorkspaceMd(data)).not.toContain('Sim Sandboxes')
+    expect(buildVfsSnapshot(data)).not.toHaveProperty('sandboxes')
+  })
+
+  it('publishes entitled sandbox inventory and the typed snapshot fields', () => {
+    const data = baseData({
+      sandboxes: [
+        {
+          id: 'sandbox-1',
+          name: 'Data Tools',
+          language: 'python',
+          dependencies: ['pandas'],
+          systemPackages: ['graphviz'],
+          cliTools: ['kubectl@1.36.3-r1'],
+        },
+      ],
+    })
+
+    const markdown = buildWorkspaceMd(data)
+    expect(markdown).toContain('## Sim Sandboxes (1)')
+    expect(markdown).toContain('agent/sandboxes/Data%20Tools.json')
+    expect(buildVfsSnapshot(data).sandboxes).toEqual(data.sandboxes)
+  })
+})
+
 describe('buildWorkspaceMd - determinism (prompt-cache stability)', () => {
   it('is byte-identical regardless of input row order', () => {
     const a = buildWorkspaceMd(

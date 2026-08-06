@@ -73,7 +73,12 @@ export async function runTableExport(payload: TableExportPayload): Promise<void>
 
     // Stream the serialized file straight into storage in bounded parts instead of buffering the
     // whole thing in heap — a 1M-row export no longer holds hundreds of MB resident.
-    handle = await createMultipartUpload({ key, context: 'workspace', contentType })
+    handle = await createMultipartUpload({
+      key,
+      context: 'workspace',
+      contentType,
+      completionPolicy: 'replace',
+    })
     await handle.write(
       format === 'csv' ? `${toCsvRow(columns.map((c) => neutralizeCsvFormula(c.name)))}\n` : '['
     )

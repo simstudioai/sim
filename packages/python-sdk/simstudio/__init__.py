@@ -12,6 +12,7 @@ import os
 
 import requests
 
+MAX_EXECUTION_TIMEOUT_SECONDS = 604_800
 
 __version__ = "0.1.2"
 __all__ = [
@@ -155,7 +156,8 @@ class SimStudioClient:
         timeout: float = 30.0,
         stream: Optional[bool] = None,
         selected_outputs: Optional[list] = None,
-        async_execution: Optional[bool] = None
+        async_execution: Optional[bool] = None,
+        execution_timeout_seconds: Optional[int] = None
     ) -> Union[WorkflowExecutionResult, AsyncExecutionResult]:
         """
         Execute a workflow with optional input data.
@@ -172,6 +174,7 @@ class SimStudioClient:
             stream: Enable streaming responses (default: None)
             selected_outputs: Block outputs to stream (e.g., ["agent1.content"])
             async_execution: Execute asynchronously (default: None)
+            execution_timeout_seconds: Server-side async execution cap in seconds (1-604800)
 
         Returns:
             WorkflowExecutionResult or AsyncExecutionResult object
@@ -181,10 +184,29 @@ class SimStudioClient:
         """
         url = f"{self.base_url}/api/workflows/{workflow_id}/execute"
 
+        if execution_timeout_seconds is not None:
+            if not async_execution:
+                raise SimStudioError(
+                    'execution_timeout_seconds is supported only for async executions',
+                    'INVALID_EXECUTION_TIMEOUT'
+                )
+            if (
+                isinstance(execution_timeout_seconds, bool)
+                or not isinstance(execution_timeout_seconds, int)
+                or execution_timeout_seconds < 1
+                or execution_timeout_seconds > MAX_EXECUTION_TIMEOUT_SECONDS
+            ):
+                raise SimStudioError(
+                    f'execution_timeout_seconds must be an integer between 1 and {MAX_EXECUTION_TIMEOUT_SECONDS}',
+                    'INVALID_EXECUTION_TIMEOUT'
+                )
+
         # Build headers - async execution uses X-Execution-Mode header
         headers = self._session.headers.copy()
         if async_execution:
             headers['X-Execution-Mode'] = 'async'
+        if execution_timeout_seconds is not None:
+            headers['X-Execution-Timeout-Seconds'] = str(execution_timeout_seconds)
 
         try:
             # Build JSON body - spread dict inputs at root level, wrap primitives/lists in 'input' field
@@ -421,6 +443,7 @@ class SimStudioClient:
         stream: Optional[bool] = None,
         selected_outputs: Optional[list] = None,
         async_execution: Optional[bool] = None,
+        execution_timeout_seconds: Optional[int] = None,
         max_retries: int = 3,
         initial_delay: float = 1.0,
         max_delay: float = 30.0,
@@ -436,6 +459,7 @@ class SimStudioClient:
             stream: Enable streaming responses
             selected_outputs: Block outputs to stream
             async_execution: Execute asynchronously
+            execution_timeout_seconds: Server-side async execution cap in seconds (1-604800)
             max_retries: Maximum number of retries (default: 3)
             initial_delay: Initial delay in seconds (default: 1.0)
             max_delay: Maximum delay in seconds (default: 30.0)
@@ -458,7 +482,8 @@ class SimStudioClient:
                     timeout=timeout,
                     stream=stream,
                     selected_outputs=selected_outputs,
-                    async_execution=async_execution
+                    async_execution=async_execution,
+                    execution_timeout_seconds=execution_timeout_seconds,
                 )
             except SimStudioError as e:
                 if e.code != 'RATE_LIMIT_EXCEEDED':
@@ -565,4 +590,4 @@ class SimStudioClient:
 
 
 # For backward compatibility
-Client = SimStudioClient 
+Client = SimStudioClient

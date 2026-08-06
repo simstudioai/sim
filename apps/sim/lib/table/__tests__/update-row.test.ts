@@ -86,6 +86,7 @@ const EXISTING_ROW = {
   createdAt: new Date('2024-01-01'),
   updatedAt: new Date('2024-01-01'),
 }
+const PERSISTED_UPDATED_AT = new Date('2024-01-01T00:00:00.001Z')
 
 const TABLE: TableDefinition = {
   id: 'tbl-1',
@@ -113,6 +114,9 @@ describe('updateRow — partial merge', () => {
     vi.clearAllMocks()
     resetDbChainMock()
     dbChainMockFns.limit.mockResolvedValue([EXISTING_ROW])
+    dbChainMockFns.returning.mockResolvedValue([
+      { id: EXISTING_ROW.id, updatedAt: PERSISTED_UPDATED_AT },
+    ])
   })
 
   it('preserves columns not included in the partial update', async () => {
@@ -124,6 +128,7 @@ describe('updateRow — partial merge', () => {
 
     // The returned row is the full merge…
     expect(result.data).toEqual({ name: 'Alice', age: 31 })
+    expect(result.updatedAt).toEqual(PERSISTED_UPDATED_AT)
     // …but the WRITE is a JSONB merge of only the changed cell (`data = data || {age:31}`), so the
     // unchanged `name` column is never re-written — that's what keeps concurrent edits to different
     // cells of the same row from clobbering each other.

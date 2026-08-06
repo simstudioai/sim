@@ -1,6 +1,8 @@
 import { z } from 'zod'
+import { resolvedSecretTraceProvenanceSchema } from '@/lib/api/contracts/primitives'
 import { AWS_REGION_PATTERN, toolJsonResponseSchema } from '@/lib/api/contracts/tools/media/shared'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { RESOLVED_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
 import { FileInputSchema, RawFileInputSchema } from '@/lib/uploads/utils/file-schemas'
 
 const textractQuerySchema = z.object({
@@ -28,6 +30,7 @@ export const textractParseBodySchema = z
       .array(z.enum(['TABLES', 'FORMS', 'QUERIES', 'SIGNATURES', 'LAYOUT']))
       .optional(),
     queries: z.array(textractQuerySchema).optional(),
+    [RESOLVED_SECRET_PROVENANCE_FIELD]: resolvedSecretTraceProvenanceSchema.optional(),
   })
   .superRefine((data, ctx) => {
     if (data.processingMode === 'async' && !data.s3Uri) {
@@ -61,6 +64,7 @@ export const textractAnalyzeExpenseBodySchema = z
     filePath: z.string().optional(),
     file: RawFileInputSchema.optional(),
     s3Uri: z.string().optional(),
+    [RESOLVED_SECRET_PROVENANCE_FIELD]: resolvedSecretTraceProvenanceSchema.optional(),
   })
   .superRefine((data, ctx) => {
     if (data.processingMode === 'async' && !data.s3Uri) {
@@ -94,6 +98,7 @@ export const textractAnalyzeIdBodySchema = z
     file: RawFileInputSchema.optional(),
     filePathBack: z.string().optional(),
     fileBack: RawFileInputSchema.optional(),
+    [RESOLVED_SECRET_PROVENANCE_FIELD]: resolvedSecretTraceProvenanceSchema.optional(),
   })
   .superRefine((data, ctx) => {
     if (!data.file && !data.filePath) {
@@ -111,6 +116,7 @@ export const reductoParseBodySchema = z.object({
   file: RawFileInputSchema.optional(),
   pages: z.array(z.number()).optional(),
   tableOutputFormat: z.enum(['html', 'md']).optional(),
+  [RESOLVED_SECRET_PROVENANCE_FIELD]: resolvedSecretTraceProvenanceSchema.optional(),
 })
 
 export const pulseParseBodySchema = z.object({
@@ -123,6 +129,7 @@ export const pulseParseBodySchema = z.object({
   returnHtml: z.boolean().optional(),
   chunking: z.string().optional(),
   chunkSize: z.number().optional(),
+  [RESOLVED_SECRET_PROVENANCE_FIELD]: resolvedSecretTraceProvenanceSchema.optional(),
 })
 
 export const extendParseBodySchema = z.object({
@@ -132,6 +139,7 @@ export const extendParseBodySchema = z.object({
   outputFormat: z.enum(['markdown', 'spatial']).optional(),
   chunking: z.enum(['page', 'document', 'section']).optional(),
   engine: z.enum(['parse_performance', 'parse_light']).optional(),
+  [RESOLVED_SECRET_PROVENANCE_FIELD]: resolvedSecretTraceProvenanceSchema.optional(),
 })
 
 export const mistralParseBodySchema = z.object({
@@ -144,6 +152,7 @@ export const mistralParseBodySchema = z.object({
   includeImageBase64: z.boolean().optional(),
   imageLimit: z.number().optional(),
   imageMinSize: z.number().optional(),
+  [RESOLVED_SECRET_PROVENANCE_FIELD]: resolvedSecretTraceProvenanceSchema.optional(),
 })
 
 export const textractParseContract = defineRouteContract({

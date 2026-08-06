@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTimeoutAbortController, getRemainingExecutionMs } from '@/lib/core/execution-limits'
 
 const {
   mockCheckAttributedUsageLimits,
@@ -148,6 +149,20 @@ describe('createChildCancellationSignal', () => {
     expect(signal.aborted).toBe(false)
     parent.abort()
     expect(signal.aborted).toBe(true)
+  })
+
+  it('preserves the parent execution deadline on the composed child signal', async () => {
+    const parent = createTimeoutAbortController(60_000)
+
+    try {
+      const { signal } = await createChildCancellationSignal({ parentSignal: parent.signal })
+
+      expect(signal).not.toBe(parent.signal)
+      expect(getRemainingExecutionMs(signal)).toBeGreaterThan(0)
+      expect(getRemainingExecutionMs(signal)).toBeLessThanOrEqual(60_000)
+    } finally {
+      parent.cleanup()
+    }
   })
 
   it('starts aborted when the parent already aborted', async () => {

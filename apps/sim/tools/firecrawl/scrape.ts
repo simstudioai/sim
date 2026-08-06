@@ -1,4 +1,11 @@
 import { firecrawlHosting } from '@/tools/firecrawl/hosting'
+import {
+  applyFirecrawlFormatModelInput,
+  applyFirecrawlScrapeOptionsModelInput,
+  hasFirecrawlModelInputFormat,
+  selectFirecrawlFormatModelInput,
+  selectFirecrawlScrapeOptionsModelInput,
+} from '@/tools/firecrawl/model-input'
 import type { ScrapeParams, ScrapeResponse } from '@/tools/firecrawl/types'
 import { PAGE_METADATA_OUTPUT_PROPERTIES } from '@/tools/firecrawl/types'
 import { safeAssign } from '@/tools/safe-assign'
@@ -18,6 +25,12 @@ export const scrapeTool: ToolConfig<ScrapeParams, ScrapeResponse> = {
       visibility: 'user-or-llm',
       description: 'The URL to scrape content from (e.g., "https://example.com/page")',
     },
+    formats: {
+      type: 'json',
+      required: false,
+      visibility: 'hidden',
+      description: 'Output formats supplied by existing Firecrawl block configurations',
+    },
     scrapeOptions: {
       type: 'json',
       required: false,
@@ -35,6 +48,36 @@ export const scrapeTool: ToolConfig<ScrapeParams, ScrapeResponse> = {
   hosting: firecrawlHosting(),
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) =>
+        params.scrapeOptions?.formats !== undefined
+          ? { scrapeOptions: selectFirecrawlScrapeOptionsModelInput(params.scrapeOptions) }
+          : { formats: selectFirecrawlFormatModelInput(params.formats) },
+      applyProjected: (selectedParams, projectedSelection) => {
+        if (Object.hasOwn(projectedSelection, 'scrapeOptions')) {
+          return {
+            scrapeOptions: applyFirecrawlScrapeOptionsModelInput(
+              selectedParams.scrapeOptions,
+              projectedSelection.scrapeOptions
+            ),
+          }
+        }
+        return {
+          formats: applyFirecrawlFormatModelInput(
+            selectedParams.formats,
+            projectedSelection.formats
+          ),
+        }
+      },
+    },
+    opaqueModelInput: {
+      mode: 'reject-resolved-secrets',
+      select: (params) =>
+        hasFirecrawlModelInputFormat(params.scrapeOptions?.formats ?? params.formats)
+          ? params.url
+          : undefined,
+    },
     method: 'POST',
     url: 'https://api.firecrawl.dev/v2/scrape',
     headers: (params) => ({

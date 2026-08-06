@@ -1,20 +1,30 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { isPlainRecord } from '@sim/utils/object'
 import {
   BILLING_ATTRIBUTION_HEADER,
   serializeBillingAttributionHeader,
 } from '@/lib/billing/core/billing-attribution'
+import {
+  collectModelVisibleSchemaContent,
+  restoreModelVisibleSchemaValues,
+} from '@/lib/copilot/model-visible-schema'
 import { normalizeSecretMountPolicy } from '@/lib/copilot/secret-mount-policy'
 import { env } from '@/lib/core/config/env'
 import { isExecutionCancelled, isRedisCancellationEnabled } from '@/lib/execution/cancellation'
 import { readUserFileContent } from '@/lib/execution/payloads/materialization.server'
 import {
+  inspectPrivateToolMetadataEnvelope,
+  inspectPrivateToolMetadataResponseCapability,
   PRIVATE_TOOL_METADATA_REQUEST_HEADER,
   RESOLVED_SECRET_PROVENANCE_FIELD,
   RESOLVED_SECRET_PROVENANCE_METADATA_V1,
-  responseHasPrivateToolMetadata,
 } from '@/lib/execution/private-tool-metadata'
+import {
+  areModelSafeWorkspaceFileKeys,
+  MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
+} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import {
   createFileContentFromBase64,
   type MessageContent,
@@ -31,6 +41,10 @@ import type {
   StreamingExecution,
 } from '@/executor/types'
 import { buildAPIUrl, buildAuthHeaders, extractAPIErrorMessage } from '@/executor/utils/http'
+import {
+  isResolvedSecretModelContentUnchanged,
+  projectResolvedSecretModelContent,
+} from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { SerializedBlock } from '@/serializer/types'
 
@@ -42,6 +56,23 @@ const MOTHERSHIP_EXECUTE_STREAM_VALUE = 'ndjson'
 
 type MothershipFileAttachment = MessageContent & {
   filename?: string
+}
+
+interface MothershipMcpToolSelection {
+  type: 'mcp'
+  usageControl?: 'auto' | 'force'
+  schema?: Record<string, unknown>
+  params: {
+    serverId: string
+    toolName: string
+    serverName?: string
+  }
+}
+
+interface MothershipSkillContext {
+  kind: 'skill'
+  skillId: string
+  label: string
 }
 
 type MothershipExecuteResult = {
@@ -61,20 +92,165 @@ type MothershipExecuteStreamEvent =
       Record<typeof RESOLVED_SECRET_PROVENANCE_FIELD, unknown>
     >)
 
+function projectMothershipPrompt(
+  prompt: string,
+  registry: ResolvedSecretTraceRegistry | undefined
+): string {
+  const projection = projectResolvedSecretModelContent(prompt, registry)
+  if (!projection.safe || typeof projection.value !== 'string') {
+    throw new Error('Mothership input could not be safely projected')
+  }
+  return projection.value
+}
+
+function projectMothershipMcpTools(
+  tools: unknown,
+  registry: ResolvedSecretTraceRegistry | undefined
+): MothershipMcpToolSelection[] {
+  if (!Array.isArray(tools)) return []
+
+  return tools.flatMap((candidate) => {
+    if (!isPlainRecord(candidate) || candidate.type !== 'mcp') return []
+    if (candidate.usageControl === 'none' || !isPlainRecord(candidate.params)) return []
+
+    const { serverId, toolName } = candidate.params
+    if (
+      typeof serverId !== 'string' ||
+      !serverId ||
+      typeof toolName !== 'string' ||
+      !toolName ||
+      !isResolvedSecretModelContentUnchanged([serverId, toolName], registry)
+    ) {
+      return []
+    }
+
+    const serverName =
+      typeof candidate.params.serverName === 'string' ? candidate.params.serverName : undefined
+    const schema = isPlainRecord(candidate.schema) ? candidate.schema : undefined
+    const schemaContent = schema
+      ? collectModelVisibleSchemaContent(schema)
+      : { projectedValues: [], guardedValues: [] }
+    if (!isResolvedSecretModelContentUnchanged(schemaContent.guardedValues, registry)) return []
+
+    const projection = projectResolvedSecretModelContent(
+      [serverName, schemaContent.projectedValues],
+      registry
+    )
+    if (!projection.safe || !Array.isArray(projection.value) || projection.value.length !== 2) {
+      throw new Error('Mothership MCP tool metadata could not be safely projected')
+    }
+    const [projectedServerName, projectedSchemaValues] = projection.value
+    if (serverName === undefined && projectedServerName !== undefined) {
+      throw new Error('Mothership MCP tool metadata could not be safely projected')
+    }
+    if (serverName !== undefined && typeof projectedServerName !== 'string') {
+      throw new Error('Mothership MCP tool metadata could not be safely projected')
+    }
+
+    const projectedSchema = schema
+      ? restoreModelVisibleSchemaValues(schema, projectedSchemaValues)
+      : undefined
+    if (projectedSchema !== undefined && !isPlainRecord(projectedSchema)) {
+      throw new Error('Mothership MCP tool metadata could not be safely projected')
+    }
+
+    const usageControl =
+      candidate.usageControl === 'auto' || candidate.usageControl === 'force'
+        ? candidate.usageControl
+        : undefined
+    const selection: MothershipMcpToolSelection = {
+      type: 'mcp',
+      ...(usageControl ? { usageControl } : {}),
+      ...(projectedSchema ? { schema: projectedSchema } : {}),
+      params: {
+        serverId,
+        toolName,
+        ...(projectedServerName !== undefined ? { serverName: projectedServerName } : {}),
+      },
+    }
+    return [selection]
+  })
+}
+
+function projectMothershipSkillContexts(
+  skills: unknown,
+  registry: ResolvedSecretTraceRegistry | undefined
+): MothershipSkillContext[] {
+  if (!Array.isArray(skills)) return []
+
+  const selected = skills.flatMap((candidate) => {
+    if (!isPlainRecord(candidate) || typeof candidate.skillId !== 'string' || !candidate.skillId) {
+      return []
+    }
+    if (!isResolvedSecretModelContentUnchanged(candidate.skillId, registry)) return []
+    return [
+      {
+        skillId: candidate.skillId,
+        label: typeof candidate.name === 'string' ? candidate.name : candidate.skillId,
+      },
+    ]
+  })
+  const projection = projectResolvedSecretModelContent(
+    selected.map((skill) => skill.label),
+    registry
+  )
+  if (!projection.safe) {
+    throw new Error('Mothership skill metadata could not be safely projected')
+  }
+  const projectedLabels = projection.value
+  if (!Array.isArray(projectedLabels) || projectedLabels.length !== selected.length) {
+    throw new Error('Mothership skill metadata could not be safely projected')
+  }
+
+  return selected.map((skill, index) => {
+    const label = projectedLabels[index]
+    if (typeof label !== 'string') {
+      throw new Error('Mothership skill metadata could not be safely projected')
+    }
+    return { kind: 'skill', skillId: skill.skillId, label }
+  })
+}
+
 async function consumeMothershipProvenance(
   payload: Partial<Record<typeof RESOLVED_SECRET_PROVENANCE_FIELD, unknown>>,
   response: Response,
   registry?: ResolvedSecretTraceRegistry
 ): Promise<boolean> {
-  if (!registry) return true
-  if (
-    !responseHasPrivateToolMetadata(response.headers, RESOLVED_SECRET_PROVENANCE_METADATA_V1) ||
-    !Object.hasOwn(payload, RESOLVED_SECRET_PROVENANCE_FIELD)
-  ) {
-    registry.markIncomplete()
-    return false
+  if (!registry) throw new Error('Mothership model-egress provenance registry is unavailable')
+
+  const inspection = inspectPrivateToolMetadataEnvelope(
+    response.headers,
+    payload,
+    RESOLVED_SECRET_PROVENANCE_METADATA_V1
+  )
+  const provenance = payload[RESOLVED_SECRET_PROVENANCE_FIELD]
+  payload[RESOLVED_SECRET_PROVENANCE_FIELD] = undefined
+  if (inspection.status === 'unsupported') {
+    throw new Error('Mothership response does not support private provenance metadata')
   }
-  return registry.importProvenance(payload[RESOLVED_SECRET_PROVENANCE_FIELD], { trusted: true })
+  if (inspection.status === 'invalid') {
+    registry.markIncomplete()
+    throw new Error('Mothership response provenance metadata is invalid')
+  }
+
+  const imported = await registry.importProvenanceForValue(provenance, payload, { trusted: true })
+  if (!imported) throw new Error('Mothership response provenance metadata is invalid')
+  return true
+}
+
+function assertMothershipResponseCapability(
+  response: Response,
+  registry: ResolvedSecretTraceRegistry | undefined
+): void {
+  if (!registry) throw new Error('Mothership model-egress provenance registry is unavailable')
+
+  const capability = inspectPrivateToolMetadataResponseCapability(
+    response.headers,
+    RESOLVED_SECRET_PROVENANCE_METADATA_V1
+  )
+  if (capability.status === 'supported') return
+  if (capability.status === 'mismatched') registry.markIncomplete()
+  throw new Error('Mothership response does not support private provenance metadata')
 }
 
 function parseMothershipExecuteStreamLine(line: string): MothershipExecuteStreamEvent | undefined {
@@ -130,9 +306,16 @@ async function readMothershipExecuteResponse(
   response: Response,
   registry?: ResolvedSecretTraceRegistry
 ): Promise<MothershipExecuteResult> {
+  assertMothershipResponseCapability(response, registry)
   const contentType = response.headers.get('content-type') || ''
   if (!contentType.includes('application/x-ndjson')) {
-    const result = (await response.json()) as MothershipExecuteResult
+    let result: MothershipExecuteResult
+    try {
+      result = (await response.json()) as MothershipExecuteResult
+    } catch {
+      registry?.markIncomplete()
+      throw new Error('Mothership response provenance metadata is invalid')
+    }
     await consumeMothershipProvenance(result, response, registry)
     return result
   }
@@ -206,6 +389,7 @@ function createMothershipStreamingExecution(
     registry?: ResolvedSecretTraceRegistry
   } = {}
 ): StreamingExecution {
+  assertMothershipResponseCapability(response, options.registry)
   if (!response.body) {
     throw new Error('Sim execution stream ended without a response body')
   }
@@ -335,9 +519,17 @@ async function buildMothershipFileAttachments(
     throw new Error('Mothership file attachments require an authenticated user.')
   }
 
+  const userFiles = files.map((file) =>
+    processSingleFileToUserFile(file as RawFileInput, requestId, logger)
+  )
+  const modelSafe = await areModelSafeWorkspaceFileKeys(
+    userFiles.map((file) => file.key).filter((key): key is string => Boolean(key)),
+    { workspaceId: ctx.workspaceId }
+  )
+  if (!modelSafe) throw new Error(MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE)
+
   const attachments: MothershipFileAttachment[] = []
-  for (const file of files) {
-    const userFile = processSingleFileToUserFile(file as RawFileInput, requestId, logger)
+  for (const userFile of userFiles) {
     const base64 = await readUserFileContent(userFile, {
       encoding: 'base64',
       userId: ctx.userId,
@@ -392,7 +584,12 @@ export class MothershipBlockHandler implements BlockHandler {
     if (!prompt || typeof prompt !== 'string') {
       throw new Error('Prompt input is required')
     }
-    const messages = [{ role: 'user' as const, content: prompt }]
+    const messages = [
+      {
+        role: 'user' as const,
+        content: projectMothershipPrompt(prompt, ctx.resolvedSecretTraceRegistry),
+      },
+    ]
     const providedConversationId =
       typeof inputs.conversationId === 'string' ? inputs.conversationId.trim() : ''
     const chatId = providedConversationId || generateId()
@@ -403,28 +600,11 @@ export class MothershipBlockHandler implements BlockHandler {
       mountedSecrets: inputs.mountedSecrets,
     })
     const fileAttachments = await buildMothershipFileAttachments(inputs.files, ctx, requestId)
-    const mcpTools = Array.isArray(inputs.tools)
-      ? inputs.tools.filter(
-          (tool: Record<string, unknown>) =>
-            tool.type === 'mcp' &&
-            tool.usageControl !== 'none' &&
-            typeof (tool.params as Record<string, unknown> | undefined)?.serverId === 'string' &&
-            typeof (tool.params as Record<string, unknown> | undefined)?.toolName === 'string'
-        )
-      : []
-    const skillContexts = Array.isArray(inputs.skills)
-      ? inputs.skills.flatMap((skill: Record<string, unknown>) =>
-          typeof skill.skillId === 'string' && skill.skillId
-            ? [
-                {
-                  kind: 'skill',
-                  skillId: skill.skillId,
-                  label: typeof skill.name === 'string' ? skill.name : skill.skillId,
-                },
-              ]
-            : []
-        )
-      : []
+    const mcpTools = projectMothershipMcpTools(inputs.tools, ctx.resolvedSecretTraceRegistry)
+    const skillContexts = projectMothershipSkillContexts(
+      inputs.skills,
+      ctx.resolvedSecretTraceRegistry
+    )
 
     const url = buildAPIUrl('/api/mothership/execute')
     const headers = await buildAuthHeaders(ctx.userId)
@@ -462,7 +642,6 @@ export class MothershipBlockHandler implements BlockHandler {
       requestId,
       workflowId: ctx.workflowId,
       executionId: ctx.executionId,
-      chatId,
       fileAttachmentCount: fileAttachments?.length ?? 0,
       mcpToolCount: mcpTools.length,
       skillCount: skillContexts.length,
@@ -527,14 +706,15 @@ export class MothershipBlockHandler implements BlockHandler {
       })
 
       if (!response.ok) {
-        if (ctx.resolvedSecretTraceRegistry) {
-          try {
-            const payload = (await response.clone().json()) as MothershipExecuteResult
-            await consumeMothershipProvenance(payload, response, ctx.resolvedSecretTraceRegistry)
-          } catch {
-            ctx.resolvedSecretTraceRegistry.markIncomplete()
-          }
+        assertMothershipResponseCapability(response, ctx.resolvedSecretTraceRegistry)
+        let payload: MothershipExecuteResult
+        try {
+          payload = (await response.clone().json()) as MothershipExecuteResult
+        } catch {
+          ctx.resolvedSecretTraceRegistry?.markIncomplete()
+          throw new Error('Mothership response provenance metadata is invalid')
         }
+        await consumeMothershipProvenance(payload, response, ctx.resolvedSecretTraceRegistry)
         const errorMsg = await extractAPIErrorMessage(response)
         throw new Error(`Sim execution failed: ${errorMsg}`)
       }

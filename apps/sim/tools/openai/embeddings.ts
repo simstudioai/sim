@@ -37,6 +37,10 @@ export const embeddingsTool: ToolConfig<OpenAIEmbeddingsParams> = {
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({ input: params.input }),
+    },
     method: 'POST',
     url: () => 'https://api.openai.com/v1/embeddings',
     headers: (params) => ({

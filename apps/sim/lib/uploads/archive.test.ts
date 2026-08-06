@@ -107,6 +107,25 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
     )
   })
 
+  it('propagates the archive classification to every extracted byte stream', async () => {
+    const buffer = await buildZip({ 'one.txt': 'one', 'two.txt': 'two' })
+    const secretProvenance = {
+      status: 'exact' as const,
+      entries: [{ name: 'TOKEN', encryptedValue: 'encrypted-token' }],
+    }
+
+    await decompressArchiveBufferToWorkspaceFiles(buffer, {
+      workspaceId: 'ws',
+      userId: 'u',
+      secretProvenance,
+    })
+
+    expect(mockUpload).toHaveBeenCalledTimes(2)
+    for (const call of mockUpload.mock.calls) {
+      expect(call[5]).toEqual(expect.objectContaining({ secretProvenance }))
+    }
+  })
+
   it('rejects an archive with more central-directory records than the cap, before parsing', async () => {
     // A structurally valid central directory (EOCD-anchored) with one record more
     // than the parse-graph cap. JSZip would build one entry per record in the

@@ -90,6 +90,7 @@ describe('toDashboardConfigurationUpdate', () => {
       requestedUsageLimitDollars: 50_000,
       requestedSeats: 20,
       requestedConcurrencyLimit: 50,
+      requestedWorkflowExecutionTimeoutSeconds: null,
       error: null,
     })
   })

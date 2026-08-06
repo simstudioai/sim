@@ -10,9 +10,16 @@ import type {
   WorkflowGroup,
 } from '@/lib/table/types'
 
-const { mockResolveBillingAttribution, mockResolveSystemBillingAttribution } = vi.hoisted(() => ({
+const {
+  mockResolveBillingAttribution,
+  mockResolveSystemBillingAttribution,
+  mockRunsCancel,
+  mockRunsList,
+} = vi.hoisted(() => ({
   mockResolveBillingAttribution: vi.fn(),
   mockResolveSystemBillingAttribution: vi.fn(),
+  mockRunsCancel: vi.fn(),
+  mockRunsList: vi.fn(),
 }))
 
 const SYSTEM_BILLING_ATTRIBUTION = {
@@ -34,8 +41,16 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
   resolveSystemBillingAttribution: mockResolveSystemBillingAttribution,
 }))
 
+vi.mock('@trigger.dev/sdk', () => ({
+  runs: {
+    cancel: mockRunsCancel,
+    list: mockRunsList,
+  },
+}))
+
 import {
   buildEnqueueItems,
+  cancelCellRunsByTags,
   pickNextEligibleGroupForRow,
   type WorkflowGroupCellPayload,
 } from '@/lib/table/workflow-columns'
@@ -102,7 +117,7 @@ function queuedMarker(workflowId: string): RowExecutionMetadata {
 }
 
 beforeAll(() => {
-  setEnvFlags({ isTriggerDevEnabled: true })
+  setEnvFlags({ isTriggerDevEnabled: true, isBillingEnabled: true })
 })
 
 afterAll(resetEnvFlagsMock)
@@ -188,6 +203,23 @@ describe('buildEnqueueItems billing attribution', () => {
     expect(mockResolveBillingAttribution).not.toHaveBeenCalled()
   })
 
+  it('caps the cascade carrier and serializes each workflow attempt budget', async () => {
+    const [item] = await buildEnqueueItems([run])
+
+    expect(item.payload).toHaveProperty('executionTimeoutMs')
+    expect(item.options.maxDurationSeconds).toBe(5_700)
+    expect(item.options.metadata?.correlation).toEqual({
+      executionId: 'execution-1',
+      requestId: 'wfgrp-execution-1',
+      source: 'workflow_group',
+      workflowId: 'workflow-1',
+      triggerType: 'table',
+      tableId: 'table-1',
+      rowId: 'row-1',
+      groupId: 'group-1',
+    })
+  })
+
   it('preserves an existing immutable attribution snapshot without re-resolving', async () => {
     const billingAttribution = {
       actorUserId: 'external-actor',
@@ -207,5 +239,35 @@ describe('buildEnqueueItems billing attribution', () => {
     expect(item.payload.billingAttribution).toEqual(billingAttribution)
     expect(mockResolveBillingAttribution).not.toHaveBeenCalled()
     expect(mockResolveSystemBillingAttribution).not.toHaveBeenCalled()
+  })
+})
+
+describe('cancelCellRunsByTags', () => {
+  it('bounds Trigger.dev cancellation concurrency and limits the retained scan window', async () => {
+    mockRunsList.mockReturnValue({
+      async *[Symbol.asyncIterator]() {
+        for (let index = 0; index < 25; index++) yield { id: `run-${index}` }
+      },
+    })
+    let activeCancellations = 0
+    let maxActiveCancellations = 0
+    mockRunsCancel.mockImplementation(async () => {
+      activeCancellations++
+      maxActiveCancellations = Math.max(maxActiveCancellations, activeCancellations)
+      await Promise.resolve()
+      activeCancellations--
+    })
+
+    await cancelCellRunsByTags(['tableId:table-1'])
+
+    expect(mockRunsCancel).toHaveBeenCalledTimes(25)
+    expect(maxActiveCancellations).toBeLessThanOrEqual(10)
+    expect(mockRunsList).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tag: ['tableId:table-1'],
+        limit: 100,
+        from: expect.any(Date),
+      })
+    )
   })
 })

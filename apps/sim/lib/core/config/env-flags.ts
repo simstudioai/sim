@@ -4,6 +4,11 @@
  */
 
 import {
+  isImmutableDaytonaSnapshotRef,
+  isImmutableE2BTemplateRef,
+  isValidSandboxReleaseGeneration,
+} from '@sim/utils/sandbox-references'
+import {
   ENTERPRISE_FEATURE_LEGACY_DEFAULTS,
   type EnterpriseFeature,
   resolveEnterpriseEntitlement,
@@ -316,10 +321,9 @@ export const isInboxEnabled = enterpriseFeatureEnabled(
 /**
  * Are custom sandboxes (workspace dependency sets for Function blocks) enabled.
  *
- * Same shape as {@link isInboxEnabled}: on Sim Cloud the Max/Enterprise plan
- * decides, and this is only an explicit override; self-hosted resolves through
- * the master switch. Builds run on the deployment's own E2B/Daytona
- * credentials, so an operator who sets this owns the cost.
+ * The server flag is the self-hosted entitlement override. In the browser,
+ * custom sandbox management follows the same public flag as the remote Function
+ * runtime because custom images cannot work without that provider/base.
  */
 export const isSandboxesEnabled = enterpriseFeatureEnabled(
   'sandboxes',
@@ -398,22 +402,47 @@ const sandboxProvider = inspectCapability(SANDBOX_CAPABILITY, env).providerId
 /**
  * Whether remote code/shell execution is available with the selected provider.
  *
- * E2B keeps its explicit `E2B_ENABLED` switch; Daytona is available once its API
- * key is set. Strict credential and snapshot validation runs when the selected
- * remote backend is used, so unrelated app paths preserve legacy enablement.
+ * Both providers require their credential and dedicated Function base. The old
+ * Mothership shell template/snapshot names are intentionally not fallbacks: a
+ * deployment must build and configure the Function-owned image before exposing
+ * the runtime.
  *
- * The browser twin is `NEXT_PUBLIC_SANDBOX_ENABLED`, read by the Function
- * block's `showWhenEnvSet` gates. It exists because `NEXT_PUBLIC_E2B_ENABLED`
- * has no Daytona counterpart: on a Daytona-only deployment Python executed fine
- * but the language dropdown was hidden. Those gates still accept the old var as
- * a fallback, so an existing deployment keeps working until it sets the new one;
- * `bun run setup --doctor` flags the mismatch.
+ * The browser twin is `NEXT_PUBLIC_SANDBOXES_ENABLED`, read by the Function
+ * block's `showWhenEnvSet` gates. Set it only after this server-side provider
+ * check succeeds; `bun run setup --doctor` reports mismatches in either direction.
  */
 export const isRemoteSandboxEnabled =
   sandboxProvider === 'daytona'
-    ? hasEnvCapabilityValue(env, 'DAYTONA_API_KEY')
+    ? hasEnvCapabilityValue(env, 'DAYTONA_API_KEY') &&
+      Boolean(
+        env.DAYTONA_FUNCTION_SNAPSHOT_ID &&
+          isImmutableDaytonaSnapshotRef(env.DAYTONA_FUNCTION_SNAPSHOT_ID)
+      )
     : sandboxProvider === 'e2b'
-      ? isTruthy(env.E2B_ENABLED)
+      ? isTruthy(env.E2B_ENABLED) &&
+        hasEnvCapabilityValue(env, 'E2B_API_KEY') &&
+        Boolean(
+          env.E2B_FUNCTION_TEMPLATE_ID && isImmutableE2BTemplateRef(env.E2B_FUNCTION_TEMPLATE_ID)
+        ) &&
+        Boolean(
+          env.E2B_FUNCTION_TEMPLATE_GENERATION &&
+            isValidSandboxReleaseGeneration(env.E2B_FUNCTION_TEMPLATE_GENERATION)
+        )
+      : false
+
+/**
+ * Whether the selected provider can serve Mothership's own code image.
+ * This is intentionally independent of {@link isRemoteSandboxEnabled}: the
+ * Function and Mothership images have separate release and rollout lifecycles.
+ */
+export const isMothershipSandboxEnabled =
+  sandboxProvider === 'daytona'
+    ? hasEnvCapabilityValue(env, 'DAYTONA_API_KEY') &&
+      hasEnvCapabilityValue(env, 'DAYTONA_SHELL_SNAPSHOT_ID')
+    : sandboxProvider === 'e2b'
+      ? isTruthy(env.E2B_ENABLED) &&
+        hasEnvCapabilityValue(env, 'E2B_API_KEY') &&
+        hasEnvCapabilityValue(env, 'MOTHERSHIP_E2B_TEMPLATE_ID')
       : false
 
 /**

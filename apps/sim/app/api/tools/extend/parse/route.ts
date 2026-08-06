@@ -10,7 +10,7 @@ import {
 } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
+import { validateOpaqueModelInputProvenance } from '@/lib/execution/model-input-provenance'
 import { resolveFileInputToUrl } from '@/lib/uploads/utils/file-utils.server'
 
 export const dynamic = 'force-dynamic'
@@ -59,11 +59,21 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (!parsed.success) return parsed.response
 
     const validatedData = parsed.data.body
+    const modelInputProvenance = validateOpaqueModelInputProvenance({
+      headers: request.headers,
+      payload: validatedData,
+      isInternalRequest: true,
+    })
+    if (!modelInputProvenance.success) {
+      return NextResponse.json(
+        { success: false, error: modelInputProvenance.error },
+        { status: modelInputProvenance.status }
+      )
+    }
 
     logger.info(`[${requestId}] Extend parse request`, {
-      fileName: validatedData.file?.name,
-      filePath: validatedData.filePath,
-      isWorkspaceFile: validatedData.filePath ? isInternalFileUrl(validatedData.filePath) : false,
+      hasInlineFile: Boolean(validatedData.file),
+      hasFilePath: Boolean(validatedData.filePath),
       userId,
     })
 
@@ -73,6 +83,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       userId,
       requestId,
       logger,
+      modelEgress: true,
     })
 
     if (resolution.error) {

@@ -14,8 +14,9 @@ import { TABLE_LIMITS } from '@/lib/table/constants'
 import type { MutationProof } from '@/lib/table/mutation-locks'
 import { keyBetween, nKeysBetween } from '@/lib/table/order-key'
 import { type DbExecutor, type DbTransaction, withSeqscanOff } from '@/lib/table/planner'
+import { mutateTableRowsWithSecretProvenance } from '@/lib/table/rows/secret-provenance'
 import { setTableTxTimeouts } from '@/lib/table/tx'
-import type { RowData, TableDefinition } from '@/lib/table/types'
+import type { RowData, TableDefinition, TableRowSecretProvenanceWrite } from '@/lib/table/types'
 
 /**
  * Starting `position` for an append import — `max(position) + 1`, or 0 when empty. Read once,
@@ -195,6 +196,7 @@ export async function insertOrderedRow(params: {
   beforeRowId?: string
   createdBy?: string
   now: Date
+  secretProvenance?: TableRowSecretProvenanceWrite
   /** Proof the caller asserted the insert lock (see `mutation-locks.ts`). */
   proof: MutationProof<'insert'>
 }): Promise<{
@@ -205,8 +207,18 @@ export async function insertOrderedRow(params: {
   createdAt: Date
   updatedAt: Date
 }> {
-  const { tableId, workspaceId, data, rowId, position, afterRowId, beforeRowId, createdBy, now } =
-    params
+  const {
+    tableId,
+    workspaceId,
+    data,
+    rowId,
+    position,
+    afterRowId,
+    beforeRowId,
+    createdBy,
+    now,
+    secretProvenance,
+  } = params
   const [row] = await db.transaction(async (trx) => {
     await setTableTxTimeouts(trx)
     await acquireRowOrderLock(trx, tableId)
@@ -221,20 +233,31 @@ export async function insertOrderedRow(params: {
     // order_key is authoritative — keep a best-effort, no-shift position.
     const targetPosition = await nextRowPosition(trx, tableId)
 
-    return trx
-      .insert(userTableRows)
-      .values({
-        id: rowId,
-        tableId,
-        workspaceId,
-        data,
-        position: targetPosition,
-        orderKey,
-        createdAt: now,
-        updatedAt: now,
-        ...(createdBy ? { createdBy } : {}),
-      })
-      .returning()
+    return mutateTableRowsWithSecretProvenance(trx, {
+      rows: [{ rowId, provenance: secretProvenance }],
+      rowState: 'new',
+      mode: 'replace',
+      mutate: async () => {
+        const insertedRows = await trx
+          .insert(userTableRows)
+          .values({
+            id: rowId,
+            tableId,
+            workspaceId,
+            data,
+            position: targetPosition,
+            orderKey,
+            createdAt: now,
+            updatedAt: now,
+            ...(createdBy ? { createdBy } : {}),
+          })
+          .returning()
+        return {
+          value: insertedRows,
+          affectedRowIds: insertedRows.map((insertedRow) => insertedRow.id),
+        }
+      },
+    })
   })
   return {
     id: row.id,
@@ -475,6 +498,7 @@ export async function updatePageByIds(
   workspaceId: string,
   rowIds: string[],
   patchJson: string,
+  secretProvenance: TableRowSecretProvenanceWrite,
   /** Proof the caller asserted the update lock (see `mutation-locks.ts`). */
   _proof: MutationProof<'update'>,
   /** Re-asserts the lock inside each batch transaction. See {@link guardBatch}. */
@@ -487,17 +511,25 @@ export async function updatePageByIds(
     const rows = await db.transaction(async (trx) => {
       await setTableTxTimeouts(trx, { statementMs: 60_000 })
       await guardBatch(trx, tableId, revalidate)
-      return trx
-        .update(userTableRows)
-        .set({ data: sql`${userTableRows.data} || ${patchJson}::jsonb`, updatedAt: now })
-        .where(
-          and(
-            eq(userTableRows.tableId, tableId),
-            eq(userTableRows.workspaceId, workspaceId),
-            inArray(userTableRows.id, batch)
-          )
-        )
-        .returning({ id: userTableRows.id })
+      return mutateTableRowsWithSecretProvenance(trx, {
+        rows: batch.map((rowId) => ({ rowId, provenance: secretProvenance })),
+        rowState: 'existing',
+        mode: 'merge',
+        mutate: async () => {
+          const rows = await trx
+            .update(userTableRows)
+            .set({ data: sql`${userTableRows.data} || ${patchJson}::jsonb`, updatedAt: now })
+            .where(
+              and(
+                eq(userTableRows.tableId, tableId),
+                eq(userTableRows.workspaceId, workspaceId),
+                inArray(userTableRows.id, batch)
+              )
+            )
+            .returning({ id: userTableRows.id })
+          return { value: rows, affectedRowIds: rows.map((row) => row.id) }
+        },
+      })
     })
     updated += rows.length
   }

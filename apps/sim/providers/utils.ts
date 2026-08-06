@@ -796,7 +796,7 @@ export async function transformBlockTool(
     // the executor's paramsTransform parses it later, but this runs before that.
     const mounted = readMountedSecretNames(resolvedResourceParams.mountedSecrets)
     toolDescription = mounted.length
-      ? `${toolDescription}\n\nWorkspace secrets available to this code: ${mounted.join(', ')}. Reference one as {{NAME}} or environmentVariables['NAME']. No other secrets are readable.`
+      ? `${toolDescription}\n\nWorkspace secret names available to this code: ${mounted.join(', ')}. Reference one with the exact {{NAME}} syntax. Its value is bound only while the code executes and is not included in the model request. No other secrets are readable.`
       : `${toolDescription}\n\nThis code has no access to workspace secrets.`
   } else if (toolId.startsWith('knowledge_') && resolvedResourceParams.knowledgeBaseId) {
     uniqueToolId = `${toolConfig.id}_${resolvedResourceParams.knowledgeBaseId}`

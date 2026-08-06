@@ -10,7 +10,9 @@ import {
   successResponseSchema,
   wireDateSchema,
 } from '@/lib/api/contracts/knowledge/shared'
+import { privateSecretProvenanceBundleSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { PRIVATE_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
 
 export const listKnowledgeChunksQuerySchema = z.object({
   search: z.string().optional(),
@@ -24,6 +26,7 @@ export const listKnowledgeChunksQuerySchema = z.object({
 export const createChunkBodySchema = z.object({
   content: z.string().min(1, 'Content is required').max(10000, 'Content too long'),
   enabled: z.boolean().optional().default(true),
+  [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
 })
 
 export const updateChunkBodySchema = createChunkBodySchema.partial()

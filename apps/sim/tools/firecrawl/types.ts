@@ -292,8 +292,18 @@ interface LocationConfig {
   languages?: string[]
 }
 
-interface ScrapeOptions {
-  formats?: string[]
+export type FirecrawlFormat =
+  | string
+  | {
+      type: string
+      prompt?: string
+      schema?: Record<string, unknown>
+      question?: string
+      [key: string]: unknown
+    }
+
+export interface ScrapeOptions {
+  formats?: FirecrawlFormat[]
   onlyMainContent?: boolean
   includeTags?: string[]
   excludeTags?: string[]
@@ -321,7 +331,7 @@ export interface ScrapeParams {
   scrapeOptions?: ScrapeOptions
   // Additional top-level scrape params
   onlyMainContent?: boolean
-  formats?: string[]
+  formats?: FirecrawlFormat[]
   includeTags?: string[]
   excludeTags?: string[]
   maxAge?: number
@@ -362,7 +372,7 @@ export interface FirecrawlCrawlParams {
   url: string
   limit?: number
   maxDepth?: number
-  formats?: string[]
+  formats?: FirecrawlFormat[]
   onlyMainContent?: boolean
   prompt?: string
   maxDiscoveryDepth?: number
@@ -524,7 +534,7 @@ export interface AgentResponse extends ToolResponse {
 export interface ParseParams {
   apiKey: string
   file: unknown
-  formats?: Array<{ type: string } | string>
+  formats?: FirecrawlFormat[]
   onlyMainContent?: boolean
   includeTags?: string[]
   excludeTags?: string[]
@@ -606,7 +616,7 @@ export interface FirecrawlCancelCrawlResponse extends ToolResponse {
 export interface FirecrawlBatchScrapeParams {
   apiKey: string
   urls: string[] | string
-  formats?: string[]
+  formats?: FirecrawlFormat[]
   onlyMainContent?: boolean
   maxConcurrency?: number
   ignoreInvalidURLs?: boolean

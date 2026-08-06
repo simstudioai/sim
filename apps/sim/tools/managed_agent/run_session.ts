@@ -121,6 +121,13 @@ export const managedAgentRunSessionTool: ToolConfig<
     url: () => '',
     method: 'POST',
     headers: () => ({}),
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({
+        userMessage: params.userMessage,
+        memoryInstructions: params.memoryInstructions,
+      }),
+    },
   },
 
   directExecution: async (params, signal): Promise<ManagedAgentRunSessionResponse> => {

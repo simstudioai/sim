@@ -1,13 +1,30 @@
 import { db } from '@sim/db'
-import { memory } from '@sim/db/schema'
+import { memory, memorySecretProvenance } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
+import { isPlainRecord } from '@sim/utils/object'
 import { and, eq, sql } from 'drizzle-orm'
+import {
+  bindDurableSecretProvenanceToValue,
+  durableSecretProvenanceFromRegistry,
+  filterDurableSecretProvenanceBySourceValues,
+  importDurableSecretProvenance,
+  mergeDurableSecretProvenance,
+} from '@/lib/execution/durable-secret-provenance'
 import { redactObjectStrings } from '@/lib/logs/execution/pii-redaction'
+import {
+  readBoundMemorySecretProvenance,
+  replaceMemorySecretProvenanceInTx,
+} from '@/lib/memory/secret-provenance'
 import { getAccurateTokenCount } from '@/lib/tokenization/estimators'
 import { MEMORY } from '@/executor/constants'
 import type { AgentInputs, Message } from '@/executor/handlers/agent/types'
 import type { ExecutionContext } from '@/executor/types'
+import {
+  projectResolvedSecretModelContent,
+  projectResolvedSecretModelJsonStrings,
+} from '@/executor/utils/resolved-secret-content-projection'
+import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { PROVIDER_DEFINITIONS } from '@/providers/models'
 
 const logger = createLogger('Memory')
@@ -21,18 +38,21 @@ export class Memory {
     const workspaceId = this.requireWorkspaceId(ctx)
     this.validateConversationId(inputs.conversationId)
 
-    const messages = await this.fetchMemory(workspaceId, inputs.conversationId!)
+    const stored = await this.fetchMemory(workspaceId, inputs.conversationId!)
+    let messages: Message[]
 
     switch (inputs.memoryType) {
       case 'conversation':
-        return this.applyContextWindowLimit(messages, inputs.model)
+        messages = this.applyContextWindowLimit(stored.messages, inputs.model)
+        break
 
       case 'sliding_window': {
         const limit = this.parsePositiveInt(
           inputs.slidingWindowSize,
           MEMORY.DEFAULT_SLIDING_WINDOW_SIZE
         )
-        return this.applyWindow(messages, limit)
+        messages = this.applyWindow(stored.messages, limit)
+        break
       }
 
       case 'sliding_window_tokens': {
@@ -40,12 +60,46 @@ export class Memory {
           inputs.slidingWindowTokens,
           MEMORY.DEFAULT_SLIDING_WINDOW_TOKENS
         )
-        return this.applyTokenWindow(messages, maxTokens, inputs.model)
+        messages = this.applyTokenWindow(stored.messages, maxTokens, inputs.model)
+        break
       }
 
       default:
-        return messages
+        messages = stored.messages
     }
+
+    const selectedProvenance = filterDurableSecretProvenanceBySourceValues(
+      stored.provenance,
+      messages
+    )
+    if (
+      selectedProvenance.status === 'unknown' ||
+      (selectedProvenance.entries.length > 0 && !ctx.resolvedSecretTraceRegistry) ||
+      (ctx.resolvedSecretTraceRegistry &&
+        !(await importDurableSecretProvenance(
+          ctx.resolvedSecretTraceRegistry,
+          selectedProvenance,
+          messages
+        )))
+    ) {
+      throw new Error('Memory content could not be safely projected')
+    }
+
+    return messages.map((message) => this.projectMessageForModel(ctx, message))
+  }
+
+  private captureMessagesProvenance(
+    registry: ResolvedSecretTraceRegistry,
+    messages: readonly Message[]
+  ): ReturnType<typeof durableSecretProvenanceFromRegistry> {
+    return mergeDurableSecretProvenance(
+      ...messages.map((message) =>
+        bindDurableSecretProvenanceToValue(
+          durableSecretProvenanceFromRegistry(registry, message),
+          message
+        )
+      )
+    )
   }
 
   async appendToMemory(
@@ -65,12 +119,17 @@ export class Memory {
     this.validateContent(message.content)
 
     const key = inputs.conversationId!
+    const provenance = ctx.resolvedSecretTraceRegistry
+      ? this.captureMessagesProvenance(ctx.resolvedSecretTraceRegistry, [message])
+      : undefined
+    if (provenance?.status === 'unknown') {
+      throw new Error('Memory content could not be safely projected')
+    }
 
-    await this.appendMessage(workspaceId, key, message)
+    await this.appendMessage(workspaceId, key, message, provenance)
 
     logger.debug('Appended message to memory', {
       workspaceId,
-      key,
       role: message.role,
     })
   }
@@ -110,11 +169,16 @@ export class Memory {
       messagesToStore.map((message) => this.maskContentForStorage(ctx, message))
     )
 
-    await this.seedMemoryRecord(workspaceId, key, messagesToStore)
+    const provenance = ctx.resolvedSecretTraceRegistry
+      ? this.captureMessagesProvenance(ctx.resolvedSecretTraceRegistry, messagesToStore)
+      : undefined
+    if (provenance?.status === 'unknown') {
+      throw new Error('Memory content could not be safely projected')
+    }
+    await this.seedMemoryRecord(workspaceId, key, messagesToStore, provenance)
 
     logger.debug('Seeded memory', {
       workspaceId,
-      key,
       count: messagesToStore.length,
     })
   }
@@ -138,6 +202,156 @@ export class Memory {
         onFailure: 'throw',
       }),
     }
+  }
+
+  private projectMessageForModel(ctx: ExecutionContext, message: Message): Message {
+    const controlValues = this.readModelControlValues(message)
+    const controlProjection = projectResolvedSecretModelContent(
+      controlValues,
+      ctx.resolvedSecretTraceRegistry
+    )
+    if (
+      !controlProjection.safe ||
+      !Array.isArray(controlProjection.value) ||
+      controlProjection.value.length !== controlValues.length ||
+      controlProjection.value.some(
+        (value, index) => typeof value !== 'string' || value !== controlValues[index]
+      )
+    ) {
+      throw new Error('Memory content could not be safely projected')
+    }
+
+    const functionArguments = this.readFunctionCallArguments(message.function_call)
+    const toolArguments = message.tool_calls?.map((toolCall) => {
+      if (!isPlainRecord(toolCall)) {
+        throw new Error('Memory content could not be safely projected')
+      }
+      return this.readFunctionCallArguments(toolCall.function)
+    })
+    const contentProjection = projectResolvedSecretModelContent(
+      message.content,
+      ctx.resolvedSecretTraceRegistry
+    )
+    const argumentProjection = projectResolvedSecretModelJsonStrings(
+      [functionArguments, ...(toolArguments ?? [])],
+      ctx.resolvedSecretTraceRegistry
+    )
+    if (
+      !contentProjection.safe ||
+      typeof contentProjection.value !== 'string' ||
+      !argumentProjection.safe ||
+      !Array.isArray(argumentProjection.value) ||
+      argumentProjection.value.length !== 1 + (toolArguments?.length ?? 0)
+    ) {
+      throw new Error('Memory content could not be safely projected')
+    }
+
+    const content = contentProjection.value
+    const [projectedFunctionArguments, ...projectedToolArguments] = argumentProjection.value
+    if (
+      (functionArguments !== undefined && typeof projectedFunctionArguments !== 'string') ||
+      (functionArguments === undefined && projectedFunctionArguments !== undefined)
+    ) {
+      throw new Error('Memory content could not be safely projected')
+    }
+    if (
+      (toolArguments !== undefined && projectedToolArguments.length !== toolArguments.length) ||
+      (toolArguments === undefined && projectedToolArguments.length !== 0)
+    ) {
+      throw new Error('Memory content could not be safely projected')
+    }
+
+    const projectedToolCalls = message.tool_calls?.map((toolCall, index) => {
+      const argument = (projectedToolArguments as unknown[])[index]
+      const originalFunction = isPlainRecord(toolCall) ? toolCall.function : undefined
+      if (originalFunction === undefined || originalFunction === null) return toolCall
+      if (!isPlainRecord(originalFunction)) {
+        throw new Error('Memory content could not be safely projected')
+      }
+      if (!Object.hasOwn(originalFunction, 'arguments')) return toolCall
+      if (typeof argument !== 'string') {
+        throw new Error('Memory content could not be safely projected')
+      }
+      return {
+        ...toolCall,
+        function: { ...originalFunction, arguments: argument },
+      }
+    })
+
+    let projectedFunctionCall = message.function_call
+    if (isPlainRecord(message.function_call) && Object.hasOwn(message.function_call, 'arguments')) {
+      projectedFunctionCall = {
+        ...message.function_call,
+        arguments: projectedFunctionArguments,
+      }
+    }
+
+    return {
+      ...message,
+      content,
+      ...(message.function_call !== undefined ? { function_call: projectedFunctionCall } : {}),
+      ...(projectedToolCalls !== undefined ? { tool_calls: projectedToolCalls } : {}),
+    }
+  }
+
+  private readFunctionCallArguments(functionCall: unknown): string | undefined {
+    if (functionCall === undefined || functionCall === null) return undefined
+    if (!isPlainRecord(functionCall)) {
+      throw new Error('Memory content could not be safely projected')
+    }
+    if (!Object.hasOwn(functionCall, 'arguments')) return undefined
+    if (typeof functionCall.arguments !== 'string') {
+      throw new Error('Memory content could not be safely projected')
+    }
+    return functionCall.arguments
+  }
+
+  private readModelControlValues(message: Message): string[] {
+    if (!isPlainRecord(message)) {
+      throw new Error('Memory content could not be safely projected')
+    }
+    const controls: string[] = []
+    for (const key of ['name', 'tool_call_id'] as const) {
+      if (!(key in message)) continue
+      const value = message[key]
+      if (value !== undefined && value !== null) {
+        if (typeof value !== 'string') {
+          throw new Error('Memory content could not be safely projected')
+        }
+        controls.push(value)
+      }
+    }
+
+    if (message.function_call !== undefined && message.function_call !== null) {
+      if (!isPlainRecord(message.function_call)) {
+        throw new Error('Memory content could not be safely projected')
+      }
+      const name = message.function_call.name
+      if (name !== undefined && name !== null) {
+        if (typeof name !== 'string') {
+          throw new Error('Memory content could not be safely projected')
+        }
+        controls.push(name)
+      }
+    }
+
+    for (const toolCall of message.tool_calls ?? []) {
+      if (!isPlainRecord(toolCall)) {
+        throw new Error('Memory content could not be safely projected')
+      }
+      for (const value of [
+        toolCall.id,
+        isPlainRecord(toolCall.function) ? toolCall.function.name : undefined,
+      ]) {
+        if (value !== undefined && value !== null) {
+          if (typeof value !== 'string') {
+            throw new Error('Memory content could not be safely projected')
+          }
+          controls.push(value)
+        }
+      }
+    }
+    return controls
   }
 
   private requireWorkspaceId(ctx: ExecutionContext): string {
@@ -199,19 +413,39 @@ export class Memory {
     return messages
   }
 
-  private async fetchMemory(workspaceId: string, key: string): Promise<Message[]> {
+  private async fetchMemory(
+    workspaceId: string,
+    key: string
+  ): Promise<{
+    messages: Message[]
+    provenance: ReturnType<typeof readBoundMemorySecretProvenance>
+  }> {
     const result = await db
-      .select({ data: memory.data })
+      .select({
+        data: memory.data,
+        secretProvenanceVersion: memory.secretProvenanceVersion,
+        provenanceContentHash: memorySecretProvenance.contentHash,
+        provenanceStatus: memorySecretProvenance.status,
+        provenanceEntries: memorySecretProvenance.entries,
+      })
       .from(memory)
+      .leftJoin(memorySecretProvenance, eq(memorySecretProvenance.memoryId, memory.id))
       .where(and(eq(memory.workspaceId, workspaceId), eq(memory.key, key)))
       .limit(1)
 
-    if (result.length === 0) return []
+    if (result.length === 0) {
+      return { messages: [], provenance: { status: 'exact', entries: [] } }
+    }
 
     const data = result[0].data
-    if (!Array.isArray(data)) return []
-
-    return data
+    const provenance = readBoundMemorySecretProvenance({
+      secretProvenanceVersion: result[0].secretProvenanceVersion,
+      data,
+      provenanceContentHash: result[0].provenanceContentHash,
+      status: result[0].provenanceStatus,
+      entries: result[0].provenanceEntries,
+    })
+    const messages = (Array.isArray(data) ? data : [])
       .filter(
         (msg): msg is Message =>
           msg &&
@@ -222,52 +456,111 @@ export class Memory {
           typeof msg.content === 'string'
       )
       .map((msg) => this.sanitizeMessageForStorage(msg))
+    return { messages, provenance }
   }
 
   private async seedMemoryRecord(
     workspaceId: string,
     key: string,
-    messages: Message[]
+    messages: Message[],
+    provenance: ReturnType<typeof durableSecretProvenanceFromRegistry> | undefined
   ): Promise<void> {
     const now = new Date()
 
     const sanitizedMessages = messages.map((message) => this.sanitizeMessageForStorage(message))
 
-    await db
-      .insert(memory)
-      .values({
-        id: generateId(),
-        workspaceId,
-        key,
-        data: sanitizedMessages,
-        createdAt: now,
-        updatedAt: now,
-      })
-      .onConflictDoNothing()
+    await db.transaction(async (tx) => {
+      const id = generateId()
+      const [inserted] = await tx
+        .insert(memory)
+        .values({
+          id,
+          workspaceId,
+          key,
+          data: sanitizedMessages,
+          secretProvenanceVersion: provenance ? 1 : null,
+          createdAt: now,
+          updatedAt: now,
+        })
+        .onConflictDoNothing()
+        .returning({ id: memory.id })
+      if (inserted && provenance) {
+        await replaceMemorySecretProvenanceInTx(tx, id, sanitizedMessages, provenance)
+      }
+    })
   }
 
-  private async appendMessage(workspaceId: string, key: string, message: Message): Promise<void> {
+  private async appendMessage(
+    workspaceId: string,
+    key: string,
+    message: Message,
+    messageProvenance: ReturnType<typeof durableSecretProvenanceFromRegistry> | undefined
+  ): Promise<void> {
     const now = new Date()
 
     const sanitizedMessage = this.sanitizeMessageForStorage(message)
 
-    await db
-      .insert(memory)
-      .values({
-        id: generateId(),
-        workspaceId,
-        key,
-        data: [sanitizedMessage],
-        createdAt: now,
-        updatedAt: now,
-      })
-      .onConflictDoUpdate({
-        target: [memory.workspaceId, memory.key],
-        set: {
-          data: sql`${memory.data} || ${JSON.stringify([sanitizedMessage])}::jsonb`,
+    await db.transaction(async (tx) => {
+      const [existing] = await tx
+        .select({
+          id: memory.id,
+          data: memory.data,
+          updatedAt: memory.updatedAt,
+          secretProvenanceVersion: memory.secretProvenanceVersion,
+        })
+        .from(memory)
+        .where(and(eq(memory.workspaceId, workspaceId), eq(memory.key, key)))
+        .limit(1)
+        .for('update')
+
+      if (!existing) {
+        const id = generateId()
+        await tx.insert(memory).values({
+          id,
+          workspaceId,
+          key,
+          data: [sanitizedMessage],
+          secretProvenanceVersion: messageProvenance ? 1 : null,
+          createdAt: now,
           updatedAt: now,
-        },
+        })
+        if (messageProvenance) {
+          await replaceMemorySecretProvenanceInTx(tx, id, [sanitizedMessage], messageProvenance)
+        }
+        return
+      }
+
+      const [sidecar] = await tx
+        .select()
+        .from(memorySecretProvenance)
+        .where(eq(memorySecretProvenance.memoryId, existing.id))
+        .limit(1)
+      const previousProvenance = readBoundMemorySecretProvenance({
+        secretProvenanceVersion: existing.secretProvenanceVersion,
+        data: existing.data,
+        provenanceContentHash: sidecar?.contentHash ?? null,
+        status: sidecar?.status ?? null,
+        entries: sidecar?.entries,
       })
+      const previousData = Array.isArray(existing.data) ? existing.data : []
+      const nextData = [...previousData, sanitizedMessage]
+      await tx
+        .update(memory)
+        .set({
+          data: sql`${memory.data} || ${JSON.stringify([sanitizedMessage])}::jsonb`,
+          secretProvenanceVersion: messageProvenance ? 1 : existing.secretProvenanceVersion,
+          updatedAt: now,
+        })
+        .where(eq(memory.id, existing.id))
+      if (messageProvenance) {
+        await replaceMemorySecretProvenanceInTx(
+          tx,
+          existing.id,
+          nextData,
+          mergeDurableSecretProvenance(previousProvenance, messageProvenance)
+        )
+      }
+    })
   }
 
   private parsePositiveInt(value: string | undefined, defaultValue: number): number {

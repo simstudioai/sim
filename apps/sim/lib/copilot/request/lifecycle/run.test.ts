@@ -5,7 +5,7 @@
 import { resetEnvFlagsMock, resetEnvironmentUtilsMock, setEnvFlags } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutionContext, StreamingContext } from '@/lib/copilot/request/types'
-import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 afterAll(resetEnvironmentUtilsMock)
 
@@ -19,6 +19,7 @@ const {
   mockRunStreamLoop,
   mockPendingToolWaitBudgetMs,
   mockGetAutoAllowedTools,
+  mockFilterModelSafeWorkspaceFileAttachments,
   mockUpdateRunStatus,
   mockEnv,
 } = vi.hoisted(() => ({
@@ -31,10 +32,16 @@ const {
   mockRunStreamLoop: vi.fn(),
   mockPendingToolWaitBudgetMs: vi.fn(() => 60_000),
   mockGetAutoAllowedTools: vi.fn(async () => new Set<string>()),
+  mockFilterModelSafeWorkspaceFileAttachments: vi.fn(async (attachments: unknown[]) => attachments),
   mockUpdateRunStatus: vi.fn(),
   mockEnv: {
     COPILOT_API_KEY: undefined as string | undefined,
   },
+}))
+
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
+  filterModelSafeWorkspaceFileAttachments: (...args: unknown[]) =>
+    mockFilterModelSafeWorkspaceFileAttachments(...args),
 }))
 
 vi.mock('@/lib/copilot/async-runs/repository', () => ({
@@ -92,6 +99,7 @@ vi.mock('@/lib/copilot/server/agent-url', () => ({
 
 vi.mock('@/lib/core/config/env', () => ({
   env: mockEnv,
+  envBoolean: vi.fn(() => undefined),
   getEnv: vi.fn((key: string) => (key === 'NEXT_PUBLIC_APP_URL' ? 'http://localhost:3000' : '')),
   isTruthy: vi.fn((value: string | undefined) => value === 'true'),
   isFalsy: vi.fn((value: string | undefined) => value === 'false'),
@@ -134,6 +142,14 @@ import { runCopilotLifecycle } from '@/lib/copilot/request/lifecycle/run'
 
 afterAll(resetEnvFlagsMock)
 
+const ARBITRARY_SCHEMA_CONTROL_KEYS = [
+  '$schema',
+  'format',
+  'contentEncoding',
+  'contentMediaType',
+  'type',
+] as const
+
 describe('runCopilotLifecycle', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -146,11 +162,13 @@ describe('runCopilotLifecycle', () => {
     mockGetAutoAllowedTools.mockResolvedValue(new Set<string>())
     mockGetMothershipBaseURL.mockResolvedValue('http://mothership.test')
     mockGetMothershipSourceEnvHeaders.mockReturnValue({})
-    mockPrepareCopilotEnvironmentContext.mockResolvedValue({})
+    mockPrepareCopilotEnvironmentContext.mockResolvedValue({
+      resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
+    })
   })
 
   it('threads trace provenance through server execution context only', async () => {
-    const registry = {} as ResolvedSecretTraceRegistry
+    const registry = new ResolvedSecretTraceRegistry()
     const executionContext: ExecutionContext = {
       userId: 'user-1',
       workflowId: '',
@@ -184,6 +202,909 @@ describe('runCopilotLifecycle', () => {
     expect(capturedRequestBody).not.toContain('resolvedSecretTraceRegistry')
     expect(capturedRequestBody).not.toContain('resolved-secret-provenance')
     expect(executionContext).not.toHaveProperty('resolvedSecretTraceRegistry')
+  })
+
+  it.each([
+    { goRoute: undefined, expected: 'mothership' },
+    { goRoute: '/api/copilot', expected: 'mothership' },
+    { goRoute: '/api/mothership-unknown', expected: undefined },
+    { goRoute: '/api/mothership', expected: 'mothership' },
+    { goRoute: '/api/mothership/execute', expected: 'mothership' },
+  ])(
+    'derives the sandbox profile from the trusted Go route ($goRoute)',
+    async ({ goRoute, expected }) => {
+      let sandboxProfile: ExecutionContext['sandboxProfile']
+      mockRunStreamLoop.mockImplementationOnce(
+        async (
+          _url: string,
+          _request: RequestInit,
+          _streamingContext: StreamingContext,
+          context: ExecutionContext
+        ) => {
+          sandboxProfile = context.sandboxProfile
+        }
+      )
+
+      await runCopilotLifecycle(
+        { message: 'hello', messageId: `sandbox-profile-${goRoute ?? 'default'}` },
+        {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          ...(goRoute ? { goRoute } : {}),
+          executionContext: {
+            userId: 'user-1',
+            workflowId: '',
+            workspaceId: 'ws-1',
+            sandboxProfile: 'mothership',
+          },
+        }
+      )
+
+      expect(sandboxProfile).toBe(expected)
+    }
+  )
+
+  it('does not infer model provenance from a dormant environment catalog', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      {
+        name: 'RUNTIME_TOKEN',
+        plaintext: 'runtime-secret',
+        encryptedValue: 'runtime-ciphertext',
+      },
+    ])
+    mockPrepareCopilotEnvironmentContext.mockResolvedValueOnce({
+      resolvedSecretTraceRegistry: registry,
+    })
+    let capturedRequestBody = ''
+    mockRunStreamLoop.mockImplementationOnce(async (_url: string, request: RequestInit) => {
+      capturedRequestBody = String(request.body)
+    })
+
+    await runCopilotLifecycle(
+      { message: 'Use runtime-secret', messageId: 'stream-reconstructed-egress' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        executionContext: {
+          userId: 'user-1',
+          workflowId: '',
+          workspaceId: 'ws-1',
+        },
+      }
+    )
+
+    expect(mockPrepareCopilotEnvironmentContext).toHaveBeenCalledWith('user-1', 'ws-1')
+    expect(JSON.parse(capturedRequestBody)).toMatchObject({
+      message: 'Use runtime-secret',
+    })
+  })
+
+  it('projects secrets in every model-visible initial Go payload field without rewriting foreign aliases', async () => {
+    const secret = 'mothership-secret'
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
+    ])
+    registry.recordResolved('TOKEN', secret)
+    let capturedRequestBody = ''
+    mockRunStreamLoop.mockImplementationOnce(async (_url: string, request: RequestInit) => {
+      capturedRequestBody = String(request.body)
+    })
+
+    await runCopilotLifecycle(
+      {
+        message: `message ${secret} __var_FOREIGN`,
+        messages: [{ role: 'user', content: secret }],
+        context: [{ type: 'resource', content: secret }],
+        contexts: [{ type: 'mcp', content: secret }],
+        workspaceContext: `workspace ${secret}`,
+        integrationTools: [{ name: 'tool', description: secret }],
+        mothershipTools: [{ name: 'mcp', description: '__sim_code_2_binding_0' }],
+        fileAttachments: [
+          {
+            name: `${secret}.txt`,
+            key: 'raw-storage-key',
+            source: { type: 'base64', data: 'c2FmZQ==' },
+          },
+        ],
+        workspaceId: 'ws-1',
+        messageId: 'stream-model-projection',
+      },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        executionContext: {
+          userId: 'user-1',
+          workflowId: '',
+          workspaceId: 'ws-1',
+        },
+        resolvedSecretTraceRegistry: registry,
+      }
+    )
+
+    expect(capturedRequestBody).not.toContain(secret)
+    expect(capturedRequestBody).toContain('__var_FOREIGN')
+    expect(capturedRequestBody).toContain('__sim_code_2_binding_0')
+    expect(JSON.parse(capturedRequestBody)).toMatchObject({
+      message: 'message {{TOKEN}} __var_FOREIGN',
+      messages: [{ role: 'user', content: '{{TOKEN}}' }],
+      workspaceContext: 'workspace {{TOKEN}}',
+      mothershipTools: [{ name: 'mcp', description: '__sim_code_2_binding_0' }],
+      workspaceId: 'ws-1',
+      fileAttachments: [
+        {
+          name: '{{TOKEN}}.txt',
+          key: 'raw-storage-key',
+          source: { type: 'base64', data: 'c2FmZQ==' },
+        },
+      ],
+    })
+  })
+
+  it('projects large tool catalogs at the tool-definition boundary', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: 'catalog-secret', encryptedValue: 'ciphertext' },
+    ])
+    registry.recordResolved('TOKEN', 'catalog-secret')
+    const toolCount = 4_000
+    const propertiesPerTool = 8
+    // These definitions are individually small, but flattening their semantic fields into one
+    // synthetic projection value creates 108,001 traversal nodes and crosses the per-value budget.
+    const integrationTools = Array.from({ length: toolCount }, (_, toolIndex) => {
+      const properties = Object.fromEntries(
+        Array.from({ length: propertiesPerTool }, (_, propertyIndex) => [
+          `field_${propertyIndex}`,
+          {
+            type: 'string',
+            description: `Field ${propertyIndex} for tool ${toolIndex}`,
+          },
+        ])
+      )
+
+      return {
+        name: `tool_${toolIndex}`,
+        description: `Tool ${toolIndex} uses catalog-secret`,
+        input_schema: {
+          type: 'object',
+          properties,
+          required: Object.keys(properties),
+        },
+      }
+    })
+    let capturedRequestBody = ''
+    mockRunStreamLoop.mockImplementationOnce(async (_url: string, request: RequestInit) => {
+      capturedRequestBody = String(request.body)
+    })
+
+    const result = await runCopilotLifecycle(
+      {
+        message: 'Use the integration catalog',
+        messageId: 'stream-large-tool-catalog',
+        integrationTools,
+      },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        executionContext: { userId: 'user-1', workflowId: '', workspaceId: 'ws-1' },
+        resolvedSecretTraceRegistry: registry,
+      }
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockRunStreamLoop).toHaveBeenCalledOnce()
+    const sent = JSON.parse(capturedRequestBody)
+    expect(sent.integrationTools).toHaveLength(integrationTools.length)
+    expect(sent.integrationTools[0].description).toBe('Tool 0 uses {{TOKEN}}')
+    expect(sent.integrationTools.at(-1).name).toBe(`tool_${toolCount - 1}`)
+    expect(capturedRequestBody).not.toContain('catalog-secret')
+  })
+
+  it('projects selected JSON and attachment fields exactly once when plaintext overlaps its alias', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: 'TOKEN', encryptedValue: 'ciphertext' },
+    ])
+    registry.recordResolved('TOKEN', 'TOKEN')
+    let capturedRequestBody = ''
+    mockRunStreamLoop.mockImplementationOnce(async (_url: string, request: RequestInit) => {
+      capturedRequestBody = String(request.body)
+    })
+
+    await runCopilotLifecycle(
+      {
+        message: 'TOKEN',
+        messages: [
+          {
+            role: 'assistant',
+            content: 'TOKEN',
+            function_call: {
+              name: 'legacy-safe',
+              arguments: JSON.stringify({ value: 'TOKEN' }),
+            },
+            tool_calls: [
+              {
+                id: 'call-safe',
+                type: 'function',
+                function: {
+                  name: 'tool-safe',
+                  arguments: JSON.stringify({ value: 'TOKEN' }),
+                },
+              },
+            ],
+            files: [{ name: 'TOKEN.txt', context: 'Context TOKEN' }],
+          },
+        ],
+        fileAttachments: [{ name: 'TOKEN.txt', key: 'safe-key' }],
+        workspaceId: 'ws-1',
+        messageId: 'stream-overlapping-alias',
+      },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        executionContext: {
+          userId: 'user-1',
+          workflowId: '',
+          workspaceId: 'ws-1',
+        },
+        resolvedSecretTraceRegistry: registry,
+      }
+    )
+
+    const sent = JSON.parse(capturedRequestBody)
+    expect(sent.message).toBe('{{TOKEN}}')
+    expect(sent.messages[0]).toMatchObject({
+      content: '{{TOKEN}}',
+      function_call: { arguments: JSON.stringify({ value: '{{TOKEN}}' }) },
+      tool_calls: [
+        {
+          function: { arguments: JSON.stringify({ value: '{{TOKEN}}' }) },
+        },
+      ],
+      files: [
+        {
+          name: '{{TOKEN}}.txt',
+          context: 'Context {{TOKEN}}',
+        },
+      ],
+    })
+    expect(sent.fileAttachments).toEqual([{ name: '{{TOKEN}}.txt', key: 'safe-key' }])
+    expect(capturedRequestBody.replaceAll('{{TOKEN}}', '')).not.toContain('TOKEN')
+    expect(capturedRequestBody).not.toContain('{{{{TOKEN}}}}')
+  })
+
+  it('omits only unsafe durable attachments before the initial Go request', async () => {
+    const unsafe = { id: 'wf-unsafe', name: 'unsafe.txt', key: 'workspace/ws-1/unsafe.txt' }
+    const safe = { id: 'wf-safe', name: 'safe.txt', key: 'workspace/ws-1/safe.txt' }
+    mockFilterModelSafeWorkspaceFileAttachments.mockResolvedValueOnce([safe])
+    let capturedRequestBody = ''
+    mockRunStreamLoop.mockImplementationOnce(async (_url: string, request: RequestInit) => {
+      capturedRequestBody = String(request.body)
+    })
+
+    await runCopilotLifecycle(
+      {
+        message: 'Review files',
+        fileAttachments: [unsafe, safe],
+        workspaceId: 'ws-1',
+        messageId: 'stream-file-provenance',
+      },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        executionContext: { userId: 'user-1', workflowId: '', workspaceId: 'ws-1' },
+      }
+    )
+
+    expect(JSON.parse(capturedRequestBody).fileAttachments).toEqual([safe])
+  })
+
+  it('continues without attachments when durable provenance cannot be verified', async () => {
+    mockFilterModelSafeWorkspaceFileAttachments.mockRejectedValueOnce(new Error('db unavailable'))
+    let capturedRequestBody = ''
+    mockRunStreamLoop.mockImplementationOnce(async (_url: string, request: RequestInit) => {
+      capturedRequestBody = String(request.body)
+    })
+
+    await runCopilotLifecycle(
+      {
+        message: 'Continue safely',
+        fileAttachments: [{ id: 'wf-file', name: 'file.txt', key: 'workspace/ws-1/file.txt' }],
+        workspaceId: 'ws-1',
+        messageId: 'stream-file-provenance-failure',
+      },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        executionContext: { userId: 'user-1', workflowId: '', workspaceId: 'ws-1' },
+      }
+    )
+
+    expect(JSON.parse(capturedRequestBody)).not.toHaveProperty('fileAttachments')
+  })
+
+  it.each(['123', 'true'])(
+    'keeps low-entropy Copilot JSON valid while separating content from controls (%s)',
+    async (secret) => {
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
+      ])
+      registry.recordResolved('TOKEN', secret)
+      const converted = secret === '123' ? 123 : true
+      let capturedRequestBody = ''
+      mockRunStreamLoop.mockImplementationOnce(async (_url: string, request: RequestInit) => {
+        capturedRequestBody = String(request.body)
+      })
+
+      await runCopilotLifecycle(
+        {
+          message: `Message ${secret}`,
+          messages: [
+            {
+              id: secret,
+              role: secret,
+              name: 'assistant-safe',
+              content: `Transcript ${secret}`,
+              function_call: {
+                name: 'legacy-safe',
+                arguments: JSON.stringify({ value: secret, converted }),
+              },
+              tool_calls: [
+                {
+                  id: secret,
+                  type: secret,
+                  function: {
+                    name: 'tool-safe',
+                    arguments: JSON.stringify({ value: secret, converted }),
+                  },
+                },
+              ],
+              fileAttachments: [
+                {
+                  id: secret,
+                  key: secret,
+                  filename: `${secret}.txt`,
+                  media_type: secret,
+                },
+              ],
+              contexts: [{ kind: secret, label: `Label ${secret}`, serverId: secret }],
+              contentBlocks: [
+                {
+                  type: secret,
+                  content: `Block ${secret}`,
+                  toolCall: {
+                    id: secret,
+                    name: 'nested-tool-safe',
+                    state: secret,
+                    params: { value: secret },
+                    result: { success: true, output: { value: secret, converted } },
+                    display: { title: `Title ${secret}` },
+                  },
+                },
+              ],
+            },
+          ],
+          context: [
+            { type: secret, tag: secret, path: secret, content: `Unsafe ${secret}` },
+            {
+              type: secret,
+              tag: secret,
+              path: 'files/safe.txt',
+              content: `Context ${secret}`,
+            },
+          ],
+          contexts: [
+            {
+              kind: secret,
+              serverId: secret,
+              label: `Context label ${secret}`,
+            },
+          ],
+          integrationTools: [
+            {
+              name: 'safe_tool',
+              description: `Description ${secret}`,
+              input_schema: {
+                type: 'object',
+                properties: {
+                  value: {
+                    type: 'string',
+                    title: `Title ${secret}`,
+                    description: `Field ${secret}`,
+                    enum: ['public'],
+                  },
+                },
+                required: ['value'],
+              },
+              params: { runtimeControl: secret },
+              service: secret,
+              operation: secret,
+              oauth: { required: true, provider: secret },
+            },
+            {
+              name: 'unsafe_schema_tool',
+              description: 'Unsafe schema',
+              input_schema: {
+                type: 'object',
+                properties: { [secret]: { type: 'string' } },
+                required: [secret],
+              },
+            },
+            {
+              name: secret,
+              description: 'Unsafe name',
+              input_schema: { type: 'object', properties: {}, required: [] },
+            },
+          ],
+          responseFormat: {
+            name: 'safe_response',
+            schema: {
+              type: 'object',
+              properties: {
+                value: {
+                  type: 'string',
+                  description: `Result ${secret}`,
+                  enum: ['public'],
+                },
+              },
+              required: ['value'],
+            },
+          },
+          fileAttachments: [
+            {
+              id: secret,
+              name: `${secret}.txt`,
+              key: secret,
+              mimeType: secret,
+            },
+          ],
+          vfs: {
+            workspace: { id: secret, ownerId: secret, name: `Workspace ${secret}` },
+            files: [
+              {
+                id: secret,
+                path: secret,
+                folderPath: secret,
+                type: secret,
+                name: `File ${secret}`,
+              },
+              {
+                id: 'safe-file-id',
+                path: 'files/safe.txt',
+                folderPath: 'files',
+                type: 'text/plain',
+                name: `Safe ${secret}`,
+              },
+            ],
+            mcpServers: [
+              { id: secret, name: `Unsafe ${secret}`, url: `https://${secret}.example` },
+              {
+                id: 'safe-mcp-id',
+                name: `Safe MCP ${secret}`,
+                url: 'https://mcp.example',
+              },
+            ],
+          },
+          userTimezone: secret,
+          userMetadata: {
+            name: `User ${secret}`,
+            email: `owner+${secret}@example.com`,
+            timezone: secret,
+          },
+          desktopCapabilities: {
+            terminal: true,
+            terminals: [
+              {
+                id: secret,
+                cwd: `/workspace/${secret}`,
+                running: `command ${secret}`,
+                active: true,
+              },
+              {
+                id: 'safe-terminal-id',
+                cwd: '/workspace/safe',
+                running: `safe command ${secret}`,
+                active: true,
+              },
+            ],
+            browser: true,
+            browserSessions: [
+              { hostname: secret, evidence: 'cookies', lastObservedAt: '2026-01-01T00:00:00.000Z' },
+              {
+                hostname: 'safe.example',
+                evidence: 'sign-in-completed',
+                lastObservedAt: '2026-02-01T00:00:00.000Z',
+              },
+            ],
+          },
+          workspaceId: 'ws-1',
+          messageId: `stream-low-entropy-${secret}`,
+        },
+        {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          executionContext: {
+            userId: 'user-1',
+            workflowId: '',
+            workspaceId: 'ws-1',
+          },
+          resolvedSecretTraceRegistry: registry,
+        }
+      )
+
+      const sent = JSON.parse(capturedRequestBody)
+      expect(sent.messages[0]).toMatchObject({
+        id: secret,
+        role: secret,
+        name: 'assistant-safe',
+        content: 'Transcript {{TOKEN}}',
+        function_call: {
+          name: 'legacy-safe',
+        },
+        tool_calls: [
+          {
+            id: secret,
+            type: secret,
+            function: {
+              name: 'tool-safe',
+            },
+          },
+        ],
+        fileAttachments: [
+          {
+            id: secret,
+            key: secret,
+            filename: '{{TOKEN}}.txt',
+            media_type: secret,
+          },
+        ],
+        contexts: [{ kind: secret, label: 'Label {{TOKEN}}', serverId: secret }],
+        contentBlocks: [
+          {
+            type: secret,
+            content: 'Block {{TOKEN}}',
+            toolCall: {
+              id: secret,
+              name: 'nested-tool-safe',
+              state: secret,
+              params: { value: '{{TOKEN}}' },
+              result: {
+                success: true,
+                output: { value: '{{TOKEN}}', converted: '{{TOKEN}}' },
+              },
+              display: { title: 'Title {{TOKEN}}' },
+            },
+          },
+        ],
+      })
+      expect(JSON.parse(sent.messages[0].function_call.arguments)).toEqual({
+        value: '{{TOKEN}}',
+        converted: '{{TOKEN}}',
+      })
+      expect(JSON.parse(sent.messages[0].tool_calls[0].function.arguments)).toEqual({
+        value: '{{TOKEN}}',
+        converted: '{{TOKEN}}',
+      })
+      expect(sent.context).toEqual([
+        {
+          type: secret,
+          tag: '{{TOKEN}}',
+          path: 'files/safe.txt',
+          content: 'Context {{TOKEN}}',
+        },
+      ])
+      expect(sent.contexts).toEqual([
+        {
+          kind: secret,
+          serverId: secret,
+          label: 'Context label {{TOKEN}}',
+        },
+      ])
+      expect(sent.integrationTools).toHaveLength(1)
+      expect(sent.integrationTools[0]).toMatchObject({
+        name: 'safe_tool',
+        description: 'Description {{TOKEN}}',
+        input_schema: {
+          properties: {
+            value: {
+              title: 'Title {{TOKEN}}',
+              description: 'Field {{TOKEN}}',
+              enum: ['public'],
+            },
+          },
+          required: ['value'],
+        },
+        params: { runtimeControl: secret },
+        service: secret,
+        operation: secret,
+        oauth: { required: true, provider: secret },
+      })
+      expect(sent.responseFormat).toMatchObject({
+        name: 'safe_response',
+        schema: {
+          properties: {
+            value: { description: 'Result {{TOKEN}}', enum: ['public'] },
+          },
+          required: ['value'],
+        },
+      })
+      expect(sent.fileAttachments[0]).toEqual({
+        id: secret,
+        name: '{{TOKEN}}.txt',
+        key: secret,
+        mimeType: secret,
+      })
+      expect(sent.vfs).toEqual({
+        workspace: { id: secret, ownerId: secret, name: 'Workspace {{TOKEN}}' },
+        files: [
+          {
+            id: 'safe-file-id',
+            path: 'files/safe.txt',
+            folderPath: 'files',
+            type: 'text/plain',
+            name: 'Safe {{TOKEN}}',
+          },
+        ],
+        mcpServers: [
+          {
+            id: 'safe-mcp-id',
+            name: 'Safe MCP {{TOKEN}}',
+            url: 'https://mcp.example',
+          },
+        ],
+      })
+      expect(sent).not.toHaveProperty('userTimezone')
+      expect(sent.userMetadata).toEqual({
+        name: 'User {{TOKEN}}',
+        email: 'owner+{{TOKEN}}@example.com',
+      })
+      expect(sent.desktopCapabilities).toEqual({
+        terminal: true,
+        terminals: [
+          {
+            id: 'safe-terminal-id',
+            cwd: '/workspace/safe',
+            running: 'safe command {{TOKEN}}',
+            active: true,
+          },
+        ],
+        browser: true,
+        browserSessions: [
+          {
+            hostname: 'safe.example',
+            evidence: 'sign-in-completed',
+            lastObservedAt: '2026-02-01T00:00:00.000Z',
+          },
+        ],
+      })
+    }
+  )
+
+  it.each(ARBITRARY_SCHEMA_CONTROL_KEYS)(
+    'guards arbitrary %s schema controls before initial Copilot model egress',
+    async (controlKey) => {
+      const secret = `copilot-schema-control-secret-${controlKey}`
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
+      ])
+      registry.recordResolved('TOKEN', secret)
+      const unsafeSchema = {
+        type: 'object',
+        properties: {},
+        [controlKey]: secret,
+      }
+      let capturedRequestBody = ''
+      mockRunStreamLoop.mockImplementationOnce(async (_url: string, request: RequestInit) => {
+        capturedRequestBody = String(request.body)
+      })
+
+      await runCopilotLifecycle(
+        {
+          message: 'Use a safe tool',
+          messageId: `stream-schema-tool-${controlKey}`,
+          integrationTools: [
+            {
+              name: 'unsafe_tool',
+              description: 'Unsafe schema control',
+              input_schema: unsafeSchema,
+            },
+            {
+              name: 'safe_tool',
+              description: 'Safe schema',
+              input_schema: { type: 'object', properties: {} },
+            },
+          ],
+        },
+        {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          executionContext: { userId: 'user-1', workflowId: '', workspaceId: 'ws-1' },
+          resolvedSecretTraceRegistry: registry,
+        }
+      )
+
+      expect(JSON.parse(capturedRequestBody).integrationTools).toEqual([
+        expect.objectContaining({ name: 'safe_tool' }),
+      ])
+
+      mockRunStreamLoop.mockClear()
+      mockRunStreamLoop.mockImplementationOnce(async (_url: string, request: RequestInit) => {
+        capturedRequestBody = String(request.body)
+      })
+      const result = await runCopilotLifecycle(
+        {
+          message: 'Use a response schema',
+          messageId: `stream-schema-response-${controlKey}`,
+          responseFormat: { name: 'unsafe_response', schema: unsafeSchema },
+        },
+        {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          executionContext: { userId: 'user-1', workflowId: '', workspaceId: 'ws-1' },
+          resolvedSecretTraceRegistry: registry,
+        }
+      )
+
+      expect(result.success).toBe(true)
+      expect(JSON.parse(capturedRequestBody)).not.toHaveProperty('responseFormat')
+      expect(capturedRequestBody).not.toContain(secret)
+      expect(mockRunStreamLoop).toHaveBeenCalledOnce()
+    }
+  )
+
+  it('omits malformed and oversized optional Copilot response schemas', async () => {
+    const registry = new ResolvedSecretTraceRegistry()
+    for (const [index, schema] of [
+      { properties: { field: 'not-a-schema' } },
+      { allOf: new Array(100_001) },
+    ].entries()) {
+      let capturedRequestBody = ''
+      mockRunStreamLoop.mockClear()
+      mockRunStreamLoop.mockImplementationOnce(async (_url: string, request: RequestInit) => {
+        capturedRequestBody = String(request.body)
+      })
+
+      const result = await runCopilotLifecycle(
+        {
+          message: 'Continue safely',
+          messageId: `stream-malformed-response-${index}`,
+          responseFormat: { name: 'unsafe_response', schema },
+        },
+        {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          executionContext: { userId: 'user-1', workflowId: '', workspaceId: 'ws-1' },
+          resolvedSecretTraceRegistry: registry,
+        }
+      )
+
+      expect(result.success).toBe(true)
+      expect(JSON.parse(capturedRequestBody)).not.toHaveProperty('responseFormat')
+      expect(mockRunStreamLoop).toHaveBeenCalledOnce()
+    }
+  })
+
+  it.each([
+    ['string', { type: 'string' }],
+    ['true', { type: 'object', nullable: true }],
+  ])(
+    'preserves validated canonical schema controls when an active secret has value %s',
+    async (secret, schema) => {
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
+      ])
+      registry.recordResolved('TOKEN', secret)
+      let capturedRequestBody = ''
+      mockRunStreamLoop.mockImplementationOnce(async (_url: string, request: RequestInit) => {
+        capturedRequestBody = String(request.body)
+      })
+
+      await runCopilotLifecycle(
+        {
+          message: 'Use a safe tool',
+          messageId: `stream-canonical-tool-${secret}`,
+          integrationTools: [
+            {
+              name: 'unsafe_tool',
+              description: 'Unsafe canonical control',
+              input_schema: schema,
+            },
+            {
+              name: 'safe_tool',
+              description: 'Safe schema',
+              input_schema: { type: 'object', properties: {} },
+            },
+          ],
+        },
+        {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          executionContext: { userId: 'user-1', workflowId: '', workspaceId: 'ws-1' },
+          resolvedSecretTraceRegistry: registry,
+        }
+      )
+
+      expect(JSON.parse(capturedRequestBody).integrationTools).toEqual([
+        expect.objectContaining({ name: 'unsafe_tool', input_schema: schema }),
+        expect.objectContaining({ name: 'safe_tool' }),
+      ])
+
+      mockRunStreamLoop.mockClear()
+      mockRunStreamLoop.mockImplementationOnce(async (_url: string, request: RequestInit) => {
+        capturedRequestBody = String(request.body)
+      })
+      const result = await runCopilotLifecycle(
+        {
+          message: 'Use a response schema',
+          messageId: `stream-canonical-response-${secret}`,
+          responseFormat: { name: 'unsafe_response', schema },
+        },
+        {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          executionContext: { userId: 'user-1', workflowId: '', workspaceId: 'ws-1' },
+          resolvedSecretTraceRegistry: registry,
+        }
+      )
+
+      expect(result.success).toBe(true)
+      expect(JSON.parse(capturedRequestBody).responseFormat.schema).toEqual(schema)
+      expect(mockRunStreamLoop).toHaveBeenCalledOnce()
+    }
+  )
+
+  it('forwards safe canonical schema controls byte-for-byte to Copilot', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: 'unrelated-secret', encryptedValue: 'ciphertext' },
+    ])
+    const schema = {
+      type: ['object', 'null'],
+      nullable: true,
+      readOnly: false,
+      properties: { value: { type: 'string' } },
+    }
+    let capturedRequestBody = ''
+    mockRunStreamLoop.mockImplementationOnce(async (_url: string, request: RequestInit) => {
+      capturedRequestBody = String(request.body)
+    })
+
+    await runCopilotLifecycle(
+      {
+        message: 'Use a safe response schema',
+        messageId: 'stream-safe-canonical-response',
+        responseFormat: { name: 'safe_response', schema },
+      },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        executionContext: { userId: 'user-1', workflowId: '', workspaceId: 'ws-1' },
+        resolvedSecretTraceRegistry: registry,
+      }
+    )
+
+    expect(JSON.parse(capturedRequestBody).responseFormat.schema).toEqual(schema)
+  })
+
+  it('fails before the initial Go request when model projection is incomplete', async () => {
+    const registry = new ResolvedSecretTraceRegistry()
+    registry.markIncomplete()
+
+    const result = await runCopilotLifecycle(
+      { message: 'possibly secret', messageId: 'stream-incomplete-projection' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        executionContext: {
+          userId: 'user-1',
+          workflowId: '',
+          workspaceId: 'ws-1',
+        },
+        resolvedSecretTraceRegistry: registry,
+      }
+    )
+
+    expect(result).toMatchObject({
+      success: false,
+      error: 'Copilot model input could not be safely projected',
+    })
+    expect(mockRunStreamLoop).not.toHaveBeenCalled()
   })
 
   describe('tool permission feature flag', () => {
@@ -603,6 +1524,46 @@ describe('runCopilotLifecycle', () => {
         billingAttribution
       )
     }
+  })
+
+  it('fails closed instead of sending a secret-bearing tool name on resume', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: 'unsafe-tool', encryptedValue: 'ciphertext' },
+    ])
+    registry.recordResolved('TOKEN', 'unsafe-tool')
+    mockRunStreamLoop.mockImplementationOnce(
+      async (
+        _fetchUrl: string,
+        _fetchOptions: RequestInit,
+        context: StreamingContext
+      ): Promise<void> => {
+        context.toolCalls.set('tool-1', {
+          id: 'tool-1',
+          name: 'unsafe-tool',
+          status: MothershipStreamV1ToolOutcome.success,
+          result: { success: true, output: {} },
+        })
+        context.awaitingAsyncContinuation = {
+          checkpointId: 'ckpt-1',
+          pendingToolCallIds: ['tool-1'],
+        }
+      }
+    )
+
+    const result = await runCopilotLifecycle(
+      { message: 'hello', messageId: 'message-unsafe-resume-name' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        resolvedSecretTraceRegistry: registry,
+      }
+    )
+
+    expect(result).toMatchObject({
+      success: false,
+      error: 'Copilot model input could not be safely projected',
+    })
+    expect(mockRunStreamLoop).toHaveBeenCalledTimes(1)
   })
 
   it('runs legacy-v0 during Sim-first deployment without guessed billing aliases', async () => {

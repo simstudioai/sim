@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { LARGE_VALUE_THRESHOLD_BYTES } from '@/lib/execution/payloads/large-value-ref'
 import type { UserFile } from '@/executor/types'
 import {
@@ -17,6 +17,7 @@ import {
   getProviderFileStrategy,
   INLINE_ATTACHMENT_THRESHOLD_BYTES,
   inferAttachmentMimeType,
+  isProviderAttachmentFilenameModelBound,
   LARGE_FILE_PATH_THRESHOLD_BYTES,
   prepareProviderAttachments,
   shouldUseLargeFilePath,
@@ -94,6 +95,82 @@ describe('provider attachments', () => {
         type: 'input_file',
         filename: 'notes.md',
         file_data: `data:text/markdown;base64,${markdownFile.base64}`,
+      },
+    ])
+  })
+
+  it('keeps image filenames raw for MIME inference and does not project unsent names', () => {
+    const source: UserFile = {
+      ...imageFile,
+      name: 'secret-image.png',
+      type: 'application/octet-stream',
+    }
+    const projectFilename = vi.fn(() => '{{IMAGE_NAME}}.png')
+
+    const content = buildOpenAIMessageContent('Analyze', [source], 'openai', projectFilename)
+
+    expect(projectFilename).not.toHaveBeenCalled()
+    expect(source.name).toBe('secret-image.png')
+    expect(content).toEqual([
+      { type: 'input_text', text: 'Analyze' },
+      {
+        type: 'input_image',
+        image_url: 'data:image/png;base64,iVBORw0KGgo=',
+        detail: 'auto',
+      },
+    ])
+  })
+
+  it('treats an image filename as provider-bound only when its upload path is active', () => {
+    const largeImage = { ...imageFile, size: LARGE_FILE_PATH_THRESHOLD_BYTES + 1 }
+
+    expect(isProviderAttachmentFilenameModelBound(largeImage, 'openai')).toBe(false)
+    expect(
+      isProviderAttachmentFilenameModelBound(largeImage, 'openai', {
+        largeFilePathAvailable: true,
+      })
+    ).toBe(true)
+  })
+
+  it('projects a document filename only after raw MIME and extension inference', () => {
+    const source: UserFile = {
+      ...pdfFile,
+      name: 'report.pdf',
+      type: 'application/octet-stream',
+    }
+    const projectFilename = vi.fn(() => '{{FILE_NAME}}.pdf')
+
+    const content = buildOpenAIMessageContent('Analyze', [source], 'openai', projectFilename)
+
+    expect(projectFilename).toHaveBeenCalledOnce()
+    expect(projectFilename).toHaveBeenCalledWith('report.pdf', 'pdf')
+    expect(source.name).toBe('report.pdf')
+    expect(content).toEqual([
+      { type: 'input_text', text: 'Analyze' },
+      {
+        type: 'input_file',
+        filename: '{{FILE_NAME}}.pdf',
+        file_data: 'data:application/pdf;base64,cGRm',
+      },
+    ])
+  })
+
+  it('uses a neutral Bedrock document name when projection changes the original', () => {
+    const content = buildBedrockMessageContent(
+      'Analyze',
+      [{ ...markdownFile, name: 'TOKEN.md' }],
+      'bedrock',
+      () => '{{TOKEN}}.md'
+    )
+
+    expect(content).toEqual([
+      { text: 'Analyze' },
+      {
+        document: {
+          format: 'md',
+          name: 'Document',
+          source: { bytes: Buffer.from(markdownFile.base64, 'base64') },
+        },
       },
     ])
   })
