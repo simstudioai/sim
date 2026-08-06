@@ -16,7 +16,11 @@ The **Function block** runs your own JavaScript, Python, or Shell code as one st
 
 ### Code
 
-JavaScript is the default. Python and Shell appear when a remote sandbox provider is enabled. Reference an earlier output directly, with no quotes around the tag, and read an environment variable with `{{VAR}}`:
+JavaScript is the default. The language field is part of the saved workflow and is
+never removed when Sandbox configuration changes. Python remains available as a
+language choice; Shell and custom Sandbox controls appear when a remote Function
+sandbox provider is enabled. Reference an earlier output directly, with no quotes
+around the tag, and read an environment variable with `{{VAR}}`:
 
 <Tabs items={['JavaScript', 'Python', 'Shell']}>
   <Tab value="JavaScript">
@@ -98,6 +102,13 @@ on a self-hosted instance, build and configure the provider's dedicated
 generate are captured as images automatically.
 </Callout>
 
+<Callout type="info">
+If no remote provider is configured, JavaScript without `import` or `require`
+continues to run in Sim's local isolated VM. Missing E2B or Daytona configuration
+does not disable that path. Remote-only code fails with an explicit configuration
+error; Sim does not reinterpret Python or Shell as JavaScript.
+</Callout>
+
 The dedicated Function base has the same runtime and universal package contract
 on E2B and Daytona. It includes this data-science stack; use a workspace sandbox
 when another dependency must be present:
@@ -128,7 +139,9 @@ Create and edit sandboxes in **Settings → Sandboxes**. Only workspace admins c
 create or edit them. On sim.ai they need an active Max or Enterprise plan;
 self-hosted deployments turn them on with `SANDBOXES_ENABLED` (see
 [self-hosted enterprise](/platform/enterprise/self-hosted)). The section is
-hidden when a deployment has no sandbox provider configured.
+usable only when the deployment also has a remote provider and immutable Function
+base configured. The Function block hides its custom Sandbox selector when that
+runtime is unavailable.
 
 1. **Name** the sandbox — `bigquery-etl`, `scraping`, whatever the job is.
 2. Pick the **language**. This selects pip or npm for the dependency list. Python
@@ -363,8 +376,9 @@ The lazy `sim.files` and `sim.values` helpers are available only in JavaScript f
 - **Use stdout to debug.** `console.log()`, `print()`, and ordinary shell output land in `<function.stdout>` and the run logs.
 
 <FAQ items={[
-  { question: "What languages does the Function block support?", answer: "JavaScript, Python, and Shell. JavaScript is the default. Python and Shell appear when a remote sandbox provider is enabled." },
+  { question: "What languages does the Function block support?", answer: "JavaScript, Python, and Shell. JavaScript is the default. Python remains a stable saved language choice; Shell and custom Sandbox controls appear when a remote sandbox provider is enabled. Python and Shell execution require that provider." },
   { question: "When does code run locally vs. in a sandbox?", answer: "JavaScript without external imports runs in a local isolated sandbox for speed. JavaScript that uses import or require, Python, and Shell run in the configured remote sandbox." },
+  { question: "Does JavaScript still work without E2B or Daytona?", answer: "Yes. JavaScript without import or require runs in Sim's local isolated VM and does not require a remote provider. JavaScript with external imports, Python, Shell, and custom Sandboxes require E2B or Daytona and fail explicitly when it is unavailable." },
   { question: "How do I reference outputs from other blocks inside my code?", answer: "Use angle-bracket syntax directly, like <agent.content> or <api.data>, with no quotes around the tag — Sim replaces it with the real value before execution. For environment variables, use double curly braces: {{API_KEY}}." },
   { question: "What does the Function block return?", answer: "Two outputs: result and stdout. Use return in JavaScript, assign __sim_result__ in Python, or print an __SIM_RESULT__= marker in Shell to set result. Ordinary console, print, and command output goes to stdout." },
   { question: "Can I make HTTP requests from a Function block?", answer: "Yes. fetch() is available in JavaScript with async/await. In Python, use requests or httpx. In Shell, use curl or a CLI available on the selected sandbox." },

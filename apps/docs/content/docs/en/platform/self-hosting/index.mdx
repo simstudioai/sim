@@ -119,12 +119,11 @@ Sim is self-contained for the core editor and execution engine. A few features r
 | **Agent blocks** | An API key for at least one model provider | Or a self-hosted OpenAI-compatible endpoint: Ollama, vLLM, or LiteLLM. |
 | **Chat module** | `COPILOT_API_KEY` from sim.ai | Set `NEXT_PUBLIC_CHAT_DISABLED=true` to hide the module instead. |
 | **Integrations** | Your own OAuth app per service | See [Integrations & OAuth](/platform/self-hosting/integrations-oauth). |
-| **Function / Pi blocks at scale** | Optional E2B or Daytona key | Without one, code runs in the in-process isolated-vm sandbox. See [Security](/platform/self-hosting/security). |
+| **Remote Function / Pi execution** | Optional E2B or Daytona key | Without one, JavaScript Function code that has no `import` or `require` still runs in the in-process isolated VM. Python, Shell, JavaScript with external imports, custom Function Sandboxes, and Pi require a configured remote provider. See [Security](/platform/self-hosting/security). |
 
 <FAQ items={[
   { question: "What are the minimum requirements to self-host Sim?", answer: "At minimum you need 2 CPU cores, 12 GB RAM, 20 GB SSD storage, and Docker 20.10 or later. Memory is typically the constraining factor due to workflow execution (isolated-vm sandboxing), file processing, and vector operations (pgvector)."},
   { question: "What are the required environment variables for production?", answer: "Three secrets are required: BETTER_AUTH_SECRET (authentication), ENCRYPTION_KEY (data encryption), and INTERNAL_API_SECRET (service-to-service auth). Generate each with openssl rand -hex 32. You also need to set NEXT_PUBLIC_APP_URL and BETTER_AUTH_URL to your domain."},
   { question: "Can I use Sim with local AI models?", answer: "Yes. Sim supports Ollama for local model inference. Use docker-compose.ollama.yml instead of docker-compose.prod.yml. It offers both GPU (with NVIDIA support) and CPU-only profiles, and automatically pulls gemma3:4b as a starter model." },
 ]} />
-
 
