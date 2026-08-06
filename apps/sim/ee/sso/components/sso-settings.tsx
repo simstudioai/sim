@@ -713,19 +713,26 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
                     inputClassName={!showClientSecret ? '[-webkit-text-security:disc]' : undefined}
                     error={showErrors && errors.clientSecret.length > 0}
                     endAdornment={
-                      <Button
-                        type='button'
-                        variant='ghost'
-                        onClick={() => setShowClientSecret((s) => !s)}
-                        className='size-6 p-0 text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-                        aria-label={showClientSecret ? 'Hide client secret' : 'Show client secret'}
-                      >
-                        {showClientSecret ? (
-                          <EyeOff className='size-[14px]' />
-                        ) : (
-                          <Eye className='size-[14px]' />
-                        )}
-                      </Button>
+                      // Only offer the reveal once there is something to reveal. The
+                      // stored secret is never sent to the browser, so on an untouched
+                      // edit the toggle would be a control that visibly does nothing.
+                      formData.clientSecret ? (
+                        <Button
+                          type='button'
+                          variant='ghost'
+                          onClick={() => setShowClientSecret((s) => !s)}
+                          className='size-6 p-0 text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                          aria-label={
+                            showClientSecret ? 'Hide client secret' : 'Show client secret'
+                          }
+                        >
+                          {showClientSecret ? (
+                            <EyeOff className='size-[14px]' />
+                          ) : (
+                            <Eye className='size-[14px]' />
+                          )}
+                        </Button>
+                      ) : undefined
                     }
                   />
                 </SettingRow>
