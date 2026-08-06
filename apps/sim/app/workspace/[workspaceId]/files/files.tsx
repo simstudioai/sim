@@ -197,22 +197,20 @@ const hasExternalFiles = (dataTransfer: DataTransfer): boolean =>
   dataTransfer.types.includes('Files')
 
 function formatFileType(storedType: string | null, filename: string): string {
-  // A stored `application/octet-stream` labels nothing and matches no filter, so the
-  // effective type is resolved from the filename first — see resolveEffectiveMimeType.
   const mimeType = resolveEffectiveMimeType(storedType, filename)
 
-  if (mimeType && MIME_TYPE_LABELS[mimeType]) {
+  if (MIME_TYPE_LABELS[mimeType]) {
     return MIME_TYPE_LABELS[mimeType]
   }
 
-  if (mimeType?.startsWith('audio/')) return 'Audio'
-  if (mimeType?.startsWith('video/')) return 'Video'
-  if (mimeType?.startsWith('image/')) return 'Image'
+  if (mimeType.startsWith('audio/')) return 'Audio'
+  if (mimeType.startsWith('video/')) return 'Video'
+  if (mimeType.startsWith('image/')) return 'Image'
 
   const ext = getFileExtension(filename)
   if (ext) return ext.toUpperCase()
 
-  return mimeType ?? 'File'
+  return storedType ?? 'File'
 }
 
 export function Files() {
@@ -498,9 +496,9 @@ export function Files() {
     if (typeFilter.length > 0) {
       result = result.filter((f) => {
         const ext = getFileExtension(f.name)
-        // Matching on the raw stored type would hide every file the browser uploaded as
+        // Matching the raw stored type would hide every file the browser uploaded as
         // `application/octet-stream` from the audio/video/image filters.
-        const type = resolveEffectiveMimeType(f.type, f.name) ?? ''
+        const type = resolveEffectiveMimeType(f.type, f.name)
         if (typeFilter.includes('document') && isSupportedExtension(ext)) return true
         if (typeFilter.includes('audio') && isAudioFileType(type)) return true
         if (typeFilter.includes('video') && isVideoFileType(type)) return true

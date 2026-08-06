@@ -4,7 +4,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Music } from '@sim/emcn/icons'
 import dynamic from 'next/dynamic'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
-import { getFileExtension, resolveEffectiveMimeType } from '@/lib/uploads/utils/file-utils'
+import { getFileExtension, resolveMediaMimeType } from '@/lib/uploads/utils/file-utils'
 import {
   useWorkspaceFileBinary,
   useWorkspaceFileContent,
@@ -361,30 +361,6 @@ function useBlobUrl(workspaceId: string, fileId: string, fileKey: string) {
   return { fileData, isLoading, error, blobUrl, replaceBlobUrl }
 }
 
-const MEDIA_FALLBACK_MIME = { audio: 'audio/mpeg', video: 'video/mp4' } as const
-
-/**
- * The `type` for the blob backing an `<audio>`/`<video>` element. That type is the only
- * format signal the element gets, so it has to be resolved against the filename rather
- * than read off the record: storage legitimately holds `application/octet-stream` (the
- * browser reports it for plenty of media formats, and the presigned PUT handshake
- * requires persisting it verbatim), and an element handed that type cannot determine the
- * format and renders nothing — which is why the same file downloads perfectly.
- *
- * Anything that does not resolve to a playable media type falls back to the kind's
- * default rather than being passed through, so a stale or mismatched stored type can
- * never leave the element with a type it cannot play.
- */
-function resolveMediaBlobType(
-  storedType: string | null,
-  filename: string,
-  kind: 'audio' | 'video'
-): string {
-  const resolved = resolveEffectiveMimeType(storedType, filename)
-  if (resolved?.startsWith('audio/') || resolved?.startsWith('video/')) return resolved
-  return MEDIA_FALLBACK_MIME[kind]
-}
-
 /**
  * Shared blob-backed preview for audio and video files — the fetch, blob-URL
  * lifecycle, and error/loading handling are identical; only the rendered
@@ -407,7 +383,7 @@ const MediaPreview = memo(function MediaPreview({
     replaceBlobUrl,
   } = useBlobUrl(workspaceId, file.id, file.key)
 
-  const mediaType = resolveMediaBlobType(file.type, file.name, kind)
+  const mediaType = resolveMediaMimeType(file.type, file.name, kind)
 
   useEffect(() => {
     if (!fileData) return

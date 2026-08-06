@@ -312,7 +312,6 @@ const EXTENSION_TO_MIME: Record<string, string> = {
   xls: 'application/vnd.ms-excel',
   ppt: 'application/vnd.ms-powerpoint',
   md: 'text/markdown',
-  jsonl: 'application/jsonl',
   yaml: 'application/x-yaml',
   yml: 'application/x-yaml',
   rtf: 'application/rtf',
@@ -363,15 +362,12 @@ const EXTENSION_TO_MIME: Record<string, string> = {
   graphql: 'text/x-graphql',
   gql: 'text/x-graphql',
   proto: 'text/x-protobuf',
-  mmd: 'text/x-mermaid',
-  diff: 'text/x-diff',
-  patch: 'text/x-diff',
-  fish: 'text/x-shellscript',
 
   // Audio
   mp3: 'audio/mpeg',
   m4a: 'audio/mp4',
   wav: 'audio/wav',
+  webm: 'audio/webm',
   ogg: 'audio/ogg',
   flac: 'audio/flac',
   aac: 'audio/aac',
@@ -382,32 +378,71 @@ const EXTENSION_TO_MIME: Record<string, string> = {
   mov: 'video/quicktime',
   avi: 'video/x-msvideo',
   mkv: 'video/x-matroska',
-  // `.webm` is both an audio and a video container; the video type is the safe
-  // resolution because a `<video>` element plays an audio-only stream, while an
-  // `<audio>` element handed a video stream drops the picture.
-  webm: 'video/webm',
 }
 
-/**
- * MIME types that carry no format information. Storage keeps whatever the browser
- * reported at upload time, and the direct-PUT path preserves it verbatim (see
- * {@link getFileContentType}), so a stored type may be one of these even when the
- * filename identifies the format precisely.
- */
-const GENERIC_MIME_TYPES = new Set(['application/octet-stream', 'binary/octet-stream'])
+const GENERIC_MIME_TYPE = 'application/octet-stream'
+
+/** Every MIME type that identifies no format, including the legacy `binary/` spelling. */
+const GENERIC_MIME_TYPES = new Set([GENERIC_MIME_TYPE, 'binary/octet-stream'])
 
 /**
  * Get MIME type from file extension (fallback if not provided)
  */
 export function getMimeTypeFromExtension(extension: string): string {
-  return EXTENSION_TO_MIME[extension.toLowerCase()] || 'application/octet-stream'
+  return EXTENSION_TO_MIME[extension.toLowerCase()] || GENERIC_MIME_TYPE
+}
+
+/**
+ * The MIME type that best identifies `filename`, preferring `declaredType` — by a browser
+ * at upload time or by storage at read time — and falling back to the extension when what
+ * was declared identifies no format.
+ *
+ * A declared `application/octet-stream` is not an error: browsers report it for plenty of
+ * real formats, and the presigned PUT handshake requires persisting it verbatim (see
+ * {@link getFileContentType}). A stored type therefore has to be resolved here before it
+ * can drive rendering — a truthiness check (`file.type || fallback`) passes the generic
+ * type straight through, and a `Blob` or media element handed that renders nothing.
+ */
+export function resolveEffectiveMimeType(
+  declaredType: string | null | undefined,
+  filename: string
+): string {
+  const declared = declaredType?.trim()
+  if (declared && !GENERIC_MIME_TYPES.has(declared)) return declared
+  return getMimeTypeFromExtension(getFileExtension(filename))
+}
+
+const MEDIA_FALLBACK_MIME = { audio: 'audio/mpeg', video: 'video/mp4' } as const
+
+/**
+ * The MIME type to hand an `<audio>`/`<video>` element, given which of the two the caller
+ * is rendering.
+ *
+ * Beyond {@link resolveEffectiveMimeType} this settles an ambiguity a filename alone cannot:
+ * `.webm` and `.ogg` are both audio and video containers, so a resolved `audio/webm` would
+ * make a `<video>` element drop the picture. The caller has already chosen the element, so
+ * the container subtype is kept and retagged to that kind — the choice belongs here, where
+ * the kind is known, and not in the extension table, which several non-viewer callers share.
+ *
+ * A type naming no media format falls back to the kind's default: passed through, it would
+ * leave the element unable to determine the format, rendering nothing.
+ */
+export function resolveMediaMimeType(
+  declaredType: string | null | undefined,
+  filename: string,
+  kind: 'audio' | 'video'
+): string {
+  const resolved = resolveEffectiveMimeType(declaredType, filename)
+  const [type, subtype] = resolved.split('/')
+  if (type === kind) return resolved
+  if (type === 'audio' || type === 'video') return `${kind}/${subtype}`
+  return MEDIA_FALLBACK_MIME[kind]
 }
 
 /**
  * Resolve a reliable MIME type from a file, falling back to the extension map
- * when the browser reports an empty type. By default treats
- * `application/octet-stream` as "unknown" and falls back to the extension —
- * pass `{ preserveOctetStream: true }` for direct PUT uploads where the
+ * when the browser reports an empty or generic type. Pass
+ * `{ preserveOctetStream: true }` for direct PUT uploads where the
  * browser-supplied content-type must match the presigned handshake exactly.
  */
 export function resolveFileType(
@@ -415,12 +450,8 @@ export function resolveFileType(
   options?: { preserveOctetStream?: boolean }
 ): string {
   const browserType = file.type?.trim()
-  if (browserType) {
-    if (options?.preserveOctetStream || browserType !== 'application/octet-stream') {
-      return browserType
-    }
-  }
-  return getMimeTypeFromExtension(getFileExtension(file.name))
+  if (browserType && options?.preserveOctetStream) return browserType
+  return resolveEffectiveMimeType(browserType, file.name)
 }
 
 /**
@@ -430,32 +461,6 @@ export function resolveFileType(
  */
 export function getFileContentType(file: File): string {
   return resolveFileType(file, { preserveOctetStream: true })
-}
-
-/**
- * The MIME type to render a *stored* file as, resolving the generic types that storage
- * legitimately holds against the filename.
- *
- * A stored `application/octet-stream` is not an error — browsers report it for plenty of
- * real formats, and the presigned PUT handshake requires persisting it verbatim. Any
- * consumer that feeds a stored type to a `Blob`, a media element, or a type filter must
- * go through this rather than trusting `file.type` directly: a truthiness check
- * (`file.type || fallback`) passes `application/octet-stream` straight through, and a
- * media element handed that blob cannot determine the format and renders nothing.
- *
- * Returns `null` only when neither the stored type nor the extension identifies the file.
- */
-export function resolveEffectiveMimeType(
-  storedType: string | null | undefined,
-  filename: string
-): string | null {
-  const stored = storedType?.trim()
-  if (stored && !GENERIC_MIME_TYPES.has(stored)) return stored
-
-  const fromExtension = getMimeTypeFromExtension(getFileExtension(filename))
-  if (!GENERIC_MIME_TYPES.has(fromExtension)) return fromExtension
-
-  return stored || null
 }
 
 /**

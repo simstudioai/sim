@@ -238,11 +238,6 @@ describe('resolveFileCategory — formats accepted on upload must be previewable
       expect(resolveFileCategory(null, filename)).toBe('unsupported')
     }
   )
-
-  it('.jsonl opens in the text editor', () => {
-    expect(resolveFileCategory('application/jsonl', 'events.jsonl')).toBe('text-editable')
-    expect(resolveFileCategory('application/octet-stream', 'events.jsonl')).toBe('text-editable')
-  })
 })
 
 describe('resolveFileCategory — extension case', () => {
