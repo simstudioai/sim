@@ -23,6 +23,7 @@ import type {
 } from '@/connectors/types'
 import {
   CONNECTOR_MAX_FILE_BYTES,
+  isListingTruncated,
   isSkippedDocument,
   markSkipped,
   parseMultiValue,
@@ -381,8 +382,23 @@ export const simFilesConnector: ConnectorConfig = {
     syncContext.simFilesIndexed = indexedSoFar + indexableCount
 
     if (capReached) {
-      // The listing stops short of the source, so it cannot be used to infer deletions.
-      syncContext.listingCapped = true
+      /**
+       * Hitting the cap is not the same as truncating. If the source ran out at
+       * exactly `maxFiles` — nothing dropped from this page and no further page —
+       * the listing is complete and safe to reconcile deletions against. Marking it
+       * capped anyway would suppress reconciliation forever, so a file deleted at the
+       * source would never leave the knowledge base. Mirrors `decideTaskCap`'s
+       * `droppedFromPage || (hitLimit && morePagesAvailable)` in the Asana connector.
+       */
+      if (
+        isListingTruncated({
+          capReached,
+          droppedFromPage: documents.length < items.length,
+          morePagesAvailable: pageFilled,
+        })
+      ) {
+        syncContext.listingCapped = true
+      }
       return { documents, hasMore: false }
     }
 

@@ -11,6 +11,7 @@ import type {
 } from '@/connectors/types'
 import {
   CONNECTOR_MAX_FILE_BYTES,
+  isListingTruncated,
   isSkippedDocument,
   markSkipped,
   parseTagDate,
@@ -285,8 +286,20 @@ export const simConversationsConnector: ConnectorConfig = {
     syncContext.simConversationsIndexed = indexedSoFar + indexableCount
 
     if (capReached) {
-      // The listing stops short of the source, so it cannot be used to infer deletions.
-      syncContext.listingCapped = true
+      /**
+       * Only a genuinely truncated listing blocks deletion reconciliation — see the
+       * matching note in the files connector. Exhausting the source at exactly
+       * `maxConversations` is a complete listing.
+       */
+      if (
+        isListingTruncated({
+          capReached,
+          droppedFromPage: documents.length < items.length,
+          morePagesAvailable: pageFilled,
+        })
+      ) {
+        syncContext.listingCapped = true
+      }
       return { documents, hasMore: false }
     }
 
