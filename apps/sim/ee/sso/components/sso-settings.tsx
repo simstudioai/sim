@@ -516,6 +516,10 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
                 placeholder='Select or enter a provider ID'
                 editable
               />
+              <p className='text-[var(--text-muted)] text-small'>
+                Must be unique across all Sim organizations — include something specific to you,
+                like <span className='font-mono'>azure-ad-acme</span>.
+              </p>
             </SettingRow>
 
             <SettingRow

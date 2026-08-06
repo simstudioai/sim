@@ -973,6 +973,7 @@ export const schemaMock = {
     userId: 'userId',
     providerId: 'providerId',
     organizationId: 'organizationId',
+    domainVerified: 'domainVerified',
   },
   ssoDomain: {
     id: 'id',

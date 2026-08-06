@@ -39,12 +39,19 @@ function queueMembers(rows: Array<Record<string, unknown>>) {
 }
 
 /**
- * Queues existing SSO provider rows for BOTH domain-conflict lookups (the
- * pre-registration check and the post-registration re-check).
+ * Queues the sso_provider lookups a registration performs, in route order:
+ * providerId conflict then domain conflict, once before OIDC discovery and again
+ * immediately before the write. `providerIdRows` defaults to empty so
+ * domain-conflict tests are unaffected by the providerId check.
  */
-function queueProviders(rows: Array<Record<string, unknown>>) {
-  queueTableRows(schemaMock.ssoProvider, rows)
-  queueTableRows(schemaMock.ssoProvider, rows)
+function queueProviders(
+  domainRows: Array<Record<string, unknown>>,
+  providerIdRows: Array<Record<string, unknown>> = []
+) {
+  queueTableRows(schemaMock.ssoProvider, providerIdRows)
+  queueTableRows(schemaMock.ssoProvider, domainRows)
+  queueTableRows(schemaMock.ssoProvider, providerIdRows)
+  queueTableRows(schemaMock.ssoProvider, domainRows)
 }
 
 vi.mock('@/lib/auth', () => ({
@@ -214,6 +221,73 @@ describe('POST /api/auth/sso/register', () => {
     expect(mockRegisterSSOProvider).toHaveBeenCalledTimes(1)
   })
 
+  /**
+   * Better Auth scopes providerId uniqueness globally, not per tenant, and would
+   * otherwise reject this with an opaque 422 that reads like a bug. Sim catches
+   * it first and returns a 409 naming a free id.
+   */
+  it('rejects a providerId already taken by another organization', async () => {
+    queueMembers([{ organizationId: 'org-b', role: 'owner' }])
+    queueProviders([], [{ domain: 'other.com', userId: 'u-other', organizationId: 'org-other' }])
+    const res = await POST(request({ ...OIDC_BODY, orgId: 'org-b' }))
+    const json = await res.json()
+    expect(res.status).toBe(409)
+    expect(json.code).toBe('SSO_PROVIDER_ID_TAKEN')
+    expect(mockRegisterSSOProvider).not.toHaveBeenCalled()
+  })
+
+  it('suggests a free, domain-scoped providerId when the requested one is taken', async () => {
+    queueMembers([{ organizationId: 'org-b', role: 'owner' }])
+    queueProviders([], [{ domain: 'other.com', userId: 'u-other', organizationId: 'org-other' }])
+    const res = await POST(request({ ...OIDC_BODY, orgId: 'org-b' }))
+    const json = await res.json()
+    expect(json.error).toContain('acme-oidc-acme')
+  })
+
+  it('does not treat the caller’s own provider as a providerId conflict', async () => {
+    queueMembers([{ organizationId: 'org1', role: 'owner' }])
+    queueProviders([], [{ domain: 'acme.com', userId: 'u1', organizationId: 'org1' }])
+    const res = await POST(request({ ...OIDC_BODY, orgId: 'org1' }))
+    expect(res.status).toBe(200)
+  })
+
+  /**
+   * Better Auth's `isTrustedProvider` reads this flag, and it is the only thing
+   * that lets an SSO sign-in link to a pre-existing same-email account once the
+   * plugin stopped honouring `trustedProviders` for SSO. `registerSSOProvider`
+   * always persists `false`, so the route must set it after the write.
+   */
+  it('marks the provider domain-verified after registering', async () => {
+    queueMembers([{ organizationId: 'org1', role: 'owner' }])
+    const res = await POST(request({ ...OIDC_BODY, orgId: 'org1' }))
+    expect(res.status).toBe(200)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({ domainVerified: true })
+  })
+
+  /** updateSSOProvider resets domainVerified to false whenever the domain changes. */
+  it('re-marks the provider domain-verified after an update', async () => {
+    queueMembers([{ organizationId: 'org1', role: 'owner' }])
+    queueProviders([])
+    queueTableRows(schemaMock.ssoProvider, [{ id: 'p1' }])
+    const res = await POST(request({ ...OIDC_BODY, orgId: 'org1' }))
+    expect(res.status).toBe(200)
+    expect(mockUpdateSSOProvider).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({ domainVerified: true })
+  })
+
+  it('does not mark domain-verified when the registration is rolled back', async () => {
+    queueMembers([{ organizationId: 'org1', role: 'owner' }])
+    resetDbChainMock()
+    queueMembers([{ organizationId: 'org1', role: 'owner' }])
+    // Verified for both pre-write gates, then revoked for the post-write re-check.
+    queueTableRows(schemaMock.ssoDomain, [{ id: 'verified-domain' }])
+    queueTableRows(schemaMock.ssoDomain, [{ id: 'verified-domain' }])
+    queueTableRows(schemaMock.ssoDomain, [])
+    const res = await POST(request({ ...OIDC_BODY, orgId: 'org1' }))
+    expect(res.status).toBe(403)
+    expect(dbChainMockFns.set).not.toHaveBeenCalledWith({ domainVerified: true })
+  })
+
   it('nests the attribute mapping inside oidcConfig (Better Auth reads it there)', async () => {
     queueMembers([{ organizationId: 'org1', role: 'owner' }])
     await POST(
@@ -227,8 +301,7 @@ describe('POST /api/auth/sso/register', () => {
 
   it('routes an edit of an existing owned provider through updateSSOProvider', async () => {
     queueMembers([{ organizationId: 'org1', role: 'owner' }])
-    queueTableRows(schemaMock.ssoProvider, []) // findDomainConflict #1 → no conflict
-    queueTableRows(schemaMock.ssoProvider, []) // findDomainConflict #2 → no conflict
+    queueProviders([]) // no providerId or domain conflicts on either pass
     queueTableRows(schemaMock.ssoProvider, [{ id: 'p1' }]) // provider already owned → edit
     const res = await POST(request({ ...OIDC_BODY, orgId: 'org1' }))
     expect(res.status).toBe(200)

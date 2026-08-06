@@ -40,6 +40,18 @@ function selectTokenEndpointAuthMethod(
   return 'client_secret_post'
 }
 
+/**
+ * Proposes a free, tenant-scoped provider ID by suffixing the domain's first
+ * label (`azure-ad` + `acme.com` -> `azure-ad-acme`), so a caller who hit the
+ * global-uniqueness collision is handed something concrete to type rather than
+ * being asked to invent a name. Callers pass a domain that already went through
+ * `normalizeSSODomain`, whose `^[a-z0-9-]+(\.[a-z0-9-]+)+$` shape guarantees a
+ * non-empty first label needing no further sanitizing.
+ */
+function suggestProviderId(providerId: string, domain: string): string {
+  return `${providerId}-${domain.split('.')[0]}`
+}
+
 type DiscoveryResult =
   | { ok: true; discovery: Record<string, unknown> }
   | { ok: false; error: string }
@@ -186,6 +198,43 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         },
         { status: 409 }
       )
+
+    /**
+     * Better Auth treats `providerId` as globally unique, not per-tenant:
+     * `registerSSOProvider` rejects any id already present regardless of owner,
+     * and `checkProviderAccess` resolves providers by that column alone. Catch
+     * the cross-tenant collision here so the caller gets an actionable 409 that
+     * names a free id, instead of Better Auth's opaque 422 ("SSO provider with
+     * this providerId already exists") that gives no hint anything can be done.
+     */
+    const findProviderIdConflict = async () =>
+      (
+        await db
+          .select({
+            userId: ssoProvider.userId,
+            organizationId: ssoProvider.organizationId,
+          })
+          .from(ssoProvider)
+          .where(eq(ssoProvider.providerId, providerId))
+      ).find((provider) => !isOwnedByCaller(provider))
+
+    const providerIdConflictResponse = () =>
+      NextResponse.json(
+        {
+          error: `The provider ID "${providerId}" is already taken by another organization. Provider IDs are global, so pick a unique one — for example "${suggestProviderId(providerId, domain)}". It appears in the redirect URL you register with your identity provider, so choose it before configuring the IdP.`,
+          code: 'SSO_PROVIDER_ID_TAKEN',
+        },
+        { status: 409 }
+      )
+
+    if (await findProviderIdConflict()) {
+      logger.warn('Rejected SSO registration for providerId owned by another tenant', {
+        providerId,
+        orgId,
+        userId: session.user.id,
+      })
+      return providerIdConflictResponse()
+    }
 
     if (await findDomainConflict()) {
       logger.warn('Rejected SSO registration for domain owned by another tenant', {
@@ -537,6 +586,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       ),
     })
 
+    if (await findProviderIdConflict()) {
+      logger.warn('Rejected SSO registration: providerId was claimed during registration', {
+        providerId,
+        orgId,
+        userId: session.user.id,
+      })
+      return providerIdConflictResponse()
+    }
+
     if (await findDomainConflict()) {
       logger.warn('Rejected SSO registration: domain was claimed during registration', {
         domain,
@@ -584,6 +642,20 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       .where(ownerClause)
       .limit(1)
 
+    /**
+     * Mirrors Sim's own domain-ownership proof onto Better Auth's `domainVerified`
+     * flag, which is what lets an SSO sign-in auto-link to an existing same-email
+     * account. Must run after every write, not just on create: `registerSSOProvider`
+     * always persists `false`, and `updateSSOProvider` resets it to `false` whenever
+     * the domain changes. Only ever called once the verification gate above has
+     * passed for this exact domain, so it can never mark an unproven domain as
+     * verified. Org-less (personal) SSO is not domain-gated by Sim and keeps its
+     * pre-existing trust here, matching how it behaved before the flag existed.
+     */
+    const markProviderDomainVerified = async () => {
+      await db.update(ssoProvider).set({ domainVerified: true }).where(ownerClause)
+    }
+
     if (existingOwnedProvider) {
       await auth.api.updateSSOProvider({
         body: {
@@ -595,6 +667,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         },
         headers,
       })
+      await markProviderDomainVerified()
       logger.info('SSO provider updated successfully', { providerId, providerType, domain })
       return NextResponse.json({
         success: true,
@@ -643,6 +716,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
       return domainNotVerifiedResponse()
     }
+
+    await markProviderDomainVerified()
 
     logger.info('SSO provider registered successfully', {
       providerId,
