@@ -23,6 +23,7 @@ import type { SsoRegistrationBody } from '@/lib/api/contracts/auth'
 import { useSession } from '@/lib/auth/auth-client'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { REDACTED_MARKER } from '@/lib/core/security/redaction'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
@@ -144,6 +145,13 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
   const [errors, setErrors] = useState<Record<string, string[]>>(DEFAULT_ERRORS)
   const [showErrors, setShowErrors] = useState(false)
 
+  /**
+   * Editing an OIDC provider always means a secret is stored — the contract
+   * requires one to register, and the API returns only its sentinel, never the
+   * value. Leaving the field blank therefore means "keep it", not "clear it".
+   */
+  const hasStoredClientSecret = isEditing && existingProvider?.providerType === 'oidc'
+
   const hasChanges = (Object.keys(formData) as (keyof typeof formData)[]).some(
     (k) => formData[k] !== originalFormData[k]
   )
@@ -227,7 +235,9 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
 
     if (providerType === 'oidc') {
       newErrors.clientId = validateRequired('Client ID', data.clientId)
-      newErrors.clientSecret = validateRequired('Client Secret', data.clientSecret)
+      newErrors.clientSecret = hasStoredClientSecret
+        ? []
+        : validateRequired('Client Secret', data.clientSecret)
       if (!data.scopes || !data.scopes.trim()) {
         newErrors.scopes = ['Scopes are required for OIDC providers']
       }
@@ -282,7 +292,12 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
                 image: OIDC_DEFAULT_MAPPING.image,
               },
               clientId: formData.clientId,
-              clientSecret: formData.clientSecret,
+              // Blank on an edit means the admin did not retype it: send the
+              // sentinel so the server keeps the stored secret.
+              clientSecret:
+                hasStoredClientSecret && !formData.clientSecret
+                  ? REDACTED_MARKER
+                  : formData.clientSecret,
               scopes: formData.scopes.split(',').map((s) => s.trim()),
               ...(formData.authorizationEndpoint.trim()
                 ? { authorizationEndpoint: formData.authorizationEndpoint.trim() }
@@ -373,7 +388,10 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
       if (existingProvider.providerType === 'oidc' && existingProvider.oidcConfig) {
         const config = JSON.parse(existingProvider.oidcConfig)
         clientId = config.clientId || ''
-        clientSecret = config.clientSecret || ''
+        // The API returns the sentinel, never the secret. Showing it verbatim put
+        // the literal "[REDACTED]" in the field; blanking it lets the placeholder
+        // say a secret is stored, and submit re-sends the sentinel to keep it.
+        clientSecret = config.clientSecret === REDACTED_MARKER ? '' : config.clientSecret || ''
         scopes = config.scopes?.join(',') || 'openid,profile,email'
         mapping = config.mapping ?? {}
         authorizationEndpoint = config.authorizationEndpoint || ''
@@ -665,6 +683,11 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
 
                 <SettingRow
                   label='Client Secret'
+                  description={
+                    hasStoredClientSecret
+                      ? 'Your saved secret is never shown again. Leave this blank to keep it, or type a new one to replace it.'
+                      : undefined
+                  }
                   error={
                     showErrors && errors.clientSecret.length > 0
                       ? errors.clientSecret.join(' ')
@@ -674,7 +697,7 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
                   <ChipInput
                     id='sso-client-secret'
                     type='text'
-                    placeholder='Enter Client Secret'
+                    placeholder={hasStoredClientSecret ? '••••••••••••' : 'Enter Client Secret'}
                     value={formData.clientSecret}
                     name='sso_client_key'
                     autoComplete='off'
