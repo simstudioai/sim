@@ -18,12 +18,21 @@ const GEMINI_TASK_TYPES: Record<EmbeddingTaskType, string> = {
 
 interface GeminiEmbeddingResponse {
   embeddings: Array<{ values: number[] }>
+  /**
+   * `EmbeddingUsageMetadata` on `BatchEmbedContentsResponse`. Optional because
+   * older API surfaces omit it; the caller then falls back to a local estimate.
+   */
+  usageMetadata?: { promptTokenCount?: number }
 }
 
 /**
  * Gemini `batchEmbedContents`. Gemini does not normalize when the output is
  * reduced below the model's native dimensionality, so vectors are normalized
  * locally in that case.
+ *
+ * Token counts come from the response rather than a local estimate: tiktoken has
+ * no Gemini encoding and falls back to `cl100k_base`, which does not match how
+ * Gemini actually tokenizes, and this count is what knowledge-base runs bill on.
  */
 export const createGeminiAdapter: EmbeddingAdapterFactory = ({
   modelName,
@@ -51,6 +60,7 @@ export const createGeminiAdapter: EmbeddingAdapterFactory = ({
         const values = (json as GeminiEmbeddingResponse).embeddings.map((item) => item.values)
         return isReduced ? values.map(l2Normalize) : values
       },
+      parseTokens: (json) => (json as GeminiEmbeddingResponse).usageMetadata?.promptTokenCount,
     }
   },
 })

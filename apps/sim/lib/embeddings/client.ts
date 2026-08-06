@@ -17,12 +17,24 @@ import type {
   EmbedResult,
 } from '@/lib/embeddings/types'
 import { isRetryableError, retryWithExponentialBackoff } from '@/lib/knowledge/documents/utils'
-import { batchByTokenLimit, estimateTokenCount } from '@/lib/tokenization'
+import { batchByTokenLimit, estimateTokenCount, truncateToTokenLimit } from '@/lib/tokenization'
 
 const logger = createLogger('EmbeddingClient')
 
 const MAX_CONCURRENT_BATCHES = envNumber(env.KB_CONFIG_CONCURRENCY_LIMIT, 50)
 const EMBEDDING_REQUEST_TIMEOUT_MS = 60_000
+
+/**
+ * Tokens this client aims to put in one request. Not a provider limit — every
+ * provider accepts at least this much, and OpenAI documents 300,000 — but the
+ * batch size the knowledge-base indexing path has run on in production.
+ *
+ * Kept here rather than raised to each provider's maximum so a request stays
+ * comfortably inside {@link EMBEDDING_REQUEST_TIMEOUT_MS}: a timed-out batch is
+ * retried three times, so large batches make a slow provider expensive to fail
+ * against. Raising this trades fewer round trips for costlier retries.
+ */
+const BATCH_TOKEN_TARGET = 8192
 
 export class EmbeddingAPIError extends Error {
   public status: number
@@ -193,27 +205,50 @@ export async function embed(texts: string[], options: EmbedOptions): Promise<Emb
   const modelInputs = options.projectInputs ? options.projectInputs(texts) : texts
 
   /**
-   * Batched against the selected model's own declared ceiling, exactly as
-   * declared. One shared constant sent oversized input to models with a lower
-   * limit and discarded content models with a higher one accept; discounting
-   * the ceiling to absorb tokenizer error would reintroduce the second harm.
+   * Each input is held to the model's own per-input ceiling, exactly as declared.
+   * One shared constant sent oversized input to models with a lower limit and
+   * discarded content models with a higher one accept; discounting the ceiling
+   * to absorb tokenizer error would reintroduce the second harm.
    *
-   * `batchByTokenLimit` truncates any text above the ceiling, and does so
-   * silently, so warn first: a shortened embedding input is otherwise
-   * indistinguishable from a good one, both to the caller and in the vector.
+   * Truncation happens here rather than inside `batchByTokenLimit` so it occurs
+   * once, against the right limit, and is always warned about: a shortened
+   * embedding input is otherwise indistinguishable from a good one, both to the
+   * caller and in the vector it produces.
    */
   const ceiling = provider.info.maxInputTokens
-  for (const text of modelInputs) {
-    if (estimateTokenCount(text, provider.info.tokenizerProvider).count <= ceiling) continue
+  const boundedInputs = modelInputs.map((text) => {
+    if (estimateTokenCount(text, provider.info.tokenizerProvider).count <= ceiling) return text
     logger.warn('Embedding input exceeds the model token limit and will be truncated', {
       model,
       maxInputTokens: ceiling,
       chars: text.length,
       approximateTokenCount: hasApproximateTokenCount(provider.info),
     })
-  }
+    return truncateToTokenLimit(text, ceiling, model)
+  })
 
-  const tokenBatches = batchByTokenLimit(modelInputs, ceiling, model)
+  /**
+   * How many tokens may share one request — a different limit from the per-input
+   * ceiling above, and the one that decides how many inputs go in a batch.
+   *
+   * Three bounds compose here:
+   *
+   * 1. {@link BATCH_TOKEN_TARGET} is what we actually aim for. It is an
+   *    operational choice, not a provider limit: it keeps a single request well
+   *    inside {@link EMBEDDING_REQUEST_TIMEOUT_MS}, so a timeout costs one small
+   *    batch and its retries rather than a large one.
+   * 2. A provider's documented summed-token cap, when it publishes one, is a
+   *    hard ceiling the target can never exceed.
+   * 3. The per-input ceiling is a floor. A budget below it would make
+   *    `batchByTokenLimit` truncate inputs the provider would have accepted —
+   *    Cohere takes 128k tokens in one text, far above the target.
+   */
+  const requestBudget = Math.max(
+    Math.min(provider.info.maxTokensPerRequest ?? BATCH_TOKEN_TARGET, BATCH_TOKEN_TARGET),
+    ceiling
+  )
+
+  const tokenBatches = batchByTokenLimit(boundedInputs, requestBudget, model)
   const itemLimit = provider.adapter.maxItemsPerRequest
   const batches = itemLimit
     ? tokenBatches.flatMap((batch) => splitByItemLimit(batch, itemLimit))

@@ -223,6 +223,7 @@ export const EmbeddingsBlock: BlockConfig<EmbeddingsResponse> = {
       title: 'Dimensions',
       type: 'dropdown',
       options: [
+        { label: '3072', id: '3072' },
         { label: '1536 (default)', id: '1536' },
         { label: '1024', id: '1024' },
         { label: '512', id: '512' },
@@ -236,6 +237,11 @@ export const EmbeddingsBlock: BlockConfig<EmbeddingsResponse> = {
       },
       dependsOn: ['provider', 'model'],
     },
+    /**
+     * One field for every provider. Sim stocks a hosted key for all four
+     * (`OPENAI_API_KEY`, `GEMINI_API_KEY`, `COHERE_API_KEY`, `MISTRAL_API_KEY`),
+     * so none of them needs the user to supply one on hosted Sim.
+     */
     {
       id: 'apiKey',
       title: 'API Key',
@@ -245,17 +251,6 @@ export const EmbeddingsBlock: BlockConfig<EmbeddingsResponse> = {
       required: true,
       connectionDroppable: false,
       hideWhenHosted: true,
-      condition: { field: 'provider', value: ['openai', 'gemini', 'cohere'] },
-    },
-    {
-      id: 'apiKey',
-      title: 'API Key',
-      type: 'short-input',
-      placeholder: 'Enter your provider API key',
-      password: true,
-      required: true,
-      connectionDroppable: false,
-      condition: { field: 'provider', value: ['openai', 'gemini', 'cohere'], not: true },
     },
   ],
   tools: {

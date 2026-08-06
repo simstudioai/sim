@@ -22,7 +22,7 @@ The Embeddings block generates those numbers from one provider of your choice. P
 | **OpenAI** | `text-embedding-3-small`, `text-embedding-3-large`, `text-embedding-ada-002` | 1536 / 3072 / 1536 | 8192 tokens |
 | **Google Gemini** | `gemini-embedding-001` | 3072 | 2048 tokens |
 | **Cohere** | `embed-v4.0` | 1536 | 128k tokens |
-| **Mistral** | `mistral-embed`, `codestral-embed` | 1024 / 1536 | 8192 tokens |
+| **Mistral** | `mistral-embed`, `codestral-embed` | 1024 / 1536 (up to 3072) | 8192 tokens |
 
 Use `text-embedding-3-small` for cost-efficient general work, `gemini-embedding-001` for the highest retrieval quality, `embed-v4.0` for multilingual content, and `codestral-embed` for source code.
 
@@ -34,8 +34,8 @@ Use `text-embedding-3-small` for cost-efficient general work, `gemini-embedding-
 | **Provider** | Yes | OpenAI, Google Gemini, Cohere, or Mistral. Defaults to OpenAI. |
 | **Model** | Yes | The embedding model. The list changes to match the provider you picked. |
 | **Task Type** | No | What the vector is for: Document, Query, Semantic Similarity, Classification, or Clustering. Only shown for `gemini-embedding-001` and `embed-v4.0`, the two models that condition on it. Everything else ignores it. |
-| **Dimensions** | No | A smaller vector size, when the model supports shortening. Only shown for models that do. Smaller vectors cost less to store and search, with some loss in quality. |
-| **API Key** | Yes | Your provider key. On Sim's cloud this field is hidden for OpenAI, Gemini, and Cohere, which run on Sim's keys and are billed per input token. Mistral always needs your own key. |
+| **Dimensions** | No | A different vector size, when the model supports one. Only shown for models that do. Smaller vectors cost less to store and search, with some loss in quality. `codestral-embed` also goes the other way, up to 3072. |
+| **API Key** | Yes | Your provider key. On Sim's cloud this field is hidden — all four providers run on Sim's keys and are billed to your workspace per input token. Self-hosted installs supply their own key here. |
 
 ### Outputs
 

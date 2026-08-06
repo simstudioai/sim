@@ -30,16 +30,32 @@ describe('embedding catalog', () => {
     }
   })
 
-  it('lists native dimensions first in every Matryoshka list', () => {
+  it('offers the native size among the Matryoshka options, largest first', () => {
     for (const [modelId, info] of Object.entries(EMBEDDING_MODELS)) {
       if (!info.supportedDimensions) continue
-      expect(info.supportedDimensions[0], `${modelId} native size is not first`).toBe(
-        info.nativeDimensions
-      )
+      /**
+       * The native size must be selectable — it is what the block pre-selects —
+       * but need not lead the list: codestral-embed defaults to 1536 and tops
+       * out at 3072, so its options straddle the default.
+       */
+      expect(
+        info.supportedDimensions.includes(info.nativeDimensions),
+        `${modelId} does not offer its native size`
+      ).toBe(true)
       // Descending order is what the block's dropdown renders.
       expect([...info.supportedDimensions]).toEqual(
         [...info.supportedDimensions].sort((a, b) => b - a)
       )
+    }
+  })
+
+  it('never declares a request token budget below its own per-input ceiling', () => {
+    for (const [modelId, info] of Object.entries(EMBEDDING_MODELS)) {
+      if (info.maxTokensPerRequest === undefined) continue
+      expect(
+        info.maxTokensPerRequest,
+        `${modelId} would truncate a maximal single input`
+      ).toBeGreaterThanOrEqual(info.maxInputTokens)
     }
   })
 

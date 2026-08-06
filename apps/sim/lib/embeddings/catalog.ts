@@ -19,6 +19,12 @@ export const DEFAULT_EMBEDDING_MODEL = 'text-embedding-3-small'
  */
 export const KB_EMBEDDING_DIMENSIONS = 1536 as const
 
+/**
+ * OpenAI caps a single `/v1/embeddings` call at 300,000 tokens summed across all
+ * inputs, independent of the 8192-token per-input ceiling.
+ */
+const OPENAI_MAX_TOKENS_PER_REQUEST = 300_000
+
 export interface EmbeddingModelInfo {
   provider: EmbeddingCatalogProvider
   /** Human-readable label for the block's model dropdown. */
@@ -29,8 +35,12 @@ export interface EmbeddingModelInfo {
   /** Dimensionality the model emits when no reduction is requested. */
   nativeDimensions: number
   /**
-   * Output dimensions the model can be truncated to (Matryoshka representation
-   * learning), native size first. Omitted when the model has a fixed size.
+   * Output dimensions the model can emit, largest first — the block renders this
+   * list in order. Omitted when the model has a fixed size.
+   *
+   * This is not required to lead with {@link nativeDimensions}: a model whose
+   * API default sits below its maximum (codestral-embed defaults to 1536 and
+   * tops out at 3072) offers sizes on both sides of its default.
    */
   supportedDimensions?: readonly number[]
   /**
@@ -39,8 +49,15 @@ export interface EmbeddingModelInfo {
    * conditioning.
    */
   supportedTaskTypes?: readonly EmbeddingTaskType[]
-  /** Provider's per-input token ceiling. */
+  /** Provider's per-input token ceiling. Longer inputs are truncated to fit. */
   maxInputTokens: number
+  /**
+   * Provider's ceiling on tokens summed across every input in one request, which
+   * is a different limit from {@link maxInputTokens} and bounds how many inputs
+   * may share a batch. Omitted when the provider documents no such figure; the
+   * client then applies a conservative default rather than an invented number.
+   */
+  maxTokensPerRequest?: number
   /**
    * Selectable for knowledge-base indexing. Requires the model to emit exactly
    * KB_EMBEDDING_DIMENSIONS.
@@ -57,6 +74,7 @@ export const EMBEDDING_MODELS: Record<string, EmbeddingModelInfo> = {
     nativeDimensions: 1536,
     supportedDimensions: [1536, 1024, 768, 512, 256],
     maxInputTokens: 8192,
+    maxTokensPerRequest: OPENAI_MAX_TOKENS_PER_REQUEST,
     kbEligible: true,
   },
   'text-embedding-3-large': {
@@ -67,6 +85,7 @@ export const EMBEDDING_MODELS: Record<string, EmbeddingModelInfo> = {
     nativeDimensions: 3072,
     supportedDimensions: [3072, 1536, 1024, 768, 512, 256],
     maxInputTokens: 8192,
+    maxTokensPerRequest: OPENAI_MAX_TOKENS_PER_REQUEST,
     kbEligible: true,
   },
   /**
@@ -81,6 +100,7 @@ export const EMBEDDING_MODELS: Record<string, EmbeddingModelInfo> = {
     tokenizerProvider: 'openai',
     nativeDimensions: 1536,
     maxInputTokens: 8192,
+    maxTokensPerRequest: OPENAI_MAX_TOKENS_PER_REQUEST,
     kbEligible: false,
   },
   'gemini-embedding-001': {
@@ -115,14 +135,17 @@ export const EMBEDDING_MODELS: Record<string, EmbeddingModelInfo> = {
     maxInputTokens: 8192,
     kbEligible: false,
   },
-  /** `output_dimension` may go up to 3072, but 1536 is the model's default. */
+  /**
+   * `output_dimension` tops out at 3072 while the API default is 1536, so the
+   * offered sizes straddle the default rather than starting at it.
+   */
   'codestral-embed': {
     provider: 'mistral',
     label: 'codestral-embed',
     pricingId: 'codestral-embed',
     tokenizerProvider: 'mistral',
     nativeDimensions: 1536,
-    supportedDimensions: [1536, 1024, 512, 256],
+    supportedDimensions: [3072, 1536, 1024, 512, 256],
     maxInputTokens: 8192,
     kbEligible: false,
   },

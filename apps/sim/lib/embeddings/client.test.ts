@@ -104,6 +104,65 @@ describe('embed', () => {
     expect(result.totalTokens).toBeGreaterThan(0)
   })
 
+  it("bills Gemini on its reported token count rather than tiktoken's guess", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        embeddings: [{ values: [1, 2] }],
+        usageMetadata: { promptTokenCount: 4321 },
+      })
+    )
+
+    const result = await embed(['some text to embed'], {
+      model: 'gemini-embedding-001',
+      apiKey: 'g-test',
+    })
+
+    expect(result.totalTokens).toBe(4321)
+  })
+
+  it('splits a long input list into several bounded requests', async () => {
+    fetchMock.mockImplementation(async (_url, init) => {
+      const body = JSON.parse((init as RequestInit).body as string)
+      return jsonResponse(openAIBody(body.input.map(() => [1])))
+    })
+
+    /**
+     * 40 inputs of roughly 500 tokens each exceed the batch target several times
+     * over, so they must be spread across requests rather than sent as one.
+     * Every input still has to arrive exactly once, in order.
+     */
+    const inputs = Array.from({ length: 40 }, (_, i) => `${i} ${'word '.repeat(500)}`)
+    const result = await embed(inputs, { model: 'text-embedding-3-small', apiKey: 'sk-test' })
+
+    expect(fetchMock.mock.calls.length).toBeGreaterThan(1)
+    const sent = fetchMock.mock.calls.flatMap(
+      ([, init]) => JSON.parse((init as RequestInit).body as string).input as string[]
+    )
+    expect(sent).toEqual(inputs)
+    expect(result.embeddings).toHaveLength(40)
+  })
+
+  it('keeps a long Cohere input whole rather than cutting it to the batch budget', async () => {
+    fetchMock.mockImplementation(async (_url, init) => {
+      const body = JSON.parse((init as RequestInit).body as string)
+      return jsonResponse({
+        embeddings: { float: body.texts.map(() => [1]) },
+        meta: { billed_units: { input_tokens: 1 } },
+      })
+    })
+
+    /**
+     * Cohere accepts 128k tokens in one text — far above the conservative
+     * default request budget. That budget floors at the per-input ceiling, or
+     * this input would be silently cut to a fraction of its length.
+     */
+    const long = 'word '.repeat(30_000)
+    await embed([long], { model: 'embed-v4.0', apiKey: 'co-test' })
+
+    const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)
+    expect(body.texts[0]).toBe(long)
+  })
+
   it('forwards a supported dimension reduction and reports it back', async () => {
     fetchMock.mockResolvedValue(jsonResponse(openAIBody([[1, 2]])))
 
