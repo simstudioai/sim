@@ -20,15 +20,24 @@ vi.mock('@sim/emcn', () => ({
       {children}
     </button>
   ),
+  Chip: ({ children, ...props }: { children?: ReactNode }) => (
+    <button type='button' {...props}>
+      {children}
+    </button>
+  ),
   ChipCombobox: () => <div />,
   ChipCopyInput: ({ value }: { value?: string }) => <input readOnly value={value ?? ''} />,
   ChipInput: ({
     value,
     onChange,
+    id,
+    placeholder,
   }: {
     value?: string
     onChange?: ChangeEventHandler<HTMLInputElement>
-  }) => <input value={value ?? ''} onChange={onChange} />,
+    id?: string
+    placeholder?: string
+  }) => <input id={id} placeholder={placeholder} value={value ?? ''} onChange={onChange} />,
   ChipSelect: () => <div />,
   ChipTextarea: ({
     value,
@@ -58,8 +67,11 @@ vi.mock('@/ee/sso/components/verified-domains-section', () => ({
   VerifiedDomainsSection: () => <div />,
 }))
 
+// Surface the real Save/Update action so submit paths are reachable from tests.
 vi.mock('@/components/settings/save-discard-actions', () => ({
-  saveDiscardActions: () => [],
+  saveDiscardActions: ({ saveLabel, onSave }: { saveLabel?: string; onSave?: () => void }) => [
+    { text: saveLabel ?? 'Save', onSelect: onSave },
+  ],
 }))
 
 vi.mock('@/app/workspace/[workspaceId]/settings/components/settings-empty-state', () => ({
@@ -115,11 +127,24 @@ function provider(organizationId: string) {
     organizationId,
     providerType: 'oidc',
     oidcConfig: JSON.stringify({
+      // What the API actually returns: the sentinel plus a display-only hint,
+      // never the secret itself.
       clientId: `client-${suffix}`,
-      clientSecret: `secret-${suffix}`,
+      clientSecret: '[REDACTED]',
+      clientSecretHint: '4f2a',
       scopes: ['openid'],
     }),
   }
+}
+
+function findButton(text: string) {
+  return Array.from(container.querySelectorAll('button')).find(
+    (button) => button.textContent === text
+  )
+}
+
+function startEditing() {
+  act(() => findButton('Edit')?.click())
 }
 
 let container: HTMLDivElement
@@ -137,46 +162,43 @@ beforeAll(() => {
 
 afterAll(resetEnvFlagsMock)
 
+beforeEach(() => {
+  // The component reads getBaseUrl() during render; make sure the env var is
+  // present even when the suite runs without a local .env or after another
+  // test file mutated the environment (auto-restored via unstubEnvs).
+  vi.stubEnv('NEXT_PUBLIC_APP_URL', 'http://localhost:3000')
+  ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+  container = document.createElement('div')
+  document.body.appendChild(container)
+  root = createRoot(container)
+  mockUseSession.mockReturnValue({ data: { user: { id: 'user-1' } } })
+  mockUseOrganizationBilling.mockReturnValue({
+    data: { data: { subscriptionPlan: 'enterprise' } },
+    isLoading: false,
+  })
+  mockUseConfigureSSO.mockReturnValue({
+    isPending: false,
+    mutateAsync: vi.fn(),
+  })
+  mockUseSSOProviders.mockImplementation(({ organizationId }: { organizationId: string }) => ({
+    data: { providers: [provider(organizationId)] },
+    isLoading: false,
+  }))
+})
+
+afterEach(() => {
+  act(() => root.unmount())
+  container.remove()
+  vi.clearAllMocks()
+})
+
 describe('SSO organization transitions', () => {
-  beforeEach(() => {
-    // The component reads getBaseUrl() during render; make sure the env var is
-    // present even when the suite runs without a local .env or after another
-    // test file mutated the environment (auto-restored via unstubEnvs).
-    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'http://localhost:3000')
-    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
-    container = document.createElement('div')
-    document.body.appendChild(container)
-    root = createRoot(container)
-    mockUseSession.mockReturnValue({ data: { user: { id: 'user-1' } } })
-    mockUseOrganizationBilling.mockReturnValue({
-      data: { data: { subscriptionPlan: 'enterprise' } },
-      isLoading: false,
-    })
-    mockUseConfigureSSO.mockReturnValue({
-      isPending: false,
-      mutateAsync: vi.fn(),
-    })
-    mockUseSSOProviders.mockImplementation(({ organizationId }: { organizationId: string }) => ({
-      data: { providers: [provider(organizationId)] },
-      isLoading: false,
-    }))
-  })
-
-  afterEach(() => {
-    act(() => root.unmount())
-    container.remove()
-    vi.clearAllMocks()
-  })
-
   it('discards org A edit state before rendering org B settings', () => {
     renderSso('org-a')
     expect(container).toHaveTextContent('org-a.example.com')
 
-    const editButton = Array.from(container.querySelectorAll('button')).find(
-      (button) => button.textContent === 'Edit'
-    )
-    expect(editButton).toBeDefined()
-    act(() => editButton?.click())
+    expect(findButton('Edit')).toBeDefined()
+    startEditing()
     expect(container.querySelector('input[value="client-a"]')).not.toBeNull()
 
     renderSso('org-b')
@@ -184,5 +206,131 @@ describe('SSO organization transitions', () => {
     expect(container).toHaveTextContent('org-b.example.com')
     expect(container).not.toHaveTextContent('org-a.example.com')
     expect(container.querySelector('input[value="client-a"]')).toBeNull()
+  })
+})
+
+/**
+ * The stored client secret never reaches the browser — the API sends a sentinel.
+ * Three pieces have to agree for an edit to preserve it: hydration must not put the
+ * sentinel in the form, validation must not demand a value, and submit must send the
+ * sentinel back. If any one drifts, an admin editing an unrelated field either wipes
+ * their secret or saves the literal string "[REDACTED]" as one.
+ */
+describe('SSO client secret preservation', () => {
+  function secretInput() {
+    return container.querySelector<HTMLInputElement>('#sso-client-secret')
+  }
+
+  /** Sets the input through the native setter so React's onChange fires. */
+  function typeSecret(value: string) {
+    const input = secretInput()
+    expect(input).not.toBeNull()
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype,
+        'value'
+      )?.set
+      setter?.call(input, value)
+      input?.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+  }
+
+  it('shows the saved secret as a masked hint rather than the sentinel', () => {
+    renderSso('org-a')
+    startEditing()
+
+    expect(container).not.toHaveTextContent('[REDACTED]')
+    expect(secretInput()?.value).toBe('••••••••••••4f2a')
+    expect(findButton('Replace')).toBeDefined()
+  })
+
+  it('keeps the stored secret when the admin edits without replacing it', async () => {
+    const mutateAsync = vi.fn().mockResolvedValue({})
+    mockUseConfigureSSO.mockReturnValue({ isPending: false, mutateAsync })
+
+    renderSso('org-a')
+    startEditing()
+    await act(async () => {
+      findButton('Update')?.click()
+    })
+
+    expect(mutateAsync).toHaveBeenCalledTimes(1)
+    expect(mutateAsync.mock.calls[0][0].clientSecret).toBe('[REDACTED]')
+  })
+
+  it('sends the new value when the admin replaces the secret', async () => {
+    const mutateAsync = vi.fn().mockResolvedValue({})
+    mockUseConfigureSSO.mockReturnValue({ isPending: false, mutateAsync })
+
+    renderSso('org-a')
+    startEditing()
+    act(() => findButton('Replace')?.click())
+
+    typeSecret('brand-new-secret')
+
+    await act(async () => {
+      findButton('Update')?.click()
+    })
+
+    expect(mutateAsync).toHaveBeenCalledTimes(1)
+    expect(mutateAsync.mock.calls[0][0].clientSecret).toBe('brand-new-secret')
+  })
+
+  /**
+   * A whitespace-only value must not reach the server. Validation is skipped only
+   * while the stored secret is being kept; once Replace is clicked the field is a
+   * real input, so blank input has to fail rather than overwrite a working secret.
+   */
+  it('refuses to submit a whitespace-only replacement', async () => {
+    const mutateAsync = vi.fn().mockResolvedValue({})
+    mockUseConfigureSSO.mockReturnValue({ isPending: false, mutateAsync })
+
+    renderSso('org-a')
+    startEditing()
+    act(() => findButton('Replace')?.click())
+    typeSecret('   ')
+
+    await act(async () => {
+      findButton('Update')?.click()
+    })
+
+    expect(mutateAsync).not.toHaveBeenCalled()
+    expect(container).toHaveTextContent('Client Secret is required.')
+  })
+
+  /**
+   * Backing out has to revalidate as "keeping the saved secret". Validating against
+   * the pre-toggle value would leave a required-error stranded on the masked row,
+   * where there is no longer an input to fix it in.
+   */
+  it('clears a stranded required-error when the replacement is backed out', async () => {
+    renderSso('org-a')
+    startEditing()
+    act(() => findButton('Replace')?.click())
+    typeSecret('   ')
+    await act(async () => {
+      findButton('Update')?.click()
+    })
+    expect(container).toHaveTextContent('Client Secret is required.')
+
+    act(() => findButton('Keep saved')?.click())
+
+    expect(container).not.toHaveTextContent('Client Secret is required.')
+    expect(secretInput()?.value).toBe('••••••••••••4f2a')
+  })
+
+  /**
+   * The label is deliberately not "Cancel": the header already uses that to discard
+   * the whole edit, and matching it here would make two very different actions
+   * indistinguishable.
+   */
+  it('restores the masked row and drops the typed value when the replace is backed out', () => {
+    renderSso('org-a')
+    startEditing()
+    act(() => findButton('Replace')?.click())
+    act(() => findButton('Keep saved')?.click())
+
+    expect(secretInput()?.value).toBe('••••••••••••4f2a')
+    expect(findButton('Replace')).toBeDefined()
   })
 })
