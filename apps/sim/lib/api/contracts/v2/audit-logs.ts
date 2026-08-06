@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { organizationIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   v1AuditLogParamsSchema,
@@ -8,10 +9,10 @@ import { v2CursorListResponse, v2DataResponse } from '@/lib/api/contracts/v2/sha
 
 /**
  * v2 audit-logs contracts. These are org-scoped enterprise endpoints. The
- * request schemas are reused verbatim from v1 (the query/param shape is
- * unchanged); only the response envelope is upgraded to the canonical v2
- * shapes. The v1 `limits` body is dropped — usage limits live on the dedicated
- * usage endpoint, not inlined into every response.
+ * filters are inherited from v1, with an explicit organization selector added
+ * so callers never depend on whichever membership happens to be returned
+ * first. The response uses the canonical v2 envelope and drops the v1 `limits`
+ * body — usage limits live on their dedicated endpoint.
  */
 
 /**
@@ -37,10 +38,16 @@ export const v2AuditLogEntrySchema = z.object({
 
 export type V2AuditLogEntry = z.output<typeof v2AuditLogEntrySchema>
 
+export const v2ListAuditLogsQuerySchema = v1ListAuditLogsQuerySchema
+  .extend({ organizationId: organizationIdSchema })
+  .strict()
+
+export const v2GetAuditLogQuerySchema = z.object({ organizationId: organizationIdSchema }).strict()
+
 export const v2ListAuditLogsContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/audit-logs',
-  query: v1ListAuditLogsQuerySchema,
+  query: v2ListAuditLogsQuerySchema,
   response: {
     mode: 'json',
     schema: v2CursorListResponse(v2AuditLogEntrySchema),
@@ -51,6 +58,7 @@ export const v2GetAuditLogContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/audit-logs/[id]',
   params: v1AuditLogParamsSchema,
+  query: v2GetAuditLogQuerySchema,
   response: {
     mode: 'json',
     schema: v2DataResponse(v2AuditLogEntrySchema),

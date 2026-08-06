@@ -1,5 +1,3 @@
-import { db } from '@sim/db'
-import { workflowBlocks } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import {
   assertFolderMutable,
@@ -10,7 +8,6 @@ import {
 } from '@sim/platform-authz/workflow'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import {
   type V2WorkflowDetail,
@@ -24,6 +21,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
 import { performDeleteWorkflow, performUpdateWorkflow } from '@/lib/workflows/orchestration'
+import { loadWorkflowReadSnapshot } from '@/lib/workflows/queries'
 import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
 import { folderPathForId, resolveFolderPathIdentity } from '@/app/api/v2/lib/folders'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
@@ -63,28 +61,18 @@ export const GET = withRouteHandler(
 
       const { id } = parsed.data.params
 
-      const workflowData = await getActiveWorkflowRecord(id)
-      if (!workflowData?.workspaceId) return v2Error('NOT_FOUND', 'Workflow not found')
+      const snapshot = await loadWorkflowReadSnapshot(id)
+      const workflowData = snapshot.workflowRecord
+      if (!workflowData?.workspaceId || workflowData.archivedAt) {
+        return v2Error('NOT_FOUND', 'Workflow not found')
+      }
 
       // Mask an authorization failure as 404 so existence is not leaked.
       const access = await resolveWorkspaceAccess(rateLimit, userId, workflowData.workspaceId)
       if (access) return v2Error('NOT_FOUND', 'Workflow not found')
 
       const folderIndex = await loadActiveFolderPathIndex(workflowData.workspaceId, 'workflow')
-
-      const blockRows = await db
-        .select({
-          id: workflowBlocks.id,
-          type: workflowBlocks.type,
-          subBlocks: workflowBlocks.subBlocks,
-        })
-        .from(workflowBlocks)
-        .where(eq(workflowBlocks.workflowId, id))
-
-      const blocksRecord = Object.fromEntries(
-        blockRows.map((block) => [block.id, { type: block.type, subBlocks: block.subBlocks }])
-      )
-      const inputs = extractInputFieldsFromBlocks(blocksRecord)
+      const inputs = extractInputFieldsFromBlocks(snapshot.normalizedData?.blocks ?? {})
 
       const detail: V2WorkflowDetail = {
         id: workflowData.id,

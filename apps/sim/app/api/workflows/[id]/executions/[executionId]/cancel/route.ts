@@ -6,7 +6,10 @@ import { cancelWorkflowExecutionContract } from '@/lib/api/contracts/workflows'
 import { parseRequest } from '@/lib/api/server'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { cancelWorkflowExecution } from '@/lib/execution/cancel-workflow-execution'
+import {
+  cancelWorkflowExecution,
+  WorkflowExecutionNotFoundError,
+} from '@/lib/execution/cancel-workflow-execution'
 
 const logger = createLogger('CancelExecutionAPI')
 
@@ -58,6 +61,9 @@ export const POST = withRouteHandler(
 
       return NextResponse.json(result)
     } catch (error) {
+      if (error instanceof WorkflowExecutionNotFoundError) {
+        return NextResponse.json({ error: error.message }, { status: 404 })
+      }
       logger.error('Failed to cancel execution', {
         workflowId,
         executionId,

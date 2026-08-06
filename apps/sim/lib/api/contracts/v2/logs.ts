@@ -1,11 +1,7 @@
 import { z } from 'zod'
 import { traceSpansSchema } from '@/lib/api/contracts/logs'
 import { defineRouteContract } from '@/lib/api/contracts/types'
-import {
-  v1ExecutionParamsSchema,
-  v1ListLogsQuerySchema,
-  v1LogParamsSchema,
-} from '@/lib/api/contracts/v1/logs'
+import { v1ListLogsQuerySchema } from '@/lib/api/contracts/v1/logs'
 import {
   v2CursorListResponse,
   v2DataResponse,
@@ -20,6 +16,7 @@ import {
  */
 
 const v2LogCostSchema = z.object({ total: z.number() }).nullable()
+export const v2LogStatusSchema = z.enum(['pending', 'running', 'completed', 'failed', 'cancelled'])
 
 /** Execution `files` is a per-run jsonb array of attachment metadata. */
 const v2LogFilesSchema = z.array(z.unknown()).nullable()
@@ -32,10 +29,10 @@ const v2LogWorkflowSummarySchema = z.object({
 })
 
 export const v2LogListItemSchema = z.object({
-  id: z.string(),
-  workflowId: z.string().nullable(),
   executionId: z.string(),
+  workflowId: z.string().nullable(),
   deploymentVersionId: z.string().nullable(),
+  status: v2LogStatusSchema,
   level: z.string(),
   trigger: z.string(),
   startedAt: z.string(),
@@ -54,9 +51,10 @@ export const v2LogListItemSchema = z.object({
 export type V2LogListItem = z.output<typeof v2LogListItemSchema>
 
 export const v2LogDetailSchema = z.object({
-  id: z.string(),
-  workflowId: z.string().nullable(),
   executionId: z.string(),
+  workflowId: z.string().nullable(),
+  deploymentVersionId: z.string().nullable(),
+  status: v2LogStatusSchema,
   level: z.string(),
   trigger: z.string(),
   startedAt: z.string(),
@@ -74,31 +72,21 @@ export const v2LogDetailSchema = z.object({
     updatedAt: z.string().nullable(),
     deleted: z.boolean(),
   }),
-  /** Materialized execution trace (block states, trace spans). */
-  executionData: z.unknown(),
+  /** Workflow state snapshot captured for this execution. */
+  workflowState: z.unknown(),
   /** Materialized block-level execution trace spans. */
   traceSpans: traceSpansSchema,
+  /** Materialized final output, when the execution produced one. */
+  finalOutput: z.unknown().nullable(),
   cost: v2LogCostSchema,
   createdAt: z.string(),
 })
 
 export type V2LogDetail = z.output<typeof v2LogDetailSchema>
 
-export const v2ExecutionSchema = z.object({
-  executionId: z.string(),
-  workflowId: z.string().nullable(),
-  /** Workflow state snapshot at execution time. */
-  workflowState: z.unknown(),
-  executionMetadata: z.object({
-    trigger: z.string(),
-    startedAt: z.string(),
-    endedAt: z.string().nullable(),
-    totalDurationMs: z.number().nullable(),
-    cost: v2LogCostSchema,
-  }),
+export const v2LogParamsSchema = z.object({
+  executionId: z.string().min(1, 'executionId cannot be empty'),
 })
-
-export type V2Execution = z.output<typeof v2ExecutionSchema>
 
 export const v2ListLogsQuerySchema = v1ListLogsQuerySchema
   .omit({ folderIds: true })
@@ -140,20 +128,10 @@ export const v2ListLogsContract = defineRouteContract({
 
 export const v2GetLogContract = defineRouteContract({
   method: 'GET',
-  path: '/api/v2/logs/[id]',
-  params: v1LogParamsSchema,
+  path: '/api/v2/logs/[executionId]',
+  params: v2LogParamsSchema,
   response: {
     mode: 'json',
     schema: v2DataResponse(v2LogDetailSchema),
-  },
-})
-
-export const v2GetExecutionContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/v2/logs/executions/[executionId]',
-  params: v1ExecutionParamsSchema,
-  response: {
-    mode: 'json',
-    schema: v2DataResponse(v2ExecutionSchema),
   },
 })

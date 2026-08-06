@@ -13,9 +13,9 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { performFullDeploy, performFullUndeploy } from '@/lib/workflows/orchestration'
 import { checkRateLimit } from '@/app/api/v1/middleware'
-import { resolveV1DeploymentWorkflow } from '@/app/api/v1/workflows/utils'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import { v2Data, v2Error, v2RateLimitError, v2ValidationError } from '@/app/api/v2/lib/response'
+import { resolveV2WorkflowTarget } from '@/app/api/v2/workflows/utils'
 
 const logger = createLogger('V2WorkflowDeployAPI')
 
@@ -52,8 +52,8 @@ export const POST = withRouteHandler(
       const body = v1DeployWorkflowBodySchema.safeParse(rawBody.data ?? {})
       if (!body.success) return v2ValidationError(body.error)
 
-      const target = await resolveV1DeploymentWorkflow(rateLimit, userId, id)
-      if (!target.ok) return v2Error('NOT_FOUND', 'Workflow not found')
+      const target = await resolveV2WorkflowTarget(rateLimit, userId, id, 'admin')
+      if (!target) return v2Error('NOT_FOUND', 'Workflow not found')
       const { workspaceId } = target
 
       await assertWorkflowMutable(id)
@@ -130,8 +130,8 @@ export const DELETE = withRouteHandler(
 
       const { id } = parsed.data.params
 
-      const target = await resolveV1DeploymentWorkflow(rateLimit, userId, id)
-      if (!target.ok) return v2Error('NOT_FOUND', 'Workflow not found')
+      const target = await resolveV2WorkflowTarget(rateLimit, userId, id, 'admin')
+      if (!target) return v2Error('NOT_FOUND', 'Workflow not found')
       const { workflow, workspaceId } = target
 
       if (!workflow.isDeployed) {

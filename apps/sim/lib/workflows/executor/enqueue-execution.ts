@@ -4,13 +4,18 @@ import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservati
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
 import { isAsyncJobEnqueueError } from '@/lib/core/async-jobs/types'
+import { WORKFLOW_EXECUTION_JOB_ID_PREFIX } from '@/lib/workflows/executor/execution-job-ids'
 import { executeWorkflowJob, type WorkflowExecutionPayload } from '@/background/workflow-execution'
 import type { CoreTriggerType } from '@/stores/logs/filters/types'
 
 const logger = createLogger('WorkflowEnqueueExecution')
 
 const ASYNC_ENQUEUE_ATTEMPTS = 2
-export const WORKFLOW_EXECUTION_JOB_ID_PREFIX = 'workflow-execution:'
+
+export {
+  RESUME_EXECUTION_JOB_ID_PREFIX,
+  WORKFLOW_EXECUTION_JOB_ID_PREFIX,
+} from '@/lib/workflows/executor/execution-job-ids'
 
 export interface EnqueueWorkflowExecutionParams {
   requestId: string

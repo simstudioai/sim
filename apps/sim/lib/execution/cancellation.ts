@@ -1,11 +1,12 @@
 import { createLogger } from '@sim/logger'
+import { JOB_MAX_LIFETIME_SECONDS } from '@/lib/core/async-jobs/types'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { createPubSubChannel, type PubSubChannel } from '@/lib/events/pubsub'
 
 const logger = createLogger('ExecutionCancellation')
 
 const EXECUTION_CANCEL_PREFIX = 'execution:cancel:'
-const EXECUTION_CANCEL_EXPIRY = 60 * 60
+const EXECUTION_CANCEL_EXPIRY = JOB_MAX_LIFETIME_SECONDS
 const EXECUTION_CANCEL_CHANNEL = 'execution:cancel'
 
 export interface ExecutionCancelEvent {

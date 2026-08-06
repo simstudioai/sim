@@ -3,22 +3,25 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { MockApiError, mockResolveTriggerRegion, mockTrigger } = vi.hoisted(() => {
-  class MockApiError extends Error {
-    constructor(
-      readonly status: number | undefined,
-      message: string
-    ) {
-      super(message)
+const { MockApiError, mockListRuns, mockResolveTriggerRegion, mockRetrieveRun, mockTrigger } =
+  vi.hoisted(() => {
+    class MockApiError extends Error {
+      constructor(
+        readonly status: number | undefined,
+        message: string
+      ) {
+        super(message)
+      }
     }
-  }
 
-  return {
-    MockApiError,
-    mockResolveTriggerRegion: vi.fn(),
-    mockTrigger: vi.fn(),
-  }
-})
+    return {
+      MockApiError,
+      mockListRuns: vi.fn(),
+      mockResolveTriggerRegion: vi.fn(),
+      mockRetrieveRun: vi.fn(),
+      mockTrigger: vi.fn(),
+    }
+  })
 
 vi.mock('@trigger.dev/core/v3', () => ({
   taskContext: { isInsideTask: false },
@@ -28,7 +31,8 @@ vi.mock('@trigger.dev/sdk', () => ({
   ApiError: MockApiError,
   runs: {
     cancel: vi.fn(),
-    retrieve: vi.fn(),
+    list: mockListRuns,
+    retrieve: mockRetrieveRun,
   },
   tasks: {
     batchTriggerAndWait: vi.fn(),
@@ -63,6 +67,7 @@ describe('TriggerDevJobQueue enqueue', () => {
       expect.objectContaining({
         idempotencyKey: 'workflow:1',
         idempotencyKeyTTL: '14d',
+        tags: ['jobId:workflow:1'],
       })
     )
   })
@@ -111,5 +116,63 @@ describe('TriggerDevJobQueue enqueue', () => {
       retryable: true,
     })
     expect(mockTrigger).not.toHaveBeenCalled()
+  })
+})
+
+describe('TriggerDevJobQueue getJob', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('resolves a deterministic job ID through its Trigger.dev tag', async () => {
+    mockRetrieveRun
+      .mockRejectedValueOnce(new MockApiError(404, 'run not found'))
+      .mockResolvedValueOnce({
+        id: 'run-1',
+        taskIdentifier: 'workflow-execution',
+        payload: { workflowId: 'workflow-1' },
+        status: 'COMPLETED',
+        createdAt: '2026-08-05T12:00:00.000Z',
+        finishedAt: '2026-08-05T12:00:05.000Z',
+        attemptCount: 1,
+        output: { output: { answer: 42 } },
+      })
+    mockListRuns.mockReturnValueOnce(
+      (async function* () {
+        yield { id: 'run-1' }
+      })()
+    )
+    const queue = new TriggerDevJobQueue()
+
+    const job = await queue.getJob('workflow-execution:execution-1')
+
+    expect(mockListRuns).toHaveBeenCalledWith({
+      tag: 'jobId:workflow-execution:execution-1',
+      limit: 1,
+    })
+    expect(mockRetrieveRun).toHaveBeenNthCalledWith(2, 'run-1')
+    expect(job).toMatchObject({
+      id: 'run-1',
+      status: 'completed',
+      output: { output: { answer: 42 } },
+      metadata: { workflowId: 'workflow-1' },
+    })
+  })
+
+  it('preserves a cancelled Trigger.dev run as cancelled', async () => {
+    mockRetrieveRun.mockResolvedValueOnce({
+      id: 'run-cancelled',
+      taskIdentifier: 'workflow-execution',
+      payload: { workflowId: 'workflow-1' },
+      status: 'CANCELED',
+      createdAt: '2026-08-05T12:00:00.000Z',
+      finishedAt: '2026-08-05T12:00:01.000Z',
+      attemptCount: 0,
+    })
+    const queue = new TriggerDevJobQueue()
+
+    const job = await queue.getJob('run-cancelled')
+
+    expect(job).toMatchObject({ id: 'run-cancelled', status: 'cancelled' })
   })
 })

@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { dbChainMock, dbChainMockFns, flattenMockConditions, resetDbChainMock } from '@sim/testing'
 import { sleep } from '@sim/utils/helpers'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -9,6 +9,7 @@ vi.mock('@sim/db', () => ({
   asyncJobs: {
     attempts: 'attempts',
     id: 'id',
+    status: 'status',
   },
   db: dbChainMock.db,
 }))
@@ -110,5 +111,49 @@ describe('DatabaseJobQueue batchEnqueueAndWait', () => {
     ])
 
     expect(maxInFlight).toBe(2)
+  })
+})
+
+describe('DatabaseJobQueue cancelJob', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('persists cancellation as its own terminal status', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'workflow:1' }])
+    const queue = new DatabaseJobQueue()
+
+    await queue.cancelJob('workflow:1')
+
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'cancelled', error: 'Cancelled' })
+    )
+  })
+
+  it('does not let worker failure overwrite a terminal cancellation', async () => {
+    const queue = new DatabaseJobQueue()
+
+    await queue.markJobFailed('workflow:1', 'aborted')
+
+    const conditions = flattenMockConditions(dbChainMockFns.where.mock.calls.at(-1)?.[0])
+    expect(conditions).toContainEqual({
+      type: 'inArray',
+      column: 'status',
+      values: ['pending', 'processing'],
+    })
+  })
+
+  it('does not let worker completion overwrite a terminal cancellation', async () => {
+    const queue = new DatabaseJobQueue()
+
+    await queue.completeJob('workflow:1', { ok: true })
+
+    const conditions = flattenMockConditions(dbChainMockFns.where.mock.calls.at(-1)?.[0])
+    expect(conditions).toContainEqual({
+      type: 'inArray',
+      column: 'status',
+      values: ['pending', 'processing'],
+    })
   })
 })

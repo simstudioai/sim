@@ -44,7 +44,7 @@ function escapeLikePattern(s: string): string {
  *
  * Text comparisons are case-insensitive and date comparisons are evaluated on
  * the calendar day, matching the semantics of the knowledge base search filter
- * (`app/api/knowledge/search/utils.ts`). Returns `undefined` when the slot,
+ * (`lib/knowledge/search/queries.ts`). Returns `undefined` when the slot,
  * operator, or value is not usable so the caller can skip the condition.
  */
 export function buildTagFilterCondition(filter: TagFilterCondition): SQL | undefined {

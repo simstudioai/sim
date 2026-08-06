@@ -1,8 +1,5 @@
-import { db } from '@sim/db'
-import { document, knowledgeConnector } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   type V2KnowledgeDocument,
@@ -12,6 +9,7 @@ import {
 import { parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { getKnowledgeDocument } from '@/lib/knowledge/documents/service'
 import { performDeleteKnowledgeDocument } from '@/lib/knowledge/orchestration'
 import type { KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
 import { resolveKnowledgeBase, serializeDate } from '@/app/api/v1/knowledge/utils'
@@ -85,40 +83,7 @@ export const GET = withRouteHandler(
       )
       if (result instanceof NextResponse) return result
 
-      const docs = await db
-        .select({
-          id: document.id,
-          knowledgeBaseId: document.knowledgeBaseId,
-          filename: document.filename,
-          fileSize: document.fileSize,
-          mimeType: document.mimeType,
-          processingStatus: document.processingStatus,
-          processingError: document.processingError,
-          processingStartedAt: document.processingStartedAt,
-          processingCompletedAt: document.processingCompletedAt,
-          chunkCount: document.chunkCount,
-          tokenCount: document.tokenCount,
-          characterCount: document.characterCount,
-          enabled: document.enabled,
-          uploadedAt: document.uploadedAt,
-          connectorId: document.connectorId,
-          connectorType: knowledgeConnector.connectorType,
-          sourceUrl: document.sourceUrl,
-        })
-        .from(document)
-        .leftJoin(knowledgeConnector, eq(document.connectorId, knowledgeConnector.id))
-        .where(
-          and(
-            eq(document.id, documentId),
-            eq(document.knowledgeBaseId, knowledgeBaseId),
-            eq(document.userExcluded, false),
-            isNull(document.archivedAt),
-            isNull(document.deletedAt)
-          )
-        )
-        .limit(1)
-
-      const doc = docs[0]
+      const doc = await getKnowledgeDocument(knowledgeBaseId, documentId)
       if (!doc) return v2Error('NOT_FOUND', 'Document not found')
 
       const documentDetail: V2KnowledgeDocument = {
@@ -181,21 +146,7 @@ export const DELETE = withRouteHandler(
       )
       if (result instanceof NextResponse) return result
 
-      const docs = await db
-        .select({ id: document.id, filename: document.filename })
-        .from(document)
-        .where(
-          and(
-            eq(document.id, documentId),
-            eq(document.knowledgeBaseId, knowledgeBaseId),
-            eq(document.userExcluded, false),
-            isNull(document.archivedAt),
-            isNull(document.deletedAt)
-          )
-        )
-        .limit(1)
-
-      const doc = docs[0]
+      const doc = await getKnowledgeDocument(knowledgeBaseId, documentId)
       if (!doc) return v2Error('NOT_FOUND', 'Document not found')
 
       const outcome = await performDeleteKnowledgeDocument({

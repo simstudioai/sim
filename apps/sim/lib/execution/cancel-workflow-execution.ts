@@ -3,6 +3,7 @@ import { workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
 import { and, eq } from 'drizzle-orm'
+import { getJobQueue } from '@/lib/core/async-jobs'
 import {
   type ExecutionCancellationRecordResult,
   markExecutionCancelled,
@@ -10,11 +11,27 @@ import {
 import { createExecutionEventWriter, readExecutionMetaState } from '@/lib/execution/event-buffer'
 import { abortManualExecution } from '@/lib/execution/manual-cancellation'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { WORKFLOW_EXECUTION_JOB_ID_PREFIX } from '@/lib/workflows/executor/execution-job-ids'
+import { workflowExecutionBelongsToWorkflow } from '@/lib/workflows/executor/execution-queries'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 
 const logger = createLogger('CancelWorkflowExecution')
 const PAUSED_CANCELLATION_DB_ATTEMPTS = 3
 const PAUSED_CANCELLATION_DB_RETRY_MS = 200
+
+async function cancelActiveWorkflowJob(executionId: string): Promise<boolean> {
+  try {
+    const queue = await getJobQueue()
+    const job = await queue.getJob(`${WORKFLOW_EXECUTION_JOB_ID_PREFIX}${executionId}`)
+    if (!job || (job.status !== 'pending' && job.status !== 'processing')) return false
+    await queue.cancelJob(job.id)
+    logger.info('Cancelled active workflow queue job', { executionId, jobId: job.id })
+    return true
+  } catch (error) {
+    logger.warn('Failed to cancel active workflow queue job', { executionId, error })
+    return false
+  }
+}
 
 /**
  * Cancellation outcome vocabulary. `recorded`/`redis_unavailable`/
@@ -120,6 +137,13 @@ export interface CancelWorkflowExecutionInput {
   workspaceId?: string
 }
 
+export class WorkflowExecutionNotFoundError extends Error {
+  constructor() {
+    super('Execution not found')
+    this.name = 'WorkflowExecutionNotFoundError'
+  }
+}
+
 /**
  * Cancels a workflow execution across the Redis abort record, the in-process
  * aborter, and the paused-HITL machinery. The interleaving is order-sensitive
@@ -130,6 +154,9 @@ export async function cancelWorkflowExecution(
   input: CancelWorkflowExecutionInput
 ): Promise<CancelWorkflowExecutionResult> {
   const { executionId, workflowId, userId, workspaceId } = input
+
+  const belongsToWorkflow = await workflowExecutionBelongsToWorkflow(executionId, workflowId)
+  if (!belongsToWorkflow) throw new WorkflowExecutionNotFoundError()
 
   let pausedCancellationStarted = false
   let pausedCancelled = false
@@ -153,11 +180,16 @@ export async function cancelWorkflowExecution(
     ? { durablyRecorded: false, reason: 'redis_unavailable' }
     : await markExecutionCancelled(executionId)
   const locallyAborted = isPausedCancellationPath ? false : abortManualExecution(executionId)
+  const queuedJobCancelled = isPausedCancellationPath
+    ? false
+    : await cancelActiveWorkflowJob(executionId)
 
   if (pausedCancellationStarted) {
     logger.info('Paused execution cancellation reserved in database', { executionId })
   } else if (cancellation.durablyRecorded) {
     logger.info('Execution marked as cancelled in Redis', { executionId })
+  } else if (queuedJobCancelled) {
+    logger.info('Execution cancelled in workflow queue', { executionId })
   } else if (locallyAborted) {
     logger.info('Execution cancelled via local in-process fallback', { executionId })
   } else if (!pausedCancellationStarted) {
@@ -167,7 +199,10 @@ export async function cancelWorkflowExecution(
     })
   }
 
-  if (!isPausedCancellationPath && (cancellation.durablyRecorded || locallyAborted)) {
+  if (
+    !isPausedCancellationPath &&
+    (cancellation.durablyRecorded || queuedJobCancelled || locallyAborted)
+  ) {
     await PauseResumeManager.blockQueuedResumesForCancellation(executionId, workflowId).catch(
       (error) => {
         logger.warn('Failed to block queued paused resumes after cancellation', {
@@ -235,7 +270,7 @@ export async function cancelWorkflowExecution(
     )
   }
 
-  if ((cancellation.durablyRecorded || locallyAborted) && !pausedCancelled) {
+  if ((cancellation.durablyRecorded || queuedJobCancelled || locallyAborted) && !pausedCancelled) {
     try {
       await db
         .update(workflowExecutionLogs)
@@ -257,7 +292,7 @@ export async function cancelWorkflowExecution(
   const success =
     (isPausedCancellationPath
       ? pausedCancelled && pausedCancellationPublished
-      : cancellation.durablyRecorded) || locallyAborted
+      : cancellation.durablyRecorded || queuedJobCancelled) || locallyAborted
 
   if (success) {
     captureServerEvent(
@@ -270,7 +305,7 @@ export async function cancelWorkflowExecution(
 
   const durablyRecorded = isPausedCancellationPath
     ? pausedCancellationPublished
-    : pausedCancelled || cancellation.durablyRecorded
+    : pausedCancelled || cancellation.durablyRecorded || queuedJobCancelled
   const reason: CancelWorkflowExecutionReason = pausedCancellationPublishFailed
     ? 'paused_event_publish_failed'
     : !pausedCancelled && isPausedCancellationPath
@@ -279,7 +314,9 @@ export async function cancelWorkflowExecution(
         ? 'paused_event_publish_failed'
         : pausedCancelled || isPausedCancellationPath
           ? 'recorded'
-          : cancellation.reason
+          : queuedJobCancelled
+            ? 'recorded'
+            : cancellation.reason
 
   return {
     success,

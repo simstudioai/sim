@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { NextRequest } from 'next/server'
-import { v2ListUsageLogsContract } from '@/lib/api/contracts/v2/billing'
+import { v2ListBillingLogsContract } from '@/lib/api/contracts/v2/billing'
 import { parseRequest } from '@/lib/api/server'
 import { getUsageCreditsByLogId, getUserUsageLogs } from '@/lib/billing/core/usage-log'
 import { toBillingUsageLogSource, toInternalUsageLogSources } from '@/lib/billing/usage-sources'
@@ -18,16 +18,12 @@ import {
   v2ValidationError,
 } from '@/app/api/v2/lib/response'
 
-const logger = createLogger('V2BillingUsageLogsAPI')
+const logger = createLogger('V2BillingLogsAPI')
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-/**
- * GET /api/v2/billing/usage/logs — Cursor-paged, credit-denominated ledger of
- * the account's usage events. The per-source aggregate lives on
- * `GET /api/v2/billing/usage`; this is the row-level detail.
- */
+/** Cursor-paged, credit-denominated billing ledger. */
 export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
@@ -36,12 +32,11 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
 
     const userId = rateLimit.userId!
-
     const gate = await v2ApiGateError(userId)
     if (gate) return gate
 
     const parsed = await parseRequest(
-      v2ListUsageLogsContract,
+      v2ListBillingLogsContract,
       request,
       {},
       {
@@ -51,7 +46,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     if (!parsed.success) return parsed.response
     const { source, workspaceId, period, startDate, endDate, limit, cursor } = parsed.data.query
 
-    const workspaceFilter = v2BillingWorkspaceFilter(rateLimit, workspaceId)
+    const workspaceFilter = await v2BillingWorkspaceFilter(rateLimit, workspaceId)
     if (!workspaceFilter.ok) return workspaceFilter.response
 
     const dateRange = resolveDateRange(period, startDate, endDate)
@@ -71,7 +66,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       id: log.id,
       createdAt: log.createdAt,
       source: toBillingUsageLogSource(log.source),
-      workflowName: log.workflowName ?? null,
+      workspaceId: log.workspaceId ?? null,
+      workflow: log.workflowId ? { id: log.workflowId, name: log.workflowName ?? null } : null,
+      executionId: log.executionId ?? null,
       creditCost: creditsByLogId[log.id] ?? 0,
     }))
 
@@ -81,7 +78,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       { rateLimit }
     )
   } catch (error) {
-    logger.error(`[${requestId}] Error listing usage logs`, {
+    logger.error(`[${requestId}] Error listing billing logs`, {
       error: getErrorMessage(error, 'Unknown error'),
     })
     return v2Error('INTERNAL_ERROR', 'Internal server error')

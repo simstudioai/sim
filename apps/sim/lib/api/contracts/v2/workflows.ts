@@ -437,6 +437,98 @@ export const v2ExecuteWorkflowContract = defineRouteContract({
   },
 })
 
+/** Resume input is scoped to one pause context on the parent execution. */
+export const v2ResumeWorkflowBodySchema = z
+  .object({
+    contextId: z.string().min(1, 'contextId cannot be empty'),
+    input: z.unknown().optional(),
+  })
+  .strict()
+export type V2ResumeWorkflowBody = z.input<typeof v2ResumeWorkflowBodySchema>
+
+export const v2ResumeWorkflowQueuedSchema = v2ExecuteWorkflowQueuedSchema.extend({
+  queuePosition: z.number().int().positive().optional(),
+})
+export type V2ResumeWorkflowQueued = z.output<typeof v2ResumeWorkflowQueuedSchema>
+
+export const v2ResumeWorkflowContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/workflows/[id]/executions/[executionId]/resume',
+  params: workflowExecutionParamsSchema,
+  body: v2ResumeWorkflowBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2ExecuteWorkflowDataSchema),
+  },
+})
+
+export const v2WorkflowExecutionStatusValueSchema = z.enum([
+  'queued',
+  'pending',
+  'running',
+  'completed',
+  'failed',
+  'cancelled',
+  'paused',
+])
+
+export const v2WorkflowExecutionListStatusValueSchema = z.enum([
+  'pending',
+  'running',
+  'completed',
+  'failed',
+  'cancelled',
+  'paused',
+])
+
+export const v2ListWorkflowExecutionsQuerySchema = z
+  .object({
+    status: v2WorkflowExecutionListStatusValueSchema.optional(),
+    trigger: z.string().min(1, 'trigger cannot be empty').optional(),
+    startDate: z.string().datetime().optional(),
+    endDate: z.string().datetime().optional(),
+    limit: z.coerce.number().int().min(1).max(100).optional().default(50),
+    cursor: z.string().min(1, 'cursor cannot be empty').optional(),
+    order: z.enum(['asc', 'desc']).optional().default('desc'),
+  })
+  .strict()
+  .refine(
+    (query) =>
+      !query.startDate ||
+      !query.endDate ||
+      Date.parse(query.startDate) <= Date.parse(query.endDate),
+    {
+      message: 'startDate must be before or equal to endDate',
+      path: ['startDate'],
+    }
+  )
+
+export type V2ListWorkflowExecutionsQuery = z.output<typeof v2ListWorkflowExecutionsQuerySchema>
+
+export const v2WorkflowExecutionListItemSchema = z.object({
+  executionId: z.string(),
+  workflowId: z.string(),
+  status: v2WorkflowExecutionListStatusValueSchema,
+  trigger: z.string(),
+  startedAt: z.string(),
+  endedAt: z.string().nullable(),
+  durationMs: z.number().nullable(),
+  cost: z.object({ total: z.number() }).nullable(),
+})
+
+export type V2WorkflowExecutionListItem = z.output<typeof v2WorkflowExecutionListItemSchema>
+
+export const v2ListWorkflowExecutionsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/workflows/[id]/executions',
+  params: workflowIdParamsSchema,
+  query: v2ListWorkflowExecutionsQuerySchema,
+  response: {
+    mode: 'json',
+    schema: v2CursorListResponse(v2WorkflowExecutionListItemSchema),
+  },
+})
+
 /**
  * The polled execution resource. `queued` is backfilled from the async job
  * queue before the worker writes the durable log row — v1's jobs endpoint 404
@@ -446,7 +538,7 @@ export const v2ExecuteWorkflowContract = defineRouteContract({
 export const v2WorkflowExecutionStatusSchema = z.object({
   executionId: z.string(),
   workflowId: z.string(),
-  status: z.enum(['queued', 'pending', 'running', 'completed', 'failed', 'cancelled', 'paused']),
+  status: v2WorkflowExecutionStatusValueSchema,
   trigger: z.string().nullable(),
   startedAt: z.string().nullable(),
   endedAt: z.string().nullable(),

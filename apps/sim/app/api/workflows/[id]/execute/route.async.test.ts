@@ -807,6 +807,7 @@ describe('workflow execute async route', () => {
     expect(response.status).toBe(202)
     expect(body.executionId).toBe('execution-123')
     expect(body.jobId).toBe('job-123')
+    expect(body.statusUrl).toBe('http://localhost:3000/api/jobs/job-123')
     expect(mockClaimExecutionId).toHaveBeenCalledWith('execution-123')
     expect(mockEnqueue).toHaveBeenCalledWith(
       'workflow-execution',

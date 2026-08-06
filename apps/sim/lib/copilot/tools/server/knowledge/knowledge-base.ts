@@ -35,6 +35,7 @@ import {
   performUpdateKnowledgeDocument,
   performUploadKnowledgeDocument,
 } from '@/lib/knowledge/orchestration'
+import { executeKnowledgeSearch } from '@/lib/knowledge/search/queries'
 import { getKnowledgeBaseById } from '@/lib/knowledge/service'
 import {
   createTagDefinition,
@@ -48,7 +49,6 @@ import {
 import { StorageService } from '@/lib/uploads'
 import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { getCredential } from '@/app/api/auth/oauth/utils'
-import { executeKnowledgeSearch } from '@/app/api/knowledge/search/utils'
 import {
   checkDocumentWriteAccess,
   checkKnowledgeBaseAccess,

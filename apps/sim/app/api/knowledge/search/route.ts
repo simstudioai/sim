@@ -22,16 +22,16 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { ALL_TAG_SLOTS } from '@/lib/knowledge/constants'
 import { getEmbeddingModelInfo } from '@/lib/knowledge/embedding-models'
 import { rerank } from '@/lib/knowledge/reranker'
-import { getDocumentTagDefinitions } from '@/lib/knowledge/tags/service'
-import { buildUndefinedTagsError, validateTagValue } from '@/lib/knowledge/tags/utils'
-import type { StructuredFilter } from '@/lib/knowledge/types'
-import { estimateTokenCount } from '@/lib/tokenization/estimators'
 import {
   executeKnowledgeSearch,
   generateSearchEmbedding,
   getDocumentMetadataByIds,
   type SearchResult,
-} from '@/app/api/knowledge/search/utils'
+} from '@/lib/knowledge/search/queries'
+import { getDocumentTagDefinitions } from '@/lib/knowledge/tags/service'
+import { buildUndefinedTagsError, validateTagValue } from '@/lib/knowledge/tags/utils'
+import type { StructuredFilter } from '@/lib/knowledge/types'
+import { estimateTokenCount } from '@/lib/tokenization/estimators'
 import { checkKnowledgeBaseAccess, type KnowledgeBaseAccessResult } from '@/app/api/knowledge/utils'
 import { getRerankModelPricing } from '@/providers/models'
 import { calculateCost } from '@/providers/utils'
