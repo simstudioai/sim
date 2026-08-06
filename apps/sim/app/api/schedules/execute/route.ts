@@ -401,7 +401,7 @@ function staleScheduleExecutionJobsFilter(now: Date) {
             THEN (${asyncJobs.payload} ->> 'executionTimeoutMs')::double precision / 1000 + ${cleanupGraceSeconds}
           ELSE ${legacyMaxDurationSeconds}
         END
-      ) * interval '1 second' <= ${now}`
+      ) * interval '1 second' <= ${sql.param(now, asyncJobs.startedAt)}`
     )
   )
 }

@@ -159,6 +159,9 @@ jobs:
       - name: Tool request transport boundary audit
         run: bun run check:tool-request-boundary
 
+      - name: SQL Date binding audit
+        run: bun run check:sql-date-binding
+
       - name: Verify generated tool metadata is in sync
         run: bun run tool-metadata:check
 
