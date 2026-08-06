@@ -552,7 +552,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       if (wantAssertionsSigned !== undefined) samlConfig.wantAssertionsSigned = wantAssertionsSigned
       if (signatureAlgorithm) samlConfig.signatureAlgorithm = signatureAlgorithm
       if (digestAlgorithm) samlConfig.digestAlgorithm = digestAlgorithm
-      if (identifierFormat) samlConfig.identifierFormat = identifierFormat
+      // Forward an explicit empty string rather than dropping it: Better Auth
+      // merges SAML config with `??`, so omitting the key would retain a
+      // previously stored format while the caller asked for the provider default.
+      // samlify falsy-guards nameIDFormat, so '' correctly reads as unset.
+      if (identifierFormat !== undefined) samlConfig.identifierFormat = identifierFormat
       // Better Auth reads the attribute mapping from samlConfig.mapping.
       if (mapping) samlConfig.mapping = mapping
 

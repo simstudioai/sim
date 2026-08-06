@@ -331,6 +331,31 @@ describe('POST /api/auth/sso/register', () => {
     expect(dbChainMockFns.set).toHaveBeenCalledWith({ domainVerified: true })
   })
 
+  /**
+   * Better Auth merges SAML config with `??`, so dropping an empty identifierFormat
+   * would silently retain a previously stored NameID format while the admin had
+   * selected the provider default.
+   */
+  it('forwards an empty SAML identifierFormat so the provider default can be restored', async () => {
+    queueMembers([{ organizationId: 'org1', role: 'owner' }])
+    queueProviders([])
+    await POST(
+      request({
+        providerType: 'saml',
+        providerId: 'acme-saml',
+        issuer: 'https://idp.acme.com',
+        domain: 'acme.com',
+        orgId: 'org1',
+        entryPoint: 'https://idp.acme.com/sso',
+        cert: 'CERT',
+        identifierFormat: '',
+      })
+    )
+    expect(mockRegisterSSOProvider).toHaveBeenCalledTimes(1)
+    const sent = mockRegisterSSOProvider.mock.calls[0][0].body
+    expect(sent.samlConfig).toHaveProperty('identifierFormat', '')
+  })
+
   it('nests the attribute mapping inside oidcConfig (Better Auth reads it there)', async () => {
     queueMembers([{ organizationId: 'org1', role: 'owner' }])
     await POST(
