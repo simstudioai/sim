@@ -248,15 +248,16 @@ const Combobox = memo(
        * which a scrollbar drag left on `<body>`. Bound to `window` so a release
        * outside the popover still clears the flag; `pointercancel` is included
        * because a touch scroll gesture ends there instead of `pointerup`.
+       *
+       * Focus is only restored when the press actually stole it — a press inside the
+       * popover parks it on `<body>` or the `tabIndex={-1}` content, but option
+       * mousedown is prevented, so it often never left the input or the search box.
        */
       useEffect(() => {
         if (!editable) return
         const endPointerPress = () => {
           if (!pointerDownInsideRef.current) return
           pointerDownInsideRef.current = false
-          // Only restore focus if the press actually stole it: a press inside the
-          // popover parks focus on <body> or the `tabIndex={-1}` content, but option
-          // mousedown is prevented, so it often never left the input or search box.
           const active = document.activeElement
           const isTextEntry =
             active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement
@@ -360,7 +361,9 @@ const Combobox = memo(
       }, [groups, searchable, searchQuery])
 
       /**
-       * Handles selection of an option
+       * Handles selection of an option. In editable mode the input is blurred on
+       * purpose, so the pointer-press window is ended first — otherwise the `pointerup`
+       * that follows would hand focus back and reopen the dropdown.
        */
       const handleSelect = useCallback(
         (selectedValue: string, customOnSelect?: () => void, keepOpen?: boolean) => {
@@ -389,7 +392,6 @@ const Combobox = memo(
               setHighlightedIndex(-1)
               updateSearchQuery('')
               if (editable && inputRef.current) {
-                // The pointerup that follows must not hand focus back and reopen.
                 pointerDownInsideRef.current = false
                 inputRef.current.blur()
               }
