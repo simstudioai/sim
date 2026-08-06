@@ -310,7 +310,7 @@ function StepConfigure({
         {allSelected && (
           <p className='text-[var(--text-muted)] text-caption'>
             Full access — the bot can read and send messages, react, upload files, and chat as an AI
-            assistant.
+            agent.
           </p>
         )}
       </div>
