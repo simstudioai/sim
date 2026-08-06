@@ -11,7 +11,6 @@ import type {
 } from '@/connectors/types'
 import {
   CONNECTOR_MAX_FILE_BYTES,
-  isListingTruncated,
   isSkippedDocument,
   markSkipped,
   parseTagDate,
@@ -39,6 +38,7 @@ export interface ConversationRow {
   updatedAt: Date
   messageCount: number
   approxBytes: number
+  contentDigest: string
 }
 
 interface Cursor {
@@ -169,15 +169,15 @@ export function renderTranscript(
  *
  * Single source of truth for `contentHash`, used by both listing and hydration.
  *
- * `updatedAt` is the primary watermark — `Memory.appendMessage` bumps it on every
- * appended message — but it only has millisecond resolution, so two appends landing
- * in the same millisecond as the previously indexed value would hash identically and
- * `classifyExternalDoc` would call the transcript unchanged, leaving the new messages
- * out of the knowledge base until some later write moved the clock.
+ * Keyed on a digest of the stored JSON rather than on metadata proxies. `updatedAt`
+ * is only millisecond-resolution, and message count plus byte size still collide for
+ * a same-millisecond replacement that happens to preserve both — each proxy narrows
+ * the window without closing it. A content digest closes it outright: the hash moves
+ * if and only if the transcript moved.
  *
- * `messageCount` closes that: an append always increments it. `approxBytes` covers
- * the rarer case of a same-count replacement. Both are already selected for the
- * listing, so neither costs an extra query.
+ * Postgres computes the digest, so the listing transfers 32 characters instead of the
+ * payload — the reason `data` is deliberately not selected here. `updatedAt` stays in
+ * the hash purely so a stored value is legible when debugging.
  */
 export function conversationToStub(row: ConversationRow): ExternalDocument {
   return {
@@ -187,7 +187,7 @@ export function conversationToStub(row: ConversationRow): ExternalDocument {
     contentDeferred: true,
     mimeType: 'text/plain',
     // No sourceUrl: conversations have no page of their own in the app.
-    contentHash: `memory:${row.id}:${row.updatedAt.toISOString()}:${row.messageCount}:${row.approxBytes}`,
+    contentHash: `memory:${row.id}:${row.updatedAt.toISOString()}:${row.contentDigest}`,
     metadata: {
       conversationId: row.key,
       messageCount: row.messageCount,
@@ -218,6 +218,12 @@ const CONVERSATION_ROW_COLUMNS = {
     CASE WHEN jsonb_typeof(${memory.data}) = 'array'
          THEN jsonb_array_length(${memory.data}) ELSE 0 END`,
   approxBytes: sql<number>`pg_column_size(${memory.data})`,
+  /**
+   * Content-addressed change detection, computed in Postgres so the transcript
+   * itself never crosses the wire during listing. `jsonb::text` is canonical
+   * (keys sorted, whitespace normalized), so the digest is stable for a value.
+   */
+  contentDigest: sql<string>`md5(${memory.data}::text)`,
 } as const
 
 function readPrefix(sourceConfig: Record<string, unknown>): string {
@@ -291,15 +297,23 @@ export const simConversationsConnector: ConnectorConfig = {
        * matching note in the files connector. Exhausting the source at exactly
        * `maxConversations` is a complete listing.
        */
-      if (
-        isListingTruncated({
-          capReached,
-          droppedFromPage: documents.length < items.length,
-          morePagesAvailable: pageFilled,
-        })
-      ) {
-        syncContext.listingCapped = true
-      }
+      /**
+       * A capped listing can NEVER certify completeness, so it always blocks deletion
+       * reconciliation — even when the source happened to run out at exactly
+       * `maxConversations` with nothing dropped.
+       *
+       * The reason is the descending order a cap implies: a row updated between pages
+       * moves ABOVE the keyset cursor and is skipped for this run. (Ascending has the
+       * opposite skew — the row moves below the cursor and is re-seen, which the
+       * engine dedupes.) So "we consumed exactly the budget" does not prove "we saw
+       * everything", and treating it as proof lets reconciliation hard-delete a source
+       * item that still exists.
+       *
+       * Do not relax this into a `droppedFromPage || morePagesAvailable` check. That
+       * reads correct in isolation and is how the Asana connector decides truncation,
+       * but Asana lists ascending — the inference does not transfer.
+       */
+      syncContext.listingCapped = true
       return { documents, hasMore: false }
     }
 

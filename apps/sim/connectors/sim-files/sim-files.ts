@@ -23,7 +23,6 @@ import type {
 } from '@/connectors/types'
 import {
   CONNECTOR_MAX_FILE_BYTES,
-  isListingTruncated,
   isSkippedDocument,
   markSkipped,
   parseMultiValue,
@@ -390,15 +389,23 @@ export const simFilesConnector: ConnectorConfig = {
        * source would never leave the knowledge base. Mirrors `decideTaskCap`'s
        * `droppedFromPage || (hitLimit && morePagesAvailable)` in the Asana connector.
        */
-      if (
-        isListingTruncated({
-          capReached,
-          droppedFromPage: documents.length < items.length,
-          morePagesAvailable: pageFilled,
-        })
-      ) {
-        syncContext.listingCapped = true
-      }
+      /**
+       * A capped listing can NEVER certify completeness, so it always blocks deletion
+       * reconciliation — even when the source happened to run out at exactly
+       * `maxFiles` with nothing dropped.
+       *
+       * The reason is the descending order a cap implies: a row updated between pages
+       * moves ABOVE the keyset cursor and is skipped for this run. (Ascending has the
+       * opposite skew — the row moves below the cursor and is re-seen, which the
+       * engine dedupes.) So "we consumed exactly the budget" does not prove "we saw
+       * everything", and treating it as proof lets reconciliation hard-delete a source
+       * item that still exists.
+       *
+       * Do not relax this into a `droppedFromPage || morePagesAvailable` check. That
+       * reads correct in isolation and is how the Asana connector decides truncation,
+       * but Asana lists ascending — the inference does not transfer.
+       */
+      syncContext.listingCapped = true
       return { documents, hasMore: false }
     }
 

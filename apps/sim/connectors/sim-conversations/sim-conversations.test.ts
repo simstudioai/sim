@@ -27,6 +27,7 @@ const BASE_ROW: ConversationRow = {
   updatedAt: new Date('2026-01-02T00:00:00.000Z'),
   messageCount: 6,
   approxBytes: 1024,
+  contentDigest: 'd41d8cd98f00b204e9800998ecf8427e',
 }
 
 const META = {
@@ -229,7 +230,7 @@ describe('conversationToStub', () => {
 
   it('hashes on the update watermark, which moves whenever a message is appended', () => {
     const base = conversationToStub(BASE_ROW).contentHash
-    expect(base).toBe('memory:mem-1:2026-01-02T00:00:00.000Z:6:1024')
+    expect(base).toBe('memory:mem-1:2026-01-02T00:00:00.000Z:d41d8cd98f00b204e9800998ecf8427e')
 
     const appended = conversationToStub({
       ...BASE_ROW,
@@ -256,17 +257,30 @@ describe('conversationToStub', () => {
     const appendedSameMs = conversationToStub({
       ...BASE_ROW,
       messageCount: BASE_ROW.messageCount + 2,
-      approxBytes: BASE_ROW.approxBytes + 180,
+      contentDigest: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
     }).contentHash
 
     expect(appendedSameMs).not.toBe(indexed)
   })
 
-  /** A same-count replacement still moves the byte size. */
-  it('distinguishes a same-millisecond, same-count content replacement', () => {
+  /**
+   * The case metadata proxies could not close: a same-millisecond replacement that
+   * preserves both message count and stored byte size. Only the content digest moves.
+   */
+  it('distinguishes a replacement that preserves count and byte size', () => {
+    expect(
+      conversationToStub({
+        ...BASE_ROW,
+        contentDigest: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+      }).contentHash
+    ).not.toBe(conversationToStub(BASE_ROW).contentHash)
+  })
+
+  /** Metadata churn without a content change must NOT force a re-index. */
+  it('is unchanged when only the byte-size hint moves', () => {
     expect(
       conversationToStub({ ...BASE_ROW, approxBytes: BASE_ROW.approxBytes + 40 }).contentHash
-    ).not.toBe(conversationToStub(BASE_ROW).contentHash)
+    ).toBe(conversationToStub(BASE_ROW).contentHash)
   })
 })
 

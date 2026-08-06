@@ -230,25 +230,6 @@ export function takeIndexableWithinCap<T>(
 }
 
 /**
- * Whether a capped listing actually stopped short of the source.
- *
- * `takeIndexableWithinCap` reports `capReached` — the budget is spent — which is NOT
- * the same as truncation. A source that runs out at exactly the cap yields a complete
- * listing, and marking it truncated would suppress deletion reconciliation forever,
- * so an item deleted at the source could never leave the knowledge base.
- *
- * Same rule as `decideTaskCap` in the Asana connector: truncated only when this page
- * dropped items, or the budget ran out with more pages still available.
- */
-export function isListingTruncated(args: {
-  capReached: boolean
-  droppedFromPage: boolean
-  morePagesAvailable: boolean
-}): boolean {
-  return args.droppedFromPage || (args.capReached && args.morePagesAvailable)
-}
-
-/**
  * Raised by a connector when a file exceeds its size cap mid-download — i.e. the
  * listing did not report a size, so the limit is only discovered while streaming.
  * `getDocument` catches it and returns a `markSkipped` document so the file surfaces
