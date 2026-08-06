@@ -645,10 +645,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     /**
      * Unconditional write of Better Auth's `domainVerified` flag — the value Sim
      * mirrors from its own DNS proof, and what lets an SSO sign-in auto-link to an
-     * existing same-email account. Only used to *withdraw* trust, and to grant it on
-     * the org-less (personal) path that Sim never domain-gated. Granting on an
-     * org-scoped provider goes through {@link grantProviderDomainTrust}, which
-     * re-tests ownership in the same statement.
+     * existing same-email account. Used to withdraw trust, and to set the org-less
+     * (personal) verdict, which {@link grantProviderDomainTrust} decides from the
+     * deployment rather than from a domain. Granting on an org-scoped provider goes
+     * through that same helper, which re-tests ownership in the write itself.
      */
     const setProviderDomainVerified = async (verified: boolean) => {
       await db.update(ssoProvider).set({ domainVerified: verified }).where(ownerClause)
