@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import {
   Button,
+  Chip,
   ChipCombobox,
   ChipCopyInput,
   ChipInput,
@@ -69,6 +70,17 @@ const SAML_NAMEID_FORMATS = [
 ] as const
 
 const PROVIDER_ID_SUGGESTIONS = SSO_TRUSTED_PROVIDERS.map((id) => ({ label: id, value: id }))
+
+/** Reads the display-only hint the API attaches beside the redacted client secret. */
+function readClientSecretHint(oidcConfig?: string): string | null {
+  if (!oidcConfig) return null
+  try {
+    const hint = JSON.parse(oidcConfig).clientSecretHint
+    return typeof hint === 'string' ? hint : null
+  } catch {
+    return null
+  }
+}
 
 const DEFAULT_FORM_DATA = {
   providerType: 'oidc' as 'oidc' | 'saml',
@@ -145,12 +157,18 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
   const [errors, setErrors] = useState<Record<string, string[]>>(DEFAULT_ERRORS)
   const [showErrors, setShowErrors] = useState(false)
 
+  const [isReplacingClientSecret, setIsReplacingClientSecret] = useState(false)
+
   /**
    * Editing an OIDC provider always means a secret is stored — the contract
    * requires one to register, and the API returns only its sentinel, never the
    * value. Leaving the field blank therefore means "keep it", not "clear it".
    */
   const hasStoredClientSecret = isEditing && existingProvider?.providerType === 'oidc'
+  /** Last four characters of the saved secret, when the API judged it safe to hint. */
+  const storedClientSecretHint = hasStoredClientSecret
+    ? readClientSecretHint(existingProvider?.oidcConfig)
+    : null
 
   const hasChanges = (Object.keys(formData) as (keyof typeof formData)[]).some(
     (k) => formData[k] !== originalFormData[k]
@@ -263,6 +281,7 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
     setErrors(DEFAULT_ERRORS)
     setShowErrors(false)
     setShowAdvanced(false)
+    setIsReplacingClientSecret(false)
   }
 
   const handleSubmit = async (e?: React.FormEvent) => {
@@ -339,6 +358,7 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
       setShowErrors(false)
       setIsEditing(false)
       setShowAdvanced(false)
+      setIsReplacingClientSecret(false)
     } catch (err) {
       const message = getErrorMessage(err, 'Unknown error occurred')
       toast.error(message)
@@ -447,6 +467,7 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
       setIsEditing(true)
       setShowErrors(false)
       setShowAdvanced(false)
+      setIsReplacingClientSecret(false)
       setShowMapping(Boolean(snapshot.mapId || snapshot.mapEmail || snapshot.mapName))
     } catch (err) {
       logger.error('Failed to parse provider config', { error: err })
@@ -684,9 +705,7 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
                 <SettingRow
                   label='Client Secret'
                   description={
-                    hasStoredClientSecret
-                      ? 'Your saved secret is never shown again. Leave this blank to keep it, or type a new one to replace it.'
-                      : undefined
+                    isReplacingClientSecret ? 'Replaces the saved secret when you save.' : undefined
                   }
                   error={
                     showErrors && errors.clientSecret.length > 0
@@ -694,47 +713,89 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
                       : undefined
                   }
                 >
-                  <ChipInput
-                    id='sso-client-secret'
-                    type='text'
-                    placeholder={hasStoredClientSecret ? '••••••••••••' : 'Enter Client Secret'}
-                    value={formData.clientSecret}
-                    name='sso_client_key'
-                    autoComplete='off'
-                    autoCapitalize='none'
-                    spellCheck={false}
-                    readOnly
-                    onFocus={(e) => {
-                      e.target.removeAttribute('readOnly')
-                      setShowClientSecret(true)
-                    }}
-                    onBlurCapture={() => setShowClientSecret(false)}
-                    onChange={(e) => handleInputChange('clientSecret', e.target.value)}
-                    inputClassName={!showClientSecret ? '[-webkit-text-security:disc]' : undefined}
-                    error={showErrors && errors.clientSecret.length > 0}
-                    endAdornment={
-                      // Only offer the reveal once there is something to reveal. The
-                      // stored secret is never sent to the browser, so on an untouched
-                      // edit the toggle would be a control that visibly does nothing.
-                      formData.clientSecret ? (
-                        <Button
-                          type='button'
-                          variant='ghost'
-                          onClick={() => setShowClientSecret((s) => !s)}
-                          className='size-6 p-0 text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-                          aria-label={
-                            showClientSecret ? 'Hide client secret' : 'Show client secret'
-                          }
+                  {hasStoredClientSecret && !isReplacingClientSecret ? (
+                    // A saved secret is a fact, not an editable value — the browser
+                    // never receives it. Showing it as a static row with an explicit
+                    // Replace action removes the "is blank going to clear it?" question
+                    // an empty input invites, and stops a stray keystroke from arming
+                    // a replacement.
+                    <div className='flex items-center gap-2'>
+                      <ChipInput
+                        id='sso-client-secret'
+                        readOnly
+                        value={
+                          storedClientSecretHint
+                            ? `••••••••••••${storedClientSecretHint}`
+                            : '••••••••••••'
+                        }
+                        inputClassName='cursor-default font-mono'
+                        className='min-w-0 flex-1'
+                        aria-label={
+                          storedClientSecretHint
+                            ? `Saved client secret ending ${storedClientSecretHint}`
+                            : 'Saved client secret'
+                        }
+                      />
+                      <Chip onClick={() => setIsReplacingClientSecret(true)}>Replace</Chip>
+                    </div>
+                  ) : (
+                    <div className='flex items-center gap-2'>
+                      <ChipInput
+                        id='sso-client-secret'
+                        type='text'
+                        placeholder='Enter Client Secret'
+                        className='min-w-0 flex-1'
+                        value={formData.clientSecret}
+                        name='sso_client_key'
+                        autoComplete='off'
+                        autoCapitalize='none'
+                        spellCheck={false}
+                        readOnly
+                        onFocus={(e) => {
+                          e.target.removeAttribute('readOnly')
+                          setShowClientSecret(true)
+                        }}
+                        onBlurCapture={() => setShowClientSecret(false)}
+                        onChange={(e) => handleInputChange('clientSecret', e.target.value)}
+                        inputClassName={
+                          !showClientSecret ? '[-webkit-text-security:disc]' : undefined
+                        }
+                        error={showErrors && errors.clientSecret.length > 0}
+                        endAdornment={
+                          // Only offer the reveal once there is something to reveal. The
+                          // stored secret is never sent to the browser, so on an untouched
+                          // edit the toggle would be a control that visibly does nothing.
+                          formData.clientSecret ? (
+                            <Button
+                              type='button'
+                              variant='ghost'
+                              onClick={() => setShowClientSecret((s) => !s)}
+                              className='size-6 p-0 text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                              aria-label={
+                                showClientSecret ? 'Hide client secret' : 'Show client secret'
+                              }
+                            >
+                              {showClientSecret ? (
+                                <EyeOff className='size-[14px]' />
+                              ) : (
+                                <Eye className='size-[14px]' />
+                              )}
+                            </Button>
+                          ) : undefined
+                        }
+                      />
+                      {hasStoredClientSecret && (
+                        <Chip
+                          onClick={() => {
+                            setIsReplacingClientSecret(false)
+                            handleInputChange('clientSecret', '')
+                          }}
                         >
-                          {showClientSecret ? (
-                            <EyeOff className='size-[14px]' />
-                          ) : (
-                            <Eye className='size-[14px]' />
-                          )}
-                        </Button>
-                      ) : undefined
-                    }
-                  />
+                          Cancel
+                        </Chip>
+                      )}
+                    </div>
+                  )}
                 </SettingRow>
 
                 <div className='flex flex-col gap-2'>
