@@ -137,7 +137,9 @@ export const updateWorkspaceFileDimensionsContract = defineRouteContract({
   body: updateWorkspaceFileDimensionsBodySchema,
   response: {
     mode: 'json',
-    schema: z.object({ success: z.literal(true) }),
+    // `success` reflects whether the row was actually written: false when the content-version guard
+    // rejected the write (the storage key changed since the client measured), not just on error.
+    schema: z.object({ success: z.boolean() }),
   },
 })
 

@@ -36,8 +36,15 @@ export const PATCH = withRouteHandler(
     }
 
     try {
-      await updateWorkspaceFileDimensions(workspaceId, fileId, { key, width, height })
-      return NextResponse.json({ success: true as const })
+      // `written` is false when the content-version guard rejected the write (the row's storage key no
+      // longer matches the key the client measured — the content was replaced since). That is not an
+      // error; the client's next measurement, once its file list has the new key, persists correctly.
+      const written = await updateWorkspaceFileDimensions(workspaceId, fileId, {
+        key,
+        width,
+        height,
+      })
+      return NextResponse.json({ success: written })
     } catch (error) {
       logger.error('Failed to backfill workspace file dimensions', {
         workspaceId,

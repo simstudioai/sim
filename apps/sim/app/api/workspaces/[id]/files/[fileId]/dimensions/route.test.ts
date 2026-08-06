@@ -56,6 +56,13 @@ describe('PATCH /api/workspaces/[id]/files/[fileId]/dimensions', () => {
     expect(mockUpdateWorkspaceFileDimensions).toHaveBeenCalledOnce()
   })
 
+  it('reports success:false when the content-version guard rejects the write (key changed)', async () => {
+    mockUpdateWorkspaceFileDimensions.mockResolvedValue(false)
+    const res = await PATCH(buildRequest({ key: KEY, width: 10, height: 20 }), routeContext)
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ success: false })
+  })
+
   it('rejects an unauthenticated caller before touching the DB', async () => {
     authMockFns.mockGetSession.mockResolvedValue(null)
     const res = await PATCH(buildRequest({ key: KEY, width: 10, height: 10 }), routeContext)
