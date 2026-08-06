@@ -162,7 +162,9 @@ function ClientSecretField({
           ) : undefined
         }
       />
-      {hasStoredSecret && <Chip onClick={onCancelReplace}>Cancel</Chip>}
+      {/* Not "Cancel" — the header already owns that label for discarding the
+          whole edit, and these two do very different things. */}
+      {hasStoredSecret && <Chip onClick={onCancelReplace}>Keep saved</Chip>}
     </div>
   )
 }
