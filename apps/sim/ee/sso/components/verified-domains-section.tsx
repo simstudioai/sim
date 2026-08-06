@@ -17,6 +17,9 @@ import {
   useVerifyOrganizationDomain,
 } from '@/ee/sso/hooks/domains'
 
+/** Ties the "Add a domain" label to its input, so clicking the label focuses it. */
+const ADD_DOMAIN_FIELD_ID = 'sso-add-domain'
+
 interface VerifiedDomainsSectionProps {
   organizationId: string
 }
@@ -65,16 +68,19 @@ function DomainRow({ organizationId, domain, onRemove }: DomainRowProps) {
           <SettingRow
             label='Host / name'
             description='Some DNS providers append your zone automatically. If yours does, enter this host with the trailing zone removed.'
+            htmlFor={`${domain.id}-challenge-host`}
           >
             <ChipCopyInput
+              id={`${domain.id}-challenge-host`}
               value={domain.challengeHost}
               copyLabel='Copy host'
               inputClassName='font-mono'
             />
           </SettingRow>
 
-          <SettingRow label='Value'>
+          <SettingRow label='Value' htmlFor={`${domain.id}-challenge-value`}>
             <ChipCopyInput
+              id={`${domain.id}-challenge-value`}
               value={domain.txtRecordValue}
               copyLabel='Copy value'
               inputClassName='font-mono'
@@ -139,9 +145,11 @@ export function VerifiedDomainsSection({ organizationId }: VerifiedDomainsSectio
           <SettingRow
             label='Add a domain'
             description='Verify a domain your organization owns before configuring SSO for it. Verifying proves you control the domain, so no one else can point it at their identity provider.'
+            htmlFor={ADD_DOMAIN_FIELD_ID}
           >
             <div className='flex items-center gap-2'>
               <ChipInput
+                id={ADD_DOMAIN_FIELD_ID}
                 value={newDomain}
                 onChange={(event) => setNewDomain(event.target.value)}
                 onKeyDown={(event) => {
