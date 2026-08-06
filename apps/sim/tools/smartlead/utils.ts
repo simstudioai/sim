@@ -633,6 +633,16 @@ const leadCampaignDataProperties = {
   client_email: { type: 'string', description: 'Client email', optional: true },
 } satisfies Record<string, OutputProperty>
 
+/**
+ * `GET /leads/{id}` omits `lead_campaign_data` entirely, unlike the lookup by
+ * email, so that tool declares this narrower shape rather than an always-empty
+ * array.
+ */
+export const leadRecordOutputs = {
+  ...leadProperties,
+  created_at: { type: 'string', description: 'Lead creation timestamp', optional: true },
+} satisfies NonNullable<ToolConfig['outputs']>
+
 export const leadDetailOutputs = {
   ...leadProperties,
   created_at: { type: 'string', description: 'Lead creation timestamp', optional: true },
@@ -910,9 +920,14 @@ export const markCompleteOutputs = {
     description: 'Whether the lead was on the final sequence step',
     optional: true,
   },
-  next_sequence: {
+  next_sequence_id: {
     type: 'number',
-    description: 'Next sequence step, or null when none remains',
+    description: 'ID of the next sequence step, or null when none remains',
+    optional: true,
+  },
+  next_sequence_delay_in_days: {
+    type: 'number',
+    description: 'Days before the next sequence step would have sent',
     optional: true,
   },
 } satisfies NonNullable<ToolConfig['outputs']>

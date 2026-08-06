@@ -370,14 +370,15 @@ export interface SmartleadTopLevelAnalyticsResponse extends ToolResponse {
 }
 
 export interface SmartleadLeadByIdResponse extends ToolResponse {
-  output: SmartleadLeadDetail
+  output: SmartleadLead & { created_at: string | null }
 }
 
 export interface SmartleadMarkCompleteResponse extends ToolResponse {
   output: {
     success: boolean
     is_last_sequence: boolean | null
-    next_sequence: number | null
+    next_sequence_id: number | null
+    next_sequence_delay_in_days: number | null
   }
 }
 

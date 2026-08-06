@@ -12,6 +12,39 @@ import {
 } from '@/tools/smartlead/utils'
 import type { ToolConfig } from '@/tools/types'
 
+/**
+ * Counts data rows excluding the header, treating newlines inside quoted fields
+ * as part of the value — lead names, locations, and custom fields can contain them.
+ */
+function countCsvDataRows(csv: string): number {
+  let rows = 0
+  let inQuotes = false
+  let lineHasContent = false
+
+  for (let i = 0; i < csv.length; i++) {
+    const char = csv[i]
+    if (char === '"') {
+      // A doubled quote inside a quoted field is an escaped literal quote.
+      if (inQuotes && csv[i + 1] === '"') {
+        i++
+        continue
+      }
+      inQuotes = !inQuotes
+      lineHasContent = true
+      continue
+    }
+    if (char === '\n' && !inQuotes) {
+      if (lineHasContent) rows++
+      lineHasContent = false
+      continue
+    }
+    if (char !== '\r') lineHasContent = true
+  }
+  if (lineHasContent) rows++
+
+  return Math.max(0, rows - 1)
+}
+
 export const exportCampaignLeadsTool: ToolConfig<
   SmartleadCampaignIdParams,
   SmartleadExportLeadsResponse
@@ -34,14 +67,12 @@ export const exportCampaignLeadsTool: ToolConfig<
   },
   transformResponse: async (response) => {
     const csv = await response.text()
-    // The first line is the header row, so data rows are the remaining non-empty lines.
-    const rowCount = csv.split('\n').filter((line) => line.trim() !== '').length
 
     return {
       success: true,
       output: {
         csv,
-        row_count: Math.max(0, rowCount - 1),
+        row_count: countCsvDataRows(csv),
       },
     }
   },

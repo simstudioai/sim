@@ -11,10 +11,14 @@ import {
 } from '@/tools/smartlead/utils'
 import type { ToolConfig } from '@/tools/types'
 
+/**
+ * Smartlead exposes no working campaign filter on this endpoint — `campaign_id`,
+ * `campaignId`, `campaign_ids` and `email_campaign_id` are all rejected by its
+ * validator, so only pagination is offered.
+ */
 interface ListLeadActivitiesParams extends SmartleadBaseParams {
   offset?: number
   limit?: number
-  campaignId?: number
 }
 
 export const listLeadActivitiesTool: ToolConfig<
@@ -29,12 +33,6 @@ export const listLeadActivitiesTool: ToolConfig<
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {
     ...smartleadBaseParamFields,
-    campaignId: {
-      type: 'number',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Only return activity for this campaign',
-    },
     offset: {
       type: 'number',
       required: false,
@@ -53,7 +51,6 @@ export const listLeadActivitiesTool: ToolConfig<
       smartleadUrl('/campaigns/all-leads-activities', params.apiKey, {
         offset: params.offset,
         limit: params.limit,
-        campaign_id: params.campaignId,
       }),
     method: 'GET',
     headers: smartleadHeaders,

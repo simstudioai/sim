@@ -11,10 +11,13 @@ import {
 } from '@/tools/smartlead/utils'
 import type { ToolConfig } from '@/tools/types'
 
+/**
+ * Smartlead rejects every campaign-filter key this endpoint might plausibly take
+ * (`campaign_id`, `campaign_ids`, `campaignIds`), so only pagination is offered.
+ */
 interface ListInboxRepliesParams extends SmartleadBaseParams {
   offset?: number
   limit?: number
-  campaignId?: number
   unreadOnly?: boolean
 }
 
@@ -35,12 +38,6 @@ export const listInboxRepliesTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description: 'Return only unread replies',
-    },
-    campaignId: {
-      type: 'number',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Only return replies for this campaign',
     },
     offset: {
       type: 'number',
@@ -67,7 +64,6 @@ export const listInboxRepliesTool: ToolConfig<
       jsonBody({
         offset: params.offset ?? 0,
         limit: params.limit,
-        campaign_id: params.campaignId,
       }),
   },
   transformResponse: async (response) => {

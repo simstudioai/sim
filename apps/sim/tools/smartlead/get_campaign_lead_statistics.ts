@@ -17,7 +17,7 @@ import type { ToolConfig } from '@/tools/types'
 
 interface GetCampaignLeadStatisticsParams extends SmartleadCampaignIdParams {
   limit?: number
-  skip?: number
+  offset?: number
 }
 
 export const getCampaignLeadStatisticsTool: ToolConfig<
@@ -38,7 +38,7 @@ export const getCampaignLeadStatisticsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Rows to return (default 100)',
     },
-    skip: {
+    offset: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
@@ -46,10 +46,11 @@ export const getCampaignLeadStatisticsTool: ToolConfig<
     },
   },
   request: {
+    // Smartlead takes `offset` here but echoes it back as `skip`.
     url: (params) =>
       smartleadUrl(`/campaigns/${pathSegment(params.campaignId)}/leads-statistics`, params.apiKey, {
         limit: params.limit,
-        skip: params.skip,
+        offset: params.offset,
       }),
     method: 'GET',
     headers: smartleadHeaders,

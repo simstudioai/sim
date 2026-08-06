@@ -66,6 +66,50 @@ Retrieves all Smartlead campaigns for the authenticated account.
 | `has_more` | boolean | Whether more rows are available |
 | `list_name` | string | Lead list name |
 | `positive_reply_count` | number | Replies categorized as positive |
+| `offset` | number | Pagination offset used |
+| `limit` | number | Pagination limit used |
+| `total_count` | number | Total records matching the request |
+| `from` | string | Start of the reported window |
+| `to` | string | End of the reported window |
+| `start_date` | string | Start of the reported range |
+| `end_date` | string | End of the reported range |
+| `skipped_count` | number | Emails skipped |
+| `failed_count` | number | Failed sends |
+| `stopped_count` | number | Stopped leads |
+| `unsubscribed_count` | number | Unsubscribes |
+| `unique_sent_count` | number | Unique leads emailed |
+| `unique_open_count` | number | Unique opens |
+| `unique_click_count` | number | Unique clicks |
+| `block_count` | number | Blocked sends, or leads skipped by the block list |
+| `drafted_count` | number | Drafted emails |
+| `sequence_count` | number | Sequence steps in the campaign |
+| `duplicate_count` | number | Duplicate leads skipped on import |
+| `invalid_email_count` | number | Leads skipped for an invalid email |
+| `invalid_emails` | array | Emails rejected as invalid |
+| `already_added_to_campaign` | number | Leads already in the campaign |
+| `unsubscribed_leads` | array | Leads skipped because they unsubscribed |
+| `lead_import_stopped_count` | number | Leads whose import was stopped |
+| `is_lead_limit_exhausted` | boolean | Whether the plan lead limit was hit |
+| `is_last_sequence` | boolean | Whether the lead was on the final step |
+| `next_sequence_id` | number | ID of the next sequence step |
+| `next_sequence_delay_in_days` | number | Days before the next step |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `phone_number` | string | Lead phone number |
+| `company_name` | string | Lead company name |
+| `website` | string | Lead website |
+| `location` | string | Lead location |
+| `linkedin_profile` | string | Lead LinkedIn profile URL |
+| `company_url` | string | Lead company URL |
+| `custom_fields` | json | Lead custom fields |
+| `is_unsubscribed` | boolean | Whether the lead is unsubscribed |
+| `lead_campaign_data` | array | Campaigns the lead belongs to |
+| `created_at` | string | Creation timestamp |
+| `updated_at` | string | Last update timestamp |
+| `leads_count` | number | Leads in the list |
+| `active_leads_count` | number | Active leads in the list |
+| `track_settings` | array | Disabled tracking settings |
+| `scheduler_cron_value` | json | Campaign sending schedule |
 
 ### `smartlead_get_campaign`
 
@@ -113,6 +157,50 @@ Retrieves a single Smartlead campaign by ID.
 | `has_more` | boolean | Whether more rows are available |
 | `list_name` | string | Lead list name |
 | `positive_reply_count` | number | Replies categorized as positive |
+| `offset` | number | Pagination offset used |
+| `limit` | number | Pagination limit used |
+| `total_count` | number | Total records matching the request |
+| `from` | string | Start of the reported window |
+| `to` | string | End of the reported window |
+| `start_date` | string | Start of the reported range |
+| `end_date` | string | End of the reported range |
+| `skipped_count` | number | Emails skipped |
+| `failed_count` | number | Failed sends |
+| `stopped_count` | number | Stopped leads |
+| `unsubscribed_count` | number | Unsubscribes |
+| `unique_sent_count` | number | Unique leads emailed |
+| `unique_open_count` | number | Unique opens |
+| `unique_click_count` | number | Unique clicks |
+| `block_count` | number | Blocked sends, or leads skipped by the block list |
+| `drafted_count` | number | Drafted emails |
+| `sequence_count` | number | Sequence steps in the campaign |
+| `duplicate_count` | number | Duplicate leads skipped on import |
+| `invalid_email_count` | number | Leads skipped for an invalid email |
+| `invalid_emails` | array | Emails rejected as invalid |
+| `already_added_to_campaign` | number | Leads already in the campaign |
+| `unsubscribed_leads` | array | Leads skipped because they unsubscribed |
+| `lead_import_stopped_count` | number | Leads whose import was stopped |
+| `is_lead_limit_exhausted` | boolean | Whether the plan lead limit was hit |
+| `is_last_sequence` | boolean | Whether the lead was on the final step |
+| `next_sequence_id` | number | ID of the next sequence step |
+| `next_sequence_delay_in_days` | number | Days before the next step |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `phone_number` | string | Lead phone number |
+| `company_name` | string | Lead company name |
+| `website` | string | Lead website |
+| `location` | string | Lead location |
+| `linkedin_profile` | string | Lead LinkedIn profile URL |
+| `company_url` | string | Lead company URL |
+| `custom_fields` | json | Lead custom fields |
+| `is_unsubscribed` | boolean | Whether the lead is unsubscribed |
+| `lead_campaign_data` | array | Campaigns the lead belongs to |
+| `created_at` | string | Creation timestamp |
+| `updated_at` | string | Last update timestamp |
+| `leads_count` | number | Leads in the list |
+| `active_leads_count` | number | Active leads in the list |
+| `track_settings` | array | Disabled tracking settings |
+| `scheduler_cron_value` | json | Campaign sending schedule |
 
 ### `smartlead_create_campaign`
 
@@ -162,6 +250,50 @@ Creates a Smartlead campaign. The campaign starts in DRAFTED status; add sequenc
 | `has_more` | boolean | Whether more rows are available |
 | `list_name` | string | Lead list name |
 | `positive_reply_count` | number | Replies categorized as positive |
+| `offset` | number | Pagination offset used |
+| `limit` | number | Pagination limit used |
+| `total_count` | number | Total records matching the request |
+| `from` | string | Start of the reported window |
+| `to` | string | End of the reported window |
+| `start_date` | string | Start of the reported range |
+| `end_date` | string | End of the reported range |
+| `skipped_count` | number | Emails skipped |
+| `failed_count` | number | Failed sends |
+| `stopped_count` | number | Stopped leads |
+| `unsubscribed_count` | number | Unsubscribes |
+| `unique_sent_count` | number | Unique leads emailed |
+| `unique_open_count` | number | Unique opens |
+| `unique_click_count` | number | Unique clicks |
+| `block_count` | number | Blocked sends, or leads skipped by the block list |
+| `drafted_count` | number | Drafted emails |
+| `sequence_count` | number | Sequence steps in the campaign |
+| `duplicate_count` | number | Duplicate leads skipped on import |
+| `invalid_email_count` | number | Leads skipped for an invalid email |
+| `invalid_emails` | array | Emails rejected as invalid |
+| `already_added_to_campaign` | number | Leads already in the campaign |
+| `unsubscribed_leads` | array | Leads skipped because they unsubscribed |
+| `lead_import_stopped_count` | number | Leads whose import was stopped |
+| `is_lead_limit_exhausted` | boolean | Whether the plan lead limit was hit |
+| `is_last_sequence` | boolean | Whether the lead was on the final step |
+| `next_sequence_id` | number | ID of the next sequence step |
+| `next_sequence_delay_in_days` | number | Days before the next step |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `phone_number` | string | Lead phone number |
+| `company_name` | string | Lead company name |
+| `website` | string | Lead website |
+| `location` | string | Lead location |
+| `linkedin_profile` | string | Lead LinkedIn profile URL |
+| `company_url` | string | Lead company URL |
+| `custom_fields` | json | Lead custom fields |
+| `is_unsubscribed` | boolean | Whether the lead is unsubscribed |
+| `lead_campaign_data` | array | Campaigns the lead belongs to |
+| `created_at` | string | Creation timestamp |
+| `updated_at` | string | Last update timestamp |
+| `leads_count` | number | Leads in the list |
+| `active_leads_count` | number | Active leads in the list |
+| `track_settings` | array | Disabled tracking settings |
+| `scheduler_cron_value` | json | Campaign sending schedule |
 
 ### `smartlead_update_campaign_status`
 
@@ -210,6 +342,50 @@ Starts, pauses, or stops a Smartlead campaign. START requires the campaign to al
 | `has_more` | boolean | Whether more rows are available |
 | `list_name` | string | Lead list name |
 | `positive_reply_count` | number | Replies categorized as positive |
+| `offset` | number | Pagination offset used |
+| `limit` | number | Pagination limit used |
+| `total_count` | number | Total records matching the request |
+| `from` | string | Start of the reported window |
+| `to` | string | End of the reported window |
+| `start_date` | string | Start of the reported range |
+| `end_date` | string | End of the reported range |
+| `skipped_count` | number | Emails skipped |
+| `failed_count` | number | Failed sends |
+| `stopped_count` | number | Stopped leads |
+| `unsubscribed_count` | number | Unsubscribes |
+| `unique_sent_count` | number | Unique leads emailed |
+| `unique_open_count` | number | Unique opens |
+| `unique_click_count` | number | Unique clicks |
+| `block_count` | number | Blocked sends, or leads skipped by the block list |
+| `drafted_count` | number | Drafted emails |
+| `sequence_count` | number | Sequence steps in the campaign |
+| `duplicate_count` | number | Duplicate leads skipped on import |
+| `invalid_email_count` | number | Leads skipped for an invalid email |
+| `invalid_emails` | array | Emails rejected as invalid |
+| `already_added_to_campaign` | number | Leads already in the campaign |
+| `unsubscribed_leads` | array | Leads skipped because they unsubscribed |
+| `lead_import_stopped_count` | number | Leads whose import was stopped |
+| `is_lead_limit_exhausted` | boolean | Whether the plan lead limit was hit |
+| `is_last_sequence` | boolean | Whether the lead was on the final step |
+| `next_sequence_id` | number | ID of the next sequence step |
+| `next_sequence_delay_in_days` | number | Days before the next step |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `phone_number` | string | Lead phone number |
+| `company_name` | string | Lead company name |
+| `website` | string | Lead website |
+| `location` | string | Lead location |
+| `linkedin_profile` | string | Lead LinkedIn profile URL |
+| `company_url` | string | Lead company URL |
+| `custom_fields` | json | Lead custom fields |
+| `is_unsubscribed` | boolean | Whether the lead is unsubscribed |
+| `lead_campaign_data` | array | Campaigns the lead belongs to |
+| `created_at` | string | Creation timestamp |
+| `updated_at` | string | Last update timestamp |
+| `leads_count` | number | Leads in the list |
+| `active_leads_count` | number | Active leads in the list |
+| `track_settings` | array | Disabled tracking settings |
+| `scheduler_cron_value` | json | Campaign sending schedule |
 
 ### `smartlead_update_campaign_schedule`
 
@@ -264,6 +440,50 @@ Sets the sending window, timezone, and throughput limits for a Smartlead campaig
 | `has_more` | boolean | Whether more rows are available |
 | `list_name` | string | Lead list name |
 | `positive_reply_count` | number | Replies categorized as positive |
+| `offset` | number | Pagination offset used |
+| `limit` | number | Pagination limit used |
+| `total_count` | number | Total records matching the request |
+| `from` | string | Start of the reported window |
+| `to` | string | End of the reported window |
+| `start_date` | string | Start of the reported range |
+| `end_date` | string | End of the reported range |
+| `skipped_count` | number | Emails skipped |
+| `failed_count` | number | Failed sends |
+| `stopped_count` | number | Stopped leads |
+| `unsubscribed_count` | number | Unsubscribes |
+| `unique_sent_count` | number | Unique leads emailed |
+| `unique_open_count` | number | Unique opens |
+| `unique_click_count` | number | Unique clicks |
+| `block_count` | number | Blocked sends, or leads skipped by the block list |
+| `drafted_count` | number | Drafted emails |
+| `sequence_count` | number | Sequence steps in the campaign |
+| `duplicate_count` | number | Duplicate leads skipped on import |
+| `invalid_email_count` | number | Leads skipped for an invalid email |
+| `invalid_emails` | array | Emails rejected as invalid |
+| `already_added_to_campaign` | number | Leads already in the campaign |
+| `unsubscribed_leads` | array | Leads skipped because they unsubscribed |
+| `lead_import_stopped_count` | number | Leads whose import was stopped |
+| `is_lead_limit_exhausted` | boolean | Whether the plan lead limit was hit |
+| `is_last_sequence` | boolean | Whether the lead was on the final step |
+| `next_sequence_id` | number | ID of the next sequence step |
+| `next_sequence_delay_in_days` | number | Days before the next step |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `phone_number` | string | Lead phone number |
+| `company_name` | string | Lead company name |
+| `website` | string | Lead website |
+| `location` | string | Lead location |
+| `linkedin_profile` | string | Lead LinkedIn profile URL |
+| `company_url` | string | Lead company URL |
+| `custom_fields` | json | Lead custom fields |
+| `is_unsubscribed` | boolean | Whether the lead is unsubscribed |
+| `lead_campaign_data` | array | Campaigns the lead belongs to |
+| `created_at` | string | Creation timestamp |
+| `updated_at` | string | Last update timestamp |
+| `leads_count` | number | Leads in the list |
+| `active_leads_count` | number | Active leads in the list |
+| `track_settings` | array | Disabled tracking settings |
+| `scheduler_cron_value` | json | Campaign sending schedule |
 
 ### `smartlead_update_campaign_settings`
 
@@ -317,6 +537,50 @@ Updates tracking, stop-on-activity, and sending settings for a Smartlead campaig
 | `has_more` | boolean | Whether more rows are available |
 | `list_name` | string | Lead list name |
 | `positive_reply_count` | number | Replies categorized as positive |
+| `offset` | number | Pagination offset used |
+| `limit` | number | Pagination limit used |
+| `total_count` | number | Total records matching the request |
+| `from` | string | Start of the reported window |
+| `to` | string | End of the reported window |
+| `start_date` | string | Start of the reported range |
+| `end_date` | string | End of the reported range |
+| `skipped_count` | number | Emails skipped |
+| `failed_count` | number | Failed sends |
+| `stopped_count` | number | Stopped leads |
+| `unsubscribed_count` | number | Unsubscribes |
+| `unique_sent_count` | number | Unique leads emailed |
+| `unique_open_count` | number | Unique opens |
+| `unique_click_count` | number | Unique clicks |
+| `block_count` | number | Blocked sends, or leads skipped by the block list |
+| `drafted_count` | number | Drafted emails |
+| `sequence_count` | number | Sequence steps in the campaign |
+| `duplicate_count` | number | Duplicate leads skipped on import |
+| `invalid_email_count` | number | Leads skipped for an invalid email |
+| `invalid_emails` | array | Emails rejected as invalid |
+| `already_added_to_campaign` | number | Leads already in the campaign |
+| `unsubscribed_leads` | array | Leads skipped because they unsubscribed |
+| `lead_import_stopped_count` | number | Leads whose import was stopped |
+| `is_lead_limit_exhausted` | boolean | Whether the plan lead limit was hit |
+| `is_last_sequence` | boolean | Whether the lead was on the final step |
+| `next_sequence_id` | number | ID of the next sequence step |
+| `next_sequence_delay_in_days` | number | Days before the next step |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `phone_number` | string | Lead phone number |
+| `company_name` | string | Lead company name |
+| `website` | string | Lead website |
+| `location` | string | Lead location |
+| `linkedin_profile` | string | Lead LinkedIn profile URL |
+| `company_url` | string | Lead company URL |
+| `custom_fields` | json | Lead custom fields |
+| `is_unsubscribed` | boolean | Whether the lead is unsubscribed |
+| `lead_campaign_data` | array | Campaigns the lead belongs to |
+| `created_at` | string | Creation timestamp |
+| `updated_at` | string | Last update timestamp |
+| `leads_count` | number | Leads in the list |
+| `active_leads_count` | number | Active leads in the list |
+| `track_settings` | array | Disabled tracking settings |
+| `scheduler_cron_value` | json | Campaign sending schedule |
 
 ### `smartlead_get_campaign_analytics`
 
@@ -364,6 +628,50 @@ Retrieves lifetime performance totals for a Smartlead campaign — sends, opens,
 | `has_more` | boolean | Whether more rows are available |
 | `list_name` | string | Lead list name |
 | `positive_reply_count` | number | Replies categorized as positive |
+| `offset` | number | Pagination offset used |
+| `limit` | number | Pagination limit used |
+| `total_count` | number | Total records matching the request |
+| `from` | string | Start of the reported window |
+| `to` | string | End of the reported window |
+| `start_date` | string | Start of the reported range |
+| `end_date` | string | End of the reported range |
+| `skipped_count` | number | Emails skipped |
+| `failed_count` | number | Failed sends |
+| `stopped_count` | number | Stopped leads |
+| `unsubscribed_count` | number | Unsubscribes |
+| `unique_sent_count` | number | Unique leads emailed |
+| `unique_open_count` | number | Unique opens |
+| `unique_click_count` | number | Unique clicks |
+| `block_count` | number | Blocked sends, or leads skipped by the block list |
+| `drafted_count` | number | Drafted emails |
+| `sequence_count` | number | Sequence steps in the campaign |
+| `duplicate_count` | number | Duplicate leads skipped on import |
+| `invalid_email_count` | number | Leads skipped for an invalid email |
+| `invalid_emails` | array | Emails rejected as invalid |
+| `already_added_to_campaign` | number | Leads already in the campaign |
+| `unsubscribed_leads` | array | Leads skipped because they unsubscribed |
+| `lead_import_stopped_count` | number | Leads whose import was stopped |
+| `is_lead_limit_exhausted` | boolean | Whether the plan lead limit was hit |
+| `is_last_sequence` | boolean | Whether the lead was on the final step |
+| `next_sequence_id` | number | ID of the next sequence step |
+| `next_sequence_delay_in_days` | number | Days before the next step |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `phone_number` | string | Lead phone number |
+| `company_name` | string | Lead company name |
+| `website` | string | Lead website |
+| `location` | string | Lead location |
+| `linkedin_profile` | string | Lead LinkedIn profile URL |
+| `company_url` | string | Lead company URL |
+| `custom_fields` | json | Lead custom fields |
+| `is_unsubscribed` | boolean | Whether the lead is unsubscribed |
+| `lead_campaign_data` | array | Campaigns the lead belongs to |
+| `created_at` | string | Creation timestamp |
+| `updated_at` | string | Last update timestamp |
+| `leads_count` | number | Leads in the list |
+| `active_leads_count` | number | Active leads in the list |
+| `track_settings` | array | Disabled tracking settings |
+| `scheduler_cron_value` | json | Campaign sending schedule |
 
 ### `smartlead_get_campaign_analytics_by_date`
 
@@ -413,6 +721,50 @@ Retrieves Smartlead campaign performance totals for a date range. Smartlead reje
 | `has_more` | boolean | Whether more rows are available |
 | `list_name` | string | Lead list name |
 | `positive_reply_count` | number | Replies categorized as positive |
+| `offset` | number | Pagination offset used |
+| `limit` | number | Pagination limit used |
+| `total_count` | number | Total records matching the request |
+| `from` | string | Start of the reported window |
+| `to` | string | End of the reported window |
+| `start_date` | string | Start of the reported range |
+| `end_date` | string | End of the reported range |
+| `skipped_count` | number | Emails skipped |
+| `failed_count` | number | Failed sends |
+| `stopped_count` | number | Stopped leads |
+| `unsubscribed_count` | number | Unsubscribes |
+| `unique_sent_count` | number | Unique leads emailed |
+| `unique_open_count` | number | Unique opens |
+| `unique_click_count` | number | Unique clicks |
+| `block_count` | number | Blocked sends, or leads skipped by the block list |
+| `drafted_count` | number | Drafted emails |
+| `sequence_count` | number | Sequence steps in the campaign |
+| `duplicate_count` | number | Duplicate leads skipped on import |
+| `invalid_email_count` | number | Leads skipped for an invalid email |
+| `invalid_emails` | array | Emails rejected as invalid |
+| `already_added_to_campaign` | number | Leads already in the campaign |
+| `unsubscribed_leads` | array | Leads skipped because they unsubscribed |
+| `lead_import_stopped_count` | number | Leads whose import was stopped |
+| `is_lead_limit_exhausted` | boolean | Whether the plan lead limit was hit |
+| `is_last_sequence` | boolean | Whether the lead was on the final step |
+| `next_sequence_id` | number | ID of the next sequence step |
+| `next_sequence_delay_in_days` | number | Days before the next step |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `phone_number` | string | Lead phone number |
+| `company_name` | string | Lead company name |
+| `website` | string | Lead website |
+| `location` | string | Lead location |
+| `linkedin_profile` | string | Lead LinkedIn profile URL |
+| `company_url` | string | Lead company URL |
+| `custom_fields` | json | Lead custom fields |
+| `is_unsubscribed` | boolean | Whether the lead is unsubscribed |
+| `lead_campaign_data` | array | Campaigns the lead belongs to |
+| `created_at` | string | Creation timestamp |
+| `updated_at` | string | Last update timestamp |
+| `leads_count` | number | Leads in the list |
+| `active_leads_count` | number | Active leads in the list |
+| `track_settings` | array | Disabled tracking settings |
+| `scheduler_cron_value` | json | Campaign sending schedule |
 
 ### `smartlead_get_campaign_sequences`
 
@@ -460,6 +812,50 @@ Retrieves the email sequence steps for a Smartlead campaign, including subjects,
 | `has_more` | boolean | Whether more rows are available |
 | `list_name` | string | Lead list name |
 | `positive_reply_count` | number | Replies categorized as positive |
+| `offset` | number | Pagination offset used |
+| `limit` | number | Pagination limit used |
+| `total_count` | number | Total records matching the request |
+| `from` | string | Start of the reported window |
+| `to` | string | End of the reported window |
+| `start_date` | string | Start of the reported range |
+| `end_date` | string | End of the reported range |
+| `skipped_count` | number | Emails skipped |
+| `failed_count` | number | Failed sends |
+| `stopped_count` | number | Stopped leads |
+| `unsubscribed_count` | number | Unsubscribes |
+| `unique_sent_count` | number | Unique leads emailed |
+| `unique_open_count` | number | Unique opens |
+| `unique_click_count` | number | Unique clicks |
+| `block_count` | number | Blocked sends, or leads skipped by the block list |
+| `drafted_count` | number | Drafted emails |
+| `sequence_count` | number | Sequence steps in the campaign |
+| `duplicate_count` | number | Duplicate leads skipped on import |
+| `invalid_email_count` | number | Leads skipped for an invalid email |
+| `invalid_emails` | array | Emails rejected as invalid |
+| `already_added_to_campaign` | number | Leads already in the campaign |
+| `unsubscribed_leads` | array | Leads skipped because they unsubscribed |
+| `lead_import_stopped_count` | number | Leads whose import was stopped |
+| `is_lead_limit_exhausted` | boolean | Whether the plan lead limit was hit |
+| `is_last_sequence` | boolean | Whether the lead was on the final step |
+| `next_sequence_id` | number | ID of the next sequence step |
+| `next_sequence_delay_in_days` | number | Days before the next step |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `phone_number` | string | Lead phone number |
+| `company_name` | string | Lead company name |
+| `website` | string | Lead website |
+| `location` | string | Lead location |
+| `linkedin_profile` | string | Lead LinkedIn profile URL |
+| `company_url` | string | Lead company URL |
+| `custom_fields` | json | Lead custom fields |
+| `is_unsubscribed` | boolean | Whether the lead is unsubscribed |
+| `lead_campaign_data` | array | Campaigns the lead belongs to |
+| `created_at` | string | Creation timestamp |
+| `updated_at` | string | Last update timestamp |
+| `leads_count` | number | Leads in the list |
+| `active_leads_count` | number | Active leads in the list |
+| `track_settings` | array | Disabled tracking settings |
+| `scheduler_cron_value` | json | Campaign sending schedule |
 
 ### `smartlead_save_campaign_sequences`
 
@@ -508,6 +904,50 @@ Replaces the email sequence for a Smartlead campaign. Send every step in one cal
 | `has_more` | boolean | Whether more rows are available |
 | `list_name` | string | Lead list name |
 | `positive_reply_count` | number | Replies categorized as positive |
+| `offset` | number | Pagination offset used |
+| `limit` | number | Pagination limit used |
+| `total_count` | number | Total records matching the request |
+| `from` | string | Start of the reported window |
+| `to` | string | End of the reported window |
+| `start_date` | string | Start of the reported range |
+| `end_date` | string | End of the reported range |
+| `skipped_count` | number | Emails skipped |
+| `failed_count` | number | Failed sends |
+| `stopped_count` | number | Stopped leads |
+| `unsubscribed_count` | number | Unsubscribes |
+| `unique_sent_count` | number | Unique leads emailed |
+| `unique_open_count` | number | Unique opens |
+| `unique_click_count` | number | Unique clicks |
+| `block_count` | number | Blocked sends, or leads skipped by the block list |
+| `drafted_count` | number | Drafted emails |
+| `sequence_count` | number | Sequence steps in the campaign |
+| `duplicate_count` | number | Duplicate leads skipped on import |
+| `invalid_email_count` | number | Leads skipped for an invalid email |
+| `invalid_emails` | array | Emails rejected as invalid |
+| `already_added_to_campaign` | number | Leads already in the campaign |
+| `unsubscribed_leads` | array | Leads skipped because they unsubscribed |
+| `lead_import_stopped_count` | number | Leads whose import was stopped |
+| `is_lead_limit_exhausted` | boolean | Whether the plan lead limit was hit |
+| `is_last_sequence` | boolean | Whether the lead was on the final step |
+| `next_sequence_id` | number | ID of the next sequence step |
+| `next_sequence_delay_in_days` | number | Days before the next step |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `phone_number` | string | Lead phone number |
+| `company_name` | string | Lead company name |
+| `website` | string | Lead website |
+| `location` | string | Lead location |
+| `linkedin_profile` | string | Lead LinkedIn profile URL |
+| `company_url` | string | Lead company URL |
+| `custom_fields` | json | Lead custom fields |
+| `is_unsubscribed` | boolean | Whether the lead is unsubscribed |
+| `lead_campaign_data` | array | Campaigns the lead belongs to |
+| `created_at` | string | Creation timestamp |
+| `updated_at` | string | Last update timestamp |
+| `leads_count` | number | Leads in the list |
+| `active_leads_count` | number | Active leads in the list |
+| `track_settings` | array | Disabled tracking settings |
+| `scheduler_cron_value` | json | Campaign sending schedule |
 
 ### `smartlead_get_campaign_statistics`
 
@@ -561,6 +1001,50 @@ Retrieves per-email statistics rows for a Smartlead campaign, filterable by sequ
 | `has_more` | boolean | Whether more rows are available |
 | `list_name` | string | Lead list name |
 | `positive_reply_count` | number | Replies categorized as positive |
+| `offset` | number | Pagination offset used |
+| `limit` | number | Pagination limit used |
+| `total_count` | number | Total records matching the request |
+| `from` | string | Start of the reported window |
+| `to` | string | End of the reported window |
+| `start_date` | string | Start of the reported range |
+| `end_date` | string | End of the reported range |
+| `skipped_count` | number | Emails skipped |
+| `failed_count` | number | Failed sends |
+| `stopped_count` | number | Stopped leads |
+| `unsubscribed_count` | number | Unsubscribes |
+| `unique_sent_count` | number | Unique leads emailed |
+| `unique_open_count` | number | Unique opens |
+| `unique_click_count` | number | Unique clicks |
+| `block_count` | number | Blocked sends, or leads skipped by the block list |
+| `drafted_count` | number | Drafted emails |
+| `sequence_count` | number | Sequence steps in the campaign |
+| `duplicate_count` | number | Duplicate leads skipped on import |
+| `invalid_email_count` | number | Leads skipped for an invalid email |
+| `invalid_emails` | array | Emails rejected as invalid |
+| `already_added_to_campaign` | number | Leads already in the campaign |
+| `unsubscribed_leads` | array | Leads skipped because they unsubscribed |
+| `lead_import_stopped_count` | number | Leads whose import was stopped |
+| `is_lead_limit_exhausted` | boolean | Whether the plan lead limit was hit |
+| `is_last_sequence` | boolean | Whether the lead was on the final step |
+| `next_sequence_id` | number | ID of the next sequence step |
+| `next_sequence_delay_in_days` | number | Days before the next step |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `phone_number` | string | Lead phone number |
+| `company_name` | string | Lead company name |
+| `website` | string | Lead website |
+| `location` | string | Lead location |
+| `linkedin_profile` | string | Lead LinkedIn profile URL |
+| `company_url` | string | Lead company URL |
+| `custom_fields` | json | Lead custom fields |
+| `is_unsubscribed` | boolean | Whether the lead is unsubscribed |
+| `lead_campaign_data` | array | Campaigns the lead belongs to |
+| `created_at` | string | Creation timestamp |
+| `updated_at` | string | Last update timestamp |
+| `leads_count` | number | Leads in the list |
+| `active_leads_count` | number | Active leads in the list |
+| `track_settings` | array | Disabled tracking settings |
+| `scheduler_cron_value` | json | Campaign sending schedule |
 
 ### `smartlead_add_leads_to_campaign`
 
@@ -613,6 +1097,50 @@ Adds leads to a Smartlead campaign, up to 400 per call. Returns per-reason count
 | `has_more` | boolean | Whether more rows are available |
 | `list_name` | string | Lead list name |
 | `positive_reply_count` | number | Replies categorized as positive |
+| `offset` | number | Pagination offset used |
+| `limit` | number | Pagination limit used |
+| `total_count` | number | Total records matching the request |
+| `from` | string | Start of the reported window |
+| `to` | string | End of the reported window |
+| `start_date` | string | Start of the reported range |
+| `end_date` | string | End of the reported range |
+| `skipped_count` | number | Emails skipped |
+| `failed_count` | number | Failed sends |
+| `stopped_count` | number | Stopped leads |
+| `unsubscribed_count` | number | Unsubscribes |
+| `unique_sent_count` | number | Unique leads emailed |
+| `unique_open_count` | number | Unique opens |
+| `unique_click_count` | number | Unique clicks |
+| `block_count` | number | Blocked sends, or leads skipped by the block list |
+| `drafted_count` | number | Drafted emails |
+| `sequence_count` | number | Sequence steps in the campaign |
+| `duplicate_count` | number | Duplicate leads skipped on import |
+| `invalid_email_count` | number | Leads skipped for an invalid email |
+| `invalid_emails` | array | Emails rejected as invalid |
+| `already_added_to_campaign` | number | Leads already in the campaign |
+| `unsubscribed_leads` | array | Leads skipped because they unsubscribed |
+| `lead_import_stopped_count` | number | Leads whose import was stopped |
+| `is_lead_limit_exhausted` | boolean | Whether the plan lead limit was hit |
+| `is_last_sequence` | boolean | Whether the lead was on the final step |
+| `next_sequence_id` | number | ID of the next sequence step |
+| `next_sequence_delay_in_days` | number | Days before the next step |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `phone_number` | string | Lead phone number |
+| `company_name` | string | Lead company name |
+| `website` | string | Lead website |
+| `location` | string | Lead location |
+| `linkedin_profile` | string | Lead LinkedIn profile URL |
+| `company_url` | string | Lead company URL |
+| `custom_fields` | json | Lead custom fields |
+| `is_unsubscribed` | boolean | Whether the lead is unsubscribed |
+| `lead_campaign_data` | array | Campaigns the lead belongs to |
+| `created_at` | string | Creation timestamp |
+| `updated_at` | string | Last update timestamp |
+| `leads_count` | number | Leads in the list |
+| `active_leads_count` | number | Active leads in the list |
+| `track_settings` | array | Disabled tracking settings |
+| `scheduler_cron_value` | json | Campaign sending schedule |
 
 ### `smartlead_list_campaign_leads`
 
@@ -662,6 +1190,50 @@ Retrieves the leads in a Smartlead campaign with their per-campaign status.
 | `has_more` | boolean | Whether more rows are available |
 | `list_name` | string | Lead list name |
 | `positive_reply_count` | number | Replies categorized as positive |
+| `offset` | number | Pagination offset used |
+| `limit` | number | Pagination limit used |
+| `total_count` | number | Total records matching the request |
+| `from` | string | Start of the reported window |
+| `to` | string | End of the reported window |
+| `start_date` | string | Start of the reported range |
+| `end_date` | string | End of the reported range |
+| `skipped_count` | number | Emails skipped |
+| `failed_count` | number | Failed sends |
+| `stopped_count` | number | Stopped leads |
+| `unsubscribed_count` | number | Unsubscribes |
+| `unique_sent_count` | number | Unique leads emailed |
+| `unique_open_count` | number | Unique opens |
+| `unique_click_count` | number | Unique clicks |
+| `block_count` | number | Blocked sends, or leads skipped by the block list |
+| `drafted_count` | number | Drafted emails |
+| `sequence_count` | number | Sequence steps in the campaign |
+| `duplicate_count` | number | Duplicate leads skipped on import |
+| `invalid_email_count` | number | Leads skipped for an invalid email |
+| `invalid_emails` | array | Emails rejected as invalid |
+| `already_added_to_campaign` | number | Leads already in the campaign |
+| `unsubscribed_leads` | array | Leads skipped because they unsubscribed |
+| `lead_import_stopped_count` | number | Leads whose import was stopped |
+| `is_lead_limit_exhausted` | boolean | Whether the plan lead limit was hit |
+| `is_last_sequence` | boolean | Whether the lead was on the final step |
+| `next_sequence_id` | number | ID of the next sequence step |
+| `next_sequence_delay_in_days` | number | Days before the next step |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `phone_number` | string | Lead phone number |
+| `company_name` | string | Lead company name |
+| `website` | string | Lead website |
+| `location` | string | Lead location |
+| `linkedin_profile` | string | Lead LinkedIn profile URL |
+| `company_url` | string | Lead company URL |
+| `custom_fields` | json | Lead custom fields |
+| `is_unsubscribed` | boolean | Whether the lead is unsubscribed |
+| `lead_campaign_data` | array | Campaigns the lead belongs to |
+| `created_at` | string | Creation timestamp |
+| `updated_at` | string | Last update timestamp |
+| `leads_count` | number | Leads in the list |
+| `active_leads_count` | number | Active leads in the list |
+| `track_settings` | array | Disabled tracking settings |
+| `scheduler_cron_value` | json | Campaign sending schedule |
 
 ### `smartlead_get_lead_by_email`
 
@@ -710,6 +1282,50 @@ Looks up a Smartlead lead by email address and returns the lead record plus ever
 | `has_more` | boolean | Whether more rows are available |
 | `list_name` | string | Lead list name |
 | `positive_reply_count` | number | Replies categorized as positive |
+| `offset` | number | Pagination offset used |
+| `limit` | number | Pagination limit used |
+| `total_count` | number | Total records matching the request |
+| `from` | string | Start of the reported window |
+| `to` | string | End of the reported window |
+| `start_date` | string | Start of the reported range |
+| `end_date` | string | End of the reported range |
+| `skipped_count` | number | Emails skipped |
+| `failed_count` | number | Failed sends |
+| `stopped_count` | number | Stopped leads |
+| `unsubscribed_count` | number | Unsubscribes |
+| `unique_sent_count` | number | Unique leads emailed |
+| `unique_open_count` | number | Unique opens |
+| `unique_click_count` | number | Unique clicks |
+| `block_count` | number | Blocked sends, or leads skipped by the block list |
+| `drafted_count` | number | Drafted emails |
+| `sequence_count` | number | Sequence steps in the campaign |
+| `duplicate_count` | number | Duplicate leads skipped on import |
+| `invalid_email_count` | number | Leads skipped for an invalid email |
+| `invalid_emails` | array | Emails rejected as invalid |
+| `already_added_to_campaign` | number | Leads already in the campaign |
+| `unsubscribed_leads` | array | Leads skipped because they unsubscribed |
+| `lead_import_stopped_count` | number | Leads whose import was stopped |
+| `is_lead_limit_exhausted` | boolean | Whether the plan lead limit was hit |
+| `is_last_sequence` | boolean | Whether the lead was on the final step |
+| `next_sequence_id` | number | ID of the next sequence step |
+| `next_sequence_delay_in_days` | number | Days before the next step |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `phone_number` | string | Lead phone number |
+| `company_name` | string | Lead company name |
+| `website` | string | Lead website |
+| `location` | string | Lead location |
+| `linkedin_profile` | string | Lead LinkedIn profile URL |
+| `company_url` | string | Lead company URL |
+| `custom_fields` | json | Lead custom fields |
+| `is_unsubscribed` | boolean | Whether the lead is unsubscribed |
+| `lead_campaign_data` | array | Campaigns the lead belongs to |
+| `created_at` | string | Creation timestamp |
+| `updated_at` | string | Last update timestamp |
+| `leads_count` | number | Leads in the list |
+| `active_leads_count` | number | Active leads in the list |
+| `track_settings` | array | Disabled tracking settings |
+| `scheduler_cron_value` | json | Campaign sending schedule |
 
 ### `smartlead_update_lead`
 
@@ -767,6 +1383,50 @@ Updates a lead in a Smartlead campaign. Smartlead requires the email field even 
 | `has_more` | boolean | Whether more rows are available |
 | `list_name` | string | Lead list name |
 | `positive_reply_count` | number | Replies categorized as positive |
+| `offset` | number | Pagination offset used |
+| `limit` | number | Pagination limit used |
+| `total_count` | number | Total records matching the request |
+| `from` | string | Start of the reported window |
+| `to` | string | End of the reported window |
+| `start_date` | string | Start of the reported range |
+| `end_date` | string | End of the reported range |
+| `skipped_count` | number | Emails skipped |
+| `failed_count` | number | Failed sends |
+| `stopped_count` | number | Stopped leads |
+| `unsubscribed_count` | number | Unsubscribes |
+| `unique_sent_count` | number | Unique leads emailed |
+| `unique_open_count` | number | Unique opens |
+| `unique_click_count` | number | Unique clicks |
+| `block_count` | number | Blocked sends, or leads skipped by the block list |
+| `drafted_count` | number | Drafted emails |
+| `sequence_count` | number | Sequence steps in the campaign |
+| `duplicate_count` | number | Duplicate leads skipped on import |
+| `invalid_email_count` | number | Leads skipped for an invalid email |
+| `invalid_emails` | array | Emails rejected as invalid |
+| `already_added_to_campaign` | number | Leads already in the campaign |
+| `unsubscribed_leads` | array | Leads skipped because they unsubscribed |
+| `lead_import_stopped_count` | number | Leads whose import was stopped |
+| `is_lead_limit_exhausted` | boolean | Whether the plan lead limit was hit |
+| `is_last_sequence` | boolean | Whether the lead was on the final step |
+| `next_sequence_id` | number | ID of the next sequence step |
+| `next_sequence_delay_in_days` | number | Days before the next step |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `phone_number` | string | Lead phone number |
+| `company_name` | string | Lead company name |
+| `website` | string | Lead website |
+| `location` | string | Lead location |
+| `linkedin_profile` | string | Lead LinkedIn profile URL |
+| `company_url` | string | Lead company URL |
+| `custom_fields` | json | Lead custom fields |
+| `is_unsubscribed` | boolean | Whether the lead is unsubscribed |
+| `lead_campaign_data` | array | Campaigns the lead belongs to |
+| `created_at` | string | Creation timestamp |
+| `updated_at` | string | Last update timestamp |
+| `leads_count` | number | Leads in the list |
+| `active_leads_count` | number | Active leads in the list |
+| `track_settings` | array | Disabled tracking settings |
+| `scheduler_cron_value` | json | Campaign sending schedule |
 
 ### `smartlead_update_lead_category`
 
@@ -816,6 +1476,50 @@ Sets the category of a lead in a Smartlead campaign, such as Interested or Not I
 | `has_more` | boolean | Whether more rows are available |
 | `list_name` | string | Lead list name |
 | `positive_reply_count` | number | Replies categorized as positive |
+| `offset` | number | Pagination offset used |
+| `limit` | number | Pagination limit used |
+| `total_count` | number | Total records matching the request |
+| `from` | string | Start of the reported window |
+| `to` | string | End of the reported window |
+| `start_date` | string | Start of the reported range |
+| `end_date` | string | End of the reported range |
+| `skipped_count` | number | Emails skipped |
+| `failed_count` | number | Failed sends |
+| `stopped_count` | number | Stopped leads |
+| `unsubscribed_count` | number | Unsubscribes |
+| `unique_sent_count` | number | Unique leads emailed |
+| `unique_open_count` | number | Unique opens |
+| `unique_click_count` | number | Unique clicks |
+| `block_count` | number | Blocked sends, or leads skipped by the block list |
+| `drafted_count` | number | Drafted emails |
+| `sequence_count` | number | Sequence steps in the campaign |
+| `duplicate_count` | number | Duplicate leads skipped on import |
+| `invalid_email_count` | number | Leads skipped for an invalid email |
+| `invalid_emails` | array | Emails rejected as invalid |
+| `already_added_to_campaign` | number | Leads already in the campaign |
+| `unsubscribed_leads` | array | Leads skipped because they unsubscribed |
+| `lead_import_stopped_count` | number | Leads whose import was stopped |
+| `is_lead_limit_exhausted` | boolean | Whether the plan lead limit was hit |
+| `is_last_sequence` | boolean | Whether the lead was on the final step |
+| `next_sequence_id` | number | ID of the next sequence step |
+| `next_sequence_delay_in_days` | number | Days before the next step |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `phone_number` | string | Lead phone number |
+| `company_name` | string | Lead company name |
+| `website` | string | Lead website |
+| `location` | string | Lead location |
+| `linkedin_profile` | string | Lead LinkedIn profile URL |
+| `company_url` | string | Lead company URL |
+| `custom_fields` | json | Lead custom fields |
+| `is_unsubscribed` | boolean | Whether the lead is unsubscribed |
+| `lead_campaign_data` | array | Campaigns the lead belongs to |
+| `created_at` | string | Creation timestamp |
+| `updated_at` | string | Last update timestamp |
+| `leads_count` | number | Leads in the list |
+| `active_leads_count` | number | Active leads in the list |
+| `track_settings` | array | Disabled tracking settings |
+| `scheduler_cron_value` | json | Campaign sending schedule |
 
 ### `smartlead_pause_lead`
 
@@ -863,6 +1567,50 @@ Pauses a lead in a Smartlead campaign so it stops receiving sequence emails.
 | `has_more` | boolean | Whether more rows are available |
 | `list_name` | string | Lead list name |
 | `positive_reply_count` | number | Replies categorized as positive |
+| `offset` | number | Pagination offset used |
+| `limit` | number | Pagination limit used |
+| `total_count` | number | Total records matching the request |
+| `from` | string | Start of the reported window |
+| `to` | string | End of the reported window |
+| `start_date` | string | Start of the reported range |
+| `end_date` | string | End of the reported range |
+| `skipped_count` | number | Emails skipped |
+| `failed_count` | number | Failed sends |
+| `stopped_count` | number | Stopped leads |
+| `unsubscribed_count` | number | Unsubscribes |
+| `unique_sent_count` | number | Unique leads emailed |
+| `unique_open_count` | number | Unique opens |
+| `unique_click_count` | number | Unique clicks |
+| `block_count` | number | Blocked sends, or leads skipped by the block list |
+| `drafted_count` | number | Drafted emails |
+| `sequence_count` | number | Sequence steps in the campaign |
+| `duplicate_count` | number | Duplicate leads skipped on import |
+| `invalid_email_count` | number | Leads skipped for an invalid email |
+| `invalid_emails` | array | Emails rejected as invalid |
+| `already_added_to_campaign` | number | Leads already in the campaign |
+| `unsubscribed_leads` | array | Leads skipped because they unsubscribed |
+| `lead_import_stopped_count` | number | Leads whose import was stopped |
+| `is_lead_limit_exhausted` | boolean | Whether the plan lead limit was hit |
+| `is_last_sequence` | boolean | Whether the lead was on the final step |
+| `next_sequence_id` | number | ID of the next sequence step |
+| `next_sequence_delay_in_days` | number | Days before the next step |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `phone_number` | string | Lead phone number |
+| `company_name` | string | Lead company name |
+| `website` | string | Lead website |
+| `location` | string | Lead location |
+| `linkedin_profile` | string | Lead LinkedIn profile URL |
+| `company_url` | string | Lead company URL |
+| `custom_fields` | json | Lead custom fields |
+| `is_unsubscribed` | boolean | Whether the lead is unsubscribed |
+| `lead_campaign_data` | array | Campaigns the lead belongs to |
+| `created_at` | string | Creation timestamp |
+| `updated_at` | string | Last update timestamp |
+| `leads_count` | number | Leads in the list |
+| `active_leads_count` | number | Active leads in the list |
+| `track_settings` | array | Disabled tracking settings |
+| `scheduler_cron_value` | json | Campaign sending schedule |
 
 ### `smartlead_resume_lead`
 
@@ -911,6 +1659,50 @@ Resumes a paused lead in a Smartlead campaign, optionally after a delay.
 | `has_more` | boolean | Whether more rows are available |
 | `list_name` | string | Lead list name |
 | `positive_reply_count` | number | Replies categorized as positive |
+| `offset` | number | Pagination offset used |
+| `limit` | number | Pagination limit used |
+| `total_count` | number | Total records matching the request |
+| `from` | string | Start of the reported window |
+| `to` | string | End of the reported window |
+| `start_date` | string | Start of the reported range |
+| `end_date` | string | End of the reported range |
+| `skipped_count` | number | Emails skipped |
+| `failed_count` | number | Failed sends |
+| `stopped_count` | number | Stopped leads |
+| `unsubscribed_count` | number | Unsubscribes |
+| `unique_sent_count` | number | Unique leads emailed |
+| `unique_open_count` | number | Unique opens |
+| `unique_click_count` | number | Unique clicks |
+| `block_count` | number | Blocked sends, or leads skipped by the block list |
+| `drafted_count` | number | Drafted emails |
+| `sequence_count` | number | Sequence steps in the campaign |
+| `duplicate_count` | number | Duplicate leads skipped on import |
+| `invalid_email_count` | number | Leads skipped for an invalid email |
+| `invalid_emails` | array | Emails rejected as invalid |
+| `already_added_to_campaign` | number | Leads already in the campaign |
+| `unsubscribed_leads` | array | Leads skipped because they unsubscribed |
+| `lead_import_stopped_count` | number | Leads whose import was stopped |
+| `is_lead_limit_exhausted` | boolean | Whether the plan lead limit was hit |
+| `is_last_sequence` | boolean | Whether the lead was on the final step |
+| `next_sequence_id` | number | ID of the next sequence step |
+| `next_sequence_delay_in_days` | number | Days before the next step |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `phone_number` | string | Lead phone number |
+| `company_name` | string | Lead company name |
+| `website` | string | Lead website |
+| `location` | string | Lead location |
+| `linkedin_profile` | string | Lead LinkedIn profile URL |
+| `company_url` | string | Lead company URL |
+| `custom_fields` | json | Lead custom fields |
+| `is_unsubscribed` | boolean | Whether the lead is unsubscribed |
+| `lead_campaign_data` | array | Campaigns the lead belongs to |
+| `created_at` | string | Creation timestamp |
+| `updated_at` | string | Last update timestamp |
+| `leads_count` | number | Leads in the list |
+| `active_leads_count` | number | Active leads in the list |
+| `track_settings` | array | Disabled tracking settings |
+| `scheduler_cron_value` | json | Campaign sending schedule |
 
 ### `smartlead_list_lead_categories`
 
@@ -958,6 +1750,50 @@ Retrieves the lead categories configured on the Smartlead account, with the cate
 | `has_more` | boolean | Whether more rows are available |
 | `list_name` | string | Lead list name |
 | `positive_reply_count` | number | Replies categorized as positive |
+| `offset` | number | Pagination offset used |
+| `limit` | number | Pagination limit used |
+| `total_count` | number | Total records matching the request |
+| `from` | string | Start of the reported window |
+| `to` | string | End of the reported window |
+| `start_date` | string | Start of the reported range |
+| `end_date` | string | End of the reported range |
+| `skipped_count` | number | Emails skipped |
+| `failed_count` | number | Failed sends |
+| `stopped_count` | number | Stopped leads |
+| `unsubscribed_count` | number | Unsubscribes |
+| `unique_sent_count` | number | Unique leads emailed |
+| `unique_open_count` | number | Unique opens |
+| `unique_click_count` | number | Unique clicks |
+| `block_count` | number | Blocked sends, or leads skipped by the block list |
+| `drafted_count` | number | Drafted emails |
+| `sequence_count` | number | Sequence steps in the campaign |
+| `duplicate_count` | number | Duplicate leads skipped on import |
+| `invalid_email_count` | number | Leads skipped for an invalid email |
+| `invalid_emails` | array | Emails rejected as invalid |
+| `already_added_to_campaign` | number | Leads already in the campaign |
+| `unsubscribed_leads` | array | Leads skipped because they unsubscribed |
+| `lead_import_stopped_count` | number | Leads whose import was stopped |
+| `is_lead_limit_exhausted` | boolean | Whether the plan lead limit was hit |
+| `is_last_sequence` | boolean | Whether the lead was on the final step |
+| `next_sequence_id` | number | ID of the next sequence step |
+| `next_sequence_delay_in_days` | number | Days before the next step |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `phone_number` | string | Lead phone number |
+| `company_name` | string | Lead company name |
+| `website` | string | Lead website |
+| `location` | string | Lead location |
+| `linkedin_profile` | string | Lead LinkedIn profile URL |
+| `company_url` | string | Lead company URL |
+| `custom_fields` | json | Lead custom fields |
+| `is_unsubscribed` | boolean | Whether the lead is unsubscribed |
+| `lead_campaign_data` | array | Campaigns the lead belongs to |
+| `created_at` | string | Creation timestamp |
+| `updated_at` | string | Last update timestamp |
+| `leads_count` | number | Leads in the list |
+| `active_leads_count` | number | Active leads in the list |
+| `track_settings` | array | Disabled tracking settings |
+| `scheduler_cron_value` | json | Campaign sending schedule |
 
 ### `smartlead_get_lead_message_history`
 
@@ -1005,6 +1841,50 @@ Retrieves the sent-and-received message history for a lead in a Smartlead campai
 | `has_more` | boolean | Whether more rows are available |
 | `list_name` | string | Lead list name |
 | `positive_reply_count` | number | Replies categorized as positive |
+| `offset` | number | Pagination offset used |
+| `limit` | number | Pagination limit used |
+| `total_count` | number | Total records matching the request |
+| `from` | string | Start of the reported window |
+| `to` | string | End of the reported window |
+| `start_date` | string | Start of the reported range |
+| `end_date` | string | End of the reported range |
+| `skipped_count` | number | Emails skipped |
+| `failed_count` | number | Failed sends |
+| `stopped_count` | number | Stopped leads |
+| `unsubscribed_count` | number | Unsubscribes |
+| `unique_sent_count` | number | Unique leads emailed |
+| `unique_open_count` | number | Unique opens |
+| `unique_click_count` | number | Unique clicks |
+| `block_count` | number | Blocked sends, or leads skipped by the block list |
+| `drafted_count` | number | Drafted emails |
+| `sequence_count` | number | Sequence steps in the campaign |
+| `duplicate_count` | number | Duplicate leads skipped on import |
+| `invalid_email_count` | number | Leads skipped for an invalid email |
+| `invalid_emails` | array | Emails rejected as invalid |
+| `already_added_to_campaign` | number | Leads already in the campaign |
+| `unsubscribed_leads` | array | Leads skipped because they unsubscribed |
+| `lead_import_stopped_count` | number | Leads whose import was stopped |
+| `is_lead_limit_exhausted` | boolean | Whether the plan lead limit was hit |
+| `is_last_sequence` | boolean | Whether the lead was on the final step |
+| `next_sequence_id` | number | ID of the next sequence step |
+| `next_sequence_delay_in_days` | number | Days before the next step |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `phone_number` | string | Lead phone number |
+| `company_name` | string | Lead company name |
+| `website` | string | Lead website |
+| `location` | string | Lead location |
+| `linkedin_profile` | string | Lead LinkedIn profile URL |
+| `company_url` | string | Lead company URL |
+| `custom_fields` | json | Lead custom fields |
+| `is_unsubscribed` | boolean | Whether the lead is unsubscribed |
+| `lead_campaign_data` | array | Campaigns the lead belongs to |
+| `created_at` | string | Creation timestamp |
+| `updated_at` | string | Last update timestamp |
+| `leads_count` | number | Leads in the list |
+| `active_leads_count` | number | Active leads in the list |
+| `track_settings` | array | Disabled tracking settings |
+| `scheduler_cron_value` | json | Campaign sending schedule |
 
 ### `smartlead_list_campaign_webhooks`
 
@@ -1052,6 +1932,50 @@ Retrieves the webhooks registered on a Smartlead campaign.
 | `has_more` | boolean | Whether more rows are available |
 | `list_name` | string | Lead list name |
 | `positive_reply_count` | number | Replies categorized as positive |
+| `offset` | number | Pagination offset used |
+| `limit` | number | Pagination limit used |
+| `total_count` | number | Total records matching the request |
+| `from` | string | Start of the reported window |
+| `to` | string | End of the reported window |
+| `start_date` | string | Start of the reported range |
+| `end_date` | string | End of the reported range |
+| `skipped_count` | number | Emails skipped |
+| `failed_count` | number | Failed sends |
+| `stopped_count` | number | Stopped leads |
+| `unsubscribed_count` | number | Unsubscribes |
+| `unique_sent_count` | number | Unique leads emailed |
+| `unique_open_count` | number | Unique opens |
+| `unique_click_count` | number | Unique clicks |
+| `block_count` | number | Blocked sends, or leads skipped by the block list |
+| `drafted_count` | number | Drafted emails |
+| `sequence_count` | number | Sequence steps in the campaign |
+| `duplicate_count` | number | Duplicate leads skipped on import |
+| `invalid_email_count` | number | Leads skipped for an invalid email |
+| `invalid_emails` | array | Emails rejected as invalid |
+| `already_added_to_campaign` | number | Leads already in the campaign |
+| `unsubscribed_leads` | array | Leads skipped because they unsubscribed |
+| `lead_import_stopped_count` | number | Leads whose import was stopped |
+| `is_lead_limit_exhausted` | boolean | Whether the plan lead limit was hit |
+| `is_last_sequence` | boolean | Whether the lead was on the final step |
+| `next_sequence_id` | number | ID of the next sequence step |
+| `next_sequence_delay_in_days` | number | Days before the next step |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `phone_number` | string | Lead phone number |
+| `company_name` | string | Lead company name |
+| `website` | string | Lead website |
+| `location` | string | Lead location |
+| `linkedin_profile` | string | Lead LinkedIn profile URL |
+| `company_url` | string | Lead company URL |
+| `custom_fields` | json | Lead custom fields |
+| `is_unsubscribed` | boolean | Whether the lead is unsubscribed |
+| `lead_campaign_data` | array | Campaigns the lead belongs to |
+| `created_at` | string | Creation timestamp |
+| `updated_at` | string | Last update timestamp |
+| `leads_count` | number | Leads in the list |
+| `active_leads_count` | number | Active leads in the list |
+| `track_settings` | array | Disabled tracking settings |
+| `scheduler_cron_value` | json | Campaign sending schedule |
 
 ### `smartlead_upsert_campaign_webhook`
 
@@ -1104,6 +2028,50 @@ Creates a webhook on a Smartlead campaign, or updates an existing one when a web
 | `has_more` | boolean | Whether more rows are available |
 | `list_name` | string | Lead list name |
 | `positive_reply_count` | number | Replies categorized as positive |
+| `offset` | number | Pagination offset used |
+| `limit` | number | Pagination limit used |
+| `total_count` | number | Total records matching the request |
+| `from` | string | Start of the reported window |
+| `to` | string | End of the reported window |
+| `start_date` | string | Start of the reported range |
+| `end_date` | string | End of the reported range |
+| `skipped_count` | number | Emails skipped |
+| `failed_count` | number | Failed sends |
+| `stopped_count` | number | Stopped leads |
+| `unsubscribed_count` | number | Unsubscribes |
+| `unique_sent_count` | number | Unique leads emailed |
+| `unique_open_count` | number | Unique opens |
+| `unique_click_count` | number | Unique clicks |
+| `block_count` | number | Blocked sends, or leads skipped by the block list |
+| `drafted_count` | number | Drafted emails |
+| `sequence_count` | number | Sequence steps in the campaign |
+| `duplicate_count` | number | Duplicate leads skipped on import |
+| `invalid_email_count` | number | Leads skipped for an invalid email |
+| `invalid_emails` | array | Emails rejected as invalid |
+| `already_added_to_campaign` | number | Leads already in the campaign |
+| `unsubscribed_leads` | array | Leads skipped because they unsubscribed |
+| `lead_import_stopped_count` | number | Leads whose import was stopped |
+| `is_lead_limit_exhausted` | boolean | Whether the plan lead limit was hit |
+| `is_last_sequence` | boolean | Whether the lead was on the final step |
+| `next_sequence_id` | number | ID of the next sequence step |
+| `next_sequence_delay_in_days` | number | Days before the next step |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `phone_number` | string | Lead phone number |
+| `company_name` | string | Lead company name |
+| `website` | string | Lead website |
+| `location` | string | Lead location |
+| `linkedin_profile` | string | Lead LinkedIn profile URL |
+| `company_url` | string | Lead company URL |
+| `custom_fields` | json | Lead custom fields |
+| `is_unsubscribed` | boolean | Whether the lead is unsubscribed |
+| `lead_campaign_data` | array | Campaigns the lead belongs to |
+| `created_at` | string | Creation timestamp |
+| `updated_at` | string | Last update timestamp |
+| `leads_count` | number | Leads in the list |
+| `active_leads_count` | number | Active leads in the list |
+| `track_settings` | array | Disabled tracking settings |
+| `scheduler_cron_value` | json | Campaign sending schedule |
 
 ### `smartlead_delete_campaign_webhook`
 
@@ -1152,6 +2120,50 @@ Deletes a webhook from a Smartlead campaign.
 | `has_more` | boolean | Whether more rows are available |
 | `list_name` | string | Lead list name |
 | `positive_reply_count` | number | Replies categorized as positive |
+| `offset` | number | Pagination offset used |
+| `limit` | number | Pagination limit used |
+| `total_count` | number | Total records matching the request |
+| `from` | string | Start of the reported window |
+| `to` | string | End of the reported window |
+| `start_date` | string | Start of the reported range |
+| `end_date` | string | End of the reported range |
+| `skipped_count` | number | Emails skipped |
+| `failed_count` | number | Failed sends |
+| `stopped_count` | number | Stopped leads |
+| `unsubscribed_count` | number | Unsubscribes |
+| `unique_sent_count` | number | Unique leads emailed |
+| `unique_open_count` | number | Unique opens |
+| `unique_click_count` | number | Unique clicks |
+| `block_count` | number | Blocked sends, or leads skipped by the block list |
+| `drafted_count` | number | Drafted emails |
+| `sequence_count` | number | Sequence steps in the campaign |
+| `duplicate_count` | number | Duplicate leads skipped on import |
+| `invalid_email_count` | number | Leads skipped for an invalid email |
+| `invalid_emails` | array | Emails rejected as invalid |
+| `already_added_to_campaign` | number | Leads already in the campaign |
+| `unsubscribed_leads` | array | Leads skipped because they unsubscribed |
+| `lead_import_stopped_count` | number | Leads whose import was stopped |
+| `is_lead_limit_exhausted` | boolean | Whether the plan lead limit was hit |
+| `is_last_sequence` | boolean | Whether the lead was on the final step |
+| `next_sequence_id` | number | ID of the next sequence step |
+| `next_sequence_delay_in_days` | number | Days before the next step |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `phone_number` | string | Lead phone number |
+| `company_name` | string | Lead company name |
+| `website` | string | Lead website |
+| `location` | string | Lead location |
+| `linkedin_profile` | string | Lead LinkedIn profile URL |
+| `company_url` | string | Lead company URL |
+| `custom_fields` | json | Lead custom fields |
+| `is_unsubscribed` | boolean | Whether the lead is unsubscribed |
+| `lead_campaign_data` | array | Campaigns the lead belongs to |
+| `created_at` | string | Creation timestamp |
+| `updated_at` | string | Last update timestamp |
+| `leads_count` | number | Leads in the list |
+| `active_leads_count` | number | Active leads in the list |
+| `track_settings` | array | Disabled tracking settings |
+| `scheduler_cron_value` | json | Campaign sending schedule |
 
 ### `smartlead_get_campaign_webhook_summary`
 
@@ -1201,6 +2213,50 @@ Retrieves webhook delivery counts for a Smartlead campaign over a time window, f
 | `has_more` | boolean | Whether more rows are available |
 | `list_name` | string | Lead list name |
 | `positive_reply_count` | number | Replies categorized as positive |
+| `offset` | number | Pagination offset used |
+| `limit` | number | Pagination limit used |
+| `total_count` | number | Total records matching the request |
+| `from` | string | Start of the reported window |
+| `to` | string | End of the reported window |
+| `start_date` | string | Start of the reported range |
+| `end_date` | string | End of the reported range |
+| `skipped_count` | number | Emails skipped |
+| `failed_count` | number | Failed sends |
+| `stopped_count` | number | Stopped leads |
+| `unsubscribed_count` | number | Unsubscribes |
+| `unique_sent_count` | number | Unique leads emailed |
+| `unique_open_count` | number | Unique opens |
+| `unique_click_count` | number | Unique clicks |
+| `block_count` | number | Blocked sends, or leads skipped by the block list |
+| `drafted_count` | number | Drafted emails |
+| `sequence_count` | number | Sequence steps in the campaign |
+| `duplicate_count` | number | Duplicate leads skipped on import |
+| `invalid_email_count` | number | Leads skipped for an invalid email |
+| `invalid_emails` | array | Emails rejected as invalid |
+| `already_added_to_campaign` | number | Leads already in the campaign |
+| `unsubscribed_leads` | array | Leads skipped because they unsubscribed |
+| `lead_import_stopped_count` | number | Leads whose import was stopped |
+| `is_lead_limit_exhausted` | boolean | Whether the plan lead limit was hit |
+| `is_last_sequence` | boolean | Whether the lead was on the final step |
+| `next_sequence_id` | number | ID of the next sequence step |
+| `next_sequence_delay_in_days` | number | Days before the next step |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `phone_number` | string | Lead phone number |
+| `company_name` | string | Lead company name |
+| `website` | string | Lead website |
+| `location` | string | Lead location |
+| `linkedin_profile` | string | Lead LinkedIn profile URL |
+| `company_url` | string | Lead company URL |
+| `custom_fields` | json | Lead custom fields |
+| `is_unsubscribed` | boolean | Whether the lead is unsubscribed |
+| `lead_campaign_data` | array | Campaigns the lead belongs to |
+| `created_at` | string | Creation timestamp |
+| `updated_at` | string | Last update timestamp |
+| `leads_count` | number | Leads in the list |
+| `active_leads_count` | number | Active leads in the list |
+| `track_settings` | array | Disabled tracking settings |
+| `scheduler_cron_value` | json | Campaign sending schedule |
 
 ### `smartlead_duplicate_campaign`
 
@@ -1248,6 +2304,50 @@ Copies a Smartlead campaign, including its sequences and settings. The copy is n
 | `has_more` | boolean | Whether more rows are available |
 | `list_name` | string | Lead list name |
 | `positive_reply_count` | number | Replies categorized as positive |
+| `offset` | number | Pagination offset used |
+| `limit` | number | Pagination limit used |
+| `total_count` | number | Total records matching the request |
+| `from` | string | Start of the reported window |
+| `to` | string | End of the reported window |
+| `start_date` | string | Start of the reported range |
+| `end_date` | string | End of the reported range |
+| `skipped_count` | number | Emails skipped |
+| `failed_count` | number | Failed sends |
+| `stopped_count` | number | Stopped leads |
+| `unsubscribed_count` | number | Unsubscribes |
+| `unique_sent_count` | number | Unique leads emailed |
+| `unique_open_count` | number | Unique opens |
+| `unique_click_count` | number | Unique clicks |
+| `block_count` | number | Blocked sends, or leads skipped by the block list |
+| `drafted_count` | number | Drafted emails |
+| `sequence_count` | number | Sequence steps in the campaign |
+| `duplicate_count` | number | Duplicate leads skipped on import |
+| `invalid_email_count` | number | Leads skipped for an invalid email |
+| `invalid_emails` | array | Emails rejected as invalid |
+| `already_added_to_campaign` | number | Leads already in the campaign |
+| `unsubscribed_leads` | array | Leads skipped because they unsubscribed |
+| `lead_import_stopped_count` | number | Leads whose import was stopped |
+| `is_lead_limit_exhausted` | boolean | Whether the plan lead limit was hit |
+| `is_last_sequence` | boolean | Whether the lead was on the final step |
+| `next_sequence_id` | number | ID of the next sequence step |
+| `next_sequence_delay_in_days` | number | Days before the next step |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `phone_number` | string | Lead phone number |
+| `company_name` | string | Lead company name |
+| `website` | string | Lead website |
+| `location` | string | Lead location |
+| `linkedin_profile` | string | Lead LinkedIn profile URL |
+| `company_url` | string | Lead company URL |
+| `custom_fields` | json | Lead custom fields |
+| `is_unsubscribed` | boolean | Whether the lead is unsubscribed |
+| `lead_campaign_data` | array | Campaigns the lead belongs to |
+| `created_at` | string | Creation timestamp |
+| `updated_at` | string | Last update timestamp |
+| `leads_count` | number | Leads in the list |
+| `active_leads_count` | number | Active leads in the list |
+| `track_settings` | array | Disabled tracking settings |
+| `scheduler_cron_value` | json | Campaign sending schedule |
 
 ### `smartlead_delete_campaign`
 
@@ -1295,6 +2395,50 @@ Permanently deletes a Smartlead campaign along with its sequences, leads, and we
 | `has_more` | boolean | Whether more rows are available |
 | `list_name` | string | Lead list name |
 | `positive_reply_count` | number | Replies categorized as positive |
+| `offset` | number | Pagination offset used |
+| `limit` | number | Pagination limit used |
+| `total_count` | number | Total records matching the request |
+| `from` | string | Start of the reported window |
+| `to` | string | End of the reported window |
+| `start_date` | string | Start of the reported range |
+| `end_date` | string | End of the reported range |
+| `skipped_count` | number | Emails skipped |
+| `failed_count` | number | Failed sends |
+| `stopped_count` | number | Stopped leads |
+| `unsubscribed_count` | number | Unsubscribes |
+| `unique_sent_count` | number | Unique leads emailed |
+| `unique_open_count` | number | Unique opens |
+| `unique_click_count` | number | Unique clicks |
+| `block_count` | number | Blocked sends, or leads skipped by the block list |
+| `drafted_count` | number | Drafted emails |
+| `sequence_count` | number | Sequence steps in the campaign |
+| `duplicate_count` | number | Duplicate leads skipped on import |
+| `invalid_email_count` | number | Leads skipped for an invalid email |
+| `invalid_emails` | array | Emails rejected as invalid |
+| `already_added_to_campaign` | number | Leads already in the campaign |
+| `unsubscribed_leads` | array | Leads skipped because they unsubscribed |
+| `lead_import_stopped_count` | number | Leads whose import was stopped |
+| `is_lead_limit_exhausted` | boolean | Whether the plan lead limit was hit |
+| `is_last_sequence` | boolean | Whether the lead was on the final step |
+| `next_sequence_id` | number | ID of the next sequence step |
+| `next_sequence_delay_in_days` | number | Days before the next step |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `phone_number` | string | Lead phone number |
+| `company_name` | string | Lead company name |
+| `website` | string | Lead website |
+| `location` | string | Lead location |
+| `linkedin_profile` | string | Lead LinkedIn profile URL |
+| `company_url` | string | Lead company URL |
+| `custom_fields` | json | Lead custom fields |
+| `is_unsubscribed` | boolean | Whether the lead is unsubscribed |
+| `lead_campaign_data` | array | Campaigns the lead belongs to |
+| `created_at` | string | Creation timestamp |
+| `updated_at` | string | Last update timestamp |
+| `leads_count` | number | Leads in the list |
+| `active_leads_count` | number | Active leads in the list |
+| `track_settings` | array | Disabled tracking settings |
+| `scheduler_cron_value` | json | Campaign sending schedule |
 
 ### `smartlead_export_campaign_leads`
 
@@ -1342,6 +2486,50 @@ Exports every lead in a Smartlead campaign as CSV, including engagement counts a
 | `has_more` | boolean | Whether more rows are available |
 | `list_name` | string | Lead list name |
 | `positive_reply_count` | number | Replies categorized as positive |
+| `offset` | number | Pagination offset used |
+| `limit` | number | Pagination limit used |
+| `total_count` | number | Total records matching the request |
+| `from` | string | Start of the reported window |
+| `to` | string | End of the reported window |
+| `start_date` | string | Start of the reported range |
+| `end_date` | string | End of the reported range |
+| `skipped_count` | number | Emails skipped |
+| `failed_count` | number | Failed sends |
+| `stopped_count` | number | Stopped leads |
+| `unsubscribed_count` | number | Unsubscribes |
+| `unique_sent_count` | number | Unique leads emailed |
+| `unique_open_count` | number | Unique opens |
+| `unique_click_count` | number | Unique clicks |
+| `block_count` | number | Blocked sends, or leads skipped by the block list |
+| `drafted_count` | number | Drafted emails |
+| `sequence_count` | number | Sequence steps in the campaign |
+| `duplicate_count` | number | Duplicate leads skipped on import |
+| `invalid_email_count` | number | Leads skipped for an invalid email |
+| `invalid_emails` | array | Emails rejected as invalid |
+| `already_added_to_campaign` | number | Leads already in the campaign |
+| `unsubscribed_leads` | array | Leads skipped because they unsubscribed |
+| `lead_import_stopped_count` | number | Leads whose import was stopped |
+| `is_lead_limit_exhausted` | boolean | Whether the plan lead limit was hit |
+| `is_last_sequence` | boolean | Whether the lead was on the final step |
+| `next_sequence_id` | number | ID of the next sequence step |
+| `next_sequence_delay_in_days` | number | Days before the next step |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `phone_number` | string | Lead phone number |
+| `company_name` | string | Lead company name |
+| `website` | string | Lead website |
+| `location` | string | Lead location |
+| `linkedin_profile` | string | Lead LinkedIn profile URL |
+| `company_url` | string | Lead company URL |
+| `custom_fields` | json | Lead custom fields |
+| `is_unsubscribed` | boolean | Whether the lead is unsubscribed |
+| `lead_campaign_data` | array | Campaigns the lead belongs to |
+| `created_at` | string | Creation timestamp |
+| `updated_at` | string | Last update timestamp |
+| `leads_count` | number | Leads in the list |
+| `active_leads_count` | number | Active leads in the list |
+| `track_settings` | array | Disabled tracking settings |
+| `scheduler_cron_value` | json | Campaign sending schedule |
 
 ### `smartlead_list_campaign_email_accounts`
 
@@ -1389,6 +2577,50 @@ Retrieves the sending email accounts attached to a Smartlead campaign.
 | `has_more` | boolean | Whether more rows are available |
 | `list_name` | string | Lead list name |
 | `positive_reply_count` | number | Replies categorized as positive |
+| `offset` | number | Pagination offset used |
+| `limit` | number | Pagination limit used |
+| `total_count` | number | Total records matching the request |
+| `from` | string | Start of the reported window |
+| `to` | string | End of the reported window |
+| `start_date` | string | Start of the reported range |
+| `end_date` | string | End of the reported range |
+| `skipped_count` | number | Emails skipped |
+| `failed_count` | number | Failed sends |
+| `stopped_count` | number | Stopped leads |
+| `unsubscribed_count` | number | Unsubscribes |
+| `unique_sent_count` | number | Unique leads emailed |
+| `unique_open_count` | number | Unique opens |
+| `unique_click_count` | number | Unique clicks |
+| `block_count` | number | Blocked sends, or leads skipped by the block list |
+| `drafted_count` | number | Drafted emails |
+| `sequence_count` | number | Sequence steps in the campaign |
+| `duplicate_count` | number | Duplicate leads skipped on import |
+| `invalid_email_count` | number | Leads skipped for an invalid email |
+| `invalid_emails` | array | Emails rejected as invalid |
+| `already_added_to_campaign` | number | Leads already in the campaign |
+| `unsubscribed_leads` | array | Leads skipped because they unsubscribed |
+| `lead_import_stopped_count` | number | Leads whose import was stopped |
+| `is_lead_limit_exhausted` | boolean | Whether the plan lead limit was hit |
+| `is_last_sequence` | boolean | Whether the lead was on the final step |
+| `next_sequence_id` | number | ID of the next sequence step |
+| `next_sequence_delay_in_days` | number | Days before the next step |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `phone_number` | string | Lead phone number |
+| `company_name` | string | Lead company name |
+| `website` | string | Lead website |
+| `location` | string | Lead location |
+| `linkedin_profile` | string | Lead LinkedIn profile URL |
+| `company_url` | string | Lead company URL |
+| `custom_fields` | json | Lead custom fields |
+| `is_unsubscribed` | boolean | Whether the lead is unsubscribed |
+| `lead_campaign_data` | array | Campaigns the lead belongs to |
+| `created_at` | string | Creation timestamp |
+| `updated_at` | string | Last update timestamp |
+| `leads_count` | number | Leads in the list |
+| `active_leads_count` | number | Active leads in the list |
+| `track_settings` | array | Disabled tracking settings |
+| `scheduler_cron_value` | json | Campaign sending schedule |
 
 ### `smartlead_add_email_accounts_to_campaign`
 
@@ -1437,6 +2669,50 @@ Attaches sending email accounts to a Smartlead campaign. A campaign needs at lea
 | `has_more` | boolean | Whether more rows are available |
 | `list_name` | string | Lead list name |
 | `positive_reply_count` | number | Replies categorized as positive |
+| `offset` | number | Pagination offset used |
+| `limit` | number | Pagination limit used |
+| `total_count` | number | Total records matching the request |
+| `from` | string | Start of the reported window |
+| `to` | string | End of the reported window |
+| `start_date` | string | Start of the reported range |
+| `end_date` | string | End of the reported range |
+| `skipped_count` | number | Emails skipped |
+| `failed_count` | number | Failed sends |
+| `stopped_count` | number | Stopped leads |
+| `unsubscribed_count` | number | Unsubscribes |
+| `unique_sent_count` | number | Unique leads emailed |
+| `unique_open_count` | number | Unique opens |
+| `unique_click_count` | number | Unique clicks |
+| `block_count` | number | Blocked sends, or leads skipped by the block list |
+| `drafted_count` | number | Drafted emails |
+| `sequence_count` | number | Sequence steps in the campaign |
+| `duplicate_count` | number | Duplicate leads skipped on import |
+| `invalid_email_count` | number | Leads skipped for an invalid email |
+| `invalid_emails` | array | Emails rejected as invalid |
+| `already_added_to_campaign` | number | Leads already in the campaign |
+| `unsubscribed_leads` | array | Leads skipped because they unsubscribed |
+| `lead_import_stopped_count` | number | Leads whose import was stopped |
+| `is_lead_limit_exhausted` | boolean | Whether the plan lead limit was hit |
+| `is_last_sequence` | boolean | Whether the lead was on the final step |
+| `next_sequence_id` | number | ID of the next sequence step |
+| `next_sequence_delay_in_days` | number | Days before the next step |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `phone_number` | string | Lead phone number |
+| `company_name` | string | Lead company name |
+| `website` | string | Lead website |
+| `location` | string | Lead location |
+| `linkedin_profile` | string | Lead LinkedIn profile URL |
+| `company_url` | string | Lead company URL |
+| `custom_fields` | json | Lead custom fields |
+| `is_unsubscribed` | boolean | Whether the lead is unsubscribed |
+| `lead_campaign_data` | array | Campaigns the lead belongs to |
+| `created_at` | string | Creation timestamp |
+| `updated_at` | string | Last update timestamp |
+| `leads_count` | number | Leads in the list |
+| `active_leads_count` | number | Active leads in the list |
+| `track_settings` | array | Disabled tracking settings |
+| `scheduler_cron_value` | json | Campaign sending schedule |
 
 ### `smartlead_remove_email_accounts_from_campaign`
 
@@ -1485,6 +2761,50 @@ Detaches sending email accounts from a Smartlead campaign.
 | `has_more` | boolean | Whether more rows are available |
 | `list_name` | string | Lead list name |
 | `positive_reply_count` | number | Replies categorized as positive |
+| `offset` | number | Pagination offset used |
+| `limit` | number | Pagination limit used |
+| `total_count` | number | Total records matching the request |
+| `from` | string | Start of the reported window |
+| `to` | string | End of the reported window |
+| `start_date` | string | Start of the reported range |
+| `end_date` | string | End of the reported range |
+| `skipped_count` | number | Emails skipped |
+| `failed_count` | number | Failed sends |
+| `stopped_count` | number | Stopped leads |
+| `unsubscribed_count` | number | Unsubscribes |
+| `unique_sent_count` | number | Unique leads emailed |
+| `unique_open_count` | number | Unique opens |
+| `unique_click_count` | number | Unique clicks |
+| `block_count` | number | Blocked sends, or leads skipped by the block list |
+| `drafted_count` | number | Drafted emails |
+| `sequence_count` | number | Sequence steps in the campaign |
+| `duplicate_count` | number | Duplicate leads skipped on import |
+| `invalid_email_count` | number | Leads skipped for an invalid email |
+| `invalid_emails` | array | Emails rejected as invalid |
+| `already_added_to_campaign` | number | Leads already in the campaign |
+| `unsubscribed_leads` | array | Leads skipped because they unsubscribed |
+| `lead_import_stopped_count` | number | Leads whose import was stopped |
+| `is_lead_limit_exhausted` | boolean | Whether the plan lead limit was hit |
+| `is_last_sequence` | boolean | Whether the lead was on the final step |
+| `next_sequence_id` | number | ID of the next sequence step |
+| `next_sequence_delay_in_days` | number | Days before the next step |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `phone_number` | string | Lead phone number |
+| `company_name` | string | Lead company name |
+| `website` | string | Lead website |
+| `location` | string | Lead location |
+| `linkedin_profile` | string | Lead LinkedIn profile URL |
+| `company_url` | string | Lead company URL |
+| `custom_fields` | json | Lead custom fields |
+| `is_unsubscribed` | boolean | Whether the lead is unsubscribed |
+| `lead_campaign_data` | array | Campaigns the lead belongs to |
+| `created_at` | string | Creation timestamp |
+| `updated_at` | string | Last update timestamp |
+| `leads_count` | number | Leads in the list |
+| `active_leads_count` | number | Active leads in the list |
+| `track_settings` | array | Disabled tracking settings |
+| `scheduler_cron_value` | json | Campaign sending schedule |
 
 ### `smartlead_list_email_accounts`
 
@@ -1535,6 +2855,50 @@ Retrieves the sending email accounts on the Smartlead account, including their I
 | `has_more` | boolean | Whether more rows are available |
 | `list_name` | string | Lead list name |
 | `positive_reply_count` | number | Replies categorized as positive |
+| `offset` | number | Pagination offset used |
+| `limit` | number | Pagination limit used |
+| `total_count` | number | Total records matching the request |
+| `from` | string | Start of the reported window |
+| `to` | string | End of the reported window |
+| `start_date` | string | Start of the reported range |
+| `end_date` | string | End of the reported range |
+| `skipped_count` | number | Emails skipped |
+| `failed_count` | number | Failed sends |
+| `stopped_count` | number | Stopped leads |
+| `unsubscribed_count` | number | Unsubscribes |
+| `unique_sent_count` | number | Unique leads emailed |
+| `unique_open_count` | number | Unique opens |
+| `unique_click_count` | number | Unique clicks |
+| `block_count` | number | Blocked sends, or leads skipped by the block list |
+| `drafted_count` | number | Drafted emails |
+| `sequence_count` | number | Sequence steps in the campaign |
+| `duplicate_count` | number | Duplicate leads skipped on import |
+| `invalid_email_count` | number | Leads skipped for an invalid email |
+| `invalid_emails` | array | Emails rejected as invalid |
+| `already_added_to_campaign` | number | Leads already in the campaign |
+| `unsubscribed_leads` | array | Leads skipped because they unsubscribed |
+| `lead_import_stopped_count` | number | Leads whose import was stopped |
+| `is_lead_limit_exhausted` | boolean | Whether the plan lead limit was hit |
+| `is_last_sequence` | boolean | Whether the lead was on the final step |
+| `next_sequence_id` | number | ID of the next sequence step |
+| `next_sequence_delay_in_days` | number | Days before the next step |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `phone_number` | string | Lead phone number |
+| `company_name` | string | Lead company name |
+| `website` | string | Lead website |
+| `location` | string | Lead location |
+| `linkedin_profile` | string | Lead LinkedIn profile URL |
+| `company_url` | string | Lead company URL |
+| `custom_fields` | json | Lead custom fields |
+| `is_unsubscribed` | boolean | Whether the lead is unsubscribed |
+| `lead_campaign_data` | array | Campaigns the lead belongs to |
+| `created_at` | string | Creation timestamp |
+| `updated_at` | string | Last update timestamp |
+| `leads_count` | number | Leads in the list |
+| `active_leads_count` | number | Active leads in the list |
+| `track_settings` | array | Disabled tracking settings |
+| `scheduler_cron_value` | json | Campaign sending schedule |
 
 ### `smartlead_get_campaign_lead_statistics`
 
@@ -1545,7 +2909,7 @@ Retrieves per-lead engagement statistics for a Smartlead campaign.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `limit` | number | No | Rows to return \(default 100\) |
-| `skip` | number | No | Rows to skip \(default 0\) |
+| `offset` | number | No | Rows to skip \(default 0\) |
 
 #### Output
 
@@ -1584,6 +2948,50 @@ Retrieves per-lead engagement statistics for a Smartlead campaign.
 | `has_more` | boolean | Whether more rows are available |
 | `list_name` | string | Lead list name |
 | `positive_reply_count` | number | Replies categorized as positive |
+| `offset` | number | Pagination offset used |
+| `limit` | number | Pagination limit used |
+| `total_count` | number | Total records matching the request |
+| `from` | string | Start of the reported window |
+| `to` | string | End of the reported window |
+| `start_date` | string | Start of the reported range |
+| `end_date` | string | End of the reported range |
+| `skipped_count` | number | Emails skipped |
+| `failed_count` | number | Failed sends |
+| `stopped_count` | number | Stopped leads |
+| `unsubscribed_count` | number | Unsubscribes |
+| `unique_sent_count` | number | Unique leads emailed |
+| `unique_open_count` | number | Unique opens |
+| `unique_click_count` | number | Unique clicks |
+| `block_count` | number | Blocked sends, or leads skipped by the block list |
+| `drafted_count` | number | Drafted emails |
+| `sequence_count` | number | Sequence steps in the campaign |
+| `duplicate_count` | number | Duplicate leads skipped on import |
+| `invalid_email_count` | number | Leads skipped for an invalid email |
+| `invalid_emails` | array | Emails rejected as invalid |
+| `already_added_to_campaign` | number | Leads already in the campaign |
+| `unsubscribed_leads` | array | Leads skipped because they unsubscribed |
+| `lead_import_stopped_count` | number | Leads whose import was stopped |
+| `is_lead_limit_exhausted` | boolean | Whether the plan lead limit was hit |
+| `is_last_sequence` | boolean | Whether the lead was on the final step |
+| `next_sequence_id` | number | ID of the next sequence step |
+| `next_sequence_delay_in_days` | number | Days before the next step |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `phone_number` | string | Lead phone number |
+| `company_name` | string | Lead company name |
+| `website` | string | Lead website |
+| `location` | string | Lead location |
+| `linkedin_profile` | string | Lead LinkedIn profile URL |
+| `company_url` | string | Lead company URL |
+| `custom_fields` | json | Lead custom fields |
+| `is_unsubscribed` | boolean | Whether the lead is unsubscribed |
+| `lead_campaign_data` | array | Campaigns the lead belongs to |
+| `created_at` | string | Creation timestamp |
+| `updated_at` | string | Last update timestamp |
+| `leads_count` | number | Leads in the list |
+| `active_leads_count` | number | Active leads in the list |
+| `track_settings` | array | Disabled tracking settings |
+| `scheduler_cron_value` | json | Campaign sending schedule |
 
 ### `smartlead_get_campaign_mailbox_statistics`
 
@@ -1631,6 +3039,50 @@ Retrieves per-mailbox sending statistics for a Smartlead campaign, for spotting 
 | `has_more` | boolean | Whether more rows are available |
 | `list_name` | string | Lead list name |
 | `positive_reply_count` | number | Replies categorized as positive |
+| `offset` | number | Pagination offset used |
+| `limit` | number | Pagination limit used |
+| `total_count` | number | Total records matching the request |
+| `from` | string | Start of the reported window |
+| `to` | string | End of the reported window |
+| `start_date` | string | Start of the reported range |
+| `end_date` | string | End of the reported range |
+| `skipped_count` | number | Emails skipped |
+| `failed_count` | number | Failed sends |
+| `stopped_count` | number | Stopped leads |
+| `unsubscribed_count` | number | Unsubscribes |
+| `unique_sent_count` | number | Unique leads emailed |
+| `unique_open_count` | number | Unique opens |
+| `unique_click_count` | number | Unique clicks |
+| `block_count` | number | Blocked sends, or leads skipped by the block list |
+| `drafted_count` | number | Drafted emails |
+| `sequence_count` | number | Sequence steps in the campaign |
+| `duplicate_count` | number | Duplicate leads skipped on import |
+| `invalid_email_count` | number | Leads skipped for an invalid email |
+| `invalid_emails` | array | Emails rejected as invalid |
+| `already_added_to_campaign` | number | Leads already in the campaign |
+| `unsubscribed_leads` | array | Leads skipped because they unsubscribed |
+| `lead_import_stopped_count` | number | Leads whose import was stopped |
+| `is_lead_limit_exhausted` | boolean | Whether the plan lead limit was hit |
+| `is_last_sequence` | boolean | Whether the lead was on the final step |
+| `next_sequence_id` | number | ID of the next sequence step |
+| `next_sequence_delay_in_days` | number | Days before the next step |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `phone_number` | string | Lead phone number |
+| `company_name` | string | Lead company name |
+| `website` | string | Lead website |
+| `location` | string | Lead location |
+| `linkedin_profile` | string | Lead LinkedIn profile URL |
+| `company_url` | string | Lead company URL |
+| `custom_fields` | json | Lead custom fields |
+| `is_unsubscribed` | boolean | Whether the lead is unsubscribed |
+| `lead_campaign_data` | array | Campaigns the lead belongs to |
+| `created_at` | string | Creation timestamp |
+| `updated_at` | string | Last update timestamp |
+| `leads_count` | number | Leads in the list |
+| `active_leads_count` | number | Active leads in the list |
+| `track_settings` | array | Disabled tracking settings |
+| `scheduler_cron_value` | json | Campaign sending schedule |
 
 ### `smartlead_get_campaign_top_level_analytics_by_date`
 
@@ -1680,6 +3132,50 @@ Retrieves top-level Smartlead campaign counts for a date range, including positi
 | `has_more` | boolean | Whether more rows are available |
 | `list_name` | string | Lead list name |
 | `positive_reply_count` | number | Replies categorized as positive |
+| `offset` | number | Pagination offset used |
+| `limit` | number | Pagination limit used |
+| `total_count` | number | Total records matching the request |
+| `from` | string | Start of the reported window |
+| `to` | string | End of the reported window |
+| `start_date` | string | Start of the reported range |
+| `end_date` | string | End of the reported range |
+| `skipped_count` | number | Emails skipped |
+| `failed_count` | number | Failed sends |
+| `stopped_count` | number | Stopped leads |
+| `unsubscribed_count` | number | Unsubscribes |
+| `unique_sent_count` | number | Unique leads emailed |
+| `unique_open_count` | number | Unique opens |
+| `unique_click_count` | number | Unique clicks |
+| `block_count` | number | Blocked sends, or leads skipped by the block list |
+| `drafted_count` | number | Drafted emails |
+| `sequence_count` | number | Sequence steps in the campaign |
+| `duplicate_count` | number | Duplicate leads skipped on import |
+| `invalid_email_count` | number | Leads skipped for an invalid email |
+| `invalid_emails` | array | Emails rejected as invalid |
+| `already_added_to_campaign` | number | Leads already in the campaign |
+| `unsubscribed_leads` | array | Leads skipped because they unsubscribed |
+| `lead_import_stopped_count` | number | Leads whose import was stopped |
+| `is_lead_limit_exhausted` | boolean | Whether the plan lead limit was hit |
+| `is_last_sequence` | boolean | Whether the lead was on the final step |
+| `next_sequence_id` | number | ID of the next sequence step |
+| `next_sequence_delay_in_days` | number | Days before the next step |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `phone_number` | string | Lead phone number |
+| `company_name` | string | Lead company name |
+| `website` | string | Lead website |
+| `location` | string | Lead location |
+| `linkedin_profile` | string | Lead LinkedIn profile URL |
+| `company_url` | string | Lead company URL |
+| `custom_fields` | json | Lead custom fields |
+| `is_unsubscribed` | boolean | Whether the lead is unsubscribed |
+| `lead_campaign_data` | array | Campaigns the lead belongs to |
+| `created_at` | string | Creation timestamp |
+| `updated_at` | string | Last update timestamp |
+| `leads_count` | number | Leads in the list |
+| `active_leads_count` | number | Active leads in the list |
+| `track_settings` | array | Disabled tracking settings |
+| `scheduler_cron_value` | json | Campaign sending schedule |
 
 ### `smartlead_list_lead_activities`
 
@@ -1689,7 +3185,6 @@ Retrieves recent lead activity across Smartlead campaigns — opens, clicks, rep
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `campaignId` | number | No | Only return activity for this campaign |
 | `offset` | number | No | Pagination offset \(default 0\) |
 | `limit` | number | No | Rows to return per page |
 
@@ -1730,6 +3225,50 @@ Retrieves recent lead activity across Smartlead campaigns — opens, clicks, rep
 | `has_more` | boolean | Whether more rows are available |
 | `list_name` | string | Lead list name |
 | `positive_reply_count` | number | Replies categorized as positive |
+| `offset` | number | Pagination offset used |
+| `limit` | number | Pagination limit used |
+| `total_count` | number | Total records matching the request |
+| `from` | string | Start of the reported window |
+| `to` | string | End of the reported window |
+| `start_date` | string | Start of the reported range |
+| `end_date` | string | End of the reported range |
+| `skipped_count` | number | Emails skipped |
+| `failed_count` | number | Failed sends |
+| `stopped_count` | number | Stopped leads |
+| `unsubscribed_count` | number | Unsubscribes |
+| `unique_sent_count` | number | Unique leads emailed |
+| `unique_open_count` | number | Unique opens |
+| `unique_click_count` | number | Unique clicks |
+| `block_count` | number | Blocked sends, or leads skipped by the block list |
+| `drafted_count` | number | Drafted emails |
+| `sequence_count` | number | Sequence steps in the campaign |
+| `duplicate_count` | number | Duplicate leads skipped on import |
+| `invalid_email_count` | number | Leads skipped for an invalid email |
+| `invalid_emails` | array | Emails rejected as invalid |
+| `already_added_to_campaign` | number | Leads already in the campaign |
+| `unsubscribed_leads` | array | Leads skipped because they unsubscribed |
+| `lead_import_stopped_count` | number | Leads whose import was stopped |
+| `is_lead_limit_exhausted` | boolean | Whether the plan lead limit was hit |
+| `is_last_sequence` | boolean | Whether the lead was on the final step |
+| `next_sequence_id` | number | ID of the next sequence step |
+| `next_sequence_delay_in_days` | number | Days before the next step |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `phone_number` | string | Lead phone number |
+| `company_name` | string | Lead company name |
+| `website` | string | Lead website |
+| `location` | string | Lead location |
+| `linkedin_profile` | string | Lead LinkedIn profile URL |
+| `company_url` | string | Lead company URL |
+| `custom_fields` | json | Lead custom fields |
+| `is_unsubscribed` | boolean | Whether the lead is unsubscribed |
+| `lead_campaign_data` | array | Campaigns the lead belongs to |
+| `created_at` | string | Creation timestamp |
+| `updated_at` | string | Last update timestamp |
+| `leads_count` | number | Leads in the list |
+| `active_leads_count` | number | Active leads in the list |
+| `track_settings` | array | Disabled tracking settings |
+| `scheduler_cron_value` | json | Campaign sending schedule |
 
 ### `smartlead_get_lead_by_id`
 
@@ -1778,6 +3317,50 @@ Looks up a Smartlead lead by its ID.
 | `has_more` | boolean | Whether more rows are available |
 | `list_name` | string | Lead list name |
 | `positive_reply_count` | number | Replies categorized as positive |
+| `offset` | number | Pagination offset used |
+| `limit` | number | Pagination limit used |
+| `total_count` | number | Total records matching the request |
+| `from` | string | Start of the reported window |
+| `to` | string | End of the reported window |
+| `start_date` | string | Start of the reported range |
+| `end_date` | string | End of the reported range |
+| `skipped_count` | number | Emails skipped |
+| `failed_count` | number | Failed sends |
+| `stopped_count` | number | Stopped leads |
+| `unsubscribed_count` | number | Unsubscribes |
+| `unique_sent_count` | number | Unique leads emailed |
+| `unique_open_count` | number | Unique opens |
+| `unique_click_count` | number | Unique clicks |
+| `block_count` | number | Blocked sends, or leads skipped by the block list |
+| `drafted_count` | number | Drafted emails |
+| `sequence_count` | number | Sequence steps in the campaign |
+| `duplicate_count` | number | Duplicate leads skipped on import |
+| `invalid_email_count` | number | Leads skipped for an invalid email |
+| `invalid_emails` | array | Emails rejected as invalid |
+| `already_added_to_campaign` | number | Leads already in the campaign |
+| `unsubscribed_leads` | array | Leads skipped because they unsubscribed |
+| `lead_import_stopped_count` | number | Leads whose import was stopped |
+| `is_lead_limit_exhausted` | boolean | Whether the plan lead limit was hit |
+| `is_last_sequence` | boolean | Whether the lead was on the final step |
+| `next_sequence_id` | number | ID of the next sequence step |
+| `next_sequence_delay_in_days` | number | Days before the next step |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `phone_number` | string | Lead phone number |
+| `company_name` | string | Lead company name |
+| `website` | string | Lead website |
+| `location` | string | Lead location |
+| `linkedin_profile` | string | Lead LinkedIn profile URL |
+| `company_url` | string | Lead company URL |
+| `custom_fields` | json | Lead custom fields |
+| `is_unsubscribed` | boolean | Whether the lead is unsubscribed |
+| `lead_campaign_data` | array | Campaigns the lead belongs to |
+| `created_at` | string | Creation timestamp |
+| `updated_at` | string | Last update timestamp |
+| `leads_count` | number | Leads in the list |
+| `active_leads_count` | number | Active leads in the list |
+| `track_settings` | array | Disabled tracking settings |
+| `scheduler_cron_value` | json | Campaign sending schedule |
 
 ### `smartlead_unsubscribe_lead_from_campaign`
 
@@ -1825,6 +3408,50 @@ Unsubscribes a lead from a single Smartlead campaign, leaving it active in other
 | `has_more` | boolean | Whether more rows are available |
 | `list_name` | string | Lead list name |
 | `positive_reply_count` | number | Replies categorized as positive |
+| `offset` | number | Pagination offset used |
+| `limit` | number | Pagination limit used |
+| `total_count` | number | Total records matching the request |
+| `from` | string | Start of the reported window |
+| `to` | string | End of the reported window |
+| `start_date` | string | Start of the reported range |
+| `end_date` | string | End of the reported range |
+| `skipped_count` | number | Emails skipped |
+| `failed_count` | number | Failed sends |
+| `stopped_count` | number | Stopped leads |
+| `unsubscribed_count` | number | Unsubscribes |
+| `unique_sent_count` | number | Unique leads emailed |
+| `unique_open_count` | number | Unique opens |
+| `unique_click_count` | number | Unique clicks |
+| `block_count` | number | Blocked sends, or leads skipped by the block list |
+| `drafted_count` | number | Drafted emails |
+| `sequence_count` | number | Sequence steps in the campaign |
+| `duplicate_count` | number | Duplicate leads skipped on import |
+| `invalid_email_count` | number | Leads skipped for an invalid email |
+| `invalid_emails` | array | Emails rejected as invalid |
+| `already_added_to_campaign` | number | Leads already in the campaign |
+| `unsubscribed_leads` | array | Leads skipped because they unsubscribed |
+| `lead_import_stopped_count` | number | Leads whose import was stopped |
+| `is_lead_limit_exhausted` | boolean | Whether the plan lead limit was hit |
+| `is_last_sequence` | boolean | Whether the lead was on the final step |
+| `next_sequence_id` | number | ID of the next sequence step |
+| `next_sequence_delay_in_days` | number | Days before the next step |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `phone_number` | string | Lead phone number |
+| `company_name` | string | Lead company name |
+| `website` | string | Lead website |
+| `location` | string | Lead location |
+| `linkedin_profile` | string | Lead LinkedIn profile URL |
+| `company_url` | string | Lead company URL |
+| `custom_fields` | json | Lead custom fields |
+| `is_unsubscribed` | boolean | Whether the lead is unsubscribed |
+| `lead_campaign_data` | array | Campaigns the lead belongs to |
+| `created_at` | string | Creation timestamp |
+| `updated_at` | string | Last update timestamp |
+| `leads_count` | number | Leads in the list |
+| `active_leads_count` | number | Active leads in the list |
+| `track_settings` | array | Disabled tracking settings |
+| `scheduler_cron_value` | json | Campaign sending schedule |
 
 ### `smartlead_unsubscribe_lead_globally`
 
@@ -1873,6 +3500,50 @@ Unsubscribes a lead across every Smartlead campaign and adds it to the account-w
 | `has_more` | boolean | Whether more rows are available |
 | `list_name` | string | Lead list name |
 | `positive_reply_count` | number | Replies categorized as positive |
+| `offset` | number | Pagination offset used |
+| `limit` | number | Pagination limit used |
+| `total_count` | number | Total records matching the request |
+| `from` | string | Start of the reported window |
+| `to` | string | End of the reported window |
+| `start_date` | string | Start of the reported range |
+| `end_date` | string | End of the reported range |
+| `skipped_count` | number | Emails skipped |
+| `failed_count` | number | Failed sends |
+| `stopped_count` | number | Stopped leads |
+| `unsubscribed_count` | number | Unsubscribes |
+| `unique_sent_count` | number | Unique leads emailed |
+| `unique_open_count` | number | Unique opens |
+| `unique_click_count` | number | Unique clicks |
+| `block_count` | number | Blocked sends, or leads skipped by the block list |
+| `drafted_count` | number | Drafted emails |
+| `sequence_count` | number | Sequence steps in the campaign |
+| `duplicate_count` | number | Duplicate leads skipped on import |
+| `invalid_email_count` | number | Leads skipped for an invalid email |
+| `invalid_emails` | array | Emails rejected as invalid |
+| `already_added_to_campaign` | number | Leads already in the campaign |
+| `unsubscribed_leads` | array | Leads skipped because they unsubscribed |
+| `lead_import_stopped_count` | number | Leads whose import was stopped |
+| `is_lead_limit_exhausted` | boolean | Whether the plan lead limit was hit |
+| `is_last_sequence` | boolean | Whether the lead was on the final step |
+| `next_sequence_id` | number | ID of the next sequence step |
+| `next_sequence_delay_in_days` | number | Days before the next step |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `phone_number` | string | Lead phone number |
+| `company_name` | string | Lead company name |
+| `website` | string | Lead website |
+| `location` | string | Lead location |
+| `linkedin_profile` | string | Lead LinkedIn profile URL |
+| `company_url` | string | Lead company URL |
+| `custom_fields` | json | Lead custom fields |
+| `is_unsubscribed` | boolean | Whether the lead is unsubscribed |
+| `lead_campaign_data` | array | Campaigns the lead belongs to |
+| `created_at` | string | Creation timestamp |
+| `updated_at` | string | Last update timestamp |
+| `leads_count` | number | Leads in the list |
+| `active_leads_count` | number | Active leads in the list |
+| `track_settings` | array | Disabled tracking settings |
+| `scheduler_cron_value` | json | Campaign sending schedule |
 
 ### `smartlead_mark_lead_complete`
 
@@ -1921,6 +3592,50 @@ Marks a lead as completed in a Smartlead campaign so it stops receiving further 
 | `has_more` | boolean | Whether more rows are available |
 | `list_name` | string | Lead list name |
 | `positive_reply_count` | number | Replies categorized as positive |
+| `offset` | number | Pagination offset used |
+| `limit` | number | Pagination limit used |
+| `total_count` | number | Total records matching the request |
+| `from` | string | Start of the reported window |
+| `to` | string | End of the reported window |
+| `start_date` | string | Start of the reported range |
+| `end_date` | string | End of the reported range |
+| `skipped_count` | number | Emails skipped |
+| `failed_count` | number | Failed sends |
+| `stopped_count` | number | Stopped leads |
+| `unsubscribed_count` | number | Unsubscribes |
+| `unique_sent_count` | number | Unique leads emailed |
+| `unique_open_count` | number | Unique opens |
+| `unique_click_count` | number | Unique clicks |
+| `block_count` | number | Blocked sends, or leads skipped by the block list |
+| `drafted_count` | number | Drafted emails |
+| `sequence_count` | number | Sequence steps in the campaign |
+| `duplicate_count` | number | Duplicate leads skipped on import |
+| `invalid_email_count` | number | Leads skipped for an invalid email |
+| `invalid_emails` | array | Emails rejected as invalid |
+| `already_added_to_campaign` | number | Leads already in the campaign |
+| `unsubscribed_leads` | array | Leads skipped because they unsubscribed |
+| `lead_import_stopped_count` | number | Leads whose import was stopped |
+| `is_lead_limit_exhausted` | boolean | Whether the plan lead limit was hit |
+| `is_last_sequence` | boolean | Whether the lead was on the final step |
+| `next_sequence_id` | number | ID of the next sequence step |
+| `next_sequence_delay_in_days` | number | Days before the next step |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `phone_number` | string | Lead phone number |
+| `company_name` | string | Lead company name |
+| `website` | string | Lead website |
+| `location` | string | Lead location |
+| `linkedin_profile` | string | Lead LinkedIn profile URL |
+| `company_url` | string | Lead company URL |
+| `custom_fields` | json | Lead custom fields |
+| `is_unsubscribed` | boolean | Whether the lead is unsubscribed |
+| `lead_campaign_data` | array | Campaigns the lead belongs to |
+| `created_at` | string | Creation timestamp |
+| `updated_at` | string | Last update timestamp |
+| `leads_count` | number | Leads in the list |
+| `active_leads_count` | number | Active leads in the list |
+| `track_settings` | array | Disabled tracking settings |
+| `scheduler_cron_value` | json | Campaign sending schedule |
 
 ### `smartlead_delete_lead_from_campaign`
 
@@ -1968,6 +3683,50 @@ Removes a lead from a Smartlead campaign. The lead record itself remains on the 
 | `has_more` | boolean | Whether more rows are available |
 | `list_name` | string | Lead list name |
 | `positive_reply_count` | number | Replies categorized as positive |
+| `offset` | number | Pagination offset used |
+| `limit` | number | Pagination limit used |
+| `total_count` | number | Total records matching the request |
+| `from` | string | Start of the reported window |
+| `to` | string | End of the reported window |
+| `start_date` | string | Start of the reported range |
+| `end_date` | string | End of the reported range |
+| `skipped_count` | number | Emails skipped |
+| `failed_count` | number | Failed sends |
+| `stopped_count` | number | Stopped leads |
+| `unsubscribed_count` | number | Unsubscribes |
+| `unique_sent_count` | number | Unique leads emailed |
+| `unique_open_count` | number | Unique opens |
+| `unique_click_count` | number | Unique clicks |
+| `block_count` | number | Blocked sends, or leads skipped by the block list |
+| `drafted_count` | number | Drafted emails |
+| `sequence_count` | number | Sequence steps in the campaign |
+| `duplicate_count` | number | Duplicate leads skipped on import |
+| `invalid_email_count` | number | Leads skipped for an invalid email |
+| `invalid_emails` | array | Emails rejected as invalid |
+| `already_added_to_campaign` | number | Leads already in the campaign |
+| `unsubscribed_leads` | array | Leads skipped because they unsubscribed |
+| `lead_import_stopped_count` | number | Leads whose import was stopped |
+| `is_lead_limit_exhausted` | boolean | Whether the plan lead limit was hit |
+| `is_last_sequence` | boolean | Whether the lead was on the final step |
+| `next_sequence_id` | number | ID of the next sequence step |
+| `next_sequence_delay_in_days` | number | Days before the next step |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `phone_number` | string | Lead phone number |
+| `company_name` | string | Lead company name |
+| `website` | string | Lead website |
+| `location` | string | Lead location |
+| `linkedin_profile` | string | Lead LinkedIn profile URL |
+| `company_url` | string | Lead company URL |
+| `custom_fields` | json | Lead custom fields |
+| `is_unsubscribed` | boolean | Whether the lead is unsubscribed |
+| `lead_campaign_data` | array | Campaigns the lead belongs to |
+| `created_at` | string | Creation timestamp |
+| `updated_at` | string | Last update timestamp |
+| `leads_count` | number | Leads in the list |
+| `active_leads_count` | number | Active leads in the list |
+| `track_settings` | array | Disabled tracking settings |
+| `scheduler_cron_value` | json | Campaign sending schedule |
 
 ### `smartlead_list_inbox_replies`
 
@@ -1978,7 +3737,6 @@ Retrieves replies from the Smartlead master inbox, optionally limited to unread 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `unreadOnly` | boolean | No | Return only unread replies |
-| `campaignId` | number | No | Only return replies for this campaign |
 | `offset` | number | No | Pagination offset \(default 0\) |
 | `limit` | number | No | Replies to return per page |
 
@@ -2019,6 +3777,50 @@ Retrieves replies from the Smartlead master inbox, optionally limited to unread 
 | `has_more` | boolean | Whether more rows are available |
 | `list_name` | string | Lead list name |
 | `positive_reply_count` | number | Replies categorized as positive |
+| `offset` | number | Pagination offset used |
+| `limit` | number | Pagination limit used |
+| `total_count` | number | Total records matching the request |
+| `from` | string | Start of the reported window |
+| `to` | string | End of the reported window |
+| `start_date` | string | Start of the reported range |
+| `end_date` | string | End of the reported range |
+| `skipped_count` | number | Emails skipped |
+| `failed_count` | number | Failed sends |
+| `stopped_count` | number | Stopped leads |
+| `unsubscribed_count` | number | Unsubscribes |
+| `unique_sent_count` | number | Unique leads emailed |
+| `unique_open_count` | number | Unique opens |
+| `unique_click_count` | number | Unique clicks |
+| `block_count` | number | Blocked sends, or leads skipped by the block list |
+| `drafted_count` | number | Drafted emails |
+| `sequence_count` | number | Sequence steps in the campaign |
+| `duplicate_count` | number | Duplicate leads skipped on import |
+| `invalid_email_count` | number | Leads skipped for an invalid email |
+| `invalid_emails` | array | Emails rejected as invalid |
+| `already_added_to_campaign` | number | Leads already in the campaign |
+| `unsubscribed_leads` | array | Leads skipped because they unsubscribed |
+| `lead_import_stopped_count` | number | Leads whose import was stopped |
+| `is_lead_limit_exhausted` | boolean | Whether the plan lead limit was hit |
+| `is_last_sequence` | boolean | Whether the lead was on the final step |
+| `next_sequence_id` | number | ID of the next sequence step |
+| `next_sequence_delay_in_days` | number | Days before the next step |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `phone_number` | string | Lead phone number |
+| `company_name` | string | Lead company name |
+| `website` | string | Lead website |
+| `location` | string | Lead location |
+| `linkedin_profile` | string | Lead LinkedIn profile URL |
+| `company_url` | string | Lead company URL |
+| `custom_fields` | json | Lead custom fields |
+| `is_unsubscribed` | boolean | Whether the lead is unsubscribed |
+| `lead_campaign_data` | array | Campaigns the lead belongs to |
+| `created_at` | string | Creation timestamp |
+| `updated_at` | string | Last update timestamp |
+| `leads_count` | number | Leads in the list |
+| `active_leads_count` | number | Active leads in the list |
+| `track_settings` | array | Disabled tracking settings |
+| `scheduler_cron_value` | json | Campaign sending schedule |
 
 ### `smartlead_list_lead_lists`
 
@@ -2068,6 +3870,50 @@ Retrieves the lead lists on the Smartlead account with their lead counts.
 | `has_more` | boolean | Whether more rows are available |
 | `list_name` | string | Lead list name |
 | `positive_reply_count` | number | Replies categorized as positive |
+| `offset` | number | Pagination offset used |
+| `limit` | number | Pagination limit used |
+| `total_count` | number | Total records matching the request |
+| `from` | string | Start of the reported window |
+| `to` | string | End of the reported window |
+| `start_date` | string | Start of the reported range |
+| `end_date` | string | End of the reported range |
+| `skipped_count` | number | Emails skipped |
+| `failed_count` | number | Failed sends |
+| `stopped_count` | number | Stopped leads |
+| `unsubscribed_count` | number | Unsubscribes |
+| `unique_sent_count` | number | Unique leads emailed |
+| `unique_open_count` | number | Unique opens |
+| `unique_click_count` | number | Unique clicks |
+| `block_count` | number | Blocked sends, or leads skipped by the block list |
+| `drafted_count` | number | Drafted emails |
+| `sequence_count` | number | Sequence steps in the campaign |
+| `duplicate_count` | number | Duplicate leads skipped on import |
+| `invalid_email_count` | number | Leads skipped for an invalid email |
+| `invalid_emails` | array | Emails rejected as invalid |
+| `already_added_to_campaign` | number | Leads already in the campaign |
+| `unsubscribed_leads` | array | Leads skipped because they unsubscribed |
+| `lead_import_stopped_count` | number | Leads whose import was stopped |
+| `is_lead_limit_exhausted` | boolean | Whether the plan lead limit was hit |
+| `is_last_sequence` | boolean | Whether the lead was on the final step |
+| `next_sequence_id` | number | ID of the next sequence step |
+| `next_sequence_delay_in_days` | number | Days before the next step |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `phone_number` | string | Lead phone number |
+| `company_name` | string | Lead company name |
+| `website` | string | Lead website |
+| `location` | string | Lead location |
+| `linkedin_profile` | string | Lead LinkedIn profile URL |
+| `company_url` | string | Lead company URL |
+| `custom_fields` | json | Lead custom fields |
+| `is_unsubscribed` | boolean | Whether the lead is unsubscribed |
+| `lead_campaign_data` | array | Campaigns the lead belongs to |
+| `created_at` | string | Creation timestamp |
+| `updated_at` | string | Last update timestamp |
+| `leads_count` | number | Leads in the list |
+| `active_leads_count` | number | Active leads in the list |
+| `track_settings` | array | Disabled tracking settings |
+| `scheduler_cron_value` | json | Campaign sending schedule |
 
 ### `smartlead_get_lead_list`
 
@@ -2116,6 +3962,50 @@ Retrieves a single Smartlead lead list by ID.
 | `has_more` | boolean | Whether more rows are available |
 | `list_name` | string | Lead list name |
 | `positive_reply_count` | number | Replies categorized as positive |
+| `offset` | number | Pagination offset used |
+| `limit` | number | Pagination limit used |
+| `total_count` | number | Total records matching the request |
+| `from` | string | Start of the reported window |
+| `to` | string | End of the reported window |
+| `start_date` | string | Start of the reported range |
+| `end_date` | string | End of the reported range |
+| `skipped_count` | number | Emails skipped |
+| `failed_count` | number | Failed sends |
+| `stopped_count` | number | Stopped leads |
+| `unsubscribed_count` | number | Unsubscribes |
+| `unique_sent_count` | number | Unique leads emailed |
+| `unique_open_count` | number | Unique opens |
+| `unique_click_count` | number | Unique clicks |
+| `block_count` | number | Blocked sends, or leads skipped by the block list |
+| `drafted_count` | number | Drafted emails |
+| `sequence_count` | number | Sequence steps in the campaign |
+| `duplicate_count` | number | Duplicate leads skipped on import |
+| `invalid_email_count` | number | Leads skipped for an invalid email |
+| `invalid_emails` | array | Emails rejected as invalid |
+| `already_added_to_campaign` | number | Leads already in the campaign |
+| `unsubscribed_leads` | array | Leads skipped because they unsubscribed |
+| `lead_import_stopped_count` | number | Leads whose import was stopped |
+| `is_lead_limit_exhausted` | boolean | Whether the plan lead limit was hit |
+| `is_last_sequence` | boolean | Whether the lead was on the final step |
+| `next_sequence_id` | number | ID of the next sequence step |
+| `next_sequence_delay_in_days` | number | Days before the next step |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `phone_number` | string | Lead phone number |
+| `company_name` | string | Lead company name |
+| `website` | string | Lead website |
+| `location` | string | Lead location |
+| `linkedin_profile` | string | Lead LinkedIn profile URL |
+| `company_url` | string | Lead company URL |
+| `custom_fields` | json | Lead custom fields |
+| `is_unsubscribed` | boolean | Whether the lead is unsubscribed |
+| `lead_campaign_data` | array | Campaigns the lead belongs to |
+| `created_at` | string | Creation timestamp |
+| `updated_at` | string | Last update timestamp |
+| `leads_count` | number | Leads in the list |
+| `active_leads_count` | number | Active leads in the list |
+| `track_settings` | array | Disabled tracking settings |
+| `scheduler_cron_value` | json | Campaign sending schedule |
 
 ### `smartlead_create_lead_list`
 
@@ -2164,6 +4054,50 @@ Creates a lead list on the Smartlead account.
 | `has_more` | boolean | Whether more rows are available |
 | `list_name` | string | Lead list name |
 | `positive_reply_count` | number | Replies categorized as positive |
+| `offset` | number | Pagination offset used |
+| `limit` | number | Pagination limit used |
+| `total_count` | number | Total records matching the request |
+| `from` | string | Start of the reported window |
+| `to` | string | End of the reported window |
+| `start_date` | string | Start of the reported range |
+| `end_date` | string | End of the reported range |
+| `skipped_count` | number | Emails skipped |
+| `failed_count` | number | Failed sends |
+| `stopped_count` | number | Stopped leads |
+| `unsubscribed_count` | number | Unsubscribes |
+| `unique_sent_count` | number | Unique leads emailed |
+| `unique_open_count` | number | Unique opens |
+| `unique_click_count` | number | Unique clicks |
+| `block_count` | number | Blocked sends, or leads skipped by the block list |
+| `drafted_count` | number | Drafted emails |
+| `sequence_count` | number | Sequence steps in the campaign |
+| `duplicate_count` | number | Duplicate leads skipped on import |
+| `invalid_email_count` | number | Leads skipped for an invalid email |
+| `invalid_emails` | array | Emails rejected as invalid |
+| `already_added_to_campaign` | number | Leads already in the campaign |
+| `unsubscribed_leads` | array | Leads skipped because they unsubscribed |
+| `lead_import_stopped_count` | number | Leads whose import was stopped |
+| `is_lead_limit_exhausted` | boolean | Whether the plan lead limit was hit |
+| `is_last_sequence` | boolean | Whether the lead was on the final step |
+| `next_sequence_id` | number | ID of the next sequence step |
+| `next_sequence_delay_in_days` | number | Days before the next step |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `phone_number` | string | Lead phone number |
+| `company_name` | string | Lead company name |
+| `website` | string | Lead website |
+| `location` | string | Lead location |
+| `linkedin_profile` | string | Lead LinkedIn profile URL |
+| `company_url` | string | Lead company URL |
+| `custom_fields` | json | Lead custom fields |
+| `is_unsubscribed` | boolean | Whether the lead is unsubscribed |
+| `lead_campaign_data` | array | Campaigns the lead belongs to |
+| `created_at` | string | Creation timestamp |
+| `updated_at` | string | Last update timestamp |
+| `leads_count` | number | Leads in the list |
+| `active_leads_count` | number | Active leads in the list |
+| `track_settings` | array | Disabled tracking settings |
+| `scheduler_cron_value` | json | Campaign sending schedule |
 
 ### `smartlead_update_lead_list`
 
@@ -2213,6 +4147,50 @@ Renames a Smartlead lead list.
 | `has_more` | boolean | Whether more rows are available |
 | `list_name` | string | Lead list name |
 | `positive_reply_count` | number | Replies categorized as positive |
+| `offset` | number | Pagination offset used |
+| `limit` | number | Pagination limit used |
+| `total_count` | number | Total records matching the request |
+| `from` | string | Start of the reported window |
+| `to` | string | End of the reported window |
+| `start_date` | string | Start of the reported range |
+| `end_date` | string | End of the reported range |
+| `skipped_count` | number | Emails skipped |
+| `failed_count` | number | Failed sends |
+| `stopped_count` | number | Stopped leads |
+| `unsubscribed_count` | number | Unsubscribes |
+| `unique_sent_count` | number | Unique leads emailed |
+| `unique_open_count` | number | Unique opens |
+| `unique_click_count` | number | Unique clicks |
+| `block_count` | number | Blocked sends, or leads skipped by the block list |
+| `drafted_count` | number | Drafted emails |
+| `sequence_count` | number | Sequence steps in the campaign |
+| `duplicate_count` | number | Duplicate leads skipped on import |
+| `invalid_email_count` | number | Leads skipped for an invalid email |
+| `invalid_emails` | array | Emails rejected as invalid |
+| `already_added_to_campaign` | number | Leads already in the campaign |
+| `unsubscribed_leads` | array | Leads skipped because they unsubscribed |
+| `lead_import_stopped_count` | number | Leads whose import was stopped |
+| `is_lead_limit_exhausted` | boolean | Whether the plan lead limit was hit |
+| `is_last_sequence` | boolean | Whether the lead was on the final step |
+| `next_sequence_id` | number | ID of the next sequence step |
+| `next_sequence_delay_in_days` | number | Days before the next step |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `phone_number` | string | Lead phone number |
+| `company_name` | string | Lead company name |
+| `website` | string | Lead website |
+| `location` | string | Lead location |
+| `linkedin_profile` | string | Lead LinkedIn profile URL |
+| `company_url` | string | Lead company URL |
+| `custom_fields` | json | Lead custom fields |
+| `is_unsubscribed` | boolean | Whether the lead is unsubscribed |
+| `lead_campaign_data` | array | Campaigns the lead belongs to |
+| `created_at` | string | Creation timestamp |
+| `updated_at` | string | Last update timestamp |
+| `leads_count` | number | Leads in the list |
+| `active_leads_count` | number | Active leads in the list |
+| `track_settings` | array | Disabled tracking settings |
+| `scheduler_cron_value` | json | Campaign sending schedule |
 
 ### `smartlead_delete_lead_list`
 
@@ -2261,6 +4239,50 @@ Deletes a Smartlead lead list.
 | `has_more` | boolean | Whether more rows are available |
 | `list_name` | string | Lead list name |
 | `positive_reply_count` | number | Replies categorized as positive |
+| `offset` | number | Pagination offset used |
+| `limit` | number | Pagination limit used |
+| `total_count` | number | Total records matching the request |
+| `from` | string | Start of the reported window |
+| `to` | string | End of the reported window |
+| `start_date` | string | Start of the reported range |
+| `end_date` | string | End of the reported range |
+| `skipped_count` | number | Emails skipped |
+| `failed_count` | number | Failed sends |
+| `stopped_count` | number | Stopped leads |
+| `unsubscribed_count` | number | Unsubscribes |
+| `unique_sent_count` | number | Unique leads emailed |
+| `unique_open_count` | number | Unique opens |
+| `unique_click_count` | number | Unique clicks |
+| `block_count` | number | Blocked sends, or leads skipped by the block list |
+| `drafted_count` | number | Drafted emails |
+| `sequence_count` | number | Sequence steps in the campaign |
+| `duplicate_count` | number | Duplicate leads skipped on import |
+| `invalid_email_count` | number | Leads skipped for an invalid email |
+| `invalid_emails` | array | Emails rejected as invalid |
+| `already_added_to_campaign` | number | Leads already in the campaign |
+| `unsubscribed_leads` | array | Leads skipped because they unsubscribed |
+| `lead_import_stopped_count` | number | Leads whose import was stopped |
+| `is_lead_limit_exhausted` | boolean | Whether the plan lead limit was hit |
+| `is_last_sequence` | boolean | Whether the lead was on the final step |
+| `next_sequence_id` | number | ID of the next sequence step |
+| `next_sequence_delay_in_days` | number | Days before the next step |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `phone_number` | string | Lead phone number |
+| `company_name` | string | Lead company name |
+| `website` | string | Lead website |
+| `location` | string | Lead location |
+| `linkedin_profile` | string | Lead LinkedIn profile URL |
+| `company_url` | string | Lead company URL |
+| `custom_fields` | json | Lead custom fields |
+| `is_unsubscribed` | boolean | Whether the lead is unsubscribed |
+| `lead_campaign_data` | array | Campaigns the lead belongs to |
+| `created_at` | string | Creation timestamp |
+| `updated_at` | string | Last update timestamp |
+| `leads_count` | number | Leads in the list |
+| `active_leads_count` | number | Active leads in the list |
+| `track_settings` | array | Disabled tracking settings |
+| `scheduler_cron_value` | json | Campaign sending schedule |
 
 ### `smartlead_list_clients`
 
@@ -2308,5 +4330,49 @@ Retrieves the clients on a Smartlead agency account, including the client IDs us
 | `has_more` | boolean | Whether more rows are available |
 | `list_name` | string | Lead list name |
 | `positive_reply_count` | number | Replies categorized as positive |
+| `offset` | number | Pagination offset used |
+| `limit` | number | Pagination limit used |
+| `total_count` | number | Total records matching the request |
+| `from` | string | Start of the reported window |
+| `to` | string | End of the reported window |
+| `start_date` | string | Start of the reported range |
+| `end_date` | string | End of the reported range |
+| `skipped_count` | number | Emails skipped |
+| `failed_count` | number | Failed sends |
+| `stopped_count` | number | Stopped leads |
+| `unsubscribed_count` | number | Unsubscribes |
+| `unique_sent_count` | number | Unique leads emailed |
+| `unique_open_count` | number | Unique opens |
+| `unique_click_count` | number | Unique clicks |
+| `block_count` | number | Blocked sends, or leads skipped by the block list |
+| `drafted_count` | number | Drafted emails |
+| `sequence_count` | number | Sequence steps in the campaign |
+| `duplicate_count` | number | Duplicate leads skipped on import |
+| `invalid_email_count` | number | Leads skipped for an invalid email |
+| `invalid_emails` | array | Emails rejected as invalid |
+| `already_added_to_campaign` | number | Leads already in the campaign |
+| `unsubscribed_leads` | array | Leads skipped because they unsubscribed |
+| `lead_import_stopped_count` | number | Leads whose import was stopped |
+| `is_lead_limit_exhausted` | boolean | Whether the plan lead limit was hit |
+| `is_last_sequence` | boolean | Whether the lead was on the final step |
+| `next_sequence_id` | number | ID of the next sequence step |
+| `next_sequence_delay_in_days` | number | Days before the next step |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `phone_number` | string | Lead phone number |
+| `company_name` | string | Lead company name |
+| `website` | string | Lead website |
+| `location` | string | Lead location |
+| `linkedin_profile` | string | Lead LinkedIn profile URL |
+| `company_url` | string | Lead company URL |
+| `custom_fields` | json | Lead custom fields |
+| `is_unsubscribed` | boolean | Whether the lead is unsubscribed |
+| `lead_campaign_data` | array | Campaigns the lead belongs to |
+| `created_at` | string | Creation timestamp |
+| `updated_at` | string | Last update timestamp |
+| `leads_count` | number | Leads in the list |
+| `active_leads_count` | number | Active leads in the list |
+| `track_settings` | array | Disabled tracking settings |
+| `scheduler_cron_value` | json | Campaign sending schedule |
 
 
