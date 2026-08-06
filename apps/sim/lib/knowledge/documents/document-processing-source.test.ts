@@ -182,4 +182,25 @@ describe('knowledge document processing source', () => {
     )
     expect(mockGenerateEmbeddings).not.toHaveBeenCalled()
   })
+
+  it('fails before parsing an existing document when its current source is tracked unknown', async () => {
+    mockGetFileMetadataByKeys.mockImplementation(async (_keys: string[], context: string) =>
+      context === 'workspace' ? [{ ...SOURCE_BINDING, secretProvenanceVersion: 1 }] : []
+    )
+    mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
+      new Map([[SOURCE_BINDING.id, { status: 'unknown' }]])
+    )
+
+    await expect(
+      processDocumentAsync('knowledge-base-1', 'document-1', {
+        filename: 'stale.pdf',
+        fileUrl: 'https://example.com/stale.pdf',
+        fileSize: 1,
+        mimeType: 'text/plain',
+      })
+    ).rejects.toThrow('Knowledge document secret provenance is unavailable')
+
+    expect(mockProcessDocument).not.toHaveBeenCalled()
+    expect(mockGenerateEmbeddings).not.toHaveBeenCalled()
+  })
 })

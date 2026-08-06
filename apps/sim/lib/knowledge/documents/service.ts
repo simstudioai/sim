@@ -2550,7 +2550,10 @@ export async function deleteDocumentStorageFiles(
     ...new Set(
       entries
         .map((entry) => entry.storageKey)
-        .filter((key): key is string => typeof key === 'string')
+        .filter(
+          (key): key is string =>
+            typeof key === 'string' && (key.startsWith('kb/') || key.startsWith('knowledge-base/'))
+        )
     ),
   ]
   const bindingByKey = new Map<string, FileMetadataRecord>()
@@ -2563,6 +2566,10 @@ export async function deleteDocumentStorageFiles(
 
   await mapWithConcurrency(entries, STORAGE_DELETE_CONCURRENCY, async ({ doc, storageKey }) => {
     if (!storageKey) {
+      return
+    }
+
+    if (!storageKey.startsWith('kb/') && !storageKey.startsWith('knowledge-base/')) {
       return
     }
 

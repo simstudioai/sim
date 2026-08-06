@@ -193,6 +193,73 @@ describe('knowledge workspace source provenance', () => {
     )
   })
 
+  it('preserves a tracked exact-empty manual upload as model-safe', async () => {
+    mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
+      new Map([[SOURCE_BINDING.id, { status: 'exact', entries: [] }]])
+    )
+
+    await createSingleDocument(
+      {
+        filename: 'source.pdf',
+        fileUrl: SOURCE_URL,
+        fileSize: 512,
+        mimeType: 'application/pdf',
+      },
+      KNOWLEDGE_BASE_ID,
+      'request-1',
+      SOURCE_USER_ID
+    )
+
+    expect(findDocumentProvenanceWrite()).toEqual(
+      expect.objectContaining({ status: 'exact', entries: [] })
+    )
+  })
+
+  it('uses the trusted mothership row context instead of the URL context label', async () => {
+    const mothershipBinding = {
+      ...SOURCE_BINDING,
+      id: 'mothership-file-1',
+      context: 'mothership',
+    }
+    mockGetFileMetadataByKeys.mockImplementation(async (_keys: string[], context: string) =>
+      context === 'mothership' ? [mothershipBinding] : []
+    )
+    mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
+      new Map([
+        [
+          mothershipBinding.id,
+          {
+            status: 'exact',
+            entries: [{ name: 'CHAT_SECRET', encryptedValue: 'encrypted-chat-secret' }],
+          },
+        ],
+      ])
+    )
+
+    await createSingleDocument(
+      {
+        filename: 'source.pdf',
+        fileUrl: SOURCE_URL,
+        fileSize: 512,
+        mimeType: 'application/pdf',
+      },
+      KNOWLEDGE_BASE_ID,
+      'request-1',
+      SOURCE_USER_ID
+    )
+
+    expect(mockGetBoundWorkspaceFileSecretProvenanceByMetadata).toHaveBeenCalledWith(
+      expect.anything(),
+      [mothershipBinding]
+    )
+    expect(findDocumentProvenanceWrite()).toEqual(
+      expect.objectContaining({
+        status: 'exact',
+        entries: [expect.objectContaining({ name: 'CHAT_SECRET' })],
+      })
+    )
+  })
+
   it('preserves legacy behavior when a workspace source has no metadata binding', async () => {
     mockGetFileMetadataByKeys.mockResolvedValue([])
 
@@ -221,7 +288,7 @@ describe('knowledge workspace source provenance', () => {
       'request-1'
     )
 
-    expect(mockGetFileMetadataByKeys).toHaveBeenCalledWith([SOURCE_KEY], 'knowledge-base')
+    expect(mockGetFileMetadataByKeys).not.toHaveBeenCalled()
     expect(mockDeleteFile).not.toHaveBeenCalled()
     expect(mockDeleteFileMetadataByIdentity).not.toHaveBeenCalled()
   })
