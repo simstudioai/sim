@@ -157,13 +157,20 @@ const mergeArgs = (entry: Record<string, unknown>, args: unknown[]): Record<stri
 
 /** JSON replacer that tolerates cyclic references and BigInt values. */
 const tolerantReplacer = () => {
-  const seen = new WeakSet<object>()
-  return (_key: string, value: unknown): unknown => {
+  const ancestors: object[] = []
+  return function (this: unknown, _key: string, value: unknown): unknown {
     if (typeof value === 'bigint') return value.toString()
-    if (value !== null && typeof value === 'object') {
-      if (seen.has(value)) return '[Circular]'
-      seen.add(value)
-    }
+    if (value === null || typeof value !== 'object') return value
+    /**
+     * Track the ancestor path, not every object ever visited. `this` is the
+     * object holding the current key, so unwinding to it drops the siblings we
+     * have finished descending. A set of everything seen would label the second
+     * appearance of a merely repeated reference `[Circular]` and discard real
+     * data, since a payload that references one object twice has no cycle.
+     */
+    while (ancestors.length > 0 && ancestors[ancestors.length - 1] !== this) ancestors.pop()
+    if (ancestors.includes(value)) return '[Circular]'
+    ancestors.push(value)
     return value
   }
 }

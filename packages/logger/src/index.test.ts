@@ -275,6 +275,34 @@ describe('Logger', () => {
       expect(parsed.boom).toBe('[Unreadable]')
     })
 
+    test('should keep repeated references that are not cycles', () => {
+      const shared = { s: 'REAL_DATA', n: 42 }
+      const payload = { p: shared, q: shared, arr: [shared, shared], big: 1n } as unknown as object
+
+      createEnabledLogger().info('hello', payload)
+
+      const parsed = JSON.parse(consoleLogSpy.mock.calls[0][0] as string)
+      expect(parsed.p).toEqual({ s: 'REAL_DATA', n: 42 })
+      expect(parsed.q).toEqual({ s: 'REAL_DATA', n: 42 })
+      expect(parsed.arr).toEqual([
+        { s: 'REAL_DATA', n: 42 },
+        { s: 'REAL_DATA', n: 42 },
+      ])
+      expect(parsed.big).toBe('1')
+    })
+
+    test('should still mark a genuine cycle as circular', () => {
+      const cyclic: Record<string, unknown> = { name: 'root' }
+      cyclic.self = cyclic
+      const payload = { cyclic, big: 1n } as unknown as object
+
+      createEnabledLogger().info('hello', payload)
+
+      const parsed = JSON.parse(consoleLogSpy.mock.calls[0][0] as string)
+      expect(parsed.cyclic.name).toBe('root')
+      expect(parsed.cyclic.self).toBe('[Circular]')
+    })
+
     test('should not throw when retained metadata has a throwing toJSON', () => {
       const hostile = {
         evil: {
