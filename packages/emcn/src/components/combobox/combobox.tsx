@@ -226,6 +226,13 @@ const Combobox = memo(
       const blurTimeoutRef = useRef<ReturnType<typeof setTimeout>>(null)
       const internalInputRef = useRef<HTMLInputElement>(null)
       const inputRef = externalInputRef || internalInputRef
+      /**
+       * True while a pointer press that began inside the dropdown is still held.
+       * Grabbing the list's native scrollbar blurs the editable input and parks
+       * focus on `<body>` — which `handleBlur` would otherwise read as "focus
+       * left the combobox" and close the dropdown mid-drag.
+       */
+      const pointerDownInsideRef = useRef(false)
 
       const effectiveSelectedValue = selectedValue ?? value
 
@@ -235,6 +242,33 @@ const Combobox = memo(
           if (blurTimeoutRef.current) clearTimeout(blurTimeoutRef.current)
         }
       }, [])
+
+      /**
+       * Releases the pointer-press window and restores focus to the editable input,
+       * which a scrollbar drag left on `<body>`. Bound to `window` so a release
+       * outside the popover still clears the flag; `pointercancel` is included
+       * because a touch scroll gesture ends there instead of `pointerup`.
+       */
+      useEffect(() => {
+        if (!editable) return
+        const endPointerPress = () => {
+          if (!pointerDownInsideRef.current) return
+          pointerDownInsideRef.current = false
+          // Only restore focus if the press actually stole it: a press inside the
+          // popover parks focus on <body> or the `tabIndex={-1}` content, but option
+          // mousedown is prevented, so it often never left the input or search box.
+          const active = document.activeElement
+          const isTextEntry =
+            active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement
+          if (!isTextEntry) inputRef.current?.focus({ preventScroll: true })
+        }
+        window.addEventListener('pointerup', endPointerPress)
+        window.addEventListener('pointercancel', endPointerPress)
+        return () => {
+          window.removeEventListener('pointerup', endPointerPress)
+          window.removeEventListener('pointercancel', endPointerPress)
+        }
+      }, [editable, inputRef])
 
       // Flatten groups into options if groups are provided
       const allOptions = useMemo(() => {
@@ -355,6 +389,8 @@ const Combobox = memo(
               setHighlightedIndex(-1)
               updateSearchQuery('')
               if (editable && inputRef.current) {
+                // The pointerup that follows must not hand focus back and reopen.
+                pointerDownInsideRef.current = false
                 inputRef.current.blur()
               }
             }
@@ -392,6 +428,7 @@ const Combobox = memo(
         if (blurTimeoutRef.current) clearTimeout(blurTimeoutRef.current)
         // Delay to allow dropdown clicks
         blurTimeoutRef.current = setTimeout(() => {
+          if (pointerDownInsideRef.current) return
           const activeElement = document.activeElement
           // Check if focus is in the container, dropdown, or search input
           const isInContainer = containerRef.current?.contains(activeElement)
@@ -680,6 +717,9 @@ const Combobox = memo(
                 if (searchable && !editable) {
                   setTimeout(() => searchInputRef.current?.focus(), 0)
                 }
+              }}
+              onPointerDownCapture={() => {
+                if (editable) pointerDownInsideRef.current = true
               }}
               onInteractOutside={(e) => {
                 // If the user clicks the anchor/trigger while the popover is open,
