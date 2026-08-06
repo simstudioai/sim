@@ -644,15 +644,22 @@ export async function executeFunctionExecute(
           const existing = (enrichedParams._sandboxFiles as SandboxFile[]) || []
           enrichedParams._sandboxFiles = [...existing, ...resolved]
 
-          const provenance = mountedRegistry.exportProvenance()
-          const bundle: PrivateSecretProvenanceBundleV1 = {
-            version: 1,
-            complete: provenance.complete,
-            selections: provenance.complete
-              ? [{ key: MOUNTED_WORKSPACE_FILES_PROVENANCE_KEY, provenance }]
-              : [],
+          // The envelope attests to the WHOLE mounted set or it is not emitted at all. Mounts
+          // that arrived already on the params came from outside this resolver, so
+          // `mountedRegistry` knows nothing about them; an envelope covering only `resolved`
+          // would read at the route as a complete attestation over every mounted byte. With no
+          // envelope the route fails closed instead, which is the honest answer.
+          if (existing.length === 0) {
+            const provenance = mountedRegistry.exportProvenance()
+            const bundle: PrivateSecretProvenanceBundleV1 = {
+              version: 1,
+              complete: provenance.complete,
+              selections: provenance.complete
+                ? [{ key: MOUNTED_WORKSPACE_FILES_PROVENANCE_KEY, provenance }]
+                : [],
+            }
+            enrichedParams[PRIVATE_SECRET_PROVENANCE_FIELD] = bundle
           }
-          enrichedParams[PRIVATE_SECRET_PROVENANCE_FIELD] = bundle
         }
       }
     }

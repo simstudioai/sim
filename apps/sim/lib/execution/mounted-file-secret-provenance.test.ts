@@ -71,6 +71,19 @@ describe('mounted file output provenance scanner', () => {
     expect(withoutSecrets?.scan(Buffer.from('anything'))).toEqual({ status: 'exact', entries: [] })
   })
 
+  it('keeps hasSecrets true when attested entries yield no scannable plaintext', async () => {
+    encryptionMockFns.mockDecryptSecret.mockImplementation(async () => ({ decrypted: '' }))
+
+    const scanner = await createMountedFileSecretProvenanceScanner({
+      version: 1,
+      complete: true,
+      entries: [{ encryptedValue: 'encrypted-a' }],
+      scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+    })
+
+    expect(scanner?.hasSecrets).toBe(true)
+  })
+
   it('fails closed when encrypted provenance is incomplete or cannot be decrypted', async () => {
     await expect(
       createMountedFileSecretProvenanceScanner({ version: 1, complete: false, entries: [] })
