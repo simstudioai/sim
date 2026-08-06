@@ -132,12 +132,18 @@ export class KnowledgeBaseFileOwnershipError extends Error {
  * referenced bindings are resolved in one query (no N+1 inside the `FOR UPDATE`
  * window). Single-document callers pass a one-element array.
  */
+function isKnowledgeBaseOwnedStorageKey(key: string): boolean {
+  return key.startsWith('kb/') || key.startsWith('knowledge-base/')
+}
+
 function getKnowledgeBaseStorageKeys(fileUrls: readonly string[]): string[] {
   return [
     ...new Set(
       fileUrls
         .map((url) => getKnowledgeBaseStorageKey(url))
-        .filter((key): key is string => typeof key === 'string' && key.startsWith('kb/'))
+        .filter(
+          (key): key is string => typeof key === 'string' && isKnowledgeBaseOwnedStorageKey(key)
+        )
     ),
   ]
 }
