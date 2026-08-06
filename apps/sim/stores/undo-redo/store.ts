@@ -138,17 +138,32 @@ function isOperationApplicable(
   }
 }
 
-type PersistedUndoRedoState = Pick<UndoRedoState, 'stacks' | 'capacity'>
+/** The slice of {@link UndoRedoState} that `persist` writes to storage. */
+export type PersistedUndoRedoState = Pick<UndoRedoState, 'stacks' | 'capacity'>
 
+/** Serialized length of `value`, or 0 when it is not serializable. */
 function serializedLength(value: unknown): number {
   return JSON.stringify(value)?.length ?? 0
 }
 
 /**
- * Returns a copy of the persisted state trimmed so its serialized size fits
- * `maxBytes`, evicting the oldest operations (by `createdAt`) across every stack
- * first and dropping any stack left empty. The input is never mutated, so the
- * live in-memory history is unaffected — only what gets written to storage shrinks.
+ * Trims a copy of the persisted state so its serialized size fits `maxBytes`.
+ *
+ * Both stacks are consumed from their end: `undo()` takes `undo[undo.length - 1]`
+ * and `redo()` takes `redo[redo.length - 1]`. Eviction therefore removes entries
+ * furthest from the next use first, which is the front of each array, matching the
+ * capacity policy that keeps the tail via `slice(-capacity)`. Ordering purely by
+ * `createdAt` would be correct for `undo` but inverted for `redo`, whose next entry
+ * is its oldest, and would drop the operation redo needs next while keeping the
+ * later ones that depend on it.
+ *
+ * Any stack emptied by eviction is removed so its key and overhead are reclaimed.
+ * The input is never mutated, so the live in-memory history is unaffected and only
+ * what gets written to storage shrinks.
+ *
+ * @param state - The persisted slice to trim. Left untouched.
+ * @param maxBytes - Serialized-size ceiling for the returned state.
+ * @returns `state` itself when already within budget, otherwise a trimmed copy.
  */
 export function trimPersistedStateToBudget(
   state: PersistedUndoRedoState,
@@ -156,19 +171,23 @@ export function trimPersistedStateToBudget(
 ): PersistedUndoRedoState {
   if (serializedLength(state) <= maxBytes) return state
 
-  // Clone stacks (and their arrays) so eviction never touches the live state.
   const stacks: PersistedUndoRedoState['stacks'] = {}
   for (const [key, stack] of Object.entries(state.stacks)) {
     stacks[key] = { ...stack, undo: [...stack.undo], redo: [...stack.redo] }
   }
 
-  // Every removable entry, oldest first.
   const removable = Object.entries(stacks)
-    .flatMap(([key, stack]) => [
-      ...stack.undo.map((entry) => ({ key, list: 'undo' as const, entry })),
-      ...stack.redo.map((entry) => ({ key, list: 'redo' as const, entry })),
-    ])
-    .sort((a, b) => a.entry.createdAt - b.entry.createdAt)
+    .flatMap(([key, stack]) =>
+      (['undo', 'redo'] as const).flatMap((list) =>
+        stack[list].map((entry, index) => ({
+          key,
+          list,
+          entry,
+          depth: stack[list].length - 1 - index,
+        }))
+      )
+    )
+    .sort((a, b) => b.depth - a.depth || a.entry.createdAt - b.entry.createdAt)
 
   const drop = ({ key, list, entry }: (typeof removable)[number]): void => {
     const stack = stacks[key]
@@ -176,13 +195,14 @@ export function trimPersistedStateToBudget(
     const arr = stack[list]
     const idx = arr.indexOf(entry)
     if (idx !== -1) arr.splice(idx, 1)
-    // Reclaim the key/overhead of a stack emptied by eviction.
     if (stack.undo.length === 0 && stack.redo.length === 0) delete stacks[key]
   }
 
-  // Pass 1: estimate-based bulk eviction. Subtracting each entry's own serialized
-  // length (plus a separating comma) avoids re-serializing the whole payload on
-  // every eviction, which would be O(n²) over the megabytes involved.
+  /*
+   * Pass 1 evicts in bulk against an estimate. Subtracting each entry's own
+   * serialized length (plus a separating comma) avoids re-serializing the whole
+   * payload on every eviction, which would be O(n^2) over the megabytes involved.
+   */
   let approxBytes = serializedLength(state)
   let i = 0
   for (; i < removable.length && approxBytes > maxBytes; i++) {
@@ -190,9 +210,11 @@ export function trimPersistedStateToBudget(
     drop(removable[i])
   }
 
-  // Pass 2: the estimate can undershoot the true reduction (structural overhead it
-  // doesn't attribute to entries), so verify exactly and keep dropping the oldest
-  // survivors until the invariant holds. In practice this runs zero or one times.
+  /*
+   * The estimate can undershoot the true reduction because it does not attribute
+   * structural overhead to entries, so pass 2 verifies exactly and keeps dropping
+   * survivors until the invariant holds. In practice it runs zero or one times.
+   */
   while (
     i < removable.length &&
     serializedLength({ stacks, capacity: state.capacity }) > maxBytes

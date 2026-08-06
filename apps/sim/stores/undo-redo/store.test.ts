@@ -21,12 +21,13 @@ import {
   createUpdateParentEntry,
 } from '@sim/testing'
 import { beforeEach, describe, expect, it } from 'vitest'
+import type { PersistedUndoRedoState } from '@/stores/undo-redo/store'
 import {
   runWithUndoRedoRecordingSuspended,
   trimPersistedStateToBudget,
   useUndoRedoStore,
 } from '@/stores/undo-redo/store'
-import type { UpdateParentOperation } from '@/stores/undo-redo/types'
+import type { OperationEntry, UpdateParentOperation } from '@/stores/undo-redo/types'
 
 describe('useUndoRedoStore', () => {
   const workflowId = 'wf-test'
@@ -827,66 +828,80 @@ describe('useUndoRedoStore', () => {
   })
 
   describe('trimPersistedStateToBudget', () => {
-    const entryOfSize = (createdAt: number, chars: number) => ({
-      id: `e-${createdAt}`,
-      createdAt,
-      operation: { id: `op-${createdAt}`, data: { blob: 'x'.repeat(chars) } },
-      inverse: { id: `inv-${createdAt}`, data: {} },
+    const entryOfSize = (createdAt: number, chars: number): OperationEntry =>
+      ({
+        id: `e-${createdAt}`,
+        createdAt,
+        operation: { id: `op-${createdAt}`, data: { blob: 'x'.repeat(chars) } },
+        inverse: { id: `inv-${createdAt}`, data: {} },
+      }) as unknown as OperationEntry
+
+    const persisted = (stacks: PersistedUndoRedoState['stacks']): PersistedUndoRedoState => ({
+      capacity: 100,
+      stacks,
     })
 
+    const createdAtsOf = (state: PersistedUndoRedoState): number[] =>
+      Object.values(state.stacks)
+        .flatMap((stack) => [...stack.undo, ...stack.redo])
+        .map((entry) => entry.createdAt)
+        .sort((x, y) => x - y)
+
     it('returns the state unchanged when already within budget', () => {
-      const state = {
-        capacity: 100,
-        stacks: { 'wf:user': { undo: [entryOfSize(1, 10)], redo: [], lastUpdated: 1 } },
-      } as any
+      const state = persisted({
+        'wf:user': { undo: [entryOfSize(1, 10)], redo: [], lastUpdated: 1 },
+      })
       expect(trimPersistedStateToBudget(state, 1024 * 1024)).toBe(state)
     })
 
-    it('evicts oldest-first across stacks until under budget', () => {
-      const state = {
-        capacity: 100,
-        stacks: {
-          a: {
-            undo: [entryOfSize(1, 5000), entryOfSize(4, 5000)],
-            redo: [entryOfSize(2, 5000)],
-            lastUpdated: 4,
-          },
-          b: { undo: [entryOfSize(3, 5000)], redo: [], lastUpdated: 3 },
+    it('evicts the entries furthest from the next use until under budget', () => {
+      const state = persisted({
+        a: {
+          undo: [entryOfSize(1, 5000), entryOfSize(4, 5000)],
+          redo: [entryOfSize(2, 5000)],
+          lastUpdated: 4,
         },
-      } as any
+        b: { undo: [entryOfSize(3, 5000)], redo: [], lastUpdated: 3 },
+      })
 
       const budget = 12_000
       const trimmed = trimPersistedStateToBudget(state, budget)
 
       expect(JSON.stringify(trimmed).length).toBeLessThanOrEqual(budget)
-      // The oldest entries (createdAt 1, 2) are gone; the newest (3, 4) survive.
-      const survivors = Object.values(trimmed.stacks)
-        .flatMap((s: any) => [...s.undo, ...s.redo])
-        .map((e: any) => e.createdAt)
-        .sort((x, y) => x - y)
-      expect(survivors).toEqual([3, 4])
+      expect(createdAtsOf(trimmed)).toEqual([3, 4])
+    })
+
+    it('keeps the next redo operation and evicts from the front of the redo stack', () => {
+      // redo is replayed from the end, so redo[length - 1] (createdAt 1) is next.
+      const state = persisted({
+        a: {
+          undo: [],
+          redo: [entryOfSize(3, 5000), entryOfSize(2, 5000), entryOfSize(1, 5000)],
+          lastUpdated: 3,
+        },
+      })
+
+      const trimmed = trimPersistedStateToBudget(state, 11_000)
+      const redo = trimmed.stacks.a.redo
+
+      expect(redo.map((entry) => entry.createdAt)).toEqual([2, 1])
+      expect(redo[redo.length - 1].createdAt).toBe(1)
     })
 
     it('does not mutate the input state', () => {
-      const state = {
-        capacity: 100,
-        stacks: {
-          a: { undo: [entryOfSize(1, 5000), entryOfSize(2, 5000)], redo: [], lastUpdated: 2 },
-        },
-      } as any
+      const state = persisted({
+        a: { undo: [entryOfSize(1, 5000), entryOfSize(2, 5000)], redo: [], lastUpdated: 2 },
+      })
 
       trimPersistedStateToBudget(state, 6000)
       expect(state.stacks.a.undo).toHaveLength(2)
     })
 
     it('drops stacks emptied by eviction', () => {
-      const state = {
-        capacity: 100,
-        stacks: {
-          old: { undo: [entryOfSize(1, 8000)], redo: [], lastUpdated: 1 },
-          fresh: { undo: [entryOfSize(2, 100)], redo: [], lastUpdated: 2 },
-        },
-      } as any
+      const state = persisted({
+        old: { undo: [entryOfSize(1, 8000)], redo: [], lastUpdated: 1 },
+        fresh: { undo: [entryOfSize(2, 100)], redo: [], lastUpdated: 2 },
+      })
 
       const trimmed = trimPersistedStateToBudget(state, 4000)
       expect(trimmed.stacks.old).toBeUndefined()
