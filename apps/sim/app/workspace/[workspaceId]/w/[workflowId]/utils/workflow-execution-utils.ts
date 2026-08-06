@@ -1,6 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { isPlainRecord } from '@sim/utils/object'
+import { COPILOT_WORKFLOW_EXECUTION_CONFLICT_CODE } from '@/lib/copilot/constants'
 import type { SecretSafeBlockLog } from '@/lib/logs/execution/display-types'
 import type { TraceSpan } from '@/lib/logs/types'
 import type {
@@ -12,6 +14,7 @@ import type {
 import type { BlockLog, BlockState, ExecutionResult, StreamingExecution } from '@/executor/types'
 import { stripCloneSuffixes } from '@/executor/utils/subflow-utils'
 import {
+  ExecutionStreamHttpError,
   processSSEStream,
   SSEEventHandlerError,
   SSEStreamInterruptedError,
@@ -1047,8 +1050,18 @@ export async function executeWorkflowWithFullLogging(
   })
 
   if (!response.ok) {
-    const error = await response.json()
-    const errorMessage = error.error || 'Workflow run failed'
+    const error: unknown = await response.json()
+    const errorCode =
+      isPlainRecord(error) && typeof error.code === 'string' ? error.code : undefined
+    if (response.status === 409 && errorCode === COPILOT_WORKFLOW_EXECUTION_CONFLICT_CODE) {
+      throw new ExecutionStreamHttpError(
+        'Copilot workflow execution is already owned by another client',
+        response.status,
+        errorCode
+      )
+    }
+    const errorMessage =
+      isPlainRecord(error) && typeof error.error === 'string' ? error.error : 'Workflow run failed'
     addHttpErrorConsoleEntry(addConsole, {
       workflowId: wfId,
       executionId,
