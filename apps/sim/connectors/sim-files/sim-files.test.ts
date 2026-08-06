@@ -127,6 +127,17 @@ describe('fileRowToStub', () => {
     expect(after).toBe(before)
   })
 
+  /**
+   * Renaming an ancestor folder rewrites the stored path tag but writes only the
+   * `folder` table — `contentUpdatedAt`, `originalName` and `folderId` all stay put,
+   * so without the path in the hash the document keeps the old folder tag forever.
+   */
+  it('changes the hash when an ancestor folder rename moves the path', () => {
+    expect(fileRowToStub(BASE_ROW, 'ws-1', 'Documentation/Specs').contentHash).not.toBe(
+      fileRowToStub(BASE_ROW, 'ws-1', 'Docs/Specs').contentHash
+    )
+  })
+
   /** listDocuments and getDocument must produce byte-identical hashes for one row. */
   it('is deterministic for the same row', () => {
     expect(fileRowToStub(BASE_ROW, 'ws-1', 'Docs/Specs').contentHash).toBe(

@@ -186,6 +186,12 @@ export function buildFileListingFilters(args: {
  * `originalName` and `folderId` participate because a rename or a move alters what
  * we index (title, folder tag) without touching `contentUpdatedAt`, which advances
  * only on content writes.
+ *
+ * `folderPath` participates for the same reason one level up: renaming an ANCESTOR
+ * folder rewrites the path we store as a tag but writes only the `folder` table, so
+ * every other hashed field stays put and the document would keep the old path
+ * forever. Both `listDocuments` and `getDocument` resolve it from the same
+ * `pathById` map, so the two phases still agree.
  */
 export function fileRowToStub(
   row: FileRow,
@@ -201,7 +207,7 @@ export function fileRowToStub(
     sourceUrl: `${getBaseUrl()}/workspace/${workspaceId}/files${
       row.folderId ? `?folderId=${encodeURIComponent(row.folderId)}` : ''
     }`,
-    contentHash: `simfile:${row.id}:${row.contentUpdatedAt.toISOString()}:${row.originalName}:${row.folderId ?? ''}`,
+    contentHash: `simfile:${row.id}:${row.contentUpdatedAt.toISOString()}:${row.originalName}:${row.folderId ?? ''}:${folderPath ?? ''}`,
     metadata: {
       folderPath: folderPath ?? '',
       contentType: row.contentType,
