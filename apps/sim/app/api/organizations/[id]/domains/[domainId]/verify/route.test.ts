@@ -113,6 +113,45 @@ describe('verify org domain route', () => {
     expect(mockRecordAudit).not.toHaveBeenCalled()
   })
 
+  /**
+   * Deleting a verified domain revokes `domainVerified` on the providers it covered.
+   * Re-verifying has to restore it, or the provider stays untrusted — and since that
+   * flag gates sign-in rather than only linking, the org would sit in a silent SSO
+   * outage until an admin happened to re-save the SSO config.
+   */
+  it('restores SSO domain trust for providers on the verified domain', async () => {
+    queueAdminWithPendingRow()
+    queueTableRows(ssoDomain, []) // verified-elsewhere check → none
+    dbChainMockFns.returning.mockResolvedValueOnce([{ ...PENDING_ROW, status: 'verified' }])
+    const res = await POST(createMockRequest('POST'), routeContext)
+    expect(res.status).toBe(200)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({ domainVerified: true })
+  })
+
+  /**
+   * Mirrors the revocation's wildcard-tolerant comparison: a provider grandfathered
+   * as `*.acme.com` must be re-trusted by a proof row holding `acme.com`.
+   */
+  it('matches the provider domain wildcard-tolerantly, as the revocation does', async () => {
+    queueAdminWithPendingRow()
+    queueTableRows(ssoDomain, [])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ ...PENDING_ROW, status: 'verified' }])
+    await POST(createMockRequest('POST'), routeContext)
+    const grantWhere = dbChainMockFns.where.mock.calls.find(([condition]) =>
+      JSON.stringify(condition ?? '').includes('regexp_replace')
+    )
+    expect(grantWhere).toBeDefined()
+  })
+
+  it('does not grant trust when the conditional update matched no row', async () => {
+    queueAdminWithPendingRow()
+    queueTableRows(ssoDomain, [])
+    dbChainMockFns.returning.mockResolvedValueOnce([]) // lost the race
+    queueTableRows(ssoDomain, [{ ...PENDING_ROW, status: 'verified' }])
+    await POST(createMockRequest('POST'), routeContext)
+    expect(dbChainMockFns.set).not.toHaveBeenCalledWith({ domainVerified: true })
+  })
+
   it('409s (not 500) when a concurrent cross-org verification wins the unique index', async () => {
     queueAdminWithPendingRow()
     queueTableRows(ssoDomain, []) // verified-elsewhere check → none at read time

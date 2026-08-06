@@ -129,6 +129,8 @@ export function VerifiedDomainsSection({ organizationId }: VerifiedDomainsSectio
   }
 
   const domains = data?.domains ?? []
+  /** Single source of truth for both the Add chip and the Enter shortcut. */
+  const canAddDomain = !addDomain.isPending && newDomain.trim().length > 0
 
   return (
     <>
@@ -142,14 +144,17 @@ export function VerifiedDomainsSection({ organizationId }: VerifiedDomainsSectio
               <ChipInput
                 value={newDomain}
                 onChange={(event) => setNewDomain(event.target.value)}
+                onKeyDown={(event) => {
+                  // This section renders inside the SSO provider <form>, so a bare
+                  // Enter would submit that form instead of adding the domain.
+                  if (event.key !== 'Enter') return
+                  event.preventDefault()
+                  if (canAddDomain) void handleAdd()
+                }}
                 placeholder='acme.com'
                 className='min-w-0 flex-1'
               />
-              <Chip
-                variant='primary'
-                onClick={handleAdd}
-                disabled={addDomain.isPending || !newDomain.trim()}
-              >
+              <Chip variant='primary' onClick={handleAdd} disabled={!canAddDomain}>
                 {addDomain.isPending ? 'Adding...' : 'Add domain'}
               </Chip>
             </div>
@@ -181,7 +186,7 @@ export function VerifiedDomainsSection({ organizationId }: VerifiedDomainsSectio
         text={[
           'Remove ',
           { text: pendingRemoval?.domain ?? '', bold: true },
-          "? You'll need to verify it again before you can configure SSO for it. Existing SSO sign-in is not affected.",
+          '? This immediately disables SSO sign-in for anyone on that domain, because the proof is what grants your identity provider its authority. Verifying the domain again restores it.',
         ]}
         confirm={{
           label: 'Remove',
