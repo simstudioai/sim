@@ -20,7 +20,7 @@ import { parse } from '@babel/parser'
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(SCRIPT_DIR, '..')
-export const SCAN_DIRS = [join(ROOT, 'apps'), join(ROOT, 'packages'), join(ROOT, 'scripts')]
+const SCAN_DIRS = [join(ROOT, 'apps'), join(ROOT, 'packages'), join(ROOT, 'scripts')]
 const SKIP_DIRS = new Set(['node_modules', '.next', '.turbo', 'coverage', 'dist', 'build', 'out'])
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.mts', '.cts'])
 const ALLOW_ANNOTATION = '// sql-date-bound:'
@@ -372,11 +372,7 @@ const TEMPLATE_REASON =
   'a Date interpolated into a raw sql template has no encoder; bind it with sql.param(date, table.column)'
 const PARAM_REASON = 'sql.param(date) has no encoder; pass the column as the second argument'
 
-export function findSqlDateBindingViolations(source: string, file = 'source.ts'): Violation[] {
-  return analyzeSource(source, file).violations
-}
-
-export function analyzeSource(source: string, file = 'source.ts'): FileAnalysis {
+function analyzeSource(source: string, file = 'source.ts'): FileAnalysis {
   let program: SyntaxNode
   try {
     const syntaxTree = parse(source, {
