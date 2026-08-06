@@ -41,6 +41,7 @@ beforeAll(() => {
     PIPEDRIVE_CLIENT_SECRET: 'pipedrive_client_secret',
     QUICKBOOKS_CLIENT_ID: 'quickbooks_client_id',
     QUICKBOOKS_CLIENT_SECRET: 'quickbooks_client_secret',
+    QUICKBOOKS_ENV: 'sandbox',
     HUBSPOT_CLIENT_ID: 'hubspot_client_id',
     HUBSPOT_CLIENT_SECRET: 'hubspot_client_secret',
     LINKEDIN_CLIENT_ID: 'linkedin_client_id',
