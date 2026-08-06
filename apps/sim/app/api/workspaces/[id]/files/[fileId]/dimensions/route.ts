@@ -13,9 +13,10 @@ const logger = createLogger('WorkspaceFileDimensionsAPI')
 /**
  * PATCH /api/workspaces/[id]/files/[fileId]/dimensions
  *
- * Backfill an image file's intrinsic pixel dimensions — a pure rendering hint the editor uses to reserve
- * layout space before the image loads. Requires write permission and is idempotent (a no-op once the
- * dimensions are already stored), so the client can fire it once per image without coordination.
+ * Store an image file's intrinsic pixel dimensions — a pure rendering hint the editor uses to reserve
+ * layout space before the image loads. Requires write permission. The write commits whenever the row
+ * still holds the measured storage key, overwriting any stale value so a wrong size self-corrects; the
+ * client reports only on a real mismatch, so this is not storm-y despite not being a backfill-once no-op.
  */
 export const PATCH = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ id: string; fileId: string }> }) => {

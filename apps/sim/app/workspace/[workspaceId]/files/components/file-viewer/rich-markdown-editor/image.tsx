@@ -10,6 +10,9 @@ import { useEditorEditable } from './use-editor-editable'
 
 const MIN_WIDTH = 64
 
+/** A bare pixel count (`"640"`) that needs a `px` suffix, vs. an already-unit'd width (`"50%"`). */
+const BARE_PIXEL_WIDTH = /^\d+$/
+
 /**
  * Drag-to-resize image node view (handle at the bottom-right, revealed on selection). Dragging
  * commits the new pixel width to the `width` attribute, which serializes to `<img width>`.
@@ -83,7 +86,7 @@ function ResizableImageView({ node, updateAttributes, selected, editor }: ReactN
   }
 
   const committedWidth = attrs.width
-    ? /^\d+$/.test(attrs.width)
+    ? BARE_PIXEL_WIDTH.test(attrs.width)
       ? `${attrs.width}px`
       : attrs.width
     : undefined
