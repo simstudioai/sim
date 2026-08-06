@@ -958,6 +958,12 @@ import {
   emailBisonUpdateLeadTool,
 } from '@/tools/emailbison'
 import {
+  embeddingsCohereTool,
+  embeddingsGeminiTool,
+  embeddingsMistralTool,
+  embeddingsOpenAITool,
+} from '@/tools/embeddings'
+import {
   enrichCheckCreditsTool,
   enrichCompanyFundingTool,
   enrichCompanyLookupTool,
@@ -6554,6 +6560,10 @@ export const tools: Record<string, ToolConfig> = {
   emailbison_update_campaign: emailBisonUpdateCampaignTool,
   emailbison_update_campaign_status: emailBisonUpdateCampaignStatusTool,
   emailbison_update_lead: emailBisonUpdateLeadTool,
+  embeddings_openai: embeddingsOpenAITool,
+  embeddings_gemini: embeddingsGeminiTool,
+  embeddings_cohere: embeddingsCohereTool,
+  embeddings_mistral: embeddingsMistralTool,
   evernote_copy_note: evernoteCopyNoteTool,
   evernote_create_note: evernoteCreateNoteTool,
   evernote_create_notebook: evernoteCreateNotebookTool,
