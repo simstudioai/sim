@@ -118,6 +118,40 @@ describe('embed', () => {
     expect(result.dimensions).toBe(1024)
   })
 
+  /**
+   * Regression: the resolved dimensionality is reported back to the caller but
+   * must not reach the wire unless the caller asked to reduce. `ada-002` and
+   * `mistral-embed` reject the parameter outright, so sending it populated with
+   * the native size made every unreduced request to those models a 400.
+   */
+  it('omits the dimension field when no reduction was requested', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(openAIBody([[1, 2]])))
+
+    const result = await embed(['hello'], {
+      model: 'text-embedding-ada-002',
+      apiKey: 'sk-test',
+    })
+
+    const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)
+    expect(body).not.toHaveProperty('dimensions')
+    expect(result.dimensions).toBe(1536)
+  })
+
+  it('omits the dimension field for a model without Matryoshka support', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        data: [{ embedding: [1, 2], index: 0 }],
+        usage: { total_tokens: 5 },
+      })
+    )
+
+    const result = await embed(['hello'], { model: 'mistral-embed', apiKey: 'key-test' })
+
+    const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)
+    expect(body).not.toHaveProperty('output_dimension')
+    expect(result.dimensions).toBe(1024)
+  })
+
   it('rejects an unsupported dimension before making a request', async () => {
     await expect(
       embed(['hello'], { model: 'text-embedding-3-small', apiKey: 'sk-test', dimensions: 999 })

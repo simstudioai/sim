@@ -39,7 +39,15 @@ interface ResolvedProvider {
   info: EmbeddingModelInfo
   /** Model name as sent to the provider (an Azure deployment name when Azure is active). */
   modelName: string
+  /** Dimensionality the request will produce, for reporting and billing. */
   dimensions: number
+  /**
+   * The caller's explicit reduction, or undefined when none was requested.
+   * Kept separate from `dimensions` because a model without Matryoshka support
+   * rejects the parameter outright — sending it populated with the native size
+   * is a 400, not a no-op.
+   */
+  requestedDimensions: number | undefined
   isBYOK: boolean
 }
 
@@ -80,6 +88,7 @@ async function resolveProvider(model: string, options: EmbedOptions): Promise<Re
         info,
         modelName: azure.deployment,
         dimensions,
+        requestedDimensions: options.dimensions,
         isBYOK: false,
       }
     }
@@ -98,6 +107,7 @@ async function resolveProvider(model: string, options: EmbedOptions): Promise<Re
     info,
     modelName: model,
     dimensions,
+    requestedDimensions: options.dimensions,
     isBYOK,
   }
 }
@@ -112,7 +122,7 @@ async function callEmbeddingAPI(
       const request = provider.adapter.buildRequest({
         inputs,
         taskType,
-        dimensions: provider.dimensions,
+        dimensions: provider.requestedDimensions,
       })
 
       const controller = new AbortController()
