@@ -9,6 +9,7 @@ import {
   CACHE_CAPABILITY,
   type ConfiguredOAuthClient,
   type FallbackCapabilityDefinition,
+  inspectCapability,
   inspectOAuthClientCapability,
   type OAuthClientCapabilityField,
   type OAuthClientCapabilityId,
@@ -26,6 +27,18 @@ export function getConfiguredStorageProviderId() {
 
 export function getConfiguredSandboxProviderId() {
   return requireCapability(SANDBOX_CAPABILITY, env).providerId
+}
+
+/**
+ * Selects the sandbox adapter without requiring a Function-specific base image.
+ * Each adapter validates the API key and image required by the requested sandbox
+ * kind when it creates that sandbox.
+ */
+export function getSelectedSandboxProviderId() {
+  const inspection = inspectCapability(SANDBOX_CAPABILITY, env)
+  if (inspection.providerId !== null) return inspection.providerId
+  if (inspection.error) throw inspection.error
+  throw new Error('Remote sandbox has no selected provider')
 }
 
 export function getConfiguredAsyncJobsProvider() {

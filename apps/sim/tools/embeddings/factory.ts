@@ -117,6 +117,17 @@ export function createEmbeddingTool({
     request: {
       url: '/api/tools/embeddings',
       method: 'POST',
+      /**
+       * `input` is the only param that leaves as model-visible content, so a
+       * secret interpolated into it is rewritten back to its placeholder before
+       * the request is built. Declaring this moves the tool from never
+       * projecting to projecting-or-failing-closed; it is inert on runs that
+       * resolved no secrets, since the trace registry is absent there.
+       */
+      modelInput: {
+        mode: 'project' as const,
+        select: (params: EmbeddingsParams) => ({ input: params.input }),
+      },
       headers: () => ({
         'Content-Type': 'application/json',
       }),

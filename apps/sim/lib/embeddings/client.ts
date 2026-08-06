@@ -115,12 +115,19 @@ async function resolveProvider(model: string, options: EmbedOptions): Promise<Re
 async function callEmbeddingAPI(
   inputs: string[],
   provider: ResolvedProvider,
-  taskType: EmbeddingTaskType
+  taskType: EmbeddingTaskType,
+  projectInputs: ((values: readonly string[]) => string[]) | null
 ): Promise<{ embeddings: number[][]; totalTokens: number }> {
+  /**
+   * Projected once, outside the retry loop, so a retry cannot re-project
+   * already-projected content. Token counts are taken from these same values so
+   * usage reflects what was actually sent.
+   */
+  const modelInputs = projectInputs ? projectInputs(inputs) : inputs
   return retryWithExponentialBackoff(
     async () => {
       const request = provider.adapter.buildRequest({
-        inputs,
+        inputs: modelInputs,
         taskType,
         dimensions: provider.requestedDimensions,
       })
@@ -148,7 +155,7 @@ async function callEmbeddingAPI(
       const totalTokens =
         request.parseTokens?.(json) ??
         // Providers that omit usage (e.g. Gemini) get an estimate from their tokenizer
-        inputs.reduce(
+        modelInputs.reduce(
           (sum, text) => sum + estimateTokenCount(text, provider.info.tokenizerProvider).count,
           0
         )
@@ -173,7 +180,7 @@ async function callEmbeddingAPI(
  * Generates embeddings for a batch of texts with token-aware batching,
  * per-provider item caps, bounded concurrency, and retry on transient failures.
  */
-export async function embed(texts: string[], options: EmbedOptions = {}): Promise<EmbedResult> {
+export async function embed(texts: string[], options: EmbedOptions): Promise<EmbedResult> {
   const model = options.model ?? DEFAULT_EMBEDDING_MODEL
   const taskType = options.taskType ?? 'document'
   const provider = await resolveProvider(model, options)
@@ -189,7 +196,7 @@ export async function embed(texts: string[], options: EmbedOptions = {}): Promis
     MAX_CONCURRENT_BATCHES,
     async (batch, i) => {
       try {
-        return await callEmbeddingAPI(batch, provider, taskType)
+        return await callEmbeddingAPI(batch, provider, taskType, options.projectInputs)
       } catch (error) {
         logger.error(`Failed to generate embeddings for batch ${i + 1}/${batches.length}:`, error)
         throw error

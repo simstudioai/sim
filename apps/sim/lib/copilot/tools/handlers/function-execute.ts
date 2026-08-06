@@ -1,4 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { omit } from '@sim/utils/object'
+import { hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
 import { applySecretMountPolicy } from '@/lib/copilot/secret-mount-policy'
 import type { ToolExecutionContext, ToolExecutionResult } from '@/lib/copilot/tool-executor/types'
 import {
@@ -9,9 +11,19 @@ import {
 import { decodeVfsPathSegments, encodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
+import type { PrivateSecretProvenanceBundleV1 } from '@/lib/execution/model-input-provenance'
+import {
+  MOUNTED_WORKSPACE_FILES_PROVENANCE_KEY,
+  PRIVATE_SECRET_PROVENANCE_FIELD,
+} from '@/lib/execution/private-tool-metadata'
+import { MAX_PLAN_REQUIRED } from '@/lib/execution/remote-sandbox/workspace-sandboxes'
 import { getColumnId } from '@/lib/table/column-keys'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { formatCsvCell, neutralizeCsvFormula, toCsvRow } from '@/lib/table/export-format'
+import {
+  isTableSnapshotSafeForModelMount,
+  loadTableRowSecretProvenance,
+} from '@/lib/table/rows/secret-provenance'
 import { queryRows } from '@/lib/table/rows/service'
 import { getTableById, listTables } from '@/lib/table/service'
 import { getOrCreateTableSnapshot, SNAPSHOT_MAX_BYTES } from '@/lib/table/snapshot-cache'
@@ -24,6 +36,7 @@ import {
   listWorkspaceFiles,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { importWorkspaceFileSecretProvenanceForRuntime } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import {
   downloadFile,
   generatePresignedDownloadUrl,
@@ -84,6 +97,28 @@ interface MountedBytes {
   url: number
 }
 
+async function importMountedWorkspaceFileProvenance(args: {
+  workspaceId: string
+  record: WorkspaceFileRecord
+  mountPath: string
+  registry?: ResolvedSecretTraceRegistry
+}): Promise<void> {
+  const imported = await importWorkspaceFileSecretProvenanceForRuntime({
+    workspaceId: args.workspaceId,
+    identity: {
+      fileId: args.record.id,
+      key: args.record.key,
+      context: args.record.storageContext ?? 'workspace',
+    },
+    registry: args.registry,
+  })
+  if (!imported) {
+    throw new Error(
+      `Input file "${args.mountPath}" cannot be mounted because its secret provenance is unavailable.`
+    )
+  }
+}
+
 /**
  * Mounts a stored workspace file into the sandbox and records its bytes against the running totals.
  * With cloud storage the sandbox fetches the bytes itself from a presigned URL (no web-heap transit,
@@ -95,8 +130,12 @@ async function pushWorkspaceFileMount(
   sandboxFiles: SandboxFile[],
   record: WorkspaceFileRecord,
   mountPath: string,
-  mounted: MountedBytes
+  mounted: MountedBytes,
+  workspaceId: string,
+  registry?: ResolvedSecretTraceRegistry
 ): Promise<void> {
+  await importMountedWorkspaceFileProvenance({ workspaceId, record, mountPath, registry })
+
   // A generated document stores its generator source, so a presigned URL for
   // `record.key` would hand the sandbox source text under a `.docx` name and the
   // user's script would fail on a file that looks fine. Those resolve through the
@@ -245,7 +284,9 @@ export async function resolveInputFiles(
   workspaceId: string,
   inputFiles?: unknown[],
   inputTables?: unknown[],
-  inputDirectories?: unknown[]
+  inputDirectories?: unknown[],
+  provenanceUserId?: string,
+  resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
 ): Promise<SandboxFile[]> {
   const sandboxFiles: SandboxFile[] = []
   const mounted: MountedBytes = { buffered: 0, url: 0 }
@@ -280,7 +321,14 @@ export async function resolveInputFiles(
           ? (fileRef as CanonicalFileInput).sandboxPath
           : undefined
       const mountPath = explicitSandboxPath || getSandboxWorkspaceFilePath(record)
-      await pushWorkspaceFileMount(sandboxFiles, record, mountPath, mounted)
+      await pushWorkspaceFileMount(
+        sandboxFiles,
+        record,
+        mountPath,
+        mounted,
+        workspaceId,
+        resolvedSecretTraceRegistry
+      )
     }
   }
 
@@ -351,7 +399,14 @@ export async function resolveInputFiles(
         const relativeFolder =
           record.folderPath?.slice(folder.path.length).replace(/^\/+/, '') ?? ''
         const relativePath = [relativeFolder, record.name].filter(Boolean).join('/')
-        await pushWorkspaceFileMount(sandboxFiles, record, `${mountRoot}/${relativePath}`, mounted)
+        await pushWorkspaceFileMount(
+          sandboxFiles,
+          record,
+          `${mountRoot}/${relativePath}`,
+          mounted,
+          workspaceId,
+          resolvedSecretTraceRegistry
+        )
       }
     }
   }
@@ -393,6 +448,16 @@ export async function resolveInputFiles(
       // Large/hot tables mount by reference from a version-keyed CSV snapshot in object storage.
       if (snapshotCacheEnabled && table.rowCount >= SNAPSHOT_MIN_ROWS) {
         const snapshot = await getOrCreateTableSnapshot(table, 'copilot-fn-exec')
+        const safeForModelMount = await isTableSnapshotSafeForModelMount({
+          tableId: table.id,
+          workspaceId,
+          rowsVersion: snapshot.version,
+        })
+        if (!safeForModelMount) {
+          throw new Error(
+            `Input table "${tableId}" cannot be mounted because its secret provenance is not safe for an opaque sandbox file.`
+          )
+        }
 
         if (hasCloudStorage()) {
           // Mount by reference: the sandbox fetches the snapshot straight from storage via a
@@ -441,6 +506,15 @@ export async function resolveInputFiles(
         { limit: TABLE_LIMITS.DEFAULT_QUERY_LIMIT },
         'copilot-fn-exec'
       )
+      const provenance = await loadTableRowSecretProvenance(rows.rows, {
+        userId: provenanceUserId ?? 'opaque-model-mount',
+        workspaceId,
+      })
+      if (!provenance.complete || provenance.entries.length > 0) {
+        throw new Error(
+          `Input table "${tableId}" cannot be mounted because its secret provenance is not safe for an opaque sandbox file.`
+        )
+      }
 
       const columns = table.schema.columns
       const csvLines = [toCsvRow(columns.map((column) => neutralizeCsvFormula(column.name)))]
@@ -459,12 +533,16 @@ export async function resolveInputFiles(
 
 async function importMountedProvenance(
   source: ResolvedSecretTraceRegistry,
-  target: ResolvedSecretTraceRegistry | undefined
+  target: ResolvedSecretTraceRegistry | undefined,
+  crossingValue: unknown
 ): Promise<void> {
   if (!target) return
 
   try {
-    const imported = await target.importProvenance(source.exportProvenance(), { trusted: true })
+    const provenance = source.exportProvenanceForValue(crossingValue)
+    const imported = await target.importCrossingProvenance(provenance, crossingValue, {
+      trusted: true,
+    })
     if (!imported) target.markIncomplete()
   } catch {
     target.markIncomplete()
@@ -475,9 +553,25 @@ export async function executeFunctionExecute(
   params: Record<string, unknown>,
   context: ToolExecutionContext
 ): Promise<ToolExecutionResult> {
-  const enrichedParams = { ...params }
+  const enrichedParams = omit(params, [
+    'sandboxProfile',
+    'internalSandboxProfile',
+    PRIVATE_SECRET_PROVENANCE_FIELD,
+  ])
+  if (params.sandboxId !== undefined) {
+    if (typeof params.sandboxId !== 'string' || !params.sandboxId.trim()) {
+      throw new Error('sandboxId must be a non-empty Sim sandbox id')
+    }
+    if (!context.workspaceId) {
+      throw new Error('A workspace is required to select a Sim sandbox')
+    }
+    if (!(await hasWorkspaceSandboxAccess(context.workspaceId))) {
+      throw new Error(MAX_PLAN_REQUIRED)
+    }
+    enrichedParams.sandboxId = params.sandboxId.trim()
+  }
   const requestedNames = applySecretMountPolicy(
-    extractCodeSecretNames(params.code, params.language),
+    await extractCodeSecretNames(params.code, params.language),
     context.secretMountPolicy
   )
   const completePendingActivation =
@@ -485,6 +579,7 @@ export async function executeFunctionExecute(
       ? context.resolvedSecretTraceRegistry?.beginPendingActivation()
       : undefined
   let mountedRegistry: ResolvedSecretTraceRegistry | undefined
+  let crossingValue: unknown
 
   try {
     const secretActorUserId =
@@ -537,11 +632,25 @@ export async function executeFunctionExecute(
           context.workspaceId,
           inputFiles,
           inputTables,
-          inputDirectories
+          inputDirectories,
+          secretActorUserId ?? context.userId,
+          mountedRegistry
         )
         if (resolved.length > 0) {
           const existing = (enrichedParams._sandboxFiles as SandboxFile[]) || []
           enrichedParams._sandboxFiles = [...existing, ...resolved]
+        }
+
+        if (inputFiles.length > 0 || inputDirectories.length > 0) {
+          const provenance = mountedRegistry.exportProvenance()
+          const bundle: PrivateSecretProvenanceBundleV1 = {
+            version: 1,
+            complete: provenance.complete,
+            selections: provenance.complete
+              ? [{ key: MOUNTED_WORKSPACE_FILES_PROVENANCE_KEY, provenance }]
+              : [],
+          }
+          enrichedParams[PRIVATE_SECRET_PROVENANCE_FIELD] = bundle
         }
       }
     }
@@ -556,12 +665,25 @@ export async function executeFunctionExecute(
       enforceCredentialAccess: true,
     }
 
-    return await executeAppTool('function_execute', enrichedParams, {
-      resolvedSecretTraceRegistry: mountedRegistry,
-    })
+    try {
+      const result = await executeAppTool('function_execute', enrichedParams, {
+        resolvedSecretTraceRegistry: mountedRegistry,
+        ...(context.abortSignal ? { signal: context.abortSignal } : {}),
+        ...(context.sandboxProfile ? { internalSandboxProfile: context.sandboxProfile } : {}),
+      })
+      crossingValue = result
+      return result
+    } catch (error) {
+      crossingValue = error
+      throw error
+    }
   } finally {
-    if (mountedRegistry) {
-      await importMountedProvenance(mountedRegistry, context.resolvedSecretTraceRegistry)
+    if (mountedRegistry && crossingValue !== undefined) {
+      await importMountedProvenance(
+        mountedRegistry,
+        context.resolvedSecretTraceRegistry,
+        crossingValue
+      )
     }
     completePendingActivation?.()
   }

@@ -57,6 +57,7 @@ export const tableQueryRowsV2Tool: ToolConfig<TableRowQueryV2Params, TableQueryV
   },
 
   request: {
+    secretProvenance: { response: { incomplete: 'propagate' } },
     url: (params: TableRowQueryV2Params) => `/api/table/${params.tableId}/query`,
     method: 'POST',
     headers: () => ({ 'Content-Type': 'application/json' }),

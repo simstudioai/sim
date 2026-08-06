@@ -116,6 +116,7 @@ describe('runTableExport', () => {
 
     expect(mockCreateMultipartUpload).toHaveBeenCalledTimes(1)
     const init = mockCreateMultipartUpload.mock.calls[0][0]
+    expect(init.completionPolicy).toBe('replace')
     expect(init.key).toBe('workspace/ws_1/exports/tbl_1/job_1/People.csv')
     expect(init.context).toBe('workspace')
     expect(init.contentType).toContain('text/csv')

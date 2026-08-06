@@ -8,6 +8,9 @@ import { buildCapabilitySetupTransition } from './capability-setup.ts'
 import type { ConfigurationSource } from './configuration-sources.ts'
 import { reconcileLlmSetup, resolveFeatureSetupDestination } from './feature-setup.ts'
 
+const E2B_FUNCTION_TEMPLATE_ID = 'sim-function:00000000-0000-4000-8000-000000000001'
+const DAYTONA_FUNCTION_SNAPSHOT_ID = '00000000-0000-4000-8000-000000000002'
+
 function source(
   kind: ConfigurationSource['kind'],
   managedByCurrentCheckout: boolean,
@@ -59,21 +62,44 @@ describe('resolveFeatureSetupDestination', () => {
 })
 
 describe('sandbox capability setup', () => {
-  it('requires an explicit non-floating snapshot tag', () => {
-    const validate = (value: string) =>
-      validateCapabilityFieldInput(SANDBOX_CAPABILITY, 'DAYTONA_SHELL_SNAPSHOT_ID', value)
-    expect(validate('mothership-shell:v1')).toBeUndefined()
-    expect(validate('mothership-shell')).toContain('name:tag')
-    expect(validate('mothership-shell:latest')).toContain('name:tag')
+  it('requires immutable Function base references', () => {
+    expect(
+      validateCapabilityFieldInput(
+        SANDBOX_CAPABILITY,
+        'DAYTONA_FUNCTION_SNAPSHOT_ID',
+        DAYTONA_FUNCTION_SNAPSHOT_ID
+      )
+    ).toBeUndefined()
+    expect(
+      validateCapabilityFieldInput(
+        SANDBOX_CAPABILITY,
+        'DAYTONA_FUNCTION_SNAPSHOT_ID',
+        'mothership-shell:v1'
+      )
+    ).toContain('immutable Daytona snapshot ID')
+    expect(
+      validateCapabilityFieldInput(
+        SANDBOX_CAPABILITY,
+        'E2B_FUNCTION_TEMPLATE_ID',
+        E2B_FUNCTION_TEMPLATE_ID
+      )
+    ).toBeUndefined()
+    expect(
+      validateCapabilityFieldInput(
+        SANDBOX_CAPABILITY,
+        'E2B_FUNCTION_TEMPLATE_ID',
+        'sim-function:latest'
+      )
+    ).toContain('immutable E2B build reference')
   })
 
-  it('writes Daytona API and shell snapshot configuration and disables E2B', () => {
+  it('writes Daytona API and Function snapshot configuration and disables E2B', () => {
     const result = buildCapabilitySetupTransition(
       SANDBOX_SETUP,
       'daytona',
       {
         DAYTONA_API_KEY: 'daytona-key',
-        DAYTONA_SHELL_SNAPSHOT_ID: 'mothership-shell:v1',
+        DAYTONA_FUNCTION_SNAPSHOT_ID,
       },
       {}
     )
@@ -81,19 +107,28 @@ describe('sandbox capability setup', () => {
     expect(result.remove).toContain('E2B_API_KEY')
     expect(result.values).toMatchObject({
       DAYTONA_API_KEY: 'daytona-key',
-      DAYTONA_SHELL_SNAPSHOT_ID: 'mothership-shell:v1',
+      DAYTONA_FUNCTION_SNAPSHOT_ID,
       E2B_ENABLED: 'false',
       NEXT_PUBLIC_E2B_ENABLED: 'false',
-      NEXT_PUBLIC_SANDBOX_ENABLED: 'true',
+      NEXT_PUBLIC_SANDBOXES_ENABLED: 'true',
     })
   })
 
   it('removes stale Daytona configuration for E2B and disabled modes', () => {
     expect(
-      buildCapabilitySetupTransition(SANDBOX_SETUP, 'e2b', { E2B_API_KEY: 'e2b-key' }, {}).remove
-    ).toEqual(expect.arrayContaining(['DAYTONA_API_KEY', 'DAYTONA_SHELL_SNAPSHOT_ID']))
+      buildCapabilitySetupTransition(
+        SANDBOX_SETUP,
+        'e2b',
+        {
+          E2B_API_KEY: 'e2b-key',
+          E2B_FUNCTION_TEMPLATE_ID,
+          E2B_FUNCTION_TEMPLATE_GENERATION: '1',
+        },
+        {}
+      ).remove
+    ).toEqual(expect.arrayContaining(['DAYTONA_API_KEY', 'DAYTONA_FUNCTION_SNAPSHOT_ID']))
     expect(buildCapabilitySetupTransition(SANDBOX_SETUP, 'disabled', {}, {}).remove).toEqual(
-      expect.arrayContaining(['DAYTONA_API_KEY', 'DAYTONA_SHELL_SNAPSHOT_ID'])
+      expect.arrayContaining(['DAYTONA_API_KEY', 'DAYTONA_FUNCTION_SNAPSHOT_ID'])
     )
   })
 })

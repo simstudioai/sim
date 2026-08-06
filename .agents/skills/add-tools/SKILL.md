@@ -145,6 +145,22 @@ export const {serviceName}{Action}Tool: ToolConfig<
 - Always explicitly set `required: true` or `required: false`
 - Optional params should have `required: false`
 
+## Resolved Secrets and Provenance Boundaries
+
+- Leave ordinary external API inputs and third-party results unchanged. Add provenance handling only
+  when an exact field is proven to cross a Sim model, durable-storage, or internal-execution boundary.
+- Project AI-consumed text/structured fields with the smallest exact `request.modelInput` selector.
+- Reject resolved secrets in opaque model input sent directly to an external provider with
+  `request.opaqueModelInput`; never attach private metadata to an external URL or `directExecution`.
+- For authenticated internal routes, use `privateProvenance` for opaque model input or
+  `request.secretProvenance` for durable writes and execution handoffs. Authenticate first, validate
+  the exact selection and scope, strip the private envelope, then import or propagate provenance at
+  the receiving boundary. Preserve documented headerless legacy behavior.
+- Never substitute secret plaintext into source, serialize plaintext provenance, hand-roll private
+  headers, or blanket-sanitize tool results.
+- Add focused tests for named projection, identical unproven public text, malformed/incomplete
+  metadata, metadata stripping, scope isolation, and legacy compatibility where applicable.
+
 ## Critical Rules for Outputs
 
 ### Output Types
@@ -456,6 +472,9 @@ All tool IDs MUST use `snake_case`: `{service}_{action}` (e.g., `x_create_tweet`
 - [ ] Tools registered in `tools/registry.ts`
 - [ ] `bun run tool-metadata:generate` run and the regenerated artifacts committed
 - [ ] Block wired: `tools.access`, dropdown options, subBlocks, `tools.config`, outputs, inputs
+- [ ] Model, durable-storage, and internal-execution boundaries use the shared provenance mechanisms
+      only where a concrete Sim `{{...}}` resolution path requires them
+- [ ] Ordinary third-party inputs/results remain unchanged and private metadata never leaves Sim
 
 ## Final Validation (Required)
 

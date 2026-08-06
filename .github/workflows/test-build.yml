@@ -156,6 +156,9 @@ jobs:
       - name: Tool registry client-boundary audit
         run: bun run check:tool-registry-boundary
 
+      - name: Tool request transport boundary audit
+        run: bun run check:tool-request-boundary
+
       - name: Verify generated tool metadata is in sync
         run: bun run tool-metadata:check
 

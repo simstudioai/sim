@@ -212,7 +212,7 @@ export function applyExecutionsPatch(
 /**
  * Writes a per-group execution patch for one row against the `tableRowExecutions`
  * sidecar. Non-null values upsert into the table; nulls delete the entry. When
- * `guard` is set, the upsert is gated to:
+ * `guard` is set, both upserts and null deletions are gated to:
  *  - reject if a `cancelled` row for the same execution already exists, and
  *  - reject if the row exists but is owned by a different executionId
  *    (with carve-outs for missing rows and null executionIds — the dispatcher's
@@ -238,10 +238,21 @@ export async function writeExecutionsPatch(
   if (entries.length === 0) return 'wrote'
 
   for (const [gid, value] of entries) {
+    const isGuarded = guard && guard.groupId === gid
     if (value === null) {
-      await trx
+      const deleteCondition = isGuarded
+        ? and(
+            eq(tableRowExecutions.rowId, rowId),
+            eq(tableRowExecutions.groupId, gid),
+            sql`${tableRowExecutions.status} <> 'cancelled'`,
+            sql`(${tableRowExecutions.executionId} IS NULL OR ${tableRowExecutions.executionId} = ${guard.executionId})`
+          )
+        : and(eq(tableRowExecutions.rowId, rowId), eq(tableRowExecutions.groupId, gid))
+      const deleted = await trx
         .delete(tableRowExecutions)
-        .where(and(eq(tableRowExecutions.rowId, rowId), eq(tableRowExecutions.groupId, gid)) as SQL)
+        .where(deleteCondition as SQL)
+        .returning({ rowId: tableRowExecutions.rowId })
+      if (isGuarded && deleted.length === 0) return 'guard-rejected'
       continue
     }
     const insertValues = {
@@ -260,7 +271,6 @@ export async function writeExecutionsPatch(
       updatedAt: new Date(),
     } as const
 
-    const isGuarded = guard && guard.groupId === gid
     if (isGuarded) {
       // Gate by guard semantics. The original JSONB guard had two AND'd
       // clauses; we collapse them onto the upsert's WHERE so a non-matching

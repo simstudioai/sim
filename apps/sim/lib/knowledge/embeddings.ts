@@ -14,6 +14,7 @@ import {
   getEmbeddingModelInfo,
   SUPPORTED_EMBEDDING_MODELS,
 } from '@/lib/knowledge/embedding-models'
+import { projectKnowledgeModelInputs } from '@/lib/knowledge/model-input-provenance'
 import { estimateTokenCount } from '@/lib/tokenization'
 import { calculateCost } from '@/providers/utils'
 
@@ -68,6 +69,7 @@ export async function generateEmbeddings(
     workspaceId,
     taskType: 'document',
     dimensions: EMBEDDING_DIMENSIONS,
+    projectInputs: projectKnowledgeModelInputs,
   })
 
   return {
@@ -94,6 +96,7 @@ export async function generateSearchEmbedding(
     workspaceId,
     taskType: 'query',
     dimensions: EMBEDDING_DIMENSIONS,
+    projectInputs: projectKnowledgeModelInputs,
   })
 
   logger.info(`Using ${result.modelName} for search embedding generation`)

@@ -1,7 +1,8 @@
 import { z } from 'zod'
-import { userFileSchema } from '@/lib/api/contracts/primitives'
+import { resolvedSecretTraceProvenanceSchema, userFileSchema } from '@/lib/api/contracts/primitives'
 import { toolJsonResponseSchema } from '@/lib/api/contracts/tools/media/shared'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { RESOLVED_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
 
 export const sttProviders = ['whisper', 'deepgram', 'elevenlabs', 'assemblyai', 'gemini'] as const
 const MISSING_STT_FIELDS_ERROR = 'Missing required fields: provider and apiKey'
@@ -38,6 +39,7 @@ export const sttToolBodySchema = z
     workspaceId: z.string().optional(),
     workflowId: z.string().optional(),
     executionId: z.string().optional(),
+    [RESOLVED_SECRET_PROVENANCE_FIELD]: resolvedSecretTraceProvenanceSchema.optional(),
   })
   .passthrough()
 

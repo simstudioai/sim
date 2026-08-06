@@ -21,7 +21,12 @@ vi.mock('@/lib/workflows/schedules/disable-notifications', () => ({
 // does not re-export. Widen it rather than rewriting the source's imports.
 vi.mock('@sim/db', () => ({ ...databaseMock, ...schemaMock }))
 
-import { applyScheduleFailureUpdate, releaseScheduleLock } from '@/background/schedule-execution'
+import {
+  applyScheduleFailureUpdate,
+  buildScheduleCancellationUpdate,
+  classifyScheduleExecutionResult,
+  releaseScheduleLock,
+} from '@/background/schedule-execution'
 
 const BASE = {
   scheduleId: 'schedule-1',
@@ -97,5 +102,43 @@ describe('releaseScheduleLock', () => {
 
     expect(released).toBe(true)
     expect(notifyMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('schedule cancellation accounting', () => {
+  it('keeps a user cancellation distinct from a workflow failure', () => {
+    expect(classifyScheduleExecutionResult({ success: false, status: 'cancelled' }, false)).toBe(
+      'cancelled'
+    )
+  })
+
+  it('continues to classify timeout cancellation as failure', () => {
+    expect(classifyScheduleExecutionResult({ success: false, status: 'cancelled' }, true)).toBe(
+      'failure'
+    )
+  })
+
+  it('uses the persisted cancellation CAS as the authoritative terminal outcome', () => {
+    expect(
+      classifyScheduleExecutionResult({ success: true, status: 'completed' }, false, 'cancelled')
+    ).toBe('cancelled')
+    expect(
+      classifyScheduleExecutionResult({ success: false, status: 'cancelled' }, true, 'cancelled')
+    ).toBe('cancelled')
+  })
+
+  it('advances cadence and releases the claim without changing failure accounting', () => {
+    const now = new Date('2026-08-03T12:00:00.000Z')
+    const nextRunAt = new Date('2026-08-03T13:00:00.000Z')
+
+    expect(buildScheduleCancellationUpdate(now, nextRunAt)).toEqual({
+      lastRanAt: now,
+      updatedAt: now,
+      nextRunAt,
+      lastQueuedAt: null,
+      infraRetryCount: 0,
+    })
+    expect(buildScheduleCancellationUpdate(now, nextRunAt)).not.toHaveProperty('failedCount')
+    expect(buildScheduleCancellationUpdate(now, nextRunAt)).not.toHaveProperty('lastFailedAt')
   })
 })

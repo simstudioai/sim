@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { BlockType } from '@/executor/constants'
 import { ConditionBlockHandler } from '@/executor/handlers/condition/condition-handler'
@@ -23,6 +24,11 @@ import { executeTool } from '@/tools'
 
 const mockExecuteTool = executeTool as ReturnType<typeof vi.fn>
 const mockCollectBlockData = collectBlockData as ReturnType<typeof vi.fn>
+const mockConditionLogger = vi.mocked(loggerMock.createLogger).mock.results[
+  vi
+    .mocked(loggerMock.createLogger)
+    .mock.calls.findIndex(([name]) => name === 'ConditionBlockHandler')
+].value
 
 describe('ConditionBlockHandler', () => {
   let handler: ConditionBlockHandler
@@ -247,17 +253,20 @@ describe('ConditionBlockHandler', () => {
   })
 
   it('should handle invalid conditions JSON format', async () => {
-    const inputs = { conditions: '{ "invalid json ' }
+    const secret = 'condition-parse-secret-value'
+    const inputs = { conditions: `{ "invalid json ${secret}` }
 
     await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
       /^Invalid conditions format:/
     )
+    expect(JSON.stringify(mockConditionLogger.error.mock.calls)).not.toContain(secret)
   })
 
   it('should handle evaluation errors gracefully', async () => {
+    const secret = 'condition-runtime-secret-value'
     mockExecuteTool.mockResolvedValueOnce({
       success: false,
-      error: 'Cannot read property "doSomething" of undefined',
+      error: `Cannot read ${secret} through __var_API_KEY`,
     })
 
     const conditions = [
@@ -269,6 +278,8 @@ describe('ConditionBlockHandler', () => {
     await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
       /Evaluation error in condition "if"/
     )
+    expect(JSON.stringify(mockConditionLogger.error.mock.calls)).not.toContain(secret)
+    expect(JSON.stringify(mockConditionLogger.error.mock.calls)).not.toContain('__var_API_KEY')
   })
 
   it('should handle missing source block output gracefully', async () => {

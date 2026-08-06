@@ -10,6 +10,12 @@
 import { ToolTester } from '@sim/testing/builders'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/execution/constants'
+import {
+  MOUNTED_WORKSPACE_FILES_PROVENANCE_KEY,
+  PRIVATE_SECRET_PROVENANCE_BUNDLE_V1,
+  PRIVATE_SECRET_PROVENANCE_FIELD,
+  PRIVATE_SECRET_PROVENANCE_HEADER,
+} from '@/lib/execution/private-tool-metadata'
 import { functionExecuteTool } from '@/tools/function/execute'
 
 describe('Function Execute Tool', () => {
@@ -38,6 +44,36 @@ describe('Function Execute Tool', () => {
       })
 
       expect(headers['Content-Type']).toBe('application/json')
+    })
+
+    it.concurrent('transports mounted-file provenance only through the private envelope', () => {
+      const bundle = {
+        version: 1 as const,
+        complete: true,
+        selections: [
+          {
+            key: MOUNTED_WORKSPACE_FILES_PROVENANCE_KEY,
+            provenance: {
+              version: 1 as const,
+              complete: true,
+              entries: [{ encryptedValue: 'encrypted-secret' }],
+            },
+          },
+        ],
+      }
+      const params = {
+        code: 'return 42',
+        [PRIVATE_SECRET_PROVENANCE_FIELD]: bundle,
+      }
+
+      expect(tester.getRequestHeaders(params)).toMatchObject({
+        'Content-Type': 'application/json',
+        [PRIVATE_SECRET_PROVENANCE_HEADER]: PRIVATE_SECRET_PROVENANCE_BUNDLE_V1,
+      })
+      expect(tester.getRequestBody(params)).toMatchObject({
+        [PRIVATE_SECRET_PROVENANCE_FIELD]: bundle,
+      })
+      expect(JSON.stringify(tester.getRequestBody(params))).not.toContain('plaintext')
     })
 
     it.concurrent('should format single string code correctly', () => {

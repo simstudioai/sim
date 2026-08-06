@@ -6,6 +6,92 @@ import { validateRegexPattern } from '@/lib/guardrails/validate_regex'
 
 export const unknownRecordSchema = z.record(z.string(), z.unknown())
 
+const MAX_RESOLVED_SECRET_PROVENANCE_CHARACTERS = 8 * 1024 * 1024
+
+const resolvedSecretTraceProvenanceEntrySchema = z
+  .object({
+    encryptedValue: z
+      .string()
+      .min(1)
+      .max(8 * 1024 * 1024),
+    name: z.string().min(1).max(1024).optional(),
+  })
+  .strict()
+
+/** Private, encrypted provenance carried only across authenticated Sim model-input boundaries. */
+export const resolvedSecretTraceProvenanceSchema = z
+  .object({
+    version: z.literal(1),
+    complete: z.boolean(),
+    entries: z.array(resolvedSecretTraceProvenanceEntrySchema).max(10_000),
+    scope: z
+      .object({
+        userId: z.string().min(1).max(1024),
+        workspaceId: z.string().min(1).max(1024).optional(),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict()
+  .superRefine((provenance, ctx) => {
+    if (!provenance.complete && provenance.entries.length > 0) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['entries'],
+        message: 'Incomplete secret provenance cannot contain entries',
+      })
+    }
+
+    let characters = 0
+    for (const entry of provenance.entries) {
+      characters += entry.encryptedValue.length + (entry.name?.length ?? 0) * 4
+      if (characters > MAX_RESOLVED_SECRET_PROVENANCE_CHARACTERS) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['entries'],
+          message: 'Secret provenance exceeds its aggregate size limit',
+        })
+        break
+      }
+    }
+  })
+
+/** Per-selection encrypted provenance for durable internal persistence boundaries. */
+export const privateSecretProvenanceBundleSchema = z
+  .object({
+    version: z.literal(1),
+    complete: z.boolean(),
+    selections: z
+      .array(
+        z
+          .object({
+            key: z.string().min(1).max(4096),
+            provenance: resolvedSecretTraceProvenanceSchema,
+          })
+          .strict()
+      )
+      .max(10_000),
+  })
+  .strict()
+  .superRefine((bundle, ctx) => {
+    if (!bundle.complete && bundle.selections.length > 0) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['selections'],
+        message: 'Incomplete private secret provenance cannot contain selections',
+      })
+    }
+    if (
+      new Set(bundle.selections.map((selection) => selection.key)).size !== bundle.selections.length
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['selections'],
+        message: 'Private secret provenance selection keys must be unique',
+      })
+    }
+  })
+
 export const stringRecordSchema = z
   .custom<Record<string, string>>(
     (value) =>

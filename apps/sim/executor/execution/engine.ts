@@ -1,5 +1,6 @@
 import { createLogger, type Logger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { combineExecutionAbortSignals } from '@/lib/core/execution-limits'
 import {
   getCancellationChannel,
   isExecutionCancelled,
@@ -20,6 +21,7 @@ import type {
   ResumeStatus,
 } from '@/executor/types'
 import { attachExecutionResult, normalizeError } from '@/executor/utils/errors'
+import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
 
 const logger = createLogger('ExecutionEngine')
 
@@ -37,6 +39,8 @@ export class ExecutionEngine {
   private executionError: Error | null = null
   private abortPromise!: Promise<void>
   private abortResolve!: () => void
+  private cancellationController = new AbortController()
+  private abortSignalListener: (() => void) | null = null
   private cancellationUnsubscribe: (() => void) | null = null
   private execLogger: Logger
 
@@ -54,6 +58,11 @@ export class ExecutionEngine {
       userId: this.context.userId,
       requestId: this.context.metadata.requestId,
     })
+    this.context.abortSignal = combineExecutionAbortSignals(
+      this.context.abortSignal
+        ? [this.context.abortSignal, this.cancellationController.signal]
+        : [this.cancellationController.signal]
+    )
     this.initializeAbortHandler()
     this.subscribeToCancellationChannel()
   }
@@ -75,17 +84,22 @@ export class ExecutionEngine {
 
     if (!this.context.abortSignal) return
 
-    if (this.context.abortSignal.aborted) {
-      this.signalCancelled()
+    const signal = this.context.abortSignal
+    if (signal.aborted) {
+      this.signalCancelled(signal.reason)
       return
     }
 
-    this.context.abortSignal.addEventListener('abort', () => this.signalCancelled(), { once: true })
+    this.abortSignalListener = () => this.signalCancelled(signal.reason)
+    signal.addEventListener('abort', this.abortSignalListener, { once: true })
   }
 
-  private signalCancelled(): void {
+  private signalCancelled(reason: unknown = new DOMException('user', 'AbortError')): void {
     if (this.cancelledFlag) return
     this.cancelledFlag = true
+    if (!this.cancellationController.signal.aborted) {
+      this.cancellationController.abort(reason)
+    }
     this.abortResolve()
   }
 
@@ -133,6 +147,7 @@ export class ExecutionEngine {
       const endTime = performance.now()
       this.context.metadata.endTime = new Date().toISOString()
       this.context.metadata.duration = endTime - startTime
+      this.ensureFinalOutputProvenance()
 
       if (this.cancelledFlag) {
         this.finalizeIncompleteLogs()
@@ -157,6 +172,7 @@ export class ExecutionEngine {
       const endTime = performance.now()
       this.context.metadata.endTime = new Date().toISOString()
       this.context.metadata.duration = endTime - startTime
+      this.ensureFinalOutputProvenance()
 
       if (this.cancelledFlag) {
         this.finalizeIncompleteLogs()
@@ -173,7 +189,10 @@ export class ExecutionEngine {
       this.finalizeIncompleteLogs()
 
       const errorMessage = normalizeError(error)
-      this.execLogger.error('Execution failed', { error: errorMessage })
+      this.execLogger.error(
+        'Execution failed',
+        projectResolvedSecretDiagnosticError(error, this.context.resolvedSecretTraceRegistry)
+      )
 
       const executionResult: ExecutionResult = {
         success: false,
@@ -194,6 +213,10 @@ export class ExecutionEngine {
   }
 
   private cleanup(): void {
+    if (this.abortSignalListener && this.context.abortSignal) {
+      this.context.abortSignal.removeEventListener('abort', this.abortSignalListener)
+      this.abortSignalListener = null
+    }
     if (this.cancellationUnsubscribe) {
       this.cancellationUnsubscribe()
       this.cancellationUnsubscribe = null
@@ -424,8 +447,10 @@ export class ExecutionEngine {
         })
       }
     } catch (error) {
-      const errorMessage = normalizeError(error)
-      this.execLogger.error('Node execution failed', { nodeId, error: errorMessage })
+      this.execLogger.error('Node execution failed', {
+        nodeId,
+        ...projectResolvedSecretDiagnosticError(error, this.context.resolvedSecretTraceRegistry),
+      })
       throw error
     }
   }
@@ -463,7 +488,7 @@ export class ExecutionEngine {
     const isResponseBlock = node.block.metadata?.id === BlockType.RESPONSE
     if (isResponseBlock) {
       if (!this.responseOutputLocked) {
-        this.finalOutput = output
+        this.setFinalOutput(nodeId, output)
         this.responseOutputLocked = true
       }
       this.stoppedEarlyFlag = true
@@ -471,7 +496,7 @@ export class ExecutionEngine {
     }
 
     if (isFinalOutput && !this.responseOutputLocked) {
-      this.finalOutput = output
+      this.setFinalOutput(nodeId, output)
     }
 
     if (this.context.stopAfterBlockId === nodeId) {
@@ -489,6 +514,34 @@ export class ExecutionEngine {
     const readyNodes = this.edgeManager.processOutgoingEdges(node, output, false)
 
     this.addMultipleToQueue(readyNodes)
+  }
+
+  private setFinalOutput(nodeId: string, output: NormalizedBlockOutput): void {
+    this.finalOutput = output
+    const state = this.context.blockStates.get(nodeId)
+    if (state?.resolvedSecretTraceProvenance) {
+      this.context.finalOutputResolvedSecretTraceProvenance = state.resolvedSecretTraceProvenance
+      return
+    }
+
+    if (this.context.resolvedSecretTraceRegistry) {
+      this.context.finalOutputResolvedSecretTraceProvenance = {
+        version: 1,
+        complete: false,
+        entries: [],
+      }
+    }
+  }
+
+  private ensureFinalOutputProvenance(): void {
+    if (
+      Object.hasOwn(this.context, 'finalOutputResolvedSecretTraceProvenance') ||
+      !this.context.resolvedSecretTraceRegistry
+    ) {
+      return
+    }
+    this.context.finalOutputResolvedSecretTraceProvenance =
+      this.context.resolvedSecretTraceRegistry.exportCommittedProvenanceForValue(this.finalOutput)
   }
 
   private buildPausedResult(startTime: number): ExecutionResult {

@@ -77,6 +77,17 @@ export interface EmbedOptions {
    * Used by the Embeddings block when the user pastes their own key.
    */
   apiKey?: string
+  /**
+   * Rewrites resolved-secret plaintext back to placeholders before the inputs
+   * reach a provider.
+   *
+   * Required rather than optional, and explicitly nullable, so a new caller has
+   * to decide: omitting it silently is exactly how this control goes missing.
+   * Pass `null` only when the inputs were already projected upstream — the tool
+   * path projects at the HTTP hop via `request.modelInput`, so passing a
+   * projector there too would project twice.
+   */
+  projectInputs: ((values: readonly string[]) => string[]) | null
 }
 
 export interface EmbedResult {

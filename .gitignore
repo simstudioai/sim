@@ -50,9 +50,7 @@ dump.rdb
 .env.production
 
 # editor swap files
-*.swp
-*.swo
-*.swn
+*.sw?
 
 # vercel
 .vercel

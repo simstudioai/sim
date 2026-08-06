@@ -3,6 +3,7 @@ import {
   customTools,
   document,
   embedding,
+  embeddingSecretProvenance,
   knowledgeBase,
   knowledgeBaseTagDefinitions,
   mcpServers,
@@ -10,6 +11,7 @@ import {
   skill,
   skillMember,
   userTableDefinitions,
+  userTableRowSecretProvenance,
   userTableRows,
   workflowMcpServer,
 } from '@sim/db/schema'
@@ -27,7 +29,20 @@ import {
 } from '@/lib/billing/storage'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import type { DbOrTx } from '@/lib/db/types'
+import type { DurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
+import {
+  createKnowledgeDocumentSourceValue,
+  type KnowledgeDocumentSourceValue,
+  loadKnowledgeDocumentDurableSecretProvenance,
+  readBoundKnowledgeEmbeddingSecretProvenance,
+  rebindKnowledgeDocumentSecretProvenance,
+  replaceKnowledgeDocumentSecretProvenanceInTx,
+} from '@/lib/knowledge/secret-provenance'
 import { nKeysBetween } from '@/lib/table/order-key'
+import {
+  classifyTableRowSecretProvenanceForCopy,
+  TABLE_ROW_SECRET_PROVENANCE_VERSION,
+} from '@/lib/table/rows/secret-provenance'
 import type { TableSchema } from '@/lib/table/types'
 import {
   deleteFile,
@@ -57,6 +72,24 @@ const logger = createLogger('WorkspaceForkCopyResources')
 
 /** Page size for the post-transaction bulk content copy (keyset-paginated). */
 const CONTENT_PAGE = 500
+const PROVENANCE_CONTENT_PAGE = 8
+const MAX_FORK_PROVENANCE_ENTRIES = 10_000
+const MAX_FORK_PROVENANCE_BYTES = 8 * 1024 * 1024
+
+function isForkProvenancePageWithinBudget(sidecars: readonly { entries: unknown }[]): boolean {
+  let entries = 0
+  let bytes = 0
+  try {
+    for (const sidecar of sidecars) {
+      entries += Array.isArray(sidecar.entries) ? sidecar.entries.length : 0
+      bytes += Buffer.byteLength(JSON.stringify(sidecar.entries ?? []), 'utf8')
+      if (entries > MAX_FORK_PROVENANCE_ENTRIES || bytes > MAX_FORK_PROVENANCE_BYTES) return false
+    }
+    return true
+  } catch {
+    return false
+  }
+}
 
 /**
  * Max documents copied concurrently within one KB page. Bounds fan-out (blob copy + per-doc
@@ -862,26 +895,70 @@ export async function copyForkResourceContent(params: {
             ? eq(userTableRows.tableId, table.sourceId)
             : and(eq(userTableRows.tableId, table.sourceId), gt(userTableRows.id, afterId))
         const rows = await db
-          .select()
+          .select({
+            row: userTableRows,
+            provenance: userTableRowSecretProvenance,
+            provenanceIsCurrent: sql<boolean>`COALESCE(${userTableRowSecretProvenance.contentUpdatedAt} = ${userTableRows.updatedAt}, false)`,
+          })
           .from(userTableRows)
+          .leftJoin(
+            userTableRowSecretProvenance,
+            eq(userTableRowSecretProvenance.rowId, userTableRows.id)
+          )
           .where(where)
           .orderBy(asc(userTableRows.id))
-          .limit(CONTENT_PAGE)
+          .limit(PROVENANCE_CONTENT_PAGE)
         if (rows.length === 0) break
-        await db.insert(userTableRows).values(
-          rows.map((row) => ({
-            ...row,
-            id: generateId(),
-            tableId: table.childId,
-            workspaceId: childWorkspaceId,
-            orderKey: row.orderKey ?? mintedKeys[mintedIdx++] ?? null,
-            // Repoint resource-chip URLs in cell data at the child copies (no-op when no maps).
-            data: contentRefMaps ? remapTableRowResourceUrls(row.data, contentRefMaps) : row.data,
-          }))
+        const provenanceWithinBudget = isForkProvenancePageWithinBudget(
+          rows.flatMap(({ provenance }) => (provenance ? [provenance] : []))
         )
+        const copiedRows = rows.map(({ row, provenance, provenanceIsCurrent }) => {
+          const classification = provenanceWithinBudget
+            ? classifyTableRowSecretProvenanceForCopy({
+                secretProvenanceVersion: row.secretProvenanceVersion,
+                provenanceIsCurrent,
+                provenance,
+              })
+            : row.secretProvenanceVersion === null
+              ? ({ mode: 'legacy' } as const)
+              : ({ mode: 'tracked', status: 'unknown', entries: [] } as const)
+          return {
+            row: {
+              ...row,
+              id: generateId(),
+              tableId: table.childId,
+              workspaceId: childWorkspaceId,
+              orderKey: row.orderKey ?? mintedKeys[mintedIdx++] ?? null,
+              secretProvenanceVersion:
+                classification.mode === 'legacy' ? null : TABLE_ROW_SECRET_PROVENANCE_VERSION,
+              // Repoint resource-chip URLs in cell data at the child copies (no-op when no maps).
+              data: contentRefMaps ? remapTableRowResourceUrls(row.data, contentRefMaps) : row.data,
+            },
+            provenance: classification.mode === 'tracked' ? classification : undefined,
+          }
+        })
+        await db.transaction(async (trx) => {
+          await trx.insert(userTableRows).values(copiedRows.map((copy) => copy.row))
+          const provenanceRows = copiedRows.flatMap((copy) =>
+            copy.provenance
+              ? [
+                  {
+                    rowId: copy.row.id,
+                    contentUpdatedAt: copy.row.updatedAt,
+                    status: copy.provenance.status,
+                    entries: [...copy.provenance.entries],
+                    updatedAt: new Date(),
+                  },
+                ]
+              : []
+          )
+          if (provenanceRows.length > 0) {
+            await trx.insert(userTableRowSecretProvenance).values(provenanceRows)
+          }
+        })
         copied += rows.length
-        afterId = rows[rows.length - 1].id
-        if (rows.length < CONTENT_PAGE) break
+        afterId = rows[rows.length - 1].row.id
+        if (rows.length < PROVENANCE_CONTENT_PAGE) break
       }
       await db
         .update(userTableDefinitions)
@@ -1154,8 +1231,18 @@ async function finalizeKbDocument(params: {
   billingContext: StorageBillingContext
   bytes: number
   values: Partial<typeof document.$inferInsert>
+  secretProvenance?: DurableSecretProvenance
+  provenanceSource?: KnowledgeDocumentSourceValue
 }): Promise<void> {
-  const { childDocumentId, childKnowledgeBaseId, billingContext, bytes, values } = params
+  const {
+    childDocumentId,
+    childKnowledgeBaseId,
+    billingContext,
+    bytes,
+    values,
+    secretProvenance,
+    provenanceSource,
+  } = params
   await db.transaction(async (tx) => {
     const [lockedKnowledgeBase] = await tx
       .select({ workspaceId: knowledgeBase.workspaceId })
@@ -1199,6 +1286,15 @@ async function finalizeKbDocument(params: {
       throw new Error(`Copied document placeholder ${childDocumentId} is missing`)
     }
 
+    if (secretProvenance && provenanceSource) {
+      await replaceKnowledgeDocumentSecretProvenanceInTx(
+        tx,
+        childDocumentId,
+        provenanceSource,
+        secretProvenance
+      )
+    }
+
     await incrementStorageUsageForBillingContextInTx(tx, billingContext, bytes)
   })
 }
@@ -1225,25 +1321,39 @@ async function copyKbDocument(params: {
     billingContext,
   } = params
   await ensureKbDocumentPlaceholder(source, childDocumentId, childKnowledgeBaseId, userId)
+  const sourceSecretContext = await loadKnowledgeDocumentDurableSecretProvenance(source.id)
 
   const blob = await copyKbDocumentBlob(source, childWorkspaceId, userId, childDocumentId)
   try {
     await copyDocumentEmbeddings(source.id, childDocumentId, childKnowledgeBaseId)
+    const copiedValues = {
+      ...omit(source, ['id', 'knowledgeBaseId']),
+      knowledgeBaseId: childKnowledgeBaseId,
+      connectorId: null,
+      storageKey: blob?.storageKey ?? null,
+      fileUrl: blob?.fileUrl ?? source.fileUrl,
+      archivedAt: null,
+      deletedAt: null,
+      uploadedBy: userId,
+      secretProvenanceVersion: sourceSecretContext.tracked ? 1 : null,
+    }
+    const copiedSource = createKnowledgeDocumentSourceValue(copiedValues)
     await finalizeKbDocument({
       childDocumentId,
       childKnowledgeBaseId,
       billingContext,
       bytes: blob ? source.fileSize : 0,
-      values: {
-        ...omit(source, ['id', 'knowledgeBaseId']),
-        knowledgeBaseId: childKnowledgeBaseId,
-        connectorId: null,
-        storageKey: blob?.storageKey ?? null,
-        fileUrl: blob?.fileUrl ?? source.fileUrl,
-        archivedAt: null,
-        deletedAt: null,
-        uploadedBy: userId,
-      },
+      values: copiedValues,
+      ...(sourceSecretContext.tracked
+        ? {
+            secretProvenance: rebindKnowledgeDocumentSecretProvenance(
+              sourceSecretContext.provenance,
+              sourceSecretContext.source,
+              copiedSource
+            ),
+            provenanceSource: copiedSource,
+          }
+        : {}),
     })
   } catch (error) {
     if (blob) await cleanupCopiedKbBlob(blob.storageKey)
@@ -1315,21 +1425,59 @@ async function copyDocumentEmbeddings(
       .from(embedding)
       .where(where)
       .orderBy(asc(embedding.id))
-      .limit(CONTENT_PAGE)
+      .limit(PROVENANCE_CONTENT_PAGE)
     if (rows.length === 0) break
-    await db
-      .insert(embedding)
-      .values(
-        rows.map((row) => ({
-          ...row,
-          id: deriveCopyIdentity('embedding', childDocumentId, row.id),
-          documentId: childDocumentId,
-          knowledgeBaseId: childKnowledgeBaseId,
-        }))
+    const sourceSidecars = await db
+      .select()
+      .from(embeddingSecretProvenance)
+      .where(
+        inArray(
+          embeddingSecretProvenance.embeddingId,
+          rows.map((row) => row.id)
+        )
       )
-      .onConflictDoNothing({ target: embedding.id })
+    const sourceSidecarById = new Map(
+      sourceSidecars.map((sidecar) => [sidecar.embeddingId, sidecar])
+    )
+    const provenanceWithinBudget = isForkProvenancePageWithinBudget(sourceSidecars)
+    const targetRows = rows.map((row) => ({
+      ...row,
+      id: deriveCopyIdentity('embedding', childDocumentId, row.id),
+      documentId: childDocumentId,
+      knowledgeBaseId: childKnowledgeBaseId,
+    }))
+    await db.insert(embedding).values(targetRows).onConflictDoNothing({ target: embedding.id })
+    const targetSidecars = rows.flatMap((row, index) => {
+      if (row.secretProvenanceVersion !== 1) return []
+      const sidecar = sourceSidecarById.get(row.id)
+      const provenance = provenanceWithinBudget
+        ? readBoundKnowledgeEmbeddingSecretProvenance({
+            secretProvenanceVersion: row.secretProvenanceVersion,
+            content: row.content,
+            chunkHash: row.chunkHash,
+            provenanceContentHash: sidecar?.contentHash ?? null,
+            status: sidecar?.status ?? null,
+            entries: sidecar?.entries,
+          })
+        : { status: 'unknown' as const }
+      return [
+        {
+          embeddingId: targetRows[index].id,
+          contentHash: targetRows[index].chunkHash,
+          status: provenance.status,
+          entries: provenance.status === 'exact' ? [...provenance.entries] : [],
+          updatedAt: new Date(),
+        },
+      ]
+    })
+    if (targetSidecars.length > 0) {
+      await db
+        .insert(embeddingSecretProvenance)
+        .values(targetSidecars)
+        .onConflictDoNothing({ target: embeddingSecretProvenance.embeddingId })
+    }
     afterId = rows[rows.length - 1].id
-    if (rows.length < CONTENT_PAGE) break
+    if (rows.length < PROVENANCE_CONTENT_PAGE) break
   }
 }
 

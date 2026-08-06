@@ -25,6 +25,7 @@ import type {
   ParameterVisibility,
   ToolConfig,
   ToolParameterItemSchema,
+  WorkflowToolExecutionContext,
 } from '@/tools/types'
 
 const logger = createLogger('ToolsParams')
@@ -153,6 +154,13 @@ export interface LLMToolSchemaResult {
    * schema for `prepareToolExecution` to strip.
    */
   modelBlockedParams?: string[]
+}
+
+export class ToolSchemaEnrichmentError extends Error {
+  constructor(toolId: string, cause: unknown) {
+    super(`Failed to enrich schema for tool "${toolId}"`, { cause })
+    this.name = 'ToolSchemaEnrichmentError'
+  }
 }
 
 export interface ValidationResult {
@@ -630,7 +638,8 @@ export function createUserToolSchema(
 
 export async function createLLMToolSchema(
   toolConfig: ToolConfig,
-  userProvidedParams: Record<string, unknown>
+  userProvidedParams: Record<string, unknown>,
+  enrichmentContext: WorkflowToolExecutionContext = {}
 ): Promise<LLMToolSchemaResult> {
   const schema: ToolSchema = {
     type: 'object',
@@ -704,11 +713,17 @@ export async function createLLMToolSchema(
   if (toolConfig.toolEnrichment) {
     const dependencyValue = userProvidedParams[toolConfig.toolEnrichment.dependsOn] as string
     if (dependencyValue) {
-      const enriched = await toolConfig.toolEnrichment.enrichTool(
-        dependencyValue,
-        schema,
-        toolConfig.description
-      )
+      let enriched
+      try {
+        enriched = await toolConfig.toolEnrichment.enrichTool(
+          dependencyValue,
+          schema,
+          toolConfig.description,
+          enrichmentContext
+        )
+      } catch (error) {
+        throw new ToolSchemaEnrichmentError(toolConfig.id, error)
+      }
       if (enriched) {
         return {
           schema: enriched.parameters as ToolSchema,

@@ -12,6 +12,9 @@ import {
 
 const logger = createLogger('TraceStore')
 
+/** Marks execution data written under the resolved-secret display contract. */
+export const SECRET_PROJECTION_VERSION = 1 as const
+
 /**
  * Key under which the externalized-execution-data pointer (a `__simLargeValueRef`)
  * is stored on the slim `execution_data` row.
@@ -26,7 +29,12 @@ export const TRACE_STORE_REF_KEY = 'traceStoreRef'
  * (environment, trigger, tokens, models, truncation flags, and of course the
  * heavy payloads) are recovered from the stored object.
  */
-const INLINE_MARKER_KEYS = ['hasTraceSpans', 'traceSpanCount', 'correlation'] as const
+const INLINE_MARKER_KEYS = [
+  'secretProjectionVersion',
+  'hasTraceSpans',
+  'traceSpanCount',
+  'correlation',
+] as const
 
 /**
  * Read-path context. Resolves an externalized payload by storage key, authorized
@@ -205,6 +213,25 @@ const LOG_DISPLAY_CONTENT_KEYS = [
 ] as const
 
 const LOG_DISPLAY_PROJECTION_SPAN_ID = 'secret-safe-log-display-projection'
+const EXACT_LOG_VALUE_PROVENANCE_KEYS = {
+  finalOutput: 'finalOutputResolvedSecretTraceProvenance',
+  workflowInput: 'workflowInputResolvedSecretTraceProvenance',
+} as const
+
+/** Returns historical execution data using the display behavior from before secret provenance. */
+function projectLegacyExecutionDataForDisplay(
+  executionData: Record<string, unknown>
+): Record<string, unknown> {
+  const omittedKeys = [
+    'executionState',
+    'secretProjectionVersion',
+    ...(!Object.hasOwn(executionData, 'traceSpans') || Array.isArray(executionData.traceSpans)
+      ? []
+      : ['traceSpans']),
+  ]
+
+  return omit(executionData, omittedKeys) as Record<string, unknown>
+}
 
 /**
  * Materializes trusted execution data and returns its log-facing projection.
@@ -220,8 +247,10 @@ export async function materializeExecutionDataForDisplay(
 
 /**
  * Projects execution-log content with the encrypted provenance saved by the
- * trusted executor. Missing or malformed provenance deliberately yields a
- * structural-only log instead of returning content that cannot be proven safe.
+ * trusted executor. Current workflow input and final output values use their
+ * exact sidecars; rows predating those fields retain the run-level fallback.
+ * Contract-aware rows with missing or malformed provenance deliberately yield
+ * structural-only content instead of returning data that cannot be proven safe.
  */
 export async function projectExecutionDataForDisplay(
   executionData: Record<string, unknown>,
@@ -234,6 +263,14 @@ export async function projectExecutionDataForDisplay(
       ? (executionData.executionState as Record<string, unknown>)
       : undefined
   const provenance = executionState?.resolvedSecretTraceProvenance
+  const hasProjectionContract =
+    Object.hasOwn(executionData, 'secretProjectionVersion') ||
+    (executionState !== undefined && Object.hasOwn(executionState, 'resolvedSecretTraceProvenance'))
+
+  if (!hasProjectionContract) {
+    return projectLegacyExecutionDataForDisplay(executionData)
+  }
+
   let registry: ResolvedSecretTraceRegistry | undefined
 
   if (isResolvedSecretTraceProvenanceV1(provenance)) {
@@ -241,9 +278,63 @@ export async function projectExecutionDataForDisplay(
     await registry.importProvenance(provenance, { trusted: true })
   }
 
+  const projectionStore = {
+    workspaceId: context.workspaceId ?? undefined,
+    workflowId: context.workflowId ?? undefined,
+    executionId: context.executionId,
+    userId: context.userId,
+    trackReference: false,
+  }
+
+  const exactValueProjections = new Map<string, unknown>()
+  for (const [valueKey, provenanceKey] of Object.entries(EXACT_LOG_VALUE_PROVENANCE_KEYS)) {
+    if (
+      !Object.hasOwn(executionData, valueKey) ||
+      !executionState ||
+      !Object.hasOwn(executionState, provenanceKey)
+    ) {
+      continue
+    }
+
+    const exactProvenance = executionState[provenanceKey]
+    const exactRegistry = isResolvedSecretTraceProvenanceV1(exactProvenance)
+      ? new ResolvedSecretTraceRegistry([], exactProvenance.scope)
+      : new ResolvedSecretTraceRegistry()
+    if (isResolvedSecretTraceProvenanceV1(exactProvenance)) {
+      await exactRegistry.importProvenance(exactProvenance, { trusted: true })
+    } else {
+      exactRegistry.markIncomplete()
+    }
+
+    const [projected] = await projectTraceSpansForSecrets(
+      [
+        {
+          id: `${LOG_DISPLAY_PROJECTION_SPAN_ID}-${valueKey}`,
+          name: 'Exact Log Value Display Projection',
+          type: 'display',
+          duration: 0,
+          startTime: new Date().toISOString(),
+          endTime: new Date().toISOString(),
+          output: { value: executionData[valueKey] },
+        },
+      ],
+      { registry: exactRegistry, allowLargeValueWrites: false, store: projectionStore }
+    )
+    if (projected?.output && Object.hasOwn(projected.output, 'value')) {
+      exactValueProjections.set(valueKey, projected.output.value)
+    }
+  }
+
   const envelope: Record<string, unknown> = {}
   for (const key of LOG_DISPLAY_CONTENT_KEYS) {
-    if (Object.hasOwn(executionData, key)) envelope[key] = executionData[key]
+    const exactProvenanceKey =
+      EXACT_LOG_VALUE_PROVENANCE_KEYS[key as keyof typeof EXACT_LOG_VALUE_PROVENANCE_KEYS]
+    if (
+      Object.hasOwn(executionData, key) &&
+      (!exactProvenanceKey || !executionState || !Object.hasOwn(executionState, exactProvenanceKey))
+    ) {
+      envelope[key] = executionData[key]
+    }
   }
 
   const now = new Date().toISOString()
@@ -262,18 +353,13 @@ export async function projectExecutionDataForDisplay(
   const projectedSpans = await projectTraceSpansForSecrets([syntheticSpan, ...sourceTraceSpans], {
     registry,
     allowLargeValueWrites: false,
-    store: {
-      workspaceId: context.workspaceId ?? undefined,
-      workflowId: context.workflowId ?? undefined,
-      executionId: context.executionId,
-      userId: context.userId,
-      trackReference: false,
-    },
+    store: projectionStore,
   })
 
   const displayData = omit(executionData, [
     ...LOG_DISPLAY_CONTENT_KEYS,
     'executionState',
+    'secretProjectionVersion',
     'traceSpans',
   ]) as Record<string, unknown>
 
@@ -284,6 +370,9 @@ export async function projectExecutionDataForDisplay(
     for (const key of LOG_DISPLAY_CONTENT_KEYS) {
       if (Object.hasOwn(projectedEnvelope, key)) displayData[key] = projectedEnvelope[key]
     }
+  }
+  for (const [key, value] of exactValueProjections) {
+    displayData[key] = value
   }
 
   if (Array.isArray(executionData.traceSpans)) {

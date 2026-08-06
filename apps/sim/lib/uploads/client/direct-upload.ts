@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
+import { requestJson } from '@/lib/api/client/request'
+import { verifyPresignedUploadContract } from '@/lib/api/contracts/storage-transfer'
 import { getFileContentType, isAbortError } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('DirectUpload')
@@ -28,6 +30,7 @@ export interface PresignedUploadInfo {
   presignedUrl: string
   fileInfo: PresignedFileInfo
   uploadHeaders?: Record<string, string>
+  uploadToken?: string
   directUploadSupported: boolean
 }
 
@@ -159,6 +162,7 @@ export const normalizePresignedData = (data: unknown, context: string): Presigne
       type: (fileInfo.type as string) || (d.contentType as string) || '',
     },
     uploadHeaders: (d.uploadHeaders as Record<string, string>) || undefined,
+    uploadToken: typeof d.uploadToken === 'string' ? d.uploadToken : undefined,
     directUploadSupported: true,
   }
 }
@@ -305,6 +309,28 @@ const uploadViaPresignedPut = (opts: UploadViaPutOptions): Promise<void> => {
     }
     xhr.send(file)
   })
+}
+
+function canVerifyAmbiguousPut(error: unknown): boolean {
+  if (!(error instanceof DirectUploadError) || error.code !== 'DIRECT_UPLOAD_ERROR') return false
+  if (error.status === undefined) return true
+  return error.status === 409 || error.status === 412 || error.status >= 500
+}
+
+async function verifyAmbiguousPresignedPut(
+  uploadToken: string,
+  signal?: AbortSignal
+): Promise<boolean> {
+  try {
+    const result = await requestJson(verifyPresignedUploadContract, {
+      body: { uploadToken },
+      signal,
+    })
+    return result.uploaded
+  } catch (error) {
+    logger.warn('Unable to verify an ambiguous direct-upload response', error)
+    return false
+  }
 }
 
 interface MultipartUploadOptions {
@@ -504,31 +530,49 @@ const uploadViaMultipart = async (
     throw error
   }
 
-  let path: string
+  let completedUpload: { key: string; path: string } | null = null
   try {
-    // boundary-raw-fetch: multipart upload control plane uses action query strings; sequenced with initiate/get-part-urls/abort outside the contract layer
-    const completeResponse = await fetch('/api/files/multipart?action=complete', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ uploadToken, parts: uploadedParts }),
-      signal,
-    })
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        // boundary-raw-fetch: multipart upload control plane uses action query strings; sequenced with initiate/get-part-urls/abort outside the contract layer
+        const completeResponse = await fetch('/api/files/multipart?action=complete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ uploadToken, parts: uploadedParts }),
+          signal,
+        })
 
-    if (!completeResponse.ok) {
-      throw new DirectUploadError(
-        `Failed to complete multipart upload: ${completeResponse.statusText}`,
-        'MULTIPART_ERROR',
-        undefined,
-        completeResponse.status
-      )
+        if (!completeResponse.ok) {
+          throw new DirectUploadError(
+            `Failed to complete multipart upload: ${completeResponse.statusText}`,
+            'MULTIPART_ERROR',
+            undefined,
+            completeResponse.status
+          )
+        }
+
+        const completed = (await completeResponse.json()) as { key?: string; path: string }
+        completedUpload = { key: completed.key ?? key, path: completed.path }
+        break
+      } catch (error) {
+        const retryable =
+          !isAbortError(error) &&
+          (!(error instanceof DirectUploadError) ||
+            error.status === undefined ||
+            error.status >= 500)
+        if (!retryable || attempt === 1) throw error
+        logger.warn('Multipart completion response failed; retrying the same signed upload')
+      }
     }
-
-    ;({ path } = (await completeResponse.json()) as { path: string })
   } catch (err) {
     await abortMultipart()
     throw err
   }
-  return { key, path }
+  if (!completedUpload) {
+    await abortMultipart()
+    throw new DirectUploadError('Multipart completion returned no result', 'MULTIPART_ERROR')
+  }
+  return completedUpload
 }
 
 export interface RunUploadStrategyOptions {
@@ -619,13 +663,22 @@ export const runUploadStrategy = async (
     throw new DirectUploadError('Server signaled fallback to API upload', 'FALLBACK_REQUIRED')
   }
 
-  await uploadViaPresignedPut({
-    file,
-    presignedUrl: presigned.presignedUrl,
-    uploadHeaders: presigned.uploadHeaders,
-    signal,
-    onProgress,
-  })
+  try {
+    await uploadViaPresignedPut({
+      file,
+      presignedUrl: presigned.presignedUrl,
+      uploadHeaders: presigned.uploadHeaders,
+      signal,
+      onProgress,
+    })
+  } catch (error) {
+    const committed =
+      presigned.uploadToken && canVerifyAmbiguousPut(error)
+        ? await verifyAmbiguousPresignedPut(presigned.uploadToken, signal)
+        : false
+    if (!committed) throw error
+    onProgress?.({ loaded: file.size, total: file.size, percent: 100 })
+  }
 
   return {
     key: presigned.fileInfo.key,

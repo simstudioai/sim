@@ -29,6 +29,7 @@ interface ClientToolContext extends ClientToolBinding {
 
 interface SealClientToolContextInput extends ClientToolBinding {
   registry: ResolvedSecretTraceRegistry
+  toolInput: unknown
 }
 
 type ClientCompletionSealGlobal = typeof globalThis & {
@@ -90,11 +91,11 @@ export async function unsealClientToolCompletion(
 export async function sealClientToolContext(
   input: SealClientToolContextInput
 ): Promise<Record<typeof SEALED_CLIENT_TOOL_CONTEXT_FIELD, string>> {
-  const { registry, ...binding } = input
+  const { registry, toolInput, ...binding } = input
   const context: ClientToolContext = {
     ...binding,
     registryInstanceId: getRegistryInstanceId(registry),
-    provenance: registry.exportProvenance(),
+    provenance: registry.exportCommittedProvenanceForValue(toolInput),
   }
   const { encrypted } = await encryptSecret(JSON.stringify(context))
   return { [SEALED_CLIENT_TOOL_CONTEXT_FIELD]: encrypted }

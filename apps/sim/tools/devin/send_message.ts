@@ -37,6 +37,10 @@ export const devinSendMessageTool: ToolConfig<DevinSendMessageParams, DevinSendM
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({ message: params.message }),
+    },
     url: (params) =>
       `https://api.devin.ai/v3/organizations/${params.orgId.trim()}/sessions/${params.sessionId.trim()}/messages`,
     method: 'POST',

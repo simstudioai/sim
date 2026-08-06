@@ -200,4 +200,73 @@ describe('embed', () => {
 
     expect(result.isBYOK).toBe(true)
   })
+
+  /**
+   * The knowledge-base path rewrites resolved-secret plaintext back to
+   * placeholders before inputs reach a provider. The block path projects
+   * earlier, at the tool's HTTP hop, and passes null here so the substitution
+   * does not run twice over already-projected content.
+   */
+  describe('resolved-secret projection', () => {
+    it('sends projected inputs, not the originals', async () => {
+      fetchMock.mockResolvedValue(jsonResponse(openAIBody([[1], [2]])))
+
+      await embed(['token is sk-live-123', 'harmless'], {
+        model: 'text-embedding-3-small',
+        apiKey: 'sk-test',
+        projectInputs: (values) => values.map((v) => v.replace('sk-live-123', '{{API_KEY}}')),
+      })
+
+      const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)
+      expect(body.input).toEqual(['token is {{API_KEY}}', 'harmless'])
+      expect(JSON.stringify(body)).not.toContain('sk-live-123')
+    })
+
+    it('leaves inputs untouched when the caller passes null', async () => {
+      fetchMock.mockResolvedValue(jsonResponse(openAIBody([[1]])))
+
+      await embed(['already projected'], {
+        model: 'text-embedding-3-small',
+        apiKey: 'sk-test',
+        projectInputs: null,
+      })
+
+      const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)
+      expect(body.input).toEqual(['already projected'])
+    })
+
+    it('estimates tokens from the projected values, not the originals', async () => {
+      // Gemini omits usage, so the token count is estimated from what was sent.
+      fetchMock.mockResolvedValue(
+        jsonResponse({ embeddings: [{ values: [1, 2, 3] }] })
+      )
+
+      const result = await embed(['x'.repeat(400)], {
+        model: 'gemini-embedding-001',
+        apiKey: 'key-test',
+        projectInputs: () => ['tiny'],
+      })
+
+      const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)
+      expect(body.requests[0].content.parts[0].text).toBe('tiny')
+      // 400 chars would estimate far higher; 'tiny' lands in single digits.
+      expect(result.totalTokens).toBeLessThan(10)
+    })
+
+    it('projects once even when the request is retried', async () => {
+      const projectInputs = vi.fn((values: readonly string[]) => values.map(() => 'projected'))
+      fetchMock
+        .mockResolvedValueOnce(jsonResponse({ error: 'rate limited' }, 429))
+        .mockResolvedValueOnce(jsonResponse(openAIBody([[1]])))
+
+      await embed(['secret'], {
+        model: 'text-embedding-3-small',
+        apiKey: 'sk-test',
+        projectInputs,
+      })
+
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+      expect(projectInputs).toHaveBeenCalledTimes(1)
+    })
+  })
 })

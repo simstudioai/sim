@@ -237,6 +237,21 @@ AZURE_STORAGE_OG_IMAGES_CONTAINER_NAME=og-images
 AZURE_STORAGE_WORKSPACE_LOGOS_CONTAINER_NAME=workspace-logos
 ```
 
+Browser uploads also require an account-level Blob service CORS rule. This rule explicitly allows Sim's create-only `If-None-Match` precondition, Azure upload headers, and multipart `ETag` reads:
+
+```bash
+az storage cors add \
+  --services b \
+  --methods GET PUT OPTIONS \
+  --origins "https://your-sim-domain.com" \
+  --allowed-headers "Content-Type" "If-None-Match" "x-ms-*" \
+  --exposed-headers "ETag" \
+  --max-age 3600 \
+  --account-name mystorageaccount
+```
+
+The CORS rule applies to every blob container in the storage account, so it only needs to be added once per account.
+
 A full Helm example lives at `helm/sim/examples/values-azure.yaml`.
 
 ## Set up Google Cloud Storage
@@ -276,6 +291,7 @@ cat > /tmp/cors.json <<'EOF'
     "responseHeader": [
       "Content-Type",
       "ETag",
+      "x-goog-if-generation-match",
       "x-goog-meta-originalname",
       "x-goog-meta-uploadedat",
       "x-goog-meta-purpose",
@@ -283,7 +299,8 @@ cat > /tmp/cors.json <<'EOF'
       "x-goog-meta-workspaceid",
       "x-goog-meta-folderid",
       "x-goog-meta-workflowid",
-      "x-goog-meta-executionid"
+      "x-goog-meta-executionid",
+      "x-goog-meta-simuploadid"
     ],
     "maxAgeSeconds": 3600
   }
@@ -297,7 +314,7 @@ done
 ```
 
 <Callout type="info">
-  Header names must be listed individually — GCS CORS matches `responseHeader` entries exactly and does not support wildcards like `x-goog-meta-*`. `ETag` is required because large-file multipart uploads read each part's `ETag` from the browser, and CORS hides the header otherwise.
+  Header names must be listed individually — GCS CORS matches `responseHeader` entries exactly and does not support wildcards like `x-goog-meta-*`. `ETag` is required because large-file multipart uploads read each part's `ETag` from the browser, and CORS hides the header otherwise. `x-goog-if-generation-match` is required by Sim's create-only signed uploads, which prevent a reused upload URL from replacing existing bytes. `x-goog-meta-simuploadid` carries the opaque receipt used to verify an upload after an ambiguous network response.
 </Callout>
 
 </Step>

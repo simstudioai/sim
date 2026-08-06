@@ -282,6 +282,8 @@ The `version` field is part of the external API contract. Treat the reference as
 
 For long-running workflows, async mode returns a job ID immediately so you don't need to hold the connection open. Add the `X-Execution-Mode: async` header to your request. The API returns HTTP 202 with a job ID and status URL. Poll the status URL until the job completes.
 
+To stop an individual async request sooner than the workspace policy, also send `X-Execution-Timeout-Seconds` with an integer from `1` to `604800` (seven days). The effective limit is the smaller of this request value and the account's configured workflow execution timeout. This header is rejected unless `X-Execution-Mode` is `async`. It controls server-side workflow runtime; your HTTP client's own timeout remains separate.
+
 <Tabs items={['Start Job', 'Check Status']}>
   <Tab value="Start Job">
 ```bash
@@ -289,6 +291,7 @@ curl -X POST https://sim.ai/api/workflows/{workflow-id}/execute \
   -H "Content-Type: application/json" \
   -H "x-api-key: $SIM_API_KEY" \
   -H "X-Execution-Mode: async" \
+  -H "X-Execution-Timeout-Seconds: 3600" \
   -d '{ "input": "Process this large dataset" }'
 ```
 
@@ -358,9 +361,10 @@ Poll the `statusUrl` from the initial response until the status is `completed` o
 | Plan | Sync Limit | Async Limit |
 |------|-----------|-------------|
 | **Community** | 5 minutes | 90 minutes |
-| **Pro / Max / Team / Enterprise** | 50 minutes | 90 minutes |
+| **Pro / Max / Team** | 50 minutes | 90 minutes |
+| **Enterprise** | 50 minutes | 90 minutes by default; configurable up to 7 days |
 
-If a job exceeds its time limit it is automatically marked as `failed`.
+If a job exceeds its time limit it is automatically marked as `failed`. An async API request may use `X-Execution-Timeout-Seconds` to shorten its account policy, but never to extend it.
 
 #### Job Retention
 

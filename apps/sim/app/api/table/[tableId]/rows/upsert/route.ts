@@ -9,6 +9,11 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { RowData, TableSchema } from '@/lib/table'
 import { upsertRow } from '@/lib/table'
 import { signalTableRowsChanged } from '@/lib/table/events'
+import {
+  createTableRowsResponse,
+  createTableWriteProvenanceTargets,
+  resolveTableWriteSecretProvenance,
+} from '@/app/api/table/row-secret-provenance'
 import { rowWireTranslators } from '@/app/api/table/row-wire'
 import { accessError, checkAccess, rowWriteErrorResponse } from '@/app/api/table/utils'
 
@@ -43,6 +48,16 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Upser
     }
 
     const wire = rowWireTranslators(authResult.authType, table.schema as TableSchema)
+    const provenance = resolveTableWriteSecretProvenance({
+      request,
+      payload: validated,
+      authType: authResult.authType,
+      userId: authResult.userId,
+      workspaceId: table.workspaceId,
+      targets: createTableWriteProvenanceTargets([validated.data as RowData], wire.dataIn),
+      rowKeys: ['0'],
+    })
+    if (!provenance.success) return provenance.response
     // conflictTarget passes through untranslated — upsertRow resolves it id-or-name.
     const upsertResult = await upsertRow(
       {
@@ -51,13 +66,14 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Upser
         data: wire.dataIn(validated.data as RowData),
         userId: authResult.userId,
         conflictTarget: validated.conflictTarget,
+        secretProvenance: provenance.provenanceByRowKey?.['0'],
       },
       table,
       requestId
     )
     signalTableRowsChanged(tableId)
 
-    return NextResponse.json({
+    const responseBody = {
       success: true,
       data: {
         row: {
@@ -75,6 +91,14 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Upser
         operation: upsertResult.operation,
         message: `Row ${upsertResult.operation === 'update' ? 'updated' : 'inserted'} successfully`,
       },
+    }
+    return createTableRowsResponse({
+      request,
+      authType: authResult.authType,
+      userId: authResult.userId,
+      workspaceId: table.workspaceId,
+      body: responseBody,
+      rows: [upsertResult.row],
     })
   } catch (error) {
     if (isZodError(error)) {

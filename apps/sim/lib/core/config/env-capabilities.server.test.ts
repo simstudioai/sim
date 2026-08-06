@@ -4,6 +4,8 @@
 import { resetEnvMock, setEnv } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, expectTypeOf, it } from 'vitest'
 import {
+  getConfiguredSandboxProviderId,
+  getSelectedSandboxProviderId,
   inspectConfiguredOAuthClient,
   requireConfiguredOAuthClient,
 } from '@/lib/core/config/env-capabilities.server'
@@ -15,6 +17,9 @@ describe('server environment capabilities', () => {
       SHOPIFY_CLIENT_SECRET: undefined,
       SLACK_CLIENT_ID: undefined,
       SLACK_CLIENT_SECRET: undefined,
+      SANDBOX_PROVIDER: undefined,
+      DAYTONA_API_KEY: undefined,
+      DAYTONA_FUNCTION_SNAPSHOT_ID: undefined,
     })
   })
 
@@ -71,5 +76,20 @@ describe('server environment capabilities', () => {
     })
     expectTypeOf(configured.values.SHOPIFY_CLIENT_ID).toEqualTypeOf<string>()
     expectTypeOf(configured.values.SHOPIFY_CLIENT_SECRET).toEqualTypeOf<string>()
+  })
+
+  it('selects a sandbox adapter without requiring a Function base', () => {
+    setEnv({ SANDBOX_PROVIDER: 'daytona', DAYTONA_API_KEY: 'daytona-key' })
+
+    expect(getSelectedSandboxProviderId()).toBe('daytona')
+    expect(() => getConfiguredSandboxProviderId()).toThrow(/DAYTONA_FUNCTION_SNAPSHOT_ID/)
+  })
+
+  it('rejects an unknown sandbox provider during selection', () => {
+    setEnv({ SANDBOX_PROVIDER: 'modal' })
+
+    expect(() => getSelectedSandboxProviderId()).toThrow(
+      'Unknown SANDBOX_PROVIDER "modal". Expected one of: e2b, daytona'
+    )
   })
 })

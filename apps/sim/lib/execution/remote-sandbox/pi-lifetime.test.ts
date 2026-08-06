@@ -20,17 +20,19 @@ import {
   resolvePiSandboxLifetimeMs,
 } from '@/lib/execution/remote-sandbox/pi-lifetime'
 
+const E2B_MAX_LIFETIME_MS = 24 * 60 * 60 * 1000
+
 function resolveWith(options: { provider?: string; lifetimeMs?: string }): {
-  lifetime: number | undefined
+  lifetime: number
   min: number
-  max: number
+  platformMax: number
 } {
   mockEnv.PI_SANDBOX_LIFETIME_MS = options.lifetimeMs
   mockEnv.SANDBOX_PROVIDER = options.provider
   return {
     lifetime: resolvePiSandboxLifetimeMs(),
     min: PI_SANDBOX_MIN_LIFETIME_MS,
-    max: PI_SANDBOX_MAX_LIFETIME_MS,
+    platformMax: PI_SANDBOX_MAX_LIFETIME_MS,
   }
 }
 
@@ -40,118 +42,112 @@ beforeEach(() => {
 })
 
 describe('resolvePiSandboxLifetimeMs', () => {
-  it('defaults to the sub-hour cap on E2B', () => {
-    const { lifetime, max } = resolveWith({})
+  it('defaults to the continuous-runtime cap on E2B', () => {
+    const { lifetime, platformMax } = resolveWith({})
 
-    expect(lifetime).toBe(max)
+    expect(lifetime).toBe(Math.min(platformMax, E2B_MAX_LIFETIME_MS))
   })
 
   it('matches provider selection by treating an empty provider as E2B', () => {
-    const { lifetime, max } = resolveWith({ provider: '' })
+    const { lifetime, platformMax } = resolveWith({ provider: '' })
 
-    expect(lifetime).toBe(max)
+    expect(lifetime).toBe(Math.min(platformMax, E2B_MAX_LIFETIME_MS))
   })
 
-  it('has no lifetime to report when the provider stops on inactivity', () => {
-    // Daytona has no absolute lifetime, so reporting E2B's would cut the agent
-    // turn to fit a ceiling that does not apply — the regression this prevents.
-    const { lifetime } = resolveWith({ provider: 'daytona' })
+  it('uses the full execution ceiling for Daytona', () => {
+    const { lifetime, platformMax } = resolveWith({ provider: 'daytona' })
 
-    expect(lifetime).toBeUndefined()
+    expect(lifetime).toBe(platformMax)
   })
 
-  it('ignores a configured lifetime entirely on that provider', () => {
-    const { lifetime } = resolveWith({ provider: 'daytona', lifetimeMs: '600000' })
+  it('honors a configured Daytona lifetime', () => {
+    const configured = 45 * 60 * 1000
+    const { lifetime } = resolveWith({
+      provider: 'daytona',
+      lifetimeMs: String(configured),
+    })
 
-    expect(lifetime).toBeUndefined()
+    expect(lifetime).toBe(configured)
   })
 
-  it('uses tolerant capability inspection for an unknown provider', () => {
-    const { lifetime } = resolveWith({ provider: 'modal' })
+  it('uses the conservative E2B cap for an unknown provider', () => {
+    const { lifetime, platformMax } = resolveWith({ provider: 'modal' })
 
-    expect(lifetime).toBeUndefined()
+    expect(lifetime).toBe(Math.min(platformMax, E2B_MAX_LIFETIME_MS))
   })
 
   it('lets a configured value lower the lifetime', () => {
-    const { lifetime, min, max } = resolveWith({ lifetimeMs: String(45 * 60 * 1000) })
+    const { lifetime, min } = resolveWith({ lifetimeMs: String(45 * 60 * 1000) })
 
     expect(lifetime).toBe(45 * 60 * 1000)
-    expect(lifetime!).toBeGreaterThan(min)
-    expect(lifetime!).toBeLessThan(max)
+    expect(lifetime).toBeGreaterThan(min)
   })
 
-  it('refuses to be raised above the cap', () => {
-    // A Hobby key rejects a create above one hour, so an over-large override
-    // would otherwise fail every Pi run rather than lengthening one.
-    const { lifetime, max } = resolveWith({ lifetimeMs: String(6 * 60 * 60 * 1000) })
+  it('refuses to raise E2B above its provider cap', () => {
+    const { lifetime, platformMax } = resolveWith({
+      lifetimeMs: String(48 * 60 * 60 * 1000),
+    })
 
-    expect(lifetime).toBe(max)
+    expect(lifetime).toBe(Math.min(platformMax, E2B_MAX_LIFETIME_MS))
   })
 
   it('raises a lifetime too short for a run to finish in', () => {
-    // Ten minutes is consumed by the clone reserve alone, leaving the turn and
-    // the push to race a sandbox that may already be reaped.
     const { lifetime, min } = resolveWith({ lifetimeMs: String(10 * 60 * 1000) })
 
     expect(lifetime).toBe(min)
   })
 
-  it.each(['', 'soon', '0', '-1'])('falls back to the cap for %o', (value) => {
-    const { lifetime, max } = resolveWith({ lifetimeMs: value })
+  it.each(['', 'soon', '0', '-1'])('falls back to the provider cap for %o', (value) => {
+    const { lifetime, platformMax } = resolveWith({ lifetimeMs: value })
 
-    expect(lifetime).toBe(max)
+    expect(lifetime).toBe(Math.min(platformMax, E2B_MAX_LIFETIME_MS))
   })
 })
 
 describe('resolvePiRunLifetimeMs', () => {
   it('keeps the provider ceiling when the execution is untimed', () => {
-    // No timeout means no deadline was recorded, so there is nothing to narrow
-    // to — the ceiling is the only bound available.
     const untimed = createTimeoutAbortController()
+    const providerCeiling = resolvePiSandboxLifetimeMs()
 
-    expect(resolvePiRunLifetimeMs(untimed.signal)).toBe(PI_SANDBOX_MAX_LIFETIME_MS)
-    expect(resolvePiRunLifetimeMs()).toBe(PI_SANDBOX_MAX_LIFETIME_MS)
+    expect(resolvePiRunLifetimeMs(untimed.signal)).toBe(providerCeiling)
+    expect(resolvePiRunLifetimeMs()).toBe(providerCeiling)
   })
 
   it('narrows to the deadline of a run shorter than the ceiling', () => {
-    // A free-plan sync run gets five minutes. Handing its sandbox the sub-hour
-    // ceiling is what left an orphan billing for an hour after a five-minute run.
     const timeout = createTimeoutAbortController(5 * 60 * 1000)
     const lifetime = resolvePiRunLifetimeMs(timeout.signal)
 
     expect(lifetime).toBeLessThanOrEqual(5 * 60 * 1000)
     expect(lifetime).toBeGreaterThan(4 * 60 * 1000)
-    expect(lifetime).toBeLessThan(PI_SANDBOX_MAX_LIFETIME_MS)
+    expect(lifetime).toBeLessThan(resolvePiSandboxLifetimeMs())
     timeout.cleanup()
   })
 
-  it('keeps the ceiling when the run outlives it', () => {
-    // The deadline must be strictly past the ceiling for the ceiling to win.
-    // Passing exactly `PI_SANDBOX_MAX_LIFETIME_MS` made this a coin flip: the
-    // remaining budget is `deadline - Date.now()`, so it decays below the ceiling
-    // as soon as one millisecond of test time elapses, and `Math.min` then
-    // returns the remaining budget instead (`expected 5399999 to be 5400000`).
-    // An equal deadline also isn't the case the name describes — the run has to
-    // outlive the ceiling, not match it.
-    const timeout = createTimeoutAbortController(PI_SANDBOX_MAX_LIFETIME_MS + 60_000)
+  it('keeps the provider ceiling when the run outlives it', () => {
+    const providerCeiling = resolvePiSandboxLifetimeMs()
+    const timeout = createTimeoutAbortController(providerCeiling + 60_000)
 
-    expect(resolvePiRunLifetimeMs(timeout.signal)).toBe(PI_SANDBOX_MAX_LIFETIME_MS)
+    expect(resolvePiRunLifetimeMs(timeout.signal)).toBe(providerCeiling)
     timeout.cleanup()
   })
 
-  it('keeps the ceiling for a signal that carries no deadline', () => {
-    // A derived or foreign signal reports `undefined` remaining, which means
-    // "unknown", not "expired" — narrowing to zero there would kill every run.
-    expect(resolvePiRunLifetimeMs(new AbortController().signal)).toBe(PI_SANDBOX_MAX_LIFETIME_MS)
+  it('keeps the provider ceiling for a signal that carries no deadline', () => {
+    expect(resolvePiRunLifetimeMs(new AbortController().signal)).toBe(resolvePiSandboxLifetimeMs())
   })
 
-  it('has no lifetime to narrow on a provider without one', () => {
-    // Daytona stops on inactivity, so imposing the run's deadline as an absolute
-    // lifetime would cut a turn to fit a limit that does not apply to it.
+  it('narrows Daytona to the remaining execution deadline', () => {
+    mockEnv.SANDBOX_PROVIDER = 'daytona'
     const timeout = createTimeoutAbortController(5 * 60 * 1000)
+    const lifetime = resolvePiRunLifetimeMs(timeout.signal)
+
+    expect(lifetime).toBeLessThanOrEqual(5 * 60 * 1000)
+    expect(lifetime).toBeGreaterThan(4 * 60 * 1000)
+    timeout.cleanup()
+  })
+
+  it('uses the platform ceiling for an untimed Daytona run', () => {
     mockEnv.SANDBOX_PROVIDER = 'daytona'
 
-    expect(resolvePiRunLifetimeMs(timeout.signal)).toBeUndefined()
-    timeout.cleanup()
+    expect(resolvePiRunLifetimeMs()).toBe(PI_SANDBOX_MAX_LIFETIME_MS)
   })
 })

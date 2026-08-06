@@ -115,6 +115,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       taskType,
       dimensions,
       apiKey,
+      /**
+       * Callers reach this route through a tool whose `request.modelInput`
+       * already projected `input` at the HTTP hop, so projecting again here
+       * would run the substitution over already-projected content.
+       */
+      projectInputs: null,
     })
 
     return NextResponse.json({

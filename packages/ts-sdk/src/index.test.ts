@@ -174,6 +174,43 @@ describe('SimStudioClient', () => {
       const calls = vi.mocked(mockFetch).mock.calls
       expect(calls[0][1]?.headers).not.toHaveProperty('X-Execution-Mode')
     })
+
+    it('sets the server-side timeout header for async execution', async () => {
+      vi.mocked(mockFetch).mockResolvedValue({
+        ok: true,
+        status: 202,
+        json: vi.fn().mockResolvedValue({ success: true, jobId: 'job-1', async: true }),
+        headers: { get: vi.fn().mockReturnValue(null) },
+      } as any)
+
+      await client.executeWorkflow('workflow-id', {}, { async: true, executionTimeoutSeconds: 90 })
+
+      expect(vi.mocked(mockFetch).mock.calls[0][1]?.headers).toMatchObject({
+        'X-Execution-Mode': 'async',
+        'X-Execution-Timeout-Seconds': '90',
+      })
+    })
+
+    it('rejects a server-side timeout for sync execution', async () => {
+      await expect(
+        client.executeWorkflow('workflow-id', {}, { executionTimeoutSeconds: 90 })
+      ).rejects.toMatchObject({ code: 'INVALID_EXECUTION_TIMEOUT' })
+      expect(mockFetch).not.toHaveBeenCalled()
+    })
+
+    it('rejects a server-side timeout above seven days', async () => {
+      await expect(
+        client.executeWorkflow(
+          'workflow-id',
+          {},
+          {
+            async: true,
+            executionTimeoutSeconds: 604_801,
+          }
+        )
+      ).rejects.toMatchObject({ code: 'INVALID_EXECUTION_TIMEOUT' })
+      expect(mockFetch).not.toHaveBeenCalled()
+    })
   })
 
   describe('getJobStatus', () => {

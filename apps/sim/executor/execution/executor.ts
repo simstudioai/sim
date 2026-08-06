@@ -22,6 +22,7 @@ import { NodeExecutionOrchestrator } from '@/executor/orchestrators/node'
 import { ParallelOrchestrator } from '@/executor/orchestrators/parallel'
 import type { BlockState, ExecutionContext, ExecutionResult } from '@/executor/types'
 import { type ClonedSubflowInfo, ParallelExpander } from '@/executor/utils/parallel-expansion'
+import { isResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
 import {
   computeExecutionSets,
   type RunFromBlockContext,
@@ -440,6 +441,24 @@ export class DAGExecutor {
       environmentVariables: this.environmentVariables,
       resolvedSecretTraceRegistry: this.contextExtensions.resolvedSecretTraceRegistry,
       workflowVariables: this.workflowVariables,
+      workflowVariableResolvedSecretTraceProvenance: {
+        ...(snapshotState?.workflowVariableResolvedSecretTraceProvenance ?? {}),
+      },
+      ...(this.contextExtensions.workflowInputResolvedSecretTraceProvenance
+        ? {
+            workflowInputResolvedSecretTraceProvenance:
+              this.contextExtensions.workflowInputResolvedSecretTraceProvenance,
+          }
+        : {}),
+      ...(snapshotState && Object.hasOwn(snapshotState, 'finalOutputResolvedSecretTraceProvenance')
+        ? {
+            finalOutputResolvedSecretTraceProvenance: isResolvedSecretTraceProvenanceV1(
+              snapshotState.finalOutputResolvedSecretTraceProvenance
+            )
+              ? snapshotState.finalOutputResolvedSecretTraceProvenance
+              : { version: 1, complete: false, entries: [] },
+          }
+        : {}),
       decisions: {
         router: snapshotState?.decisions?.router
           ? new Map(Object.entries(snapshotState.decisions.router))
@@ -629,6 +648,14 @@ export class DAGExecutor {
       output: blockOutput,
       executed: false,
       executionTime: 0,
+      ...(this.contextExtensions.resolvedSecretTraceRegistry
+        ? {
+            resolvedSecretTraceProvenance:
+              this.contextExtensions.resolvedSecretTraceRegistry.exportCommittedProvenanceForValue(
+                blockOutput
+              ),
+          }
+        : {}),
     })
   }
 }

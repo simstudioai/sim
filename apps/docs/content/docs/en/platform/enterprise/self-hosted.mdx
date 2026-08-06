@@ -23,7 +23,10 @@ ENTERPRISE_ENABLED=true
 NEXT_PUBLIC_ENTERPRISE_ENABLED=true
 ```
 
-That turns on organizations, permission groups, SSO, whitelabeling, audit logs, session policies, data retention, data drains, workspace forks, sandboxes, and the inbox.
+That turns on organizations, permission groups, SSO, whitelabeling, audit logs,
+session policies, data retention, data drains, workspace forks, the Sandbox
+entitlement, and the inbox. Sandboxes remain unavailable until their remote
+provider and dedicated Function base are configured.
 
 ### Turning one feature off
 
@@ -53,7 +56,118 @@ The individual flags also work on their own if you would rather opt in one at a 
 | Sim Mailer inbox | `INBOX_ENABLED` | `NEXT_PUBLIC_INBOX_ENABLED` |
 | Sandboxes | `SANDBOXES_ENABLED` | `NEXT_PUBLIC_SANDBOXES_ENABLED` |
 
-Sandboxes also need a remote execution provider, since the deployment builds the images itself: set `E2B_API_KEY`, or `SANDBOX_PROVIDER=daytona` with a `DAYTONA_API_KEY` that has `write:snapshots` and `write:sandboxes`. Without one the settings section appears but builds fail.
+Sandboxes also need a remote execution provider and a dedicated Function base
+image. Build and configure that base before enabling the UI; custom workspace
+sandboxes layer their packages on top of it.
+
+For E2B:
+
+```bash
+E2B_API_KEY=... \
+  bun run apps/sim/scripts/build-function-e2b-template.ts \
+  --name sim-function
+
+SANDBOX_PROVIDER=e2b
+E2B_ENABLED=true
+E2B_API_KEY=...
+E2B_FUNCTION_TEMPLATE_ID=<sim-function-template>:<sim-function-build-id>
+E2B_FUNCTION_TEMPLATE_GENERATION=<release-epoch-ms>
+SANDBOXES_ENABLED=true
+NEXT_PUBLIC_SANDBOXES_ENABLED=true
+```
+
+The builder uses E2B's maintained `code-interpreter-v1` base, assigns a fresh
+release generation, and prints both runtime values. `--generation` remains
+available for release automation, and `--base-template` accepts an immutable
+base override when a deployment deliberately owns one.
+
+For Daytona, use the immutable snapshot ID printed by the builder. The API key needs
+`write:snapshots` to build and `write:sandboxes` to execute:
+
+```bash
+DAYTONA_API_KEY=... \
+  bun run apps/sim/scripts/build-function-daytona-snapshot.ts \
+  --name sim-function-2026-08-03 \
+  --parity-manifest /tmp/function-sandbox-manifest.json
+
+SANDBOX_PROVIDER=daytona
+DAYTONA_API_KEY=...
+DAYTONA_FUNCTION_SNAPSHOT_ID=<snapshot-uuid>
+SANDBOXES_ENABLED=true
+NEXT_PUBLIC_SANDBOXES_ENABLED=true
+```
+
+`SANDBOXES_ENABLED` grants the server-side self-hosted entitlement.
+`NEXT_PUBLIC_SANDBOXES_ENABLED` projects provider readiness to the browser and
+exposes Shell plus custom Sandbox management. Set the public flag only after the
+selected provider has credentials and a valid immutable Function base configured.
+The Function language value itself is never conditioned on these flags, so a
+saved Python block cannot be silently serialized or executed as JavaScript.
+
+JavaScript without `import` or `require` does not use this remote provider and
+continues to run in the local isolated VM when all Sandbox flags are off. Python,
+Shell, JavaScript with external imports, and selected custom Sandboxes fail with
+an explicit configuration error until the remote Function base is ready.
+
+Mothership's `function_execute` and `run_code` tools use Mothership's separate
+shell image, including for JavaScript without imports. If the deployment uses
+Mothership code tools, also configure the image produced by the Mothership
+release process for the selected provider:
+
+```bash
+# E2B
+MOTHERSHIP_E2B_TEMPLATE_ID=<mothership-shell-template-ref>
+
+# Daytona
+DAYTONA_SHELL_SNAPSHOT_ID=<mothership-shell-snapshot-ref>
+```
+
+These values are selected only for workflow Copilot and workspace Mothership
+code-tool calls. They never replace or act as a fallback for
+`E2B_FUNCTION_TEMPLATE_ID` or
+`DAYTONA_FUNCTION_SNAPSHOT_ID`; Function blocks and custom workspace sandboxes
+continue to use the dedicated Function base.
+
+Use E2B as the release baseline before building or promoting Daytona:
+
+```bash
+# 1. Verify the exact E2B Function build and capture its accepted package/runtime surface.
+E2B_ENABLED=true \
+E2B_API_KEY=... \
+E2B_FUNCTION_TEMPLATE_ID=<sim-function-template>:<sim-function-build-id> \
+E2B_FUNCTION_TEMPLATE_GENERATION=<release-epoch-ms> \
+SANDBOX_PARITY_MANIFEST_OUT=/tmp/function-sandbox-manifest.json \
+  bun run apps/sim/scripts/verify-sandbox-parity.ts
+
+# 2. Pin Daytona's reconstructed packages to that accepted E2B manifest.
+DAYTONA_API_KEY=... \
+  bun run apps/sim/scripts/build-function-daytona-snapshot.ts \
+  --name sim-function-2026-08-03 \
+  --parity-manifest /tmp/function-sandbox-manifest.json
+
+# 3. Verify the immutable Daytona snapshot against the same baseline before promotion.
+SANDBOX_PROVIDER=daytona \
+DAYTONA_API_KEY=... \
+DAYTONA_FUNCTION_SNAPSHOT_ID=<snapshot-uuid> \
+SANDBOX_PARITY_MANIFEST_BASELINE=/tmp/function-sandbox-manifest.json \
+  bun run apps/sim/scripts/verify-sandbox-parity.ts
+```
+
+<Callout type="warning">
+  `E2B_FUNCTION_TEMPLATE_ID` and `DAYTONA_FUNCTION_SNAPSHOT_ID` fail closed when
+  unset or mutable. The E2B value must be an exact `<template>:<build-id>` ref,
+  and `E2B_FUNCTION_TEMPLATE_GENERATION` must be the monotonic value printed by
+  the same build. The Daytona value must be a snapshot ID rather than a name. Sim does not
+  fall back to `MOTHERSHIP_E2B_TEMPLATE_ID` or
+  `DAYTONA_SHELL_SNAPSHOT_ID`; Mothership, Function, document, and Pi images have
+  separate package contracts and release cadences.
+</Callout>
+
+<Callout type="info">
+  Assign every promoted E2B Function base a generation greater than every prior
+  deployment. A rollback is a new promotion and therefore also needs a new,
+  higher generation; do not reuse the generation from the older release.
+</Callout>
 
 <Callout type="warning">
   Data retention is the one feature that deletes data. Its flag controls the cleanup pass, not the settings screen — retention windows are always configurable. Nothing is ever deleted until you enable it, and even then only against windows you configured explicitly. Sim never applies the hosted plan defaults to a self-hosted deployment.

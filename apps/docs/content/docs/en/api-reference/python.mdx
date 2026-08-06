@@ -77,6 +77,7 @@ result = client.execute_workflow(
 - `stream` (bool, optional): Enable streaming responses (default: False)
 - `selected_outputs` (list[str], optional): Block outputs to stream in `blockName.attribute` format (e.g., `["agent1.content"]`)
 - `async_execution` (bool, optional): Execute asynchronously (default: False)
+- `execution_timeout_seconds` (int, optional): Optional server-side async execution cap from 1 to 604800 seconds. Requires `async_execution=True` and cannot extend the account policy.
 
 **Returns:** `WorkflowExecutionResult | AsyncExecutionResult`
 

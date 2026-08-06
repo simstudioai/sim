@@ -717,7 +717,7 @@ describe('Copilot workflow execution billing attribution', () => {
     expect(JSON.stringify(result)).not.toContain('encrypted-secret')
   })
 
-  it('fails concurrent tool-result projection closed until child provenance is imported', async () => {
+  it('keeps unrelated tool-result projection available while child provenance is pending', async () => {
     const registry = new ResolvedSecretTraceRegistry([], {
       userId: 'user-1',
       workspaceId: 'workspace-1',
@@ -748,7 +748,7 @@ describe('Copilot workflow execution billing attribution', () => {
     expect(registry.isComplete()).toBe(false)
     expect(
       projectToolResultForCopilot({ success: true, output: { value: 'secret-value' } }, registry)
-    ).not.toHaveProperty('output')
+    ).toMatchObject({ output: { value: 'secret-value' } })
 
     resolveExecution({
       success: true,

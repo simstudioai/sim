@@ -61,6 +61,10 @@ export const deepgramTtsTool: ToolConfig<DeepgramTtsParams, TtsBlockResponse> = 
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({ text: params.text }),
+    },
     url: '/api/tools/tts/unified',
     method: 'POST',
     headers: () => ({

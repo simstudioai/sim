@@ -1,9 +1,16 @@
-import { usageLog, workflow } from '@sim/db/schema'
-import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { usageLog, workflow, workflowExecutionLogs } from '@sim/db/schema'
+import {
+  dbChainMockFns,
+  flattenMockConditions,
+  queueTableRows,
+  resetDbChainMock,
+} from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, test, vi } from 'vitest'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import { ExecutionLogger } from '@/lib/logs/execution/logger'
+import { SECRET_PROJECTION_VERSION } from '@/lib/logs/execution/trace-store'
 import type { WorkflowExecutionLog } from '@/lib/logs/types'
+import { emitExecutionCompletedEvent } from '@/lib/workspace-events/emitter'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 
 afterAll(resetDbChainMock)
@@ -87,6 +94,13 @@ vi.mock('@/lib/workspace-events/emitter', () => ({
   emitExecutionCompletedEvent: vi.fn(() => Promise.resolve()),
 }))
 
+vi.mock('@/lib/logs/execution/progress-markers', () => ({
+  clearProgressMarkers: vi.fn(() => Promise.resolve()),
+  getProgressMarkers: vi.fn(() => Promise.resolve(null)),
+  pickLatestCompletedMarker: vi.fn((current, persisted) => current ?? persisted),
+  pickLatestStartedMarker: vi.fn((current, persisted) => current ?? persisted),
+}))
+
 // Mock snapshot service
 vi.mock('@/lib/logs/execution/snapshot/service', () => ({
   snapshotService: {
@@ -141,6 +155,115 @@ describe('ExecutionLogger', () => {
 
     test('should have getWorkflowExecution method', () => {
       expect(typeof logger.getWorkflowExecution).toBe('function')
+    })
+
+    test('marks new execution rows as contract-aware before any provenance is available', async () => {
+      dbChainMockFns.limit.mockResolvedValueOnce([])
+      dbChainMockFns.returning.mockResolvedValueOnce([
+        {
+          id: 'log-1',
+          workflowId: 'workflow-123',
+          executionId: 'execution-123',
+          stateSnapshotId: 'snapshot-123',
+          level: 'info',
+          trigger: 'api',
+          startedAt: new Date('2026-08-04T00:00:00.000Z'),
+          endedAt: null,
+          totalDurationMs: null,
+          executionData: {},
+          createdAt: new Date('2026-08-04T00:00:00.000Z'),
+        },
+      ])
+
+      await logger.startWorkflowExecution({
+        workflowId: 'workflow-123',
+        workspaceId: 'workspace-123',
+        executionId: 'execution-123',
+        trigger: {
+          type: 'api',
+          source: 'api',
+          timestamp: '2026-08-04T00:00:00.000Z',
+        },
+        environment: {
+          variables: {},
+          workflowId: 'workflow-123',
+          executionId: 'execution-123',
+          userId: 'user-123',
+          workspaceId: 'workspace-123',
+        },
+        workflowState: { blocks: {}, edges: [], loops: {}, parallels: {} },
+      })
+
+      expect(dbChainMockFns.values).toHaveBeenCalledWith(
+        expect.objectContaining({
+          executionData: expect.objectContaining({
+            secretProjectionVersion: SECRET_PROJECTION_VERSION,
+          }),
+        })
+      )
+    })
+
+    test('preserves a cancellation that wins the completion update race', async () => {
+      const startedAt = new Date('2026-08-03T12:00:00.000Z')
+      const createdAt = new Date('2026-08-03T12:00:00.000Z')
+      const runningLog = {
+        id: 'log-1',
+        workflowId: 'workflow-1',
+        workspaceId: 'workspace-1',
+        executionId: 'execution-1',
+        stateSnapshotId: 'snapshot-1',
+        level: 'info',
+        status: 'running',
+        trigger: 'api',
+        startedAt,
+        endedAt: null,
+        totalDurationMs: null,
+        executionData: {},
+        createdAt,
+      }
+      const cancelledLog = {
+        ...runningLog,
+        status: 'cancelled',
+        endedAt: new Date('2026-08-03T12:00:01.000Z'),
+        totalDurationMs: 1000,
+        executionData: { finalOutput: { cancelled: true } },
+      }
+      queueTableRows(workflowExecutionLogs, [runningLog])
+      queueTableRows(workflowExecutionLogs, [cancelledLog])
+      dbChainMockFns.returning.mockResolvedValueOnce([])
+      vi.spyOn(logger as any, 'applyPiiRedaction').mockImplementation(
+        async (_workspaceId: unknown, payload: unknown) => payload
+      )
+      vi.spyOn(logger as any, 'recordExecutionUsage').mockResolvedValue(0)
+
+      const result = await logger.completeWorkflowExecution({
+        executionId: 'execution-1',
+        endedAt: '2026-08-03T12:00:02.000Z',
+        totalDurationMs: 2000,
+        costSummary: {
+          totalCost: 0,
+          totalInputCost: 0,
+          totalOutputCost: 0,
+          totalTokens: 0,
+          totalPromptTokens: 0,
+          totalCompletionTokens: 0,
+          baseExecutionCharge: 0,
+          models: {},
+        },
+        finalOutput: { completed: true },
+        traceSpans: [],
+      })
+
+      const completionGuard = dbChainMockFns.where.mock.calls
+        .flatMap(([condition]) => flattenMockConditions(condition))
+        .find(
+          (condition) =>
+            Array.isArray(condition.strings) &&
+            String(Array.from(condition.strings as string[])).includes("!= 'cancelled'")
+        )
+      expect(completionGuard).toBeDefined()
+      expect(result.executionData).toEqual(cancelledLog.executionData)
+      expect(emitExecutionCompletedEvent).not.toHaveBeenCalled()
     })
 
     test('preserves correlation and diagnostics when execution completes', () => {
@@ -207,6 +330,7 @@ describe('ExecutionLogger', () => {
       })
       expect(completedData.correlation).toEqual(completedData.trigger?.data?.correlation)
       expect(completedData.finalOutput).toEqual({ ok: true })
+      expect(completedData.secretProjectionVersion).toBe(SECRET_PROJECTION_VERSION)
       expect(completedData.lastStartedBlock?.blockId).toBe('block-start')
       expect(completedData.lastCompletedBlock?.blockId).toBe('block-end')
       expect(completedData.finalizationPath).toBe('completed')
@@ -291,7 +415,7 @@ describe('ExecutionLogger', () => {
 
       expect(preserved?.resolvedSecretTraceProvenance).toBe(provenance)
       expect(preserved?.trustedLargeValueAccess).toBe(trustedLargeValueAccess)
-      expect(preserved?.blockStates).toBe(redactedState.blockStates)
+      expect(preserved?.blockStates).toEqual(redactedState.blockStates)
     })
 
     test('summarizes oversized execution data before storage', () => {
@@ -369,6 +493,7 @@ describe('ExecutionLogger', () => {
 
       expect(storedBytes).toBeLessThanOrEqual(3 * 1024 * 1024)
       expect(compacted.executionDataTruncated).toBe(true)
+      expect(compacted.secretProjectionVersion).toBe(SECRET_PROJECTION_VERSION)
       expect(compacted.executionState).toBeUndefined()
       expect(compacted.executionStateSummary).toEqual({
         executedBlockCount: 1,
@@ -405,6 +530,7 @@ describe('ExecutionLogger', () => {
             workspaceId: 'workspace-1',
           },
           correlation,
+          secretProjectionVersion: SECRET_PROJECTION_VERSION,
           hasTraceSpans: false,
           traceSpanCount: 0,
         },
@@ -412,6 +538,7 @@ describe('ExecutionLogger', () => {
       )
 
       expect(compacted.executionDataTruncated).toBe(true)
+      expect(compacted.secretProjectionVersion).toBe(SECRET_PROJECTION_VERSION)
       expect(compacted.correlation).toEqual(correlation)
       expect(compacted).not.toHaveProperty('environment')
     })
