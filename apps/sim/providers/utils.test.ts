@@ -1622,6 +1622,78 @@ describe('transformBlockTool multi-instance unique IDs', () => {
     expect(result?.id).toBe('table_query_rows_tbl_abc')
   })
 
+  it('resolves the canonical table id before enriching the LLM tool schema', async () => {
+    const enrichTool = vi.fn(
+      async (
+        tableId: string,
+        schema: {
+          type: 'object'
+          properties: Record<string, unknown>
+          required: string[]
+        }
+      ) => ({
+        description: `Query rows from ${tableId}`,
+        parameters: {
+          ...schema,
+          properties: {
+            ...schema.properties,
+            customer_name: { type: 'string' },
+          },
+        },
+      })
+    )
+    const result = await transformBlockTool(
+      {
+        type: 'table',
+        operation: 'query_rows',
+        params: { tableSelector: 'tbl_abc' },
+      },
+      {
+        selectedOperation: 'query_rows',
+        getAllBlocks,
+        enrichmentContext: {
+          workspaceId: 'workspace-1',
+          userId: 'user-1',
+        },
+        getTool: (id: string) => ({
+          id,
+          name: 'Query Rows',
+          description: 'Query table rows',
+          params: {
+            tableId: { type: 'string', required: true, visibility: 'user-only' },
+            filter: { type: 'object', visibility: 'user-or-llm' },
+          },
+          toolEnrichment: {
+            dependsOn: 'tableId',
+            enrichTool,
+          },
+        }),
+      }
+    )
+
+    expect(enrichTool).toHaveBeenCalledWith(
+      'tbl_abc',
+      expect.objectContaining({
+        properties: expect.objectContaining({ filter: expect.any(Object) }),
+      }),
+      'Query table rows',
+      {
+        workspaceId: 'workspace-1',
+        userId: 'user-1',
+      }
+    )
+    expect(result).toMatchObject({
+      id: 'table_query_rows_tbl_abc',
+      description: 'Query rows from tbl_abc',
+      params: { tableSelector: 'tbl_abc' },
+      parameters: {
+        properties: {
+          customer_name: { type: 'string' },
+        },
+      },
+    })
+  })
+
   it('appends the table id resolved from the advanced manual input', async () => {
     const result = await transformTable(
       { manualTableId: 'tbl_xyz' },

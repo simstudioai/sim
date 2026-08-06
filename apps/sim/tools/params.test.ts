@@ -12,6 +12,7 @@ import {
   isPasswordParameter,
   type ToolParameterConfig,
   type ToolSchema,
+  ToolSchemaEnrichmentError,
   type ValidationResult,
   validateToolParameters,
 } from '@/tools/params'
@@ -129,6 +130,27 @@ describe('Tool Parameters Utils', () => {
       expect(schema.properties).not.toHaveProperty('timeout') // user-only, never shown to LLM
       expect(schema.required).not.toContain('apiKey') // user-only, never required for LLM
       expect(schema.required).toContain('message') // user-or-llm + required: true
+    })
+
+    it('wraps tool enrichment failures so execution boundaries can fail fast', async () => {
+      const cause = new Error('table metadata unavailable')
+      const toolConfig = {
+        ...mockToolConfig,
+        toolEnrichment: {
+          dependsOn: 'tableId',
+          enrichTool: vi.fn().mockRejectedValue(cause),
+        },
+      }
+
+      const error = await createLLMToolSchema(toolConfig, { tableId: 'tbl_123' }).catch(
+        (caught) => caught
+      )
+
+      expect(error).toBeInstanceOf(ToolSchemaEnrichmentError)
+      expect(error).toMatchObject({
+        message: 'Failed to enrich schema for tool "test_tool"',
+        cause,
+      })
     })
   })
 

@@ -339,7 +339,8 @@ interface ToolEnrichmentConfig {
       properties: Record<string, unknown>
       required: string[]
     },
-    originalDescription: string
+    originalDescription: string,
+    context: WorkflowToolExecutionContext
   ) => Promise<{
     description: string
     parameters: {

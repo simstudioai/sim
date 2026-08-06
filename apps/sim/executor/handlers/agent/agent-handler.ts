@@ -67,7 +67,7 @@ import {
 import { isAutoModel, SIM_AUTO_MODEL_ID } from '@/providers/models'
 import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
-import { filterSchemaForLLM, type ToolSchema } from '@/tools/params'
+import { filterSchemaForLLM, type ToolSchema, ToolSchemaEnrichmentError } from '@/tools/params'
 import { getTool } from '@/tools/utils'
 import { getToolAsync } from '@/tools/utils.server'
 
@@ -526,6 +526,7 @@ export class AgentBlockHandler implements BlockHandler {
           }
           return this.transformBlockTool(ctx, tool, canonicalModes, toolIndex)
         } catch (error) {
+          if (error instanceof ToolSchemaEnrichmentError) throw error
           logger.error(
             '[AgentHandler] Error creating tool',
             projectAgentDiagnosticMetadata(
@@ -952,6 +953,12 @@ export class AgentBlockHandler implements BlockHandler {
         }),
       getTool,
       canonicalModes,
+      enrichmentContext: {
+        workflowId: ctx.workflowId,
+        workspaceId: ctx.workspaceId,
+        executionId: ctx.executionId,
+        userId: ctx.userId,
+      },
       toolIndex,
       resolveCustomBlockBinding: (blockType: string) =>
         resolveCustomBlockToolBinding(blockType, ctx.workspaceId),

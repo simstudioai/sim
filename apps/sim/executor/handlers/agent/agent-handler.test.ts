@@ -29,6 +29,7 @@ import { SIM_AUTO_MODEL_ID } from '@/providers/models'
 import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import { executeTool } from '@/tools'
+import { ToolSchemaEnrichmentError } from '@/tools/params'
 
 process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
 
@@ -287,6 +288,24 @@ describe('AgentBlockHandler', () => {
       expect(mockGetProviderFromModel).toHaveBeenCalledWith('gpt-4o')
       expect(mockExecuteProviderRequest).toHaveBeenCalled()
       expect(result).toEqual(expectedOutput)
+    })
+
+    it('fails fast when a configured tool schema cannot be enriched', async () => {
+      const error = new ToolSchemaEnrichmentError(
+        'table_query_rows',
+        new Error('table metadata unavailable')
+      )
+      mockTransformBlockTool.mockRejectedValueOnce(error)
+
+      await expect(
+        handler.execute(mockContext, mockBlock, {
+          model: 'gpt-4o',
+          userPrompt: 'Query the table',
+          apiKey: 'test-api-key',
+          tools: [{ type: 'table', operation: 'query_rows', usageControl: 'auto' }],
+        })
+      ).rejects.toBe(error)
+      expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
     })
 
     it('reports a sim-auto run under the sim-auto identity, not the model that served it', async () => {
