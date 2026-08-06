@@ -1,4 +1,4 @@
-import { DocumentIcon } from '@/components/icons'
+import { SimLogoIcon } from '@/components/icons'
 import type { ConnectorMeta } from '@/connectors/types'
 
 export const simFilesConnectorMeta: ConnectorMeta = {
@@ -6,7 +6,7 @@ export const simFilesConnectorMeta: ConnectorMeta = {
   name: 'Workspace Files',
   description: 'Sync files from this workspace so agents can search their contents',
   version: '1.0.0',
-  icon: DocumentIcon,
+  icon: SimLogoIcon,
 
   auth: { mode: 'sim' },
 

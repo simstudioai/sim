@@ -1,4 +1,4 @@
-import { MessagesIcon } from '@/components/icons'
+import { SimLogoIcon } from '@/components/icons'
 import type { ConnectorMeta } from '@/connectors/types'
 
 export const simConversationsConnectorMeta: ConnectorMeta = {
@@ -6,7 +6,7 @@ export const simConversationsConnectorMeta: ConnectorMeta = {
   name: 'Agent Conversations',
   description: 'Sync agent block conversation memory so you can search and analyze what users ask',
   version: '1.0.0',
-  icon: MessagesIcon,
+  icon: SimLogoIcon,
 
   auth: { mode: 'sim' },
 
