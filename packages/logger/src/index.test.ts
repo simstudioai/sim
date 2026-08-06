@@ -275,6 +275,25 @@ describe('Logger', () => {
       expect(parsed.boom).toBe('[Unreadable]')
     })
 
+    test('should not throw when retained metadata has a throwing toJSON', () => {
+      const hostile = {
+        evil: {
+          toJSON() {
+            throw new Error('toJSON exploded')
+          },
+        },
+      } as unknown as Parameters<Logger['withMetadata']>[0]
+
+      const child = createEnabledLogger().withMetadata(hostile)
+
+      expect(() => child.info('hello')).not.toThrow()
+      const parsed = JSON.parse(consoleLogSpy.mock.calls[0][0] as string)
+      expect(parsed.message).toBe('hello')
+      expect(parsed.module).toBe('Test')
+      expect(parsed.serializationError).toBe(true)
+      expect(parsed.evil).toBeUndefined()
+    })
+
     test('should not throw when withMetadata receives a hostile proxy', () => {
       const hostile = new Proxy(
         {},

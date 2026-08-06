@@ -185,7 +185,27 @@ const serializeEntry = (base: Record<string, unknown>, args: unknown[]): string 
     return JSON.stringify(mergeArgs({ ...base }, args), tolerantReplacer())
   } catch {}
 
-  return JSON.stringify({ ...base, serializationError: true }, tolerantReplacer())
+  return minimalEntry(base)
+}
+
+/**
+ * Last-resort entry built only from fields this module controls.
+ *
+ * A replacer cannot rescue a throwing `toJSON`, because `JSON.stringify` invokes
+ * it before the replacer ever sees the value. So the final fallback drops every
+ * caller-supplied value instead of re-serializing it, and passes strings through
+ * only when they are already strings — coercing would re-enter hostile
+ * `toString`. What remains cannot throw.
+ */
+const minimalEntry = (base: Record<string, unknown>): string => {
+  const asString = (value: unknown) => (typeof value === 'string' ? value : '[Unserializable]')
+  return JSON.stringify({
+    timestamp: asString(base.timestamp),
+    level: asString(base.level),
+    module: asString(base.module),
+    message: asString(base.message),
+    serializationError: true,
+  })
 }
 
 /**
