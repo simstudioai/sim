@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Button, Tooltip } from '@sim/emcn'
+import { Button, cn, Tooltip } from '@sim/emcn'
+import { Rocket } from '@sim/emcn/icons'
 import { DeployModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/deploy-modal'
 import {
   useChangeDetection,
@@ -17,6 +18,7 @@ interface DeployProps {
   activeWorkflowId: string | null
   userPermissions: WorkspaceUserPermissions
   className?: string
+  compact?: boolean
   disabled?: boolean
 }
 
@@ -24,6 +26,7 @@ export function Deploy({
   activeWorkflowId,
   userPermissions,
   className,
+  compact = false,
   disabled = false,
 }: DeployProps) {
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -119,24 +122,28 @@ export function Deploy({
     return 'Deploy'
   }
 
+  const buttonLabel = getButtonLabel()
+  const tooltipText = getTooltipText()
+
   return (
     <>
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
           <span>
             <Button
-              className='h-[30px] gap-1.5 px-2.5'
+              className={cn(compact ? 'h-[30px]' : 'h-[30px] gap-1.5 px-2.5', className)}
               variant={
                 isRegistryLoading ? 'active' : changeDetected || !isDeployed ? 'tertiary' : 'active'
               }
               onClick={onDeployClick}
               disabled={isRegistryLoading || isDisabled}
+              aria-label={compact ? buttonLabel : undefined}
             >
-              {getButtonLabel()}
+              {compact ? <Rocket className='size-[16px] text-[var(--text-icon)]' /> : buttonLabel}
             </Button>
           </span>
         </Tooltip.Trigger>
-        <Tooltip.Content>{getTooltipText()}</Tooltip.Content>
+        <Tooltip.Content>{tooltipText}</Tooltip.Content>
       </Tooltip.Root>
 
       <DeployModal
