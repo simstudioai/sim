@@ -2567,7 +2567,7 @@ export async function deleteDocumentStorageFiles(
     }
 
     const binding = bindingByKey.get(storageKey)
-    if (!binding?.workspaceId) {
+    if (!binding?.workspaceId || binding.context !== 'knowledge-base') {
       logger.warn(`[${requestId}] Skipping storage delete: no ownership binding for key`, {
         documentId: doc.id,
         storageKey,
