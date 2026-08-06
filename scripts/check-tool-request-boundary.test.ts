@@ -6,6 +6,9 @@ describe('tool request boundary audit', () => {
     const violations = findToolRequestBoundaryViolations(`
       const direct = mistralParserTool.request.body(params)
       const computed = tool.request['headers'](params)
+      const typedRequest = (customTool as ToolConfig).request
+      const typed = typedRequest[\`method\`](params)
+      const optional = tool.request?.url
       const requestConfig = customTool.request
       const url = requestConfig.url
       const { body } = requestConfig
@@ -14,6 +17,8 @@ describe('tool request boundary audit', () => {
     expect(violations.map((violation) => violation.expression)).toEqual([
       'mistralParserTool.request.body',
       "tool.request['headers']",
+      'typedRequest[\`method\`]',
+      'tool.request?.url',
       'requestConfig.url',
       'body',
     ])

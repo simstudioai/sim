@@ -10,7 +10,7 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { dirname, extname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import * as ts from 'typescript'
+import { parse } from '@babel/parser'
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(SCRIPT_DIR, '..')
@@ -23,6 +23,13 @@ interface Violation {
   file: string
   line: number
   expression: string
+}
+
+interface SyntaxNode extends Record<string, unknown> {
+  type: string
+  start?: number | null
+  end?: number | null
+  loc?: { start: { line: number } } | null
 }
 
 function isProductionSource(path: string): boolean {
@@ -47,13 +54,38 @@ function collectProductionSources(dir: string, found: string[] = []): string[] {
   return found
 }
 
-function unwrapExpression(expression: ts.Expression): ts.Expression {
+function isSyntaxNode(value: unknown): value is SyntaxNode {
+  return (
+    typeof value === 'object' && value !== null && 'type' in value && typeof value.type === 'string'
+  )
+}
+
+function getChildNodes(node: SyntaxNode): SyntaxNode[] {
+  const children: SyntaxNode[] = []
+  for (const value of Object.values(node)) {
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        if (isSyntaxNode(item)) children.push(item)
+      }
+    } else if (isSyntaxNode(value)) {
+      children.push(value)
+    }
+  }
+  return children
+}
+
+function unwrapExpression(expression: SyntaxNode): SyntaxNode {
   let current = expression
   while (
-    ts.isParenthesizedExpression(current) ||
-    ts.isAsExpression(current) ||
-    ts.isTypeAssertionExpression(current) ||
-    ts.isNonNullExpression(current)
+    [
+      'ParenthesizedExpression',
+      'TSAsExpression',
+      'TSTypeAssertion',
+      'TSNonNullExpression',
+      'TSSatisfiesExpression',
+      'TypeCastExpression',
+    ].includes(current.type) &&
+    isSyntaxNode(current.expression)
   ) {
     current = current.expression
   }
@@ -61,99 +93,158 @@ function unwrapExpression(expression: ts.Expression): ts.Expression {
 }
 
 function getStaticMemberAccess(
-  expression: ts.Expression
-): { target: ts.Expression; member: string } | undefined {
+  expression: SyntaxNode
+): { target: SyntaxNode; member: string } | undefined {
   const current = unwrapExpression(expression)
-  if (ts.isPropertyAccessExpression(current)) {
-    return { target: current.expression, member: current.name.text }
-  }
   if (
-    ts.isElementAccessExpression(current) &&
-    current.argumentExpression &&
-    (ts.isStringLiteral(current.argumentExpression) ||
-      ts.isNoSubstitutionTemplateLiteral(current.argumentExpression))
+    (current.type === 'MemberExpression' || current.type === 'OptionalMemberExpression') &&
+    isSyntaxNode(current.object) &&
+    isSyntaxNode(current.property)
   ) {
-    return { target: current.expression, member: current.argumentExpression.text }
+    const property = current.property
+    if (
+      current.computed === false &&
+      property.type === 'Identifier' &&
+      typeof property.name === 'string'
+    ) {
+      return { target: current.object, member: property.name }
+    }
+    if (
+      current.computed === true &&
+      property.type === 'StringLiteral' &&
+      typeof property.value === 'string'
+    ) {
+      return { target: current.object, member: property.value }
+    }
+    if (
+      current.computed === true &&
+      property.type === 'TemplateLiteral' &&
+      Array.isArray(property.expressions) &&
+      property.expressions.length === 0 &&
+      Array.isArray(property.quasis) &&
+      property.quasis.length === 1 &&
+      isSyntaxNode(property.quasis[0])
+    ) {
+      const value = property.quasis[0].value
+      if (
+        typeof value === 'object' &&
+        value !== null &&
+        'cooked' in value &&
+        typeof value.cooked === 'string'
+      ) {
+        return { target: current.object, member: value.cooked }
+      }
+    }
   }
   return undefined
 }
 
-function isLikelyToolIdentifier(expression: ts.Expression): boolean {
+function isLikelyToolIdentifier(expression: SyntaxNode): boolean {
   const current = unwrapExpression(expression)
-  return ts.isIdentifier(current) && (current.text === 'tool' || current.text.endsWith('Tool'))
+  return (
+    current.type === 'Identifier' &&
+    typeof current.name === 'string' &&
+    (current.name === 'tool' || current.name.endsWith('Tool'))
+  )
 }
 
 export function findToolRequestBoundaryViolations(source: string, file = 'source.ts'): Violation[] {
   const extension = extname(file)
-  const scriptKind =
-    extension === '.tsx'
-      ? ts.ScriptKind.TSX
-      : extension === '.jsx'
-        ? ts.ScriptKind.JSX
-        : ['.js', '.mjs', '.cjs'].includes(extension)
-          ? ts.ScriptKind.JS
-          : ts.ScriptKind.TS
-  const sourceFile = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, scriptKind)
+  const syntaxTree = parse(source, {
+    sourceFilename: file,
+    sourceType: 'unambiguous',
+    errorRecovery: true,
+    plugins: [
+      ...(extension === '.jsx' || extension === '.tsx' ? (['jsx'] as const) : []),
+      ...(!['.js', '.jsx', '.mjs', '.cjs'].includes(extension) ? (['typescript'] as const) : []),
+    ],
+  })
   const requestAliases = new Set<string>()
   const violations: Violation[] = []
   const seen = new Set<number>()
 
-  const report = (node: ts.Node) => {
-    if (seen.has(node.getStart(sourceFile))) return
-    seen.add(node.getStart(sourceFile))
-    const { line } = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile))
+  const report = (node: SyntaxNode) => {
+    if (typeof node.start !== 'number' || typeof node.end !== 'number' || !node.loc) return
+    if (seen.has(node.start)) return
+    seen.add(node.start)
     violations.push({
       file,
-      line: line + 1,
-      expression: node.getText(sourceFile),
+      line: node.loc.start.line,
+      expression: source.slice(node.start, node.end),
     })
   }
 
-  const collectAliases = (node: ts.Node) => {
-    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) {
-      const access = getStaticMemberAccess(node.initializer)
+  const collectAliases = (node: SyntaxNode) => {
+    if (
+      node.type === 'VariableDeclarator' &&
+      isSyntaxNode(node.id) &&
+      node.id.type === 'Identifier' &&
+      typeof node.id.name === 'string' &&
+      isSyntaxNode(node.init)
+    ) {
+      const access = getStaticMemberAccess(node.init)
       if (access?.member === 'request' && isLikelyToolIdentifier(access.target)) {
-        requestAliases.add(node.name.text)
+        requestAliases.add(node.id.name)
       }
     }
-    ts.forEachChild(node, collectAliases)
+    for (const child of getChildNodes(node)) collectAliases(child)
   }
-  collectAliases(sourceFile)
+  collectAliases(syntaxTree.program)
 
-  const visit = (node: ts.Node) => {
+  const visit = (node: SyntaxNode) => {
     if (
-      ts.isVariableDeclaration(node) &&
-      ts.isObjectBindingPattern(node.name) &&
-      node.initializer
+      node.type === 'VariableDeclarator' &&
+      isSyntaxNode(node.id) &&
+      node.id.type === 'ObjectPattern' &&
+      isSyntaxNode(node.init)
     ) {
-      const sourceAccess = getStaticMemberAccess(node.initializer)
+      const sourceAccess = getStaticMemberAccess(node.init)
       const sourceIsToolRequest =
         sourceAccess?.member === 'request' && isLikelyToolIdentifier(sourceAccess.target)
-      const source = unwrapExpression(node.initializer)
-      const sourceIsToolRequestAlias = ts.isIdentifier(source) && requestAliases.has(source.text)
+      const initializer = unwrapExpression(node.init)
+      const sourceIsToolRequestAlias =
+        initializer.type === 'Identifier' &&
+        typeof initializer.name === 'string' &&
+        requestAliases.has(initializer.name)
       if (sourceIsToolRequest || sourceIsToolRequestAlias) {
-        for (const element of node.name.elements) {
-          const property = element.propertyName ?? element.name
-          if (ts.isIdentifier(property) && REQUEST_MEMBERS.has(property.text)) report(element)
+        const properties = Array.isArray(node.id.properties) ? node.id.properties : []
+        for (const property of properties) {
+          if (
+            !isSyntaxNode(property) ||
+            property.type !== 'ObjectProperty' ||
+            !isSyntaxNode(property.key)
+          ) {
+            continue
+          }
+          const key = property.key
+          const member =
+            key.type === 'Identifier' && typeof key.name === 'string'
+              ? key.name
+              : key.type === 'StringLiteral' && typeof key.value === 'string'
+                ? key.value
+                : undefined
+          if (member && REQUEST_MEMBERS.has(member)) report(property)
         }
       }
     }
-    if (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) {
+    if (node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression') {
       const access = getStaticMemberAccess(node)
       if (access && REQUEST_MEMBERS.has(access.member)) {
         const target = unwrapExpression(access.target)
         const targetAccess = getStaticMemberAccess(target)
         if (
           targetAccess?.member === 'request' ||
-          (ts.isIdentifier(target) && requestAliases.has(target.text))
+          (target.type === 'Identifier' &&
+            typeof target.name === 'string' &&
+            requestAliases.has(target.name))
         ) {
           report(node)
         }
       }
     }
-    ts.forEachChild(node, visit)
+    for (const child of getChildNodes(node)) visit(child)
   }
-  visit(sourceFile)
+  visit(syntaxTree.program)
 
   return violations
 }
