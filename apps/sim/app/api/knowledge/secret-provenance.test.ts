@@ -38,6 +38,25 @@ function createHeaderlessRequest(payload: Record<string, unknown>): NextRequest 
   })
 }
 
+function privateChunkPayload(
+  scope: { userId: string; workspaceId?: string },
+  entries: Array<{ name: string; encryptedValue: string }> = []
+) {
+  return {
+    content: 'workflow content',
+    [PRIVATE_SECRET_PROVENANCE_FIELD]: {
+      version: 1 as const,
+      complete: true,
+      selections: [
+        {
+          key: 'chunk-content',
+          provenance: { version: 1 as const, complete: true, entries, scope },
+        },
+      ],
+    },
+  }
+}
+
 describe('knowledge write secret provenance', () => {
   it('classifies a headerless external chunk write as exact-empty', () => {
     const payload = { content: 'manual content' }
@@ -99,22 +118,7 @@ describe('knowledge write secret provenance', () => {
   })
 
   it('tracks exact-empty provenance only when an internal write supplies a verified envelope', () => {
-    const bundle = {
-      version: 1 as const,
-      complete: true,
-      selections: [
-        {
-          key: 'chunk-content',
-          provenance: {
-            version: 1 as const,
-            complete: true,
-            entries: [],
-            scope: PRIVATE_PROVENANCE_SCOPE,
-          },
-        },
-      ],
-    }
-    const payload = { content: 'workflow content', [PRIVATE_SECRET_PROVENANCE_FIELD]: bundle }
+    const payload = privateChunkPayload(PRIVATE_PROVENANCE_SCOPE)
 
     const result = resolveKnowledgeWriteSecretProvenance({
       request: createRequest(payload),
@@ -129,6 +133,70 @@ describe('knowledge write secret provenance', () => {
       success: true,
       provenances: [{ status: 'exact', entries: [] }],
     })
+  })
+
+  it('accepts a different provenance source user in the destination workspace', () => {
+    const payload = privateChunkPayload({ userId: 'workflow-owner', workspaceId: 'workspace-1' }, [
+      { name: 'TOKEN', encryptedValue: 'encrypted-token' },
+    ])
+
+    expect(
+      resolveKnowledgeWriteSecretProvenance({
+        request: createRequest(payload),
+        payload,
+        authType: AuthType.INTERNAL_JWT,
+        userId: 'billing-actor',
+        workspaceId: 'workspace-1',
+        selectionKeys: ['chunk-content'],
+      })
+    ).toEqual({
+      success: true,
+      provenances: [
+        {
+          status: 'exact',
+          entries: [
+            {
+              name: 'TOKEN',
+              encryptedValue: 'encrypted-token',
+              sourceUserId: 'workflow-owner',
+              sourceWorkspaceId: 'workspace-1',
+            },
+          ],
+        },
+      ],
+    })
+  })
+
+  it('rejects provenance from another workspace', () => {
+    const payload = privateChunkPayload({
+      userId: 'workflow-owner',
+      workspaceId: 'workspace-2',
+    })
+    const result = resolveKnowledgeWriteSecretProvenance({
+      request: createRequest(payload),
+      payload,
+      authType: AuthType.INTERNAL_JWT,
+      userId: 'billing-actor',
+      workspaceId: 'workspace-1',
+      selectionKeys: ['chunk-content'],
+    })
+
+    expect(result.success).toBe(false)
+    if (!result.success) expect(result.response.status).toBe(400)
+  })
+
+  it('keeps workspace-less knowledge writes isolated to the authenticated user', () => {
+    const payload = privateChunkPayload({ userId: 'workflow-owner' })
+    const result = resolveKnowledgeWriteSecretProvenance({
+      request: createRequest(payload),
+      payload,
+      authType: AuthType.INTERNAL_JWT,
+      userId: 'billing-actor',
+      selectionKeys: ['chunk-content'],
+    })
+
+    expect(result.success).toBe(false)
+    if (!result.success) expect(result.response.status).toBe(400)
   })
 
   it('rejects a private provenance envelope from an external caller', () => {

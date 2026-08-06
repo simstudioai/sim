@@ -188,7 +188,7 @@ describe('resolveTableWriteSecretProvenance', () => {
     expect(result.success).toBe(false)
   })
 
-  it('rejects a bundle whose selection scope does not match the caller', () => {
+  it('accepts a different source user in the authorized destination workspace', () => {
     const rows = [{ email: 'a@b.c' }]
     const payload = {
       [PRIVATE_SECRET_PROVENANCE_FIELD]: {
@@ -200,6 +200,43 @@ describe('resolveTableWriteSecretProvenance', () => {
             provenance: {
               ...traceProvenance(),
               scope: { userId: 'someone-else', workspaceId: WORKSPACE_ID },
+            },
+          },
+        ],
+      },
+    }
+
+    const result = resolveTableWriteSecretProvenance({
+      request: createMockRequest('POST', payload, {
+        [PRIVATE_SECRET_PROVENANCE_HEADER]: PRIVATE_SECRET_PROVENANCE_BUNDLE_V1,
+      }),
+      payload,
+      authType: AuthType.INTERNAL_JWT,
+      userId: USER_ID,
+      workspaceId: WORKSPACE_ID,
+      targets: createTableWriteProvenanceTargets(rows, translateNames),
+      rowKeys: ['0'],
+    })
+
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    expect(result.provenanceByRowKey?.['0'].columns.col_email).toMatchObject({
+      scope: { userId: 'someone-else', workspaceId: WORKSPACE_ID },
+    })
+  })
+
+  it('rejects a bundle whose selection comes from another workspace', () => {
+    const rows = [{ email: 'a@b.c' }]
+    const payload = {
+      [PRIVATE_SECRET_PROVENANCE_FIELD]: {
+        version: 1,
+        complete: true,
+        selections: [
+          {
+            key: tableRowSecretProvenanceSelectionKey(0, 'email'),
+            provenance: {
+              ...traceProvenance(),
+              scope: { userId: USER_ID, workspaceId: 'another-workspace' },
             },
           },
         ],

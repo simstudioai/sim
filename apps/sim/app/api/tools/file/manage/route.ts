@@ -337,13 +337,13 @@ function resolveFileMutationSecretProvenance(options: {
     return { success: false, error: 'Invalid file secret provenance' }
   }
 
-  const expectedScope = { userId: options.userId, workspaceId: options.workspaceId }
+  const destinationScope = { userId: options.userId, workspaceId: options.workspaceId }
   const provenanceBySelection = new Map<string, WorkspaceFileSecretProvenance>()
   for (const selectionKey of options.selectionKeys) {
     const provenance = durableSecretProvenanceFromPrivateBundle(
       inspection.value,
       selectionKey,
-      expectedScope
+      destinationScope
     )
     if (
       !provenance ||
