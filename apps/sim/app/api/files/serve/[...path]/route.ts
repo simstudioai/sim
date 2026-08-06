@@ -13,6 +13,7 @@ import { CopilotFiles, isUsingCloudStorage } from '@/lib/uploads'
 import type { StorageContext } from '@/lib/uploads/config'
 import { parseWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
+import { resolveServableImageBytes } from '@/lib/uploads/server/image-derivative'
 import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
 import { verifyFileAccess } from '@/app/api/files/authorization'
 import {
@@ -30,15 +31,23 @@ const logger = createLogger('FilesServeAPI')
  * {@link resolveServableDocBytes} (generated docs → compiled artifact). `raw=1`
  * bypasses resolution and serves the stored source as-is.
  */
-async function compileDocumentIfNeeded(
+async function resolveServableBytes(
   buffer: Buffer,
   filename: string,
+  storageKey: string,
   workspaceId: string | undefined,
   raw: boolean,
   ownerKey: string | undefined,
   signal: AbortSignal | undefined
 ): Promise<{ buffer: Buffer; contentType: string }> {
   if (raw) return { buffer, contentType: getContentType(filename) }
+
+  // Images resolve first and independently of the document path: a HEIF has no
+  // compiled-source concept, and its derivative is keyed by storage key rather
+  // than by source hash.
+  const image = await resolveServableImageBytes(buffer, storageKey)
+  if (image) return image
+
   return resolveServableDocBytes({
     rawBuffer: buffer,
     fileName: filename,
@@ -198,9 +207,10 @@ async function handleLocalFile(
     const segment = filename.split('/').pop() || filename
     const displayName = stripStorageKeyPrefix(segment)
     const workspaceId = getWorkspaceIdForCompile(filename)
-    const { buffer: fileBuffer, contentType } = await compileDocumentIfNeeded(
+    const { buffer: fileBuffer, contentType } = await resolveServableBytes(
       rawBuffer,
       displayName,
+      filename,
       workspaceId,
       raw,
       ownerKey,
@@ -260,9 +270,10 @@ async function handleCloudProxy(
     const segment = cloudKey.split('/').pop() || 'download'
     const displayName = stripStorageKeyPrefix(segment)
     const workspaceId = getWorkspaceIdForCompile(cloudKey)
-    const { buffer: fileBuffer, contentType } = await compileDocumentIfNeeded(
+    const { buffer: fileBuffer, contentType } = await resolveServableBytes(
       rawBuffer,
       displayName,
+      cloudKey,
       workspaceId,
       raw,
       ownerKey,
