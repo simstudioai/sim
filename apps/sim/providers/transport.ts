@@ -1,21 +1,27 @@
 /**
  * Transport policy for provider requests, in one place.
  *
- * The values here mostly *pin* what the vendor SDKs already default to, so an SDK
- * bump cannot silently move production behaviour. Two are deliberate divergences,
- * marked below.
+ * These pin what the vendor SDKs already default to, so an SDK bump cannot silently
+ * move production behaviour. For 16 of 18 providers this is a no-op. Groq and Cerebras
+ * are the exception and are marked at {@link PROVIDER_HEADERS_TIMEOUT_MS}.
  *
- * What these deliberately do NOT do: bound a stalled stream. Under Bun a `fetch`
- * carries a socket-scoped idle wall (~300s, reduced by however long a pooled socket
- * sat idle before reuse) that no SDK, undici `Agent`, or `RequestInit` option can
- * reach. Raising a timeout number therefore cannot rescue a long silent generation —
- * only keeping bytes on the socket can. That work belongs in the stream pump.
+ * What these deliberately do NOT do: bound a stalled stream. Bun's `fetch` is native
+ * and appears to impose a socket-scoped idle wall of roughly 300s, reduced by however
+ * long a pooled socket sat idle before reuse. That figure is observed, not documented,
+ * and is not something these constants can override — raising a number above it changes
+ * nothing. Only keeping bytes on the socket can rescue a long silent generation, and
+ * that work belongs in the stream pump.
  */
 
 /**
  * Time-to-headers budget for a single attempt, matching `openai@7`'s own
- * `DEFAULT_TIMEOUT` so this is behaviour-preserving for every provider already on
- * that client.
+ * `DEFAULT_TIMEOUT`.
+ *
+ * Behaviour-preserving for the 16 providers already on that client. It is a deliberate
+ * divergence for **Groq and Cerebras**, whose SDKs default to 60s: on a non-streaming
+ * call headers do not arrive until the generation completes, so 60s caps every
+ * generation at a minute and then retries it twice, re-billing. The cost of the raise is
+ * that a genuinely hung call now fails slower — see the PR for the worst-case numbers.
  *
  * It must stay generous: `deepseek-reasoner`, `kimi-k3`, `grok-4.5-reasoning` and
  * every dynamic-catalog provider can legitimately generate for minutes with zero
@@ -33,9 +39,6 @@ export const PROVIDER_HEADERS_TIMEOUT_MS = 600_000
  * replay re-bills completed work, multiplied by every turn of the tool loop.
  */
 export const PROVIDER_MAX_RETRIES = 2
-
-/** Liveness probe for model catalogs, never a generation. Failure degrades gracefully. */
-export const PROVIDER_DISCOVERY_TIMEOUT_MS = 15_000
 
 export interface OpenAICompatTransport {
   timeout: number
