@@ -49,6 +49,9 @@ export function buildWorkflowCorrelation(
     requestId,
     source: 'workflow',
     workflowId: payload.workflowId,
+    ...(payload.correlation?.copilotToolCallId
+      ? { copilotToolCallId: payload.correlation.copilotToolCallId }
+      : {}),
     triggerType: payload.triggerType || payload.correlation?.triggerType || 'api',
   }
 }
@@ -60,6 +63,7 @@ export type WorkflowExecutionPayload = {
   workspaceId: string
   input?: any
   triggerType?: CoreTriggerType
+  triggerBlockId?: string
   executionId?: string
   requestId?: string
   correlation?: AsyncExecutionCorrelation
@@ -134,6 +138,9 @@ export async function executeWorkflowJob(
 
       const triggerType = (correlation.triggerType || 'api') as CoreTriggerType
       const loggingSession = new LoggingSession(workflowId, executionId, triggerType, requestId)
+      if (correlation.copilotToolCallId) {
+        loggingSession.setTrustedExecutionCorrelation(correlation)
+      }
       loggingSession.setExecutionDeadlineAt(getExecutionDeadlineAt(timeoutController.signal))
 
       try {
@@ -182,6 +189,7 @@ export async function executeWorkflowJob(
           sessionUserId: undefined,
           workflowUserId: workflow.userId,
           triggerType: payload.triggerType || 'api',
+          triggerBlockId: payload.triggerBlockId,
           useDraftState: false,
           startTime: new Date().toISOString(),
           isClientSession: false,

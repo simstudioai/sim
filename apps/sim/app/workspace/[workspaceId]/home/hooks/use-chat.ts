@@ -64,8 +64,9 @@ import type { StreamBatchEvent } from '@/lib/copilot/request/session/types'
 import { canDisplayResource } from '@/lib/copilot/resources/availability'
 import {
   BROWSER_SESSION_RESOURCE_ID,
-  canonicalizeDesktopSessionResources,
+  isAddressableResource,
   isEphemeralResource,
+  sanitizeChatResources,
   TERMINAL_SESSION_RESOURCE_ID,
 } from '@/lib/copilot/resources/types'
 import { executeBrowserToolOnClient } from '@/lib/copilot/tools/client/browser-tool-execution'
@@ -1655,6 +1656,11 @@ export function useChat(
     return source.map((m) => restoreRevealedSimKeysForMessage(m, revealedSimKeysRef.current))
   }, [chatHistory, pendingMessages])
   const addResource = useCallback((resource: MothershipResource): boolean => {
+    // The single fan-in for tab creation, so the invariant lives here.
+    if (!isAddressableResource(resource)) {
+      logger.warn('Ignored a resource with no id', { type: resource.type, title: resource.title })
+      return false
+    }
     if (resourcesRef.current.some((r) => r.type === resource.type && r.id === resource.id)) {
       return false
     }
@@ -1674,6 +1680,15 @@ export function useChat(
 
     const persistChatId = chatIdRef.current ?? selectedChatIdRef.current
     const key = `${resource.type}:${resource.id}`
+    // `resourcesRef` is written during render, so adds of the same resource in
+    // one tick all read the pre-render list and all pass the check above. State
+    // converges (the updater is idempotent) but each fired its own POST — 5-6
+    // per resource in production.
+    const alreadyPersisting =
+      inFlightResourceAddsRef.current.has(key) || pendingPersistResourceKeysRef.current.has(key)
+    if (alreadyPersisting) {
+      return true
+    }
     if (persistChatId) {
       const promise = requestJson(addMothershipChatResourceContract, {
         body: { chatId: persistChatId, resource },
@@ -1714,6 +1729,10 @@ export function useChat(
       })
     }
     if (inFlightAdd) {
+      // Drop the entry now, not when the add settles: an add being deleted must
+      // not suppress a fresh add of the same resource. The chained delete keeps
+      // its own reference to the promise.
+      inFlightResourceAddsRef.current.delete(key)
       inFlightAdd.finally(fireDelete)
     } else {
       fireDelete()
@@ -2150,7 +2169,7 @@ export function useChat(
     // Older clients persisted each live browser page as a top-level resource
     // during new-chat creation. Collapse those legacy rows into the one
     // restorable Browser panel so page titles never appear beside Browser.
-    const persistedResources = canonicalizeDesktopSessionResources(
+    const persistedResources = sanitizeChatResources(
       chatHistory.resources.filter((r) => r.id !== 'streaming-file')
     )
     // A stored panel this client cannot open is kept out of the tab strip

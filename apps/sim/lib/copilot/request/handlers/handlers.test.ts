@@ -601,6 +601,48 @@ describe('sse-handlers tool lifecycle', () => {
     )
   })
 
+  it('settles an explicitly async workflow launch as successful', async () => {
+    waitForWorkflowToolCompletion.mockResolvedValueOnce({
+      status: 'background',
+      data: { workflowId: 'workflow-1', executionId: 'execution-1' },
+    })
+    const onEvent = vi.fn()
+
+    await sseHandlers.tool(
+      {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: 'tool-async-workflow',
+          toolName: 'run_workflow',
+          arguments: { workflowId: 'workflow-1', async: true },
+          executor: MothershipStreamV1ToolExecutor.client,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.call,
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { onEvent, interactive: true, timeout: 1000 }
+    )
+
+    await Promise.allSettled(context.pendingToolPromises.values())
+
+    expect(context.toolCalls.get('tool-async-workflow')?.status).toBe(
+      MothershipStreamV1ToolOutcome.success
+    )
+    expect(onEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: MothershipStreamV1EventType.tool,
+        payload: expect.objectContaining({
+          toolCallId: 'tool-async-workflow',
+          phase: MothershipStreamV1ToolPhase.result,
+          status: MothershipStreamV1ToolOutcome.success,
+          success: true,
+        }),
+      })
+    )
+  })
+
   it('waits for the desktop client when a static VFS read is explicitly user-local', async () => {
     waitForClientToolCompletion.mockResolvedValueOnce({
       status: 'success',
