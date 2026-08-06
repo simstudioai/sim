@@ -13,6 +13,7 @@ import {
   isNetworkError,
   processSingleFileToUserFile,
   resolveEffectiveMimeType,
+  resolveFileType,
   resolveMediaMimeType,
   resolveTrustedFileContext,
 } from '@/lib/uploads/utils/file-utils'
@@ -233,6 +234,16 @@ describe('resolveEffectiveMimeType', () => {
 
   it('leaves the upload-time extension table alone for dual containers', () => {
     expect(getMimeTypeFromExtension('webm')).toBe('audio/webm')
+  })
+
+  it('never lets the video default reach the type that gets persisted', () => {
+    // resolveFileType writes user_file.content_type, which the speech-to-text route reads
+    // back as file.type — a video/* value there sends the upload into ffmpeg extraction.
+    expect(resolveFileType({ type: '', name: 'clip.webm' })).toBe('audio/webm')
+    expect(resolveFileType({ type: 'application/octet-stream', name: 'clip.webm' })).toBe(
+      'audio/webm'
+    )
+    expect(resolveFileType({ type: 'audio/webm', name: 'clip.webm' })).toBe('audio/webm')
   })
 
   it('stays generic when the extension identifies nothing either', () => {

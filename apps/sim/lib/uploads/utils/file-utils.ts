@@ -398,6 +398,11 @@ const DUAL_CONTAINER_MIME: Record<string, string> = { webm: 'video/webm' }
 /** Every MIME type that identifies no format, including the legacy `binary/` spelling. */
 const GENERIC_MIME_TYPES = new Set([GENERIC_MIME_TYPE, 'binary/octet-stream'])
 
+/** Whether a declared MIME type names an actual format, rather than "some bytes". */
+function identifiesFormat(declared: string | undefined): declared is string {
+  return declared !== undefined && declared !== '' && !GENERIC_MIME_TYPES.has(declared)
+}
+
 /**
  * Get MIME type from file extension (fallback if not provided)
  */
@@ -421,7 +426,7 @@ export function resolveEffectiveMimeType(
   filename: string
 ): string {
   const declared = declaredType?.trim()
-  if (declared && !GENERIC_MIME_TYPES.has(declared)) return declared
+  if (identifiesFormat(declared)) return declared
 
   const extension = getFileExtension(filename)
   return DUAL_CONTAINER_MIME[extension] ?? getMimeTypeFromExtension(extension)
@@ -459,6 +464,14 @@ export function resolveMediaMimeType(
  * when the browser reports an empty or generic type. Pass
  * `{ preserveOctetStream: true }` for direct PUT uploads where the
  * browser-supplied content-type must match the presigned handshake exactly.
+ *
+ * This is the type that gets *persisted*, so it resolves through
+ * {@link EXTENSION_TO_MIME} alone and deliberately skips {@link DUAL_CONTAINER_MIME}.
+ * Storing `video/webm` here would put a `video/*` type on the record that the
+ * speech-to-text route reads as `file.type`, sending the upload down the ffmpeg
+ * extraction path — the same failure keeping the dual-container default out of the
+ * extension table avoids. Presentation resolves separately, in
+ * {@link resolveEffectiveMimeType}.
  */
 export function resolveFileType(
   file: { type: string; name: string },
@@ -466,7 +479,8 @@ export function resolveFileType(
 ): string {
   const browserType = file.type?.trim()
   if (browserType && options?.preserveOctetStream) return browserType
-  return resolveEffectiveMimeType(browserType, file.name)
+  if (identifiesFormat(browserType)) return browserType
+  return getMimeTypeFromExtension(getFileExtension(file.name))
 }
 
 /**
