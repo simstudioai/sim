@@ -387,7 +387,14 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
         callbackUrl = config.callbackUrl || ''
         audience = config.audience || ''
         wantAssertionsSigned = config.wantAssertionsSigned ?? true
-        idpMetadata = config.idpMetadata?.metadata || config.idpMetadata || ''
+        // Two stored shapes: `{ metadata }` from the route, and a bare string from
+        // older rows. Narrow on the type rather than truthiness — `{ metadata: '' }`
+        // is falsy at `.metadata` but truthy as an object, which would put an object
+        // into this string field and fail validation on the next save.
+        idpMetadata =
+          typeof config.idpMetadata === 'string'
+            ? config.idpMetadata
+            : (config.idpMetadata?.metadata ?? '')
         mapping = config.mapping ?? {}
         identifierFormat = config.identifierFormat || ''
       }

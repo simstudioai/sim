@@ -2,7 +2,7 @@ import { db, member, ssoDomain, ssoProvider } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { normalizeSSODomain } from '@sim/utils/sso-domain'
-import { and, eq, exists, isNull, sql } from 'drizzle-orm'
+import { and, eq, isNull, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { ssoRegistrationContract } from '@/lib/api/contracts/auth'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
@@ -647,11 +647,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     /**
-     * Grants domain trust with the ownership test folded into the UPDATE's WHERE
-     * clause, so the write matches nothing once the proof is gone and reports that
-     * as `false`. Paired with the domain-delete route clearing this flag in the
-     * same transaction that removes the proof, the provider cannot end up trusted
-     * without current ownership in either commit order.
+     * Grants domain trust only while the proof is held under a row lock.
+     *
+     * Folding the ownership test into the UPDATE's WHERE clause is not sufficient:
+     * under READ COMMITTED the EXISTS subquery is evaluated against the statement's
+     * original snapshot, so a delete committing while the UPDATE waits on the
+     * provider row can still leave the subquery seeing the removed sso_domain row —
+     * granting trust after ownership is gone. Taking `FOR SHARE` on that row inside
+     * a transaction makes the two operations order properly: the delete's removal of
+     * sso_domain blocks until this commits, and if it committed first the SELECT
+     * finds nothing and no trust is written.
      *
      * Org-less (personal) SSO is a self-host-only path — Sim's UI always registers
      * org-scoped. It has no verified domain behind it, so it is trusted only when
@@ -663,28 +668,24 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         await setProviderDomainVerified(!isHosted)
         return true
       }
-      const granted = await db
-        .update(ssoProvider)
-        .set({ domainVerified: true })
-        .where(
-          and(
-            ownerClause,
-            exists(
-              db
-                .select({ one: sql`1` })
-                .from(ssoDomain)
-                .where(
-                  and(
-                    eq(ssoDomain.organizationId, orgId),
-                    eq(ssoDomain.domain, domain),
-                    eq(ssoDomain.status, 'verified')
-                  )
-                )
+      return db.transaction(async (tx) => {
+        const [proof] = await tx
+          .select({ id: ssoDomain.id })
+          .from(ssoDomain)
+          .where(
+            and(
+              eq(ssoDomain.organizationId, orgId),
+              eq(ssoDomain.domain, domain),
+              eq(ssoDomain.status, 'verified')
             )
           )
-        )
-        .returning({ id: ssoProvider.id })
-      return granted.length > 0
+          .limit(1)
+          .for('share')
+        if (!proof) return false
+
+        await tx.update(ssoProvider).set({ domainVerified: true }).where(ownerClause)
+        return true
+      })
     }
 
     if (existingOwnedProvider) {

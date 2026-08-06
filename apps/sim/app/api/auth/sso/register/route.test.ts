@@ -115,16 +115,14 @@ describe('POST /api/auth/sso/register', () => {
     mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '1.2.3.4' })
     mockSecureFetchWithPinnedIP.mockRejectedValue(new Error('discovery not mocked for this test'))
     mockRegisterSSOProvider.mockResolvedValue({ id: 'row-1', providerId: 'acme-oidc' })
-    // The conditional trust UPDATE returns its row by default, i.e. the verified
-    // domain still existed at write time. Refusal tests override with [].
-    dbChainMockFns.returning.mockResolvedValue([{ id: 'granted' }])
     mockUpdateSSOProvider.mockResolvedValue({ providerId: 'acme-oidc' })
     // Default: the org has already verified the domain, so the ownership gate
-    // passes and each test exercises the logic beyond it. The gate is read twice
-    // for a successful org-scoped registration (fail-fast entry + authoritative
-    // re-check before the write); ownership at write time is re-tested inside the
-    // trust UPDATE itself, not by a third read. Gate-specific tests reset the
-    // queue to assert the unverified paths.
+    // passes and each test exercises the logic beyond it. A successful org-scoped
+    // registration reads it three times: the fail-fast entry gate, the
+    // authoritative re-check before the write, and the locking read inside the
+    // trust transaction. Gate-specific tests reset the queue to assert the
+    // unverified paths.
+    queueTableRows(schemaMock.ssoDomain, [{ id: 'verified-domain' }])
     queueTableRows(schemaMock.ssoDomain, [{ id: 'verified-domain' }])
     queueTableRows(schemaMock.ssoDomain, [{ id: 'verified-domain' }])
   })
@@ -184,7 +182,7 @@ describe('POST /api/auth/sso/register', () => {
     queueMembers([{ organizationId: 'org1', role: 'owner' }])
     queueTableRows(schemaMock.ssoDomain, [{ id: 'v' }]) // entry gate: verified
     queueTableRows(schemaMock.ssoDomain, [{ id: 'v' }]) // pre-write re-check: verified
-    dbChainMockFns.returning.mockResolvedValue([]) // trust UPDATE matched nothing: revoked
+    queueTableRows(schemaMock.ssoDomain, []) // locking read in the grant: proof gone
     const res = await POST(request({ ...OIDC_BODY, orgId: 'org1' }))
     const json = await res.json()
     expect(res.status).toBe(403)
@@ -285,9 +283,13 @@ describe('POST /api/auth/sso/register', () => {
    */
   it('revokes domain trust when verification is removed during an update', async () => {
     queueMembers([{ organizationId: 'org1', role: 'owner' }])
+    resetDbChainMock()
+    queueMembers([{ organizationId: 'org1', role: 'owner' }])
+    queueTableRows(schemaMock.ssoDomain, [{ id: 'v' }]) // entry gate
+    queueTableRows(schemaMock.ssoDomain, [{ id: 'v' }]) // pre-write re-check
+    queueTableRows(schemaMock.ssoDomain, []) // locking read in the grant: proof gone
     queueProviders([])
     queueTableRows(schemaMock.ssoProvider, [{ id: 'p1' }]) // provider already owned → update path
-    dbChainMockFns.returning.mockResolvedValue([]) // trust UPDATE matched nothing
 
     const res = await POST(request({ ...OIDC_BODY, orgId: 'org1' }))
     expect(res.status).toBe(403)
@@ -304,7 +306,7 @@ describe('POST /api/auth/sso/register', () => {
     queueMembers([{ organizationId: 'org1', role: 'owner' }])
     queueTableRows(schemaMock.ssoDomain, [{ id: 'verified-domain' }])
     queueTableRows(schemaMock.ssoDomain, [{ id: 'verified-domain' }])
-    dbChainMockFns.returning.mockResolvedValue([]) // trust UPDATE matched nothing
+    queueTableRows(schemaMock.ssoDomain, []) // locking read in the grant: proof gone
     const res = await POST(request({ ...OIDC_BODY, orgId: 'org1' }))
     expect(res.status).toBe(403)
     expect(mockRegisterSSOProvider).toHaveBeenCalledTimes(1) // it was created…
