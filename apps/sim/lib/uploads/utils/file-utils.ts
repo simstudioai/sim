@@ -382,6 +382,19 @@ const EXTENSION_TO_MIME: Record<string, string> = {
 
 const GENERIC_MIME_TYPE = 'application/octet-stream'
 
+/**
+ * Containers that hold either audio or video, mapped to the kind this app presents them as.
+ * A filename cannot say which a `.webm` is, and the viewer already routes it to the video
+ * player, so everything user-facing has to agree — otherwise one file reads "Audio" in the
+ * Type column and opens in a `<video>`.
+ *
+ * Deliberately not folded into {@link EXTENSION_TO_MIME}: the speech-to-text and ElevenLabs
+ * routes read that table directly to label an upload, and a `video/*` label there sends a
+ * `.webm` down an ffmpeg extraction path it does not need. Callers that know which element
+ * they are rendering retag from here — see {@link resolveMediaMimeType}.
+ */
+const DUAL_CONTAINER_MIME: Record<string, string> = { webm: 'video/webm' }
+
 /** Every MIME type that identifies no format, including the legacy `binary/` spelling. */
 const GENERIC_MIME_TYPES = new Set([GENERIC_MIME_TYPE, 'binary/octet-stream'])
 
@@ -409,7 +422,9 @@ export function resolveEffectiveMimeType(
 ): string {
   const declared = declaredType?.trim()
   if (declared && !GENERIC_MIME_TYPES.has(declared)) return declared
-  return getMimeTypeFromExtension(getFileExtension(filename))
+
+  const extension = getFileExtension(filename)
+  return DUAL_CONTAINER_MIME[extension] ?? getMimeTypeFromExtension(extension)
 }
 
 const MEDIA_FALLBACK_MIME = { audio: 'audio/mpeg', video: 'video/mp4' } as const

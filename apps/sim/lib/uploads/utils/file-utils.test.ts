@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import { describe, expect, it } from 'vitest'
 import {
   extractStorageKey,
+  getMimeTypeFromExtension,
   inferContextFromKey,
   isAbortError,
   isInternalFileUrl,
@@ -219,6 +220,19 @@ describe('resolveEffectiveMimeType', () => {
     expect(resolveEffectiveMimeType('  ', 'clip.mp4')).toBe('video/mp4')
     expect(resolveEffectiveMimeType(null, 'clip.mp4')).toBe('video/mp4')
     expect(resolveEffectiveMimeType(undefined, 'clip.mp4')).toBe('video/mp4')
+  })
+
+  it('resolves a dual audio/video container to video, matching how the app presents it', () => {
+    expect(resolveEffectiveMimeType('application/octet-stream', 'clip.webm')).toBe('video/webm')
+    expect(resolveEffectiveMimeType(null, 'clip.webm')).toBe('video/webm')
+  })
+
+  it('still keeps an explicit audio/webm declared by the browser', () => {
+    expect(resolveEffectiveMimeType('audio/webm', 'recording.webm')).toBe('audio/webm')
+  })
+
+  it('leaves the upload-time extension table alone for dual containers', () => {
+    expect(getMimeTypeFromExtension('webm')).toBe('audio/webm')
   })
 
   it('stays generic when the extension identifies nothing either', () => {
