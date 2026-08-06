@@ -312,6 +312,7 @@ const EXTENSION_TO_MIME: Record<string, string> = {
   xls: 'application/vnd.ms-excel',
   ppt: 'application/vnd.ms-powerpoint',
   md: 'text/markdown',
+  jsonl: 'application/jsonl',
   yaml: 'application/x-yaml',
   yml: 'application/x-yaml',
   rtf: 'application/rtf',
@@ -362,12 +363,15 @@ const EXTENSION_TO_MIME: Record<string, string> = {
   graphql: 'text/x-graphql',
   gql: 'text/x-graphql',
   proto: 'text/x-protobuf',
+  mmd: 'text/x-mermaid',
+  diff: 'text/x-diff',
+  patch: 'text/x-diff',
+  fish: 'text/x-shellscript',
 
   // Audio
   mp3: 'audio/mpeg',
   m4a: 'audio/mp4',
   wav: 'audio/wav',
-  webm: 'audio/webm',
   ogg: 'audio/ogg',
   flac: 'audio/flac',
   aac: 'audio/aac',
@@ -378,7 +382,19 @@ const EXTENSION_TO_MIME: Record<string, string> = {
   mov: 'video/quicktime',
   avi: 'video/x-msvideo',
   mkv: 'video/x-matroska',
+  // `.webm` is both an audio and a video container; the video type is the safe
+  // resolution because a `<video>` element plays an audio-only stream, while an
+  // `<audio>` element handed a video stream drops the picture.
+  webm: 'video/webm',
 }
+
+/**
+ * MIME types that carry no format information. Storage keeps whatever the browser
+ * reported at upload time, and the direct-PUT path preserves it verbatim (see
+ * {@link getFileContentType}), so a stored type may be one of these even when the
+ * filename identifies the format precisely.
+ */
+const GENERIC_MIME_TYPES = new Set(['application/octet-stream', 'binary/octet-stream'])
 
 /**
  * Get MIME type from file extension (fallback if not provided)
@@ -414,6 +430,32 @@ export function resolveFileType(
  */
 export function getFileContentType(file: File): string {
   return resolveFileType(file, { preserveOctetStream: true })
+}
+
+/**
+ * The MIME type to render a *stored* file as, resolving the generic types that storage
+ * legitimately holds against the filename.
+ *
+ * A stored `application/octet-stream` is not an error — browsers report it for plenty of
+ * real formats, and the presigned PUT handshake requires persisting it verbatim. Any
+ * consumer that feeds a stored type to a `Blob`, a media element, or a type filter must
+ * go through this rather than trusting `file.type` directly: a truthiness check
+ * (`file.type || fallback`) passes `application/octet-stream` straight through, and a
+ * media element handed that blob cannot determine the format and renders nothing.
+ *
+ * Returns `null` only when neither the stored type nor the extension identifies the file.
+ */
+export function resolveEffectiveMimeType(
+  storedType: string | null | undefined,
+  filename: string
+): string | null {
+  const stored = storedType?.trim()
+  if (stored && !GENERIC_MIME_TYPES.has(stored)) return stored
+
+  const fromExtension = getMimeTypeFromExtension(getFileExtension(filename))
+  if (!GENERIC_MIME_TYPES.has(fromExtension)) return fromExtension
+
+  return stored || null
 }
 
 /**

@@ -5,6 +5,7 @@ const TEXT_EDITABLE_MIME_TYPES = new Set([
   'text/markdown',
   'text/plain',
   'application/json',
+  'application/jsonl',
   'application/x-yaml',
   'text/csv',
   'text/html',
@@ -26,6 +27,7 @@ const TEXT_EDITABLE_EXTENSIONS = new Set([
   'md',
   'txt',
   'json',
+  'jsonl',
   'yaml',
   'yml',
   'csv',
@@ -43,8 +45,32 @@ const IFRAME_PREVIEWABLE_MIME_TYPES = new Set([
 ])
 const IFRAME_PREVIEWABLE_EXTENSIONS = new Set(['pdf'])
 
-const IMAGE_PREVIEWABLE_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp'])
-const IMAGE_PREVIEWABLE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp'])
+/**
+ * Image formats every supported browser decodes natively. `.tif`/`.tiff` and
+ * `.heic`/`.heif` are accepted uploads but deliberately absent — no browser renders
+ * them in an `<img>`, so they stay on the download-only path rather than showing a
+ * broken image.
+ */
+const IMAGE_PREVIEWABLE_MIME_TYPES = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/gif',
+  'image/webp',
+  'image/avif',
+  'image/bmp',
+  'image/x-icon',
+  'image/vnd.microsoft.icon',
+])
+const IMAGE_PREVIEWABLE_EXTENSIONS = new Set([
+  'png',
+  'jpg',
+  'jpeg',
+  'gif',
+  'webp',
+  'avif',
+  'bmp',
+  'ico',
+])
 
 const AUDIO_PREVIEWABLE_MIME_TYPES = new Set([
   'audio/mpeg',

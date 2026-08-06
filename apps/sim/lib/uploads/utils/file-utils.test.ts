@@ -11,6 +11,7 @@ import {
   isMarkdownFile,
   isNetworkError,
   processSingleFileToUserFile,
+  resolveEffectiveMimeType,
   resolveTrustedFileContext,
 } from '@/lib/uploads/utils/file-utils'
 
@@ -191,5 +192,50 @@ describe('processSingleFileToUserFile', () => {
     expect(result.providerFileUri).toBeUndefined()
     expect(result.remoteUrl).toBeUndefined()
     expect(result.key).toBe('workspace/ws-1/doc.pdf')
+  })
+})
+
+describe('resolveEffectiveMimeType', () => {
+  it('keeps a specific stored type', () => {
+    expect(resolveEffectiveMimeType('video/quicktime', 'clip.mp4')).toBe('video/quicktime')
+    expect(resolveEffectiveMimeType('text/markdown', 'notes.md')).toBe('text/markdown')
+  })
+
+  it.each([
+    ['clip.mp4', 'video/mp4'],
+    ['clip.mov', 'video/quicktime'],
+    ['clip.mkv', 'video/x-matroska'],
+    ['song.mp3', 'audio/mpeg'],
+    ['song.flac', 'audio/flac'],
+    ['icon.ico', 'image/x-icon'],
+    ['shot.avif', 'image/avif'],
+  ])('resolves a stored application/octet-stream for %s from the extension', (name, expected) => {
+    expect(resolveEffectiveMimeType('application/octet-stream', name)).toBe(expected)
+  })
+
+  it('resolves binary/octet-stream and blank stored types too', () => {
+    expect(resolveEffectiveMimeType('binary/octet-stream', 'clip.mp4')).toBe('video/mp4')
+    expect(resolveEffectiveMimeType('  ', 'clip.mp4')).toBe('video/mp4')
+    expect(resolveEffectiveMimeType(null, 'clip.mp4')).toBe('video/mp4')
+    expect(resolveEffectiveMimeType(undefined, 'clip.mp4')).toBe('video/mp4')
+  })
+
+  it('resolves .webm to the video type so the picture is not dropped', () => {
+    expect(resolveEffectiveMimeType('application/octet-stream', 'clip.webm')).toBe('video/webm')
+  })
+
+  it('keeps an explicit audio/webm from the browser', () => {
+    expect(resolveEffectiveMimeType('audio/webm', 'recording.webm')).toBe('audio/webm')
+  })
+
+  it('returns the generic type when the extension identifies nothing either', () => {
+    expect(resolveEffectiveMimeType('application/octet-stream', 'firmware.bin')).toBe(
+      'application/octet-stream'
+    )
+  })
+
+  it('returns null when there is neither a stored type nor a known extension', () => {
+    expect(resolveEffectiveMimeType(null, 'firmware.bin')).toBeNull()
+    expect(resolveEffectiveMimeType('', 'noextension')).toBeNull()
   })
 })
