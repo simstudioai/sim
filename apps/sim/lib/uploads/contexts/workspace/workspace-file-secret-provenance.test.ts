@@ -93,6 +93,36 @@ describe('workspace file secret provenance', () => {
     ).rejects.toThrow('could not bind the tracked content version')
   })
 
+  it('binds the database content version within its JavaScript-visible millisecond', async () => {
+    await replaceWorkspaceFileSecretProvenanceInTx(
+      dbChainMock.db as unknown as DbTransaction,
+      'file-1',
+      CONTENT_UPDATED_AT,
+      { status: 'exact', entries: [] }
+    )
+
+    expect(dbChainMockFns.where.mock.calls.at(-1)?.[0]).toEqual({
+      type: 'and',
+      conditions: [
+        { type: 'eq', left: 'id', right: 'file-1' },
+        { type: 'gte', left: 'contentUpdatedAt', right: CONTENT_UPDATED_AT },
+        {
+          type: 'lt',
+          left: 'contentUpdatedAt',
+          right: new Date(CONTENT_UPDATED_AT.getTime() + 1),
+        },
+        { type: 'inArray', column: 'context', values: ['workspace', 'mothership'] },
+        {
+          type: 'or',
+          conditions: [
+            { type: 'isNull', column: 'secretProvenanceVersion' },
+            { type: 'eq', left: 'secretProvenanceVersion', right: 1 },
+          ],
+        },
+      ],
+    })
+  })
+
   it('preserves provenance only from the exact preceding content version', async () => {
     const nextContentUpdatedAt = new Date('2026-08-04T00:00:01.000Z')
     queueTableRows(workspaceFileSecretProvenance, [{ contentUpdatedAt: CONTENT_UPDATED_AT }])

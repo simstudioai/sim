@@ -354,6 +354,36 @@ export async function deleteFileMetadata(key: string): Promise<boolean> {
 }
 
 /**
+ * Soft-deletes only the active metadata version previously authorized by a caller.
+ * Postgres timestamps are compared at JavaScript `Date` precision because a selected
+ * microsecond timestamp has already been rounded to milliseconds at this boundary.
+ */
+export async function deleteFileMetadataByIdentity(identity: {
+  id: string
+  key: string
+  context: StorageContext
+  contentUpdatedAt: Date
+}): Promise<boolean> {
+  const deleted = await db
+    .update(workspaceFiles)
+    .set({ deletedAt: new Date() })
+    .where(
+      and(
+        eq(workspaceFiles.id, identity.id),
+        eq(workspaceFiles.key, identity.key),
+        eq(workspaceFiles.context, identity.context),
+        eq(
+          sql<Date>`date_trunc('milliseconds', ${workspaceFiles.contentUpdatedAt})`,
+          identity.contentUpdatedAt
+        ),
+        isNull(workspaceFiles.deletedAt)
+      )
+    )
+    .returning({ id: workspaceFiles.id })
+  return deleted.length === 1
+}
+
+/**
  * Fields needed to record a trusted storage-key -> workspace ownership binding
  * for a knowledge-base file. The `context` is always `'knowledge-base'`, so it is
  * not part of this shape.
