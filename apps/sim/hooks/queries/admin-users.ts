@@ -1,7 +1,11 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { isValidUuid } from '@sim/utils/id'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { requestJson } from '@/lib/api/client/request'
+import { forgetPasswordContract } from '@/lib/api/contracts'
 import { client } from '@/lib/auth/auth-client'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 
 const logger = createLogger('AdminUsersQuery')
 
@@ -27,7 +31,12 @@ export interface AdminUser {
 export interface AddUserInput {
   name: string
   email: string
-  password: string
+  /**
+   * Omitted when the account is provisioned via a reset email. Better Auth then
+   * creates the user with no credential account; completing the emailed reset
+   * creates one, so the operator never handles the new user's password.
+   */
+  password?: string
   emailVerified: boolean
 }
 
@@ -60,16 +69,44 @@ export async function addUser({
   password,
   emailVerified,
 }: AddUserInput): Promise<AdminUser> {
+  const normalizedEmail = email.trim().toLowerCase()
   const { data, error } = await client.admin.createUser({
     name: name.trim(),
-    email: email.trim().toLowerCase(),
-    password,
+    email: normalizedEmail,
     role: 'user',
     data: { emailVerified },
+    ...(password ? { password } : {}),
   })
   if (error) throw new Error(error.message ?? 'Failed to add user')
   if (!data?.user) throw new Error('Better Auth did not return the created user')
+
+  if (!password) {
+    try {
+      await sendPasswordResetEmail(normalizedEmail)
+    } catch (resetError) {
+      /**
+       * The account exists at this point, so re-submitting the form would only
+       * collide on the email. Name the recovery path instead — the caller
+       * surfaces this verbatim, and the new user is already in the list behind
+       * the modal with its own "Reset password" action.
+       */
+      throw new Error(
+        `Account created, but the password reset email failed to send (${getErrorMessage(
+          resetError,
+          'unknown error'
+        )}). Use "Reset password" on the user's row to try again.`
+      )
+    }
+  }
+
   return mapUser(data.user)
+}
+
+/** Sends the standard password reset email, the same one the login page requests. */
+async function sendPasswordResetEmail(email: string): Promise<void> {
+  await requestJson(forgetPasswordContract, {
+    body: { email, redirectTo: `${getBaseUrl()}/reset-password` },
+  })
 }
 
 async function fetchAdminUsers(
@@ -159,6 +196,19 @@ export function useAddUser() {
     onSettled: () => queryClient.invalidateQueries({ queryKey: adminUserKeys.lists() }),
     onError: (error) => {
       logger.error('Failed to add user', error)
+    },
+  })
+}
+
+/**
+ * Emails a user a password reset link. Reads nothing back into the cache — the
+ * user row is unchanged — so it deliberately skips invalidation.
+ */
+export function useSendPasswordReset() {
+  return useMutation({
+    mutationFn: ({ email }: { userId: string; email: string }) => sendPasswordResetEmail(email),
+    onError: (err) => {
+      logger.error('Failed to send password reset email', err)
     },
   })
 }

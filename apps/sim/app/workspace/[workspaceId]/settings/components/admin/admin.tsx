@@ -21,6 +21,7 @@ import {
   useAdminUsersByEmails,
   useBanUser,
   useImpersonateUser,
+  useSendPasswordReset,
   useSetUserRole,
   useUnbanUser,
 } from '@/hooks/queries/admin-users'
@@ -36,7 +37,7 @@ const USER_TABLE_HEADER = (
     <span className='flex-1'>Email</span>
     <span className='w-[60px]'>Role</span>
     <span className='w-[55px]'>Status</span>
-    <span className='w-[200px] text-right'>Actions</span>
+    <span className='w-[300px] text-right'>Actions</span>
   </div>
 )
 
@@ -58,6 +59,7 @@ export function Admin() {
   const banUser = useBanUser()
   const unbanUser = useUnbanUser()
   const impersonateUser = useImpersonateUser()
+  const sendPasswordReset = useSendPasswordReset()
   const { recentEmails, recordImpersonation } = useRecentImpersonations()
   const { data: recentUsers } = useAdminUsersByEmails(recentEmails)
 
@@ -162,6 +164,8 @@ export function Admin() {
       ids.add((unbanUser.variables as { userId: string }).userId)
     if (impersonateUser.isPending && (impersonateUser.variables as { userId?: string })?.userId)
       ids.add((impersonateUser.variables as { userId: string }).userId)
+    if (sendPasswordReset.isPending && sendPasswordReset.variables?.userId)
+      ids.add(sendPasswordReset.variables.userId)
     if (impersonatingUserId) ids.add(impersonatingUserId)
     return ids
   }, [
@@ -173,8 +177,18 @@ export function Admin() {
     unbanUser.variables,
     impersonateUser.isPending,
     impersonateUser.variables,
+    sendPasswordReset.isPending,
+    sendPasswordReset.variables,
     impersonatingUserId,
   ])
+
+  /** Confirms the send in place, since nothing about the user row changes. */
+  const resetPasswordLabel = (userId: string) => {
+    if (sendPasswordReset.variables?.userId !== userId) return 'Reset password'
+    if (sendPasswordReset.isPending) return 'Sending...'
+    if (sendPasswordReset.isSuccess) return 'Reset sent'
+    return 'Reset password'
+  }
 
   const renderUserRow = (u: AdminUser) => (
     <div key={u.id} className='flex flex-col gap-2 px-3 py-2 text-small'>
@@ -187,9 +201,20 @@ export function Admin() {
         <span className='w-[55px]'>
           {u.banned ? <Badge variant='red'>Banned</Badge> : <Badge variant='green'>Active</Badge>}
         </span>
-        <span className='flex w-[200px] justify-end gap-1'>
+        <span className='flex w-[300px] justify-end gap-1'>
           {u.id !== session?.user?.id && (
             <>
+              <Button
+                variant='active'
+                className='h-[28px] px-2 text-caption'
+                onClick={() => {
+                  sendPasswordReset.reset()
+                  sendPasswordReset.mutate({ userId: u.id, email: u.email })
+                }}
+                disabled={pendingUserIds.has(u.id)}
+              >
+                {resetPasswordLabel(u.id)}
+              </Button>
               <Button
                 variant='active'
                 className='h-[28px] px-2 text-caption'
@@ -401,11 +426,17 @@ export function Admin() {
             banUser.error ||
             unbanUser.error ||
             impersonateUser.error ||
+            sendPasswordReset.error ||
             impersonationGuardError) && (
             <p className='text-[var(--text-error)] text-small'>
               {impersonationGuardError ||
-                (setUserRole.error || banUser.error || unbanUser.error || impersonateUser.error)
-                  ?.message ||
+                (
+                  setUserRole.error ||
+                  banUser.error ||
+                  unbanUser.error ||
+                  impersonateUser.error ||
+                  sendPasswordReset.error
+                )?.message ||
                 'Action failed. Please try again.'}
             </p>
           )}

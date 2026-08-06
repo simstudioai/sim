@@ -39,7 +39,7 @@
 'use client'
 
 import * as React from 'react'
-import { Loader, X } from '../../icons'
+import { Eye, EyeOff, Loader, X } from '../../icons'
 import { cn } from '../../lib/cn'
 import { Button } from '../button/button'
 import { Chip, type ChipProps } from '../chip/chip'
@@ -442,7 +442,13 @@ interface ChipModalInputFieldProps extends ChipModalFieldBaseProps, ChipModalSin
   placeholder?: string
   maxLength?: number
   autoComplete?: string
-  /** Native input type override. Defaults to `'text'`. */
+  /**
+   * Native input type override. Defaults to `'text'`.
+   *
+   * `'password'` renders the field's canonical secret treatment — masked while
+   * unfocused, revealed while focused, plus an eye toggle — rather than a plain
+   * native password input. See {@link ChipModalPasswordControl}.
+   */
   inputType?: 'text' | 'password' | 'url' | 'tel' | 'search' | 'number'
   /**
    * Renders the value in the monospace stack (`font-mono`). Use for
@@ -668,31 +674,33 @@ function renderChipModalControl(
   switch (props.type) {
     case 'input':
     case 'email': {
-      const onSubmit = props.onSubmit
+      const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) =>
+        handleSingleLineEnter(event, props, submitRef)
+
+      if (props.type === 'input' && props.inputType === 'password') {
+        return (
+          <ChipModalPasswordControl
+            id={id}
+            value={props.value}
+            onChange={props.onChange}
+            onKeyDown={onKeyDown}
+            placeholder={props.placeholder}
+            maxLength={props.maxLength}
+            autoComplete={props.autoComplete}
+            disabled={props.disabled}
+            mono={props.mono}
+            aria={aria}
+          />
+        )
+      }
+
       return (
         <ChipInput
           id={id}
           type={props.type === 'email' ? 'email' : (props.inputType ?? 'text')}
           value={props.value}
           onChange={(event) => props.onChange(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key !== 'Enter' || event.nativeEvent.isComposing) return
-            if (onSubmit) {
-              event.preventDefault()
-              event.stopPropagation()
-              onSubmit()
-              return
-            }
-            if (props.submitOnEnter === false) return
-            const submit = submitRef?.current
-            if (submit && !submit.disabled) {
-              event.preventDefault()
-              // Stop bubbling so a parent Enter handler (e.g. a modal body that
-              // also submits) can't fire the same primary action a second time.
-              event.stopPropagation()
-              submit.trigger()
-            }
-          }}
+          onKeyDown={onKeyDown}
           placeholder={props.placeholder}
           maxLength={props.type === 'input' ? props.maxLength : undefined}
           autoComplete={props.autoComplete}
@@ -749,6 +757,113 @@ function renderChipModalControl(
     case 'custom':
       return typeof props.children === 'function' ? props.children(aria) : props.children
   }
+}
+
+/**
+ * Enter handling shared by every single-line control: an explicit `onSubmit`
+ * wins, otherwise Enter fires the {@link ChipModalFooter} primary action unless
+ * the field opted out via `submitOnEnter={false}`.
+ */
+function handleSingleLineEnter(
+  event: React.KeyboardEvent<HTMLInputElement>,
+  props: ChipModalSingleLineEnterProps,
+  submitRef: React.MutableRefObject<ChipModalSubmit | null> | null
+) {
+  if (event.key !== 'Enter' || event.nativeEvent.isComposing) return
+  if (props.onSubmit) {
+    event.preventDefault()
+    event.stopPropagation()
+    props.onSubmit()
+    return
+  }
+  if (props.submitOnEnter === false) return
+  const submit = submitRef?.current
+  if (submit && !submit.disabled) {
+    event.preventDefault()
+    // Stop bubbling so a parent Enter handler (e.g. a modal body that also
+    // submits) can't fire the same primary action a second time.
+    event.stopPropagation()
+    submit.trigger()
+  }
+}
+
+/**
+ * Internal renderer for {@link ChipModalField} `type='input'` with
+ * `inputType='password'` — the canonical secret treatment, matching the secrets
+ * and SSO client-secret fields: the value is masked while the field is
+ * unfocused, revealed while it is focused, and an eye toggle pins the reveal so
+ * a typed secret can be proof-read without staying on screen.
+ *
+ * The native input stays `type='text'` and opens `readOnly`, dropping the
+ * attribute on focus. Masking therefore comes from `-webkit-text-security`
+ * (which is what makes the reveal instant), and the read-only-until-focus dance
+ * is what stops a password manager autofilling the operator's own credentials
+ * into a field that sets some other account's password.
+ */
+function ChipModalPasswordControl({
+  id,
+  value,
+  onChange,
+  onKeyDown,
+  placeholder,
+  maxLength,
+  autoComplete,
+  disabled,
+  mono,
+  aria,
+}: {
+  id: string
+  value: string
+  onChange: (value: string) => void
+  onKeyDown: (event: React.KeyboardEvent<HTMLInputElement>) => void
+  placeholder?: string
+  maxLength?: number
+  autoComplete?: string
+  disabled?: boolean
+  mono?: boolean
+  aria: ChipModalFieldAria
+}) {
+  const [revealed, setRevealed] = React.useState(false)
+
+  return (
+    <ChipInput
+      id={id}
+      type='text'
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      onKeyDown={onKeyDown}
+      placeholder={placeholder}
+      maxLength={maxLength}
+      autoComplete={autoComplete}
+      autoCapitalize='none'
+      autoCorrect='off'
+      spellCheck={false}
+      disabled={disabled}
+      readOnly
+      onFocus={(event) => {
+        event.currentTarget.removeAttribute('readOnly')
+        setRevealed(true)
+      }}
+      onBlurCapture={() => setRevealed(false)}
+      inputClassName={cn(!revealed && '[-webkit-text-security:disc]', mono && 'font-mono')}
+      endAdornment={
+        // Only offer the reveal once there is something to reveal.
+        value ? (
+          <Button
+            type='button'
+            variant='ghost'
+            disabled={disabled}
+            onClick={() => setRevealed((current) => !current)}
+            className='size-6 flex-shrink-0 p-0 text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+            aria-label={revealed ? 'Hide password' : 'Show password'}
+          >
+            {revealed ? <EyeOff className='size-[14px]' /> : <Eye className='size-[14px]' />}
+          </Button>
+        ) : undefined
+      }
+      {...aria}
+    />
+  )
 }
 
 /**

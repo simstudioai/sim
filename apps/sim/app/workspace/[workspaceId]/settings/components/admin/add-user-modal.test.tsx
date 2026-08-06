@@ -267,6 +267,47 @@ describe('AddUserModal', () => {
     })
   })
 
+  it('drops the password field and submits without one when emailing a reset link', async () => {
+    mockMutate.mockImplementation(
+      (_input: AddUserInput, options: { onSuccess: (user: AdminUser) => void }) => {
+        options.onSuccess(CREATED_USER)
+      }
+    )
+    await renderModal()
+    await changeField('Name', 'Canary Writer')
+    await changeField('Email', 'writer@synthetics.example.com')
+    await changeField('Credentials', 'email')
+
+    expect(container.querySelector('[aria-label="Password"]')).toBeNull()
+    expect(buttonLabelled('Add user').disabled).toBe(false)
+
+    await act(async () => {
+      buttonLabelled('Add user').dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(mockMutate).toHaveBeenCalledWith(
+      {
+        name: 'Canary Writer',
+        email: 'writer@synthetics.example.com',
+        emailVerified: true,
+      },
+      { onSuccess: expect.any(Function), onSettled: expect.any(Function) }
+    )
+    expect(onCreated).toHaveBeenCalledWith(CREATED_USER)
+  })
+
+  it('keeps a typed password across a round trip through the reset-link flow', async () => {
+    await renderModal()
+    await fillRequiredFields()
+    await changeField('Credentials', 'email')
+    await changeField('Credentials', 'set')
+
+    expect((field('Password') as HTMLInputElement).value).toBe('canary-password')
+    expect(buttonLabelled('Add user').disabled).toBe(false)
+  })
+
   it('shows Better Auth failures without closing the modal', async () => {
     addUserMutation.current = {
       isPending: false,
