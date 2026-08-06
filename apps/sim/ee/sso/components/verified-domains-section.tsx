@@ -129,6 +129,8 @@ export function VerifiedDomainsSection({ organizationId }: VerifiedDomainsSectio
   }
 
   const domains = data?.domains ?? []
+  /** Single source of truth for both the Add chip and the Enter shortcut. */
+  const canAddDomain = !addDomain.isPending && newDomain.trim().length > 0
 
   return (
     <>
@@ -145,19 +147,14 @@ export function VerifiedDomainsSection({ organizationId }: VerifiedDomainsSectio
                 onKeyDown={(event) => {
                   // This section renders inside the SSO provider <form>, so a bare
                   // Enter would submit that form instead of adding the domain.
-                  if (event.key === 'Enter') {
-                    event.preventDefault()
-                    void handleAdd()
-                  }
+                  if (event.key !== 'Enter') return
+                  event.preventDefault()
+                  if (canAddDomain) void handleAdd()
                 }}
                 placeholder='acme.com'
                 className='min-w-0 flex-1'
               />
-              <Chip
-                variant='primary'
-                onClick={handleAdd}
-                disabled={addDomain.isPending || !newDomain.trim()}
-              >
+              <Chip variant='primary' onClick={handleAdd} disabled={!canAddDomain}>
                 {addDomain.isPending ? 'Adding...' : 'Add domain'}
               </Chip>
             </div>
