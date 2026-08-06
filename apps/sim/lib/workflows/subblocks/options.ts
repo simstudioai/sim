@@ -91,38 +91,16 @@ export async function fetchWorkspaceRawSecretNameOptions(): Promise<SubBlockOpti
   return selectRawMountableSecretNames(credentials).map((name) => ({ id: name, label: name }))
 }
 
-/**
- * Labels a sandbox for the picker. The name is what identifies it, so that is all
- * the label carries by default — the block's own list is already scoped to one
- * language, where repeating it on every row is noise.
- *
- * `showLanguage` serves the one caller that cannot filter: agent tool-input
- * renders this field under a synthetic id where the sibling `language` value is
- * unreachable, so its list spans both languages and the name alone is ambiguous.
- *
- * A failed build is always marked. It is the difference between a selection that
- * runs and one that does not, so it is not decoration.
- */
-function toSandboxOption(
-  sandbox: {
-    id: string
-    name: string
-    language: string
-    buildStatus: string | null
-  },
-  options?: { showLanguage?: boolean }
-): SubBlockOption {
-  const parts = [sandbox.name]
-  if (options?.showLanguage) {
-    parts.push(sandbox.language === 'python' ? 'Python' : 'JavaScript')
-  }
-  if (sandbox.buildStatus === 'failed') parts.push('build failed')
-  return { id: sandbox.id, label: parts.join(' · ') }
+/** Sandbox names are workspace-unique, so the picker needs no language suffix. */
+function toSandboxOption(sandbox: { id: string; name: string }): SubBlockOption {
+  return { id: sandbox.id, label: sandbox.name }
 }
 
 async function loadWorkspaceSandboxes(): Promise<SandboxListResponse['sandboxes']> {
   const workspaceId = useWorkflowRegistry.getState().hydration.workspaceId
-  if (!workspaceId) return []
+  if (!workspaceId) {
+    throw new Error('Workspace sandbox options are unavailable until workspace hydration completes')
+  }
   const data = await getQueryClient().fetchQuery(getSandboxListQueryOptions(workspaceId))
   return data.sandboxes
 }
@@ -135,12 +113,9 @@ async function loadWorkspaceSandboxes(): Promise<SandboxListResponse['sandboxes'
 export async function fetchWorkspaceSandboxOptions(blockId: string): Promise<SubBlockOption[]> {
   const language = useSubBlockStore.getState().getValue(blockId, 'language')
   const sandboxes = await loadWorkspaceSandboxes()
-  // The missing `language` that makes filtering impossible is exactly what makes
-  // the language worth showing, so the two stay in lockstep.
-  const showLanguage = !language
   return sandboxes
-    .filter((sandbox) => !language || sandbox.language === language)
-    .map((sandbox) => toSandboxOption(sandbox, { showLanguage }))
+    .filter((sandbox) => !language || language === 'shell' || sandbox.language === language)
+    .map(toSandboxOption)
 }
 
 /**
@@ -162,8 +137,8 @@ export async function fetchWorkspaceSandboxOption(
   const sandbox = sandboxes.find((candidate) => candidate.id === optionId)
   if (!sandbox) return null
 
-  const option = toSandboxOption(sandbox, { showLanguage: !language })
-  if (language && sandbox.language !== language) {
+  const option = toSandboxOption(sandbox)
+  if ((language === 'python' || language === 'javascript') && sandbox.language !== language) {
     return { ...option, label: `${option.label} · wrong language for this block` }
   }
   return option

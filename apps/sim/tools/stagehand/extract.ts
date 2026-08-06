@@ -41,6 +41,13 @@ export const extractTool: ToolConfig<StagehandExtractParams, StagehandExtractRes
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({
+        instruction: params.instruction,
+        schema: params.schema,
+      }),
+    },
     url: '/api/tools/stagehand/extract',
     method: 'POST',
     headers: (params) => ({

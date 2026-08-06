@@ -13,6 +13,7 @@ import {
   generateBatchPresignedUploadUrls,
   hasCloudStorage,
 } from '@/lib/uploads/core/storage-service'
+import { signUploadToken } from '@/lib/uploads/core/upload-token'
 import { recordKnowledgeBaseFileOwnershipMany } from '@/lib/uploads/server/metadata'
 import { validateFileType } from '@/lib/uploads/utils/validation'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
@@ -170,6 +171,21 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             type: file.contentType,
           },
           uploadHeaders: urlResponse.uploadHeaders,
+          ...(urlResponse.uploadId
+            ? {
+                uploadToken: signUploadToken({
+                  uploadId: urlResponse.uploadId,
+                  key: urlResponse.key,
+                  userId: sessionUserId,
+                  workspaceId,
+                  context: 'knowledge-base',
+                  fileName: file.fileName,
+                  contentType: file.contentType,
+                  fileSize: file.fileSize,
+                  uploadKind: 'direct',
+                }),
+              }
+            : {}),
           directUploadSupported: true,
         }
       }),

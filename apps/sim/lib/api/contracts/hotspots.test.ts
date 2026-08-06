@@ -1,0 +1,27 @@
+/**
+ * @vitest-environment node
+ */
+import { describe, expect, it } from 'vitest'
+import { functionExecuteContract } from '@/lib/api/contracts/hotspots'
+
+describe('function execute contract', () => {
+  const bodySchema = functionExecuteContract.body!
+
+  it.each(['javascript', 'python', 'shell'] as const)('accepts the %s language', (language) => {
+    const result = bodySchema.safeParse({ code: 'echo ok', language })
+
+    expect(result.success).toBe(true)
+  })
+
+  it('defaults omitted languages to JavaScript', () => {
+    const result = bodySchema.parse({ code: 'return 1' })
+
+    expect(result.language).toBe('javascript')
+  })
+
+  it('accepts unknown legacy languages for the route fallback', () => {
+    const result = bodySchema.safeParse({ code: 'puts :ok', language: 'ruby' })
+
+    expect(result.success).toBe(true)
+  })
+})

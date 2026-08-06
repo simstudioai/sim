@@ -49,6 +49,10 @@ export const openaiTtsTool: ToolConfig<OpenAiTtsParams, TtsBlockResponse> = {
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({ text: params.text }),
+    },
     url: '/api/tools/tts/unified',
     method: 'POST',
     headers: () => ({

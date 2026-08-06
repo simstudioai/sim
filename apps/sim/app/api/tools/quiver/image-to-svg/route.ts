@@ -6,6 +6,11 @@ import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { validateOpaqueModelInputProvenance } from '@/lib/execution/model-input-provenance'
+import {
+  isModelSafeWorkspaceFileKey,
+  MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
+} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import type { RawFileInput } from '@/lib/uploads/utils/file-schemas'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
@@ -40,6 +45,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     )
     if (!parsed.success) return parsed.response
     const data = parsed.data.body
+    const modelInputProvenance = validateOpaqueModelInputProvenance({
+      headers: request.headers,
+      payload: data,
+      isInternalRequest: true,
+    })
+    if (!modelInputProvenance.success) {
+      return NextResponse.json(
+        { success: false, error: modelInputProvenance.error },
+        { status: modelInputProvenance.status }
+      )
+    }
 
     let apiImage: { url: string } | { base64: string }
 
@@ -56,6 +72,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
               logger
             )
             if (denied) return denied
+            if (!(await isModelSafeWorkspaceFileKey(userFiles[0].key))) {
+              return NextResponse.json(
+                {
+                  success: false,
+                  error: MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
+                },
+                { status: 400 }
+              )
+            }
             const buffer = await downloadFileFromStorage(userFiles[0], requestId, logger)
             apiImage = { base64: buffer.toString('base64') }
           } else {
@@ -80,6 +105,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           logger
         )
         if (denied) return denied
+        if (!(await isModelSafeWorkspaceFileKey(userFiles[0].key))) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
+            },
+            { status: 400 }
+          )
+        }
         const buffer = await downloadFileFromStorage(userFiles[0], requestId, logger)
         apiImage = { base64: buffer.toString('base64') }
       } else {

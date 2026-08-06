@@ -28,7 +28,7 @@ function isExternalHref(href: string | undefined): boolean {
   }
 }
 
-const LANGUAGE_MAP: Record<string, 'javascript' | 'json' | 'python'> = {
+const LANGUAGE_MAP: Record<string, 'javascript' | 'json' | 'python' | 'bash'> = {
   js: 'javascript',
   jsx: 'javascript',
   ts: 'javascript',
@@ -38,6 +38,9 @@ const LANGUAGE_MAP: Record<string, 'javascript' | 'json' | 'python'> = {
   json: 'json',
   python: 'python',
   py: 'python',
+  bash: 'bash',
+  shell: 'bash',
+  sh: 'bash',
 }
 
 export const mdxComponents: MDXRemoteProps['components'] = {

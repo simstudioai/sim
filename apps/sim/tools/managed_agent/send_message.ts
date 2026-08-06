@@ -46,7 +46,13 @@ export const managedAgentSendMessageTool: ToolConfig<
     },
   },
 
-  request: UNUSED_REQUEST,
+  request: {
+    ...UNUSED_REQUEST,
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({ userMessage: params.userMessage }),
+    },
+  },
 
   directExecution: async (params, signal): Promise<ManagedAgentSendMessageResponse> => {
     const target = resolveSessionTarget(params)

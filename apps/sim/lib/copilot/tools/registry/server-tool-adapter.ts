@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { projectToolErrorMessageForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
 import type { ToolExecutionResult, ToolHandler } from '@/lib/copilot/tool-executor/types'
 import { routeExecution } from '@/lib/copilot/tools/server/router'
 
@@ -23,6 +24,7 @@ export function createServerToolHandler(toolId: string): ToolHandler {
         messageId: context.messageId,
         parentToolCallId: context.parentToolCallId,
         abortSignal: context.abortSignal,
+        resolvedSecretTraceRegistry: context.resolvedSecretTraceRegistry,
       })
 
       const rec =
@@ -41,7 +43,7 @@ export function createServerToolHandler(toolId: string): ToolHandler {
       const message = toError(error).message
       logger.error('Server tool execution failed', {
         toolId,
-        error: message,
+        error: projectToolErrorMessageForCopilot(message, context.resolvedSecretTraceRegistry),
         abortSignalAborted: context.abortSignal?.aborted ?? false,
       })
       return {

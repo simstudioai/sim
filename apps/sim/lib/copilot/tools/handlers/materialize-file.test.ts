@@ -11,6 +11,7 @@ const {
   mockFetchBuffer,
   mockFindFolder,
   mockFindUpload,
+  mockGetBoundWorkspaceFileSecretProvenance,
   mockGetWorkspaceFile,
   mockHasCloudStorage,
   mockHeadObject,
@@ -24,6 +25,7 @@ const {
   mockFetchBuffer: vi.fn(),
   mockFindFolder: vi.fn(),
   mockFindUpload: vi.fn(),
+  mockGetBoundWorkspaceFileSecretProvenance: vi.fn(),
   mockGetWorkspaceFile: vi.fn(),
   mockHasCloudStorage: vi.fn(),
   mockHeadObject: vi.fn(),
@@ -48,6 +50,10 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   allocateUniqueWorkspaceFileName: mockAllocateUniqueWorkspaceFileName,
   fetchWorkspaceFileBuffer: mockFetchBuffer,
   getWorkspaceFile: mockGetWorkspaceFile,
+}))
+
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
+  getBoundWorkspaceFileSecretProvenance: mockGetBoundWorkspaceFileSecretProvenance,
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-folder-manager', () => ({
@@ -524,6 +530,10 @@ describe('executeMaterializeFile - extract operation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockFindFolder.mockResolvedValue(null)
+    mockGetBoundWorkspaceFileSecretProvenance.mockResolvedValue({
+      status: 'exact',
+      entries: [],
+    })
   })
 
   function zipRow(overrides: Record<string, unknown> = {}) {
@@ -571,6 +581,7 @@ describe('executeMaterializeFile - extract operation', () => {
         userId: 'user-1',
         rootFolderSegments: ['bundle'],
         skipNoiseEntries: true,
+        secretProvenance: { status: 'exact', entries: [] },
       })
     )
     expect(result.output).toMatchObject({ succeeded: ['bundle.zip'], failed: [] })

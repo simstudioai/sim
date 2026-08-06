@@ -84,6 +84,28 @@
               "type": "string",
               "example": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"
             }
+          },
+          {
+            "name": "X-Execution-Mode",
+            "in": "header",
+            "required": false,
+            "description": "Set to async to queue the workflow and receive a polling URL.",
+            "schema": {
+              "type": "string",
+              "enum": ["async"]
+            }
+          },
+          {
+            "name": "X-Execution-Timeout-Seconds",
+            "in": "header",
+            "required": false,
+            "description": "Optional async-only server runtime cap. The effective timeout is the smaller of this value and the account policy.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 604800,
+              "example": 3600
+            }
           }
         ],
         "requestBody": {

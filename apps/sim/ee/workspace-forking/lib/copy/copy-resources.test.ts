@@ -51,6 +51,7 @@ function basePlan(overrides: Partial<ForkContentPlan> = {}): ForkContentPlan {
 const sourceDoc = {
   id: 'doc-1',
   knowledgeBaseId: 'src-kb',
+  secretProvenanceVersion: null,
   storageKey: 'kb/source-key',
   fileUrl: '/api/files/serve/kb%2Fsource-key',
   filename: 'report.pdf',
@@ -84,14 +85,20 @@ describe('copyForkResourceContent', () => {
   it('rewrites in-workspace resource URLs nested in copied table cell data', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([
       {
-        id: 'r1',
-        tableId: 'src-tbl',
-        workspaceId: 'src-ws',
-        data: {
-          kb: '/workspace/src-ws/knowledge/kb-1',
-          nested: { wf: '/workspace/src-ws/w/wf-1' },
-          plain: 'no url here',
+        row: {
+          id: 'r1',
+          tableId: 'src-tbl',
+          workspaceId: 'src-ws',
+          data: {
+            kb: '/workspace/src-ws/knowledge/kb-1',
+            nested: { wf: '/workspace/src-ws/w/wf-1' },
+            plain: 'no url here',
+          },
+          secretProvenanceVersion: null,
+          updatedAt: new Date('2026-08-05T00:00:00.000Z'),
         },
+        provenance: null,
+        provenanceIsCurrent: false,
       },
     ])
 
@@ -113,11 +120,99 @@ describe('copyForkResourceContent', () => {
     expect(inserted[0].data.kb).toBe('/workspace/child-ws/knowledge/kb-2')
     expect(inserted[0].data.nested.wf).toBe('/workspace/child-ws/w/wf-2')
     expect(inserted[0].data.plain).toBe('no url here')
+    expect(inserted[0]).toEqual(expect.objectContaining({ secretProvenanceVersion: null }))
+  })
+
+  it('turns stale tracked table provenance into unknown instead of laundering it', async () => {
+    const rowUpdatedAt = new Date('2026-08-05T00:00:00.000Z')
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        row: {
+          id: 'r1',
+          tableId: 'src-tbl',
+          workspaceId: 'src-ws',
+          data: { value: 'stored value' },
+          secretProvenanceVersion: 1,
+          updatedAt: rowUpdatedAt,
+        },
+        provenance: {
+          rowId: 'r1',
+          contentUpdatedAt: new Date('2026-08-04T00:00:00.000Z'),
+          status: 'exact',
+          entries: [],
+          updatedAt: rowUpdatedAt,
+        },
+        provenanceIsCurrent: false,
+      },
+    ])
+
+    const result = await copyForkResourceContent({
+      contentPlan: basePlan({ tables: [{ sourceId: 'src-tbl', childId: 'child-tbl' }] }),
+      requestId: 'test',
+    })
+
+    expect(result.failed).toBe(0)
+    expect(dbChainMockFns.values.mock.calls[0][0]).toEqual([
+      expect.objectContaining({ secretProvenanceVersion: 1 }),
+    ])
+    expect(dbChainMockFns.values.mock.calls[1][0]).toEqual([
+      expect.objectContaining({
+        contentUpdatedAt: rowUpdatedAt,
+        status: 'unknown',
+        entries: [],
+      }),
+    ])
+  })
+
+  it('copies exact current table provenance and binds it to the copied row timestamp', async () => {
+    const rowUpdatedAt = new Date('2026-08-05T00:00:00.000Z')
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        row: {
+          id: 'r1',
+          tableId: 'src-tbl',
+          workspaceId: 'src-ws',
+          data: { value: 'stored value' },
+          secretProvenanceVersion: 1,
+          updatedAt: rowUpdatedAt,
+        },
+        provenance: {
+          rowId: 'r1',
+          contentUpdatedAt: rowUpdatedAt,
+          status: 'exact',
+          entries: [{ columnId: 'value', encryptedValue: 'encrypted-value', name: 'VALUE' }],
+          updatedAt: rowUpdatedAt,
+        },
+        provenanceIsCurrent: true,
+      },
+    ])
+
+    const result = await copyForkResourceContent({
+      contentPlan: basePlan({ tables: [{ sourceId: 'src-tbl', childId: 'child-tbl' }] }),
+      requestId: 'test',
+    })
+
+    expect(result.failed).toBe(0)
+    const copiedRows = dbChainMockFns.values.mock.calls[0][0] as Array<{
+      id: string
+      updatedAt: Date
+      secretProvenanceVersion: number
+    }>
+    expect(dbChainMockFns.values.mock.calls[1][0]).toEqual([
+      expect.objectContaining({
+        rowId: copiedRows[0].id,
+        contentUpdatedAt: copiedRows[0].updatedAt,
+        status: 'exact',
+        entries: [{ columnId: 'value', encryptedValue: 'encrypted-value', name: 'VALUE' }],
+      }),
+    ])
   })
 
   it('#1 binds a copied KB document blob to the CHILD workspace + initiating user', async () => {
-    // One live document page, then the embeddings page resolves empty (default).
-    dbChainMockFns.limit.mockResolvedValueOnce([sourceDoc])
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([sourceDoc])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([sourceDoc])
 
     const result = await copyForkResourceContent({
       contentPlan: basePlan({
@@ -142,7 +237,10 @@ describe('copyForkResourceContent', () => {
   })
 
   it('charges each copied KB blob by exact document bytes in the metadata activation transaction', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([sourceDoc])
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([sourceDoc])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([sourceDoc])
 
     const result = await copyForkResourceContent({
       contentPlan: basePlan({
@@ -212,6 +310,7 @@ describe('copyForkResourceContent', () => {
     dbChainMockFns.limit
       .mockResolvedValueOnce([sourceDoc])
       .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([sourceDoc])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ id: 'child-doc-1' }])
     dbChainMockFns.returning.mockResolvedValueOnce([])

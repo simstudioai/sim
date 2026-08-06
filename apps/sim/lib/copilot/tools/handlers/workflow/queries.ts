@@ -11,6 +11,7 @@ import { listCustomTools } from '@/lib/workflows/custom-tools/operations'
 import {
   loadDeployedWorkflowState,
   loadWorkflowFromNormalizedTables,
+  NoActiveDeploymentError,
 } from '@/lib/workflows/persistence/utils'
 import { resolveTriggerRunOptions, toPublicRunOption } from '@/lib/workflows/triggers/run-options'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
@@ -523,7 +524,10 @@ export async function executeGetDeployedWorkflowState(
           deployedState: formatted,
         },
       }
-    } catch {
+    } catch (error) {
+      if (!(error instanceof NoActiveDeploymentError)) {
+        return { success: false, error: toError(error).message }
+      }
       return {
         success: true,
         output: {

@@ -6,6 +6,26 @@ import {
 import { parseMem0Messages } from '@/tools/mem0/utils'
 import type { ToolConfig } from '@/tools/types'
 
+function rebuildMem0Messages(
+  original: Mem0AddMemoriesParams['messages'],
+  projectedContent: unknown
+): Mem0AddMemoriesParams['messages'] {
+  const messages = parseMem0Messages(original)
+  if (
+    !Array.isArray(projectedContent) ||
+    projectedContent.length !== messages.length ||
+    !projectedContent.every((content) => typeof content === 'string')
+  ) {
+    throw new Error('Projected Mem0 messages do not match the original messages')
+  }
+
+  const rebuilt = messages.map((message, index) => ({
+    ...message,
+    content: projectedContent[index],
+  }))
+  return typeof original === 'string' ? JSON.stringify(rebuilt) : rebuilt
+}
+
 /**
  * Add Memories Tool
  * @see https://docs.mem0.ai/api-reference/memory/add-memories
@@ -39,6 +59,20 @@ export const mem0AddMemoriesTool: ToolConfig<Mem0AddMemoriesParams, Mem0AddMemor
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({
+        messages: parseMem0Messages(params.messages).map((message) => message.content),
+      }),
+      applyProjected: (selectedParams, projectedSelection) => {
+        if (selectedParams.messages === undefined) {
+          throw new Error('Mem0 messages are required')
+        }
+        return {
+          messages: rebuildMem0Messages(selectedParams.messages, projectedSelection.messages),
+        }
+      },
+    },
     url: 'https://api.mem0.ai/v3/memories/add/',
     method: 'POST',
     headers: (params) => ({

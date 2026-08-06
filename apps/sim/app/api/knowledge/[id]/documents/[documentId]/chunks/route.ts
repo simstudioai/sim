@@ -11,7 +11,14 @@ import { isZodError, parseJsonBody, parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { createDurableSecretProvenanceRegistry } from '@/lib/execution/durable-secret-provenance'
 import { batchChunkOperation, createChunk, queryChunks } from '@/lib/knowledge/chunks/service'
+import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-input-provenance'
+import {
+  createKnowledgePersistedResponse,
+  createKnowledgeProvenanceResponse,
+  resolveKnowledgeWriteSecretProvenance,
+} from '@/app/api/knowledge/secret-provenance'
 import { checkDocumentAccess, checkDocumentWriteAccess } from '@/app/api/knowledge/utils'
 import { calculateCost } from '@/providers/utils'
 
@@ -85,10 +92,24 @@ export const GET = withRouteHandler(
 
       const result = await queryChunks(documentId, queryResult.data, requestId)
 
-      return NextResponse.json({
+      const responseBody = {
         success: true,
         data: result.chunks,
         pagination: result.pagination,
+      }
+      const workspaceId = accessCheck.knowledgeBase?.workspaceId ?? undefined
+      return createKnowledgePersistedResponse({
+        request: req,
+        authType: auth.authType,
+        userId,
+        ...(workspaceId ? { workspaceId } : {}),
+        body: responseBody,
+        chunks: result.chunks.map((item) => ({
+          id: item.id,
+          documentId,
+          content: item.content,
+          value: item,
+        })),
       })
     } catch (error) {
       logger.error(`[${requestId}] Error fetching chunks`, error)
@@ -171,6 +192,29 @@ export const POST = withRouteHandler(
 
       try {
         const validatedData = createChunkBodySchema.parse(searchParams)
+        const workspaceId = accessCheck.knowledgeBase?.workspaceId ?? undefined
+        const writeProvenance = resolveKnowledgeWriteSecretProvenance({
+          request: req,
+          payload: parsedBody.data,
+          authType: auth.authType,
+          userId,
+          ...(workspaceId ? { workspaceId } : {}),
+          selectionKeys: ['chunk-content'],
+        })
+        if (!writeProvenance.success) return writeProvenance.response
+        const chunkProvenance = writeProvenance.provenances?.[0]
+        if (chunkProvenance?.status === 'unknown') {
+          return NextResponse.json(
+            { error: 'Knowledge chunk secret provenance is unavailable' },
+            { status: 400 }
+          )
+        }
+        const registry = chunkProvenance
+          ? await createDurableSecretProvenanceRegistry(chunkProvenance, {
+              userId,
+              ...(workspaceId ? { workspaceId } : {}),
+            })
+          : undefined
 
         const docTags = {
           tag1: doc.tag1 ?? null,
@@ -192,13 +236,16 @@ export const POST = withRouteHandler(
           boolean3: doc.boolean3 ?? null,
         }
 
-        const newChunk = await createChunk(
-          knowledgeBaseId,
-          documentId,
-          docTags,
-          validatedData,
-          requestId,
-          accessCheck.knowledgeBase?.workspaceId
+        const newChunk = await runWithKnowledgeModelInputProvenance(registry, () =>
+          createChunk(
+            knowledgeBaseId,
+            documentId,
+            docTags,
+            validatedData,
+            requestId,
+            workspaceId,
+            chunkProvenance
+          )
         )
 
         let cost = null
@@ -215,28 +262,35 @@ export const POST = withRouteHandler(
           })
         }
 
-        return NextResponse.json({
-          success: true,
-          data: {
-            ...newChunk,
-            documentId,
-            documentName: doc.filename,
-            ...(cost
-              ? {
-                  cost: {
-                    input: cost.input,
-                    output: cost.output,
-                    total: cost.total,
-                    tokens: {
-                      prompt: newChunk.tokenCount,
-                      completion: 0,
-                      total: newChunk.tokenCount,
+        return createKnowledgeProvenanceResponse({
+          request: req,
+          authType: auth.authType,
+          userId,
+          ...(workspaceId ? { workspaceId } : {}),
+          provenances: chunkProvenance ? [chunkProvenance] : [],
+          body: {
+            success: true,
+            data: {
+              ...newChunk,
+              documentId,
+              documentName: doc.filename,
+              ...(cost
+                ? {
+                    cost: {
+                      input: cost.input,
+                      output: cost.output,
+                      total: cost.total,
+                      tokens: {
+                        prompt: newChunk.tokenCount,
+                        completion: 0,
+                        total: newChunk.tokenCount,
+                      },
+                      model: accessCheck.knowledgeBase.embeddingModel,
+                      pricing: cost.pricing,
                     },
-                    model: accessCheck.knowledgeBase.embeddingModel,
-                    pricing: cost.pricing,
-                  },
-                }
-              : {}),
+                  }
+                : {}),
+            },
           },
         })
       } catch (validationError) {

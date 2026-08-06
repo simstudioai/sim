@@ -241,7 +241,16 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
         intent.fileId,
         context.userId,
         fileBuffer,
-        compiled.sourceMime
+        compiled.sourceMime,
+        {
+          secretProvenancePolicy:
+            operation === 'update'
+              ? {
+                  mode: 'replace',
+                  provenance: { status: 'exact', entries: [] },
+                }
+              : { mode: 'preserve' },
+        }
       )
 
       const verb =

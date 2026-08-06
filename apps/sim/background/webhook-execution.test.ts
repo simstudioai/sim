@@ -8,6 +8,7 @@ import {
   executionPreprocessingMock,
   executionPreprocessingMockFns,
   LoggingSessionMock,
+  loggerMock,
   loggingSessionMock,
   loggingSessionMockFns,
   resetEnvironmentUtilsMock,
@@ -19,6 +20,7 @@ const {
   mockExecuteWorkflowCore,
   mockWasExecutionFinalizedByCore,
   mockExecuteWithIdempotency,
+  mockRefreshExecutionSlotExpiry,
   mockReleaseExecutionSlot,
   mockLoadDeploymentVersionState,
   mockGetProviderHandler,
@@ -28,6 +30,7 @@ const {
   mockExecuteWorkflowCore: vi.fn(),
   mockWasExecutionFinalizedByCore: vi.fn(),
   mockExecuteWithIdempotency: vi.fn(),
+  mockRefreshExecutionSlotExpiry: vi.fn().mockResolvedValue(true),
   mockReleaseExecutionSlot: vi.fn(),
   mockGetProviderHandler: vi.fn(() => ({})),
   mockSetResolvedSecretTraceRegistry: vi.fn(),
@@ -60,6 +63,7 @@ vi.mock('@/lib/workflows/executor/execution-core', () => ({
 }))
 
 vi.mock('@/lib/billing/calculations/usage-reservation', () => ({
+  refreshExecutionSlotExpiry: mockRefreshExecutionSlotExpiry,
   releaseExecutionSlot: mockReleaseExecutionSlot,
 }))
 
@@ -88,13 +92,19 @@ vi.mock('@/lib/logs/execution/trace-spans/trace-spans', () => ({
 }))
 
 vi.mock('@/lib/core/execution-limits', () => ({
+  capExecutionTimeoutMs: vi.fn((policyTimeoutMs, requestedTimeoutMs) =>
+    requestedTimeoutMs === undefined ? policyTimeoutMs : requestedTimeoutMs
+  ),
   createTimeoutAbortController: vi.fn(() => ({
     signal: new AbortController().signal,
     cleanup: vi.fn(),
     isTimedOut: () => false,
     timeoutMs: 120_000,
   })),
+  getAsyncExecutionTimeoutForBillingAttribution: vi.fn(() => 120_000),
+  getExecutionDeadlineAt: vi.fn(() => new Date(Date.now() + 120_000)),
   getTimeoutErrorMessage: vi.fn(() => 'timed out'),
+  RESERVATION_TTL_BUFFER_MS: 300_000,
 }))
 
 vi.mock('@/lib/workflows/executor/pause-persistence', () => ({
@@ -127,6 +137,15 @@ import {
   resolveWebhookExecutionProviderConfig,
   type WebhookExecutionPayload,
 } from './webhook-execution'
+
+const webhookExecutionLoggerCallIndex = loggerMock.createLogger.mock.calls.findIndex(
+  ([name]) => name === 'TriggerWebhookExecution'
+)
+const webhookExecutionLogger =
+  loggerMock.createLogger.mock.results[webhookExecutionLoggerCallIndex]?.value
+if (!webhookExecutionLogger) {
+  throw new Error('TriggerWebhookExecution logger mock was not initialized')
+}
 
 describe('resolveWebhookExecutionProviderConfig', () => {
   beforeEach(() => {
@@ -217,7 +236,9 @@ describe('executeWebhookJob fault vs error handling', () => {
         safeCompleteWithError: loggingSessionMockFns.mockSafeCompleteWithError,
         waitForPostExecution: loggingSessionMockFns.mockWaitForPostExecution,
         markAsFailed: loggingSessionMockFns.mockMarkAsFailed,
+        setExecutionDeadlineAt: loggingSessionMockFns.mockSetExecutionDeadlineAt,
         setResolvedSecretTraceRegistry: mockSetResolvedSecretTraceRegistry,
+        projectDiagnosticError: loggingSessionMockFns.mockProjectDiagnosticError,
       }
     })
     mockGetProviderHandler.mockReturnValue({})
@@ -269,7 +290,16 @@ describe('executeWebhookJob fault vs error handling', () => {
   })
 
   it('faults the run (re-throws) when the failure was not finalized by core', async () => {
-    const rawError = new Error('Workflow state not found')
+    const secret = 'webhook-error-secret-7f3a91'
+    const rawError = new Error(
+      `Workflow state not found ${secret} __var_API_KEY __sim_code_1_binding_0`
+    )
+    const projectedError = 'Workflow state not found {{API_KEY}} {{API_KEY}} [RUNTIME_BINDING]'
+    loggingSessionMockFns.mockProjectDiagnosticError.mockReturnValueOnce({
+      workflowId: 'workflow-1',
+      provider: 'gmail',
+      error: projectedError,
+    })
     mockExecuteWorkflowCore.mockRejectedValue(rawError)
     mockWasExecutionFinalizedByCore.mockReturnValue(false)
 
@@ -278,6 +308,19 @@ describe('executeWebhookJob fault vs error handling', () => {
     expect(loggingSessionMockFns.mockWaitForPostExecution).toHaveBeenCalled()
     // Pipeline/infra errors are recorded here before re-throwing to fault the trigger.dev run.
     expect(loggingSessionMockFns.mockSafeCompleteWithError).toHaveBeenCalled()
+    expect(loggingSessionMockFns.mockProjectDiagnosticError).toHaveBeenCalledWith(rawError, {
+      workflowId: 'workflow-1',
+      provider: 'gmail',
+    })
+    expect(webhookExecutionLogger.error).toHaveBeenCalledWith(
+      '[request-1] Webhook execution failed',
+      { workflowId: 'workflow-1', provider: 'gmail', error: projectedError }
+    )
+    const loggerPayload = JSON.stringify(webhookExecutionLogger.error.mock.calls)
+    expect(loggerPayload).not.toContain(secret)
+    expect(loggerPayload).not.toContain('__var_')
+    expect(loggerPayload).not.toContain('__sim_')
+    expect(rawError.message).toContain(secret)
   })
 
   it('executes against the deployment version admitted by webhook ingress', async () => {
@@ -308,7 +351,7 @@ describe('executeWebhookJob fault vs error handling', () => {
     )
   })
 
-  it('passes encrypted webhook resolution provenance into workflow execution', async () => {
+  it('does not pass provider-config provenance absent from the trigger input', async () => {
     mockGetEffectiveEnvironmentSnapshot.mockResolvedValue({
       personalEncrypted: { WEBHOOK_SECRET: 'personal-ciphertext' },
       workspaceEncrypted: { WEBHOOK_SECRET: 'workspace-ciphertext' },
@@ -354,12 +397,61 @@ describe('executeWebhookJob fault vs error handling', () => {
         trustedInitialResolvedSecretTraceProvenance: {
           version: 1,
           complete: true,
-          entries: [{ name: 'WEBHOOK_SECRET', encryptedValue: 'workspace-ciphertext' }],
+          entries: [],
           scope: { userId: 'user-1', workspaceId: 'workspace-1' },
         },
       })
     )
     expect(mockSetResolvedSecretTraceRegistry).toHaveBeenCalledOnce()
+  })
+
+  it('passes provider-config provenance when its value crosses in the trigger input', async () => {
+    mockGetEffectiveEnvironmentSnapshot.mockResolvedValue({
+      personalEncrypted: {},
+      workspaceEncrypted: { WEBHOOK_SECRET: 'workspace-ciphertext' },
+      personalDecrypted: {},
+      workspaceDecrypted: { WEBHOOK_SECRET: 'workspace-value' },
+      conflicts: [],
+      decryptionFailures: [],
+    })
+    mockResolveWebhookRecordProviderConfig.mockImplementation(
+      async (record, _userId, _workspaceId, options) => {
+        options.onResolved('WEBHOOK_SECRET', options.envVars.WEBHOOK_SECRET)
+        return record
+      }
+    )
+    mockGetProviderHandler.mockReturnValue({
+      formatInput: vi.fn().mockResolvedValue({
+        input: { authorization: 'Bearer workspace-value' },
+      }),
+    })
+    mockExecuteWorkflowCore.mockResolvedValue({
+      success: true,
+      status: 'completed',
+      output: {},
+      logs: [],
+      executionState: {
+        blockStates: {},
+        executedBlocks: [],
+        blockLogs: [],
+        decisions: {},
+        completedLoops: [],
+        activeExecutionPath: [],
+      },
+    })
+
+    await executeWebhookJob(payload)
+
+    expect(mockExecuteWorkflowCore).toHaveBeenCalledWith(
+      expect.objectContaining({
+        trustedInitialResolvedSecretTraceProvenance: {
+          version: 1,
+          complete: true,
+          entries: [{ name: 'WEBHOOK_SECRET', encryptedValue: 'workspace-ciphertext' }],
+          scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+        },
+      })
+    )
   })
 
   it('installs provenance before a post-resolution webhook setup failure', async () => {

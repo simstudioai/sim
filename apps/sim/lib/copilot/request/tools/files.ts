@@ -7,7 +7,10 @@ import { TraceEvent } from '@/lib/copilot/generated/trace-events-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { withCopilotSpan } from '@/lib/copilot/request/otel'
 import { denyOutputWriteWithoutWritePermission } from '@/lib/copilot/request/tools/permissions'
-import { projectToolErrorMessageForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
+import {
+  projectToolErrorMessageForCopilot,
+  projectToolOutputForPersistence,
+} from '@/lib/copilot/request/tools/resolved-secret-result'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { decodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
 import { writeWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
@@ -249,6 +252,14 @@ export async function maybeWriteOutputToFile(
   const denied = denyOutputWriteWithoutWritePermission(context)
   if (denied) return denied
 
+  const persistedOutput = projectToolOutputForPersistence(
+    unwrapFunctionExecuteOutput(result.output),
+    context.resolvedSecretTraceRegistry
+  )
+  if (!persistedOutput.safe) {
+    return { success: false, error: persistedOutput.error }
+  }
+
   // Only span the actual write path (where we upload to storage). Fast
   // no-op returns above don't need a span — they'd just pad the trace
   // with empty work.
@@ -266,7 +277,7 @@ export async function maybeWriteOutputToFile(
             outputFile.formatPath ?? outputFile.path
           )
           const format = resolveOutputFormat(fileName, outputFile.format)
-          const content = serializeOutputForFile(result.output, format)
+          const content = serializeOutputForFile(persistedOutput.value, format)
           const contentType = outputFile.mimeType || FORMAT_TO_CONTENT_TYPE[format]
           const buffer = Buffer.from(content, 'utf-8')
 

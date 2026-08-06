@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   applySecretMountPolicy,
+  filterSecretNamesByMountPolicy,
   normalizeSecretMountPolicy,
 } from '@/lib/copilot/secret-mount-policy'
 
@@ -50,5 +51,29 @@ describe('applySecretMountPolicy', () => {
         mountedSecrets: ['A'],
       })
     ).toThrow('Secret access is not allowed for: B')
+  })
+})
+
+describe('filterSecretNamesByMountPolicy', () => {
+  it('keeps the complete inventory under the default all policy', () => {
+    expect(filterSecretNamesByMountPolicy(['B', ' A ', 'B'])).toEqual(['B', 'A'])
+  })
+
+  it('hides names outside a selected allowlist while preserving inventory order', () => {
+    expect(
+      filterSecretNamesByMountPolicy(['A', 'B', 'C'], {
+        secretScope: 'selected',
+        mountedSecrets: ['C', 'A'],
+      })
+    ).toEqual(['A', 'C'])
+  })
+
+  it('hides the complete inventory when selected access is empty', () => {
+    expect(
+      filterSecretNamesByMountPolicy(['A'], {
+        secretScope: 'selected',
+        mountedSecrets: [],
+      })
+    ).toEqual([])
   })
 })

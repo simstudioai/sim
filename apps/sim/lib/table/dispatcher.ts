@@ -22,6 +22,7 @@ import { USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
 import { isExecCancelledAfter } from '@/lib/table/deps'
 import { appendTableEvent } from '@/lib/table/events'
 import { type DbExecutor, withSeqscanOff } from '@/lib/table/planner'
+import { updateTableRowsWithDerivedSecretProvenance } from '@/lib/table/rows/secret-provenance'
 import { buildFilterClause } from '@/lib/table/sql'
 import type {
   Filter,
@@ -118,17 +119,16 @@ export async function bulkClearWorkflowGroupCells(input: {
     const outputCols = Array.from(
       new Set(groups.flatMap((g) => g.outputs.map((o) => o.columnName)))
     )
-    let dataExpr: SQL = sql`coalesce(${userTableRows.data}, '{}'::jsonb)`
-    for (const col of outputCols) dataExpr = sql`(${dataExpr}) - ${col}::text`
     const filters: SQL[] = [eq(userTableRows.tableId, tableId)]
     if (rowScope) filters.push(inArray(userTableRows.id, rowScope))
     if (excluded) filters.push(notInArray(userTableRows.id, excluded))
 
     await db.transaction(async (trx) => {
-      await trx
-        .update(userTableRows)
-        .set({ data: dataExpr, updatedAt: new Date() })
-        .where(and(...filters))
+      const rowWhere = and(...filters)!
+      await updateTableRowsWithDerivedSecretProvenance(trx, {
+        rowWhere,
+        transformation: { mode: 'remove-columns', columnIds: outputCols },
+      })
       const execFilters: SQL[] = [
         eq(tableRowExecutions.tableId, tableId),
         inArray(tableRowExecutions.groupId, groupIds),
@@ -159,12 +159,14 @@ export async function bulkClearWorkflowGroupCells(input: {
       if (rowScope) filters.push(inArray(userTableRows.id, rowScope))
       if (excluded) filters.push(notInArray(userTableRows.id, excluded))
 
-      let dataExpr: SQL = sql`coalesce(${userTableRows.data}, '{}'::jsonb)`
-      for (const out of group.outputs) dataExpr = sql`(${dataExpr}) - ${out.columnName}::text`
-      await trx
-        .update(userTableRows)
-        .set({ data: dataExpr, updatedAt: new Date() })
-        .where(and(...filters))
+      const rowWhere = and(...filters)!
+      await updateTableRowsWithDerivedSecretProvenance(trx, {
+        rowWhere,
+        transformation: {
+          mode: 'remove-columns',
+          columnIds: group.outputs.map((output) => output.columnName),
+        },
+      })
 
       const execFilters: SQL[] = [
         eq(tableRowExecutions.tableId, tableId),

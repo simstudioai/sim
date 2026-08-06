@@ -86,6 +86,10 @@ export const imageTool: ToolConfig = {
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({ prompt: params.prompt }),
+    },
     url: 'https://api.openai.com/v1/images/generations',
     method: 'POST',
     headers: (params) => ({

@@ -1,6 +1,5 @@
 import { createLogger } from '@sim/logger'
 import { stripVersionSuffix } from '@sim/utils/string'
-import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import {
   normalizeRecord,
   normalizeStringRecord,
@@ -23,6 +22,17 @@ const logger = createLogger('ToolsUtils')
  * @example stripVersionSuffix('github_create_pr_v3') => 'github_create_pr'
  */
 export { stripVersionSuffix } from '@sim/utils/string'
+
+/** Materialized HTTP request accepted by the legacy executeRequest helper. */
+export interface RequestParams {
+  url: string
+  method: string
+  headers: Record<string, string>
+  body?: string
+  timeout?: number
+  proxyUrl?: string
+  stripAuthOnRedirect?: boolean
+}
 
 /**
  * Filters a tools map to return only the latest version of each tool.
@@ -81,85 +91,6 @@ export function resolveToolId(toolName: string): string {
   }
 
   return toolName
-}
-
-export interface RequestParams {
-  url: string
-  method: string
-  headers: Record<string, string>
-  body?: string
-  timeout?: number
-  proxyUrl?: string
-  stripAuthOnRedirect?: boolean
-}
-
-/**
- * Format request parameters based on tool configuration and provided params
- */
-export function formatRequestParams(tool: ToolConfig, params: Record<string, any>): RequestParams {
-  // Process URL
-  const url = typeof tool.request.url === 'function' ? tool.request.url(params) : tool.request.url
-
-  // Process method
-  const method =
-    typeof tool.request.method === 'function'
-      ? tool.request.method(params)
-      : params.method || tool.request.method || 'GET'
-
-  // Process headers
-  const headers = tool.request.headers ? tool.request.headers(params) : {}
-
-  // Process body
-  const hasBody = method !== 'GET' && method !== 'HEAD' && !!tool.request.body
-  const bodyResult = tool.request.body ? tool.request.body(params) : undefined
-
-  // Special handling for NDJSON content type or 'application/x-www-form-urlencoded'
-  const isPreformattedContent =
-    headers['Content-Type'] === 'application/x-ndjson' ||
-    headers['Content-Type'] === 'application/x-www-form-urlencoded'
-
-  let body: string | undefined
-  if (hasBody) {
-    if (isPreformattedContent) {
-      // Check if bodyResult is a string
-      if (typeof bodyResult === 'string') {
-        body = bodyResult
-      }
-      // Check if bodyResult is an object with a 'body' property (Twilio pattern)
-      else if (bodyResult && typeof bodyResult === 'object' && 'body' in bodyResult) {
-        body = bodyResult.body
-      }
-      // Otherwise JSON stringify it
-      else {
-        body = JSON.stringify(bodyResult)
-      }
-    } else {
-      body = typeof bodyResult === 'string' ? bodyResult : JSON.stringify(bodyResult)
-    }
-  }
-
-  const MAX_TIMEOUT_MS = getMaxExecutionTimeout()
-  const rawTimeout = params.timeout
-  const timeout = rawTimeout != null ? Number(rawTimeout) : undefined
-  const validTimeout =
-    timeout != null && Number.isFinite(timeout) && timeout > 0
-      ? Math.min(timeout, MAX_TIMEOUT_MS)
-      : undefined
-
-  const proxyUrl =
-    typeof params.proxyUrl === 'string' && params.proxyUrl.trim()
-      ? params.proxyUrl.trim()
-      : undefined
-
-  return {
-    url,
-    method,
-    headers,
-    body,
-    timeout: validTimeout,
-    proxyUrl,
-    stripAuthOnRedirect: tool.request.stripAuthOnRedirect,
-  }
 }
 
 /**

@@ -35,7 +35,10 @@ import {
   getProviderModels,
   supportsNativeStructuredOutputs,
 } from '@/providers/models'
-import { executeProviderTool } from '@/providers/runtime-context'
+import {
+  executeProviderTool,
+  projectProviderAttachmentFilenameForModel,
+} from '@/providers/runtime-context'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
 import { isAbortError, parseToolArguments } from '@/providers/streaming-tool-loop-shared'
@@ -210,7 +213,12 @@ export const bedrockProvider: ProviderConfig = {
           }
         } else {
           const role: ConversationRole = msg.role === 'assistant' ? 'assistant' : 'user'
-          const content = buildBedrockMessageContent(msg.content, msg.files, 'bedrock')
+          const content = buildBedrockMessageContent(
+            msg.content,
+            msg.files,
+            'bedrock',
+            projectProviderAttachmentFilenameForModel
+          )
           messages.push({
             role,
             // double-cast-allowed: shared attachment builder emits Bedrock Converse content blocks while keeping provider-neutral attachment types
@@ -664,9 +672,14 @@ export const bedrockProvider: ProviderConfig = {
             }
 
             const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-            const result = await executeProviderTool(toolName, executionParams, {
-              signal: request.abortSignal,
-            })
+            const { rawResponse, modelResponse } = await executeProviderTool(
+              toolName,
+              executionParams,
+              {
+                signal: request.abortSignal,
+                toolInput: toolParams,
+              }
+            )
             const toolCallEndTime = Date.now()
 
             return {
@@ -674,7 +687,8 @@ export const bedrockProvider: ProviderConfig = {
               toolName,
               toolArgs: toolArgs ?? {},
               toolParams,
-              result,
+              result: rawResponse,
+              modelResult: modelResponse,
               startTime: toolCallStartTime,
               endTime: toolCallEndTime,
               duration: toolCallEndTime - toolCallStartTime,
@@ -728,6 +742,10 @@ export const bedrockProvider: ProviderConfig = {
             endTime,
             duration,
           } = executionResult
+          const modelResult =
+            'modelResult' in executionResult && executionResult.modelResult
+              ? executionResult.modelResult
+              : result
 
           timeSegments.push({
             type: 'tool',
@@ -750,6 +768,13 @@ export const bedrockProvider: ProviderConfig = {
               tool: toolName,
             }
           }
+          const modelResultContent = modelResult.success
+            ? (modelResult.output ?? null)
+            : {
+                error: true,
+                message: modelResult.error || 'Tool execution failed',
+                tool: toolName,
+              }
 
           toolCalls.push({
             name: toolName,
@@ -763,9 +788,9 @@ export const bedrockProvider: ProviderConfig = {
 
           const toolResultBlock: ToolResultBlock = {
             toolUseId,
-            content: [{ text: JSON.stringify(resultContent) }],
+            content: [{ text: JSON.stringify(modelResultContent) }],
             ...(supportsToolResultStatus(bedrockModelId)
-              ? { status: result.success ? 'success' : 'error' }
+              ? { status: modelResult.success ? 'success' : 'error' }
               : {}),
           }
           toolResultContent.push({ toolResult: toolResultBlock })

@@ -38,6 +38,8 @@ export interface UseFetchedOptionsResult {
   isLoadingOptions: boolean
   fetchError: string | null
   hydratedOption: FetchedOption | null
+  /** Stored id an authoritative lookup confirmed no longer exists. */
+  missingOptionId: string | null
   /** Fetches now, bypassing the once-per-dependency-set guard. For open handlers. */
   refetch: () => void
 }
@@ -67,6 +69,7 @@ export function useFetchedOptions({
   localOptions,
 }: UseFetchedOptionsProps): UseFetchedOptionsResult {
   const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId)
+  const workspaceId = useWorkflowRegistry((s) => s.hydration.workspaceId)
   const blockState = useWorkflowStore((state) => state.blocks[blockId])
   const blockConfig = blockState?.type ? getBlock(blockState.type) : null
   const canonicalModeOverrides = blockState?.data?.canonicalModes
@@ -95,8 +98,12 @@ export function useFetchedOptions({
   const [isLoadingOptions, setIsLoadingOptions] = useState(false)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [hydratedOption, setHydratedOption] = useState<FetchedOption | null>(null)
+  const [missingOptionId, setMissingOptionId] = useState<string | null>(null)
+  const [hydrationRevision, setHydrationRevision] = useState(0)
+  const hydratedRevisionRef = useRef<{ id: string; revision: number } | null>(null)
+  const fetchRequestIdRef = useRef(0)
 
-  const previousDependencyValuesRef = useRef<string>('')
+  const previousFetchScopeRef = useRef<string>('')
   /**
    * Whether a fetch has already been attempted for the current dependency values.
    * "Have we fetched?" cannot be inferred from `fetchedOptions.length === 0` — a
@@ -109,35 +116,44 @@ export function useFetchedOptions({
   const runFetch = useCallback(async () => {
     if (!fetchOptions || isPreview || disabled) return
 
+    const requestId = ++fetchRequestIdRef.current
     setIsLoadingOptions(true)
     setFetchError(null)
     try {
       const options = await fetchOptions(blockId)
+      if (requestId !== fetchRequestIdRef.current) return
       setFetchedOptions(options)
     } catch (error) {
+      if (requestId !== fetchRequestIdRef.current) return
       setFetchError(getErrorMessage(error, 'Failed to fetch options'))
       setFetchedOptions([])
     } finally {
-      setIsLoadingOptions(false)
+      if (requestId === fetchRequestIdRef.current) {
+        setIsLoadingOptions(false)
+      }
     }
   }, [fetchOptions, blockId, isPreview, disabled])
 
   useEffect(() => {
-    if (!fetchOptions || dependsOnFields.length === 0) return
+    if (!fetchOptions) return
 
-    const current = JSON.stringify(dependencyValues)
-    const previous = previousDependencyValuesRef.current
+    const current = JSON.stringify([workspaceId, dependencyValues])
+    const previous = previousFetchScopeRef.current
     if (previous && current !== previous) {
+      fetchRequestIdRef.current += 1
       setFetchedOptions([])
+      setIsLoadingOptions(false)
       setHydratedOption(null)
+      setMissingOptionId(null)
+      hydratedRevisionRef.current = null
       // Both flags are what gate the fetch effect below, so both have to clear
       // with the list: a stale error would block every future refetch, and a
       // stale `hasFetched` would stop the new dependency values ever loading.
       setFetchError(null)
       hasFetchedRef.current = false
     }
-    previousDependencyValuesRef.current = current
-  }, [dependencyValues, fetchOptions, dependsOnFields.length])
+    previousFetchScopeRef.current = current
+  }, [dependencyValues, fetchOptions, workspaceId])
 
   useEffect(() => {
     if (
@@ -161,17 +177,32 @@ export function useFetchedOptions({
     // An expression rather than a real id — there is nothing to look up.
     if (valueToHydrate.startsWith('<') || valueToHydrate.includes('{{')) return
 
-    if (hydratedOption?.id === valueToHydrate) return
+    if (
+      hydratedOption?.id === valueToHydrate &&
+      hydratedRevisionRef.current?.id === valueToHydrate &&
+      hydratedRevisionRef.current.revision === hydrationRevision
+    ) {
+      return
+    }
     if (hasLocalOption(fetchedOptions, valueToHydrate)) return
     if (hasLocalOption(localOptions, valueToHydrate)) return
 
     let isActive = true
     fetchOptionById(blockId, valueToHydrate)
       .then((option) => {
-        if (isActive) setHydratedOption(option)
+        if (isActive) {
+          hydratedRevisionRef.current = option
+            ? { id: valueToHydrate, revision: hydrationRevision }
+            : null
+          setHydratedOption(option)
+          setMissingOptionId(option ? null : valueToHydrate)
+        }
       })
       .catch(() => {
-        if (isActive) setHydratedOption(null)
+        if (isActive) {
+          setHydratedOption(null)
+          setMissingOptionId(null)
+        }
       })
 
     return () => {
@@ -186,12 +217,22 @@ export function useFetchedOptions({
     fetchedOptions,
     localOptions,
     hydratedOption?.id,
+    hydrationRevision,
+    workspaceId,
   ])
 
   const refetch = useCallback(() => {
     hasFetchedRef.current = true
+    setHydrationRevision((revision) => revision + 1)
     void runFetch()
   }, [runFetch])
 
-  return { fetchedOptions, isLoadingOptions, fetchError, hydratedOption, refetch }
+  return {
+    fetchedOptions,
+    isLoadingOptions,
+    fetchError,
+    hydratedOption,
+    missingOptionId,
+    refetch,
+  }
 }

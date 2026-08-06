@@ -232,6 +232,7 @@ export async function prePersistClientExecutableToolCall(
         runId: context.runId,
         userId: execContext.userId,
         registry: execContext.resolvedSecretTraceRegistry,
+        toolInput: data.arguments,
       })
     } catch (error) {
       execContext.resolvedSecretTraceRegistry.markIncomplete()

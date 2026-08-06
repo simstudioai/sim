@@ -1,3 +1,4 @@
+import { selectElevenLabsAudioModelInput } from '@/tools/elevenlabs/model-input'
 import type {
   ElevenLabsAudioIsolationParams,
   ElevenLabsAudioResponse,
@@ -29,6 +30,10 @@ export const elevenLabsAudioIsolationTool: ToolConfig<
   },
 
   request: {
+    modelInput: {
+      mode: 'private-provenance',
+      select: selectElevenLabsAudioModelInput,
+    },
     url: '/api/tools/elevenlabs/audio',
     method: 'POST',
     headers: () => ({

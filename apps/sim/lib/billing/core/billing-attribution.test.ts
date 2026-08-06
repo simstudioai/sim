@@ -258,7 +258,7 @@ describe('resolveBillingAttribution', () => {
     expect(JSON.stringify(attribution)).not.toContain('stripe-subscription')
   })
 
-  it('carries only the normalized Enterprise concurrency metadata needed by admission', async () => {
+  it('carries only normalized Enterprise execution metadata needed by admission', async () => {
     dbChainMockFns.limit.mockResolvedValue([
       {
         billedAccountUserId: 'owner-b',
@@ -268,7 +268,11 @@ describe('resolveBillingAttribution', () => {
     mockGetOrganizationSubscription.mockResolvedValue({
       ...ORG_SUBSCRIPTION,
       plan: 'enterprise',
-      metadata: { concurrencyLimit: '1250', secret: 'must-not-cross-boundary' },
+      metadata: {
+        concurrencyLimit: '1250',
+        workflowExecutionTimeoutSeconds: '86400',
+        secret: 'must-not-cross-boundary',
+      },
     })
 
     const attribution = await resolveBillingAttribution({
@@ -279,6 +283,7 @@ describe('resolveBillingAttribution', () => {
     expect(attribution.payerSubscription).toMatchObject({
       plan: 'enterprise',
       enterpriseConcurrencyLimit: 1250,
+      enterpriseWorkflowExecutionTimeoutSeconds: 86_400,
     })
     expect(JSON.stringify(attribution)).not.toContain('must-not-cross-boundary')
   })

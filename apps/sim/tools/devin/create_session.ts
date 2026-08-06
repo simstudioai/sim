@@ -53,6 +53,10 @@ export const devinCreateSessionTool: ToolConfig<
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({ prompt: params.prompt }),
+    },
     url: (params) => `https://api.devin.ai/v3/organizations/${params.orgId.trim()}/sessions`,
     method: 'POST',
     headers: (params) => ({

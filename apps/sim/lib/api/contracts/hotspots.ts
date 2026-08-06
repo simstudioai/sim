@@ -1,11 +1,17 @@
 import { z } from 'zod'
 import {
   customPatternSchema,
+  privateSecretProvenanceBundleSchema,
+  resolvedSecretTraceProvenanceSchema,
   stringRecordSchema,
   unknownRecordSchema,
 } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { DEFAULT_CODE_LANGUAGE } from '@/lib/execution/languages'
+import {
+  PRIVATE_SECRET_PROVENANCE_FIELD,
+  RESOLVED_SECRET_PROVENANCE_FIELD,
+} from '@/lib/execution/private-tool-metadata'
 export const guardrailsValidateContract = defineRouteContract({
   method: 'POST',
   path: '/api/guardrails/validate',
@@ -31,6 +37,7 @@ export const guardrailsValidateContract = defineRouteContract({
     piiMode: z.string().optional(),
     piiLanguage: z.string().optional(),
     piiCustomPatterns: z.array(customPatternSchema).max(20).optional(),
+    [RESOLVED_SECRET_PROVENANCE_FIELD]: resolvedSecretTraceProvenanceSchema.optional(),
   }),
   response: {
     mode: 'json',
@@ -200,6 +207,7 @@ export const functionExecuteContract = defineRouteContract({
     secretScope: z.enum(['all', 'selected']).optional(),
     /** Secret names this execution may read when secretScope is `selected`. */
     mountedSecrets: z.array(z.string()).optional(),
+    [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
     _sandboxFiles: z
       .array(
         z.union([
