@@ -21,6 +21,38 @@ interface Frontmatter {
 
 const logger = createLogger('DocsChunker')
 
+/**
+ * One `{ question: "...", answer: "..." }` FAQ item. Quoted strings are
+ * consumed escape-aware, so braces or quotes inside an answer never end a
+ * match early.
+ */
+const FAQ_ITEM_PATTERN =
+  /\{\s*question:\s*"((?:[^"\\]|\\.)*)"\s*,\s*answer:\s*"((?:[^"\\]|\\.)*)"\s*\}/g
+
+function unescapeJsxString(value: string): string {
+  return value.replace(/\\(.)/g, (_, char: string) =>
+    char === 'n' ? '\n' : char === 't' ? '\t' : char
+  )
+}
+
+/**
+ * Emit an FAQ block's question/answer strings as plain prose lines. Must run
+ * BEFORE the tag strip: a `<FAQ items={[` opening tag has no `>` until the
+ * closing `]} />`, so the multiline tag regex would otherwise swallow the
+ * items whole (ending at the first `>` inside an answer). Angle brackets and
+ * braces around inline tokens (`<gmail.attachments[0]>`, `data:{mime}`) are
+ * dropped so the later tag and brace strips cannot re-consume the emitted
+ * text.
+ */
+function extractFaqProse(items: string): string {
+  const lines: string[] = []
+  for (const match of items.matchAll(FAQ_ITEM_PATTERN)) {
+    lines.push(unescapeJsxString(match[1]), unescapeJsxString(match[2]))
+  }
+  if (lines.length === 0) return ' '
+  return `\n${lines.join('\n').replace(/[<>{}]/g, '')}\n`
+}
+
 export class DocsChunker {
   private readonly textChunker: TextChunker
   private readonly baseUrl: string
@@ -216,6 +248,7 @@ export class DocsChunker {
       .replace(/\r/g, '\n')
       .replace(/^import\s+.*$/gm, '')
       .replace(/^export\s+.*$/gm, '')
+      .replace(/<FAQ\s+items=\{\[([\s\S]*?)\]\}\s*\/>/g, (_m, items: string) => extractFaqProse(items))
       .replace(/<\/?[a-zA-Z][^>]*>/g, ' ')
       .replace(/\{\/\*[\s\S]*?\*\/\}/g, ' ')
       .replace(/\{[^{}]*\}/g, ' ')
