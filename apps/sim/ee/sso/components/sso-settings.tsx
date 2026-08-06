@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import {
   Button,
+  Chip,
   ChipCombobox,
   ChipCopyInput,
   ChipInput,
@@ -23,6 +24,7 @@ import type { SsoRegistrationBody } from '@/lib/api/contracts/auth'
 import { useSession } from '@/lib/auth/auth-client'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { REDACTED_MARKER } from '@/lib/core/security/redaction'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
@@ -68,6 +70,115 @@ const SAML_NAMEID_FORMATS = [
 ] as const
 
 const PROVIDER_ID_SUGGESTIONS = SSO_TRUSTED_PROVIDERS.map((id) => ({ label: id, value: id }))
+
+const CLIENT_SECRET_FIELD_ID = 'sso-client-secret'
+/** Fixed width, so the mask never leaks how long the stored secret is. */
+const CLIENT_SECRET_MASK = '••••••••••••'
+
+interface ClientSecretFieldProps {
+  /** A secret is already saved, so the field opens as a masked fact rather than an input. */
+  hasStoredSecret: boolean
+  /** Last four characters of the saved secret, when the API judged it safe to hint. */
+  storedHint: string | null
+  isReplacing: boolean
+  onReplace: () => void
+  onCancelReplace: () => void
+  value: string
+  onChange: (value: string) => void
+  hasError: boolean
+}
+
+/**
+ * A saved client secret is a fact, not an editable value — the browser never
+ * receives it. Rendering it as a static masked row with an explicit Replace
+ * action avoids the "will blank clear it?" ambiguity an empty input invites, and
+ * keeps a stray keystroke from arming a replacement.
+ */
+function ClientSecretField({
+  hasStoredSecret,
+  storedHint,
+  isReplacing,
+  onReplace,
+  onCancelReplace,
+  value,
+  onChange,
+  hasError,
+}: ClientSecretFieldProps) {
+  const [isRevealed, setIsRevealed] = useState(false)
+
+  if (hasStoredSecret && !isReplacing) {
+    return (
+      <div className='flex items-center gap-2'>
+        <ChipInput
+          id={CLIENT_SECRET_FIELD_ID}
+          readOnly
+          value={storedHint ? `${CLIENT_SECRET_MASK}${storedHint}` : CLIENT_SECRET_MASK}
+          inputClassName='cursor-default font-mono'
+          className='min-w-0 flex-1'
+          aria-label={
+            storedHint ? `Saved client secret ending ${storedHint}` : 'Saved client secret'
+          }
+        />
+        <Chip onClick={onReplace}>Replace</Chip>
+      </div>
+    )
+  }
+
+  return (
+    <div className='flex items-center gap-2'>
+      <ChipInput
+        id={CLIENT_SECRET_FIELD_ID}
+        type='text'
+        placeholder='Enter Client Secret'
+        className='min-w-0 flex-1'
+        value={value}
+        name='sso_client_key'
+        autoComplete='off'
+        autoCapitalize='none'
+        spellCheck={false}
+        readOnly
+        // Kept from the original field: opening read-only and dropping the
+        // attribute on focus is what stops password managers autofilling here.
+        onFocus={(e) => {
+          e.target.removeAttribute('readOnly')
+          setIsRevealed(true)
+        }}
+        onBlurCapture={() => setIsRevealed(false)}
+        onChange={(e) => onChange(e.target.value)}
+        inputClassName={!isRevealed ? '[-webkit-text-security:disc]' : undefined}
+        error={hasError}
+        endAdornment={
+          // Only offer the reveal once there is something to reveal.
+          value ? (
+            <Button
+              type='button'
+              variant='ghost'
+              onClick={() => setIsRevealed((s) => !s)}
+              className='size-6 p-0 text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+              aria-label={isRevealed ? 'Hide client secret' : 'Show client secret'}
+            >
+              {isRevealed ? <EyeOff className='size-[14px]' /> : <Eye className='size-[14px]' />}
+            </Button>
+          ) : undefined
+        }
+      />
+      {/* Not "Cancel" — the header already owns that label for discarding the
+          whole edit, and these two do very different things. */}
+      {hasStoredSecret && <Chip onClick={onCancelReplace}>Keep saved</Chip>}
+    </div>
+  )
+}
+
+/** Reads the display-only hint the API attaches beside the redacted client secret. */
+function readClientSecretHint(oidcConfig?: string): string | null {
+  if (!oidcConfig) return null
+  try {
+    const hint = JSON.parse(oidcConfig).clientSecretHint
+    return typeof hint === 'string' ? hint : null
+  } catch {
+    return null
+  }
+}
 
 const DEFAULT_FORM_DATA = {
   providerType: 'oidc' as 'oidc' | 'saml',
@@ -134,7 +245,6 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
 
   const configureSSOMutation = useConfigureSSO()
 
-  const [showClientSecret, setShowClientSecret] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [showMapping, setShowMapping] = useState(false)
@@ -143,6 +253,19 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
   const [originalFormData, setOriginalFormData] = useState(DEFAULT_FORM_DATA)
   const [errors, setErrors] = useState<Record<string, string[]>>(DEFAULT_ERRORS)
   const [showErrors, setShowErrors] = useState(false)
+
+  const [isReplacingClientSecret, setIsReplacingClientSecret] = useState(false)
+
+  /**
+   * Editing an OIDC provider always means a secret is stored — the contract
+   * requires one to register, and the API returns only its sentinel, never the
+   * value. Leaving the field blank therefore means "keep it", not "clear it".
+   */
+  const hasStoredClientSecret = isEditing && existingProvider?.providerType === 'oidc'
+  /** Last four characters of the saved secret, when the API judged it safe to hint. */
+  const storedClientSecretHint = hasStoredClientSecret
+    ? readClientSecretHint(existingProvider?.oidcConfig)
+    : null
 
   const hasChanges = (Object.keys(formData) as (keyof typeof formData)[]).some(
     (k) => formData[k] !== originalFormData[k]
@@ -208,7 +331,12 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
     return out
   }
 
-  const validateAll = (data: typeof formData) => {
+  /**
+   * `isReplacingSecret` is a parameter rather than a closure read: callers that
+   * validate in the same tick as toggling it would otherwise see the previous
+   * value and leave a stale "required" error on a field that is no longer an input.
+   */
+  const validateAll = (data: typeof formData, isReplacingSecret = isReplacingClientSecret) => {
     const newErrors: Record<string, string[]> = {
       providerType: [],
       providerId: validateProviderId(data.providerId),
@@ -227,7 +355,13 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
 
     if (providerType === 'oidc') {
       newErrors.clientId = validateRequired('Client ID', data.clientId)
-      newErrors.clientSecret = validateRequired('Client Secret', data.clientSecret)
+      // Skipped only while the stored secret is being kept. Once Replace is
+      // clicked the field is a real input again, so a blank or whitespace-only
+      // value has to fail rather than quietly overwrite a working secret.
+      newErrors.clientSecret =
+        hasStoredClientSecret && !isReplacingSecret
+          ? []
+          : validateRequired('Client Secret', data.clientSecret)
       if (!data.scopes || !data.scopes.trim()) {
         newErrors.scopes = ['Scopes are required for OIDC providers']
       }
@@ -253,6 +387,7 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
     setErrors(DEFAULT_ERRORS)
     setShowErrors(false)
     setShowAdvanced(false)
+    setIsReplacingClientSecret(false)
   }
 
   const handleSubmit = async (e?: React.FormEvent) => {
@@ -282,7 +417,14 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
                 image: OIDC_DEFAULT_MAPPING.image,
               },
               clientId: formData.clientId,
-              clientSecret: formData.clientSecret,
+              // Blank on an edit means the admin did not retype it: send the
+              // sentinel so the server keeps the stored secret. Trimmed because a
+              // pasted secret often carries a trailing newline, and because a
+              // whitespace-only value must never be stored as the secret.
+              clientSecret:
+                hasStoredClientSecret && !formData.clientSecret.trim()
+                  ? REDACTED_MARKER
+                  : formData.clientSecret.trim(),
               scopes: formData.scopes.split(',').map((s) => s.trim()),
               ...(formData.authorizationEndpoint.trim()
                 ? { authorizationEndpoint: formData.authorizationEndpoint.trim() }
@@ -324,6 +466,7 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
       setShowErrors(false)
       setIsEditing(false)
       setShowAdvanced(false)
+      setIsReplacingClientSecret(false)
     } catch (err) {
       const message = getErrorMessage(err, 'Unknown error occurred')
       toast.error(message)
@@ -343,6 +486,18 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
 
     setFormData(next)
     validateAll(next)
+  }
+
+  /**
+   * Backs out of a replacement: drops what was typed and revalidates as "keeping
+   * the saved secret", so a required-error from a failed submit does not linger on
+   * a row that is no longer an input.
+   */
+  const handleKeepSavedSecret = () => {
+    setIsReplacingClientSecret(false)
+    const next = { ...formData, clientSecret: '' }
+    setFormData(next)
+    validateAll(next, false)
   }
 
   const isSaml = formData.providerType === 'saml'
@@ -373,7 +528,10 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
       if (existingProvider.providerType === 'oidc' && existingProvider.oidcConfig) {
         const config = JSON.parse(existingProvider.oidcConfig)
         clientId = config.clientId || ''
-        clientSecret = config.clientSecret || ''
+        // The API returns the sentinel, never the secret. Showing it verbatim put
+        // the literal "[REDACTED]" in the field; blanking it lets the placeholder
+        // say a secret is stored, and submit re-sends the sentinel to keep it.
+        clientSecret = config.clientSecret === REDACTED_MARKER ? '' : config.clientSecret || ''
         scopes = config.scopes?.join(',') || 'openid,profile,email'
         mapping = config.mapping ?? {}
         authorizationEndpoint = config.authorizationEndpoint || ''
@@ -429,6 +587,7 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
       setIsEditing(true)
       setShowErrors(false)
       setShowAdvanced(false)
+      setIsReplacingClientSecret(false)
       setShowMapping(Boolean(snapshot.mapId || snapshot.mapEmail || snapshot.mapName))
     } catch (err) {
       logger.error('Failed to parse provider config', { error: err })
@@ -665,45 +824,25 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
 
                 <SettingRow
                   label='Client Secret'
+                  htmlFor={CLIENT_SECRET_FIELD_ID}
+                  description={
+                    isReplacingClientSecret ? 'Replaces the saved secret when you save.' : undefined
+                  }
                   error={
                     showErrors && errors.clientSecret.length > 0
                       ? errors.clientSecret.join(' ')
                       : undefined
                   }
                 >
-                  <ChipInput
-                    id='sso-client-secret'
-                    type='text'
-                    placeholder='Enter Client Secret'
+                  <ClientSecretField
+                    hasStoredSecret={hasStoredClientSecret}
+                    storedHint={storedClientSecretHint}
+                    isReplacing={isReplacingClientSecret}
+                    onReplace={() => setIsReplacingClientSecret(true)}
+                    onCancelReplace={handleKeepSavedSecret}
                     value={formData.clientSecret}
-                    name='sso_client_key'
-                    autoComplete='off'
-                    autoCapitalize='none'
-                    spellCheck={false}
-                    readOnly
-                    onFocus={(e) => {
-                      e.target.removeAttribute('readOnly')
-                      setShowClientSecret(true)
-                    }}
-                    onBlurCapture={() => setShowClientSecret(false)}
-                    onChange={(e) => handleInputChange('clientSecret', e.target.value)}
-                    inputClassName={!showClientSecret ? '[-webkit-text-security:disc]' : undefined}
-                    error={showErrors && errors.clientSecret.length > 0}
-                    endAdornment={
-                      <Button
-                        type='button'
-                        variant='ghost'
-                        onClick={() => setShowClientSecret((s) => !s)}
-                        className='size-6 p-0 text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-                        aria-label={showClientSecret ? 'Hide client secret' : 'Show client secret'}
-                      >
-                        {showClientSecret ? (
-                          <EyeOff className='size-[14px]' />
-                        ) : (
-                          <Eye className='size-[14px]' />
-                        )}
-                      </Button>
-                    }
+                    onChange={(next) => handleInputChange('clientSecret', next)}
+                    hasError={showErrors && errors.clientSecret.length > 0}
                   />
                 </SettingRow>
 
