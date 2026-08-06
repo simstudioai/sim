@@ -1,3 +1,8 @@
+/**
+ * Trigger definitions reference block configs while they initialize. Load the block registry first
+ * so the trigger barrel cannot re-enter a partially initialized registry during deployment.
+ */
+import '@/blocks/registry'
 import { db } from '@sim/db'
 import { account, credential, webhook, workflowDeploymentVersion } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
