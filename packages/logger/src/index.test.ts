@@ -46,6 +46,36 @@ describe('Logger', () => {
     })
   })
 
+  describe('browser suppression in production', () => {
+    const realProcess = globalThis.process
+
+    afterEach(() => {
+      Reflect.deleteProperty(globalThis, 'window')
+      globalThis.process = realProcess
+    })
+
+    test('should keep logging when the server installs a DOM', () => {
+      globalThis.process = {
+        ...realProcess,
+        env: { ...realProcess.env, NODE_ENV: 'production' },
+      } as typeof realProcess
+      Object.assign(globalThis, { window: { document: {} } })
+
+      createLogger('Test').error('server still logs')
+
+      expect(consoleErrorSpy).toHaveBeenCalled()
+    })
+
+    test('should stay silent in a real browser', () => {
+      globalThis.process = { env: { NODE_ENV: 'production' } } as typeof realProcess
+      Object.assign(globalThis, { window: { document: {} } })
+
+      createLogger('Test').error('browser stays quiet')
+
+      expect(consoleErrorSpy).not.toHaveBeenCalled()
+    })
+  })
+
   describe('LogLevel enum', () => {
     test('should have correct log levels', () => {
       expect(LogLevel.DEBUG).toBe('DEBUG')
