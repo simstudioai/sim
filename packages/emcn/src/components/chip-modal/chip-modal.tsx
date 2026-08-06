@@ -800,6 +800,20 @@ function handleSingleLineEnter(
  * is what stops a password manager autofilling the operator's own credentials
  * into a field that sets some other account's password.
  */
+interface ChipModalPasswordControlProps {
+  id: string
+  value: string
+  onChange: (value: string) => void
+  onKeyDown: (event: React.KeyboardEvent<HTMLInputElement>) => void
+  placeholder?: string
+  maxLength?: number
+  autoComplete?: string
+  disabled?: boolean
+  mono?: boolean
+  /** ARIA the owning {@link ChipModalField} derives from its own state. */
+  aria: ChipModalFieldAria
+}
+
 function ChipModalPasswordControl({
   id,
   value,
@@ -811,18 +825,7 @@ function ChipModalPasswordControl({
   disabled,
   mono,
   aria,
-}: {
-  id: string
-  value: string
-  onChange: (value: string) => void
-  onKeyDown: (event: React.KeyboardEvent<HTMLInputElement>) => void
-  placeholder?: string
-  maxLength?: number
-  autoComplete?: string
-  disabled?: boolean
-  mono?: boolean
-  aria: ChipModalFieldAria
-}) {
+}: ChipModalPasswordControlProps) {
   const [revealed, setRevealed] = React.useState(false)
 
   return (
@@ -853,6 +856,10 @@ function ChipModalPasswordControl({
             type='button'
             variant='ghost'
             disabled={disabled}
+            // Keep focus on the input: letting the button take it would fire the
+            // blur re-mask first, so the click would toggle back from `false`
+            // and "Hide" would leave a focused password on screen.
+            onMouseDown={(event) => event.preventDefault()}
             onClick={() => setRevealed((current) => !current)}
             className='size-6 flex-shrink-0 p-0 text-[var(--text-muted)] hover:text-[var(--text-primary)]'
             aria-label={revealed ? 'Hide password' : 'Show password'}

@@ -288,4 +288,26 @@ describe("ChipModalField inputType='password'", () => {
     expect(passwordInput().className).not.toContain(MASK_CLASS)
     expect(document.querySelector('[aria-label="Hide password"]')).not.toBeNull()
   })
+
+  it('hides a focused password instead of re-revealing it', () => {
+    mountPasswordField('hunter2-secret')
+    act(() => passwordInput().focus())
+
+    const toggle = document.querySelector<HTMLButtonElement>('[aria-label="Hide password"]')
+    if (!toggle) throw new Error('Hide toggle did not render')
+
+    // jsdom does not move focus on mousedown, so model what a browser does: the
+    // press blurs the input unless the handler prevents the default. Without the
+    // control's preventDefault that blur re-masks first, and the click then
+    // toggles back to revealed — leaving the password on screen.
+    act(() => {
+      const press = new MouseEvent('mousedown', { bubbles: true, cancelable: true })
+      toggle.dispatchEvent(press)
+      if (!press.defaultPrevented) passwordInput().blur()
+      toggle.click()
+    })
+
+    expect(passwordInput().className).toContain(MASK_CLASS)
+    expect(document.querySelector('[aria-label="Show password"]')).not.toBeNull()
+  })
 })
