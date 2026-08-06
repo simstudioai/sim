@@ -6,10 +6,33 @@ import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   ActiveFileMetadataKeyConflictError,
+  deleteFileMetadataByIdentity,
   insertFileMetadata,
   insertFileMetadataMany,
   insertImmutableFileMetadata,
 } from '@/lib/uploads/server/metadata'
+
+describe('deleteFileMetadataByIdentity', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('reports whether the exact active file version was soft-deleted', async () => {
+    const identity = {
+      id: 'file-1',
+      key: 'kb/workspace-1/file.pdf',
+      context: 'knowledge-base' as const,
+      contentUpdatedAt: new Date('2026-08-05T00:00:00.000Z'),
+    }
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: identity.id }])
+
+    await expect(deleteFileMetadataByIdentity(identity)).resolves.toBe(true)
+
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+    await expect(deleteFileMetadataByIdentity(identity)).resolves.toBe(false)
+  })
+})
 
 describe('insertFileMetadata content versions', () => {
   beforeEach(() => {

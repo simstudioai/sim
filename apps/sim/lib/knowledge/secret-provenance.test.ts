@@ -1,14 +1,46 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it } from 'vitest'
+import { document } from '@sim/db/schema'
+import { queueTableRows, resetDbChainMock } from '@sim/testing'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { hashDurableSecretProvenanceValue } from '@/lib/execution/durable-secret-provenance'
 import {
   createKnowledgeDocumentSourceValue,
+  loadKnowledgeDocumentSecretRegistry,
   readBoundKnowledgeDocumentSecretProvenance,
 } from '@/lib/knowledge/secret-provenance'
 
+const { mockDecryptSecret } = vi.hoisted(() => ({
+  mockDecryptSecret: vi.fn(),
+}))
+
+vi.mock('@/lib/core/security/encryption', () => ({
+  decryptSecret: mockDecryptSecret,
+}))
+
+const DOCUMENT_SOURCE = createKnowledgeDocumentSourceValue({
+  filename: 'source.pdf',
+  fileUrl: '/api/files/serve/workspace%2Fworkspace-1%2Fsource.pdf?context=workspace',
+})
+
+const DOCUMENT_ROW = {
+  id: 'document-1',
+  ...DOCUMENT_SOURCE,
+  secretProvenanceVersion: null,
+  provenanceSourceHash: null,
+  status: null,
+  entries: null,
+}
+
 describe('knowledge durable secret provenance', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    queueTableRows(document, [DOCUMENT_ROW])
+    mockDecryptSecret.mockResolvedValue({ decrypted: 'tracked-secret' })
+  })
+
   it('uses the same explicit source shape for joined rows and persisted writes', () => {
     const source = createKnowledgeDocumentSourceValue({
       filename: 'file.txt',
@@ -50,5 +82,51 @@ describe('knowledge durable secret provenance', () => {
         source: { ...canonicalSource, filename: 'changed-by-old-app.txt' },
       })
     ).toEqual({ status: 'exact', entries: [] })
+  })
+
+  it('merges fresh source provenance into the pre-processing registry', async () => {
+    const result = await loadKnowledgeDocumentSecretRegistry(
+      DOCUMENT_ROW.id,
+      { userId: 'source-user', workspaceId: 'workspace-1' },
+      {
+        status: 'exact',
+        entries: [
+          {
+            name: 'OCR_SECRET',
+            encryptedValue: 'encrypted-secret',
+            sourceUserId: 'source-user',
+            sourceWorkspaceId: 'workspace-1',
+          },
+        ],
+      }
+    )
+
+    expect(result.tracked).toBe(true)
+    expect(result.registry?.getActiveMatches()).toContainEqual(
+      expect.objectContaining({ plaintext: 'tracked-secret' })
+    )
+  })
+
+  it('fails closed when the fresh source classification is unknown', async () => {
+    await expect(
+      loadKnowledgeDocumentSecretRegistry(
+        DOCUMENT_ROW.id,
+        { userId: 'source-user', workspaceId: 'workspace-1' },
+        { status: 'unknown' }
+      )
+    ).rejects.toThrow('Knowledge document secret provenance is unavailable')
+  })
+
+  it('marks a fresh exact-empty source as tracked without creating a registry', async () => {
+    const result = await loadKnowledgeDocumentSecretRegistry(
+      DOCUMENT_ROW.id,
+      { userId: 'source-user', workspaceId: 'workspace-1' },
+      { status: 'exact', entries: [] }
+    )
+
+    expect(result).toEqual({
+      provenance: { status: 'exact', entries: [] },
+      tracked: true,
+    })
   })
 })

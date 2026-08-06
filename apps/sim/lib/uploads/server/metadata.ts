@@ -353,6 +353,29 @@ export async function deleteFileMetadata(key: string): Promise<boolean> {
   return true
 }
 
+/** Soft-deletes only the exact active metadata version previously authorized by a caller. */
+export async function deleteFileMetadataByIdentity(identity: {
+  id: string
+  key: string
+  context: StorageContext
+  contentUpdatedAt: Date
+}): Promise<boolean> {
+  const deleted = await db
+    .update(workspaceFiles)
+    .set({ deletedAt: new Date() })
+    .where(
+      and(
+        eq(workspaceFiles.id, identity.id),
+        eq(workspaceFiles.key, identity.key),
+        eq(workspaceFiles.context, identity.context),
+        eq(workspaceFiles.contentUpdatedAt, identity.contentUpdatedAt),
+        isNull(workspaceFiles.deletedAt)
+      )
+    )
+    .returning({ id: workspaceFiles.id })
+  return deleted.length === 1
+}
+
 /**
  * Fields needed to record a trusted storage-key -> workspace ownership binding
  * for a knowledge-base file. The `context` is always `'knowledge-base'`, so it is
