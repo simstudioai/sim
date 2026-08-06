@@ -1,10 +1,10 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { member, ssoDomain } from '@sim/db/schema'
+import { member, ssoDomain, ssoProvider } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { getPostgresErrorCode } from '@sim/utils/errors'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyOrganizationDomainContract } from '@/lib/api/contracts/organization'
 import { parseRequest } from '@/lib/api/server'
@@ -103,17 +103,39 @@ export const POST = withRouteHandler(
     // that as a 409 rather than an unhandled 500.
     let updated: (typeof row)[]
     try {
-      updated = await db
-        .update(ssoDomain)
-        .set({ status: 'verified', verifiedAt: new Date(), updatedAt: new Date() })
-        .where(
-          and(
-            eq(ssoDomain.id, domainId),
-            eq(ssoDomain.verificationToken, row.verificationToken),
-            eq(ssoDomain.status, 'pending')
+      updated = await db.transaction(async (tx) => {
+        const flipped = await tx
+          .update(ssoDomain)
+          .set({ status: 'verified', verifiedAt: new Date(), updatedAt: new Date() })
+          .where(
+            and(
+              eq(ssoDomain.id, domainId),
+              eq(ssoDomain.verificationToken, row.verificationToken),
+              eq(ssoDomain.status, 'pending')
+            )
           )
-        )
-        .returning()
+          .returning()
+
+        // Restore trust on any provider this proof covers, mirroring the revocation
+        // performed when a verified domain is deleted. Without this, a delete followed
+        // by a re-verification leaves the provider untrusted — and because that flag
+        // gates sign-in, not just linking, the org would sit in a silent SSO outage
+        // until someone re-saved the SSO config. Wildcard-tolerant, matching the
+        // revoking comparison exactly so the two stay symmetric.
+        if (flipped.length > 0) {
+          await tx
+            .update(ssoProvider)
+            .set({ domainVerified: true })
+            .where(
+              and(
+                eq(ssoProvider.organizationId, organizationId),
+                sql`lower(regexp_replace(btrim(${ssoProvider.domain}), '^\\*\\.', '')) = ${flipped[0].domain}`
+              )
+            )
+        }
+
+        return flipped
+      })
     } catch (error) {
       if (getPostgresErrorCode(error) === '23505') {
         return NextResponse.json(
