@@ -7,7 +7,12 @@ import { randomBytes } from 'crypto'
 import { db } from '@sim/db'
 import { workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
+import {
+  describeError,
+  getErrorMessage,
+  getPostgresConstraintName,
+  getPostgresErrorCode,
+} from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { and, eq, isNotNull, isNull, or, type SQL, sql } from 'drizzle-orm'
 import type { ShareRecord } from '@/lib/api/contracts/public-shares'
@@ -43,6 +48,14 @@ import { parseFolderPath } from '@/lib/folders/paths'
 import { loadActiveFolderPathIndex, resolveFolderPathFromIndex } from '@/lib/folders/queries'
 import { mergeEditIntoLiveFileDoc, notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
 import { getServePathPrefix } from '@/lib/uploads'
+import {
+  EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE,
+  initializeWorkspaceFileSecretProvenanceInTx,
+  preserveWorkspaceFileSecretProvenanceInTx,
+  replaceWorkspaceFileSecretProvenanceInTx,
+  type WorkspaceFileSecretProvenance,
+  type WorkspaceFileSecretProvenancePolicy,
+} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import {
   deleteFile,
   downloadFile,
@@ -92,6 +105,9 @@ export interface WorkspaceFileRecord {
   url?: string // Presigned URL for external access (optional, regenerated as needed)
   size: number
   type: string
+  /** Intrinsic image pixel dimensions, populated lazily on first view. Null/absent for non-images. */
+  width?: number | null
+  height?: number | null
   uploadedBy: string
   folderId?: string | null
   folderPath?: string | null
@@ -341,7 +357,12 @@ export async function uploadWorkspaceFile(
   fileBuffer: Buffer,
   fileName: string,
   contentType: string,
-  options?: { folderId?: string | null; folderPath?: string; exactName?: boolean }
+  options?: {
+    folderId?: string | null
+    folderPath?: string
+    exactName?: boolean
+    secretProvenance?: WorkspaceFileSecretProvenance
+  }
 ): Promise<UploadedWorkspaceFileRecord> {
   logger.info(`Uploading workspace file: ${fileName} for workspace ${workspaceId}`)
 
@@ -437,6 +458,14 @@ export async function uploadWorkspaceFile(
           if (!inserted) {
             throw new FileConflictError(uniqueName)
           }
+          if (options?.secretProvenance) {
+            await replaceWorkspaceFileSecretProvenanceInTx(
+              tx,
+              inserted.id,
+              inserted.contentUpdatedAt,
+              options.secretProvenance
+            )
+          }
           const usage = await incrementStorageUsageForBillingContextInTx(
             tx,
             storageBillingContext,
@@ -485,17 +514,18 @@ export async function uploadWorkspaceFile(
       // message to recover the status.
       const classified = asOrchestrationError(error)
       if (classified) throw classified
-      logger.error(`Failed to upload workspace file ${fileName}:`, error)
+      logger.error(`Failed to upload workspace file ${fileName}:`, {
+        cause: describeError(error),
+      })
       throw new Error(`Failed to upload file: ${getErrorMessage(error, 'Unknown error')}`, {
         cause: error,
       })
     }
   }
 
-  logger.error(
-    `Failed to upload workspace file after ${MAX_UPLOAD_UNIQUE_RETRIES} attempts`,
-    lastError
-  )
+  logger.error(`Failed to upload workspace file after ${MAX_UPLOAD_UNIQUE_RETRIES} attempts`, {
+    cause: describeError(lastError),
+  })
   throw new FileConflictError(fileName)
 }
 
@@ -547,12 +577,24 @@ export async function registerUploadedWorkspaceFile(params: {
     contentType,
     size: verifiedSize,
   }
-  const existing = await findWorkspaceFileByRegistrationKey(db, key)
-  if (existing) {
-    if (!isSameWorkspaceFileRegistration(existing, registrationIdentity)) {
+  const existing = await db.transaction(async (tx) => {
+    const found = await findWorkspaceFileByRegistrationKey(tx, key)
+    if (!found) return undefined
+    if (!isSameWorkspaceFileRegistration(found, registrationIdentity)) {
       throw new WorkspaceFileRegistrationConflictError(key)
     }
-    assertActiveWorkspaceFileRegistration(existing)
+    assertActiveWorkspaceFileRegistration(found)
+    if (found.secretProvenanceVersion === 1) {
+      await initializeWorkspaceFileSecretProvenanceInTx(
+        tx,
+        found.id,
+        found.contentUpdatedAt,
+        EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE
+      )
+    }
+    return found
+  })
+  if (existing) {
     logger.info(`Using existing metadata record for upload session: ${key}`)
     const pathPrefix = getServePathPrefix()
     return {
@@ -600,6 +642,14 @@ export async function registerUploadedWorkspaceFile(params: {
           throw new WorkspaceFileRegistrationConflictError(key)
         }
         assertActiveWorkspaceFileRegistration(raceWinner)
+        if (raceWinner.secretProvenanceVersion === 1) {
+          await initializeWorkspaceFileSecretProvenanceInTx(
+            tx,
+            raceWinner.id,
+            raceWinner.contentUpdatedAt,
+            EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE
+          )
+        }
         return { kind: 'existing', file: raceWinner } as const
       }
 
@@ -607,6 +657,12 @@ export async function registerUploadedWorkspaceFile(params: {
         tx,
         storageBillingContext,
         verifiedSize
+      )
+      await replaceWorkspaceFileSecretProvenanceInTx(
+        tx,
+        inserted.id,
+        inserted.contentUpdatedAt,
+        EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE
       )
       return { kind: 'created', file: inserted, updatedUsage } as const
     })
@@ -748,6 +804,9 @@ async function resolveClaimableChatUploadRow(
  * Allocates a collision-free `displayName` (the partial unique index on
  * (chat_id, display_name) WHERE context='mothership' enforces this) and returns it
  * so callers can surface the same name to the model in the VFS read hint.
+ * This is a metadata-only operation: it preserves any content provenance already
+ * attached to the uploaded bytes. Direct user uploads use the established
+ * exact-empty/legacy classification and do not need a chat-time reclassification.
  */
 export async function trackChatUpload(
   workspaceId: string,
@@ -790,40 +849,42 @@ export async function trackChatUpload(
     const candidate = suffixedName(fileName, n)
     try {
       if (claimable.kind === 'update') {
-        const updated = await db
-          .update(workspaceFiles)
-          .set({
-            chatId,
-            messageId: messageId ?? null,
-            context: 'mothership',
-            displayName: candidate,
-          })
-          .where(
-            and(
-              eq(workspaceFiles.id, claimable.id),
-              eq(workspaceFiles.userId, userId),
-              eq(workspaceFiles.workspaceId, workspaceId),
-              eq(workspaceFiles.context, 'mothership'),
-              isNull(workspaceFiles.deletedAt),
-              // Compare-and-swap on the chat binding: an upload belongs to one
-              // chat. Two overlapping requests both observe `chat_id IS NULL`,
-              // but only the first satisfies this predicate — the loser matches
-              // zero rows and fails closed instead of stealing the binding and
-              // its delete-cascade lifecycle.
-              or(isNull(workspaceFiles.chatId), eq(workspaceFiles.chatId, chatId))
+        await db.transaction(async (tx) => {
+          const updated = await tx
+            .update(workspaceFiles)
+            .set({
+              chatId,
+              messageId: messageId ?? null,
+              context: 'mothership',
+              displayName: candidate,
+            })
+            .where(
+              and(
+                eq(workspaceFiles.id, claimable.id),
+                eq(workspaceFiles.userId, userId),
+                eq(workspaceFiles.workspaceId, workspaceId),
+                eq(workspaceFiles.context, 'mothership'),
+                isNull(workspaceFiles.deletedAt),
+                // Compare-and-swap on the chat binding: an upload belongs to one
+                // chat. Two overlapping requests both observe `chat_id IS NULL`,
+                // but only the first satisfies this predicate — the loser matches
+                // zero rows and fails closed instead of stealing the binding and
+                // its delete-cascade lifecycle.
+                or(isNull(workspaceFiles.chatId), eq(workspaceFiles.chatId, chatId))
+              )
             )
-          )
-          .returning({ id: workspaceFiles.id })
+            .returning({ id: workspaceFiles.id })
 
-        if (updated.length === 0) {
-          // The ownership lookup is a separate statement, so re-assert every
-          // predicate here — this UPDATE is the atomic check. A concurrent
-          // `materialize_file` flips the same row to context='workspace' and
-          // clears chatId; matching on id alone would drag that saved file back
-          // into chat scope, hiding it from the Files listing and re-exposing it
-          // to the chat-delete cascade.
-          throw new WorkspaceFileKeyOwnershipError(s3Key)
-        }
+          if (updated.length === 0) {
+            // The ownership lookup is a separate statement, so re-assert every
+            // predicate here — this UPDATE is the atomic check. A concurrent
+            // `materialize_file` flips the same row to context='workspace' and
+            // clears chatId; matching on id alone would drag that saved file back
+            // into chat scope, hiding it from the Files listing and re-exposing it
+            // to the chat-delete cascade.
+            throw new WorkspaceFileKeyOwnershipError(s3Key)
+          }
+        })
 
         logger.info(
           `Linked existing file record to chat: ${fileName} (display: ${candidate}) for chat ${chatId}`
@@ -833,18 +894,27 @@ export async function trackChatUpload(
 
       const fileId = `wf_${generateShortId()}`
 
-      await db.insert(workspaceFiles).values({
-        id: fileId,
-        key: s3Key,
-        userId,
-        workspaceId,
-        context: 'mothership',
-        chatId,
-        messageId: messageId ?? null,
-        originalName: fileName,
-        displayName: candidate,
-        contentType,
-        size,
+      await db.transaction(async (tx) => {
+        const [inserted] = await tx
+          .insert(workspaceFiles)
+          .values({
+            id: fileId,
+            key: s3Key,
+            userId,
+            workspaceId,
+            context: 'mothership',
+            chatId,
+            messageId: messageId ?? null,
+            originalName: fileName,
+            displayName: candidate,
+            contentType,
+            size,
+          })
+          .returning({ id: workspaceFiles.id })
+
+        if (!inserted) {
+          throw new Error(`Failed to track chat upload for key: ${s3Key}`)
+        }
       })
 
       logger.info(`Tracked chat upload: ${fileName} (display: ${candidate}) for chat ${chatId}`)
@@ -898,6 +968,8 @@ function mapWorkspaceFileRecord(
     path: `${pathPrefix}${encodeURIComponent(file.key)}?context=workspace`,
     size: workspaceFileSize(file),
     type: file.contentType,
+    width: file.width,
+    height: file.height,
     uploadedBy: file.userId,
     folderId: file.folderId,
     folderPath: file.folderId ? (folderPaths.get(file.folderId) ?? null) : null,
@@ -944,6 +1016,38 @@ async function mapSingleWorkspaceFileRecord(
     workspaceId,
     folderPath ? new Map([[file.folderId, folderPath]]) : new Map()
   )
+}
+
+/**
+ * Store an image file's intrinsic pixel dimensions (a pure rendering hint used to reserve layout space
+ * before the image loads). The client reports the browser's own EXIF-corrected `naturalWidth/Height`, and
+ * only when it differs from what's stored, so this overwrites rather than backfilling once — a stale value
+ * self-corrects on the next view instead of sticking behind a `width IS NULL` guard.
+ *
+ * `key` is a content-version guard: the write commits only if the row still has the storage key the
+ * client measured. The key is regenerated on every content replacement, so an in-flight write measured
+ * against superseded bytes is rejected here rather than persisting the old aspect ratio for new content.
+ * Does NOT touch `updatedAt` — dimensions are not content and must not cache-bust the served image bytes.
+ * Returns whether a live row was written.
+ */
+export async function updateWorkspaceFileDimensions(
+  workspaceId: string,
+  fileId: string,
+  dimensions: { key: string; width: number; height: number }
+): Promise<boolean> {
+  const updated = await db
+    .update(workspaceFiles)
+    .set({ width: dimensions.width, height: dimensions.height })
+    .where(
+      and(
+        eq(workspaceFiles.id, fileId),
+        eq(workspaceFiles.workspaceId, workspaceId),
+        eq(workspaceFiles.key, dimensions.key),
+        isNull(workspaceFiles.deletedAt)
+      )
+    )
+    .returning({ id: workspaceFiles.id })
+  return updated.length > 0
 }
 
 /**
@@ -1380,6 +1484,11 @@ export async function updateWorkspaceFileContent(
      * projecting the live doc back to markdown can never silently overwrite an out-of-band edit.
      */
     expectedUpdatedAt?: Date
+    /**
+     * Derived edits must explicitly preserve; trusted whole replacements must explicitly replace.
+     * An omitted policy is classified as unknown rather than inheriting provenance across new bytes.
+     */
+    secretProvenancePolicy?: WorkspaceFileSecretProvenancePolicy
   }
 ): Promise<WorkspaceFileRecord> {
   logger.info(`Updating workspace file content: ${fileId} for workspace ${workspaceId}`)
@@ -1471,6 +1580,13 @@ export async function updateWorkspaceFileContent(
             size: toLegacyWorkspaceFileSize(content.length),
             sizeBytes: content.length,
             contentType: nextContentType,
+            // Replaced bytes: drop the old image's dimensions so the row never describes stale content.
+            // The next view reserves nothing (the baseline first-load reflow) rather than a wrong-sized
+            // box, then the browser's measurement backfills the correct value. No server-side decode here
+            // (avoids EXIF-orientation guesswork), and a late in-flight PATCH that lands after this is
+            // corrected on the next view since the client overwrites on mismatch.
+            width: null,
+            height: null,
             updatedAt: now,
             contentUpdatedAt,
           })
@@ -1485,6 +1601,27 @@ export async function updateWorkspaceFileContent(
           .returning()
         if (!updatedFile) {
           throw new OrchestrationError('not_found', 'File not found or could not be updated')
+        }
+
+        if (options?.secretProvenancePolicy?.mode === 'replace') {
+          await replaceWorkspaceFileSecretProvenanceInTx(
+            tx,
+            fileId,
+            updatedFile.contentUpdatedAt,
+            options.secretProvenancePolicy.provenance
+          )
+        } else if (options?.secretProvenancePolicy?.mode === 'preserve') {
+          await preserveWorkspaceFileSecretProvenanceInTx(
+            tx,
+            fileId,
+            currentFile.contentUpdatedAt,
+            currentFile.secretProvenanceVersion,
+            updatedFile.contentUpdatedAt
+          )
+        } else {
+          await replaceWorkspaceFileSecretProvenanceInTx(tx, fileId, updatedFile.contentUpdatedAt, {
+            status: 'unknown',
+          })
         }
 
         let updatedUsage: number | undefined

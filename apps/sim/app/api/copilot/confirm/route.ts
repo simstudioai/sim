@@ -2,6 +2,7 @@ import { isBrowserToolName } from '@sim/browser-protocol'
 import { createLogger } from '@sim/logger'
 import { isTerminalToolName } from '@sim/terminal-protocol'
 import { getErrorMessage, toError } from '@sim/utils/errors'
+import { isPlainRecord } from '@sim/utils/object'
 import { type NextRequest, NextResponse } from 'next/server'
 import { copilotConfirmContract } from '@/lib/api/contracts/copilot'
 import { parseRequest, validationErrorResponse } from '@/lib/api/server'
@@ -38,7 +39,9 @@ import {
   sealClientToolCompletion,
 } from '@/lib/copilot/request/tools/client-completion-seal.server'
 import {
+  type AsyncWorkflowDeploymentError,
   createStructuralWorkflowToolCompletionData,
+  getAsyncWorkflowDeploymentError,
   getWorkflowToolCompletionExecutionId,
   getWorkflowToolCompletionMessage,
   getWorkflowToolConfirmationStatus,
@@ -278,6 +281,7 @@ export const POST = withRouteHandler((req: NextRequest) => {
 
         let effectiveStatus = status
         let executionId = submittedExecutionId
+        let deploymentError: AsyncWorkflowDeploymentError | undefined
 
         if (isWorkflowTool) {
           const claimedExecutionId = getClaimedWorkflowExecutionId(existing.claimedBy)
@@ -329,16 +333,28 @@ export const POST = withRouteHandler((req: NextRequest) => {
           } else {
             executionId = undefined
           }
+
+          if (
+            effectiveStatus === ASYNC_TOOL_CONFIRMATION_STATUS.error &&
+            executionId === undefined &&
+            existing.toolName === 'run_workflow' &&
+            isPlainRecord(existing.args) &&
+            existing.args.async === true
+          ) {
+            deploymentError = getAsyncWorkflowDeploymentError(data)
+          }
         }
 
         span.setAttribute(TraceAttr.ToolConfirmationStatus, effectiveStatus)
         const projected = isWorkflowTool
           ? {
-              message: getWorkflowToolCompletionMessage(effectiveStatus),
+              message:
+                deploymentError?.message ?? getWorkflowToolCompletionMessage(effectiveStatus),
               data: createStructuralWorkflowToolCompletionData(
                 effectiveStatus,
                 workflowId,
-                executionId
+                executionId,
+                deploymentError
               ),
             }
           : {

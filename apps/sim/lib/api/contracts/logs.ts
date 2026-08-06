@@ -250,6 +250,7 @@ export const workflowLogSummarySchema = z.object({
   deploymentVersionId: z.string().nullable(),
   deploymentVersion: z.number().nullable(),
   deploymentVersionName: z.string().nullable(),
+  executionOrigin: z.enum(['workflow_group']).nullable(),
   level: z.string(),
   status: z.string().nullable(),
   duration: z.string().nullable(),

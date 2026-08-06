@@ -4,7 +4,7 @@
   color: var(--text-primary);
   font-family: var(--font-inter);
   font-size: 15px;
-  font-weight: 430;
+  font-weight: 400;
   line-height: 25px;
   letter-spacing: 0;
   overflow-wrap: anywhere;
@@ -14,7 +14,7 @@
   max-width: 100%;
   height: auto;
   border-radius: 8px;
-  border: 1px solid var(--border);
+  border: var(--border-width) solid var(--border);
 }
 
 /* One consistent ring for every node that can only be selected as a whole (divider, image,
@@ -204,7 +204,7 @@
   width: 16px;
   height: 16px;
   margin: 0;
-  border: 1px solid var(--border-1);
+  border: var(--border-width) solid var(--border-1);
   border-radius: 3px;
   background: transparent;
   cursor: pointer;
@@ -224,7 +224,7 @@
 }
 
 .rich-markdown-prose blockquote {
-  border-left: 2px solid var(--divider);
+  border-left: 2px solid var(--border);
   padding-left: 1rem;
   color: var(--text-primary);
   font-style: italic;
@@ -331,7 +331,7 @@
 
 .rich-markdown-prose hr {
   border: none;
-  border-top: 1px solid var(--divider);
+  border-top: var(--border-width) solid var(--border);
   margin: 1.5em 0;
 }
 

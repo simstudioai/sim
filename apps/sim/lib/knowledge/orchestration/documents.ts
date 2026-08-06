@@ -25,6 +25,7 @@ import {
   type KnowledgeOperationContext,
   type KnowledgeOrchestrationResult,
 } from '@/lib/knowledge/orchestration/shared'
+import type { KnowledgeDocumentWriteSecretProvenance } from '@/lib/knowledge/secret-provenance'
 import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('KnowledgeDocumentOrchestration')
@@ -75,6 +76,7 @@ export interface PerformUploadKnowledgeDocumentParams extends KnowledgeOperation
   uploadedBy?: string | null
   /** Deterministic id carried by a stateless upload token for completion retries. */
   documentId?: string
+  secretProvenance?: KnowledgeDocumentWriteSecretProvenance
 }
 
 export type PerformUploadKnowledgeDocumentResult = KnowledgeOrchestrationResult<{
@@ -199,13 +201,16 @@ export async function performUploadKnowledgeDocument(
           knowledgeBase.id,
           requestId,
           params.uploadedBy ?? params.userId,
-          params.documentId
+          params.documentId,
+          params.secretProvenance
         )
       : await createSingleDocument(
           document,
           knowledgeBase.id,
           requestId,
-          params.uploadedBy ?? params.userId
+          params.uploadedBy ?? params.userId,
+          undefined,
+          params.secretProvenance
         )
   } catch (error) {
     if (params.documentId) {
@@ -290,6 +295,7 @@ export interface PerformUploadKnowledgeDocumentsParams extends KnowledgeOperatio
   processingOptions?: ProcessingOptions
   billingAttribution?: BillingAttributionSnapshot
   uploadedBy?: string | null
+  secretProvenances?: readonly KnowledgeDocumentWriteSecretProvenance[]
 }
 
 export type PerformUploadKnowledgeDocumentsResult = KnowledgeOrchestrationResult<{
@@ -320,7 +326,8 @@ export async function performUploadKnowledgeDocuments(
       documents,
       knowledgeBase.id,
       requestId,
-      params.uploadedBy ?? params.userId
+      params.uploadedBy ?? params.userId,
+      params.secretProvenances
     )
   } catch (error) {
     return classifyKnowledgeFailure(

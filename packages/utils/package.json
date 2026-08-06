@@ -53,6 +53,10 @@
     "./sso-domain": {
       "types": "./src/sso-domain.ts",
       "default": "./src/sso-domain.ts"
+    },
+    "./sandbox-references": {
+      "types": "./src/sandbox-references.ts",
+      "default": "./src/sandbox-references.ts"
     }
   },
   "scripts": {

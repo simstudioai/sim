@@ -1687,11 +1687,10 @@ export function TableGrid({
     host.appendChild(measure)
 
     try {
-      measure.className = 'font-medium text-small'
+      measure.className = 'text-small'
       measure.textContent = column.headerLabel
       maxWidth = Math.max(maxWidth, measure.getBoundingClientRect().width + 57)
 
-      measure.className = 'text-small'
       for (const row of currentRows) {
         const val = row.data[column.key]
         if (val == null) continue
@@ -4529,6 +4528,7 @@ export function TableGrid({
                 columnIndexById={columnIndexById}
                 rowIndexById={rowIndexById}
                 localSelection={normalizedSelection}
+                stickyLeftWidth={pinnedStickyLeftEdge}
                 scrollElement={scrollRef.current}
               />
             )}

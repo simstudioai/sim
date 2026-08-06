@@ -1,8 +1,7 @@
 import { useMemo, useRef } from 'react'
 import { Button, cn, Input, Label, Textarea, Tooltip } from '@sim/emcn'
-import { Trash } from '@sim/emcn/icons'
+import { Plus, Trash } from '@sim/emcn/icons'
 import { generateId } from '@sim/utils/id'
-import { Plus } from 'lucide-react'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
@@ -140,7 +139,7 @@ export function EvalInput({
 
   const renderMetricHeader = (metric: EvalMetric, index: number) => (
     <div className='flex items-center justify-between overflow-hidden rounded-t-[4px] border-[var(--border-1)] border-b bg-[var(--surface-4)] px-2.5 py-[5px]'>
-      <span className='font-medium text-[var(--text-tertiary)] text-sm'>Metric {index + 1}</span>
+      <span className='text-[var(--text-tertiary)] text-sm'>Metric {index + 1}</span>
       <div className='flex items-center gap-2'>
         <Tooltip.Root key={`add-${metric.id}`}>
           <Tooltip.Trigger asChild>
@@ -195,7 +194,7 @@ export function EvalInput({
                   onChange={(e) => updateMetric(metric.id, 'name', e.target.value)}
                   placeholder='Accuracy'
                   disabled={isPreview || disabled}
-                  className='text-transparent caret-foreground placeholder:text-muted-foreground/50'
+                  className='text-transparent caret-foreground [letter-spacing:inherit] placeholder:text-muted-foreground/50'
                 />
                 <div
                   className={cn(
@@ -245,7 +244,7 @@ export function EvalInput({
                         placeholder='How accurate is the response?'
                         disabled={isPreview || disabled}
                         className={cn(
-                          'min-h-[80px] whitespace-pre-wrap text-transparent caret-foreground'
+                          'min-h-[80px] whitespace-pre-wrap text-transparent caret-foreground [letter-spacing:inherit]'
                         )}
                         rows={3}
                       />
@@ -254,7 +253,7 @@ export function EvalInput({
                           if (el) descriptionOverlayRefs.current[metric.id] = el
                         }}
                         className={cn(
-                          'absolute inset-0 overflow-auto bg-transparent px-2 py-2 font-medium font-sans text-[var(--code-foreground)] text-sm',
+                          'absolute inset-0 overflow-auto bg-transparent px-2 py-2 font-sans text-[var(--code-foreground)] text-sm',
                           !(isPreview || disabled) && 'pointer-events-none'
                         )}
                       >
@@ -301,9 +300,9 @@ export function EvalInput({
                     autoComplete='off'
                     data-form-type='other'
                     name='eval-range-min'
-                    className='text-transparent caret-foreground'
+                    className='text-transparent caret-foreground [letter-spacing:inherit]'
                   />
-                  <div className='pointer-events-none absolute inset-0 flex items-center truncate px-2 py-1.5 font-medium font-sans text-sm'>
+                  <div className='pointer-events-none absolute inset-0 flex items-center truncate px-2 py-1.5 font-sans text-sm'>
                     {formatDisplayText(String(metric.range.min ?? ''), {
                       workflowSearchHighlight: getMetricSearchHighlight(index, ['range', 'min']),
                     })}
@@ -322,9 +321,9 @@ export function EvalInput({
                     autoComplete='off'
                     data-form-type='other'
                     name='eval-range-max'
-                    className='text-transparent caret-foreground'
+                    className='text-transparent caret-foreground [letter-spacing:inherit]'
                   />
-                  <div className='pointer-events-none absolute inset-0 flex items-center truncate px-2 py-1.5 font-medium font-sans text-sm'>
+                  <div className='pointer-events-none absolute inset-0 flex items-center truncate px-2 py-1.5 font-sans text-sm'>
                     {formatDisplayText(String(metric.range.max ?? ''), {
                       workflowSearchHighlight: getMetricSearchHighlight(index, ['range', 'max']),
                     })}

@@ -15,8 +15,8 @@ import {
   Tooltip,
   Undo,
 } from '@sim/emcn'
+import { SelectAll } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import { Scan } from 'lucide-react'
 import { useReactFlow } from 'reactflow'
 import { useShallow } from 'zustand/react/shallow'
 import { useSession } from '@/lib/auth/auth-client'
@@ -113,7 +113,7 @@ export const WorkflowControls = memo(function WorkflowControls() {
                 </Tooltip.Trigger>
                 <Button className='-m-1 !p-1.5 group' variant='ghost'>
                   <ChevronDown
-                    className={`h-[8px] w-[10px] text-[var(--text-muted)] transition-transform duration-100 group-hover:text-[var(--text-secondary)] ${isCanvasModeOpen ? 'rotate-180' : ''}`}
+                    className={`size-[14px] text-[var(--text-muted)] transition-transform duration-100 group-hover:text-[var(--text-secondary)] ${isCanvasModeOpen ? 'rotate-180' : ''}`}
                   />
                 </Button>
               </div>
@@ -142,7 +142,7 @@ export const WorkflowControls = memo(function WorkflowControls() {
           </PopoverContent>
         </Popover>
 
-        <div className='mx-1 h-[20px] w-[1px] bg-[var(--border)]' />
+        <div className='mx-1 h-[20px] w-px bg-[var(--border)]' />
 
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
@@ -176,7 +176,7 @@ export const WorkflowControls = memo(function WorkflowControls() {
           </Tooltip.Content>
         </Tooltip.Root>
 
-        <div className='mx-1 h-[20px] w-[1px] bg-[var(--border)]' />
+        <div className='mx-1 h-[20px] w-px bg-[var(--border)]' />
 
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
@@ -185,7 +185,7 @@ export const WorkflowControls = memo(function WorkflowControls() {
               className='size-[28px] rounded-md p-0 hover-hover:bg-[var(--surface-5)]'
               onClick={handleFitToView}
             >
-              <Scan className='size-[16px]' />
+              <SelectAll className='size-[16px]' />
             </Button>
           </Tooltip.Trigger>
           <Tooltip.Content side='top'>

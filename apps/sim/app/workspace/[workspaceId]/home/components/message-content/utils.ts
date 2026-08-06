@@ -19,8 +19,7 @@ import {
   TerminalWindow,
   Wrench,
 } from '@sim/emcn'
-import { Calendar, Clock, Cursor, Table as TableIcon } from '@sim/emcn/icons'
-import { Globe } from 'lucide-react'
+import { Calendar, Clock, Cursor, Globe, Table as TableIcon } from '@sim/emcn/icons'
 import { AgentIcon, ImageIcon, TTSIcon, VideoIcon } from '@/components/icons'
 import type { ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 
@@ -59,7 +58,6 @@ const TOOL_ICONS: Record<string, IconComponent> = {
   search_knowledge_base: Database,
   table: TableIcon,
   query_user_table: TableIcon,
-  scheduled_task: Calendar,
   job: Calendar,
   agent: AgentIcon,
   custom_tool: Wrench,

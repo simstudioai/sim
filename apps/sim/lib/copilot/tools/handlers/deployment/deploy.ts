@@ -102,6 +102,27 @@ function buildWorkflowApiExamples(baseUrl: string, apiEndpoint: string) {
   }
 }
 
+/** Returns an error until this call's admitted version is the active production version. */
+function getUnconfirmedDeploymentError(
+  result: Awaited<ReturnType<typeof performFullDeploy>>,
+  action: string
+): string | null {
+  const attempt = result.latestDeploymentAttempt
+  const activeVersionId = result.activeDeployment?.deploymentVersionId
+  if (
+    attempt?.status === 'active' &&
+    result.deploymentVersionId !== undefined &&
+    activeVersionId === result.deploymentVersionId
+  ) {
+    return null
+  }
+
+  const versionLabel = result.version === undefined ? '' : ` v${result.version}`
+  const status = attempt?.status ?? 'unknown'
+  const detail = result.warnings?.[0] ?? `${action}${versionLabel} is ${status}, not active.`
+  return `${detail} Do not submit a new deployment; check the existing attempt's status.`
+}
+
 function buildMcpClientExamples(serverName: string, serverUrl: string) {
   return {
     cursor: {
@@ -207,7 +228,7 @@ export async function executeDeployApi(
       userId: context.userId,
       versionDescription,
       versionName,
-      idempotencyKey: getCopilotDeploymentIdempotencyKey(context),
+      idempotencyKey: getCopilotDeploymentIdempotencyKey(context, 'deploy_api'),
     })
     if (!result.success) {
       return { success: false, error: result.error || 'Failed to deploy workflow' }
@@ -217,6 +238,10 @@ export async function executeDeployApi(
       'deploy'
     )
     if (historicalAttemptError) return { success: false, error: historicalAttemptError }
+    const unconfirmedDeploymentError = getUnconfirmedDeploymentError(result, 'Deployment')
+    if (unconfirmedDeploymentError) {
+      return { success: false, error: unconfirmedDeploymentError }
+    }
 
     const baseUrl = getBaseUrl()
     const apiEndpoint = buildWorkflowApiEndpoint(baseUrl, workflowId)
@@ -474,7 +499,7 @@ export async function executeDeployChat(
       includeThinking: resolvedIncludeThinking,
       includeToolCalls: resolvedIncludeToolCalls,
       workspaceId: workflowRecord.workspaceId,
-      idempotencyKey: getCopilotDeploymentIdempotencyKey(context),
+      idempotencyKey: getCopilotDeploymentIdempotencyKey(context, 'deploy_chat'),
     })
 
     if (!result.success) {
@@ -851,7 +876,7 @@ export async function executeRedeploy(
       userId: context.userId,
       versionDescription,
       versionName,
-      idempotencyKey: getCopilotDeploymentIdempotencyKey(context),
+      idempotencyKey: getCopilotDeploymentIdempotencyKey(context, 'deploy_api'),
     })
     if (!result.success) {
       return { success: false, error: result.error || 'Failed to redeploy workflow' }
@@ -861,6 +886,10 @@ export async function executeRedeploy(
       'redeploy'
     )
     if (historicalAttemptError) return { success: false, error: historicalAttemptError }
+    const unconfirmedDeploymentError = getUnconfirmedDeploymentError(result, 'Redeployment')
+    if (unconfirmedDeploymentError) {
+      return { success: false, error: unconfirmedDeploymentError }
+    }
     const baseUrl = getBaseUrl()
     const apiEndpoint = buildWorkflowApiEndpoint(baseUrl, workflowId)
     const apiConfig = buildWorkflowApiConfig(baseUrl, apiEndpoint)

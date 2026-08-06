@@ -205,6 +205,22 @@ describe('S3 Client', () => {
     })
   })
 
+  describe('headS3Object', () => {
+    it('returns custom metadata used for direct-upload receipt verification', async () => {
+      mockSend.mockResolvedValueOnce({
+        ContentLength: 12,
+        ContentType: 'text/plain',
+        Metadata: { simuploadid: 'receipt-1' },
+      })
+
+      await expect(headS3Object('workspace/file.txt')).resolves.toEqual({
+        size: 12,
+        contentType: 'text/plain',
+        metadata: { simuploadid: 'receipt-1' },
+      })
+    })
+  })
+
   describe('getPresignedUrl', () => {
     it('should generate a presigned URL for a file', async () => {
       mockGetSignedUrl.mockResolvedValueOnce('https://example.com/presigned-url')
@@ -289,6 +305,7 @@ describe('S3 Client', () => {
         contentType: 'application/octet-stream',
         uploadId: 'upload-1',
         version: '"etag-1"',
+        metadata: { uploadid: 'upload-1' },
       })
     })
 
@@ -510,6 +527,9 @@ describe('S3 Client', () => {
 
       const result = await completeS3MultipartUpload('kb/uuid-file.txt', 'upload-1', parts)
 
+      expect(mockCompleteMultipartUploadCommand).toHaveBeenCalledWith(
+        expect.objectContaining({ IfNoneMatch: '*' })
+      )
       expect(result.location).toBe('https://provided.example.com/object')
       expect(result.key).toBe('kb/uuid-file.txt')
       expect(result.path).toBe('/api/files/serve/kb%2Fuuid-file.txt')
@@ -523,6 +543,60 @@ describe('S3 Client', () => {
       expect(result.location).toBe(
         'https://test-kb-bucket.s3.test-region.amazonaws.com/kb/uuid-file.txt'
       )
+    })
+
+    it('returns the immutable object when a successful completion response was lost', async () => {
+      mockSend
+        .mockRejectedValueOnce(Object.assign(new Error('NoSuchUpload'), { name: 'NoSuchUpload' }))
+        .mockResolvedValueOnce({ ContentLength: 10, ContentType: 'text/plain' })
+
+      const result = await completeS3MultipartUpload('kb/uuid-file.txt', 'upload-1', parts)
+
+      expect(mockHeadObjectCommand).toHaveBeenCalledWith({
+        Bucket: 'test-kb-bucket',
+        Key: 'kb/uuid-file.txt',
+      })
+      expect(result.key).toBe('kb/uuid-file.txt')
+    })
+
+    it('fails closed when a different object already occupies the key', async () => {
+      mockSend.mockRejectedValueOnce(
+        Object.assign(new Error('PreconditionFailed'), { name: 'PreconditionFailed' })
+      )
+
+      await expect(
+        completeS3MultipartUpload('kb/uuid-file.txt', 'upload-1', parts)
+      ).rejects.toThrow('PreconditionFailed')
+
+      expect(mockHeadObjectCommand).not.toHaveBeenCalled()
+    })
+
+    it('retains replace semantics for deterministic internal exports', async () => {
+      mockSend.mockResolvedValueOnce({})
+
+      await completeS3MultipartUpload('kb/uuid-file.txt', 'upload-1', parts, undefined, 'replace')
+
+      expect(mockCompleteMultipartUploadCommand).toHaveBeenCalledWith(
+        expect.not.objectContaining({ IfNoneMatch: '*' })
+      )
+    })
+
+    it('reuses a conflicting snapshot only under the explicit policy', async () => {
+      mockSend
+        .mockRejectedValueOnce(
+          Object.assign(new Error('PreconditionFailed'), { name: 'PreconditionFailed' })
+        )
+        .mockResolvedValueOnce({ ContentLength: 10, ContentType: 'text/plain' })
+
+      const result = await completeS3MultipartUpload(
+        'table-snapshots/ws-1/table.csv',
+        'upload-1',
+        parts,
+        undefined,
+        'reuse-existing'
+      )
+
+      expect(result.key).toBe('table-snapshots/ws-1/table.csv')
     })
 
     it('builds a path-style fallback URL for a custom endpoint with forcePathStyle', async () => {

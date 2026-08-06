@@ -54,6 +54,13 @@ export const zohoDeskListCommentsTool: ToolConfig<ZohoDeskListCommentsParams, Zo
       visibility: 'user-or-llm',
       description: 'Number of comments to return (1-100, default 50)',
     },
+    sortBy: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Sort by commentedTime. Ascending by default; prefix with - for descending (-commentedTime).',
+    },
   },
 
   request: {
@@ -61,6 +68,7 @@ export const zohoDeskListCommentsTool: ToolConfig<ZohoDeskListCommentsParams, Zo
       const query = new URLSearchParams()
       if (params.from !== undefined) query.set('from', String(params.from))
       if (params.limit !== undefined) query.set('limit', String(params.limit))
+      if (params.sortBy) query.set('sortBy', params.sortBy)
       const qs = query.toString()
       return `${getZohoDeskApiBase(params)}/tickets/${encodeURIComponent(requireZohoDeskId(params.ticketId, 'Ticket ID'))}/comments${qs ? `?${qs}` : ''}`
     },

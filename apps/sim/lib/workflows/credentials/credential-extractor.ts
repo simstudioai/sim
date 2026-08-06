@@ -1,3 +1,4 @@
+import { WORKFLOW_SEARCH_SUBBLOCK_RESOURCE_TYPES } from '@/lib/workflows/search-replace/resources/registry'
 import {
   buildCanonicalIndex,
   buildSubBlockValues,
@@ -28,27 +29,49 @@ export interface CredentialRequirement {
   required: boolean
 }
 
-// Workspace-specific subblock types that should be cleared
-const WORKSPACE_SPECIFIC_TYPES = new Set([
-  'knowledge-base-selector',
-  'knowledge-tag-filters',
-  'document-selector',
-  'document-tag-entry',
-  'file-selector', // Workspace files
-  'file-upload', // Uploaded files in workspace
-  'project-selector', // Workspace-specific projects
-  'channel-selector', // Workspace-specific channels
-  'folder-selector', // User-specific folders
-  'mcp-server-selector', // User-specific MCP servers
+/**
+ * Resource-selector types NOT cleared by the workspace rule below. Everything else the resource
+ * registry knows about IS cleared, so the two lists can never drift apart again — the previous
+ * hand-written copy had silently omitted `table-selector`, `mcp-tool-selector`, `user-selector`
+ * and `sheet-selector`, which is how raw `tbl_…` ids reached other workspaces through an export.
+ *
+ * Every id in an export is workspace-scoped, and nothing on the import path remaps them:
+ * `import-export.ts` extracts each workflow independently and assigns it a fresh id, so a
+ * preserved reference points at a workflow that does not exist in the target — including inside a
+ * multi-workflow bundle, where the sibling it named was itself re-created under a new id. Clearing
+ * is therefore the only correct treatment for every id-bearing selector.
+ */
+export const EXPORT_PRESERVED_RESOURCE_TYPES: ReadonlySet<string> = new Set([
+  // Cleared by the dedicated `oauth-input` branch in `sanitizeWorkflowForSharing`, so excluding it
+  // here only avoids clearing it twice - it never survives an export.
+  'oauth-input',
 ])
 
-// Field IDs that are workspace-specific
+/**
+ * Sub-block types holding a reference scoped to this workspace, or to a credential that is itself
+ * cleared on export. Derived from the canonical resource registry plus the name/slot-based
+ * knowledge fields, which carry no resource id and therefore no registry entry.
+ */
+const WORKSPACE_SPECIFIC_TYPES: ReadonlySet<string> = new Set<string>([
+  ...WORKFLOW_SEARCH_SUBBLOCK_RESOURCE_TYPES.filter(
+    (type) => !EXPORT_PRESERVED_RESOURCE_TYPES.has(type)
+  ),
+  'knowledge-tag-filters',
+  'document-tag-entry',
+])
+
+/**
+ * Field IDs that are workspace-specific, for the fallback pass over blocks with no registry
+ * config (and over legacy `block.data`). Keyed by sub-block / canonical param id, which the
+ * type-keyed registry above cannot supply, so this list stays explicit.
+ */
 const WORKSPACE_SPECIFIC_FIELDS = new Set([
   'knowledgeBaseId',
   'tagFilters',
   'documentTags',
   'documentId',
   'fileId',
+  'tableId',
   'projectId',
   'channelId',
   'folderId',

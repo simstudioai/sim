@@ -88,6 +88,7 @@ describe('resolveApiCorsPolicy', () => {
     expect(policy.credentials).toBe(false)
     expect(policy.methods).toContain('PUT')
     expect(policy.headers).toContain('X-Execution-Id')
+    expect(policy.headers).toContain('X-Execution-Timeout-Seconds')
   })
 
   it('serves v2 workflow execute with wildcard origin and the stream-protocol header', () => {

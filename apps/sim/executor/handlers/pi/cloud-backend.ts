@@ -662,7 +662,7 @@ async function runCloudAuthoringPi(
   const remainingExecutionMs =
     getRemainingExecutionMs(context.signal) ??
     Math.max(0, getMaxExecutionTimeout() - (Date.now() - startedAt))
-  const sandboxBudgetMs = resolvePiSandboxLifetimeMs() ?? getMaxExecutionTimeout()
+  const sandboxBudgetMs = resolvePiSandboxLifetimeMs()
   const babysit = await runBabysitPi(
     {
       model: params.model,

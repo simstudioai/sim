@@ -322,6 +322,7 @@ export async function completeMultipartProviderUpload(params: {
     )
     await completeMultipartUpload(
       params.key,
+      params.uploadId,
       params.parts.map((part) => ({
         partNumber: part.partNumber,
         blockId: deriveBlobBlockId(part.partNumber),
@@ -435,7 +436,7 @@ export async function abortProviderUpload(params: {
       await abortS3MultipartUpload(params.key, params.providerUploadId, createS3Config(config))
     } else if (params.provider === 'blob') {
       const { abortMultipartUpload } = await import('@/lib/uploads/providers/blob/client')
-      await abortMultipartUpload(params.key, createBlobConfig(config))
+      await abortMultipartUpload(params.key, params.uploadId, createBlobConfig(config))
     } else {
       const { abortGcsMultipartUpload } = await import('@/lib/uploads/providers/gcs/client')
       await abortGcsMultipartUpload(params.key, params.providerUploadId, createGcsConfig(config))

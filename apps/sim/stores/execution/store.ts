@@ -214,6 +214,15 @@ export function useIsCurrentWorkflowExecuting(): boolean {
 }
 
 /**
+ * Returns the latest execution snapshot for a workflow and updates when that snapshot changes.
+ */
+export function useLastExecutionSnapshot(workflowId?: string | null) {
+  return useExecutionStore((state) =>
+    workflowId ? state.lastExecutionSnapshots.get(workflowId) : undefined
+  )
+}
+
+/**
  * Returns whether a specific block is currently active (executing) in the current workflow.
  * More granular than useCurrentWorkflowExecution — only re-renders when
  * the boolean result changes for this specific block.

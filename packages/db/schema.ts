@@ -412,6 +412,8 @@ export const workflowExecutionLogs = pgTable(
     trigger: text('trigger').notNull(), // 'api' | 'webhook' | 'schedule' | 'manual' | 'chat'
 
     startedAt: timestamp('started_at').notNull(),
+    /** Absolute deadline for the current active attempt; cleared while paused or terminal. */
+    executionDeadlineAt: timestamp('execution_deadline_at'),
     endedAt: timestamp('ended_at'),
     totalDurationMs: integer('total_duration_ms'),
 
@@ -475,6 +477,9 @@ export const workflowExecutionLogs = pgTable(
     runningStartedAtIdx: index('workflow_execution_logs_running_started_at_idx')
       .on(table.startedAt)
       .where(sql`status = 'running'`),
+    runningExecutionDeadlineIdx: index('workflow_execution_logs_running_deadline_idx')
+      .on(table.executionDeadlineAt)
+      .where(sql`${table.status} = 'running' AND ${table.executionDeadlineAt} IS NOT NULL`),
     completedEndedAtIdx: index('workflow_execution_logs_completed_ended_at_idx')
       .on(table.endedAt, table.workspaceId, table.executionId)
       .where(
@@ -1918,6 +1923,13 @@ export const workspaceFiles = pgTable(
     size: integer('size').notNull(),
     /** Exact byte size for files above PostgreSQL's int4 ceiling; legacy rows fall back to `size`. */
     sizeBytes: bigint('size_bytes', { mode: 'number' }),
+    /**
+     * Intrinsic pixel dimensions of an image file, captured lazily on first view (and stored so later
+     * views reserve layout space before the image loads, via aspect-ratio). NULL for non-images and for
+     * rows not yet backfilled. Purely a rendering hint — never affects stored file content.
+     */
+    width: integer('width'),
+    height: integer('height'),
     deletedAt: timestamp('deleted_at'),
     uploadedAt: timestamp('uploaded_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -1932,6 +1944,13 @@ export const workspaceFiles = pgTable(
      * is covered without per-call plumbing. Only a content write (upload / overwrite) advances it.
      */
     contentUpdatedAt: timestamp('content_updated_at').notNull().defaultNow(),
+    /**
+     * Durable cutover marker for content secret provenance. NULL is reserved for legacy rows and
+     * writes from app versions that predate tracking. Provenance-aware writers set version 1 in the
+     * same transaction as the matching sidecar. A tracked version without a matching sidecar fails
+     * closed.
+     */
+    secretProvenanceVersion: integer('secret_provenance_version'),
   },
   (table) => ({
     keyActiveUniqueIdx: uniqueIndex('workspace_files_key_active_unique')
@@ -2041,6 +2060,51 @@ export const uploadSession = pgTable(
     ),
   })
 )
+
+export interface WorkspaceFileSecretProvenanceEntry extends DurableSecretProvenanceEntry {
+  name: string
+  sourceUserId: string
+}
+
+/**
+ * Private, durable provenance for bytes stored in `workspace_files`.
+ *
+ * Absence is reserved for legacy files that predate provenance tracking. `exact` records carry the
+ * encrypted values found in one content version (including an empty set); `unknown` records fail
+ * closed at model attachment boundaries. Keeping this one-to-one state outside `workspace_files`
+ * prevents private metadata from leaking through broad workspace-file record projections.
+ */
+export const workspaceFileSecretProvenance = pgTable(
+  'workspace_file_secret_provenance',
+  {
+    fileId: text('file_id')
+      .primaryKey()
+      .references(() => workspaceFiles.id, { onDelete: 'cascade' }),
+    contentUpdatedAt: timestamp('content_updated_at').notNull(),
+    status: text('status').notNull(),
+    entries: jsonb('entries').$type<WorkspaceFileSecretProvenanceEntry[]>().notNull().default([]),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    statusCheck: check(
+      'workspace_file_secret_provenance_status_check',
+      sql`${table.status} IN ('exact', 'unknown')`
+    ),
+  })
+)
+
+export interface DurableSecretProvenanceEntry {
+  encryptedValue: string
+  name?: string
+  sourceUserId?: string
+  sourceWorkspaceId?: string
+  /** Optional canonical hash of the exact persisted sub-value that contributed this entry. */
+  sourceValueHash?: string
+}
+
+export interface TableRowSecretProvenanceEntry extends DurableSecretProvenanceEntry {
+  columnId: string
+}
 
 /**
  * Cached collaborative-document state for a workspace markdown file: the last-persisted Yjs binary and
@@ -2192,6 +2256,8 @@ export const memory = pgTable(
       .references(() => workspace.id, { onDelete: 'cascade' }),
     key: text('key').notNull(),
     data: jsonb('data').notNull(),
+    /** NULL is a legacy/untracked record; version 1 requires a fresh private sidecar. */
+    secretProvenanceVersion: integer('secret_provenance_version'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
     deletedAt: timestamp('deleted_at'),
@@ -2209,6 +2275,26 @@ export const memory = pgTable(
         .where(sql`${table.deletedAt} IS NOT NULL`),
     }
   }
+)
+
+/** Private provenance bound to one exact canonical hash of the persisted memory data. */
+export const memorySecretProvenance = pgTable(
+  'memory_secret_provenance',
+  {
+    memoryId: text('memory_id')
+      .primaryKey()
+      .references(() => memory.id, { onDelete: 'cascade' }),
+    contentHash: text('content_hash').notNull(),
+    status: text('status').notNull(),
+    entries: jsonb('entries').$type<DurableSecretProvenanceEntry[]>().notNull().default([]),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    statusCheck: check(
+      'memory_secret_provenance_status_check',
+      sql`${table.status} IN ('exact', 'unknown')`
+    ),
+  })
 )
 
 export const knowledgeBase = pgTable(
@@ -2326,6 +2412,8 @@ export const document = pgTable(
     externalId: text('external_id'),
     contentHash: text('content_hash'),
     sourceUrl: text('source_url'),
+    /** NULL is a legacy/untracked source; version 1 requires a matching source sidecar. */
+    secretProvenanceVersion: integer('secret_provenance_version'),
 
     /** User who uploaded the document, for usage attribution. Null for
      *  connector/cron-synced docs (and pre-migration rows) → indexing billing
@@ -2385,6 +2473,26 @@ export const document = pgTable(
   })
 )
 
+/** Private provenance for a document ingestion source, bound by a deterministic source hash. */
+export const documentSecretProvenance = pgTable(
+  'document_secret_provenance',
+  {
+    documentId: text('document_id')
+      .primaryKey()
+      .references(() => document.id, { onDelete: 'cascade' }),
+    sourceHash: text('source_hash').notNull(),
+    status: text('status').notNull(),
+    entries: jsonb('entries').$type<DurableSecretProvenanceEntry[]>().notNull().default([]),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    statusCheck: check(
+      'document_secret_provenance_status_check',
+      sql`${table.status} IN ('exact', 'unknown')`
+    ),
+  })
+)
+
 export const knowledgeBaseTagDefinitions = pgTable(
   'knowledge_base_tag_definitions',
   {
@@ -2431,6 +2539,8 @@ export const embedding = pgTable(
     chunkIndex: integer('chunk_index').notNull(),
     chunkHash: text('chunk_hash').notNull(),
     content: text('content').notNull(),
+    /** NULL is a legacy/untracked chunk; version 1 requires a fresh private sidecar. */
+    secretProvenanceVersion: integer('secret_provenance_version'),
     contentLength: integer('content_length').notNull(),
     tokenCount: integer('token_count').notNull(),
 
@@ -2529,6 +2639,26 @@ export const embedding = pgTable(
 
     // Ensure embedding exists (simplified since we only support one model)
     embeddingNotNullCheck: check('embedding_not_null_check', sql`"embedding" IS NOT NULL`),
+  })
+)
+
+/** Private provenance bound to one exact SHA-256 hash of the persisted chunk content. */
+export const embeddingSecretProvenance = pgTable(
+  'embedding_secret_provenance',
+  {
+    embeddingId: text('embedding_id')
+      .primaryKey()
+      .references(() => embedding.id, { onDelete: 'cascade' }),
+    contentHash: text('content_hash').notNull(),
+    status: text('status').notNull(),
+    entries: jsonb('entries').$type<DurableSecretProvenanceEntry[]>().notNull().default([]),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    statusCheck: check(
+      'embedding_secret_provenance_status_check',
+      sql`${table.status} IN ('exact', 'unknown')`
+    ),
   })
 )
 
@@ -3223,9 +3353,20 @@ export const ssoProvider = pgTable(
     organizationId: text('organization_id').references(() => organization.id, {
       onDelete: 'cascade',
     }),
+    /**
+     * Better Auth's SSO `domainVerification` flag. Sim proves ownership itself
+     * via {@link ssoDomain} before registration, so this mirrors that decision
+     * rather than driving a second flow. It makes Better Auth treat the provider
+     * as authoritative for its domain and auto-link same-email accounts; without
+     * it, IdPs omitting `email_verified` (notably Entra) strand those users.
+     * Defaults to true so pre-existing providers keep signing in across deploy.
+     */
+    domainVerified: boolean('domain_verified').notNull().default(true),
   },
   (table) => ({
-    providerIdIdx: index('sso_provider_provider_id_idx').on(table.providerId),
+    // Better Auth resolves providers by `providerId` alone (no org scoping), so
+    // a duplicate makes registration and updates ambiguous across tenants.
+    providerIdUnique: uniqueIndex('sso_provider_provider_id_unique').on(table.providerId),
     domainIdx: index('sso_provider_domain_idx').on(table.domain),
     userIdIdx: index('sso_provider_user_id_idx').on(table.userId),
     organizationIdIdx: index('sso_provider_organization_id_idx').on(table.organizationId),
@@ -3964,6 +4105,7 @@ export const userTableRows = pgTable(
      * express column collation, so the collation lives only in the migration.
      */
     orderKey: text('order_key'),
+    secretProvenanceVersion: integer('secret_provenance_version'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
     createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
@@ -3999,6 +4141,30 @@ export const userTableRows = pgTable(
      * O(all rows) per page.
      */
     tableIdIdIdx: index('user_table_rows_table_id_id_idx').on(table.tableId, table.id),
+  })
+)
+
+/**
+ * Encrypted secret provenance for a table row's current JSONB payload.
+ * The sidecar is bound to `user_table_rows.updated_at`; a missing or stale
+ * sidecar on a tracked row is treated as unknown at model re-entry.
+ */
+export const userTableRowSecretProvenance = pgTable(
+  'user_table_row_secret_provenance',
+  {
+    rowId: text('row_id')
+      .primaryKey()
+      .references(() => userTableRows.id, { onDelete: 'cascade' }),
+    contentUpdatedAt: timestamp('content_updated_at').notNull(),
+    status: text('status').notNull(),
+    entries: jsonb('entries').$type<TableRowSecretProvenanceEntry[]>().notNull().default([]),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    statusCheck: check(
+      'user_table_row_secret_provenance_status_check',
+      sql`${table.status} IN ('exact', 'unknown')`
+    ),
   })
 )
 
@@ -4434,6 +4600,8 @@ export const workspaceSandbox = pgTable(
     name: text('name').notNull(),
     language: sandboxLanguageEnum('language').notNull(),
     dependencies: jsonb('dependencies').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    cliTools: jsonb('cli_tools').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    systemPackages: jsonb('system_packages').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
     specHash: text('spec_hash').notNull(),
     createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at').notNull().defaultNow(),
@@ -4467,6 +4635,8 @@ export const sandboxImage = pgTable(
     /** Provider-side image identifier, when it differs from `imageRef`. */
     providerImageId: text('provider_image_id'),
     buildId: text('build_id'),
+    /** Monotonic target release for this provider materialization; legacy rows are generation 0. */
+    materializationGeneration: bigint('materialization_generation', { mode: 'number' }),
     /** Classified taxonomy code; see lib/execution/remote-sandbox/build-errors.ts. */
     errorCode: text('error_code'),
     /** User-facing copy rendered from the code at classification time. */

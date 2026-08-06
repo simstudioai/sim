@@ -11,8 +11,8 @@ import {
   PopoverSection,
   usePopoverContext,
 } from '@sim/emcn'
+import { Repeat, Split } from '@sim/emcn/icons'
 import { isEqual } from 'es-toolkit'
-import { RepeatIcon, SplitIcon } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
 import {
@@ -475,7 +475,7 @@ const FolderContentsInner: React.FC<FolderContentsProps> = ({
             }
           }}
         >
-          <span className='flex-1 truncate font-medium'>{currentNestedTag.display}</span>
+          <span className='flex-1 truncate'>{currentNestedTag.display}</span>
         </PopoverItem>
       )}
 
@@ -845,7 +845,7 @@ const BlockRootTagItem: React.FC<{
       }}
     >
       <TagIcon icon={tagIcon} color={blockColor} />
-      <span className='flex-1 truncate font-medium'>{blockName}</span>
+      <span className='flex-1 truncate'>{blockName}</span>
     </PopoverItem>
   )
 }
@@ -1767,9 +1767,9 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                   if (blockConfig?.icon) {
                     tagIcon = blockConfig.icon
                   } else if (group.blockType === 'loop') {
-                    tagIcon = RepeatIcon
+                    tagIcon = Repeat
                   } else if (group.blockType === 'parallel') {
-                    tagIcon = SplitIcon
+                    tagIcon = Split
                   }
 
                   const normalizedBlockName = normalizeName(group.blockName)

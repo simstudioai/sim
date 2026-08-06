@@ -8,10 +8,9 @@ import {
   useState,
 } from 'react'
 import { Button, cn, Popover, PopoverContent, PopoverItem, PopoverTrigger } from '@sim/emcn'
-import { Trash } from '@sim/emcn/icons'
+import { ChevronDown, ChevronsUpDown, ChevronUp, Plus, Trash } from '@sim/emcn/icons'
 import { generateShortId } from '@sim/utils/id'
 import { isEqual } from 'es-toolkit'
-import { ChevronDown, ChevronsUpDown, ChevronUp, Plus } from 'lucide-react'
 import { EnvVarDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
@@ -615,7 +614,7 @@ export function MessagesInput({
                         type='button'
                         disabled={isPreview || disabled}
                         className={cn(
-                          'group -ml-1.5 -my-1 flex items-center gap-1 rounded px-1.5 py-1 font-medium text-[var(--text-primary)] text-small leading-none transition-colors hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-secondary)]',
+                          'group -ml-1.5 -my-1 flex items-center gap-1 rounded px-1.5 py-1 text-[var(--text-primary)] text-small leading-none transition-colors hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-secondary)]',
                           (isPreview || disabled) &&
                             'cursor-default hover-hover:bg-transparent hover-hover:text-[var(--text-primary)]'
                         )}
@@ -715,7 +714,7 @@ export function MessagesInput({
                     ref={(el) => {
                       textareaRefs.current[fieldId] = el
                     }}
-                    className='relative z-[2] m-0 box-border h-auto min-h-[80px] w-full resize-none overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words border-none bg-transparent p-2 font-medium font-sans text-sm text-transparent leading-[1.5] caret-[var(--text-primary)] outline-none [-ms-overflow-style:none] [scrollbar-width:none] placeholder:text-[var(--text-muted)] focus:outline-none focus-visible:outline-none disabled:cursor-not-allowed [&::-webkit-scrollbar]:hidden'
+                    className='relative z-[2] m-0 box-border h-auto min-h-[80px] w-full resize-none overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words border-none bg-transparent p-2 font-sans text-sm text-transparent leading-[1.5] caret-[var(--text-primary)] outline-none [-ms-overflow-style:none] [letter-spacing:inherit] [scrollbar-width:none] placeholder:text-[var(--text-muted)] focus:outline-none focus-visible:outline-none disabled:cursor-not-allowed [&::-webkit-scrollbar]:hidden'
                     placeholder='Enter message content...'
                     value={message.content}
                     onChange={fieldHandlers.onChange}
@@ -756,7 +755,7 @@ export function MessagesInput({
                       overlayRefs.current[fieldId] = el
                     }}
                     className={cn(
-                      'absolute top-0 left-0 z-[1] m-0 box-border w-full overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words border-none bg-transparent p-2 font-medium font-sans text-[var(--text-primary)] text-sm leading-[1.5] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+                      'absolute top-0 left-0 z-[1] m-0 box-border w-full overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words border-none bg-transparent p-2 font-sans text-[var(--text-primary)] text-sm leading-[1.5] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
                       !(isPreview || disabled) && 'pointer-events-none'
                     )}
                   >

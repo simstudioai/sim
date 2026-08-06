@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { ChipTag, cn } from '@sim/emcn'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight } from '@sim/emcn/icons'
 import Image from 'next/image'
 import Link from 'next/link'
 

@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { randomInt } from '@sim/utils/random'
-import { env } from '@/lib/core/config/env'
+import { getConfiguredCacheProvider } from '@/lib/core/config/env-capabilities.server'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { LARGE_VALUE_THRESHOLD_BYTES } from '@/lib/execution/payloads/large-value-ref'
 import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
@@ -364,7 +364,7 @@ async function compactEventForBuffer(
 const memoryExecutionStreams = new Map<string, MemoryExecutionStream>()
 
 function canUseMemoryEventBuffer(): boolean {
-  return typeof window === 'undefined' && !env.REDIS_URL
+  return typeof window === 'undefined' && getConfiguredCacheProvider() === 'database'
 }
 
 function pruneExpiredMemoryStreams(now = Date.now()): void {

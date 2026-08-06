@@ -7,12 +7,14 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { filterUndefined } from '@sim/utils/object'
 import { randomFloat } from '@sim/utils/random'
 import { env } from '@/lib/core/config/env'
+import { getConfiguredCacheProvider } from '@/lib/core/config/env-capabilities.server'
 import { getRedisClient } from '@/lib/core/config/redis'
 import {
   type SecureFetchOptions,
   secureFetchWithValidation,
 } from '@/lib/core/security/input-validation.server'
-import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
+import type { CodePlaceholderRuntimeBinding } from '@/lib/execution/code-placeholders'
+import { buildJavaScriptRuntimeBindingsSource } from '@/lib/execution/code-placeholders/javascript-runtime'
 
 const logger = createLogger('IsolatedVMExecution')
 
@@ -34,6 +36,7 @@ export interface IsolatedVMExecutionRequest {
   params: Record<string, unknown>
   envVars: Record<string, string>
   contextVariables: Record<string, unknown>
+  runtimeBindings?: CodePlaceholderRuntimeBinding[]
   timeoutMs: number
   requestId: string
   ownerKey?: string
@@ -72,6 +75,8 @@ export interface IsolatedVMExecutionResult {
   result: unknown
   stdout: string
   error?: IsolatedVMError
+  /** Host-owned outcome for enforced termination; user code cannot set this field. */
+  termination?: 'timeout' | 'cancelled'
   /** Populated in task mode: the `finalize` result as base64-encoded bytes. */
   bytesBase64?: string
   /**
@@ -320,9 +325,9 @@ async function secureFetch(
       headers,
     })
   } catch (error: unknown) {
+    const normalizedError = toError(error)
     logger.warn(`[${requestId}] Isolated fetch failed`, {
-      url: sanitizeUrlForLog(url),
-      error: toError(error).message,
+      errorName: normalizedError.name,
     })
     return JSON.stringify({ error: getErrorMessage(error, 'Unknown fetch error') })
   }
@@ -350,8 +355,7 @@ async function tryAcquireDistributedLease(
   leaseId: string,
   timeoutMs: number
 ): Promise<LeaseAcquireResult> {
-  // Redis not configured: explicit local-mode fallback is allowed.
-  if (!env.REDIS_URL) return 'acquired'
+  if (getConfiguredCacheProvider() === 'database') return 'acquired'
 
   const redis = getRedisClient()
   if (!redis) {
@@ -1123,6 +1127,7 @@ function dispatchToWorker(
       result: null,
       stdout: '',
       error: { message: 'Execution cancelled', name: 'AbortError' },
+      termination: 'cancelled',
     })
     drainQueue()
     return
@@ -1155,6 +1160,7 @@ function dispatchToWorker(
       result: null,
       stdout: '',
       error: { message: `Execution timed out after ${req.timeoutMs}ms`, name: 'TimeoutError' },
+      termination: 'timeout',
     })
     if (workerInfo.retiring && workerInfo.activeExecutions === 0) {
       cleanupWorker(workerInfo.id)
@@ -1177,7 +1183,15 @@ function dispatchToWorker(
   ownerState.activeExecutions++
 
   try {
-    workerInfo.process.send({ type: 'execute', executionId: execId, request: req })
+    const { runtimeBindings, ...wireRequest } = req
+    workerInfo.process.send({
+      type: 'execute',
+      executionId: execId,
+      request: {
+        ...wireRequest,
+        runtimeBindingSource: buildJavaScriptRuntimeBindingsSource(runtimeBindings ?? []),
+      },
+    })
   } catch {
     clearTimeout(timeout)
     workerInfo.pendingExecutions.delete(execId)
@@ -1350,6 +1364,7 @@ export async function executeInIsolatedVM(
       result: null,
       stdout: '',
       error: { message: 'Execution cancelled', name: 'AbortError' },
+      termination: 'cancelled',
     }
   }
 
@@ -1450,6 +1465,7 @@ export async function executeInIsolatedVM(
           result: null,
           stdout: '',
           error: { message: 'Execution cancelled', name: 'AbortError' },
+          termination: 'cancelled',
         })
       }
       signal.addEventListener('abort', abortListener, { once: true })

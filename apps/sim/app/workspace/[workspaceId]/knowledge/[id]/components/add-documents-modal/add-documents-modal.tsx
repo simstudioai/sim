@@ -12,8 +12,8 @@ import {
   cn,
   Loader,
 } from '@sim/emcn'
+import { RefreshCw, X } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import { RotateCcw, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   assertMultiFileUploadAdmission,
@@ -210,7 +210,7 @@ export function AddDocumentsModal({
                               onClick={() => handleRetryFile(index)}
                               disabled={isUploading}
                             >
-                              <RotateCcw className='size-3' />
+                              <RefreshCw className='size-3' />
                             </Button>
                           )}
                           <Button

@@ -4,6 +4,7 @@ import { sha256Hex } from '@sim/security/hash'
 import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import { randomInt } from '@sim/utils/random'
 import { Cron } from 'croner'
 import { and, asc, eq, inArray, isNull, lt, lte, or, sql } from 'drizzle-orm'
@@ -15,14 +16,26 @@ import {
   type BillingAttributionSnapshot,
   resolveSystemBillingAttribution,
 } from '@/lib/billing/core/billing-attribution'
-import { getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
+import {
+  getJobQueue,
+  JOB_PENDING_RETENTION_HOURS,
+  shouldExecuteInline,
+} from '@/lib/core/async-jobs'
 import { JOB_STATUS, type Job } from '@/lib/core/async-jobs/types'
-import { env } from '@/lib/core/config/env'
 import { isRetryableInfrastructureError } from '@/lib/core/errors/retryable-infrastructure'
-import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
+import {
+  getExecutionReservationTtlMs,
+  getExecutionTimeout,
+  RESERVATION_TTL_BUFFER_MS,
+  toTriggerMaxDurationSeconds,
+} from '@/lib/core/execution-limits'
 import { runDetached } from '@/lib/core/utils/background'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import {
+  registerManualExecutionAborter,
+  unregisterManualExecutionAborter,
+} from '@/lib/execution/manual-cancellation'
 import { notifyScheduleAutoDisabled } from '@/lib/workflows/schedules/disable-notifications'
 import {
   SCHEDULE_EXECUTION_CONCURRENCY_LIMIT,
@@ -34,7 +47,6 @@ import {
 import { calculateScheduleInfraRetryDelayMs } from '@/lib/workflows/schedules/retry'
 import {
   applyScheduleFailureUpdate,
-  executeJobInline,
   executeScheduleJob,
   releaseScheduleLock,
   type ScheduleExecutionPayload,
@@ -51,9 +63,8 @@ const WORKFLOW_CHUNK_SIZE = 100
  * into hundreds of inline sends; the remainder is logged.
  */
 const STALE_SCHEDULE_RECOVERY_NOTIFY_LIMIT = 25
-const JOB_CHUNK_SIZE = 100
 const MAX_TICK_DURATION_MS = 3 * 60 * 1000
-const STALE_SCHEDULE_CLAIM_MS = getMaxExecutionTimeout()
+const STALE_SCHEDULE_CLAIM_MS = getExecutionReservationTtlMs()
 const STALE_SCHEDULE_RECOVERY_BATCH_SIZE = 100
 const DATABASE_SCHEDULE_START_TURN_WAIT_MS = 1_000
 type DatabaseScheduleStartResult = 'started' | 'capacity_full' | 'not_pending'
@@ -80,9 +91,6 @@ const workflowScheduleFilter = (queuedAt: Date) =>
     sql`(${workflowSchedule.sourceType} = 'workflow' OR ${workflowSchedule.sourceType} IS NULL)`,
     activeWorkflowDeploymentFilter()
   )
-
-const jobScheduleFilter = (queuedAt: Date) =>
-  and(dueFilter(queuedAt), sql`${workflowSchedule.sourceType} = 'job'`)
 
 async function runWithDatabaseScheduleStartTurn(
   operation: () => Promise<DatabaseScheduleStartResult>
@@ -184,44 +192,7 @@ async function claimWorkflowSchedules(queuedAt: Date, limit: number) {
   })
 }
 
-async function claimJobSchedules(queuedAt: Date, limit: number) {
-  if (limit <= 0) return []
-
-  return db.transaction(async (tx) => {
-    const rows = await tx
-      .select({ id: workflowSchedule.id })
-      .from(workflowSchedule)
-      .where(jobScheduleFilter(queuedAt))
-      .for('update', { skipLocked: true })
-      .limit(limit)
-
-    if (rows.length === 0) return []
-
-    return tx
-      .update(workflowSchedule)
-      .set({ lastQueuedAt: queuedAt, updatedAt: queuedAt })
-      .where(
-        and(
-          jobScheduleFilter(queuedAt),
-          inArray(
-            workflowSchedule.id,
-            rows.map((row) => row.id)
-          )
-        )
-      )
-      .returning({
-        id: workflowSchedule.id,
-        cronExpression: workflowSchedule.cronExpression,
-        timezone: workflowSchedule.timezone,
-        failedCount: workflowSchedule.failedCount,
-        lastQueuedAt: workflowSchedule.lastQueuedAt,
-        sourceType: workflowSchedule.sourceType,
-      })
-  })
-}
-
 type ClaimedSchedule = Awaited<ReturnType<typeof claimWorkflowSchedules>>[number]
-type ClaimedJob = Awaited<ReturnType<typeof claimJobSchedules>>[number]
 type JobQueue = Awaited<ReturnType<typeof getJobQueue>>
 type DatabaseScheduleExecutionTarget = Pick<
   ClaimedSchedule,
@@ -229,7 +200,7 @@ type DatabaseScheduleExecutionTarget = Pick<
 >
 type ScheduleRecoveryMetadata = Pick<
   ScheduleExecutionPayload,
-  'scheduleId' | 'workflowId' | 'now' | 'cronExpression' | 'timezone'
+  'scheduleId' | 'workflowId' | 'now' | 'cronExpression' | 'timezone' | 'executionTimeoutMs'
 >
 type SchedulePayloadValidation =
   | { success: true; payload: ScheduleExecutionPayload }
@@ -253,6 +224,12 @@ function getScheduleRecoveryMetadataFromValue(payload: unknown): ScheduleRecover
     cronExpression:
       typeof candidate.cronExpression === 'string' ? candidate.cronExpression : undefined,
     timezone: typeof candidate.timezone === 'string' ? candidate.timezone : undefined,
+    executionTimeoutMs:
+      typeof candidate.executionTimeoutMs === 'number' &&
+      Number.isFinite(candidate.executionTimeoutMs) &&
+      candidate.executionTimeoutMs > 0
+        ? candidate.executionTimeoutMs
+        : undefined,
   }
 }
 
@@ -358,12 +335,41 @@ async function restoreScheduleClaim(
   }
 }
 
-function getStaleScheduleExecutionCutoff(now: Date): Date {
-  return new Date(now.getTime() - STALE_SCHEDULE_CLAIM_MS)
+function getScheduleExecutionLeaseMs(
+  source?: {
+    metadata?: unknown
+    payload?: unknown
+  } | null
+): number {
+  if (isRecordLike(source?.metadata)) {
+    const maxDurationSeconds = source.metadata.maxDurationSeconds
+    if (
+      typeof maxDurationSeconds === 'number' &&
+      Number.isFinite(maxDurationSeconds) &&
+      maxDurationSeconds > 0
+    ) {
+      return maxDurationSeconds * 1000
+    }
+  }
+
+  const payload = getScheduleRecoveryMetadataFromValue(source?.payload)
+  if (payload?.executionTimeoutMs) {
+    return payload.executionTimeoutMs + RESERVATION_TTL_BUFFER_MS
+  }
+
+  return STALE_SCHEDULE_CLAIM_MS
 }
 
-function isStaleScheduleClaim(claimedAt: Date): boolean {
-  return claimedAt < getStaleScheduleExecutionCutoff(new Date())
+function isStaleScheduleClaim(
+  claimedAt: Date,
+  source?: { metadata?: unknown; payload?: unknown; startedAt?: Date } | null
+): boolean {
+  if (source?.startedAt) {
+    return source.startedAt.getTime() + getScheduleExecutionLeaseMs(source) <= Date.now()
+  }
+
+  const pendingRetentionMs = JOB_PENDING_RETENTION_HOURS * 60 * 60 * 1000
+  return claimedAt.getTime() + pendingRetentionMs <= Date.now()
 }
 
 function activeScheduleExecutionJobsFilter() {
@@ -378,10 +384,25 @@ function pendingScheduleExecutionJobsFilter(now: Date) {
   )
 }
 
-function staleScheduleExecutionJobsFilter(staleStartedBefore: Date) {
+function staleScheduleExecutionJobsFilter(now: Date) {
+  const legacyMaxDurationSeconds = STALE_SCHEDULE_CLAIM_MS / 1000
+  const cleanupGraceSeconds = RESERVATION_TTL_BUFFER_MS / 1000
   return and(
     activeScheduleExecutionJobsFilter(),
-    or(isNull(asyncJobs.startedAt), lt(asyncJobs.startedAt, staleStartedBefore))
+    or(
+      isNull(asyncJobs.startedAt),
+      sql`${asyncJobs.startedAt} + (
+        CASE
+          WHEN jsonb_typeof(${asyncJobs.metadata} -> 'maxDurationSeconds') = 'number'
+            AND (${asyncJobs.metadata} ->> 'maxDurationSeconds')::double precision > 0
+            THEN (${asyncJobs.metadata} ->> 'maxDurationSeconds')::double precision
+          WHEN jsonb_typeof(${asyncJobs.payload} -> 'executionTimeoutMs') = 'number'
+            AND (${asyncJobs.payload} ->> 'executionTimeoutMs')::double precision > 0
+            THEN (${asyncJobs.payload} ->> 'executionTimeoutMs')::double precision / 1000 + ${cleanupGraceSeconds}
+          ELSE ${legacyMaxDurationSeconds}
+        END
+      ) * interval '1 second' <= ${sql.param(now, asyncJobs.startedAt)}`
+    )
   )
 }
 
@@ -499,8 +520,6 @@ async function handleClaimedScheduleSetupFailure(
 }
 
 async function recoverStaleDatabaseScheduleJobs(now: Date): Promise<void> {
-  const staleStartedBefore = getStaleScheduleExecutionCutoff(now)
-
   /**
    * Collected inside the transaction, flushed after it commits. Emailing inside
    * would both notify about writes a rollback discards and issue pooled-client
@@ -527,7 +546,7 @@ async function recoverStaleDatabaseScheduleJobs(now: Date): Promise<void> {
         maxAttempts: asyncJobs.maxAttempts,
       })
       .from(asyncJobs)
-      .where(staleScheduleExecutionJobsFilter(staleStartedBefore))
+      .where(staleScheduleExecutionJobsFilter(now))
       .orderBy(asc(asyncJobs.startedAt), asc(asyncJobs.id))
       .limit(STALE_SCHEDULE_RECOVERY_BATCH_SIZE)
 
@@ -604,10 +623,15 @@ async function recoverStaleDatabaseScheduleJobs(now: Date): Promise<void> {
   }
 }
 
-function isStaleDatabaseScheduleJob(job: { status: string; startedAt?: Date }): boolean {
+function isStaleDatabaseScheduleJob(job: {
+  status: string
+  startedAt?: Date
+  metadata?: unknown
+  payload?: unknown
+}): boolean {
   return (
     job.status === JOB_STATUS.PROCESSING &&
-    (!job.startedAt || job.startedAt < getStaleScheduleExecutionCutoff(new Date()))
+    (!job.startedAt || job.startedAt.getTime() + getScheduleExecutionLeaseMs(job) <= Date.now())
   )
 }
 
@@ -691,8 +715,15 @@ async function executeDatabaseScheduleJob(
     return
   }
 
+  const executionId = payload.executionId ?? payload.correlation?.executionId ?? generateId()
+  const executionPayload = payload.executionId ? payload : { ...payload, executionId }
+  const abortController = new AbortController()
+  registerManualExecutionAborter(executionId, () => {
+    abortController.abort(new DOMException('Execution cancelled by user', 'AbortError'))
+  })
+
   try {
-    const output = await executeScheduleJob(payload)
+    const output = await executeScheduleJob(executionPayload, abortController.signal)
     await jobQueue.completeJob(jobId, output ?? null)
   } catch (error) {
     const errorMessage = toError(error).message
@@ -710,6 +741,8 @@ async function executeDatabaseScheduleJob(
       undefined,
       { expectedLastQueuedAt: queuedAt }
     )
+  } finally {
+    unregisterManualExecutionAborter(executionId)
   }
 }
 
@@ -888,6 +921,11 @@ async function processScheduleItem(
     triggerType: 'schedule',
     scheduledFor: schedule.nextRunAt?.toISOString(),
   }
+  const executionTimeoutMs = getExecutionTimeout(
+    billingAttribution.payerSubscription?.plan,
+    'async',
+    billingAttribution.payerSubscription?.enterpriseWorkflowExecutionTimeoutSeconds
+  )
 
   const payload = {
     scheduleId: schedule.id,
@@ -907,6 +945,7 @@ async function processScheduleItem(
     infraRetryCount: schedule.infraRetryCount || 0,
     now: queueTime.toISOString(),
     scheduledFor: schedule.nextRunAt?.toISOString(),
+    executionTimeoutMs,
   } satisfies ScheduleExecutionPayload
 
   let enqueuedJobId: string | null = null
@@ -933,7 +972,11 @@ async function processScheduleItem(
         ? getScheduleRecoveryMetadataFromJob(databaseJob)
         : null
       const databaseJobClaim = getSchedulePayloadClaimedAt(databaseJobPayload) ?? activeJobClaim
-      if (!useDatabaseFallback && activeJobClaim && isStaleScheduleClaim(activeJobClaim)) {
+      if (
+        !useDatabaseFallback &&
+        activeJobClaim &&
+        isStaleScheduleClaim(activeJobClaim, existingJob)
+      ) {
         logger.warn(`[${requestId}] Cancelling stale schedule execution job`, {
           scheduleId: schedule.id,
           jobId: existingJob.id,
@@ -1040,7 +1083,7 @@ async function processScheduleItem(
         activeJobClaim &&
         (!useDatabaseFallback ||
           databaseJob?.status !== JOB_STATUS.PROCESSING ||
-          !isStaleScheduleClaim(activeJobClaim))
+          !isStaleScheduleClaim(activeJobClaim, existingJob))
 
       if (shouldRestoreActiveClaim) {
         await restoreScheduleClaim(
@@ -1075,6 +1118,7 @@ async function processScheduleItem(
       jobId = await jobQueue.enqueue(SCHEDULE_EXECUTION_QUEUE_NAME, payload, {
         jobId: scheduleJobId,
         delayMs,
+        maxDurationSeconds: toTriggerMaxDurationSeconds(executionTimeoutMs),
         metadata: {
           workflowId: schedule.workflowId ?? undefined,
           workspaceId: schedule.workspaceId ?? undefined,
@@ -1144,7 +1188,7 @@ async function processScheduleItem(
         getScheduleRecoveryMetadataFromJob(queuedJob)
       )
       if (queuedJobClaim) {
-        if (isStaleScheduleClaim(queuedJobClaim)) {
+        if (isStaleScheduleClaim(queuedJobClaim, queuedJob)) {
           logger.warn(`[${requestId}] Cancelling stale queued schedule execution job`, {
             scheduleId: schedule.id,
             jobId,
@@ -1198,40 +1242,13 @@ async function processScheduleItem(
   }
 }
 
-async function processJobItem(job: ClaimedJob, queuedAt: Date, requestId: string) {
-  const queueTime = job.lastQueuedAt ?? queuedAt
-  const payload = {
-    scheduleId: job.id,
-    cronExpression: job.cronExpression || undefined,
-    failedCount: job.failedCount || 0,
-    now: queueTime.toISOString(),
-  }
-
-  try {
-    await executeJobInline(payload)
-  } catch (error) {
-    logger.error(`[${requestId}] Job execution failed for ${job.id}`, {
-      error: toError(error).message,
-    })
-    await releaseScheduleLock(
-      job.id,
-      requestId,
-      queuedAt,
-      `Failed to release lock for job ${job.id}`,
-      undefined,
-      { expectedLastQueuedAt: queueTime }
-    )
-  }
-}
-
 interface ScheduleTickResult {
   processedCount: number
   totalSchedules: number
-  totalJobs: number
 }
 
 /**
- * Drains due schedules and jobs, claiming and enqueuing work until the tick
+ * Drains due schedules, claiming and enqueuing work until the tick
  * budget is exhausted or no more items are due. Runs detached from the HTTP
  * response so the cron caller does not wait; cross-replica safety is provided by
  * the `FOR UPDATE SKIP LOCKED` claim layer, not this function.
@@ -1242,25 +1259,11 @@ export async function runScheduleTick(requestId: string): Promise<ScheduleTickRe
   const jobQueue = await getJobQueue()
   const useDatabaseFallback = shouldExecuteInline()
   let totalSchedules = 0
-  let totalJobs = 0
   let iterations = 0
   let remainingWorkflowBudget = SCHEDULE_WORKFLOW_ENQUEUE_LIMIT
   let schedulesExhausted = false
-  /**
-   * Prompt jobs run through the mothership, so without a key every claim ends in
-   * a 401. Skipping the claim entirely leaves the rows `active` and resumable;
-   * claiming them would burn each one through `MAX_CONSECUTIVE_FAILURES` and
-   * permanently disable a schedule the user can no longer see, let alone stop.
-   * Keyed on the credential rather than `CHAT_ENABLED` so jobs keep running for
-   * a deployment that only hid the UI.
-   */
-  let jobsExhausted = !env.COPILOT_API_KEY
-  if (jobsExhausted) {
-    logger.info(`[${requestId}] COPILOT_API_KEY not set, skipping prompt job claims`)
-  }
-
   while (Date.now() - tickStart < MAX_TICK_DURATION_MS) {
-    if (schedulesExhausted && jobsExhausted) break
+    if (schedulesExhausted) break
     const queuedAt = new Date()
     let resumedPendingSchedules = 0
     let databaseScheduleSlots = SCHEDULE_EXECUTION_CONCURRENCY_LIMIT
@@ -1286,25 +1289,22 @@ export async function runScheduleTick(requestId: string): Promise<ScheduleTickRe
       schedulesExhausted = true
     }
 
-    const [dueSchedules, dueJobs] = await Promise.all([
-      schedulesExhausted ? [] : claimWorkflowSchedules(queuedAt, workflowClaimLimit),
-      jobsExhausted ? [] : claimJobSchedules(queuedAt, JOB_CHUNK_SIZE),
-    ])
+    const dueSchedules = schedulesExhausted
+      ? []
+      : await claimWorkflowSchedules(queuedAt, workflowClaimLimit)
 
     remainingWorkflowBudget -= dueSchedules.length
     if (dueSchedules.length < workflowClaimLimit || remainingWorkflowBudget <= 0) {
       schedulesExhausted = true
     }
-    if (dueJobs.length < JOB_CHUNK_SIZE) jobsExhausted = true
 
-    if (dueSchedules.length === 0 && dueJobs.length === 0 && resumedPendingSchedules === 0) break
+    if (dueSchedules.length === 0 && resumedPendingSchedules === 0) break
 
     iterations += 1
     totalSchedules += dueSchedules.length + resumedPendingSchedules
-    totalJobs += dueJobs.length
 
     logger.info(
-      `[${requestId}] Iteration ${iterations}: claimed ${dueSchedules.length} schedules, resumed ${resumedPendingSchedules} pending schedule jobs, ${dueJobs.length} jobs`,
+      `[${requestId}] Iteration ${iterations}: claimed ${dueSchedules.length} schedules, resumed ${resumedPendingSchedules} pending schedule jobs`,
       {
         remainingWorkflowBudget,
         scheduleConcurrencyLimit: SCHEDULE_EXECUTION_CONCURRENCY_LIMIT,
@@ -1319,16 +1319,13 @@ export async function runScheduleTick(requestId: string): Promise<ScheduleTickRe
           )
         : []
 
-    await Promise.allSettled([
-      ...schedulePromises,
-      ...dueJobs.map((job) => processJobItem(job, queuedAt, requestId)),
-    ])
+    await Promise.allSettled(schedulePromises)
   }
 
-  const totalCount = totalSchedules + totalJobs
+  const totalCount = totalSchedules
   const durationMs = Date.now() - tickStart
   logger.info(
-    `[${requestId}] Processed ${totalCount} items across ${iterations} iteration(s) in ${durationMs}ms (${totalSchedules} schedules, ${totalJobs} jobs)`,
+    `[${requestId}] Processed ${totalCount} items across ${iterations} iteration(s) in ${durationMs}ms`,
     {
       scheduleConcurrencyLimit: SCHEDULE_EXECUTION_CONCURRENCY_LIMIT,
       scheduleEnqueueBudget: SCHEDULE_WORKFLOW_ENQUEUE_LIMIT,
@@ -1336,7 +1333,7 @@ export async function runScheduleTick(requestId: string): Promise<ScheduleTickRe
     }
   )
 
-  return { processedCount: totalCount, totalSchedules, totalJobs }
+  return { processedCount: totalCount, totalSchedules }
 }
 
 export const GET = withRouteHandler(async (request: NextRequest) => {

@@ -11,6 +11,14 @@ export const JOB_RETENTION_SECONDS = JOB_RETENTION_HOURS * 60 * 60
 /** Max lifetime for jobs in Redis (in seconds) - cleanup for stuck pending/processing jobs */
 export const JOB_MAX_LIFETIME_SECONDS = 48 * 60 * 60
 
+/** Queue-wait lease before a database job that never started is considered abandoned. */
+export const JOB_PENDING_RETENTION_HOURS = 14 * 24
+
+/** Trigger.dev's minimum supported per-run duration. */
+export const MIN_JOB_DURATION_SECONDS = 5
+/** Largest duration accepted by queue backends, keeping persisted-second arithmetic bounded. */
+export const MAX_JOB_DURATION_SECONDS = 2_147_483_647
+
 export const JOB_STATUS = {
   PENDING: 'pending',
   PROCESSING: 'processing',
@@ -33,7 +41,12 @@ export type JobType =
   | 'cleanup-tasks'
   | 'run-data-drain'
 
-export type AsyncExecutionCorrelationSource = 'workflow' | 'schedule' | 'webhook' | 'custom_block'
+export type AsyncExecutionCorrelationSource =
+  | 'workflow'
+  | 'schedule'
+  | 'webhook'
+  | 'custom_block'
+  | 'workflow_group'
 
 export interface AsyncExecutionCorrelation {
   executionId: string
@@ -48,11 +61,21 @@ export interface AsyncExecutionCorrelation {
   path?: string
   provider?: string
   scheduledFor?: string
+  tableId?: string
+  rowId?: string
+  groupId?: string
   /**
    * Workspace of the invoking run. Set for custom-block children, whose invoker
    * lives in a different workspace than the log row this correlation lands on.
    */
   invokerWorkspaceId?: string
+}
+
+export interface WorkflowGroupExecutionCorrelation extends AsyncExecutionCorrelation {
+  source: 'workflow_group'
+  tableId: string
+  rowId: string
+  groupId: string
 }
 
 export interface Job<TPayload = unknown, TOutput = unknown> {
@@ -71,6 +94,7 @@ export interface Job<TPayload = unknown, TOutput = unknown> {
 }
 
 export interface JobMetadata {
+  executionId?: string
   workflowId?: string
   workspaceId?: string
   userId?: string
@@ -80,6 +104,8 @@ export interface JobMetadata {
 
 export interface EnqueueOptions {
   maxAttempts?: number
+  /** Per-run execution cap passed to Trigger.dev in seconds. */
+  maxDurationSeconds?: number
   metadata?: JobMetadata
   jobId?: string
   priority?: number
@@ -104,7 +130,7 @@ export interface EnqueueOptions {
    * row drives through `processing → completed | failed`. Receives the
    * payload and an `AbortSignal` driven by `cancelJob`.
    */
-  runner?: <TPayload>(payload: TPayload, signal: AbortSignal) => Promise<void>
+  runner?: <TPayload>(payload: TPayload, signal: AbortSignal) => Promise<unknown>
   /**
    * Stable identity for cancellation lookups on the database backend's
    * `batchEnqueueAndWait` path (which skips `async_jobs` entirely, so there
@@ -114,6 +140,18 @@ export interface EnqueueOptions {
    */
   cancelKey?: string
 }
+
+export interface ExecutionJobBinding {
+  workflowId: string
+  executionId: string
+}
+
+export type ExecutionJobCancellationScope = 'standalone' | 'resume'
+
+export const EXECUTION_JOB_TYPES_BY_CANCELLATION_SCOPE = {
+  standalone: ['workflow-execution', 'schedule-execution', 'webhook-execution'],
+  resume: ['resume-execution'],
+} as const satisfies Record<ExecutionJobCancellationScope, readonly JobType[]>
 
 export type AsyncJobEnqueueAcceptance = 'rejected' | 'unknown'
 
@@ -139,6 +177,26 @@ export class AsyncJobEnqueueError extends Error {
     this.acceptance = options.acceptance
     this.retryable = options.retryable
   }
+}
+
+/** Validates the per-run duration accepted by every job queue backend. */
+export function validateMaxDurationSeconds(value?: number): number | undefined {
+  if (value === undefined) return undefined
+  if (
+    !Number.isFinite(value) ||
+    value < MIN_JOB_DURATION_SECONDS ||
+    value > MAX_JOB_DURATION_SECONDS ||
+    !Number.isInteger(value)
+  ) {
+    throw new AsyncJobEnqueueError(
+      `maxDurationSeconds must be an integer between ${MIN_JOB_DURATION_SECONDS} and ${MAX_JOB_DURATION_SECONDS}`,
+      {
+        acceptance: 'rejected',
+        retryable: false,
+      }
+    )
+  }
+  return value
 }
 
 export function isAsyncJobEnqueueError(error: unknown): error is AsyncJobEnqueueError {
@@ -192,10 +250,8 @@ export interface JobQueueBackend {
    */
   getJob(jobId: string): Promise<Job | null>
 
-  /**
-   * Mark a job as started/processing
-   */
-  startJob(jobId: string): Promise<void>
+  /** Atomically claims a pending job for processing. Returns false when the claim was lost. */
+  startJob(jobId: string): Promise<boolean>
 
   /**
    * Mark a job as completed with output
@@ -213,6 +269,16 @@ export interface JobQueueBackend {
    * should resolve quietly so callers can drive cancel from possibly-stale state.
    */
   cancelJob(jobId: string): Promise<void>
+
+  /**
+   * Cancel queued or running jobs owned by an execution within the explicit
+   * dedicated-job scope. Shared workflow-group carriers are never included.
+   * Backends return the number of jobs or in-process runners they targeted.
+   */
+  cancelByExecution(
+    binding: ExecutionJobBinding,
+    scope: ExecutionJobCancellationScope
+  ): Promise<number>
 
   /**
    * Cancel an in-flight job by its `cancelKey` (the domain identity callers

@@ -9,6 +9,7 @@ import { upsertRow } from '@/lib/table'
 import { namedRowMapper } from '@/lib/table/cell-format'
 import { buildIdByName, rowDataNameToId } from '@/lib/table/column-keys'
 import { signalTableRowsChanged } from '@/lib/table/events'
+import { createExactEmptyTableRowSecretProvenance } from '@/lib/table/rows/secret-provenance'
 import {
   accessError,
   checkAccess,
@@ -69,13 +70,15 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Upser
 
     const idByName = buildIdByName(table.schema as TableSchema)
     const toNamedRow = namedRowMapper((table.schema as TableSchema).columns)
+    const rowData = rowDataNameToId(validated.data as RowData, idByName)
     const upsertResult = await upsertRow(
       {
         tableId,
         workspaceId: validated.workspaceId,
-        data: rowDataNameToId(validated.data as RowData, idByName),
+        data: rowData,
         userId: actorUserId,
         conflictTarget: validated.conflictTarget,
+        secretProvenance: createExactEmptyTableRowSecretProvenance(rowData),
       },
       table,
       requestId

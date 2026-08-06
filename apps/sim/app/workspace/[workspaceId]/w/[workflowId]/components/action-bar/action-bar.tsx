@@ -1,13 +1,16 @@
 import { memo, useCallback } from 'react'
-import { Button, cn, Duplicate, PlayOutline, Tooltip, Trash2, toast } from '@sim/emcn'
-import { ArrowLeftRight, ArrowUpDown, Circle, CircleOff, Lock, LogOut, Unlock } from 'lucide-react'
+import { Button, cn, Duplicate, PlayOutline, Tooltip, Trash, toast } from '@sim/emcn'
+import { ArrowLeftRight, ArrowUpDown, Ban, Circle, Lock, LogOut, Unlock } from '@sim/emcn/icons'
 import { useShallow } from 'zustand/react/shallow'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
-import { validateTriggerPaste } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
+import {
+  getRunFromBlockDependencyState,
+  validateTriggerPaste,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
-import { useExecutionStore, useIsCurrentWorkflowExecuting } from '@/stores/execution'
+import { useIsCurrentWorkflowExecuting, useLastExecutionSnapshot } from '@/stores/execution'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -105,7 +108,7 @@ export const ActionBar = memo(
 
     const { activeWorkflowId } = useWorkflowRegistry()
     const isExecuting = useIsCurrentWorkflowExecuting()
-    const getLastExecutionSnapshot = useExecutionStore((s) => s.getLastExecutionSnapshot)
+    const snapshot = useLastExecutionSnapshot(activeWorkflowId)
     const userPermissions = useUserPermissionsContext()
     const edges = useWorkflowStore((state) => state.edges)
 
@@ -115,21 +118,7 @@ export const ActionBar = memo(
     const isSubflowBlock = blockType === 'loop' || blockType === 'parallel'
     const isInsideSubflow = parentId && (parentType === 'loop' || parentType === 'parallel')
 
-    const snapshot = activeWorkflowId ? getLastExecutionSnapshot(activeWorkflowId) : null
-    const incomingEdges = edges.filter((edge) => edge.target === blockId)
-    const isTriggerBlock = incomingEdges.length === 0
-
-    // Check if each source block is either executed OR is a trigger block (triggers don't need prior execution)
-    const isSourceSatisfied = (sourceId: string) => {
-      if (snapshot?.executedBlocks.includes(sourceId)) return true
-      // Check if source is a trigger (has no incoming edges itself)
-      const sourceIncomingEdges = edges.filter((edge) => edge.target === sourceId)
-      return sourceIncomingEdges.length === 0
-    }
-
-    // Non-trigger blocks need a snapshot to exist (so upstream outputs are available)
-    const dependenciesSatisfied =
-      isTriggerBlock || (snapshot && incomingEdges.every((edge) => isSourceSatisfied(edge.source)))
+    const { dependenciesSatisfied } = getRunFromBlockDependencyState(blockId, edges, snapshot)
     const canRunFromBlock =
       dependenciesSatisfied && !isNoteBlock && !isInsideSubflow && !isExecuting
 
@@ -210,7 +199,7 @@ export const ActionBar = memo(
                   disabled || isLocked || isParentLocked || (!isEnabled && isParentDisabled)
                 }
               >
-                {isEnabled ? <Circle className={ICON_SIZE} /> : <CircleOff className={ICON_SIZE} />}
+                {isEnabled ? <Circle className={ICON_SIZE} /> : <Ban className={ICON_SIZE} />}
               </Button>
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>
@@ -345,7 +334,7 @@ export const ActionBar = memo(
               className={ACTION_BUTTON_STYLES}
               disabled={disabled || isLocked || isParentLocked}
             >
-              <Trash2 className={ICON_SIZE} />
+              <Trash className={ICON_SIZE} />
             </Button>
           </Tooltip.Trigger>
           <Tooltip.Content side='top'>

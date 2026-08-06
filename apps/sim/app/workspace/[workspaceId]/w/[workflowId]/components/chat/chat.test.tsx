@@ -103,12 +103,9 @@ vi.mock('@sim/emcn', () => ({
 }))
 
 vi.mock('@sim/emcn/icons', () => ({
-  Download: () => <span data-icon='Download' />,
-}))
-
-vi.mock('lucide-react', () => ({
-  AlertCircle: () => <span data-icon='AlertCircle' />,
   ArrowUp: () => <span data-icon='ArrowUp' />,
+  CircleAlert: () => <span data-icon='CircleAlert' />,
+  Download: () => <span data-icon='Download' />,
   MoreVertical: () => <span data-icon='MoreVertical' />,
   Paperclip: () => <span data-icon='Paperclip' />,
   Square: () => <span data-icon='Square' />,

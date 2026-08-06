@@ -167,39 +167,43 @@ describe('knowledge document storage attribution', () => {
     )
   })
 
-  it('uses server-known file metadata size for quota, ledger, and document row', async () => {
-    const fileUrl = '/api/files/serve/kb%2Fverified-file?context=knowledge-base'
-    mockGetFileMetadataByKeys.mockResolvedValue([
-      {
-        key: 'kb/verified-file',
-        workspaceId: 'workspace-1',
-        userId: 'external-collaborator',
-        size: 8,
-      },
-    ])
-    mockIncrementStorageUsageForBillingContextInTx.mockResolvedValue(13)
+  it.each(['kb', 'knowledge-base'])(
+    'uses server-known %s file metadata size for quota, ledger, and document row',
+    async (keyPrefix) => {
+      const storageKey = `${keyPrefix}/verified-file`
+      const fileUrl = `/api/files/serve/${encodeURIComponent(storageKey)}?context=knowledge-base`
+      mockGetFileMetadataByKeys.mockResolvedValue([
+        {
+          key: storageKey,
+          workspaceId: 'workspace-1',
+          userId: 'external-collaborator',
+          size: 8,
+        },
+      ])
+      mockIncrementStorageUsageForBillingContextInTx.mockResolvedValue(13)
 
-    const result = await createSingleDocument(
-      {
-        filename: 'note.txt',
-        fileUrl,
-        fileSize: 5,
-        mimeType: 'text/plain',
-      },
-      'knowledge-base-1',
-      'request-1',
-      'external-collaborator'
-    )
+      const result = await createSingleDocument(
+        {
+          filename: 'note.txt',
+          fileUrl,
+          fileSize: 5,
+          mimeType: 'text/plain',
+        },
+        'knowledge-base-1',
+        'request-1',
+        'external-collaborator'
+      )
 
-    expect(mockCheckStorageQuotaForBillingContext).toHaveBeenCalledWith(STORAGE_CONTEXT, 8)
-    expect(mockIncrementStorageUsageForBillingContextInTx).toHaveBeenCalledWith(
-      expect.anything(),
-      STORAGE_CONTEXT,
-      8
-    )
-    expect(result.fileSize).toBe(8)
-    expect(dbChainMockFns.values).toHaveBeenCalledWith(expect.objectContaining({ fileSize: 8 }))
-  })
+      expect(mockCheckStorageQuotaForBillingContext).toHaveBeenCalledWith(STORAGE_CONTEXT, 8)
+      expect(mockIncrementStorageUsageForBillingContextInTx).toHaveBeenCalledWith(
+        expect.anything(),
+        STORAGE_CONTEXT,
+        8
+      )
+      expect(result.fileSize).toBe(8)
+      expect(dbChainMockFns.values).toHaveBeenCalledWith(expect.objectContaining({ fileSize: 8 }))
+    }
+  )
 
   it('decrements only exact bytes for document rows actually deleted', async () => {
     dbChainMockFns.where.mockResolvedValueOnce([

@@ -25,6 +25,8 @@ export interface ToolCallState {
   id: string
   name: string
   status: ToolCallStatus
+  /** Bounded registry ID of the agent that invoked this tool. */
+  agentId?: string
   displayTitle?: string
   /** Model-authored activity text for a gateway-resolved integration call. */
   integrationDescription?: string

@@ -11,8 +11,9 @@ import { Combobox, type ComboboxProps } from '../combobox/combobox'
  * Reuses 100% of `Combobox` — search, editable entry, multi-select, groups,
  * async loading, per-option icons, and `overlayContent` all work unchanged.
  * Only the trigger chrome is overridden (the `className` merges last in
- * `Combobox`, so `rounded-lg` / height / dark surface and the chip typography
- * — normal weight, `--text-body` — win over the heavier combobox defaults).
+ * `Combobox`, so `rounded-lg` / height / dark surface and the chip `--text-body`
+ * color win over the combobox defaults). Weight is no longer overridden here —
+ * `Combobox` inherits the document's 400, which is already the chip weight.
  * The muted placeholder still applies because the combobox tints the inner
  * label span with `--text-muted` independently of the trigger className.
  *
@@ -27,7 +28,7 @@ export function ChipCombobox({ className, ...props }: ComboboxProps) {
     <Combobox
       {...props}
       className={cn(
-        'h-[30px] rounded-lg font-normal text-[var(--text-body)] dark:bg-[var(--surface-4)]',
+        'h-[30px] rounded-lg text-[var(--text-body)] dark:bg-[var(--surface-4)]',
         className
       )}
     />

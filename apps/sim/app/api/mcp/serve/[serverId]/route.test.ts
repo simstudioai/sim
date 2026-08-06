@@ -57,6 +57,15 @@ function createBillingAttribution(actorUserId: string, workspaceId: string) {
   }
 }
 
+function createResolvedSecretTraceProvenance(userId: string, workspaceId = 'ws-1') {
+  return {
+    version: 1 as const,
+    complete: true,
+    entries: [],
+    scope: { userId, workspaceId },
+  }
+}
+
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 vi.mock('@/lib/auth/internal', () => ({
@@ -266,6 +275,7 @@ describe('MCP Serve Route', () => {
       output: { ok: true },
       error: null,
       hasResponseBlock: false,
+      resolvedSecretTraceProvenance: createResolvedSecretTraceProvenance('user-1'),
     })
 
     const req = new NextRequest('http://localhost:3000/api/mcp/serve/server-1', {
@@ -328,6 +338,7 @@ describe('MCP Serve Route', () => {
       output: { ok: true },
       error: null,
       hasResponseBlock: false,
+      resolvedSecretTraceProvenance: createResolvedSecretTraceProvenance('user-1'),
     })
 
     const req = new NextRequest('http://localhost:3000/api/mcp/serve/server-1', {
@@ -376,6 +387,7 @@ describe('MCP Serve Route', () => {
       output: { ok: true },
       error: null,
       hasResponseBlock: false,
+      resolvedSecretTraceProvenance: createResolvedSecretTraceProvenance('owner-1'),
     })
 
     const req = new NextRequest('http://localhost:3000/api/mcp/serve/server-1', {
@@ -798,6 +810,7 @@ describe('MCP Serve Route', () => {
       output: false,
       error: null,
       hasResponseBlock: false,
+      resolvedSecretTraceProvenance: createResolvedSecretTraceProvenance('owner-1'),
     })
 
     const req = new NextRequest('http://localhost:3000/api/mcp/serve/server-1', {
@@ -847,6 +860,7 @@ describe('MCP Serve Route', () => {
         blockType: 'gmail',
       },
       hasResponseBlock: false,
+      resolvedSecretTraceProvenance: createResolvedSecretTraceProvenance('owner-1'),
     })
 
     const req = new NextRequest('http://localhost:3000/api/mcp/serve/server-1', {
@@ -900,6 +914,7 @@ describe('MCP Serve Route', () => {
       output: ['a', 'b'],
       error: null,
       hasResponseBlock: false,
+      resolvedSecretTraceProvenance: createResolvedSecretTraceProvenance('owner-1'),
     })
 
     const req = new NextRequest('http://localhost:3000/api/mcp/serve/server-1', {

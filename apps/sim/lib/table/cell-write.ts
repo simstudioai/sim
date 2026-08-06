@@ -14,14 +14,20 @@ import { createLogger } from '@sim/logger'
 import { appendTableEvent } from '@/lib/table/events'
 import { pluckByPath } from '@/lib/table/pluck'
 import { writeExecutionsPatch } from '@/lib/table/rows/executions'
+import {
+  createTableRowSecretProvenanceFromEncryptedExecution,
+  createUnknownTableRowSecretProvenance,
+} from '@/lib/table/rows/secret-provenance'
 import type {
   RowData,
   RowExecutionMetadata,
   RowExecutions,
   TableDefinition,
+  TableRowSecretProvenanceWrite,
   WorkflowGroup,
 } from '@/lib/table/types'
 import { coerceRowValues } from '@/lib/table/validation'
+import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('WorkflowCellWrite')
 
@@ -42,6 +48,8 @@ export interface WriteWorkflowGroupStatePayload {
   dataPatch?: RowData
   /** Cumulative outputs emitted to SSE consumers without rewriting them to the database. */
   eventOutputs?: RowData
+  /** Encrypted provenance narrowed to the exact values in `dataPatch`. */
+  secretProvenance?: TableRowSecretProvenanceWrite
   /** New execution state for `executions[groupId]`. */
   executionState: RowExecutionMetadata
 }
@@ -81,6 +89,7 @@ export async function writeWorkflowGroupState(
         workspaceId,
         executionsPatch,
         cancellationGuard,
+        secretProvenance: payload.secretProvenance,
       },
       table,
       requestId,
@@ -133,6 +142,7 @@ export async function writeWorkflowGroupState(
 export interface WorkflowCellProgressWrite {
   dataPatch: RowData | undefined
   eventOutputs: RowData
+  secretProvenance?: TableRowSecretProvenanceWrite
   runningBlockIds: string[]
   blockErrors: Record<string, string>
 }
@@ -151,7 +161,23 @@ export interface WorkflowCellProgressWriter {
   finish: () => Promise<void>
   getEventOutputs: () => RowData
   getPendingDataPatch: () => RowData
+  getPendingSecretProvenance: () => TableRowSecretProvenanceWrite
   getBlockErrors: () => Record<string, string>
+}
+
+type ColumnSecretProvenance = ResolvedSecretTraceProvenanceV1 | null
+
+function selectPatchSecretProvenance(
+  dataPatch: RowData,
+  provenanceByColumn: Record<string, ColumnSecretProvenance>
+): TableRowSecretProvenanceWrite {
+  const columns: Record<string, ResolvedSecretTraceProvenanceV1> = {}
+  for (const columnId of Object.keys(dataPatch)) {
+    const provenance = provenanceByColumn[columnId]
+    if (!provenance?.complete) return createUnknownTableRowSecretProvenance()
+    columns[columnId] = provenance
+  }
+  return { complete: true, columns }
 }
 
 /**
@@ -166,12 +192,23 @@ export function createWorkflowCellProgressWriter(
   const eventOutputs: RowData = {}
   const pendingDataPatch: RowData = {}
   const retryDataPatch: RowData = {}
+  const pendingSecretProvenance: Record<string, ColumnSecretProvenance> = {}
+  const retrySecretProvenance: Record<string, ColumnSecretProvenance> = {}
   const runningBlockIds = new Set<string>()
   const blockErrors: Record<string, string> = {}
+  let completionChain: Promise<void> = Promise.resolve()
   let writeChain: Promise<void> = Promise.resolve()
   let terminalWritten = false
 
   const scheduleWrite = (dataPatch: RowData | undefined): void => {
+    const provenancePatch = dataPatch
+      ? Object.fromEntries(
+          Object.keys(dataPatch).map((columnId) => [
+            columnId,
+            pendingSecretProvenance[columnId] ?? null,
+          ])
+        )
+      : {}
     const eventSnapshot = {
       eventOutputs: { ...eventOutputs },
       runningBlockIds: Array.from(runningBlockIds),
@@ -180,9 +217,13 @@ export function createWorkflowCellProgressWriter(
     writeChain = writeChain.then(async () => {
       if (options.signal?.aborted || terminalWritten) return
       const pendingRetry = { ...retryDataPatch, ...dataPatch }
+      const pendingRetryProvenance = { ...retrySecretProvenance, ...provenancePatch }
       const write: WorkflowCellProgressWrite = {
         ...eventSnapshot,
         dataPatch: Object.keys(pendingRetry).length > 0 ? pendingRetry : undefined,
+        ...(Object.keys(pendingRetry).length > 0
+          ? { secretProvenance: selectPatchSecretProvenance(pendingRetry, pendingRetryProvenance) }
+          : {}),
       }
       try {
         const result = await options.writeProgress(write)
@@ -190,15 +231,18 @@ export function createWorkflowCellProgressWriter(
         for (const [columnId, value] of Object.entries(write.dataPatch)) {
           if (Object.is(pendingDataPatch[columnId], value)) {
             delete pendingDataPatch[columnId]
+            delete pendingSecretProvenance[columnId]
           }
           if (Object.is(retryDataPatch[columnId], value)) {
             delete retryDataPatch[columnId]
+            delete retrySecretProvenance[columnId]
           }
         }
       } catch (error) {
         for (const [columnId, value] of Object.entries(write.dataPatch ?? {})) {
           if (Object.is(pendingDataPatch[columnId], value)) {
             retryDataPatch[columnId] = value
+            retrySecretProvenance[columnId] = pendingRetryProvenance[columnId] ?? null
           }
         }
         options.onWriteError(error)
@@ -213,41 +257,62 @@ export function createWorkflowCellProgressWriter(
   }
 
   const onBlockComplete = async (blockId: string, output: unknown): Promise<void> => {
-    const outputs = outputsByBlockId.get(blockId)
-    if (!outputs) return
+    const work = completionChain.then(async () => {
+      const outputs = outputsByBlockId.get(blockId)
+      if (!outputs) return
 
-    const blockResult =
-      output && typeof output === 'object' && 'output' in output
-        ? (output as { output: unknown }).output
-        : output
-    const blockErrorMessage =
-      blockResult &&
-      typeof blockResult === 'object' &&
-      typeof (blockResult as { error?: unknown }).error === 'string'
-        ? (blockResult as { error: string }).error
-        : null
-    const changedData: RowData = {}
+      const callbackData =
+        output && typeof output === 'object' && 'output' in output
+          ? (output as {
+              output: unknown
+              resolvedSecretTraceProvenance?: unknown
+            })
+          : undefined
+      const blockResult = callbackData ? callbackData.output : output
+      const blockErrorMessage =
+        blockResult &&
+        typeof blockResult === 'object' &&
+        typeof (blockResult as { error?: unknown }).error === 'string'
+          ? (blockResult as { error: string }).error
+          : null
+      const changedData: RowData = {}
 
-    if (blockErrorMessage) {
-      blockErrors[blockId] = blockErrorMessage
-    } else {
-      for (const outputMapping of outputs) {
-        const value = pluckByPath(blockResult, outputMapping.path)
-        if (value === undefined) continue
-        changedData[outputMapping.columnName] = value as RowData[string]
-        eventOutputs[outputMapping.columnName] = value as RowData[string]
-        pendingDataPatch[outputMapping.columnName] = value as RowData[string]
+      if (blockErrorMessage) {
+        blockErrors[blockId] = blockErrorMessage
+      } else {
+        for (const outputMapping of outputs) {
+          const value = pluckByPath(blockResult, outputMapping.path)
+          if (value === undefined) continue
+          changedData[outputMapping.columnName] = value as RowData[string]
+          eventOutputs[outputMapping.columnName] = value as RowData[string]
+          pendingDataPatch[outputMapping.columnName] = value as RowData[string]
+        }
+        if (Object.keys(changedData).length > 0) {
+          const provenance = await createTableRowSecretProvenanceFromEncryptedExecution(
+            changedData,
+            callbackData?.resolvedSecretTraceProvenance
+          )
+          for (const columnId of Object.keys(changedData)) {
+            pendingSecretProvenance[columnId] = provenance.complete
+              ? (provenance.columns[columnId] ?? null)
+              : null
+          }
+        }
       }
-    }
-    runningBlockIds.delete(blockId)
-    scheduleWrite(Object.keys(changedData).length > 0 ? changedData : undefined)
+      runningBlockIds.delete(blockId)
+      scheduleWrite(Object.keys(changedData).length > 0 ? changedData : undefined)
+    })
+    completionChain = work.catch(options.onWriteError)
+    await completionChain
   }
 
   const waitForPendingWrites = async (): Promise<void> => {
+    await completionChain
     await writeChain
   }
 
   const finish = async (): Promise<void> => {
+    await completionChain
     terminalWritten = true
     await writeChain
   }
@@ -259,6 +324,8 @@ export function createWorkflowCellProgressWriter(
     finish,
     getEventOutputs: () => ({ ...eventOutputs }),
     getPendingDataPatch: () => ({ ...pendingDataPatch }),
+    getPendingSecretProvenance: () =>
+      selectPatchSecretProvenance(pendingDataPatch, pendingSecretProvenance),
     getBlockErrors: () => ({ ...blockErrors }),
   }
 }

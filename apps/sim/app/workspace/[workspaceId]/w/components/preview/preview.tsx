@@ -3,7 +3,7 @@
 import type React from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button, cn, Tooltip } from '@sim/emcn'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft } from '@sim/emcn/icons'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { PreviewEditor } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-editor'
 import {

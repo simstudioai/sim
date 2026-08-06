@@ -11,6 +11,7 @@ const {
   mockGetPausedExecutionDetail,
   mockEnqueueResume,
   mockPreprocessExecution,
+  mockShouldExecuteInline,
   mockValidateWorkflowAccess,
 } = vi.hoisted(() => ({
   mockEnqueueOrStartResume: vi.fn(),
@@ -19,6 +20,7 @@ const {
   mockGetPausedExecutionDetail: vi.fn(),
   mockEnqueueResume: vi.fn().mockResolvedValue('resume-execution:resume-execution-1'),
   mockPreprocessExecution: vi.fn(),
+  mockShouldExecuteInline: vi.fn().mockReturnValue(false),
   mockValidateWorkflowAccess: vi.fn(),
 }))
 
@@ -32,6 +34,7 @@ vi.mock('@/lib/execution/preprocessing', () => ({
 
 vi.mock('@/lib/core/async-jobs', () => ({
   getJobQueue: vi.fn().mockResolvedValue({ enqueue: mockEnqueueResume }),
+  shouldExecuteInline: mockShouldExecuteInline,
 }))
 
 vi.mock('@/lib/workflows/executor/enqueue-execution', () => ({

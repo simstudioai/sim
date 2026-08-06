@@ -1,17 +1,13 @@
-import type { SVGProps } from 'react'
-import { createElement } from 'react'
-import { Webhook } from 'lucide-react'
+import { Webhook } from '@sim/emcn/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { getTrigger } from '@/triggers'
-
-const WebhookIcon = (props: SVGProps<SVGSVGElement>) => createElement(Webhook, props)
 
 export const GenericWebhookBlock: BlockConfig = {
   type: 'generic_webhook',
   name: 'Webhook Trigger',
   description: 'Receive webhooks from any service by configuring a custom webhook.',
   category: 'triggers',
-  icon: WebhookIcon,
+  icon: Webhook,
   bgColor: '#10B981', // Green color for triggers
   docsLink: 'https://docs.sim.ai/workflows/triggers/webhook',
   triggerAllowed: true,

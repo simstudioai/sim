@@ -81,7 +81,7 @@ export function MemberRow<TRole extends string = MemberRole>({
         />
       </RoleLockTooltip>
       {canManage && (
-        <Chip onClick={onRemove} disabled={removeDisabled} flush className='justify-self-end'>
+        <Chip onClick={onRemove} disabled={removeDisabled} className='justify-self-end'>
           Remove
         </Chip>
       )}

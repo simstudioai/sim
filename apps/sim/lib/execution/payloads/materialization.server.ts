@@ -8,6 +8,12 @@ import {
   isLargeValueStorageKey,
   type LargeValueRef,
 } from '@/lib/execution/payloads/large-value-ref'
+import {
+  MAX_DURABLE_LARGE_VALUE_BYTES,
+  MAX_FUNCTION_FILE_BYTES,
+  MAX_FUNCTION_INLINE_BYTES,
+  MAX_INLINE_MATERIALIZATION_BYTES,
+} from '@/lib/execution/payloads/limits'
 import { ExecutionResourceLimitError } from '@/lib/execution/resource-errors'
 import type { StorageContext } from '@/lib/uploads'
 import {
@@ -19,11 +25,6 @@ import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.
 import type { UserFile } from '@/executor/types'
 
 const logger = createLogger('ExecutionPayloadMaterialization')
-
-export const MAX_DURABLE_LARGE_VALUE_BYTES = 64 * 1024 * 1024
-export const MAX_INLINE_MATERIALIZATION_BYTES = 16 * 1024 * 1024
-export const MAX_FUNCTION_FILE_BYTES = 64 * 1024 * 1024
-export const MAX_FUNCTION_INLINE_BYTES = 10 * 1024 * 1024
 
 export interface ExecutionMaterializationContext {
   workflowId?: string

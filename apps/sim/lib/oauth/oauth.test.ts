@@ -55,6 +55,9 @@ beforeAll(() => {
     WORDPRESS_CLIENT_SECRET: 'wordpress_client_secret',
     SPOTIFY_CLIENT_ID: 'spotify_client_id',
     SPOTIFY_CLIENT_SECRET: 'spotify_client_secret',
+    CALCOM_CLIENT_ID: 'calcom_client_id',
+    MONDAY_CLIENT_ID: 'monday_client_id',
+    MONDAY_CLIENT_SECRET: undefined,
   })
 })
 
@@ -296,6 +299,26 @@ describe('OAuth Token Refresh', () => {
       expect(bodyParams.get('client_id')).toBeNull()
     })
 
+    it.concurrent('should preserve Cal.com bearer refresh authentication', async () => {
+      const mockFetch = createMockFetch(defaultOAuthResponse)
+      const refreshToken = 'test_refresh_token'
+
+      await withMockFetch(mockFetch, () => refreshOAuthToken('calcom', refreshToken))
+
+      const [endpoint, requestOptions] = mockFetch.mock.calls[0] as [
+        string,
+        { headers: Record<string, string>; body: string },
+      ]
+      const bodyParams = new URLSearchParams(requestOptions.body)
+
+      expect(endpoint).toBe('https://app.cal.com/api/auth/oauth/refreshToken')
+      expect(requestOptions.headers.Authorization).toBe(`Bearer ${refreshToken}`)
+      expect(bodyParams.get('grant_type')).toBe('refresh_token')
+      expect(bodyParams.get('client_id')).toBe('calcom_client_id')
+      expect(bodyParams.get('client_secret')).toBeNull()
+      expect(bodyParams.get('refresh_token')).toBeNull()
+    })
+
     it.concurrent('should send Notion request with Basic Auth header and JSON body', async () => {
       const mockFetch = createMockFetch(defaultOAuthResponse)
       const refreshToken = 'test_refresh_token'
@@ -351,6 +374,21 @@ describe('OAuth Token Refresh', () => {
   })
 
   describe('Error Handling', () => {
+    it.concurrent('should return the canonical error for partial OAuth configuration', async () => {
+      const mockFetch = createMockFetch(defaultOAuthResponse)
+
+      const result = await withMockFetch(mockFetch, () =>
+        refreshOAuthToken('monday', 'test_refresh_token')
+      )
+
+      expect(result).toEqual({
+        ok: false,
+        message:
+          'OAuth client monday is partially configured — missing MONDAY_CLIENT_SECRET. Run bun run setup integration monday.',
+      })
+      expect(mockFetch).not.toHaveBeenCalled()
+    })
+
     it.concurrent('should return failure for unsupported provider', async () => {
       const mockFetch = createMockFetch(defaultOAuthResponse)
       const refreshToken = 'test_refresh_token'

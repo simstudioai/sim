@@ -1,5 +1,5 @@
 {
-  "id": "1b640a15-944f-413a-9a2f-fc08f67856bc",
+  "id": "0e19b710-903c-460a-923a-60d0e7a14c43",
   "prevId": "8ffb620a-92ff-49d1-95be-a429b4c04e52",
   "version": "7",
   "dialect": "postgresql",
@@ -17248,9 +17248,15 @@
           "primaryKey": false,
           "notNull": true
         },
-        "size_bytes": {
-          "name": "size_bytes",
-          "type": "bigint",
+        "width": {
+          "name": "width",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "height": {
+          "name": "height",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false
         },

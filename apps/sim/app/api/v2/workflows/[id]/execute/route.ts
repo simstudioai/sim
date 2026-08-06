@@ -161,6 +161,12 @@ export const POST = withRouteHandler(
       if (body.async && body.stream) {
         return v2Error('BAD_REQUEST', 'async and stream cannot be combined')
       }
+      if (body.executionTimeoutSeconds !== undefined && !body.async) {
+        return v2Error(
+          'BAD_REQUEST',
+          'executionTimeoutSeconds is supported only for async execution'
+        )
+      }
       if (
         body.async &&
         (body.selectedOutputs?.length ||
@@ -232,6 +238,7 @@ export const POST = withRouteHandler(
         base64MaxBytes: body.base64MaxBytes,
         selectedOutputs: body.selectedOutputs,
         rateLimitCounter: body.async ? 'async' : 'sync',
+        requestedTimeoutSeconds: body.executionTimeoutSeconds,
         abortSignal: req.signal,
         mode: body.async ? 'async' : body.stream ? 'stream' : 'sync',
         requestHeaders: req.headers,

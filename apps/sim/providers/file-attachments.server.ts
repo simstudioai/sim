@@ -3,7 +3,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { StorageService } from '@/lib/uploads'
-import { resolveTrustedFileContext } from '@/lib/uploads/utils/file-utils'
+import { getFileExtension, resolveTrustedFileContext } from '@/lib/uploads/utils/file-utils'
 import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { verifyFileAccess } from '@/app/api/files/authorization'
 import type { UserFile } from '@/executor/types'
@@ -16,6 +16,7 @@ import {
   LARGE_FILE_PATH_THRESHOLD_BYTES,
   shouldUseLargeFilePath,
 } from '@/providers/attachments'
+import { projectProviderAttachmentFilenameForModel } from '@/providers/runtime-context'
 import type { Message, ProviderId, ProviderRequest } from '@/providers/types'
 
 const logger = createLogger('ProviderFileAttachments')
@@ -230,7 +231,11 @@ async function uploadOpenAIFile(
   form.append('purpose', mimeType.startsWith('image/') ? 'vision' : 'user_data')
   form.append('expires_after[anchor]', 'created_at')
   form.append('expires_after[seconds]', String(OPENAI_FILE_EXPIRY_SECONDS))
-  form.append('file', blob, file.name)
+  form.append(
+    'file',
+    blob,
+    projectProviderAttachmentFilenameForModel(file.name, getFileExtension(file.name))
+  )
 
   const response = await fetch(OPENAI_FILES_ENDPOINT, {
     method: 'POST',

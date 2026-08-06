@@ -36,8 +36,12 @@ import {
  * `border` (the `border-shadow` shadow ring on a transparent surface — an outline drawn purely via box-shadow,
  * no CSS border, no fill).
  * `active` renders the default/filled chip in its selected state — `--surface-active` at rest, one surface darker
- * (`--surface-6`) on hover. `fullWidth` swaps `inline-flex` for block-level `flex`. `flush` removes the default
- * `mx-0.5` cluster margin — use when a single chip sits in its own layout slot (grid/table cell).
+ * (`--surface-6`) on hover. `fullWidth` swaps `inline-flex` for block-level `flex`.
+ *
+ * The chip carries NO outer margin — spacing between chips belongs to the parent, as a `gap`. It used to ship a
+ * default `mx-0.5` "cluster margin" with a `flush` prop to switch it off, which meant a chip's visual box was not
+ * its layout box: changing the space between two chips took an edit in two places, and a collapsing container
+ * could never close past the margins. Do not reintroduce it.
  *
  * The default/filled hover lives in `active`-keyed compound variants (not the base variant string) so the
  * rest/hover classes are mutually exclusive — a chip renders exactly ONE `hover-hover:bg-*`. This keeps raw
@@ -62,7 +66,6 @@ const chipVariants = cva(
       },
       active: { true: '', false: '' },
       fullWidth: { true: 'flex', false: 'inline-flex' },
-      flush: { true: 'mx-0', false: 'mx-0.5' },
     },
     compoundVariants: [
       {
@@ -86,7 +89,7 @@ const chipVariants = cva(
         className: 'bg-[var(--surface-active)] hover-hover:bg-[var(--surface-6)]',
       },
     ],
-    defaultVariants: { variant: 'default', active: false, fullWidth: false, flush: false },
+    defaultVariants: { variant: 'default', active: false, fullWidth: false },
   }
 )
 
@@ -142,14 +145,14 @@ interface ChipProps
  * @example <Chip leftIcon={Credit} onClick={openBilling}>{balance}</Chip>
  */
 const Chip = forwardRef<HTMLButtonElement, ChipProps>(function Chip(
-  { className, variant, active, fullWidth, flush, leftIcon, rightIcon, children, type, ...props },
+  { className, variant, active, fullWidth, leftIcon, rightIcon, children, type, ...props },
   ref
 ) {
   return (
     <button
       ref={ref}
       type={type ?? 'button'}
-      className={cn(chipVariants({ variant, active, fullWidth, flush }), className)}
+      className={cn(chipVariants({ variant, active, fullWidth }), className)}
       {...props}
     >
       <ChipContent variant={variant} leftIcon={leftIcon} rightIcon={rightIcon}>
@@ -168,13 +171,13 @@ interface ChipLinkProps
  * @example <ChipLink href='/integrations' active={isCurrent} leftIcon={ArrowLeft}>Integrations</ChipLink>
  */
 const ChipLink = forwardRef<HTMLAnchorElement, ChipLinkProps>(function ChipLink(
-  { className, variant, active, fullWidth, flush, leftIcon, rightIcon, children, ...props },
+  { className, variant, active, fullWidth, leftIcon, rightIcon, children, ...props },
   ref
 ) {
   return (
     <Link
       ref={ref}
-      className={cn(chipVariants({ variant, active, fullWidth, flush }), className)}
+      className={cn(chipVariants({ variant, active, fullWidth }), className)}
       {...props}
     >
       <ChipContent variant={variant} leftIcon={leftIcon} rightIcon={rightIcon}>

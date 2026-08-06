@@ -1,6 +1,6 @@
 ---
 title: Data Drains
-description: Continuously export workflow logs, audit logs, and Mothership data to your own object store, data warehouse, observability platform, or HTTPS endpoint on a schedule
+description: Continuously export workflow logs, audit logs, and Chat data to your own object store, data warehouse, observability platform, or HTTPS endpoint on a schedule
 ---
 
 import { FAQ } from '@/components/ui/faq'
@@ -37,12 +37,12 @@ A drain exports exactly one source. To export multiple sources, create multiple 
 | **Workflow logs** | Workflow execution records (one row per execution, only after the run reaches a terminal state). |
 | **Job logs** | Background job records (deployed APIs, schedules, webhooks). Only terminal-state rows are exported. |
 | **Audit logs** | Organization- and workspace-scoped audit events — logins, permission changes, resource creation/deletion, drain configuration changes. |
-| **Copilot chats** | Mothership chat history. |
-| **Copilot runs** | Mothership run records (terminal state only). |
+| **Chats** | Chat history. |
+| **Chat runs** | Chat run records (terminal state only). |
 
 Each row is delivered as a single line of NDJSON. The shape of each row is part of the public schema and stable across versions; every row carries an `id` field that downstream consumers can use to dedupe.
 
-Drains export each row exactly once based on its creation cursor. Mutable fields on **Copilot chats** (messages, title, `lastSeenAt`) are a point-in-time snapshot and won't be re-emitted if the chat is later updated. Treat the export as append-only and reconstitute current state from your own system of record if you need it.
+Drains export each row exactly once based on its creation cursor. Mutable fields on **Chats** (messages, title, `lastSeenAt`) are a point-in-time snapshot and won't be re-emitted if the chat is later updated. Treat the export as append-only and reconstitute current state from your own system of record if you need it.
 
 ---
 
@@ -193,7 +193,7 @@ To safely use both together, set the drain cadence shorter than the retention pe
 | Drain source | Pairs with retention setting |
 |---|---|
 | Workflow logs, Job logs | **Log retention** |
-| Copilot chats, Copilot runs | **Task cleanup** |
+| Chats, Chat runs | **Task cleanup** |
 | Audit logs | *(no retention setting today — audit logs are kept indefinitely)* |
 
 For example, with **Log retention** set to 30 days, set the workflow-logs drain to **Hourly** or **Daily** so every row is exported well before retention purges it from Sim. Monitor recent drain runs in the settings page; if a drain has been failing for longer than your retention window, you may lose rows that retention purges before they are exported.

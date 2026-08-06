@@ -4,8 +4,10 @@ import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservati
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
 import { isAsyncJobEnqueueError } from '@/lib/core/async-jobs/types'
+import { toTriggerMaxDurationSeconds } from '@/lib/core/execution-limits'
 import { WORKFLOW_EXECUTION_JOB_ID_PREFIX } from '@/lib/workflows/executor/execution-job-ids'
 import { executeWorkflowJob, type WorkflowExecutionPayload } from '@/background/workflow-execution'
+import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
 import type { CoreTriggerType } from '@/stores/logs/filters/types'
 
 const logger = createLogger('WorkflowEnqueueExecution')
@@ -25,8 +27,12 @@ export interface EnqueueWorkflowExecutionParams {
   workspaceId: string
   input: unknown
   triggerType: CoreTriggerType
+  triggerBlockId?: string
   executionId: string
+  copilotToolCallId?: string
   callChain?: string[]
+  executionTimeoutMs: number
+  trustedInitialResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
 }
 
 /**
@@ -65,8 +71,12 @@ export async function enqueueWorkflowExecution(
     workspaceId,
     input,
     triggerType,
+    triggerBlockId,
     executionId,
+    copilotToolCallId,
     callChain,
+    executionTimeoutMs,
+    trustedInitialResolvedSecretTraceProvenance,
   } = params
   const asyncLogger = logger.withMetadata({
     requestId,
@@ -81,6 +91,7 @@ export async function enqueueWorkflowExecution(
     requestId,
     source: 'workflow' as const,
     workflowId,
+    ...(copilotToolCallId ? { copilotToolCallId } : {}),
     triggerType,
   }
 
@@ -91,12 +102,15 @@ export async function enqueueWorkflowExecution(
     workspaceId,
     input,
     triggerType,
+    triggerBlockId,
     executionId,
     requestId,
     correlation,
     callChain,
     executionMode: 'async',
     admissionCompleted: true,
+    executionTimeoutMs,
+    trustedInitialResolvedSecretTraceProvenance,
   }
 
   let jobQueue: Awaited<ReturnType<typeof getJobQueue>>
@@ -111,9 +125,17 @@ export async function enqueueWorkflowExecution(
   }
 
   const deterministicJobId = `${WORKFLOW_EXECUTION_JOB_ID_PREFIX}${executionId}`
+  const executeInline = shouldExecuteInline()
   const enqueueOptions = {
     jobId: deterministicJobId,
     metadata: { workflowId, workspaceId, userId, correlation },
+    maxDurationSeconds: toTriggerMaxDurationSeconds(executionTimeoutMs),
+    ...(executeInline
+      ? {
+          runner: (_queuedPayload: unknown, signal: AbortSignal) =>
+            executeWorkflowJob(payload, signal),
+        }
+      : {}),
   }
   let jobId: string | undefined
   let enqueueError: unknown
@@ -162,39 +184,6 @@ export async function enqueueWorkflowExecution(
   }
 
   asyncLogger.info('Queued async workflow execution', { jobId })
-
-  if (shouldExecuteInline()) {
-    void (async () => {
-      let workerOwnsReservation = false
-      try {
-        await jobQueue.startJob(jobId)
-        workerOwnsReservation = true
-        const output = await executeWorkflowJob(payload)
-        await jobQueue.completeJob(jobId, output)
-      } catch (error) {
-        const errorMessage = toError(error).message
-        asyncLogger.error('Async workflow execution failed', {
-          jobId,
-          error: errorMessage,
-        })
-        /**
-         * Before worker ownership transfers, no LoggingSession exists to
-         * release the route's reservation.
-         */
-        if (!workerOwnsReservation) {
-          await releaseExecutionSlot(executionId)
-        }
-        try {
-          await jobQueue.markJobFailed(jobId, errorMessage)
-        } catch (markFailedError) {
-          asyncLogger.error('Failed to mark job as failed', {
-            jobId,
-            error: toError(markFailedError).message,
-          })
-        }
-      }
-    })()
-  }
 
   return { outcome: 'queued', jobId, executionId, retainExecutionClaim: true }
 }

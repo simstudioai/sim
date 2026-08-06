@@ -23,14 +23,14 @@ Sim stores every uploaded file — knowledge base documents, chat attachments, e
 
 ## How the backend is selected
 
-Sim picks the backend automatically from environment variables — there is no explicit "provider" flag. The logic, in order of precedence:
+Set `STORAGE_PROVIDER` to `local`, `s3`, `azure`, or `gcs` to select a backend explicitly. When it is unset, Sim infers the backend from the configured environment variables in this order:
 
 1. **Azure Blob** — used if `AZURE_STORAGE_CONTAINER_NAME` is set **and** either (`AZURE_ACCOUNT_NAME` + `AZURE_ACCOUNT_KEY`) or `AZURE_CONNECTION_STRING` is set.
 2. **AWS S3** — used if `S3_BUCKET_NAME` **and** `AWS_REGION` are set (and Azure is not configured).
 3. **Google Cloud Storage** — used if `GCS_BUCKET_NAME` is set (and neither Azure nor S3 is configured).
 4. **Local disk** — the fallback when none is configured.
 
-If more than one backend is configured, the first match in that order wins. Set only the variables for the backend you intend to use.
+If `STORAGE_PROVIDER` is unset, Sim skips incomplete backends and uses the first ready match in that order. A higher-priority backend with its required fields present but invalid supplied values fails fast instead of silently falling through. An explicit `STORAGE_PROVIDER` takes precedence and must be valid and complete.
 
 ## Set up AWS S3
 
@@ -235,14 +235,15 @@ AZURE_STORAGE_WORKSPACE_LOGOS_CONTAINER_NAME=workspace-logos
 Direct browser uploads require a Blob service CORS rule on the storage account. Allow your exact
 Sim origin, `GET` and `PUT`, the `Content-Type` header, and the `x-ms-*` prefix used by signed blob
 and metadata headers. Small-file uploads also send `If-None-Match` so a signed URL cannot overwrite
-an existing final object:
+an existing final object. Multipart uploads also read `ETag` from the browser response:
 
 ```bash
 az storage cors add \
   --services b \
-  --methods GET PUT \
+  --methods GET PUT OPTIONS \
   --origins https://sim.yourdomain.com \
   --allowed-headers content-type if-none-match 'x-ms-*' \
+  --exposed-headers ETag \
   --max-age 3600 \
   --account-name mystorageaccount \
   --account-key '<account-key>'
@@ -288,10 +289,11 @@ cat > /tmp/cors.json <<'EOF'
   {
     "origin": ["https://your-sim-domain.com"],
     "method": ["GET", "PUT"],
-    "responseHeader": [
-      "Content-Type",
-      "x-goog-if-generation-match",
-      "x-goog-meta-uploadid",
+      "responseHeader": [
+        "Content-Type",
+        "ETag",
+        "x-goog-if-generation-match",
+        "x-goog-meta-uploadid",
       "x-goog-meta-originalname",
       "x-goog-meta-uploadedat",
       "x-goog-meta-purpose",
@@ -300,7 +302,8 @@ cat > /tmp/cors.json <<'EOF'
       "x-goog-meta-knowledgebaseid",
       "x-goog-meta-folderid",
       "x-goog-meta-workflowid",
-      "x-goog-meta-executionid"
+      "x-goog-meta-executionid",
+      "x-goog-meta-simuploadid"
     ],
     "maxAgeSeconds": 3600
   }
@@ -314,7 +317,7 @@ done
 ```
 
 <Callout type="info">
-  Header names must be listed individually — GCS CORS matches `responseHeader` entries exactly and does not support wildcards like `x-goog-meta-*`. `x-goog-if-generation-match` makes small-file uploads create-only; Sim obtains multipart ETags from GCS during completion rather than exposing them to the browser.
+  Header names must be listed individually — GCS CORS matches `responseHeader` entries exactly and does not support wildcards like `x-goog-meta-*`. `ETag` is required because large-file multipart uploads read each part's `ETag` from the browser, and CORS hides the header otherwise. `x-goog-if-generation-match` is required by Sim's create-only signed uploads, which prevent a reused upload URL from replacing existing bytes. `x-goog-meta-simuploadid` carries the opaque receipt used to verify an upload after an ambiguous network response.
 </Callout>
 
 </Step>

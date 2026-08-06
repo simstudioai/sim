@@ -136,6 +136,7 @@ describe('listLogs', () => {
     expect(wf).toMatchObject({
       executionId: 'exec-1',
       workflowId: 'wf-1',
+      executionOrigin: null,
       cost: { total: 0.1 },
       duration: '1000ms',
       jobTitle: null,
@@ -144,9 +145,25 @@ describe('listLogs', () => {
     expect(job).toMatchObject({
       executionId: 'job-exec-1',
       workflowId: null,
+      executionOrigin: null,
       jobTitle: 'Nightly report',
     })
     expect(result.nextCursor).toBeNull()
+  })
+
+  it('exposes the durable workflow-group origin discriminator', async () => {
+    queueTableRows(workflowExecutionLogs, [
+      workflowRow({ executionOrigin: 'workflow_group', trigger: 'table' }),
+    ])
+    queueTableRows(jobExecutionLogs, [])
+
+    const result = await listLogs(baseParams(), 'user-1')
+
+    expect(result.data[0]).toMatchObject({
+      executionId: 'exec-1',
+      trigger: 'table',
+      executionOrigin: 'workflow_group',
+    })
   })
 
   it('returns a decodable nextCursor when results exceed the limit', async () => {

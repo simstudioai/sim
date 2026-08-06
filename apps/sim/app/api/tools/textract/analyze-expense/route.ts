@@ -13,6 +13,7 @@ import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { validateOpaqueModelInputProvenance } from '@/lib/execution/model-input-provenance'
 import {
   mapTextractSdkError,
   parseS3Uri,
@@ -23,7 +24,7 @@ import {
 
 export const dynamic = 'force-dynamic'
 /** Mirrors maxDuration in ../parse/route.ts — see that file's TSDoc for details. */
-export const maxDuration = 5400
+export const maxDuration = 604800
 
 const logger = createLogger('TextractAnalyzeExpenseAPI')
 
@@ -115,6 +116,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (!parsed.success) return parsed.response
 
     const validatedData = parsed.data.body
+    const modelInputProvenance = validateOpaqueModelInputProvenance({
+      headers: request.headers,
+      payload: validatedData,
+      isInternalRequest: true,
+    })
+    if (!modelInputProvenance.success) {
+      return NextResponse.json(
+        { success: false, error: modelInputProvenance.error },
+        { status: modelInputProvenance.status }
+      )
+    }
     const processingMode = validatedData.processingMode || 'sync'
 
     logger.info(`[${requestId}] Textract analyze-expense request`, {

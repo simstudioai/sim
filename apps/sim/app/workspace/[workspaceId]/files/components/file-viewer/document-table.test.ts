@@ -6,7 +6,7 @@
  * (`.document-table`) sit in the same file viewer, in the same session, one click apart. They used
  * to drift — the previews carried their own chrome (rounded outer frame, `--surface-2` header,
  * 13px body / 12px header, `--text-secondary` cells) while markdown tables used full cell borders
- * on `--divider`, a `--surface-4` header, and 14px text.
+ * on `--border`, a `--surface-4` header, and 14px text.
  *
  * These load the real, shipped CSS (not a copy). Two complementary assertions, because jsdom's CSS
  * engine resolves only part of what matters here: it applies the cascade for longhand declarations
@@ -124,7 +124,9 @@ describe('document-table chrome is shared with markdown tables', () => {
   })
 
   it('one rule draws the cell border for both roots', () => {
-    expect(selectorsDeclaring(SHARED_CSS_PATH, 'border', 'var(--divider)')).toEqual(
+    expect(
+      selectorsDeclaring(SHARED_CSS_PATH, 'border', 'var(--border-width) solid var(--border)')
+    ).toEqual(
       expect.arrayContaining([
         '.rich-markdown-prose th',
         '.rich-markdown-prose td',

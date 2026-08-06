@@ -1,11 +1,12 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Badge, Button, ChipInput, ChipSelect, cn, Label, Search, Switch } from '@sim/emcn'
+import { Badge, Button, Chip, ChipInput, ChipSelect, cn, Label, Search, Switch } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryStates } from 'nuqs'
 import type { MothershipEnvironment } from '@/lib/api/contracts'
 import { useSession } from '@/lib/auth/auth-client'
+import { AddUserModal } from '@/app/workspace/[workspaceId]/settings/components/admin/add-user-modal'
 import {
   adminParsers,
   adminUrlKeys,
@@ -13,12 +14,14 @@ import {
 import { useRecentImpersonations } from '@/app/workspace/[workspaceId]/settings/components/admin/use-recent-impersonations'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import {
   type AdminUser,
   useAdminUsers,
   useAdminUsersByEmails,
   useBanUser,
   useImpersonateUser,
+  useSendPasswordReset,
   useSetUserRole,
   useUnbanUser,
 } from '@/hooks/queries/admin-users'
@@ -34,7 +37,7 @@ const USER_TABLE_HEADER = (
     <span className='flex-1'>Email</span>
     <span className='w-[60px]'>Role</span>
     <span className='w-[55px]'>Status</span>
-    <span className='w-[200px] text-right'>Actions</span>
+    <span className='w-[300px] text-right'>Actions</span>
   </div>
 )
 
@@ -56,6 +59,7 @@ export function Admin() {
   const banUser = useBanUser()
   const unbanUser = useUnbanUser()
   const impersonateUser = useImpersonateUser()
+  const sendPasswordReset = useSendPasswordReset()
   const { recentEmails, recordImpersonation } = useRecentImpersonations()
   const { data: recentUsers } = useAdminUsersByEmails(recentEmails)
 
@@ -72,6 +76,8 @@ export function Admin() {
   const [banReason, setBanReason] = useState('')
   const [impersonatingUserId, setImpersonatingUserId] = useState<string | null>(null)
   const [impersonationGuardError, setImpersonationGuardError] = useState<string | null>(null)
+  const [isAddUserOpen, setIsAddUserOpen] = useState(false)
+  const [provisionWarning, setProvisionWarning] = useState<string | null>(null)
 
   const {
     data: usersData,
@@ -159,6 +165,8 @@ export function Admin() {
       ids.add((unbanUser.variables as { userId: string }).userId)
     if (impersonateUser.isPending && (impersonateUser.variables as { userId?: string })?.userId)
       ids.add((impersonateUser.variables as { userId: string }).userId)
+    if (sendPasswordReset.isPending && sendPasswordReset.variables?.userId)
+      ids.add(sendPasswordReset.variables.userId)
     if (impersonatingUserId) ids.add(impersonatingUserId)
     return ids
   }, [
@@ -170,8 +178,18 @@ export function Admin() {
     unbanUser.variables,
     impersonateUser.isPending,
     impersonateUser.variables,
+    sendPasswordReset.isPending,
+    sendPasswordReset.variables,
     impersonatingUserId,
   ])
+
+  /** Confirms the send in place, since nothing about the user row changes. */
+  const resetPasswordLabel = (userId: string) => {
+    if (sendPasswordReset.variables?.userId !== userId) return 'Reset password'
+    if (sendPasswordReset.isPending) return 'Sending...'
+    if (sendPasswordReset.isSuccess) return 'Reset sent'
+    return 'Reset password'
+  }
 
   const renderUserRow = (u: AdminUser) => (
     <div key={u.id} className='flex flex-col gap-2 px-3 py-2 text-small'>
@@ -184,9 +202,21 @@ export function Admin() {
         <span className='w-[55px]'>
           {u.banned ? <Badge variant='red'>Banned</Badge> : <Badge variant='green'>Active</Badge>}
         </span>
-        <span className='flex w-[200px] justify-end gap-1'>
+        <span className='flex w-[300px] justify-end gap-1'>
           {u.id !== session?.user?.id && (
             <>
+              <Button
+                variant='active'
+                className='h-[28px] px-2 text-caption'
+                onClick={() => {
+                  setProvisionWarning(null)
+                  sendPasswordReset.reset()
+                  sendPasswordReset.mutate({ userId: u.id, email: u.email })
+                }}
+                disabled={pendingUserIds.has(u.id)}
+              >
+                {resetPasswordLabel(u.id)}
+              </Button>
               <Button
                 variant='active'
                 className='h-[28px] px-2 text-caption'
@@ -369,94 +399,125 @@ export function Admin() {
 
       <div className='h-px bg-[var(--border)]' />
 
-      <div className='flex flex-col gap-3'>
-        <p className='font-medium text-[var(--text-muted)] text-small'>User Management</p>
-        <div className='flex gap-2'>
-          <ChipInput
-            icon={Search}
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            placeholder='Search by email or paste a user ID...'
-            className='min-w-0 flex-1'
-          />
-          <Button variant='primary' onClick={handleSearch} disabled={usersLoading}>
-            {usersLoading ? 'Searching...' : 'Search'}
-          </Button>
-        </div>
+      <SettingsSection
+        label='User management'
+        action={<Chip onClick={() => setIsAddUserOpen(true)}>Add user</Chip>}
+      >
+        <div className='flex flex-col gap-3'>
+          <div className='flex gap-2'>
+            <ChipInput
+              icon={Search}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+              placeholder='Search by email or paste a user ID...'
+              className='min-w-0 flex-1'
+            />
+            <Button variant='primary' onClick={handleSearch} disabled={usersLoading}>
+              {usersLoading ? 'Searching...' : 'Search'}
+            </Button>
+          </div>
 
-        {usersError && (
-          <p className='text-[var(--text-error)] text-small'>
-            {getErrorMessage(usersError, 'Failed to fetch users')}
-          </p>
-        )}
+          {usersError && (
+            <p className='text-[var(--text-error)] text-small'>
+              {getErrorMessage(usersError, 'Failed to fetch users')}
+            </p>
+          )}
 
-        {(setUserRole.error ||
-          banUser.error ||
-          unbanUser.error ||
-          impersonateUser.error ||
-          impersonationGuardError) && (
-          <p className='text-[var(--text-error)] text-small'>
-            {impersonationGuardError ||
-              (setUserRole.error || banUser.error || unbanUser.error || impersonateUser.error)
-                ?.message ||
-              'Action failed. Please try again.'}
-          </p>
-        )}
+          {(setUserRole.error ||
+            banUser.error ||
+            unbanUser.error ||
+            impersonateUser.error ||
+            sendPasswordReset.error ||
+            impersonationGuardError) && (
+            <p className='text-[var(--text-error)] text-small'>
+              {impersonationGuardError ||
+                (
+                  setUserRole.error ||
+                  banUser.error ||
+                  unbanUser.error ||
+                  impersonateUser.error ||
+                  sendPasswordReset.error
+                )?.message ||
+                'Action failed. Please try again.'}
+            </p>
+          )}
 
-        {searchQuery.length > 0 && usersData ? (
-          <>
-            <div className='flex flex-col gap-0.5'>
-              {USER_TABLE_HEADER}
+          {provisionWarning && (
+            <p className='text-[var(--text-error)] text-small'>{provisionWarning}</p>
+          )}
 
-              {usersData.users.length === 0 && (
-                <SettingsEmptyState variant='inline'>No users found.</SettingsEmptyState>
-              )}
+          {searchQuery.length > 0 && usersData ? (
+            <>
+              <div className='flex flex-col gap-0.5'>
+                {USER_TABLE_HEADER}
 
-              {usersData.users.map((u) => renderUserRow(u))}
-            </div>
+                {usersData.users.length === 0 && (
+                  <SettingsEmptyState variant='inline'>No users found.</SettingsEmptyState>
+                )}
 
-            {totalPages > 1 && (
-              <div className='flex items-center justify-between text-[var(--text-secondary)] text-small'>
-                <span>
-                  Page {currentPage} of {totalPages} ({usersData.total} users)
-                </span>
-                <div className='flex gap-1'>
-                  <Button
-                    variant='active'
-                    className='h-[28px] px-2 text-caption'
-                    onClick={() =>
-                      setAdminParams((prev) => ({
-                        offset: Math.max(0, prev.offset - PAGE_SIZE),
-                      }))
-                    }
-                    disabled={usersOffset === 0 || usersLoading}
-                  >
-                    Previous
-                  </Button>
-                  <Button
-                    variant='active'
-                    className='h-[28px] px-2 text-caption'
-                    onClick={() => setAdminParams((prev) => ({ offset: prev.offset + PAGE_SIZE }))}
-                    disabled={usersOffset + PAGE_SIZE >= (usersData?.total ?? 0) || usersLoading}
-                  >
-                    Next
-                  </Button>
-                </div>
+                {usersData.users.map((u) => renderUserRow(u))}
               </div>
-            )}
-          </>
-        ) : (
-          searchQuery.length === 0 &&
-          recentUsers &&
-          recentUsers.length > 0 && (
-            <div className='flex flex-col gap-0.5'>
-              {USER_TABLE_HEADER}
-              {recentUsers.map((u) => renderUserRow(u))}
-            </div>
+
+              {totalPages > 1 && (
+                <div className='flex items-center justify-between text-[var(--text-secondary)] text-small'>
+                  <span>
+                    Page {currentPage} of {totalPages} ({usersData.total} users)
+                  </span>
+                  <div className='flex gap-1'>
+                    <Button
+                      variant='active'
+                      className='h-[28px] px-2 text-caption'
+                      onClick={() =>
+                        setAdminParams((prev) => ({
+                          offset: Math.max(0, prev.offset - PAGE_SIZE),
+                        }))
+                      }
+                      disabled={usersOffset === 0 || usersLoading}
+                    >
+                      Previous
+                    </Button>
+                    <Button
+                      variant='active'
+                      className='h-[28px] px-2 text-caption'
+                      onClick={() =>
+                        setAdminParams((prev) => ({ offset: prev.offset + PAGE_SIZE }))
+                      }
+                      disabled={usersOffset + PAGE_SIZE >= (usersData?.total ?? 0) || usersLoading}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            searchQuery.length === 0 &&
+            recentUsers &&
+            recentUsers.length > 0 && (
+              <div className='flex flex-col gap-0.5'>
+                {USER_TABLE_HEADER}
+                {recentUsers.map((u) => renderUserRow(u))}
+              </div>
+            )
+          )}
+        </div>
+      </SettingsSection>
+      <AddUserModal
+        open={isAddUserOpen}
+        onOpenChange={setIsAddUserOpen}
+        onCreated={(user, resetEmailError) => {
+          // Search for the new user either way: when the reset email failed,
+          // the recovery action named below lives on that user's row.
+          setSearchInput(user.email)
+          setAdminParams({ q: user.email, offset: null })
+          setProvisionWarning(
+            resetEmailError
+              ? `Created ${user.email}, but the password reset email failed to send (${resetEmailError}). Use Reset password on their row to try again.`
+              : null
           )
-        )}
-      </div>
+        }}
+      />
     </SettingsPanel>
   )
 }

@@ -33,7 +33,6 @@ export interface ToolCatalogEntry {
     | 'browser_wait_for'
     | 'call_integration_tool'
     | 'check_deployment_status'
-    | 'complete_scheduled_task'
     | 'cp'
     | 'crawl_website'
     | 'create_file'
@@ -63,7 +62,6 @@ export interface ToolCatalogEntry {
     | 'get_deployment_log'
     | 'get_page_contents'
     | 'get_platform_actions'
-    | 'get_scheduled_task_logs'
     | 'get_workflow_data'
     | 'get_workflow_run_options'
     | 'glob'
@@ -79,7 +77,7 @@ export interface ToolCatalogEntry {
     | 'manage_credential'
     | 'manage_custom_tool'
     | 'manage_mcp_tool'
-    | 'manage_scheduled_task'
+    | 'manage_sandbox'
     | 'manage_skill'
     | 'materialize_file'
     | 'media'
@@ -102,7 +100,6 @@ export interface ToolCatalogEntry {
     | 'run_from_block'
     | 'run_workflow'
     | 'run_workflow_until_block'
-    | 'scheduled_task'
     | 'scrape_page'
     | 'search'
     | 'search_documentation'
@@ -118,7 +115,6 @@ export interface ToolCatalogEntry {
     | 'table'
     | 'terminal'
     | 'update_deployment_version'
-    | 'update_scheduled_task_history'
     | 'update_workspace_mcp_server'
     | 'user_table'
     | 'wait'
@@ -153,7 +149,6 @@ export interface ToolCatalogEntry {
     | 'browser_wait_for'
     | 'call_integration_tool'
     | 'check_deployment_status'
-    | 'complete_scheduled_task'
     | 'cp'
     | 'crawl_website'
     | 'create_file'
@@ -183,7 +178,6 @@ export interface ToolCatalogEntry {
     | 'get_deployment_log'
     | 'get_page_contents'
     | 'get_platform_actions'
-    | 'get_scheduled_task_logs'
     | 'get_workflow_data'
     | 'get_workflow_run_options'
     | 'glob'
@@ -199,7 +193,7 @@ export interface ToolCatalogEntry {
     | 'manage_credential'
     | 'manage_custom_tool'
     | 'manage_mcp_tool'
-    | 'manage_scheduled_task'
+    | 'manage_sandbox'
     | 'manage_skill'
     | 'materialize_file'
     | 'media'
@@ -222,7 +216,6 @@ export interface ToolCatalogEntry {
     | 'run_from_block'
     | 'run_workflow'
     | 'run_workflow_until_block'
-    | 'scheduled_task'
     | 'scrape_page'
     | 'search'
     | 'search_documentation'
@@ -238,7 +231,6 @@ export interface ToolCatalogEntry {
     | 'table'
     | 'terminal'
     | 'update_deployment_version'
-    | 'update_scheduled_task_history'
     | 'update_workspace_mcp_server'
     | 'user_table'
     | 'wait'
@@ -258,7 +250,6 @@ export interface ToolCatalogEntry {
     | 'knowledge'
     | 'media'
     | 'run'
-    | 'scheduled_task'
     | 'search'
     | 'table'
     | 'workflow'
@@ -1244,20 +1235,6 @@ export const CheckDeploymentStatus: ToolCatalogEntry = {
         description: 'Workflow ID to check (defaults to current workflow)',
       },
     },
-  },
-}
-
-export const CompleteScheduledTask: ToolCatalogEntry = {
-  id: 'complete_scheduled_task',
-  name: 'complete_scheduled_task',
-  route: 'sim',
-  mode: 'async',
-  parameters: {
-    type: 'object',
-    properties: {
-      jobId: { type: 'string', description: 'The ID of the scheduled task to mark as completed.' },
-    },
-    required: ['jobId'],
   },
 }
 
@@ -2314,7 +2291,7 @@ export const FunctionExecute: ToolCatalogEntry = {
       code: {
         type: 'string',
         description:
-          'Code to execute. For JS: raw statements auto-wrapped in async context. For Python: full script. For shell: bash script with pre-installed CLI tools. Request each needed secret with an explicit {{VAR_NAME}} reference.',
+          'Code to execute. For JS: raw statements auto-wrapped in async context. For Python: full script. For shell: bash script with pre-installed CLI tools. Use each needed secret as {{VAR_NAME}}; the reference resolves to the value exactly as stored.',
       },
       inputs: {
         type: 'object',
@@ -2429,6 +2406,11 @@ export const FunctionExecute: ToolCatalogEntry = {
             },
           },
         },
+      },
+      sandboxId: {
+        type: 'string',
+        description:
+          'Optional Sim sandbox id from agent/sandboxes/{name}.json. DEFAULT-FIRST: omit this whenever the documented default function_execute environment can do the job. Select a ready existing Sim sandbox only when a required third-party dependency, Debian system package, or managed CLI is known to be absent, or a default attempt failed specifically because it was missing. Never guess an id.',
       },
       timeout: {
         type: 'number',
@@ -3030,26 +3012,6 @@ export const GetPlatformActions: ToolCatalogEntry = {
   parameters: { type: 'object', properties: {} },
 }
 
-export const GetScheduledTaskLogs: ToolCatalogEntry = {
-  id: 'get_scheduled_task_logs',
-  name: 'get_scheduled_task_logs',
-  route: 'sim',
-  mode: 'async',
-  parameters: {
-    type: 'object',
-    properties: {
-      executionId: { type: 'string', description: 'Optional execution ID for a specific run.' },
-      includeDetails: {
-        type: 'boolean',
-        description: 'Include tool calls, outputs, and cost details.',
-      },
-      jobId: { type: 'string', description: 'The scheduled task (schedule) ID to get logs for.' },
-      limit: { type: 'number', description: 'Max number of entries (default: 3, max: 5)' },
-    },
-    required: ['jobId'],
-  },
-}
-
 export const GetWorkflowData: ToolCatalogEntry = {
   id: 'get_workflow_data',
   name: 'get_workflow_data',
@@ -3501,7 +3463,7 @@ export const ManageCustomTool: ToolCatalogEntry = {
       operation: {
         type: 'string',
         description:
-          "The operation to perform: 'add', 'edit', 'list', or 'delete'. These verbs are tool-specific — manage_scheduled_task uses create/update instead of add/edit.",
+          "The operation to perform: 'add', 'edit', 'list', or 'delete'. These verbs are tool-specific — other manage_* tools may use create/update instead of add/edit.",
         enum: ['add', 'edit', 'delete', 'list'],
       },
       schema: {
@@ -3591,7 +3553,7 @@ export const ManageMcpTool: ToolCatalogEntry = {
       operation: {
         type: 'string',
         description:
-          "The operation to perform: 'add', 'edit', 'list', or 'delete'. These verbs are tool-specific — manage_scheduled_task uses create/update instead of add/edit.",
+          "The operation to perform: 'add', 'edit', 'list', or 'delete'. These verbs are tool-specific — other manage_* tools may use create/update instead of add/edit.",
         enum: ['add', 'edit', 'delete', 'list'],
       },
       serverId: {
@@ -3605,78 +3567,57 @@ export const ManageMcpTool: ToolCatalogEntry = {
   requiredPermission: 'write',
 }
 
-export const ManageScheduledTask: ToolCatalogEntry = {
-  id: 'manage_scheduled_task',
-  name: 'manage_scheduled_task',
+export const ManageSandbox: ToolCatalogEntry = {
+  id: 'manage_sandbox',
+  name: 'manage_sandbox',
   route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
     properties: {
-      args: {
-        type: 'object',
+      cliTools: {
+        type: 'array',
         description:
-          'Operation-specific arguments. For create: {title, prompt, cron?, time?, timezone?, lifecycle?, successCondition?, maxRuns?}. For get/delete: {jobId}. For update: {jobId, title?, prompt?, cron?, timezone?, status?, lifecycle?, successCondition?, maxRuns?}. For list: no args needed.',
-        properties: {
-          cron: {
-            type: 'string',
-            description:
-              "Cron expression for a recurring scheduled task (e.g. '0 9 * * *'). Provide cron, time, or both — with both, time anchors the recurring task's first fire.",
-          },
-          jobId: { type: 'string', description: 'Scheduled task ID (required for get, update)' },
-          jobIds: {
-            type: 'array',
-            description: 'Array of scheduled task IDs (for batch delete)',
-            items: { type: 'string' },
-          },
-          lifecycle: {
-            type: 'string',
-            description:
-              "'persistent' (default) or 'until_complete'. Until_complete scheduled tasks stop when complete_scheduled_task is called.",
-            enum: ['persistent', 'until_complete'],
-          },
-          maxRuns: {
-            type: 'integer',
-            description: 'Max executions before auto-completing. Safety limit.',
-          },
-          prompt: {
-            type: 'string',
-            description: 'The prompt to execute when the scheduled task fires',
-          },
-          status: {
-            type: 'string',
-            description: 'Scheduled task status: active, paused',
-            enum: ['active', 'paused'],
-          },
-          successCondition: {
-            type: 'string',
-            description:
-              'What must happen for the scheduled task to be considered complete (until_complete lifecycle).',
-          },
-          time: {
-            type: 'string',
-            description:
-              "ISO 8601 datetime. One-time scheduled task -> set time and omit cron. May also anchor a recurring cron task's first-fire time.",
-          },
-          timezone: {
-            type: 'string',
-            description: 'IANA timezone (e.g. America/New_York). Defaults to UTC.',
-          },
-          title: {
-            type: 'string',
-            description: "Short descriptive title for the scheduled task (e.g. 'Email Poller')",
-          },
-        },
+          'Complete managed CLI id list (maximum 10). Use exact pinned ids returned by list. On edit, passing this replaces the whole list; pass [] to clear it.',
+        items: { type: 'string' },
+      },
+      dependencies: {
+        type: 'array',
+        description:
+          'Complete npm or PyPI dependency list (maximum 50). On edit, passing this replaces the whole list; pass [] to clear it.',
+        items: { type: 'string' },
+      },
+      language: {
+        type: 'string',
+        description:
+          'Dependency language. javascript installs from npm; python installs from PyPI. Required for add; optional for edit.',
+        enum: ['javascript', 'python'],
+      },
+      name: {
+        type: 'string',
+        description:
+          'Workspace-unique Sim sandbox name (1-64 characters). Required for add; optional for edit.',
       },
       operation: {
         type: 'string',
+        description: "The operation to perform: 'add', 'edit', 'list', or 'delete'.",
+        enum: ['add', 'edit', 'delete', 'list'],
+      },
+      sandboxId: {
+        type: 'string',
         description:
-          'The operation to perform: create, list, get, update, delete. These verbs are tool-specific — the custom-tool/MCP/skill managers use add/edit instead of create/update.',
-        enum: ['create', 'list', 'get', 'update', 'delete'],
+          'The Sim sandbox id. Get it from list or the inner id field in agent/sandboxes/{name}.json; never guess it. Required for edit and delete.',
+      },
+      systemPackages: {
+        type: 'array',
+        description:
+          'Complete Debian package-coordinate list in package[:architecture][=version] form (maximum 50). On edit, passing this replaces the whole list; pass [] to clear it.',
+        items: { type: 'string' },
       },
     },
     required: ['operation'],
   },
+  requiredPermission: 'admin',
 }
 
 export const ManageSkill: ToolCatalogEntry = {
@@ -3703,7 +3644,7 @@ export const ManageSkill: ToolCatalogEntry = {
       operation: {
         type: 'string',
         description:
-          "The operation to perform: 'add', 'edit', 'list', or 'delete'. These verbs are tool-specific — manage_scheduled_task uses create/update instead of add/edit.",
+          "The operation to perform: 'add', 'edit', 'list', or 'delete'. These verbs are tool-specific — other manage_* tools may use create/update instead of add/edit.",
         enum: ['add', 'edit', 'delete', 'list'],
       },
       skillId: {
@@ -3883,7 +3824,7 @@ export const OpenResource: ToolCatalogEntry = {
             type: {
               type: 'string',
               description: 'The resource type.',
-              enum: ['workflow', 'table', 'knowledgebase', 'file', 'log', 'scheduledtask'],
+              enum: ['workflow', 'table', 'knowledgebase', 'file', 'log'],
             },
           },
           required: ['type'],
@@ -4318,7 +4259,7 @@ export const RunCode: ToolCatalogEntry = {
       code: {
         type: 'string',
         description:
-          'Code to execute. For JS: raw statements auto-wrapped in async context. For Python: full script. For shell: bash script with pre-installed CLI tools. Request each needed secret with an explicit {{VAR_NAME}} reference.',
+          'Code to execute. For JS: raw statements auto-wrapped in async context. For Python: full script. For shell: bash script with pre-installed CLI tools. Use each needed secret as {{VAR_NAME}}; the reference resolves to the value exactly as stored.',
       },
       inputs: {
         type: 'object',
@@ -4443,6 +4384,11 @@ export const RunWorkflow: ToolCatalogEntry = {
   parameters: {
     type: 'object',
     properties: {
+      async: {
+        type: 'boolean',
+        description:
+          'Queue the deployed workflow and return its execution ID immediately. Default: false. Set true only when explicitly asked for a background run, or when the three most recent completed runs each exceeded 30 minutes. Fails if the current workflow differs from its deployed version. Missing history, complexity, or one slow run never justify async; check completion later with query_logs.',
+      },
       inputFromExecutionId: {
         type: 'string',
         description:
@@ -4526,22 +4472,6 @@ export const RunWorkflowUntilBlock: ToolCatalogEntry = {
   },
   clientExecutable: true,
   requiresApproval: true,
-}
-
-export const ScheduledTask: ToolCatalogEntry = {
-  id: 'scheduled_task',
-  name: 'scheduled_task',
-  route: 'subagent',
-  mode: 'async',
-  parameters: {
-    properties: {
-      request: { description: 'What scheduled task action is needed.', type: 'string' },
-    },
-    required: ['request'],
-    type: 'object',
-  },
-  subagentId: 'scheduled_task',
-  internal: true,
 }
 
 export const ScrapePage: ToolCatalogEntry = {
@@ -5086,25 +5016,6 @@ export const UpdateDeploymentVersion: ToolCatalogEntry = {
     required: ['version'],
   },
   requiredPermission: 'write',
-}
-
-export const UpdateScheduledTaskHistory: ToolCatalogEntry = {
-  id: 'update_scheduled_task_history',
-  name: 'update_scheduled_task_history',
-  route: 'sim',
-  mode: 'async',
-  parameters: {
-    type: 'object',
-    properties: {
-      jobId: { type: 'string', description: 'The scheduled task ID.' },
-      summary: {
-        type: 'string',
-        description:
-          "A concise summary of what was done this run (e.g., 'Sent follow-up emails to 3 leads: Alice, Bob, Carol').",
-      },
-    },
-    required: ['jobId', 'summary'],
-  },
 }
 
 export const UpdateWorkspaceMcpServer: ToolCatalogEntry = {
@@ -5764,23 +5675,21 @@ export const ManageMcpToolOperationValues = [
   ManageMcpToolOperation.list,
 ] as const
 
-export const ManageScheduledTaskOperation = {
-  create: 'create',
-  list: 'list',
-  get: 'get',
-  update: 'update',
+export const ManageSandboxOperation = {
+  add: 'add',
+  edit: 'edit',
   delete: 'delete',
+  list: 'list',
 } as const
 
-export type ManageScheduledTaskOperation =
-  (typeof ManageScheduledTaskOperation)[keyof typeof ManageScheduledTaskOperation]
+export type ManageSandboxOperation =
+  (typeof ManageSandboxOperation)[keyof typeof ManageSandboxOperation]
 
-export const ManageScheduledTaskOperationValues = [
-  ManageScheduledTaskOperation.create,
-  ManageScheduledTaskOperation.list,
-  ManageScheduledTaskOperation.get,
-  ManageScheduledTaskOperation.update,
-  ManageScheduledTaskOperation.delete,
+export const ManageSandboxOperationValues = [
+  ManageSandboxOperation.add,
+  ManageSandboxOperation.edit,
+  ManageSandboxOperation.delete,
+  ManageSandboxOperation.list,
 ] as const
 
 export const ManageSkillOperation = {
@@ -5986,7 +5895,6 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [BrowserWaitFor.id]: BrowserWaitFor,
   [CallIntegrationTool.id]: CallIntegrationTool,
   [CheckDeploymentStatus.id]: CheckDeploymentStatus,
-  [CompleteScheduledTask.id]: CompleteScheduledTask,
   [Cp.id]: Cp,
   [CrawlWebsite.id]: CrawlWebsite,
   [CreateFile.id]: CreateFile,
@@ -6016,7 +5924,6 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [GetDeploymentLog.id]: GetDeploymentLog,
   [GetPageContents.id]: GetPageContents,
   [GetPlatformActions.id]: GetPlatformActions,
-  [GetScheduledTaskLogs.id]: GetScheduledTaskLogs,
   [GetWorkflowData.id]: GetWorkflowData,
   [GetWorkflowRunOptions.id]: GetWorkflowRunOptions,
   [Glob.id]: Glob,
@@ -6032,7 +5939,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [ManageCredential.id]: ManageCredential,
   [ManageCustomTool.id]: ManageCustomTool,
   [ManageMcpTool.id]: ManageMcpTool,
-  [ManageScheduledTask.id]: ManageScheduledTask,
+  [ManageSandbox.id]: ManageSandbox,
   [ManageSkill.id]: ManageSkill,
   [MaterializeFile.id]: MaterializeFile,
   [Media.id]: Media,
@@ -6055,7 +5962,6 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [RunFromBlock.id]: RunFromBlock,
   [RunWorkflow.id]: RunWorkflow,
   [RunWorkflowUntilBlock.id]: RunWorkflowUntilBlock,
-  [ScheduledTask.id]: ScheduledTask,
   [ScrapePage.id]: ScrapePage,
   [Search.id]: Search,
   [SearchDocumentation.id]: SearchDocumentation,
@@ -6071,7 +5977,6 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [Table.id]: Table,
   [Terminal.id]: Terminal,
   [UpdateDeploymentVersion.id]: UpdateDeploymentVersion,
-  [UpdateScheduledTaskHistory.id]: UpdateScheduledTaskHistory,
   [UpdateWorkspaceMcpServer.id]: UpdateWorkspaceMcpServer,
   [UserTable.id]: UserTable,
   [Wait.id]: Wait,

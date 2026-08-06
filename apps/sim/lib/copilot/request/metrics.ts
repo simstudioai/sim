@@ -5,9 +5,9 @@
 // contracts/metrics_v1.go) so the Go∪Sim union is queryable as one series set
 // — e.g. `copilot.tool.duration` split by `tool.executor` (go|client|sim).
 //
-// Bounded cardinality only: tool.name is capped to the shared tool catalog
-// (else "other"); vfs phase / file-read outcome are bounded sets. NEVER a
-// user/chat/request id (those explode Prometheus series).
+// Bounded cardinality only: tool.name and gen_ai.agent.name are capped to the
+// shared catalogs (else "other"); vfs phase / file-read outcome are bounded
+// sets. NEVER a user/chat/request id (those explode Prometheus series).
 import { type Counter, type Histogram, metrics } from '@opentelemetry/api'
 import { Metric } from '@/lib/copilot/generated/metrics-v1'
 import { TOOL_CATALOG } from '@/lib/copilot/generated/tool-catalog-v1'
@@ -68,15 +68,30 @@ function cappedToolName(name: string): string {
   return TOOL_CATALOG[name] ? name : 'other'
 }
 
+const REGISTERED_AGENT_IDS = new Set([
+  'main',
+  ...Object.values(TOOL_CATALOG).flatMap(({ subagentId }) => (subagentId ? [subagentId] : [])),
+])
+
+export function normalizeToolAgentId(agentId: string): string {
+  return REGISTERED_AGENT_IDS.has(agentId) ? agentId : 'other'
+}
+
 // recordSimToolMetric emits copilot.tool.calls (+1) and copilot.tool.duration
 // for one server-side Sim tool dispatch (executor=sim). outcome is the bounded
 // tool outcome (success/error/…). Pure telemetry.
-export function recordSimToolMetric(name: string, outcome: string, durationMs: number): void {
+export function recordSimToolMetric(
+  name: string,
+  agentId: string,
+  outcome: string,
+  durationMs: number
+): void {
   const { toolDuration, toolCalls } = instruments()
   const attrs = {
     [TraceAttr.ToolName]: cappedToolName(name),
     [TraceAttr.ToolExecutor]: 'sim',
     [TraceAttr.ToolOutcome]: outcome,
+    [TraceAttr.GenAiAgentName]: normalizeToolAgentId(agentId),
   }
   toolCalls.add(1, attrs)
   if (durationMs >= 0) toolDuration.record(durationMs, attrs)

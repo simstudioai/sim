@@ -17,6 +17,11 @@ export const CLIENT_CREDENTIAL_ACCOUNT_SECRET_TYPE = 'client_credential_account'
 /** Contract field ids a client-credential connect modal collects. */
 export type ClientCredentialAccountFieldId = 'clientId' | 'clientSecret' | 'orgId' | 'dataCenter'
 
+export interface ClientCredentialAccountOption {
+  value: string
+  label: string
+}
+
 export interface ClientCredentialAccountField {
   id: ClientCredentialAccountFieldId
   label: string
@@ -29,6 +34,15 @@ export interface ClientCredentialAccountField {
    * validation never demands it. Omitted (default) means required.
    */
   optional?: boolean
+  /**
+   * Fixed value set, rendered by the connect modal as a dropdown — which removes
+   * the need for a format hint on the field. Required on `dataCenter`: the modal
+   * renders that field only when it carries options, so a region selector added
+   * without them would silently not appear.
+   */
+  options?: ReadonlyArray<ClientCredentialAccountOption>
+  /** Always-visible guidance, for a field whose value is not self-explanatory. */
+  hint?: string
   /** Soft-format hint shown while the current value doesn't match `hintPattern`. */
   hintPattern?: RegExp
   hintMessage?: string
@@ -152,6 +166,26 @@ export const ZOHO_DESK_DATA_CENTER_IDS = Object.keys(
   ZOHO_DESK_DATA_CENTERS
 ) as ZohoDeskDataCenterId[]
 
+/** Region names, paired with the ids so a label can never name the wrong host. */
+const ZOHO_DESK_DATA_CENTER_LABELS: Record<ZohoDeskDataCenterId, string> = {
+  us: 'United States',
+  eu: 'Europe',
+  in: 'India',
+  au: 'Australia',
+}
+
+/**
+ * Connect-modal dropdown options, derived from {@link ZOHO_DESK_DATA_CENTERS} so
+ * adding a region cannot leave the picker behind. Each label carries the accounts
+ * host the region mints against, which is what an admin recognizes from the URL
+ * they sign in to Zoho with.
+ */
+export const ZOHO_DESK_DATA_CENTER_OPTIONS: ReadonlyArray<ClientCredentialAccountOption> =
+  ZOHO_DESK_DATA_CENTER_IDS.map((id) => ({
+    value: id,
+    label: `${ZOHO_DESK_DATA_CENTER_LABELS[id]} (${ZOHO_DESK_DATA_CENTERS[id].accountsBase.replace('https://', '')})`,
+  }))
+
 /** Accepts exactly the supported region codes, case-insensitively after normalization. */
 export const ZOHO_DESK_DATA_CENTER_REGEX = new RegExp(`^(${ZOHO_DESK_DATA_CENTER_IDS.join('|')})$`)
 
@@ -194,7 +228,7 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
       {
         id: 'clientId',
         label: 'Client ID',
-        placeholder: 'Client ID from the App Credentials page',
+        placeholder: 'Paste the client ID',
         secret: false,
       },
       {
@@ -206,13 +240,13 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
       {
         id: 'orgId',
         label: 'Account ID',
-        placeholder: 'Account ID from the App Credentials page',
+        placeholder: 'Paste the account ID',
         secret: false,
       },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/zoom-service-account',
     helpText:
-      "Copy all three values from the Server-to-Server OAuth app's App Credentials page — the Account ID there is not the account number shown in the Zoom web portal. The app must be activated before tokens can be issued.",
+      'The Account ID on the App Credentials page is not the account number shown in the Zoom web portal. The app must be activated before tokens can be issued.',
   },
   [BOX_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: BOX_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -222,7 +256,7 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
       {
         id: 'clientId',
         label: 'Client ID',
-        placeholder: 'Client ID from Configuration > OAuth 2.0 Credentials',
+        placeholder: 'Paste the client ID',
         secret: false,
       },
       {
@@ -252,7 +286,7 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
       {
         id: 'clientId',
         label: 'Consumer key',
-        placeholder: "Consumer Key from the Connected App's Manage Consumer Details page",
+        placeholder: 'Paste the consumer key',
         secret: false,
       },
       {
@@ -274,7 +308,7 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
     ],
     docsUrl: 'https://docs.sim.ai/integrations/salesforce-service-account',
     helpText:
-      'The Connected App must have "Enable Client Credentials Flow" checked with a "Run As" integration user set under Edit Policies — every call executes with that user\'s permissions, and deactivating or freezing the user stops all runs. Selecting the "openid" scope lets Sim record which run-as user the credential authenticates as; without it the connection still works but the identity is not captured.',
+      'Every call executes as the Connected App\'s "Run As" user, so deactivating or freezing that user stops all runs. Without the "openid" scope the connection still works, but Sim cannot record which user it authenticates as.',
   },
   [ZOHO_DESK_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: ZOHO_DESK_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -284,7 +318,7 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
       {
         id: 'clientId',
         label: 'Client ID',
-        placeholder: "Client ID from the Self Client's Client Secret tab",
+        placeholder: 'Paste the client ID',
         secret: false,
       },
       {
@@ -301,22 +335,22 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
         hintPattern: ZOHO_DESK_SOID_REGEX,
         hintNormalize: normalizeZohoDeskSoid,
         hintMessage:
-          'Paste the numeric Zoho Desk organization ID from Setup → Developer Space → API, or the full ZohoDesk.<orgId> value.',
+          'Expected a numeric organization ID like 600123456, or a full ZohoDesk.600123456 value.',
       },
       {
         id: 'dataCenter',
         label: 'Data center',
-        placeholder: 'us',
+        // Deliberately region-neutral: on a reconnect an unset value keeps the
+        // credential's stored region, so naming a region here would be wrong.
+        placeholder: 'Select a data center',
         secret: false,
         optional: true,
-        hintPattern: ZOHO_DESK_DATA_CENTER_REGEX,
-        hintNormalize: normalizeZohoDeskDataCenter,
-        hintMessage: `Enter one of ${ZOHO_DESK_DATA_CENTER_IDS.join(', ')}. Leave blank for us (accounts.zoho.com).`,
+        options: ZOHO_DESK_DATA_CENTER_OPTIONS,
+        hint: 'The region your Zoho account signs in to. New credentials default to the United States.',
       },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/zoho-desk-service-account',
-    helpText:
-      'Create the Self Client in the Zoho API Console, add the Zoho Desk scopes, and use the organization ID from Setup → Developer Space → API. Self Clients work with the US, EU, IN, and AU data centers — leave the data center blank for US. Zoho Desk triggers still require an OAuth connection, which is US-only.',
+    helpText: 'Zoho Desk triggers still require an OAuth connection, which is US-only.',
   },
 }
 

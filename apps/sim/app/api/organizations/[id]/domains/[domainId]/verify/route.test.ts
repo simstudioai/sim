@@ -68,14 +68,29 @@ describe('verify org domain route', () => {
       user: { id: 'user-1', name: 'Admin', email: 'admin@acme.dev' },
     })
     mockIsEnterprise.mockResolvedValue(true)
-    mockCheckDomainTxtRecord.mockResolvedValue(true)
+    mockCheckDomainTxtRecord.mockResolvedValue('present')
   })
 
   it('422s when the TXT record is not found', async () => {
     queueAdminWithPendingRow()
-    mockCheckDomainTxtRecord.mockResolvedValue(false)
+    mockCheckDomainTxtRecord.mockResolvedValue('absent')
     const res = await POST(createMockRequest('POST'), routeContext)
     expect(res.status).toBe(422)
+    expect(mockRecordAudit).not.toHaveBeenCalled()
+  })
+
+  /**
+   * A failed lookup says nothing about the admin's DNS, so it must not be reported
+   * as a missing record — that sends them hunting through their zone for our fault.
+   */
+  it('503s (not 422) when the DNS lookup itself could not complete', async () => {
+    queueAdminWithPendingRow()
+    mockCheckDomainTxtRecord.mockResolvedValue('unavailable')
+    const res = await POST(createMockRequest('POST'), routeContext)
+    expect(res.status).toBe(503)
+    expect(await res.json()).toMatchObject({
+      error: expect.stringContaining("couldn't complete the DNS lookup"),
+    })
     expect(mockRecordAudit).not.toHaveBeenCalled()
   })
 
@@ -111,6 +126,62 @@ describe('verify org domain route', () => {
     const res = await POST(createMockRequest('POST'), routeContext)
     expect(res.status).toBe(409)
     expect(mockRecordAudit).not.toHaveBeenCalled()
+  })
+
+  /**
+   * Deleting a verified domain revokes `domainVerified` on the providers it covered.
+   * Re-verifying has to restore it, or the provider stays untrusted — and since that
+   * flag gates sign-in rather than only linking, the org would sit in a silent SSO
+   * outage until an admin happened to re-save the SSO config.
+   */
+  it('restores SSO domain trust for providers on the verified domain', async () => {
+    queueAdminWithPendingRow()
+    queueTableRows(ssoDomain, []) // verified-elsewhere check → none
+    dbChainMockFns.returning.mockResolvedValueOnce([{ ...PENDING_ROW, status: 'verified' }])
+    const res = await POST(createMockRequest('POST'), routeContext)
+    expect(res.status).toBe(200)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({ domainVerified: true })
+  })
+
+  /**
+   * Mirrors the revocation's wildcard-tolerant comparison: a provider grandfathered
+   * as `*.acme.com` must be re-trusted by a proof row holding `acme.com`.
+   */
+  it('matches the provider domain wildcard-tolerantly, as the revocation does', async () => {
+    queueAdminWithPendingRow()
+    queueTableRows(ssoDomain, [])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ ...PENDING_ROW, status: 'verified' }])
+    await POST(createMockRequest('POST'), routeContext)
+    const grantWhere = dbChainMockFns.where.mock.calls.find(([condition]) =>
+      JSON.stringify(condition ?? '').includes('regexp_replace')
+    )
+    expect(grantWhere).toBeDefined()
+  })
+
+  /**
+   * A provider can hold a verified domain while its own trust flag is off, after
+   * an update whose grant was refused reverted the config and cleared it. Re-running
+   * verification is the obvious recovery, so an already-verified domain must still
+   * re-grant instead of returning success having done nothing.
+   */
+  it('re-grants trust when the domain is already verified', async () => {
+    queueAdminWithPendingRow()
+    queueTableRows(ssoDomain, [])
+    dbChainMockFns.returning.mockResolvedValueOnce([]) // conditional update matched nothing
+    queueTableRows(ssoDomain, [{ ...PENDING_ROW, status: 'verified' }]) // re-read: verified
+    const res = await POST(createMockRequest('POST'), routeContext)
+    expect(res.status).toBe(200)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({ domainVerified: true })
+  })
+
+  it('does not grant trust when the challenge is genuinely stale', async () => {
+    queueAdminWithPendingRow()
+    queueTableRows(ssoDomain, [])
+    dbChainMockFns.returning.mockResolvedValueOnce([]) // conditional update matched nothing
+    queueTableRows(ssoDomain, []) // re-read: row deleted or re-tokenized
+    const res = await POST(createMockRequest('POST'), routeContext)
+    expect(res.status).toBe(409)
+    expect(dbChainMockFns.set).not.toHaveBeenCalledWith({ domainVerified: true })
   })
 
   it('409s (not 500) when a concurrent cross-org verification wins the unique index', async () => {

@@ -4,6 +4,7 @@ import type { PermissionType } from '@sim/platform-authz/workspace'
 import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
+import { isPlainRecord, omit } from '@sim/utils/object'
 import {
   type AttributedBillingRequestEnvelope,
   assertBillingAttributionSnapshot,
@@ -27,6 +28,20 @@ import {
   MothershipStreamV1RunKind,
   MothershipStreamV1ToolOutcome,
 } from '@/lib/copilot/generated/mothership-stream-v1'
+import {
+  COPILOT_CONTEXT_MODEL_TEXT_KEYS,
+  COPILOT_CONTEXT_ROUTING_KEYS,
+  COPILOT_DESKTOP_MODEL_TEXT_KEYS,
+  COPILOT_MESSAGE_DISPLAY_KEYS,
+  COPILOT_USER_METADATA_MODEL_TEXT_KEYS,
+  COPILOT_VFS_MODEL_TEXT_KEYS,
+  COPILOT_VFS_ROUTING_KEYS,
+  isCopilotModelTextKey,
+} from '@/lib/copilot/model-visible-content'
+import {
+  collectModelVisibleSchemaContent,
+  getModelVisibleSchemaAction,
+} from '@/lib/copilot/model-visible-schema'
 import { getAutoAllowedTools } from '@/lib/copilot/persistence/tool-permission/auto-allow'
 import { createStreamingContext } from '@/lib/copilot/request/context/request-context'
 import { buildToolCallSummaries } from '@/lib/copilot/request/context/result'
@@ -67,12 +82,674 @@ import {
   isCopilotToolPermissionsEnabled,
   isHosted,
 } from '@/lib/core/config/env-flags'
+import { filterModelSafeWorkspaceFileAttachments } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import {
+  isResolvedSecretModelContentUnchanged,
+  projectResolvedSecretModelContent,
+  projectResolvedSecretModelJsonStrings,
+} from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('CopilotLifecycle')
 
 const MAX_RESUME_ATTEMPTS = 3
 const RESUME_BACKOFF_MS = [250, 500, 1000] as const
+const MAX_SELECTED_CONTENT_NODES = 100_000
+const MAX_SELECTED_CONTENT_DEPTH = 100
+const SIMPLE_MODEL_CONTENT_KEYS = [
+  'message',
+  'systemPrompt',
+  'workspaceContext',
+  'commands',
+  'implicitFeedback',
+  'workflowName',
+] as const
+const TOOL_PAYLOAD_KEYS = ['tools', 'integrationTools', 'mothershipTools'] as const
+const TOOL_SCHEMA_KEYS = new Set(['input_schema', 'parameters', 'outputs'])
+const MOTHERSHIP_CODE_TOOL_ROUTES = new Set([
+  '/api/copilot',
+  '/api/mothership',
+  '/api/mothership/execute',
+])
+const MESSAGE_CONTAINER_KEYS = new Set([
+  'contentBlocks',
+  'contexts',
+  'display',
+  'fileAttachments',
+  'files',
+  'function',
+  'function_call',
+  'result',
+  'toolCall',
+  'tool_calls',
+])
+const MESSAGE_OPAQUE_CONTENT_KEYS = new Set(['error', 'output', 'params'])
+const ATTACHMENT_PARENT_KEYS = new Set(['attachments', 'fileAttachments', 'files'])
+const MESSAGE_HANDLE_PARENT_KEYS = new Set(['function', 'function_call', 'toolCall'])
+
+type SelectedContentAction =
+  | 'preserve'
+  | 'project'
+  | 'project-json'
+  | 'traverse'
+  | 'traverse-verify-key'
+  | 'verify-key-value'
+  | 'verify'
+type SelectedContentSelector = (
+  path: readonly string[],
+  key: string,
+  value: unknown
+) => SelectedContentAction
+
+class CopilotModelContentProjectionError extends Error {
+  constructor() {
+    super('Copilot model input could not be safely projected')
+    this.name = 'CopilotModelContentProjectionError'
+  }
+}
+
+interface SelectedContentTraversalState {
+  nodes: number
+  ancestors: WeakSet<object>
+}
+
+interface SelectedContentBuckets {
+  projected: unknown[]
+  jsonStrings: string[]
+  guarded: unknown[]
+}
+
+function visitSelectedContentNode(state: SelectedContentTraversalState, depth: number): void {
+  state.nodes += 1
+  if (state.nodes > MAX_SELECTED_CONTENT_NODES || depth > MAX_SELECTED_CONTENT_DEPTH) {
+    throw new CopilotModelContentProjectionError()
+  }
+}
+
+function projectModelContent(value: unknown, registry: ResolvedSecretTraceRegistry): unknown {
+  const projection = projectResolvedSecretModelContent(value, registry)
+  if (!projection.safe) throw new CopilotModelContentProjectionError()
+  return projection.value
+}
+
+function collectSelectedContent(
+  value: unknown,
+  selector: SelectedContentSelector,
+  selected: SelectedContentBuckets,
+  path: readonly string[] = [],
+  state: SelectedContentTraversalState = { nodes: 0, ancestors: new WeakSet<object>() },
+  depth = 0
+): void {
+  visitSelectedContentNode(state, depth)
+  if (value === null || typeof value !== 'object') return
+  if (state.ancestors.has(value)) throw new CopilotModelContentProjectionError()
+
+  state.ancestors.add(value)
+  try {
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        collectSelectedContent(item, selector, selected, [...path, '*'], state, depth + 1)
+      }
+      return
+    }
+    if (!isPlainRecord(value)) throw new CopilotModelContentProjectionError()
+
+    for (const [key, item] of Object.entries(value)) {
+      const action = selector(path, key, item)
+      if (action === 'project') {
+        selected.projected.push(item)
+      } else if (action === 'project-json') {
+        if (typeof item !== 'string') throw new CopilotModelContentProjectionError()
+        selected.jsonStrings.push(item)
+      } else if (action === 'verify') {
+        selected.guarded.push(item)
+      } else if (action === 'verify-key-value') {
+        selected.guarded.push(key, item)
+      } else if (action === 'traverse' || action === 'traverse-verify-key') {
+        if (action === 'traverse-verify-key') selected.guarded.push(key)
+        collectSelectedContent(item, selector, selected, [...path, key], state, depth + 1)
+      }
+    }
+  } finally {
+    state.ancestors.delete(value)
+  }
+}
+
+function restoreSelectedContent(
+  value: unknown,
+  selector: SelectedContentSelector,
+  projected: readonly unknown[],
+  projectedJsonStrings: readonly string[],
+  cursor: { projected: number; jsonStrings: number },
+  path: readonly string[] = [],
+  state: SelectedContentTraversalState = { nodes: 0, ancestors: new WeakSet<object>() },
+  depth = 0
+): unknown {
+  visitSelectedContentNode(state, depth)
+  if (value === null || typeof value !== 'object') return value
+  if (state.ancestors.has(value)) throw new CopilotModelContentProjectionError()
+
+  state.ancestors.add(value)
+  try {
+    if (Array.isArray(value)) {
+      return value.map((item) =>
+        restoreSelectedContent(
+          item,
+          selector,
+          projected,
+          projectedJsonStrings,
+          cursor,
+          [...path, '*'],
+          state,
+          depth + 1
+        )
+      )
+    }
+    if (!isPlainRecord(value)) throw new CopilotModelContentProjectionError()
+
+    const restored: Record<string, unknown> = { ...value }
+    for (const [key, item] of Object.entries(value)) {
+      const action = selector(path, key, item)
+      if (action === 'project') {
+        if (cursor.projected >= projected.length) throw new CopilotModelContentProjectionError()
+        restored[key] = projected[cursor.projected]
+        cursor.projected += 1
+      } else if (action === 'project-json') {
+        if (cursor.jsonStrings >= projectedJsonStrings.length) {
+          throw new CopilotModelContentProjectionError()
+        }
+        restored[key] = projectedJsonStrings[cursor.jsonStrings]
+        cursor.jsonStrings += 1
+      } else if (action === 'traverse' || action === 'traverse-verify-key') {
+        restored[key] = restoreSelectedContent(
+          item,
+          selector,
+          projected,
+          projectedJsonStrings,
+          cursor,
+          [...path, key],
+          state,
+          depth + 1
+        )
+      }
+    }
+    return restored
+  } finally {
+    state.ancestors.delete(value)
+  }
+}
+
+function projectSelectedContent(
+  value: unknown,
+  registry: ResolvedSecretTraceRegistry,
+  selector: SelectedContentSelector
+): unknown {
+  const selected: SelectedContentBuckets = { projected: [], jsonStrings: [], guarded: [] }
+  collectSelectedContent(value, selector, selected)
+  if (!isResolvedSecretModelContentUnchanged(selected.guarded, registry)) {
+    throw new CopilotModelContentProjectionError()
+  }
+
+  const projected = projectModelContent(selected.projected, registry)
+  if (!Array.isArray(projected) || projected.length !== selected.projected.length) {
+    throw new CopilotModelContentProjectionError()
+  }
+  const jsonProjection = projectResolvedSecretModelJsonStrings(selected.jsonStrings, registry)
+  if (
+    !jsonProjection.safe ||
+    !Array.isArray(jsonProjection.value) ||
+    !jsonProjection.value.every((item) => typeof item === 'string') ||
+    jsonProjection.value.length !== selected.jsonStrings.length
+  ) {
+    throw new CopilotModelContentProjectionError()
+  }
+  const cursor = { projected: 0, jsonStrings: 0 }
+  const restored = restoreSelectedContent(value, selector, projected, jsonProjection.value, cursor)
+  if (cursor.projected !== projected.length || cursor.jsonStrings !== jsonProjection.value.length) {
+    throw new CopilotModelContentProjectionError()
+  }
+  return restored
+}
+
+function projectStructuredContent(
+  value: unknown,
+  registry: ResolvedSecretTraceRegistry,
+  selector: SelectedContentSelector,
+  shape: 'array' | 'record' | 'record-or-array'
+): unknown {
+  if (
+    (shape === 'array' && !Array.isArray(value)) ||
+    (shape === 'record' && !isPlainRecord(value)) ||
+    (shape === 'record-or-array' && !Array.isArray(value) && !isPlainRecord(value))
+  ) {
+    throw new CopilotModelContentProjectionError()
+  }
+  return projectSelectedContent(value, registry, selector)
+}
+
+function schemaContentAction(
+  path: readonly string[],
+  key: string,
+  value: unknown
+): SelectedContentAction {
+  return getModelVisibleSchemaAction(path.at(-1), key, value)
+}
+
+const toolContentSelector: SelectedContentSelector = (path, key, value) => {
+  if (path.length === 0 && key === 'description') return 'project'
+  if (path.length === 0 && key === 'name') return 'verify'
+  if (path.length === 0 && TOOL_SCHEMA_KEYS.has(key)) return 'traverse'
+
+  const schemaRootIndex = path.findIndex((segment) => TOOL_SCHEMA_KEYS.has(segment))
+  if (schemaRootIndex >= 0) {
+    return schemaContentAction(path.slice(schemaRootIndex + 1), key, value)
+  }
+  return 'preserve'
+}
+
+const contextContentSelector: SelectedContentSelector = (_path, key, value) => {
+  if (isCopilotModelTextKey(COPILOT_CONTEXT_MODEL_TEXT_KEYS, key)) return 'project'
+  return value !== null && typeof value === 'object' ? 'traverse' : 'preserve'
+}
+
+function nearestPathContainer(path: readonly string[]): string | undefined {
+  for (let index = path.length - 1; index >= 0; index -= 1) {
+    if (path[index] !== '*') return path[index]
+  }
+  return undefined
+}
+
+const messageContentSelector: SelectedContentSelector = (path, key, value) => {
+  if (key === 'content') {
+    return value !== null && typeof value === 'object' ? 'traverse' : 'project'
+  }
+  if (MESSAGE_OPAQUE_CONTENT_KEYS.has(key)) return 'project'
+  if (key === 'arguments') return 'project-json'
+  if (isCopilotModelTextKey(COPILOT_MESSAGE_DISPLAY_KEYS, key)) return 'project'
+  if (
+    (key === 'name' || key === 'filename' || key === 'fileName') &&
+    ATTACHMENT_PARENT_KEYS.has(nearestPathContainer(path) ?? '')
+  ) {
+    return 'project'
+  }
+  if (
+    key === 'name' &&
+    (path.length === 1 || MESSAGE_HANDLE_PARENT_KEYS.has(nearestPathContainer(path) ?? ''))
+  ) {
+    return 'verify'
+  }
+  if (key === 'name') return 'project'
+  if (key === 'context' && nearestPathContainer(path) === 'files') return 'project'
+  if (MESSAGE_CONTAINER_KEYS.has(key)) return 'traverse'
+  return 'preserve'
+}
+
+const responseFormatContentSelector: SelectedContentSelector = (path, key, value) => {
+  if (path.length === 0 && (key === 'description' || key === 'instructions')) return 'project'
+  if (path.length === 0 && key === 'name') return 'verify'
+  if (path.length === 0 && key === 'schema') return 'traverse'
+  if (path.length === 0) return schemaContentAction(path, key, value)
+  if (path[0] === 'schema') return schemaContentAction(path.slice(1), key, value)
+  return 'preserve'
+}
+
+const vfsContentSelector: SelectedContentSelector = (_path, key, value) => {
+  if (isCopilotModelTextKey(COPILOT_VFS_MODEL_TEXT_KEYS, key)) return 'project'
+  return value !== null && typeof value === 'object' ? 'traverse' : 'preserve'
+}
+
+const userMetadataContentSelector: SelectedContentSelector = (_path, key) =>
+  isCopilotModelTextKey(COPILOT_USER_METADATA_MODEL_TEXT_KEYS, key) ? 'project' : 'preserve'
+
+const desktopContentSelector: SelectedContentSelector = (_path, key, value) => {
+  if (isCopilotModelTextKey(COPILOT_DESKTOP_MODEL_TEXT_KEYS, key)) return 'project'
+  return value !== null && typeof value === 'object' ? 'traverse' : 'preserve'
+}
+
+function projectModelSafeToolPayloads(
+  value: unknown,
+  registry: ResolvedSecretTraceRegistry
+): unknown[] {
+  if (!Array.isArray(value)) throw new CopilotModelContentProjectionError()
+
+  const projected: unknown[] = []
+  for (const candidate of value) {
+    if (!isPlainRecord(candidate) || typeof candidate.name !== 'string') continue
+
+    try {
+      for (const schemaKey of TOOL_SCHEMA_KEYS) {
+        if (Object.hasOwn(candidate, schemaKey)) {
+          collectModelVisibleSchemaContent(candidate[schemaKey])
+        }
+      }
+      projected.push(projectStructuredContent(candidate, registry, toolContentSelector, 'record'))
+    } catch {
+      // Tool definitions are independent protocol entities. Reject an unsafe definition without
+      // turning the entire catalog into one synthetic projection value or failing safe siblings.
+    }
+  }
+
+  // Projection completeness is a request-level invariant, even when every candidate was rejected.
+  projectModelContent([], registry)
+  return projected
+}
+
+function hasModelSafeRoutingFields(
+  value: Record<string, unknown>,
+  routingKeys: readonly string[],
+  registry: ResolvedSecretTraceRegistry
+): boolean {
+  for (const routingKey of routingKeys) {
+    if (!Object.hasOwn(value, routingKey)) continue
+    const routingValue = value[routingKey]
+    if (
+      typeof routingValue !== 'string' ||
+      !isResolvedSecretModelContentUnchanged(routingValue, registry)
+    ) {
+      return false
+    }
+  }
+  return true
+}
+
+function filterModelSafeContextPayload(
+  value: unknown,
+  registry: ResolvedSecretTraceRegistry
+): Record<string, unknown> | unknown[] | undefined {
+  if (Array.isArray(value)) {
+    return value.filter(
+      (candidate) =>
+        isPlainRecord(candidate) &&
+        hasModelSafeRoutingFields(candidate, COPILOT_CONTEXT_ROUTING_KEYS, registry)
+    )
+  }
+  if (!isPlainRecord(value)) throw new CopilotModelContentProjectionError()
+  return hasModelSafeRoutingFields(value, COPILOT_CONTEXT_ROUTING_KEYS, registry)
+    ? value
+    : undefined
+}
+
+function filterModelSafeVfsPayload(
+  value: unknown,
+  registry: ResolvedSecretTraceRegistry
+): Record<string, unknown> {
+  if (!isPlainRecord(value)) throw new CopilotModelContentProjectionError()
+  const filtered: Record<string, unknown> = { ...value }
+
+  for (const [collectionKey, collection] of Object.entries(value)) {
+    if (collectionKey === 'envVars') {
+      if (!Array.isArray(collection) || !collection.every((item) => typeof item === 'string')) {
+        throw new CopilotModelContentProjectionError()
+      }
+      filtered[collectionKey] = collection.filter((name) =>
+        isResolvedSecretModelContentUnchanged(name, registry)
+      )
+      continue
+    }
+    if (!Array.isArray(collection)) continue
+
+    filtered[collectionKey] = collection.filter((candidate) => {
+      if (!isPlainRecord(candidate)) return false
+      return hasModelSafeRoutingFields(candidate, COPILOT_VFS_ROUTING_KEYS, registry)
+    })
+  }
+
+  return filtered
+}
+
+function filterModelSafeUserMetadata(
+  value: unknown,
+  registry: ResolvedSecretTraceRegistry
+): Record<string, unknown> {
+  if (!isPlainRecord(value)) throw new CopilotModelContentProjectionError()
+  const filtered = { ...value }
+  if (
+    Object.hasOwn(filtered, 'timezone') &&
+    (typeof filtered.timezone !== 'string' ||
+      !isResolvedSecretModelContentUnchanged(filtered.timezone, registry))
+  ) {
+    return omit(filtered, ['timezone'])
+  }
+  return filtered
+}
+
+function filterModelSafeDesktopCapabilities(
+  value: unknown,
+  registry: ResolvedSecretTraceRegistry
+): Record<string, unknown> {
+  if (!isPlainRecord(value)) throw new CopilotModelContentProjectionError()
+  const filtered: Record<string, unknown> = { ...value }
+
+  if (Object.hasOwn(value, 'terminals')) {
+    if (!Array.isArray(value.terminals)) throw new CopilotModelContentProjectionError()
+    filtered.terminals = value.terminals.filter((terminal) => {
+      if (!isPlainRecord(terminal)) return false
+      return (
+        !Object.hasOwn(terminal, 'cwd') ||
+        (typeof terminal.cwd === 'string' &&
+          isResolvedSecretModelContentUnchanged(terminal.cwd, registry))
+      )
+    })
+  }
+
+  if (Object.hasOwn(value, 'browserSessions')) {
+    if (!Array.isArray(value.browserSessions)) throw new CopilotModelContentProjectionError()
+    filtered.browserSessions = value.browserSessions.filter(
+      (session) =>
+        isPlainRecord(session) &&
+        typeof session.hostname === 'string' &&
+        isResolvedSecretModelContentUnchanged(session.hostname, registry)
+    )
+  }
+
+  return filtered
+}
+
+function projectAttachmentDisplayNames(
+  payload: Record<string, unknown>,
+  registry: ResolvedSecretTraceRegistry
+): Partial<Record<'attachments' | 'fileAttachments', unknown>> {
+  const projected: Partial<Record<'attachments' | 'fileAttachments', unknown>> = {}
+  for (const key of ['attachments', 'fileAttachments'] as const) {
+    if (!Object.hasOwn(payload, key)) continue
+    const attachments = payload[key]
+    if (!Array.isArray(attachments)) throw new CopilotModelContentProjectionError()
+    const displayNames = attachments.map((attachment) => {
+      if (!isPlainRecord(attachment)) throw new CopilotModelContentProjectionError()
+      return {
+        ...(Object.hasOwn(attachment, 'name') ? { name: attachment.name } : {}),
+        ...(Object.hasOwn(attachment, 'filename') ? { filename: attachment.filename } : {}),
+      }
+    })
+    const projection = projectResolvedSecretModelContent(displayNames, registry)
+    if (
+      !projection.safe ||
+      !Array.isArray(projection.value) ||
+      projection.value.length !== attachments.length
+    ) {
+      throw new CopilotModelContentProjectionError()
+    }
+    const projectedDisplayNames = projection.value
+    projected[key] = attachments.map((attachment, index) => {
+      const displayName = projectedDisplayNames[index]
+      if (!isPlainRecord(attachment) || !isPlainRecord(displayName)) {
+        throw new CopilotModelContentProjectionError()
+      }
+      const name = displayName.name
+      const filename = displayName.filename
+      if (name !== undefined && typeof name !== 'string') {
+        throw new CopilotModelContentProjectionError()
+      }
+      if (filename !== undefined && typeof filename !== 'string') {
+        throw new CopilotModelContentProjectionError()
+      }
+      return {
+        ...attachment,
+        ...(name !== undefined ? { name } : {}),
+        ...(filename !== undefined ? { filename } : {}),
+      }
+    })
+  }
+  return projected
+}
+
+async function omitUnsafeInitialCopilotAttachments(
+  payload: Record<string, unknown>,
+  workspaceId?: string
+): Promise<Record<string, unknown>> {
+  let projected = payload
+  for (const key of ['attachments', 'fileAttachments'] as const) {
+    if (!Object.hasOwn(projected, key)) continue
+    const attachments = projected[key]
+    if (!Array.isArray(attachments)) throw new CopilotModelContentProjectionError()
+
+    let safeAttachments: unknown[]
+    try {
+      safeAttachments = await filterModelSafeWorkspaceFileAttachments(attachments, { workspaceId })
+    } catch (error) {
+      logger.error('Workspace file secret provenance could not be verified', {
+        attachmentCount: attachments.length,
+        error: toError(error).message,
+      })
+      throw new CopilotModelContentProjectionError()
+    }
+
+    if (safeAttachments.length === attachments.length) continue
+    logger.warn('Omitting Copilot attachments with unsafe secret provenance', {
+      attachmentCount: attachments.length,
+      omittedCount: attachments.length - safeAttachments.length,
+    })
+    projected =
+      safeAttachments.length > 0 ? { ...projected, [key]: safeAttachments } : omit(projected, [key])
+  }
+  return projected
+}
+
+async function projectInitialCopilotPayload(
+  payload: Record<string, unknown>,
+  registry: ResolvedSecretTraceRegistry,
+  workspaceId?: string
+): Promise<Record<string, unknown>> {
+  projectModelContent([], registry)
+  let projectedPayload = { ...payload }
+  const simpleContent: Record<string, unknown> = {}
+  for (const key of SIMPLE_MODEL_CONTENT_KEYS) {
+    if (Object.hasOwn(payload, key)) simpleContent[key] = payload[key]
+  }
+  const projectedSimpleContent = projectModelContent(simpleContent, registry)
+  if (!isPlainRecord(projectedSimpleContent)) throw new CopilotModelContentProjectionError()
+  for (const key of SIMPLE_MODEL_CONTENT_KEYS) {
+    if (Object.hasOwn(payload, key) && Object.hasOwn(projectedSimpleContent, key)) {
+      projectedPayload[key] = projectedSimpleContent[key]
+    }
+  }
+  if (Object.hasOwn(payload, 'userTimezone')) {
+    if (
+      typeof payload.userTimezone === 'string' &&
+      isResolvedSecretModelContentUnchanged(payload.userTimezone, registry)
+    ) {
+      projectedPayload.userTimezone = payload.userTimezone
+    } else {
+      projectedPayload = omit(projectedPayload, ['userTimezone'])
+    }
+  }
+
+  if (Object.hasOwn(payload, 'messages')) {
+    projectedPayload.messages = projectStructuredContent(
+      payload.messages,
+      registry,
+      messageContentSelector,
+      'array'
+    )
+  }
+  for (const key of ['context', 'contexts'] as const) {
+    if (Object.hasOwn(payload, key)) {
+      if (typeof payload[key] === 'string') {
+        projectedPayload[key] = projectModelContent(payload[key], registry)
+        continue
+      }
+      const safeContexts = filterModelSafeContextPayload(payload[key], registry)
+      if (safeContexts === undefined) {
+        projectedPayload = omit(projectedPayload, [key])
+      } else {
+        projectedPayload[key] = projectStructuredContent(
+          safeContexts,
+          registry,
+          contextContentSelector,
+          'record-or-array'
+        )
+      }
+    }
+  }
+  for (const key of TOOL_PAYLOAD_KEYS) {
+    if (Object.hasOwn(payload, key)) {
+      projectedPayload[key] = projectModelSafeToolPayloads(payload[key], registry)
+    }
+  }
+  if (Object.hasOwn(payload, 'responseFormat')) {
+    try {
+      if (
+        isPlainRecord(payload.responseFormat) &&
+        Object.hasOwn(payload.responseFormat, 'schema')
+      ) {
+        collectModelVisibleSchemaContent(payload.responseFormat.schema)
+      }
+      projectedPayload.responseFormat =
+        typeof payload.responseFormat === 'string'
+          ? projectModelContent(payload.responseFormat, registry)
+          : projectStructuredContent(
+              payload.responseFormat,
+              registry,
+              responseFormatContentSelector,
+              'record'
+            )
+    } catch {
+      logger.warn('Omitting a Copilot response format with unsafe model-input provenance')
+      projectedPayload = omit(projectedPayload, ['responseFormat'])
+    }
+  }
+  if (Object.hasOwn(payload, 'vfs')) {
+    projectedPayload.vfs = projectStructuredContent(
+      filterModelSafeVfsPayload(payload.vfs, registry),
+      registry,
+      vfsContentSelector,
+      'record'
+    )
+  }
+  if (Object.hasOwn(payload, 'userMetadata')) {
+    projectedPayload.userMetadata = projectStructuredContent(
+      filterModelSafeUserMetadata(payload.userMetadata, registry),
+      registry,
+      userMetadataContentSelector,
+      'record'
+    )
+  }
+  if (Object.hasOwn(payload, 'desktopCapabilities')) {
+    projectedPayload.desktopCapabilities = projectStructuredContent(
+      filterModelSafeDesktopCapabilities(payload.desktopCapabilities, registry),
+      registry,
+      desktopContentSelector,
+      'record'
+    )
+  }
+  Object.assign(projectedPayload, projectAttachmentDisplayNames(payload, registry))
+  return omitUnsafeInitialCopilotAttachments(projectedPayload, workspaceId)
+}
+
+async function ensureModelEgressRegistry(
+  execContext: ExecutionContext,
+  options: Pick<CopilotLifecycleOptions, 'environmentContext' | 'userId' | 'workspaceId'>
+): Promise<ResolvedSecretTraceRegistry> {
+  let registry = execContext.resolvedSecretTraceRegistry
+  if (!registry) {
+    const environmentContext =
+      options.environmentContext ??
+      (await prepareCopilotEnvironmentContext(options.userId, options.workspaceId))
+    registry = environmentContext.resolvedSecretTraceRegistry
+    execContext.resolvedSecretTraceRegistry = registry
+  }
+  return registry
+}
 
 function nonBlankString(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined
@@ -202,6 +879,11 @@ export async function runCopilotLifecycle(
       secretMountPolicy: lifecycleOptions.secretMountPolicy,
       secretActorUserId: lifecycleOptions.secretActorUserId,
     }))
+  if (goRoute && MOTHERSHIP_CODE_TOOL_ROUTES.has(goRoute)) {
+    execContext.sandboxProfile = 'mothership'
+  } else {
+    execContext.sandboxProfile = undefined
+  }
   const shouldUseHostedBillingProtocol = isHosted && isCopilotBillingAttributionV1Enabled
   if (
     shouldUseHostedBillingProtocol &&
@@ -237,8 +919,14 @@ export async function runCopilotLifecycle(
   let onCompleteStarted = false
 
   try {
-    await runCheckpointLoop(
+    const modelEgressRegistry = await ensureModelEgressRegistry(execContext, lifecycleOptions)
+    const modelSafeRequestPayload = await projectInitialCopilotPayload(
       requestPayload,
+      modelEgressRegistry,
+      lifecycleOptions.workspaceId
+    )
+    await runCheckpointLoop(
+      modelSafeRequestPayload,
       context,
       execContext,
       lifecycleOptions,
@@ -447,7 +1135,8 @@ async function waitForToolIds(context: StreamingContext, toolIds: string[]): Pro
 function collectResultsForToolIds(
   context: StreamingContext,
   toolIds: string[],
-  checkpointId: string
+  checkpointId: string,
+  registry: ResolvedSecretTraceRegistry
 ): Array<{ callId: string; name: string; data: unknown; success: boolean }> {
   return toolIds.map((toolCallId) => {
     const tool = context.toolCalls.get(toolCallId)
@@ -456,9 +1145,13 @@ function collectResultsForToolIds(
         `Cannot resume subagent chain ${checkpointId}: missing result for tool call ${toolCallId}`
       )
     }
+    const name = tool.name || ''
+    if (!isResolvedSecretModelContentUnchanged(name, registry)) {
+      throw new CopilotModelContentProjectionError()
+    }
     return {
       callId: toolCallId,
-      name: tool.name || '',
+      name,
       data: getToolCallTerminalData(tool),
       success: requireToolCallStateResult(tool).success,
     }
@@ -545,7 +1238,9 @@ async function driveOneChildChain(
     if (isAborted(options, context)) return null
 
     await waitForToolIds(context, toolIds)
-    const results = collectResultsForToolIds(context, toolIds, checkpointId)
+    const registry = execContext.resolvedSecretTraceRegistry
+    if (!registry) throw new CopilotModelContentProjectionError()
+    const results = collectResultsForToolIds(context, toolIds, checkpointId, registry)
 
     const leg = makeResumeLegContext(context)
     await runResumeLegWithRetry(
@@ -955,9 +1650,13 @@ async function runCheckpointLoop(
         })
         throw new Error(`Cannot resume: missing result for pending tool call ${toolCallId}`)
       }
+      const name = tool.name || ''
+      if (!isResolvedSecretModelContentUnchanged(name, execContext.resolvedSecretTraceRegistry)) {
+        throw new CopilotModelContentProjectionError()
+      }
       results.push({
         callId: toolCallId,
-        name: tool.name || '',
+        name,
         data: getToolCallTerminalData(tool),
         success: requireToolCallStateResult(tool).success,
       })

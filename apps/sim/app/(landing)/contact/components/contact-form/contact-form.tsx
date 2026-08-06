@@ -284,7 +284,6 @@ export function ContactForm() {
           <ContactField label='Topic' required error={errors.topic}>
             <ChipDropdown
               fullWidth
-              flush
               className={FIELD_HEIGHT}
               value={form.topic || undefined}
               onChange={(value) => updateField('topic', value as ContactRequestPayload['topic'])}
@@ -342,7 +341,6 @@ export function ContactForm() {
         <Chip
           type='submit'
           variant='primary'
-          flush
           fullWidth
           disabled={isBusy || !canSubmit}
           className='mt-1 justify-center [&>span]:flex-none'

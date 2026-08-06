@@ -27,7 +27,11 @@ import type {
   S3MultipartUploadInit,
   S3PartUploadUrl,
 } from '@/lib/uploads/providers/s3/types'
-import type { FileInfo } from '@/lib/uploads/shared/types'
+import type {
+  FileInfo,
+  MultipartCompletionPolicy,
+  StoredObjectInfo,
+} from '@/lib/uploads/shared/types'
 import {
   sanitizeFilenameForMetadata,
   sanitizeStorageMetadata,
@@ -277,23 +281,20 @@ export async function downloadFromS3Stream(
 export async function headS3Object(
   key: string,
   customConfig?: S3Config
-): Promise<{
-  size: number
-  contentType?: string
-  uploadId?: string
-  version: string
-} | null> {
+): Promise<StoredObjectInfo | null> {
   const config = customConfig || { bucket: S3_CONFIG.bucket, region: S3_CONFIG.region }
 
   try {
     const response = await getS3Client().send(
       new HeadObjectCommand({ Bucket: config.bucket, Key: key })
     )
+    const uploadId = readUploadId(response.Metadata)
     return {
       size: response.ContentLength ?? 0,
       contentType: response.ContentType,
-      uploadId: readUploadId(response.Metadata),
-      version: response.ETag ?? '',
+      ...(uploadId ? { uploadId } : {}),
+      ...(response.ETag ? { version: response.ETag } : {}),
+      ...(response.Metadata ? { metadata: response.Metadata } : {}),
     }
   } catch (error) {
     const code = (error as { name?: string; $metadata?: { httpStatusCode?: number } } | null)?.name
@@ -554,6 +555,32 @@ function buildObjectFallbackUrl(bucket: string, region: string, key: string): st
   return `https://${bucket}.s3.${region}.amazonaws.com/${encodedKey}`
 }
 
+function isCompletedS3UploadRetry(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false
+  const record = error as { name?: unknown; code?: unknown; Code?: unknown }
+  return (
+    record.name === 'NoSuchUpload' ||
+    record.code === 'NoSuchUpload' ||
+    record.Code === 'NoSuchUpload'
+  )
+}
+
+function isS3CreateConflict(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false
+  const record = error as {
+    name?: unknown
+    code?: unknown
+    Code?: unknown
+    $metadata?: { httpStatusCode?: unknown }
+  }
+  return (
+    record.name === 'PreconditionFailed' ||
+    record.code === 'PreconditionFailed' ||
+    record.Code === 'PreconditionFailed' ||
+    record.$metadata?.httpStatusCode === 412
+  )
+}
+
 /**
  * Complete multipart upload for S3
  */
@@ -561,7 +588,8 @@ export async function completeS3MultipartUpload(
   key: string,
   uploadId: string,
   parts: S3MultipartPart[],
-  customConfig?: S3Config
+  customConfig?: S3Config,
+  completionPolicy: MultipartCompletionPolicy = 'create-only'
 ): Promise<{ location: string; path: string; key: string }> {
   const config = customConfig || { bucket: S3_KB_CONFIG.bucket, region: S3_KB_CONFIG.region }
   const s3Client = getS3Client()
@@ -570,13 +598,26 @@ export async function completeS3MultipartUpload(
     Bucket: config.bucket,
     Key: key,
     UploadId: uploadId,
+    ...(completionPolicy === 'replace' ? {} : { IfNoneMatch: '*' }),
     MultipartUpload: {
       Parts: parts.sort((a, b) => a.PartNumber - b.PartNumber),
     },
   })
 
-  const response = await s3Client.send(command)
-  const location = response.Location || buildObjectFallbackUrl(config.bucket, config.region, key)
+  let location: string | undefined
+  try {
+    const response = await s3Client.send(command)
+    location = response.Location
+  } catch (error) {
+    const canReuseExisting = completionPolicy === 'reuse-existing' && isS3CreateConflict(error)
+    if (
+      (!isCompletedS3UploadRetry(error) && !canReuseExisting) ||
+      !(await headS3Object(key, config))
+    ) {
+      throw error
+    }
+  }
+  location ||= buildObjectFallbackUrl(config.bucket, config.region, key)
   const path = `/api/files/serve/${encodeURIComponent(key)}`
 
   return {

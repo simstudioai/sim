@@ -33,7 +33,6 @@ const LANDING_ROUTES = [
   'models',
   'pricing',
   'privacy',
-  'scheduled-tasks',
   'solutions',
   'tables',
   'terms',
@@ -219,15 +218,16 @@ const nextConfig: NextConfig = {
      * it lives. Restoring across commits is separately undocumented-as-supported
      * (vercel/next.js#87283 reports stale HTML from a cache built elsewhere).
      *
-     * The explicit pin is load-bearing: 16.3.0 flipped this default to true for
-     * stable (vercel/next.js#94616), so dropping it re-enables the slower cache.
+     * Keep the explicit pin even while we sit on 16.2.12: 16.3.0 flips this
+     * default to true for stable (vercel/next.js#94616), so dropping it would
+     * silently re-enable the slower cache the next time we take that bump.
      */
     turbopackFileSystemCacheForBuild: false,
     /**
      * TypeScript 7 ships no JavaScript compiler API until 7.1, so Next's default
      * checker cannot load it — this shells out to the project-local `tsc` instead.
      * Pinned because the failure mode is not slower type checking but none at all:
-     * 16.2.12 skipped the stage silently in 138ms.
+     * without it 16.2.12 skips the stage silently in 138ms.
      */
     useTypeScriptCli: true,
     preloadEntriesOnStart: false,
@@ -485,6 +485,15 @@ const nextConfig: NextConfig = {
         permanent: true,
       }
     )
+
+    // The scheduled-tasks marketing page is retired with the feature. The URL is
+    // indexed, so send it to the surface that still carries scheduled execution
+    // (the workflow Schedule trigger) instead of letting it 404.
+    redirects.push({
+      source: '/scheduled-tasks',
+      destination: '/workflows',
+      permanent: true,
+    })
 
     /**
      * The marketing Academy course/lesson pages were removed; content is

@@ -7,7 +7,7 @@ import { Callout } from 'fumadocs-ui/components/callout'
 import { FAQ } from '@/components/ui/faq'
 import { Image } from '@/components/ui/image'
 
-Access Control lets organization admins define permission groups that restrict what each set of users can do — which AI model providers they can use, which workflow blocks they can place, and which platform features are visible to them. Permission groups are scoped to the **organization**. The organization's **default group** governs everyone org-wide; every other group targets a **specific set of workspaces** and, by default, governs **all members of those workspaces** (including external members) — or only specific members once you add them. A user is governed by exactly one group in any given workspace. Restrictions are enforced both in the workflow executor and in Mothership, based on the organization that owns the workflow's workspace.
+Access Control lets organization admins define permission groups that restrict what each set of users can do — which AI model providers they can use, which workflow blocks they can place, and which platform features are visible to them. Permission groups are scoped to the **organization**. The organization's **default group** governs everyone org-wide; every other group targets a **specific set of workspaces** and, by default, governs **all members of those workspaces** (including external members) — or only specific members once you add them. A user is governed by exactly one group in any given workspace. Restrictions are enforced both in the workflow executor and in Chat, based on the organization that owns the workflow's workspace.
 
 ---
 
@@ -24,10 +24,10 @@ Sim resolves the governing group for a user in a workspace deterministically:
 
 Assignment-time checks keep this unambiguous: a workspace has at most one all-members group, and a user is an explicit member of at most one group per workspace.
 
-When a user runs a workflow or uses Mothership, Sim reads the resolved group's configuration and applies it:
+When a user runs a workflow or uses Chat, Sim reads the resolved group's configuration and applies it:
 
 - **In the executor:** If a workflow uses a disallowed block type or model provider, execution halts immediately with an error. This applies to both manual runs and scheduled or API-triggered deployments.
-- **In Mothership:** Disallowed blocks are filtered out of the block list so they cannot be added to a workflow. Disallowed tool types (MCP, custom tools, skills) are skipped if Mothership attempts to use them.
+- **In Chat:** Disallowed blocks are filtered out of the block list so they cannot be added to a workflow. Disallowed tool types (MCP, custom tools, skills) are skipped if Sim attempts to use them.
 
 ---
 
@@ -161,12 +161,12 @@ Restrictions are enforced at the point of execution, not at save time. If a grou
 
 This applies regardless of how the workflow is triggered — manually, via API, via schedule, or via webhook.
 
-### Mothership
+### Chat
 
-When a user opens Mothership, their permission group is read before any block or tool suggestions are made:
+When a user opens Chat, their permission group is read before any block or tool suggestions are made:
 
 - Blocks not in the allowed list are filtered out of the block picker entirely — they do not appear as options.
-- If Mothership generates a workflow step that would use a disallowed tool (MCP, custom, or skills), that step is skipped and the reason is noted.
+- If Sim generates a workflow step that would use a disallowed tool (MCP, custom, or skills), that step is skipped and the reason is noted.
 
 ---
 
@@ -208,8 +208,8 @@ When a user opens Mothership, their permission group is read before any block or
     answer: "In a workspace targeted by an all-members group (one with no members), that group governs them. Otherwise the organization's default group governs them if one is set. If neither applies, they have no restrictions — all blocks, model providers, and platform features are available."
   },
   {
-    question: "Does Mothership respect the same restrictions as the executor?",
-    answer: "Yes. Mothership reads the user's permission group for the workspace's organization before suggesting blocks or tools. Disallowed blocks are filtered out of the block picker, and disallowed tool types are skipped during workflow generation."
+    question: "Does Chat respect the same restrictions as the executor?",
+    answer: "Yes. Sim reads the user's permission group for the workspace's organization before suggesting blocks or tools. Disallowed blocks are filtered out of the block picker, and disallowed tool types are skipped during workflow generation."
   },
   {
     question: "Can I apply different restrictions to different people or workspaces?",

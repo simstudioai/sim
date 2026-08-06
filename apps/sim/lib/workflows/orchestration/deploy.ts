@@ -194,19 +194,18 @@ async function performStableFullDeploy(params: {
   const validation = await validateDeploymentState(workflowState.blocks)
   if (!validation.success) return validation
 
+  const requestHash = createDeploymentRequestHash({
+    action: 'deploy',
+    workflowId: params.params.workflowId,
+    userId: params.params.userId,
+    workflowState: canonicalizeDeploymentWorkflowState(workflowState),
+  })
   let outboxEventId: string | undefined
   const prepared = await prepareWorkflowDeployment({
     workflowId: params.params.workflowId,
     actorId: params.actorId,
-    requestHash: createDeploymentRequestHash({
-      action: 'deploy',
-      workflowId: params.params.workflowId,
-      userId: params.params.userId,
-      workflowState: canonicalizeDeploymentWorkflowState(workflowState),
-      versionName: params.params.versionName ?? null,
-      versionDescription: params.params.versionDescription ?? null,
-    }),
-    idempotencyKey: params.idempotencyKey,
+    requestHash,
+    idempotencyKey: bindIdempotencyKeyToRequest(params.idempotencyKey, requestHash),
     workflowState,
     name: params.params.versionName,
     description: params.params.versionDescription,
@@ -319,6 +318,10 @@ function canonicalizeDeploymentWorkflowState(
 
 function createDeploymentRequestHash(value: Record<string, unknown>): string {
   return sha256Hex(normalizedStringify(value))
+}
+
+function bindIdempotencyKeyToRequest(idempotencyKey: string, requestHash: string): string {
+  return `${idempotencyKey}:request:${requestHash}`
 }
 
 function mapPrepareFailureCode(
@@ -732,19 +735,20 @@ async function performStableVersionActivation(params: {
   requestId: string
   idempotencyKey: string
 }): Promise<PerformActivateVersionResult> {
+  const requestHash = createDeploymentRequestHash({
+    action: 'activate',
+    workflowId: params.workflowId,
+    deploymentVersionId: params.deploymentVersionId,
+    version: params.version,
+    userId: params.userId,
+  })
   let outboxEventId: string | undefined
   const prepared = await prepareWorkflowVersionActivation({
     workflowId: params.workflowId,
     deploymentVersionId: params.deploymentVersionId,
     actorId: params.actorId,
-    requestHash: createDeploymentRequestHash({
-      action: 'activate',
-      workflowId: params.workflowId,
-      deploymentVersionId: params.deploymentVersionId,
-      version: params.version,
-      userId: params.userId,
-    }),
-    idempotencyKey: params.idempotencyKey,
+    requestHash,
+    idempotencyKey: bindIdempotencyKeyToRequest(params.idempotencyKey, requestHash),
     readinessComponents: DEPLOYMENT_READINESS_COMPONENTS,
     onPrepareTransaction: async (tx, operation) => {
       if (!operation.deploymentVersionId || operation.version === null) {
