@@ -255,4 +255,36 @@ describe('sql Date binding audit', () => {
 
     expect(violations.map((violation) => violation.expression)).toEqual(['since'])
   })
+
+  test('resolves a drizzle tag imported dynamically', () => {
+    const violations = findSqlDateBindingViolations(`
+      import { and } from 'drizzle-orm'
+      async function scan() {
+        const { sql } = await import('drizzle-orm')
+        const { sql: raw } = await import('drizzle-orm')
+        const namespace = await import('drizzle-orm')
+        const now = new Date()
+        return [
+          sql\`a < \${now}\`,
+          raw\`b < \${now}\`,
+          namespace.sql\`c < \${now}\`,
+        ]
+      }
+    `)
+
+    expect(violations.map((violation) => violation.expression)).toEqual(['now', 'now', 'now'])
+  })
+
+  test('ignores a postgres-js client built from a dynamic import', () => {
+    const violations = findSqlDateBindingViolations(`
+      async function scan() {
+        const { default: postgres } = await import('postgres')
+        const sql = postgres(process.env.DATABASE_URL as string)
+        const now = new Date()
+        return sql\`a < \${now}\`
+      }
+    `)
+
+    expect(violations).toEqual([])
+  })
 })

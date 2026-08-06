@@ -240,10 +240,66 @@ function collectSqlBindings(program: SyntaxNode): SqlBindings {
         }
       }
     }
+    if (node.type === 'VariableDeclarator' && isDrizzleImportCall(node.init))
+      bindDynamicImport(node.id, bindings)
+
     for (const child of getChildNodes(node)) visit(child)
   }
   visit(program)
   return bindings
+}
+
+/**
+ * `import('drizzle-orm')`, with or without an `await`.
+ *
+ * Babel parses a dynamic import as a `CallExpression` whose callee is `Import`;
+ * the `ImportExpression` spelling is accepted too so a parser upgrade cannot
+ * silently reopen the hole this closes.
+ */
+function isDrizzleImportCall(node: unknown): boolean {
+  if (!isSyntaxNode(node)) return false
+  const current = node.type === 'AwaitExpression' ? unwrapAwait(node) : node
+  if (!isSyntaxNode(current)) return false
+  const isImport =
+    current.type === 'ImportExpression' ||
+    (current.type === 'CallExpression' &&
+      isSyntaxNode(current.callee) &&
+      current.callee.type === 'Import')
+  if (!isImport) return false
+  const args = Array.isArray(current.arguments) ? current.arguments : []
+  const source = isSyntaxNode(current.source) ? current.source : args.find(isSyntaxNode)
+  const value = source?.value
+  return (
+    typeof value === 'string' &&
+    (value === DRIZZLE_MODULE || value.startsWith(`${DRIZZLE_MODULE}/`))
+  )
+}
+
+const unwrapAwait = (node: SyntaxNode): unknown =>
+  isSyntaxNode(node.argument) ? node.argument : undefined
+
+/**
+ * Binds `const { sql } = await import('drizzle-orm')` and its namespace form.
+ *
+ * Without this a file importing the tag dynamically resolves no tag at all, so
+ * the whole file is skipped rather than audited — a silent hole, not a warning.
+ */
+function bindDynamicImport(target: unknown, bindings: SqlBindings): void {
+  if (!isSyntaxNode(target)) return
+  if (target.type === 'Identifier' && typeof target.name === 'string') {
+    bindings.namespaces.add(target.name)
+    return
+  }
+  if (target.type !== 'ObjectPattern' || !Array.isArray(target.properties)) return
+  for (const property of target.properties) {
+    if (!isSyntaxNode(property) || property.type !== 'ObjectProperty') continue
+    const key = isSyntaxNode(property.key) ? property.key.name : undefined
+    if (key !== 'sql') continue
+    const raw = isSyntaxNode(property.value) ? property.value : undefined
+    const local = raw?.type === 'AssignmentPattern' && isSyntaxNode(raw.left) ? raw.left : raw
+    if (local?.type === 'Identifier' && typeof local.name === 'string')
+      bindings.tags.add(local.name)
+  }
 }
 
 /** `sql`, an aliased import of it, or `namespace.sql`. */
