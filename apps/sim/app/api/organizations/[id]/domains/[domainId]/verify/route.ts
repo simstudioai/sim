@@ -71,13 +71,14 @@ export const POST = withRouteHandler(
     }
 
     const lookup = await checkDomainTxtRecord(row.domain, row.verificationToken)
-    // 503, not 422: the record may well be correct, so this must not read as the
-    // admin's mistake or they will go hunting through DNS for a fault that is ours.
+    // 503, not 422: we learned nothing about their record, so this must not read
+    // as a missing one. SERVFAIL can mean either a fault of ours or a broken zone
+    // of theirs, so the message states what we know rather than assigning blame.
     if (lookup === 'unavailable') {
       return NextResponse.json(
         {
           error:
-            "We couldn't complete the DNS lookup — this is a problem on our side, not with your record. Try again in a few minutes.",
+            "We couldn't complete the DNS lookup, so we can't tell yet whether your record is published. Try again in a few minutes — if it keeps failing, check that your domain's nameservers are responding.",
         },
         { status: 503 }
       )

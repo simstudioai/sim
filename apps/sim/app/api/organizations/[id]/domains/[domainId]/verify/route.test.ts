@@ -88,7 +88,9 @@ describe('verify org domain route', () => {
     mockCheckDomainTxtRecord.mockResolvedValue('unavailable')
     const res = await POST(createMockRequest('POST'), routeContext)
     expect(res.status).toBe(503)
-    expect(await res.json()).toMatchObject({ error: expect.stringContaining('on our side') })
+    expect(await res.json()).toMatchObject({
+      error: expect.stringContaining("couldn't complete the DNS lookup"),
+    })
     expect(mockRecordAudit).not.toHaveBeenCalled()
   })
 
