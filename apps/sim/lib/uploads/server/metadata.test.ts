@@ -3,7 +3,13 @@
  */
 import { workspaceFiles } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import type { SQL } from 'drizzle-orm'
+import { PgDialect } from 'drizzle-orm/pg-core'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.unmock('@sim/db/schema')
+vi.unmock('drizzle-orm')
+
 import {
   ActiveFileMetadataKeyConflictError,
   deleteFileMetadataByIdentity,
@@ -28,6 +34,12 @@ describe('deleteFileMetadataByIdentity', () => {
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: identity.id }])
 
     await expect(deleteFileMetadataByIdentity(identity)).resolves.toBe(true)
+    const predicate = dbChainMockFns.where.mock.calls[0]?.[0] as SQL
+    const query = new PgDialect().sqlToQuery(predicate)
+    expect(query.sql).toContain(
+      `date_trunc('milliseconds', "workspace_files"."content_updated_at")`
+    )
+    expect(query.params).toContain(identity.contentUpdatedAt)
 
     dbChainMockFns.returning.mockResolvedValueOnce([])
     await expect(deleteFileMetadataByIdentity(identity)).resolves.toBe(false)

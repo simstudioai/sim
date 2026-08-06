@@ -104,8 +104,8 @@ import { calculateCost } from '@/providers/utils'
 const logger = createLogger('DocumentService')
 
 /**
- * Thrown when a knowledge-base document's `fileUrl` references an internal `kb/`
- * storage object that is not owned by the target knowledge base's workspace.
+ * Thrown when a knowledge-base document's `fileUrl` references an internal
+ * knowledge-base storage object not owned by the target knowledge base's workspace.
  * Routes map this to a 403.
  */
 export class KnowledgeBaseFileOwnershipError extends Error {
@@ -117,7 +117,7 @@ export class KnowledgeBaseFileOwnershipError extends Error {
 
 /**
  * Guard document `fileUrl`s at creation time. When a URL points at an internal
- * `kb/` storage object, require that the target knowledge base owns the object,
+ * knowledge-base storage object, require that the target knowledge base owns the object,
  * resolved from the trusted `workspace_files` binding:
  *
  * - Workspace KB (`kbWorkspaceId` set): the binding's `workspaceId` must match.
@@ -125,9 +125,9 @@ export class KnowledgeBaseFileOwnershipError extends Error {
  *   owner. A key bound to another tenant is rejected; an unbound key (legacy /
  *   never reserved) passes since it carries no cross-tenant ownership.
  *
- * External `http(s)`/`data:` URLs (ingestion sources) and non-`kb/` internal keys
+ * External `http(s)`/`data:` URLs (ingestion sources) and other internal keys
  * pass through unchanged. This blocks a user from asserting ownership of another
- * tenant's `kb/` key via a planted `fileUrl` — including in a personal KB, which
+ * tenant's object via a planted `fileUrl` — including in a personal KB, which
  * otherwise could be moved into a workspace to launder the binding. All
  * referenced bindings are resolved in one query (no N+1 inside the `FOR UPDATE`
  * window). Single-document callers pass a one-element array.
@@ -2557,8 +2557,7 @@ export async function deleteDocumentStorageFiles(
       entries
         .map((entry) => entry.storageKey)
         .filter(
-          (key): key is string =>
-            typeof key === 'string' && (key.startsWith('kb/') || key.startsWith('knowledge-base/'))
+          (key): key is string => typeof key === 'string' && isKnowledgeBaseOwnedStorageKey(key)
         )
     ),
   ]
@@ -2575,7 +2574,7 @@ export async function deleteDocumentStorageFiles(
       return
     }
 
-    if (!storageKey.startsWith('kb/') && !storageKey.startsWith('knowledge-base/')) {
+    if (!isKnowledgeBaseOwnedStorageKey(storageKey)) {
       return
     }
 
@@ -2598,13 +2597,20 @@ export async function deleteDocumentStorageFiles(
     }
 
     try {
-      await deleteFile({ key: storageKey, context: 'knowledge-base' })
-      await deleteFileMetadataByIdentity({
+      const metadataDeleted = await deleteFileMetadataByIdentity({
         id: binding.id,
         key: binding.key,
         context: binding.context,
         contentUpdatedAt: binding.contentUpdatedAt,
       })
+      if (!metadataDeleted) {
+        logger.warn(`[${requestId}] Skipping storage delete: ownership binding changed`, {
+          documentId: doc.id,
+          storageKey,
+        })
+        return
+      }
+      await deleteFile({ key: storageKey, context: 'knowledge-base' })
     } catch (error) {
       logger.warn(`[${requestId}] Failed to delete document storage file`, {
         documentId: doc.id,

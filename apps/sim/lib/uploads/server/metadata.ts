@@ -353,7 +353,11 @@ export async function deleteFileMetadata(key: string): Promise<boolean> {
   return true
 }
 
-/** Soft-deletes only the exact active metadata version previously authorized by a caller. */
+/**
+ * Soft-deletes only the active metadata version previously authorized by a caller.
+ * Postgres timestamps are compared at JavaScript `Date` precision because a selected
+ * microsecond timestamp has already been rounded to milliseconds at this boundary.
+ */
 export async function deleteFileMetadataByIdentity(identity: {
   id: string
   key: string
@@ -368,7 +372,10 @@ export async function deleteFileMetadataByIdentity(identity: {
         eq(workspaceFiles.id, identity.id),
         eq(workspaceFiles.key, identity.key),
         eq(workspaceFiles.context, identity.context),
-        eq(workspaceFiles.contentUpdatedAt, identity.contentUpdatedAt),
+        eq(
+          sql<Date>`date_trunc('milliseconds', ${workspaceFiles.contentUpdatedAt})`,
+          identity.contentUpdatedAt
+        ),
         isNull(workspaceFiles.deletedAt)
       )
     )

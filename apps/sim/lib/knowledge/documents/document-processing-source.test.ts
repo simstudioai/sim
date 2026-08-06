@@ -183,6 +183,31 @@ describe('knowledge document processing source', () => {
     expect(mockGenerateEmbeddings).not.toHaveBeenCalled()
   })
 
+  it('processes a legacy document when its workspace metadata row no longer exists', async () => {
+    mockGetFileMetadataByKeys.mockResolvedValue([])
+    mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(new Map())
+
+    await processDocumentAsync('knowledge-base-1', 'document-1', {
+      filename: 'stale.pdf',
+      fileUrl: 'https://example.com/stale.pdf',
+      fileSize: 1,
+      mimeType: 'text/plain',
+    })
+
+    expect(mockProcessDocument).toHaveBeenCalledWith(
+      PERSISTED_CONTEXT.fileUrl,
+      PERSISTED_CONTEXT.filename,
+      PERSISTED_CONTEXT.mimeType,
+      1024,
+      200,
+      100,
+      PERSISTED_CONTEXT.uploadedBy,
+      null,
+      undefined,
+      undefined
+    )
+  })
+
   it('fails before parsing an existing document when its current source is tracked unknown', async () => {
     mockGetFileMetadataByKeys.mockImplementation(async (_keys: string[], context: string) =>
       context === 'workspace' ? [{ ...SOURCE_BINDING, secretProvenanceVersion: 1 }] : []
