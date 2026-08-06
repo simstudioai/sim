@@ -849,6 +849,37 @@ describe.concurrent('Blocks Module', () => {
       expect(replacement?.hideFromToolbar).not.toBe(true)
     })
 
+    /**
+     * `openai_embeddings` is an alias of `embeddings_openai`, so the legacy
+     * block's runtime payload gained `provider` and `dimensions`. Undeclared,
+     * they were absent from the tag picker and unreferenceable downstream even
+     * though every run returned them.
+     */
+    it('should declare every output the legacy openai block returns at runtime', () => {
+      const legacy = getBlock('openai')
+      const replacement = getBlock('embeddings')
+
+      expect(Object.keys(legacy?.outputs ?? {}).sort()).toEqual([
+        'dimensions',
+        'embeddings',
+        'model',
+        'provider',
+        'usage',
+      ])
+      expect(legacy?.outputs?.provider).toEqual({
+        type: 'string',
+        description: 'Provider used',
+      })
+      expect(legacy?.outputs?.dimensions).toEqual({
+        type: 'number',
+        description: 'Dimensionality of each vector',
+      })
+      // Both blocks run the same tool, so neither may expose fields the other lacks.
+      expect(Object.keys(legacy?.outputs ?? {}).sort()).toEqual(
+        Object.keys(replacement?.outputs ?? {}).sort()
+      )
+    })
+
     it('should offer every embeddings provider with a matching tool and model list', () => {
       const block = getBlock('embeddings')
       const providerSubBlock = block?.subBlocks.find((sb) => sb.id === 'provider')
