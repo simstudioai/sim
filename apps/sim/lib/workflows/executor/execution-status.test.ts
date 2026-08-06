@@ -12,9 +12,16 @@ vi.mock('@/lib/core/async-jobs', () => ({
   getJobQueue: vi.fn().mockResolvedValue({ getJob: mockGetJob }),
 }))
 
-vi.mock('@/lib/workflows/executor/enqueue-execution', () => ({
-  RESUME_EXECUTION_JOB_ID_PREFIX: 'resume-execution:',
-  WORKFLOW_EXECUTION_JOB_ID_PREFIX: 'workflow-execution:',
+vi.mock('@/lib/logs/execution/functional-outputs', () => ({
+  collectFunctionalBlockOutputs: vi.fn().mockReturnValue(new Map()),
+}))
+
+vi.mock('@/lib/logs/execution/trace-store', () => ({
+  materializeExecutionData: vi.fn(),
+}))
+
+vi.mock('@/lib/workflows/executor/paused-execution-metadata', () => ({
+  getAutomaticResumeWaitingMetadata: vi.fn().mockReturnValue(null),
 }))
 
 import { getWorkflowExecutionStatus } from '@/lib/workflows/executor/execution-status'
@@ -54,6 +61,25 @@ describe('getWorkflowExecutionStatus queue projection', () => {
       error: null,
     })
     expect(mockGetJob).toHaveBeenCalledWith('workflow-execution:execution-1')
+  })
+
+  it('preserves queue cancellation as a cancelled execution resource', async () => {
+    mockGetJob.mockResolvedValue({
+      status: 'cancelled',
+      createdAt: new Date('2026-08-05T12:00:00.000Z'),
+      completedAt: new Date('2026-08-05T12:00:01.000Z'),
+      metadata: { workflowId: 'workflow-1' },
+    })
+
+    const status = await getWorkflowExecutionStatus(input)
+
+    expect(status).toMatchObject({
+      executionId: 'execution-1',
+      status: 'cancelled',
+      level: 'info',
+      endedAt: '2026-08-05T12:00:01.000Z',
+      error: null,
+    })
   })
 
   it('uses the resume entry ID when the queued work is a resume attempt', async () => {

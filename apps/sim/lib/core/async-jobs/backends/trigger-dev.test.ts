@@ -158,4 +158,21 @@ describe('TriggerDevJobQueue getJob', () => {
       metadata: { workflowId: 'workflow-1' },
     })
   })
+
+  it('preserves a cancelled Trigger.dev run as cancelled', async () => {
+    mockRetrieveRun.mockResolvedValueOnce({
+      id: 'run-cancelled',
+      taskIdentifier: 'workflow-execution',
+      payload: { workflowId: 'workflow-1' },
+      status: 'CANCELED',
+      createdAt: '2026-08-05T12:00:00.000Z',
+      finishedAt: '2026-08-05T12:00:01.000Z',
+      attemptCount: 0,
+    })
+    const queue = new TriggerDevJobQueue()
+
+    const job = await queue.getJob('run-cancelled')
+
+    expect(job).toMatchObject({ id: 'run-cancelled', status: 'cancelled' })
+  })
 })

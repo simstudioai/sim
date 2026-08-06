@@ -314,7 +314,7 @@ export class DatabaseJobQueue implements JobQueueBackend {
     await db
       .update(asyncJobs)
       .set({
-        status: JOB_STATUS.FAILED,
+        status: JOB_STATUS.CANCELLED,
         completedAt: now,
         error: 'Cancelled',
         updatedAt: now,

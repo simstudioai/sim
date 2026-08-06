@@ -106,7 +106,7 @@ export const getStatusContract = defineRouteContract({
   },
 })
 
-const jobStatusSchema = z.enum(['pending', 'processing', 'completed', 'failed'])
+const jobStatusSchema = z.enum(['pending', 'processing', 'completed', 'failed', 'cancelled'])
 
 const jobStatusResponseSchema = z
   .object({

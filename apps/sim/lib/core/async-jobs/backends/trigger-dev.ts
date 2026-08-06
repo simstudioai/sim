@@ -63,6 +63,7 @@ function mapTriggerDevStatus(status: string): JobStatus {
     case 'COMPLETED':
       return JOB_STATUS.COMPLETED
     case 'CANCELED':
+      return JOB_STATUS.CANCELLED
     case 'FAILED':
     case 'CRASHED':
     case 'INTERRUPTED':

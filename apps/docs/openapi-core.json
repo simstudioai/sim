@@ -1484,7 +1484,7 @@
           },
           "status": {
             "type": "string",
-            "enum": ["queued", "processing", "completed", "failed"],
+            "enum": ["queued", "processing", "completed", "failed", "cancelled"],
             "description": "Current status of the job.",
             "example": "completed"
           },

@@ -112,3 +112,20 @@ describe('DatabaseJobQueue batchEnqueueAndWait', () => {
     expect(maxInFlight).toBe(2)
   })
 })
+
+describe('DatabaseJobQueue cancelJob', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('persists cancellation as its own terminal status', async () => {
+    const queue = new DatabaseJobQueue()
+
+    await queue.cancelJob('workflow:1')
+
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'cancelled', error: 'Cancelled' })
+    )
+  })
+})
