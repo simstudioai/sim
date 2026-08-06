@@ -29,6 +29,7 @@ import type {
   listLogsQuerySchema,
   WorkflowLogSummary,
 } from '@/lib/api/contracts/logs'
+import { workflowExecutionOriginSql } from '@/lib/logs/execution-origin'
 import { jobCostTotal } from '@/lib/logs/fetch-log-detail'
 import { buildFilterConditions } from '@/lib/logs/filters'
 import { expandFolderIdsWithDescendants } from '@/lib/logs/folder-expansion'
@@ -217,6 +218,7 @@ export async function listLogs(params: ListLogsParams, userId: string): Promise<
       pausedResumedCount: pausedExecutions.resumedCount,
       deploymentVersion: workflowDeploymentVersion.version,
       deploymentVersionName: workflowDeploymentVersion.name,
+      executionOrigin: workflowExecutionOriginSql().as('execution_origin'),
       sortValue: sql<unknown>`${workflowSortExpr}`.as('sort_value'),
     })
     .from(workflowExecutionLogs)
@@ -353,6 +355,7 @@ export async function listLogs(params: ListLogsParams, userId: string): Promise<
       status: log.status,
       duration: log.totalDurationMs ? `${log.totalDurationMs}ms` : null,
       trigger: log.trigger,
+      executionOrigin: log.executionOrigin ?? null,
       createdAt: log.startedAt.toISOString(),
       workflow: log.workflowId
         ? {
@@ -392,6 +395,7 @@ export async function listLogs(params: ListLogsParams, userId: string): Promise<
       status: log.status,
       duration: log.totalDurationMs ? `${log.totalDurationMs}ms` : null,
       trigger: log.trigger,
+      executionOrigin: null,
       createdAt: log.startedAt.toISOString(),
       workflow: null,
       jobTitle: log.jobTitle ?? null,

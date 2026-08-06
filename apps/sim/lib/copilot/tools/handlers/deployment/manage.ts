@@ -562,7 +562,7 @@ export async function executePromoteToLive(
       workflowId,
       version,
       userId: context.userId,
-      idempotencyKey: getCopilotDeploymentIdempotencyKey(context),
+      idempotencyKey: getCopilotDeploymentIdempotencyKey(context, 'promote_to_live'),
     })
 
     if (!result.success) {
@@ -575,14 +575,21 @@ export async function executePromoteToLive(
     if (historicalAttemptError) return { success: false, error: historicalAttemptError }
 
     const isActive = result.activeDeployment?.version === version
+    if (!isActive) {
+      const detail =
+        result.warnings?.[0] ??
+        `Promotion of version ${version} is ${result.latestDeploymentAttempt?.status ?? 'unknown'}, not active.`
+      return {
+        success: false,
+        error: `${detail} Do not submit a new promotion; check the existing attempt's status.`,
+      }
+    }
     return {
       success: true,
       output: {
         workflowId,
         version,
-        message: isActive
-          ? `Promoted version ${version} to live`
-          : `Started preparing version ${version} for promotion`,
+        message: `Promoted version ${version} to live`,
         deployedAt: result.deployedAt ? new Date(result.deployedAt).toISOString() : undefined,
         lifecycleStatus: result.latestDeploymentAttempt?.status ?? null,
         readiness: result.latestDeploymentAttempt?.readiness ?? null,

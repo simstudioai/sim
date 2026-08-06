@@ -32,6 +32,7 @@ const { mockExecuteProviderTool } = vi.hoisted(() => ({
 
 vi.mock('@/providers/runtime-context', () => ({
   executeProviderTool: mockExecuteProviderTool,
+  projectProviderAttachmentFilenameForModel: (filename: string) => filename,
 }))
 
 function jsonResponse(body: unknown) {
@@ -71,7 +72,8 @@ describe('OpenAI non-streaming response status handling', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    mockExecuteProviderTool.mockResolvedValue({ success: true, output: { results: [] } })
+    const response = { success: true, output: { results: [] } }
+    mockExecuteProviderTool.mockResolvedValue({ rawResponse: response, modelResponse: response })
   })
 
   function run(fetchMock: unknown, request: Partial<ProviderRequest> = {}) {

@@ -5,6 +5,55 @@ import type {
 } from '@/tools/pinecone/types'
 import type { ToolConfig } from '@/tools/types'
 
+function parseRerank(
+  value: PineconeSearchTextParams['rerank']
+): Record<string, unknown> | undefined {
+  if (value === undefined) return undefined
+  const parsed = typeof value === 'string' ? JSON.parse(value) : value
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('Pinecone rerank must be an object')
+  }
+  return parsed as Record<string, unknown>
+}
+
+function selectRerankModelInput(
+  value: PineconeSearchTextParams['rerank']
+): Record<string, unknown> | undefined {
+  const rerank = parseRerank(value)
+  if (!rerank) return undefined
+  const query = rerank.query
+  if (
+    query === null ||
+    typeof query !== 'object' ||
+    Array.isArray(query) ||
+    typeof (query as Record<string, unknown>).text !== 'string'
+  ) {
+    return undefined
+  }
+  return { query: { text: (query as Record<string, unknown>).text } }
+}
+
+function rebuildRerank(original: PineconeSearchTextParams['rerank'], projected: unknown): unknown {
+  if (original === undefined) {
+    if (projected !== undefined) throw new Error('Unexpected projected Pinecone rerank input')
+    return undefined
+  }
+  if (projected === null || typeof projected !== 'object' || Array.isArray(projected)) {
+    throw new Error('Projected Pinecone rerank input is invalid')
+  }
+
+  const rerank = parseRerank(original)!
+  const projectedQuery = (projected as Record<string, unknown>).query
+  const rebuilt =
+    projectedQuery === undefined
+      ? rerank
+      : {
+          ...rerank,
+          query: projectedQuery,
+        }
+  return typeof original === 'string' ? JSON.stringify(rebuilt) : rebuilt
+}
+
 export const searchTextTool: ToolConfig<PineconeSearchTextParams, PineconeResponse> = {
   id: 'pinecone_search_text',
   name: 'Pinecone Search Text',
@@ -64,6 +113,24 @@ export const searchTextTool: ToolConfig<PineconeSearchTextParams, PineconeRespon
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => {
+        const rerank = selectRerankModelInput(params.rerank)
+        return rerank === undefined
+          ? { searchQuery: params.searchQuery }
+          : { searchQuery: params.searchQuery, rerank }
+      },
+      applyProjected: (selectedParams, projectedSelection) => {
+        const patch: Record<string, unknown> = {
+          searchQuery: projectedSelection.searchQuery,
+        }
+        if (Object.hasOwn(selectedParams, 'rerank')) {
+          patch.rerank = rebuildRerank(selectedParams.rerank, projectedSelection.rerank)
+        }
+        return patch
+      },
+    },
     method: 'POST',
     url: (params) => `${params.indexHost}/records/namespaces/${params.namespace}/search`,
     headers: (params) => ({

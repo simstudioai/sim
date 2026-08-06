@@ -36,10 +36,11 @@ export function parseResponseFormat(responseFormat?: string | object): any {
         return { name: 'response_schema', schema: parsed, strict: true }
       }
       return parsed
-    } catch (error: any) {
+    } catch (error) {
       logger.warn('Failed to parse response format as JSON', {
-        error: error.message,
-        preview: trimmed.slice(0, 100),
+        errorName: error instanceof Error ? error.name : 'UnknownError',
+        responseFormatType: 'string',
+        responseFormatLength: trimmed.length,
       })
       return undefined
     }

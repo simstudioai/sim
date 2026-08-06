@@ -2,6 +2,7 @@ import type OpenAI from 'openai'
 import { Stream } from 'openai/streaming'
 import { buildOpenAIMessageContent } from '@/providers/attachments'
 import type { ModelUsage } from '@/providers/cost-policy'
+import { projectProviderAttachmentFilenameForModel } from '@/providers/runtime-context'
 import type { AgentStreamEvent } from '@/providers/stream-events'
 import type { Message } from '@/providers/types'
 
@@ -168,7 +169,12 @@ export function buildResponsesInputFromMessages(
     if (message.role === 'system' || message.role === 'user' || message.role === 'assistant') {
       const content =
         message.role === 'user'
-          ? buildOpenAIMessageContent(message.content, message.files, providerId)
+          ? buildOpenAIMessageContent(
+              message.content,
+              message.files,
+              providerId,
+              projectProviderAttachmentFilenameForModel
+            )
           : (message.content ?? '')
       if (
         (typeof content === 'string' && !content) ||

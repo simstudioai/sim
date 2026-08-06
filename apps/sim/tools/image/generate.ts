@@ -152,6 +152,10 @@ export const imageGenerateTool: ToolConfig<ImageGenerationParams, ImageGeneratio
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({ prompt: params.prompt }),
+    },
     url: '/api/tools/image',
     method: 'POST',
     headers: () => ({

@@ -9,7 +9,12 @@ import {
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockIncrementStorageUsageInTx, mockResolveStorageBillingContext } = vi.hoisted(() => ({
+const {
+  mockCopyWorkspaceFileSecretProvenanceInTx,
+  mockIncrementStorageUsageInTx,
+  mockResolveStorageBillingContext,
+} = vi.hoisted(() => ({
+  mockCopyWorkspaceFileSecretProvenanceInTx: vi.fn(),
   mockIncrementStorageUsageInTx: vi.fn(),
   mockResolveStorageBillingContext: vi.fn(),
 }))
@@ -24,6 +29,9 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
     (workspaceId: string, fileName: string) => `workspace/${workspaceId}/generated-${fileName}`
   ),
 }))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
+  copyWorkspaceFileSecretProvenanceInTx: mockCopyWorkspaceFileSecretProvenanceInTx,
+}))
 
 import type { DbOrTx } from '@/lib/db/types'
 import {
@@ -34,6 +42,8 @@ import {
 
 function makeTask(overrides: Partial<BlobCopyTask> = {}): BlobCopyTask {
   return {
+    sourceFileId: 'source-file-1',
+    sourceContentUpdatedAtMs: new Date('2026-01-01T00:00:00.000Z').getTime(),
     sourceKey: 'workspace/src-ws/source-a.txt',
     targetKey: 'workspace/child-ws/target-a.txt',
     context: 'workspace',
@@ -200,6 +210,7 @@ describe('planForkFileCopies', () => {
       deletedAt: null,
       uploadedAt: new Date('2026-01-01'),
       updatedAt: new Date('2026-01-01'),
+      contentUpdatedAt: new Date('2026-01-01'),
     }
     const tx = {
       select: vi.fn(() => ({ from: () => ({ where: () => Promise.resolve([sourceMeta]) }) })),

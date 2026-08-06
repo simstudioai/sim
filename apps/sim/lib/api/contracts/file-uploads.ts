@@ -54,6 +54,7 @@ export const presignedUploadResponseSchema = z
     presignedUrl: z.string(),
     fileInfo: presignedFileInfoSchema,
     uploadHeaders: z.record(z.string(), z.string()).optional(),
+    uploadToken: z.string().optional(),
     directUploadSupported: z.boolean(),
   })
   .passthrough()

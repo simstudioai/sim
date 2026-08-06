@@ -1,5 +1,6 @@
 import '@sim/testing/mocks/executor'
 
+import { createLogger } from '@sim/logger'
 import { authOAuthUtilsMock, authOAuthUtilsMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
@@ -31,10 +32,16 @@ vi.mock('@/lib/model-router/resolve', () => ({
   SIM_AUTO_SYSTEM_PREAMBLE: 'Sim auto system preamble',
 }))
 
+import { PRIVATE_MODEL_INPUT_PROVENANCE_HEADER } from '@/lib/execution/model-input-provenance'
+import {
+  RESOLVED_SECRET_PROVENANCE_FIELD,
+  RESOLVED_SECRET_PROVENANCE_METADATA_V1,
+} from '@/lib/execution/private-tool-metadata'
 import { generateRouterPrompt, generateRouterV2Prompt } from '@/blocks/blocks/router'
 import { BlockType } from '@/executor/constants'
 import { RouterBlockHandler } from '@/executor/handlers/router/router-handler'
 import type { ExecutionContext } from '@/executor/types'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
@@ -42,6 +49,10 @@ const mockGenerateRouterPrompt = generateRouterPrompt as Mock
 const mockGenerateRouterV2Prompt = generateRouterV2Prompt as Mock
 const mockGetProviderFromModel = getProviderFromModel as Mock
 const mockFetch = vi.fn()
+const mockLogger =
+  vi.mocked(createLogger).mock.results[
+    vi.mocked(createLogger).mock.calls.findIndex(([name]) => name === 'RouterBlockHandler')
+  ].value
 
 describe('RouterBlockHandler', () => {
   let handler: RouterBlockHandler
@@ -232,6 +243,62 @@ describe('RouterBlockHandler', () => {
     })
   })
 
+  it('sends only model-visible legacy router provenance and excludes credentials', async () => {
+    const promptSecret = 'resolved-router-prompt'
+    const credentialSecret = 'resolved-router-credential'
+    const registry = new ResolvedSecretTraceRegistry([
+      {
+        name: 'PROMPT_SECRET',
+        plaintext: promptSecret,
+        encryptedValue: 'encrypted-router-prompt',
+      },
+      {
+        name: 'API_KEY',
+        plaintext: credentialSecret,
+        encryptedValue: 'encrypted-router-credential',
+      },
+    ])
+    registry.recordResolved('PROMPT_SECRET', promptSecret)
+    registry.recordResolved('API_KEY', credentialSecret)
+    mockContext.resolvedSecretTraceRegistry = registry
+
+    await handler.execute(mockContext, mockBlock, {
+      prompt: promptSecret,
+      model: 'gpt-4o',
+      apiKey: credentialSecret,
+    })
+
+    const request = mockFetch.mock.calls[0][1]
+    const requestBody = JSON.parse(request.body)
+    expect((request.headers as Headers).get(PRIVATE_MODEL_INPUT_PROVENANCE_HEADER)).toBe(
+      RESOLVED_SECRET_PROVENANCE_METADATA_V1
+    )
+    expect(requestBody[RESOLVED_SECRET_PROVENANCE_FIELD]).toEqual({
+      version: 1,
+      complete: true,
+      entries: [
+        {
+          encryptedValue: 'encrypted-router-prompt',
+          name: 'PROMPT_SECRET',
+        },
+      ],
+    })
+    expect(requestBody.apiKey).toBe(credentialSecret)
+  })
+
+  it('keeps the legacy router request shape when no provenance registry exists', async () => {
+    await handler.execute(mockContext, mockBlock, {
+      prompt: 'Choose the best option.',
+      model: 'gpt-4o',
+      apiKey: 'test-api-key',
+    })
+
+    const request = mockFetch.mock.calls[0][1]
+    const requestBody = JSON.parse(request.body)
+    expect(Object.hasOwn(requestBody, RESOLVED_SECRET_PROVENANCE_FIELD)).toBe(false)
+    expect((request.headers as Headers).get(PRIVATE_MODEL_INPUT_PROVENANCE_HEADER)).toBeNull()
+  })
+
   it('bills the cost the provider proxy decided rather than recomputing it', async () => {
     // The proxy already resolved key provenance and the margin; recomputing
     // here would re-charge a BYOK caller the proxy correctly zeroed.
@@ -292,6 +359,40 @@ describe('RouterBlockHandler', () => {
     )
   })
 
+  it('does not log sensitive provider content when routing fails', async () => {
+    const plaintext = 'router-provider-plaintext-secret'
+    const content = `${plaintext} __var_API_KEY __sim_runtime`
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          content,
+          model: 'mock-model',
+          tokens: {},
+          cost: 0,
+          timing: {},
+        }),
+    })
+
+    await expect(handler.execute(mockContext, mockBlock, { prompt: 'Test' })).rejects.toThrow(
+      `Invalid routing decision: ${content.toLowerCase()}`
+    )
+
+    expect(mockLogger.error).toHaveBeenCalledWith('Invalid routing decision', {
+      responseContentType: 'string',
+      responseContentLength: content.length,
+      availableBlockCount: 2,
+    })
+    expect(mockLogger.error).toHaveBeenCalledWith('Router execution failed', {
+      errorName: 'Error',
+    })
+    const logged = JSON.stringify(mockLogger.error.mock.calls)
+    expect(logged).not.toContain(plaintext)
+    expect(logged).not.toContain('__var_')
+    expect(logged).not.toContain('__sim_')
+  })
+
   it('should use default model and temperature if not provided', async () => {
     const inputs = { prompt: 'Choose.', apiKey: 'test-api-key' }
 
@@ -319,6 +420,28 @@ describe('RouterBlockHandler', () => {
     })
 
     await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow('Server error')
+  })
+
+  it('does not log sensitive provider errors while preserving the thrown error', async () => {
+    const providerError = 'provider-plaintext-secret __var_API_KEY __sim_runtime'
+
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      json: () => Promise.resolve({ error: providerError }),
+    })
+
+    await expect(handler.execute(mockContext, mockBlock, { prompt: 'Test' })).rejects.toThrow(
+      providerError
+    )
+
+    expect(mockLogger.error).toHaveBeenCalledWith('Router execution failed', {
+      errorName: 'Error',
+    })
+    const logged = JSON.stringify(mockLogger.error.mock.calls)
+    expect(logged).not.toContain('provider-plaintext-secret')
+    expect(logged).not.toContain('__var_')
+    expect(logged).not.toContain('__sim_')
   })
 
   it('should handle Azure OpenAI models with endpoint and API version', async () => {
@@ -525,6 +648,83 @@ describe('RouterBlockHandler V2', () => {
         blockTitle: 'Support Agent',
       },
     })
+  })
+
+  it('sends only model-visible router V2 provenance and excludes credentials', async () => {
+    const contextSecret = 'resolved-router-v2-context'
+    const credentialSecret = 'resolved-router-v2-credential'
+    const registry = new ResolvedSecretTraceRegistry([
+      {
+        name: 'CONTEXT_SECRET',
+        plaintext: contextSecret,
+        encryptedValue: 'encrypted-router-v2-context',
+      },
+      {
+        name: 'API_KEY',
+        plaintext: credentialSecret,
+        encryptedValue: 'encrypted-router-v2-credential',
+      },
+    ])
+    registry.recordResolved('CONTEXT_SECRET', contextSecret)
+    registry.recordResolved('API_KEY', credentialSecret)
+    mockContext.resolvedSecretTraceRegistry = registry
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          content: JSON.stringify({ route: 'route-support', reasoning: 'Matched support.' }),
+          model: 'gpt-4o',
+          tokens: { input: 10, output: 5, total: 15 },
+        }),
+    })
+
+    await handler.execute(mockContext, mockRouterV2Block, {
+      context: contextSecret,
+      model: 'gpt-4o',
+      apiKey: credentialSecret,
+      routes: [{ id: 'route-support', title: 'Support', value: 'Support requests' }],
+    })
+
+    const request = mockFetch.mock.calls[0][1]
+    const requestBody = JSON.parse(request.body)
+    expect((request.headers as Headers).get(PRIVATE_MODEL_INPUT_PROVENANCE_HEADER)).toBe(
+      RESOLVED_SECRET_PROVENANCE_METADATA_V1
+    )
+    expect(requestBody[RESOLVED_SECRET_PROVENANCE_FIELD]).toEqual({
+      version: 1,
+      complete: true,
+      entries: [
+        {
+          encryptedValue: 'encrypted-router-v2-context',
+          name: 'CONTEXT_SECRET',
+        },
+      ],
+    })
+    expect(requestBody.apiKey).toBe(credentialSecret)
+  })
+
+  it('keeps the router V2 request shape when no provenance registry exists', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          content: JSON.stringify({ route: 'route-support', reasoning: 'Matched support.' }),
+          model: 'gpt-4o',
+          tokens: { input: 10, output: 5, total: 15 },
+        }),
+    })
+
+    await handler.execute(mockContext, mockRouterV2Block, {
+      context: 'Support request',
+      model: 'gpt-4o',
+      apiKey: 'test-api-key',
+      routes: [{ id: 'route-support', title: 'Support', value: 'Support requests' }],
+    })
+
+    const request = mockFetch.mock.calls[0][1]
+    const requestBody = JSON.parse(request.body)
+    expect(Object.hasOwn(requestBody, RESOLVED_SECRET_PROVENANCE_FIELD)).toBe(false)
+    expect((request.headers as Headers).get(PRIVATE_MODEL_INPUT_PROVENANCE_HEADER)).toBeNull()
   })
 
   it('resolves sim-auto before executing router V2 and preserves its public identity', async () => {
@@ -736,6 +936,28 @@ describe('RouterBlockHandler V2', () => {
     )
   })
 
+  it('does not log sensitive resolved route input when JSON parsing fails', async () => {
+    const plaintext = 'router-input-plaintext-secret'
+    const routes = `[{"id":"${plaintext} __var_API_KEY __sim_runtime"`
+
+    await expect(
+      handler.execute(mockContext, mockRouterV2Block, {
+        context: 'Test context',
+        routes,
+      })
+    ).rejects.toThrow('No routes defined for router')
+
+    expect(mockLogger.error).toHaveBeenCalledWith('Failed to parse routes', {
+      errorName: 'SyntaxError',
+      inputType: 'string',
+      inputLength: routes.length,
+    })
+    const logged = JSON.stringify(mockLogger.error.mock.calls)
+    expect(logged).not.toContain(plaintext)
+    expect(logged).not.toContain('__var_')
+    expect(logged).not.toContain('__sim_')
+  })
+
   it('should handle fallback when JSON parsing fails', async () => {
     const inputs = {
       context: 'Test context',
@@ -760,5 +982,48 @@ describe('RouterBlockHandler V2', () => {
 
     expect(result.selectedRoute).toBe('route-1')
     expect(result.reasoning).toBe('')
+  })
+
+  it('does not log sensitive invalid structured responses', async () => {
+    const plaintext = 'router-v2-response-plaintext-secret'
+    const content = `${plaintext} __var_API_KEY __sim_runtime`
+    const inputs = {
+      context: 'Test context',
+      model: 'gpt-4o',
+      routes: [{ id: 'route-1', title: 'Route 1', value: 'Description' }],
+    }
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          content,
+          model: 'gpt-4o',
+          tokens: { input: 100, output: 5, total: 105 },
+        }),
+    })
+
+    await expect(handler.execute(mockContext, mockRouterV2Block, inputs)).rejects.toThrow(content)
+
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      'Router response was not valid JSON despite responseFormat',
+      {
+        errorName: 'SyntaxError',
+        responseContentType: 'string',
+        responseContentLength: content.length,
+      }
+    )
+    expect(mockLogger.error).toHaveBeenCalledWith('Invalid routing decision', {
+      responseContentType: 'string',
+      responseContentLength: content.length,
+      availableRouteCount: 1,
+    })
+    expect(mockLogger.error).toHaveBeenCalledWith('Router V2 execution failed', {
+      errorName: 'Error',
+    })
+    const logged = JSON.stringify(mockLogger.error.mock.calls)
+    expect(logged).not.toContain(plaintext)
+    expect(logged).not.toContain('__var_')
+    expect(logged).not.toContain('__sim_')
   })
 })

@@ -10,7 +10,6 @@ import {
   getCanonicalValues,
   isCanonicalPair,
   isNonEmptyValue,
-  isSubBlockFeatureEnabled,
   isSubBlockHidden,
   isToolInputOnlySubBlock,
   resolveCanonicalMode,
@@ -52,7 +51,6 @@ function shouldSerializeSubBlock(
   canonicalIndex: ReturnType<typeof buildCanonicalIndex>,
   canonicalModeOverrides?: CanonicalModeOverrides
 ): boolean {
-  if (!isSubBlockFeatureEnabled(subBlockConfig)) return false
   // Only meaningful when the block is invoked as an agent tool, where the
   // value lives on the tool entry rather than the block. Serializing it here
   // would let a non-UI writer (copilot, YAML import) set an invisible secret

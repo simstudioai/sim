@@ -7,8 +7,10 @@ import {
 } from '@sim/platform-authz/workflow'
 import { toError } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
+import { hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
 import { getBlockVisibilityForCopilot } from '@/lib/copilot/block-visibility'
 import { EditWorkflow } from '@/lib/copilot/generated/tool-catalog-v1'
+import { operationsReferenceSimSandbox } from '@/lib/copilot/sim-sandbox-projection'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
@@ -16,6 +18,7 @@ import {
 } from '@/lib/copilot/tools/server/base-tool'
 import { env } from '@/lib/core/config/env'
 import { getSocketServerUrl } from '@/lib/core/utils/urls'
+import { MAX_PLAN_REQUIRED } from '@/lib/execution/remote-sandbox/workspace-sandboxes'
 import {
   applyTargetedLayout,
   getTargetedLayoutImpact,
@@ -116,6 +119,13 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
 
     const workspaceId = authorization.workflow?.workspaceId ?? undefined
     const workflowName = authorization.workflow?.name ?? undefined
+
+    if (
+      operationsReferenceSimSandbox(operations) &&
+      (!workspaceId || !(await hasWorkspaceSandboxAccess(workspaceId)))
+    ) {
+      throw new Error(MAX_PLAN_REQUIRED)
+    }
 
     logger.info('Executing edit_workflow', {
       operationCount: operations.length,

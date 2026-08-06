@@ -12,10 +12,15 @@ import {
 } from '@/lib/a2a/client'
 import { a2aSendMessageContract } from '@/lib/api/contracts/tools/a2a'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
-import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { enforceUserOrIpRateLimit } from '@/lib/core/rate-limiter'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { validateOpaqueModelInputProvenance } from '@/lib/execution/model-input-provenance'
+import {
+  isModelSafeWorkspaceFileKey,
+  MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
+} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
@@ -59,6 +64,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   )
   if (!parsed.success) return parsed.response
   const body = parsed.data.body
+  const modelInputProvenance = validateOpaqueModelInputProvenance({
+    headers: request.headers,
+    payload: body,
+    isInternalRequest: auth.authType === AuthType.INTERNAL_JWT,
+  })
+  if (!modelInputProvenance.success) {
+    return NextResponse.json(
+      { success: false, error: modelInputProvenance.error },
+      { status: modelInputProvenance.status }
+    )
+  }
 
   let data: unknown
   if (body.data !== undefined) {
@@ -89,6 +105,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       for (const userFile of userFiles) {
         const denied = await assertToolFileAccess(userFile.key, auth.userId, requestId, logger)
         if (denied) return denied
+        if (!(await isModelSafeWorkspaceFileKey(userFile.key))) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
+            },
+            { status: 400 }
+          )
+        }
       }
       files = await Promise.all(
         userFiles.map(async (userFile) => {

@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import type { WorkflowStateContractInput } from '@/lib/api/contracts/workflows'
 import { readSSEEvents } from '@/lib/core/utils/sse'
 import type {
   BlockChildWorkflowStartedData,
@@ -196,12 +197,7 @@ export interface ExecuteStreamOptions {
   triggerType?: string
   useDraftState?: boolean
   isClientSession?: boolean
-  workflowStateOverride?: {
-    blocks: Record<string, any>
-    edges: any[]
-    loops?: Record<string, any>
-    parallels?: Record<string, any>
-  }
+  workflowStateOverride?: WorkflowStateContractInput
   stopAfterBlockId?: string
   onExecutionId?: (executionId: string) => void
   callbacks?: ExecutionStreamCallbacks
@@ -213,6 +209,9 @@ export interface ExecuteFromBlockOptions {
   sourceSnapshot?: SerializableExecutionState
   sourceExecutionId?: string
   input?: any
+  useDraftState?: boolean
+  isClientSession?: boolean
+  workflowStateOverride?: WorkflowStateContractInput
   onExecutionId?: (executionId: string) => void
   callbacks?: ExecutionStreamCallbacks
 }
@@ -351,6 +350,9 @@ export function useExecutionStream() {
       sourceSnapshot,
       sourceExecutionId,
       input,
+      useDraftState,
+      isClientSession,
+      workflowStateOverride,
       onExecutionId,
       callbacks = {},
     } = options
@@ -372,6 +374,9 @@ export function useExecutionStream() {
         body: JSON.stringify({
           stream: true,
           input,
+          useDraftState,
+          isClientSession,
+          workflowStateOverride,
           runFromBlock: {
             startBlockId,
             ...(sourceExecutionId ? { executionId: sourceExecutionId } : {}),

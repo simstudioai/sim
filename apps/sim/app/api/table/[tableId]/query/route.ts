@@ -13,6 +13,7 @@ import { validatePredicate, validateSortSpec } from '@/lib/table/query-builder/v
 import { assertCursorSortBinding, decodeCursor } from '@/lib/table/rows/cursor'
 import { queryRows } from '@/lib/table/rows/service'
 import { predicateToStorage } from '@/lib/table/select-values'
+import { createTableRowsResponse } from '@/app/api/table/row-secret-provenance'
 import { rowWireTranslators } from '@/app/api/table/row-wire'
 import { accessError, checkAccess, tablesV2GateError } from '@/app/api/table/utils'
 
@@ -102,7 +103,7 @@ export const POST = withRouteHandler(async (request: NextRequest, context: RowQu
       requestId
     )
 
-    return NextResponse.json({
+    const responseBody = {
       success: true,
       data: {
         rows: result.rows.map((r) => ({
@@ -119,6 +120,14 @@ export const POST = withRouteHandler(async (request: NextRequest, context: RowQu
         limit: result.limit,
         nextCursor: result.nextCursor,
       },
+    }
+    return createTableRowsResponse({
+      request,
+      authType: authResult.authType,
+      userId: authResult.userId,
+      workspaceId: table.workspaceId,
+      body: responseBody,
+      rows: result.rows,
     })
   } catch (error) {
     if (isZodError(error)) return validationErrorResponse(error)

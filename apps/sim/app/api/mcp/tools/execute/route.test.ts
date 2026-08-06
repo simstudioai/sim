@@ -4,13 +4,19 @@
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDiscoverServerTools, mockExecuteTool, mockReadResponseToBufferWithLimit } = vi.hoisted(
-  () => ({
-    mockDiscoverServerTools: vi.fn(),
-    mockExecuteTool: vi.fn(),
-    mockReadResponseToBufferWithLimit: vi.fn(),
-  })
-)
+const {
+  mockCapExecutionTimeoutMs,
+  mockDiscoverServerTools,
+  mockExecuteTool,
+  mockGetExecutionTimeout,
+  mockReadResponseToBufferWithLimit,
+} = vi.hoisted(() => ({
+  mockCapExecutionTimeoutMs: vi.fn((_policy: number, requested?: number) => requested ?? 0),
+  mockDiscoverServerTools: vi.fn(),
+  mockExecuteTool: vi.fn(),
+  mockGetExecutionTimeout: vi.fn(() => 0),
+  mockReadResponseToBufferWithLimit: vi.fn(),
+}))
 
 vi.mock('@/lib/core/utils/stream-limits', () => ({
   readResponseToBufferWithLimit: mockReadResponseToBufferWithLimit,
@@ -60,7 +66,8 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
 
 vi.mock('@/lib/core/execution-limits', () => ({
   DEFAULT_EXECUTION_TIMEOUT_MS: 30_000,
-  getExecutionTimeout: () => 0,
+  capExecutionTimeoutMs: mockCapExecutionTimeoutMs,
+  getExecutionTimeout: mockGetExecutionTimeout,
 }))
 
 vi.mock('@/ee/access-control/utils/permission-check', () => ({
@@ -195,5 +202,33 @@ describe('MCP tool execution private secret provenance', () => {
     expect(
       (body.data as { output: { content: Array<{ text?: unknown }> } }).output.content[0]?.text
     ).toBe('unchanged')
+  })
+
+  it('uses the remaining workflow deadline for trusted internal tool calls', async () => {
+    const request = createRequest({
+      'x-sim-execution-deadline-ms': String(Date.now() + 10_000),
+    })
+
+    const response = await POST(request, {})
+
+    expect(response.status).toBe(200)
+    expect(mockGetExecutionTimeout).toHaveBeenCalledWith('pro', 'async', undefined)
+    expect(mockCapExecutionTimeoutMs).toHaveBeenCalledWith(0, expect.any(Number))
+    const remainingMs = mockCapExecutionTimeoutMs.mock.calls.at(-1)?.[1]
+    expect(remainingMs).toBeGreaterThan(0)
+    expect(remainingMs).toBeLessThanOrEqual(10_000)
+  })
+
+  it('ignores the internal deadline header for session callers', async () => {
+    const request = createRequest({
+      'x-test-session': 'true',
+      'x-sim-execution-deadline-ms': String(Date.now() + 10_000),
+    })
+
+    const response = await POST(request, {})
+
+    expect(response.status).toBe(200)
+    expect(mockGetExecutionTimeout).toHaveBeenCalledWith('pro', 'sync')
+    expect(mockCapExecutionTimeoutMs).not.toHaveBeenCalled()
   })
 })

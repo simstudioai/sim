@@ -165,7 +165,7 @@ describe('mothership private trace provenance transport', () => {
     registry?.recordResolved('API_KEY', 'secret-value')
   }
 
-  it('does not expose private provenance unless the internal caller requests it', async () => {
+  it('builds the model-egress catalog without exposing provenance unless requested', async () => {
     mockRunHeadlessCopilotLifecycle.mockImplementation(
       async (_payload: Record<string, unknown>, options: CopilotLifecycleOptions) => {
         activateSecret(options)
@@ -187,10 +187,115 @@ describe('mothership private trace provenance transport', () => {
     expect(response.headers.get('x-sim-private-tool-metadata')).toBeNull()
     expect(body.content).toBe('secret-value')
     expect(body).not.toHaveProperty('__resolvedSecretTraceProvenance')
-    expect(mockGetPersonalAndWorkspaceEnv).not.toHaveBeenCalled()
+    expect(mockGetPersonalAndWorkspaceEnv).toHaveBeenCalledTimes(1)
     expect(mockRunHeadlessCopilotLifecycle).toHaveBeenCalledWith(
       expect.any(Object),
-      expect.objectContaining({ environmentContext: undefined })
+      expect.objectContaining({ environmentContext: expect.any(Object) })
+    )
+  })
+
+  it('omits an absent response format from the headless lifecycle payload', async () => {
+    mockRunHeadlessCopilotLifecycle.mockImplementation(async (payload: Record<string, unknown>) => {
+      expect(payload).not.toHaveProperty('responseFormat')
+      return successResult()
+    })
+
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        requestBody,
+        { Authorization: 'Bearer internal', 'x-sim-billing-attribution': 'billing' },
+        'http://localhost:3000/api/mothership/execute'
+      )
+    )
+
+    expect(response.status).toBe(200)
+  })
+
+  it('keeps preprocessing inputs raw and delegates model projection to the lifecycle boundary', async () => {
+    mockRunHeadlessCopilotLifecycle.mockImplementation(async (payload: Record<string, unknown>) => {
+      expect(JSON.stringify(payload)).toContain('secret-value __var_FOREIGN')
+      return successResult()
+    })
+
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        {
+          ...requestBody,
+          messages: [{ role: 'user', content: 'secret-value __var_FOREIGN' }],
+          contexts: [{ kind: 'docs', label: 'Docs' }],
+        },
+        { Authorization: 'Bearer internal', 'x-sim-billing-attribution': 'billing' },
+        'http://localhost:3000/api/mothership/execute'
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockProcessContextsServer).toHaveBeenCalledWith(
+      expect.any(Array),
+      'user-1',
+      'secret-value __var_FOREIGN',
+      'workspace-1',
+      'chat-1'
+    )
+  })
+
+  it('keeps context routing and display inputs raw until the lifecycle boundary', async () => {
+    mockGetPersonalAndWorkspaceEnv.mockResolvedValueOnce({
+      personalEncrypted: { API_KEY: 'encrypted-secret' },
+      workspaceEncrypted: {},
+      personalDecrypted: { API_KEY: '123' },
+      workspaceDecrypted: {},
+      decryptionFailures: [],
+    })
+    mockDecryptSecret.mockResolvedValue({ decrypted: '123' })
+    mockRunHeadlessCopilotLifecycle.mockResolvedValue(successResult())
+
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        {
+          ...requestBody,
+          contexts: [
+            { kind: 'mcp', label: 'MCP 123', serverId: '123', path: '123' },
+            {
+              kind: 'file_selection',
+              label: 'File 123',
+              fileId: '123',
+              fileName: '123.txt',
+              text: 'Selected 123',
+              path: '123',
+            },
+          ],
+        },
+        { Authorization: 'Bearer internal', 'x-sim-billing-attribution': 'billing' },
+        'http://localhost:3000/api/mothership/execute'
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockBuildTaggedMcpToolSchemas).toHaveBeenCalledWith(
+      'user-1',
+      'workspace-1',
+      ['123'],
+      expect.any(Function)
+    )
+    expect(mockProcessContextsServer).toHaveBeenCalledWith(
+      [
+        {
+          kind: 'file_selection',
+          label: 'File 123',
+          fileId: '123',
+          fileName: '123.txt',
+          text: 'Selected 123',
+          path: '123',
+        },
+      ],
+      'user-1',
+      'hello',
+      'workspace-1',
+      'chat-1'
     )
   })
 
@@ -224,17 +329,25 @@ describe('mothership private trace provenance transport', () => {
     )
 
     expect(response.status).toBe(200)
+    expect(mockGenerateWorkspaceContext).toHaveBeenCalledWith('workspace-1', 'user-1', {
+      workspaceAccess: expect.any(Object),
+      secretMountPolicy: {
+        secretScope: 'selected',
+        mountedSecrets: ['API_KEY'],
+      },
+    })
   })
 
-  it('keeps execution functional and fails trace provenance closed when catalog setup fails', async () => {
+  it('fails model egress closed when catalog setup fails', async () => {
     mockGetPersonalAndWorkspaceEnv.mockRejectedValueOnce(new Error('catalog unavailable'))
-    mockRunHeadlessCopilotLifecycle.mockImplementation(
-      async (_payload: Record<string, unknown>, options: CopilotLifecycleOptions) => {
-        expect(options.resolvedSecretTraceRegistry?.isComplete()).toBe(false)
-        expect(options.environmentContext).toBeUndefined()
-        return successResult()
-      }
-    )
+    mockRunHeadlessCopilotLifecycle.mockResolvedValueOnce({
+      success: false,
+      error: 'Copilot model input could not be safely projected',
+      content: '',
+      contentBlocks: [],
+      toolCalls: [],
+      chatId: 'chat-1',
+    })
 
     const response = await POST(
       createMockRequest(
@@ -250,14 +363,21 @@ describe('mothership private trace provenance transport', () => {
     )
     const body = await response.json()
 
-    expect(response.status).toBe(200)
-    expect(body.content).toBe('secret-value')
+    expect(response.status).toBe(500)
+    expect(body.error).toBe('Copilot model input could not be safely projected')
     expect(body.__resolvedSecretTraceProvenance).toEqual({
       version: 1,
       complete: false,
       entries: [],
       scope: { userId: 'user-1', workspaceId: 'workspace-1' },
     })
+    expect(mockRunHeadlessCopilotLifecycle).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({
+        environmentContext: undefined,
+        resolvedSecretTraceRegistry: expect.any(Object),
+      })
+    )
   })
 
   it('fails provenance closed without changing a runtime value that rotated after catalog load', async () => {
@@ -334,13 +454,19 @@ describe('mothership private trace provenance transport', () => {
     expect(mockGetPersonalAndWorkspaceEnv).toHaveBeenCalledTimes(1)
   })
 
-  it('imports MCP schema-discovery provenance before starting the lifecycle', async () => {
+  it('imports only MCP provenance present in the discovered schemas', async () => {
     const provenance = {
       version: 1,
       complete: true,
-      entries: [{ name: 'API_KEY', encryptedValue: 'encrypted-secret' }],
+      entries: [
+        { name: 'API_KEY', encryptedValue: 'encrypted-secret' },
+        { name: 'UNRELATED', encryptedValue: 'encrypted-unrelated' },
+      ],
       scope: { userId: 'user-1', workspaceId: 'workspace-1' },
     }
+    mockDecryptSecret.mockImplementation(async (encryptedValue: string) => ({
+      decrypted: encryptedValue === 'encrypted-secret' ? 'secret-value' : 'unrelated-value',
+    }))
     mockBuildTaggedMcpToolSchemas.mockImplementationOnce(
       async (
         _userId: string,
@@ -349,7 +475,7 @@ describe('mothership private trace provenance transport', () => {
         report: (value: unknown) => void
       ) => {
         report(provenance)
-        return []
+        return [{ name: 'mcp-docs', description: 'Uses secret-value' }]
       }
     )
     mockRunHeadlessCopilotLifecycle.mockImplementation(
@@ -357,7 +483,10 @@ describe('mothership private trace provenance transport', () => {
         const registry =
           options.environmentContext?.resolvedSecretTraceRegistry ??
           options.resolvedSecretTraceRegistry
-        expect(registry?.exportProvenance()).toEqual(provenance)
+        expect(registry?.exportProvenance()).toEqual({
+          ...provenance,
+          entries: [{ name: 'API_KEY', encryptedValue: 'encrypted-secret' }],
+        })
         expect(JSON.stringify(payload)).not.toContain('encrypted-secret')
         expect(JSON.stringify(payload)).not.toContain('__resolvedSecretTraceProvenance')
         return successResult()
@@ -381,13 +510,17 @@ describe('mothership private trace provenance transport', () => {
     )
     const body = await response.json()
 
+    expect(body.error, JSON.stringify(body)).toBeUndefined()
     expect({ status: response.status, provenance: body.__resolvedSecretTraceProvenance }).toEqual({
       status: 200,
-      provenance,
+      provenance: {
+        ...provenance,
+        entries: [{ name: 'API_KEY', encryptedValue: 'encrypted-secret' }],
+      },
     })
   })
 
-  it('marks the lifecycle registry incomplete for malformed MCP discovery provenance', async () => {
+  it('omits MCP tools with malformed discovery provenance without poisoning the lifecycle', async () => {
     mockBuildTaggedMcpToolSchemas.mockImplementationOnce(
       async (
         _userId: string,
@@ -400,11 +533,12 @@ describe('mothership private trace provenance transport', () => {
       }
     )
     mockRunHeadlessCopilotLifecycle.mockImplementation(
-      async (_payload: Record<string, unknown>, options: CopilotLifecycleOptions) => {
+      async (payload: Record<string, unknown>, options: CopilotLifecycleOptions) => {
         const registry =
           options.environmentContext?.resolvedSecretTraceRegistry ??
           options.resolvedSecretTraceRegistry
-        expect(registry?.isComplete()).toBe(false)
+        expect(registry?.isComplete()).toBe(true)
+        expect(payload).not.toHaveProperty('mothershipTools')
         return successResult()
       }
     )
@@ -429,7 +563,7 @@ describe('mothership private trace provenance transport', () => {
     expect(response.status).toBe(200)
     expect(body.__resolvedSecretTraceProvenance).toEqual({
       version: 1,
-      complete: false,
+      complete: true,
       entries: [],
       scope: { userId: 'user-1', workspaceId: 'workspace-1' },
     })

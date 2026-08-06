@@ -17,11 +17,22 @@ import {
   PARALLEL_EMPTY_RESULTS_ERROR,
 } from '@/executor/handlers/pi/search/tool'
 import type { ExecutionContext } from '@/executor/types'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
-const ctx = { executionId: 'exec-1', workspaceId: 'ws-1' } as unknown as ExecutionContext
+function executionContext(
+  registry: ResolvedSecretTraceRegistry | undefined = new ResolvedSecretTraceRegistry()
+): ExecutionContext {
+  return {
+    executionId: 'exec-1',
+    workspaceId: 'ws-1',
+    resolvedSecretTraceRegistry: registry,
+  } as ExecutionContext
+}
 
-function buildTool(provider: 'exa' | 'serper' | 'parallel' | 'firecrawl' = 'exa') {
-  return buildPiSearchToolSpec(ctx, { provider, apiKey: 'key-123' }, 'local')
+const ctx = executionContext()
+
+function buildTool(provider: 'exa' | 'serper' | 'parallel' | 'firecrawl' = 'exa', context = ctx) {
+  return buildPiSearchToolSpec(context, { provider, apiKey: 'key-123' }, 'local')
 }
 
 async function run(
@@ -55,7 +66,9 @@ describe('buildPiSearchToolSpec', () => {
     expect(toolId).toBe('exa_search')
     expect(params.apiKey).toBe('key-123')
     expect(params.timeout).toBe(10_000)
-    expect(options).toEqual({ executionContext: ctx })
+    expect(options.executionContext).toBe(ctx)
+    expect(options.resolvedSecretTraceRegistry).toBeInstanceOf(ResolvedSecretTraceRegistry)
+    expect(options.resolvedSecretTraceRegistry).not.toBe(ctx.resolvedSecretTraceRegistry)
   })
 
   it('sends provider-specific parameter names and never forwards model-supplied extras', async () => {
@@ -97,6 +110,137 @@ describe('buildPiSearchToolSpec', () => {
         },
       ],
     })
+  })
+
+  it('projects named provenance before normalizing and serializing provider output', async () => {
+    const secret = 'quoted"\\secret\nnext-line'
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'SEARCH_QUERY', plaintext: secret, encryptedValue: 'ciphertext' },
+    ])
+    registry.recordResolved('SEARCH_QUERY', secret)
+    const mergeSpy = vi.spyOn(registry, 'mergeToolCallRegistry')
+    const context = executionContext(registry)
+    mockExecuteTool.mockResolvedValue({
+      success: true,
+      output: {
+        results: [
+          {
+            title: secret,
+            url: 'https://example.com/docs',
+            text: `Bearer ${secret}`,
+          },
+        ],
+      },
+    })
+
+    const result = await buildTool('exa', context).execute({ query: secret })
+
+    expect(JSON.parse(result.text)).toEqual({
+      results: [
+        {
+          title: '{{SEARCH_QUERY}}',
+          url: 'https://example.com/docs',
+          snippet: 'Bearer {{SEARCH_QUERY}}',
+        },
+      ],
+    })
+    const options = mockExecuteTool.mock.calls[0][2]
+    expect(options.resolvedSecretTraceRegistry).not.toBe(registry)
+    expect(mergeSpy).toHaveBeenCalledWith(options.resolvedSecretTraceRegistry)
+  })
+
+  it('preserves an unrelated low-entropy result absent from this search call inputs', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'LOW_ENTROPY', plaintext: 'Test', encryptedValue: 'ciphertext' },
+    ])
+    registry.recordResolved('LOW_ENTROPY', 'Test')
+    mockExecuteTool.mockResolvedValue({
+      success: true,
+      output: {
+        results: [
+          {
+            title: 'Test',
+            url: 'https://example.com/docs',
+            text: 'Test',
+          },
+        ],
+      },
+    })
+
+    const result = await buildTool('exa', executionContext(registry)).execute({ query: 'pi' })
+
+    expect(JSON.parse(result.text).results[0]).toEqual({
+      title: 'Test',
+      url: 'https://example.com/docs',
+      snippet: 'Test',
+    })
+  })
+
+  it('projects anonymous provenance learned by the isolated search call', async () => {
+    const registry = new ResolvedSecretTraceRegistry()
+    mockExecuteTool.mockImplementation(async (_toolId, _params, options) => {
+      vi.spyOn(options.resolvedSecretTraceRegistry, 'getModelEgressSnapshot').mockReturnValue({
+        complete: true,
+        matches: [{ plaintext: 'foreign-secret', replacement: '[REDACTED_SECRET]' }],
+      })
+      return {
+        success: true,
+        output: {
+          results: [
+            {
+              title: 'Docs',
+              url: 'https://example.com/docs',
+              text: 'foreign-secret',
+            },
+          ],
+        },
+      }
+    })
+
+    const result = await buildTool('exa', executionContext(registry)).execute({ query: 'pi' })
+
+    expect(JSON.parse(result.text).results[0].snippet).toBe('[REDACTED_SECRET]')
+  })
+
+  it.each([
+    ['missing', undefined],
+    [
+      'incomplete',
+      (() => {
+        const registry = new ResolvedSecretTraceRegistry()
+        registry.markIncomplete()
+        return registry
+      })(),
+    ],
+  ])('fails closed before search when provenance is %s', async (_label, registry) => {
+    const context = registry
+      ? executionContext(registry)
+      : ({ executionId: 'exec-1', workspaceId: 'ws-1' } as ExecutionContext)
+    const result = await buildTool('exa', context).execute({ query: 'pi' })
+
+    expect(result.isError).toBe(true)
+    expect(result.text).toContain('could not be returned safely')
+    expect(mockExecuteTool).not.toHaveBeenCalled()
+  })
+
+  it('does not merge an incomplete search call registry or return its output', async () => {
+    const registry = new ResolvedSecretTraceRegistry()
+    const mergeSpy = vi.spyOn(registry, 'mergeToolCallRegistry')
+    mockExecuteTool.mockImplementation(async (_toolId, _params, options) => {
+      options.resolvedSecretTraceRegistry.markIncomplete()
+      return {
+        success: true,
+        output: {
+          results: [{ title: 'Unsafe', url: 'https://example.com/docs', text: 'untrusted output' }],
+        },
+      }
+    })
+
+    const result = await buildTool('exa', executionContext(registry)).execute({ query: 'pi' })
+
+    expect(result.isError).toBe(true)
+    expect(result.text).not.toContain('untrusted output')
+    expect(mergeSpy).not.toHaveBeenCalled()
   })
 
   it('reports an empty search as a successful no-results envelope', async () => {

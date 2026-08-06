@@ -50,6 +50,10 @@ export const elevenLabsTtsTool: ToolConfig<ElevenLabsTtsParams, ElevenLabsTtsRes
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({ text: params.text }),
+    },
     url: '/api/tools/tts',
     method: 'POST',
     headers: () => ({

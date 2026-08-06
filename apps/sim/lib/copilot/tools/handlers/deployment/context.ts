@@ -10,19 +10,20 @@ interface DeploymentAttemptCurrentState {
 }
 
 /**
- * Builds a replay-stable idempotency key for one logical Copilot tool call.
- * The orchestration layer generates a fresh key when legacy callers do not
- * provide a tool-call identity.
+ * Builds a retry-stable scope for one deployment intent in a Copilot run.
+ * The orchestration layer appends the canonical deployment request hash, so
+ * an unchanged retry reuses the operation while a later edited draft remains
+ * a distinct deployment.
  */
 export function getCopilotDeploymentIdempotencyKey(
-  context: DeploymentToolContext
+  context: DeploymentToolContext,
+  operation: string
 ): string | undefined {
-  if (!context.toolCallId) return undefined
-
   const executionScope = context.executionId ?? context.runId ?? context.messageId
-  return executionScope
-    ? `copilot:${executionScope}:tool-call:${context.toolCallId}`
-    : `copilot:tool-call:${context.toolCallId}`
+  if (executionScope) return `copilot:${executionScope}:operation:${operation}`
+  return context.toolCallId
+    ? `copilot:tool-call:${context.toolCallId}:operation:${operation}`
+    : undefined
 }
 
 /** Rejects a replay whose persisted operation no longer describes production. */
