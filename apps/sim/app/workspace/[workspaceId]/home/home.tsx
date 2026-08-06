@@ -463,23 +463,29 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
     if (ref.type !== 'file') return
 
     // `staleTime: 0` forces the fetch this branch exists for — the cached list
-    // is what already failed to resolve. `fetchQuery` rejects on error, and
-    // this handler is invoked as a void callback, so the catch keeps a failed
-    // refetch on the same "resolved nothing" path as an empty result.
+    // is what already failed to resolve. `fetchQuery` rejects on error and this
+    // handler is invoked as a void callback, so failure becomes null rather
+    // than an unhandled rejection — and stays distinct from an empty list, so
+    // "we could not look" is never reported as "it is not there".
     const files = await queryClient
       .fetchQuery({ ...getWorkspaceFilesQueryOptions(workspaceId), staleTime: 0 })
-      .catch(() => [])
-    const resolved = resolveWorkspaceResourceRef(ref, files)
+      .catch(() => null)
+    const resolved = files && resolveWorkspaceResourceRef(ref, files)
     if (resolved) {
       openWorkspaceResource(resolved)
       return
     }
     // The chip looks clickable, so refusing silently reads as a broken button.
-    toast.error(`Couldn't find "${ref.title}" in this workspace`)
-    logger.warn('Ignored a resource chip that names nothing in this workspace', {
+    toast.error(
+      files
+        ? `Couldn't find "${ref.title}" in this workspace`
+        : `Couldn't open "${ref.title}" — check your connection and try again`
+    )
+    logger.warn('Ignored a resource chip that did not resolve', {
       type: ref.type,
       title: ref.title,
       hasPath: Boolean(ref.path),
+      reachedWorkspace: files !== null,
     })
   }
 
