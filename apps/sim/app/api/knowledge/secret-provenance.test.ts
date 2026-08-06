@@ -15,6 +15,11 @@ import {
   resolveKnowledgeWriteSecretProvenance,
 } from '@/app/api/knowledge/secret-provenance'
 
+const PRIVATE_PROVENANCE_SCOPE = {
+  userId: 'user-1',
+  workspaceId: 'workspace-1',
+} as const
+
 function createRequest(
   payload: Record<string, unknown>,
   provenanceHeader = PRIVATE_SECRET_PROVENANCE_BUNDLE_V1
@@ -100,7 +105,12 @@ describe('knowledge write secret provenance', () => {
       selections: [
         {
           key: 'chunk-content',
-          provenance: { version: 1 as const, complete: true, entries: [] },
+          provenance: {
+            version: 1 as const,
+            complete: true,
+            entries: [],
+            scope: PRIVATE_PROVENANCE_SCOPE,
+          },
         },
       ],
     }
@@ -128,7 +138,12 @@ describe('knowledge write secret provenance', () => {
       selections: [
         {
           key: 'chunk-content',
-          provenance: { version: 1 as const, complete: true, entries: [] },
+          provenance: {
+            version: 1 as const,
+            complete: true,
+            entries: [],
+            scope: PRIVATE_PROVENANCE_SCOPE,
+          },
         },
       ],
     }
@@ -154,7 +169,12 @@ describe('knowledge write secret provenance', () => {
       selections: [
         {
           key: 'document-source:0',
-          provenance: { version: 1 as const, complete: false, entries: [] },
+          provenance: {
+            version: 1 as const,
+            complete: false,
+            entries: [],
+            scope: PRIVATE_PROVENANCE_SCOPE,
+          },
         },
       ],
     }
