@@ -4,12 +4,17 @@
 import { describe, expect, it } from 'vitest'
 import { isHeifContainer, transcodeHeicToJpeg } from '@/lib/uploads/server/heic'
 
-/** An ISO-BMFF header: 4-byte box size, the `ftyp` marker, then the major brand. */
-function ftypHeader(brand: string): Buffer {
-  const header = Buffer.alloc(16)
-  header.writeUInt32BE(16, 0)
+/**
+ * An ISO-BMFF `ftyp` box: 4-byte size, the `ftyp` marker, the major brand, a
+ * 4-byte minor version, then any compatible brands.
+ */
+function ftypHeader(brand: string, compatible: string[] = []): Buffer {
+  const size = 16 + compatible.length * 4
+  const header = Buffer.alloc(size)
+  header.writeUInt32BE(size, 0)
   header.write('ftyp', 4, 'ascii')
   header.write(brand, 8, 'ascii')
+  compatible.forEach((entry, index) => header.write(entry, 16 + index * 4, 'ascii'))
   return header
 }
 
@@ -46,6 +51,22 @@ describe('isHeifContainer', () => {
 
   it('rejects an unknown brand in a well-formed ftyp box', () => {
     expect(isHeifContainer(ftypHeader('qt  '))).toBe(false)
+  })
+
+  it('detects a HEIF brand declared only among the compatible brands', () => {
+    // Standards-valid: a generic major brand with the HEIF brand listed after it.
+    expect(isHeifContainer(ftypHeader('isom', ['iso2', 'heic', 'mif1']))).toBe(true)
+    expect(isHeifContainer(ftypHeader('mp42', ['heix']))).toBe(true)
+  })
+
+  it('rejects a box whose compatible brands are all non-HEIF', () => {
+    expect(isHeifContainer(ftypHeader('isom', ['iso2', 'mp41', 'mp42']))).toBe(false)
+  })
+
+  it('does not read compatible brands past the declared box size', () => {
+    const truncated = ftypHeader('isom', ['heic'])
+    truncated.writeUInt32BE(16, 0)
+    expect(isHeifContainer(truncated)).toBe(false)
   })
 
   it('rejects buffers too short to carry a brand', () => {
