@@ -83,7 +83,7 @@ vi.mock('@/stores/workflows/registry/store', () => ({
     selector({ hydration: { phase: mockState.hydrationPhase } }),
 }))
 
-import { Deploy } from './deploy'
+import { Deploy } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/deploy'
 
 let container: HTMLDivElement
 let root: Root

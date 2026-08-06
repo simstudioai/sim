@@ -362,8 +362,8 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
   const { data: session } = useSession()
   const hostContext = useWorkspaceHostContext()
   const { userPermissions: effectivePermissions } = useWorkspacePermissionsContext()
-  const { data: workflowMap = {} } = useWorkflowMap(workspaceId)
-  const { data: folderMap = {} } = useFolderMap(workspaceId)
+  const { data: workflowMap, isLoading: isWorkflowMapLoading } = useWorkflowMap(workspaceId)
+  const { data: folderMap, isLoading: isFolderMapLoading } = useFolderMap(workspaceId)
   const setActiveWorkflow = useWorkflowRegistry((state) => state.setActiveWorkflow)
   const { handleRunWorkflow, handleCancelExecution } = useWorkflowExecution()
   const isExecuting = useExecutionStore(
@@ -383,7 +383,11 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
   const isRunButtonDisabled =
     !isExecuting &&
     (isUsageGateLoading || (!effectivePermissions.canRead && !effectivePermissions.isLoading))
-  const isWorkflowLocked = isWorkflowEffectivelyLocked(workflowMap[workflowId], folderMap)
+  const isWorkflowLockDataLoading =
+    isWorkflowMapLoading || isFolderMapLoading || !workflowMap || !folderMap
+  const isWorkflowLocked =
+    isWorkflowLockDataLoading ||
+    isWorkflowEffectivelyLocked(workflowMap?.[workflowId], folderMap ?? {})
 
   const handleRun = async () => {
     setActiveWorkflow(workflowId)
