@@ -91,6 +91,18 @@ async function listFiles(dir: string): Promise<string[]> {
 }
 
 /**
+ * Drops a trailing `//` or `/* *\/` comment from an already-trimmed line. A
+ * directive keeps its meaning when a note follows it on the same line, so the
+ * comment has to come off before the directive is matched.
+ */
+function stripTrailingComment(line: string): string {
+  return line.replace(/(?:\/\/.*|\/\*.*?\*\/)\s*$/, '').trim()
+}
+
+/** A lone directive statement, e.g. `'use server'` or `"use client";`. */
+const DIRECTIVE_STATEMENT = /^(['"])(use [a-z-]+)\1\s*;?$/
+
+/**
  * Returns the module's leading directive prologue string, if any. A directive
  * must be the first statement; comments and blank lines may precede it.
  */
@@ -100,7 +112,7 @@ function leadingDirective(content: string): string | null {
     if (line === '' || line.startsWith('//') || line.startsWith('/*') || line.startsWith('*')) {
       continue
     }
-    const match = /^(['"])(use [a-z-]+)\1;?$/.exec(line)
+    const match = DIRECTIVE_STATEMENT.exec(stripTrailingComment(line))
     return match ? match[2] : null
   }
   return null
@@ -129,7 +141,8 @@ async function findUseServerDirectives(): Promise<string[]> {
     for (const absFile of await listFiles(dir)) {
       const lines = (await readFile(absFile, 'utf8')).split('\n')
       for (let i = 0; i < lines.length; i++) {
-        if (/^(['"])use server\1;?$/.test(lines[i].trim())) {
+        const match = DIRECTIVE_STATEMENT.exec(stripTrailingComment(lines[i].trim()))
+        if (match?.[2] === 'use server') {
           found.push(`${path.relative(ROOT, absFile)}:${i + 1}`)
         }
       }
