@@ -2,7 +2,7 @@ import { db } from '@sim/db'
 import { workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { and, asc, eq, gt, inArray, isNull, or, type SQL } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, inArray, isNull, lt, or, type SQL } from 'drizzle-orm'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { isSupportedFileType, parseBuffer } from '@/lib/file-parsers'
 import { listWorkspaceFileFolders } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
@@ -143,6 +143,8 @@ export function buildFileListingFilters(args: {
   folderIds: string[] | null
   rootOnly: boolean
   cursor?: Cursor
+  /** Must match the query's ORDER BY, or the keyset walks the wrong way. */
+  descending?: boolean
 }): SQL[] {
   const filters: SQL[] = [
     eq(workspaceFiles.workspaceId, args.workspaceId),
@@ -159,12 +161,13 @@ export function buildFileListingFilters(args: {
   }
 
   if (args.cursor) {
+    const beyond = args.descending ? lt : gt
     filters.push(
       or(
-        gt(workspaceFiles.updatedAt, args.cursor.updatedAt),
+        beyond(workspaceFiles.updatedAt, args.cursor.updatedAt),
         and(
           eq(workspaceFiles.updatedAt, args.cursor.updatedAt),
-          gt(workspaceFiles.id, args.cursor.id)
+          beyond(workspaceFiles.id, args.cursor.id)
         )
       ) as SQL
     )
@@ -302,6 +305,22 @@ export const simFilesConnector: ConnectorConfig = {
       throw error
     }
 
+    /**
+     * Ordering follows from whether this listing is complete or bounded.
+     *
+     * Uncapped, ascending is the safe walk: a row updated mid-sync moves toward the
+     * end and may be emitted twice, which the engine dedupes by `externalId`.
+     *
+     * Capped, ascending would mean "the oldest N" — and worse, an already-indexed
+     * file that is edited moves past the cap window, stops being listed, and (because
+     * `listingCapped` suppresses deletion) leaves a permanently stale document behind.
+     * Descending makes the cap mean "the N most recently active", which is what a
+     * `maxFiles` limit is for. Its own risk — a row updated mid-sync slipping behind
+     * the cursor — is already covered, since a capped listing is declared incomplete
+     * and the next sync picks the row up.
+     */
+    const descending = maxFiles > 0
+
     const rows = await db
       .select(FILE_ROW_COLUMNS)
       .from(workspaceFiles)
@@ -312,10 +331,14 @@ export const simFilesConnector: ConnectorConfig = {
             folderIds: scope.folderIds,
             rootOnly: scope.rootOnly,
             cursor: cursor ? decodeCursor(cursor) : undefined,
+            descending,
           })
         )
       )
-      .orderBy(asc(workspaceFiles.updatedAt), asc(workspaceFiles.id))
+      .orderBy(
+        descending ? desc(workspaceFiles.updatedAt) : asc(workspaceFiles.updatedAt),
+        descending ? desc(workspaceFiles.id) : asc(workspaceFiles.id)
+      )
       .limit(PAGE_SIZE)
 
     const items: ExternalDocument[] = []

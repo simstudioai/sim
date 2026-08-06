@@ -105,6 +105,23 @@ describe('buildConversationListingFilters', () => {
     ).toContain('ESCAPE')
   })
 
+  /** The keyset direction must match ORDER BY — see the files connector's note. */
+  it('flips the keyset comparison when the listing is descending', () => {
+    const cursor = { updatedAt: new Date('2026-01-01T00:00:00.000Z'), id: 'mem-1' }
+    const ascending = conditionsOf({ workspaceId: 'ws-1', prefix: '', cursor })
+    const descending = conditionsOf({ workspaceId: 'ws-1', prefix: '', cursor, descending: true })
+
+    const branches = (nodes: MockCondition[]) =>
+      nodes
+        .filter((n) => n.type === 'or')
+        .flatMap((n) => (n.conditions as MockCondition[]) ?? [])
+        .flatMap(flattenMockConditions)
+
+    expect(branches(ascending).some((n) => n.type === 'gt')).toBe(true)
+    expect(branches(descending).some((n) => n.type === 'lt')).toBe(true)
+    expect(branches(descending).some((n) => n.type === 'gt')).toBe(false)
+  })
+
   it('adds a keyset clause only when paginating', () => {
     const first = conditionsOf({ workspaceId: 'ws-1', prefix: '' })
     const next = conditionsOf({

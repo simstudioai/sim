@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { memory, memorySecretProvenance } from '@sim/db/schema'
-import { and, asc, eq, gt, isNull, or, type SQL, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, isNull, lt, or, type SQL, sql } from 'drizzle-orm'
 import { readBoundMemorySecretProvenance } from '@/lib/memory/secret-provenance'
 import { simConversationsConnectorMeta } from '@/connectors/sim-conversations/meta'
 import type {
@@ -91,6 +91,8 @@ export function buildConversationListingFilters(args: {
   workspaceId: string
   prefix: string
   cursor?: Cursor
+  /** Must match the query's ORDER BY, or the keyset walks the wrong way. */
+  descending?: boolean
 }): SQL[] {
   const filters: SQL[] = [eq(memory.workspaceId, args.workspaceId), isNull(memory.deletedAt)]
 
@@ -99,10 +101,11 @@ export function buildConversationListingFilters(args: {
   }
 
   if (args.cursor) {
+    const beyond = args.descending ? lt : gt
     filters.push(
       or(
-        gt(memory.updatedAt, args.cursor.updatedAt),
-        and(eq(memory.updatedAt, args.cursor.updatedAt), gt(memory.id, args.cursor.id))
+        beyond(memory.updatedAt, args.cursor.updatedAt),
+        and(eq(memory.updatedAt, args.cursor.updatedAt), beyond(memory.id, args.cursor.id))
       ) as SQL
     )
   }
@@ -235,6 +238,13 @@ export const simConversationsConnector: ConnectorConfig = {
     const minMessages = parseOptionalPositiveInt(sourceConfig.minMessages) ?? 1
     const maxConversations = parseOptionalPositiveInt(sourceConfig.maxConversations) ?? 0
 
+    /**
+     * See the matching note in the files connector: ascending is the safe walk for a
+     * complete listing, but under a cap it would mean "the oldest N" and would freeze
+     * an already-indexed conversation the moment it received a new message.
+     */
+    const descending = maxConversations > 0
+
     const rows = await db
       .select(CONVERSATION_ROW_COLUMNS)
       .from(memory)
@@ -244,10 +254,14 @@ export const simConversationsConnector: ConnectorConfig = {
             workspaceId,
             prefix: readPrefix(sourceConfig),
             cursor: cursor ? decodeCursor(cursor) : undefined,
+            descending,
           })
         )
       )
-      .orderBy(asc(memory.updatedAt), asc(memory.id))
+      .orderBy(
+        descending ? desc(memory.updatedAt) : asc(memory.updatedAt),
+        descending ? desc(memory.id) : asc(memory.id)
+      )
       .limit(PAGE_SIZE)
 
     const items: ExternalDocument[] = []
