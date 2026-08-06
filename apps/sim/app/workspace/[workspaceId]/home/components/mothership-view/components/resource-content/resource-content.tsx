@@ -383,11 +383,8 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
   const isRunButtonDisabled =
     !isExecuting &&
     (isUsageGateLoading || (!effectivePermissions.canRead && !effectivePermissions.isLoading))
-  const isWorkflowLockDataLoading =
-    isWorkflowMapLoading || isFolderMapLoading || !workflowMap || !folderMap
-  const isWorkflowLocked =
-    isWorkflowLockDataLoading ||
-    isWorkflowEffectivelyLocked(workflowMap?.[workflowId], folderMap ?? {})
+  const isWorkflowLockDataLoading = isWorkflowMapLoading || isFolderMapLoading
+  const isWorkflowLocked = isWorkflowEffectivelyLocked(workflowMap?.[workflowId], folderMap ?? {})
 
   const handleRun = async () => {
     setActiveWorkflow(workflowId)
@@ -464,7 +461,8 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
         userPermissions={effectivePermissions}
         className={RESOURCE_TAB_ICON_BUTTON_CLASS}
         compact
-        disabled={isWorkflowLocked}
+        disabled={isWorkflowLockDataLoading || isWorkflowLocked}
+        disabledTooltip={isWorkflowLockDataLoading ? 'Loading workflow lock status...' : undefined}
       />
     </>
   )

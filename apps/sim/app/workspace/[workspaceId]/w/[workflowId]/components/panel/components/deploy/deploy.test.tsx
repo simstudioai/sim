@@ -96,7 +96,10 @@ import { Deploy } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/
 let container: HTMLDivElement
 let root: Root
 
-function renderDeploy(overrides: Partial<typeof mockState> = {}) {
+function renderDeploy(
+  overrides: Partial<typeof mockState> = {},
+  props: { disabled?: boolean; disabledTooltip?: string } = {}
+) {
   Object.assign(mockState, overrides)
   act(() => {
     root.render(
@@ -112,6 +115,7 @@ function renderDeploy(overrides: Partial<typeof mockState> = {}) {
         }}
         compact
         className='resource-action'
+        {...props}
       />
     )
   })
@@ -168,6 +172,14 @@ describe('Deploy compact mode', () => {
     renderDeploy({ hydrationWorkflowId: 'workflow-2', registryActiveWorkflowId: 'workflow-2' })
 
     expect(container.querySelector('button')?.disabled).toBe(true)
+    expect(container.textContent).toContain('Loading workflow...')
+  })
+
+  it('uses a caller-provided tooltip for external loading states', () => {
+    renderDeploy({}, { disabled: true, disabledTooltip: 'Loading workflow lock status...' })
+
+    expect(container.querySelector('button')?.disabled).toBe(true)
+    expect(container.textContent).toContain('Loading workflow lock status...')
   })
 
   it.each([
