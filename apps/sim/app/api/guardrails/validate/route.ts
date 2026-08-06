@@ -28,6 +28,7 @@ import {
   ProviderNotAllowedError,
 } from '@/ee/access-control/utils/permission-check'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import { isAbortError } from '@/providers/streaming-tool-loop-shared'
 import { getProviderFromModel } from '@/providers/utils'
 
 const logger = createLogger('GuardrailsValidateAPI')
@@ -372,6 +373,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       },
     })
   } catch (error: any) {
+    /**
+     * A cancelled run must not be reshaped into a verdict. `passed: false` here reads
+     * to a consumer as the guardrail rejecting the content, so an abandoned run would
+     * block content that was never actually judged. 499 matches the convention the
+     * workflow execute route already uses for a client-cancelled request.
+     */
+    if (isAbortError(error)) {
+      logger.info(`[${requestId}] Guardrails validation cancelled by client`)
+      return NextResponse.json(
+        { success: false, error: 'Client cancelled request' },
+        { status: 499 }
+      )
+    }
     logger.error(`[${requestId}] Guardrails validation failed`, { error })
     return NextResponse.json({
       success: true,
