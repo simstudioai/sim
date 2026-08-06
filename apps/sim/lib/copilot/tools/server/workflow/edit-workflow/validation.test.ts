@@ -257,6 +257,22 @@ const multiVariantBlockConfig = {
       ],
       condition: { field: 'provider', value: 'beta' },
     },
+    // Catch-all declared first: it matches everything, so it must not shadow
+    // the conditioned variant below purely by declaration order.
+    {
+      id: 'mode',
+      type: 'dropdown',
+      options: [{ label: 'default', id: 'default' }],
+    },
+    {
+      id: 'mode',
+      type: 'dropdown',
+      options: [
+        { label: 'fast', id: 'fast' },
+        { label: 'slow', id: 'slow' },
+      ],
+      condition: { field: 'provider', value: 'beta' },
+    },
   ],
   tools: { access: ['multi_variant_tool'], config: { tool: () => 'multi_variant_tool' } },
 }
@@ -401,6 +417,18 @@ describe('validateInputsForBlock', () => {
 
       expect(result.errors).toHaveLength(1)
       expect(result.errors[0].field).toBe('model')
+    })
+
+    it('prefers a conditioned variant over an unconditioned catch-all', () => {
+      // `mode` declares the catch-all first; it must not shadow the beta variant.
+      const result = validateInputsForBlock(
+        'multi_variant_block',
+        { provider: 'beta', mode: 'fast' },
+        'mv-7'
+      )
+
+      expect(result.errors).toHaveLength(0)
+      expect(result.validInputs.mode).toBe('fast')
     })
 
     it('falls back to the union when no variant condition matches', () => {

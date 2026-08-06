@@ -326,7 +326,13 @@ function resolveActiveSubBlock(
   const active = candidates.filter((candidate) =>
     evaluateSubBlockCondition(candidate.condition, effectiveValues)
   )
-  return active.length > 0 ? active[0] : null
+  if (active.length === 0) return null
+  /**
+   * An unconditioned variant matches everything, so it would shadow a genuinely
+   * selected one purely by being declared earlier. Prefer a variant that
+   * actually asserted something about the current values.
+   */
+  return active.find((candidate) => candidate.condition) ?? active[0]
 }
 
 /**
