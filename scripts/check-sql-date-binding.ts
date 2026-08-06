@@ -19,7 +19,7 @@ const ROOT = resolve(SCRIPT_DIR, '..')
 const SCAN_DIRS = [join(ROOT, 'apps'), join(ROOT, 'packages')]
 const SKIP_DIRS = new Set(['node_modules', '.next', '.turbo', 'coverage', 'dist', 'build', 'out'])
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.mts', '.cts'])
-const ALLOW_ANNOTATION = 'sql-date-bound:'
+const ALLOW_ANNOTATION = '// sql-date-bound:'
 
 interface Violation {
   file: string
@@ -169,6 +169,18 @@ function isSqlParamCall(node: SyntaxNode): boolean {
   )
 }
 
+/**
+ * A violation is excused only when the preceding line is a line comment whose
+ * text is exactly the documented annotation followed by a non-empty reason.
+ * Matching the marker anywhere on the line would let unrelated code — or a
+ * bare marker with no justification — silently disable the audit.
+ */
+function isAllowAnnotation(line: string | undefined): boolean {
+  const trimmed = (line ?? '').trim()
+  if (!trimmed.startsWith(ALLOW_ANNOTATION)) return false
+  return trimmed.slice(ALLOW_ANNOTATION.length).trim().length > 0
+}
+
 export function findSqlDateBindingViolations(source: string, file = 'source.ts'): Violation[] {
   const syntaxTree = parse(source, {
     sourceFilename: file,
@@ -184,7 +196,7 @@ export function findSqlDateBindingViolations(source: string, file = 'source.ts')
   const report = (node: SyntaxNode, reason: string) => {
     if (typeof node.start !== 'number' || typeof node.end !== 'number' || !node.loc) return
     const line = node.loc.start.line
-    if ((lines[line - 2] ?? '').includes(ALLOW_ANNOTATION)) return
+    if (isAllowAnnotation(lines[line - 2])) return
     violations.push({ file, line, expression: source.slice(node.start, node.end), reason })
   }
 
@@ -244,7 +256,7 @@ function main(): void {
       `\nDrizzle replaces postgres-js's temporal serializers with an identity function and maps` +
         `\ntimestamps itself, so a Date outside column context is never serialized. Bind through` +
         `\nthe column: sql.param(date, table.column). Annotate a genuine exception with` +
-        `\n// ${ALLOW_ANNOTATION} <reason> on the preceding line.`
+        `\n${ALLOW_ANNOTATION} <reason> on the preceding line.`
     )
     process.exit(1)
   }

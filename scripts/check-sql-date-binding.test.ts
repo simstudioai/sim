@@ -45,4 +45,18 @@ describe('sql Date binding audit', () => {
       `)
     ).toEqual([])
   })
+
+  test('rejects annotation markers that are malformed or incidental', () => {
+    const violations = findSqlDateBindingViolations(`
+      const now = new Date()
+      // sql-date-bound:
+      const bareMarker = sql\`col < \${now}\`
+      const label = 'sql-date-bound: not a comment'
+      const incidental = sql\`col < \${now}\`
+      // trailing marker sql-date-bound: reason
+      const misplaced = sql\`col < \${now}\`
+    `)
+
+    expect(violations.map((violation) => violation.expression)).toEqual(['now', 'now', 'now'])
+  })
 })
