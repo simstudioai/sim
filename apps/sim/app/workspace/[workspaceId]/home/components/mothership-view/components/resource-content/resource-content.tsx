@@ -362,8 +362,8 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
   const { data: session } = useSession()
   const hostContext = useWorkspaceHostContext()
   const { userPermissions: effectivePermissions } = useWorkspacePermissionsContext()
-  const { data: workflowMap = {} } = useWorkflowMap(workspaceId)
-  const { data: folderMap = {} } = useFolderMap(workspaceId)
+  const { data: workflowMap = {}, isLoading: isWorkflowMapLoading } = useWorkflowMap(workspaceId)
+  const { data: folderMap = {}, isLoading: isFolderMapLoading } = useFolderMap(workspaceId)
   const setActiveWorkflow = useWorkflowRegistry((state) => state.setActiveWorkflow)
   const { handleRunWorkflow, handleCancelExecution } = useWorkflowExecution()
   const isExecuting = useExecutionStore(
@@ -460,7 +460,7 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
         userPermissions={effectivePermissions}
         className={RESOURCE_TAB_ICON_BUTTON_CLASS}
         compact
-        disabled={isWorkflowLocked}
+        disabled={isWorkflowMapLoading || isFolderMapLoading || isWorkflowLocked}
       />
     </>
   )
