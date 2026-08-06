@@ -221,6 +221,20 @@ describe('SSO client secret preservation', () => {
     return container.querySelector<HTMLInputElement>('#sso-client-secret')
   }
 
+  /** Sets the input through the native setter so React's onChange fires. */
+  function typeSecret(value: string) {
+    const input = secretInput()
+    expect(input).not.toBeNull()
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype,
+        'value'
+      )?.set
+      setter?.call(input, value)
+      input?.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+  }
+
   it('shows the saved secret as a masked hint rather than the sentinel', () => {
     renderSso('org-a')
     startEditing()
@@ -252,16 +266,7 @@ describe('SSO client secret preservation', () => {
     startEditing()
     act(() => findButton('Replace')?.click())
 
-    const input = secretInput()
-    expect(input).not.toBeNull()
-    act(() => {
-      const setter = Object.getOwnPropertyDescriptor(
-        window.HTMLInputElement.prototype,
-        'value'
-      )?.set
-      setter?.call(input, 'brand-new-secret')
-      input?.dispatchEvent(new Event('input', { bubbles: true }))
-    })
+    typeSecret('brand-new-secret')
 
     await act(async () => {
       findButton('Update')?.click()
@@ -269,6 +274,28 @@ describe('SSO client secret preservation', () => {
 
     expect(mutateAsync).toHaveBeenCalledTimes(1)
     expect(mutateAsync.mock.calls[0][0].clientSecret).toBe('brand-new-secret')
+  })
+
+  /**
+   * A whitespace-only value must not reach the server. Validation is skipped only
+   * while the stored secret is being kept; once Replace is clicked the field is a
+   * real input, so blank input has to fail rather than overwrite a working secret.
+   */
+  it('refuses to submit a whitespace-only replacement', async () => {
+    const mutateAsync = vi.fn().mockResolvedValue({})
+    mockUseConfigureSSO.mockReturnValue({ isPending: false, mutateAsync })
+
+    renderSso('org-a')
+    startEditing()
+    act(() => findButton('Replace')?.click())
+    typeSecret('   ')
+
+    await act(async () => {
+      findButton('Update')?.click()
+    })
+
+    expect(mutateAsync).not.toHaveBeenCalled()
+    expect(container).toHaveTextContent('Client Secret is required.')
   })
 
   /**

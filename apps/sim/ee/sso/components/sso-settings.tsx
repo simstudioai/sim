@@ -350,9 +350,13 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
 
     if (providerType === 'oidc') {
       newErrors.clientId = validateRequired('Client ID', data.clientId)
-      newErrors.clientSecret = hasStoredClientSecret
-        ? []
-        : validateRequired('Client Secret', data.clientSecret)
+      // Skipped only while the stored secret is being kept. Once Replace is
+      // clicked the field is a real input again, so a blank or whitespace-only
+      // value has to fail rather than quietly overwrite a working secret.
+      newErrors.clientSecret =
+        hasStoredClientSecret && !isReplacingClientSecret
+          ? []
+          : validateRequired('Client Secret', data.clientSecret)
       if (!data.scopes || !data.scopes.trim()) {
         newErrors.scopes = ['Scopes are required for OIDC providers']
       }
@@ -409,11 +413,13 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
               },
               clientId: formData.clientId,
               // Blank on an edit means the admin did not retype it: send the
-              // sentinel so the server keeps the stored secret.
+              // sentinel so the server keeps the stored secret. Trimmed because a
+              // pasted secret often carries a trailing newline, and because a
+              // whitespace-only value must never be stored as the secret.
               clientSecret:
-                hasStoredClientSecret && !formData.clientSecret
+                hasStoredClientSecret && !formData.clientSecret.trim()
                   ? REDACTED_MARKER
-                  : formData.clientSecret,
+                  : formData.clientSecret.trim(),
               scopes: formData.scopes.split(',').map((s) => s.trim()),
               ...(formData.authorizationEndpoint.trim()
                 ? { authorizationEndpoint: formData.authorizationEndpoint.trim() }
