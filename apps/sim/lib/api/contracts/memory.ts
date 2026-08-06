@@ -116,7 +116,7 @@ export const getMemoryByIdContract = defineRouteContract({
   query: memoryWorkspaceQuerySchema,
   response: {
     mode: 'json',
-    schema: memorySuccessResponseSchema(memoryRecordSchema),
+    schema: memorySuccessResponseSchema(memoryRecordSchema.nullable()),
   },
 })
 
