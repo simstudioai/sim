@@ -207,12 +207,11 @@ export function getKbEligibleModels(): string[] {
  * True when a model's tokens cannot be counted exactly.
  *
  * Batching measures with tiktoken, which only has encodings for OpenAI models —
- * every other id falls back to `cl100k_base`, so a Gemini, Cohere, or Mistral
- * ceiling is enforced in approximate units. The ceiling is still applied
- * exactly as declared: discounting it to absorb the error would truncate valid
- * content silently, which is worse than the alternative it guards against. An
- * undercount surfaces as a provider rejection, which is visible and
- * actionable; silently shortening an embedding's input is not.
+ * every other id falls back to `cl100k_base`, so Gemini, Cohere, and Mistral
+ * ceilings are enforced in approximate units. The ceiling is still applied as
+ * declared rather than discounted to absorb the error: an undercount surfaces
+ * as a visible provider rejection, whereas silently shortening an embedding's
+ * input does not.
  */
 export function hasApproximateTokenCount(info: EmbeddingModelInfo): boolean {
   return info.tokenizerProvider !== 'openai'

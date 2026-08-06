@@ -87,7 +87,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       { status: 400 }
     )
   }
-  /** Size is checked before the per-entry scan so an oversized body is rejected without copying it. */
+  /**
+   * Summing lengths is cheap and runs before the per-entry whitespace scan, so
+   * an oversized body is rejected without walking every character.
+   */
   const totalChars = texts.reduce((sum, text) => sum + text.length, 0)
   if (totalChars > MAX_EMBEDDING_TOTAL_CHARS) {
     return NextResponse.json(

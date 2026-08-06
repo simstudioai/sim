@@ -39,10 +39,9 @@ const TASK_TYPE_LABELS: Record<EmbeddingTaskType, string> = {
 }
 
 /**
- * Model, task-type, and dimension dropdowns are derived from the catalog rather
- * than hand-copied, so adding a catalog model cannot leave this block stale.
- * Each dropdown is scoped by a `condition` naming the provider (and model, where
- * the capability is per-model) because every variant shares one sub-block id.
+ * Dropdowns are derived from the catalog rather than hand-copied, so adding a
+ * catalog model cannot leave this block stale. Every variant shares one
+ * sub-block id, so each is scoped by a `condition` naming the provider.
  */
 const MODEL_SUB_BLOCKS: SubBlockConfig[] = EMBEDDING_CATALOG_PROVIDERS.map((provider) => ({
   id: 'model',
@@ -54,6 +53,11 @@ const MODEL_SUB_BLOCKS: SubBlockConfig[] = EMBEDDING_CATALOG_PROVIDERS.map((prov
   dependsOn: ['provider'],
 }))
 
+/**
+ * Task-type and dimension dropdowns, which are per-model rather than
+ * per-provider: the `condition` names both, and a model contributes a dropdown
+ * only for the capabilities the catalog says it has.
+ */
 const CAPABILITY_SUB_BLOCKS: SubBlockConfig[] = Object.entries(EMBEDDING_MODELS).flatMap(
   ([model, info]) => {
     const scope = { field: 'provider', value: info.provider, and: { field: 'model', value: model } }

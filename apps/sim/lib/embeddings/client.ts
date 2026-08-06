@@ -157,9 +157,13 @@ async function callEmbeddingAPI(
 
       const json = await response.json()
       const embeddings = request.parse(json)
+      /**
+       * Fallback for a response that carries no usage block. Estimated with the
+       * provider's own tokenizer, which is approximate for every non-OpenAI
+       * model — see {@link hasApproximateTokenCount}.
+       */
       const totalTokens =
         request.parseTokens?.(json) ??
-        // Providers that omit usage (e.g. Gemini) get an estimate from their tokenizer
         inputs.reduce(
           (sum, text) => sum + estimateTokenCount(text, provider.info.tokenizerProvider).count,
           0
@@ -232,10 +236,8 @@ export async function embed(texts: string[], options: EmbedOptions): Promise<Emb
    *
    * Three bounds compose here:
    *
-   * 1. {@link BATCH_TOKEN_TARGET} is what we actually aim for. It is an
-   *    operational choice, not a provider limit: it keeps a single request well
-   *    inside {@link EMBEDDING_REQUEST_TIMEOUT_MS}, so a timeout costs one small
-   *    batch and its retries rather than a large one.
+   * 1. {@link BATCH_TOKEN_TARGET} is what we actually aim for — an operational
+   *    choice, not a provider limit (see its declaration for the reasoning).
    * 2. A provider's documented summed-token cap, when it publishes one, is a
    *    hard ceiling the target can never exceed.
    * 3. The per-input ceiling is a floor. A budget below it would make

@@ -3,8 +3,10 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 import type { EmbeddingCatalogProvider, EmbeddingTaskType } from '@/lib/embeddings/types'
 
 /**
- * `satisfies` ties the wire enums to the catalog's own unions, so adding a
- * provider or task type there cannot silently leave the API contract stale.
+ * `satisfies` ties the wire enums to the catalog's own unions: renaming or
+ * removing a catalog member breaks the build here. It does NOT catch an
+ * addition — a new catalog provider or task type stays absent from the wire
+ * enum until it is added below.
  */
 export const embeddingProviders = [
   'openai',
@@ -23,6 +25,7 @@ export const embeddingTaskTypes = [
 
 /** Guards the route against unbounded fan-out into a paid provider. */
 export const MAX_EMBEDDING_INPUTS = 1000
+/** Caps total payload size independently of the input count. */
 export const MAX_EMBEDDING_TOTAL_CHARS = 1_000_000
 
 const MISSING_EMBEDDING_FIELDS_ERROR = 'Missing required fields: provider, apiKey, and input'

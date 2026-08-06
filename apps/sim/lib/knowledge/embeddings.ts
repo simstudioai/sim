@@ -82,9 +82,6 @@ export async function generateEmbeddings(
   }
 }
 
-/**
- * Generate embedding for a single search query.
- */
 export async function generateSearchEmbedding(
   query: string,
   embeddingModel: string = DEFAULT_EMBEDDING_MODEL,
