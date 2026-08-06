@@ -75,6 +75,9 @@ export interface WorkspaceFileRecord {
   url?: string // Presigned URL for external access (optional, regenerated as needed)
   size: number
   type: string
+  /** Intrinsic image pixel dimensions, populated lazily on first view. Null/absent for non-images. */
+  width?: number | null
+  height?: number | null
   uploadedBy: string
   folderId?: string | null
   folderPath?: string | null
@@ -904,6 +907,8 @@ function mapWorkspaceFileRecord(
     path: `${pathPrefix}${encodeURIComponent(file.key)}?context=workspace`,
     size: file.size,
     type: file.contentType,
+    width: file.width,
+    height: file.height,
     uploadedBy: file.userId,
     folderId: file.folderId,
     folderPath: file.folderId ? (folderPaths.get(file.folderId) ?? null) : null,
@@ -930,6 +935,38 @@ async function mapSingleWorkspaceFileRecord(
     workspaceId,
     folderPath ? new Map([[file.folderId, folderPath]]) : new Map()
   )
+}
+
+/**
+ * Store an image file's intrinsic pixel dimensions (a pure rendering hint used to reserve layout space
+ * before the image loads). The client reports the browser's own EXIF-corrected `naturalWidth/Height`, and
+ * only when it differs from what's stored, so this overwrites rather than backfilling once — a stale value
+ * self-corrects on the next view instead of sticking behind a `width IS NULL` guard.
+ *
+ * `key` is a content-version guard: the write commits only if the row still has the storage key the
+ * client measured. The key is regenerated on every content replacement, so an in-flight write measured
+ * against superseded bytes is rejected here rather than persisting the old aspect ratio for new content.
+ * Does NOT touch `updatedAt` — dimensions are not content and must not cache-bust the served image bytes.
+ * Returns whether a live row was written.
+ */
+export async function updateWorkspaceFileDimensions(
+  workspaceId: string,
+  fileId: string,
+  dimensions: { key: string; width: number; height: number }
+): Promise<boolean> {
+  const updated = await db
+    .update(workspaceFiles)
+    .set({ width: dimensions.width, height: dimensions.height })
+    .where(
+      and(
+        eq(workspaceFiles.id, fileId),
+        eq(workspaceFiles.workspaceId, workspaceId),
+        eq(workspaceFiles.key, dimensions.key),
+        isNull(workspaceFiles.deletedAt)
+      )
+    )
+    .returning({ id: workspaceFiles.id })
+  return updated.length > 0
 }
 
 /**
@@ -1361,6 +1398,13 @@ export async function updateWorkspaceFileContent(
             key: uploadResult.key,
             size: content.length,
             contentType: nextContentType,
+            // Replaced bytes: drop the old image's dimensions so the row never describes stale content.
+            // The next view reserves nothing (the baseline first-load reflow) rather than a wrong-sized
+            // box, then the browser's measurement backfills the correct value. No server-side decode here
+            // (avoids EXIF-orientation guesswork), and a late in-flight PATCH that lands after this is
+            // corrected on the next view since the client overwrites on mismatch.
+            width: null,
+            height: null,
             updatedAt: now,
             contentUpdatedAt,
           })
