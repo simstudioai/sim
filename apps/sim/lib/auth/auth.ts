@@ -108,12 +108,12 @@ const additionalTrustedOrigins = parseOriginList(env.TRUSTED_ORIGINS, (value) =>
 )
 
 /**
- * SSO provider IDs to trust for automatic account linking when an SSO sign-in
- * matches an existing account's email. Includes `SSO_PROVIDER_ID` when it is set
- * in the app environment, plus any IDs from `SSO_TRUSTED_PROVIDER_IDS`. Empty when
- * SSO is disabled, so `trustedProviders` is unchanged for non-SSO deployments.
- * Resolved once at startup; `trustEmailVerified` on the SSO plugin handles IdPs
- * that assert `email_verified` live, so this is only needed for IdPs that omit it.
+ * Extra provider IDs appended to `trustedProviders`, from `SSO_PROVIDER_ID` and
+ * `SSO_TRUSTED_PROVIDER_IDS`. Empty when SSO is disabled.
+ *
+ * These no longer affect SSO sign-in: the plugin passes `trustProviderByName:
+ * false`, disabling the name-based branch, so SSO trust comes only from
+ * `domainVerified`. Kept because non-SSO providers still link by name.
  */
 const additionalTrustedSsoProviders = isSsoEnabled
   ? [env.SSO_PROVIDER_ID, ...(env.SSO_TRUSTED_PROVIDER_IDS?.split(',') ?? [])]
@@ -1088,11 +1088,29 @@ export const auth = betterAuth({
       ? [
           sso({
             /**
-             * Honor the IdP's verified-email claim. Without this the SSO plugin
-             * forces `emailVerified: false`, blocking automatic linking of an SSO
-             * login to an existing same-email account (Better Auth "account not linked").
+             * Honor the IdP's `email_verified` claim so the local account is
+             * verified rather than forced to false.
+             *
+             * This is not what enables linking — Entra omits the claim entirely,
+             * and SAML ignores it without an explicit `mapping.emailVerified`.
+             * `domainVerification` below establishes linking trust.
              */
             trustEmailVerified: true,
+            /**
+             * Marks a provider authoritative for its domain, which is what lets an
+             * SSO sign-in auto-link to an existing same-email account. Without it
+             * `isTrustedProvider` is always false and every user who already had a
+             * Sim account is stranded on "account not linked".
+             *
+             * Sim does not use Better Auth's DNS challenge endpoints: ownership is
+             * proven by the `sso_domain` flow before registration, and the register
+             * route mirrors that decision onto this flag.
+             *
+             * It narrows nothing on its own — an IdP asserting `email_verified`
+             * links regardless of domain (see `trustEmailVerified` above). It
+             * exists so linking survives IdPs that omit the claim.
+             */
+            domainVerification: { enabled: true },
             organizationProvisioning: {
               disabled: false,
               defaultRole: 'member',
