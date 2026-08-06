@@ -148,7 +148,7 @@ function isLikelyToolIdentifier(expression: SyntaxNode): boolean {
   )
 }
 
-export function findToolRequestBoundaryViolations(source: string, file = 'source.ts'): Violation[] {
+function findToolRequestBoundaryViolations(source: string, file = 'source.ts'): Violation[] {
   const extension = extname(file)
   const syntaxTree = parse(source, {
     sourceFilename: file,
