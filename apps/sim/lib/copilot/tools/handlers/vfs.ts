@@ -8,7 +8,7 @@ import {
   couldMatchDocsScope,
   DocsCorpusError,
   globDocs,
-  grepDocsPage,
+  grepDocs,
   isDocsPath,
   readDocsPage,
 } from '@/lib/copilot/docs/docs-corpus'
@@ -203,7 +203,7 @@ export async function executeVfsGrep(
     let result: GrepMatch[] | string[] | GrepCountEntry[]
     let provenanceFile: WorkspaceFileSecretProvenanceIdentity | undefined
     if (rawPath !== undefined && isDocsPath(rawPath)) {
-      result = await grepDocsPage(rawPath, pattern, grepOptions)
+      result = await grepDocs(rawPath, pattern, grepOptions)
     } else if (isChatUploadGrepPath(rawPath)) {
       if (!context.chatId) {
         return { success: false, error: 'No chat context available for uploads/' }

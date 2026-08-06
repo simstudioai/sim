@@ -1,9 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
+import { backoffWithJitter } from '@sim/utils/retry'
 import { foldDocsIndexPath } from '@/lib/copilot/docs/docs-path'
 import { DOCS_MANIFEST } from '@/lib/copilot/generated/docs-manifest'
 import type { GrepCountEntry, GrepMatch, GrepOptions } from '@/lib/copilot/vfs/operations'
-import { glob as globPaths, grepReadResult } from '@/lib/copilot/vfs/operations'
+import { glob as globPaths, grep, grepReadResult } from '@/lib/copilot/vfs/operations'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 
 const logger = createLogger('DocsCorpus')
 
@@ -13,7 +16,12 @@ const DOCS_BASE_URL = 'https://docs.sim.ai'
 /** VFS prefix the docs corpus is mounted at. */
 const DOCS_PREFIX = 'docs/'
 
-const FETCH_TIMEOUT_MS = 10_000
+/** Per-attempt budget — the site is CDN-cached and normally answers in well under a second. */
+const FETCH_ATTEMPT_TIMEOUT_MS = 3_000
+const FETCH_MAX_ATTEMPTS = 3
+
+/** Parallel page fetches for a directory-scoped grep. */
+const GREP_FETCH_CONCURRENCY = 8
 
 /**
  * Thrown for expected, user-facing docs-corpus conditions (unknown page,
@@ -108,8 +116,9 @@ export interface DocsPage {
  * Fetch one docs page's raw markdown from the live site. The manifest path IS
  * the URL path (`docs/workflows/blocks/agent.mdx` →
  * `https://docs.sim.ai/workflows/blocks/agent.mdx`, which the docs app rewrites
- * to its raw-markdown route), so no mapping table is needed. Returns null when
- * the page is not in the manifest or the site does not serve it.
+ * to its raw-markdown route), so no mapping table is needed. Transient failures
+ * (5xx, 429, network error, timeout) are retried with jittered backoff before
+ * being reported as unavailable.
  */
 type DocsFetchResult =
   | { outcome: 'ok'; content: string }
@@ -118,13 +127,10 @@ type DocsFetchResult =
   /** Transient: 5xx, 429, network error, or timeout. */
   | { outcome: 'unavailable' }
 
-async function fetchDocsPage(path: string): Promise<DocsFetchResult> {
-  const key = normalize(path)
-  if (!docsKeyView.has(key)) return { outcome: 'missing' }
-  const url = `${DOCS_BASE_URL}/${key.slice(DOCS_PREFIX.length)}`
+async function fetchDocsPageOnce(url: string): Promise<DocsFetchResult> {
   try {
     const response = await fetch(url, {
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      signal: AbortSignal.timeout(FETCH_ATTEMPT_TIMEOUT_MS),
       headers: { Accept: 'text/markdown, text/plain' },
     })
     if (!response.ok) {
@@ -136,6 +142,17 @@ async function fetchDocsPage(path: string): Promise<DocsFetchResult> {
   } catch (err) {
     logger.warn('Docs page fetch failed', { url, error: toError(err).message })
     return { outcome: 'unavailable' }
+  }
+}
+
+async function fetchDocsPage(path: string): Promise<DocsFetchResult> {
+  const key = normalize(path)
+  if (!docsKeyView.has(key)) return { outcome: 'missing' }
+  const url = `${DOCS_BASE_URL}/${key.slice(DOCS_PREFIX.length)}`
+  for (let attempt = 1; ; attempt++) {
+    const result = await fetchDocsPageOnce(url)
+    if (result.outcome !== 'unavailable' || attempt >= FETCH_MAX_ATTEMPTS) return result
+    await sleep(backoffWithJitter(attempt, null))
   }
 }
 
@@ -163,28 +180,55 @@ export async function readDocsPage(path: string): Promise<DocsPage> {
   }
   if (result.outcome === 'unavailable') {
     throw new DocsCorpusError(
-      `Could not load ${key} from ${DOCS_BASE_URL} — the docs site is temporarily unavailable. Retry shortly.`
+      `Could not load ${key} from ${DOCS_BASE_URL} — the docs site could not be reached. Retry shortly.`
     )
   }
   return { content: result.content, totalLines: result.content.split('\n').length }
 }
 
 /**
- * Grep ONE docs page, mirroring how grep over `files/` works: each page is a
- * separate fetch from the docs site, so a multi-page grep would mean hundreds of
- * requests. A path that is not a single page throws.
+ * Grep the docs corpus. A single page greps just that page. A directory path
+ * (`docs`, `docs/files`) fans out to every manifest page under it: pages are
+ * fetched in parallel and searched as one multi-file grep, so results follow
+ * manifest order and `maxResults` applies across pages. Pages the site no
+ * longer serves are skipped; a page that cannot be reached after retries fails
+ * the whole grep, because a silent partial result would misread as "not
+ * documented".
  */
-export async function grepDocsPage(
+export async function grepDocs(
   path: string,
   pattern: string,
   options?: GrepOptions
 ): Promise<GrepMatch[] | string[] | GrepCountEntry[]> {
   const key = normalize(path)
-  if (!docsKeyView.has(key)) {
+  if (docsKeyView.has(key)) {
+    const page = await readDocsPage(key)
+    return grepReadResult(key, page, pattern, key, options)
+  }
+  if (!isDocsDir(key)) {
     throw new DocsCorpusError(
-      `Grep over the docs corpus must target a single page (e.g. path: "docs/workflows/blocks/agent.mdx"). "${path}" is not a docs page. Use glob("docs/**") to find the exact path, then grep that one page.`
+      `"${path}" is not a docs page or directory. Use glob("docs/**") to list the docs corpus.`
     )
   }
-  const page = await readDocsPage(key)
-  return grepReadResult(key, page, pattern, key, options)
+  const dir = `${key}/`
+  const pages = [...docsKeyView.keys()].filter((pageKey) => pageKey.startsWith(dir))
+  let unreachable = 0
+  const results = await mapWithConcurrency(pages, GREP_FETCH_CONCURRENCY, async (pageKey) => {
+    // Once any page is unreachable the grep is going to fail — skip the
+    // remaining fetches instead of hammering a site that is not answering.
+    if (unreachable > 0) return null
+    const result = await fetchDocsPage(pageKey)
+    if (result.outcome === 'unavailable') unreachable++
+    return result
+  })
+  if (unreachable > 0) {
+    throw new DocsCorpusError(
+      `Could not load every page under ${dir} from ${DOCS_BASE_URL} — a partial grep could misread as "not documented". Retry shortly.`
+    )
+  }
+  const contents = new Map<string, string>()
+  results.forEach((result, index) => {
+    if (result?.outcome === 'ok') contents.set(pages[index], result.content)
+  })
+  return grep(contents, pattern, undefined, options)
 }

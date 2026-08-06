@@ -27,19 +27,13 @@ describe('search_docs dispatch chain', () => {
   })
 })
 
-/**
- * The retired ids are fully unregistered server-side — no catalog entry, no
- * handler, no alias. Only the client-side chip suppression survives, forever,
- * so historical persisted chats replay without rendering chips for tools that
- * no longer exist (the load_agent_skill precedent).
- */
-describe('retired docs-tool ids', () => {
-  for (const retired of ['search_documentation', 'get_platform_actions']) {
-    it(`${retired} is gone from the catalog and server registry but stays chip-hidden`, () => {
-      expect(TOOL_CATALOG[retired]).toBeUndefined()
-      expect(isKnownTool(retired)).toBe(false)
-      expect(getRegisteredServerToolNames()).not.toContain(retired)
-      expect(getHiddenToolNames().has(retired)).toBe(true)
+describe('removed docs-tool ids', () => {
+  for (const removed of ['search_documentation', 'get_platform_actions']) {
+    it(`${removed} is absent from the catalog, registries, and hidden-tool set`, () => {
+      expect(TOOL_CATALOG[removed]).toBeUndefined()
+      expect(isKnownTool(removed)).toBe(false)
+      expect(getRegisteredServerToolNames()).not.toContain(removed)
+      expect(getHiddenToolNames().has(removed)).toBe(false)
     })
   }
 })

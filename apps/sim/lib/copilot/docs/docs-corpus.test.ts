@@ -2,15 +2,21 @@
  * @vitest-environment node
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@sim/utils/helpers', () => ({
+  sleep: vi.fn(() => Promise.resolve()),
+}))
+
 import {
   couldMatchDocsScope,
   DocsCorpusError,
   globDocs,
-  grepDocsPage,
+  grepDocs,
   isDocsPath,
   readDocsPage,
 } from '@/lib/copilot/docs/docs-corpus'
 import { DOCS_MANIFEST } from '@/lib/copilot/generated/docs-manifest'
+import type { GrepMatch } from '@/lib/copilot/vfs/operations'
 
 const SAMPLE_PAGE = DOCS_MANIFEST.find((path) => path === 'workflows/blocks/agent.mdx')
 
@@ -98,33 +104,52 @@ describe('readDocsPage', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('surfaces a docs-site outage as a retryable error', async () => {
+  it('surfaces a docs-site outage as a retryable error after exhausting retries', async () => {
     fetchMock.mockResolvedValue({ ok: false, status: 502, text: async () => '' })
-    await expect(readDocsPage(`docs/${SAMPLE_PAGE}`)).rejects.toThrow(/temporarily unavailable/)
+    await expect(readDocsPage(`docs/${SAMPLE_PAGE}`)).rejects.toThrow(/could not be reached/)
+    expect(fetchMock).toHaveBeenCalledTimes(3)
   })
 
   it('treats a network failure as retryable', async () => {
     fetchMock.mockRejectedValue(new Error('socket hang up'))
-    await expect(readDocsPage(`docs/${SAMPLE_PAGE}`)).rejects.toThrow(/temporarily unavailable/)
+    await expect(readDocsPage(`docs/${SAMPLE_PAGE}`)).rejects.toThrow(/could not be reached/)
+    expect(fetchMock).toHaveBeenCalledTimes(3)
   })
 
-  it('reports a page the site no longer serves as permanent, not retryable', async () => {
+  it('recovers when a transient failure clears on retry', async () => {
+    fetchMock
+      .mockRejectedValueOnce(new Error('socket hang up'))
+      .mockResolvedValue({ ok: true, status: 200, text: async () => '# Agent\n\nbody' })
+
+    const page = await readDocsPage(`docs/${SAMPLE_PAGE}`)
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(page).toEqual({ content: '# Agent\n\nbody', totalLines: 3 })
+  })
+
+  it('reports a page the site no longer serves as permanent, without retrying', async () => {
     fetchMock.mockResolvedValue({ ok: false, status: 404, text: async () => '' })
     const error = await readDocsPage(`docs/${SAMPLE_PAGE}`).catch((e) => e)
     expect(error).toBeInstanceOf(DocsCorpusError)
     expect(error.message).toMatch(/does not serve it/)
     expect(error.message).toMatch(/retrying will not help/)
-    expect(error.message).not.toMatch(/temporarily unavailable/)
+    expect(error.message).not.toMatch(/could not be reached/)
+    expect(fetchMock).toHaveBeenCalledOnce()
   })
 
   it('still treats 429 as retryable rather than permanent', async () => {
     fetchMock.mockResolvedValue({ ok: false, status: 429, text: async () => '' })
-    await expect(readDocsPage(`docs/${SAMPLE_PAGE}`)).rejects.toThrow(/temporarily unavailable/)
+    await expect(readDocsPage(`docs/${SAMPLE_PAGE}`)).rejects.toThrow(/could not be reached/)
+    expect(fetchMock).toHaveBeenCalledTimes(3)
   })
 })
 
-describe('grepDocsPage', () => {
+describe('grepDocs', () => {
   const fetchMock = vi.fn()
+  const SECTION_DIR = 'docs/workflows/blocks'
+  const SECTION_PAGES = DOCS_MANIFEST.filter((path) => path.startsWith('workflows/blocks/')).map(
+    (path) => `docs/${path}`
+  )
 
   beforeEach(() => {
     fetchMock.mockReset()
@@ -135,14 +160,14 @@ describe('grepDocsPage', () => {
     vi.unstubAllGlobals()
   })
 
-  it('greps exactly one page', async () => {
+  it('greps exactly one page for a page path', async () => {
     fetchMock.mockResolvedValue({
       ok: true,
       status: 200,
       text: async () => 'intro line\nsystemPrompt matters\ntail',
     })
 
-    const matches = await grepDocsPage(`docs/${SAMPLE_PAGE}`, 'systemPrompt')
+    const matches = await grepDocs(`docs/${SAMPLE_PAGE}`, 'systemPrompt')
 
     expect(fetchMock).toHaveBeenCalledOnce()
     expect(matches).toEqual([
@@ -150,9 +175,51 @@ describe('grepDocsPage', () => {
     ])
   })
 
-  it('refuses a multi-page scope so one grep is never hundreds of fetches', async () => {
-    await expect(grepDocsPage('docs/', 'cron')).rejects.toThrow(/single page/)
-    await expect(grepDocsPage('docs/workflows', 'cron')).rejects.toThrow(/single page/)
+  it('greps a directory by fetching every page under it', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => 'intro\ncron marker line\ntail',
+    })
+    expect(SECTION_PAGES.length).toBeGreaterThan(1)
+
+    const matches = (await grepDocs(SECTION_DIR, 'cron marker', {
+      maxResults: 10_000,
+    })) as GrepMatch[]
+
+    expect(fetchMock).toHaveBeenCalledTimes(SECTION_PAGES.length)
+    expect(matches.map((match) => match.path)).toEqual(SECTION_PAGES)
+  })
+
+  it('skips pages the site no longer serves instead of failing the directory grep', async () => {
+    const missingUrl = `https://docs.sim.ai/${SECTION_PAGES[0].slice('docs/'.length)}`
+    fetchMock.mockImplementation(async (url: string) =>
+      url === missingUrl
+        ? { ok: false, status: 404, text: async () => '' }
+        : { ok: true, status: 200, text: async () => 'cron marker line' }
+    )
+
+    const matches = (await grepDocs(SECTION_DIR, 'cron marker', {
+      maxResults: 10_000,
+    })) as GrepMatch[]
+
+    expect(matches.map((match) => match.path)).toEqual(SECTION_PAGES.slice(1))
+  })
+
+  it('fails the whole directory grep when a page cannot be reached', async () => {
+    fetchMock.mockImplementation(async (url: string) =>
+      url.endsWith(`/${SAMPLE_PAGE}`)
+        ? { ok: false, status: 502, text: async () => '' }
+        : { ok: true, status: 200, text: async () => 'cron marker line' }
+    )
+
+    await expect(grepDocs(SECTION_DIR, 'cron marker')).rejects.toThrow(/Retry shortly/)
+  })
+
+  it('rejects a path that is neither a page nor a directory without fetching', async () => {
+    await expect(grepDocs('docs/not-a-real-page.mdx', 'cron')).rejects.toThrow(
+      /not a docs page or directory/
+    )
     expect(fetchMock).not.toHaveBeenCalled()
   })
 })
