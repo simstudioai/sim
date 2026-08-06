@@ -14,6 +14,7 @@ import {
   toBillingContext,
 } from '@/lib/billing/core/billing-attribution'
 import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billing'
+import { env } from '@/lib/core/config/env'
 import { isRetryableInfrastructureError } from '@/lib/core/errors/retryable-infrastructure'
 import { createTimeoutAbortController } from '@/lib/core/execution-limits'
 import { RateLimiter } from '@/lib/core/rate-limiter/rate-limiter'
@@ -850,7 +851,7 @@ async function runWorkflowAndWriteTerminal(
 
 export const workflowGroupCellTask = task({
   id: 'workflow-group-cell',
-  machine: 'medium-1x',
+  machine: env.APPCONFIG_ENVIRONMENT === 'dev' ? 'large-1x' : 'medium-1x',
   retry: { maxAttempts: 1 },
   // Combined with `concurrencyKey: tableId`, caps each table's sub-queue of
   // in-flight cell jobs while letting different tables run in parallel. The
