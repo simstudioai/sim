@@ -60,20 +60,6 @@ const SAML_DEFAULT_MAPPING = {
   name: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name',
 } as const
 
-const SAML_SIGNATURE_ALGORITHMS = [
-  { label: 'Provider default', value: '' },
-  { label: 'RSA-SHA256', value: 'http://www.w3.org/2001/04/xmldsig-more#rsa-sha256' },
-  { label: 'RSA-SHA384', value: 'http://www.w3.org/2001/04/xmldsig-more#rsa-sha384' },
-  { label: 'RSA-SHA512', value: 'http://www.w3.org/2001/04/xmldsig-more#rsa-sha512' },
-] as const
-
-const SAML_DIGEST_ALGORITHMS = [
-  { label: 'Provider default', value: '' },
-  { label: 'SHA-256', value: 'http://www.w3.org/2001/04/xmlenc#sha256' },
-  { label: 'SHA-384', value: 'http://www.w3.org/2001/04/xmldsig-more#sha384' },
-  { label: 'SHA-512', value: 'http://www.w3.org/2001/04/xmlenc#sha512' },
-] as const
-
 const SAML_NAMEID_FORMATS = [
   { label: 'Provider default', value: '' },
   {
@@ -102,8 +88,6 @@ const DEFAULT_FORM_DATA = {
   mapId: '',
   mapEmail: '',
   mapName: '',
-  signatureAlgorithm: '',
-  digestAlgorithm: '',
   identifierFormat: '',
   authorizationEndpoint: '',
   tokenEndpoint: '',
@@ -353,11 +337,7 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
               ...(formData.callbackUrl ? { callbackUrl: formData.callbackUrl } : {}),
               ...(formData.audience ? { audience: formData.audience } : {}),
               ...(formData.idpMetadata ? { idpMetadata: formData.idpMetadata } : {}),
-              ...(formData.signatureAlgorithm
-                ? { signatureAlgorithm: formData.signatureAlgorithm }
-                : {}),
-              ...(formData.digestAlgorithm ? { digestAlgorithm: formData.digestAlgorithm } : {}),
-              ...(formData.identifierFormat ? { identifierFormat: formData.identifierFormat } : {}),
+              identifierFormat: formData.identifierFormat,
             }
 
       await configureSSOMutation.mutateAsync(requestBody)
@@ -414,8 +394,6 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
       // that actually differs — otherwise editing would rewrite a default as an
       // explicit override, and a stored custom mapping must never silently reset.
       let mapping: { id?: string; email?: string; name?: string } = {}
-      let signatureAlgorithm = ''
-      let digestAlgorithm = ''
       let identifierFormat = ''
       let authorizationEndpoint = ''
       let tokenEndpoint = ''
@@ -439,8 +417,6 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
         wantAssertionsSigned = config.wantAssertionsSigned ?? true
         idpMetadata = config.idpMetadata?.metadata || config.idpMetadata || ''
         mapping = config.mapping ?? {}
-        signatureAlgorithm = config.signatureAlgorithm || ''
-        digestAlgorithm = config.digestAlgorithm || ''
         identifierFormat = config.identifierFormat || ''
       }
 
@@ -466,8 +442,6 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
         mapId: overrideOf(mapping.id, defaults.id),
         mapEmail: overrideOf(mapping.email, defaults.email),
         mapName: overrideOf(mapping.name, defaults.name),
-        signatureAlgorithm,
-        digestAlgorithm,
         identifierFormat,
         authorizationEndpoint,
         tokenEndpoint,
@@ -514,12 +488,24 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
               </p>
             </SettingRow>
 
-            <SettingRow label='Callback URL'>
+            <SettingRow
+              label={
+                existingProvider.providerType === 'saml' ? 'ACS URL (Reply URL)' : 'Callback URL'
+              }
+            >
               <ChipCopyInput value={providerCallbackUrl} copyLabel='Copy callback URL' />
               <p className='text-[var(--text-muted)] text-small'>
                 Configure this in your identity provider
               </p>
             </SettingRow>
+
+            {/* Admins land here after saving, so this view has to carry the same
+                two values an IdP needs as the form does. */}
+            {existingProvider.providerType === 'saml' && (
+              <SettingRow label='SP Entity ID'>
+                <ChipCopyInput value={getBaseUrl()} copyLabel='Copy entity ID' />
+              </SettingRow>
+            )}
           </div>
         </SettingsSection>
       </SettingsPanel>
@@ -912,36 +898,6 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
                             onCheckedChange={(checked) =>
                               handleInputChange('wantAssertionsSigned', checked)
                             }
-                          />
-                        </SettingRow>
-
-                        <SettingRow label='Signature algorithm' optional>
-                          <ChipSelect
-                            align='start'
-                            value={formData.signatureAlgorithm}
-                            onChange={(value: string) =>
-                              handleInputChange('signatureAlgorithm', value)
-                            }
-                            options={SAML_SIGNATURE_ALGORITHMS.map((a) => ({
-                              label: a.label,
-                              value: a.value,
-                            }))}
-                            placeholder='Provider default'
-                          />
-                        </SettingRow>
-
-                        <SettingRow label='Digest algorithm' optional>
-                          <ChipSelect
-                            align='start'
-                            value={formData.digestAlgorithm}
-                            onChange={(value: string) =>
-                              handleInputChange('digestAlgorithm', value)
-                            }
-                            options={SAML_DIGEST_ALGORITHMS.map((a) => ({
-                              label: a.label,
-                              value: a.value,
-                            }))}
-                            placeholder='Provider default'
                           />
                         </SettingRow>
 
