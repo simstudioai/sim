@@ -59,6 +59,71 @@ beforeEach(() => {
 })
 
 describe('projectTraceSpansForSecrets', () => {
+  it('removes compiler and legacy runtime aliases from projected trace content', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      {
+        name: 'API_SECRET',
+        plaintext: 'trace-secret',
+        encryptedValue: 'encrypted-api-secret',
+      },
+    ])
+    expect(registry.recordResolved('API_SECRET', 'trace-secret')).toBe(true)
+
+    const [projected] = await projectTraceSpansForSecrets(
+      [
+        createSpan({
+          output: {
+            legacy: '__var_API_SECRET',
+            compiler: '__sim_code_0_binding_0',
+            runtime: '__sim_runtime_payload_0__',
+          },
+        }),
+      ],
+      { registry, store: STORE }
+    )
+
+    expect(projected.output).toEqual({
+      legacy: '[REDACTED_SECRET]',
+      compiler: '[RUNTIME_BINDING]',
+      runtime: '[RUNTIME_BINDING]',
+    })
+  })
+
+  it('preserves named provenance when an exact secret name and value overlap', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'Test', plaintext: 'Test', encryptedValue: 'ciphertext' },
+    ])
+    expect(registry.recordResolved('Test', 'Test')).toBe(true)
+    const source = createSpan({
+      input: { code: 'return {{Test}}' },
+      output: {
+        result: 'Test',
+        legacy: '__var_Test',
+        compiler: '__sim_code_0_binding_0',
+      },
+    })
+
+    const [projected] = await projectTraceSpansForSecrets([source], {
+      registry,
+      store: STORE,
+    })
+
+    expect(projected.input).toEqual({ code: 'return {{Test}}' })
+    expect(projected.output).toEqual({
+      result: '{{Test}}',
+      legacy: '[REDACTED_SECRET]',
+      compiler: '[RUNTIME_BINDING]',
+    })
+    expect(JSON.stringify(projected)).not.toContain('__var_')
+    expect(JSON.stringify(projected)).not.toContain('__sim_code_')
+    expect(source.input).toEqual({ code: 'return {{Test}}' })
+    expect(source.output).toEqual({
+      result: 'Test',
+      legacy: '__var_Test',
+      compiler: '__sim_code_0_binding_0',
+    })
+  })
+
   it('protects only literals activated by a successful Secrets-tab substitution', async () => {
     const plaintext = 'trace/secret+value'
     const registry = new ResolvedSecretTraceRegistry([
@@ -203,7 +268,7 @@ describe('projectTraceSpansForSecrets', () => {
     )
 
     expect(result[0].output).toEqual({
-      value: '{{LONG}} {{SHORT}} ',
+      value: '{{LONG}} {{SHORT}} {{A_SECRET}}',
     })
   })
 

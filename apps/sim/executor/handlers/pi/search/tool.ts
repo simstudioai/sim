@@ -25,9 +25,28 @@ import {
   serializePiSearchEnvelope,
 } from '@/executor/handlers/pi/search/normalize'
 import type { ExecutionContext } from '@/executor/types'
+import {
+  projectResolvedSecretModelContent,
+  projectResolvedSecretModelControlMessage,
+} from '@/executor/utils/resolved-secret-content-projection'
+import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { executeTool } from '@/tools'
 
 const logger = createLogger('PiSearchTool')
+const SEARCH_RESULT_UNAVAILABLE_MESSAGE =
+  'Web search settled, but its result could not be returned safely. Do not retry automatically.'
+
+function unavailableSearchResult(registry: ResolvedSecretTraceRegistry | undefined): {
+  text: string
+  isError: true
+} {
+  return {
+    text:
+      projectResolvedSecretModelControlMessage(SEARCH_RESULT_UNAVAILABLE_MESSAGE, registry) ??
+      SEARCH_RESULT_UNAVAILABLE_MESSAGE,
+    isError: true,
+  }
+}
 
 /**
  * Parallel's `transformResponse` reports an absent `results` array as a failure, while Exa, Serper,
@@ -95,26 +114,37 @@ export function buildPiSearchToolSpec(
         return { text: PI_SEARCH_BUDGET_MESSAGE, isError: true }
       }
 
-      const result = await executeTool(
-        toolId,
-        {
-          ...buildPiSearchProviderArgs(search.provider, { query, numResults }),
-          apiKey: search.apiKey,
-          // None of the four search tools declares a timeout, and the transport falls back to five
-          // minutes without one — against ten seconds in the Create PR extension.
-          timeout: PI_SEARCH_TIMEOUT_MS,
-        },
-        { executionContext: ctx }
-      )
+      const providerParams = {
+        ...buildPiSearchProviderArgs(search.provider, { query, numResults }),
+        apiKey: search.apiKey,
+        // None of the four search tools declares a timeout, and the transport falls back to five
+        // minutes without one — against ten seconds in the Create PR extension.
+        timeout: PI_SEARCH_TIMEOUT_MS,
+      }
+      const registry = ctx.resolvedSecretTraceRegistry
+      const toolCallRegistry = registry?.forkForToolInputValues(Object.values(providerParams))
+      if (!registry || !toolCallRegistry?.isComplete()) {
+        return unavailableSearchResult(toolCallRegistry)
+      }
+
+      const result = await executeTool(toolId, providerParams, {
+        executionContext: ctx,
+        resolvedSecretTraceRegistry: toolCallRegistry,
+      })
 
       if (!result.success) {
+        if (!toolCallRegistry.isComplete()) {
+          return unavailableSearchResult(toolCallRegistry)
+        }
         if (result.error === PARALLEL_EMPTY_RESULTS_ERROR) {
           logger.info('Pi search returned no results', { ...logContext, resultCount: 0 })
+          registry.mergeToolCallRegistry(toolCallRegistry)
           return { text: serializePiSearchEnvelope([]), isError: false }
         }
 
         const status = (result.output as { status?: unknown } | undefined)?.status
         logger.warn('Pi search failed', { ...logContext, status })
+        registry.mergeToolCallRegistry(toolCallRegistry)
         return {
           // Classified rather than quoted: `result.error` can carry provider-response-derived text
           // for all four providers, which the untrusted-results guideline does not cover. Only the
@@ -125,12 +155,17 @@ export function buildPiSearchToolSpec(
         }
       }
 
+      const outputProjection = projectResolvedSecretModelContent(result.output, toolCallRegistry)
+      if (!outputProjection.safe || !toolCallRegistry.isComplete()) {
+        return unavailableSearchResult(toolCallRegistry)
+      }
       const results = normalizePiSearchRecords(
         search.provider,
-        extractPiSearchRecords(search.provider, result.output),
+        extractPiSearchRecords(search.provider, outputProjection.value),
         numResults
       )
       logger.info('Pi search completed', { ...logContext, resultCount: results.length })
+      registry.mergeToolCallRegistry(toolCallRegistry)
       return { text: serializePiSearchEnvelope(results), isError: false }
     },
   }

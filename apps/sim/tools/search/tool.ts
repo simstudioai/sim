@@ -18,6 +18,10 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({ query: params.query }),
+    },
     url: () => '/api/tools/search',
     method: 'POST',
     headers: () => ({

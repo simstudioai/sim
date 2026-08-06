@@ -1,5 +1,6 @@
 import '@sim/testing/mocks/executor'
 
+import { createLogger } from '@sim/logger'
 import { authOAuthUtilsMock, authOAuthUtilsMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
@@ -31,14 +32,24 @@ vi.mock('@/lib/model-router/resolve', () => ({
   SIM_AUTO_SYSTEM_PREAMBLE: 'Sim auto system preamble',
 }))
 
+import { PRIVATE_MODEL_INPUT_PROVENANCE_HEADER } from '@/lib/execution/model-input-provenance'
+import {
+  RESOLVED_SECRET_PROVENANCE_FIELD,
+  RESOLVED_SECRET_PROVENANCE_METADATA_V1,
+} from '@/lib/execution/private-tool-metadata'
 import { BlockType } from '@/executor/constants'
 import { EvaluatorBlockHandler } from '@/executor/handlers/evaluator/evaluator-handler'
 import type { ExecutionContext } from '@/executor/types'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 
 const mockGetProviderFromModel = getProviderFromModel as Mock
 const mockFetch = vi.fn()
+const mockLogger =
+  vi.mocked(createLogger).mock.results[
+    vi.mocked(createLogger).mock.calls.findIndex(([name]) => name === 'EvaluatorBlockHandler')
+  ].value
 
 describe('EvaluatorBlockHandler', () => {
   let handler: EvaluatorBlockHandler
@@ -189,6 +200,81 @@ describe('EvaluatorBlockHandler', () => {
       score1: 5,
       score2: 8,
     })
+  })
+
+  it('sends only model-visible evaluator provenance and excludes credentials', async () => {
+    const contentSecret = 'resolved-evaluator-content'
+    const metricSecret = 'resolved-evaluator-metric'
+    const credentialSecret = 'resolved-evaluator-credential'
+    const registry = new ResolvedSecretTraceRegistry([
+      {
+        name: 'CONTENT_SECRET',
+        plaintext: contentSecret,
+        encryptedValue: 'encrypted-evaluator-content',
+      },
+      {
+        name: 'METRIC_SECRET',
+        plaintext: metricSecret,
+        encryptedValue: 'encrypted-evaluator-metric',
+      },
+      {
+        name: 'API_KEY',
+        plaintext: credentialSecret,
+        encryptedValue: 'encrypted-evaluator-credential',
+      },
+    ])
+    registry.recordResolved('CONTENT_SECRET', contentSecret)
+    registry.recordResolved('METRIC_SECRET', metricSecret)
+    registry.recordResolved('API_KEY', credentialSecret)
+    mockContext.resolvedSecretTraceRegistry = registry
+
+    await handler.execute(mockContext, mockBlock, {
+      content: contentSecret,
+      metrics: [
+        {
+          name: 'quality',
+          description: metricSecret,
+          range: { min: 0, max: 10 },
+        },
+      ],
+      model: 'gpt-4o',
+      apiKey: credentialSecret,
+    })
+
+    const request = mockFetch.mock.calls[0][1]
+    const requestBody = JSON.parse(request.body)
+    expect((request.headers as Headers).get(PRIVATE_MODEL_INPUT_PROVENANCE_HEADER)).toBe(
+      RESOLVED_SECRET_PROVENANCE_METADATA_V1
+    )
+    expect(requestBody[RESOLVED_SECRET_PROVENANCE_FIELD]).toEqual({
+      version: 1,
+      complete: true,
+      entries: [
+        {
+          encryptedValue: 'encrypted-evaluator-content',
+          name: 'CONTENT_SECRET',
+        },
+        {
+          encryptedValue: 'encrypted-evaluator-metric',
+          name: 'METRIC_SECRET',
+        },
+      ],
+    })
+    expect(requestBody.apiKey).toBe(credentialSecret)
+  })
+
+  it('keeps the evaluator request shape when no provenance registry exists', async () => {
+    await handler.execute(mockContext, mockBlock, {
+      content: 'Public evaluator content',
+      metrics: [{ name: 'quality', description: 'Quality', range: { min: 0, max: 10 } }],
+      model: 'gpt-4o',
+      apiKey: 'test-api-key',
+    })
+
+    const request = mockFetch.mock.calls[0][1]
+    const requestBody = JSON.parse(request.body)
+    expect(Object.hasOwn(requestBody, RESOLVED_SECRET_PROVENANCE_FIELD)).toBe(false)
+    expect((request.headers as Headers).get(PRIVATE_MODEL_INPUT_PROVENANCE_HEADER)).toBeNull()
   })
 
   it('resolves sim-auto before executing evaluator and preserves its public identity', async () => {
@@ -521,6 +607,36 @@ describe('EvaluatorBlockHandler', () => {
     })
 
     await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow('Server error')
+  })
+
+  it('projects evaluator failures before logging without changing the thrown error', async () => {
+    const providerError = 'provider echoed resolved-evaluator-secret __var_CONTENT_SECRET'
+    const registry = new ResolvedSecretTraceRegistry([
+      {
+        name: 'CONTENT_SECRET',
+        plaintext: 'resolved-evaluator-secret',
+        encryptedValue: 'encrypted-evaluator-secret',
+      },
+    ])
+    registry.recordResolved('CONTENT_SECRET', 'resolved-evaluator-secret')
+    mockContext.resolvedSecretTraceRegistry = registry
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      json: () => Promise.resolve({ error: providerError }),
+    })
+
+    await expect(
+      handler.execute(mockContext, mockBlock, {
+        content: 'resolved-evaluator-secret',
+        metrics: [],
+      })
+    ).rejects.toThrow(providerError)
+
+    const logged = JSON.stringify(mockLogger.error.mock.calls)
+    expect(logged).not.toContain('resolved-evaluator-secret')
+    expect(logged).not.toContain('__var_')
+    expect(logged).toContain('{{CONTENT_SECRET}}')
   })
 
   it('should handle Azure OpenAI models with endpoint and API version', async () => {

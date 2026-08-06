@@ -6,6 +6,10 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
+import {
+  assertOpaqueWorkspaceFileModelSafe,
+  projectServerToolModelInput,
+} from '@/lib/copilot/tools/server/model-input'
 import { writeWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
 import { generateFalVideo } from '@/lib/media/falai-video'
 import {
@@ -59,6 +63,10 @@ export const generateVideoServerTool: BaseServerTool<GenerateVideoArgs, Generate
     }
 
     try {
+      const modelInput = projectServerToolModelInput(
+        { prompt: params.prompt, negativePrompt: params.negativePrompt },
+        context
+      )
       let imageDataUri: string | undefined
       const refPath = params.inputs?.files?.[0]?.path
       if (refPath) {
@@ -66,6 +74,7 @@ export const generateVideoServerTool: BaseServerTool<GenerateVideoArgs, Generate
         if (!fileRecord) {
           return { success: false, message: `Reference image not found: ${refPath}` }
         }
+        await assertOpaqueWorkspaceFileModelSafe({ workspaceId, file: fileRecord, context })
         const buffer = await fetchWorkspaceFileBuffer(fileRecord)
         const mime = fileRecord.type || 'image/png'
         imageDataUri = `data:${mime};base64,${buffer.toString('base64')}`
@@ -78,13 +87,13 @@ export const generateVideoServerTool: BaseServerTool<GenerateVideoArgs, Generate
       })
 
       const result = await generateFalVideo({
-        prompt: params.prompt,
+        prompt: modelInput.prompt,
         model: params.model,
         aspectRatio: params.aspectRatio,
         resolution: params.resolution,
         duration: params.duration,
         generateAudio: params.generateAudio,
-        negativePrompt: params.negativePrompt,
+        negativePrompt: modelInput.negativePrompt,
         promptOptimizer: params.promptOptimizer,
         imageDataUri,
       })

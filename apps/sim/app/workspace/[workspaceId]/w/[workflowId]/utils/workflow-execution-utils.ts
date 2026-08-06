@@ -528,6 +528,10 @@ interface ExecutionConsoleDeps {
   cancelRunningEntries: CancelRunningEntriesFn
 }
 
+interface FinalBlockLogReconciliationOptions {
+  executionCancelled?: boolean
+}
+
 /**
  * Reconciles console entries with the server's authoritative, secret-safe
  * `finalBlockLogs`. Reapplying running or content-bearing rows both recovers
@@ -538,10 +542,12 @@ export function reconcileFinalBlockLogs(
   updateConsole: UpdateConsoleFn,
   workflowId: string,
   executionId: string | undefined,
-  finalBlockLogs: SecretSafeBlockLog[] | undefined
+  finalBlockLogs: SecretSafeBlockLog[] | undefined,
+  options: FinalBlockLogReconciliationOptions = {}
 ): void {
   if (!finalBlockLogs?.length || !executionId) return
   for (const log of finalBlockLogs) {
+    const errorMessage = normalizeDisplayError(log.error)
     const entries = useTerminalConsoleStore.getState().getWorkflowEntries(workflowId)
     const matchesFinalLog = (entry: ConsoleEntry) =>
       entry.blockId === log.blockId &&
@@ -554,11 +560,16 @@ export function reconcileFinalBlockLogs(
       matchingEntry?.error !== undefined ||
       matchingEntry?.agentStreamThinking !== undefined
     if (matchingEntry && (matchingEntry.isRunning || hasExistingContent)) {
+      const cancelledWhileRunning =
+        options.executionCancelled === true &&
+        matchingEntry.isRunning === true &&
+        log.success === false &&
+        errorMessage === undefined
       const projectionOmittedContent =
         log.clearLiveDisplay === true ||
         (log.input === undefined && matchingEntry.input !== undefined) ||
         (log.output === undefined && matchingEntry.output !== undefined) ||
-        (log.error === undefined && matchingEntry.error !== undefined)
+        (errorMessage === undefined && matchingEntry.error !== undefined)
       updateConsole(
         log.blockId,
         {
@@ -567,12 +578,14 @@ export function reconcileFinalBlockLogs(
           blockType: log.blockType,
           replaceOutput: (log.output ?? {}) as Record<string, unknown>,
           input: log.input ?? {},
-          success: log.success,
-          error: log.error ?? null,
+          success: cancelledWhileRunning ? undefined : log.success,
+          error: cancelledWhileRunning
+            ? null
+            : (errorMessage ?? (log.success ? null : BLOCK_FAILURE_DISPLAY_MESSAGE)),
           durationMs: log.durationMs,
           startedAt: log.startedAt,
           endedAt: log.endedAt,
-          isRunning: false,
+          isRunning: cancelledWhileRunning,
           isCanceled: false,
           ...(projectionOmittedContent ? { clearAgentStreamThinking: true } : {}),
         },
@@ -587,7 +600,8 @@ export function reconcileFinalBlockLogs(
         workflowId,
         childWorkflowInstanceId,
         executionId,
-        log.childTraceSpans
+        log.childTraceSpans,
+        options
       )
     }
   }
@@ -609,14 +623,20 @@ function reconcileChildTraceSpans(
   workflowId: string,
   childWorkflowInstanceId: string,
   executionId: string,
-  spans: TraceSpan[]
+  spans: TraceSpan[],
+  options: FinalBlockLogReconciliationOptions
 ): void {
   for (const span of spans) {
     const matchingEntry = span.blockId
       ? findConsoleEntryForSpan(workflowId, executionId, childWorkflowInstanceId, span)
       : undefined
     if (span.blockId) {
-      const errorMessage = normalizeSpanError(span.errorMessage ?? span.output?.error)
+      const errorMessage = normalizeDisplayError(span.errorMessage ?? span.output?.error)
+      const cancelledWhileRunning =
+        options.executionCancelled === true &&
+        matchingEntry?.isRunning === true &&
+        span.status === 'error' &&
+        errorMessage === undefined
       const projectionOmittedContent = matchingEntry
         ? (span.input === undefined && matchingEntry.input !== undefined) ||
           (span.output === undefined && matchingEntry.output !== undefined) ||
@@ -628,12 +648,14 @@ function reconcileChildTraceSpans(
           ...spanConsoleIdentity(span, childWorkflowInstanceId),
           input: span.input ?? {},
           replaceOutput: (span.output ?? {}) as Record<string, unknown>,
-          success: span.status !== 'error',
-          error: errorMessage ?? null,
+          success: cancelledWhileRunning ? undefined : span.status !== 'error',
+          error: cancelledWhileRunning
+            ? null
+            : (errorMessage ?? (span.status === 'error' ? BLOCK_FAILURE_DISPLAY_MESSAGE : null)),
           durationMs: span.duration,
           startedAt: span.startTime,
           endedAt: span.endTime,
-          isRunning: false,
+          isRunning: cancelledWhileRunning,
           isCanceled: false,
           ...(projectionOmittedContent ? { clearAgentStreamThinking: true } : {}),
         },
@@ -646,7 +668,8 @@ function reconcileChildTraceSpans(
         workflowId,
         matchingEntry?.childWorkflowInstanceId ?? childWorkflowInstanceId,
         executionId,
-        span.children
+        span.children,
+        options
       )
     }
   }
@@ -718,9 +741,10 @@ function matchesConsoleIdentity(entry: ConsoleEntry, identity: ConsoleUpdate): b
   return true
 }
 
-function normalizeSpanError(error: unknown): string | undefined {
+function normalizeDisplayError(error: unknown): string | undefined {
   if (error === undefined || error === null) return undefined
-  return typeof error === 'string' ? error : toError(error).message
+  const message = typeof error === 'string' ? error : toError(error).message
+  return message.trim() ? message : undefined
 }
 
 interface ExecutionTimingFields {
@@ -744,11 +768,11 @@ export function buildExecutionTiming(durationMs?: number): ExecutionTimingFields
 interface ExecutionErrorConsoleParams {
   workflowId: string
   executionId?: string
-  /** Raw runtime error used only for functional classification and result propagation. */
+  /** Raw runtime error used only for functional classification. */
   error?: string
   /** Server-projected error text safe for terminal display. */
   displayError?: string
-  /** Distinguishes an intentionally empty projection from a legacy event with no projection. */
+  /** Whether terminal display must ignore the raw runtime error and use projected text or fallback. */
   hasDisplayProjection?: boolean
   durationMs?: number
   blockLogs: BlockLog[]
@@ -910,7 +934,8 @@ export function handleExecutionCancelledConsole(
     deps.updateConsole,
     params.workflowId,
     params.executionId,
-    params.finalBlockLogs
+    params.finalBlockLogs,
+    { executionCancelled: true }
   )
   deps.cancelRunningEntries(params.workflowId, params.executionId)
   addCancelledConsoleEntry(deps.addConsole, params)

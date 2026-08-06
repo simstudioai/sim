@@ -39,6 +39,7 @@ export interface EnvFlagsMockState {
   isSessionPoliciesEnabled: boolean
   isForkingEnabled: boolean
   isRemoteSandboxEnabled: boolean
+  isMothershipSandboxEnabled: boolean
   isDocSandboxEnabled: boolean
   isOllamaConfigured: boolean
   isAzureConfigured: boolean
@@ -88,6 +89,7 @@ const defaultEnvFlagsState: EnvFlagsMockState = {
   isDataDrainsEnabled: false,
   isForkingEnabled: false,
   isRemoteSandboxEnabled: false,
+  isMothershipSandboxEnabled: false,
   isDocSandboxEnabled: false,
   isOllamaConfigured: false,
   isAzureConfigured: false,

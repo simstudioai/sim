@@ -1,7 +1,18 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { getApiKeyWithBYOK } from '@/lib/api-key/byok'
+import {
+  collectModelVisibleSchemaContent,
+  restoreModelVisibleSchemaValues as restoreSchemaDisplayValues,
+} from '@/lib/copilot/model-visible-schema'
+import { filterModelSafeWorkspaceFileAttachments } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import type { StreamingExecution } from '@/executor/types'
+import {
+  isResolvedSecretModelContentUnchanged,
+  projectResolvedSecretModelContent,
+  projectResolvedSecretModelJsonStrings,
+} from '@/executor/utils/resolved-secret-content-projection'
+import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import {
   applyModelCostPolicy,
   applySegmentCostPolicy,
@@ -15,13 +26,20 @@ import {
   attachLargeFileRemoteUrls,
   uploadLargeFilesToProvider,
 } from '@/providers/file-attachments.server'
+import { collectProviderModelInputProvenanceValues } from '@/providers/model-input-provenance'
 import { isKnownModelId } from '@/providers/models'
 import { getProviderExecutor } from '@/providers/registry'
 import {
   type ProviderRuntimeContext,
   runWithProviderRuntimeContext,
 } from '@/providers/runtime-context'
-import type { ProviderId, ProviderRequest, ProviderResponse } from '@/providers/types'
+import type {
+  Message,
+  ProviderId,
+  ProviderRequest,
+  ProviderResponse,
+  ProviderToolConfig,
+} from '@/providers/types'
 import {
   generateStructuredOutputInstructions,
   sumToolCosts,
@@ -33,6 +51,275 @@ import {
 } from '@/providers/utils'
 
 const logger = createLogger('Providers')
+
+class ModelContentProjectionError extends Error {
+  constructor() {
+    super('Model input could not be safely projected')
+    this.name = 'ModelContentProjectionError'
+  }
+}
+
+function restoreProjectedOptionalString(
+  original: string | undefined,
+  candidate: unknown
+): string | undefined {
+  if (original === undefined && candidate === undefined) return undefined
+  if (original === undefined || typeof candidate !== 'string') {
+    throw new ModelContentProjectionError()
+  }
+  return candidate
+}
+
+function modelVisibleMessageText(message: Message): unknown {
+  return message.content
+}
+
+function projectMessageJsonArguments(
+  messages: Message[] | undefined,
+  registry: ResolvedSecretTraceRegistry | undefined
+): Message[] | undefined {
+  if (!messages) return undefined
+
+  const argumentsToProject = messages.flatMap((message) => [
+    message.function_call?.arguments,
+    ...(message.tool_calls?.map((toolCall) => toolCall.function.arguments) ?? []),
+  ])
+  const projection = projectResolvedSecretModelJsonStrings(argumentsToProject, registry)
+  if (!projection.safe || !Array.isArray(projection.value)) {
+    throw new ModelContentProjectionError()
+  }
+  const projectedArguments = projection.value
+
+  let cursor = 0
+  return messages.map((message) => {
+    const functionArguments = projectedArguments[cursor]
+    cursor += 1
+    const toolCalls = message.tool_calls?.map((toolCall) => {
+      const toolArguments = projectedArguments[cursor]
+      cursor += 1
+      if (typeof toolArguments !== 'string') throw new ModelContentProjectionError()
+      return {
+        ...toolCall,
+        function: { ...toolCall.function, arguments: toolArguments },
+      }
+    })
+    if (message.function_call && typeof functionArguments !== 'string') {
+      throw new ModelContentProjectionError()
+    }
+    return {
+      ...message,
+      ...(message.function_call
+        ? {
+            function_call: {
+              ...message.function_call,
+              arguments: functionArguments as string,
+            },
+          }
+        : {}),
+      ...(toolCalls ? { tool_calls: toolCalls } : {}),
+    }
+  })
+}
+
+function modelMessageProtocolHandles(messages: Message[] | undefined): unknown[] {
+  return (messages ?? []).flatMap((message) => [
+    message.name,
+    message.function_call?.name,
+    ...(message.tool_calls?.map((toolCall) => toolCall.function.name) ?? []),
+  ])
+}
+
+function hasModelSafeSchema(
+  schema: unknown,
+  registry: ResolvedSecretTraceRegistry | undefined
+): boolean {
+  try {
+    return isResolvedSecretModelContentUnchanged(
+      collectModelVisibleSchemaContent(schema).guardedValues,
+      registry
+    )
+  } catch {
+    return false
+  }
+}
+
+function modelSafeResponseFormatName(
+  name: string,
+  registry: ResolvedSecretTraceRegistry | undefined
+): string | undefined {
+  if (isResolvedSecretModelContentUnchanged(name, registry)) return name
+
+  const prefixes = ['response', 'structured_output', 'model_output'] as const
+  for (const prefix of prefixes) {
+    for (let suffix = 0; suffix < 100; suffix += 1) {
+      const candidate = `${prefix}_${suffix}`
+      if (isResolvedSecretModelContentUnchanged(candidate, registry)) return candidate
+    }
+  }
+  return undefined
+}
+
+function restoreProjectedMessages(
+  original: Message[] | undefined,
+  projected: unknown
+): Message[] | undefined {
+  if (original === undefined && projected === undefined) return undefined
+  if (!original || !Array.isArray(projected) || original.length !== projected.length) {
+    throw new ModelContentProjectionError()
+  }
+
+  return projected.map((candidate, index) => {
+    const originalMessage = original[index]
+    if (
+      (originalMessage.content === null && candidate !== null) ||
+      (typeof originalMessage.content === 'string' && typeof candidate !== 'string')
+    ) {
+      throw new ModelContentProjectionError()
+    }
+
+    return {
+      ...originalMessage,
+      content: candidate as Message['content'],
+    }
+  })
+}
+
+function modelVisibleToolContent(tool: ProviderToolConfig): unknown[] {
+  return [tool.description, collectModelVisibleSchemaContent(tool.parameters).projectedValues]
+}
+
+function restoreProjectedTools(
+  original: ProviderToolConfig[] | undefined,
+  projected: unknown
+): ProviderToolConfig[] | undefined {
+  if (original === undefined && projected === undefined) return undefined
+  if (!original || !Array.isArray(projected) || original.length !== projected.length) {
+    throw new ModelContentProjectionError()
+  }
+
+  return projected.map((candidate, index) => {
+    if (!Array.isArray(candidate) || candidate.length !== 2 || typeof candidate[0] !== 'string') {
+      throw new ModelContentProjectionError()
+    }
+    return {
+      ...original[index],
+      description: candidate[0],
+      parameters: restoreSchemaDisplayValues(
+        original[index].parameters,
+        candidate[1]
+      ) as ProviderToolConfig['parameters'],
+    }
+  })
+}
+
+function projectProviderModelContent(
+  request: ProviderRequest,
+  runtimeContext: ProviderRuntimeContext
+): ProviderRequest {
+  const registry = runtimeContext.resolvedSecretTraceRegistry
+  if (
+    !isResolvedSecretModelContentUnchanged(modelMessageProtocolHandles(request.messages), registry)
+  ) {
+    throw new ModelContentProjectionError()
+  }
+
+  const sourceMessages = projectMessageJsonArguments(request.messages, registry)
+  const sourceTools = request.tools?.filter(
+    (tool) =>
+      isResolvedSecretModelContentUnchanged(tool.id, registry) &&
+      isResolvedSecretModelContentUnchanged(tool.name, registry) &&
+      hasModelSafeSchema(tool.parameters, registry)
+  )
+  let sourceResponseFormat = request.responseFormat
+  if (request.responseFormat) {
+    if (!hasModelSafeSchema(request.responseFormat.schema, registry)) {
+      logger.warn('Omitting a response format with unsafe model-input provenance')
+      sourceResponseFormat = undefined
+    } else {
+      const name = modelSafeResponseFormatName(request.responseFormat.name, registry)
+      if (!name) {
+        logger.warn('Omitting a response format whose name could not be safely projected')
+        sourceResponseFormat = undefined
+      } else {
+        sourceResponseFormat = { ...request.responseFormat, name }
+      }
+    }
+  }
+
+  const projection = projectResolvedSecretModelContent(
+    [
+      request.systemPrompt,
+      request.context,
+      sourceMessages?.map(modelVisibleMessageText),
+      sourceTools?.map(modelVisibleToolContent),
+      sourceResponseFormat
+        ? collectModelVisibleSchemaContent(sourceResponseFormat.schema).projectedValues
+        : undefined,
+    ],
+    registry
+  )
+  if (!projection.safe || !Array.isArray(projection.value) || projection.value.length !== 5) {
+    throw new ModelContentProjectionError()
+  }
+
+  const [systemPrompt, context, projectedMessages, projectedTools, responseSchemaDisplay] =
+    projection.value
+  const projectedSystemPrompt = restoreProjectedOptionalString(request.systemPrompt, systemPrompt)
+  const projectedContext = restoreProjectedOptionalString(request.context, context)
+  let responseFormat = sourceResponseFormat
+  if (sourceResponseFormat) {
+    responseFormat = {
+      ...sourceResponseFormat,
+      schema: restoreSchemaDisplayValues(sourceResponseFormat.schema, responseSchemaDisplay),
+    }
+  } else if (responseSchemaDisplay !== undefined) {
+    throw new ModelContentProjectionError()
+  }
+
+  return {
+    ...request,
+    systemPrompt: projectedSystemPrompt,
+    context: projectedContext,
+    messages: restoreProjectedMessages(sourceMessages, projectedMessages),
+    tools: restoreProjectedTools(sourceTools, projectedTools),
+    responseFormat,
+  }
+}
+
+async function omitUnsafeProviderFileAttachments(
+  request: ProviderRequest
+): Promise<ProviderRequest> {
+  const attachments = (request.messages ?? []).flatMap((message) => message.files ?? [])
+  if (attachments.length === 0) return request
+
+  let safeAttachments: typeof attachments
+  try {
+    safeAttachments = await filterModelSafeWorkspaceFileAttachments(attachments, {
+      workspaceId: request.workspaceId,
+    })
+  } catch (error) {
+    logger.warn('Workspace file secret provenance could not be verified; omitting attachments', {
+      attachmentCount: attachments.length,
+      error: toError(error).message,
+    })
+    safeAttachments = []
+  }
+
+  if (safeAttachments.length === attachments.length) return request
+  const safe = new Set(safeAttachments)
+  logger.warn('Omitting model attachments with unsafe secret provenance', {
+    attachmentCount: attachments.length,
+    omittedCount: attachments.length - safeAttachments.length,
+  })
+  return {
+    ...request,
+    messages: request.messages?.map((message) => {
+      if (!message.files) return message
+      const files = message.files.filter((file) => safe.has(file))
+      return { ...message, ...(files.length > 0 ? { files } : { files: undefined }) }
+    }),
+  }
+}
 
 /**
  * Maximum number of iterations for tool call loops to prevent infinite loops.
@@ -130,6 +417,15 @@ export async function executeProviderRequest(
   request: ProviderRequest,
   runtimeContext?: ProviderRuntimeContext
 ): Promise<ProviderResponse | ReadableStream | StreamingExecution> {
+  const projectionRuntimeContext = runtimeContext
+    ? {
+        ...runtimeContext,
+        resolvedSecretTraceRegistry:
+          runtimeContext.resolvedSecretTraceRegistry?.forkForToolInputValues(
+            collectProviderModelInputProvenanceValues(request, providerId)
+          ),
+      }
+    : undefined
   const provider = await getProviderExecutor(providerId as ProviderId)
   if (!provider) {
     throw new Error(`Provider not found: ${providerId}`)
@@ -171,34 +467,35 @@ export async function executeProviderRequest(
   resolvedRequest.isBYOK = isBYOK
   const sanitizedRequest = resolvedRequest
 
-  if (sanitizedRequest.responseFormat) {
-    if (
-      typeof sanitizedRequest.responseFormat === 'string' &&
-      sanitizedRequest.responseFormat === ''
-    ) {
-      logger.info('Empty response format provided, ignoring it')
-      sanitizedRequest.responseFormat = undefined
-    } else {
-      const structuredOutputInstructions = generateStructuredOutputInstructions(
-        sanitizedRequest.responseFormat
-      )
+  if (
+    typeof sanitizedRequest.responseFormat === 'string' &&
+    sanitizedRequest.responseFormat === ''
+  ) {
+    logger.info('Empty response format provided, ignoring it')
+    sanitizedRequest.responseFormat = undefined
+  }
 
-      if (structuredOutputInstructions.trim()) {
-        const originalPrompt = sanitizedRequest.systemPrompt || ''
-        sanitizedRequest.systemPrompt =
-          `${originalPrompt}\n\n${structuredOutputInstructions}`.trim()
+  const provenanceSafeRequest = await omitUnsafeProviderFileAttachments(sanitizedRequest)
+  const modelSafeRequest = projectionRuntimeContext
+    ? projectProviderModelContent(provenanceSafeRequest, projectionRuntimeContext)
+    : provenanceSafeRequest
 
-        logger.info('Added structured output instructions to system prompt')
-      }
+  if (modelSafeRequest.responseFormat) {
+    const structuredOutputInstructions = generateStructuredOutputInstructions(
+      modelSafeRequest.responseFormat
+    )
+    if (structuredOutputInstructions.trim()) {
+      const originalPrompt = modelSafeRequest.systemPrompt || ''
+      modelSafeRequest.systemPrompt = `${originalPrompt}\n\n${structuredOutputInstructions}`.trim()
+      logger.info('Added structured output instructions to system prompt')
     }
   }
 
-  await attachLargeFileRemoteUrls(sanitizedRequest, providerId)
-  await uploadLargeFilesToProvider(sanitizedRequest, providerId)
-
-  const response = await runWithProviderRuntimeContext(runtimeContext, () =>
-    provider.executeRequest(sanitizedRequest)
-  )
+  const response = await runWithProviderRuntimeContext(projectionRuntimeContext, async () => {
+    await attachLargeFileRemoteUrls(modelSafeRequest, providerId)
+    await uploadLargeFilesToProvider(modelSafeRequest, providerId)
+    return provider.executeRequest(modelSafeRequest)
+  })
 
   if (isStreamingExecution(response)) {
     logger.info('Provider returned StreamingExecution', { isBYOK })

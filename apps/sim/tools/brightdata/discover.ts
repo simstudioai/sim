@@ -80,6 +80,13 @@ export const brightDataDiscoverTool: ToolConfig<
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => {
+        if (params.mode === 'zeroRanking') return {}
+        return params.intent ? { intent: params.intent } : { query: params.query }
+      },
+    },
     method: 'POST',
     url: 'https://api.brightdata.com/discover',
     headers: (params) => ({

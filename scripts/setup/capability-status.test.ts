@@ -2,6 +2,8 @@ import { describe, expect, it } from 'bun:test'
 import { OAUTH_CLIENT_CAPABILITIES } from '../../apps/sim/lib/core/config/env-capabilities.ts'
 import { buildEnvCapabilityStatus } from './capability-status.ts'
 
+const DAYTONA_FUNCTION_SNAPSHOT_ID = '00000000-0000-4000-8000-000000000002'
+
 describe('env capability status', () => {
   it('reports built-in defaults without treating them as configured services', () => {
     const status = buildEnvCapabilityStatus({})
@@ -26,12 +28,12 @@ describe('env capability status', () => {
       SANDBOX_PROVIDER: 'e2b',
       E2B_ENABLED: 'false',
       NEXT_PUBLIC_E2B_ENABLED: 'false',
-      NEXT_PUBLIC_SANDBOX_ENABLED: 'false',
+      NEXT_PUBLIC_SANDBOXES_ENABLED: 'false',
     })
 
     expect(status.features.sandbox).toEqual({
       id: 'sandbox',
-      label: 'Remote sandboxes',
+      label: 'Function sandboxes',
       setupCommand: 'bun run setup sandbox',
       state: 'default',
       providerId: 'disabled',
@@ -62,8 +64,8 @@ describe('env capability status', () => {
     const status = buildEnvCapabilityStatus({
       SANDBOX_PROVIDER: 'daytona',
       DAYTONA_API_KEY: 'daytona-secret',
-      DAYTONA_SHELL_SNAPSHOT_ID: 'mothership-shell:v1',
-      NEXT_PUBLIC_SANDBOX_ENABLED: 'true',
+      DAYTONA_FUNCTION_SNAPSHOT_ID,
+      NEXT_PUBLIC_SANDBOXES_ENABLED: 'true',
       STORAGE_PROVIDER: 's3',
       AWS_REGION: 'us-east-1',
       S3_BUCKET_NAME: 'files',
@@ -79,11 +81,11 @@ describe('env capability status', () => {
     })
   })
 
-  it('reports Daytona as missing when its default shell snapshot is absent', () => {
+  it('reports Daytona as missing when its Function snapshot is absent', () => {
     const status = buildEnvCapabilityStatus({
       SANDBOX_PROVIDER: 'daytona',
       DAYTONA_API_KEY: 'daytona-secret',
-      NEXT_PUBLIC_SANDBOX_ENABLED: 'true',
+      NEXT_PUBLIC_SANDBOXES_ENABLED: 'true',
     })
 
     expect(status.features.sandbox).toMatchObject({
@@ -91,15 +93,15 @@ describe('env capability status', () => {
       providerId: 'daytona',
       issue: { state: 'missing' },
     })
-    expect(status.features.sandbox.issue?.message).toContain('DAYTONA_SHELL_SNAPSHOT_ID')
+    expect(status.features.sandbox.issue?.message).toContain('DAYTONA_FUNCTION_SNAPSHOT_ID')
   })
 
-  it('reports an untagged or floating Daytona shell snapshot as invalid', () => {
+  it('reports a mutable Daytona Function snapshot name as invalid', () => {
     const status = buildEnvCapabilityStatus({
       SANDBOX_PROVIDER: 'daytona',
       DAYTONA_API_KEY: 'daytona-secret',
-      DAYTONA_SHELL_SNAPSHOT_ID: 'mothership-shell:latest',
-      NEXT_PUBLIC_SANDBOX_ENABLED: 'true',
+      DAYTONA_FUNCTION_SNAPSHOT_ID: 'mothership-shell:latest',
+      NEXT_PUBLIC_SANDBOXES_ENABLED: 'true',
     })
 
     expect(status.features.sandbox).toMatchObject({
@@ -107,14 +109,14 @@ describe('env capability status', () => {
       providerId: 'daytona',
       issue: { state: 'invalid' },
     })
-    expect(status.features.sandbox.issue?.message).toContain('explicit, non-floating name:tag')
+    expect(status.features.sandbox.issue?.message).toContain('immutable Daytona snapshot ID')
   })
 
   it('reports remote sandbox server/browser drift as partial', () => {
     const status = buildEnvCapabilityStatus({
       SANDBOX_PROVIDER: 'daytona',
       DAYTONA_API_KEY: 'daytona-secret',
-      DAYTONA_SHELL_SNAPSHOT_ID: 'mothership-shell:v1',
+      DAYTONA_FUNCTION_SNAPSHOT_ID,
     })
 
     expect(status.features.sandbox).toMatchObject({
@@ -122,7 +124,7 @@ describe('env capability status', () => {
       providerId: 'daytona',
       issue: { state: 'partial' },
     })
-    expect(status.features.sandbox.issue?.message).toContain('NEXT_PUBLIC_SANDBOX_ENABLED')
+    expect(status.features.sandbox.issue?.message).toContain('NEXT_PUBLIC_SANDBOXES_ENABLED')
   })
 
   it('captures partial and invalid entries without aborting the snapshot', () => {

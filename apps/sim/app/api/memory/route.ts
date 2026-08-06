@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { memory } from '@sim/db/schema'
+import { memory, memorySecretProvenance } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -15,7 +15,16 @@ import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { mergeDurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
+import {
+  readBoundMemorySecretProvenance,
+  replaceMemorySecretProvenanceInTx,
+} from '@/lib/memory/secret-provenance'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
+import {
+  createMemoryResponse,
+  resolveMemoryWriteSecretProvenance,
+} from '@/app/api/memory/secret-provenance'
 
 const logger = createLogger('MemoryAPI')
 
@@ -81,10 +90,18 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     logger.info(
       `[${requestId}] Found ${enrichedMemories.length} memories for workspace: ${workspaceId}`
     )
-    return NextResponse.json(
-      { success: true, data: { memories: enrichedMemories } },
-      { status: 200 }
-    )
+    return createMemoryResponse({
+      request,
+      authType: authResult.authType,
+      userId: authResult.userId,
+      workspaceId,
+      body: { success: true, data: { memories: enrichedMemories } },
+      memories: rawMemories.map((record) => ({
+        id: record.id,
+        data: record.data,
+        secretProvenanceVersion: record.secretProvenanceVersion,
+      })),
+    })
   } catch (error: any) {
     logger.error(`[${requestId}] Error searching memories`, { error })
     return NextResponse.json(
@@ -180,26 +197,78 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const initialData = Array.isArray(data) ? data : [data]
     const now = new Date()
     const id = `mem_${generateId().replace(/-/g, '')}`
+    const writeProvenance = resolveMemoryWriteSecretProvenance({
+      request,
+      payload: validation.data.body,
+      authType: authResult.authType,
+      userId: authResult.userId,
+      workspaceId,
+    })
+    if (!writeProvenance.success) return writeProvenance.response
 
     const { sql } = await import('drizzle-orm')
 
-    await db
-      .insert(memory)
-      .values({
-        id,
-        workspaceId,
-        key,
-        data: initialData,
-        createdAt: now,
-        updatedAt: now,
-      })
-      .onConflictDoUpdate({
-        target: [memory.workspaceId, memory.key],
-        set: {
-          data: sql`${memory.data} || ${JSON.stringify(initialData)}::jsonb`,
+    await db.transaction(async (tx) => {
+      const [existing] = await tx
+        .select({
+          id: memory.id,
+          data: memory.data,
+          updatedAt: memory.updatedAt,
+          secretProvenanceVersion: memory.secretProvenanceVersion,
+        })
+        .from(memory)
+        .where(and(eq(memory.workspaceId, workspaceId), eq(memory.key, key)))
+        .limit(1)
+        .for('update')
+      let previousProvenance
+      if (existing && writeProvenance.provenance) {
+        const [sidecar] = await tx
+          .select()
+          .from(memorySecretProvenance)
+          .where(eq(memorySecretProvenance.memoryId, existing.id))
+          .limit(1)
+        previousProvenance = readBoundMemorySecretProvenance({
+          secretProvenanceVersion: existing.secretProvenanceVersion,
+          data: existing.data,
+          provenanceContentHash: sidecar?.contentHash ?? null,
+          status: sidecar?.status ?? null,
+          entries: sidecar?.entries,
+        })
+      }
+
+      const [written] = await tx
+        .insert(memory)
+        .values({
+          id,
+          workspaceId,
+          key,
+          data: initialData,
+          secretProvenanceVersion: writeProvenance.provenance ? 1 : null,
+          createdAt: now,
           updatedAt: now,
-        },
-      })
+        })
+        .onConflictDoUpdate({
+          target: [memory.workspaceId, memory.key],
+          set: {
+            data: sql`${memory.data} || ${JSON.stringify(initialData)}::jsonb`,
+            secretProvenanceVersion: writeProvenance.provenance
+              ? 1
+              : (existing?.secretProvenanceVersion ?? null),
+            updatedAt: now,
+          },
+        })
+        .returning({ id: memory.id, data: memory.data })
+      if (writeProvenance.provenance) {
+        await replaceMemorySecretProvenanceInTx(
+          tx,
+          written.id,
+          written.data,
+          previousProvenance
+            ? mergeDurableSecretProvenance(previousProvenance, writeProvenance.provenance)
+            : writeProvenance.provenance
+        )
+      }
+    })
 
     logger.info(`[${requestId}] Memory operation successful: ${key} for workspace: ${workspaceId}`)
 
@@ -220,10 +289,23 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const memoryRecord = allMemories[0]
 
-    return NextResponse.json(
-      { success: true, data: { conversationId: memoryRecord.key, data: memoryRecord.data } },
-      { status: 200 }
-    )
+    return createMemoryResponse({
+      request,
+      authType: authResult.authType,
+      userId: authResult.userId,
+      workspaceId,
+      body: {
+        success: true,
+        data: { conversationId: memoryRecord.key, data: memoryRecord.data },
+      },
+      memories: [
+        {
+          id: memoryRecord.id,
+          data: memoryRecord.data,
+          secretProvenanceVersion: memoryRecord.secretProvenanceVersion,
+        },
+      ],
+    })
   } catch (error: any) {
     if (getPostgresErrorCode(error) === '23505') {
       return NextResponse.json(

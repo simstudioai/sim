@@ -43,9 +43,31 @@ describe('getToolCallTerminalData', () => {
     expect(getToolCallTerminalData(tool)).toEqual({ content: 'file contents' })
   })
 
-  it('surfaces the error for a failed generate_api_key without inventing a key', () => {
+  it('returns an explicit success acknowledgment when a tool has no output', () => {
     const tool: ToolCallState = {
       id: 't3',
+      name: 'update_row',
+      status: MothershipStreamV1ToolOutcome.success,
+      result: { success: true },
+    }
+
+    expect(getToolCallTerminalData(tool)).toEqual({ success: true })
+  })
+
+  it('wraps a successful null value so it cannot be mistaken for a missing result', () => {
+    const tool: ToolCallState = {
+      id: 't4',
+      name: 'read',
+      status: MothershipStreamV1ToolOutcome.success,
+      result: { success: true, output: null },
+    }
+
+    expect(getToolCallTerminalData(tool)).toEqual({ success: true, data: null })
+  })
+
+  it('surfaces the error for a failed generate_api_key without inventing a key', () => {
+    const tool: ToolCallState = {
+      id: 't5',
       name: 'generate_api_key',
       status: MothershipStreamV1ToolOutcome.error,
       error: 'name is required',

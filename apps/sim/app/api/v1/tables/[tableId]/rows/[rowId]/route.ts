@@ -17,6 +17,7 @@ import { deleteRow, updateRow } from '@/lib/table'
 import { namedRowMapper } from '@/lib/table/cell-format'
 import { buildIdByName, rowDataNameToId } from '@/lib/table/column-keys'
 import { signalTableRowsChanged } from '@/lib/table/events'
+import { createExactEmptyTableRowSecretProvenance } from '@/lib/table/rows/secret-provenance'
 import { accessError, checkAccess, tableLockErrorResponse } from '@/app/api/table/utils'
 import {
   checkRateLimit,
@@ -144,13 +145,15 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
 
     const idByName = buildIdByName(table.schema as TableSchema)
     const toNamedRow = namedRowMapper((table.schema as TableSchema).columns)
+    const patchData = rowDataNameToId(validated.data as RowData, idByName)
     const updatedRow = await updateRow(
       {
         tableId,
         rowId,
-        data: rowDataNameToId(validated.data as RowData, idByName),
+        data: patchData,
         workspaceId: validated.workspaceId,
         actorUserId,
+        secretProvenance: createExactEmptyTableRowSecretProvenance(patchData),
       },
       table,
       requestId

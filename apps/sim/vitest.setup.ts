@@ -138,6 +138,7 @@ vi.mock('@/blocks/registry', () => ({
 
 vi.mock('@trigger.dev/sdk', () => ({
   task: vi.fn(() => ({ trigger: vi.fn() })),
+  timeout: { None: 'none' },
   tasks: {
     trigger: vi.fn().mockResolvedValue({ id: 'mock-task-id' }),
     batchTrigger: vi.fn().mockResolvedValue([{ id: 'mock-task-id' }]),

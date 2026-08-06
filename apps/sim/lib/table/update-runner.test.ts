@@ -126,6 +126,7 @@ describe('runTableUpdate', () => {
       ['a', 'b'],
       expect.any(String),
       expect.anything(),
+      expect.anything(),
       expect.any(Function)
     )
     expect(mockUpdatePageByIds).toHaveBeenNthCalledWith(
@@ -134,6 +135,7 @@ describe('runTableUpdate', () => {
       'ws_1',
       ['c'],
       expect.any(String),
+      expect.anything(),
       expect.anything(),
       expect.any(Function)
     )

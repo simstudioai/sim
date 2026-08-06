@@ -4,6 +4,7 @@ import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { isPlainRecord } from '@sim/utils/object'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -64,6 +65,8 @@ import {
   isWorkspaceAccessDeniedError,
   type PermissionType,
 } from '@/lib/workspaces/permissions/utils'
+import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
+import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { ChatContext } from '@/stores/panel'
 
 export const maxDuration = 3600
@@ -500,6 +503,36 @@ async function resolveAgentContexts(params: {
   }
 
   return agentContexts
+}
+
+function projectAgentContextInputs(
+  message: string,
+  contexts: UnifiedChatRequest['contexts'],
+  registry: ResolvedSecretTraceRegistry | undefined
+): { message: string; contexts: UnifiedChatRequest['contexts'] } {
+  const labels = (contexts ?? []).map((context) => context.label ?? null)
+  const projection = projectResolvedSecretModelContent({ message, labels }, registry)
+  if (!projection.safe || !isPlainRecord(projection.value)) {
+    throw new Error('Agent context input could not be safely projected')
+  }
+  const projectedMessage = projection.value.message
+  const projectedLabels = projection.value.labels
+  if (
+    typeof projectedMessage !== 'string' ||
+    !Array.isArray(projectedLabels) ||
+    projectedLabels.length !== labels.length ||
+    !projectedLabels.every((label) => label === null || typeof label === 'string')
+  ) {
+    throw new Error('Agent context input could not be safely projected')
+  }
+
+  return {
+    message: projectedMessage,
+    contexts: contexts?.map((context, index) => ({
+      ...context,
+      ...(projectedLabels[index] === null ? {} : { label: projectedLabels[index] }),
+    })),
+  }
 }
 
 async function persistUserMessage(params: {
@@ -1146,34 +1179,6 @@ export async function handleUnifiedChatPost(req: NextRequest) {
             activeOtelRoot.context
           )
         : Promise.resolve(undefined)
-      const agentContextsPromise = withCopilotSpan(
-        TraceSpan.CopilotChatResolveAgentContexts,
-        {
-          [TraceAttr.CopilotContextsCount]: normalizedContexts.length,
-          [TraceAttr.CopilotResourceAttachmentsCount]: body.resourceAttachments?.length ?? 0,
-        },
-        () =>
-          resolveAgentContexts({
-            contexts: normalizedContexts,
-            resourceAttachments: body.resourceAttachments,
-            userId: authenticatedUserId,
-            message: body.message,
-            workspaceId,
-            chatId: actualChatId,
-            requestId,
-          }),
-        activeOtelRoot.context
-      )
-      const persistUserMessagePromise = persistUserMessage({
-        chatId: actualChatId,
-        userMessageId,
-        message: body.message,
-        fileAttachments: body.fileAttachments,
-        contexts: normalizedContexts,
-        workspaceId,
-        notifyWorkspaceStatus: branch.notifyWorkspaceStatus,
-        parentOtelContext: activeOtelRoot.context,
-      })
       const executionContextPromise = withCopilotSpan(
         TraceSpan.CopilotChatBuildExecutionContext,
         { [TraceAttr.CopilotBranchKind]: branch.kind },
@@ -1186,7 +1191,41 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           }),
         activeOtelRoot.context
       )
-
+      const agentContextsPromise = executionContextPromise.then((executionContext) => {
+        const projected = projectAgentContextInputs(
+          body.message,
+          normalizedContexts,
+          executionContext.resolvedSecretTraceRegistry
+        )
+        return withCopilotSpan(
+          TraceSpan.CopilotChatResolveAgentContexts,
+          {
+            [TraceAttr.CopilotContextsCount]: normalizedContexts.length,
+            [TraceAttr.CopilotResourceAttachmentsCount]: body.resourceAttachments?.length ?? 0,
+          },
+          () =>
+            resolveAgentContexts({
+              contexts: projected.contexts,
+              resourceAttachments: body.resourceAttachments,
+              userId: authenticatedUserId,
+              message: projected.message,
+              workspaceId,
+              chatId: actualChatId,
+              requestId,
+            }),
+          activeOtelRoot.context
+        )
+      })
+      const persistUserMessagePromise = persistUserMessage({
+        chatId: actualChatId,
+        userMessageId,
+        message: body.message,
+        fileAttachments: body.fileAttachments,
+        contexts: normalizedContexts,
+        workspaceId,
+        notifyWorkspaceStatus: branch.notifyWorkspaceStatus,
+        parentOtelContext: activeOtelRoot.context,
+      })
       const [agentContexts, userPermission, entitlements, workspaceSnapshot, , executionContext] =
         await Promise.all([
           agentContextsPromise,

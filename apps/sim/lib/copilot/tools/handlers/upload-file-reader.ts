@@ -22,6 +22,7 @@ import {
   fetchWorkspaceFileBuffer,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import type { WorkspaceFileSecretProvenanceEnvelope } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { buildArchiveExtractGuidance, isArchiveFileName } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('UploadFileReader')
@@ -184,14 +185,28 @@ export async function readChatUpload(
   filename: string,
   chatId: string
 ): Promise<FileReadResult | null> {
+  return (await readChatUploadWithProvenance(filename, chatId))?.value ?? null
+}
+
+export async function readChatUploadWithProvenance(
+  filename: string,
+  chatId: string
+): Promise<WorkspaceFileSecretProvenanceEnvelope<FileReadResult> | null> {
   try {
     const row = await findMothershipUploadRowByChatAndName(chatId, filename)
     if (!row) return null
     const record = toWorkspaceFileRecord(row)
     if (await isActualArchiveUpload(record)) {
-      return { content: `[${buildArchiveExtractGuidance(record.name)}]`, totalLines: 1 }
+      return {
+        value: { content: `[${buildArchiveExtractGuidance(record.name)}]`, totalLines: 1 },
+      }
     }
-    return readFileRecord(record)
+    const result = await readFileRecord(record)
+    if (!result) return null
+    return {
+      value: result,
+      file: { fileId: record.id, key: record.key, context: 'mothership' },
+    }
   } catch (err) {
     logger.warn('Failed to read chat upload', {
       filename,
@@ -216,6 +231,15 @@ export async function grepChatUpload(
   pattern: string,
   options?: GrepOptions
 ): Promise<GrepMatch[] | string[] | GrepCountEntry[]> {
+  return (await grepChatUploadWithProvenance(filename, chatId, pattern, options)).value
+}
+
+export async function grepChatUploadWithProvenance(
+  filename: string,
+  chatId: string,
+  pattern: string,
+  options?: GrepOptions
+): Promise<WorkspaceFileSecretProvenanceEnvelope<GrepMatch[] | string[] | GrepCountEntry[]>> {
   const row = await findMothershipUploadRowByChatAndName(chatId, filename)
   if (!row) {
     throw new WorkspaceFileGrepError(
@@ -231,5 +255,8 @@ export async function grepChatUpload(
     throw new WorkspaceFileGrepError(`Upload content not found for "${filename}".`)
   }
   const uploadsPath = `uploads/${canonicalUploadKey(record.name)}`
-  return grepReadResult(uploadsPath, result, pattern, uploadsPath, options)
+  return {
+    value: grepReadResult(uploadsPath, result, pattern, uploadsPath, options),
+    file: { fileId: record.id, key: record.key, context: 'mothership' },
+  }
 }

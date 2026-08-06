@@ -1,5 +1,6 @@
 import type React from 'react'
 import type { ColumnDefinition } from '@/lib/table'
+import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 /** One per-row input an enrichment needs. Mapped to a table column by the user. */
 export interface EnrichmentInputField {
@@ -31,6 +32,8 @@ export interface EnrichmentRunContext {
   rowId?: string
   workspaceId: string
   signal?: AbortSignal
+  /** Isolated provenance for the exact mapped row inputs used by this run. */
+  resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
 }
 
 /**

@@ -14,7 +14,16 @@ import {
 } from '@/lib/core/security/input-validation.server'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getMimeTypeFromExtension, isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
+import { validateOpaqueModelInputProvenance } from '@/lib/execution/model-input-provenance'
+import {
+  isModelSafeWorkspaceFileKey,
+  MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
+} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import {
+  extractStorageKey,
+  getMimeTypeFromExtension,
+  isInternalFileUrl,
+} from '@/lib/uploads/utils/file-utils'
 import {
   downloadFileFromStorage,
   resolveInternalFileUrl,
@@ -28,11 +37,11 @@ const ELEVENLABS_STT_MODEL = 'scribe_v2'
 
 export const dynamic = 'force-dynamic'
 /**
- * Mirrors the maximum plan execution timeout (enterprise async, 90 minutes) used by
+ * Mirrors the hosted workflow execution ceiling (7 days) used by
  * `getMaxExecutionTimeout()` for the transcript polling loop below. Next.js requires a
  * static literal for `maxDuration`, so this value must be kept in sync with that source.
  */
-export const maxDuration = 5400
+export const maxDuration = 604800
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateId()
@@ -63,6 +72,18 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (!parsed.success) return parsed.response
 
     const body = parsed.data.body
+    const modelInputProvenance = validateOpaqueModelInputProvenance({
+      headers: request.headers,
+      payload: body,
+      isInternalRequest: true,
+    })
+    if (!modelInputProvenance.success) {
+      return NextResponse.json(
+        { error: modelInputProvenance.error },
+        { status: modelInputProvenance.status }
+      )
+    }
+
     const {
       provider,
       apiKey,
@@ -86,10 +107,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         return NextResponse.json({ error: 'audioFile must be a single file' }, { status: 400 })
       }
       const file = Array.isArray(body.audioFile) ? body.audioFile[0] : body.audioFile
-      logger.info(`[${requestId}] Processing uploaded file: ${file.name}`)
+      logger.info(`[${requestId}] Processing uploaded audio`)
 
       const deniedAudio = await assertToolFileAccess(file.key, userId, requestId, logger)
       if (deniedAudio) return deniedAudio
+      if (!(await isModelSafeWorkspaceFileKey(file.key))) {
+        return NextResponse.json(
+          { error: MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE },
+          { status: 400 }
+        )
+      }
       audioBuffer = await downloadFileFromStorage(file, requestId, logger)
       audioFileName = file.name
       // file.type may be missing if the file came from a block that doesn't preserve it
@@ -106,19 +133,25 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       const file = Array.isArray(body.audioFileReference)
         ? body.audioFileReference[0]
         : body.audioFileReference
-      logger.info(`[${requestId}] Processing referenced file: ${file.name}`)
+      logger.info(`[${requestId}] Processing referenced audio`)
 
       const deniedRef = await assertToolFileAccess(file.key, userId, requestId, logger)
       if (deniedRef) return deniedRef
+      if (!(await isModelSafeWorkspaceFileKey(file.key))) {
+        return NextResponse.json(
+          { error: MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE },
+          { status: 400 }
+        )
+      }
       audioBuffer = await downloadFileFromStorage(file, requestId, logger)
       audioFileName = file.name
 
       const ext = file.name.split('.').pop()?.toLowerCase() || ''
       audioMimeType = file.type || getMimeTypeFromExtension(ext)
     } else if (body.audioUrl) {
-      logger.info(`[${requestId}] Downloading from URL: ${body.audioUrl}`)
-
       let audioUrl = body.audioUrl.trim()
+      const internalAudioUrl = isInternalFileUrl(audioUrl)
+      logger.info(`[${requestId}] Downloading audio source`, { internal: internalAudioUrl })
       if (audioUrl.startsWith('/') && !isInternalFileUrl(audioUrl)) {
         return NextResponse.json(
           {
@@ -128,7 +161,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         )
       }
 
-      if (isInternalFileUrl(audioUrl)) {
+      if (internalAudioUrl) {
         if (!userId) {
           return NextResponse.json(
             { error: 'Authentication required for internal file access' },
@@ -143,6 +176,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           )
         }
         audioUrl = resolution.fileUrl || audioUrl
+        if (!(await isModelSafeWorkspaceFileKey(extractStorageKey(body.audioUrl)))) {
+          return NextResponse.json(
+            { error: MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE },
+            { status: 400 }
+          )
+        }
       }
 
       const urlValidation = await validateUrlWithDNS(audioUrl, 'audioUrl')
@@ -192,7 +231,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
     }
 
-    logger.info(`[${requestId}] Transcribing with ${provider}, file: ${audioFileName}`)
+    logger.info(`[${requestId}] Transcribing audio`, { provider })
 
     let transcript: string
     let segments: TranscriptSegment[] | undefined

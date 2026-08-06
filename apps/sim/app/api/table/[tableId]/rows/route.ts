@@ -34,6 +34,11 @@ import {
 } from '@/lib/table/query-builder/validate'
 import { queryRows } from '@/lib/table/rows/service'
 import type { TablePredicate } from '@/lib/table/types'
+import {
+  createTableRowsResponse,
+  createTableWriteProvenanceTargets,
+  resolveTableWriteSecretProvenance,
+} from '@/app/api/table/row-secret-provenance'
 import { type RowWireTranslators, rowWireTranslators } from '@/app/api/table/row-wire'
 import { accessError, checkAccess, rowWriteErrorResponse } from '@/app/api/table/utils'
 
@@ -81,6 +86,7 @@ interface TableRowsRouteParams {
 }
 
 async function handleBatchInsert(
+  request: NextRequest,
   requestId: string,
   tableId: string,
   validated: BatchInsertTableRowsBodyInput,
@@ -101,6 +107,16 @@ async function handleBatchInsert(
 
   const wire = rowWireTranslators(authType, table.schema as TableSchema)
   const rows = (validated.rows as RowData[]).map((row) => wire.dataIn(row))
+  const provenance = resolveTableWriteSecretProvenance({
+    request,
+    payload: validated,
+    authType,
+    userId,
+    workspaceId: table.workspaceId,
+    targets: createTableWriteProvenanceTargets(validated.rows as RowData[], wire.dataIn),
+    rowKeys: validated.rows.map((_, index) => String(index)),
+  })
+  if (!provenance.success) return provenance.response
 
   // Validate rows before calling service (service also validates, but route-level
   // validation returns structured HTTP responses)
@@ -119,13 +135,16 @@ async function handleBatchInsert(
         workspaceId: validated.workspaceId,
         userId,
         orderKeys: validated.orderKeys,
+        secretProvenance: validated.rows.map(
+          (_, index) => provenance.provenanceByRowKey?.[String(index)]
+        ),
       },
       table,
       requestId
     )
     signalTableRowsChanged(tableId)
 
-    return NextResponse.json({
+    const responseBody = {
       success: true,
       data: {
         rows: insertedRows.map((r) => ({
@@ -139,6 +158,14 @@ async function handleBatchInsert(
         insertedCount: insertedRows.length,
         message: `Successfully inserted ${insertedRows.length} rows`,
       },
+    }
+    return createTableRowsResponse({
+      request,
+      authType,
+      userId,
+      workspaceId: table.workspaceId,
+      body: responseBody,
+      rows: insertedRows,
     })
   } catch (error) {
     const response = rowWriteErrorResponse(error)
@@ -167,7 +194,14 @@ export const POST = withRouteHandler(
       const body = parsed.data.body
 
       if ('rows' in body) {
-        return handleBatchInsert(requestId, tableId, body, authResult.userId, authResult.authType)
+        return handleBatchInsert(
+          request,
+          requestId,
+          tableId,
+          body,
+          authResult.userId,
+          authResult.authType
+        )
       }
 
       const validated = body
@@ -186,6 +220,16 @@ export const POST = withRouteHandler(
 
       const wire = rowWireTranslators(authResult.authType, table.schema as TableSchema)
       const rowData = wire.dataIn(validated.data as RowData)
+      const provenance = resolveTableWriteSecretProvenance({
+        request,
+        payload: validated,
+        authType: authResult.authType,
+        userId: authResult.userId,
+        workspaceId: table.workspaceId,
+        targets: createTableWriteProvenanceTargets([validated.data as RowData], wire.dataIn),
+        rowKeys: ['0'],
+      })
+      if (!provenance.success) return provenance.response
 
       // Validate at route level for structured HTTP error responses
       const validation = await validateRowData({
@@ -205,13 +249,14 @@ export const POST = withRouteHandler(
           position: validated.position,
           afterRowId: validated.afterRowId,
           beforeRowId: validated.beforeRowId,
+          secretProvenance: provenance.provenanceByRowKey?.['0'],
         },
         table,
         requestId
       )
       signalTableRowsChanged(tableId)
 
-      return NextResponse.json({
+      const responseBody = {
         success: true,
         data: {
           row: {
@@ -225,6 +270,14 @@ export const POST = withRouteHandler(
 
           message: 'Row inserted successfully',
         },
+      }
+      return createTableRowsResponse({
+        request,
+        authType: authResult.authType,
+        userId: authResult.userId,
+        workspaceId: table.workspaceId,
+        body: responseBody,
+        rows: [row],
       })
     } catch (error) {
       if (isZodError(error)) {
@@ -329,7 +382,7 @@ export const GET = withRouteHandler(
         requestId
       )
 
-      return NextResponse.json({
+      const responseBody = {
         success: true,
         data: {
           rows: result.rows.map((r) => ({
@@ -349,6 +402,14 @@ export const GET = withRouteHandler(
           offset: result.offset,
           nextCursor: result.nextCursor,
         },
+      }
+      return createTableRowsResponse({
+        request,
+        authType: authResult.authType,
+        userId: authResult.userId,
+        workspaceId: table.workspaceId,
+        body: responseBody,
+        rows: result.rows,
       })
     } catch (error) {
       if (isZodError(error)) {
@@ -400,6 +461,16 @@ export const PUT = withRouteHandler(
 
       const wire = rowWireTranslators(authResult.authType, table.schema as TableSchema)
       const patchData = wire.dataIn(validated.data as RowData)
+      const provenance = resolveTableWriteSecretProvenance({
+        request,
+        payload: validated,
+        authType: authResult.authType,
+        userId: authResult.userId,
+        workspaceId: table.workspaceId,
+        targets: createTableWriteProvenanceTargets([validated.data as RowData], wire.dataIn),
+        rowKeys: ['0'],
+      })
+      if (!provenance.success) return provenance.response
 
       const sizeValidation = validateRowSize(patchData)
       if (!sizeValidation.valid) {
@@ -420,6 +491,7 @@ export const PUT = withRouteHandler(
           data: patchData,
           limit: validated.limit,
           actorUserId: authResult.userId,
+          secretProvenance: provenance.provenanceByRowKey?.['0'],
         },
         requestId
       )
@@ -597,12 +669,34 @@ export const PATCH = withRouteHandler(
         return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
       }
 
+      const wire = rowWireTranslators(authResult.authType, table.schema as TableSchema)
+      const sourceRows = validated.updates.map((update) => update.data as RowData)
+      const provenance = resolveTableWriteSecretProvenance({
+        request,
+        payload: validated,
+        authType: authResult.authType,
+        userId: authResult.userId,
+        workspaceId: table.workspaceId,
+        targets: createTableWriteProvenanceTargets(sourceRows, wire.dataIn),
+        rowKeys: validated.updates.map((_, index) => String(index)),
+      })
+      if (!provenance.success) return provenance.response
+
       const result = await batchUpdateRows(
         {
           tableId,
-          updates: validated.updates as Array<{ rowId: string; data: RowData }>,
+          updates: validated.updates.map((update) => ({
+            rowId: update.rowId,
+            data: wire.dataIn(update.data as RowData),
+          })),
           workspaceId: validated.workspaceId,
           actorUserId: authResult.userId,
+          secretProvenanceByRowId: Object.fromEntries(
+            validated.updates.flatMap((update, index) => {
+              const rowProvenance = provenance.provenanceByRowKey?.[String(index)]
+              return rowProvenance ? [[update.rowId, rowProvenance]] : []
+            })
+          ),
         },
         table,
         requestId

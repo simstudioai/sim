@@ -1,10 +1,16 @@
 import type { ShareAuthType } from '@/lib/api/contracts/public-shares'
+import type { Sandbox } from '@/lib/api/contracts/sandboxes'
 import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
 import { isHosted } from '@/lib/core/config/env-flags'
 import {
   getServiceAccountConnectNoun,
   getServiceAccountGatingBlockType,
 } from '@/lib/credentials/service-account-provider-ids'
+import {
+  MAX_SANDBOX_CLI_TOOLS,
+  SANDBOX_CLI_TOOLS,
+  SANDBOX_SELECTABLE_CLI_TOOL_IDS,
+} from '@/lib/execution/remote-sandbox/cli-tools'
 import { type FilterFieldType, getOperatorsForFieldType } from '@/lib/knowledge/filters/types'
 import { getServiceAccountProviderForProviderId } from '@/lib/oauth/utils'
 import { isSubBlockHidden } from '@/lib/workflows/subblocks/visibility'
@@ -82,6 +88,16 @@ export interface ComponentSerializationOptions {
   hosted?: boolean
   toolConfigs?: ReadonlyMap<string, ToolConfig>
   ownerBlockType?: string
+  /** Product-gated inputs removed from both subBlocks and the input schema. */
+  hiddenInputIds?: ReadonlySet<string>
+  /** Product-gated inputs that remain discoverable but cannot be mutated by this viewer. */
+  restrictedInputs?: ReadonlyMap<
+    string,
+    {
+      requiredEntitlement: string
+      reason: string
+    }
+  >
 }
 
 /**
@@ -584,14 +600,23 @@ export function serializeBlockSchema(
   // treat `hidden` as hidden for them so those never reach the agent's schema.
   const customBlock = isCustomBlockType(block.type)
   const hosted = options?.hosted ?? isHosted
+  const explicitlyHidden = options?.hiddenInputIds ?? new Set<string>()
   const visibleSubBlocks = block.subBlocks.filter(
-    (sb) => !sb.hideFromCopilot && !isSubBlockHidden(sb, { hosted }) && !(customBlock && sb.hidden)
+    (sb) =>
+      !explicitlyHidden.has(sb.id) &&
+      !sb.hideFromCopilot &&
+      !isSubBlockHidden(sb, { hosted }) &&
+      !(customBlock && sb.hidden)
   )
   const visibleIds = new Set(visibleSubBlocks.map((sb) => sb.id))
   const hiddenIds = new Set(
     block.subBlocks
       .filter(
-        (sb) => sb.hideFromCopilot || isSubBlockHidden(sb, { hosted }) || (customBlock && sb.hidden)
+        (sb) =>
+          explicitlyHidden.has(sb.id) ||
+          sb.hideFromCopilot ||
+          isSubBlockHidden(sb, { hosted }) ||
+          (customBlock && sb.hidden)
       )
       .map((sb) => sb.id)
       .filter((id) => !visibleIds.has(id))
@@ -599,6 +624,12 @@ export function serializeBlockSchema(
 
   const subBlocks = visibleSubBlocks.map((sb) => {
     const serialized = serializeSubBlock(sb)
+    const restriction = options?.restrictedInputs?.get(sb.id)
+    if (restriction) {
+      serialized.readOnly = true
+      serialized.requiredEntitlement = restriction.requiredEntitlement
+      serialized.restrictionReason = restriction.reason
+    }
 
     if (sb.id === 'model' && sb.type === 'combobox' && typeof sb.options === 'function') {
       serialized.options = getStaticModelOptionsForVFS()
@@ -616,10 +647,28 @@ export function serializeBlockSchema(
     if (auth) toolAuth[toolId] = auth
   }
 
-  const inputs =
+  const visibleInputs =
     block.inputs && hiddenIds.size > 0
       ? Object.fromEntries(Object.entries(block.inputs).filter(([key]) => !hiddenIds.has(key)))
       : block.inputs
+  const inputs = visibleInputs
+    ? Object.fromEntries(
+        Object.entries(visibleInputs).map(([key, input]) => {
+          const restriction = options?.restrictedInputs?.get(key)
+          return restriction
+            ? [
+                key,
+                {
+                  ...input,
+                  readOnly: true,
+                  requiredEntitlement: restriction.requiredEntitlement,
+                  restrictionReason: restriction.reason,
+                },
+              ]
+            : [key, input]
+        })
+      )
+    : visibleInputs
 
   return JSON.stringify(
     {
@@ -832,14 +881,14 @@ export function serializeDeployments(data: DeploymentData): string {
     result.needsRedeployment = data.needsRedeployment
   }
 
-  if (data.isDeployed) {
-    result.api = {
-      isDeployed: true,
-      deployedAt: data.deployedAt?.toISOString(),
-      apiEndpoint: `/api/workflows/${data.workflowId}/execute`,
-      ...(data.api ? { version: data.api.version } : {}),
-    }
-  }
+  result.api = data.isDeployed
+    ? {
+        isDeployed: true,
+        deployedAt: data.deployedAt?.toISOString(),
+        apiEndpoint: `/api/workflows/${data.workflowId}/execute`,
+        ...(data.api ? { version: data.api.version } : {}),
+      }
+    : { isDeployed: false }
 
   if (data.chat) {
     result.chat = {
@@ -963,6 +1012,63 @@ export function serializeSkill(s: {
     null,
     2
   )
+}
+
+/** Serialize a Sim sandbox for VFS agent/sandboxes/{name}.json. */
+export function serializeSandbox(sandbox: Sandbox, strategy: 'prebuilt' | 'runtime'): string {
+  return JSON.stringify(
+    {
+      id: sandbox.id,
+      name: sandbox.name,
+      language: sandbox.language,
+      dependencies: sandbox.dependencies,
+      systemPackages: sandbox.systemPackages,
+      cliTools: sandbox.cliTools,
+      strategy,
+      buildStatus: sandbox.buildStatus,
+      errorCode: sandbox.errorCode,
+      errorMessage: sandbox.errorMessage,
+      errorDetail: sandbox.errorDetail,
+      builtAt: sandbox.builtAt,
+      createdAt: sandbox.createdAt,
+      updatedAt: sandbox.updatedAt,
+    },
+    null,
+    2
+  )
+}
+
+/**
+ * Generate the authoritative Sim-sandbox capability reference exposed in VFS.
+ * The managed-CLI rows come directly from the same client-safe registry used by
+ * validation and the settings UI, so adding or upgrading a CLI updates agent
+ * discovery without a second hand-maintained list.
+ */
+export function serializeSandboxCatalog(strategy: 'prebuilt' | 'runtime'): string {
+  const rows = SANDBOX_SELECTABLE_CLI_TOOL_IDS.map((id) => {
+    const tool = SANDBOX_CLI_TOOLS[id]
+    const aliases = tool.searchTerms?.join(', ') || '(none)'
+    return `| \`${tool.id}\` | ${tool.label} | ${tool.category} | ${tool.description} | ${aliases} |`
+  })
+
+  return [
+    '# Sim Sandbox Capabilities',
+    '',
+    'This file is generated from the active Sim sandbox registry. Treat it as the authoritative catalog; do not guess or reuse managed CLI ids from memory.',
+    '',
+    `- Active dependency strategy: \`${strategy}\``,
+    '- Dependency languages: `javascript` installs npm packages; `python` installs PyPI packages. Shell execution may select either language.',
+    '- `systemPackages` accepts Debian package coordinates in `package[:architecture][=version]` form.',
+    `- \`cliTools\` accepts at most ${MAX_SANDBOX_CLI_TOOLS} exact pinned ids from the catalog below.`,
+    '- A Sim sandbox may combine language dependencies, Debian system packages, and managed CLIs.',
+    '',
+    '## Managed CLI catalog',
+    '',
+    '| Exact id | Name | Category | What it provides | Search terms / executables |',
+    '|----------|------|----------|------------------|----------------------------|',
+    ...rows,
+    '',
+  ].join('\n')
 }
 
 /**

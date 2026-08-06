@@ -66,6 +66,10 @@ export const googleTranslateTool: ToolConfig<GoogleTranslateParams, GoogleTransl
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({ text: params.text }),
+    },
     url: (params) => {
       const url = new URL('https://translation.googleapis.com/language/translate/v2')
       url.searchParams.set('key', params.apiKey)

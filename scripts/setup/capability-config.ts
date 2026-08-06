@@ -547,15 +547,15 @@ export const STORAGE_SETUP = defineCapabilitySetup(STORAGE_CAPABILITY, {
 })
 
 export const SANDBOX_SETUP = defineCapabilitySetup(SANDBOX_CAPABILITY, {
-  label: 'Remote sandboxes',
-  message: 'Remote sandbox provider?',
+  label: 'Function sandboxes',
+  message: 'Function sandbox provider?',
   actions: {
     disabled: {
       label: 'Disabled',
       hint: 'local JavaScript execution only',
       env: {
         NEXT_PUBLIC_E2B_ENABLED: 'false',
-        NEXT_PUBLIC_SANDBOX_ENABLED: 'false',
+        NEXT_PUBLIC_SANDBOXES_ENABLED: 'false',
       },
       currentWhen: {
         kind: 'all',
@@ -567,7 +567,7 @@ export const SANDBOX_SETUP = defineCapabilitySetup(SANDBOX_CAPABILITY, {
           },
           {
             kind: 'not',
-            condition: { kind: 'present', key: 'DAYTONA_SHELL_SNAPSHOT_ID' },
+            condition: { kind: 'present', key: 'DAYTONA_FUNCTION_SNAPSHOT_ID' },
           },
         ],
       },
@@ -575,19 +575,37 @@ export const SANDBOX_SETUP = defineCapabilitySetup(SANDBOX_CAPABILITY, {
   },
   providers: {
     e2b: {
-      hint: 'remote code interpreter sandboxes',
+      hint: 'dedicated Function code and CLI sandboxes',
       env: {
         NEXT_PUBLIC_E2B_ENABLED: 'true',
-        NEXT_PUBLIC_SANDBOX_ENABLED: 'true',
+        NEXT_PUBLIC_SANDBOXES_ENABLED: 'true',
       },
-      prompts: [{ type: 'field', key: 'E2B_API_KEY', input: 'secret', required: true }],
+      prompts: [
+        { type: 'field', key: 'E2B_API_KEY', input: 'secret', required: true },
+        {
+          type: 'field',
+          key: 'E2B_FUNCTION_TEMPLATE_ID',
+          input: 'text',
+          required: true,
+          validate: true,
+          hint: 'immutable <template>:<build-id> ref printed by the Function E2B builder',
+        },
+        {
+          type: 'field',
+          key: 'E2B_FUNCTION_TEMPLATE_GENERATION',
+          input: 'text',
+          required: true,
+          validate: true,
+          hint: 'release generation printed by the Function E2B builder',
+        },
+      ],
       currentWhen: { kind: 'truthy', key: 'E2B_ENABLED' },
     },
     daytona: {
-      hint: 'remote Daytona sandboxes',
+      hint: 'dedicated Function code and CLI sandboxes',
       env: {
         NEXT_PUBLIC_E2B_ENABLED: 'false',
-        NEXT_PUBLIC_SANDBOX_ENABLED: 'true',
+        NEXT_PUBLIC_SANDBOXES_ENABLED: 'true',
       },
       prompts: [
         {
@@ -598,10 +616,11 @@ export const SANDBOX_SETUP = defineCapabilitySetup(SANDBOX_CAPABILITY, {
         },
         {
           type: 'field',
-          key: 'DAYTONA_SHELL_SNAPSHOT_ID',
+          key: 'DAYTONA_FUNCTION_SNAPSHOT_ID',
           input: 'text',
           required: true,
           validate: true,
+          hint: 'immutable snapshot ID printed by the Function Daytona builder',
         },
       ],
     },

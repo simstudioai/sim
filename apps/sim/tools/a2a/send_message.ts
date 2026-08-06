@@ -1,3 +1,4 @@
+import { selectModelBoundFileInput } from '@/lib/uploads/utils/model-input'
 import {
   A2A_TASK_OUTPUTS,
   type A2ASendMessageParams,
@@ -57,6 +58,11 @@ export const a2aSendMessageTool: ToolConfig<A2ASendMessageParams, A2ATaskRespons
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({ message: params.message, data: params.data }),
+      privateProvenance: (params) => selectModelBoundFileInput(params.files, { includeName: true }),
+    },
     url: '/api/tools/a2a/send-message',
     method: 'POST',
     headers: () => ({ 'Content-Type': 'application/json' }),

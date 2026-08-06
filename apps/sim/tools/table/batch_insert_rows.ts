@@ -1,4 +1,5 @@
 import { TABLE_LIMITS } from '@/lib/table/constants'
+import { selectTableRowSecretProvenance } from '@/lib/table/secret-provenance-selection'
 import { enrichTableToolSchema } from '@/tools/schema-enrichers'
 import type { TableBatchInsertParams, TableBatchInsertResponse } from '@/tools/table/types'
 import type { ToolConfig } from '@/tools/types'
@@ -34,6 +35,10 @@ export const tableBatchInsertRowsTool: ToolConfig<
   },
 
   request: {
+    secretProvenance: {
+      request: (params) => selectTableRowSecretProvenance(params.rows),
+      response: { incomplete: 'propagate' },
+    },
     url: (params: TableBatchInsertParams) => `/api/table/${params.tableId}/rows`,
     method: 'POST',
     headers: () => ({

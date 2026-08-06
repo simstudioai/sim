@@ -326,7 +326,12 @@ describe('Knowledge Base Documents API Route', () => {
         validDocumentData,
         'kb-123',
         expect.any(String),
-        'user-123'
+        'user-123',
+        {
+          filename: { status: 'exact', entries: [] },
+          content: { status: 'exact', entries: [] },
+          tags: [],
+        }
       )
     })
 
@@ -428,7 +433,19 @@ describe('Knowledge Base Documents API Route', () => {
         validBulkData.documents,
         'kb-123',
         expect.any(String),
-        'user-123'
+        'user-123',
+        [
+          {
+            filename: { status: 'exact', entries: [] },
+            content: { status: 'exact', entries: [] },
+            tags: [],
+          },
+          {
+            filename: { status: 'exact', entries: [] },
+            content: { status: 'exact', entries: [] },
+            tags: [],
+          },
+        ]
       )
       expect(vi.mocked(processDocumentsWithQueue)).toHaveBeenCalled()
     })
