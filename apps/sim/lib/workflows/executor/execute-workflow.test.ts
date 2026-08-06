@@ -11,12 +11,14 @@ const {
   handlePostExecutionPauseStateMock,
   loggingSessionConstructorMock,
   safeStartMock,
+  waitForPostExecutionMock,
 } = vi.hoisted(() => ({
   captureServerEventMock: vi.fn(),
   executeWorkflowCoreMock: vi.fn(),
   handlePostExecutionPauseStateMock: vi.fn(),
   loggingSessionConstructorMock: vi.fn(),
   safeStartMock: vi.fn(),
+  waitForPostExecutionMock: vi.fn(),
 }))
 
 vi.mock('@sim/utils/id', () => ({
@@ -26,6 +28,7 @@ vi.mock('@sim/utils/id', () => ({
 vi.mock('@/lib/logs/execution/logging-session', () => ({
   LoggingSession: class {
     safeStart = safeStartMock
+    waitForPostExecution = waitForPostExecutionMock
 
     constructor(...args: unknown[]) {
       loggingSessionConstructorMock(...args)
@@ -75,10 +78,11 @@ const workflow = {
   variables: {},
 }
 
-describe('executeWorkflow billing attribution', () => {
+describe('executeWorkflow', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     safeStartMock.mockResolvedValue(true)
+    waitForPostExecutionMock.mockResolvedValue(undefined)
     handlePostExecutionPauseStateMock.mockResolvedValue(undefined)
     executeWorkflowCoreMock.mockImplementation(
       async (params: {
@@ -185,5 +189,90 @@ describe('executeWorkflow billing attribution', () => {
     expect(executeWorkflowCoreMock).toHaveBeenCalledWith(
       expect.objectContaining({ trustedInitialResolvedSecretTraceProvenance: provenance })
     )
+  })
+  it('waits for post-execution persistence before resolving', async () => {
+    let resolvePostExecution!: () => void
+    waitForPostExecutionMock.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        resolvePostExecution = resolve
+      })
+    )
+
+    let executionSettled = false
+    const executionPromise = executeWorkflow(
+      workflow,
+      'request-1',
+      { prompt: 'hello' },
+      'actor-1',
+      {
+        enabled: true,
+        billingAttribution,
+      }
+    ).then((result) => {
+      executionSettled = true
+      return result
+    })
+
+    await vi.waitFor(() => expect(waitForPostExecutionMock).toHaveBeenCalledOnce())
+    expect(executionSettled).toBe(false)
+
+    resolvePostExecution()
+    await executionPromise
+
+    expect(executionSettled).toBe(true)
+  })
+
+  it('waits for post-execution persistence before rejecting', async () => {
+    const executionError = new Error('Request body size limit exceeded (10MB)')
+    executeWorkflowCoreMock.mockRejectedValueOnce(executionError)
+
+    let resolvePostExecution!: () => void
+    waitForPostExecutionMock.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        resolvePostExecution = resolve
+      })
+    )
+
+    let executionSettled = false
+    const executionPromise = executeWorkflow(workflow, 'request-1', undefined, 'actor-1', {
+      enabled: true,
+      billingAttribution,
+    }).catch((error: unknown) => {
+      executionSettled = true
+      throw error
+    })
+
+    await vi.waitFor(() => expect(waitForPostExecutionMock).toHaveBeenCalledOnce())
+    expect(executionSettled).toBe(false)
+
+    resolvePostExecution()
+    await expect(executionPromise).rejects.toBe(executionError)
+    expect(executionSettled).toBe(true)
+  })
+
+  it('transfers post-execution ownership with successful streaming metadata', async () => {
+    const result = await executeWorkflow(workflow, 'request-1', undefined, 'actor-1', {
+      enabled: true,
+      skipLoggingComplete: true,
+      billingAttribution,
+    })
+
+    expect(waitForPostExecutionMock).not.toHaveBeenCalled()
+    expect(result._streamingMetadata?.loggingSession).toBeDefined()
+  })
+
+  it('retains post-execution ownership when streaming execution rejects', async () => {
+    const executionError = new Error('Streaming execution failed')
+    executeWorkflowCoreMock.mockRejectedValueOnce(executionError)
+
+    await expect(
+      executeWorkflow(workflow, 'request-1', undefined, 'actor-1', {
+        enabled: true,
+        skipLoggingComplete: true,
+        billingAttribution,
+      })
+    ).rejects.toBe(executionError)
+
+    expect(waitForPostExecutionMock).toHaveBeenCalledOnce()
   })
 })
