@@ -216,4 +216,43 @@ describe('Logger', () => {
       )
     })
   })
+
+  describe('structured serialization safety', () => {
+    const createEnabledLogger = () =>
+      new Logger('Test', { enabled: true, colorize: false, logLevel: LogLevel.DEBUG })
+
+    test('should emit a line instead of throwing on cyclic metadata', () => {
+      const cyclic: Record<string, unknown> = { id: 'x' }
+      cyclic.self = cyclic
+
+      expect(() => createEnabledLogger().info('hello', cyclic)).not.toThrow()
+      expect(consoleLogSpy).toHaveBeenCalledTimes(1)
+      const parsed = JSON.parse(consoleLogSpy.mock.calls[0][0] as string)
+      expect(parsed.message).toBe('hello')
+      expect(parsed.id).toBe('x')
+      expect(parsed.self.self).toBe('[Circular]')
+    })
+
+    test('should emit a line instead of throwing on BigInt metadata', () => {
+      expect(() => createEnabledLogger().error('boom', { size: 10n })).not.toThrow()
+      expect(consoleErrorSpy).toHaveBeenCalledTimes(1)
+      const parsed = JSON.parse(consoleErrorSpy.mock.calls[0][0] as string)
+      expect(parsed.message).toBe('boom')
+      expect(parsed.size).toBe('10')
+    })
+
+    test('should fall back to a minimal entry when a value cannot be serialized at all', () => {
+      const hostile = {
+        get boom() {
+          throw new Error('getter exploded')
+        },
+      }
+
+      expect(() => createEnabledLogger().info('hello', hostile)).not.toThrow()
+      const parsed = JSON.parse(consoleLogSpy.mock.calls[0][0] as string)
+      expect(parsed.message).toBe('hello')
+      expect(parsed.module).toBe('Test')
+      expect(parsed.serializationError).toBe(true)
+    })
+  })
 })

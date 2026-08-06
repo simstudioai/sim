@@ -139,6 +139,55 @@ const formatObject = (obj: unknown, isDev: boolean): string => {
   }
 }
 
+/** Merges caller-supplied log arguments into the structured entry. */
+const mergeArgs = (entry: Record<string, unknown>, args: unknown[]): Record<string, unknown> => {
+  for (const arg of args) {
+    if (arg === null || arg === undefined) continue
+    if (arg instanceof Error) {
+      entry.error = arg.message
+      entry.stack = arg.stack
+    } else if (typeof arg === 'object') {
+      Object.assign(entry, arg)
+    } else {
+      entry.extra = arg
+    }
+  }
+  return entry
+}
+
+/** JSON replacer that tolerates cyclic references and BigInt values. */
+const tolerantReplacer = () => {
+  const seen = new WeakSet<object>()
+  return (_key: string, value: unknown): unknown => {
+    if (typeof value === 'bigint') return value.toString()
+    if (value !== null && typeof value === 'object') {
+      if (seen.has(value)) return '[Circular]'
+      seen.add(value)
+    }
+    return value
+  }
+}
+
+/**
+ * Builds and serializes a production log entry without ever throwing.
+ *
+ * Caller-supplied arguments are merged in verbatim, so a cyclic reference, a
+ * BigInt, or a throwing getter would otherwise raise inside the caller's code
+ * path — losing the line and aborting whatever was being logged about. A
+ * logger must never be able to break its caller.
+ */
+const serializeEntry = (base: Record<string, unknown>, args: unknown[]): string => {
+  try {
+    return JSON.stringify(mergeArgs({ ...base }, args))
+  } catch {}
+
+  try {
+    return JSON.stringify(mergeArgs({ ...base }, args), tolerantReplacer())
+  } catch {}
+
+  return JSON.stringify({ ...base, serializationError: true }, tolerantReplacer())
+}
+
 /**
  * Logger class for standardized console logging
  *
@@ -280,33 +329,17 @@ export class Logger {
       }
     } else {
       // Structured JSON for production — CloudWatch Log Insights auto-parses JSON lines
-      const entry: Record<string, unknown> = {
+      const base: Record<string, unknown> = {
         timestamp,
         level,
         module: this.module,
         message,
       }
       for (const [k, v] of metadataEntries) {
-        entry[k] = v
-      }
-      // Merge extra args into the entry
-      for (const arg of args) {
-        if (
-          arg !== null &&
-          arg !== undefined &&
-          typeof arg === 'object' &&
-          !(arg instanceof Error)
-        ) {
-          Object.assign(entry, arg)
-        } else if (arg instanceof Error) {
-          entry.error = arg.message
-          entry.stack = arg.stack
-        } else if (arg !== null && arg !== undefined) {
-          entry.extra = arg
-        }
+        base[k] = v
       }
 
-      const line = JSON.stringify(entry)
+      const line = serializeEntry(base, args)
       if (level === LogLevel.ERROR) {
         console.error(line)
       } else {
