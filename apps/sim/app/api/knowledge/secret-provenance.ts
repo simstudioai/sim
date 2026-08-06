@@ -4,7 +4,6 @@ import {
   createDurableSecretProvenanceRegistry,
   type DurableSecretProvenance,
   durableSecretProvenanceFromPrivateBundle,
-  EXACT_EMPTY_DURABLE_SECRET_PROVENANCE,
 } from '@/lib/execution/durable-secret-provenance'
 import {
   inspectPrivateSecretProvenanceRequest,
@@ -49,12 +48,7 @@ export function resolveKnowledgeWriteSecretProvenance(options: {
   const { request } = options
   const inspection = inspectPrivateSecretProvenanceRequest(request.headers, options.payload)
   if (inspection.status === 'unsupported') {
-    return options.authType === AuthType.INTERNAL_JWT
-      ? { success: true }
-      : {
-          success: true,
-          provenances: options.selectionKeys.map(() => EXACT_EMPTY_DURABLE_SECRET_PROVENANCE),
-        }
+    return { success: true }
   }
   if (inspection.status !== 'verified' || options.authType !== AuthType.INTERNAL_JWT) {
     return { success: false, response: invalidKnowledgeProvenanceResponse() }

@@ -1,10 +1,22 @@
 import { db } from '@sim/db'
-import { document, embedding, knowledgeBaseTagDefinitions } from '@sim/db/schema'
+import {
+  document,
+  documentSecretProvenance,
+  embedding,
+  knowledgeBaseTagDefinitions,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { and, eq, isNotNull, isNull, sql } from 'drizzle-orm'
-import type { DbOrTx } from '@/lib/db/types'
+import { and, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { getSlotsForFieldType, SUPPORTED_FIELD_TYPES } from '@/lib/knowledge/constants'
+import {
+  createKnowledgeDocumentSourceValue,
+  type KnowledgeDocumentMetadataField,
+  readBoundKnowledgeDocumentSecretProvenance,
+  rebindKnowledgeDocumentSecretProvenanceAfterMetadataClear,
+  replaceKnowledgeDocumentSecretProvenanceInTx,
+} from '@/lib/knowledge/secret-provenance'
 import type { BulkTagDefinitionsData, DocumentTagDefinition } from '@/lib/knowledge/tags/types'
 import type {
   CreateTagDefinitionData,
@@ -32,6 +44,7 @@ const VALID_TAG_SLOTS = [
 ] as const
 
 type ValidTagSlot = (typeof VALID_TAG_SLOTS)[number]
+type ClearedTagValues = Partial<Record<ValidTagSlot, null>>
 
 /**
  * Validates that a tag slot is a valid slot name
@@ -39,6 +52,88 @@ type ValidTagSlot = (typeof VALID_TAG_SLOTS)[number]
 function validateTagSlot(tagSlot: string): asserts tagSlot is ValidTagSlot {
   if (!VALID_TAG_SLOTS.includes(tagSlot as ValidTagSlot)) {
     throw new Error(`Invalid tag slot: ${tagSlot}. Must be one of: ${VALID_TAG_SLOTS.join(', ')}`)
+  }
+}
+
+async function clearTagSlotsInTx(
+  tx: DbTransaction,
+  knowledgeBaseId: string,
+  tagSlots: readonly ValidTagSlot[]
+): Promise<void> {
+  if (tagSlots.length === 0) return
+
+  const clearedTagValues: ClearedTagValues = {}
+  for (const tagSlot of tagSlots) clearedTagValues[tagSlot] = null
+
+  await tx
+    .update(embedding)
+    .set(clearedTagValues)
+    .where(
+      and(
+        eq(embedding.knowledgeBaseId, knowledgeBaseId),
+        or(...tagSlots.map((tagSlot) => isNotNull(embedding[tagSlot])))
+      )
+    )
+
+  const currentDocuments = await tx
+    .select()
+    .from(document)
+    .where(
+      and(
+        eq(document.knowledgeBaseId, knowledgeBaseId),
+        or(...tagSlots.map((tagSlot) => isNotNull(document[tagSlot])))
+      )
+    )
+    .for('update')
+
+  const trackedDocuments = currentDocuments.filter(
+    (current) => current.secretProvenanceVersion === 1
+  )
+  const trackedDocumentIds = trackedDocuments.map((current) => current.id)
+  const sidecars = trackedDocumentIds.length
+    ? await tx
+        .select()
+        .from(documentSecretProvenance)
+        .where(inArray(documentSecretProvenance.documentId, trackedDocumentIds))
+    : []
+  const sidecarByDocumentId = new Map(sidecars.map((sidecar) => [sidecar.documentId, sidecar]))
+
+  await tx
+    .update(document)
+    .set(clearedTagValues)
+    .where(
+      and(
+        eq(document.knowledgeBaseId, knowledgeBaseId),
+        or(...tagSlots.map((tagSlot) => isNotNull(document[tagSlot])))
+      )
+    )
+
+  const clearedFields = new Set<KnowledgeDocumentMetadataField>(tagSlots)
+  for (const current of trackedDocuments) {
+    const sidecar = sidecarByDocumentId.get(current.id)
+    const currentSource = createKnowledgeDocumentSourceValue(current)
+    const currentProvenance = readBoundKnowledgeDocumentSecretProvenance({
+      secretProvenanceVersion: current.secretProvenanceVersion,
+      source: currentSource,
+      provenanceSourceHash: sidecar?.sourceHash ?? null,
+      status: sidecar?.status ?? null,
+      entries: sidecar?.entries,
+    })
+    const nextSource = createKnowledgeDocumentSourceValue({
+      ...current,
+      ...clearedTagValues,
+    })
+    await replaceKnowledgeDocumentSecretProvenanceInTx(
+      tx,
+      current.id,
+      nextSource,
+      rebindKnowledgeDocumentSecretProvenanceAfterMetadataClear(
+        currentProvenance,
+        currentSource,
+        nextSource,
+        clearedFields
+      )
+    )
   }
 }
 
