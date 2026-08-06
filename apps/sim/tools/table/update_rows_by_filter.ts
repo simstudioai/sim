@@ -16,8 +16,8 @@ export const tableUpdateRowsByFilterTool: ToolConfig<
 
   toolEnrichment: {
     dependsOn: 'tableId',
-    enrichTool: (tableId, schema, desc) =>
-      enrichTableToolSchema(tableId, 'table_update_rows_by_filter', schema, desc),
+    enrichTool: (tableId, schema, desc, context) =>
+      enrichTableToolSchema(tableId, 'table_update_rows_by_filter', schema, desc, context),
   },
 
   params: {

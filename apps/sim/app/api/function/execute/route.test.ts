@@ -218,7 +218,7 @@ describe('Function Execute API Route', () => {
       expect(data).toHaveProperty('error', 'Unauthorized')
     })
 
-    it.concurrent('should use isolated-vm for secure sandboxed execution', async () => {
+    it('runs import-free JavaScript in isolated-vm without a remote provider', async () => {
       const req = createMockRequest('POST', {
         code: 'return "test"',
       })
@@ -229,6 +229,9 @@ describe('Function Execute API Route', () => {
       expect(response.status).toBe(200)
       expect(data.success).toBe(true)
       expect(data.output.result).toBe('test')
+      expect(mockExecuteInIsolatedVM).toHaveBeenCalledTimes(1)
+      expect(mockExecuteInSandbox).not.toHaveBeenCalled()
+      expect(mockExecuteShellInSandbox).not.toHaveBeenCalled()
     })
 
     it('does not accept a Mothership sandbox profile from the request body', async () => {

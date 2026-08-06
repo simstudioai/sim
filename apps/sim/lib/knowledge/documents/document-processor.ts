@@ -25,11 +25,7 @@ import {
   getKnowledgeOpaqueModelInputRegistry,
 } from '@/lib/knowledge/model-input-provenance'
 import { StorageService } from '@/lib/uploads'
-import {
-  isModelSafeWorkspaceFileKey,
-  MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
-} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
-import { extractStorageKey, isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
+import { isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromUrl } from '@/lib/uploads/utils/file-utils.server'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 import { mistralParserTool } from '@/tools/mistral/parser'
@@ -57,20 +53,6 @@ type OCRPage = {
 }
 
 const MISTRAL_MAX_PAGES = 1000
-
-async function assertDocumentFileModelSafe(
-  fileUrl: string,
-  workspaceId?: string | null
-): Promise<void> {
-  if (!isInternalFileUrl(fileUrl)) return
-
-  const path = new URL(fileUrl, 'http://localhost').pathname
-  const key = extractStorageKey(path)
-  const safe = await isModelSafeWorkspaceFileKey(key, workspaceId ? { workspaceId } : {})
-  if (!safe) {
-    throw new Error(MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE)
-  }
-}
 
 async function getPdfPageCount(buffer: Buffer): Promise<number> {
   try {
@@ -209,7 +191,6 @@ export async function processDocument(
   logger.info('Processing document', { mimeType })
 
   try {
-    await assertDocumentFileModelSafe(fileUrl, workspaceId)
     const parseResult = await parseDocument(fileUrl, filename, mimeType, userId, workspaceId)
     const { content, processingMethod } = parseResult
     const cloudUrl = 'cloudUrl' in parseResult ? parseResult.cloudUrl : undefined

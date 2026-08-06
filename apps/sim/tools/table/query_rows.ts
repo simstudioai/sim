@@ -11,8 +11,8 @@ export const tableQueryRowsTool: ToolConfig<TableRowQueryParams, TableQueryRespo
 
   toolEnrichment: {
     dependsOn: 'tableId',
-    enrichTool: (tableId, schema, desc) =>
-      enrichTableToolSchema(tableId, 'table_query_rows', schema, desc),
+    enrichTool: (tableId, schema, desc, context) =>
+      enrichTableToolSchema(tableId, 'table_query_rows', schema, desc, context),
   },
 
   params: {

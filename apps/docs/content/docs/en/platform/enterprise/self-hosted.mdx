@@ -23,7 +23,10 @@ ENTERPRISE_ENABLED=true
 NEXT_PUBLIC_ENTERPRISE_ENABLED=true
 ```
 
-That turns on organizations, permission groups, SSO, whitelabeling, audit logs, session policies, data retention, data drains, workspace forks, sandboxes, and the inbox.
+That turns on organizations, permission groups, SSO, whitelabeling, audit logs,
+session policies, data retention, data drains, workspace forks, the Sandbox
+entitlement, and the inbox. Sandboxes remain unavailable until their remote
+provider and dedicated Function base are configured.
 
 ### Turning one feature off
 
@@ -95,9 +98,16 @@ NEXT_PUBLIC_SANDBOXES_ENABLED=true
 ```
 
 `SANDBOXES_ENABLED` grants the server-side self-hosted entitlement.
-`NEXT_PUBLIC_SANDBOXES_ENABLED` exposes remote Python and Shell plus custom
-sandbox management in the browser. Set the public flag only after the selected
-provider has credentials and a valid immutable Function base configured.
+`NEXT_PUBLIC_SANDBOXES_ENABLED` projects provider readiness to the browser and
+exposes Shell plus custom Sandbox management. Set the public flag only after the
+selected provider has credentials and a valid immutable Function base configured.
+The Function language value itself is never conditioned on these flags, so a
+saved Python block cannot be silently serialized or executed as JavaScript.
+
+JavaScript without `import` or `require` does not use this remote provider and
+continues to run in the local isolated VM when all Sandbox flags are off. Python,
+Shell, JavaScript with external imports, and selected custom Sandboxes fail with
+an explicit configuration error until the remote Function base is ready.
 
 Mothership's `function_execute` and `run_code` tools use Mothership's separate
 shell image, including for JavaScript without imports. If the deployment uses

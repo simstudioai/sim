@@ -93,6 +93,36 @@ describe('workspace file secret provenance', () => {
     ).rejects.toThrow('could not bind the tracked content version')
   })
 
+  it('binds the database content version within its JavaScript-visible millisecond', async () => {
+    await replaceWorkspaceFileSecretProvenanceInTx(
+      dbChainMock.db as unknown as DbTransaction,
+      'file-1',
+      CONTENT_UPDATED_AT,
+      { status: 'exact', entries: [] }
+    )
+
+    expect(dbChainMockFns.where.mock.calls.at(-1)?.[0]).toEqual({
+      type: 'and',
+      conditions: [
+        { type: 'eq', left: 'id', right: 'file-1' },
+        { type: 'gte', left: 'contentUpdatedAt', right: CONTENT_UPDATED_AT },
+        {
+          type: 'lt',
+          left: 'contentUpdatedAt',
+          right: new Date(CONTENT_UPDATED_AT.getTime() + 1),
+        },
+        { type: 'inArray', column: 'context', values: ['workspace', 'mothership'] },
+        {
+          type: 'or',
+          conditions: [
+            { type: 'isNull', column: 'secretProvenanceVersion' },
+            { type: 'eq', left: 'secretProvenanceVersion', right: 1 },
+          ],
+        },
+      ],
+    })
+  })
+
   it('preserves provenance only from the exact preceding content version', async () => {
     const nextContentUpdatedAt = new Date('2026-08-04T00:00:01.000Z')
     queueTableRows(workspaceFileSecretProvenance, [{ contentUpdatedAt: CONTENT_UPDATED_AT }])
@@ -136,7 +166,7 @@ describe('workspace file secret provenance', () => {
     )
   })
 
-  it('treats only canonically bound untouched legacy files as model-safe without a sidecar', async () => {
+  it('classifies attachments by their canonical storage key without requiring a database file id', async () => {
     queueTableRows(workspaceFiles, [
       {
         id: 'safe-id',
@@ -219,9 +249,11 @@ describe('workspace file secret provenance', () => {
 
     const attachments = [
       { id: 'safe-id', key: 'safe-key' },
+      { key: 'safe-key' },
+      { id: 'file-1700000000000', key: 'safe-key' },
       { id: 'tracked-no-sidecar-id', key: 'tracked-no-sidecar-key' },
       { id: 'wrong-id', key: 'safe-key' },
-      { id: 'tainted-id', key: 'tainted-key' },
+      { id: 'safe-id', key: 'tainted-key' },
       { id: 'unknown-id', key: 'unknown-key' },
       { id: 'other-workspace-id', key: 'other-workspace-key' },
       { id: 'pre-marker-sidecar-id', key: 'pre-marker-sidecar-key' },
@@ -234,6 +266,9 @@ describe('workspace file secret provenance', () => {
       filterModelSafeWorkspaceFileAttachments(attachments, { workspaceId: 'workspace-1' })
     ).resolves.toEqual([
       { id: 'safe-id', key: 'safe-key' },
+      { key: 'safe-key' },
+      { id: 'file-1700000000000', key: 'safe-key' },
+      { id: 'wrong-id', key: 'safe-key' },
       { id: 'pre-marker-sidecar-id', key: 'pre-marker-sidecar-key' },
       { id: 'synthetic-execution-id', key: 'untracked-context-key' },
       { id: 'legacy-id', key: 'legacy-key' },

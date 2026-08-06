@@ -4,7 +4,7 @@ import {
   workspaceFileSecretProvenance,
   workspaceFiles,
 } from '@sim/db/schema'
-import { and, eq, inArray, isNull, or } from 'drizzle-orm'
+import { and, eq, gte, inArray, isNull, lt, or } from 'drizzle-orm'
 import type { DbTransaction } from '@/lib/db/types'
 import { importDurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
@@ -60,7 +60,6 @@ export interface WorkspaceFileSecretProvenanceEnvelope<T> {
 }
 
 interface ModelSafeWorkspaceFileRow {
-  id: string
   key: string
   workspaceId: string | null
   context: string
@@ -168,13 +167,15 @@ async function markWorkspaceFileSecretProvenanceTrackedInTx(
   fileId: string,
   contentUpdatedAt: Date
 ): Promise<void> {
+  const nextContentMillisecond = new Date(contentUpdatedAt.getTime() + 1)
   const [tracked] = await tx
     .update(workspaceFiles)
     .set({ secretProvenanceVersion: 1 })
     .where(
       and(
         eq(workspaceFiles.id, fileId),
-        eq(workspaceFiles.contentUpdatedAt, contentUpdatedAt),
+        gte(workspaceFiles.contentUpdatedAt, contentUpdatedAt),
+        lt(workspaceFiles.contentUpdatedAt, nextContentMillisecond),
         inArray(workspaceFiles.context, ['workspace', 'mothership']),
         or(
           isNull(workspaceFiles.secretProvenanceVersion),
@@ -543,9 +544,12 @@ export async function importWorkspaceFileSecretProvenanceForRuntime(args: {
 }
 
 /**
- * Removes model attachments whose canonical workspace-file record is tainted, unknown, or does
- * not match the supplied file id. Missing legacy records remain compatible; any persisted record
- * is classified exclusively by its trusted key/id binding and private provenance row.
+ * Removes model attachments whose canonical workspace-file record is tainted or unknown.
+ * Missing legacy records remain compatible; persisted records are classified by their unique
+ * active storage-key binding and private provenance row. Attachment ids are deliberately ignored:
+ * older persisted workflows omit them and file normalization may synthesize a runtime-only id.
+ * This classification is not file authorization; callers still enforce storage access before
+ * reading bytes or issuing a provider URL.
  */
 export async function filterModelSafeWorkspaceFileAttachments<
   TAttachment extends WorkspaceFileAttachmentIdentity,
@@ -567,24 +571,7 @@ export async function filterModelSafeWorkspaceFileAttachments<
   ]
   if (keys.length === 0) return [...attachments]
 
-  const rows = await db
-    .select({
-      id: workspaceFiles.id,
-      key: workspaceFiles.key,
-      workspaceId: workspaceFiles.workspaceId,
-      context: workspaceFiles.context,
-      fileContentUpdatedAt: workspaceFiles.contentUpdatedAt,
-      secretProvenanceVersion: workspaceFiles.secretProvenanceVersion,
-      provenanceContentUpdatedAt: workspaceFileSecretProvenance.contentUpdatedAt,
-      status: workspaceFileSecretProvenance.status,
-      entries: workspaceFileSecretProvenance.entries,
-    })
-    .from(workspaceFiles)
-    .leftJoin(
-      workspaceFileSecretProvenance,
-      eq(workspaceFileSecretProvenance.fileId, workspaceFiles.id)
-    )
-    .where(and(inArray(workspaceFiles.key, keys), isNull(workspaceFiles.deletedAt)))
+  const rows = await loadModelSafeWorkspaceFileRows(keys)
 
   const rowByKey = new Map(rows.map((row) => [row.key, row]))
   return attachments.filter((attachment) => {
@@ -592,7 +579,6 @@ export async function filterModelSafeWorkspaceFileAttachments<
     const row = rowByKey.get(attachment.key)
     if (!row) return true
     if (row.context !== 'workspace' && row.context !== 'mothership') return true
-    if (typeof attachment.id !== 'string' || attachment.id !== row.id) return false
     return isModelSafeWorkspaceFileRow(row, options.workspaceId)
   })
 }
@@ -612,6 +598,28 @@ function isModelSafeWorkspaceFileRow(
     return false
   }
   return row.entries.length === 0
+}
+
+async function loadModelSafeWorkspaceFileRows(
+  keys: readonly string[]
+): Promise<ModelSafeWorkspaceFileRow[]> {
+  return db
+    .select({
+      key: workspaceFiles.key,
+      workspaceId: workspaceFiles.workspaceId,
+      context: workspaceFiles.context,
+      fileContentUpdatedAt: workspaceFiles.contentUpdatedAt,
+      secretProvenanceVersion: workspaceFiles.secretProvenanceVersion,
+      provenanceContentUpdatedAt: workspaceFileSecretProvenance.contentUpdatedAt,
+      status: workspaceFileSecretProvenance.status,
+      entries: workspaceFileSecretProvenance.entries,
+    })
+    .from(workspaceFiles)
+    .leftJoin(
+      workspaceFileSecretProvenance,
+      eq(workspaceFileSecretProvenance.fileId, workspaceFiles.id)
+    )
+    .where(and(inArray(workspaceFiles.key, [...keys]), isNull(workspaceFiles.deletedAt)))
 }
 
 /**
@@ -642,24 +650,7 @@ export async function areModelSafeWorkspaceFileKeys(
     throw new Error('Too many file keys to verify secret provenance')
   }
 
-  const rows = await db
-    .select({
-      id: workspaceFiles.id,
-      key: workspaceFiles.key,
-      workspaceId: workspaceFiles.workspaceId,
-      context: workspaceFiles.context,
-      fileContentUpdatedAt: workspaceFiles.contentUpdatedAt,
-      secretProvenanceVersion: workspaceFiles.secretProvenanceVersion,
-      provenanceContentUpdatedAt: workspaceFileSecretProvenance.contentUpdatedAt,
-      status: workspaceFileSecretProvenance.status,
-      entries: workspaceFileSecretProvenance.entries,
-    })
-    .from(workspaceFiles)
-    .leftJoin(
-      workspaceFileSecretProvenance,
-      eq(workspaceFileSecretProvenance.fileId, workspaceFiles.id)
-    )
-    .where(and(inArray(workspaceFiles.key, uniqueKeys), isNull(workspaceFiles.deletedAt)))
+  const rows = await loadModelSafeWorkspaceFileRows(uniqueKeys)
 
   return rows.every(
     (row) =>

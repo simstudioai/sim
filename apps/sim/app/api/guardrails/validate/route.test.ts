@@ -435,4 +435,31 @@ describe('POST /api/guardrails/validate', () => {
     await expect(res.json()).resolves.toEqual({ error: 'Failed to resolve billing attribution' })
     expect(mockValidateHallucination).not.toHaveBeenCalled()
   })
+
+  /**
+   * The signal now reaches the scoring model, so cancellation is reachable here.
+   * `passed: false` would read to a consumer as the guardrail rejecting the content,
+   * blocking a run that was abandoned rather than judged.
+   */
+  it('reports a cancelled run as cancellation rather than a failed guardrail', async () => {
+    mockAuthorizeCredentialUse.mockResolvedValue({ ok: true })
+    mockValidateHallucination.mockRejectedValueOnce(
+      Object.assign(new Error('The operation was aborted.'), { name: 'AbortError' })
+    )
+
+    const res = await POST(
+      createMockRequest('POST', {
+        validationType: 'hallucination',
+        input: 'test input',
+        knowledgeBaseId: 'kb-1',
+        model: 'openai/gpt-4o',
+        workflowId: 'wf-1',
+      })
+    )
+
+    expect(res.status).toBe(499)
+    const json = await res.json()
+    expect(json.success).toBe(false)
+    expect(json.output?.passed).toBeUndefined()
+  })
 })

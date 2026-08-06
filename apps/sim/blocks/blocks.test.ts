@@ -340,7 +340,7 @@ describe.concurrent('Blocks Module', () => {
         const languageSubBlock = block?.subBlocks.find((sb) => sb.id === 'language')
         const codeSubBlock = block?.subBlocks.find((sb) => sb.id === 'code')
         const sandboxSubBlock = block?.subBlocks.find((sb) => sb.id === 'sandboxId')
-        expect(languageSubBlock?.showWhenEnvSet).toBe('NEXT_PUBLIC_SANDBOXES_ENABLED')
+        expect(languageSubBlock?.showWhenEnvSet).toBeUndefined()
         expect(sandboxSubBlock?.showWhenEnvSet).toBe('NEXT_PUBLIC_SANDBOXES_ENABLED')
         expect(codeSubBlock).toBeDefined()
         expect(codeSubBlock?.type).toBe('code')
