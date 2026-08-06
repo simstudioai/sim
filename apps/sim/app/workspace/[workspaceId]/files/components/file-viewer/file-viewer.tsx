@@ -4,7 +4,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Music } from '@sim/emcn/icons'
 import dynamic from 'next/dynamic'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
-import { getFileExtension } from '@/lib/uploads/utils/file-utils'
+import { getFileExtension, resolveMediaMimeType } from '@/lib/uploads/utils/file-utils'
 import {
   useWorkspaceFileBinary,
   useWorkspaceFileContent,
@@ -361,8 +361,6 @@ function useBlobUrl(workspaceId: string, fileId: string, fileKey: string) {
   return { fileData, isLoading, error, blobUrl, replaceBlobUrl }
 }
 
-const MEDIA_FALLBACK_MIME = { audio: 'audio/mpeg', video: 'video/mp4' } as const
-
 /**
  * Shared blob-backed preview for audio and video files — the fetch, blob-URL
  * lifecycle, and error/loading handling are identical; only the rendered
@@ -385,12 +383,12 @@ const MediaPreview = memo(function MediaPreview({
     replaceBlobUrl,
   } = useBlobUrl(workspaceId, file.id, file.key)
 
+  const mediaType = resolveMediaMimeType(file.type, file.name, kind)
+
   useEffect(() => {
     if (!fileData) return
-    replaceBlobUrl(
-      URL.createObjectURL(new Blob([fileData], { type: file.type || MEDIA_FALLBACK_MIME[kind] }))
-    )
-  }, [file.type, fileData, kind, replaceBlobUrl])
+    replaceBlobUrl(URL.createObjectURL(new Blob([fileData], { type: mediaType })))
+  }, [fileData, mediaType, replaceBlobUrl])
 
   const error = blobUrl !== null ? null : resolvePreviewError(fetchError, null)
   if (error) return <PreviewError label={kind} error={error} />

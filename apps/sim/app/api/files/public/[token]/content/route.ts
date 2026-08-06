@@ -11,7 +11,12 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { enforcePublicFileRateLimit } from '@/lib/public-shares/rate-limit'
 import { resolveActiveShareByToken } from '@/lib/public-shares/share-manager'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
-import { createErrorResponse, createFileResponse, FileNotFoundError } from '@/app/api/files/utils'
+import {
+  createErrorResponse,
+  createFileResponse,
+  FileNotFoundError,
+  getContentType,
+} from '@/app/api/files/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -73,7 +78,11 @@ export const GET = withRouteHandler(
       }
 
       const buffer = servable.kind === 'artifact' ? servable.buffer : raw
-      const contentType = servable.kind === 'artifact' ? servable.contentType : file.contentType
+      // This response is `nosniff`, so a stored `application/octet-stream` refuses to render
+      // even though the bytes are fine. Resolving from the filename also keeps this route on
+      // the same inline allowlist as the workspace serve route.
+      const contentType =
+        servable.kind === 'artifact' ? servable.contentType : getContentType(file.originalName)
 
       logger.info('Public shared file served', { token, key: file.key, size: buffer.length })
 

@@ -222,6 +222,24 @@ describe('resolveFileCategory — MIME priority', () => {
   })
 })
 
+describe('resolveFileCategory — formats accepted on upload must be previewable', () => {
+  it.each([
+    ['image.bmp', 'image/bmp'],
+    ['image.avif', 'image/avif'],
+    ['favicon.ico', 'image/x-icon'],
+  ])('%s previews as an image', (filename, mimeType) => {
+    expect(resolveFileCategory(mimeType, filename)).toBe('image-previewable')
+    expect(resolveFileCategory('application/octet-stream', filename)).toBe('image-previewable')
+  })
+
+  it.each(['image.tiff', 'photo.heic'])(
+    '%s stays unsupported — no browser renders it in an <img>',
+    (filename) => {
+      expect(resolveFileCategory(null, filename)).toBe('unsupported')
+    }
+  )
+})
+
 describe('resolveFileCategory — extension case', () => {
   it('recognises uppercase extension via extension lookup (getFileExtension lowercases)', () => {
     expect(resolveFileCategory(null, 'README.MD')).toBe('text-editable')
