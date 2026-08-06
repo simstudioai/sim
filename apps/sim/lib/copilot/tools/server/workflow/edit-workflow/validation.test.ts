@@ -202,7 +202,67 @@ const toolsByIdMock: Record<string, unknown> = {
   },
 }
 
+/**
+ * Declares one field id several times, each variant conditioned on another
+ * field — the shape used by the embeddings, image-generator, and
+ * video-generator blocks. `size` deliberately overlaps on 50 so a test can
+ * distinguish "resolved the right variant" from "happened to overlap".
+ */
+const multiVariantBlockConfig = {
+  type: 'multi_variant_block',
+  name: 'Multi Variant Block',
+  outputs: {},
+  subBlocks: [
+    {
+      id: 'provider',
+      type: 'dropdown',
+      options: [
+        { label: 'Alpha', id: 'alpha' },
+        { label: 'Beta', id: 'beta' },
+      ],
+    },
+    {
+      id: 'model',
+      type: 'dropdown',
+      options: [
+        { label: 'a1', id: 'a1' },
+        { label: 'a2', id: 'a2' },
+      ],
+      condition: { field: 'provider', value: 'alpha' },
+    },
+    {
+      id: 'model',
+      type: 'dropdown',
+      options: [
+        { label: 'b1', id: 'b1' },
+        { label: 'b2', id: 'b2' },
+      ],
+      condition: { field: 'provider', value: 'beta' },
+    },
+    {
+      id: 'size',
+      type: 'dropdown',
+      options: [
+        { label: '100', id: '100' },
+        { label: '50', id: '50' },
+      ],
+      condition: { field: 'provider', value: 'alpha', and: { field: 'model', value: 'a1' } },
+    },
+    {
+      id: 'size',
+      type: 'dropdown',
+      options: [
+        { label: '50', id: '50' },
+        { label: '25', id: '25' },
+      ],
+      condition: { field: 'provider', value: 'beta' },
+    },
+  ],
+  tools: { access: ['multi_variant_tool'], config: { tool: () => 'multi_variant_tool' } },
+}
+
 const blockConfigsByType: Record<string, unknown> = {
+  multi_variant_block: multiVariantBlockConfig,
   condition: conditionBlockConfig,
   slack: oauthBlockConfig,
   router_v2: routerBlockConfig,
@@ -277,6 +337,79 @@ describe('validateInputsForBlock', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: [] })
+  })
+
+  /**
+   * A block may declare one field id several times, each variant conditioned on
+   * another field. Keying a map by id alone kept whichever variant was declared
+   * last, so a value valid for the selected provider was checked against an
+   * unrelated provider's options and rejected.
+   */
+  describe('same-id conditional field variants', () => {
+    it('validates against the variant selected in the same mutation', () => {
+      // 'a1' belongs to the first variant; the last-declared one offers b1/b2.
+      const result = validateInputsForBlock(
+        'multi_variant_block',
+        { provider: 'alpha', model: 'a1' },
+        'mv-1'
+      )
+
+      expect(result.errors).toHaveLength(0)
+      expect(result.validInputs.model).toBe('a1')
+    })
+
+    it('accepts a value absent from the last-declared variant', () => {
+      // 100 exists only on the alpha `size` variant.
+      const result = validateInputsForBlock(
+        'multi_variant_block',
+        { provider: 'alpha', model: 'a1', size: '100' },
+        'mv-2'
+      )
+
+      expect(result.errors).toHaveLength(0)
+      expect(result.validInputs.size).toBe('100')
+    })
+
+    it('resolves against saved values when the mutation is partial', () => {
+      const result = validateInputsForBlock('multi_variant_block', { size: '100' }, 'mv-3', {
+        provider: 'alpha',
+        model: 'a1',
+      })
+
+      expect(result.errors).toHaveLength(0)
+      expect(result.validInputs.size).toBe('100')
+    })
+
+    it('rejects a value belonging to a different variant', () => {
+      // 25 is beta-only, so it must not pass while alpha is selected.
+      const result = validateInputsForBlock(
+        'multi_variant_block',
+        { provider: 'alpha', model: 'a1', size: '25' },
+        'mv-4'
+      )
+
+      expect(result.errors).toHaveLength(1)
+      expect(result.errors[0].field).toBe('size')
+    })
+
+    it('rejects a value no variant offers', () => {
+      const result = validateInputsForBlock(
+        'multi_variant_block',
+        { provider: 'alpha', model: 'nope' },
+        'mv-5'
+      )
+
+      expect(result.errors).toHaveLength(1)
+      expect(result.errors[0].field).toBe('model')
+    })
+
+    it('falls back to the union when no variant condition matches', () => {
+      // Without a provider nothing resolves, so widen rather than guess.
+      const result = validateInputsForBlock('multi_variant_block', { model: 'b1' }, 'mv-6')
+
+      expect(result.errors).toHaveLength(0)
+      expect(result.validInputs.model).toBe('b1')
+    })
   })
 
   it('accepts condition-input arrays with arbitrary item ids', () => {
