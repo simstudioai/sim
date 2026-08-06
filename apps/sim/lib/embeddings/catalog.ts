@@ -157,6 +157,31 @@ export function getKbEligibleModels(): string[] {
  * Resolves the dimensionality a request will actually produce, given an
  * optional caller-requested reduction.
  */
+/**
+ * Fraction of a model's declared ceiling used for batching when its tokens are
+ * counted with the wrong tokenizer. Chosen to absorb the usual spread between
+ * BPE vocabularies on ordinary text; it is a guard, not a measurement.
+ */
+const FOREIGN_TOKENIZER_SAFETY_FACTOR = 0.8
+
+/**
+ * The token ceiling batching should enforce for a model.
+ *
+ * Batching measures with tiktoken, which only has encodings for OpenAI models —
+ * every other id falls back to `cl100k_base`, so a Gemini, Cohere, or Mistral
+ * limit would be enforced in OpenAI token units. Counting a foreign model's
+ * text with tiktoken is an approximation, so its ceiling is discounted rather
+ * than trusted exactly.
+ *
+ * The discount is deliberately one-sided: overshooting means the provider
+ * rejects the whole request, while undershooting only trims a text that was
+ * already at the limit.
+ */
+export function resolveBatchTokenCeiling(info: EmbeddingModelInfo): number {
+  if (info.tokenizerProvider === 'openai') return info.maxInputTokens
+  return Math.floor(info.maxInputTokens * FOREIGN_TOKENIZER_SAFETY_FACTOR)
+}
+
 export function resolveDimensions(info: EmbeddingModelInfo, requested?: number): number {
   if (requested === undefined) return info.nativeDimensions
   if (!info.supportedDimensions?.includes(requested)) {

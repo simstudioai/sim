@@ -9,6 +9,7 @@ export {
   getKbEligibleModels,
   getModelsForProvider,
   KB_EMBEDDING_DIMENSIONS,
+  resolveBatchTokenCeiling,
   resolveDimensions,
 } from '@/lib/embeddings/catalog'
 export { EmbeddingAPIError, embed } from '@/lib/embeddings/client'

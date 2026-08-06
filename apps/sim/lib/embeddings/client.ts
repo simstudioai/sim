@@ -5,6 +5,7 @@ import {
   DEFAULT_EMBEDDING_MODEL,
   type EmbeddingModelInfo,
   getEmbeddingModelInfo,
+  resolveBatchTokenCeiling,
   resolveDimensions,
 } from '@/lib/embeddings/catalog'
 import { resolveProviderKey } from '@/lib/embeddings/keys'
@@ -198,7 +199,11 @@ export async function embed(texts: string[], options: EmbedOptions): Promise<Emb
    * accepted. Using the per-input ceiling as the per-batch budget also keeps
    * every individual text within it.
    */
-  const tokenBatches = batchByTokenLimit(modelInputs, provider.info.maxInputTokens, model)
+  const tokenBatches = batchByTokenLimit(
+    modelInputs,
+    resolveBatchTokenCeiling(provider.info),
+    model
+  )
   const itemLimit = provider.adapter.maxItemsPerRequest ?? provider.info.maxItemsPerRequest
   const batches = itemLimit
     ? tokenBatches.flatMap((batch) => splitByItemLimit(batch, itemLimit))

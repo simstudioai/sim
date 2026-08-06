@@ -9,6 +9,7 @@ import {
   getKbEligibleModels,
   getModelsForProvider,
   KB_EMBEDDING_DIMENSIONS,
+  resolveBatchTokenCeiling,
   resolveDimensions,
 } from '@/lib/embeddings/catalog'
 import { EMBEDDING_MODEL_PRICING } from '@/providers/models'
@@ -98,6 +99,38 @@ describe('splitByItemLimit', () => {
     const batches = splitByItemLimit(items, 100)
     expect(batches.map((b) => b.length)).toEqual([100, 100, 50])
     expect(batches.flat()).toEqual(items)
+  })
+
+  /**
+   * Batching counts tokens with tiktoken, which only has encodings for OpenAI
+   * models. Every other id falls back to cl100k, so a foreign model's ceiling
+   * would otherwise be enforced in the wrong token units.
+   */
+  describe('resolveBatchTokenCeiling', () => {
+    it('trusts the declared ceiling for tiktoken-native models', () => {
+      for (const [id, info] of Object.entries(EMBEDDING_MODELS)) {
+        if (info.tokenizerProvider !== 'openai') continue
+        expect(resolveBatchTokenCeiling(info), id).toBe(info.maxInputTokens)
+      }
+    })
+
+    it('discounts the ceiling for every model counted with a foreign tokenizer', () => {
+      const foreign = Object.entries(EMBEDDING_MODELS).filter(
+        ([, info]) => info.tokenizerProvider !== 'openai'
+      )
+      // Guards the test itself: the catalog must still contain such models.
+      expect(foreign.length).toBeGreaterThan(0)
+
+      for (const [id, info] of foreign) {
+        const ceiling = resolveBatchTokenCeiling(info)
+        expect(ceiling, id).toBeLessThan(info.maxInputTokens)
+        expect(ceiling, id).toBeGreaterThan(0)
+      }
+    })
+
+    it("leaves Gemini's tight ceiling below its declared 2048", () => {
+      expect(resolveBatchTokenCeiling(getEmbeddingModelInfo('gemini-embedding-001'))).toBe(1638)
+    })
   })
 
   it("chunks to Cohere's 96-item cap", () => {
