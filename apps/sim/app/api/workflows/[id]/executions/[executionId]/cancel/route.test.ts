@@ -25,6 +25,9 @@ const {
   mockWriteEvent,
   mockWriteTerminalEvent,
   mockWorkflowExecutionBelongsToWorkflow,
+  mockGetJobQueue,
+  mockGetJob,
+  mockCancelJob,
 } = vi.hoisted(() => ({
   mockMarkExecutionCancelled: vi.fn(),
   mockAbortManualExecution: vi.fn(),
@@ -38,6 +41,13 @@ const {
   mockWriteEvent: vi.fn(),
   mockWriteTerminalEvent: vi.fn(),
   mockWorkflowExecutionBelongsToWorkflow: vi.fn(),
+  mockGetJobQueue: vi.fn(),
+  mockGetJob: vi.fn(),
+  mockCancelJob: vi.fn(),
+}))
+
+vi.mock('@/lib/core/async-jobs', () => ({
+  getJobQueue: mockGetJobQueue,
 }))
 
 vi.mock('@/lib/workflows/executor/execution-queries', () => ({
@@ -106,6 +116,9 @@ describe('POST /api/workflows/[id]/executions/[executionId]/cancel', () => {
     mockWriteEvent.mockResolvedValue({ eventId: 1 })
     mockWriteTerminalEvent.mockResolvedValue({ eventId: 1 })
     mockWorkflowExecutionBelongsToWorkflow.mockResolvedValue(true)
+    mockGetJob.mockResolvedValue(null)
+    mockCancelJob.mockResolvedValue(undefined)
+    mockGetJobQueue.mockResolvedValue({ getJob: mockGetJob, cancelJob: mockCancelJob })
   })
 
   it('returns success when cancellation was durably recorded', async () => {
@@ -146,6 +159,29 @@ describe('POST /api/workflows/[id]/executions/[executionId]/cancel', () => {
       pausedCancelled: false,
       reason: 'redis_unavailable',
     })
+  })
+
+  it('durably cancels a queued execution through its queue run', async () => {
+    mockMarkExecutionCancelled.mockResolvedValue({
+      durablyRecorded: false,
+      reason: 'redis_unavailable',
+    })
+    mockGetJob.mockResolvedValue({ id: 'run-1', status: 'pending' })
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      success: true,
+      executionId: 'ex-1',
+      redisAvailable: false,
+      durablyRecorded: true,
+      locallyAborted: false,
+      pausedCancelled: false,
+      reason: 'recorded',
+    })
+    expect(mockGetJob).toHaveBeenCalledWith('workflow-execution:ex-1')
+    expect(mockCancelJob).toHaveBeenCalledWith('run-1')
   })
 
   it('returns unsuccessful response when Redis persistence fails', async () => {

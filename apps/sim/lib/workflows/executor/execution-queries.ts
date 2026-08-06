@@ -5,7 +5,6 @@ import { getJobQueue } from '@/lib/core/async-jobs'
 import { WORKFLOW_EXECUTION_JOB_ID_PREFIX } from '@/lib/workflows/executor/execution-job-ids'
 
 export type WorkflowExecutionStatus =
-  | 'queued'
   | 'pending'
   | 'running'
   | 'completed'

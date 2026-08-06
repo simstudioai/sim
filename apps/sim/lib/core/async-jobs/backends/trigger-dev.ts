@@ -221,7 +221,7 @@ export class TriggerDevJobQueue implements JobQueueBackend {
       }
 
       return {
-        id: jobId,
+        id: run.id,
         type: run.taskIdentifier as JobType,
         payload: run.payload,
         status: mapTriggerDevStatus(run.status),

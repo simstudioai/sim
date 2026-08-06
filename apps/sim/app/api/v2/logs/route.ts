@@ -70,7 +70,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     )
     const includesRoot = resolvedFolderIds?.includes(null) ?? false
 
-    const decodedCursor = params.cursor ? decodePublicLogCursor(params.cursor) : null
+    const decodedCursor = params.cursor
+      ? decodePublicLogCursor(params.cursor, params.order ?? 'desc')
+      : null
     if (params.cursor && !decodedCursor) return v2Error('BAD_REQUEST', 'Invalid cursor')
     const cursor = decodedCursor ?? undefined
 

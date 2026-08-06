@@ -97,10 +97,35 @@ describe('GET /api/v2/workflows/[id]/executions', () => {
 
     expect(body.data).toHaveLength(2)
     expect(body.nextCursor).toEqual(expect.any(String))
+    expect(JSON.parse(Buffer.from(body.nextCursor, 'base64').toString())).toEqual({
+      sort: 'startedAt:desc',
+      keys: ['2026-08-05T00:01:00.000Z', 'row-1'],
+    })
   })
 
   it('rejects an invalid cursor', async () => {
     const response = await callGet('?cursor=not-a-cursor')
+
+    expect(response.status).toBe(400)
+    expect(dbChainMockFns.limit).not.toHaveBeenCalled()
+  })
+
+  it('rejects a cursor minted under a different order', async () => {
+    const cursor = Buffer.from(
+      JSON.stringify({
+        sort: 'startedAt:desc',
+        keys: ['2026-08-05T00:01:00.000Z', 'row-1'],
+      })
+    ).toString('base64')
+
+    const response = await callGet(`?order=asc&cursor=${encodeURIComponent(cursor)}`)
+
+    expect(response.status).toBe(400)
+    expect(dbChainMockFns.limit).not.toHaveBeenCalled()
+  })
+
+  it('rejects queued as a durable-history filter', async () => {
+    const response = await callGet('?status=queued')
 
     expect(response.status).toBe(400)
     expect(dbChainMockFns.limit).not.toHaveBeenCalled()

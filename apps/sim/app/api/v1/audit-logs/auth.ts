@@ -65,7 +65,13 @@ export async function resolveEnterpriseAuditAccess(
     .limit(1)
 
   if (!membership) {
-    return { success: false, status: 403, message: 'Not a member of any organization' }
+    return {
+      success: false,
+      status: 403,
+      message: targetOrganizationId
+        ? 'Not a member of the requested organization'
+        : 'Not a member of any organization',
+    }
   }
 
   if (membership.role !== 'admin' && membership.role !== 'owner') {

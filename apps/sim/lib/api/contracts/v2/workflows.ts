@@ -472,9 +472,18 @@ export const v2WorkflowExecutionStatusValueSchema = z.enum([
   'paused',
 ])
 
+export const v2WorkflowExecutionListStatusValueSchema = z.enum([
+  'pending',
+  'running',
+  'completed',
+  'failed',
+  'cancelled',
+  'paused',
+])
+
 export const v2ListWorkflowExecutionsQuerySchema = z
   .object({
-    status: v2WorkflowExecutionStatusValueSchema.optional(),
+    status: v2WorkflowExecutionListStatusValueSchema.optional(),
     trigger: z.string().min(1, 'trigger cannot be empty').optional(),
     startDate: z.string().datetime().optional(),
     endDate: z.string().datetime().optional(),
@@ -499,7 +508,7 @@ export type V2ListWorkflowExecutionsQuery = z.output<typeof v2ListWorkflowExecut
 export const v2WorkflowExecutionListItemSchema = z.object({
   executionId: z.string(),
   workflowId: z.string(),
-  status: v2WorkflowExecutionStatusValueSchema,
+  status: v2WorkflowExecutionListStatusValueSchema,
   trigger: z.string(),
   startedAt: z.string(),
   endedAt: z.string().nullable(),

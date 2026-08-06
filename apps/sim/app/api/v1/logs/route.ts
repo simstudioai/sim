@@ -54,7 +54,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       },
     })
 
-    const decodedCursor = params.cursor ? decodePublicLogCursor(params.cursor) : null
+    const decodedCursor = params.cursor
+      ? decodePublicLogCursor(params.cursor, params.order ?? 'desc')
+      : null
     if (params.cursor && !decodedCursor) {
       return NextResponse.json({ error: 'Invalid cursor' }, { status: 400 })
     }

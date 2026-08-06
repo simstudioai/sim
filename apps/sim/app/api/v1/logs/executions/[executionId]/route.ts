@@ -13,6 +13,13 @@ import {
 
 const logger = createLogger('V1ExecutionAPI')
 
+function countWorkflowStateBlocks(workflowState: unknown): number {
+  if (!workflowState || typeof workflowState !== 'object' || Array.isArray(workflowState)) return 0
+  const blocks = (workflowState as Record<string, unknown>).blocks
+  if (!blocks || typeof blocks !== 'object' || Array.isArray(blocks)) return 0
+  return Object.keys(blocks).length
+}
+
 export const GET = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ executionId: string }> }) => {
     try {
@@ -64,7 +71,7 @@ export const GET = withRouteHandler(
 
       logger.debug(`Successfully fetched execution data for: ${executionId}`)
       logger.debug(
-        `Workflow state contains ${Object.keys((workflowLog.workflowState as any)?.blocks || {}).length} blocks`
+        `Workflow state contains ${countWorkflowStateBlocks(workflowLog.workflowState)} blocks`
       )
 
       // Get user's workflow execution limits and usage

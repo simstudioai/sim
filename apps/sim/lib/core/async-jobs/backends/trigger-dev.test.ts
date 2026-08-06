@@ -152,7 +152,7 @@ describe('TriggerDevJobQueue getJob', () => {
     })
     expect(mockRetrieveRun).toHaveBeenNthCalledWith(2, 'run-1')
     expect(job).toMatchObject({
-      id: 'workflow-execution:execution-1',
+      id: 'run-1',
       status: 'completed',
       output: { output: { answer: 42 } },
       metadata: { workflowId: 'workflow-1' },

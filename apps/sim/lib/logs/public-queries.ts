@@ -12,19 +12,30 @@ import { buildLogFilters, getOrderBy, type LogFilters } from '@/lib/logs/public-
 export interface PublicLogCursor {
   startedAt: string
   id: string
+  order: 'asc' | 'desc'
 }
 
 export function encodePublicLogCursor(cursor: PublicLogCursor): string {
   return Buffer.from(JSON.stringify(cursor)).toString('base64')
 }
 
-export function decodePublicLogCursor(cursor: string): PublicLogCursor | null {
+export function decodePublicLogCursor(
+  cursor: string,
+  expectedOrder: 'asc' | 'desc'
+): PublicLogCursor | null {
   try {
     const parsed = JSON.parse(Buffer.from(cursor, 'base64').toString()) as Record<string, unknown>
-    if (typeof parsed.startedAt !== 'string' || typeof parsed.id !== 'string') return null
+    if (
+      typeof parsed.startedAt !== 'string' ||
+      typeof parsed.id !== 'string' ||
+      (parsed.order !== 'asc' && parsed.order !== 'desc') ||
+      parsed.order !== expectedOrder
+    ) {
+      return null
+    }
     const startedAt = new Date(parsed.startedAt)
     if (Number.isNaN(startedAt.getTime())) return null
-    return { startedAt: parsed.startedAt, id: parsed.id }
+    return { startedAt: parsed.startedAt, id: parsed.id, order: parsed.order }
   } catch {
     return null
   }
@@ -93,7 +104,11 @@ export async function listPublicWorkflowLogs(input: ListPublicWorkflowLogsInput)
   const last = data.at(-1)
   const nextCursor =
     hasMore && last
-      ? encodePublicLogCursor({ startedAt: last.startedAt.toISOString(), id: last.id })
+      ? encodePublicLogCursor({
+          startedAt: last.startedAt.toISOString(),
+          id: last.id,
+          order: input.filters.order ?? 'desc',
+        })
       : null
 
   return { data, nextCursor }

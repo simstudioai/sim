@@ -1,5 +1,6 @@
 import { redisConfigMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { JOB_MAX_LIFETIME_SECONDS } from '@/lib/core/async-jobs/types'
 
 const { mockRedisSet, mockPublish, mockSubscribe } = vi.hoisted(() => ({
   mockRedisSet: vi.fn(),
@@ -46,6 +47,12 @@ describe('markExecutionCancelled', () => {
       durablyRecorded: true,
       reason: 'recorded',
     })
+    expect(mockRedisSet).toHaveBeenCalledWith(
+      'execution:cancel:execution-1',
+      '1',
+      'EX',
+      JOB_MAX_LIFETIME_SECONDS
+    )
   })
 
   it('returns redis_write_failed when Redis write throws', async () => {

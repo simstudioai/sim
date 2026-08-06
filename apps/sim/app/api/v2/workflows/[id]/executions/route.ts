@@ -4,15 +4,17 @@ import type { NextRequest } from 'next/server'
 import {
   type V2WorkflowExecutionListItem,
   v2ListWorkflowExecutionsContract,
-  v2WorkflowExecutionStatusValueSchema,
+  v2WorkflowExecutionListStatusValueSchema,
 } from '@/lib/api/contracts/v2/workflows'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { listWorkflowExecutions } from '@/lib/workflows/executor/execution-queries'
 import {
-  decodeCursor,
-  encodeCursor,
+  cursorSortKey,
+  decodeSortedCursor,
+  encodeSortedCursor,
   v2CursorList,
+  v2CursorSortError,
   v2Error,
   v2ValidationError,
 } from '@/app/api/v2/lib/response'
@@ -22,11 +24,6 @@ const logger = createLogger('V2WorkflowExecutionsAPI')
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
-
-interface EncodedWorkflowExecutionCursor {
-  startedAt: string
-  rowId: string
-}
 
 /** List the durable executions belonging to one workflow. */
 export const GET = withRouteHandler(
@@ -41,13 +38,19 @@ export const GET = withRouteHandler(
     if (!parsed.success) return parsed.response
 
     const { status, trigger, startDate, endDate, limit, cursor, order } = parsed.data.query
-    const decodedCursor = cursor ? decodeCursor<EncodedWorkflowExecutionCursor>(cursor) : null
-    const cursorDate = decodedCursor ? new Date(decodedCursor.startedAt) : null
+    const sort = cursorSortKey('startedAt', order)
+    const decodedCursor = decodeSortedCursor(cursor, sort)
+    if (decodedCursor.status === 'invalid') return v2CursorSortError()
+    const [cursorStartedAt, cursorRowId] = decodedCursor.status === 'ok' ? decodedCursor.keys : []
+    const cursorDate = typeof cursorStartedAt === 'string' ? new Date(cursorStartedAt) : null
     if (
-      cursor &&
-      (!decodedCursor || !decodedCursor.rowId || !cursorDate || Number.isNaN(cursorDate.getTime()))
+      decodedCursor.status === 'ok' &&
+      (decodedCursor.keys.length !== 2 ||
+        !cursorDate ||
+        Number.isNaN(cursorDate.getTime()) ||
+        typeof cursorRowId !== 'string')
     ) {
-      return v2Error('BAD_REQUEST', 'Invalid cursor')
+      return v2CursorSortError()
     }
 
     try {
@@ -59,8 +62,8 @@ export const GET = withRouteHandler(
         endDate: endDate ? new Date(endDate) : undefined,
         limit,
         cursor:
-          decodedCursor && cursorDate
-            ? { startedAt: cursorDate, rowId: decodedCursor.rowId }
+          decodedCursor.status === 'ok' && cursorDate && typeof cursorRowId === 'string'
+            ? { startedAt: cursorDate, rowId: cursorRowId }
             : undefined,
         order,
       })
@@ -68,7 +71,7 @@ export const GET = withRouteHandler(
       const data: V2WorkflowExecutionListItem[] = result.data.map((row) => ({
         executionId: row.executionId,
         workflowId: row.workflowId ?? workflowId,
-        status: v2WorkflowExecutionStatusValueSchema.parse(row.status),
+        status: v2WorkflowExecutionListStatusValueSchema.parse(row.status),
         trigger: row.trigger,
         startedAt: row.startedAt.toISOString(),
         endedAt: row.endedAt?.toISOString() ?? null,
@@ -77,10 +80,10 @@ export const GET = withRouteHandler(
       }))
 
       const nextCursor = result.nextCursor
-        ? encodeCursor({
-            startedAt: result.nextCursor.startedAt.toISOString(),
-            rowId: result.nextCursor.rowId,
-          })
+        ? encodeSortedCursor(sort, [
+            result.nextCursor.startedAt.toISOString(),
+            result.nextCursor.rowId,
+          ])
         : null
 
       return v2CursorList(data, nextCursor)
