@@ -13,6 +13,7 @@ import {
 } from '@/lib/core/utils/stream-limits'
 import { CodeLanguage } from '@/lib/execution/languages'
 import {
+  appendStreamedSandboxOutput,
   isSandboxOutputLimitError,
   MAX_SANDBOX_OUTPUT_BYTES,
   MAX_SANDBOX_PROCESS_OUTPUT_BYTES,
@@ -246,6 +247,11 @@ class DaytonaSandboxHandle implements SandboxHandle {
     const outputBudget = new SandboxProcessOutputBudget(
       options.maxOutputBytes ?? MAX_SANDBOX_PROCESS_OUTPUT_BYTES
     )
+    // Matches the E2B adapter: the budget bounds what Sim retains, so a stream the caller consumes
+    // itself is exempt and only a diagnostic tail is kept. Per stream, so a caller that streams
+    // stdout but not stderr still has stderr fully bounded. The failover must not change behavior.
+    const retainStdout = options.onStdout === undefined
+    const retainStderr = options.onStderr === undefined
     try {
       await this.sandbox.process.createSession(sessionId)
       sessionCreated = true
@@ -282,14 +288,17 @@ class DaytonaSandboxHandle implements SandboxHandle {
       const appendOutput = (
         chunk: string,
         append: (value: string) => void,
+        retain: boolean,
         callback?: (value: string) => void
       ) => {
-        try {
-          outputBudget.add(chunk)
-        } catch {
-          void this.kill().catch(() => {})
-          resolveOutputLimit()
-          return
+        if (retain) {
+          try {
+            outputBudget.add(chunk)
+          } catch {
+            void this.kill().catch(() => {})
+            resolveOutputLimit()
+            return
+          }
         }
         append(chunk)
         callback?.(chunk)
@@ -302,8 +311,9 @@ class DaytonaSandboxHandle implements SandboxHandle {
             appendOutput(
               chunk,
               (value) => {
-                stdout += value
+                stdout = retainStdout ? stdout + value : appendStreamedSandboxOutput(stdout, value)
               },
+              retainStdout,
               options.onStdout
             )
           },
@@ -311,8 +321,9 @@ class DaytonaSandboxHandle implements SandboxHandle {
             appendOutput(
               chunk,
               (value) => {
-                stderr += value
+                stderr = retainStderr ? stderr + value : appendStreamedSandboxOutput(stderr, value)
               },
+              retainStderr,
               options.onStderr
             )
           }
