@@ -110,6 +110,23 @@ async function fetchWorkspaceFiles(
 }
 
 /**
+ * Shared options for the workspace-file list, so an imperative caller can
+ * `fetchQuery` the same cache entry {@link useWorkspaceFiles} populates instead
+ * of refetching by key and reading the result back out of the cache.
+ */
+export function getWorkspaceFilesQueryOptions(
+  workspaceId: string,
+  scope: WorkspaceFileQueryScope = 'active'
+) {
+  return {
+    queryKey: workspaceFilesKeys.list(workspaceId, scope),
+    queryFn: ({ signal }: { signal?: AbortSignal }) =>
+      fetchWorkspaceFiles(workspaceId, scope, signal),
+    staleTime: WORKSPACE_FILES_LIST_STALE_TIME, // 30 seconds - files can change frequently
+  }
+}
+
+/**
  * Hook to fetch workspace files
  */
 export function useWorkspaceFiles(
@@ -118,10 +135,8 @@ export function useWorkspaceFiles(
   options?: { enabled?: boolean }
 ) {
   return useQuery({
-    queryKey: workspaceFilesKeys.list(workspaceId, scope),
-    queryFn: ({ signal }) => fetchWorkspaceFiles(workspaceId, scope, signal),
+    ...getWorkspaceFilesQueryOptions(workspaceId, scope),
     enabled: !!workspaceId && (options?.enabled ?? true),
-    staleTime: WORKSPACE_FILES_LIST_STALE_TIME, // 30 seconds - files can change frequently
     placeholderData: keepPreviousData, // Show cached data immediately
   })
 }

@@ -21,7 +21,6 @@ import { useSession } from '@/lib/auth/auth-client'
 import { buildHostedUpgradeUrl, HOSTED_BILLING_SETTINGS_URL } from '@/lib/billing/upgrade-reasons'
 import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
 import { isBrowserAgentAvailable, sendBrowserPanelAction } from '@/lib/browser-agent/transport'
-import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { isSafeHttpUrl } from '@/lib/core/utils/urls'
 import { getDesktopBridge } from '@/lib/desktop'
@@ -39,6 +38,7 @@ import { QuestionDisplay } from '@/app/workspace/[workspaceId]/home/components/m
 import type {
   ChatMessageContext,
   MothershipResource,
+  WorkspaceResourceRef,
 } from '@/app/workspace/[workspaceId]/home/types'
 // Deep import, not the barrel: the barrel also re-exports
 // ConnectServiceAccountModal, and that edge would pull the modal into this
@@ -54,6 +54,7 @@ import {
 } from '@/hooks/queries/environment'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useTablesList } from '@/hooks/queries/tables'
+import { findWorkspaceFileByPath } from '@/hooks/queries/utils/find-workspace-file-by-src'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
@@ -1300,7 +1301,7 @@ interface SpecialTagsProps {
   questionAnswers?: string[]
   onOptionSelect?: (id: string) => void
   onQuestionDismiss?: () => void
-  onWorkspaceResourceSelect?: (resource: MothershipResource) => void
+  onWorkspaceResourceSelect?: (resource: WorkspaceResourceRef) => void
 }
 
 /**
@@ -1455,7 +1456,7 @@ export function WorkspaceResourceDisplay({
   onSelect,
 }: {
   data: WorkspaceResourceTagData
-  onSelect?: (resource: MothershipResource) => void
+  onSelect?: (resource: WorkspaceResourceRef) => void
 }) {
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const { data: workflows = [] } = useWorkflows(workspaceId)
@@ -1463,15 +1464,9 @@ export function WorkspaceResourceDisplay({
   const { data: files = [] } = useWorkspaceFiles(workspaceId)
   const { data: knowledgeBases = [] } = useKnowledgeBasesQuery(workspaceId)
 
-  const resource = useMemo<MothershipResource>(() => {
+  const resource = useMemo<WorkspaceResourceRef>(() => {
     const fileFromPath =
-      data.type === 'file' && data.path
-        ? files.find(
-            (file) =>
-              canonicalWorkspaceFilePath({ folderPath: file.folderPath, name: file.name }) ===
-              data.path
-          )
-        : undefined
+      data.type === 'file' ? findWorkspaceFileByPath(files, data.path) : undefined
     const title =
       data.type === 'workflow'
         ? (workflows.find((workflow) => workflow.id === data.id)?.name ??
@@ -1487,9 +1482,10 @@ export function WorkspaceResourceDisplay({
             : (knowledgeBases.find((knowledgeBase) => knowledgeBase.id === data.id)?.name ??
               fallbackWorkspaceResourceTitle(data.type))
 
+    const id = data.id ?? fileFromPath?.id
     return {
       type: toMothershipResourceType(data.type),
-      id: data.id ?? fileFromPath?.id ?? data.path ?? '',
+      ...(id ? { id } : {}),
       title,
       ...(data.type === 'file' && data.path ? { path: data.path } : {}),
     }

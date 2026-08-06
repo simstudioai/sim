@@ -35,8 +35,8 @@ import type {
   ChatMessageContext,
   ContentBlock,
   FileAttachmentForApi,
-  MothershipResource,
   QueuedMessage,
+  WorkspaceResourceRef,
 } from '@/app/workspace/[workspaceId]/home/types'
 import { useAutoScroll } from '@/hooks/use-auto-scroll'
 import type { ChatContext } from '@/stores/panel'
@@ -70,7 +70,7 @@ interface MothershipChatProps {
    * `ChatSurfaceContextValue`, which this forwards to.
    */
   onContextRemove?: (context: ChatContext, remaining: ChatContext[]) => void
-  onWorkspaceResourceSelect?: (resource: MothershipResource) => void
+  onWorkspaceResourceSelect?: (resource: WorkspaceResourceRef) => void
   draftScopeKey?: string
   layout?: 'mothership-view' | 'copilot-view'
   initialScrollBlocked?: boolean

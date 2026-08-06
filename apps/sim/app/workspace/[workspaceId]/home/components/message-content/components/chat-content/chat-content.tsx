@@ -20,7 +20,10 @@ import {
   parseSpecialTags,
   SpecialTags,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
-import type { ChatContextKind, MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
+import type {
+  ChatContextKind,
+  WorkspaceResourceRef,
+} from '@/app/workspace/[workspaceId]/home/types'
 import { useSmoothText } from '@/hooks/use-smooth-text'
 import { sanitizeChatDisplayContent } from './chat-sanitize'
 import { ExternalLink, externalLinkHostname } from './external-link'
@@ -278,12 +281,16 @@ const MARKDOWN_COMPONENTS = {
             e.preventDefault()
             if (!type || !ref) return
             const linkText = label || ref
+            // A file link carries whichever the tag had (`path ?? id`), so
+            // classify before forwarding: a canonical VFS path is always
+            // `files/…`, and an id never contains a separator. Labelling an id
+            // as a path would throw away the only thing that identifies it.
+            const isVfsPath = type === 'file' && ref.includes('/')
             window.dispatchEvent(
               new CustomEvent('wsres-click', {
-                detail:
-                  type === 'file'
-                    ? { type, path: ref, title: linkText }
-                    : { type, id: ref, title: linkText },
+                detail: isVfsPath
+                  ? { type, path: ref, title: linkText }
+                  : { type, id: ref, title: linkText },
               })
             )
           }}
@@ -393,7 +400,7 @@ interface ChatContentProps {
   questionAnswers?: string[]
   onOptionSelect?: (id: string) => void
   onQuestionDismiss?: () => void
-  onWorkspaceResourceSelect?: (resource: MothershipResource) => void
+  onWorkspaceResourceSelect?: (resource: WorkspaceResourceRef) => void
   onRevealStateChange?: (isRevealing: boolean) => void
   /** Reports whether this segment is actively painting text. */
   onStreamActivityChange?: (active: boolean) => void
@@ -520,10 +527,12 @@ function ChatContentInner({
   useEffect(() => {
     const handler = (e: Event) => {
       const { type, id, path, title } = (e as CustomEvent).detail
+      // A link built from a path carries no id. Forward what the tag actually
+      // had; the select handler resolves it rather than guessing here.
       onWorkspaceResourceSelectRef.current?.({
         type,
-        id: id ?? '',
-        path,
+        ...(id ? { id } : {}),
+        ...(path ? { path } : {}),
         title: title || id || path || '',
       })
     }
