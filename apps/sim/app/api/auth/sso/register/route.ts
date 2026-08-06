@@ -661,13 +661,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
      * same transaction that removes the proof, the provider cannot end up trusted
      * without current ownership in either commit order.
      *
-     * Org-less (personal) SSO has no verified domain behind it, so on the hosted
-     * multi-tenant deployment it is granted no linking authority — otherwise anyone
-     * able to register one could claim a domain they do not own and have their own
-     * IdP auto-link to existing accounts on it. Sim's UI always registers
-     * org-scoped, so this only affects direct API callers. Self-hosted deployments
-     * are single-tenant, where the operator is the only tenant and the org-less
-     * path keeps working as before.
+     * Org-less (personal) SSO is a self-host-only path — Sim's UI always registers
+     * org-scoped. It has no verified domain behind it, so it is trusted only when
+     * self-hosted, where the operator is the sole tenant. On the hosted deployment
+     * that trust would let anyone claim a domain they do not own.
      */
     const grantProviderDomainTrust = async (): Promise<boolean> => {
       if (!orgId) {
