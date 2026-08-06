@@ -14,6 +14,7 @@ import { createStreamingExecution } from '@/providers/streaming-execution'
 import { isAbortError, parseToolArguments } from '@/providers/streaming-tool-loop-shared'
 import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
 import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
+import { openAICompatTransport } from '@/providers/transport'
 import type {
   ProviderConfig,
   ProviderRequest,
@@ -53,6 +54,7 @@ export const metaProvider: ProviderConfig = {
 
     try {
       const meta = new OpenAI({
+        ...openAICompatTransport(),
         apiKey: request.apiKey,
         baseURL: META_BASE_URL,
       })
