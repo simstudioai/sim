@@ -848,6 +848,10 @@ export const OAUTH_CLIENT_SETUP_FIELDS = {
     INSTAGRAM_CLIENT_ID: { input: 'text' },
     INSTAGRAM_CLIENT_SECRET: { input: 'secret' },
   },
+  quickbooks: {
+    QUICKBOOKS_CLIENT_ID: { input: 'text' },
+    QUICKBOOKS_CLIENT_SECRET: { input: 'secret' },
+  },
   salesforce: {
     SALESFORCE_CLIENT_ID: { input: 'text' },
     SALESFORCE_CLIENT_SECRET: { input: 'secret' },
