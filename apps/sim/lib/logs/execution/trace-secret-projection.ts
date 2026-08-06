@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { isPlainRecord, omit } from '@sim/utils/object'
 import {
   isLargeArrayManifest,
@@ -125,6 +126,21 @@ class TraceSecretProjectionError extends Error {
   constructor(message: string) {
     super(message)
     this.name = 'TraceSecretProjectionError'
+  }
+}
+
+/**
+ * Diagnostic payload for a projection fallback.
+ *
+ * Every {@link TraceSecretProjectionError} message is a fixed literal describing
+ * which invariant fired, so it is safe to log. Any other failure originates
+ * outside this module and may embed trace content (a JSON parse error quotes the
+ * text it choked on), so only its name is reported.
+ */
+function describeProjectionFailure(error: unknown): { name: string; reason?: string } {
+  return {
+    name: toError(error).name,
+    ...(error instanceof TraceSecretProjectionError ? { reason: error.message } : {}),
   }
 }
 
@@ -786,8 +802,10 @@ async function sanitizeContentField(
 ): Promise<unknown | typeof OMIT> {
   try {
     return await sanitizeMaterializedValue(value, context)
-  } catch {
-    logger.warn('Omitting trace content that could not be sanitized')
+  } catch (error) {
+    logger.warn('Omitting trace content that could not be sanitized', {
+      failure: describeProjectionFailure(error),
+    })
     return OMIT
   }
 }
@@ -1182,8 +1200,10 @@ function projectBoundedTraceSpans(
 function structuralOnlyTraceSpans(traceSpans: TraceSpan[]): TraceSpan[] {
   try {
     return projectBoundedTraceSpans(traceSpans, structuralOnlySpan)
-  } catch {
-    logger.warn('Trace structure could not be safely traversed; omitting projected spans')
+  } catch (error) {
+    logger.warn('Trace structure could not be safely traversed; omitting projected spans', {
+      failure: describeProjectionFailure(error),
+    })
     return []
   }
 }
@@ -1522,8 +1542,10 @@ export async function enforceTraceSpanSecretInvariant(
 
     await assertPostTransformTraceSpansAreSafe(traceSpans, matcher, options.store)
     return traceSpans
-  } catch {
-    logger.warn('Trace secret invariant failed; retaining structural spans only')
+  } catch (error) {
+    logger.warn('Trace secret invariant failed; retaining structural spans only', {
+      failure: describeProjectionFailure(error),
+    })
     return structuralOnlyTraceSpans(traceSpans)
   }
 }
@@ -1560,8 +1582,10 @@ export async function projectTraceSpansForSecrets(
     }
     assertTraceSpansContentIsSafe(projected, context)
     return projected
-  } catch {
-    logger.warn('Trace secret projection failed; retaining structural spans only')
+  } catch (error) {
+    logger.warn('Trace secret projection failed; retaining structural spans only', {
+      failure: describeProjectionFailure(error),
+    })
     return structuralOnlyTraceSpans(traceSpans)
   }
 }

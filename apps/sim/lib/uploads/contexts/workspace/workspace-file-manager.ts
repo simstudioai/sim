@@ -7,7 +7,12 @@ import { randomBytes } from 'crypto'
 import { db } from '@sim/db'
 import { workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
+import {
+  describeError,
+  getErrorMessage,
+  getPostgresConstraintName,
+  getPostgresErrorCode,
+} from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { and, eq, isNotNull, isNull, or, sql } from 'drizzle-orm'
 import type { ShareRecord } from '@/lib/api/contracts/public-shares'
@@ -446,15 +451,18 @@ export async function uploadWorkspaceFile(
         )
         continue
       }
-      logger.error(`Failed to upload workspace file ${fileName}:`, error)
-      throw new Error(`Failed to upload file: ${getErrorMessage(error, 'Unknown error')}`)
+      logger.error(`Failed to upload workspace file ${fileName}:`, {
+        cause: describeError(error),
+      })
+      throw new Error(`Failed to upload file: ${getErrorMessage(error, 'Unknown error')}`, {
+        cause: error,
+      })
     }
   }
 
-  logger.error(
-    `Failed to upload workspace file after ${MAX_UPLOAD_UNIQUE_RETRIES} attempts`,
-    lastError
-  )
+  logger.error(`Failed to upload workspace file after ${MAX_UPLOAD_UNIQUE_RETRIES} attempts`, {
+    cause: describeError(lastError),
+  })
   throw new FileConflictError(fileName)
 }
 

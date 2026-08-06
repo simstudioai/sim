@@ -16,7 +16,7 @@ import type { SerializableExecutionState } from '@/executor/execution/types'
 afterAll(resetDbChainMock)
 
 /** Flat logger whose withMetadata() children share one spy set, so log level is assertable. */
-const { mockLogger } = vi.hoisted(() => {
+const { mockLogger, statsLogErrorMock } = vi.hoisted(() => {
   const mockLogger: Record<string, ReturnType<typeof vi.fn>> = {
     info: vi.fn(),
     warn: vi.fn(),
@@ -27,7 +27,7 @@ const { mockLogger } = vi.hoisted(() => {
   }
   mockLogger.child = vi.fn(() => mockLogger)
   mockLogger.withMetadata = vi.fn(() => mockLogger)
-  return { mockLogger }
+  return { mockLogger, statsLogErrorMock: mockLogger.error }
 })
 
 vi.mock('@sim/logger', () => ({
@@ -1229,5 +1229,33 @@ describe('recordExecutionUsage boundary-delta reconciliation', () => {
     expect(recordUsage).toHaveBeenCalledTimes(1)
     // The ledger INSERT participates in the locked transaction.
     expect(vi.mocked(recordUsage).mock.calls[0][0]).toHaveProperty('tx')
+  })
+
+  test('reports the driver cause and SQLSTATE when the ledger write fails', async () => {
+    const driver = Object.assign(new Error('cannot execute INSERT in a read-only transaction'), {
+      code: '25006',
+    })
+    vi.mocked(recordUsage).mockRejectedValueOnce(
+      new Error('Failed query: insert into "usage_log"\nparams: user-1', { cause: driver })
+    )
+
+    await run(
+      costSummary({
+        models: {
+          'gpt-4o': { input: 0, output: 0, total: 1, tokens: { input: 0, output: 0, total: 0 } },
+        },
+      }),
+      []
+    )
+
+    expect(statsLogErrorMock).toHaveBeenCalledWith(
+      'Failed to record execution usage to usage_log ledger; charge may be unbilled',
+      expect.objectContaining({
+        cause: expect.objectContaining({
+          code: '25006',
+          message: 'cannot execute INSERT in a read-only transaction',
+        }),
+      })
+    )
   })
 })
