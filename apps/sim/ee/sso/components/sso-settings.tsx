@@ -331,7 +331,12 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
     return out
   }
 
-  const validateAll = (data: typeof formData) => {
+  /**
+   * `isReplacingSecret` is a parameter rather than a closure read: callers that
+   * validate in the same tick as toggling it would otherwise see the previous
+   * value and leave a stale "required" error on a field that is no longer an input.
+   */
+  const validateAll = (data: typeof formData, isReplacingSecret = isReplacingClientSecret) => {
     const newErrors: Record<string, string[]> = {
       providerType: [],
       providerId: validateProviderId(data.providerId),
@@ -354,7 +359,7 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
       // clicked the field is a real input again, so a blank or whitespace-only
       // value has to fail rather than quietly overwrite a working secret.
       newErrors.clientSecret =
-        hasStoredClientSecret && !isReplacingClientSecret
+        hasStoredClientSecret && !isReplacingSecret
           ? []
           : validateRequired('Client Secret', data.clientSecret)
       if (!data.scopes || !data.scopes.trim()) {
@@ -481,6 +486,18 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
 
     setFormData(next)
     validateAll(next)
+  }
+
+  /**
+   * Backs out of a replacement: drops what was typed and revalidates as "keeping
+   * the saved secret", so a required-error from a failed submit does not linger on
+   * a row that is no longer an input.
+   */
+  const handleKeepSavedSecret = () => {
+    setIsReplacingClientSecret(false)
+    const next = { ...formData, clientSecret: '' }
+    setFormData(next)
+    validateAll(next, false)
   }
 
   const isSaml = formData.providerType === 'saml'
@@ -822,10 +839,7 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
                     storedHint={storedClientSecretHint}
                     isReplacing={isReplacingClientSecret}
                     onReplace={() => setIsReplacingClientSecret(true)}
-                    onCancelReplace={() => {
-                      setIsReplacingClientSecret(false)
-                      handleInputChange('clientSecret', '')
-                    }}
+                    onCancelReplace={handleKeepSavedSecret}
                     value={formData.clientSecret}
                     onChange={(next) => handleInputChange('clientSecret', next)}
                     hasError={showErrors && errors.clientSecret.length > 0}

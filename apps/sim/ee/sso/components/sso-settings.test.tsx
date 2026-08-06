@@ -299,6 +299,27 @@ describe('SSO client secret preservation', () => {
   })
 
   /**
+   * Backing out has to revalidate as "keeping the saved secret". Validating against
+   * the pre-toggle value would leave a required-error stranded on the masked row,
+   * where there is no longer an input to fix it in.
+   */
+  it('clears a stranded required-error when the replacement is backed out', async () => {
+    renderSso('org-a')
+    startEditing()
+    act(() => findButton('Replace')?.click())
+    typeSecret('   ')
+    await act(async () => {
+      findButton('Update')?.click()
+    })
+    expect(container).toHaveTextContent('Client Secret is required.')
+
+    act(() => findButton('Keep saved')?.click())
+
+    expect(container).not.toHaveTextContent('Client Secret is required.')
+    expect(secretInput()?.value).toBe('••••••••••••4f2a')
+  })
+
+  /**
    * The label is deliberately not "Cancel": the header already uses that to discard
    * the whole edit, and matching it here would make two very different actions
    * indistinguishable.
