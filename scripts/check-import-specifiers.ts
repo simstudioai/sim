@@ -43,7 +43,7 @@ import { fileURLToPath } from 'node:url'
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(SCRIPT_DIR, '..')
-const SCAN_DIRS = ['apps/sim', 'apps/realtime', 'packages']
+const SCAN_DIRS = ['apps/sim', 'apps/realtime', 'apps/docs', 'packages']
 const SKIP_DIRS = new Set(['node_modules', '.next', 'dist', 'build', '.turbo'])
 
 /**
@@ -58,6 +58,13 @@ const SPECIFIER_RE =
   /(?:^|\n)\s*(?:import|export)\s+(?!type\s)(?:[\s\S]*?from\s*)?['"]([^'"]+)['"]/g
 /** `import(...)` — resolved at call time, but the path still has to exist. */
 const DYNAMIC_RE = /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g
+/**
+ * `require('@/...')` — this repo uses lazy requires deliberately to break import cycles
+ * (`tools/params.ts` reaches `@/blocks` that way, `blocks/blocks/agent.ts` reaches
+ * `@/blocks/registry`). Those edges resolve exactly like static ones, so a bad specifier
+ * in one fails identically and must be checked.
+ */
+const REQUIRE_RE = /\brequire\s*\(\s*['"]([^'"]+)['"]\s*\)/g
 
 /**
  * Packages that must be imported by subpath. Opt-in rather than opt-out: `@sim/emcn` and
@@ -312,18 +319,25 @@ for (const file of files) {
     return lo + 1
   }
 
-  for (const pattern of [SPECIFIER_RE, DYNAMIC_RE]) {
+  for (const pattern of [SPECIFIER_RE, DYNAMIC_RE, REQUIRE_RE]) {
     pattern.lastIndex = 0
     let m = pattern.exec(src)
     while (m !== null) {
       const spec = m[1]
+      /**
+       * Anchor to the specifier, not to `m.index`. SPECIFIER_RE opens with `(?:^|\n)`, so
+       * `m.index` is the newline ENDING the previous line — reporting it put every violation
+       * one line early. The specifier's own offset is exact, and for a multi-line import it
+       * points at the `from '...'` line, which is where the reader needs to look anyway.
+       */
+      const at = m.index + m[0].lastIndexOf(spec)
       const outcome = resolveSpecifier(spec, file)
       if (outcome) {
         checked++
         if (!outcome.ok) {
           violations.push({
             file: relative(ROOT, file),
-            line: lineAt(m.index),
+            line: lineAt(at),
             specifier: spec,
             kind: 'unresolved',
             reason: outcome.reason,
@@ -335,7 +349,7 @@ for (const file of files) {
         const example = subs ? [...subs.keys()].find((k) => k !== '.') : undefined
         violations.push({
           file: relative(ROOT, file),
-          line: lineAt(m.index),
+          line: lineAt(at),
           specifier: spec,
           kind: 'bare-barrel',
           reason: example
