@@ -67,7 +67,7 @@ describe('Logger', () => {
     })
 
     test('should stay silent in a real browser', () => {
-      globalThis.process = { env: { NODE_ENV: 'production' } } as typeof realProcess
+      globalThis.process = { env: { NODE_ENV: 'production' } } as unknown as typeof realProcess
       Object.assign(globalThis, { window: { document: {} } })
 
       createLogger('Test').error('browser stays quiet')
