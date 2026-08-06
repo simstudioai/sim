@@ -116,12 +116,10 @@ export const POST = withRouteHandler(
           )
           .returning()
 
-        // Restore trust on any provider this proof covers, mirroring the revocation
-        // performed when a verified domain is deleted. Without this, a delete followed
-        // by a re-verification leaves the provider untrusted — and because that flag
-        // gates sign-in, not just linking, the org would sit in a silent SSO outage
-        // until someone re-saved the SSO config. Wildcard-tolerant, matching the
-        // revoking comparison exactly so the two stay symmetric.
+        // Restore trust this proof covers, mirroring the revocation on delete.
+        // Without it a delete-then-reverify leaves the provider untrusted, and
+        // since that flag gates sign-in the org sits in a silent SSO outage. The
+        // comparison matches the revoking one exactly so the two stay symmetric.
         if (flipped.length > 0) {
           await tx
             .update(ssoProvider)

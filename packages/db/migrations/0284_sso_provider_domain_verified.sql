@@ -1,16 +1,10 @@
--- Replay-safety: the work before the COMMIT is idempotent, and the two concurrent index
--- operations after it are IF NOT EXISTS / IF EXISTS, so a failure at any point replays cleanly.
-
--- Better Auth declares `provider_id` unique and resolves providers by that column alone
--- (registerSSOProvider refuses an id that exists anywhere; checkProviderAccess authorizes against
--- whatever unordered findOne returns), but Sim's table only had a plain index — so a double-submit
--- of the SSO form could create two rows sharing a provider_id. Enforce the invariant the library
--- already assumes.
+-- Better Auth declares `provider_id` unique and resolves providers by that column alone, but Sim's
+-- table only had a plain index — a double-submit of the SSO form could create two rows sharing one.
+-- Enforce the invariant the library already assumes.
 --
--- Duplicates must be resolved before the unique index can be built. Fail here, inside the
--- transaction, rather than letting the CONCURRENT build fail afterwards and strand an INVALID index
--- that IF NOT EXISTS would skip forever. Deciding which row survives is a judgement call a
--- migration should not make silently, so this reports the offending ids and stops.
+-- Duplicates must be resolved first. Failing here, inside the transaction, avoids letting the
+-- CONCURRENT build fail afterwards and strand an INVALID index that IF NOT EXISTS would skip
+-- forever. Which row survives is a judgement call, so this reports the ids and stops.
 DO $$
 DECLARE duplicate_provider_ids text;
 BEGIN
@@ -26,21 +20,18 @@ BEGIN
   END IF;
 END $$;--> statement-breakpoint
 
--- Mirrors Better Auth's SSO `domainVerification` flag. DEFAULT true is deliberate: enabling that
--- option turns sign-in into a hard gate that rejects any provider without the flag, so every row
--- that predates this column must already satisfy it or existing tenants would be locked out the
--- moment the app rolls. Sim gates provider registration on its own DNS proof (sso_domain), so
--- "already verified" is the truthful value for every provider that exists. Postgres 11+ applies the
--- default without rewriting the table.
+-- Mirrors Better Auth's SSO `domainVerification` flag. DEFAULT true is deliberate: that option
+-- turns sign-in into a hard gate rejecting any provider without the flag, so rows predating this
+-- column must satisfy it or existing tenants are locked out the moment the app rolls. Sim already
+-- gates registration on its own DNS proof, so "verified" is truthful for every existing provider.
 ALTER TABLE "sso_provider" ADD COLUMN IF NOT EXISTS "domain_verified" boolean DEFAULT true NOT NULL;--> statement-breakpoint
 
 COMMIT;--> statement-breakpoint
 
--- `lock_timeout = 0` for the concurrent builds, per the convention in
--- packages/db/scripts/migrate.ts. CREATE INDEX CONCURRENTLY waits on every
--- concurrent write transaction in the database, not just ones touching this
--- table, so the session's 5s DDL timeout would cancel the build (55P03) and
--- strand an INVALID index that the IF NOT EXISTS below would then skip forever.
+-- `lock_timeout = 0` for the concurrent builds, per packages/db/scripts/migrate.ts.
+-- CREATE INDEX CONCURRENTLY waits on every concurrent write in the database, not just
+-- this table, so the session's 5s DDL timeout would cancel it (55P03) and strand an
+-- INVALID index that the IF NOT EXISTS below would skip forever.
 SET lock_timeout = 0;--> statement-breakpoint
 
 -- Clear any INVALID index left by a previously cancelled build, so a replay

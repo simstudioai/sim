@@ -109,15 +109,11 @@ const additionalTrustedOrigins = parseOriginList(env.TRUSTED_ORIGINS, (value) =>
 
 /**
  * Extra provider IDs appended to `trustedProviders`, from `SSO_PROVIDER_ID` and
- * `SSO_TRUSTED_PROVIDER_IDS`. Empty when SSO is disabled, so `trustedProviders`
- * is unchanged for non-SSO deployments.
+ * `SSO_TRUSTED_PROVIDER_IDS`. Empty when SSO is disabled.
  *
- * NOTE: these no longer affect SSO sign-in. Better Auth's SSO plugin calls the
- * account-linking handler with `trustProviderByName: false`, which disables the
- * `trustedProviders.includes(providerId)` branch entirely — SSO trust now comes
- * only from the provider's `domainVerified` flag (see the `sso()` config below).
- * They still apply to non-SSO providers that link by name, so the env vars are
- * kept rather than removed.
+ * These no longer affect SSO sign-in: the plugin passes `trustProviderByName:
+ * false`, disabling the name-based branch, so SSO trust comes only from
+ * `domainVerified`. Kept because non-SSO providers still link by name.
  */
 const additionalTrustedSsoProviders = isSsoEnabled
   ? [env.SSO_PROVIDER_ID, ...(env.SSO_TRUSTED_PROVIDER_IDS?.split(',') ?? [])]
@@ -1092,35 +1088,27 @@ export const auth = betterAuth({
       ? [
           sso({
             /**
-             * Honor the IdP's verified-email claim, so an SSO sign-in from an IdP
-             * that asserts `email_verified` produces a verified local account
-             * rather than one forced to `emailVerified: false`.
+             * Honor the IdP's `email_verified` claim so the local account is
+             * verified rather than forced to false.
              *
-             * This is NOT what enables account linking — many IdPs never send the
-             * claim at all (Microsoft Entra omits it, and Better Auth's own Entra
-             * provider defaults it to false), and the SAML path ignores it unless
-             * an explicit `mapping.emailVerified` is configured. `domainVerification`
-             * below is what actually establishes linking trust.
+             * This is not what enables linking — Entra omits the claim entirely,
+             * and SAML ignores it without an explicit `mapping.emailVerified`.
+             * `domainVerification` below establishes linking trust.
              */
             trustEmailVerified: true,
             /**
-             * Marks a provider as authoritative for its domain, which is what makes
-             * Better Auth auto-link an SSO sign-in to an existing same-email account.
-             * Without it `isTrustedProvider` is always false — the plugin passes
-             * `trustProviderByName: false`, so the `trustedProviders` allowlist never
-             * applies to SSO — and every user who already had a Sim account would be
-             * stranded on "account not linked".
+             * Marks a provider authoritative for its domain, which is what lets an
+             * SSO sign-in auto-link to an existing same-email account. Without it
+             * `isTrustedProvider` is always false and every user who already had a
+             * Sim account is stranded on "account not linked".
              *
-             * Sim does not use Better Auth's own DNS challenge endpoints: ownership is
-             * proven by Sim's `sso_domain` flow before a provider can be registered,
-             * and the register route mirrors that decision onto this flag.
+             * Sim does not use Better Auth's DNS challenge endpoints: ownership is
+             * proven by the `sso_domain` flow before registration, and the register
+             * route mirrors that decision onto this flag.
              *
-             * This path is constrained to emails whose domain matches the provider's
-             * (`validateEmailDomain`). It is NOT the only path: `link-account.mjs`
-             * blocks on `!isTrustedProvider && !userInfo.emailVerified`, so an IdP
-             * that asserts `email_verified` links regardless of domain — see the
-             * note on `trustEmailVerified` above. This flag narrows nothing on its
-             * own; it exists so linking survives IdPs that omit the claim.
+             * It narrows nothing on its own — an IdP asserting `email_verified`
+             * links regardless of domain (see `trustEmailVerified` above). It
+             * exists so linking survives IdPs that omit the claim.
              */
             domainVerification: { enabled: true },
             organizationProvisioning: {

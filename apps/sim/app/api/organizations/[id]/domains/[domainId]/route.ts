@@ -61,11 +61,8 @@ export const DELETE = withRouteHandler(
       )
     }
 
-    // Removing the proof must also withdraw the trust it granted. `domainVerified`
-    // on a provider is what authorizes auto-linking an SSO sign-in to an existing
-    // same-email account, so leaving it set would keep that authorization alive
-    // indefinitely after ownership was revoked. Both writes share a transaction so
-    // a domain can never be gone while its provider still claims to be verified.
+    // Removing the proof withdraws the trust it granted, in the same transaction
+    // so a domain can never be gone while its provider still claims verification.
     const removed = await db.transaction(async (tx) => {
       const [deleted] = await tx
         .delete(ssoDomain)
@@ -74,10 +71,8 @@ export const DELETE = withRouteHandler(
 
       if (!deleted) return null
 
-      // Match the provider domain the same way migration 0268 normalized it when it
-      // grandfathered these rows: lower, trimmed, leading `*.` stripped. A provider
-      // stored as `*.acme.com` against a verified row holding `acme.com` would
-      // otherwise keep its trust after the proof was deleted.
+      // Normalize as migration 0268 did when grandfathering these rows (lower,
+      // trimmed, leading `*.` stripped), so `*.acme.com` matches proof `acme.com`.
       await tx
         .update(ssoProvider)
         .set({ domainVerified: false })

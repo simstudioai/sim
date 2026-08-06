@@ -41,12 +41,9 @@ function selectTokenEndpointAuthMethod(
 }
 
 /**
- * Proposes a free, tenant-scoped provider ID by suffixing the domain's first
- * label (`azure-ad` + `acme.com` -> `azure-ad-acme`), so a caller who hit the
- * global-uniqueness collision is handed something concrete to type rather than
- * being asked to invent a name. Callers pass a domain that already went through
- * `normalizeSSODomain`, whose `^[a-z0-9-]+(\.[a-z0-9-]+)+$` shape guarantees a
- * non-empty first label needing no further sanitizing.
+ * Proposes a free provider ID by suffixing the domain's first label
+ * (`azure-ad` + `acme.com` -> `azure-ad-acme`). Callers pass a domain already
+ * through `normalizeSSODomain`, whose shape guarantees a non-empty first label.
  */
 function suggestProviderId(providerId: string, domain: string): string {
   return `${providerId}-${domain.split('.')[0]}`
@@ -135,12 +132,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    // Security gate: configuring org SSO for a domain requires the org to have
-    // proven ownership of it (DNS TXT verification). Without this, the old
-    // first-come claim let any org wire another company's domain to their own
-    // IdP — an account-takeover primitive. Existing domains were grandfathered
-    // as verified by migration 0266, so live tenants are unaffected. Personal
-    // (org-less) SSO is not gated.
+    /**
+     * Configuring org SSO for a domain requires DNS-proven ownership; without it
+     * a first-come claim lets any org wire another company's domain to their own
+     * IdP. Migration 0266 grandfathered existing domains. Org-less SSO is not gated.
+     */
     const isOrgDomainVerified = async (): Promise<boolean> => {
       if (!orgId) return true
       const [verified] = await db
@@ -166,9 +162,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         { status: 403 }
       )
 
-    // Fail fast before the expensive OIDC discovery. Re-checked immediately
-    // before the provider write below to close the TOCTOU window (the verified
-    // row could be removed while discovery is in flight).
+    // Fail fast before OIDC discovery; re-checked before the write to close the
+    // window where the proof is removed while discovery is in flight.
     if (!(await isOrgDomainVerified())) return domainNotVerifiedResponse()
 
     const isOwnedByCaller = (provider: {
@@ -200,12 +195,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
 
     /**
-     * Better Auth treats `providerId` as globally unique, not per-tenant:
-     * `registerSSOProvider` rejects any id already present regardless of owner,
-     * and `checkProviderAccess` resolves providers by that column alone. Catch
-     * the cross-tenant collision here so the caller gets an actionable 409 that
-     * names a free id, instead of Better Auth's opaque 422 ("SSO provider with
-     * this providerId already exists") that gives no hint anything can be done.
+     * Better Auth treats `providerId` as globally unique, not per-tenant, and
+     * resolves providers by that column alone. Catching the cross-tenant
+     * collision here turns its opaque 422 into a 409 naming a free id.
      */
     const findProviderIdConflict = async () =>
       (
@@ -529,16 +521,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       if (digestAlgorithm) samlConfig.digestAlgorithm = digestAlgorithm
 
       /**
-       * These two are always written, empty when unset, rather than omitted.
-       * Better Auth merges SAML config with `??`, so an omitted key silently keeps
-       * whatever was stored — clearing either field would never take effect. Both
-       * are falsy-guarded downstream: `createIdP` falls back to
-       * issuer/entryPoint/cert without metadata, and `createSP` omits nameIDFormat.
+       * Always written, empty when unset: Better Auth merges SAML config with
+       * `??`, so an omitted key keeps whatever was stored and clearing either
+       * field would never take effect. Both are falsy-guarded downstream.
        *
-       * Metadata in particular must not be generated here. Storing a document built
-       * from cert + entryPoint made re-saving destructive, because the form loads it
-       * back, resends it, and it then outranks the certificate — so rotating a SAML
-       * cert appeared to succeed and changed nothing.
+       * Metadata must not be generated here — a document built from cert +
+       * entryPoint outranks the certificate on re-save, silently defeating
+       * SAML cert rotation.
        */
       samlConfig.idpMetadata = { metadata: idpMetadata ?? '' }
       samlConfig.identifierFormat = identifierFormat ?? ''
@@ -632,12 +621,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       .limit(1)
 
     /**
-     * Unconditional write of Better Auth's `domainVerified` flag — the value Sim
-     * mirrors from its own DNS proof, and what lets an SSO sign-in auto-link to an
-     * existing same-email account. Used to withdraw trust, and to set the org-less
-     * (personal) verdict, which {@link grantProviderDomainTrust} decides from the
-     * deployment rather than from a domain. Granting on an org-scoped provider goes
-     * through that same helper, which re-tests ownership in the write itself.
+     * Unconditional write of Better Auth's `domainVerified` flag, which Sim
+     * mirrors from its own DNS proof. Used to withdraw trust; granting on an
+     * org-scoped provider goes through {@link grantProviderDomainTrust}, which
+     * re-tests ownership in the write itself.
      */
     const setProviderDomainVerified = async (verified: boolean) => {
       await db.update(ssoProvider).set({ domainVerified: verified }).where(ownerClause)
@@ -646,19 +633,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     /**
      * Grants domain trust only while the proof is held under a row lock.
      *
-     * Folding the ownership test into the UPDATE's WHERE clause is not sufficient:
-     * under READ COMMITTED the EXISTS subquery is evaluated against the statement's
-     * original snapshot, so a delete committing while the UPDATE waits on the
-     * provider row can still leave the subquery seeing the removed sso_domain row —
-     * granting trust after ownership is gone. Taking `FOR SHARE` on that row inside
-     * a transaction makes the two operations order properly: the delete's removal of
-     * sso_domain blocks until this commits, and if it committed first the SELECT
-     * finds nothing and no trust is written.
+     * A WHERE-clause EXISTS test is not enough: under READ COMMITTED the subquery
+     * sees the statement's original snapshot, so a delete committing while the
+     * UPDATE waits can still grant trust after ownership is gone. `FOR SHARE`
+     * orders the two — the delete blocks until this commits, and if it committed
+     * first the SELECT finds nothing.
      *
-     * Org-less (personal) SSO is a self-host-only path — Sim's UI always registers
-     * org-scoped. It has no verified domain behind it, so it is trusted only when
-     * self-hosted, where the operator is the sole tenant. On the hosted deployment
-     * that trust would let anyone claim a domain they do not own.
+     * Org-less SSO is self-host-only (Sim's UI always registers org-scoped) and
+     * has no proof behind it, so it is trusted only when self-hosted.
      */
     const grantProviderDomainTrust = async (): Promise<boolean> => {
       if (!orgId) {
@@ -701,9 +683,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         headers,
       })
 
-      // No newly-created row to roll back here, so clear the flag instead:
-      // `updateSSOProvider` only resets it when the domain changes, so a
-      // same-domain edit would otherwise leave stale trust standing.
+      // Nothing to roll back on update, so clear the flag: `updateSSOProvider`
+      // resets it only when the domain changes, leaving same-domain edits stale.
       if (!(await grantProviderDomainTrust())) {
         await setProviderDomainVerified(false)
         logger.warn('Revoked SSO domain trust: verification was removed mid-update', {
@@ -729,12 +710,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       headers,
     })
 
-    // A refused grant means the verified sso_domain row was removed between the
-    // pre-write check and Better Auth persisting the provider, leaving a provider
-    // on a domain the org no longer proves — roll it back. registerSSOProvider is
-    // create-only, so a successful call always created a brand-new row; we delete
-    // by its primary-key `id`, not the logical providerId, which a concurrent
-    // delete+recreate could point at a different row.
+    // A refused grant means the proof vanished mid-write, leaving a provider on a
+    // domain the org no longer proves — roll it back. Deleted by primary key, not
+    // providerId, which a concurrent delete+recreate could point at another row.
     if (!(await grantProviderDomainTrust())) {
       // registerSSOProvider spreads the created row's `id` at runtime, but the
       // typed return omits it — read it defensively and only delete when it's a

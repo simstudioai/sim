@@ -3277,21 +3277,18 @@ export const ssoProvider = pgTable(
       onDelete: 'cascade',
     }),
     /**
-     * Better Auth's SSO `domainVerification` flag. Sim proves domain ownership
-     * itself via {@link ssoDomain} before a provider may be registered, so this
-     * mirrors that decision rather than driving a second verification flow. It
-     * is what makes Better Auth treat the provider as authoritative for its
-     * domain and auto-link an SSO sign-in to an existing same-email account;
-     * without it, IdPs that omit `email_verified` (notably Microsoft Entra)
-     * strand those users on "account not linked". Defaults to true so every
-     * pre-existing provider keeps signing in across the deploy.
+     * Better Auth's SSO `domainVerification` flag. Sim proves ownership itself
+     * via {@link ssoDomain} before registration, so this mirrors that decision
+     * rather than driving a second flow. It makes Better Auth treat the provider
+     * as authoritative for its domain and auto-link same-email accounts; without
+     * it, IdPs omitting `email_verified` (notably Entra) strand those users.
+     * Defaults to true so pre-existing providers keep signing in across deploy.
      */
     domainVerified: boolean('domain_verified').notNull().default(true),
   },
   (table) => ({
-    // Better Auth declares `providerId` unique and resolves providers by it
-    // alone (no org scoping), so a duplicate makes both registration and
-    // `updateSSOProvider` ambiguous across tenants. Enforce it in the database.
+    // Better Auth resolves providers by `providerId` alone (no org scoping), so
+    // a duplicate makes registration and updates ambiguous across tenants.
     providerIdUnique: uniqueIndex('sso_provider_provider_id_unique').on(table.providerId),
     domainIdx: index('sso_provider_domain_idx').on(table.domain),
     userIdIdx: index('sso_provider_user_id_idx').on(table.userId),

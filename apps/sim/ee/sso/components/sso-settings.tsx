@@ -363,8 +363,7 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
       let wantAssertionsSigned = true
       let idpMetadata = ''
       // Blank means "use the protocol default", so only carry over a stored value
-      // that actually differs — otherwise editing would rewrite a default as an
-      // explicit override, and a stored custom mapping must never silently reset.
+      // that differs — otherwise editing rewrites a default as an explicit override.
       let mapping: { id?: string; email?: string; name?: string } = {}
       let identifierFormat = ''
       let authorizationEndpoint = ''
@@ -387,10 +386,9 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
         callbackUrl = config.callbackUrl || ''
         audience = config.audience || ''
         wantAssertionsSigned = config.wantAssertionsSigned ?? true
-        // Two stored shapes: `{ metadata }` from the route, and a bare string from
-        // older rows. Narrow on the type rather than truthiness — `{ metadata: '' }`
-        // is falsy at `.metadata` but truthy as an object, which would put an object
-        // into this string field and fail validation on the next save.
+        // Two stored shapes: `{ metadata }` from the route, a bare string from older
+        // rows. Narrow on type, not truthiness — `{ metadata: '' }` is falsy at
+        // `.metadata` but truthy as an object, putting an object in a string field.
         idpMetadata =
           typeof config.idpMetadata === 'string'
             ? config.idpMetadata
@@ -532,8 +530,7 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
             dirty: hasChanges,
             saving: configureSSOMutation.isPending,
             // Never disabled on validation errors: showErrors is only set by
-            // handleSubmit, so a disabled Save left the admin with a greyed out
-            // button and no message. Clicking now reveals what is wrong.
+            // handleSubmit, so disabling Save left a greyed button and no message.
             saveLabel: isEditing ? 'Update' : 'Save',
             savingLabel: isEditing ? 'Updating...' : 'Saving...',
             onSave: () => void handleSubmit(),
