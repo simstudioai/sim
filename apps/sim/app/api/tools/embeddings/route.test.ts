@@ -129,6 +129,46 @@ describe('POST /api/tools/embeddings', () => {
     expect(mockEmbed).toHaveBeenCalledWith(['alpha', 'beta'], expect.anything())
   })
 
+  /**
+   * The contract bounds the array arm, but a JSON-encoded array reaches the
+   * route as a plain string and is only expanded after validation — so the
+   * bounds have to be re-applied to the normalized list or they hold for a
+   * native array body only.
+   */
+  describe('JSON-encoded array bounds', () => {
+    it('rejects a JSON array that exceeds the input count limit', async () => {
+      const many = JSON.stringify(Array.from({ length: 1001 }, (_, i) => `t${i}`))
+      const response = await post({ ...baseBody, input: many })
+
+      expect(response.status).toBe(400)
+      expect((await response.json()).error).toContain('cannot exceed 1000 texts')
+      expect(mockEmbed).not.toHaveBeenCalled()
+    })
+
+    it('rejects an empty JSON array instead of reporting success with no vectors', async () => {
+      const response = await post({ ...baseBody, input: '[]' })
+
+      expect(response.status).toBe(400)
+      expect((await response.json()).error).toContain('at least one text')
+      expect(mockEmbed).not.toHaveBeenCalled()
+    })
+
+    it('rejects a JSON array containing a blank entry', async () => {
+      const response = await post({ ...baseBody, input: '["ok","   "]' })
+
+      expect(response.status).toBe(400)
+      expect((await response.json()).error).toContain('entries cannot be empty')
+      expect(mockEmbed).not.toHaveBeenCalled()
+    })
+
+    it('accepts a JSON array within the bounds', async () => {
+      const response = await post({ ...baseBody, input: '["alpha","beta"]' })
+
+      expect(response.status).toBe(200)
+      expect(mockEmbed).toHaveBeenCalledWith(['alpha', 'beta'], expect.anything())
+    })
+  })
+
   it('embeds a non-JSON string as a single text', async () => {
     await post({ ...baseBody, input: 'just a sentence' })
     expect(mockEmbed).toHaveBeenCalledWith(['just a sentence'], expect.anything())

@@ -3,6 +3,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   embeddingsToolContract,
+  MAX_EMBEDDING_INPUTS,
   MAX_EMBEDDING_TOTAL_CHARS,
 } from '@/lib/api/contracts/tools/embeddings'
 import { getValidationErrorMessage, parseRequest, validationErrorResponse } from '@/lib/api/server'
@@ -64,6 +65,35 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   const { provider, apiKey, model, input, taskType, dimensions } = parsed.data.body
 
   const texts = normalizeInput(input)
+
+  /**
+   * The contract bounds the array arm, but a JSON-encoded array arrives as a
+   * plain string and is only expanded here, after validation. Re-checking the
+   * normalized list is what makes the bounds hold for the reference-expression
+   * path too, rather than only for a native array body.
+   */
+  if (texts.length === 0) {
+    return NextResponse.json(
+      { success: false, error: 'input must contain at least one text' },
+      { status: 400 }
+    )
+  }
+  if (texts.length > MAX_EMBEDDING_INPUTS) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: `input cannot exceed ${MAX_EMBEDDING_INPUTS} texts, received ${texts.length}`,
+      },
+      { status: 400 }
+    )
+  }
+  if (texts.some((text) => text.trim().length === 0)) {
+    return NextResponse.json(
+      { success: false, error: 'input entries cannot be empty' },
+      { status: 400 }
+    )
+  }
+
   const totalChars = texts.reduce((sum, text) => sum + text.length, 0)
   if (totalChars > MAX_EMBEDDING_TOTAL_CHARS) {
     return NextResponse.json(

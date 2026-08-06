@@ -20,7 +20,6 @@ import { batchByTokenLimit, estimateTokenCount } from '@/lib/tokenization'
 
 const logger = createLogger('EmbeddingClient')
 
-const MAX_TOKENS_PER_REQUEST = 8000
 const MAX_CONCURRENT_BATCHES = envNumber(env.KB_CONFIG_CONCURRENCY_LIMIT, 50)
 const EMBEDDING_REQUEST_TIMEOUT_MS = 60_000
 
@@ -185,7 +184,15 @@ export async function embed(texts: string[], options: EmbedOptions): Promise<Emb
   const taskType = options.taskType ?? 'document'
   const provider = await resolveProvider(model, options)
 
-  const tokenBatches = batchByTokenLimit(texts, MAX_TOKENS_PER_REQUEST, model)
+  /**
+   * Batched against the selected model's own ceiling rather than one shared
+   * constant. `batchByTokenLimit` truncates any single text above the limit, so
+   * a value that is too high sends oversized input the provider rejects, and one
+   * that is too low silently drops content the provider would have accepted.
+   * Using the per-input ceiling as the per-batch budget also keeps every
+   * individual text within it.
+   */
+  const tokenBatches = batchByTokenLimit(texts, provider.info.maxInputTokens, model)
   const itemLimit = provider.adapter.maxItemsPerRequest ?? provider.info.maxItemsPerRequest
   const batches = itemLimit
     ? tokenBatches.flatMap((batch) => splitByItemLimit(batch, itemLimit))

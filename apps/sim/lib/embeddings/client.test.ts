@@ -202,6 +202,40 @@ describe('embed', () => {
   })
 
   /**
+   * `batchByTokenLimit` truncates any single text above the limit it is given,
+   * so the limit has to be the selected model's own. One shared constant sent
+   * oversized input to the models with a lower ceiling and silently dropped
+   * content the models with a higher one would have accepted.
+   */
+  describe('per-model token limits', () => {
+    it("truncates against Gemini's lower ceiling rather than a shared constant", async () => {
+      fetchMock.mockResolvedValue(jsonResponse({ embeddings: [{ values: [1] }] }))
+      // ~10k tokens: over Gemini's 2048 ceiling, but under the old 8000 constant,
+      // so this used to reach the provider whole and come back a 502.
+      const long = 'word '.repeat(8000)
+
+      await embed([long], { model: 'gemini-embedding-001', apiKey: 'g-test' })
+
+      const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)
+      const sent = body.requests[0].content.parts[0].text
+      expect(sent.length).toBeLessThan(long.length)
+    })
+
+    it("keeps text intact up to Cohere's much higher ceiling", async () => {
+      fetchMock.mockResolvedValue(
+        jsonResponse({ embeddings: { float: [[1]] }, meta: { billed_units: { input_tokens: 9 } } })
+      )
+      // Over the old 8000 constant, well under Cohere's 128k, so it must survive.
+      const long = 'word '.repeat(8000)
+
+      await embed([long], { model: 'embed-v4.0', apiKey: 'c-test' })
+
+      const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)
+      expect(body.texts[0]).toBe(long)
+    })
+  })
+
+  /**
    * The knowledge-base path rewrites resolved-secret plaintext back to
    * placeholders before inputs reach a provider. The block path projects
    * earlier, at the tool's HTTP hop, and passes null here so the substitution
@@ -237,9 +271,7 @@ describe('embed', () => {
 
     it('estimates tokens from the projected values, not the originals', async () => {
       // Gemini omits usage, so the token count is estimated from what was sent.
-      fetchMock.mockResolvedValue(
-        jsonResponse({ embeddings: [{ values: [1, 2, 3] }] })
-      )
+      fetchMock.mockResolvedValue(jsonResponse({ embeddings: [{ values: [1, 2, 3] }] }))
 
       const result = await embed(['x'.repeat(400)], {
         model: 'gemini-embedding-001',
