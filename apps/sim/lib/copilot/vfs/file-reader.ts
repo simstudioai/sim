@@ -14,12 +14,12 @@ import { recordFileRead } from '@/lib/copilot/request/metrics'
 import { markSpanForError } from '@/lib/copilot/request/otel'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { fetchWorkspaceFileBuffer } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { isHeifContainer, transcodeHeicToJpeg } from '@/lib/uploads/server/heic'
 import {
-  HEIC_TRANSCODE_MEDIA_TYPE,
-  isHeifContainer,
-  transcodeHeicToJpeg,
-} from '@/lib/uploads/server/heic'
-import { isImageFileType, resolveEffectiveMimeType } from '@/lib/uploads/utils/file-utils'
+  isImageFileType,
+  MODEL_SUPPORTED_IMAGE_MIME_TYPES,
+  resolveEffectiveMimeType,
+} from '@/lib/uploads/utils/file-utils'
 
 // Lazy tracer (same pattern as lib/copilot/request/otel.ts).
 function getVfsTracer() {
@@ -121,7 +121,9 @@ async function prepareImageForVision(
             error: toError(err).message,
           })
           span.setAttribute(TraceAttr.CopilotVfsSharpLoadFailed, true)
-          const fitsWithoutSharp = sourceBuffer.length <= MAX_IMAGE_READ_BYTES
+          const fitsWithoutSharp =
+            MODEL_SUPPORTED_IMAGE_MIME_TYPES.has(detectedType) &&
+            sourceBuffer.length <= MAX_IMAGE_READ_BYTES
           span.setAttribute(
             TraceAttr.CopilotVfsOutcome,
             fitsWithoutSharp ? 'passthrough_no_sharp' : 'rejected_no_sharp'
@@ -142,15 +144,10 @@ async function prepareImageForVision(
               return null
             })
 
-        /**
-         * sharp is always tried first — its libvips reads every format we accept
-         * except HEVC-coded HEIF, and it is roughly an order of magnitude faster
-         * than the WebAssembly decoder. Only bytes it cannot read at all are worth
-         * a transcode. This is the same libvips-preferred / libheif-fallback
-         * layering PhotoPrism uses, and it is deliberately capability-based:
-         * choosing the decoder from the container brand would send AV1-coded
-         * `mif1` files down the slow path even though sharp handles them natively.
-         */
+        // sharp first: its libvips reads everything we accept except HEVC-coded
+        // HEIF, and it is ~10x faster than the WASM decoder. Capability-based
+        // rather than brand-based, so AV1-coded `mif1` — which sharp handles
+        // natively — does not get sent down the slow path.
         let buffer = sourceBuffer
         let mediaType = detectedType
         let metadata = await readMetadata(sourceBuffer)
@@ -159,18 +156,17 @@ async function prepareImageForVision(
           const transcoded = await transcodeHeicToJpeg(sourceBuffer)
           if (transcoded) {
             buffer = transcoded
-            mediaType = HEIC_TRANSCODE_MEDIA_TYPE
+            mediaType = 'image/jpeg'
             metadata = await readMetadata(transcoded)
           }
         }
 
         if (!metadata) {
           span.setAttribute(TraceAttr.CopilotVfsMetadataFailed, true)
-          // HEIF that neither decoder could read is genuinely unreadable. Passing
-          // those bytes through would hand the model a format it cannot decode,
-          // which it then describes as empty rather than reporting as broken.
+          // Bytes the model cannot decode are worse than no image: it describes
+          // them as empty rather than reporting them as broken.
           const passthroughViable =
-            !isHeifContainer(buffer) && buffer.length <= MAX_IMAGE_READ_BYTES
+            MODEL_SUPPORTED_IMAGE_MIME_TYPES.has(mediaType) && buffer.length <= MAX_IMAGE_READ_BYTES
           span.setAttribute(
             TraceAttr.CopilotVfsOutcome,
             passthroughViable ? 'passthrough_no_metadata' : 'rejected_no_metadata'
@@ -185,11 +181,15 @@ async function prepareImageForVision(
           [TraceAttr.CopilotVfsInputHeight]: height,
         })
 
-        const needsResize =
+        // A format the model cannot decode has to be re-encoded even when it is
+        // already small enough — the ladder below emits JPEG or WebP, both of
+        // which it accepts.
+        const needsReencode =
+          !MODEL_SUPPORTED_IMAGE_MIME_TYPES.has(mediaType) ||
           buffer.length > MAX_IMAGE_READ_BYTES ||
           width > MAX_IMAGE_DIMENSION ||
           height > MAX_IMAGE_DIMENSION
-        if (!needsResize) {
+        if (!needsReencode) {
           span.setAttributes({
             [TraceAttr.CopilotVfsResized]: false,
             [TraceAttr.CopilotVfsOutcome]: CopilotVfsOutcome.PassthroughFitsBudget,
