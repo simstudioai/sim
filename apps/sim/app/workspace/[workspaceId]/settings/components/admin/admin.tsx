@@ -77,6 +77,7 @@ export function Admin() {
   const [impersonatingUserId, setImpersonatingUserId] = useState<string | null>(null)
   const [impersonationGuardError, setImpersonationGuardError] = useState<string | null>(null)
   const [isAddUserOpen, setIsAddUserOpen] = useState(false)
+  const [provisionWarning, setProvisionWarning] = useState<string | null>(null)
 
   const {
     data: usersData,
@@ -208,6 +209,7 @@ export function Admin() {
                 variant='active'
                 className='h-[28px] px-2 text-caption'
                 onClick={() => {
+                  setProvisionWarning(null)
                   sendPasswordReset.reset()
                   sendPasswordReset.mutate({ userId: u.id, email: u.email })
                 }}
@@ -441,6 +443,10 @@ export function Admin() {
             </p>
           )}
 
+          {provisionWarning && (
+            <p className='text-[var(--text-error)] text-small'>{provisionWarning}</p>
+          )}
+
           {searchQuery.length > 0 && usersData ? (
             <>
               <div className='flex flex-col gap-0.5'>
@@ -500,9 +506,16 @@ export function Admin() {
       <AddUserModal
         open={isAddUserOpen}
         onOpenChange={setIsAddUserOpen}
-        onCreated={(user) => {
+        onCreated={(user, resetEmailError) => {
+          // Search for the new user either way: when the reset email failed,
+          // the recovery action named below lives on that user's row.
           setSearchInput(user.email)
           setAdminParams({ q: user.email, offset: null })
+          setProvisionWarning(
+            resetEmailError
+              ? `Created ${user.email}, but the password reset email failed to send (${resetEmailError}). Use Reset password on their row to try again.`
+              : null
+          )
         }}
       />
     </SettingsPanel>

@@ -63,12 +63,24 @@ function mapUser(u: {
   }
 }
 
+export interface AddUserResult {
+  user: AdminUser
+  /**
+   * Why the provisioning reset email could not be sent, when the account itself
+   * was created. Deliberately not a thrown error: the account exists, so
+   * re-submitting the form would only collide on the email. Callers finish the
+   * create — surfacing the user so its row, and that row's "Reset password"
+   * action, are reachable — and report this alongside.
+   */
+  resetEmailError?: string
+}
+
 export async function addUser({
   name,
   email,
   password,
   emailVerified,
-}: AddUserInput): Promise<AdminUser> {
+}: AddUserInput): Promise<AddUserResult> {
   const normalizedEmail = email.trim().toLowerCase()
   const { data, error } = await client.admin.createUser({
     name: name.trim(),
@@ -80,26 +92,15 @@ export async function addUser({
   if (error) throw new Error(error.message ?? 'Failed to add user')
   if (!data?.user) throw new Error('Better Auth did not return the created user')
 
-  if (!password) {
-    try {
-      await sendPasswordResetEmail(normalizedEmail)
-    } catch (resetError) {
-      /**
-       * The account exists at this point, so re-submitting the form would only
-       * collide on the email. Name the recovery path instead — the caller
-       * surfaces this verbatim, and the new user is already in the list behind
-       * the modal with its own "Reset password" action.
-       */
-      throw new Error(
-        `Account created, but the password reset email failed to send (${getErrorMessage(
-          resetError,
-          'unknown error'
-        )}). Use "Reset password" on the user's row to try again.`
-      )
-    }
-  }
+  const user = mapUser(data.user)
+  if (password) return { user }
 
-  return mapUser(data.user)
+  try {
+    await sendPasswordResetEmail(normalizedEmail)
+    return { user }
+  } catch (resetError) {
+    return { user, resetEmailError: getErrorMessage(resetError, 'unknown error') }
+  }
 }
 
 /** Sends the standard password reset email, the same one the login page requests. */

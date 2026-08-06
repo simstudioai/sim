@@ -64,14 +64,7 @@ describe('addUser', () => {
         password: 'canary-password',
         emailVerified: true,
       })
-    ).resolves.toEqual({
-      id: 'user-1',
-      name: 'Canary Writer',
-      email: 'writer@synthetics.example.com',
-      role: 'user',
-      banned: false,
-      banReason: null,
-    })
+    ).resolves.toEqual({ user: CREATED_USER })
     expect(mockCreateUser).toHaveBeenCalledWith({
       name: 'Canary Writer',
       email: 'writer@synthetics.example.com',
@@ -91,7 +84,7 @@ describe('addUser', () => {
         email: '  Writer@Synthetics.Example.com ',
         emailVerified: true,
       })
-    ).resolves.toEqual(CREATED_USER)
+    ).resolves.toEqual({ user: CREATED_USER })
 
     expect(mockCreateUser).toHaveBeenCalledWith({
       name: 'Canary Writer',
@@ -124,17 +117,19 @@ describe('addUser', () => {
     expect(mockRequestJson).not.toHaveBeenCalled()
   })
 
-  it('names the row-level recovery path when the reset email fails to send', async () => {
+  it('still returns the created user when only the reset email fails', async () => {
     mockCreateUser.mockResolvedValue({ data: { user: CREATED_USER }, error: null })
     mockRequestJson.mockRejectedValue(new Error('SMTP unavailable'))
 
+    // The account exists, so this must not surface as a failed create — the
+    // caller needs the user to reach its row's own "Reset password" action.
     await expect(
       addUser({
         name: 'Canary Writer',
         email: 'writer@synthetics.example.com',
         emailVerified: true,
       })
-    ).rejects.toThrow(/Account created, but the password reset email failed to send/)
+    ).resolves.toEqual({ user: CREATED_USER, resetEmailError: 'SMTP unavailable' })
   })
 
   it('surfaces resolved Better Auth errors', async () => {

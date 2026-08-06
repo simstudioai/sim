@@ -28,7 +28,13 @@ type PasswordMode = (typeof PASSWORD_MODE_OPTIONS)[number]['value']
 interface AddUserModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onCreated: (user: AdminUser) => void
+  /**
+   * The account was created. `resetEmailError` is set when its provisioning
+   * reset email could not be sent — the account still exists, so the host is
+   * expected to surface the user (and report this) rather than treat it as a
+   * failed create.
+   */
+  onCreated: (user: AdminUser, resetEmailError?: string) => void
 }
 
 export function AddUserModal({ open, onOpenChange, onCreated }: AddUserModalProps) {
@@ -86,10 +92,10 @@ export function AddUserModal({ open, onOpenChange, onCreated }: AddUserModalProp
         ...(setsPassword ? { password } : {}),
       },
       {
-        onSuccess: (user) => {
+        onSuccess: ({ user, resetEmailError }) => {
           reset()
           onOpenChange(false)
-          onCreated(user)
+          onCreated(user, resetEmailError)
         },
         onSettled: () => {
           submissionInFlightRef.current = false
