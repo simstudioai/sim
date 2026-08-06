@@ -48,6 +48,18 @@ interface SSOProvider {
   providerType: 'oidc' | 'saml'
 }
 
+/**
+ * Claim/attribute names each protocol uses out of the box. Kept as the fallback
+ * rather than seeded into form state so switching protocol needs no reset logic
+ * and the inputs can show them as placeholders.
+ */
+const OIDC_DEFAULT_MAPPING = { id: 'sub', email: 'email', name: 'name', image: 'picture' } as const
+const SAML_DEFAULT_MAPPING = {
+  id: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier',
+  email: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress',
+  name: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name',
+} as const
+
 const DEFAULT_FORM_DATA = {
   providerType: 'oidc' as 'oidc' | 'saml',
   providerId: '',
@@ -62,6 +74,9 @@ const DEFAULT_FORM_DATA = {
   audience: '',
   wantAssertionsSigned: true,
   idpMetadata: '',
+  mapId: '',
+  mapEmail: '',
+  mapName: '',
 }
 
 const DEFAULT_ERRORS = {
@@ -109,6 +124,7 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
   const [showClientSecret, setShowClientSecret] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
+  const [showMapping, setShowMapping] = useState(false)
 
   const [formData, setFormData] = useState(DEFAULT_FORM_DATA)
   const [originalFormData, setOriginalFormData] = useState(DEFAULT_FORM_DATA)
@@ -271,10 +287,10 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
               domain: formData.domain,
               orgId: organizationId,
               mapping: {
-                id: 'sub',
-                email: 'email',
-                name: 'name',
-                image: 'picture',
+                id: formData.mapId.trim() || OIDC_DEFAULT_MAPPING.id,
+                email: formData.mapEmail.trim() || OIDC_DEFAULT_MAPPING.email,
+                name: formData.mapName.trim() || OIDC_DEFAULT_MAPPING.name,
+                image: OIDC_DEFAULT_MAPPING.image,
               },
               clientId: formData.clientId,
               clientSecret: formData.clientSecret,
@@ -287,9 +303,9 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
               domain: formData.domain,
               orgId: organizationId,
               mapping: {
-                id: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier',
-                email: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress',
-                name: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name',
+                id: formData.mapId.trim() || SAML_DEFAULT_MAPPING.id,
+                email: formData.mapEmail.trim() || SAML_DEFAULT_MAPPING.email,
+                name: formData.mapName.trim() || SAML_DEFAULT_MAPPING.name,
               },
               entryPoint: formData.entryPoint,
               cert: formData.cert,
@@ -328,6 +344,7 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
   }
 
   const isSaml = formData.providerType === 'saml'
+  const mappingDefaults = isSaml ? SAML_DEFAULT_MAPPING : OIDC_DEFAULT_MAPPING
   const callbackUrl = `${getBaseUrl()}/api/auth/${isSaml ? 'sso/saml2/callback' : 'sso/callback'}/${formData.providerId || existingProvider?.providerId || 'provider-id'}`
 
   const handleEdit = () => {
@@ -343,12 +360,17 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
       let audience = ''
       let wantAssertionsSigned = true
       let idpMetadata = ''
+      // Blank means "use the protocol default", so only carry over a stored value
+      // that actually differs — otherwise editing would rewrite a default as an
+      // explicit override, and a stored custom mapping must never silently reset.
+      let mapping: { id?: string; email?: string; name?: string } = {}
 
       if (existingProvider.providerType === 'oidc' && existingProvider.oidcConfig) {
         const config = JSON.parse(existingProvider.oidcConfig)
         clientId = config.clientId || ''
         clientSecret = config.clientSecret || ''
         scopes = config.scopes?.join(',') || 'openid,profile,email'
+        mapping = config.mapping ?? {}
       } else if (existingProvider.providerType === 'saml' && existingProvider.samlConfig) {
         const config = JSON.parse(existingProvider.samlConfig)
         entryPoint = config.entryPoint || ''
@@ -357,7 +379,13 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
         audience = config.audience || ''
         wantAssertionsSigned = config.wantAssertionsSigned ?? true
         idpMetadata = config.idpMetadata?.metadata || config.idpMetadata || ''
+        mapping = config.mapping ?? {}
       }
+
+      const defaults =
+        existingProvider.providerType === 'saml' ? SAML_DEFAULT_MAPPING : OIDC_DEFAULT_MAPPING
+      const overrideOf = (value: string | undefined, fallback: string) =>
+        value && value !== fallback ? value : ''
 
       const snapshot = {
         providerType: existingProvider.providerType,
@@ -373,12 +401,16 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
         audience,
         wantAssertionsSigned,
         idpMetadata,
+        mapId: overrideOf(mapping.id, defaults.id),
+        mapEmail: overrideOf(mapping.email, defaults.email),
+        mapName: overrideOf(mapping.name, defaults.name),
       }
       setFormData(snapshot)
       setOriginalFormData(snapshot)
       setIsEditing(true)
       setShowErrors(false)
       setShowAdvanced(false)
+      setShowMapping(Boolean(snapshot.mapId || snapshot.mapEmail || snapshot.mapName))
     } catch (err) {
       logger.error('Failed to parse provider config', { error: err })
       toast.error('Failed to load provider configuration')
@@ -775,6 +807,72 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
                 Configure this in your identity provider
               </p>
             </SettingRow>
+
+            {/* Identity providers vary in which claim carries each value — Entra,
+                for instance, can send the address as `upn` rather than `email`.
+                Leaving a field blank uses the protocol default shown as its
+                placeholder, so the common case needs no input at all. */}
+            <div className='flex flex-col gap-2'>
+              <Button
+                type='button'
+                variant='ghost'
+                onClick={() => setShowMapping((v) => !v)}
+                className='w-fit gap-1.5 px-0 text-[var(--text-muted)] hover:bg-transparent hover:text-[var(--text-primary)]'
+              >
+                <ChevronDown
+                  className={cn('size-[14px] transition-transform', showMapping && 'rotate-180')}
+                />
+                Attribute mapping
+              </Button>
+
+              <Expandable expanded={showMapping}>
+                <ExpandableContent>
+                  <div className='flex flex-col gap-4.5 pt-2'>
+                    <SettingRow label='Email attribute' optional>
+                      <ChipInput
+                        type='text'
+                        placeholder={mappingDefaults.email}
+                        value={formData.mapEmail}
+                        autoComplete='off'
+                        autoCapitalize='none'
+                        spellCheck={false}
+                        inputClassName='font-mono'
+                        onChange={(e) => handleInputChange('mapEmail', e.target.value)}
+                      />
+                    </SettingRow>
+
+                    <SettingRow label='Name attribute' optional>
+                      <ChipInput
+                        type='text'
+                        placeholder={mappingDefaults.name}
+                        value={formData.mapName}
+                        autoComplete='off'
+                        autoCapitalize='none'
+                        spellCheck={false}
+                        inputClassName='font-mono'
+                        onChange={(e) => handleInputChange('mapName', e.target.value)}
+                      />
+                    </SettingRow>
+
+                    <SettingRow label='User ID attribute' optional>
+                      <ChipInput
+                        type='text'
+                        placeholder={mappingDefaults.id}
+                        value={formData.mapId}
+                        autoComplete='off'
+                        autoCapitalize='none'
+                        spellCheck={false}
+                        inputClassName='font-mono'
+                        onChange={(e) => handleInputChange('mapId', e.target.value)}
+                      />
+                      <p className='text-[var(--text-muted)] text-small'>
+                        Must be stable and unique per user — changing it later re-links accounts.
+                      </p>
+                    </SettingRow>
+                  </div>
+                </ExpandableContent>
+              </Expandable>
+            </div>
           </div>
         </SettingsSection>
       </SettingsPanel>

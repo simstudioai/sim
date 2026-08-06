@@ -656,16 +656,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     /**
      * Grants domain trust with the ownership test folded into the UPDATE's WHERE
-     * clause, so Postgres evaluates both in one statement and the write simply
-     * matches nothing once the proof is gone. That removes the window a separate
-     * read-then-write leaves open.
-     *
-     * Together with the domain-delete route — which clears this flag in the same
-     * transaction that removes the proof — the provider cannot end up trusted
-     * without current ownership in either commit order: if this write lands first
-     * the delete clears it, and if the delete lands first this write no-ops.
-     * Org-less (personal) SSO is not domain-gated by Sim, so it grants
-     * unconditionally as it always has.
+     * clause, so the write matches nothing once the proof is gone and reports that
+     * as `false`. Paired with the domain-delete route clearing this flag in the
+     * same transaction that removes the proof, the provider cannot end up trusted
+     * without current ownership in either commit order. Org-less (personal) SSO is
+     * not domain-gated by Sim, so it grants unconditionally as it always has.
      */
     const grantProviderDomainTrust = async (): Promise<boolean> => {
       if (!orgId) {
@@ -708,13 +703,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         headers,
       })
 
-      // The verified sso_domain row can be deleted while updateSSOProvider is in
-      // flight, in which case the conditional grant matches nothing. There is no
-      // newly-created row to roll back here, so clear the flag instead:
+      // No newly-created row to roll back here, so clear the flag instead:
       // `updateSSOProvider` only resets it when the domain changes, so a
-      // same-domain edit would otherwise leave stale trust standing. Reporting the
-      // failure keeps the response honest rather than saying "saved" while the
-      // provider is left unable to sign anyone in.
+      // same-domain edit would otherwise leave stale trust standing.
       if (!(await grantProviderDomainTrust())) {
         await setProviderDomainVerified(false)
         logger.warn('Revoked SSO domain trust: verification was removed mid-update', {
@@ -740,15 +731,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       headers,
     })
 
-    // Granting trust re-tests ownership inside the same statement, so a failure
-    // here means the verified sso_domain row was removed between the pre-write
-    // check and Better Auth persisting the provider. That would leave a provider
-    // on a domain the org no longer proves, so roll it back.
-    // registerSSOProvider is create-only (it throws if the
-    // providerId already exists), so a successful call always created a brand-new
-    // row — we roll it back by its primary-key `id` (not the logical providerId,
-    // which a concurrent delete+recreate could point at a different row). Personal
-    // SSO is not gated, so grantProviderDomainTrust always succeeds there.
+    // A refused grant means the verified sso_domain row was removed between the
+    // pre-write check and Better Auth persisting the provider, leaving a provider
+    // on a domain the org no longer proves — roll it back. registerSSOProvider is
+    // create-only, so a successful call always created a brand-new row; we delete
+    // by its primary-key `id`, not the logical providerId, which a concurrent
+    // delete+recreate could point at a different row.
     if (!(await grantProviderDomainTrust())) {
       // registerSSOProvider spreads the created row's `id` at runtime, but the
       // typed return omits it — read it defensively and only delete when it's a
