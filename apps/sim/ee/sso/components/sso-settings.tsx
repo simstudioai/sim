@@ -60,6 +60,31 @@ const SAML_DEFAULT_MAPPING = {
   name: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name',
 } as const
 
+const SAML_SIGNATURE_ALGORITHMS = [
+  { label: 'Provider default', value: '' },
+  { label: 'RSA-SHA256', value: 'http://www.w3.org/2001/04/xmldsig-more#rsa-sha256' },
+  { label: 'RSA-SHA384', value: 'http://www.w3.org/2001/04/xmldsig-more#rsa-sha384' },
+  { label: 'RSA-SHA512', value: 'http://www.w3.org/2001/04/xmldsig-more#rsa-sha512' },
+] as const
+
+const SAML_DIGEST_ALGORITHMS = [
+  { label: 'Provider default', value: '' },
+  { label: 'SHA-256', value: 'http://www.w3.org/2001/04/xmlenc#sha256' },
+  { label: 'SHA-384', value: 'http://www.w3.org/2001/04/xmldsig-more#sha384' },
+  { label: 'SHA-512', value: 'http://www.w3.org/2001/04/xmlenc#sha512' },
+] as const
+
+const SAML_NAMEID_FORMATS = [
+  { label: 'Provider default', value: '' },
+  {
+    label: 'Email address',
+    value: 'urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress',
+  },
+  { label: 'Persistent', value: 'urn:oasis:names:tc:SAML:2.0:nameid-format:persistent' },
+  { label: 'Transient', value: 'urn:oasis:names:tc:SAML:2.0:nameid-format:transient' },
+  { label: 'Unspecified', value: 'urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified' },
+] as const
+
 const DEFAULT_FORM_DATA = {
   providerType: 'oidc' as 'oidc' | 'saml',
   providerId: '',
@@ -77,6 +102,12 @@ const DEFAULT_FORM_DATA = {
   mapId: '',
   mapEmail: '',
   mapName: '',
+  signatureAlgorithm: '',
+  digestAlgorithm: '',
+  identifierFormat: '',
+  authorizationEndpoint: '',
+  tokenEndpoint: '',
+  jwksEndpoint: '',
 }
 
 const DEFAULT_ERRORS = {
@@ -295,6 +326,15 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
               clientId: formData.clientId,
               clientSecret: formData.clientSecret,
               scopes: formData.scopes.split(',').map((s) => s.trim()),
+              ...(formData.authorizationEndpoint.trim()
+                ? { authorizationEndpoint: formData.authorizationEndpoint.trim() }
+                : {}),
+              ...(formData.tokenEndpoint.trim()
+                ? { tokenEndpoint: formData.tokenEndpoint.trim() }
+                : {}),
+              ...(formData.jwksEndpoint.trim()
+                ? { jwksEndpoint: formData.jwksEndpoint.trim() }
+                : {}),
             }
           : {
               providerType: 'saml',
@@ -313,6 +353,11 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
               ...(formData.callbackUrl ? { callbackUrl: formData.callbackUrl } : {}),
               ...(formData.audience ? { audience: formData.audience } : {}),
               ...(formData.idpMetadata ? { idpMetadata: formData.idpMetadata } : {}),
+              ...(formData.signatureAlgorithm
+                ? { signatureAlgorithm: formData.signatureAlgorithm }
+                : {}),
+              ...(formData.digestAlgorithm ? { digestAlgorithm: formData.digestAlgorithm } : {}),
+              ...(formData.identifierFormat ? { identifierFormat: formData.identifierFormat } : {}),
             }
 
       await configureSSOMutation.mutateAsync(requestBody)
@@ -364,6 +409,12 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
       // that actually differs — otherwise editing would rewrite a default as an
       // explicit override, and a stored custom mapping must never silently reset.
       let mapping: { id?: string; email?: string; name?: string } = {}
+      let signatureAlgorithm = ''
+      let digestAlgorithm = ''
+      let identifierFormat = ''
+      let authorizationEndpoint = ''
+      let tokenEndpoint = ''
+      let jwksEndpoint = ''
 
       if (existingProvider.providerType === 'oidc' && existingProvider.oidcConfig) {
         const config = JSON.parse(existingProvider.oidcConfig)
@@ -371,6 +422,9 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
         clientSecret = config.clientSecret || ''
         scopes = config.scopes?.join(',') || 'openid,profile,email'
         mapping = config.mapping ?? {}
+        authorizationEndpoint = config.authorizationEndpoint || ''
+        tokenEndpoint = config.tokenEndpoint || ''
+        jwksEndpoint = config.jwksEndpoint || ''
       } else if (existingProvider.providerType === 'saml' && existingProvider.samlConfig) {
         const config = JSON.parse(existingProvider.samlConfig)
         entryPoint = config.entryPoint || ''
@@ -380,6 +434,9 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
         wantAssertionsSigned = config.wantAssertionsSigned ?? true
         idpMetadata = config.idpMetadata?.metadata || config.idpMetadata || ''
         mapping = config.mapping ?? {}
+        signatureAlgorithm = config.signatureAlgorithm || ''
+        digestAlgorithm = config.digestAlgorithm || ''
+        identifierFormat = config.identifierFormat || ''
       }
 
       const defaults =
@@ -404,6 +461,12 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
         mapId: overrideOf(mapping.id, defaults.id),
         mapEmail: overrideOf(mapping.email, defaults.email),
         mapName: overrideOf(mapping.name, defaults.name),
+        signatureAlgorithm,
+        digestAlgorithm,
+        identifierFormat,
+        authorizationEndpoint,
+        tokenEndpoint,
+        jwksEndpoint,
       }
       setFormData(snapshot)
       setOriginalFormData(snapshot)
@@ -667,6 +730,71 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
                   />
                 </SettingRow>
 
+                <div className='flex flex-col gap-2'>
+                  <Button
+                    type='button'
+                    variant='ghost'
+                    onClick={() => setShowAdvanced((v) => !v)}
+                    className='w-fit gap-1.5 px-0 text-[var(--text-muted)] hover:bg-transparent hover:text-[var(--text-primary)]'
+                  >
+                    <ChevronDown
+                      className={cn(
+                        'size-[14px] transition-transform',
+                        showAdvanced && 'rotate-180'
+                      )}
+                    />
+                    Advanced Options
+                  </Button>
+
+                  <Expandable expanded={showAdvanced}>
+                    <ExpandableContent>
+                      <div className='flex flex-col gap-4.5 pt-2'>
+                        <SettingRow label='Authorization endpoint' optional>
+                          <ChipInput
+                            type='url'
+                            placeholder='Discovered from the issuer'
+                            value={formData.authorizationEndpoint}
+                            autoComplete='off'
+                            autoCapitalize='none'
+                            spellCheck={false}
+                            onChange={(e) =>
+                              handleInputChange('authorizationEndpoint', e.target.value)
+                            }
+                          />
+                        </SettingRow>
+
+                        <SettingRow label='Token endpoint' optional>
+                          <ChipInput
+                            type='url'
+                            placeholder='Discovered from the issuer'
+                            value={formData.tokenEndpoint}
+                            autoComplete='off'
+                            autoCapitalize='none'
+                            spellCheck={false}
+                            onChange={(e) => handleInputChange('tokenEndpoint', e.target.value)}
+                          />
+                        </SettingRow>
+
+                        <SettingRow label='JWKS endpoint' optional>
+                          <ChipInput
+                            type='url'
+                            placeholder='Discovered from the issuer'
+                            value={formData.jwksEndpoint}
+                            autoComplete='off'
+                            autoCapitalize='none'
+                            spellCheck={false}
+                            onChange={(e) => handleInputChange('jwksEndpoint', e.target.value)}
+                          />
+                          <p className='text-[var(--text-muted)] text-small'>
+                            Sim reads these from the issuer's discovery document. Set them only if
+                            your provider does not publish one.
+                          </p>
+                        </SettingRow>
+                      </div>
+                    </ExpandableContent>
+                  </Expandable>
+                </div>
+
                 <SettingRow
                   label='Scopes'
                   error={
@@ -782,6 +910,51 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
                           />
                         </SettingRow>
 
+                        <SettingRow label='Signature algorithm' optional>
+                          <ChipSelect
+                            align='start'
+                            value={formData.signatureAlgorithm}
+                            onChange={(value: string) =>
+                              handleInputChange('signatureAlgorithm', value)
+                            }
+                            options={SAML_SIGNATURE_ALGORITHMS.map((a) => ({
+                              label: a.label,
+                              value: a.value,
+                            }))}
+                            placeholder='Provider default'
+                          />
+                        </SettingRow>
+
+                        <SettingRow label='Digest algorithm' optional>
+                          <ChipSelect
+                            align='start'
+                            value={formData.digestAlgorithm}
+                            onChange={(value: string) =>
+                              handleInputChange('digestAlgorithm', value)
+                            }
+                            options={SAML_DIGEST_ALGORITHMS.map((a) => ({
+                              label: a.label,
+                              value: a.value,
+                            }))}
+                            placeholder='Provider default'
+                          />
+                        </SettingRow>
+
+                        <SettingRow label='NameID format' optional>
+                          <ChipSelect
+                            align='start'
+                            value={formData.identifierFormat}
+                            onChange={(value: string) =>
+                              handleInputChange('identifierFormat', value)
+                            }
+                            options={SAML_NAMEID_FORMATS.map((a) => ({
+                              label: a.label,
+                              value: a.value,
+                            }))}
+                            placeholder='Provider default'
+                          />
+                        </SettingRow>
+
                         <SettingRow label='IDP Metadata XML' optional>
                           <ChipTextarea
                             placeholder='Paste IDP metadata XML here'
@@ -801,12 +974,26 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
               </>
             )}
 
-            <SettingRow label='Callback URL'>
+            <SettingRow label={isSaml ? 'ACS URL (Reply URL)' : 'Callback URL'}>
               <ChipCopyInput value={callbackUrl} copyLabel='Copy callback URL' />
               <p className='text-[var(--text-muted)] text-small'>
                 Configure this in your identity provider
               </p>
             </SettingRow>
+
+            {/* SAML IdP admins are typically handed vendor metadata; Sim does not
+                publish a metadata document, so surface the two values that document
+                would carry. Sim's SP entity ID is its base URL — the same value the
+                register route embeds in the generated SP metadata. */}
+            {isSaml && (
+              <SettingRow label='SP Entity ID'>
+                <ChipCopyInput value={getBaseUrl()} copyLabel='Copy entity ID' />
+                <p className='text-[var(--text-muted)] text-small'>
+                  Sim's identifier in your IdP. With the ACS URL above, this is everything needed to
+                  add Sim as a service provider.
+                </p>
+              </SettingRow>
+            )}
 
             {/* Identity providers vary in which claim carries each value — Entra,
                 for instance, can send the address as `upn` rather than `email`.
