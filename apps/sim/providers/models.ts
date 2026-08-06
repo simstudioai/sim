@@ -4399,6 +4399,21 @@ export const EMBEDDING_MODEL_PRICING: Record<string, ModelPricing> = {
     output: 0.0,
     updatedAt: '2026-04-29',
   },
+  'embed-v4.0': {
+    input: 0.12, // $0.12 per 1M tokens
+    output: 0.0,
+    updatedAt: '2026-08-05',
+  },
+  'mistral-embed': {
+    input: 0.1, // $0.1 per 1M tokens
+    output: 0.0,
+    updatedAt: '2026-08-05',
+  },
+  'codestral-embed': {
+    input: 0.15, // $0.15 per 1M tokens
+    output: 0.0,
+    updatedAt: '2026-08-05',
+  },
 }
 
 export function getEmbeddingModelPricing(modelId: string): ModelPricing | null {

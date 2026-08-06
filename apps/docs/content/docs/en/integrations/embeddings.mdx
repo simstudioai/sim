@@ -1,0 +1,97 @@
+---
+title: Embeddings
+description: Generate embeddings
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="embeddings"
+  color="#7B4DFF"
+/>
+
+## Usage Instructions
+
+Turn text into embedding vectors for semantic search, clustering, and similarity. Supports OpenAI, Google Gemini, Cohere, and Mistral embedding models.
+
+
+
+## Actions
+
+### `embeddings_openai`
+
+Generate embeddings from text using OpenAI's embedding models
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `embeddings` | json | Generated embeddings |
+| `model` | string | Model used |
+| `provider` | string | Provider used |
+| `dimensions` | number | Dimensionality of each vector |
+| `usage` | json | Token usage |
+
+### `embeddings_gemini`
+
+Generate embeddings from text using Google's Gemini embedding models
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `embeddings` | json | Generated embeddings |
+| `model` | string | Model used |
+| `provider` | string | Provider used |
+| `dimensions` | number | Dimensionality of each vector |
+| `usage` | json | Token usage |
+
+### `embeddings_cohere`
+
+Generate embeddings from text using Cohere's embedding models
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `embeddings` | json | Generated embeddings |
+| `model` | string | Model used |
+| `provider` | string | Provider used |
+| `dimensions` | number | Dimensionality of each vector |
+| `usage` | json | Token usage |
+
+### `embeddings_mistral`
+
+Generate embeddings from text using Mistral's embedding models
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `embeddings` | json | Generated embeddings |
+| `model` | string | Model used |
+| `provider` | string | Provider used |
+| `dimensions` | number | Dimensionality of each vector |
+| `usage` | json | Token usage |
+
+

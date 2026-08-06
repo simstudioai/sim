@@ -834,6 +834,56 @@ describe.concurrent('Blocks Module', () => {
       expect(getBlock('video_generator_v2')?.hideFromToolbar).toBe(true)
     })
 
+    it('should keep the legacy openai block registered but out of discovery', () => {
+      const legacy = getBlock('openai')
+      const replacement = getBlock('embeddings')
+
+      // Placed instances must keep resolving and executing.
+      expect(legacy).toBeDefined()
+      expect(legacy?.tools.access).toContain('openai_embeddings')
+      // ...while the block itself is gone from the toolbar, search, and mentions.
+      expect(legacy?.hideFromToolbar).toBe(true)
+      expect(legacy?.sunset).toEqual({ status: 'legacy', replacedBy: 'embeddings' })
+      // The badge only renders when replacedBy resolves to a registered block.
+      expect(replacement).toBeDefined()
+      expect(replacement?.hideFromToolbar).not.toBe(true)
+    })
+
+    it('should offer every embeddings provider with a matching tool and model list', () => {
+      const block = getBlock('embeddings')
+      const providerSubBlock = block?.subBlocks.find((sb) => sb.id === 'provider')
+      const providerOptions = providerSubBlock?.options
+      const providerIds = Array.isArray(providerOptions)
+        ? providerOptions.map((option) => option.id)
+        : []
+
+      expect(providerSubBlock?.commandSearchable).toBe(true)
+      expect(providerSubBlock?.value?.()).toBe('openai')
+      expect(providerIds).toEqual(['openai', 'gemini', 'cohere', 'mistral'])
+
+      for (const provider of providerIds) {
+        // Each provider routes to its own registered tool...
+        const toolId = block?.tools.config?.tool?.({ provider })
+        expect(block?.tools.access).toContain(toolId)
+        // ...and has a model dropdown with at least one option.
+        const modelSubBlock = block?.subBlocks.find(
+          (sb) => sb.id === 'model' && sb.condition?.value === provider
+        )
+        expect(
+          Array.isArray(modelSubBlock?.options) ? modelSubBlock.options.length : 0
+        ).toBeGreaterThan(0)
+      }
+    })
+
+    it('should default an embeddings block saved before the provider field existed to openai', () => {
+      const block = getBlock('embeddings')
+
+      // Serialization runs before variable resolution, so an absent provider
+      // must still resolve to the original OpenAI tool.
+      expect(block?.tools.config?.tool?.({})).toBe('embeddings_openai')
+      expect(block?.tools.config?.tool?.({ provider: 'gemini' })).toBe('embeddings_gemini')
+    })
+
     it('should mark the agent model combobox as command-searchable', () => {
       const agentBlock = getBlock('agent')
       const modelSubBlock = agentBlock?.subBlocks.find((sb) => sb.id === 'model')

@@ -13,6 +13,13 @@ export const OpenAIBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/integrations/openai',
   bgColor: '#000000',
   icon: OpenAIIcon,
+  /**
+   * Superseded by the multi-provider `embeddings` block. Left otherwise
+   * untouched so placed instances keep working exactly as they do today; it is
+   * only removed from the discovery surfaces.
+   */
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'embeddings' },
   subBlocks: [
     {
       id: 'input',

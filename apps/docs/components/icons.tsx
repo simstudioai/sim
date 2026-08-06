@@ -2412,6 +2412,28 @@ export function ImageIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function EmbeddingsIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      width='26'
+      height='26'
+      viewBox='0 0 26 26'
+      fill='none'
+      xmlns='http://www.w3.org/2000/svg'
+      stroke='currentColor'
+      strokeWidth='2'
+      strokeLinecap='round'
+      strokeLinejoin='round'
+    >
+      <path d='M3 2V20C3 21.66 4.34 23 6 23H24' />
+      <circle cx='9.5' cy='17' r='2.2' />
+      <circle cx='15.5' cy='9.5' r='2.2' />
+      <circle cx='21' cy='15' r='2.2' />
+    </svg>
+  )
+}
+
 export function TypeformIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg

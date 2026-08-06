@@ -1,17 +1,25 @@
 /**
- * Registry of embedding models supported by the platform.
+ * Knowledge-base view over the platform embedding catalog
+ * (`@/lib/embeddings/catalog`). Knowledge bases store every vector at a fixed
+ * width, so only catalog models flagged `kbEligible` are selectable here.
  * Selection happens server-side via the `KB_EMBEDDING_MODEL` env var; this
- * registry exists to resolve provider, tokenizer, and pricing metadata at
- * runtime for any model recorded on a knowledge base row.
+ * module resolves provider, tokenizer, and pricing metadata at runtime for any
+ * model recorded on a knowledge base row.
  */
 
-export const EMBEDDING_DIMENSIONS = 1536 as const
+import {
+  DEFAULT_EMBEDDING_MODEL as CATALOG_DEFAULT_EMBEDDING_MODEL,
+  EMBEDDING_MODELS,
+  getEmbeddingModelInfo as getCatalogModelInfo,
+  KB_EMBEDDING_DIMENSIONS,
+} from '@/lib/embeddings/catalog'
+import type { EmbeddingProviderKind, TokenizerProviderId } from '@/lib/embeddings/types'
 
-export const DEFAULT_EMBEDDING_MODEL = 'text-embedding-3-small'
+export const EMBEDDING_DIMENSIONS = KB_EMBEDDING_DIMENSIONS
 
-export type EmbeddingProviderKind = 'openai' | 'azure-openai' | 'gemini'
+export const DEFAULT_EMBEDDING_MODEL = CATALOG_DEFAULT_EMBEDDING_MODEL
 
-export type TokenizerProviderId = 'openai' | 'google'
+export type { EmbeddingProviderKind, TokenizerProviderId }
 
 export interface EmbeddingModelInfo {
   provider: EmbeddingProviderKind
@@ -21,28 +29,26 @@ export interface EmbeddingModelInfo {
   tokenizerProvider: TokenizerProviderId
 }
 
-export const SUPPORTED_EMBEDDING_MODELS: Partial<Record<string, EmbeddingModelInfo>> = {
-  'text-embedding-3-small': {
-    provider: 'openai',
-    pricingId: 'text-embedding-3-small',
-    tokenizerProvider: 'openai',
-  },
-  'text-embedding-3-large': {
-    provider: 'openai',
-    pricingId: 'text-embedding-3-large',
-    tokenizerProvider: 'openai',
-  },
-  'gemini-embedding-001': {
-    provider: 'gemini',
-    pricingId: 'gemini-embedding-001',
-    tokenizerProvider: 'google',
-  },
-}
+export const SUPPORTED_EMBEDDING_MODELS: Partial<Record<string, EmbeddingModelInfo>> =
+  Object.fromEntries(
+    Object.entries(EMBEDDING_MODELS)
+      .filter(([, info]) => info.kbEligible)
+      .map(([id, info]) => [
+        id,
+        {
+          provider: info.provider,
+          pricingId: info.pricingId,
+          tokenizerProvider: info.tokenizerProvider,
+        },
+      ])
+  )
 
 export function getEmbeddingModelInfo(model: string): EmbeddingModelInfo {
   const info = SUPPORTED_EMBEDDING_MODELS[model]
   if (!info) {
-    throw new Error(`Unsupported embedding model: ${model}`)
+    /** Surfaces the catalog's error for unknown ids, and a KB-specific one for ineligible models. */
+    getCatalogModelInfo(model)
+    throw new Error(`Embedding model is not available for knowledge bases: ${model}`)
   }
   return info
 }
