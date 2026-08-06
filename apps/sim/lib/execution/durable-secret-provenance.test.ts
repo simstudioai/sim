@@ -3,9 +3,28 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  durableSecretProvenanceFromPrivateBundle,
   filterDurableSecretProvenanceBySourceValues,
   hashDurableSecretProvenanceValue,
 } from '@/lib/execution/durable-secret-provenance'
+
+function privateBundle(scope?: { userId: string; workspaceId?: string }) {
+  return {
+    version: 1 as const,
+    complete: true,
+    selections: [
+      {
+        key: 'value',
+        provenance: {
+          version: 1 as const,
+          complete: true,
+          entries: [{ name: 'TOKEN', encryptedValue: 'encrypted-token' }],
+          ...(scope ? { scope } : {}),
+        },
+      },
+    ],
+  }
+}
 
 describe('durable secret provenance hashing', () => {
   it('hashes equivalent plain JSON deterministically without key-order sensitivity', () => {
@@ -47,5 +66,70 @@ describe('durable secret provenance hashing', () => {
         ['same-low-entropy-value']
       )
     ).toEqual({ status: 'exact', entries: [] })
+  })
+})
+
+describe('private durable provenance scope admission', () => {
+  it('accepts a different source user in the authorized destination workspace', () => {
+    expect(
+      durableSecretProvenanceFromPrivateBundle(
+        privateBundle({ userId: 'workflow-owner', workspaceId: 'workspace-1' }),
+        'value',
+        { userId: 'billing-actor', workspaceId: 'workspace-1' }
+      )
+    ).toEqual({
+      status: 'exact',
+      entries: [
+        {
+          name: 'TOKEN',
+          encryptedValue: 'encrypted-token',
+          sourceUserId: 'workflow-owner',
+          sourceWorkspaceId: 'workspace-1',
+        },
+      ],
+    })
+  })
+
+  it('rejects a source from another or no workspace', () => {
+    expect(
+      durableSecretProvenanceFromPrivateBundle(
+        privateBundle({ userId: 'workflow-owner', workspaceId: 'workspace-2' }),
+        'value',
+        { userId: 'billing-actor', workspaceId: 'workspace-1' }
+      )
+    ).toBeUndefined()
+    expect(
+      durableSecretProvenanceFromPrivateBundle(
+        privateBundle({ userId: 'workflow-owner' }),
+        'value',
+        { userId: 'billing-actor', workspaceId: 'workspace-1' }
+      )
+    ).toBeUndefined()
+    expect(
+      durableSecretProvenanceFromPrivateBundle(privateBundle(), 'value', {
+        userId: 'billing-actor',
+        workspaceId: 'workspace-1',
+      })
+    ).toBeUndefined()
+  })
+
+  it('keeps workspace-less destinations isolated to the authenticated user', () => {
+    expect(
+      durableSecretProvenanceFromPrivateBundle(privateBundle({ userId: 'user-1' }), 'value', {
+        userId: 'user-1',
+      })
+    ).toMatchObject({ status: 'exact' })
+    expect(
+      durableSecretProvenanceFromPrivateBundle(privateBundle({ userId: 'someone-else' }), 'value', {
+        userId: 'user-1',
+      })
+    ).toBeUndefined()
+    expect(
+      durableSecretProvenanceFromPrivateBundle(
+        privateBundle({ userId: 'user-1', workspaceId: 'workspace-1' }),
+        'value',
+        { userId: 'user-1' }
+      )
+    ).toBeUndefined()
   })
 })
