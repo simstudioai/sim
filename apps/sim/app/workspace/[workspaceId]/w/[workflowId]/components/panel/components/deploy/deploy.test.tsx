@@ -7,6 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockState = vi.hoisted(() => ({
   hydrationPhase: 'ready' as 'idle' | 'state-loading' | 'ready',
+  hydrationWorkflowId: 'workflow-1' as string | null,
+  registryActiveWorkflowId: 'workflow-1' as string | null,
   hasBlocks: true,
   isDeployed: false,
   changeDetected: false,
@@ -80,7 +82,13 @@ vi.mock('@/hooks/queries/deployments', () => ({
 
 vi.mock('@/stores/workflows/registry/store', () => ({
   useWorkflowRegistry: (selector: (state: unknown) => unknown) =>
-    selector({ hydration: { phase: mockState.hydrationPhase } }),
+    selector({
+      activeWorkflowId: mockState.registryActiveWorkflowId,
+      hydration: {
+        phase: mockState.hydrationPhase,
+        workflowId: mockState.hydrationWorkflowId,
+      },
+    }),
 }))
 
 import { Deploy } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/deploy'
@@ -114,6 +122,8 @@ beforeEach(() => {
   document.body.appendChild(container)
   root = createRoot(container)
   mockState.hydrationPhase = 'ready'
+  mockState.hydrationWorkflowId = 'workflow-1'
+  mockState.registryActiveWorkflowId = 'workflow-1'
   mockState.hasBlocks = true
   mockState.isDeployed = false
   mockState.changeDetected = false
@@ -152,6 +162,12 @@ describe('Deploy compact mode', () => {
 
     renderDeploy({ isDeployed: true, changeDetected: true })
     expect(container.querySelector('button')?.getAttribute('aria-label')).toBe('Update')
+  })
+
+  it('disables deployment while the active tab is still hydrating another workflow', () => {
+    renderDeploy({ hydrationWorkflowId: 'workflow-2', registryActiveWorkflowId: 'workflow-2' })
+
+    expect(container.querySelector('button')?.disabled).toBe(true)
   })
 
   it.each([

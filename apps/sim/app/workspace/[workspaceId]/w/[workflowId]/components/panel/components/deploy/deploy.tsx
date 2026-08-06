@@ -30,8 +30,12 @@ export function Deploy({
   disabled = false,
 }: DeployProps) {
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const hydrationPhase = useWorkflowRegistry((state) => state.hydration.phase)
-  const isRegistryLoading = hydrationPhase === 'idle' || hydrationPhase === 'state-loading'
+  const registryActiveWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
+  const hydration = useWorkflowRegistry((state) => state.hydration)
+  const isRegistryLoading =
+    hydration.phase !== 'ready' ||
+    registryActiveWorkflowId !== activeWorkflowId ||
+    hydration.workflowId !== activeWorkflowId
   const { hasBlocks } = useCurrentWorkflow()
 
   const { data: deploymentInfo } = useDeploymentInfo(activeWorkflowId, {
