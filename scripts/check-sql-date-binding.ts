@@ -107,16 +107,59 @@ function isDateExpression(node: unknown, isDateName: (name: string) => boolean):
   return false
 }
 
-/** Lexical scope for Date-typed bindings; lookups walk the parent chain. */
+/**
+ * Lexical scope for Date-typed bindings; lookups walk the parent chain.
+ *
+ * `localNames` holds every name the scope binds, Date-typed or not, so a lookup
+ * stops at the nearest declaring scope instead of reaching past a shadow.
+ */
 interface Scope {
   parent: Scope | null
   dateNames: Set<string>
+  localNames: Set<string>
 }
 
+const createScope = (parent: Scope | null): Scope => ({
+  parent,
+  dateNames: new Set(),
+  localNames: new Set(),
+})
+
+/**
+ * Resolves `name` to the nearest scope that binds it.
+ *
+ * `dateNames` is consulted before `localNames` at every level so the resolution
+ * fixpoint still converges: a local binding not *yet* proven to be a Date blocks
+ * the walk on this pass, and a later pass finds it once proven.
+ */
 function hasDateName(scope: Scope, name: string): boolean {
-  for (let current: Scope | null = scope; current; current = current.parent)
+  for (let current: Scope | null = scope; current; current = current.parent) {
     if (current.dateNames.has(name)) return true
+    if (current.localNames.has(name)) return false
+  }
   return false
+}
+
+/** Records every identifier a binding pattern introduces, however nested. */
+function collectBoundNames(node: unknown, into: Set<string>): void {
+  if (!isSyntaxNode(node)) return
+  if (node.type === 'Identifier') {
+    if (typeof node.name === 'string') into.add(node.name)
+    return
+  }
+  if (node.type === 'ObjectPattern' && Array.isArray(node.properties)) {
+    for (const property of node.properties) {
+      if (!isSyntaxNode(property)) continue
+      collectBoundNames(property.type === 'RestElement' ? property.argument : property.value, into)
+    }
+    return
+  }
+  if (node.type === 'ArrayPattern' && Array.isArray(node.elements)) {
+    for (const element of node.elements) collectBoundNames(element, into)
+    return
+  }
+  if (node.type === 'AssignmentPattern') collectBoundNames(node.left, into)
+  if (node.type === 'RestElement') collectBoundNames(node.argument, into)
 }
 
 const FUNCTION_TYPES = new Set([
@@ -302,7 +345,7 @@ export function analyzeSource(source: string, file = 'source.ts'): FileAnalysis 
   if (bindings.tags.size === 0 && bindings.namespaces.size === 0) return { violations: [] }
 
   const dateTypeFields = collectDateTypeFields(program)
-  const rootScope: Scope = { parent: null, dateNames: new Set() }
+  const rootScope: Scope = createScope(null)
   const candidates: BindingCandidate[] = []
   const checks: CheckSite[] = []
 
@@ -336,7 +379,8 @@ export function analyzeSource(source: string, file = 'source.ts'): FileAnalysis 
     for (const property of pattern.properties) {
       if (!isSyntaxNode(property) || property.type !== 'ObjectProperty') continue
       const key = isSyntaxNode(property.key) ? property.key.name : undefined
-      const value = isSyntaxNode(property.value) ? property.value : undefined
+      const raw = isSyntaxNode(property.value) ? property.value : undefined
+      const value = raw?.type === 'AssignmentPattern' && isSyntaxNode(raw.left) ? raw.left : raw
       if (typeof key !== 'string' || !fields.has(key)) continue
       if (value?.type === 'Identifier' && typeof value.name === 'string')
         scope.dateNames.add(value.name)
@@ -348,6 +392,7 @@ export function analyzeSource(source: string, file = 'source.ts'): FileAnalysis 
     for (const raw of fn.params) {
       if (!isSyntaxNode(raw)) continue
       const param = raw.type === 'AssignmentPattern' && isSyntaxNode(raw.left) ? raw.left : raw
+      collectBoundNames(param, scope.localNames)
       if (param.type === 'Identifier' && typeof param.name === 'string') {
         if (isDateAnnotation(param.typeAnnotation)) scope.dateNames.add(param.name)
       } else if (param.type === 'ObjectPattern') {
@@ -361,7 +406,7 @@ export function analyzeSource(source: string, file = 'source.ts'): FileAnalysis 
   const visit = (node: SyntaxNode, parentScope: Scope, parentStatementLine: number) => {
     let scope = parentScope
     if (FUNCTION_TYPES.has(node.type)) {
-      scope = { parent: parentScope, dateNames: new Set() }
+      scope = createScope(parentScope)
       bindParameters(node, scope)
     }
     const statementLine =
@@ -369,6 +414,7 @@ export function analyzeSource(source: string, file = 'source.ts'): FileAnalysis 
 
     if (node.type === 'VariableDeclarator' && isSyntaxNode(node.id)) {
       const target = node.id
+      collectBoundNames(target, scope.localNames)
       if (target.type === 'Identifier' && typeof target.name === 'string') {
         candidates.push({
           scope,

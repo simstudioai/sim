@@ -228,4 +228,31 @@ describe('sql Date binding audit', () => {
       expect(analysis.violations).toEqual([])
     })
   })
+
+  test('treats a local non-Date binding as a shadow of an outer Date', () => {
+    const violations = findSqlDateBindingViolations(`
+      ${DRIZZLE_IMPORT}
+      const now = new Date()
+      function outer() {
+        return sql\`a < \${now}\`
+      }
+      function inner() {
+        const now = Date.now()
+        return sql\`b < \${now}\`
+      }
+    `)
+
+    expect(violations.map((violation) => violation.expression)).toEqual(['now'])
+  })
+
+  test('binds a destructured Date field that carries a default', () => {
+    const violations = findSqlDateBindingViolations(`
+      ${DRIZZLE_IMPORT}
+      function scan({ since = new Date() }: { since: Date }) {
+        return sql\`c < \${since}\`
+      }
+    `)
+
+    expect(violations.map((violation) => violation.expression)).toEqual(['since'])
+  })
 })
