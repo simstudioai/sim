@@ -36,7 +36,7 @@
       "get": {
         "operationId": "listLogs",
         "summary": "List Logs",
-        "description": "List workflow execution logs for a workspace with filtering and opaque cursor pagination. Returns `{ data, nextCursor }`. By default (`details=basic`) each entry contains summary fields only; pass `details=full` to include the per-execution `workflow` summary, and additionally `includeFinalOutput=true` / `includeTraceSpans=true` to materialize `finalOutput` / `traceSpans` on each entry.",
+        "description": "List workflow execution logs for a workspace with filtering and opaque cursor pagination. Returns `{ data, nextCursor }`. By default (`details=basic`) each entry contains summary fields only. Pass `details=full` to include the per-execution `workflow` summary. Requesting `includeFinalOutput=true` or `includeTraceSpans=true` automatically enables full detail and materializes the requested field.",
         "tags": ["Logs"],
         "x-codeSamples": [
           {
@@ -158,7 +158,7 @@
           {
             "name": "details",
             "in": "query",
-            "description": "Response detail level. basic returns summary fields only. full additionally includes the per-entry workflow summary and enables the includeFinalOutput / includeTraceSpans materialization flags.",
+            "description": "Response detail level. basic returns summary fields only. full additionally includes the per-entry workflow summary. Requesting includeFinalOutput or includeTraceSpans also enables full detail.",
             "schema": {
               "type": "string",
               "enum": ["basic", "full"],
@@ -168,7 +168,7 @@
           {
             "name": "includeTraceSpans",
             "in": "query",
-            "description": "When true, includes block-level execution trace spans on each entry. Only applies when details=full.",
+            "description": "When true, includes block-level execution trace spans on each entry and automatically enables full detail.",
             "schema": {
               "type": "boolean",
               "default": false
@@ -177,7 +177,7 @@
           {
             "name": "includeFinalOutput",
             "in": "query",
-            "description": "When true, includes the workflow's final output on each entry. Only applies when details=full.",
+            "description": "When true, includes the workflow's final output on each entry and automatically enables full detail.",
             "schema": {
               "type": "boolean",
               "default": false
@@ -455,6 +455,56 @@
           }
         }
       },
+      "TraceSpan": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "A block, model, tool, or workflow trace span with timing, cost, and failure metadata.",
+        "required": ["id", "name", "type"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "type": { "type": "string" },
+          "duration": { "type": "number" },
+          "durationMs": { "type": "number" },
+          "startTime": { "type": "string" },
+          "endTime": { "type": "string" },
+          "status": { "type": "string" },
+          "errorHandled": {
+            "type": "boolean",
+            "description": "Whether an error handler path handled this span's failure."
+          },
+          "errorType": {
+            "type": "string",
+            "description": "Structured failure class such as RateLimitError."
+          },
+          "errorMessage": {
+            "type": "string",
+            "description": "Human-readable failure message."
+          },
+          "blockId": { "type": "string" },
+          "input": {},
+          "output": {},
+          "tokens": {},
+          "cost": {
+            "type": "object",
+            "properties": {
+              "total": { "type": "number" },
+              "input": { "type": "number" },
+              "output": { "type": "number" },
+              "toolCost": { "type": "number" }
+            }
+          },
+          "relativeStartMs": { "type": "number" },
+          "toolCalls": {
+            "type": "array",
+            "items": { "type": "object", "additionalProperties": true }
+          },
+          "children": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/TraceSpan" }
+          }
+        }
+      },
       "LogWorkflowSummary": {
         "type": "object",
         "description": "Workflow summary captured at execution time. Present on a list entry only when details=full.",
@@ -632,14 +682,13 @@
           "finalOutput": {
             "type": "object",
             "additionalProperties": true,
-            "description": "The workflow's final output. The shape depends on the workflow. Present only when details=full and includeFinalOutput=true."
+            "description": "The workflow's final output. The shape depends on the workflow. Present when includeFinalOutput=true; requesting it automatically enables full detail."
           },
           "traceSpans": {
             "type": "array",
-            "description": "Block-level execution trace spans with timing, inputs, and outputs. Present only when details=full and includeTraceSpans=true.",
+            "description": "Block-level execution trace spans with timing, cost, and failure metadata. Present when includeTraceSpans=true; requesting it automatically enables full detail.",
             "items": {
-              "type": "object",
-              "additionalProperties": true
+              "$ref": "#/components/schemas/TraceSpan"
             }
           }
         }
@@ -730,10 +779,9 @@
           },
           "traceSpans": {
             "type": "array",
-            "description": "Materialized block-level execution trace spans with timing, inputs, and outputs. Empty when the run has no spans.",
+            "description": "Materialized block-level execution trace spans with timing, cost, and failure metadata. Empty when the run has no spans.",
             "items": {
-              "type": "object",
-              "additionalProperties": true
+              "$ref": "#/components/schemas/TraceSpan"
             }
           },
           "finalOutput": {

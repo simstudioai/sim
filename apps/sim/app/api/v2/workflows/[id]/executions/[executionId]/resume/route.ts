@@ -73,11 +73,8 @@ export const POST = withRouteHandler(
         resumeInput: input === undefined ? {} : input,
         isApiCaller: true,
         pollingSurface: 'v2',
+        allowStreaming: false,
       })
-
-      if (response.headers.get('Content-Type')?.startsWith('text/event-stream')) {
-        return response
-      }
 
       const payload: unknown = await response.json()
       if (!isRecordLike(payload)) {

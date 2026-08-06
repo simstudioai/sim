@@ -322,6 +322,48 @@ describe('POST /api/resume/[workflowId]/[executionId]/[contextId]', () => {
     )
   })
 
+  it('queues inherited stream-mode resumes when the caller requires JSON', async () => {
+    mockGetPausedExecutionDetail.mockResolvedValueOnce(
+      createPausedExecution({ executionMode: 'stream' })
+    )
+    mockEnqueueOrStartResume.mockResolvedValueOnce({
+      status: 'started',
+      resumeExecutionId: 'resume-execution-1',
+      resumeEntryId: 'resume-entry-1',
+      pausedExecution: { id: 'paused-execution-1' },
+      contextId: CONTEXT_ID,
+      resumeInput: { approved: true },
+      userId: 'current-api-key-user',
+    })
+    const { request } = makeRequest()
+
+    const response = await handleResumeExecution({
+      request,
+      workflowId: WORKFLOW_ID,
+      executionId: EXECUTION_ID,
+      contextId: CONTEXT_ID,
+      workspaceId: WORKSPACE_ID,
+      userId: 'current-api-key-user',
+      resumeInput: { approved: true },
+      isApiCaller: true,
+      pollingSurface: 'v2',
+      allowStreaming: false,
+    })
+
+    expect(response.status).toBe(202)
+    expect(response.headers.get('Content-Type')).toContain('application/json')
+    await expect(response.json()).resolves.toMatchObject({
+      async: true,
+      executionId: 'resume-execution-1',
+      statusUrl: 'https://test.sim.ai/api/v2/workflows/workflow-1/executions/resume-execution-1',
+    })
+    expect(mockEnqueueResume).toHaveBeenCalledWith(
+      'resume-execution',
+      expect.objectContaining({ resumeExecutionId: 'resume-execution-1' }),
+      expect.objectContaining({ jobId: 'resume-execution:resume-entry-1' })
+    )
+  })
+
   it.each([
     { statusCode: 402, message: 'Member usage limit reached', retryable: false },
     { statusCode: 429, message: 'Target concurrency full', retryable: true },

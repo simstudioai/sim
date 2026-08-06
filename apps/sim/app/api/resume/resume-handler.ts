@@ -52,6 +52,8 @@ interface HandleResumeExecutionOptions {
   resumeInput: unknown
   isApiCaller: boolean
   pollingSurface: 'legacy' | 'v2'
+  /** When false, inherited stream-mode resumes use async JSON polling instead of SSE. */
+  allowStreaming?: boolean
 }
 
 function loadPausedExecutionSnapshot(
@@ -114,6 +116,7 @@ export async function handleResumeExecution({
   resumeInput,
   isApiCaller,
   pollingSurface,
+  allowStreaming = true,
 }: HandleResumeExecutionOptions): Promise<NextResponse> {
   const requestId = generateRequestId()
   const pausedExecution = await PauseResumeManager.getPausedExecutionDetail({
@@ -224,8 +227,11 @@ export async function handleResumeExecution({
       userId: enqueueResult.userId,
     }
 
+    const persistedExecutionMode = persistedSnapshot.metadata.executionMode ?? 'sync'
     const executionMode = isApiCaller
-      ? (persistedSnapshot.metadata.executionMode ?? 'sync')
+      ? persistedExecutionMode === 'stream' && !allowStreaming
+        ? 'async'
+        : persistedExecutionMode
       : undefined
     const includeThinking = persistedSnapshot.metadata.includeThinking === true
     const includeToolCalls = persistedSnapshot.metadata.includeToolCalls === true

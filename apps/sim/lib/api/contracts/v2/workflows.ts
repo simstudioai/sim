@@ -451,6 +451,12 @@ export const v2ResumeWorkflowQueuedSchema = v2ExecuteWorkflowQueuedSchema.extend
 })
 export type V2ResumeWorkflowQueued = z.output<typeof v2ResumeWorkflowQueuedSchema>
 
+export const v2ResumeWorkflowResponseSchema = z.union([
+  v2DataResponse(v2ExecuteWorkflowDataSchema),
+  v2DataResponse(v2ResumeWorkflowQueuedSchema),
+])
+export type V2ResumeWorkflowResponse = z.output<typeof v2ResumeWorkflowResponseSchema>
+
 export const v2ResumeWorkflowContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/workflows/[id]/executions/[executionId]/resume',
@@ -458,7 +464,7 @@ export const v2ResumeWorkflowContract = defineRouteContract({
   body: v2ResumeWorkflowBodySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2ExecuteWorkflowDataSchema),
+    schema: v2ResumeWorkflowResponseSchema,
   },
 })
 

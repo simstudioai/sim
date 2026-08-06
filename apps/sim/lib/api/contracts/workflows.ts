@@ -556,6 +556,7 @@ const workflowExecutionStatusEnum = z.enum([
 ])
 
 export const workflowExecutionPausedDetailSchema = z.object({
+  contextId: z.string(),
   pausedAt: z.string(),
   resumeAt: z.string().nullable(),
   pauseKind: z.enum(['time', 'human']).nullable(),

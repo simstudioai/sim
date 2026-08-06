@@ -21,6 +21,7 @@ vi.mock('@/lib/core/utils/urls', () => ({
   getBaseUrl: () => 'https://test.sim.ai',
 }))
 
+import { v2ResumeWorkflowContract } from '@/lib/api/contracts/v2/workflows'
 import { POST } from '@/app/api/v2/workflows/[id]/executions/[executionId]/resume/route'
 
 const WORKFLOW_ID = 'workflow-1'
@@ -90,15 +91,17 @@ describe('POST /api/v2/workflows/[id]/executions/[executionId]/resume', () => {
     )
 
     const response = await POST(request, context)
+    const body = await response.json()
 
     expect(response.status).toBe(202)
     expect(response.headers.get('X-Execution-Id')).toBe('resume-execution-1')
-    expect(await response.json()).toEqual({
+    expect(body).toEqual({
       data: {
         executionId: 'resume-execution-1',
         statusUrl: 'https://test.sim.ai/api/v2/workflows/workflow-1/executions/resume-execution-1',
       },
     })
+    expect(v2ResumeWorkflowContract.response.schema.parse(body)).toEqual(body)
     expect(mockHandleResumeExecution).toHaveBeenCalledWith({
       request,
       workflowId: WORKFLOW_ID,
@@ -109,6 +112,7 @@ describe('POST /api/v2/workflows/[id]/executions/[executionId]/resume', () => {
       resumeInput: { approved: true },
       isApiCaller: true,
       pollingSurface: 'v2',
+      allowStreaming: false,
     })
   })
 
@@ -152,9 +156,10 @@ describe('POST /api/v2/workflows/[id]/executions/[executionId]/resume', () => {
     const { request, context } = makeRequest(JSON.stringify({ contextId: 'context-3' }))
 
     const response = await POST(request, context)
+    const body = await response.json()
 
     expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({
+    expect(body).toEqual({
       data: {
         executionId: 'resume-execution-3',
         workflowId: WORKFLOW_ID,
@@ -166,5 +171,6 @@ describe('POST /api/v2/workflows/[id]/executions/[executionId]/resume', () => {
         durationMs: 1000,
       },
     })
+    expect(v2ResumeWorkflowContract.response.schema.parse(body)).toEqual(body)
   })
 })
