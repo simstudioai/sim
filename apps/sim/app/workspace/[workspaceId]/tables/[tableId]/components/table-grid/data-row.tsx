@@ -315,6 +315,9 @@ export const DataRow = React.memo(function DataRow({
             data-row={rowIndex}
             data-row-id={row.id}
             data-col={colIndex}
+            // Read by overlays measured off these cells (see remote-selection-overlay.tsx)
+            // to tell a cell frozen in the sticky zone from one scrolled behind it.
+            data-pinned={isPinnedCell ? '' : undefined}
             className={cn(
               CELL,
               (isHighlighted || isAnchor || isEditing) && 'relative',
