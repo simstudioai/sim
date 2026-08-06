@@ -1967,9 +1967,42 @@ function extractOutputsFromToolContent(content: string, toolPrefix: string): Rec
   return {}
 }
 
+/**
+ * Resolves the module a tool delegates its config to, for tools built by a
+ * factory instead of an inline object literal:
+ *
+ *   export const embeddingsOpenAITool = createEmbeddingTool({ id, provider, ... })
+ *
+ * The `params` block lives in the factory's module, so a file-local search finds
+ * nothing and the docs page renders an empty Input table. This follows the
+ * factory's import the way {@link extractSpreadBase} follows a same-file spread.
+ * Returns null when the tool declares its own config, which is the common case.
+ */
+function resolveFactorySource(fileContent: string, toolFilePath: string, rootDir: string): string {
+  const factoryCall = fileContent.match(/=\s*(create\w+)\s*\(\s*\{/)
+  if (!factoryCall) return ''
+
+  const factoryName = factoryCall[1]
+  const importMatch = fileContent.match(
+    new RegExp(`import\\s*\\{[^}]*\\b${factoryName}\\b[^}]*\\}\\s*from\\s*['"]([^'"]+)['"]`)
+  )
+  if (!importMatch) return ''
+
+  const specifier = importMatch[1]
+  const resolved = specifier.startsWith('@/')
+    ? path.join(rootDir, 'apps/sim', specifier.slice(2))
+    : path.resolve(path.dirname(toolFilePath), specifier)
+
+  for (const candidate of [`${resolved}.ts`, path.join(resolved, 'index.ts')]) {
+    if (fs.existsSync(candidate)) return fs.readFileSync(candidate, 'utf-8')
+  }
+  return ''
+}
+
 function extractToolInfo(
   toolName: string,
-  fileContent: string
+  fileContent: string,
+  factorySource = ''
 ): {
   description: string
   params: Array<{ name: string; type: string; required: boolean; description: string }>
@@ -2003,8 +2036,11 @@ function extractToolInfo(
     // compress.ts) don't all inherit the first tool's params. Fall back to the
     // full file for tools that inherit params via spread from a base object.
     const toolConfigRegex =
-      /params\s*:\s*{([\s\S]*?)},?\s*(?:outputs|oauth|request|directExecution|postProcess|transformResponse)\s*:/
-    const toolConfigMatch = toolContent.match(toolConfigRegex) ?? fileContent.match(toolConfigRegex)
+      /params\s*:\s*{([\s\S]*?)},?\s*(?:outputs|oauth|hosting|request|directExecution|postProcess|transformResponse)\s*:/
+    const toolConfigMatch =
+      toolContent.match(toolConfigRegex) ??
+      fileContent.match(toolConfigRegex) ??
+      factorySource.match(toolConfigRegex)
 
     // Description should come from the specific tool block if found
     // Only search before nested objects (params, outputs, request, etc.) to avoid matching
@@ -2848,7 +2884,11 @@ async function getToolInfo(toolName: string): Promise<{
       return null
     }
 
-    return extractToolInfo(toolName, toolFileContent)
+    return extractToolInfo(
+      toolName,
+      toolFileContent,
+      resolveFactorySource(toolFileContent, foundFile, rootDir)
+    )
   } catch (error) {
     console.error(`Error getting info for tool ${toolName}:`, error)
     return null

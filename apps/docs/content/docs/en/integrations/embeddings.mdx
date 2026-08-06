@@ -13,46 +13,13 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 {/* MANUAL-CONTENT-START:intro */}
 An embedding turns a piece of text into a list of numbers that captures its meaning. Two texts that mean similar things get similar numbers, so you can compare meaning directly instead of matching keywords. That is what powers semantic search, grouping related items, and spotting near-duplicates that are worded differently.
 
-The Embeddings block generates those numbers from one provider of your choice. Pick a provider, pick a model, pass in text, and get a vector back.
+The Embeddings block generates those numbers using OpenAI, Google Gemini, Cohere, or Mistral. Pick a provider, pick one of its models, pass in text, and get a vector back — one vector per input, in the order you supplied them. You can embed a single string or a list of strings in one call.
 
-### Providers and models
+Models differ in what they are good at and what they cost. `text-embedding-3-small` is the cost-efficient general choice, `gemini-embedding-001` gives the highest retrieval quality, `embed-v4.0` handles multilingual content, and `codestral-embed` is tuned for source code. Some models also let you trade vector size against quality, and some accept a task type so the vector is conditioned for how it will be used — the block only offers those controls for the models that actually support them.
 
-| Provider | Models | Vector size | Max input |
-| -------- | ------ | ----------- | --------- |
-| **OpenAI** | `text-embedding-3-small`, `text-embedding-3-large`, `text-embedding-ada-002` | 1536 / 3072 / 1536 | 8192 tokens |
-| **Google Gemini** | `gemini-embedding-001` | 3072 | 2048 tokens |
-| **Cohere** | `embed-v4.0` | 1536 | 128k tokens |
-| **Mistral** | `mistral-embed`, `codestral-embed` | 1024 / 1536 (up to 3072) | 8192 tokens |
+Two things worth knowing before you build on it. Vectors are only comparable when they come from the same model at the same size, so changing either means re-embedding everything you intend to compare. And input longer than the model's limit is shortened to fit rather than rejected, with a warning in the run, so chunk long documents yourself when the tail matters.
 
-Use `text-embedding-3-small` for cost-efficient general work, `gemini-embedding-001` for the highest retrieval quality, `embed-v4.0` for multilingual content, and `codestral-embed` for source code.
-
-### Inputs
-
-| Field | Required | Description |
-| ----- | -------- | ----------- |
-| **Input Text** | Yes | The text to embed. Also accepts an array of texts to embed in one call — up to 1000 items and 1,000,000 characters per request. |
-| **Provider** | Yes | OpenAI, Google Gemini, Cohere, or Mistral. Defaults to OpenAI. |
-| **Model** | Yes | The embedding model. The list changes to match the provider you picked. |
-| **Task Type** | No | What the vector is for: Document, Query, Semantic Similarity, Classification, or Clustering. Only shown for `gemini-embedding-001` and `embed-v4.0`, the two models that condition on it. Everything else ignores it. |
-| **Dimensions** | No | A different vector size, when the model supports one. Only shown for models that do. Smaller vectors cost less to store and search, with some loss in quality. `codestral-embed` also goes the other way, up to 3072. |
-| **API Key** | Yes | Your provider key. On Sim's cloud this field is hidden — all four providers run on Sim's keys and are billed to your workspace per input token. Self-hosted installs supply their own key here. |
-
-### Outputs
-
-| Field | Type | Description |
-| ----- | ---- | ----------- |
-| `embeddings` | json | One vector per input, in the same order you supplied them. |
-| `model` | string | The model that produced the vectors. |
-| `provider` | string | The provider that produced the vectors. |
-| `dimensions` | number | The size of each vector. |
-| `usage` | json | Input token counts, as `prompt_tokens` and `total_tokens`. |
-
-### Things to know
-
-- **Vectors are only comparable within one model at one size.** A vector from `text-embedding-3-small` cannot be meaningfully compared against one from `embed-v4.0`, or against the same model at a different **Dimensions** setting. Re-embed everything if you change either.
-- **Switching provider resets the model.** A model saved under one provider will not survive a switch to another; the block falls back to that provider's default.
-- **Long text is shortened, not rejected.** Input above the model's token limit is truncated to fit, and the run logs a warning. Split long documents into chunks yourself when you care about the tail.
-- **Knowledge bases are separate.** Sim's knowledge bases embed on a fixed 1536-wide setting and only offer models that can produce it. This block is for embedding text yourself inside a workflow.
+Sim's knowledge bases embed separately, at a fixed vector width and from a smaller set of models. This block is for embedding text yourself inside a workflow.
 {/* MANUAL-CONTENT-END */}
 
 
@@ -72,6 +39,11 @@ Generate embeddings from text using OpenAI's embedding models
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `input` | string | Yes | Text to embed, or an array of texts to embed in one call |
+| `model` | string | No | Embedding model to use |
+| `taskType` | string | No | What the embedding is for, when the model supports task conditioning: document, query, similarity, classification, or clustering |
+| `dimensions` | number | No | Output dimensions, when the model supports truncation. Defaults to native. |
+| `apiKey` | string | Yes | API key for the selected embedding provider |
 
 #### Output
 
@@ -91,6 +63,11 @@ Generate embeddings from text using Google's Gemini embedding models
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `input` | string | Yes | Text to embed, or an array of texts to embed in one call |
+| `model` | string | No | Embedding model to use |
+| `taskType` | string | No | What the embedding is for, when the model supports task conditioning: document, query, similarity, classification, or clustering |
+| `dimensions` | number | No | Output dimensions, when the model supports truncation. Defaults to native. |
+| `apiKey` | string | Yes | API key for the selected embedding provider |
 
 #### Output
 
@@ -110,6 +87,11 @@ Generate embeddings from text using Cohere's embedding models
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `input` | string | Yes | Text to embed, or an array of texts to embed in one call |
+| `model` | string | No | Embedding model to use |
+| `taskType` | string | No | What the embedding is for, when the model supports task conditioning: document, query, similarity, classification, or clustering |
+| `dimensions` | number | No | Output dimensions, when the model supports truncation. Defaults to native. |
+| `apiKey` | string | Yes | API key for the selected embedding provider |
 
 #### Output
 
@@ -129,6 +111,11 @@ Generate embeddings from text using Mistral's embedding models
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `input` | string | Yes | Text to embed, or an array of texts to embed in one call |
+| `model` | string | No | Embedding model to use |
+| `taskType` | string | No | What the embedding is for, when the model supports task conditioning: document, query, similarity, classification, or clustering |
+| `dimensions` | number | No | Output dimensions, when the model supports truncation. Defaults to native. |
+| `apiKey` | string | Yes | API key for the selected embedding provider |
 
 #### Output
 

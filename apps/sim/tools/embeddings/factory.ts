@@ -71,7 +71,7 @@ export function createEmbeddingTool({
         type: 'string',
         required: true,
         visibility: 'user-only',
-        description: `${name} API key`,
+        description: 'API key for the selected embedding provider',
       },
     },
 
