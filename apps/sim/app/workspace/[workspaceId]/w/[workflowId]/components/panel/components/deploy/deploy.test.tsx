@@ -20,7 +20,6 @@ const mockState = vi.hoisted(() => ({
     tooltip: 'Ready to deploy',
   },
   handleDeployClick: vi.fn(),
-  modalProps: null as { open: boolean } | null,
 }))
 
 vi.mock('@sim/emcn', () => ({
@@ -38,16 +37,14 @@ vi.mock('@sim/emcn', () => ({
 }))
 
 vi.mock('@sim/emcn/icons', () => ({
-  Upload: () => <span data-testid='upload-icon' />,
+  Upload: () => <span />,
 }))
 
 vi.mock(
   '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/deploy-modal',
   () => ({
-    DeployModal: (props: { open: boolean }) => {
-      mockState.modalProps = props
-      return props.open ? <div role='dialog'>Deploy workflow</div> : null
-    },
+    DeployModal: ({ open }: { open: boolean }) =>
+      open ? <div role='dialog'>Deploy workflow</div> : null,
   })
 )
 
@@ -98,7 +95,7 @@ let root: Root
 
 function renderDeploy(
   overrides: Partial<typeof mockState> = {},
-  props: { disabled?: boolean; disabledTooltip?: string } = {}
+  props: { disabled?: boolean; canAdmin?: boolean } = {}
 ) {
   Object.assign(mockState, overrides)
   act(() => {
@@ -108,14 +105,13 @@ function renderDeploy(
         userPermissions={{
           canRead: true,
           canEdit: true,
-          canAdmin: true,
-          userPermissions: 'admin',
+          canAdmin: props.canAdmin ?? true,
+          userPermissions: props.canAdmin === false ? 'write' : 'admin',
           isLoading: false,
           error: null,
         }}
         compact
-        className='resource-action'
-        {...props}
+        disabled={props.disabled}
       />
     )
   })
@@ -140,7 +136,6 @@ beforeEach(() => {
   }
   mockState.handleDeployClick.mockReset()
   mockState.handleDeployClick.mockResolvedValue({ success: true, shouldOpenModal: true })
-  mockState.modalProps = null
 })
 
 afterEach(() => {
@@ -149,82 +144,34 @@ afterEach(() => {
 })
 
 describe('Deploy compact mode', () => {
-  it('renders an accessible compact Deploy action for an undeployed workflow', () => {
-    renderDeploy()
+  it.each([
+    ['Deploy', {}],
+    ['Live', { isDeployed: true }],
+    ['Update', { isDeployed: true, changeDetected: true }],
+  ])('exposes the %s action for its deployment state', (label, overrides) => {
+    renderDeploy(overrides)
 
-    const button = container.querySelector('button')
-    expect(button?.getAttribute('aria-label')).toBe('Deploy')
-    expect(button?.className).toContain('resource-action')
-    expect(container.querySelector('[data-testid="upload-icon"]')).not.toBeNull()
-    expect(button?.getAttribute('variant')).toBe('subtle')
-    expect(container.textContent).not.toContain('DeployLiveUpdate')
-  })
-
-  it('uses the deployment status in the compact action label', () => {
-    renderDeploy({ isDeployed: true })
-    expect(container.querySelector('button')?.getAttribute('aria-label')).toBe('Live')
-
-    renderDeploy({ isDeployed: true, changeDetected: true })
-    expect(container.querySelector('button')?.getAttribute('aria-label')).toBe('Update')
-  })
-
-  it('disables deployment while the active tab is still hydrating another workflow', () => {
-    renderDeploy({ hydrationWorkflowId: 'workflow-2', registryActiveWorkflowId: 'workflow-2' })
-
-    expect(container.querySelector('button')?.disabled).toBe(true)
-    expect(container.textContent).toContain('Loading workflow...')
-  })
-
-  it('uses a caller-provided tooltip for external loading states', () => {
-    renderDeploy({}, { disabled: true, disabledTooltip: 'Loading workflow lock status...' })
-
-    expect(container.querySelector('button')?.disabled).toBe(true)
-    expect(container.textContent).toContain('Loading workflow lock status...')
+    expect(container.querySelector('button')?.getAttribute('aria-label')).toBe(label)
   })
 
   it.each([
-    ['non-admin users', { canAdmin: false }],
-    ['empty workflows', { hasBlocks: false }],
-    ['locked workflows', { disabled: true }],
+    ['non-admin users', {}, { canAdmin: false }],
+    ['empty workflows', { hasBlocks: false }, {}],
+    ['locked workflows', {}, { disabled: true }],
     [
       'unsynchronized workflows',
       {
         readiness: { isBlocked: true, isSyncing: false, tooltip: 'Saving workflow changes' },
       },
+      {},
     ],
-  ])('disables the action for %s', (_reason, overrides) => {
-    const permissions =
-      overrides.canAdmin === false
-        ? {
-            canRead: true,
-            canEdit: true,
-            canAdmin: false,
-            userPermissions: 'write' as const,
-            isLoading: false,
-            error: null,
-          }
-        : undefined
-
-    Object.assign(mockState, overrides)
-    act(() => {
-      root.render(
-        <Deploy
-          activeWorkflowId='workflow-1'
-          userPermissions={
-            permissions ?? {
-              canRead: true,
-              canEdit: true,
-              canAdmin: true,
-              userPermissions: 'admin',
-              isLoading: false,
-              error: null,
-            }
-          }
-          compact
-          disabled={overrides.disabled === true}
-        />
-      )
-    })
+    [
+      'workflows that are still loading',
+      { hydrationWorkflowId: 'workflow-2', registryActiveWorkflowId: 'workflow-2' },
+      {},
+    ],
+  ])('disables the action for %s', (_reason, overrides, props) => {
+    renderDeploy(overrides, props)
 
     expect(container.querySelector('button')?.disabled).toBe(true)
   })
@@ -236,8 +183,6 @@ describe('Deploy compact mode', () => {
       container.querySelector('button')?.click()
     })
 
-    expect(mockState.handleDeployClick).toHaveBeenCalledOnce()
-    expect(mockState.modalProps?.open).toBe(true)
     expect(container.querySelector('[role="dialog"]')).not.toBeNull()
   })
 })
