@@ -156,9 +156,7 @@ export function useWorkspaceImageDimensionsAdapter(workspaceId: string): ImageDi
         // on a real mismatch, so we overwrite to self-correct.
         if (!record || (record.width === dimensions.width && record.height === dimensions.height))
           return
-        // Populate the cache so this and sibling views reserve space immediately. Kept even if the PATCH
-        // fails (a 403 for a read-only member, or a transient error): the measurement is the real displayed
-        // size, correct regardless of whether the write landed — a later list refetch reconciles.
+        // Populate the cache so this and sibling views reserve space immediately.
         queryClient.setQueryData<WorkspaceFileRecord[]>(listKey, (previous) =>
           previous?.map((entry) => (entry.id === record.id ? { ...entry, ...dimensions } : entry))
         )
@@ -167,7 +165,18 @@ export function useWorkspaceImageDimensionsAdapter(workspaceId: string): ImageDi
           // Send the key we measured against; the server rejects the write if the row's content (key) has
           // since changed, so a stale in-flight PATCH for replaced bytes can't persist the old size.
           body: { key: record.key, ...dimensions },
-        }).catch(() => {})
+        })
+          .then((response) => {
+            // The guard rejected the write because the file's content (key) changed since we measured —
+            // our optimistic patch is now for superseded bytes, so refetch to reconcile the cache with the
+            // new content (its real size is persisted when the replaced image next loads). Do NOT re-send
+            // this measurement: it's of the old bytes and would write the wrong size under the new key.
+            if (!response.success) void queryClient.invalidateQueries({ queryKey: listKey })
+          })
+          // A transport error / 403 for a read-only member leaves the optimistic value in place: the
+          // measurement is the real displayed size, correct whether or not it persisted; a later list
+          // refetch reconciles it.
+          .catch(() => {})
       },
     }
   }, [queryClient, workspaceId])
