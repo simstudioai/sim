@@ -289,6 +289,42 @@ describe("ChipModalField inputType='password'", () => {
     expect(document.querySelector('[aria-label="Hide password"]')).not.toBeNull()
   })
 
+  it('keeps the toggle label honest when a keyboard moves focus to it', () => {
+    mountPasswordField('hunter2-secret')
+    act(() => passwordInput().focus())
+
+    // Tabbing to the toggle blurs the input, which re-masks — so by the time a
+    // keyboard can activate the button it already reads "Show password", and
+    // activating it reveals. The label must never disagree with what is on
+    // screen, in either direction.
+    const focusedToggle = document.querySelector<HTMLButtonElement>('[aria-label="Hide password"]')
+    if (!focusedToggle) throw new Error('Toggle should read "Hide password" while focused')
+    act(() => focusedToggle.focus())
+    expect(passwordInput().className).toContain(MASK_CLASS)
+
+    const toggle = document.querySelector<HTMLButtonElement>('[aria-label="Show password"]')
+    if (!toggle) throw new Error('Toggle should read "Show password" once the input has blurred')
+
+    // Enter/Space on a focused button dispatch a plain click, with no mousedown.
+    act(() => toggle.click())
+    expect(passwordInput().className).not.toContain(MASK_CLASS)
+    expect(document.querySelector('[aria-label="Hide password"]')).not.toBeNull()
+  })
+
+  it('hides a revealed password on keyboard activation when the input is not focused', () => {
+    mountPasswordField('hunter2-secret')
+
+    const reveal = document.querySelector<HTMLButtonElement>('[aria-label="Show password"]')
+    if (!reveal) throw new Error('Reveal toggle did not render')
+    act(() => reveal.click())
+    expect(passwordInput().className).not.toContain(MASK_CLASS)
+
+    const hide = document.querySelector<HTMLButtonElement>('[aria-label="Hide password"]')
+    if (!hide) throw new Error('Hide toggle did not render')
+    act(() => hide.click())
+    expect(passwordInput().className).toContain(MASK_CLASS)
+  })
+
   it('hides a focused password instead of re-revealing it', () => {
     mountPasswordField('hunter2-secret')
     act(() => passwordInput().focus())
