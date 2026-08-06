@@ -6,6 +6,7 @@ import {
   isResolvedSecretModelContentUnchanged,
   projectResolvedSecretDiagnosticError,
   projectResolvedSecretModelContent,
+  projectResolvedSecretModelJsonContent,
   projectResolvedSecretModelJsonStrings,
 } from '@/executor/utils/resolved-secret-content-projection'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
@@ -285,6 +286,88 @@ describe('projectResolvedSecretModelContent', () => {
     expect(isResolvedSecretModelContentUnchanged('{{Test}}', registry)).toBe(false)
     expect(isResolvedSecretModelContentUnchanged(['resource', '{{Test}}'], registry)).toBe(false)
     expect(isResolvedSecretModelContentUnchanged(['resource', 'safe'], registry)).toBe(true)
+  })
+})
+
+describe('projectResolvedSecretModelJsonContent', () => {
+  it('normalizes dates using their JSON wire representation', () => {
+    const registry = new ResolvedSecretTraceRegistry()
+    const createdAt = new Date('2026-08-05T12:34:56.789Z')
+
+    expect(projectResolvedSecretModelJsonContent({ createdAt }, registry)).toEqual({
+      safe: true,
+      value: { createdAt: '2026-08-05T12:34:56.789Z' },
+    })
+    expect(createdAt).toBeInstanceOf(Date)
+  })
+
+  it('projects active secrets emitted by toJSON after materialization', () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
+    ])
+    registry.recordResolved('TOKEN', 'secret-value')
+
+    expect(
+      projectResolvedSecretModelJsonContent(
+        {
+          toJSON: () => ({ authorization: 'Bearer secret-value' }),
+        },
+        registry
+      )
+    ).toEqual({
+      safe: true,
+      value: { authorization: 'Bearer {{TOKEN}}' },
+    })
+  })
+
+  it('does not invoke JSON serialization when provenance is incomplete', () => {
+    const registry = new ResolvedSecretTraceRegistry()
+    registry.markIncomplete()
+    const toJSON = vi.fn(() => ({ value: 'untrusted' }))
+
+    expect(projectResolvedSecretModelJsonContent({ toJSON }, registry)).toEqual({ safe: false })
+    expect(toJSON).not.toHaveBeenCalled()
+  })
+
+  it('uses native JSON semantics for undefined and non-finite numbers', () => {
+    const registry = new ResolvedSecretTraceRegistry()
+
+    expect(
+      projectResolvedSecretModelJsonContent(
+        {
+          omitted: undefined,
+          undefinedInArray: [undefined],
+          nan: Number.NaN,
+          infinities: [Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY],
+        },
+        registry
+      )
+    ).toEqual({
+      safe: true,
+      value: {
+        undefinedInArray: [null],
+        nan: null,
+        infinities: [null, null],
+      },
+    })
+  })
+
+  it('returns a controlled unsafe result for values JSON cannot serialize', () => {
+    const registry = new ResolvedSecretTraceRegistry()
+    const cyclic: Record<string, unknown> = {}
+    cyclic.self = cyclic
+
+    expect(projectResolvedSecretModelJsonContent(cyclic, registry)).toEqual({ safe: false })
+    expect(projectResolvedSecretModelJsonContent({ value: 1n }, registry)).toEqual({ safe: false })
+  })
+
+  it('enforces the byte limit after secret aliases are projected', () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'X', plaintext: 'x', encryptedValue: 'ciphertext' },
+    ])
+    registry.recordResolved('X', 'x')
+
+    expect(projectResolvedSecretModelJsonContent({ a: 'x' }, registry, 9)).toEqual({ safe: false })
   })
 })
 

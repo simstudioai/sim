@@ -72,7 +72,6 @@ vi.mock('@/lib/execution/cancellation', () => ({
 }))
 
 vi.mock('@/lib/execution/payloads/materialization.server', () => ({
-  MAX_INLINE_MATERIALIZATION_BYTES: 50 * 1024 * 1024,
   readUserFileContent: mockReadUserFileContent,
 }))
 

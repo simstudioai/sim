@@ -5,6 +5,7 @@ import {
   isResolvedSecretModelContentUnchanged,
   projectResolvedSecretModelContent,
   projectResolvedSecretModelControlMessage,
+  projectResolvedSecretModelJsonContent,
 } from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -124,7 +125,7 @@ export function inspectToolResultForCopilot(
     if (Object.hasOwn(result, 'output')) content.output = result.output
     if (Object.hasOwn(result, 'error')) content.error = result.error
     if (resources !== undefined) content.resources = resourceContent(resources)
-    const projection = projectResolvedSecretModelContent(content, registry)
+    const projection = projectResolvedSecretModelJsonContent(content, registry)
     if (!projection.safe || !projection.value || typeof projection.value !== 'object') {
       return { safe: false, result: omittedResult(result, registry) }
     }

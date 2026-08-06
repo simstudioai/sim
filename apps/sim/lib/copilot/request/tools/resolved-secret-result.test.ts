@@ -226,6 +226,28 @@ describe('projectToolResultForCopilot', () => {
     })
   })
 
+  it('serializes table-style dates for Copilot without mutating the runtime result', () => {
+    const registry = new ResolvedSecretTraceRegistry()
+    const createdAt = new Date('2026-08-05T12:34:56.789Z')
+    const runtimeResult = {
+      success: true,
+      output: {
+        table: { id: 'table-1', createdAt },
+        rows: [{ id: 'row-1', createdAt }],
+      },
+    }
+
+    expect(projectToolResultForCopilot(runtimeResult, registry)).toEqual({
+      success: true,
+      output: {
+        table: { id: 'table-1', createdAt: '2026-08-05T12:34:56.789Z' },
+        rows: [{ id: 'row-1', createdAt: '2026-08-05T12:34:56.789Z' }],
+      },
+    })
+    expect(runtimeResult.output.table.createdAt).toBe(createdAt)
+    expect(runtimeResult.output.rows[0].createdAt).toBe(createdAt)
+  })
+
   it('preserves foreign internal-looking tool output when the registry has no matching alias', () => {
     const registry = new ResolvedSecretTraceRegistry()
 

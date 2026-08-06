@@ -70,7 +70,8 @@ export function resolveTableWriteSecretProvenance(options: {
   targets: TableWriteProvenanceTarget[]
   rowKeys: string[]
 }): TableWriteProvenanceResult {
-  const inspection = inspectPrivateSecretProvenanceRequest(options.request.headers, options.payload)
+  const { request } = options
+  const inspection = inspectPrivateSecretProvenanceRequest(request.headers, options.payload)
   if (inspection.status === 'unsupported') {
     if (options.authType === AuthType.INTERNAL_JWT) {
       return { success: true, provenanceByRowKey: undefined }
@@ -154,8 +155,9 @@ export async function createTableRowsResponse(options: {
   body: Record<string, unknown>
   rows: TableRowCrossing[]
 }): Promise<NextResponse> {
+  const { request } = options
   const negotiation = negotiatePrivateToolMetadataResponse(
-    options.request.headers,
+    request.headers,
     RESOLVED_SECRET_PROVENANCE_METADATA_V1,
     options.authType === AuthType.INTERNAL_JWT
   )

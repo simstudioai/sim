@@ -496,9 +496,41 @@ export function projectResolvedSecretModelContent(
 }
 
 /**
+ * Projects content after applying the same normalization as a JSON wire boundary. This converts
+ * values such as dates through their native `toJSON` representation, omits unsupported object
+ * fields, and rejects values that JSON itself cannot serialize.
+ */
+export function projectResolvedSecretModelJsonContent(
+  value: unknown,
+  registry: ResolvedSecretTraceRegistry | undefined,
+  maxBytes = MAX_INLINE_MATERIALIZATION_BYTES,
+  options: ResolvedSecretContentProjectionOptions = {}
+): ResolvedSecretContentProjection {
+  if (!getResolvedSecretModelMatcher(registry).complete) return { safe: false }
+
+  try {
+    const encoded = JSON.stringify(value)
+    if (encoded === undefined || Buffer.byteLength(encoded, 'utf8') > maxBytes) {
+      return { safe: false }
+    }
+    const normalized: unknown = JSON.parse(encoded)
+    const projection = projectResolvedSecretModelContent(normalized, registry, maxBytes, options)
+    if (!projection.safe) return projection
+
+    const projectedEncoding = JSON.stringify(projection.value)
+    return projectedEncoding !== undefined &&
+      Buffer.byteLength(projectedEncoding, 'utf8') <= maxBytes
+      ? projection
+      : { safe: false }
+  } catch {
+    return { safe: false }
+  }
+}
+
+/**
  * Projects logger-visible diagnostics and additionally removes internal-looking runtime names.
- * Model and tool-result boundaries must use `projectResolvedSecretModelContent` so unrelated data
- * remains byte-preserving unless it matches execution provenance.
+ * Non-JSON model boundaries use `projectResolvedSecretModelContent`; JSON tool-result boundaries
+ * use `projectResolvedSecretModelJsonContent` to apply their wire semantics before projection.
  */
 export function projectResolvedSecretDiagnosticContent(
   value: unknown,

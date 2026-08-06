@@ -20,7 +20,10 @@ import { parseBuffer } from '@/lib/file-parsers'
 import type { FileParseMetadata } from '@/lib/file-parsers/types'
 import { resolveParserExtension } from '@/lib/knowledge/documents/parser-extension'
 import { retryWithExponentialBackoff } from '@/lib/knowledge/documents/utils'
-import { assertKnowledgeOpaqueModelInputSafe } from '@/lib/knowledge/model-input-provenance'
+import {
+  assertKnowledgeOpaqueModelInputSafe,
+  getKnowledgeOpaqueModelInputRegistry,
+} from '@/lib/knowledge/model-input-provenance'
 import { StorageService } from '@/lib/uploads'
 import {
   isModelSafeWorkspaceFileKey,
@@ -30,6 +33,7 @@ import { extractStorageKey, isInternalFileUrl } from '@/lib/uploads/utils/file-u
 import { downloadFileFromUrl } from '@/lib/uploads/utils/file-utils.server'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 import { mistralParserTool } from '@/tools/mistral/parser'
+import { prepareToolRequest } from '@/tools/request-transport'
 
 const logger = createLogger('DocumentProcessor')
 
@@ -50,15 +54,6 @@ type OCRResult = {
 
 type OCRPage = {
   markdown?: string
-}
-
-type OCRRequestBody = {
-  model: string
-  document: {
-    type: string
-    document_url: string
-  }
-  include_image_base64: boolean
 }
 
 const MISTRAL_MAX_PAGES = 1000
@@ -477,8 +472,8 @@ function extractPageContent(pages: OCRPage[]): string {
 
 async function makeOCRRequest(
   endpoint: string,
-  headers: Record<string, string>,
-  body: OCRRequestBody
+  headers: HeadersInit,
+  body: string | Record<string, unknown>
 ): Promise<Response> {
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), TIMEOUTS.MISTRAL_OCR_API)
@@ -487,7 +482,7 @@ async function makeOCRRequest(
     const response = await fetch(endpoint, {
       method: 'POST',
       headers,
-      body: JSON.stringify(body),
+      body: typeof body === 'string' ? body : JSON.stringify(body),
       signal: controller.signal,
     })
 
@@ -590,10 +585,6 @@ async function parseWithMistralOCR(
     throw new Error('Mistral API key required')
   }
 
-  if (!mistralParserTool.request?.body) {
-    throw new Error('Mistral parser tool not configured')
-  }
-
   const { httpsUrl, cloudUrl, buffer } = await handleFileForOCR(
     fileUrl,
     filename,
@@ -641,34 +632,28 @@ async function executeMistralOCRRequest(
 ): Promise<Response> {
   return retryWithExponentialBackoff(
     async () => {
-      let url =
-        typeof mistralParserTool.request!.url === 'function'
-          ? mistralParserTool.request!.url(params)
-          : mistralParserTool.request!.url
+      const request = prepareToolRequest(
+        mistralParserTool,
+        params,
+        getKnowledgeOpaqueModelInputRegistry()
+      )
+      let { url } = request
 
-      const isInternalRoute = url.startsWith('/')
-
-      if (isInternalRoute) {
+      if (request.isInternalRoute) {
         const { getInternalApiBaseUrl } = await import('@/lib/core/utils/urls')
         url = `${getInternalApiBaseUrl()}${url}`
       }
 
-      let headers =
-        typeof mistralParserTool.request!.headers === 'function'
-          ? mistralParserTool.request!.headers(params)
-          : mistralParserTool.request!.headers
+      const { headers } = request
 
-      if (isInternalRoute) {
+      if (request.isInternalRoute) {
         const { generateInternalToken } = await import('@/lib/auth/internal')
         const internalToken = await generateInternalToken(userId)
-        headers = {
-          ...headers,
-          Authorization: `Bearer ${internalToken}`,
-        }
+        headers.set('Authorization', `Bearer ${internalToken}`)
       }
 
-      const requestBody = mistralParserTool.request!.body!(params) as OCRRequestBody
-      return makeOCRRequest(url, headers as Record<string, string>, requestBody)
+      if (!request.body) throw new Error('Mistral parser request body is unavailable')
+      return makeOCRRequest(url, headers, request.body)
     },
     { maxRetries: 3, initialDelayMs: 1000, maxDelayMs: 10000 }
   )

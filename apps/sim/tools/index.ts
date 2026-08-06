@@ -1,4 +1,3 @@
-import { isDeepStrictEqual } from 'node:util'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
@@ -39,9 +38,6 @@ import {
   serializeExecutionDeadlineHeader,
 } from '@/lib/execution/execution-deadline-header'
 import {
-  addModelInputProvenanceToRequest,
-  createModelInputProvenanceRequestMetadata,
-  createPrivateSecretProvenanceRequestMetadata,
   OPAQUE_MODEL_INPUT_PROVENANCE_UNAVAILABLE_ERROR,
   OPAQUE_MODEL_INPUT_RESOLVED_SECRET_ERROR,
 } from '@/lib/execution/model-input-provenance'
@@ -69,13 +65,17 @@ import type { ExecutionContext, UserFile } from '@/executor/types'
 import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
 import {
   projectResolvedSecretDiagnosticContent,
-  projectResolvedSecretModelContent,
   projectResolvedSecretModelControlMessage,
 } from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { ErrorInfo } from '@/tools/error-extractors'
 import { extractErrorMessage } from '@/tools/error-extractors'
 import { HostedKeyRateLimitedError, HostedKeyUnavailableError } from '@/tools/errors'
+import {
+  getOwnEnumerableDataEntries,
+  prepareToolRequest,
+  projectToolModelInputParams,
+} from '@/tools/request-transport'
 import type {
   BYOKProviderId,
   OAuthTokenPayload,
@@ -84,134 +84,15 @@ import type {
   ToolResponse,
   ToolRetryConfig,
 } from '@/tools/types'
-import { formatRequestParams, getTool, validateRequiredParametersAfterMerge } from '@/tools/utils'
+import { getTool, validateRequiredParametersAfterMerge } from '@/tools/utils'
 import * as toolsUtilsServer from '@/tools/utils.server'
 
 const logger = createLogger('Tools')
 const PRIVATE_TOOL_METADATA_ERROR_MESSAGE = 'Internal tool response metadata could not be verified'
-const MODEL_INPUT_PROJECTION_ERROR_MESSAGE = 'Model input could not be safely projected'
-const PRIVATE_MODEL_INPUT_EXTERNAL_URL_ERROR_MESSAGE =
-  'Private model input provenance is only supported for internal routes'
 const PRIVATE_MODEL_INPUT_DIRECT_EXECUTION_ERROR_MESSAGE =
   'Private model input provenance is not supported by direct execution'
-const PRIVATE_SECRET_PROVENANCE_EXTERNAL_URL_ERROR_MESSAGE =
-  'Private secret provenance is only supported for internal routes'
 const PRIVATE_SECRET_PROVENANCE_DIRECT_EXECUTION_ERROR_MESSAGE =
   'Private secret provenance is not supported by direct execution'
-
-function haveExactOwnKeys(
-  selected: Record<string, unknown>,
-  projected: Record<string, unknown>
-): boolean {
-  const selectedKeys = Reflect.ownKeys(selected)
-  const projectedKeys = Reflect.ownKeys(projected)
-  return (
-    selectedKeys.length === projectedKeys.length &&
-    selectedKeys.every((key) => typeof key === 'string' && Object.hasOwn(projected, key)) &&
-    projectedKeys.every((key) => typeof key === 'string' && Object.hasOwn(selected, key))
-  )
-}
-
-function getOwnEnumerableDataEntries(
-  record: Record<string, unknown>
-): Array<[string, unknown]> | undefined {
-  const entries: Array<[string, unknown]> = []
-  for (const key of Reflect.ownKeys(record)) {
-    if (typeof key !== 'string') return undefined
-    const descriptor = Object.getOwnPropertyDescriptor(record, key)
-    if (!descriptor?.enumerable || !('value' in descriptor)) return undefined
-    entries.push([key, descriptor.value])
-  }
-  return entries
-}
-
-function inspectSelectedModelInputRecord(
-  tool: ToolConfig,
-  selected: unknown
-): { record: Record<string, unknown>; entries: Array<[string, unknown]> } | undefined {
-  if (!isPlainRecord(selected)) return undefined
-
-  const entries = getOwnEnumerableDataEntries(selected)
-  if (!entries || entries.some(([key]) => !Object.hasOwn(tool.params, key))) return undefined
-  return { record: selected, entries }
-}
-
-function projectToolModelInputParams(
-  tool: ToolConfig,
-  params: Record<string, any>,
-  registry: ResolvedSecretTraceRegistry | undefined
-): Record<string, any> {
-  const modelInput = tool.request.modelInput
-  if (!registry || modelInput?.mode !== 'project') return params
-
-  try {
-    const selection = inspectSelectedModelInputRecord(tool, modelInput.select(params))
-    if (!selection) {
-      throw new Error(MODEL_INPUT_PROJECTION_ERROR_MESSAGE)
-    }
-    const { record: selected, entries } = selection
-    const selectedValues = entries.map(([, value]) => value)
-
-    const projection = projectResolvedSecretModelContent(
-      selectedValues,
-      registry.forkForToolInputValues(selectedValues)
-    )
-    if (
-      !projection.safe ||
-      !Array.isArray(projection.value) ||
-      projection.value.length !== entries.length
-    ) {
-      throw new Error(MODEL_INPUT_PROJECTION_ERROR_MESSAGE)
-    }
-
-    const projectedSelected = Object.create(Object.getPrototypeOf(selected)) as Record<
-      string,
-      unknown
-    >
-    for (let index = 0; index < entries.length; index++) {
-      Object.defineProperty(projectedSelected, entries[index][0], {
-        value: projection.value[index],
-        enumerable: true,
-        configurable: true,
-        writable: true,
-      })
-    }
-    if (!haveExactOwnKeys(selected, projectedSelected)) {
-      throw new Error(MODEL_INPUT_PROJECTION_ERROR_MESSAGE)
-    }
-
-    if (!modelInput.applyProjected) {
-      return { ...params, ...projectedSelected }
-    }
-
-    const originalSelectedParams: Record<string, unknown> = {}
-    for (const [key] of entries) {
-      originalSelectedParams[key] = params[key]
-    }
-    const selectedParamsClone = structuredClone(originalSelectedParams)
-    const patch = inspectSelectedModelInputRecord(
-      tool,
-      modelInput.applyProjected(selectedParamsClone, projectedSelected)
-    )
-    if (!patch || !haveExactOwnKeys(selected, patch.record)) {
-      throw new Error(MODEL_INPUT_PROJECTION_ERROR_MESSAGE)
-    }
-
-    const projectedParams = { ...params, ...patch.record }
-    const verification = inspectSelectedModelInputRecord(tool, modelInput.select(projectedParams))
-    if (
-      !verification ||
-      !haveExactOwnKeys(selected, verification.record) ||
-      !isDeepStrictEqual(verification.record, projectedSelected)
-    ) {
-      throw new Error(MODEL_INPUT_PROJECTION_ERROR_MESSAGE)
-    }
-
-    return projectedParams
-  } catch {
-    throw new Error(MODEL_INPUT_PROJECTION_ERROR_MESSAGE)
-  }
-}
 
 function assertOpaqueToolModelInputSafe(
   tool: ToolConfig,
@@ -2407,31 +2288,10 @@ async function executeToolRequest(
   const requestId = generateRequestId()
   const structuralOnlyToolLogs =
     normalizeToolId(toolId) === 'function_execute' || isCustomTool(toolId)
-
-  const configuredEndpointUrl =
-    typeof tool.request.url === 'function' ? tool.request.url(params) : tool.request.url
-  const modelInput = tool.request.modelInput
-  const secretProvenance = tool.request.secretProvenance
-  const hasPrivateModelInputProvenance =
-    modelInput?.mode === 'private-provenance' ||
-    (modelInput?.mode === 'project' && modelInput.privateProvenance !== undefined)
-  if (hasPrivateModelInputProvenance && !configuredEndpointUrl.startsWith('/api/')) {
-    throw new Error(PRIVATE_MODEL_INPUT_EXTERNAL_URL_ERROR_MESSAGE)
-  }
-  if (secretProvenance && !configuredEndpointUrl.startsWith('/api/')) {
-    throw new Error(PRIVATE_SECRET_PROVENANCE_EXTERNAL_URL_ERROR_MESSAGE)
-  }
-  const requestInput = projectToolModelInputParams(tool, params, resolvedSecretTraceRegistry)
-  const requestParams = formatRequestParams(tool, requestInput)
   try {
+    const requestParams = prepareToolRequest(tool, params, resolvedSecretTraceRegistry)
     const endpointUrl = requestParams.url
-    const isInternalRoute = endpointUrl.startsWith('/api/')
-    if (hasPrivateModelInputProvenance && !isInternalRoute) {
-      throw new Error(PRIVATE_MODEL_INPUT_EXTERNAL_URL_ERROR_MESSAGE)
-    }
-    if (secretProvenance && !isInternalRoute) {
-      throw new Error(PRIVATE_SECRET_PROVENANCE_EXTERNAL_URL_ERROR_MESSAGE)
-    }
+    const { headers, isInternalRoute } = requestParams
     const baseUrl = isInternalRoute ? getInternalApiBaseUrl() : getBaseUrl()
 
     const fullUrlObj = new URL(endpointUrl, baseUrl)
@@ -2449,23 +2309,13 @@ async function executeToolRequest(
 
     const fullUrl = fullUrlObj.toString()
 
-    const selectedModelInput =
-      modelInput?.mode === 'private-provenance'
-        ? modelInput.select(requestInput)
-        : modelInput?.mode === 'project'
-          ? modelInput.privateProvenance?.(requestInput)
-          : undefined
-    const modelInputMetadata = hasPrivateModelInputProvenance
-      ? createModelInputProvenanceRequestMetadata(resolvedSecretTraceRegistry, selectedModelInput)
-      : undefined
-    const secretProvenanceMetadata = secretProvenance?.request
-      ? createPrivateSecretProvenanceRequestMetadata(
-          resolvedSecretTraceRegistry,
-          secretProvenance.request(requestInput)
-        )
-      : undefined
-    if (isCustomTool(toolId) && tool.request.body) {
-      const requestBody = tool.request.body(requestInput)
+    if (isCustomTool(toolId) && requestParams.body) {
+      let requestBody: unknown
+      try {
+        requestBody = JSON.parse(requestParams.body)
+      } catch {
+        requestBody = undefined
+      }
       if (
         typeof requestBody === 'object' &&
         requestBody !== null &&
@@ -2488,37 +2338,6 @@ async function executeToolRequest(
           throw validationError
         }
       }
-    }
-
-    const headers = new Headers(requestParams.headers)
-    if (modelInputMetadata || secretProvenanceMetadata) {
-      if (!requestParams.body) {
-        throw new Error('Model input provenance requires a JSON request body')
-      }
-      let requestBody: unknown
-      try {
-        requestBody = JSON.parse(requestParams.body)
-      } catch {
-        throw new Error('Model input provenance requires a JSON request body')
-      }
-      if (!isPlainRecord(requestBody)) {
-        throw new Error('Model input provenance request body is invalid')
-      }
-      const bodyWithModelInputProvenance = addModelInputProvenanceToRequest(
-        requestBody,
-        headers,
-        modelInputMetadata
-      )
-      requestParams.body = JSON.stringify(
-        addModelInputProvenanceToRequest(
-          bodyWithModelInputProvenance,
-          headers,
-          secretProvenanceMetadata
-        )
-      )
-    }
-    if (!headers.has('User-Agent')) {
-      headers.set('User-Agent', 'Sim')
     }
     await addInternalAuthIfNeeded(
       headers,

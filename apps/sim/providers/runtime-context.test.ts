@@ -226,6 +226,28 @@ describe('provider runtime context', () => {
     expect(registry.isComplete()).toBe(true)
   })
 
+  it('serializes dates for provider continuations while preserving the raw tool response', async () => {
+    const registry = new ResolvedSecretTraceRegistry()
+    const createdAt = new Date('2026-08-05T12:34:56.789Z')
+    const rawResult = {
+      success: true,
+      output: { id: 'row-1', createdAt },
+    }
+    mockExecuteTool.mockResolvedValueOnce(rawResult)
+
+    const execution = await runWithProviderRuntimeContext(
+      { resolvedSecretTraceRegistry: registry },
+      () => executeProviderToolWithInput('custom-tool', {}, { toolInput: {} })
+    )
+
+    expect(execution.rawResponse).toBe(rawResult)
+    expect(execution.rawResponse.output.createdAt).toBe(createdAt)
+    expect(execution.modelResponse).toEqual({
+      success: true,
+      output: { id: 'row-1', createdAt: '2026-08-05T12:34:56.789Z' },
+    })
+  })
+
   it.each([
     ['string', 'safe text', 'safe text'],
     ['number', 0, 0],

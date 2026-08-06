@@ -100,6 +100,15 @@ export function assertKnowledgeOpaqueModelInputSafe(): void {
   }
 }
 
+/** Returns the verified registry for an internal opaque Knowledge model call. */
+export function getKnowledgeOpaqueModelInputRegistry(): ResolvedSecretTraceRegistry {
+  const context = knowledgeModelInputContext.getStore()
+  if (!context?.opaqueInputSafe) {
+    throw new Error(MODEL_INPUT_PROJECTION_ERROR)
+  }
+  return context.registry ?? new ResolvedSecretTraceRegistry()
+}
+
 /** Projects one string immediately before it enters an embedding or reranking request. */
 export function projectKnowledgeModelInput(value: string): string {
   const registry = knowledgeModelInputContext.getStore()?.registry

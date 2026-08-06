@@ -47,7 +47,8 @@ export function resolveMemoryWriteSecretProvenance(options: {
 }):
   | { success: true; provenance?: DurableSecretProvenance }
   | { success: false; response: NextResponse } {
-  const inspection = inspectPrivateSecretProvenanceRequest(options.request.headers, options.payload)
+  const { request } = options
+  const inspection = inspectPrivateSecretProvenanceRequest(request.headers, options.payload)
   if (inspection.status === 'unsupported') {
     return options.authType === AuthType.INTERNAL_JWT
       ? { success: true }
@@ -81,8 +82,9 @@ export async function createMemoryResponse(options: {
   body: Record<string, unknown>
   memories: MemoryCrossing[]
 }): Promise<NextResponse> {
+  const { request } = options
   const negotiation = negotiatePrivateToolMetadataResponse(
-    options.request.headers,
+    request.headers,
     RESOLVED_SECRET_PROVENANCE_METADATA_V1,
     options.authType === AuthType.INTERNAL_JWT
   )

@@ -1,8 +1,10 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { getErrorMessage } from '@sim/utils/errors'
+import { isPlainRecord } from '@sim/utils/object'
 import {
   projectResolvedSecretModelContent,
   projectResolvedSecretModelControlMessage,
+  projectResolvedSecretModelJsonContent,
 } from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { type ExecuteToolOptions, executeTool } from '@/tools'
@@ -76,13 +78,19 @@ function projectProviderToolResponse(
   result: ToolResponse,
   registry: ResolvedSecretTraceRegistry
 ): ProviderToolResponseProjection {
-  const projection = projectResolvedSecretModelContent([result.output, result.error], registry)
-  if (!projection.safe || !Array.isArray(projection.value) || projection.value.length !== 2) {
+  const content: Record<string, unknown> = { output: result.output }
+  if (Object.hasOwn(result, 'error')) content.error = result.error
+  const projection = projectResolvedSecretModelJsonContent(content, registry)
+  if (
+    !projection.safe ||
+    !isPlainRecord(projection.value) ||
+    !Object.hasOwn(projection.value, 'output')
+  ) {
     return { safe: false, response: omittedProviderToolResponse(result, registry) }
   }
 
-  const [output, error] = projection.value
-  if (output === undefined || (error !== undefined && typeof error !== 'string')) {
+  const { output, error } = projection.value
+  if (error !== undefined && typeof error !== 'string') {
     return { safe: false, response: omittedProviderToolResponse(result, registry) }
   }
   const { output: _output, error: _error, ...functionalFields } = result
