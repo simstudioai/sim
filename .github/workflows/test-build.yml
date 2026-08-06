@@ -162,6 +162,11 @@ jobs:
       - name: Trigger/block initialization cycle audit
         run: bun run check:trigger-block-cycle
 
+      # `next build` is webpack and `next dev` is Turbopack, so a specifier only
+      # webpack can resolve builds green here and breaks every dev server.
+      - name: Import specifier hygiene audit
+        run: bun run check:import-specifiers
+
       - name: SQL Date binding audit
         run: bun run check:sql-date-binding
 

@@ -34,6 +34,7 @@
     "check:tool-request-boundary": "bun run scripts/check-tool-request-boundary.ts",
     "check:tool-registry-boundary": "bun run scripts/check-tool-registry-boundary.ts",
     "check:trigger-block-cycle": "bun run scripts/check-trigger-block-cycle.ts",
+    "check:import-specifiers": "bun run scripts/check-import-specifiers.ts",
     "check:sql-date-binding": "bun run scripts/check-sql-date-binding.ts",
     "check:zustand-v5": "bun run scripts/check-zustand-v5-selectors.ts",
     "check:react-query": "bun run scripts/check-react-query-patterns.ts --check",
