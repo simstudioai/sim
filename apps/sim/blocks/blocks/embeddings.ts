@@ -4,25 +4,17 @@ import { EmbeddingsIcon } from '@/components/icons'
  * barrel: the barrel re-exports the client, which reaches BYOK key lookup and
  * `@sim/db`. Block configs are bundled for the browser, so only the pure
  * catalog data may cross this boundary.
- *
- * The sub-blocks below spell out models, task types, and dimensions as literals
- * rather than deriving them from the catalog. `scripts/generate-docs.ts` parses
- * this file as source text, so anything computed is invisible to the docs page
- * and to `integrations.json` (which would report zero operations). The
- * `embeddings.test.ts` drift test asserts the literals still match the catalog.
  */
-import { EMBEDDING_MODELS } from '@/lib/embeddings/catalog'
+import {
+  DEFAULT_MODEL_BY_PROVIDER,
+  EMBEDDING_CATALOG_PROVIDERS,
+  EMBEDDING_MODELS,
+  getModelsForProvider,
+} from '@/lib/embeddings/catalog'
 import type { EmbeddingCatalogProvider, EmbeddingTaskType } from '@/lib/embeddings/types'
-import type { BlockConfig, BlockMeta } from '@/blocks/types'
+import type { BlockConfig, BlockMeta, SubBlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { EmbeddingsResponse } from '@/tools/embeddings/types'
-
-const DEFAULT_MODEL_BY_PROVIDER: Record<EmbeddingCatalogProvider, string> = {
-  openai: 'text-embedding-3-small',
-  gemini: 'gemini-embedding-001',
-  cohere: 'embed-v4.0',
-  mistral: 'mistral-embed',
-}
 
 const TOOL_ID_BY_PROVIDER: Record<EmbeddingCatalogProvider, string> = {
   openai: 'embeddings_openai',
@@ -30,6 +22,76 @@ const TOOL_ID_BY_PROVIDER: Record<EmbeddingCatalogProvider, string> = {
   cohere: 'embeddings_cohere',
   mistral: 'embeddings_mistral',
 }
+
+const PROVIDER_LABELS: Record<EmbeddingCatalogProvider, string> = {
+  openai: 'OpenAI',
+  gemini: 'Google Gemini',
+  cohere: 'Cohere',
+  mistral: 'Mistral',
+}
+
+const TASK_TYPE_LABELS: Record<EmbeddingTaskType, string> = {
+  document: 'Document',
+  query: 'Query',
+  similarity: 'Semantic Similarity',
+  classification: 'Classification',
+  clustering: 'Clustering',
+}
+
+/**
+ * Model, task-type, and dimension dropdowns are derived from the catalog rather
+ * than hand-copied, so adding a catalog model cannot leave this block stale.
+ * Each dropdown is scoped by a `condition` naming the provider (and model, where
+ * the capability is per-model) because every variant shares one sub-block id.
+ */
+const MODEL_SUB_BLOCKS: SubBlockConfig[] = EMBEDDING_CATALOG_PROVIDERS.map((provider) => ({
+  id: 'model',
+  title: 'Model',
+  type: 'dropdown',
+  options: getModelsForProvider(provider).map((id) => ({ label: EMBEDDING_MODELS[id].label, id })),
+  value: () => DEFAULT_MODEL_BY_PROVIDER[provider],
+  condition: { field: 'provider', value: provider },
+  dependsOn: ['provider'],
+}))
+
+const CAPABILITY_SUB_BLOCKS: SubBlockConfig[] = Object.entries(EMBEDDING_MODELS).flatMap(
+  ([model, info]) => {
+    const scope = { field: 'provider', value: info.provider, and: { field: 'model', value: model } }
+    const subBlocks: SubBlockConfig[] = []
+
+    if (info.supportedTaskTypes) {
+      subBlocks.push({
+        id: 'taskType',
+        title: 'Task Type',
+        type: 'dropdown',
+        options: info.supportedTaskTypes.map((task) => ({
+          label: TASK_TYPE_LABELS[task],
+          id: task,
+        })),
+        value: () => 'document',
+        condition: scope,
+        dependsOn: ['provider', 'model'],
+      })
+    }
+
+    if (info.supportedDimensions) {
+      subBlocks.push({
+        id: 'dimensions',
+        title: 'Dimensions',
+        type: 'dropdown',
+        options: info.supportedDimensions.map((size) => ({
+          label: size === info.nativeDimensions ? `${size} (default)` : String(size),
+          id: String(size),
+        })),
+        value: () => String(info.nativeDimensions),
+        condition: scope,
+        dependsOn: ['provider', 'model'],
+      })
+    }
+
+    return subBlocks
+  }
+)
 
 export const EmbeddingsBlock: BlockConfig<EmbeddingsResponse> = {
   type: 'embeddings',
@@ -55,188 +117,15 @@ export const EmbeddingsBlock: BlockConfig<EmbeddingsResponse> = {
       id: 'provider',
       title: 'Provider',
       type: 'dropdown',
-      options: [
-        { label: 'OpenAI', id: 'openai' },
-        { label: 'Google Gemini', id: 'gemini' },
-        { label: 'Cohere', id: 'cohere' },
-        { label: 'Mistral', id: 'mistral' },
-      ],
+      options: EMBEDDING_CATALOG_PROVIDERS.map((provider) => ({
+        label: PROVIDER_LABELS[provider],
+        id: provider,
+      })),
       commandSearchable: true,
       value: () => 'openai',
     },
-    {
-      id: 'model',
-      title: 'Model',
-      type: 'dropdown',
-      options: [
-        { label: 'text-embedding-3-small', id: 'text-embedding-3-small' },
-        { label: 'text-embedding-3-large', id: 'text-embedding-3-large' },
-        { label: 'text-embedding-ada-002', id: 'text-embedding-ada-002' },
-      ],
-      value: () => 'text-embedding-3-small',
-      condition: { field: 'provider', value: 'openai' },
-      dependsOn: ['provider'],
-    },
-    {
-      id: 'model',
-      title: 'Model',
-      type: 'dropdown',
-      options: [{ label: 'gemini-embedding-001', id: 'gemini-embedding-001' }],
-      value: () => 'gemini-embedding-001',
-      condition: { field: 'provider', value: 'gemini' },
-      dependsOn: ['provider'],
-    },
-    {
-      id: 'model',
-      title: 'Model',
-      type: 'dropdown',
-      options: [{ label: 'embed-v4.0', id: 'embed-v4.0' }],
-      value: () => 'embed-v4.0',
-      condition: { field: 'provider', value: 'cohere' },
-      dependsOn: ['provider'],
-    },
-    {
-      id: 'model',
-      title: 'Model',
-      type: 'dropdown',
-      options: [
-        { label: 'mistral-embed', id: 'mistral-embed' },
-        { label: 'codestral-embed', id: 'codestral-embed' },
-      ],
-      value: () => 'mistral-embed',
-      condition: { field: 'provider', value: 'mistral' },
-      dependsOn: ['provider'],
-    },
-    {
-      id: 'taskType',
-      title: 'Task Type',
-      type: 'dropdown',
-      options: [
-        { label: 'Document', id: 'document' },
-        { label: 'Query', id: 'query' },
-        { label: 'Semantic Similarity', id: 'similarity' },
-        { label: 'Classification', id: 'classification' },
-        { label: 'Clustering', id: 'clustering' },
-      ],
-      value: () => 'document',
-      condition: {
-        field: 'provider',
-        value: 'gemini',
-        and: { field: 'model', value: 'gemini-embedding-001' },
-      },
-      dependsOn: ['provider', 'model'],
-    },
-    {
-      id: 'taskType',
-      title: 'Task Type',
-      type: 'dropdown',
-      options: [
-        { label: 'Document', id: 'document' },
-        { label: 'Query', id: 'query' },
-        { label: 'Classification', id: 'classification' },
-        { label: 'Clustering', id: 'clustering' },
-      ],
-      value: () => 'document',
-      condition: {
-        field: 'provider',
-        value: 'cohere',
-        and: { field: 'model', value: 'embed-v4.0' },
-      },
-      dependsOn: ['provider', 'model'],
-    },
-    {
-      id: 'dimensions',
-      title: 'Dimensions',
-      type: 'dropdown',
-      options: [
-        { label: '1536 (default)', id: '1536' },
-        { label: '1024', id: '1024' },
-        { label: '768', id: '768' },
-        { label: '512', id: '512' },
-        { label: '256', id: '256' },
-      ],
-      value: () => '1536',
-      condition: {
-        field: 'provider',
-        value: 'openai',
-        and: { field: 'model', value: 'text-embedding-3-small' },
-      },
-      dependsOn: ['provider', 'model'],
-    },
-    {
-      id: 'dimensions',
-      title: 'Dimensions',
-      type: 'dropdown',
-      options: [
-        { label: '3072 (default)', id: '3072' },
-        { label: '1536', id: '1536' },
-        { label: '1024', id: '1024' },
-        { label: '768', id: '768' },
-        { label: '512', id: '512' },
-        { label: '256', id: '256' },
-      ],
-      value: () => '3072',
-      condition: {
-        field: 'provider',
-        value: 'openai',
-        and: { field: 'model', value: 'text-embedding-3-large' },
-      },
-      dependsOn: ['provider', 'model'],
-    },
-    {
-      id: 'dimensions',
-      title: 'Dimensions',
-      type: 'dropdown',
-      options: [
-        { label: '3072 (default)', id: '3072' },
-        { label: '1536', id: '1536' },
-        { label: '768', id: '768' },
-      ],
-      value: () => '3072',
-      condition: {
-        field: 'provider',
-        value: 'gemini',
-        and: { field: 'model', value: 'gemini-embedding-001' },
-      },
-      dependsOn: ['provider', 'model'],
-    },
-    {
-      id: 'dimensions',
-      title: 'Dimensions',
-      type: 'dropdown',
-      options: [
-        { label: '1536 (default)', id: '1536' },
-        { label: '1024', id: '1024' },
-        { label: '512', id: '512' },
-        { label: '256', id: '256' },
-      ],
-      value: () => '1536',
-      condition: {
-        field: 'provider',
-        value: 'cohere',
-        and: { field: 'model', value: 'embed-v4.0' },
-      },
-      dependsOn: ['provider', 'model'],
-    },
-    {
-      id: 'dimensions',
-      title: 'Dimensions',
-      type: 'dropdown',
-      options: [
-        { label: '3072', id: '3072' },
-        { label: '1536 (default)', id: '1536' },
-        { label: '1024', id: '1024' },
-        { label: '512', id: '512' },
-        { label: '256', id: '256' },
-      ],
-      value: () => '1536',
-      condition: {
-        field: 'provider',
-        value: 'mistral',
-        and: { field: 'model', value: 'codestral-embed' },
-      },
-      dependsOn: ['provider', 'model'],
-    },
+    ...MODEL_SUB_BLOCKS,
+    ...CAPABILITY_SUB_BLOCKS,
     /**
      * One field for every provider. Sim stocks a hosted key for all four
      * (`OPENAI_API_KEY`, `GEMINI_API_KEY`, `COHERE_API_KEY`, `MISTRAL_API_KEY`),
@@ -334,7 +223,7 @@ export const EmbeddingsBlock: BlockConfig<EmbeddingsResponse> = {
   },
 }
 
-export { DEFAULT_MODEL_BY_PROVIDER, TOOL_ID_BY_PROVIDER }
+export { TOOL_ID_BY_PROVIDER }
 
 export const EmbeddingsBlockMeta = {
   tags: ['llm', 'vector-search'],

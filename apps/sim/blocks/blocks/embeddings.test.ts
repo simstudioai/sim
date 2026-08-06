@@ -2,18 +2,14 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { EMBEDDING_MODELS } from '@/lib/embeddings/catalog'
-import {
-  DEFAULT_MODEL_BY_PROVIDER,
-  EmbeddingsBlock,
-  TOOL_ID_BY_PROVIDER,
-} from '@/blocks/blocks/embeddings'
+import { DEFAULT_MODEL_BY_PROVIDER, EMBEDDING_MODELS } from '@/lib/embeddings/catalog'
+import { EmbeddingsBlock, TOOL_ID_BY_PROVIDER } from '@/blocks/blocks/embeddings'
 
 /**
- * The block spells its model, task-type, and dimension options out as literals
- * because `scripts/generate-docs.ts` parses the block file as source text and
- * cannot see computed values. These tests are what stop those literals from
- * drifting away from the catalog that actually drives the runtime.
+ * The block derives its model, task-type, and dimension options from the
+ * catalog, so these assert the derivation still produces what the UI expects:
+ * one dropdown per provider/model, the catalog's own option sets, and the
+ * native size pre-selected. They also pin the provider-to-tool routing.
  */
 
 function subBlocksById(id: string) {

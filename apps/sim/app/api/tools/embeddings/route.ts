@@ -10,9 +10,9 @@ import { getValidationErrorMessage, parseRequest, validationErrorResponse } from
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
+  DEFAULT_MODEL_BY_PROVIDER,
   embed,
   findEmbeddingModelInfo,
-  getModelsForProvider,
   resolveDimensions,
 } from '@/lib/embeddings'
 
@@ -20,13 +20,16 @@ const logger = createLogger('EmbeddingsToolAPI')
 
 export const dynamic = 'force-dynamic'
 
-/** Accepts a single string, an array, or a JSON-encoded array from a reference expression. */
+/**
+ * Accepts a single string, an array, or a JSON-encoded array from a reference
+ * expression. Probes for the opening bracket with a regex rather than `trim()`,
+ * which would copy the whole payload just to read one character.
+ */
 function normalizeInput(input: string | string[]): string[] {
   if (Array.isArray(input)) return input
-  const trimmed = input.trim()
-  if (trimmed.startsWith('[')) {
+  if (/^\s*\[/.test(input)) {
     try {
-      const parsed = JSON.parse(trimmed)
+      const parsed = JSON.parse(input)
       if (Array.isArray(parsed) && parsed.every((entry) => typeof entry === 'string')) {
         return parsed
       }
@@ -84,13 +87,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       { status: 400 }
     )
   }
-  if (texts.some((text) => text.trim().length === 0)) {
-    return NextResponse.json(
-      { success: false, error: 'input entries cannot be empty' },
-      { status: 400 }
-    )
-  }
-
+  /** Size is checked before the per-entry scan so an oversized body is rejected without copying it. */
   const totalChars = texts.reduce((sum, text) => sum + text.length, 0)
   if (totalChars > MAX_EMBEDDING_TOTAL_CHARS) {
     return NextResponse.json(
@@ -102,7 +99,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     )
   }
 
-  const resolvedModel = model || getModelsForProvider(provider)[0]
+  if (texts.some((text) => !/\S/.test(text))) {
+    return NextResponse.json(
+      { success: false, error: 'input entries cannot be empty' },
+      { status: 400 }
+    )
+  }
+
+  const resolvedModel = model || DEFAULT_MODEL_BY_PROVIDER[provider]
   const info = findEmbeddingModelInfo(resolvedModel)
   if (!info) {
     return NextResponse.json(

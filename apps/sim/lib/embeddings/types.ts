@@ -56,13 +56,21 @@ export interface EmbeddingAdapterContext {
   apiKey: string
   /** Model's un-reduced dimensionality, so adapters can detect a Matryoshka reduction. */
   nativeDimensions: number
-  /** Azure OpenAI only. */
-  endpoint?: string
-  /** Azure OpenAI only. */
-  apiVersion?: string
 }
 
-export type EmbeddingAdapterFactory = (context: EmbeddingAdapterContext) => EmbeddingProviderAdapter
+/**
+ * Azure selects the model by deployment name in the URL, so it needs routing
+ * fields no other provider takes. Declared as its own context rather than as
+ * optional fields on the shared one, so a caller cannot construct the Azure
+ * adapter without them and silently produce an `undefined/...` URL.
+ */
+export interface AzureEmbeddingAdapterContext extends EmbeddingAdapterContext {
+  endpoint: string
+  apiVersion: string
+}
+
+export type EmbeddingAdapterFactory<Ctx extends EmbeddingAdapterContext = EmbeddingAdapterContext> =
+  (context: Ctx) => EmbeddingProviderAdapter
 
 export interface EmbedOptions {
   /** Catalog model id. Defaults to the platform default when omitted. */

@@ -44,6 +44,15 @@ export const SUPPORTED_EMBEDDING_MODELS: Partial<Record<string, EmbeddingModelIn
     })
   )
 
+/**
+ * Throws unless `model` is selectable for knowledge-base indexing. Call before
+ * handing a model to `embed()` so an ineligible id fails here, naming the
+ * knowledge-base constraint, rather than deeper in the provider path.
+ */
+export function assertKbEmbeddingModel(model: string): void {
+  getEmbeddingModelInfo(model)
+}
+
 export function getEmbeddingModelInfo(model: string): EmbeddingModelInfo {
   const info = SUPPORTED_EMBEDDING_MODELS[model]
   if (!info) {

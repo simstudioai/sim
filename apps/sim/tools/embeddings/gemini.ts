@@ -6,5 +6,4 @@ export const embeddingsGeminiTool = createEmbeddingTool({
   provider: 'gemini',
   description: "Generate embeddings from text using Google's Gemini embedding models",
   envKeyPrefix: 'GEMINI_API_KEY',
-  defaultModel: 'gemini-embedding-001',
 })

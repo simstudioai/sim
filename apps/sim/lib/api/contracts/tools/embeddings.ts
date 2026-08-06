@@ -1,7 +1,17 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import type { EmbeddingCatalogProvider, EmbeddingTaskType } from '@/lib/embeddings/types'
 
-export const embeddingProviders = ['openai', 'gemini', 'cohere', 'mistral'] as const
+/**
+ * `satisfies` ties the wire enums to the catalog's own unions, so adding a
+ * provider or task type there cannot silently leave the API contract stale.
+ */
+export const embeddingProviders = [
+  'openai',
+  'gemini',
+  'cohere',
+  'mistral',
+] as const satisfies readonly EmbeddingCatalogProvider[]
 
 export const embeddingTaskTypes = [
   'document',
@@ -9,7 +19,7 @@ export const embeddingTaskTypes = [
   'similarity',
   'classification',
   'clustering',
-] as const
+] as const satisfies readonly EmbeddingTaskType[]
 
 /** Guards the route against unbounded fan-out into a paid provider. */
 export const MAX_EMBEDDING_INPUTS = 1000
@@ -46,7 +56,7 @@ export const embeddingsToolBodySchema = z.object({
     .optional(),
 })
 
-export const embeddingsUsageSchema = z.object({
+const embeddingsUsageSchema = z.object({
   prompt_tokens: z.number(),
   total_tokens: z.number(),
 })

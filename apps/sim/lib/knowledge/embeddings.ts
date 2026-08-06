@@ -9,6 +9,7 @@ import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billi
 import { env } from '@/lib/core/config/env'
 import { embed } from '@/lib/embeddings'
 import {
+  assertKbEmbeddingModel,
   DEFAULT_EMBEDDING_MODEL,
   EMBEDDING_DIMENSIONS,
   getEmbeddingModelInfo,
@@ -62,7 +63,7 @@ export async function generateEmbeddings(
   embeddingModel: string = DEFAULT_EMBEDDING_MODEL,
   workspaceId?: string | null
 ): Promise<GenerateEmbeddingsResult> {
-  getEmbeddingModelInfo(embeddingModel)
+  assertKbEmbeddingModel(embeddingModel)
 
   const result = await embed(texts, {
     model: embeddingModel,
@@ -89,7 +90,7 @@ export async function generateSearchEmbedding(
   embeddingModel: string = DEFAULT_EMBEDDING_MODEL,
   workspaceId?: string | null
 ): Promise<{ embedding: number[]; isBYOK: boolean }> {
-  getEmbeddingModelInfo(embeddingModel)
+  assertKbEmbeddingModel(embeddingModel)
 
   const result = await embed([query], {
     model: embeddingModel,

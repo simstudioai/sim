@@ -1,24 +1,13 @@
+/**
+ * Public surface of the embeddings module. Kept to what callers outside this
+ * directory actually use — the block imports `catalog` directly, because this
+ * barrel re-exports the client and would drag BYOK lookup and `@sim/db` into the
+ * browser bundle.
+ */
 export {
-  DEFAULT_EMBEDDING_MODEL,
-  EMBEDDING_MODELS,
-  type EmbeddingModelInfo,
+  DEFAULT_MODEL_BY_PROVIDER,
   findEmbeddingModelInfo,
-  getEmbeddingModelInfo,
-  getKbEligibleModels,
-  getModelsForProvider,
-  KB_EMBEDDING_DIMENSIONS,
   resolveDimensions,
 } from '@/lib/embeddings/catalog'
-export { EmbeddingAPIError, embed } from '@/lib/embeddings/client'
-export { resolveProviderKey } from '@/lib/embeddings/keys'
-export { getAdapterFactory } from '@/lib/embeddings/providers'
-export type {
-  EmbeddingAdapterContext,
-  EmbeddingCatalogProvider,
-  EmbeddingProviderAdapter,
-  EmbeddingProviderKind,
-  EmbeddingTaskType,
-  EmbedOptions,
-  EmbedResult,
-  TokenizerProviderId,
-} from '@/lib/embeddings/types'
+export { embed } from '@/lib/embeddings/client'
+export type { EmbeddingTaskType, EmbedOptions, EmbedResult } from '@/lib/embeddings/types'

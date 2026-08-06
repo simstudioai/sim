@@ -2,13 +2,13 @@ import {
   OPENAI_MAX_ITEMS_PER_REQUEST,
   type OpenAIEmbeddingResponse,
 } from '@/lib/embeddings/providers/openai'
-import type { EmbeddingAdapterFactory } from '@/lib/embeddings/types'
+import type { AzureEmbeddingAdapterContext, EmbeddingAdapterFactory } from '@/lib/embeddings/types'
 
 /**
  * Azure OpenAI embeddings. The model is selected by the deployment name in the
  * URL rather than a `model` body field, so `modelName` here is the deployment.
  */
-export const createAzureOpenAIAdapter: EmbeddingAdapterFactory = ({
+export const createAzureOpenAIAdapter: EmbeddingAdapterFactory<AzureEmbeddingAdapterContext> = ({
   modelName,
   apiKey,
   endpoint,

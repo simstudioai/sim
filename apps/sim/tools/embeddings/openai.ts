@@ -6,5 +6,4 @@ export const embeddingsOpenAITool = createEmbeddingTool({
   provider: 'openai',
   description: "Generate embeddings from text using OpenAI's embedding models",
   envKeyPrefix: 'OPENAI_API_KEY',
-  defaultModel: 'text-embedding-3-small',
 })

@@ -6,5 +6,4 @@ export const embeddingsMistralTool = createEmbeddingTool({
   provider: 'mistral',
   description: "Generate embeddings from text using Mistral's embedding models",
   envKeyPrefix: 'MISTRAL_API_KEY',
-  defaultModel: 'mistral-embed',
 })

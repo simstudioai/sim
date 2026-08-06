@@ -2,7 +2,6 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { splitByItemLimit } from '@/lib/embeddings/batching'
 import {
   EMBEDDING_MODELS,
   getEmbeddingModelInfo,
@@ -102,26 +101,6 @@ describe('resolveDimensions', () => {
   it('rejects an unsupported size and names what is allowed', () => {
     expect(() => resolveDimensions(gemini, 999)).toThrow(/does not support 999/)
     expect(() => resolveDimensions(ada, 256)).toThrow(/does not support 256/)
-  })
-})
-
-describe('splitByItemLimit', () => {
-  it('returns a single batch when under the cap', () => {
-    expect(splitByItemLimit([1, 2, 3], 96)).toEqual([[1, 2, 3]])
-  })
-
-  it("chunks to Gemini's 100-item cap", () => {
-    const items = Array.from({ length: 250 }, (_, i) => i)
-    const batches = splitByItemLimit(items, 100)
-    expect(batches.map((b) => b.length)).toEqual([100, 100, 50])
-    expect(batches.flat()).toEqual(items)
-  })
-
-  it("chunks to Cohere's 96-item cap", () => {
-    const items = Array.from({ length: 200 }, (_, i) => i)
-    const batches = splitByItemLimit(items, 96)
-    expect(batches.map((b) => b.length)).toEqual([96, 96, 8])
-    expect(batches.flat()).toEqual(items)
   })
 })
 

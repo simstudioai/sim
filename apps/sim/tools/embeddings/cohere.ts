@@ -6,5 +6,4 @@ export const embeddingsCohereTool = createEmbeddingTool({
   provider: 'cohere',
   description: "Generate embeddings from text using Cohere's embedding models",
   envKeyPrefix: 'COHERE_API_KEY',
-  defaultModel: 'embed-v4.0',
 })

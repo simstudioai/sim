@@ -3,9 +3,18 @@ import { createCohereAdapter } from '@/lib/embeddings/providers/cohere'
 import { createGeminiAdapter } from '@/lib/embeddings/providers/gemini'
 import { createMistralAdapter } from '@/lib/embeddings/providers/mistral'
 import { createOpenAIAdapter } from '@/lib/embeddings/providers/openai'
-import type { EmbeddingAdapterFactory, EmbeddingProviderKind } from '@/lib/embeddings/types'
+import type {
+  AzureEmbeddingAdapterContext,
+  EmbeddingAdapterFactory,
+  EmbeddingProviderKind,
+} from '@/lib/embeddings/types'
 
-const ADAPTER_FACTORIES: Record<EmbeddingProviderKind, EmbeddingAdapterFactory> = {
+/** Azure's entry keeps its own context type so its routing fields stay required. */
+type AdapterFactoryFor<K extends EmbeddingProviderKind> = K extends 'azure-openai'
+  ? EmbeddingAdapterFactory<AzureEmbeddingAdapterContext>
+  : EmbeddingAdapterFactory
+
+const ADAPTER_FACTORIES: { [K in EmbeddingProviderKind]: AdapterFactoryFor<K> } = {
   openai: createOpenAIAdapter,
   'azure-openai': createAzureOpenAIAdapter,
   gemini: createGeminiAdapter,
@@ -13,12 +22,10 @@ const ADAPTER_FACTORIES: Record<EmbeddingProviderKind, EmbeddingAdapterFactory> 
   mistral: createMistralAdapter,
 }
 
-export function getAdapterFactory(provider: EmbeddingProviderKind): EmbeddingAdapterFactory {
-  const factory = ADAPTER_FACTORIES[provider]
-  if (!factory) {
-    throw new Error(`No embedding adapter implemented for provider: ${provider}`)
-  }
-  return factory
+export function getAdapterFactory<K extends EmbeddingProviderKind>(
+  provider: K
+): AdapterFactoryFor<K> {
+  return ADAPTER_FACTORIES[provider]
 }
 
 export {

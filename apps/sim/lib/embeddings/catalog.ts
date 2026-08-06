@@ -3,6 +3,7 @@ import type {
   EmbeddingTaskType,
   TokenizerProviderId,
 } from '@/lib/embeddings/types'
+import type { BYOKProviderId } from '@/tools/types'
 
 /**
  * Single source of truth for embedding models across the platform: the
@@ -149,6 +150,36 @@ export const EMBEDDING_MODELS: Record<string, EmbeddingModelInfo> = {
     maxInputTokens: 8192,
     kbEligible: false,
   },
+}
+
+/** Providers a user can pick, in the order the block offers them. */
+export const EMBEDDING_CATALOG_PROVIDERS: readonly EmbeddingCatalogProvider[] = [
+  'openai',
+  'gemini',
+  'cohere',
+  'mistral',
+] as const
+
+/**
+ * Model each provider falls back to when the caller names none. Single source
+ * for the block's pre-selected value, the per-provider tools, and the route.
+ */
+export const DEFAULT_MODEL_BY_PROVIDER: Record<EmbeddingCatalogProvider, string> = {
+  openai: DEFAULT_EMBEDDING_MODEL,
+  gemini: 'gemini-embedding-001',
+  cohere: 'embed-v4.0',
+  mistral: 'mistral-embed',
+}
+
+/**
+ * BYOK provider id for a workspace-owned key. Differs from the embedding
+ * provider id for Gemini, whose keys are stored under the shared Google entry.
+ */
+export const BYOK_PROVIDER_IDS: Record<EmbeddingCatalogProvider, BYOKProviderId> = {
+  openai: 'openai',
+  gemini: 'google',
+  cohere: 'cohere',
+  mistral: 'mistral',
 }
 
 export function getEmbeddingModelInfo(model: string): EmbeddingModelInfo {

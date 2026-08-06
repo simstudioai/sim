@@ -1,18 +1,8 @@
 import type { EmbeddingProvider } from '@/lib/api/contracts/tools/embeddings'
+import { BYOK_PROVIDER_IDS, DEFAULT_MODEL_BY_PROVIDER } from '@/lib/embeddings/catalog'
 import { getEmbeddingModelPricing } from '@/providers/models'
 import type { EmbeddingsParams, EmbeddingsResponse } from '@/tools/embeddings/types'
-import type { BYOKProviderId, ToolConfig } from '@/tools/types'
-
-/**
- * BYOK provider ids differ from embedding provider ids for Gemini, whose
- * workspace keys are stored under the shared Google entry.
- */
-const BYOK_PROVIDER_IDS: Record<EmbeddingProvider, BYOKProviderId> = {
-  openai: 'openai',
-  gemini: 'google',
-  cohere: 'cohere',
-  mistral: 'mistral',
-}
+import type { ToolConfig } from '@/tools/types'
 
 /** Throttle applied only when a caller draws on Sim's hosted key pool. */
 const HOSTED_KEY_RATE_LIMIT = {
@@ -28,8 +18,6 @@ interface CreateEmbeddingToolOptions {
   description: string
   /** Env var prefix for the hosted key pool. */
   envKeyPrefix: string
-  /** Default model when the caller does not pick one. */
-  defaultModel: string
 }
 
 /**
@@ -43,8 +31,9 @@ export function createEmbeddingTool({
   provider,
   description,
   envKeyPrefix,
-  defaultModel,
 }: CreateEmbeddingToolOptions): ToolConfig<EmbeddingsParams, EmbeddingsResponse> {
+  const defaultModel = DEFAULT_MODEL_BY_PROVIDER[provider]
+
   return {
     id,
     name,

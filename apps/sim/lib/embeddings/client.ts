@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
+import { chunkArray } from '@sim/utils'
 import { env, envNumber } from '@/lib/core/config/env'
-import { processWithConcurrency, splitByItemLimit } from '@/lib/embeddings/batching'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import {
   DEFAULT_EMBEDDING_MODEL,
   type EmbeddingModelInfo,
@@ -53,13 +54,6 @@ interface ResolvedProvider {
   modelName: string
   /** Dimensionality the request will produce, for reporting and billing. */
   dimensions: number
-  /**
-   * The caller's explicit reduction, or undefined when none was requested.
-   * Kept separate from `dimensions` because a model without Matryoshka support
-   * rejects the parameter outright — sending it populated with the native size
-   * is a 400, not a no-op.
-   */
-  requestedDimensions: number | undefined
   isBYOK: boolean
 }
 
@@ -100,7 +94,6 @@ async function resolveProvider(model: string, options: EmbedOptions): Promise<Re
         info,
         modelName: azure.deployment,
         dimensions,
-        requestedDimensions: options.dimensions,
         isBYOK: false,
       }
     }
@@ -119,7 +112,6 @@ async function resolveProvider(model: string, options: EmbedOptions): Promise<Re
     info,
     modelName: model,
     dimensions,
-    requestedDimensions: options.dimensions,
     isBYOK,
   }
 }
@@ -128,14 +120,21 @@ async function resolveProvider(model: string, options: EmbedOptions): Promise<Re
 async function callEmbeddingAPI(
   inputs: string[],
   provider: ResolvedProvider,
-  taskType: EmbeddingTaskType
+  taskType: EmbeddingTaskType,
+  /**
+   * The caller's explicit reduction, or undefined when none was requested. Kept
+   * distinct from `provider.dimensions` because a model without Matryoshka
+   * support rejects the parameter outright — sending it populated with the
+   * native size is a 400, not a no-op.
+   */
+  requestedDimensions: number | undefined
 ): Promise<{ embeddings: number[][]; totalTokens: number }> {
   return retryWithExponentialBackoff(
     async () => {
       const request = provider.adapter.buildRequest({
         inputs,
         taskType,
-        dimensions: provider.requestedDimensions,
+        dimensions: requestedDimensions,
       })
 
       const controller = new AbortController()
@@ -251,15 +250,15 @@ export async function embed(texts: string[], options: EmbedOptions): Promise<Emb
   const tokenBatches = batchByTokenLimit(boundedInputs, requestBudget, model)
   const itemLimit = provider.adapter.maxItemsPerRequest
   const batches = itemLimit
-    ? tokenBatches.flatMap((batch) => splitByItemLimit(batch, itemLimit))
+    ? tokenBatches.flatMap((batch) => chunkArray(batch, itemLimit))
     : tokenBatches
 
-  const batchResults = await processWithConcurrency(
+  const batchResults = await mapWithConcurrency(
     batches,
     MAX_CONCURRENT_BATCHES,
     async (batch, i) => {
       try {
-        return await callEmbeddingAPI(batch, provider, taskType)
+        return await callEmbeddingAPI(batch, provider, taskType, options.dimensions)
       } catch (error) {
         logger.error(`Failed to generate embeddings for batch ${i + 1}/${batches.length}:`, error)
         throw error
