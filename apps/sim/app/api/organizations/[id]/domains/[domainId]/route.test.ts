@@ -83,4 +83,25 @@ describe('remove org domain route', () => {
       expect.objectContaining({ action: 'organization.domain.removed' })
     )
   })
+
+  /**
+   * `domainVerified` on a provider is what authorizes auto-linking an SSO sign-in
+   * to an existing same-email account. Removing the proof has to withdraw that
+   * trust in the same transaction, or the authorization outlives the ownership.
+   */
+  it('revokes SSO domain trust for providers on the removed domain', async () => {
+    queueTableRows(member, [{ role: 'owner' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ domain: 'acme.com' }])
+    const res = await DELETE(createMockRequest('DELETE'), routeContext)
+    expect(res.status).toBe(200)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({ domainVerified: false })
+  })
+
+  it('does not revoke trust when no domain was removed', async () => {
+    queueTableRows(member, [{ role: 'owner' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([]) // delete matched nothing
+    const res = await DELETE(createMockRequest('DELETE'), routeContext)
+    expect(res.status).toBe(404)
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
+  })
 })
