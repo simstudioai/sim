@@ -172,15 +172,20 @@ export function RemoteSelectionOverlay({
       const focusCol = columnIndexByIdRef.current.get(focus.columnId)
       const anchorRow = rowIndexByIdRef.current.get(anchor.rowId)
       const focusRow = rowIndexByIdRef.current.get(focus.rowId)
-      const cells = [
-        cellElement(scrollEl, anchor.rowId, anchorCol),
-        cellElement(scrollEl, focus.rowId, focusCol),
-      ].filter((cell): cell is HTMLElement => cell !== null)
+      const anchorCell = cellElement(scrollEl, anchor.rowId, anchorCol)
+      const focusCell = cellElement(scrollEl, focus.rowId, focusCol)
+      const cells = [anchorCell, focusCell].filter((cell): cell is HTMLElement => cell !== null)
       if (cells.length === 0) continue
       const rects = cells.map((cell) => cell.getBoundingClientRect())
-      // A range straddling the boundary defers to the frozen zone, so its scrolled-away half
-      // can't bleed over the gutter — the conservative half of the trade, and the rarer case.
-      const pinned = cells.every((cell) => cell.hasAttribute('data-pinned'))
+      // Both endpoints must be resolved AND pinned. Anything else — a range straddling the
+      // boundary, or one whose other endpoint is virtualized off-window and so can't be
+      // classified — defers to the frozen zone, where the worst case is a selection the zone
+      // hides rather than one painting over the gutter.
+      const pinned =
+        anchorCell !== null &&
+        focusCell !== null &&
+        anchorCell.hasAttribute('data-pinned') &&
+        focusCell.hasAttribute('data-pinned')
 
       const viewportTop = Math.min(...rects.map((r) => r.top))
       const viewportLeft = Math.min(...rects.map((r) => r.left))
