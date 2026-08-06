@@ -246,7 +246,7 @@ export function AddConnectorModal({
   const renderAuthField = (auth: ConnectorAuthConfig) => {
     switch (auth.mode) {
       case 'sim':
-        // Nothing to collect: the connector reads this workspace directly.
+        /** Nothing to collect: the connector reads this workspace directly. */
         return null
 
       case 'apiKey':

@@ -212,7 +212,7 @@ describe('conversationToStub', () => {
 
   it('hashes on the update watermark, which moves whenever a message is appended', () => {
     const base = conversationToStub(BASE_ROW).contentHash
-    expect(base).toBe('memory:mem-1:2026-01-02T00:00:00.000Z')
+    expect(base).toBe('memory:mem-1:2026-01-02T00:00:00.000Z:6:1024')
 
     const appended = conversationToStub({
       ...BASE_ROW,
@@ -226,6 +226,30 @@ describe('conversationToStub', () => {
     expect(conversationToStub(BASE_ROW).contentHash).toBe(
       conversationToStub({ ...BASE_ROW }).contentHash
     )
+  })
+
+  /**
+   * `updatedAt` is only millisecond-resolution, so appends landing in the same
+   * millisecond as the indexed value would otherwise hash identically and the sync
+   * engine would call the transcript unchanged — leaving the new messages out of
+   * the knowledge base until some later write moved the clock.
+   */
+  it('distinguishes appends that share a millisecond with the indexed value', () => {
+    const indexed = conversationToStub(BASE_ROW).contentHash
+    const appendedSameMs = conversationToStub({
+      ...BASE_ROW,
+      messageCount: BASE_ROW.messageCount + 2,
+      approxBytes: BASE_ROW.approxBytes + 180,
+    }).contentHash
+
+    expect(appendedSameMs).not.toBe(indexed)
+  })
+
+  /** A same-count replacement still moves the byte size. */
+  it('distinguishes a same-millisecond, same-count content replacement', () => {
+    expect(
+      conversationToStub({ ...BASE_ROW, approxBytes: BASE_ROW.approxBytes + 40 }).contentHash
+    ).not.toBe(conversationToStub(BASE_ROW).contentHash)
   })
 })
 

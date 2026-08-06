@@ -164,8 +164,16 @@ export function renderTranscript(
  * Builds the listing stub for one conversation.
  *
  * Single source of truth for `contentHash`, used by both listing and hydration.
- * `updatedAt` is the right watermark here: `Memory.appendMessage` bumps it on every
- * appended message, so it moves exactly when the transcript changes.
+ *
+ * `updatedAt` is the primary watermark — `Memory.appendMessage` bumps it on every
+ * appended message — but it only has millisecond resolution, so two appends landing
+ * in the same millisecond as the previously indexed value would hash identically and
+ * `classifyExternalDoc` would call the transcript unchanged, leaving the new messages
+ * out of the knowledge base until some later write moved the clock.
+ *
+ * `messageCount` closes that: an append always increments it. `approxBytes` covers
+ * the rarer case of a same-count replacement. Both are already selected for the
+ * listing, so neither costs an extra query.
  */
 export function conversationToStub(row: ConversationRow): ExternalDocument {
   return {
@@ -175,7 +183,7 @@ export function conversationToStub(row: ConversationRow): ExternalDocument {
     contentDeferred: true,
     mimeType: 'text/plain',
     // No sourceUrl: conversations have no page of their own in the app.
-    contentHash: `memory:${row.id}:${row.updatedAt.toISOString()}`,
+    contentHash: `memory:${row.id}:${row.updatedAt.toISOString()}:${row.messageCount}:${row.approxBytes}`,
     metadata: {
       conversationId: row.key,
       messageCount: row.messageCount,
