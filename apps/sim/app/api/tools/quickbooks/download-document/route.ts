@@ -19,7 +19,8 @@ import {
   readResponseToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { storeToolOutputFile } from '@/lib/uploads/store-tool-output-file'
+import { uploadCopilotFile } from '@/lib/uploads/contexts/copilot'
+import { uploadExecutionFile } from '@/lib/uploads/contexts/execution'
 import { buildQuickBooksCompanyUrl, buildQuickBooksHeaders } from '@/tools/quickbooks/client'
 import {
   getQuickBooksDocumentError,
@@ -203,18 +204,29 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         : await downloadQuickBooksTransactionPdf(body, request.signal)
 
     request.signal.throwIfAborted()
+    const executionContext =
+      body.workspaceId && body.workflowId && body.executionId
+        ? {
+            workspaceId: body.workspaceId,
+            workflowId: body.workflowId,
+            executionId: body.executionId,
+          }
+        : null
     const storedFile = userFileSchema.parse(
-      await storeToolOutputFile({
-        buffer: downloaded.buffer,
-        fileName: downloaded.fileName,
-        contentType: downloaded.mimeType,
-        userId: authResult.userId,
-        context: {
-          workspaceId: body.workspaceId,
-          workflowId: body.workflowId,
-          executionId: body.executionId,
-        },
-      })
+      executionContext
+        ? await uploadExecutionFile(
+            executionContext,
+            downloaded.buffer,
+            downloaded.fileName,
+            downloaded.mimeType,
+            authResult.userId
+          )
+        : await uploadCopilotFile({
+            buffer: downloaded.buffer,
+            fileName: downloaded.fileName,
+            contentType: downloaded.mimeType,
+            userId: authResult.userId,
+          })
     )
 
     const shared = {

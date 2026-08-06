@@ -1,5 +1,4 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
-import { QUICKBOOKS_MAX_RESPONSE_BYTES } from '@/tools/quickbooks/client'
 import { buildQuickBooksCreateVendorCreditBody } from '@/tools/quickbooks/purchasing_utils'
 import type {
   QuickBooksCreateVendorCreditParams,
@@ -98,7 +97,6 @@ export const quickbooksCreateVendorCreditTool: ToolConfig<
     headers: (p) => getQuickBooksToolHeaders(p.accessToken, 'application/json'),
     body: buildQuickBooksCreateVendorCreditBody,
     retry: { enabled: false },
-    maxResponseBytes: QUICKBOOKS_MAX_RESPONSE_BYTES,
   },
   transformResponse: (r) =>
     transformQuickBooksMutationResponse<QuickBooksPurchasingTransaction>(r, 'VendorCredit'),

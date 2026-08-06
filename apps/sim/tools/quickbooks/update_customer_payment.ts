@@ -1,5 +1,4 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
-import { QUICKBOOKS_MAX_RESPONSE_BYTES } from '@/tools/quickbooks/client'
 import { buildQuickBooksUpdatePaymentBody } from '@/tools/quickbooks/sales_utils'
 import type {
   QuickBooksMutationResponse,
@@ -121,7 +120,6 @@ export const quickbooksUpdateCustomerPaymentTool: ToolConfig<
     headers: (params) => getQuickBooksToolHeaders(params.accessToken, 'application/json'),
     body: (params) => buildQuickBooksUpdatePaymentBody(params),
     retry: { enabled: false },
-    maxResponseBytes: QUICKBOOKS_MAX_RESPONSE_BYTES,
   },
   /**
    * QuickBooks updates Payment lines all-or-none: an update that omits a line

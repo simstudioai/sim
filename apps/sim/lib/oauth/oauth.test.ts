@@ -1,4 +1,4 @@
-import { createMockFetch, loggerMock, resetEnvMock, setEnv } from '@sim/testing'
+import { createMockFetch, resetEnvMock, setEnv } from '@sim/testing'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 beforeAll(() => {
@@ -89,20 +89,6 @@ function withMockFetch<T>(mockFetch: ReturnType<typeof vi.fn>, fn: () => Promise
   return fn().finally(() => {
     global.fetch = originalFetch
   })
-}
-
-/**
- * Every `logger.error(...)` argument list recorded by the `OAuth` logger instance
- * created in `lib/oauth/oauth.ts`.
- */
-function oauthLoggerErrorCalls(): unknown[][] {
-  const createLogger = vi.mocked(loggerMock.createLogger)
-  return createLogger.mock.calls.flatMap((call, index) =>
-    call[0] === 'OAuth'
-      ? (createLogger.mock.results[index]?.value as { error: { mock: { calls: unknown[][] } } })
-          .error.mock.calls
-      : []
-  )
 }
 
 describe('OAuth Token Refresh', () => {
@@ -441,91 +427,13 @@ describe('OAuth Token Refresh', () => {
       }
     })
 
-    it.concurrent('should not expose provider error details or refresh tokens', async () => {
-      const sensitiveDetail = 'provider-secret-account-detail'
-      const refreshToken = 'sensitive-refresh-token'
-      const mockFetch = vi.fn().mockResolvedValue(
-        Response.json(
-          {
-            error: 'invalid_grant',
-            error_description: sensitiveDetail,
-          },
-          { status: 400 }
-        )
-      )
-
-      const result = await withMockFetch(mockFetch, () =>
-        refreshOAuthToken('quickbooks', refreshToken)
-      )
-
-      expect(result).toEqual({
-        ok: false,
-        errorCode: 'invalid_grant',
-        message: 'Failed to refresh token: 400 (invalid_grant)',
-      })
-      expect(JSON.stringify(result)).not.toContain(sensitiveDetail)
-      expect(JSON.stringify(result)).not.toContain(refreshToken)
-    })
-
-    it.concurrent(
-      'should log the provider error body without leaking it to the caller',
-      async () => {
-        const errorBody = 'Token has been expired or revoked.'
-        const refreshToken = 'sensitive-refresh-token'
-        const mockFetch = vi
-          .fn()
-          .mockResolvedValue(new Response(errorBody, { status: 400, statusText: 'Bad Request' }))
-
-        const result = await withMockFetch(mockFetch, () =>
-          refreshOAuthToken('google', refreshToken)
-        )
-
-        expect(result).toEqual({ ok: false, message: 'Failed to refresh token: 400' })
-        expect(JSON.stringify(result)).not.toContain(errorBody)
-
-        const loggedBodies = oauthLoggerErrorCalls().map(
-          (call) => (call[1] as { errorBody?: string } | undefined)?.errorBody
-        )
-        expect(loggedBodies).toContain(errorBody)
-      }
-    )
-
-    it.concurrent('should not fail a successful refresh with an oversized body', async () => {
-      const mockFetch = vi.fn().mockResolvedValue(
-        Response.json({
-          access_token: 'new_access_token',
-          expires_in: 3600,
-          padding: 'x'.repeat(DEFAULT_MAX_ERROR_BODY_BYTES),
-        })
-      )
-
-      const result = await withMockFetch(mockFetch, () =>
-        refreshOAuthToken('quickbooks', 'old_refresh_token')
-      )
-
-      expect(result).toMatchObject({ ok: true, accessToken: 'new_access_token', expiresIn: 3600 })
-    })
-
-    it.concurrent('should redact credentials echoed back in a provider error body', async () => {
-      const mockFetch = vi.fn().mockResolvedValue(
-        new Response(`{"error":"invalid_grant","refresh_token":"leaked-refresh-token"}`, {
-          status: 400,
-        })
-      )
-
-      await withMockFetch(mockFetch, () => refreshOAuthToken('google', 'leaked-refresh-token'))
-
-      const loggedBodies = oauthLoggerErrorCalls().map(
-        (call) => (call[1] as { errorBody?: string } | undefined)?.errorBody ?? ''
-      )
-      expect(loggedBodies.some((body) => body.includes('invalid_grant'))).toBe(true)
-      expect(loggedBodies.some((body) => body.includes('leaked-refresh-token'))).toBe(false)
-    })
-
     it.concurrent('should return failure for Slack-style body errors', async () => {
-      const mockFetch = vi
-        .fn()
-        .mockResolvedValue(Response.json({ ok: false, error: 'invalid_refresh_token' }))
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: async () => ({ ok: false, error: 'invalid_refresh_token' }),
+      })
       const refreshToken = 'test_refresh_token'
 
       const result = await withMockFetch(mockFetch, () => refreshOAuthToken('slack', refreshToken))
@@ -571,58 +479,18 @@ describe('OAuth Token Refresh', () => {
       }
     )
 
-    it.concurrent('should preserve numeric string token expiry values', async () => {
-      const mockFetch = vi.fn().mockResolvedValue(
-        Response.json({
-          access_token: 'new_access_token',
-          expires_in: '7200',
-        })
-      )
-
-      const result = await withMockFetch(mockFetch, () =>
-        refreshOAuthToken('google', 'old_refresh_token')
-      )
-
-      expect(result).toEqual({
-        ok: true,
-        accessToken: 'new_access_token',
-        expiresIn: 7200,
-        refreshToken: 'old_refresh_token',
-      })
-    })
-
-    it.concurrent.each([0, -1, '0', '-1'])(
-      'should fall back when token expiry is not positive: %s',
-      async (expiresIn) => {
-        const mockFetch = vi.fn().mockResolvedValue(
-          Response.json({
-            access_token: 'new_access_token',
-            expires_in: expiresIn,
-          })
-        )
-
-        const result = await withMockFetch(mockFetch, () =>
-          refreshOAuthToken('google', 'old_refresh_token')
-        )
-
-        expect(result).toMatchObject({
-          ok: true,
-          expiresIn: 3600,
-        })
-      }
-    )
-
     it.concurrent('should handle providers that return new refresh tokens', async () => {
       const refreshToken = 'old_refresh_token'
       const newRefreshToken = 'new_refresh_token'
 
-      const mockFetch = vi.fn().mockResolvedValue(
-        Response.json({
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
           access_token: 'new_access_token',
           expires_in: 3600,
           refresh_token: newRefreshToken,
-        })
-      )
+        }),
+      })
 
       const result = await withMockFetch(mockFetch, () =>
         refreshOAuthToken('airtable', refreshToken)
@@ -654,13 +522,14 @@ describe('OAuth Token Refresh', () => {
         const rotatedRefreshToken = 'rotated_microsoft_refresh_token'
 
         for (const providerId of microsoftProviders) {
-          const mockFetch = vi.fn().mockResolvedValue(
-            Response.json({
+          const mockFetch = vi.fn().mockResolvedValue({
+            ok: true,
+            json: async () => ({
               access_token: 'new_access_token',
               expires_in: 3600,
               refresh_token: rotatedRefreshToken,
-            })
-          )
+            }),
+          })
 
           const result = await withMockFetch(mockFetch, () =>
             refreshOAuthToken(providerId, oldRefreshToken)
@@ -679,12 +548,13 @@ describe('OAuth Token Refresh', () => {
     it.concurrent('should use original refresh token when new one is not provided', async () => {
       const refreshToken = 'original_refresh_token'
 
-      const mockFetch = vi.fn().mockResolvedValue(
-        Response.json({
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
           access_token: 'new_access_token',
           expires_in: 3600,
-        })
-      )
+        }),
+      })
 
       const result = await withMockFetch(mockFetch, () => refreshOAuthToken('google', refreshToken))
 
@@ -699,11 +569,12 @@ describe('OAuth Token Refresh', () => {
     it.concurrent('should return failure when access token is missing', async () => {
       const refreshToken = 'test_refresh_token'
 
-      const mockFetch = vi.fn().mockResolvedValue(
-        Response.json({
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
           expires_in: 3600,
-        })
-      )
+        }),
+      })
 
       const result = await withMockFetch(mockFetch, () => refreshOAuthToken('google', refreshToken))
 
@@ -713,9 +584,12 @@ describe('OAuth Token Refresh', () => {
     it.concurrent('should use default expiration when not provided', async () => {
       const refreshToken = 'test_refresh_token'
 
-      const mockFetch = vi
-        .fn()
-        .mockResolvedValue(Response.json({ access_token: 'new_access_token' }))
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          access_token: 'new_access_token',
+        }),
+      })
 
       const result = await withMockFetch(mockFetch, () => refreshOAuthToken('google', refreshToken))
 

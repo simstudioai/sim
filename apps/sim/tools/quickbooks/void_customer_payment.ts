@@ -1,5 +1,4 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
-import { QUICKBOOKS_MAX_RESPONSE_BYTES } from '@/tools/quickbooks/client'
 import type {
   QuickBooksSalesTransaction,
   QuickBooksVoidResponse,
@@ -83,7 +82,6 @@ export const quickbooksVoidCustomerPaymentTool: ToolConfig<
       return body
     },
     retry: { enabled: false },
-    maxResponseBytes: QUICKBOOKS_MAX_RESPONSE_BYTES,
   },
   transformResponse: async (response) => {
     const result = await transformQuickBooksMutationResponse<QuickBooksSalesTransaction>(

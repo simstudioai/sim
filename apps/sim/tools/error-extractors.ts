@@ -26,7 +26,6 @@ export interface ErrorInfo {
   status?: number
   statusText?: string
   data?: any
-  headers?: { get(name: string): string | null }
 }
 
 export type ErrorExtractor = (errorInfo?: ErrorInfo) => string | null | undefined
@@ -38,18 +37,6 @@ interface ErrorExtractorConfig {
   description: string
   /** Example APIs that use this pattern */
   examples?: string[]
-  /**
-   * Whether this extractor may run in the provider-agnostic fallback chain that
-   * {@link extractErrorMessage} walks when a tool declares no `errorExtractor`.
-   *
-   * Defaults to `true`. Set it to `false` for any extractor that returns a
-   * non-empty string unconditionally — the fallback loop stops at the first
-   * non-empty result, so such an extractor hijacks the chain and relabels every
-   * other provider's errors. `quickbooks-fault` is exactly that shape: it always
-   * produces at least `"QuickBooks request failed."`. Do not delete this flag
-   * without first making the extractor return `null` for non-matching payloads.
-   */
-  useInFallback?: boolean
   /** The extraction function */
   extract: ErrorExtractor
 }
@@ -272,11 +259,10 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
     id: 'quickbooks-fault',
     description: 'QuickBooks Online Fault.Error[] responses with authentication and rate guidance',
     examples: ['QuickBooks Online Accounting API'],
-    useInFallback: false,
     extract: (errorInfo) => {
       const status = errorInfo?.status
       const fault = sanitizeQuickBooksFaultData(errorInfo?.data)
-      const faultMessage = fault ? formatQuickBooksFaultDetail(fault) : ''
+      if (!fault) return null
 
       const guidance =
         status === 401
@@ -286,24 +272,11 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
             : status === 429
               ? 'QuickBooks rate limit reached; retry after the indicated delay.'
               : ''
-      const trackingId =
-        errorInfo?.headers?.get('intuit_tid') ??
-        errorInfo?.headers?.get('x-request-id') ??
-        errorInfo?.headers?.get('request-id')
-      const retryAfter = status === 429 ? errorInfo?.headers?.get('retry-after') : null
-
-      const context = [
-        trackingId ? `Intuit tracking ID: ${trackingId}` : '',
-        retryAfter ? `Retry-After: ${retryAfter}` : '',
-      ]
-        .filter(Boolean)
-        .join('; ')
       const statusMessage =
         typeof status === 'number'
           ? `QuickBooks request failed with HTTP ${status}.`
           : 'QuickBooks request failed.'
-      const message = [statusMessage, guidance, faultMessage].filter(Boolean).join(' ')
-      return context ? `${message} (${context})` : message
+      return [statusMessage, guidance, formatQuickBooksFaultDetail(fault)].filter(Boolean).join(' ')
     },
   },
   {
@@ -355,7 +328,6 @@ export function extractErrorMessage(errorInfo?: ErrorInfo, extractorId?: string)
 
   // Backwards compatibility
   for (const extractor of ERROR_EXTRACTORS) {
-    if (extractor.useInFallback === false) continue
     try {
       const message = extractor.extract(errorInfo)
       if (message?.trim()) {

@@ -1,6 +1,5 @@
 import { filterUndefined } from '@sim/utils/object'
 import { ErrorExtractorId } from '@/tools/error-extractors'
-import { QUICKBOOKS_MAX_RESPONSE_BYTES } from '@/tools/quickbooks/client'
 import type {
   QuickBooksCreateVendorParams,
   QuickBooksMutationResponse,
@@ -139,7 +138,6 @@ export const quickbooksCreateVendorTool: ToolConfig<
         Vendor1099: params.vendor1099,
       }),
     retry: { enabled: false },
-    maxResponseBytes: QUICKBOOKS_MAX_RESPONSE_BYTES,
   },
   transformResponse: (response) =>
     transformQuickBooksMutationResponse<QuickBooksVendor>(

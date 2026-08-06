@@ -66,7 +66,6 @@ import {
   requireOAuthClientCapability,
 } from '@/lib/core/config/env-capabilities'
 import { isSlackExtendedScopesEnabled } from '@/lib/core/config/env-flags'
-import { redactSensitiveValues } from '@/lib/core/security/redaction'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseTextWithLimit,
@@ -75,9 +74,6 @@ import { parseInstagramLongLivedToken } from '@/lib/oauth/instagram'
 import type { OAuthProviderConfig } from './types'
 
 const logger = createLogger('OAuth')
-
-/** Upper bound on how much of a provider error body is written to the log. */
-const MAX_LOGGED_ERROR_BODY_CHARS = 1000
 
 /**
  * Slack scopes requested only where the app is approved for them, gated by
@@ -1943,33 +1939,42 @@ export async function refreshOAuthToken(
     })
 
     if (!response.ok) {
-      /**
-       * Read the failure body defensively: the cap bounds memory, and a read
-       * failure degrades to an empty diagnostic rather than replacing the real
-       * HTTP status with a stream error.
-       */
-      const errorText = await readResponseTextWithLimit(response, {
-        maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
-        label: `${provider} token refresh error response`,
-      }).catch(() => '')
-      let errorData: unknown = null
+      const errorText = await response.text()
+      let errorData: unknown = errorText
+
       try {
         errorData = JSON.parse(errorText)
-      } catch {
-        errorData = null
+      } catch (_e) {
+        // Not JSON, keep as text
       }
-      const errorCode = extractErrorCode(errorData)
 
-      /**
-       * `@sim/logger` performs no redaction, so the provider body is redacted and
-       * truncated here. It is deliberately kept out of the returned message, which
-       * is surfaced to users and persisted in workflow execution logs.
-       */
       logger.error('Token refresh failed:', {
         status: response.status,
         statusText: response.statusText,
-        errorCode,
-        errorBody: truncate(redactSensitiveValues(errorText), MAX_LOGGED_ERROR_BODY_CHARS),
+        error: errorText,
+        parsedError: errorData,
+        providerId,
+        tokenEndpoint: config.tokenEndpoint,
+        hasClientId: !!config.clientId,
+        hasClientSecret: !!config.clientSecret,
+        hasRefreshToken: !!refreshToken,
+        refreshTokenPrefix: refreshToken ? `${refreshToken.substring(0, 10)}...` : 'none',
+      })
+      return {
+        ok: false,
+        errorCode: extractErrorCode(errorData),
+        message: `Failed to refresh token: ${response.status} ${errorText}`,
+      }
+    }
+
+    const data = await response.json()
+
+    if (data && typeof data === 'object' && data.ok === false) {
+      logger.error('Token refresh failed:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: data.error,
+        parsedError: data,
         providerId,
         tokenEndpoint: config.tokenEndpoint,
         hasClientId: !!config.clientId,
@@ -1978,65 +1983,20 @@ export async function refreshOAuthToken(
       })
       return {
         ok: false,
-        errorCode,
-        message: `Failed to refresh token: ${response.status}${errorCode ? ` (${errorCode})` : ''}`,
+        errorCode: typeof data.error === 'string' ? data.error : undefined,
+        message: `Failed to refresh token: ${data.error ?? 'unknown'}`,
       }
     }
 
-    /**
-     * Parsed uncapped on the success path. A token response is a small JSON
-     * document, and `readResponseTextWithLimit` throws rather than truncating —
-     * capping here would let an oversized body turn a successful refresh into a
-     * spurious failure.
-     */
-    const responseData: unknown = await response.json().catch(() => null)
-
-    if (!responseData || typeof responseData !== 'object' || Array.isArray(responseData)) {
-      logger.error('Token refresh returned an invalid response:', {
-        status: response.status,
-        providerId,
-        tokenEndpoint: config.tokenEndpoint,
-      })
-      return { ok: false, message: 'Token refresh returned an invalid response' }
-    }
-    const data = responseData as Record<string, unknown>
-
-    if (data.ok === false) {
-      const providerErrorCode = extractErrorCode(data)
-      logger.error('Token refresh failed:', {
-        status: response.status,
-        statusText: response.statusText,
-        errorCode: providerErrorCode,
-        providerId,
-        tokenEndpoint: config.tokenEndpoint,
-        hasClientId: !!config.clientId,
-        hasClientSecret: !!config.clientSecret,
-        hasRefreshToken: !!refreshToken,
-      })
-      return {
-        ok: false,
-        errorCode: providerErrorCode,
-        message: `Failed to refresh token${providerErrorCode ? `: ${providerErrorCode}` : ''}`,
-      }
-    }
-
-    const accessToken = typeof data.access_token === 'string' ? data.access_token : null
+    const accessToken = data.access_token
 
     let newRefreshToken = null
-    if (config.supportsRefreshTokenRotation && typeof data.refresh_token === 'string') {
+    if (config.supportsRefreshTokenRotation && data.refresh_token) {
       newRefreshToken = data.refresh_token
       logger.info(`Received new refresh token from ${provider}`)
     }
 
-    const expiresInCandidate = data.expires_in ?? data.expiresIn
-    const parsedExpiresIn =
-      typeof expiresInCandidate === 'number'
-        ? expiresInCandidate
-        : typeof expiresInCandidate === 'string' && expiresInCandidate.trim()
-          ? Number(expiresInCandidate)
-          : Number.NaN
-    const expiresIn =
-      Number.isFinite(parsedExpiresIn) && parsedExpiresIn > 0 ? parsedExpiresIn : 3600
+    const expiresIn = data.expires_in || data.expiresIn || 3600
 
     if (!accessToken) {
       // Log only the shape, never `data` itself - on a partial success it can

@@ -1,6 +1,5 @@
 import { filterUndefined } from '@sim/utils/object'
 import { ErrorExtractorId } from '@/tools/error-extractors'
-import { QUICKBOOKS_MAX_RESPONSE_BYTES } from '@/tools/quickbooks/client'
 import type {
   QuickBooksItem,
   QuickBooksMutationResponse,
@@ -144,7 +143,6 @@ export const quickbooksUpdateItemTool: ToolConfig<
       return body
     },
     retry: { enabled: false },
-    maxResponseBytes: QUICKBOOKS_MAX_RESPONSE_BYTES,
   },
   transformResponse: (response) =>
     transformQuickBooksMutationResponse<QuickBooksItem>(response, 'Item'),

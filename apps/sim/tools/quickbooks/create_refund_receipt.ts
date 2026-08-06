@@ -1,5 +1,4 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
-import { QUICKBOOKS_MAX_RESPONSE_BYTES } from '@/tools/quickbooks/client'
 import { buildQuickBooksCreateSalesDocumentBody } from '@/tools/quickbooks/sales_utils'
 import type {
   QuickBooksCreateRefundReceiptParams,
@@ -117,7 +116,6 @@ export const quickbooksCreateRefundReceiptTool: ToolConfig<
     body: (params) =>
       buildQuickBooksCreateSalesDocumentBody(params, { requireDepositAccount: true }),
     retry: { enabled: false },
-    maxResponseBytes: QUICKBOOKS_MAX_RESPONSE_BYTES,
   },
   transformResponse: (response) =>
     transformQuickBooksMutationResponse<QuickBooksSalesTransaction>(response, 'RefundReceipt'),

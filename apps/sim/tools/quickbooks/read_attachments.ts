@@ -1,5 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
-import { buildQuickBooksCompanyUrl, QUICKBOOKS_MAX_RESPONSE_BYTES } from '@/tools/quickbooks/client'
+import { buildQuickBooksCompanyUrl } from '@/tools/quickbooks/client'
 import {
   escapeQuickBooksQueryLiteral,
   getQuickBooksAttachmentTarget,
@@ -121,7 +121,6 @@ export const quickbooksReadAttachmentsTool: ToolConfig<
     method: 'GET',
     headers: (params) => getQuickBooksToolHeaders(params.accessToken),
     retry: { enabled: false },
-    maxResponseBytes: QUICKBOOKS_MAX_RESPONSE_BYTES,
   },
   transformResponse: async (response, params) => {
     if (!params) throw new Error('QuickBooks Read Attachments parameters are required')

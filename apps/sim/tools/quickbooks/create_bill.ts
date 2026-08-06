@@ -1,5 +1,4 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
-import { QUICKBOOKS_MAX_RESPONSE_BYTES } from '@/tools/quickbooks/client'
 import {
   buildQuickBooksCreateBillBody,
   verifyQuickBooksBillLinks,
@@ -106,7 +105,6 @@ export const quickbooksCreateBillTool: ToolConfig<
     headers: (p) => getQuickBooksToolHeaders(p.accessToken, 'application/json'),
     body: buildQuickBooksCreateBillBody,
     retry: { enabled: false },
-    maxResponseBytes: QUICKBOOKS_MAX_RESPONSE_BYTES,
   },
   transformResponse: async (response, params) => {
     if (!params) throw new Error('QuickBooks Create Bill parameters are required')

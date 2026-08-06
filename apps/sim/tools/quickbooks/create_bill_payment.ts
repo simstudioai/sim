@@ -1,5 +1,4 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
-import { QUICKBOOKS_MAX_RESPONSE_BYTES } from '@/tools/quickbooks/client'
 import { buildQuickBooksCreateBillPaymentBody } from '@/tools/quickbooks/purchasing_utils'
 import type {
   QuickBooksAccount,
@@ -128,7 +127,6 @@ export const quickbooksCreateBillPaymentTool: ToolConfig<
     headers: (p) => getQuickBooksToolHeaders(p.accessToken, 'application/json'),
     body: buildQuickBooksCreateBillPaymentBody,
     retry: { enabled: false },
-    maxResponseBytes: QUICKBOOKS_MAX_RESPONSE_BYTES,
   },
   directExecution: async (params, signal) => {
     const body = buildQuickBooksCreateBillPaymentBody(params)

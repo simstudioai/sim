@@ -1461,68 +1461,6 @@ describe('Automatic Internal Route Detection', () => {
     Object.assign(tools, originalTools)
   })
 
-  it('should clamp a tool-declared maxResponseBytes to the global ceiling', async () => {
-    const mockTool = {
-      id: 'test_oversized_cap',
-      name: 'Test Oversized Cap Tool',
-      description: 'A test tool that declares an unreasonable response cap',
-      version: '1.0.0',
-      params: {},
-      request: {
-        url: 'https://api.example.com/oversized',
-        method: 'GET',
-        headers: () => ({ 'Content-Type': 'application/json' }),
-        maxResponseBytes: 1024 * 1024 * 1024,
-      },
-      transformResponse: vi.fn().mockResolvedValue({ success: true, output: {} }),
-    }
-
-    const originalTools = { ...tools }
-    ;(tools as any).test_oversized_cap = mockTool
-
-    await executeTool('test_oversized_cap', {})
-
-    expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
-      'https://api.example.com/oversized',
-      '93.184.216.34',
-      expect.objectContaining({ maxResponseBytes: 10 * 1024 * 1024 })
-    )
-
-    Reflect.deleteProperty(tools, 'test_oversized_cap')
-    Object.assign(tools, originalTools)
-  })
-
-  it('should honor a tool-declared maxResponseBytes below the global ceiling', async () => {
-    const mockTool = {
-      id: 'test_tightened_cap',
-      name: 'Test Tightened Cap Tool',
-      description: 'A test tool that tightens the response cap the way QuickBooks does',
-      version: '1.0.0',
-      params: {},
-      request: {
-        url: 'https://api.example.com/tightened',
-        method: 'GET',
-        headers: () => ({ 'Content-Type': 'application/json' }),
-        maxResponseBytes: 8 * 1024 * 1024,
-      },
-      transformResponse: vi.fn().mockResolvedValue({ success: true, output: {} }),
-    }
-
-    const originalTools = { ...tools }
-    ;(tools as any).test_tightened_cap = mockTool
-
-    await executeTool('test_tightened_cap', {})
-
-    expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
-      'https://api.example.com/tightened',
-      '93.184.216.34',
-      expect.objectContaining({ maxResponseBytes: 8 * 1024 * 1024 })
-    )
-
-    Reflect.deleteProperty(tools, 'test_tightened_cap')
-    Object.assign(tools, originalTools)
-  })
-
   it('should throw when the proxyUrl param fails validation', async () => {
     inputValidationMockFns.mockValidateAndPinProxyUrl.mockResolvedValue({
       isValid: false,

@@ -1,6 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import { buildQuickBooksCreateJournalEntryBody } from '@/tools/quickbooks/accounting_utils'
-import { QUICKBOOKS_MAX_RESPONSE_BYTES } from '@/tools/quickbooks/client'
 import type {
   QuickBooksAccountingTransaction,
   QuickBooksCreateJournalEntryParams,
@@ -92,7 +91,6 @@ export const quickbooksCreateJournalEntryTool: ToolConfig<
     headers: (p) => getQuickBooksToolHeaders(p.accessToken, 'application/json'),
     body: buildQuickBooksCreateJournalEntryBody,
     retry: { enabled: false },
-    maxResponseBytes: QUICKBOOKS_MAX_RESPONSE_BYTES,
   },
   transformResponse: (r) =>
     transformQuickBooksMutationResponse<QuickBooksAccountingTransaction>(r, 'JournalEntry'),

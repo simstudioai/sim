@@ -1,5 +1,4 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
-import { QUICKBOOKS_MAX_RESPONSE_BYTES } from '@/tools/quickbooks/client'
 import { buildQuickBooksUpdatePurchaseOrderBody } from '@/tools/quickbooks/purchasing_utils'
 import type {
   QuickBooksMutationResponse,
@@ -93,7 +92,6 @@ export const quickbooksUpdatePurchaseOrderTool: ToolConfig<
     headers: (p) => getQuickBooksToolHeaders(p.accessToken, 'application/json'),
     body: buildQuickBooksUpdatePurchaseOrderBody,
     retry: { enabled: false },
-    maxResponseBytes: QUICKBOOKS_MAX_RESPONSE_BYTES,
   },
   transformResponse: (r) =>
     transformQuickBooksMutationResponse<QuickBooksPurchasingTransaction>(r, 'PurchaseOrder'),

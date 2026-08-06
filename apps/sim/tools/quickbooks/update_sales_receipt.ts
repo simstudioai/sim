@@ -1,5 +1,4 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
-import { QUICKBOOKS_MAX_RESPONSE_BYTES } from '@/tools/quickbooks/client'
 import { buildQuickBooksUpdateSalesDocumentBody } from '@/tools/quickbooks/sales_utils'
 import type {
   QuickBooksMutationResponse,
@@ -118,7 +117,6 @@ export const quickbooksUpdateSalesReceiptTool: ToolConfig<
     headers: (params) => getQuickBooksToolHeaders(params.accessToken, 'application/json'),
     body: (params) => buildQuickBooksUpdateSalesDocumentBody(params),
     retry: { enabled: false },
-    maxResponseBytes: QUICKBOOKS_MAX_RESPONSE_BYTES,
   },
   transformResponse: (response) =>
     transformQuickBooksMutationResponse<QuickBooksSalesTransaction>(response, 'SalesReceipt'),

@@ -1,9 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
-import {
-  buildQuickBooksCompanyUrl,
-  buildQuickBooksHeaders,
-  QUICKBOOKS_MAX_RESPONSE_BYTES,
-} from '@/tools/quickbooks/client'
+import { buildQuickBooksCompanyUrl, buildQuickBooksHeaders } from '@/tools/quickbooks/client'
 import {
   getQuickBooksDocumentTransaction,
   validateQuickBooksRecipient,
@@ -95,7 +91,6 @@ export const quickbooksEmailTransactionTool: ToolConfig<
       'Content-Type': 'application/octet-stream',
     }),
     retry: { enabled: false },
-    maxResponseBytes: QUICKBOOKS_MAX_RESPONSE_BYTES,
   },
   transformResponse: async (response, params) => {
     if (!params) throw new Error('QuickBooks Email Transaction parameters are required')

@@ -339,7 +339,6 @@ export function assertSingleQuickBooksFile(file: RawFileInput | undefined): RawF
 
 export const QUICKBOOKS_TEMP_URL_MAX_BYTES = 64 * 1024
 export const QUICKBOOKS_DOCUMENT_JSON_MAX_BYTES = QUICKBOOKS_MAX_RESPONSE_BYTES
-export const QUICKBOOKS_INTERNAL_FILE_RESPONSE_MAX_BYTES = 256 * 1024
 
 export async function getQuickBooksDocumentError(
   response: Response,

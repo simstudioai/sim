@@ -1,4 +1,3 @@
-import { QUICKBOOKS_INTERNAL_FILE_RESPONSE_MAX_BYTES } from '@/tools/quickbooks/documents_utils'
 import type {
   QuickBooksDownloadTransactionPdfParams,
   QuickBooksFileResponse,
@@ -69,7 +68,6 @@ export const quickbooksDownloadTransactionPdfTool: ToolConfig<
       executionId:
         typeof params._context?.executionId === 'string' ? params._context.executionId : undefined,
     }),
-    maxResponseBytes: QUICKBOOKS_INTERNAL_FILE_RESPONSE_MAX_BYTES,
   },
   outputs: {
     ...QUICKBOOKS_FILE_OUTPUTS,

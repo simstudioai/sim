@@ -583,17 +583,8 @@ export function extractBlockParams(block: BlockState): Record<string, any> {
   Object.values(canonicalIndex.groupsById).forEach((group) => {
     const { basicValue, advancedValue } = getCanonicalValues(group, params)
     const hasExplicitOverride = canonicalModeOverrides?.[group.canonicalId] != null
-    /**
-     * The `legacyAdvancedMode` shortcut to `'advanced'` is only sound for a real
-     * canonical PAIR — a group holding both a basic and an advanced sub-block.
-     * A singleton group (basic-only, no advanced sibling) has no advanced value,
-     * so forcing `'advanced'` selects `undefined` and drops the parameter from the
-     * serialized block entirely; for an `oauth-input` that silently loses the
-     * credential. `isCanonicalPair` gates the shortcut so singleton groups always
-     * resolve through `resolveCanonicalMode`.
-     */
     const pairMode =
-      !isCanonicalPair(group) || hasExplicitOverride || !legacyAdvancedMode
+      hasExplicitOverride || !legacyAdvancedMode
         ? resolveCanonicalMode(group, allValues, canonicalModeOverrides)
         : 'advanced'
     const chosen = pairMode === 'advanced' ? advancedValue : basicValue

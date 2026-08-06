@@ -1,6 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import { buildQuickBooksUpdateDepositBody } from '@/tools/quickbooks/accounting_utils'
-import { QUICKBOOKS_MAX_RESPONSE_BYTES } from '@/tools/quickbooks/client'
 import type {
   QuickBooksAccountingTransaction,
   QuickBooksMutationResponse,
@@ -82,7 +81,6 @@ export const quickbooksUpdateDepositTool: ToolConfig<
     headers: (p) => getQuickBooksToolHeaders(p.accessToken, 'application/json'),
     body: buildQuickBooksUpdateDepositBody,
     retry: { enabled: false },
-    maxResponseBytes: QUICKBOOKS_MAX_RESPONSE_BYTES,
   },
   transformResponse: (r) =>
     transformQuickBooksMutationResponse<QuickBooksAccountingTransaction>(r, 'Deposit'),

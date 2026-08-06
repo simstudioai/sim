@@ -8,7 +8,6 @@ import { syntheticConnectorEmail } from '@/lib/auth/connector-email'
 import { env } from '@/lib/core/config/env'
 import { inspectConfiguredOAuthClient } from '@/lib/core/config/env-capabilities.server'
 import {
-  DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseJsonWithLimit,
   readResponseTextWithLimit,
 } from '@/lib/core/utils/stream-limits'
@@ -22,7 +21,6 @@ import {
   QUICKBOOKS_TOKEN_URL,
 } from '@/lib/oauth/quickbooks'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
-import { QUICKBOOKS_OAUTH_REQUEST_TIMEOUT_MS } from '@/tools/quickbooks/client'
 import { deriveZohoDeskBaseFromApiDomain } from '@/tools/zoho_desk/host-allowlist'
 
 /**
@@ -2377,56 +2375,10 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       responseType: 'code',
       accessType: 'offline',
       prompt: 'consent',
+      authentication: 'basic',
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/quickbooks`,
       authorizationUrlParams: {
         claims: JSON.stringify(QUICKBOOKS_OIDC_CLAIMS),
-      },
-      getToken: async ({ code, redirectURI }) => {
-        const clientId = env.QUICKBOOKS_CLIENT_ID
-        const clientSecret = env.QUICKBOOKS_CLIENT_SECRET
-        if (!clientId || !clientSecret) {
-          throw new Error('QuickBooks OAuth client credentials are not configured')
-        }
-
-        const response = await fetch(QUICKBOOKS_TOKEN_URL, {
-          method: 'POST',
-          headers: {
-            Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`,
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-          body: new URLSearchParams({
-            code,
-            grant_type: 'authorization_code',
-            redirect_uri: redirectURI,
-          }),
-          signal: AbortSignal.timeout(QUICKBOOKS_OAUTH_REQUEST_TIMEOUT_MS),
-        })
-        if (!response.ok) {
-          await readResponseTextWithLimit(response, {
-            maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
-            label: 'QuickBooks OAuth token error response',
-          }).catch(() => {})
-          throw new Error(`QuickBooks OAuth token exchange failed with HTTP ${response.status}`)
-        }
-
-        const data = await readResponseJsonWithLimit<Record<string, unknown>>(response, {
-          maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
-          label: 'QuickBooks OAuth token response',
-        })
-        if (!data || typeof data !== 'object' || Array.isArray(data)) {
-          throw new Error('QuickBooks OAuth token exchange returned an invalid response')
-        }
-
-        const tokens = getOAuth2Tokens(data)
-        if (!tokens.accessToken || !tokens.refreshToken) {
-          throw new Error(
-            'QuickBooks OAuth token response did not include access and refresh tokens'
-          )
-        }
-        if (typeof data.scope === 'string') {
-          tokens.scopes = data.scope.split(/\s+/).filter(Boolean)
-        }
-        return tokens
       },
       getUserInfo: async (tokens) => {
         if (!tokens.accessToken) {

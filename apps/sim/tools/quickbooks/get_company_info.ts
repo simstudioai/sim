@@ -3,7 +3,6 @@ import {
   assertQuickBooksCompanyInfo,
   buildQuickBooksCompanyUrl,
   normalizeQuickBooksRealmId,
-  QUICKBOOKS_MAX_RESPONSE_BYTES,
 } from '@/tools/quickbooks/client'
 import type {
   QuickBooksAuthParams,
@@ -58,7 +57,6 @@ export const quickbooksGetCompanyInfoTool: ToolConfig<
     method: 'GET',
     headers: (params) => getQuickBooksToolHeaders(params.accessToken),
     retry: { enabled: false },
-    maxResponseBytes: QUICKBOOKS_MAX_RESPONSE_BYTES,
   },
   transformResponse: async (response, params) => {
     normalizeQuickBooksRealmId(params?.realmId ?? '')

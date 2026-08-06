@@ -1,5 +1,4 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
-import { QUICKBOOKS_MAX_RESPONSE_BYTES } from '@/tools/quickbooks/client'
 import { buildQuickBooksCreateSalesDocumentBody } from '@/tools/quickbooks/sales_utils'
 import type {
   QuickBooksCreateCreditMemoParams,
@@ -98,7 +97,6 @@ export const quickbooksCreateCreditMemoTool: ToolConfig<
     headers: (params) => getQuickBooksToolHeaders(params.accessToken, 'application/json'),
     body: (params) => buildQuickBooksCreateSalesDocumentBody(params),
     retry: { enabled: false },
-    maxResponseBytes: QUICKBOOKS_MAX_RESPONSE_BYTES,
   },
   transformResponse: (response) =>
     transformQuickBooksMutationResponse<QuickBooksSalesTransaction>(response, 'CreditMemo'),

@@ -825,6 +825,9 @@ const MAX_PRIVATE_TOOL_METADATA_OVERHEAD_BYTES = 10 * 1024 * 1024 // 10MB
 const BODY_SIZE_LIMIT_ERROR_MESSAGE =
   'Request body size limit exceeded (10MB). The workflow data is too large to process. Try reducing the size of variables, inputs, or data being passed between blocks.'
 
+const RESPONSE_SIZE_LIMIT_ERROR_MESSAGE =
+  'Tool response size limit exceeded (10MB). The response is too large to keep in workflow data. Reduce the response size or return a file reference instead.'
+
 /**
  * Validates request body size and throws a user-friendly error if exceeded
  * @param body - The request body string to check
@@ -899,12 +902,7 @@ function handleResponseSizeLimitError(error: unknown, requestId: string, context
     maxBytes: error.maxBytes,
     observedBytes: error.observedBytes,
   })
-  const maxSizeMB = (error.maxBytes / (1024 * 1024)).toFixed(
-    error.maxBytes % (1024 * 1024) === 0 ? 0 : 2
-  )
-  throw new Error(
-    `Tool response size limit exceeded (${maxSizeMB}MB). The response is too large to keep in workflow data. Reduce the response size or return a file reference instead.`
-  )
+  throw new Error(RESPONSE_SIZE_LIMIT_ERROR_MESSAGE)
 }
 
 function cloneResponseHeaders(headers: Headers | HeadersInit | undefined): Headers {
@@ -1951,14 +1949,6 @@ async function executeToolRequest(
   const requestId = generateRequestId()
 
   const requestParams = formatRequestParams(tool, params)
-  /**
-   * A tool may only tighten the global response ceiling, never raise it —
-   * `MAX_TOOL_RESPONSE_BODY_BYTES` is the process-wide memory guard.
-   */
-  const maxResponseBytes = Math.min(
-    tool.request.maxResponseBytes ?? MAX_TOOL_RESPONSE_BODY_BYTES,
-    MAX_TOOL_RESPONSE_BODY_BYTES
-  )
   let privateMetadataConsumed = privateToolMetadataType === undefined
 
   try {
@@ -2106,9 +2096,12 @@ async function executeToolRequest(
                 requestId,
                 toolId,
                 signal: controller.signal,
-                maxBytes: privateToolMetadataType
-                  ? maxResponseBytes + MAX_PRIVATE_TOOL_METADATA_OVERHEAD_BYTES
-                  : maxResponseBytes,
+                ...(privateToolMetadataType
+                  ? {
+                      maxBytes:
+                        MAX_TOOL_RESPONSE_BODY_BYTES + MAX_PRIVATE_TOOL_METADATA_OVERHEAD_BYTES,
+                    }
+                  : {}),
               })
               response = new Response(new Uint8Array(bodyBuffer), {
                 status: internalResponse.status,
@@ -2152,7 +2145,7 @@ async function executeToolRequest(
             headers: headersRecord,
             body: requestParams.body ?? undefined,
             timeout: requestParams.timeout,
-            maxResponseBytes,
+            maxResponseBytes: MAX_TOOL_RESPONSE_BODY_BYTES,
             signal,
             proxyUrl: proxyOption,
             stripAuthOnRedirect: requestParams.stripAuthOnRedirect,
@@ -2179,7 +2172,6 @@ async function executeToolRequest(
             const bodyBuffer = await readToolResponseBody(secureResponse, {
               requestId,
               toolId,
-              maxBytes: maxResponseBytes,
               signal,
             })
             response = new Response(new Uint8Array(bodyBuffer), {
@@ -2261,7 +2253,6 @@ async function executeToolRequest(
         requestId,
         toolId,
         signal,
-        maxBytes: maxResponseBytes,
       })
       response = new Response(new Uint8Array(functionalBody), {
         status: response.status,
@@ -2288,7 +2279,6 @@ async function executeToolRequest(
         status: response.status,
         statusText: response.statusText,
         data: errorData,
-        headers: response.headers,
       }
 
       const errorToTransform = createTransformedErrorFromErrorInfo(errorInfo, tool.errorExtractor)
@@ -2309,7 +2299,7 @@ async function executeToolRequest(
 
       logger.error(`[${requestId}] Internal API error for ${toolId}:`, {
         status: errorInfo.status,
-        errorData: (errorToTransform as Error & { data?: unknown }).data,
+        errorData: errorInfo.data,
       })
 
       throw errorToTransform
