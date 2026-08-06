@@ -182,4 +182,25 @@ describe('validateHallucination', () => {
     expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
     expect(registry.isComplete()).toBe(true)
   })
+
+  /**
+   * Forwarding the caller's signal means the scoring model can now be aborted. A
+   * cancelled run must not be reported as a guardrail verdict — `passed: false` would
+   * block content on a run the caller abandoned, which is indistinguishable to a
+   * consumer from the model actually hallucinating.
+   */
+  it('surfaces a cancelled run as cancellation, not as a failed guardrail', async () => {
+    const registry = new ResolvedSecretTraceRegistry()
+    const fetchMock = vi.fn(async () =>
+      createPrivateKnowledgeResponse({ data: { results: [{ content: 'reference' }] } })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const abort = Object.assign(new Error('The operation was aborted.'), { name: 'AbortError' })
+    mockExecuteProviderRequest.mockRejectedValueOnce(abort)
+
+    await expect(validateHallucination(createInput(registry))).rejects.toMatchObject({
+      name: 'AbortError',
+    })
+  })
 })

@@ -16,6 +16,7 @@ import { createStreamingExecution } from '@/providers/streaming-execution'
 import { isAbortError, parseToolArguments } from '@/providers/streaming-tool-loop-shared'
 import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
 import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
+import { openAICompatTransport } from '@/providers/transport'
 import type {
   Message,
   ProviderConfig,
@@ -110,6 +111,7 @@ export const litellmProvider: ProviderConfig = {
 
     const apiKey = request.apiKey || env.LITELLM_API_KEY || 'empty'
     const litellm = new OpenAI({
+      ...openAICompatTransport(),
       apiKey,
       baseURL: `${baseUrl}/v1`,
     })
