@@ -1113,10 +1113,14 @@ export const auth = betterAuth({
              *
              * Sim does not use Better Auth's own DNS challenge endpoints: ownership is
              * proven by Sim's `sso_domain` flow before a provider can be registered,
-             * and the register route mirrors that decision onto this flag. Linking is
-             * still constrained to emails whose domain matches the provider's domain
-             * (`validateEmailDomain`), so this grants no trust beyond the verified
-             * domain itself.
+             * and the register route mirrors that decision onto this flag.
+             *
+             * This path is constrained to emails whose domain matches the provider's
+             * (`validateEmailDomain`). It is NOT the only path: `link-account.mjs`
+             * blocks on `!isTrustedProvider && !userInfo.emailVerified`, so an IdP
+             * that asserts `email_verified` links regardless of domain — see the
+             * note on `trustEmailVerified` above. This flag narrows nothing on its
+             * own; it exists so linking survives IdPs that omit the claim.
              */
             domainVerification: { enabled: true },
             organizationProvisioning: {

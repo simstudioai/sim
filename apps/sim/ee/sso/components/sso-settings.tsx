@@ -48,11 +48,7 @@ interface SSOProvider {
   providerType: 'oidc' | 'saml'
 }
 
-/**
- * Claim/attribute names each protocol uses out of the box. Kept as the fallback
- * rather than seeded into form state so switching protocol needs no reset logic
- * and the inputs can show them as placeholders.
- */
+/** Claim names each protocol uses out of the box; shown as input placeholders. */
 const OIDC_DEFAULT_MAPPING = { id: 'sub', email: 'email', name: 'name', image: 'picture' } as const
 const SAML_DEFAULT_MAPPING = {
   id: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier',
@@ -257,30 +253,6 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
     setShowAdvanced(false)
   }
 
-  const isFormValid = () => {
-    const requiredFields = ['providerId', 'issuerUrl', 'domain']
-    const hasRequiredFields = requiredFields.every((field) => {
-      const value = formData[field as keyof typeof formData]
-      return typeof value === 'string' && value.trim() !== ''
-    })
-
-    const providerType = formData.providerType || 'oidc'
-
-    if (providerType === 'oidc') {
-      return (
-        hasRequiredFields &&
-        formData.clientId.trim() !== '' &&
-        formData.clientSecret.trim() !== '' &&
-        formData.scopes.trim() !== ''
-      )
-    }
-    if (providerType === 'saml') {
-      return hasRequiredFields && formData.entryPoint.trim() !== '' && formData.cert.trim() !== ''
-    }
-
-    return false
-  }
-
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault()
 
@@ -359,9 +331,7 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
 
   const handleInputChange = (field: keyof typeof formData, value: string | boolean) => {
     const next = { ...formData, [field]: value }
-    // Claim names are protocol-specific — OIDC's `email` means nothing to a SAML
-    // IdP — so carrying an override across a protocol switch would save a mapping
-    // that cannot resolve. Clear them and fall back to the new protocol's defaults.
+    // Claim names are protocol-specific, so an override must not survive a switch.
     if (field === 'providerType') {
       next.mapId = ''
       next.mapEmail = ''
@@ -499,8 +469,6 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
               </p>
             </SettingRow>
 
-            {/* Admins land here after saving, so this view has to carry the same
-                two values an IdP needs as the form does. */}
             {existingProvider.providerType === 'saml' && (
               <SettingRow label='SP Entity ID'>
                 <ChipCopyInput value={getBaseUrl()} copyLabel='Copy entity ID' />
@@ -554,7 +522,10 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
           ...saveDiscardActions({
             dirty: hasChanges,
             saving: configureSSOMutation.isPending,
-            saveDisabled: hasAnyErrors(errors) || !isFormValid(),
+            // Deliberately not disabled on validation errors: showErrors is only
+            // set by handleSubmit, so a disabled Save left the admin with a greyed
+            // out button and no message. Clicking now reveals what is wrong.
+            saveDisabled: false,
             saveLabel: isEditing ? 'Update' : 'Save',
             savingLabel: isEditing ? 'Updating...' : 'Saving...',
             onSave: () => void handleSubmit(),
@@ -908,10 +879,7 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
                             onChange={(value: string) =>
                               handleInputChange('identifierFormat', value)
                             }
-                            options={SAML_NAMEID_FORMATS.map((a) => ({
-                              label: a.label,
-                              value: a.value,
-                            }))}
+                            options={[...SAML_NAMEID_FORMATS]}
                             placeholder='Provider default'
                           />
                         </SettingRow>
@@ -942,10 +910,7 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
               </p>
             </SettingRow>
 
-            {/* SAML IdP admins are typically handed vendor metadata; Sim does not
-                publish a metadata document, so surface the two values that document
-                would carry. Sim's SP entity ID is its base URL — the same value the
-                register route embeds in the generated SP metadata. */}
+            {/* Sim publishes no SP metadata document; these are the values it would carry. */}
             {isSaml && (
               <SettingRow label='SP Entity ID'>
                 <ChipCopyInput value={getBaseUrl()} copyLabel='Copy entity ID' />
@@ -956,10 +921,6 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
               </SettingRow>
             )}
 
-            {/* Identity providers vary in which claim carries each value — Entra,
-                for instance, can send the address as `upn` rather than `email`.
-                Leaving a field blank uses the protocol default shown as its
-                placeholder, so the common case needs no input at all. */}
             <div className='flex flex-col gap-2'>
               <Button
                 type='button'

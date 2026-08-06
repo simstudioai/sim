@@ -142,6 +142,14 @@ export function VerifiedDomainsSection({ organizationId }: VerifiedDomainsSectio
               <ChipInput
                 value={newDomain}
                 onChange={(event) => setNewDomain(event.target.value)}
+                onKeyDown={(event) => {
+                  // This section renders inside the SSO provider <form>, so a bare
+                  // Enter would submit that form instead of adding the domain.
+                  if (event.key === 'Enter') {
+                    event.preventDefault()
+                    void handleAdd()
+                  }
+                }}
                 placeholder='acme.com'
                 className='min-w-0 flex-1'
               />

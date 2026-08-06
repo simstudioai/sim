@@ -36,7 +36,20 @@ ALTER TABLE "sso_provider" ADD COLUMN IF NOT EXISTS "domain_verified" boolean DE
 
 COMMIT;--> statement-breakpoint
 
+-- `lock_timeout = 0` for the concurrent builds, per the convention in
+-- packages/db/scripts/migrate.ts. CREATE INDEX CONCURRENTLY waits on every
+-- concurrent write transaction in the database, not just ones touching this
+-- table, so the session's 5s DDL timeout would cancel the build (55P03) and
+-- strand an INVALID index that the IF NOT EXISTS below would then skip forever.
+SET lock_timeout = 0;--> statement-breakpoint
+
+-- Clear any INVALID index left by a previously cancelled build, so a replay
+-- rebuilds it instead of skipping it.
+DROP INDEX CONCURRENTLY IF EXISTS "sso_provider_provider_id_unique";--> statement-breakpoint
+
 -- Build the unique index before dropping the old plain one, so provider_id is never unindexed.
 CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "sso_provider_provider_id_unique" ON "sso_provider" USING btree ("provider_id");--> statement-breakpoint
 
-DROP INDEX CONCURRENTLY IF EXISTS "sso_provider_provider_id_idx";
+DROP INDEX CONCURRENTLY IF EXISTS "sso_provider_provider_id_idx";--> statement-breakpoint
+
+SET lock_timeout = '5s';
