@@ -496,14 +496,10 @@ describe('runCopilotLifecycle', () => {
     expect(JSON.parse(capturedRequestBody).fileAttachments).toEqual([safe])
   })
 
-  it('continues without attachments when durable provenance cannot be verified', async () => {
+  it('rejects when durable attachment provenance cannot be verified', async () => {
     mockFilterModelSafeWorkspaceFileAttachments.mockRejectedValueOnce(new Error('db unavailable'))
-    let capturedRequestBody = ''
-    mockRunStreamLoop.mockImplementationOnce(async (_url: string, request: RequestInit) => {
-      capturedRequestBody = String(request.body)
-    })
 
-    await runCopilotLifecycle(
+    const result = await runCopilotLifecycle(
       {
         message: 'Continue safely',
         fileAttachments: [{ id: 'wf-file', name: 'file.txt', key: 'workspace/ws-1/file.txt' }],
@@ -517,7 +513,11 @@ describe('runCopilotLifecycle', () => {
       }
     )
 
-    expect(JSON.parse(capturedRequestBody)).not.toHaveProperty('fileAttachments')
+    expect(result).toMatchObject({
+      success: false,
+      error: 'Copilot model input could not be safely projected',
+    })
+    expect(mockRunStreamLoop).not.toHaveBeenCalled()
   })
 
   it.each(['123', 'true'])(

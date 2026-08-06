@@ -832,37 +832,35 @@ describe('executeProviderRequest — model secret projection', () => {
     expect(mockExecuteRequest.mock.calls[0][0].messages[0].files).toEqual([safe])
   })
 
-  it('continues text-only when file provenance lookup is unavailable', async () => {
+  it('fails explicitly when file provenance lookup is unavailable', async () => {
     mockFilterModelSafeWorkspaceFileAttachments.mockRejectedValueOnce(new Error('db unavailable'))
 
-    await executeProviderRequest('openai', {
-      model: 'test-model',
-      workspaceId: 'ws-1',
-      messages: [
-        {
-          role: 'user',
-          content: 'Continue without the file',
-          files: [
-            {
-              id: 'wf-file',
-              name: 'file.txt',
-              url: '/file',
-              size: 10,
-              type: 'text/plain',
-              key: 'workspace/ws-1/file.txt',
-            },
-          ],
-        },
-      ],
-    })
-
-    expect(mockExecuteRequest).toHaveBeenCalledWith(
-      expect.objectContaining({
+    await expect(
+      executeProviderRequest('openai', {
+        model: 'test-model',
+        workspaceId: 'ws-1',
         messages: [
-          expect.objectContaining({ content: 'Continue without the file', files: undefined }),
+          {
+            role: 'user',
+            content: 'Review the file',
+            files: [
+              {
+                id: 'wf-file',
+                name: 'file.txt',
+                url: '/file',
+                size: 10,
+                type: 'text/plain',
+                key: 'workspace/ws-1/file.txt',
+              },
+            ],
+          },
         ],
       })
-    )
+    ).rejects.toThrow('File attachments could not be verified for model use')
+
+    expect(mockAttachLargeFileRemoteUrls).not.toHaveBeenCalled()
+    expect(mockUploadLargeFilesToProvider).not.toHaveBeenCalled()
+    expect(mockExecuteRequest).not.toHaveBeenCalled()
   })
 
   it('projects JSON arguments without mutating attachment metadata before serialization', async () => {

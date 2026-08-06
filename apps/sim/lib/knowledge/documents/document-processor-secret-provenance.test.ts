@@ -7,12 +7,12 @@ const {
   mockDownloadFileFromUrl,
   mockGenerateInternalToken,
   mockGetInternalApiBaseUrl,
-  mockIsModelSafeWorkspaceFileKey,
+  mockParseBuffer,
 } = vi.hoisted(() => ({
   mockDownloadFileFromUrl: vi.fn(),
   mockGenerateInternalToken: vi.fn(),
   mockGetInternalApiBaseUrl: vi.fn(),
-  mockIsModelSafeWorkspaceFileKey: vi.fn(),
+  mockParseBuffer: vi.fn(),
 }))
 
 vi.mock('@/lib/auth/internal', () => ({
@@ -24,10 +24,8 @@ vi.mock('@/lib/core/utils/urls', async (importOriginal) => ({
   getInternalApiBaseUrl: mockGetInternalApiBaseUrl,
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  isModelSafeWorkspaceFileKey: mockIsModelSafeWorkspaceFileKey,
-  MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE:
-    'File cannot be sent to a model because its secret provenance is unavailable',
+vi.mock('@/lib/file-parsers', () => ({
+  parseBuffer: mockParseBuffer,
 }))
 
 vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
@@ -38,6 +36,7 @@ import { env } from '@/lib/core/config/env'
 import { RESOLVED_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
 import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-input-provenance'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 describe('knowledge document model-input provenance', () => {
   beforeEach(() => {
@@ -57,27 +56,38 @@ describe('knowledge document model-input provenance', () => {
     vi.unstubAllGlobals()
   })
 
-  it('rejects an unsafe workspace file before downloading or parsing its bytes', async () => {
-    mockIsModelSafeWorkspaceFileKey.mockResolvedValue(false)
+  it('parses tracked workspace-file bytes locally without treating parsing as model egress', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: 'tracked-secret', encryptedValue: 'encrypted-token' },
+    ])
+    registry.recordResolved('TOKEN', 'tracked-secret')
+    mockDownloadFileFromUrl.mockResolvedValue(
+      Buffer.from('Locally parsed content containing tracked-secret.')
+    )
+    mockParseBuffer.mockResolvedValue({
+      content: 'Locally parsed content containing tracked-secret.',
+      metadata: {},
+    })
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
 
-    await expect(
+    const processed = await runWithKnowledgeModelInputProvenance(registry, () =>
       processDocument(
-        '/api/files/serve/workspace/workspace-1/opaque.txt?context=workspace',
-        'opaque.txt',
+        '/api/files/serve/workspace/workspace-1/tracked.txt?context=workspace',
+        'tracked.txt',
         'text/plain',
         1024,
         200,
-        100,
+        1,
         'user-1',
         'workspace-1'
       )
-    ).rejects.toThrow('secret provenance is unavailable')
-
-    expect(mockIsModelSafeWorkspaceFileKey).toHaveBeenCalledWith(
-      'workspace/workspace-1/opaque.txt',
-      { workspaceId: 'workspace-1' }
     )
-    expect(mockDownloadFileFromUrl).not.toHaveBeenCalled()
+
+    expect(processed.metadata.processingMethod).toBe('file-parser')
+    expect(processed.chunks.map((chunk) => chunk.text).join('\n')).toContain('tracked-secret')
+    expect(mockDownloadFileFromUrl).toHaveBeenCalledOnce()
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('rejects secret-bearing opaque document bytes before external OCR', async () => {

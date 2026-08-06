@@ -5,7 +5,10 @@ import { deleteTagDefinitionContract } from '@/lib/api/contracts/knowledge'
 import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { deleteTagDefinition } from '@/lib/knowledge/tags/service'
+import {
+  deleteTagDefinition,
+  KnowledgeTagProvenanceConflictError,
+} from '@/lib/knowledge/tags/service'
 import { checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
 
 export const dynamic = 'force-dynamic'
@@ -45,6 +48,9 @@ export const DELETE = withRouteHandler(
         message: `Tag definition "${deletedTag.displayName}" deleted successfully`,
       })
     } catch (error) {
+      if (error instanceof KnowledgeTagProvenanceConflictError) {
+        return NextResponse.json({ error: error.message }, { status: 409 })
+      }
       logger.error(`[${requestId}] Error deleting tag definition`, error)
       return NextResponse.json({ error: 'Failed to delete tag definition' }, { status: 500 })
     }

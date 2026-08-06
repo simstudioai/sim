@@ -93,7 +93,7 @@ import {
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
 import {
-  deleteFileMetadata,
+  deleteFileMetadataByIdentity,
   type FileMetadataRecord,
   getFileMetadataByKeys,
 } from '@/lib/uploads/server/metadata'
@@ -104,8 +104,8 @@ import { calculateCost } from '@/providers/utils'
 const logger = createLogger('DocumentService')
 
 /**
- * Thrown when a knowledge-base document's `fileUrl` references an internal `kb/`
- * storage object that is not owned by the target knowledge base's workspace.
+ * Thrown when a knowledge-base document's `fileUrl` references an internal
+ * knowledge-base storage object not owned by the target knowledge base's workspace.
  * Routes map this to a 403.
  */
 export class KnowledgeBaseFileOwnershipError extends Error {
@@ -117,7 +117,7 @@ export class KnowledgeBaseFileOwnershipError extends Error {
 
 /**
  * Guard document `fileUrl`s at creation time. When a URL points at an internal
- * `kb/` storage object, require that the target knowledge base owns the object,
+ * knowledge-base storage object, require that the target knowledge base owns the object,
  * resolved from the trusted `workspace_files` binding:
  *
  * - Workspace KB (`kbWorkspaceId` set): the binding's `workspaceId` must match.
@@ -125,13 +125,65 @@ export class KnowledgeBaseFileOwnershipError extends Error {
  *   owner. A key bound to another tenant is rejected; an unbound key (legacy /
  *   never reserved) passes since it carries no cross-tenant ownership.
  *
- * External `http(s)`/`data:` URLs (ingestion sources) and non-`kb/` internal keys
+ * External `http(s)`/`data:` URLs (ingestion sources) and other internal keys
  * pass through unchanged. This blocks a user from asserting ownership of another
- * tenant's `kb/` key via a planted `fileUrl` — including in a personal KB, which
+ * tenant's object via a planted `fileUrl` — including in a personal KB, which
  * otherwise could be moved into a workspace to launder the binding. All
  * referenced bindings are resolved in one query (no N+1 inside the `FOR UPDATE`
  * window). Single-document callers pass a one-element array.
  */
+function isKnowledgeBaseOwnedStorageKey(key: string): boolean {
+  return key.startsWith('kb/') || key.startsWith('knowledge-base/')
+}
+
+function getKnowledgeBaseStorageKeys(fileUrls: readonly string[]): string[] {
+  return [
+    ...new Set(
+      fileUrls
+        .map((url) => getKnowledgeBaseStorageKey(url))
+        .filter(
+          (key): key is string => typeof key === 'string' && isKnowledgeBaseOwnedStorageKey(key)
+        )
+    ),
+  ]
+}
+
+function getWorkspaceSourceStorageKeys(fileUrls: readonly string[]): string[] {
+  return [
+    ...new Set(
+      fileUrls
+        .map((url) => getKnowledgeBaseStorageKey(url))
+        .filter((key): key is string => typeof key === 'string' && key.startsWith('workspace/'))
+    ),
+  ]
+}
+
+async function loadKnowledgeBaseFileBindings(
+  fileUrls: readonly string[],
+  executor: DbExecutor = db
+): Promise<Map<string, FileMetadataRecord>> {
+  const keys = getKnowledgeBaseStorageKeys(fileUrls)
+  const bindings =
+    keys.length > 0 ? await getFileMetadataByKeys(keys, 'knowledge-base', executor) : []
+
+  return new Map(bindings.map((binding) => [binding.key, binding]))
+}
+
+async function loadWorkspaceSourceFileBindings(
+  fileUrls: readonly string[],
+  executor: DbExecutor = db
+): Promise<Map<string, FileMetadataRecord>> {
+  const keys = getWorkspaceSourceStorageKeys(fileUrls)
+  if (keys.length === 0) return new Map()
+
+  const workspaceBindings = await getFileMetadataByKeys(keys, 'workspace', executor)
+  const mothershipBindings = await getFileMetadataByKeys(keys, 'mothership', executor)
+
+  return new Map(
+    [...workspaceBindings, ...mothershipBindings].map((binding) => [binding.key, binding])
+  )
+}
+
 async function assertKnowledgeBaseFileUrlsOwnership(
   fileUrls: string[],
   kbWorkspaceId: string | null,
@@ -139,21 +191,12 @@ async function assertKnowledgeBaseFileUrlsOwnership(
   requestId: string,
   executor: DbExecutor = db
 ): Promise<Map<string, FileMetadataRecord>> {
-  const keys = [
-    ...new Set(
-      fileUrls
-        .map((url) => getKnowledgeBaseStorageKey(url))
-        .filter((key): key is string => typeof key === 'string' && key.startsWith('kb/'))
-    ),
-  ]
+  const keys = getKnowledgeBaseStorageKeys(fileUrls)
   if (keys.length === 0) {
     return new Map()
   }
 
-  // Read bindings on the caller's transaction so the security check shares the
-  // same connection/lock context as the FOR UPDATE'd insert that follows.
-  const bindings = await getFileMetadataByKeys(keys, 'knowledge-base', executor)
-  const bindingByKey = new Map(bindings.map((binding) => [binding.key, binding]))
+  const bindingByKey = await loadKnowledgeBaseFileBindings(fileUrls, executor)
 
   for (const key of keys) {
     const binding = bindingByKey.get(key)
@@ -187,6 +230,21 @@ async function assertKnowledgeBaseFileUrlsOwnership(
   }
 
   return bindingByKey
+}
+
+async function loadCurrentWorkspaceSourceFileSecretProvenance(options: {
+  fileUrl: string
+}): Promise<DurableSecretProvenance | undefined> {
+  const storageKey = getKnowledgeBaseStorageKey(options.fileUrl)
+  if (!storageKey?.startsWith('workspace/')) return undefined
+
+  const bindingByKey = await loadWorkspaceSourceFileBindings([options.fileUrl])
+  const binding = bindingByKey.get(storageKey)
+  if (!binding) return undefined
+
+  const provenanceById = await getBoundWorkspaceFileSecretProvenanceByMetadata(db, [binding])
+  const provenance = provenanceById.get(binding.id) ?? { status: 'unknown' as const }
+  return durableSecretProvenanceFromWorkspaceFile(provenance, binding)
 }
 
 const TIMEOUTS = {
@@ -722,6 +780,10 @@ export async function processDocumentAsync(
         embeddingModel: knowledgeBase.embeddingModel,
         billedAccountUserId: workspaceTable.billedAccountUserId,
         uploadedBy: document.uploadedBy,
+        filename: document.filename,
+        fileUrl: document.fileUrl,
+        fileSize: document.fileSize,
+        mimeType: document.mimeType,
         tag1: document.tag1,
         tag2: document.tag2,
         tag3: document.tag3,
@@ -773,6 +835,12 @@ export async function processDocumentAsync(
     }
 
     const ctx = contextRows[0]
+    const persistedDocData = {
+      filename: ctx.filename,
+      fileUrl: ctx.fileUrl,
+      fileSize: ctx.fileSize,
+      mimeType: ctx.mimeType,
+    }
 
     await db
       .update(document)
@@ -861,19 +929,26 @@ export async function processDocumentAsync(
     let embeddingModelName = kbEmbeddingModel
     let embeddingPricingId = kbEmbeddingModel
 
-    const documentSecretContext = await loadKnowledgeDocumentSecretRegistry(documentId, {
-      userId: documentActorUserId,
-      ...(ctx.workspaceId ? { workspaceId: ctx.workspaceId } : {}),
+    const currentSourceFileProvenance = await loadCurrentWorkspaceSourceFileSecretProvenance({
+      fileUrl: persistedDocData.fileUrl,
     })
+    const documentSecretContext = await loadKnowledgeDocumentSecretRegistry(
+      documentId,
+      {
+        userId: documentActorUserId,
+        ...(ctx.workspaceId ? { workspaceId: ctx.workspaceId } : {}),
+      },
+      currentSourceFileProvenance
+    )
 
     await withTimeout(
       runWithKnowledgeModelInputProvenance(
         documentSecretContext.registry,
         async () => {
           const processed = await processDocument(
-            docData.fileUrl,
-            docData.filename,
-            docData.mimeType,
+            persistedDocData.fileUrl,
+            persistedDocData.filename,
+            persistedDocData.mimeType,
             kbConfig.maxSize,
             kbConfig.overlap,
             kbConfig.minSize,
@@ -1171,15 +1246,9 @@ function getServerKnownDocumentSize(
 async function resolveServerKnownDocumentSizes<
   T extends { readonly fileUrl: string; readonly fileSize: number },
 >(documents: readonly T[]): Promise<Array<T & { fileSize: number }>> {
-  const keys = [
-    ...new Set(
-      documents
-        .map((docData) => getKnowledgeBaseStorageKey(docData.fileUrl))
-        .filter((key): key is string => typeof key === 'string' && key.startsWith('kb/'))
-    ),
-  ]
-  const bindings = keys.length > 0 ? await getFileMetadataByKeys(keys, 'knowledge-base') : []
-  const bindingByKey = new Map(bindings.map((binding) => [binding.key, binding]))
+  const bindingByKey = await loadKnowledgeBaseFileBindings(
+    documents.map((document) => document.fileUrl)
+  )
   return documents.map((docData) => ({
     ...docData,
     fileSize: getServerKnownDocumentSize(docData.fileUrl, docData.fileSize, bindingByKey),
@@ -1302,9 +1371,14 @@ export async function createDocumentRecords(
       requestId,
       tx
     )
-    const trackedBindings = [...bindingByKey.values()].filter(
-      (binding) => binding.secretProvenanceVersion !== null
+    const sourceBindingByKey = await loadWorkspaceSourceFileBindings(
+      resolvedDocuments.map((docData) => docData.fileUrl),
+      tx
     )
+    const trackedBindings = [
+      ...[...bindingByKey.values()].filter((binding) => binding.secretProvenanceVersion !== null),
+      ...sourceBindingByKey.values(),
+    ]
     const boundFileProvenanceById = await getBoundWorkspaceFileSecretProvenanceByMetadata(
       tx,
       trackedBindings
@@ -1411,17 +1485,22 @@ export async function createDocumentRecords(
         boolean3: processedTags.boolean3 ?? null,
       }
       const source = createKnowledgeDocumentSourceValue(baseDocument)
-      const binding = storageKey ? bindingByKey.get(storageKey) : undefined
-      const boundFileProvenance =
-        binding && binding.secretProvenanceVersion !== null
-          ? (boundFileProvenanceById.get(binding.id) ?? { status: 'unknown' as const })
+      const binding = storageKey
+        ? (bindingByKey.get(storageKey) ?? sourceBindingByKey.get(storageKey))
+        : undefined
+      const provenanceBinding =
+        binding && (binding.secretProvenanceVersion !== null || sourceBindingByKey.has(binding.key))
+          ? binding
           : undefined
+      const boundFileProvenance = provenanceBinding
+        ? (boundFileProvenanceById.get(provenanceBinding.id) ?? { status: 'unknown' as const })
+        : undefined
       const provenance = bindKnowledgeDocumentWriteSecretProvenance({
         source,
         provenance: secretProvenances?.[documentIndex],
         tagDefinitions,
-        ...(binding && boundFileProvenance
-          ? { boundFile: { binding, provenance: boundFileProvenance } }
+        ...(provenanceBinding && boundFileProvenance
+          ? { boundFile: { binding: provenanceBinding, provenance: boundFileProvenance } }
           : {}),
       })
       const newDocument = {
@@ -1833,11 +1912,21 @@ export async function createSingleDocument(
       requestId,
       tx
     )
+    const sourceBindingByKey = await loadWorkspaceSourceFileBindings(
+      [resolvedDocumentData.fileUrl],
+      tx
+    )
     const storageKey = getKnowledgeBaseStorageKey(resolvedDocumentData.fileUrl)
-    const binding = storageKey ? bindingByKey.get(storageKey) : undefined
+    const binding = storageKey
+      ? (bindingByKey.get(storageKey) ?? sourceBindingByKey.get(storageKey))
+      : undefined
+    const provenanceBinding =
+      binding && (binding.secretProvenanceVersion !== null || sourceBindingByKey.has(binding.key))
+        ? binding
+        : undefined
     const boundFileProvenanceById = await getBoundWorkspaceFileSecretProvenanceByMetadata(
       tx,
-      binding && binding.secretProvenanceVersion !== null ? [binding] : []
+      provenanceBinding ? [provenanceBinding] : []
     )
     const currentSize = getServerKnownDocumentSize(
       resolvedDocumentData.fileUrl,
@@ -1873,16 +1962,15 @@ export async function createSingleDocument(
     }
 
     const source = createKnowledgeDocumentSourceValue(newDocument)
-    const boundFileProvenance =
-      binding && binding.secretProvenanceVersion !== null
-        ? (boundFileProvenanceById.get(binding.id) ?? { status: 'unknown' as const })
-        : undefined
+    const boundFileProvenance = provenanceBinding
+      ? (boundFileProvenanceById.get(provenanceBinding.id) ?? { status: 'unknown' as const })
+      : undefined
     const documentProvenance = bindKnowledgeDocumentWriteSecretProvenance({
       source,
       provenance: secretProvenance,
       tagDefinitions,
-      ...(binding && boundFileProvenance
-        ? { boundFile: { binding, provenance: boundFileProvenance } }
+      ...(provenanceBinding && boundFileProvenance
+        ? { boundFile: { binding: provenanceBinding, provenance: boundFileProvenance } }
         : {}),
     })
     await tx.insert(document).values({
@@ -2464,20 +2552,20 @@ export async function deleteDocumentStorageFiles(
     storageKey: getKnowledgeBaseStorageKey(doc.fileUrl),
   }))
 
-  // Resolve all kb/ ownership bindings in one query (avoids an N+1 across the
-  // delete fan-out below).
-  const kbKeys = [
+  const storageKeys = [
     ...new Set(
       entries
         .map((entry) => entry.storageKey)
-        .filter((key): key is string => typeof key === 'string' && key.startsWith('kb/'))
+        .filter(
+          (key): key is string => typeof key === 'string' && isKnowledgeBaseOwnedStorageKey(key)
+        )
     ),
   ]
-  const ownerByKey = new Map<string, string | null>()
-  if (kbKeys.length > 0) {
-    const bindings = await getFileMetadataByKeys(kbKeys, 'knowledge-base')
+  const bindingByKey = new Map<string, FileMetadataRecord>()
+  if (storageKeys.length > 0) {
+    const bindings = await getFileMetadataByKeys(storageKeys, 'knowledge-base')
     for (const binding of bindings) {
-      ownerByKey.set(binding.key, binding.workspaceId)
+      bindingByKey.set(binding.key, binding)
     }
   }
 
@@ -2486,32 +2574,43 @@ export async function deleteDocumentStorageFiles(
       return
     }
 
-    // Only delete a kb/ object when its trusted ownership binding confirms the
-    // deleting document's workspace owns it. Prevents deleting another tenant's
-    // object via a document with a planted fileUrl.
-    if (storageKey.startsWith('kb/')) {
-      const bindingWorkspaceId = ownerByKey.get(storageKey)
-      if (!bindingWorkspaceId) {
-        logger.warn(`[${requestId}] Skipping storage delete: no ownership binding for key`, {
-          documentId: doc.id,
-          storageKey,
-        })
-        return
-      }
-      if (!doc.workspaceId || bindingWorkspaceId !== doc.workspaceId) {
-        logger.warn(`[${requestId}] Skipping storage delete: ownership binding mismatch`, {
-          documentId: doc.id,
-          storageKey,
-          bindingWorkspaceId,
-          documentWorkspaceId: doc.workspaceId ?? null,
-        })
-        return
-      }
+    if (!isKnowledgeBaseOwnedStorageKey(storageKey)) {
+      return
+    }
+
+    const binding = bindingByKey.get(storageKey)
+    if (!binding?.workspaceId || binding.context !== 'knowledge-base') {
+      logger.warn(`[${requestId}] Skipping storage delete: no ownership binding for key`, {
+        documentId: doc.id,
+        storageKey,
+      })
+      return
+    }
+    if (!doc.workspaceId || binding.workspaceId !== doc.workspaceId) {
+      logger.warn(`[${requestId}] Skipping storage delete: ownership binding mismatch`, {
+        documentId: doc.id,
+        storageKey,
+        bindingWorkspaceId: binding.workspaceId,
+        documentWorkspaceId: doc.workspaceId ?? null,
+      })
+      return
     }
 
     try {
+      const metadataDeleted = await deleteFileMetadataByIdentity({
+        id: binding.id,
+        key: binding.key,
+        context: binding.context,
+        contentUpdatedAt: binding.contentUpdatedAt,
+      })
+      if (!metadataDeleted) {
+        logger.warn(`[${requestId}] Skipping storage delete: ownership binding changed`, {
+          documentId: doc.id,
+          storageKey,
+        })
+        return
+      }
       await deleteFile({ key: storageKey, context: 'knowledge-base' })
-      await deleteFileMetadata(storageKey)
     } catch (error) {
       logger.warn(`[${requestId}] Failed to delete document storage file`, {
         documentId: doc.id,

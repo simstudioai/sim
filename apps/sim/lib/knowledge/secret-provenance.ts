@@ -404,7 +404,8 @@ export async function replaceKnowledgeEmbeddingSecretProvenanceInTx(
 /** Loads a document source registry before parsing, OCR, chunking, or embedding. */
 export async function loadKnowledgeDocumentSecretRegistry(
   documentId: string,
-  scope: ResolvedSecretTraceScopeV1
+  scope: ResolvedSecretTraceScopeV1,
+  currentSourceFileProvenance?: DurableSecretProvenance
 ): Promise<{
   registry?: ResolvedSecretTraceRegistry
   provenance: DurableSecretProvenance
@@ -413,15 +414,27 @@ export async function loadKnowledgeDocumentSecretRegistry(
   const [row] = await selectKnowledgeDocumentProvenanceRows(eq(document.id, documentId)).limit(1)
   if (!row) throw new Error('Document not found')
   const source = createKnowledgeDocumentSourceValue(row)
-  const provenance = filterKnowledgeDocumentContentSecretProvenance(
+  const persistedProvenance = filterKnowledgeDocumentContentSecretProvenance(
     readBoundKnowledgeDocumentSecretProvenance({ ...row, source }),
     source
   )
+  const provenance = currentSourceFileProvenance
+    ? mergeDurableSecretProvenance(
+        persistedProvenance,
+        bindKnowledgeDocumentFieldSecretProvenance(currentSourceFileProvenance, 'content', {
+          fileUrl: source.fileUrl,
+          contentHash: source.contentHash,
+        })
+      )
+    : persistedProvenance
   if (provenance.status === 'unknown') {
     throw new Error('Knowledge document secret provenance is unavailable')
   }
   if (provenance.entries.length === 0)
-    return { provenance, tracked: row.secretProvenanceVersion === 1 }
+    return {
+      provenance,
+      tracked: row.secretProvenanceVersion === 1 || currentSourceFileProvenance !== undefined,
+    }
   const registry = new ResolvedSecretTraceRegistry([], scope)
   if (!(await importDurableSecretProvenance(registry, provenance))) {
     throw new Error('Knowledge document secret provenance is unavailable')
