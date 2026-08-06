@@ -1,57 +1,73 @@
 #!/usr/bin/env bun
 /**
- * Import-specifier hygiene for the two shapes that break Turbopack dev while passing
- * the webpack production build — a divergence CI cannot see, because `next dev` runs
- * Turbopack and `next build` runs webpack.
+ * Resolves every first-party import specifier the way Turbopack does, and fails on any
+ * that does not land on a real file.
  *
- * 1. `.js` extension specifiers in TypeScript source.
+ * This exists because `next build` runs webpack and `next dev` runs Turbopack, and the
+ * two do not resolve the same set of specifiers. Anything webpack accepts and Turbopack
+ * rejects builds green in CI and 500s on every developer's machine — CI cannot see it,
+ * because CI never runs the Turbopack graph.
  *
- *    webpack maps `./errors.js` -> `./errors.ts` via `resolve.extensionAlias`.
- *    Turbopack has no equivalent (vercel/next.js#82945), so the same import is a hard
- *    `Module not found: Can't resolve './errors.js'`. `packages/utils/src/index.ts`
- *    shipped 12 of these; every route whose graph reached the `@sim/utils` barrel 500'd
- *    in dev while CI stayed green. The repo is on `moduleResolution: "bundler"`, so the
- *    extensions were never required in the first place.
+ * The concrete instance: `packages/utils/src/index.ts` addressed its siblings as
+ * `./errors.js` while the files are `./errors.ts`. webpack rewrites that through
+ * `resolve.extensionAlias`; Turbopack has no equivalent (vercel/next.js#82945). Every
+ * route reaching the `@sim/utils` barrel died with
+ * `Module not found: Can't resolve './errors.js'`, and the PR that introduced it passed
+ * CI clean.
  *
- * 2. Bare `@sim/<pkg>` barrel imports when the package publishes a subpath export.
+ * Rather than pattern-match that one mistake, this walks the real resolution algorithm
+ * with the extensionAlias fallback deliberately absent. That generalises to the whole
+ * "Module not found" class: `.js` specifiers, typo'd paths, files moved or deleted with
+ * a stale importer left behind, `@/` aliases pointing nowhere, and `@sim/*` subpaths the
+ * target package does not actually export.
  *
- *    `@sim/utils/helpers` resolves straight to one module. `@sim/utils` pulls the barrel
- *    and everything it re-exports — which is how a single `chunkArray` import reached
- *    the broken specifiers above. Subpath imports are already the documented convention
- *    (CLAUDE.md, "Common Utilities"); this makes the convention enforceable.
+ * It also keeps one convention rule that resolution cannot express: `@sim/utils` must be
+ * imported by subpath. `@sim/utils/helpers` is one module; the bare barrel is twelve, and
+ * pulling the barrel is what dragged the broken specifiers above into a route graph.
+ *
+ * Deliberately NOT checked:
+ *   - bare npm specifiers — that is node_modules' business, and `bun install` state makes
+ *     it flaky in a way that would train people to ignore this check
+ *   - type-only imports — erased before any bundler resolves them
+ *   - test files and `apps/*&#47;scripts/**` — vitest and `bun run` resolve `.js` -> `.ts`
+ *     themselves, so their specifiers are correct in context; flagging them is noise, and
+ *     a check that cries wolf is a check someone deletes
  *
  * Usage:
  *   bun run scripts/check-import-specifiers.ts
  *   bun run scripts/check-import-specifiers.ts --verbose
  */
-import { readdirSync, readFileSync } from 'node:fs'
+import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(SCRIPT_DIR, '..')
 const SCAN_DIRS = ['apps/sim', 'apps/realtime', 'packages']
-const SKIP_DIRS = new Set(['node_modules', '.next', 'dist', 'build', 'generated', '.turbo'])
-
-/** Any specifier ending in `.js`/`.jsx`/`.mjs` — relative or aliased. */
-const JS_SPECIFIER_RE =
-  /(?:^|\n)\s*(?:import|export)[\s\S]*?from\s*['"]((?:\.|@\/|@sim\/)[^'"]*\.(?:js|jsx|mjs))['"]/g
-/** `import ... from '@sim/pkg'` with no subpath. */
-const BARE_SIM_BARREL_RE = /(?:^|\n)\s*import[\s\S]*?from\s*['"](@sim\/[a-z0-9-]+)['"]/g
+const SKIP_DIRS = new Set(['node_modules', '.next', 'dist', 'build', '.turbo'])
 
 /**
- * Packages that must be imported by subpath. Opt-in rather than opt-out: `@sim/emcn`,
- * `@sim/desktop-bridge` and friends are barrel-first by design, and flagging them would
+ * Extensions a bundler probes for an extensionless specifier. `.js` is present because a
+ * real `foo.js` next to the importer resolves fine — what does NOT happen is `./foo.js`
+ * falling back to `foo.ts`, and that asymmetry is the entire bug this guard exists for.
+ */
+const EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.json']
+
+/** Static value imports and re-exports. `import type` / `export type` are erased. */
+const SPECIFIER_RE =
+  /(?:^|\n)\s*(?:import|export)\s+(?!type\s)(?:[\s\S]*?from\s*)?['"]([^'"]+)['"]/g
+/** `import(...)` — resolved at call time, but the path still has to exist. */
+const DYNAMIC_RE = /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g
+
+/**
+ * Packages that must be imported by subpath. Opt-in rather than opt-out: `@sim/emcn` and
+ * `@sim/desktop-bridge` are barrel-first by design, and flagging their 33 call sites would
  * bury the one rule that matters. `@sim/utils` is subpath-only by documented convention
- * (CLAUDE.md, "Common Utilities") and is the package whose barrel took prod routes down.
+ * (CLAUDE.md, "Common Utilities") and is the package whose barrel took routes down.
  */
 const SUBPATH_REQUIRED = new Set(['@sim/utils'])
 
-/**
- * Only source a bundler will compile. Vitest and standalone `bun run` scripts resolve
- * `.js` -> `.ts` on their own, so flagging their specifiers is noise — and a check that
- * cries wolf is a check someone deletes.
- */
+/** Only source a bundler compiles — see the "Deliberately NOT checked" note above. */
 function isCompiledSource(full: string, name: string): boolean {
   if (!/\.(ts|tsx)$/.test(name) || name.endsWith('.d.ts')) return false
   if (/\.(test|spec)\.tsx?$/.test(name)) return false
@@ -75,108 +91,304 @@ function walk(dir: string, acc: string[] = []): string[] {
   return acc
 }
 
-/** Subpath exports a package publishes, e.g. `@sim/utils` -> Set{'id','helpers',...}. */
-function subpathExports(pkg: string): Set<string> {
-  const name = pkg.replace('@sim/', '')
-  const out = new Set<string>()
+function isFile(p: string): boolean {
   try {
-    const json = JSON.parse(readFileSync(join(ROOT, 'packages', name, 'package.json'), 'utf8'))
-    for (const key of Object.keys(json.exports ?? {})) {
-      if (key.startsWith('./')) out.add(key.slice(2))
+    return statSync(p).isFile()
+  } catch {
+    return false
+  }
+}
+
+/** `<base>`, `<base><ext>`, or `<base>/index<ext>`. */
+function probe(base: string): string | null {
+  if (isFile(base)) return base
+  for (const ext of EXTENSIONS) {
+    if (isFile(base + ext)) return base + ext
+  }
+  for (const ext of EXTENSIONS) {
+    const idx = join(base, `index${ext}`)
+    if (isFile(idx)) return idx
+  }
+  return null
+}
+
+/**
+ * `paths` from the workspace that owns a file, resolved to absolute prefixes.
+ *
+ * Per-workspace, not global: `@/*` is `apps/sim/*` inside apps/sim but `apps/realtime/src/*`
+ * inside apps/realtime, and apps/sim additionally maps `@sim/db/*` straight at the package
+ * directory — which legitimately bypasses that package's `exports` map. Resolving with one
+ * hardcoded alias reported ~30 false positives against apps/realtime alone.
+ */
+interface PathRule {
+  prefix: string
+  suffix: string
+  wildcard: boolean
+  /** Absolute targets; `*` is retained verbatim and substituted at match time. */
+  targets: string[]
+}
+
+interface Workspace {
+  dir: string
+  paths: PathRule[]
+}
+
+const workspaces: Workspace[] = []
+for (const group of ['apps', 'packages']) {
+  let names: string[]
+  try {
+    names = readdirSync(join(ROOT, group))
+  } catch {
+    continue
+  }
+  for (const name of names) {
+    const dir = join(ROOT, group, name)
+    const tsconfig = join(dir, 'tsconfig.json')
+    if (!isFile(tsconfig)) continue
+    try {
+      const raw = readFileSync(tsconfig, 'utf8').replace(/^\s*\/\/.*$/gm, '')
+      const paths = JSON.parse(raw)?.compilerOptions?.paths ?? {}
+      const entries: PathRule[] = Object.entries<string[]>(paths).map(([pattern, targets]) => {
+        const [prefix, suffix = ''] = pattern.split('*')
+        return {
+          prefix,
+          suffix,
+          wildcard: pattern.includes('*'),
+          targets: targets.map((t) => resolve(dir, t)),
+        }
+      })
+      // Longest prefix wins, matching TypeScript's own precedence.
+      entries.sort((a, b) => b.prefix.length - a.prefix.length)
+      workspaces.push({ dir, paths: entries })
+    } catch {
+      /* unparseable tsconfig — skip rather than fail the whole run */
+    }
+  }
+}
+workspaces.sort((a, b) => b.dir.length - a.dir.length)
+
+function workspaceFor(file: string): Workspace | undefined {
+  return workspaces.find((w) => file.startsWith(`${w.dir}/`))
+}
+
+/** Resolve through the owning workspace's tsconfig `paths`, or null if no pattern matches. */
+function resolveViaPaths(spec: string, importer: string): string | null | undefined {
+  const ws = workspaceFor(importer)
+  if (!ws) return undefined
+  for (const { prefix, suffix, wildcard, targets } of ws.paths) {
+    if (!spec.startsWith(prefix)) continue
+    if (!wildcard) {
+      if (spec !== prefix) continue
+      for (const t of targets) {
+        const hit = probe(t)
+        if (hit) return hit
+      }
+      return null
+    }
+    if (suffix && !spec.endsWith(suffix)) continue
+    const middle = spec.slice(prefix.length, suffix ? spec.length - suffix.length : undefined)
+    for (const t of targets) {
+      const hit = probe(t.replace('*', middle))
+      if (hit) return hit
+    }
+    return null
+  }
+  return undefined
+}
+
+/** Subpath -> target file, read from a workspace package's `exports` map. */
+const pkgExportCache = new Map<string, Map<string, string> | null>()
+function packageExports(pkg: string): Map<string, string> | null {
+  if (pkgExportCache.has(pkg)) return pkgExportCache.get(pkg) as Map<string, string> | null
+  const dir = join(ROOT, 'packages', pkg.replace('@sim/', ''))
+  let map: Map<string, string> | null = null
+  try {
+    const json = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'))
+    if (json.name === pkg && json.exports) {
+      map = new Map()
+      for (const [key, val] of Object.entries<any>(json.exports)) {
+        const target = typeof val === 'string' ? val : (val?.default ?? val?.types)
+        if (typeof target === 'string') map.set(key, join(dir, target))
+      }
     }
   } catch {
-    /* not a workspace package we can inspect */
+    /* not a workspace package, or unreadable */
   }
-  return out
+  pkgExportCache.set(pkg, map)
+  return map
+}
+
+type Outcome = { ok: true } | { ok: false; reason: string }
+
+function resolveSpecifier(spec: string, importer: string): Outcome | null {
+  if (spec.startsWith('.')) {
+    return probe(resolve(dirname(importer), spec))
+      ? { ok: true }
+      : { ok: false, reason: 'no file at that path' }
+  }
+
+  // tsconfig `paths` first — it legitimately overrides a package's exports map.
+  const viaPaths = resolveViaPaths(spec, importer)
+  if (viaPaths) return { ok: true }
+  if (viaPaths === null) {
+    return {
+      ok: false,
+      reason: spec.startsWith('@/')
+        ? "'@/' alias matches a tsconfig path but nothing is there"
+        : 'matches a tsconfig path but nothing is there',
+    }
+  }
+
+  if (spec.startsWith('@sim/')) {
+    const [, name, ...rest] = spec.split('/')
+    const pkg = `@sim/${name}`
+    const exports = packageExports(pkg)
+    if (!exports) return null // package not in packages/, or has no exports map
+    const key = rest.length ? `./${rest.join('/')}` : '.'
+
+    const exact = exports.get(key)
+    if (exact) {
+      return probe(exact) ? { ok: true } : { ok: false, reason: `${key} points at a missing file` }
+    }
+
+    // Wildcard subpaths, e.g. `"./*": "./src/*"` on @sim/emcn.
+    for (const [pattern, target] of exports) {
+      const star = pattern.indexOf('*')
+      if (star === -1) continue
+      const head = pattern.slice(0, star)
+      const tail = pattern.slice(star + 1)
+      if (!key.startsWith(head) || !key.endsWith(tail)) continue
+      const middle = key.slice(head.length, key.length - tail.length)
+      if (probe(target.replace('*', middle))) return { ok: true }
+      return { ok: false, reason: `${pkg}'s '${pattern}' export has no file for '${key}'` }
+    }
+
+    return { ok: false, reason: `${pkg} does not export '${key}'` }
+  }
+
+  return null // bare npm specifier — not ours to verify
 }
 
 interface Violation {
   file: string
   line: number
   specifier: string
-  kind: 'js-extension' | 'bare-barrel'
-  hint: string
+  kind: 'unresolved' | 'bare-barrel'
+  reason: string
 }
 
 const files = SCAN_DIRS.flatMap((d) => walk(join(ROOT, d)))
 const violations: Violation[] = []
-const subpathCache = new Map<string, Set<string>>()
+let checked = 0
+
+/**
+ * Blank out comments while preserving every byte offset, so reported line numbers stay
+ * exact. TSDoc routinely contains example imports — `packages/db/triggers.ts` documents
+ * `import { ensureRowCountTriggers } from '@sim/db/triggers'`, a subpath the package
+ * deliberately does not export — and scanning raw source reports those as broken.
+ */
+function blankComments(src: string): string {
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '))
+    .replace(/(^|[^:])\/\/[^\n]*/g, (m, lead) => lead + ' '.repeat(m.length - lead.length))
+}
 
 for (const file of files) {
-  const src = readFileSync(file, 'utf8')
-  const lineAt = (idx: number) => src.slice(0, idx).split('\n').length
-
-  JS_SPECIFIER_RE.lastIndex = 0
-  let m = JS_SPECIFIER_RE.exec(src)
-  while (m !== null) {
-    violations.push({
-      file: relative(ROOT, file),
-      line: lineAt(m.index),
-      specifier: m[1],
-      kind: 'js-extension',
-      hint: `drop the extension: '${m[1].replace(/\.(js|jsx|mjs)$/, '')}'`,
-    })
-    m = JS_SPECIFIER_RE.exec(src)
+  const raw = readFileSync(file, 'utf8')
+  const src = blankComments(raw)
+  let lineStarts: number[] | null = null
+  const lineAt = (idx: number) => {
+    if (!lineStarts) {
+      lineStarts = [0]
+      for (let i = 0; i < src.length; i++) if (src[i] === '\n') lineStarts.push(i + 1)
+    }
+    let lo = 0
+    let hi = lineStarts.length - 1
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1
+      if (lineStarts[mid] <= idx) lo = mid
+      else hi = mid - 1
+    }
+    return lo + 1
   }
 
-  BARE_SIM_BARREL_RE.lastIndex = 0
-  m = BARE_SIM_BARREL_RE.exec(src)
-  while (m !== null) {
-    const pkg = m[1]
-    if (SUBPATH_REQUIRED.has(pkg)) {
-      if (!subpathCache.has(pkg)) subpathCache.set(pkg, subpathExports(pkg))
-      const subs = subpathCache.get(pkg) as Set<string>
-      if (subs.size > 0) {
+  for (const pattern of [SPECIFIER_RE, DYNAMIC_RE]) {
+    pattern.lastIndex = 0
+    let m = pattern.exec(src)
+    while (m !== null) {
+      const spec = m[1]
+      const outcome = resolveSpecifier(spec, file)
+      if (outcome) {
+        checked++
+        if (!outcome.ok) {
+          violations.push({
+            file: relative(ROOT, file),
+            line: lineAt(m.index),
+            specifier: spec,
+            kind: 'unresolved',
+            reason: outcome.reason,
+          })
+        }
+      }
+      if (pattern === SPECIFIER_RE && SUBPATH_REQUIRED.has(spec)) {
+        const subs = packageExports(spec)
+        const example = subs ? [...subs.keys()].find((k) => k !== '.') : undefined
         violations.push({
           file: relative(ROOT, file),
           line: lineAt(m.index),
-          specifier: pkg,
+          specifier: spec,
           kind: 'bare-barrel',
-          hint: `import from a subpath instead, e.g. '${pkg}/${[...subs].sort()[0]}'`,
+          reason: example
+            ? `import from a subpath instead, e.g. '${spec}${example.slice(1)}'`
+            : 'import from a subpath instead',
         })
       }
+      m = pattern.exec(src)
     }
-    m = BARE_SIM_BARREL_RE.exec(src)
   }
 }
 
 const verbose = process.argv.includes('--verbose')
 
 if (violations.length === 0) {
-  console.log(`✓ check-import-specifiers: ${files.length} files, no risky specifiers`)
+  console.log(
+    `✓ check-import-specifiers: ${checked} first-party specifiers across ${files.length} files all resolve`
+  )
   process.exit(0)
 }
 
-const byKind = {
-  'js-extension': violations.filter((v) => v.kind === 'js-extension'),
-  'bare-barrel': violations.filter((v) => v.kind === 'bare-barrel'),
-}
+const unresolved = violations.filter((v) => v.kind === 'unresolved')
+const barrels = violations.filter((v) => v.kind === 'bare-barrel')
 
-if (byKind['js-extension'].length) {
-  console.error(`\n✗ ${byKind['js-extension'].length} '.js' specifier(s) in TypeScript source:\n`)
-  for (const v of byKind['js-extension']) {
-    console.error(`    ${v.file}:${v.line}  '${v.specifier}'`)
-    console.error(`        ${v.hint}`)
+if (unresolved.length) {
+  console.error(`\n✗ ${unresolved.length} specifier(s) do not resolve:\n`)
+  for (const v of unresolved) {
+    console.error(`    ${v.file}:${v.line}`)
+    console.error(`        '${v.specifier}' — ${v.reason}`)
+    if (/\.(js|jsx|mjs)$/.test(v.specifier)) {
+      console.error(`        drop the extension: '${v.specifier.replace(/\.\w+$/, '')}'`)
+    }
   }
   console.error(
-    "\n  webpack rewrites '.js' -> '.ts' via resolve.extensionAlias; Turbopack does not\n" +
-      "  (vercel/next.js#82945). So these build green in CI ('next build' = webpack) and\n" +
-      "  hard-fail every dev server ('next dev' = Turbopack) with Module not found.\n" +
-      '  This repo uses moduleResolution: "bundler" — the extension is never needed.\n'
+    "\n  These are 'Module not found' at dev time. A '.js' specifier pointing at a '.ts'\n" +
+      '  file is the common case: webpack rewrites it via resolve.extensionAlias, Turbopack\n' +
+      '  does not (vercel/next.js#82945). CI builds with webpack and every developer runs\n' +
+      "  Turbopack, so this class of break is invisible to CI. moduleResolution is 'bundler'\n" +
+      '  here — extensions are never required.\n'
   )
 }
 
-if (byKind['bare-barrel'].length) {
-  console.error(`\n✗ ${byKind['bare-barrel'].length} bare @sim/* barrel import(s):\n`)
-  for (const v of byKind['bare-barrel']) {
+if (barrels.length) {
+  console.error(`\n✗ ${barrels.length} bare barrel import(s) of a subpath-only package:\n`)
+  for (const v of barrels) {
     console.error(`    ${v.file}:${v.line}  '${v.specifier}'`)
-    console.error(`        ${v.hint}`)
+    console.error(`        ${v.reason}`)
   }
   console.error(
     '\n  A barrel import pulls every module the barrel re-exports, so one helper drags in\n' +
-      '  the whole package — and any single bad specifier inside it takes the importer down.\n'
+      '  the whole package — and one bad specifier anywhere inside it takes the importer down.\n'
   )
 }
 
-if (verbose) console.error(`\nscanned ${files.length} files`)
+if (verbose) console.error(`\nscanned ${files.length} files, ${checked} first-party specifiers`)
 process.exit(1)
