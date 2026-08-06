@@ -24,6 +24,11 @@ describe('buildRequest', () => {
     expect(built.body).toBeUndefined()
   })
 
+  it('omits an optional profile workspace when all workspaces are requested', () => {
+    const built = buildRequest('listBillingLogs', [], { allWorkspaces: true }, WORKSPACE)
+    expect(built.query).not.toHaveProperty('workspaceId')
+  })
+
   it('maps a contract flag alias back to its field name', () => {
     const built = buildRequest('upsertTableRow', ['t'], { data: '{}', on: 'email' }, WORKSPACE)
     expect(built.body).toMatchObject({ conflictTarget: 'email' })

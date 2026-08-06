@@ -122,11 +122,17 @@ sim workflows get <id>
 sim workflows update <id> [--name <name>] [--description <text>] [--folder <path>]
 sim workflows mv <id> <folder>
 sim workflows deploy|undeploy|rollback <id>
-sim workflows run <id> [--input <json|@file>] [--select-output <path>…]
+sim workflows run <id> [--input <json|@file>] [--select-output <path>…] [--async]
+sim workflows executions list --workflow <workflowId> [--status <status>]
+sim workflows executions get <executionId> --workflow <workflowId> [--include-output]
+sim workflows executions cancel <executionId> --workflow <workflowId>
+sim workflows executions resume <executionId> --workflow <workflowId> --context <contextId> [--input <json|@file>]
 
-sim logs list [--level error] [--workflow <id>…] [--trigger <name>…] [--start <date>]
-sim logs get <logId>
-sim logs executions get <executionId>
+sim logs list [--level error] [--workflow <id>…] [--trigger <name>…] [--start-date <date>]
+sim logs get <executionId>
+
+sim audit-logs list --organization <organizationId> [--all-workspaces]
+sim audit-logs get <id> --organization <organizationId>
 
 sim tables ls [path] [--search <text>] [--limit <n>]
 sim tables list [--folder <path>]
@@ -164,17 +170,26 @@ sim documents get <documentId> --kb <knowledgeBaseId>
 sim documents upload <path> --kb <knowledgeBaseId> [--tag <value>...]
 sim documents delete <documentId> --kb <knowledgeBaseId> --yes
 
-sim billing
-sim billing logs [--period 7d] [--source sim-chat] [--limit <n>]
+sim billing status [--all-workspaces]
+sim billing logs [--period 7d] [--source sim-chat] [--limit <n>] [--all-workspaces]
 ```
 
 The `sim-chat` billing source combines Copilot and workspace chat usage.
+Organization audit logs require a personal API key. Commands with
+`--all-workspaces` otherwise default to the workspace in the active profile.
 
-`sim logs get` keeps the default human output concise. Use JSON or YAML to
-inspect its complete `executionData` and recursive `traceSpans` tree:
+`workflows executions get` is the lightweight status and polling resource.
+`--workflow` names the parent resource, while the execution ID remains positional.
+For a paused execution, its status includes the context ID needed by `resume`.
+`logs get` is the full diagnostic resource. It keeps the default human output
+concise; add `--trace` for the expanded recursive trace with span inputs,
+outputs, errors, timing, and cost. JSON and YAML retain the complete structured
+response:
 
 ```bash
-sim logs get <logId> --output json | jq '.traceSpans'
+sim logs get <executionId> --trace
+sim logs get <executionId> --output json | jq '.traceSpans'
+sim logs list --include-trace-spans --output json
 ```
 
 Workflow output selectors use `blockName.field` syntax, such as

@@ -13,20 +13,32 @@ import { buildGeneratedCommands } from './build.js'
  * catch that class of bug.
  */
 
-const { mockRequest, output } = vi.hoisted(() => ({
+const { mockRequest, output, profileState } = vi.hoisted(() => ({
   mockRequest: vi.fn(),
   output: { format: 'json' },
+  profileState: { workspaceId: 'ws_local' as string | null },
 }))
 
 vi.mock('../context.js', () => ({
   clientFrom: () => ({
-    client: { request: mockRequest, requireWorkspace: () => 'ws_local' },
-    profile: { workspaceId: 'ws_local', output: output.format, name: 'default', apiKey: 'k' },
+    client: {
+      request: mockRequest,
+      requireWorkspace: () => {
+        if (!profileState.workspaceId) throw new Error('workspace required')
+        return profileState.workspaceId
+      },
+    },
+    profile: {
+      workspaceId: profileState.workspaceId,
+      output: output.format,
+      name: 'default',
+      apiKey: 'k',
+    },
   }),
 }))
 
 function program(): Command {
-  const root = new Command('sim').exitOverride()
+  const root = new Command('sim').exitOverride().option('--workspace <id>')
   for (const group of buildGeneratedCommands()) root.addCommand(group)
   // Recursively, not just on the root: a parse error raised by a leaf (an
   // unknown option, an excess argument) exits the process otherwise, which a
@@ -60,6 +72,7 @@ async function run(argv: string[], response: unknown = { data: [], nextCursor: n
 describe('commands parsed through commander', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
+    profileState.workspaceId = 'ws_local'
   })
 
   it('carries a multi-word flag all the way to the request', async () => {
@@ -97,6 +110,27 @@ describe('commands parsed through commander', () => {
   it('describes generated resource and sub-resource groups', () => {
     expect(commandAt('tables').description()).toBe('Manage tables')
     expect(commandAt('tables', 'rows').description()).toBe('Manage table rows')
+  })
+
+  it('shows the command syntax when a required positional argument is missing', async () => {
+    const root = program()
+    const skills = root.commands.find((command) => command.name() === 'skills')
+    const update = skills?.commands.find((command) => command.name() === 'update')
+    if (!update) throw new Error('Missing command skills update')
+
+    let errorOutput = ''
+    update.configureOutput({
+      writeErr: (message) => {
+        errorOutput += message
+      },
+    })
+
+    await expect(root.parseAsync(['node', 'sim', 'skills', 'update'])).rejects.toMatchObject({
+      code: 'commander.missingArgument',
+    })
+    expect(errorOutput).toContain("error: missing required argument 'id'")
+    expect(errorOutput).toContain('Example: sim skills update <id>')
+    expect(errorOutput).not.toContain('--id')
   })
 
   it('dispatches generated commands through their singular resource alias', async () => {
@@ -159,9 +193,12 @@ describe('commands parsed through commander', () => {
     expect(mockRequest).not.toHaveBeenCalled()
   })
 
-  it('uses billing as the usage summary and keeps detailed events under logs', async () => {
-    expect(commandAt('billing').commands.map((command) => command.name())).toContain('logs')
-    expect(commandAt('billing').commands.map((command) => command.name())).not.toContain('usage')
+  it('keeps billing status and logs as explicit subcommands', async () => {
+    expect(
+      commandAt('billing')
+        .commands.map((command) => command.name())
+        .sort()
+    ).toEqual(['logs', 'status'])
 
     const help = commandAt('billing', 'logs').helpInformation()
     expect(help).toContain('--source <value>')
@@ -171,11 +208,27 @@ describe('commands parsed through commander', () => {
     expect(help).not.toContain('"copilot"')
     expect(help).not.toContain('One of: workflow')
 
-    const [summaryPath, summaryOptions] = await run(['billing'], {
-      data: { plan: 'pro', totalCredits: 10 },
+    const [summaryPath, summaryOptions] = await run(['billing', 'status'], {
+      data: {
+        plan: 'pro',
+        status: 'active',
+        credits: { used: 10, limit: 100, remaining: 90 },
+      },
     })
-    expect(summaryPath).toBe('/api/v2/billing/usage')
+    expect(summaryPath).toBe('/api/v2/billing/status')
     expect(summaryOptions.query).toEqual({ workspaceId: 'ws_local' })
+
+    const [, accountOptions] = await run(['billing', 'status', '--all-workspaces'])
+    expect(accountOptions.query).toEqual({})
+
+    profileState.workspaceId = null
+    const [, unconfiguredAccountOptions] = await run(['billing', 'status', '--all-workspaces'])
+    expect(unconfiguredAccountOptions.query).toEqual({})
+    await expect(run(['billing', 'status'])).rejects.toThrow('workspace required')
+    profileState.workspaceId = 'ws_local'
+    await expect(
+      run(['--workspace', 'ws_other', 'billing', 'status', '--all-workspaces'])
+    ).rejects.toThrow('--all-workspaces cannot be combined with --workspace')
 
     const [logsPath, logsOptions] = await run([
       'billing',
@@ -185,12 +238,15 @@ describe('commands parsed through commander', () => {
       '--source',
       'sim-chat',
     ])
-    expect(logsPath).toBe('/api/v2/billing/usage/logs')
+    expect(logsPath).toBe('/api/v2/billing/logs')
     expect(logsOptions.query).toMatchObject({
       workspaceId: 'ws_local',
       period: '7d',
       source: 'sim-chat',
     })
+
+    const [, accountLogsOptions] = await run(['billing', 'logs', '--all-workspaces'])
+    expect(accountLogsOptions.query).not.toHaveProperty('workspaceId')
 
     for (const deprecated of ['copilot', 'workspace-chat']) {
       await expect(run(['billing', 'logs', '--source', deprecated])).rejects.toThrow(
@@ -459,8 +515,126 @@ describe('commands parsed through commander', () => {
     )
   })
 
-  it('points log detail users to complete trace output', () => {
-    expect(commandAt('logs', 'get').description()).toMatch(/traceSpans.*JSON or YAML/)
+  it('offers expanded trace output without changing the default summary', () => {
+    expect(commandAt('logs', 'get').description()).toBe('Show execution diagnostics')
+    expect(commandAt('logs', 'get').helpInformation()).toMatch(
+      /--trace.*inputs, outputs, errors, timing,\s+and cost/s
+    )
+    const listHelp = commandAt('logs', 'list').helpInformation()
+    expect(listHelp).toMatch(/--include-trace-spans.*implies full detail/s)
+    expect(listHelp).toMatch(/--include-final-output.*implies full detail/s)
+  })
+
+  it('uses a named workflow scope for execution subresources', async () => {
+    const executions = commandAt('workflows', 'executions')
+    expect(executions.commands.map((command) => command.name()).sort()).toEqual([
+      'cancel',
+      'get',
+      'list',
+      'resume',
+    ])
+
+    const help = commandAt('workflows', 'executions', 'get').helpInformation()
+    expect(help).toContain('<executionId>')
+    expect(help).toMatch(/--workflow <workflowId>.*required/s)
+    expect(help).toContain('--include-output')
+    expect(help).toContain('--select-output <value...>')
+
+    const [path, options] = await run([
+      'workflows',
+      'executions',
+      'get',
+      'exec_1',
+      '--workflow',
+      'wf_1',
+      '--include-output',
+      '--select-output',
+      'agent.content',
+      'writer.text',
+    ])
+    expect(path).toBe('/api/v2/workflows/wf_1/executions/exec_1')
+    expect(options.query).toEqual({
+      includeOutput: true,
+      selectedOutputs: 'agent.content,writer.text',
+    })
+
+    const [listPath] = await run(['workflows', 'executions', 'list', '--workflow', 'wf_1'])
+    expect(listPath).toBe('/api/v2/workflows/wf_1/executions')
+
+    const [cancelPath] = await run([
+      'workflows',
+      'executions',
+      'cancel',
+      'exec_1',
+      '--workflow',
+      'wf_1',
+    ])
+    expect(cancelPath).toBe('/api/v2/workflows/wf_1/executions/exec_1/cancel')
+
+    const resumeHelp = commandAt('workflows', 'executions', 'resume').helpInformation()
+    expect(resumeHelp).toContain('<executionId>')
+    expect(resumeHelp).toMatch(/--workflow <workflowId>.*required/s)
+    expect(resumeHelp).toMatch(/--context <value>.*required/s)
+
+    const [resumePath, resumeOptions] = await run([
+      'workflows',
+      'executions',
+      'resume',
+      'exec_1',
+      '--workflow',
+      'wf_1',
+      '--context',
+      'ctx_1',
+      '--input',
+      '{"approved":true}',
+    ])
+    expect(resumePath).toBe('/api/v2/workflows/wf_1/executions/exec_1/resume')
+    expect(resumeOptions.body).toEqual({
+      contextId: 'ctx_1',
+      input: { approved: true },
+    })
+  })
+
+  it('supports organization-wide audit listing explicitly', async () => {
+    const help = commandAt('audit-logs', 'list').helpInformation()
+    expect(help).toMatch(/--organization <value>.*personal API key required.*required/s)
+    expect(help).toContain('--all-workspaces')
+
+    const [, scopedOptions] = await run(['audit-logs', 'list', '--organization', 'org_1'])
+    expect(scopedOptions.query).toMatchObject({
+      organizationId: 'org_1',
+      workspaceId: 'ws_local',
+    })
+
+    const [, organizationOptions] = await run([
+      'audit-logs',
+      'list',
+      '--organization',
+      'org_1',
+      '--all-workspaces',
+    ])
+    expect(organizationOptions.query).toMatchObject({
+      organizationId: 'org_1',
+      limit: 100,
+    })
+    expect(organizationOptions.query).not.toHaveProperty('workspaceId')
+
+    const [detailPath, detailOptions] = await run([
+      'audit-logs',
+      'get',
+      'audit_1',
+      '--organization',
+      'org_1',
+    ])
+    expect(detailPath).toBe('/api/v2/audit-logs/audit_1')
+    expect(detailOptions.query).toEqual({ organizationId: 'org_1' })
+  })
+
+  it('describes asynchronous workflow runs without a contradictory negative flag', () => {
+    const help = commandAt('workflows', 'run').helpInformation()
+    expect(commandAt('workflows', 'run').description()).toBe('Run a deployed workflow')
+    expect(help).toContain('--async')
+    expect(help).not.toContain('--no-async')
   })
 })
 
@@ -559,10 +733,10 @@ describe('single-resource rendering', () => {
     expect(JSON.parse(printed[0])).toEqual({ row: { id: 'r1' }, operation: 'inserted' })
   })
 
-  it('keeps sensitive execution detail out of human log output', async () => {
+  it('keeps sensitive execution detail opt-in for human log output', async () => {
     const log = {
-      id: 'log_1',
       executionId: 'exec_1',
+      status: 'completed',
       workflow: { name: 'Billing' },
       level: 'info',
       trigger: 'api',
@@ -571,7 +745,8 @@ describe('single-resource rendering', () => {
       totalDurationMs: 50,
       cost: { total: 0.001 },
       files: [],
-      executionData: { env: { SECRET_TOKEN: 'encrypted-value' } },
+      workflowState: { env: { SECRET_TOKEN: 'encrypted-value' } },
+      finalOutput: { recipient: 'private@example.com' },
       traceSpans: [
         {
           id: 'span_1',
@@ -582,26 +757,41 @@ describe('single-resource rendering', () => {
               id: 'span_2',
               name: 'Send email',
               type: 'block',
-              input: { recipient: 'private@example.com' },
+              status: 'completed',
+              durationMs: 25,
+              cost: { total: 0.0005 },
+              input: { recipient: 'trace-secret@example.com' },
+              output: { delivered: true },
             },
           ],
         },
       ],
     }
 
-    const human = await lines(['logs', 'get', 'log_1'], log, 'text')
-    expect(human.join('\n')).not.toContain('executionData')
+    const human = await lines(['logs', 'get', 'exec_1'], log, 'text')
+    expect(human.join('\n')).not.toContain('workflowState')
     expect(human.join('\n')).not.toContain('SECRET_TOKEN')
     expect(human.join('\n')).not.toContain('traceSpans')
     expect(human.join('\n')).not.toContain('private@example.com')
+    expect(human.join('\n')).not.toContain('trace-secret@example.com')
+    expect(human.join('\n')).toContain('trace\t2 spans (use --trace)')
 
-    const machine = await lines(['logs', 'get', 'log_1'], log, 'json')
+    const expanded = await lines(['logs', 'get', 'exec_1', '--trace'], log, 'text')
+    expect(expanded.join('\n')).toContain('trace\t2 spans')
+    expect(expanded.join('\n')).not.toContain('(use --trace)')
+    expect(expanded.join('\n')).toContain('Workflow Execution [workflow]')
+    expect(expanded.join('\n')).toContain('Send email [block] completed 25ms $0.0005')
+    expect(expanded.join('\n')).toContain('trace-secret@example.com')
+    expect(expanded.join('\n')).toContain('"delivered": true')
+
+    const machine = await lines(['logs', 'get', 'exec_1'], log, 'json')
     expect(JSON.parse(machine[0])).toMatchObject({
-      executionData: log.executionData,
+      workflowState: log.workflowState,
       traceSpans: log.traceSpans,
+      finalOutput: log.finalOutput,
     })
 
-    const yaml = await lines(['logs', 'get', 'log_1'], log, 'yaml')
+    const yaml = await lines(['logs', 'get', 'exec_1'], log, 'yaml')
     expect(yaml.join('\n')).toContain('traceSpans:')
     expect(yaml.join('\n')).toContain('span_2')
   })

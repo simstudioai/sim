@@ -13,6 +13,21 @@ import {
   text,
   timestamp,
 } from '../output/render.js'
+import { printTraceSpans } from '../output/trace.js'
+
+interface RenderResultOptions {
+  expandedTrace?: boolean
+}
+
+function countTraceSpans(value: unknown): number {
+  if (!Array.isArray(value)) return 0
+  return value.reduce((count, span) => {
+    if (!span || typeof span !== 'object' || Array.isArray(span)) {
+      throw new Error('Trace contains a malformed span')
+    }
+    return count + 1 + countTraceSpans((span as Record<string, unknown>).children)
+  }, 0)
+}
 
 function at(row: unknown, path: string): unknown {
   return path
@@ -23,7 +38,11 @@ function at(row: unknown, path: string): unknown {
     )
 }
 
-function renderCell(value: unknown, format: ColumnSpec['format']): string {
+function renderCell(
+  value: unknown,
+  format: ColumnSpec['format'],
+  options: RenderResultOptions = {}
+): string {
   switch (format) {
     case 'timestamp':
       return timestamp(value as string | null)
@@ -37,6 +56,12 @@ function renderCell(value: unknown, format: ColumnSpec['format']): string {
       return typeof value === 'number' ? `$${value.toFixed(4)}` : text(null)
     case 'count':
       return Array.isArray(value) ? String(value.length) : text(null)
+    case 'trace-count': {
+      const count = countTraceSpans(value)
+      return `${count} ${count === 1 ? 'span' : 'spans'}${
+        options.expandedTrace ? '' : ' (use --trace)'
+      }`
+    }
     default:
       if (value === null || value === undefined || value === '') return text(null)
       return sanitize(typeof value === 'object' ? JSON.stringify(value) : String(value))
@@ -57,11 +82,15 @@ function columnsFrom(specs: ColumnSpec[]): Column<unknown>[] {
   }))
 }
 
-function fieldsFrom(data: unknown, specs: ColumnSpec[]): Array<[string, string]> {
-  return specs.map((spec) => [
-    spec.header,
-    renderCell(at(data, spec.path ?? spec.header), spec.format),
-  ])
+function fieldsFrom(
+  data: unknown,
+  specs: ColumnSpec[],
+  options: RenderResultOptions = {}
+): Array<[string, string]> {
+  return specs.flatMap((spec) => {
+    const value = at(data, spec.path ?? spec.header)
+    return value === undefined ? [] : [[spec.header, renderCell(value, spec.format, options)]]
+  })
 }
 
 function inferColumns(rows: unknown[], expand?: string): Column<unknown>[] {
@@ -118,7 +147,8 @@ export function renderResult(
   operation: V2OperationName,
   format: OutputFormat,
   raw: unknown,
-  spec: CommandSpec
+  spec: CommandSpec,
+  options: RenderResultOptions = {}
 ): void {
   if (spec.document) {
     printDocument(format, raw)
@@ -150,10 +180,17 @@ export function renderResult(
   }
 
   const fields = spec.fields
-    ? fieldsFrom(data, spec.fields)
+    ? fieldsFrom(data, spec.fields, options)
     : data && typeof data === 'object'
       ? Object.entries(data).map<[string, string]>(([key, value]) => [key, recordCell(value)])
       : []
 
   printRecord(format, fields, data)
+  if (spec.expandedTrace && options.expandedTrace) {
+    const traceSpans = at(data, 'traceSpans')
+    if (!Array.isArray(traceSpans)) {
+      throw new Error(`${operation} expected a traceSpans array`)
+    }
+    printTraceSpans(format, traceSpans)
+  }
 }

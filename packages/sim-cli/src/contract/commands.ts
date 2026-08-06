@@ -25,6 +25,13 @@ const KNOWLEDGE_DOCUMENT_SCOPE = {
     describe: 'Knowledge base ID',
   },
 } as const
+const WORKFLOW_EXECUTION_SCOPE = {
+  id: {
+    name: 'workflow',
+    placeholder: 'workflowId',
+    describe: 'Workflow ID',
+  },
+} as const
 const FOLDER_LIST_COLUMNS: ColumnSpec[] = [
   { header: 'path' },
   { header: 'name' },
@@ -54,21 +61,24 @@ function moveResource(command: string, resource: string): CommandVariantSpec {
  *   upsertTableRow        → sim tables upsert <tableId>
  */
 export const CLI_CONTRACT: CliContract = {
-  getUsageSummary: {
-    command: 'billing',
-    groupDefault: true,
-    describe: 'Show current billing-period usage',
+  getBillingStatus: {
+    command: 'billing status',
+    allWorkspaces: true,
+    describe: 'Show billing status and current-period credit usage',
     fields: [
       { header: 'plan' },
+      { header: 'status' },
+      { header: 'workspace', path: 'workspaceId' },
       { header: 'period start', path: 'period.start', format: 'timestamp' },
       { header: 'period end', path: 'period.end', format: 'timestamp' },
-      { header: 'used credits', path: 'totalCredits' },
-      { header: 'limit credits', path: 'limitCredits' },
-      { header: 'by source', path: 'bySourceCredits' },
+      { header: 'used credits', path: 'credits.used' },
+      { header: 'limit credits', path: 'credits.limit' },
+      { header: 'remaining credits', path: 'credits.remaining' },
     ],
   },
-  listUsageLogs: {
+  listBillingLogs: {
     command: 'billing logs',
+    allWorkspaces: true,
     describe: 'List credit usage events',
     flags: {
       source: { describe: 'Filter by usage source; sim-chat combines Copilot and workspace chat' },
@@ -78,9 +88,11 @@ export const CLI_CONTRACT: CliContract = {
     },
     columns: [
       { header: 'at', path: 'createdAt', format: 'timestamp' },
+      { header: 'workspace', path: 'workspaceId' },
       { header: 'source' },
-      { header: 'workflow', path: 'workflowName' },
+      { header: 'workflow', path: 'workflow.name' },
       { header: 'credits', path: 'creditCost' },
+      { header: 'execution', path: 'executionId' },
       { header: 'id' },
     ],
   },
@@ -154,9 +166,19 @@ export const CLI_CONTRACT: CliContract = {
       workflowIds: { name: 'workflow', list: true },
       folderPaths: { ...FOLDER_PATH_FLAG, list: true },
       triggers: { name: 'trigger', list: true },
+      details: { describe: 'Response detail level' },
+      includeTraceSpans: {
+        boolean: true,
+        describe: 'Include trace spans in JSON or YAML output (implies full detail)',
+      },
+      includeFinalOutput: {
+        boolean: true,
+        describe: 'Include final output in JSON or YAML output (implies full detail)',
+      },
     },
     columns: [
       { header: 'started', path: 'startedAt', format: 'timestamp' },
+      { header: 'status' },
       { header: 'level' },
       { header: 'trigger' },
       { header: 'workflow', path: 'workflow.name' },
@@ -166,12 +188,12 @@ export const CLI_CONTRACT: CliContract = {
     ],
   },
   getLog: {
-    describe:
-      'Show a log summary (traceSpans and executionData are included in JSON or YAML output)',
+    describe: 'Show execution diagnostics',
+    expandedTrace: true,
     fields: [
-      { header: 'id' },
       { header: 'execution', path: 'executionId' },
       { header: 'workflow', path: 'workflow.name' },
+      { header: 'status' },
       { header: 'level' },
       { header: 'trigger' },
       { header: 'started', path: 'startedAt', format: 'timestamp' },
@@ -179,6 +201,7 @@ export const CLI_CONTRACT: CliContract = {
       { header: 'duration', path: 'totalDurationMs', format: 'duration' },
       { header: 'cost', path: 'cost.total', format: 'cost' },
       { header: 'files', format: 'count' },
+      { header: 'trace', path: 'traceSpans', format: 'trace-count' },
     ],
   },
   searchKnowledge: {
@@ -372,12 +395,28 @@ export const CLI_CONTRACT: CliContract = {
   },
 
   listAuditLogs: {
+    allWorkspaces: true,
+    flags: {
+      organizationId: {
+        name: 'organization',
+        describe: 'Organization ID (personal API key required)',
+      },
+    },
     columns: [
       { header: 'at', path: 'createdAt', format: 'timestamp' },
+      { header: 'workspace', path: 'workspaceId' },
       { header: 'actor', path: 'actorEmail' },
       { header: 'action' },
       { header: 'resource', path: 'resourceName' },
     ],
+  },
+  getAuditLog: {
+    flags: {
+      organizationId: {
+        name: 'organization',
+        describe: 'Organization ID (personal API key required)',
+      },
+    },
   },
 
   // ─── The expanded files surface ───────────────────────────────────────────
@@ -612,8 +651,9 @@ export const CLI_CONTRACT: CliContract = {
   // `workflows execute create` and `workflows cancel create`.
   executeWorkflow: {
     command: 'workflows run',
-    describe: 'Run a deployed workflow and wait for the result',
+    describe: 'Run a deployed workflow',
     flags: {
+      async: { boolean: true, describe: 'Queue the execution and return immediately' },
       input: { json: true, describe: 'Trigger input as JSON' },
       selectedOutputs: {
         name: 'select-output',
@@ -626,17 +666,88 @@ export const CLI_CONTRACT: CliContract = {
       // command; advertising a flag that breaks the response is worse than
       // not offering it yet.
       stream: { omit: true },
+      includeThinking: { omit: true },
+      includeToolCalls: { omit: true },
     },
   },
   getWorkflowExecution: {
     command: 'workflows executions get',
-    describe: 'Show the status of one execution',
+    pathFlags: WORKFLOW_EXECUTION_SCOPE,
+    describe: 'Show execution status (requested outputs are included in JSON or YAML output)',
+    flags: {
+      includeOutput: {
+        boolean: true,
+        describe: 'Include the final output in JSON or YAML output',
+      },
+      selectedOutputs: {
+        name: 'select-output',
+        list: true,
+        describe: 'Include blockName.field values in JSON or YAML output (e.g. agent_1.content)',
+      },
+    },
+    fields: [
+      { header: 'execution', path: 'executionId' },
+      { header: 'workflow', path: 'workflowId' },
+      { header: 'status' },
+      { header: 'trigger' },
+      { header: 'started', path: 'startedAt', format: 'timestamp' },
+      { header: 'ended', path: 'endedAt', format: 'timestamp' },
+      { header: 'duration', path: 'durationMs', format: 'duration' },
+      { header: 'cost', path: 'cost.total', format: 'cost' },
+      { header: 'context', path: 'paused.contextId' },
+      { header: 'pause kind', path: 'paused.pauseKind' },
+      { header: 'paused at', path: 'paused.pausedAt', format: 'timestamp' },
+      { header: 'resume at', path: 'paused.resumeAt', format: 'timestamp' },
+      { header: 'blocked on', path: 'paused.blockedOnBlockId' },
+      { header: 'pause points', path: 'paused.pausePointCount' },
+      { header: 'error', path: 'error.message' },
+    ],
+  },
+  listWorkflowExecutions: {
+    command: 'workflows executions list',
+    pathFlags: WORKFLOW_EXECUTION_SCOPE,
+    describe: 'List executions for a workflow',
+    columns: [
+      { header: 'started', path: 'startedAt', format: 'timestamp' },
+      { header: 'status' },
+      { header: 'trigger' },
+      { header: 'duration', path: 'durationMs', format: 'duration' },
+      { header: 'cost', path: 'cost.total', format: 'cost' },
+      { header: 'execution', path: 'executionId' },
+    ],
   },
   cancelWorkflowExecution: {
     command: 'workflows executions cancel',
+    pathFlags: WORKFLOW_EXECUTION_SCOPE,
     describe: 'Cancel a running execution',
     // Not `confirm`-gated: cancelling is recoverable (re-run it), and the
     // whole point is to stop something that is already going wrong.
+  },
+  resumeWorkflow: {
+    command: 'workflows executions resume',
+    pathFlags: WORKFLOW_EXECUTION_SCOPE,
+    describe: 'Resume a paused execution (output is included in JSON or YAML output)',
+    flags: {
+      contextId: {
+        name: 'context',
+        describe: 'Pause context ID returned by execution status',
+      },
+      input: {
+        json: true,
+        describe: 'Resume input as JSON',
+      },
+    },
+    fields: [
+      { header: 'execution', path: 'executionId' },
+      { header: 'workflow', path: 'workflowId' },
+      { header: 'status' },
+      { header: 'status URL', path: 'statusUrl' },
+      { header: 'queue position', path: 'queuePosition' },
+      { header: 'started', path: 'startedAt', format: 'timestamp' },
+      { header: 'ended', path: 'endedAt', format: 'timestamp' },
+      { header: 'duration', path: 'durationMs', format: 'duration' },
+      { header: 'error', path: 'error.message' },
+    ],
   },
 
   // ─── Not a terminal-shaped operation ──────────────────────────────────────

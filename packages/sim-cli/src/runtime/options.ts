@@ -104,6 +104,20 @@ export function addOperationOptions(
     }
   }
 
+  if (commandSpec.allWorkspaces) {
+    command.option(
+      '--all-workspaces',
+      'Do not filter to the configured workspace (personal API key required for account-wide access)'
+    )
+  }
+
+  if (commandSpec.expandedTrace) {
+    command.option(
+      '--trace',
+      'Show expanded trace spans with inputs, outputs, errors, timing, and cost'
+    )
+  }
+
   if (operationSpec.opaqueBody) {
     if (commandSpec.bodyVariants) {
       for (const variant of commandSpec.bodyVariants) {

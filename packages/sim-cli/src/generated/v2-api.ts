@@ -1195,6 +1195,25 @@ export type CreateTableRowsBody =
   | {
       workspaceId: string
       data: unknown
+      __privateSecretProvenance?: {
+        version: 1
+        complete: boolean
+        selections: Array<{
+          key: string
+          provenance: {
+            version: 1
+            complete: boolean
+            entries: Array<{
+              encryptedValue: string
+              name?: string
+            }>
+            scope?: {
+              userId: string
+              workspaceId?: string
+            }
+          }
+        }>
+      }
       afterRowId?: string
       beforeRowId?: string
     }
@@ -1243,68 +1262,6 @@ export type CreateTableViewBody = {
   }
 }
 
-type CreateTableViewResponseRef0 =
-  | {
-      all: Array<
-        | CreateTableViewResponseRef0
-        | {
-            field: string
-            op:
-              | 'eq'
-              | 'ne'
-              | 'gt'
-              | 'gte'
-              | 'lt'
-              | 'lte'
-              | 'in'
-              | 'nin'
-              | 'contains'
-              | 'ncontains'
-              | 'startsWith'
-              | 'endsWith'
-              | 'like'
-              | 'ilike'
-              | 'nlike'
-              | 'nilike'
-              | 'isEmpty'
-              | 'isNotEmpty'
-              | 'isNull'
-              | 'isNotNull'
-            value?: unknown
-          }
-      >
-    }
-  | {
-      any: Array<
-        | CreateTableViewResponseRef0
-        | {
-            field: string
-            op:
-              | 'eq'
-              | 'ne'
-              | 'gt'
-              | 'gte'
-              | 'lt'
-              | 'lte'
-              | 'in'
-              | 'nin'
-              | 'contains'
-              | 'ncontains'
-              | 'startsWith'
-              | 'endsWith'
-              | 'like'
-              | 'ilike'
-              | 'nlike'
-              | 'nilike'
-              | 'isEmpty'
-              | 'isNotEmpty'
-              | 'isNull'
-              | 'isNotNull'
-            value?: unknown
-          }
-      >
-    }
-
 export type CreateTableViewResponse = {
   data: {
     view: {
@@ -1316,7 +1273,7 @@ export type CreateTableViewResponse = {
         columnOrder?: Array<string>
         pinnedColumns?: Array<string>
         hiddenColumns?: Array<string>
-        filter?: CreateTableViewResponseRef0 | null
+        filter?: unknown | null
         sort?: Array<{
           field: string
           direction: 'asc' | 'desc'
@@ -1760,6 +1717,7 @@ export type ExecuteWorkflowParams = {
 export type ExecuteWorkflowBody = {
   input?: Record<string, unknown>
   async?: boolean
+  executionTimeoutSeconds?: number
   stream?: boolean
   selectedOutputs?: Array<string>
   includeThinking?: boolean
@@ -1950,6 +1908,10 @@ export type GetAuditLogParams = {
   id: string
 }
 
+export type GetAuditLogQuery = {
+  organizationId: string
+}
+
 export type GetAuditLogResponse = {
   data: {
     id: string
@@ -1964,6 +1926,28 @@ export type GetAuditLogResponse = {
     description: string | null
     metadata: unknown
     createdAt: string
+  }
+}
+
+/** `GET /api/v2/billing/status` */
+export type GetBillingStatusQuery = {
+  workspaceId?: string
+}
+
+export type GetBillingStatusResponse = {
+  data: {
+    workspaceId: string | null
+    period: {
+      start: string
+      end: string
+    }
+    plan: string
+    status: 'active' | 'limit_exceeded' | 'billing_blocked'
+    credits: {
+      used: number
+      limit: number
+      remaining: number
+    }
   }
 }
 
@@ -2023,28 +2007,6 @@ export type GetCustomToolResponse = {
       code: string
       createdAt: string
       updatedAt: string
-    }
-  }
-}
-
-/** `GET /api/v2/logs/executions/[executionId]` */
-export type GetExecutionParams = {
-  executionId: string
-}
-
-export type GetExecutionResponse = {
-  data: {
-    executionId: string
-    workflowId: string | null
-    workflowState: unknown
-    executionMetadata: {
-      trigger: string
-      startedAt: string
-      endedAt: string | null
-      totalDurationMs: number | null
-      cost: {
-        total: number
-      } | null
     }
   }
 }
@@ -2170,9 +2132,9 @@ export type GetKnowledgeDocumentResponse = {
   }
 }
 
-/** `GET /api/v2/logs/[id]` */
+/** `GET /api/v2/logs/[executionId]` */
 export type GetLogParams = {
-  id: string
+  executionId: string
 }
 
 type GetLogResponseRef0 = {
@@ -2184,6 +2146,9 @@ type GetLogResponseRef0 = {
   startTime?: string
   endTime?: string
   status?: string
+  errorHandled?: boolean
+  errorType?: string
+  errorMessage?: string
   blockId?: string
   input?: unknown
   output?: unknown
@@ -2194,6 +2159,12 @@ type GetLogResponseRef0 = {
         input?: number
         output?: number
       }
+  cost?: {
+    total?: number
+    input?: number
+    output?: number
+    toolCost?: number
+  }
   relativeStartMs?: number
   toolCalls?: Array<{
     id?: string
@@ -2210,9 +2181,10 @@ type GetLogResponseRef0 = {
 
 export type GetLogResponse = {
   data: {
-    id: string
-    workflowId: string | null
     executionId: string
+    workflowId: string | null
+    deploymentVersionId: string | null
+    status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
     level: string
     trigger: string
     startedAt: string
@@ -2230,8 +2202,9 @@ export type GetLogResponse = {
       updatedAt: string | null
       deleted: boolean
     }
-    executionData: unknown
+    workflowState: unknown
     traceSpans: Array<GetLogResponseRef0>
+    finalOutput: unknown | null
     cost: {
       total: number
     } | null
@@ -2451,68 +2424,6 @@ export type GetTableViewQuery = {
   workspaceId: string
 }
 
-type GetTableViewResponseRef0 =
-  | {
-      all: Array<
-        | GetTableViewResponseRef0
-        | {
-            field: string
-            op:
-              | 'eq'
-              | 'ne'
-              | 'gt'
-              | 'gte'
-              | 'lt'
-              | 'lte'
-              | 'in'
-              | 'nin'
-              | 'contains'
-              | 'ncontains'
-              | 'startsWith'
-              | 'endsWith'
-              | 'like'
-              | 'ilike'
-              | 'nlike'
-              | 'nilike'
-              | 'isEmpty'
-              | 'isNotEmpty'
-              | 'isNull'
-              | 'isNotNull'
-            value?: unknown
-          }
-      >
-    }
-  | {
-      any: Array<
-        | GetTableViewResponseRef0
-        | {
-            field: string
-            op:
-              | 'eq'
-              | 'ne'
-              | 'gt'
-              | 'gte'
-              | 'lt'
-              | 'lte'
-              | 'in'
-              | 'nin'
-              | 'contains'
-              | 'ncontains'
-              | 'startsWith'
-              | 'endsWith'
-              | 'like'
-              | 'ilike'
-              | 'nlike'
-              | 'nilike'
-              | 'isEmpty'
-              | 'isNotEmpty'
-              | 'isNull'
-              | 'isNotNull'
-            value?: unknown
-          }
-      >
-    }
-
 export type GetTableViewResponse = {
   data: {
     view: {
@@ -2524,7 +2435,7 @@ export type GetTableViewResponse = {
         columnOrder?: Array<string>
         pinnedColumns?: Array<string>
         hiddenColumns?: Array<string>
-        filter?: GetTableViewResponseRef0 | null
+        filter?: unknown | null
         sort?: Array<{
           field: string
           direction: 'asc' | 'desc'
@@ -2535,24 +2446,6 @@ export type GetTableViewResponse = {
       createdAt: string
       updatedAt: string
     }
-  }
-}
-
-/** `GET /api/v2/billing/usage` */
-export type GetUsageSummaryQuery = {
-  workspaceId?: string
-}
-
-export type GetUsageSummaryResponse = {
-  data: {
-    period: {
-      start: string
-      end: string
-    }
-    totalCredits: number
-    bySourceCredits: Record<string, number>
-    limitCredits: number
-    plan: string
   }
 }
 
@@ -2604,6 +2497,7 @@ export type GetWorkflowExecutionResponse = {
     endedAt: string | null
     durationMs: number | null
     paused: {
+      contextId: string
       pausedAt: string
       resumeAt: string | null
       pauseKind: 'time' | 'human' | null
@@ -2687,6 +2581,7 @@ export type ListAuditLogsQuery = {
   includeDeparted?: 'true' | 'false'
   limit?: number
   cursor?: string
+  organizationId: string
 }
 
 export type ListAuditLogsResponse = {
@@ -2703,6 +2598,51 @@ export type ListAuditLogsResponse = {
     description: string | null
     metadata: unknown
     createdAt: string
+  }>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/billing/logs` */
+export type ListBillingLogsQuery = {
+  source?:
+    | 'workflow'
+    | 'wand'
+    | 'sim-chat'
+    | 'mcp_copilot'
+    | 'mothership_block'
+    | 'knowledge-base'
+    | 'voice-input'
+    | 'enrichment'
+    | 'voice-output'
+  workspaceId?: string
+  period?: '1d' | '7d' | '30d' | 'all' | 'custom'
+  startDate?: string
+  endDate?: string
+  limit?: number
+  cursor?: string
+}
+
+export type ListBillingLogsResponse = {
+  data: Array<{
+    id: string
+    createdAt: string
+    source:
+      | 'workflow'
+      | 'wand'
+      | 'sim-chat'
+      | 'mcp_copilot'
+      | 'mothership_block'
+      | 'knowledge-base'
+      | 'voice-input'
+      | 'enrichment'
+      | 'voice-output'
+    workspaceId: string | null
+    workflow: {
+      id: string
+      name: string | null
+    } | null
+    executionId: string | null
+    creditCost: number
   }>
   nextCursor: string | null
 }
@@ -2940,6 +2880,9 @@ type ListLogsResponseRef0 = {
   startTime?: string
   endTime?: string
   status?: string
+  errorHandled?: boolean
+  errorType?: string
+  errorMessage?: string
   blockId?: string
   input?: unknown
   output?: unknown
@@ -2950,6 +2893,12 @@ type ListLogsResponseRef0 = {
         input?: number
         output?: number
       }
+  cost?: {
+    total?: number
+    input?: number
+    output?: number
+    toolCost?: number
+  }
   relativeStartMs?: number
   toolCalls?: Array<{
     id?: string
@@ -2966,10 +2915,10 @@ type ListLogsResponseRef0 = {
 
 export type ListLogsResponse = {
   data: Array<{
-    id: string
-    workflowId: string | null
     executionId: string
+    workflowId: string | null
     deploymentVersionId: string | null
+    status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
     level: string
     trigger: string
     startedAt: string
@@ -3149,68 +3098,6 @@ export type ListTableViewsQuery = {
   workspaceId: string
 }
 
-type ListTableViewsResponseRef0 =
-  | {
-      all: Array<
-        | ListTableViewsResponseRef0
-        | {
-            field: string
-            op:
-              | 'eq'
-              | 'ne'
-              | 'gt'
-              | 'gte'
-              | 'lt'
-              | 'lte'
-              | 'in'
-              | 'nin'
-              | 'contains'
-              | 'ncontains'
-              | 'startsWith'
-              | 'endsWith'
-              | 'like'
-              | 'ilike'
-              | 'nlike'
-              | 'nilike'
-              | 'isEmpty'
-              | 'isNotEmpty'
-              | 'isNull'
-              | 'isNotNull'
-            value?: unknown
-          }
-      >
-    }
-  | {
-      any: Array<
-        | ListTableViewsResponseRef0
-        | {
-            field: string
-            op:
-              | 'eq'
-              | 'ne'
-              | 'gt'
-              | 'gte'
-              | 'lt'
-              | 'lte'
-              | 'in'
-              | 'nin'
-              | 'contains'
-              | 'ncontains'
-              | 'startsWith'
-              | 'endsWith'
-              | 'like'
-              | 'ilike'
-              | 'nlike'
-              | 'nilike'
-              | 'isEmpty'
-              | 'isNotEmpty'
-              | 'isNull'
-              | 'isNotNull'
-            value?: unknown
-          }
-      >
-    }
-
 export type ListTableViewsResponse = {
   data: Array<{
     id: string
@@ -3221,7 +3108,7 @@ export type ListTableViewsResponse = {
       columnOrder?: Array<string>
       pinnedColumns?: Array<string>
       hiddenColumns?: Array<string>
-      filter?: ListTableViewsResponseRef0 | null
+      filter?: unknown | null
       sort?: Array<{
         field: string
         direction: 'asc' | 'desc'
@@ -3235,42 +3122,33 @@ export type ListTableViewsResponse = {
   nextCursor: string | null
 }
 
-/** `GET /api/v2/billing/usage/logs` */
-export type ListUsageLogsQuery = {
-  source?:
-    | 'workflow'
-    | 'wand'
-    | 'sim-chat'
-    | 'mcp_copilot'
-    | 'mothership_block'
-    | 'knowledge-base'
-    | 'voice-input'
-    | 'enrichment'
-    | 'voice-output'
-  workspaceId?: string
-  period?: '1d' | '7d' | '30d' | 'all' | 'custom'
+/** `GET /api/v2/workflows/[id]/executions` */
+export type ListWorkflowExecutionsParams = {
+  id: string
+}
+
+export type ListWorkflowExecutionsQuery = {
+  status?: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled' | 'paused'
+  trigger?: string
   startDate?: string
   endDate?: string
   limit?: number
   cursor?: string
+  order?: 'asc' | 'desc'
 }
 
-export type ListUsageLogsResponse = {
+export type ListWorkflowExecutionsResponse = {
   data: Array<{
-    id: string
-    createdAt: string
-    source:
-      | 'workflow'
-      | 'wand'
-      | 'sim-chat'
-      | 'mcp_copilot'
-      | 'mothership_block'
-      | 'knowledge-base'
-      | 'voice-input'
-      | 'enrichment'
-      | 'voice-output'
-    workflowName: string | null
-    creditCost: number
+    executionId: string
+    workflowId: string
+    status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled' | 'paused'
+    trigger: string
+    startedAt: string
+    endedAt: string | null
+    durationMs: number | null
+    cost: {
+      total: number
+    } | null
   }>
   nextCursor: string | null
 }
@@ -3525,6 +3403,52 @@ export type RenameFileResponse = {
     updatedAt: string
   }
 }
+
+/** `POST /api/v2/workflows/[id]/executions/[executionId]/resume` */
+export type ResumeWorkflowParams = {
+  id: string
+  executionId: string
+}
+
+export type ResumeWorkflowBody = {
+  contextId: string
+  input?: unknown
+}
+
+export type ResumeWorkflowResponse =
+  | {
+      data: {
+        executionId: string
+        workflowId: string
+        status: 'completed' | 'failed' | 'paused' | 'cancelled'
+        output: unknown
+        error: {
+          message: string
+          code:
+            | 'TIMEOUT'
+            | 'CANCELLED'
+            | 'USAGE_LIMIT_EXCEEDED'
+            | 'INVALID_INPUT'
+            | 'BLOCK_EXECUTION_FAILED'
+            | 'CHILD_WORKFLOW_FAILED'
+            | 'OUTPUT_TOO_LARGE'
+            | 'EXECUTION_FAILED'
+          blockId?: string
+          blockName?: string
+          blockType?: string
+        } | null
+        startedAt?: string
+        endedAt?: string
+        durationMs?: number
+      }
+    }
+  | {
+      data: {
+        executionId: string
+        statusUrl: string
+        queuePosition?: number
+      }
+    }
 
 /** `POST /api/v2/workflows/[id]/rollback` */
 export type RollbackWorkflowParams = {
@@ -3911,6 +3835,25 @@ export type UpdateRowsByFilterBody = {
   filter: unknown
   data: unknown
   limit?: number
+  __privateSecretProvenance?: {
+    version: 1
+    complete: boolean
+    selections: Array<{
+      key: string
+      provenance: {
+        version: 1
+        complete: boolean
+        entries: Array<{
+          encryptedValue: string
+          name?: string
+        }>
+        scope?: {
+          userId: string
+          workspaceId?: string
+        }
+      }
+    }>
+  }
 }
 
 export type UpdateRowsByFilterResponse = {
@@ -4052,6 +3995,25 @@ export type UpdateTableRowParams = {
 export type UpdateTableRowBody = {
   workspaceId: string
   data: unknown
+  __privateSecretProvenance?: {
+    version: 1
+    complete: boolean
+    selections: Array<{
+      key: string
+      provenance: {
+        version: 1
+        complete: boolean
+        entries: Array<{
+          encryptedValue: string
+          name?: string
+        }>
+        scope?: {
+          userId: string
+          workspaceId?: string
+        }
+      }
+    }>
+  }
 }
 
 export type UpdateTableRowResponse = {
@@ -4099,68 +4061,6 @@ export type UpdateTableViewBody = {
   isDefault?: boolean
 }
 
-type UpdateTableViewResponseRef0 =
-  | {
-      all: Array<
-        | UpdateTableViewResponseRef0
-        | {
-            field: string
-            op:
-              | 'eq'
-              | 'ne'
-              | 'gt'
-              | 'gte'
-              | 'lt'
-              | 'lte'
-              | 'in'
-              | 'nin'
-              | 'contains'
-              | 'ncontains'
-              | 'startsWith'
-              | 'endsWith'
-              | 'like'
-              | 'ilike'
-              | 'nlike'
-              | 'nilike'
-              | 'isEmpty'
-              | 'isNotEmpty'
-              | 'isNull'
-              | 'isNotNull'
-            value?: unknown
-          }
-      >
-    }
-  | {
-      any: Array<
-        | UpdateTableViewResponseRef0
-        | {
-            field: string
-            op:
-              | 'eq'
-              | 'ne'
-              | 'gt'
-              | 'gte'
-              | 'lt'
-              | 'lte'
-              | 'in'
-              | 'nin'
-              | 'contains'
-              | 'ncontains'
-              | 'startsWith'
-              | 'endsWith'
-              | 'like'
-              | 'ilike'
-              | 'nlike'
-              | 'nilike'
-              | 'isEmpty'
-              | 'isNotEmpty'
-              | 'isNull'
-              | 'isNotNull'
-            value?: unknown
-          }
-      >
-    }
-
 export type UpdateTableViewResponse = {
   data: {
     view: {
@@ -4172,7 +4072,7 @@ export type UpdateTableViewResponse = {
         columnOrder?: Array<string>
         pinnedColumns?: Array<string>
         hiddenColumns?: Array<string>
-        filter?: UpdateTableViewResponseRef0 | null
+        filter?: unknown | null
         sort?: Array<{
           field: string
           direction: 'asc' | 'desc'
@@ -4358,6 +4258,25 @@ export type UpsertTableRowBody = {
   workspaceId: string
   data: unknown
   conflictTarget?: string
+  __privateSecretProvenance?: {
+    version: 1
+    complete: boolean
+    selections: Array<{
+      key: string
+      provenance: {
+        version: 1
+        complete: boolean
+        entries: Array<{
+          encryptedValue: string
+          name?: string
+        }>
+        scope?: {
+          userId: string
+          workspaceId?: string
+        }
+      }
+    }>
+  }
 }
 
 export type UpsertTableRowResponse = {
@@ -5025,6 +4944,7 @@ export const V2_OPERATIONS = {
     body: {
       input: { kind: 'object' },
       async: { kind: 'boolean', default: false },
+      executionTimeoutSeconds: { kind: 'integer' },
       stream: { kind: 'boolean', default: false },
       selectedOutputs: { kind: 'array' },
       includeThinking: { kind: 'boolean', default: false },
@@ -5059,6 +4979,19 @@ export const V2_OPERATIONS = {
     pathParams: ['id'] as const,
     responseMode: 'json',
     summary: 'Get Audit Log',
+    query: {
+      organizationId: { kind: 'string', required: true },
+    },
+  },
+  getBillingStatus: {
+    method: 'GET',
+    path: '/api/v2/billing/status',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Get Billing Status',
+    query: {
+      workspaceId: { kind: 'string' },
+    },
   },
   getCredential: {
     method: 'GET',
@@ -5079,13 +5012,6 @@ export const V2_OPERATIONS = {
     query: {
       workspaceId: { kind: 'string', required: true },
     },
-  },
-  getExecution: {
-    method: 'GET',
-    path: '/api/v2/logs/executions/[executionId]',
-    pathParams: ['executionId'] as const,
-    responseMode: 'json',
-    summary: 'Get Execution',
   },
   getFile: {
     method: 'GET',
@@ -5129,8 +5055,8 @@ export const V2_OPERATIONS = {
   },
   getLog: {
     method: 'GET',
-    path: '/api/v2/logs/[id]',
-    pathParams: ['id'] as const,
+    path: '/api/v2/logs/[executionId]',
+    pathParams: ['executionId'] as const,
     responseMode: 'json',
     summary: 'Get Log',
   },
@@ -5204,16 +5130,6 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true },
     },
   },
-  getUsageSummary: {
-    method: 'GET',
-    path: '/api/v2/billing/usage',
-    pathParams: [] as const,
-    responseMode: 'json',
-    summary: 'Get Usage Summary',
-    query: {
-      workspaceId: { kind: 'string' },
-    },
-  },
   getWorkflow: {
     method: 'GET',
     path: '/api/v2/workflows/[id]',
@@ -5269,6 +5185,40 @@ export const V2_OPERATIONS = {
       endDate: { kind: 'string' },
       includeDeparted: { kind: 'enum', values: ['true', 'false'] as const },
       limit: { kind: 'number', default: 50 },
+      cursor: { kind: 'string' },
+      organizationId: { kind: 'string', required: true },
+    },
+  },
+  listBillingLogs: {
+    method: 'GET',
+    path: '/api/v2/billing/logs',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'List Billing Logs',
+    query: {
+      source: {
+        kind: 'enum',
+        values: [
+          'workflow',
+          'wand',
+          'sim-chat',
+          'mcp_copilot',
+          'mothership_block',
+          'knowledge-base',
+          'voice-input',
+          'enrichment',
+          'voice-output',
+        ] as const,
+      },
+      workspaceId: { kind: 'string' },
+      period: {
+        kind: 'enum',
+        values: ['1d', '7d', '30d', 'all', 'custom'] as const,
+        default: '30d',
+      },
+      startDate: { kind: 'string' },
+      endDate: { kind: 'string' },
+      limit: { kind: 'integer', default: 50 },
       cursor: { kind: 'string' },
     },
   },
@@ -5539,37 +5489,23 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true },
     },
   },
-  listUsageLogs: {
+  listWorkflowExecutions: {
     method: 'GET',
-    path: '/api/v2/billing/usage/logs',
-    pathParams: [] as const,
+    path: '/api/v2/workflows/[id]/executions',
+    pathParams: ['id'] as const,
     responseMode: 'json',
-    summary: 'List Usage Logs',
+    summary: 'List workflow executions',
     query: {
-      source: {
+      status: {
         kind: 'enum',
-        values: [
-          'workflow',
-          'wand',
-          'sim-chat',
-          'mcp_copilot',
-          'mothership_block',
-          'knowledge-base',
-          'voice-input',
-          'enrichment',
-          'voice-output',
-        ] as const,
+        values: ['pending', 'running', 'completed', 'failed', 'cancelled', 'paused'] as const,
       },
-      workspaceId: { kind: 'string' },
-      period: {
-        kind: 'enum',
-        values: ['1d', '7d', '30d', 'all', 'custom'] as const,
-        default: '30d',
-      },
+      trigger: { kind: 'string' },
       startDate: { kind: 'string' },
       endDate: { kind: 'string' },
       limit: { kind: 'integer', default: 50 },
       cursor: { kind: 'string' },
+      order: { kind: 'enum', values: ['asc', 'desc'] as const, default: 'desc' },
     },
   },
   listWorkflowFolders: {
@@ -5715,6 +5651,17 @@ export const V2_OPERATIONS = {
     body: {
       workspaceId: { kind: 'string', required: true },
       name: { kind: 'string', required: true },
+    },
+  },
+  resumeWorkflow: {
+    method: 'POST',
+    path: '/api/v2/workflows/[id]/executions/[executionId]/resume',
+    pathParams: ['id', 'executionId'] as const,
+    responseMode: 'json',
+    summary: 'Resume a workflow execution',
+    body: {
+      contextId: { kind: 'string', required: true },
+      input: { kind: 'unknown' },
     },
   },
   rollbackWorkflow: {
@@ -5874,6 +5821,7 @@ export const V2_OPERATIONS = {
       filter: { kind: 'unknown', required: true },
       data: { kind: 'unknown', required: true },
       limit: { kind: 'integer' },
+      __privateSecretProvenance: { kind: 'object' },
     },
   },
   updateSkill: {
@@ -5923,6 +5871,7 @@ export const V2_OPERATIONS = {
     body: {
       workspaceId: { kind: 'string', required: true },
       data: { kind: 'unknown', required: true },
+      __privateSecretProvenance: { kind: 'object' },
     },
   },
   updateTableView: {
@@ -6006,6 +5955,7 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true },
       data: { kind: 'unknown', required: true },
       conflictTarget: { kind: 'string' },
+      __privateSecretProvenance: { kind: 'object' },
     },
   },
 } as const

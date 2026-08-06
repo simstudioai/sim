@@ -23,12 +23,19 @@ export async function executeOperation(
   invocation: unknown[]
 ): Promise<void> {
   const host = invocation[invocation.length - 1] as Command
-  const flags = invocation[invocation.length - 2] as Record<string, unknown>
+  const inheritedFlags = host.optsWithGlobals() as Record<string, unknown>
+  const flags: Record<string, unknown> = {
+    ...(inheritedFlags.workspace === undefined ? {} : { workspace: inheritedFlags.workspace }),
+    ...(inheritedFlags.allWorkspaces === undefined
+      ? {}
+      : { allWorkspaces: inheritedFlags.allWorkspaces }),
+    ...(invocation[invocation.length - 2] as Record<string, unknown>),
+  }
   const pathPositionalCount = operationSpec.pathParams.filter(
     (param) => !commandSpec.pathFlags?.[param]
   ).length
   const positional = invocation.slice(0, pathPositionalCount) as string[]
-  const requestFlags = { ...flags }
+  const requestFlags: Record<string, unknown> = { ...flags }
   for (const [index, field] of (commandSpec.positionals ?? []).entries()) {
     requestFlags[camel(flagNameFor(operation, field))] = invocation[pathPositionalCount + index]
   }
@@ -37,16 +44,21 @@ export async function executeOperation(
     throw new SimApiError(`${commandSpec.confirm} Re-run with --yes to confirm.`, 0)
   }
 
+  if (commandSpec.allWorkspaces && requestFlags.allWorkspaces && requestFlags.workspace) {
+    throw new SimApiError('--all-workspaces cannot be combined with --workspace', 0)
+  }
+
   const { client, profile } = clientFrom(host)
-  const needsWorkspace = Boolean(
+  const hasWorkspaceField = Boolean(
     (operationSpec.query && PROFILE_INJECTED_FIELD in operationSpec.query) ||
       (operationSpec.body && PROFILE_INJECTED_FIELD in operationSpec.body)
   )
+  const omitsWorkspace = commandSpec.allWorkspaces && requestFlags.allWorkspaces === true
   const request = buildRequest(
     operation,
     positional,
     requestFlags,
-    needsWorkspace ? client.requireWorkspace() : profile.workspaceId
+    hasWorkspaceField && !omitsWorkspace ? client.requireWorkspace() : profile.workspaceId
   )
   const paging = cursorSlot(operationSpec)
 
@@ -84,5 +96,7 @@ export async function executeOperation(
     query: request.query,
     body: request.body,
   })
-  renderResult(operation, profile.output, result?.data ?? result, commandSpec)
+  renderResult(operation, profile.output, result?.data ?? result, commandSpec, {
+    expandedTrace: requestFlags.trace === true,
+  })
 }

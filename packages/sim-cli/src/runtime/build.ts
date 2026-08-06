@@ -22,6 +22,42 @@ const GROUP_ALIASES: Readonly<Record<string, string>> = {
   workflows: 'workflow',
 }
 
+function argumentSyntax(command: Command): string {
+  return command.registeredArguments
+    .map((argument) => {
+      const name = `${argument.name()}${argument.variadic ? '...' : ''}`
+      return argument.required ? `<${name}>` : `[${name}]`
+    })
+    .join(' ')
+}
+
+function commandPath(command: Command): string {
+  const names: string[] = []
+  let current: Command | null = command
+  while (current) {
+    names.unshift(current.name())
+    current = current.parent
+  }
+  return names.join(' ')
+}
+
+function addMissingArgumentExample(command: Command): Command {
+  const outputError = command.configureOutput().outputError
+  if (!outputError) throw new Error('Commander output formatter is not configured')
+
+  command.configureOutput({
+    outputError: (message, write) => {
+      outputError(message, write)
+      if (!message.startsWith('error: missing required argument ')) return
+
+      const syntax = argumentSyntax(command)
+      const example = syntax ? `${commandPath(command)} ${syntax}` : commandPath(command)
+      write(`Example: ${example}\n`)
+    },
+  })
+  return command
+}
+
 function configureOperation(
   command: Command,
   operation: V2OperationName,
@@ -41,6 +77,13 @@ function configureOperation(
   for (const param of operationSpec.pathParams) {
     if (spec.pathFlags?.[param]) continue
     command.argument(`<${param}>`)
+  }
+
+  if (spec.allWorkspaces) {
+    const workspace = operationSpec.query?.workspaceId ?? operationSpec.body?.workspaceId
+    if (!workspace || workspace.required) {
+      throw new Error(`${operation}.allWorkspaces requires an optional workspaceId field`)
+    }
   }
 
   for (const field of spec.positionals ?? []) {
@@ -82,7 +125,7 @@ function configureOperation(
 }
 
 function buildLeaf(operation: V2OperationName, spec: CommandSpec, leafName: string): Command {
-  return configureOperation(new Command(leafName), operation, spec)
+  return addMissingArgumentExample(configureOperation(new Command(leafName), operation, spec))
 }
 
 function groupFor(groups: Map<string, Command>, name: string): Command {

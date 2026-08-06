@@ -82,7 +82,7 @@ export interface ColumnSpec {
   /** Dot path into the row. Defaults to `header`. */
   path?: string
   /** Rendering hint; `auto` inspects the value. */
-  format?: 'auto' | 'timestamp' | 'bytes' | 'duration' | 'bool' | 'cost' | 'count'
+  format?: 'auto' | 'timestamp' | 'bytes' | 'duration' | 'bool' | 'cost' | 'count' | 'trace-count'
 }
 
 export interface BodyVariantSpec {
@@ -135,8 +135,12 @@ export interface CommandSpec {
   columns?: ColumnSpec[]
   /** Fields shown for a single record in human formats. Machine output stays raw. */
   fields?: ColumnSpec[]
+  /** Add `--trace` to expand recursive trace spans in human-readable output. */
+  expandedTrace?: boolean
   /** Dot path to a nested result array rendered as the command's human list. */
   itemsPath?: string
+  /** Allow an optional workspaceId field to omit the configured workspace filter. */
+  allWorkspaces?: boolean
   /**
    * Require `--yes`. The message should say what is about to be destroyed —
    * the point is that the caller can tell whether they meant it.

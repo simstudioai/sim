@@ -291,7 +291,13 @@ export function buildRequest(
       const flagName = flagNameFor(operation, field)
       // Commander stores `--min-duration-ms` as `minDurationMs`; reading by the
       // flag's own name silently finds nothing.
-      const raw = field === PROFILE_INJECTED_FIELD ? workspaceId : flags[camel(flagName)]
+      const omitProfileWorkspace = commandSpec.allWorkspaces && flags.allWorkspaces === true
+      const raw =
+        field === PROFILE_INJECTED_FIELD
+          ? omitProfileWorkspace
+            ? undefined
+            : workspaceId
+          : flags[camel(flagName)]
       const value = coerce(raw ?? undefined, descriptor, flag, flagName)
 
       if (value === undefined) {
