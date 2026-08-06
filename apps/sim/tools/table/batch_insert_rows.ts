@@ -15,8 +15,8 @@ export const tableBatchInsertRowsTool: ToolConfig<
 
   toolEnrichment: {
     dependsOn: 'tableId',
-    enrichTool: (tableId, schema, desc) =>
-      enrichTableToolSchema(tableId, 'table_batch_insert_rows', schema, desc),
+    enrichTool: (tableId, schema, desc, context) =>
+      enrichTableToolSchema(tableId, 'table_batch_insert_rows', schema, desc, context),
   },
 
   params: {

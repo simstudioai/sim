@@ -53,6 +53,7 @@ import {
 import type { ProviderId, ProviderToolConfig } from '@/providers/types'
 import { useProvidersStore } from '@/stores/providers/store'
 import { mergeToolParameters } from '@/tools/merge-params'
+import type { WorkflowToolExecutionContext } from '@/tools/types'
 
 const logger = createLogger('ProviderUtils')
 
@@ -629,6 +630,7 @@ export async function transformBlockTool(
     getTool: (toolId: string) => any
     getToolAsync?: (toolId: string) => Promise<any>
     canonicalModes?: Record<string, 'basic' | 'advanced'>
+    enrichmentContext?: WorkflowToolExecutionContext
     /**
      * Server-only resolver for a custom (deploy-as-block) tool's binding (bound
      * workflow + input schema), org-scoped to the consumer. Injected as a dependency
@@ -646,8 +648,15 @@ export async function transformBlockTool(
     toolIndex?: number
   }
 ): Promise<ProviderToolConfig | null> {
-  const { selectedOperation, getAllBlocks, getTool, getToolAsync, canonicalModes, toolIndex } =
-    options
+  const {
+    selectedOperation,
+    getAllBlocks,
+    getTool,
+    getToolAsync,
+    canonicalModes,
+    enrichmentContext,
+    toolIndex,
+  } = options
   const scopedCanonicalModes = scopeCanonicalModesForTool(canonicalModes, toolIndex, block.type)
 
   const blockDef = getAllBlocks().find((b: any) => b.type === block.type)
@@ -755,12 +764,6 @@ export async function transformBlockTool(
 
   const userProvidedParams = block.params || {}
 
-  const {
-    schema: llmSchema,
-    enrichedDescription,
-    modelBlockedParams,
-  } = await createLLMToolSchema(toolConfig, userProvidedParams)
-
   const canonicalGroups: CanonicalGroup[] = blockDef?.subBlocks
     ? Object.values(buildCanonicalIndex(blockDef.subBlocks).groupsById).filter(isCanonicalPair)
     : []
@@ -770,6 +773,12 @@ export async function transformBlockTool(
     canonicalGroups,
     scopedCanonicalModes
   )
+
+  const {
+    schema: llmSchema,
+    enrichedDescription,
+    modelBlockedParams,
+  } = await createLLMToolSchema(toolConfig, resolvedResourceParams, enrichmentContext)
 
   let uniqueToolId = toolConfig.id
   let toolName = toolConfig.name

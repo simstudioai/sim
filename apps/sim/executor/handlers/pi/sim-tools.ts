@@ -22,6 +22,7 @@ import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secr
 import { transformBlockTool } from '@/providers/utils'
 import { executeTool } from '@/tools'
 import { mergeToolParameters } from '@/tools/merge-params'
+import { ToolSchemaEnrichmentError } from '@/tools/params'
 import type { ToolResponse } from '@/tools/types'
 import { getTool } from '@/tools/utils'
 import { getToolAsync } from '@/tools/utils.server'
@@ -97,6 +98,12 @@ export async function buildSimToolSpecs(
         getAllBlocks,
         getTool,
         getToolAsync,
+        enrichmentContext: {
+          workflowId: ctx.workflowId,
+          workspaceId: ctx.workspaceId,
+          executionId: ctx.executionId,
+          userId: ctx.userId,
+        },
         resolveCustomBlockBinding: (blockType: string) =>
           resolveCustomBlockToolBinding(blockType, ctx.workspaceId),
       })
@@ -171,6 +178,7 @@ export async function buildSimToolSpecs(
         },
       })
     } catch (error) {
+      if (error instanceof ToolSchemaEnrichmentError) throw error
       logger.warn('Failed to adapt Sim tool for Pi', {
         type: tool.type,
         error: getErrorMessage(error),
