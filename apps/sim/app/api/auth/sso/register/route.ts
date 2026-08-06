@@ -614,21 +614,20 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           eq(ssoProvider.userId, session.user.id),
           isNull(ssoProvider.organizationId)
         )
+    // Config columns are captured, not just the id: an update whose trust grant is
+    // refused has to be undone, or the rejected config stays stored and goes live
+    // the moment the domain is verified again.
     const [existingOwnedProvider] = await db
-      .select({ id: ssoProvider.id })
+      .select({
+        id: ssoProvider.id,
+        issuer: ssoProvider.issuer,
+        domain: ssoProvider.domain,
+        oidcConfig: ssoProvider.oidcConfig,
+        samlConfig: ssoProvider.samlConfig,
+      })
       .from(ssoProvider)
       .where(ownerClause)
       .limit(1)
-
-    /**
-     * Unconditional write of Better Auth's `domainVerified` flag, which Sim
-     * mirrors from its own DNS proof. Used to withdraw trust; granting on an
-     * org-scoped provider goes through {@link grantProviderDomainTrust}, which
-     * re-tests ownership in the write itself.
-     */
-    const setProviderDomainVerified = async (verified: boolean) => {
-      await db.update(ssoProvider).set({ domainVerified: verified }).where(ownerClause)
-    }
 
     /**
      * Grants domain trust only while the proof is held under a row lock.
@@ -644,7 +643,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
      */
     const grantProviderDomainTrust = async (): Promise<boolean> => {
       if (!orgId) {
-        await setProviderDomainVerified(!isHosted)
+        await db.update(ssoProvider).set({ domainVerified: !isHosted }).where(ownerClause)
         return true
       }
       return db.transaction(async (tx) => {
@@ -683,11 +682,21 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         headers,
       })
 
-      // Nothing to roll back on update, so clear the flag: `updateSSOProvider`
-      // resets it only when the domain changes, leaving same-domain edits stale.
+      // Restore the pre-update config and clear the flag together. Clearing alone
+      // is not enough: re-verifying the domain now regrants trust automatically,
+      // which would activate the very config this request reported as rejected.
       if (!(await grantProviderDomainTrust())) {
-        await setProviderDomainVerified(false)
-        logger.warn('Revoked SSO domain trust: verification was removed mid-update', {
+        await db
+          .update(ssoProvider)
+          .set({
+            issuer: existingOwnedProvider.issuer,
+            domain: existingOwnedProvider.domain,
+            oidcConfig: existingOwnedProvider.oidcConfig,
+            samlConfig: existingOwnedProvider.samlConfig,
+            domainVerified: false,
+          })
+          .where(eq(ssoProvider.id, existingOwnedProvider.id))
+        logger.warn('Reverted SSO update: domain verification was removed mid-write', {
           domain,
           orgId,
           providerId,

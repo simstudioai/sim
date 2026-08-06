@@ -279,11 +279,12 @@ describe('POST /api/auth/sso/register', () => {
 
   /**
    * The create path rolls the provider back when verification is revoked during the
-   * write; the update path has no row to roll back, so it must instead strip the
-   * trust flag. Leaving it set would re-authorize same-email account linking for a
-   * domain the org no longer proves it owns.
+   * write. The update path has no new row to delete, so it restores the pre-update
+   * config and clears the trust flag together. Clearing alone would leave the
+   * rejected config stored, and re-verifying the domain regrants trust
+   * automatically — silently activating a config the caller was told had failed.
    */
-  it('revokes domain trust when verification is removed during an update', async () => {
+  it('reverts the config and revokes trust when verification is removed mid-update', async () => {
     queueMembers([{ organizationId: 'org1', role: 'owner' }])
     resetDbChainMock()
     queueMembers([{ organizationId: 'org1', role: 'owner' }])
@@ -291,15 +292,28 @@ describe('POST /api/auth/sso/register', () => {
     queueTableRows(schemaMock.ssoDomain, [{ id: 'v' }]) // pre-write re-check
     queueTableRows(schemaMock.ssoDomain, []) // locking read in the grant: proof gone
     queueProviders([])
-    queueTableRows(schemaMock.ssoProvider, [{ id: 'p1' }]) // provider already owned → update path
+    queueTableRows(schemaMock.ssoProvider, [
+      {
+        id: 'p1',
+        issuer: 'https://old-issuer.example.com',
+        domain: 'acme.com',
+        oidcConfig: '{"stored":"oidc"}',
+        samlConfig: null,
+      },
+    ]) // provider already owned → update path
 
     const res = await POST(request({ ...OIDC_BODY, orgId: 'org1' }))
     expect(res.status).toBe(403)
     expect(mockUpdateSSOProvider).toHaveBeenCalledTimes(1)
-    // The conditional UPDATE is still issued — it simply matches no rows once the
-    // proof is gone — so the signal is the explicit clear plus the 403, not the
-    // absence of the grant statement.
-    expect(dbChainMockFns.set).toHaveBeenCalledWith({ domainVerified: false })
+    // The conditional grant UPDATE is still issued — it simply matches no rows once
+    // the proof is gone — so the signal is the restoring write plus the 403.
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({
+      issuer: 'https://old-issuer.example.com',
+      domain: 'acme.com',
+      oidcConfig: '{"stored":"oidc"}',
+      samlConfig: null,
+      domainVerified: false,
+    })
   })
 
   it('does not mark domain-verified when the registration is rolled back', async () => {
