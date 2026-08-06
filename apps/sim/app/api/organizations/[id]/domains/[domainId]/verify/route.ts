@@ -171,11 +171,9 @@ export const POST = withRouteHandler(
         .where(and(eq(ssoDomain.id, domainId), eq(ssoDomain.organizationId, organizationId)))
         .limit(1)
       if (current?.status === 'verified') {
-        // Re-grant rather than returning early. A provider can hold a verified
-        // domain while its own trust flag is off — an update whose grant was
-        // refused reverts to the previous config and clears it. Re-running
-        // verification is the obvious way to fix that, so it must actually do
-        // something; the proof is present, which is exactly what authorizes this.
+        // Re-grant rather than returning early: a provider can hold a verified
+        // domain with its own flag off, after an update whose grant was refused
+        // reverted the config. The proof is present, which authorizes this.
         await db
           .update(ssoProvider)
           .set({ domainVerified: true })
