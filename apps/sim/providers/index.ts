@@ -298,11 +298,11 @@ async function omitUnsafeProviderFileAttachments(
       workspaceId: request.workspaceId,
     })
   } catch (error) {
-    logger.warn('Workspace file secret provenance could not be verified; omitting attachments', {
+    logger.error('Workspace file secret provenance could not be verified', {
       attachmentCount: attachments.length,
       error: toError(error).message,
     })
-    safeAttachments = []
+    throw new Error('File attachments could not be verified for model use')
   }
 
   if (safeAttachments.length === attachments.length) return request

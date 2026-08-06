@@ -607,11 +607,11 @@ async function omitUnsafeInitialCopilotAttachments(
     try {
       safeAttachments = await filterModelSafeWorkspaceFileAttachments(attachments, { workspaceId })
     } catch (error) {
-      logger.warn('Workspace file secret provenance could not be verified; omitting attachments', {
+      logger.error('Workspace file secret provenance could not be verified', {
         attachmentCount: attachments.length,
         error: toError(error).message,
       })
-      safeAttachments = []
+      throw new CopilotModelContentProjectionError()
     }
 
     if (safeAttachments.length === attachments.length) continue

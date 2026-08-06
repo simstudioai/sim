@@ -4,7 +4,7 @@ import {
   workspaceFileSecretProvenance,
   workspaceFiles,
 } from '@sim/db/schema'
-import { and, eq, inArray, isNull, or } from 'drizzle-orm'
+import { and, eq, gte, inArray, isNull, lt, or } from 'drizzle-orm'
 import type { DbTransaction } from '@/lib/db/types'
 import { importDurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
@@ -167,13 +167,15 @@ async function markWorkspaceFileSecretProvenanceTrackedInTx(
   fileId: string,
   contentUpdatedAt: Date
 ): Promise<void> {
+  const nextContentMillisecond = new Date(contentUpdatedAt.getTime() + 1)
   const [tracked] = await tx
     .update(workspaceFiles)
     .set({ secretProvenanceVersion: 1 })
     .where(
       and(
         eq(workspaceFiles.id, fileId),
-        eq(workspaceFiles.contentUpdatedAt, contentUpdatedAt),
+        gte(workspaceFiles.contentUpdatedAt, contentUpdatedAt),
+        lt(workspaceFiles.contentUpdatedAt, nextContentMillisecond),
         inArray(workspaceFiles.context, ['workspace', 'mothership']),
         or(
           isNull(workspaceFiles.secretProvenanceVersion),
