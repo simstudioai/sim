@@ -44,11 +44,6 @@ export const embeddingsToolBodySchema = z.object({
     .min(1, 'dimensions must be at least 1')
     .max(4096, 'dimensions cannot exceed 4096')
     .optional(),
-  workspaceId: z.string().optional(),
-  workflowId: z.string().optional(),
-  executionId: z.string().optional(),
-  userId: z.string().optional(),
-  useHostedCostTracking: z.boolean().optional(),
 })
 
 export const embeddingsUsageSchema = z.object({

@@ -9,8 +9,8 @@
 
 import {
   DEFAULT_EMBEDDING_MODEL as CATALOG_DEFAULT_EMBEDDING_MODEL,
-  EMBEDDING_MODELS,
   getEmbeddingModelInfo as getCatalogModelInfo,
+  getKbEligibleModels,
   KB_EMBEDDING_DIMENSIONS,
 } from '@/lib/embeddings/catalog'
 import type { EmbeddingProviderKind, TokenizerProviderId } from '@/lib/embeddings/types'
@@ -31,16 +31,17 @@ export interface EmbeddingModelInfo {
 
 export const SUPPORTED_EMBEDDING_MODELS: Partial<Record<string, EmbeddingModelInfo>> =
   Object.fromEntries(
-    Object.entries(EMBEDDING_MODELS)
-      .filter(([, info]) => info.kbEligible)
-      .map(([id, info]) => [
+    getKbEligibleModels().map((id) => {
+      const info = getCatalogModelInfo(id)
+      return [
         id,
         {
           provider: info.provider,
           pricingId: info.pricingId,
           tokenizerProvider: info.tokenizerProvider,
         },
-      ])
+      ]
+    })
   )
 
 export function getEmbeddingModelInfo(model: string): EmbeddingModelInfo {

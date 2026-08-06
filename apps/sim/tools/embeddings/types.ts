@@ -1,4 +1,4 @@
-import type { EmbeddingProvider, EmbeddingTaskTypeName } from '@/lib/api/contracts/tools/embeddings'
+import type { EmbeddingTaskTypeName } from '@/lib/api/contracts/tools/embeddings'
 import type { ToolResponse } from '@/tools/types'
 
 export interface EmbeddingsParams {
@@ -22,14 +22,4 @@ export interface EmbeddingsResponse extends ToolResponse {
     /** Token count used by the hosted-key pricing hook. Internal. */
     __embeddingTokens?: number
   }
-}
-
-export interface EmbeddingToolDefinition {
-  id: string
-  name: string
-  provider: EmbeddingProvider
-  /** Env var prefix for the hosted key pool. */
-  envKeyPrefix: string
-  /** Human-readable model list for the tool description. */
-  description: string
 }

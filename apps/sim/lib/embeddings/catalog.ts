@@ -41,8 +41,6 @@ export interface EmbeddingModelInfo {
   supportedTaskTypes?: readonly EmbeddingTaskType[]
   /** Provider's per-input token ceiling. */
   maxInputTokens: number
-  /** Hard per-request item cap enforced by the provider. */
-  maxItemsPerRequest?: number
   /**
    * Selectable for knowledge-base indexing. Requires the model to emit exactly
    * KB_EMBEDDING_DIMENSIONS.
@@ -94,7 +92,6 @@ export const EMBEDDING_MODELS: Record<string, EmbeddingModelInfo> = {
     supportedDimensions: [3072, 1536, 768],
     supportedTaskTypes: ['document', 'query', 'similarity', 'classification', 'clustering'],
     maxInputTokens: 2048,
-    maxItemsPerRequest: 100,
     kbEligible: true,
   },
   /** Cohere has no dedicated semantic-similarity input type, so it is not offered. */
@@ -107,7 +104,6 @@ export const EMBEDDING_MODELS: Record<string, EmbeddingModelInfo> = {
     supportedDimensions: [1536, 1024, 512, 256],
     supportedTaskTypes: ['document', 'query', 'classification', 'clustering'],
     maxInputTokens: 128_000,
-    maxItemsPerRequest: 96,
     kbEligible: false,
   },
   'mistral-embed': {
@@ -154,10 +150,6 @@ export function getKbEligibleModels(): string[] {
 }
 
 /**
- * Resolves the dimensionality a request will actually produce, given an
- * optional caller-requested reduction.
- */
-/**
  * True when a model's tokens cannot be counted exactly.
  *
  * Batching measures with tiktoken, which only has encodings for OpenAI models —
@@ -172,6 +164,10 @@ export function hasApproximateTokenCount(info: EmbeddingModelInfo): boolean {
   return info.tokenizerProvider !== 'openai'
 }
 
+/**
+ * Resolves the dimensionality a request will actually produce, given an
+ * optional caller-requested reduction.
+ */
 export function resolveDimensions(info: EmbeddingModelInfo, requested?: number): number {
   if (requested === undefined) return info.nativeDimensions
   if (!info.supportedDimensions?.includes(requested)) {
@@ -183,15 +179,3 @@ export function resolveDimensions(info: EmbeddingModelInfo, requested?: number):
   }
   return requested
 }
-
-/**
- * Task types the block should offer for a given model. Providers without
- * task conditioning get an empty list so the sub-block stays hidden.
- */
-export const EMBEDDING_TASK_TYPES: readonly EmbeddingTaskType[] = [
-  'document',
-  'query',
-  'similarity',
-  'classification',
-  'clustering',
-] as const

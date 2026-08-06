@@ -31,9 +31,6 @@ const TOOL_ID_BY_PROVIDER: Record<EmbeddingCatalogProvider, string> = {
   mistral: 'embeddings_mistral',
 }
 
-/** Providers Sim stocks hosted keys for; their API-key field hides on hosted. */
-const HOSTED_KEY_PROVIDERS = ['openai', 'gemini', 'cohere']
-
 export const EmbeddingsBlock: BlockConfig<EmbeddingsResponse> = {
   type: 'embeddings',
   name: 'Embeddings',
@@ -342,7 +339,7 @@ export const EmbeddingsBlock: BlockConfig<EmbeddingsResponse> = {
   },
 }
 
-export { DEFAULT_MODEL_BY_PROVIDER, HOSTED_KEY_PROVIDERS, TOOL_ID_BY_PROVIDER }
+export { DEFAULT_MODEL_BY_PROVIDER, TOOL_ID_BY_PROVIDER }
 
 export const EmbeddingsBlockMeta = {
   tags: ['llm', 'vector-search'],

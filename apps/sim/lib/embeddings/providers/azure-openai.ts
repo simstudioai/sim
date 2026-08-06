@@ -1,3 +1,4 @@
+import { OPENAI_MAX_ITEMS_PER_REQUEST } from '@/lib/embeddings/providers/openai'
 import type { EmbeddingAdapterFactory } from '@/lib/embeddings/types'
 
 interface AzureOpenAIEmbeddingResponse {
@@ -15,6 +16,7 @@ export const createAzureOpenAIAdapter: EmbeddingAdapterFactory = ({
   endpoint,
   apiVersion,
 }) => ({
+  maxItemsPerRequest: OPENAI_MAX_ITEMS_PER_REQUEST,
   buildRequest: ({ inputs, dimensions }) => ({
     apiUrl: `${endpoint}/openai/deployments/${modelName}/embeddings?api-version=${apiVersion}`,
     headers: {

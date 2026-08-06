@@ -8,7 +8,6 @@ import {
 } from '@/lib/api/contracts/tools/embeddings'
 import { getValidationErrorMessage, parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
-import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   embed,
@@ -39,8 +38,6 @@ function normalizeInput(input: string | string[]): string[] {
 }
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
-  const requestId = generateRequestId()
-
   const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
   if (!authResult.success || !authResult.userId) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
@@ -52,7 +49,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     {},
     {
       validationErrorResponse: (error) => {
-        logger.warn(`[${requestId}] Invalid embeddings request:`, error.issues)
+        logger.warn('Invalid embeddings request', { issues: error.issues })
         return validationErrorResponse(
           error,
           getValidationErrorMessage(error, 'Invalid request data')
@@ -137,7 +134,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     )
   }
 
-  logger.info(`[${requestId}] Embedding ${texts.length} input(s) with ${provider}/${resolvedModel}`)
+  logger.info(`Embedding ${texts.length} input(s) with ${provider}/${resolvedModel}`)
 
   try {
     const result = await embed(texts, {
@@ -167,7 +164,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     })
   } catch (error) {
     const message = getErrorMessage(error, 'Embedding generation failed')
-    logger.error(`[${requestId}] Embedding generation failed`, { error: message })
+    logger.error('Embedding generation failed', { error: message })
     return NextResponse.json({ success: false, error: message }, { status: 502 })
   }
 })

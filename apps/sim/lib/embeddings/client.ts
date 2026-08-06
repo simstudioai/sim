@@ -214,7 +214,7 @@ export async function embed(texts: string[], options: EmbedOptions): Promise<Emb
   }
 
   const tokenBatches = batchByTokenLimit(modelInputs, ceiling, model)
-  const itemLimit = provider.adapter.maxItemsPerRequest ?? provider.info.maxItemsPerRequest
+  const itemLimit = provider.adapter.maxItemsPerRequest
   const batches = itemLimit
     ? tokenBatches.flatMap((batch) => splitByItemLimit(batch, itemLimit))
     : tokenBatches

@@ -14,10 +14,7 @@ const BYOK_PROVIDER_IDS: Record<EmbeddingProvider, BYOKProviderId> = {
   mistral: 'mistral',
 }
 
-/**
- * Embeddings are billed per input token with no markup, matching how the
- * knowledge-base path bills the same models.
- */
+/** Throttle applied only when a caller draws on Sim's hosted key pool. */
 const HOSTED_KEY_RATE_LIMIT = {
   mode: 'per_request',
   requestsPerMinute: 100,
@@ -93,6 +90,10 @@ export function createEmbeddingTool({
       envKeyPrefix,
       apiKeyParam: 'apiKey',
       byokProviderId: BYOK_PROVIDER_IDS[provider],
+      /**
+       * Billed per input token with no markup, matching how the knowledge-base
+       * path bills the same models.
+       */
       pricing: {
         type: 'custom',
         getCost: (_params, output) => {
@@ -131,22 +132,13 @@ export function createEmbeddingTool({
       headers: () => ({
         'Content-Type': 'application/json',
       }),
-      body: (
-        params: EmbeddingsParams & {
-          _context?: { workspaceId?: string; workflowId?: string; executionId?: string }
-          __usingHostedKey?: boolean
-        }
-      ) => ({
+      body: (params: EmbeddingsParams) => ({
         provider,
         apiKey: params.apiKey,
         model: params.model || defaultModel,
         input: params.input,
         taskType: params.taskType,
         dimensions: params.dimensions,
-        workspaceId: params._context?.workspaceId,
-        workflowId: params._context?.workflowId,
-        executionId: params._context?.executionId,
-        useHostedCostTracking: params.__usingHostedKey === true,
       }),
     },
 
