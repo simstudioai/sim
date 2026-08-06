@@ -123,6 +123,32 @@ describe('model input provenance transport', () => {
     ).toEqual({ success: true })
   })
 
+  it('allows only explicitly opted-in internal legacy requests without an envelope', () => {
+    expect(
+      validateOpaqueModelInputProvenance({
+        headers: new Headers(),
+        payload: {},
+        isInternalRequest: true,
+        allowLegacyWithoutEnvelope: true,
+      })
+    ).toEqual({ success: true })
+
+    expect(
+      validateOpaqueModelInputProvenance({
+        headers: new Headers(),
+        payload: {
+          [RESOLVED_SECRET_PROVENANCE_FIELD]: {
+            version: 1,
+            complete: true,
+            entries: [],
+          },
+        },
+        isInternalRequest: true,
+        allowLegacyWithoutEnvelope: true,
+      })
+    ).toEqual({ success: false, error: 'Invalid model input provenance', status: 400 })
+  })
+
   it('fails closed for forged, incomplete, or secret-bearing opaque model input', () => {
     const headers = new Headers({
       [PRIVATE_MODEL_INPUT_PROVENANCE_HEADER]: RESOLVED_SECRET_PROVENANCE_METADATA_V1,

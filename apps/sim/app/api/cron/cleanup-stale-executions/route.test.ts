@@ -27,6 +27,7 @@ interface MockCondition {
   conditions?: unknown[]
   left?: unknown
   right?: unknown
+  values?: unknown
   toSQL?: () => { sql: string; params: unknown[] }
 }
 
@@ -122,6 +123,9 @@ describe('stale execution cleanup deadline grace', () => {
   })
 
   it('reports a worker cleanup deadline while preserving the generic stale fallback', async () => {
+    queueTableRows(asyncJobs, [{ id: 'async-job-1' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'async-job-1' }])
+
     const response = await GET(createRequest())
 
     expect(response.status).toBe(200)
@@ -165,6 +169,8 @@ describe('stale execution cleanup deadline grace', () => {
   it('keeps table-job heartbeat cleanup independent from workflow timeout policy', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-08-03T12:00:00.000Z'))
+    queueTableRows(tableJobs, [{ id: 'table-job-1' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'table-job-1' }])
 
     try {
       const response = await GET(createRequest())
@@ -205,7 +211,7 @@ describe('stale execution cleanup deadline grace', () => {
     const response = await GET(createRequest())
 
     expect(response.status).toBe(200)
-    expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
+    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(7)
     expect(dbChainMockFns.for).toHaveBeenCalledTimes(7)
     for (const [strength, options] of dbChainMockFns.for.mock.calls) {
       expect(strength).toBe('update')
@@ -222,6 +228,9 @@ describe('stale execution cleanup deadline grace', () => {
       type: 'export',
       resultKey: `workspace/workspace-1/exports/table-1/job-${index}/export.csv`,
     }))
+    const exportCandidates = Array.from({ length: 100 }, (_, index) => ({
+      id: `export-${index}`,
+    }))
 
     for (let batch = 0; batch < 10; batch++) {
       const workflowBatch = Array.from({ length: 100 }, (_, index) => ({
@@ -231,18 +240,23 @@ describe('stale execution cleanup deadline grace', () => {
       dbChainMockFns.returning.mockResolvedValueOnce(workflowBatch)
     }
     for (let batch = 0; batch < 10; batch++) {
+      queueTableRows(asyncJobs, stateBatch)
       dbChainMockFns.returning.mockResolvedValueOnce(stateBatch)
     }
     for (let batch = 0; batch < 10; batch++) {
+      queueTableRows(tableJobs, stateBatch)
       dbChainMockFns.returning.mockResolvedValueOnce(stateBatch)
     }
     for (let batch = 0; batch < 10; batch++) {
+      queueTableRows(tableJobs, exportCandidates)
       dbChainMockFns.returning.mockResolvedValueOnce(exportBatch)
     }
     for (let batch = 0; batch < 10; batch++) {
+      queueTableRows(asyncJobs, stateBatch)
       dbChainMockFns.returning.mockResolvedValueOnce(stateBatch)
     }
     for (let batch = 0; batch < 10; batch++) {
+      queueTableRows(asyncJobs, retentionBatch)
       dbChainMockFns.returning.mockResolvedValueOnce(retentionBatch)
     }
     dbChainMockFns.returning.mockResolvedValueOnce([])
@@ -282,6 +296,13 @@ describe('stale execution cleanup deadline grace', () => {
       .filter((shape): shape is Record<string, unknown> => Boolean(shape))
     expect(returningShapes.some((shape) => 'payload' in shape)).toBe(false)
     expect(returningShapes.some((shape) => 'type' in shape && 'resultKey' in shape)).toBe(true)
+
+    const claimedIds = dbChainMockFns.where.mock.calls
+      .flatMap(([condition]) => flattenConditions(condition))
+      .filter((condition) => condition.type === 'inArray')
+      .map((condition) => condition.values)
+    expect(claimedIds.length).toBeGreaterThan(0)
+    expect(claimedIds.every((ids) => Array.isArray(ids))).toBe(true)
   })
 
   it('drains more than the legacy 100-row workflow cap in one bounded run', async () => {
@@ -318,9 +339,11 @@ describe('stale execution cleanup deadline grace', () => {
     }))
     queueTableRows(workflowExecutionLogs, firstBatch)
     queueTableRows(workflowExecutionLogs, failedBatch)
+    queueTableRows(asyncJobs, [{ id: 'async-job-1' }])
     dbChainMockFns.returning
       .mockResolvedValueOnce(firstBatch)
       .mockRejectedValueOnce(new Error('database unavailable'))
+      .mockResolvedValueOnce([{ id: 'async-job-1' }])
 
     const response = await GET(createRequest())
 

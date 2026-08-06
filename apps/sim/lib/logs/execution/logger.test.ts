@@ -415,7 +415,7 @@ describe('ExecutionLogger', () => {
 
       expect(preserved?.resolvedSecretTraceProvenance).toBe(provenance)
       expect(preserved?.trustedLargeValueAccess).toBe(trustedLargeValueAccess)
-      expect(preserved?.blockStates).toBe(redactedState.blockStates)
+      expect(preserved?.blockStates).toEqual(redactedState.blockStates)
     })
 
     test('summarizes oversized execution data before storage', () => {

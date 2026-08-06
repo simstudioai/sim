@@ -170,6 +170,7 @@ describe('sse-handlers tool lifecycle', () => {
       runId: 'run-1',
       userId: 'user-1',
       registry: execContext.resolvedSecretTraceRegistry,
+      toolInput: {},
     })
   })
 
@@ -483,13 +484,16 @@ describe('sse-handlers tool lifecycle', () => {
     registry.recordResolved('SECRET', 'secret-value')
     execContext.resolvedSecretTraceRegistry = registry
     execContext.chatId = 'chat-1'
-    executeTool.mockResolvedValueOnce({
-      success: true,
-      output: {
-        result: 'secret-value',
-        stdout: 'prefix secret-value',
-      },
-      resources: [{ type: 'file', id: 'file-1', title: 'secret-value.txt' }],
+    executeTool.mockImplementationOnce(async (_name, _params, toolContext) => {
+      toolContext.resolvedSecretTraceRegistry?.recordResolved('SECRET', 'secret-value')
+      return {
+        success: true,
+        output: {
+          result: 'secret-value',
+          stdout: 'prefix secret-value',
+        },
+        resources: [{ type: 'file', id: 'file-1', title: 'secret-value.txt' }],
+      }
     })
     const onEvent = vi.fn()
 

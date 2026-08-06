@@ -335,6 +335,7 @@ describe('createSSEStream terminal error handling', () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
     ])
+    registry.recordResolved('TOKEN', 'secret-value')
 
     const stream = createSSEStream({
       requestPayload: { message: 'hello secret-value' },

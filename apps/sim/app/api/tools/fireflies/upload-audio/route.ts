@@ -93,6 +93,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       headers: request.headers,
       payload: body,
       isInternalRequest: true,
+      allowLegacyWithoutEnvelope: true,
     })
     if (!modelInputProvenance.success) {
       return errorResponse(modelInputProvenance.error, modelInputProvenance.status)

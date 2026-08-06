@@ -1301,7 +1301,7 @@ async function consumePrivateToolPayloadMetadata(
         consumeResolvedSecretNames(record, params, registry)
       } else {
         if (!registry) return 'unsupported'
-        const reconstructed = registry.exportLegacyLocalProvenanceForValue(record)
+        const reconstructed = registry.exportCatalogProvenanceForValue(record)
         if (!reconstructed.complete) return 'invalid'
         const imported = await registry.importProvenance(reconstructed, { trusted: true })
         if (!imported) return 'invalid'
@@ -1327,7 +1327,7 @@ async function consumePrivateToolPayloadMetadata(
     if (requestedType !== RESOLVED_SECRET_NAMES_METADATA_V1 || !record || !registry) {
       return 'unsupported'
     }
-    const reconstructed = registry.exportLegacyLocalProvenanceForValue(record)
+    const reconstructed = registry.exportCatalogProvenanceForValue(record)
     if (!reconstructed.complete) {
       registry.markIncomplete()
       return 'invalid'

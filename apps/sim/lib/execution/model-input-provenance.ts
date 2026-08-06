@@ -206,17 +206,19 @@ export function inspectPrivateSecretProvenanceRequest(
 
 /**
  * Validates model-bound inputs that cannot be rewritten safely, such as file bytes and signed
- * URLs. External headerless calls retain their existing behavior, while internal callers must use
- * the authenticated envelope. Incomplete, malformed, or secret-bearing inputs fail closed.
+ * URLs. External headerless calls retain their existing behavior. Internal callers must use the
+ * authenticated envelope unless a compatibility route explicitly opts into its pre-envelope
+ * protocol. Incomplete, malformed, or secret-bearing envelopes always fail closed.
  */
 export function validateOpaqueModelInputProvenance(options: {
   headers: HeaderReader
   payload: unknown
   isInternalRequest: boolean
+  allowLegacyWithoutEnvelope?: boolean
 }): OpaqueModelInputProvenanceValidation {
   const inspection = inspectModelInputProvenanceRequest(options.headers, options.payload)
   if (inspection.status === 'unsupported') {
-    return options.isInternalRequest
+    return options.isInternalRequest && !options.allowLegacyWithoutEnvelope
       ? {
           success: false,
           error: OPAQUE_MODEL_INPUT_PROVENANCE_UNAVAILABLE_ERROR,

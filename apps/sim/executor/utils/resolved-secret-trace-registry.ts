@@ -830,11 +830,12 @@ export class ResolvedSecretTraceRegistry {
   }
 
   /**
-   * Reconstructs a legacy local Function response while that same call owns a pending guard.
-   * Only the already-known local catalog and committed active entries participate; unrelated
-   * pending foreign calls remain unavailable and cannot broaden this compatibility path.
+   * Reconstructs provenance at a trusted compatibility boundary by scanning only the current
+   * catalog and committed active entries for exact values in the bounded payload. Callers must
+   * not use this for arbitrary external results: catalog scanning is reserved for persisted
+   * legacy state or locally executed outputs whose older producer could not record activation.
    */
-  exportLegacyLocalProvenanceForValue(
+  exportCatalogProvenanceForValue(
     value: unknown,
     options: ExportResolvedSecretTraceProvenanceForValueOptions = {}
   ): ResolvedSecretTraceProvenanceV1 {

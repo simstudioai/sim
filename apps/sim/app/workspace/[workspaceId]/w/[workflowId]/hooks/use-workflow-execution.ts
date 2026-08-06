@@ -1695,7 +1695,7 @@ export function useWorkflowExecution() {
     const requestError = isRecord(error) && isRecord(error.request) ? error.request : undefined
     if (requestError && sanitizeMessage(requestError.url)) {
       notificationMessage += `: Request to ${(requestError.url as string).trim()} failed`
-      if ('status' in error && typeof error.status === 'number') {
+      if (isRecord(error) && typeof error.status === 'number') {
         notificationMessage += ` (Status: ${error.status})`
       }
     } else if (sanitizeMessage(errorResult.error)) {

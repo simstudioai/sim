@@ -24,6 +24,7 @@ import {
   RESERVATION_TTL_BUFFER_MS,
 } from '@/lib/core/execution-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import type { DbTransaction } from '@/lib/db/types'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
 
 const logger = createLogger('CleanupStaleExecutions')
@@ -62,37 +63,53 @@ interface BatchedMutationResult {
   reachedLimit: boolean
 }
 
-interface RunBatchedMutationOptions<TRow> {
+interface RunBatchedMutationOptions<TCandidate extends { id: string }, TRow> {
   batchSize: number
   maxRowsPerRun: number
-  mutation: (limit: number) => Promise<TRow[]>
+  claim: (tx: DbTransaction, limit: number) => Promise<TCandidate[]>
+  mutation: (tx: DbTransaction, candidateIds: string[]) => Promise<TRow[]>
   onBatch?: (rows: TRow[]) => Promise<void>
 }
 
 /**
- * Runs a mutation in bounded pages. Each mutation must select candidates inside
- * the mutation statement with `FOR UPDATE SKIP LOCKED`, so concurrent cleanup
- * workers claim disjoint pages and a short RETURNING page proves exhaustion.
+ * Runs a mutation in bounded, atomic pages. Each page claims explicit rows with
+ * `FOR UPDATE SKIP LOCKED` and mutates those same rows before committing, so
+ * concurrent cleanup workers cannot overlap and `LIMIT` is evaluated exactly once.
  */
-async function runBatchedMutation<TRow>({
+async function runBatchedMutation<TCandidate extends { id: string }, TRow>({
   batchSize,
   maxRowsPerRun,
+  claim,
   mutation,
   onBatch,
-}: RunBatchedMutationOptions<TRow>): Promise<BatchedMutationResult> {
+}: RunBatchedMutationOptions<TCandidate, TRow>): Promise<BatchedMutationResult> {
   let affected = 0
 
   while (affected < maxRowsPerRun) {
     const limit = Math.min(batchSize, maxRowsPerRun - affected)
-    const rows = await mutation(limit)
-    if (rows.length > limit) {
-      throw new Error(`Cleanup mutation returned ${rows.length} rows for a ${limit}-row batch`)
-    }
-    if (rows.length === 0) break
+    const { candidates, rows } = await db.transaction(async (tx) => {
+      const candidates = await claim(tx, limit)
+      if (candidates.length > limit) {
+        throw new Error(`Cleanup claimed ${candidates.length} rows for a ${limit}-row batch`)
+      }
+      if (candidates.length === 0) return { candidates, rows: [] as TRow[] }
+
+      const rows = await mutation(
+        tx,
+        candidates.map(({ id }) => id)
+      )
+      if (rows.length !== candidates.length) {
+        throw new Error(
+          `Cleanup mutation returned ${rows.length} rows for ${candidates.length} claimed rows`
+        )
+      }
+      return { candidates, rows }
+    })
+    if (candidates.length === 0) break
 
     affected += rows.length
     if (onBatch) await onBatch(rows)
-    if (rows.length < limit) break
+    if (candidates.length < limit) break
   }
 
   return { affected, reachedLimit: affected >= maxRowsPerRun }
@@ -240,15 +257,15 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       const staleProcessingResult = await runBatchedMutation({
         batchSize: STATE_MUTATION_BATCH_SIZE,
         maxRowsPerRun: STATE_MUTATION_MAX_ROWS_PER_RUN,
-        mutation: (limit) => {
-          const candidates = db
+        claim: (tx, limit) =>
+          tx
             .select({ id: asyncJobs.id })
             .from(asyncJobs)
             .where(staleProcessingPredicate)
             .limit(limit)
-            .for('update', { skipLocked: true })
-
-          return db
+            .for('update', { skipLocked: true }),
+        mutation: (tx, candidateIds) =>
+          tx
             .update(asyncJobs)
             .set({
               status: JOB_STATUS.FAILED,
@@ -262,9 +279,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
               END`,
               updatedAt: new Date(),
             })
-            .where(and(staleProcessingPredicate, inArray(asyncJobs.id, candidates)))
-            .returning({ id: asyncJobs.id })
-        },
+            .where(and(staleProcessingPredicate, inArray(asyncJobs.id, candidateIds)))
+            .returning({ id: asyncJobs.id }),
       })
 
       asyncJobsMarkedFailed = staleProcessingResult.affected
@@ -296,15 +312,15 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       const staleTableJobResult = await runBatchedMutation({
         batchSize: STATE_MUTATION_BATCH_SIZE,
         maxRowsPerRun: STATE_MUTATION_MAX_ROWS_PER_RUN,
-        mutation: (limit) => {
-          const candidates = db
+        claim: (tx, limit) =>
+          tx
             .select({ id: tableJobs.id })
             .from(tableJobs)
             .where(staleTableJobPredicate)
             .limit(limit)
-            .for('update', { skipLocked: true })
-
-          return db
+            .for('update', { skipLocked: true }),
+        mutation: (tx, candidateIds) =>
+          tx
             .update(tableJobs)
             .set({
               status: 'failed',
@@ -312,9 +328,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
               completedAt: now,
               updatedAt: now,
             })
-            .where(and(staleTableJobPredicate, inArray(tableJobs.id, candidates)))
-            .returning({ id: tableJobs.id })
-        },
+            .where(and(staleTableJobPredicate, inArray(tableJobs.id, candidateIds)))
+            .returning({ id: tableJobs.id }),
       })
 
       staleTableJobsMarkedFailed = staleTableJobResult.affected
@@ -330,22 +345,21 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       const terminalTableJobResult = await runBatchedMutation({
         batchSize: TABLE_JOB_PRUNE_BATCH_SIZE,
         maxRowsPerRun: TABLE_JOB_PRUNE_MAX_ROWS_PER_RUN,
-        mutation: (limit) => {
-          const candidates = db
+        claim: (tx, limit) =>
+          tx
             .select({ id: tableJobs.id })
             .from(tableJobs)
             .where(terminalTableJobPredicate)
             .limit(limit)
-            .for('update', { skipLocked: true })
-
-          return db
+            .for('update', { skipLocked: true }),
+        mutation: (tx, candidateIds) =>
+          tx
             .delete(tableJobs)
-            .where(and(terminalTableJobPredicate, inArray(tableJobs.id, candidates)))
+            .where(and(terminalTableJobPredicate, inArray(tableJobs.id, candidateIds)))
             .returning({
               type: tableJobs.type,
               resultKey: sql<string | null>`${tableJobs.payload}->>'resultKey'`,
-            })
-        },
+            }),
         onBatch: async (jobs) => {
           /**
            * Pruned export jobs carry the generated file's storage key. The scalar
@@ -385,15 +399,15 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       const stalePendingResult = await runBatchedMutation({
         batchSize: STATE_MUTATION_BATCH_SIZE,
         maxRowsPerRun: STATE_MUTATION_MAX_ROWS_PER_RUN,
-        mutation: (limit) => {
-          const candidates = db
+        claim: (tx, limit) =>
+          tx
             .select({ id: asyncJobs.id })
             .from(asyncJobs)
             .where(stalePendingPredicate)
             .limit(limit)
-            .for('update', { skipLocked: true })
-
-          return db
+            .for('update', { skipLocked: true }),
+        mutation: (tx, candidateIds) =>
+          tx
             .update(asyncJobs)
             .set({
               status: JOB_STATUS.FAILED,
@@ -401,9 +415,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
               error: `Job terminated: stuck in pending state for more than ${JOB_PENDING_RETENTION_HOURS} hours (never started)`,
               updatedAt: new Date(),
             })
-            .where(and(stalePendingPredicate, inArray(asyncJobs.id, candidates)))
-            .returning({ id: asyncJobs.id })
-        },
+            .where(and(stalePendingPredicate, inArray(asyncJobs.id, candidateIds)))
+            .returning({ id: asyncJobs.id }),
       })
 
       stalePendingJobsMarkedFailed = stalePendingResult.affected
@@ -433,19 +446,18 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       const retainedJobResult = await runBatchedMutation({
         batchSize: RETENTION_DELETE_BATCH_SIZE,
         maxRowsPerRun: RETENTION_DELETE_MAX_ROWS_PER_RUN,
-        mutation: (limit) => {
-          const candidates = db
+        claim: (tx, limit) =>
+          tx
             .select({ id: asyncJobs.id })
             .from(asyncJobs)
             .where(retainedJobPredicate)
             .limit(limit)
-            .for('update', { skipLocked: true })
-
-          return db
+            .for('update', { skipLocked: true }),
+        mutation: (tx, candidateIds) =>
+          tx
             .delete(asyncJobs)
-            .where(and(retainedJobPredicate, inArray(asyncJobs.id, candidates)))
-            .returning({ id: asyncJobs.id })
-        },
+            .where(and(retainedJobPredicate, inArray(asyncJobs.id, candidateIds)))
+            .returning({ id: asyncJobs.id }),
       })
 
       asyncJobsDeleted = retainedJobResult.affected
@@ -481,42 +493,49 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         Date.now() - DEPLOYMENT_OPERATION_RETENTION_DAYS * 24 * 60 * 60 * 1000
       )
       const newerOperation = alias(workflowDeploymentOperation, 'newer_operation')
-      for (let batch = 0; batch < DEPLOYMENT_OPERATION_PRUNE_MAX_BATCHES; batch++) {
-        const prunable = db
-          .select({ id: workflowDeploymentOperation.id })
-          .from(workflowDeploymentOperation)
-          .where(
-            and(
-              inArray(workflowDeploymentOperation.status, ['active', 'failed', 'superseded']),
-              lt(workflowDeploymentOperation.completedAt, deploymentOpRetention),
-              exists(
-                db
-                  .select({ id: newerOperation.id })
-                  .from(newerOperation)
-                  .where(
-                    and(
-                      eq(newerOperation.workflowId, workflowDeploymentOperation.workflowId),
-                      gt(newerOperation.generation, workflowDeploymentOperation.generation)
-                    )
-                  )
+      const deploymentOpPredicate = and(
+        inArray(workflowDeploymentOperation.status, ['active', 'failed', 'superseded']),
+        lt(workflowDeploymentOperation.completedAt, deploymentOpRetention),
+        exists(
+          db
+            .select({ id: newerOperation.id })
+            .from(newerOperation)
+            .where(
+              and(
+                eq(newerOperation.workflowId, workflowDeploymentOperation.workflowId),
+                gt(newerOperation.generation, workflowDeploymentOperation.generation)
               )
             )
-          )
-          .limit(DEPLOYMENT_OPERATION_PRUNE_BATCH_SIZE)
-          .for('update', { skipLocked: true })
-
-        const deleted = await db
-          .delete(workflowDeploymentOperation)
-          .where(inArray(workflowDeploymentOperation.id, prunable))
-          .returning({ id: workflowDeploymentOperation.id })
-
-        deploymentOperationsPruned += deleted.length
-        if (deleted.length < DEPLOYMENT_OPERATION_PRUNE_BATCH_SIZE) break
-      }
+        )
+      )
+      const deploymentOpResult = await runBatchedMutation({
+        batchSize: DEPLOYMENT_OPERATION_PRUNE_BATCH_SIZE,
+        maxRowsPerRun:
+          DEPLOYMENT_OPERATION_PRUNE_BATCH_SIZE * DEPLOYMENT_OPERATION_PRUNE_MAX_BATCHES,
+        claim: (tx, limit) =>
+          tx
+            .select({ id: workflowDeploymentOperation.id })
+            .from(workflowDeploymentOperation)
+            .where(deploymentOpPredicate)
+            .limit(limit)
+            .for('update', { skipLocked: true }),
+        mutation: (tx, candidateIds) =>
+          tx
+            .delete(workflowDeploymentOperation)
+            .where(inArray(workflowDeploymentOperation.id, candidateIds))
+            .returning({ id: workflowDeploymentOperation.id }),
+      })
+      deploymentOperationsPruned = deploymentOpResult.affected
       if (deploymentOperationsPruned > 0) {
         logger.info(
           `Pruned ${deploymentOperationsPruned} old deployment operations (retention: ${DEPLOYMENT_OPERATION_RETENTION_DAYS}d)`
         )
+      }
+      if (deploymentOpResult.reachedLimit) {
+        logger.info('Deferred remaining deployment operations after reaching the per-run cap', {
+          maxRowsPerRun:
+            DEPLOYMENT_OPERATION_PRUNE_BATCH_SIZE * DEPLOYMENT_OPERATION_PRUNE_MAX_BATCHES,
+        })
       }
     } catch (error) {
       logger.error('Failed to prune old deployment operations:', {
