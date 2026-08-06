@@ -524,15 +524,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
 
       /**
-       * Only persist IdP metadata the admin actually supplied. Storing a document
-       * generated from `cert` + `entryPoint` made re-saving destructive: the form
-       * loads it back into the optional metadata field, resends it, and it then
-       * wins over the certificate — so a cert rotation entered through the form
-       * silently did nothing. With no metadata stored, Better Auth's createIdP
-       * builds the IdP from issuer/entryPoint/cert, which are the fields the form
+       * Persist only IdP metadata the admin actually supplied, and always write the
+       * key so clearing it takes effect. Two failures sat here: a document generated
+       * from `cert` + `entryPoint` used to be stored unconditionally, and the form
+       * loads metadata back and resends it, so it won over the certificate and a
+       * cert rotation silently did nothing. Omitting the key instead is no fix —
+       * Better Auth merges SAML config with `??`, so a previously stored document
+       * would survive. An empty string is written instead, which `createIdP`
+       * falsy-guards, falling back to issuer/entryPoint/cert — the fields the form
        * actually edits.
        */
-      if (idpMetadata) samlConfig.idpMetadata = { metadata: idpMetadata }
+      samlConfig.idpMetadata = { metadata: idpMetadata ?? '' }
 
       if (audience) samlConfig.audience = audience
       if (wantAssertionsSigned !== undefined) samlConfig.wantAssertionsSigned = wantAssertionsSigned

@@ -361,7 +361,7 @@ describe('POST /api/auth/sso/register', () => {
    * it back, resent it, and it then won over the certificate — so rotating a SAML
    * cert through the form silently did nothing.
    */
-  it('does not persist generated IdP metadata when the admin supplied none', async () => {
+  it('writes empty IdP metadata when the admin supplied none, so a stored one clears', async () => {
     queueMembers([{ organizationId: 'org1', role: 'owner' }])
     queueProviders([])
     await POST(
@@ -376,7 +376,9 @@ describe('POST /api/auth/sso/register', () => {
       })
     )
     const sent = mockRegisterSSOProvider.mock.calls[0][0].body
-    expect(sent.samlConfig.idpMetadata).toBeUndefined()
+    // Written as empty rather than omitted: Better Auth merges with `??`, so an
+    // omitted key would retain a previously stored document on update.
+    expect(sent.samlConfig.idpMetadata).toEqual({ metadata: '' })
     expect(sent.samlConfig.cert).toBe('ORIGINAL-CERT')
   })
 
