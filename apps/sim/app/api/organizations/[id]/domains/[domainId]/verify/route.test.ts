@@ -68,14 +68,27 @@ describe('verify org domain route', () => {
       user: { id: 'user-1', name: 'Admin', email: 'admin@acme.dev' },
     })
     mockIsEnterprise.mockResolvedValue(true)
-    mockCheckDomainTxtRecord.mockResolvedValue(true)
+    mockCheckDomainTxtRecord.mockResolvedValue('present')
   })
 
   it('422s when the TXT record is not found', async () => {
     queueAdminWithPendingRow()
-    mockCheckDomainTxtRecord.mockResolvedValue(false)
+    mockCheckDomainTxtRecord.mockResolvedValue('absent')
     const res = await POST(createMockRequest('POST'), routeContext)
     expect(res.status).toBe(422)
+    expect(mockRecordAudit).not.toHaveBeenCalled()
+  })
+
+  /**
+   * A failed lookup says nothing about the admin's DNS, so it must not be reported
+   * as a missing record — that sends them hunting through their zone for our fault.
+   */
+  it('503s (not 422) when the DNS lookup itself could not complete', async () => {
+    queueAdminWithPendingRow()
+    mockCheckDomainTxtRecord.mockResolvedValue('unavailable')
+    const res = await POST(createMockRequest('POST'), routeContext)
+    expect(res.status).toBe(503)
+    expect(await res.json()).toMatchObject({ error: expect.stringContaining('on our side') })
     expect(mockRecordAudit).not.toHaveBeenCalled()
   })
 

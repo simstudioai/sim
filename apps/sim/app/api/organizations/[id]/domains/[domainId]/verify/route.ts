@@ -70,8 +70,19 @@ export const POST = withRouteHandler(
       return NextResponse.json({ success: true, data: { domain: toDomainResponse(row) } })
     }
 
-    const recordPresent = await checkDomainTxtRecord(row.domain, row.verificationToken)
-    if (!recordPresent) {
+    const lookup = await checkDomainTxtRecord(row.domain, row.verificationToken)
+    // 503, not 422: the record may well be correct, so this must not read as the
+    // admin's mistake or they will go hunting through DNS for a fault that is ours.
+    if (lookup === 'unavailable') {
+      return NextResponse.json(
+        {
+          error:
+            "We couldn't complete the DNS lookup — this is a problem on our side, not with your record. Try again in a few minutes.",
+        },
+        { status: 503 }
+      )
+    }
+    if (lookup === 'absent') {
       return NextResponse.json(
         {
           error:
