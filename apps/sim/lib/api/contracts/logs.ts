@@ -170,10 +170,14 @@ export type LogTraceSpan = {
   startTime?: string
   endTime?: string
   status?: string
+  errorHandled?: boolean
+  errorType?: string
+  errorMessage?: string
   blockId?: string
   input?: unknown
   output?: unknown
   tokens?: number | { total?: number; input?: number; output?: number }
+  cost?: { total?: number; input?: number; output?: number; toolCost?: number }
   relativeStartMs?: number
   toolCalls?: Array<z.output<typeof toolCallSchema>>
   children?: LogTraceSpan[]
@@ -190,6 +194,9 @@ export const traceSpanSchema: z.ZodType<LogTraceSpan> = z.lazy(() =>
       startTime: z.string().optional(),
       endTime: z.string().optional(),
       status: z.string().optional(),
+      errorHandled: z.boolean().optional(),
+      errorType: z.string().optional(),
+      errorMessage: z.string().optional(),
       blockId: z.string().optional(),
       input: z.unknown().optional(),
       output: z.unknown().optional(),
@@ -204,6 +211,15 @@ export const traceSpanSchema: z.ZodType<LogTraceSpan> = z.lazy(() =>
             })
             .partial(),
         ])
+        .optional(),
+      cost: z
+        .object({
+          total: z.number().optional(),
+          input: z.number().optional(),
+          output: z.number().optional(),
+          toolCost: z.number().optional(),
+        })
+        .partial()
         .optional(),
       relativeStartMs: z.number().optional(),
       toolCalls: z.array(toolCallSchema).optional(),

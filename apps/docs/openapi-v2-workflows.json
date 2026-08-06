@@ -1607,7 +1607,32 @@
                         },
                         "paused": {
                           "type": ["object", "null"],
-                          "description": "Pause detail for human-in-the-loop runs."
+                          "description": "Pause detail for human-in-the-loop runs, including the context ID required by the resume endpoint.",
+                          "required": [
+                            "contextId",
+                            "pausedAt",
+                            "resumeAt",
+                            "pauseKind",
+                            "blockedOnBlockId",
+                            "automaticResumeWaitingReason",
+                            "pausedExecutionId",
+                            "pausePointCount",
+                            "resumedCount"
+                          ],
+                          "properties": {
+                            "contextId": { "type": "string" },
+                            "pausedAt": { "type": "string" },
+                            "resumeAt": { "type": ["string", "null"] },
+                            "pauseKind": {
+                              "type": ["string", "null"],
+                              "enum": ["time", "human", null]
+                            },
+                            "blockedOnBlockId": { "type": ["string", "null"] },
+                            "automaticResumeWaitingReason": { "type": ["string", "null"] },
+                            "pausedExecutionId": { "type": "string" },
+                            "pausePointCount": { "type": "number" },
+                            "resumedCount": { "type": "number" }
+                          }
                         },
                         "cost": {
                           "type": ["object", "null"],
@@ -1683,7 +1708,7 @@
       "post": {
         "operationId": "resumeWorkflowExecutionV2",
         "summary": "Resume a workflow execution",
-        "description": "Resumes one human-in-the-loop pause context on the parent execution. The resumed attempt receives a new execution ID. Sync attempts return the execution resource, stream attempts return Server-Sent Events, and async or serialized attempts return a 202 receipt whose `statusUrl` is the v2 execution resource.",
+        "description": "Resumes one human-in-the-loop pause context on the parent execution. Responses are always JSON and the resumed attempt receives a new execution ID. Sync attempts return the execution resource. Async, serialized, and inherited stream-mode attempts return a 202 receipt whose `statusUrl` is the v2 execution resource.",
         "tags": ["Workflows"],
         "security": [
           {

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { traceSpansSchema } from '@/lib/api/contracts/logs'
 import { v2ListLogsQuerySchema } from '@/lib/api/contracts/v2/logs'
 import {
   v2DeleteFolderQuerySchema,
@@ -57,5 +58,26 @@ describe('v2 folder path contracts', () => {
     })
 
     expect(query.folderPaths).toBe('/Reports/Q1,/Archive')
+  })
+
+  it('declares persisted trace cost and error metadata', () => {
+    const [span] = traceSpansSchema.parse([
+      {
+        id: 'span-1',
+        name: 'Agent',
+        type: 'agent',
+        errorHandled: true,
+        errorType: 'RateLimitError',
+        errorMessage: 'Rate limited',
+        cost: { input: 0.001, output: 0.002, toolCost: 0.01, total: 0.013 },
+      },
+    ])
+
+    expect(span).toMatchObject({
+      errorHandled: true,
+      errorType: 'RateLimitError',
+      errorMessage: 'Rate limited',
+      cost: { input: 0.001, output: 0.002, toolCost: 0.01, total: 0.013 },
+    })
   })
 })

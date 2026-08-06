@@ -75,6 +75,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       : null
     if (params.cursor && !decodedCursor) return v2Error('BAD_REQUEST', 'Invalid cursor')
     const cursor = decodedCursor ?? undefined
+    const includeFullDetails =
+      params.details === 'full' || params.includeFinalOutput || params.includeTraceSpans
 
     const filters = {
       workspaceId: params.workspaceId,
@@ -97,7 +99,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const { data, nextCursor } = await listPublicWorkflowLogs({
       filters,
       limit: params.limit,
-      includeExecutionData: params.details === 'full',
+      includeExecutionData: includeFullDetails,
       folderScope: folderPaths ? { includesRoot, folderIds: nonRootFolderIds ?? [] } : undefined,
     })
 
@@ -116,7 +118,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         cost: log.costTotal != null ? { total: Number(log.costTotal) } : null,
         files: (log.files as unknown[] | null) ?? null,
       }
-      if (params.details === 'full') {
+      if (includeFullDetails) {
         item.workflow = {
           id: log.workflowId,
           name: log.workflowName || 'Deleted Workflow',
@@ -127,8 +129,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return item
     }
 
-    const needsMaterialize =
-      params.details === 'full' && (params.includeFinalOutput || params.includeTraceSpans)
+    const needsMaterialize = params.includeFinalOutput || params.includeTraceSpans
 
     const formattedLogs = needsMaterialize
       ? await mapWithConcurrency(data, MATERIALIZE_CONCURRENCY, async (log) => {
@@ -142,7 +143,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
                 executionId: log.executionId,
               }
             )) as Record<string, unknown>
-            if (params.includeFinalOutput && execData.finalOutput) {
+            if (params.includeFinalOutput && execData.finalOutput !== undefined) {
               item.finalOutput = execData.finalOutput
             }
             if (params.includeTraceSpans) {

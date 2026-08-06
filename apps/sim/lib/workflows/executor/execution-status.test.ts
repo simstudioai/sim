@@ -1,7 +1,8 @@
 /**
  * @vitest-environment node
  */
-import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { and } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockGetJob } = vi.hoisted(() => ({
@@ -100,6 +101,37 @@ describe('getWorkflowExecutionStatus queue projection', () => {
       startedAt: '2026-08-05T12:00:01.000Z',
     })
     expect(mockGetJob).toHaveBeenCalledWith('resume-execution:resume-entry-1')
+
+    type MockPredicate = { type: string; left?: unknown; right?: unknown }
+    const activeResumePredicates = vi
+      .mocked(and)
+      .mock.calls.find((conditions) =>
+        (conditions as MockPredicate[]).some(
+          (condition) => condition.left === schemaMock.resumeQueue.newExecutionId
+        )
+      ) as MockPredicate[] | undefined
+    expect(activeResumePredicates).toEqual(
+      expect.arrayContaining([
+        {
+          type: 'eq',
+          left: schemaMock.resumeQueue.newExecutionId,
+          right: input.executionId,
+        },
+        {
+          type: 'eq',
+          left: schemaMock.pausedExecutions.workflowId,
+          right: input.workflowId,
+        },
+      ])
+    )
+    expect(activeResumePredicates).not.toContainEqual(
+      expect.objectContaining({ left: schemaMock.resumeQueue.parentExecutionId })
+    )
+    expect(dbChainMockFns.innerJoin).toHaveBeenCalledWith(schemaMock.pausedExecutions, {
+      type: 'eq',
+      left: schemaMock.resumeQueue.pausedExecutionId,
+      right: schemaMock.pausedExecutions.id,
+    })
   })
 
   it('projects an active resume ahead of the existing paused log', async () => {
@@ -244,5 +276,53 @@ describe('getWorkflowExecutionStatus queue projection', () => {
     })
 
     await expect(getWorkflowExecutionStatus(input)).resolves.toBeNull()
+  })
+
+  it('exposes the active pause context required by resume', async () => {
+    queueTableRows(schemaMock.workflowExecutionLogs, [
+      {
+        executionId: 'execution-1',
+        workflowId: 'workflow-1',
+        workspaceId: 'workspace-1',
+        status: 'paused',
+        level: 'info',
+        trigger: 'api',
+        startedAt: new Date('2026-08-05T12:00:00.000Z'),
+        endedAt: null,
+        totalDurationMs: null,
+        executionData: null,
+        costTotal: null,
+      },
+    ])
+    queueTableRows(schemaMock.resumeQueue, [])
+    queueTableRows(schemaMock.pausedExecutions, [
+      {
+        id: 'paused-execution-1',
+        status: 'paused',
+        pausePoints: {
+          'context-1': {
+            contextId: 'context-1',
+            blockId: 'approval-block',
+            response: null,
+            registeredAt: '2026-08-05T12:00:01.000Z',
+            resumeStatus: 'paused',
+            snapshotReady: true,
+            pauseKind: 'human',
+          },
+        },
+        metadata: {},
+        resumedCount: 0,
+        pausedAt: new Date('2026-08-05T12:00:01.000Z'),
+        nextResumeAt: null,
+      },
+    ])
+
+    const status = await getWorkflowExecutionStatus(input)
+
+    expect(status?.paused).toMatchObject({
+      contextId: 'context-1',
+      pauseKind: 'human',
+      blockedOnBlockId: 'approval-block',
+    })
   })
 })

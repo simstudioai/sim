@@ -162,10 +162,11 @@ export async function getWorkflowExecutionStatus(
       claimedAt: resumeQueue.claimedAt,
     })
     .from(resumeQueue)
+    .innerJoin(pausedExecutions, eq(resumeQueue.pausedExecutionId, pausedExecutions.id))
     .where(
       and(
-        eq(resumeQueue.parentExecutionId, executionId),
         eq(resumeQueue.newExecutionId, executionId),
+        eq(pausedExecutions.workflowId, workflowId),
         inArray(resumeQueue.status, ['pending', 'claimed'] as const)
       )
     )
@@ -241,14 +242,18 @@ export async function getWorkflowExecutionStatus(
   if (isCurrentlyPaused && pausedRow) {
     const points = normalizePausePoints(pausedRow.pausePoints)
     const earliest = pickEarliestPausePoint(points)
+    if (!earliest) {
+      throw new Error('Paused execution has no active resume context')
+    }
     const automaticResumeWaiting = getAutomaticResumeWaitingMetadata(pausedRow.metadata)
     paused = {
+      contextId: earliest.contextId,
       pausedAt: pausedRow.pausedAt.toISOString(),
-      resumeAt: pausedRow.nextResumeAt?.toISOString() ?? earliest?.resumeAt ?? null,
-      pauseKind: earliest?.pauseKind ?? null,
-      blockedOnBlockId: earliest?.blockId ?? null,
+      resumeAt: pausedRow.nextResumeAt?.toISOString() ?? earliest.resumeAt ?? null,
+      pauseKind: earliest.pauseKind,
+      blockedOnBlockId: earliest.blockId ?? null,
       automaticResumeWaitingReason:
-        automaticResumeWaiting?.reason ?? earliest?.automaticResumeWaitingReason ?? null,
+        automaticResumeWaiting?.reason ?? earliest.automaticResumeWaitingReason ?? null,
       pausedExecutionId: pausedRow.id,
       pausePointCount: points.length,
       resumedCount: pausedRow.resumedCount,

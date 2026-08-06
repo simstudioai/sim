@@ -42,9 +42,9 @@ export const v2LogListItemSchema = z.object({
   files: v2LogFilesSchema,
   /** Present only when `details=full`. */
   workflow: v2LogWorkflowSummarySchema.optional(),
-  /** Present only when `details=full` and `includeFinalOutput=true`. */
+  /** Present when `includeFinalOutput=true`; the flag implies full detail. */
   finalOutput: z.unknown().optional(),
-  /** Present only when `details=full` and `includeTraceSpans=true`. */
+  /** Present when `includeTraceSpans=true`; the flag implies full detail. */
   traceSpans: traceSpansSchema.optional(),
 })
 

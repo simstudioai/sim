@@ -115,6 +115,38 @@ describe('v2 executions status + cancel', () => {
     expect((await res.json()).data.status).toBe('queued')
   })
 
+  it('returns the resume context for a paused execution', async () => {
+    mockGetWorkflowExecutionStatus.mockResolvedValue({
+      executionId: 'exec-1',
+      workflowId: 'workflow-1',
+      status: 'paused',
+      trigger: 'api',
+      level: 'info',
+      startedAt: '2026-07-31T00:00:00.000Z',
+      endedAt: null,
+      totalDurationMs: null,
+      paused: {
+        contextId: 'context-1',
+        pausedAt: '2026-07-31T00:00:01.000Z',
+        resumeAt: null,
+        pauseKind: 'human',
+        blockedOnBlockId: 'approval-block',
+        automaticResumeWaitingReason: null,
+        pausedExecutionId: 'paused-execution-1',
+        pausePointCount: 1,
+        resumedCount: 0,
+      },
+      cost: null,
+      error: null,
+      finalOutput: null,
+      blockOutputs: null,
+    })
+
+    const body = await (await callStatus()).json()
+
+    expect(body.data.paused.contextId).toBe('context-1')
+  })
+
   it('404s when neither a log row nor a matching job exists', async () => {
     mockGetWorkflowExecutionStatus.mockResolvedValue(null)
 
