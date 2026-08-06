@@ -56,7 +56,7 @@ export const EMBEDDING_MODELS: Record<string, EmbeddingModelInfo> = {
     tokenizerProvider: 'openai',
     nativeDimensions: 1536,
     supportedDimensions: [1536, 1024, 768, 512, 256],
-    maxInputTokens: 8191,
+    maxInputTokens: 8192,
     kbEligible: true,
   },
   'text-embedding-3-large': {
@@ -66,7 +66,7 @@ export const EMBEDDING_MODELS: Record<string, EmbeddingModelInfo> = {
     tokenizerProvider: 'openai',
     nativeDimensions: 3072,
     supportedDimensions: [3072, 1536, 1024, 768, 512, 256],
-    maxInputTokens: 8191,
+    maxInputTokens: 8192,
     kbEligible: true,
   },
   /**
@@ -80,7 +80,7 @@ export const EMBEDDING_MODELS: Record<string, EmbeddingModelInfo> = {
     pricingId: 'text-embedding-ada-002',
     tokenizerProvider: 'openai',
     nativeDimensions: 1536,
-    maxInputTokens: 8191,
+    maxInputTokens: 8192,
     kbEligible: false,
   },
   'gemini-embedding-001': {

@@ -1,3 +1,4 @@
+import { l2Normalize } from '@/lib/embeddings/normalize'
 import type { EmbeddingAdapterFactory, EmbeddingTaskType } from '@/lib/embeddings/types'
 
 /** Cohere's v2 embed endpoint rejects requests with more than 96 texts. */
@@ -22,10 +23,19 @@ interface CohereEmbeddingResponse {
 
 /**
  * Cohere `/v2/embed`. `input_type` is required by the API, so a task type is
- * always sent. Cohere returns unit-length vectors at every supported
- * `output_dimension`, so no local normalization is needed.
+ * always sent.
+ *
+ * Cohere documents `output_dimension` as Matryoshka truncation but never states
+ * whether it renormalizes the truncated vector. Rather than depend on an
+ * undocumented guarantee, reduced output is normalized locally: `l2Normalize` is
+ * idempotent, so this is a no-op if Cohere already returns unit vectors and a
+ * correctness fix if it does not.
  */
-export const createCohereAdapter: EmbeddingAdapterFactory = ({ modelName, apiKey }) => ({
+export const createCohereAdapter: EmbeddingAdapterFactory = ({
+  modelName,
+  apiKey,
+  nativeDimensions,
+}) => ({
   maxItemsPerRequest: COHERE_MAX_ITEMS_PER_REQUEST,
   buildRequest: ({ inputs, taskType, dimensions }) => ({
     apiUrl: 'https://api.cohere.com/v2/embed',
@@ -45,7 +55,8 @@ export const createCohereAdapter: EmbeddingAdapterFactory = ({ modelName, apiKey
       if (!vectors) {
         throw new Error('Cohere embed response did not include float embeddings')
       }
-      return vectors
+      const isReduced = dimensions !== undefined && dimensions < nativeDimensions
+      return isReduced ? vectors.map(l2Normalize) : vectors
     },
     parseTokens: (json) => (json as CohereEmbeddingResponse).meta?.billed_units?.input_tokens,
   }),

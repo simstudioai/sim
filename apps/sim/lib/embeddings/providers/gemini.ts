@@ -1,7 +1,11 @@
 import { l2Normalize } from '@/lib/embeddings/normalize'
 import type { EmbeddingAdapterFactory, EmbeddingTaskType } from '@/lib/embeddings/types'
 
-/** Gemini's `batchEmbedContents` rejects requests with more than 100 items. */
+/**
+ * Gemini rejects batch embedding requests above 100 items. Google does not state
+ * this in the `batchEmbedContents` reference, so the cap is set from the limit
+ * the API is observed to enforce rather than from a documented figure.
+ */
 const GEMINI_MAX_ITEMS_PER_REQUEST = 100
 
 const GEMINI_TASK_TYPES: Record<EmbeddingTaskType, string> = {

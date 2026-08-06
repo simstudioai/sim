@@ -129,6 +129,17 @@ describe('Cohere adapter', () => {
     const request = adapter.buildRequest({ inputs: INPUTS, taskType: 'document' })
     expect(() => request.parse({ embeddings: {} })).toThrow(/did not include float embeddings/)
   })
+
+  it('normalizes reduced output, which Cohere never documents as renormalized', () => {
+    const request = adapter.buildRequest({ inputs: INPUTS, taskType: 'document', dimensions: 256 })
+    const [vector] = request.parse({ embeddings: { float: [[3, 4]] } })
+    expect(norm(vector)).toBeCloseTo(1)
+  })
+
+  it('leaves full-width output untouched', () => {
+    const request = adapter.buildRequest({ inputs: INPUTS, taskType: 'document', dimensions: 1536 })
+    expect(request.parse({ embeddings: { float: [[3, 4]] } })).toEqual([[3, 4]])
+  })
 })
 
 describe('Mistral adapter', () => {

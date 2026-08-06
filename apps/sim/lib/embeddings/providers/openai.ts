@@ -1,6 +1,7 @@
 import type { EmbeddingAdapterFactory } from '@/lib/embeddings/types'
 
-interface OpenAIEmbeddingResponse {
+/** Shared by the OpenAI and Azure OpenAI adapters — Azure mirrors this wire shape exactly. */
+export interface OpenAIEmbeddingResponse {
   data: Array<{ embedding: number[] }>
   usage?: { prompt_tokens?: number; total_tokens?: number }
 }

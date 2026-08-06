@@ -1,10 +1,8 @@
-import { OPENAI_MAX_ITEMS_PER_REQUEST } from '@/lib/embeddings/providers/openai'
+import {
+  OPENAI_MAX_ITEMS_PER_REQUEST,
+  type OpenAIEmbeddingResponse,
+} from '@/lib/embeddings/providers/openai'
 import type { EmbeddingAdapterFactory } from '@/lib/embeddings/types'
-
-interface AzureOpenAIEmbeddingResponse {
-  data: Array<{ embedding: number[] }>
-  usage?: { prompt_tokens?: number; total_tokens?: number }
-}
 
 /**
  * Azure OpenAI embeddings. The model is selected by the deployment name in the
@@ -28,7 +26,7 @@ export const createAzureOpenAIAdapter: EmbeddingAdapterFactory = ({
       encoding_format: 'float',
       ...(dimensions !== undefined && { dimensions }),
     },
-    parse: (json) => (json as AzureOpenAIEmbeddingResponse).data.map((item) => item.embedding),
-    parseTokens: (json) => (json as AzureOpenAIEmbeddingResponse).usage?.total_tokens,
+    parse: (json) => (json as OpenAIEmbeddingResponse).data.map((item) => item.embedding),
+    parseTokens: (json) => (json as OpenAIEmbeddingResponse).usage?.total_tokens,
   }),
 })
