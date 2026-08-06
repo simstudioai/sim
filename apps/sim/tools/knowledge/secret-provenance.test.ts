@@ -25,12 +25,12 @@ function serverSelectionKeys(documentTags: unknown): string[] {
   ]
 }
 
-const EMPTY_STRINGIFYING_TAG_VALUES: readonly [string, unknown][] = [
+const EMPTY_STRINGIFYING_TAG_VALUES = [
   ['empty array', []],
   ['array of null', [null]],
   ['array of undefined', [undefined]],
   ['object stringifying to empty', { toString: () => '' }],
-]
+] as const
 
 describe('selectKnowledgeDocumentWriteSecretProvenance', () => {
   it.each(EMPTY_STRINGIFYING_TAG_VALUES)(
