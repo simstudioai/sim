@@ -101,6 +101,17 @@ export const POST = withRouteHandler(
     // instead of mapping an undefined row or trusting a superseded challenge. A
     // concurrent cross-org verification trips the partial unique index; surface
     // that as a 409 rather than an unhandled 500.
+    /**
+     * Providers this proof covers. Normalized the way migration 0268 stored these
+     * rows (lower, trimmed, leading `*.` dropped) and identical to the expression
+     * the deletion path revokes with, so granting and revoking can never diverge.
+     */
+    const providersOnDomain = (verifiedDomain: string) =>
+      and(
+        eq(ssoProvider.organizationId, organizationId),
+        sql`lower(regexp_replace(btrim(${ssoProvider.domain}), '^\\*\\.', '')) = ${verifiedDomain}`
+      )
+
     let updated: (typeof row)[]
     try {
       updated = await db.transaction(async (tx) => {
@@ -118,18 +129,12 @@ export const POST = withRouteHandler(
 
         // Restore trust this proof covers, mirroring the revocation on delete.
         // Without it a delete-then-reverify leaves the provider untrusted, and
-        // since that flag gates sign-in the org sits in a silent SSO outage. The
-        // comparison matches the revoking one exactly so the two stay symmetric.
+        // since that flag gates sign-in the org sits in a silent SSO outage.
         if (flipped.length > 0) {
           await tx
             .update(ssoProvider)
             .set({ domainVerified: true })
-            .where(
-              and(
-                eq(ssoProvider.organizationId, organizationId),
-                sql`lower(regexp_replace(btrim(${ssoProvider.domain}), '^\\*\\.', '')) = ${flipped[0].domain}`
-              )
-            )
+            .where(providersOnDomain(flipped[0].domain))
         }
 
         return flipped
@@ -155,6 +160,15 @@ export const POST = withRouteHandler(
         .where(and(eq(ssoDomain.id, domainId), eq(ssoDomain.organizationId, organizationId)))
         .limit(1)
       if (current?.status === 'verified') {
+        // Re-grant rather than returning early. A provider can hold a verified
+        // domain while its own trust flag is off — an update whose grant was
+        // refused reverts to the previous config and clears it. Re-running
+        // verification is the obvious way to fix that, so it must actually do
+        // something; the proof is present, which is exactly what authorizes this.
+        await db
+          .update(ssoProvider)
+          .set({ domainVerified: true })
+          .where(providersOnDomain(current.domain))
         return NextResponse.json({ success: true, data: { domain: toDomainResponse(current) } })
       }
       return NextResponse.json(
