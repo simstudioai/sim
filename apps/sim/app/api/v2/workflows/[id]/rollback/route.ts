@@ -11,9 +11,9 @@ import { captureServerEvent } from '@/lib/posthog/server'
 import { performActivateVersion } from '@/lib/workflows/orchestration'
 import { findPreviousDeploymentVersion } from '@/lib/workflows/persistence/utils'
 import { checkRateLimit } from '@/app/api/v1/middleware'
-import { resolveV1DeploymentWorkflow } from '@/app/api/v1/workflows/utils'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import { v2Data, v2Error, v2RateLimitError, v2ValidationError } from '@/app/api/v2/lib/response'
+import { resolveV2WorkflowTarget } from '@/app/api/v2/workflows/utils'
 
 const logger = createLogger('V2WorkflowRollbackAPI')
 
@@ -50,8 +50,8 @@ export const POST = withRouteHandler(
       const body = v1RollbackWorkflowBodySchema.safeParse(rawBody.data ?? {})
       if (!body.success) return v2ValidationError(body.error)
 
-      const target = await resolveV1DeploymentWorkflow(rateLimit, userId, id)
-      if (!target.ok) return v2Error('NOT_FOUND', 'Workflow not found')
+      const target = await resolveV2WorkflowTarget(rateLimit, userId, id, 'admin')
+      if (!target) return v2Error('NOT_FOUND', 'Workflow not found')
       const { workflow, workspaceId } = target
 
       if (!workflow.isDeployed) {

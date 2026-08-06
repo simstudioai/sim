@@ -12,7 +12,18 @@ import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { tasks } from '@trigger.dev/sdk'
-import { and, asc, desc, eq, inArray, isNotNull, isNull, type SQL, sql } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  getTableColumns,
+  inArray,
+  isNotNull,
+  isNull,
+  type SQL,
+  sql,
+} from 'drizzle-orm'
 import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import {
   assertBillingAttributionSnapshot,
@@ -1502,6 +1513,36 @@ export async function getDocuments(
       hasMore,
     },
   }
+}
+
+export type ActiveKnowledgeDocument = typeof document.$inferSelect & {
+  connectorType: string | null
+}
+
+/** Loads one visible document and its connector metadata for every API adapter. */
+export async function getKnowledgeDocument(
+  knowledgeBaseId: string,
+  documentId: string
+): Promise<ActiveKnowledgeDocument | null> {
+  const [row] = await db
+    .select({
+      ...getTableColumns(document),
+      connectorType: knowledgeConnector.connectorType,
+    })
+    .from(document)
+    .leftJoin(knowledgeConnector, eq(document.connectorId, knowledgeConnector.id))
+    .where(
+      and(
+        eq(document.id, documentId),
+        eq(document.knowledgeBaseId, knowledgeBaseId),
+        eq(document.userExcluded, false),
+        isNull(document.archivedAt),
+        isNull(document.deletedAt)
+      )
+    )
+    .limit(1)
+
+  return row ? { ...row, connectorType: row.connectorType ?? null } : null
 }
 
 export async function createSingleDocument(

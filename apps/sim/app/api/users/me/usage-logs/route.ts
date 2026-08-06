@@ -18,7 +18,7 @@ const logger = createLogger('UsageLogsAPI')
 /**
  * Lists the authenticated user's credit-consuming usage events (model, tool,
  * and fixed charges), converted to credits for display in Billing settings.
- * Session-only — the API-key-facing equivalent is `GET /api/v2/billing/usage/logs`.
+ * Session-only — the API-key-facing equivalent is `GET /api/v2/billing/logs`.
  */
 export const GET = withRouteHandler(async (request: NextRequest) => {
   const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })

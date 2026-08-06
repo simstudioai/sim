@@ -1,5 +1,3 @@
-import { db } from '@sim/db'
-import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import {
   assertFolderMutable,
@@ -8,7 +6,6 @@ import {
   FolderLockedError,
   WorkflowLockedError,
 } from '@sim/platform-authz/workflow'
-import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { updateWorkflowContract } from '@/lib/api/contracts/workflows'
 import { parseRequest } from '@/lib/api/server'
@@ -17,7 +14,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { performDeleteWorkflow, performUpdateWorkflow } from '@/lib/workflows/orchestration'
-import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
+import { loadWorkflowReadSnapshot } from '@/lib/workflows/queries'
 import { getWorkflowById } from '@/lib/workflows/utils'
 
 const logger = createLogger('WorkflowByIdAPI')
@@ -85,14 +82,7 @@ export const GET = withRouteHandler(
         }
       }
 
-      const snapshot = await db.transaction(async (tx) => {
-        await tx.execute(sql`SET TRANSACTION ISOLATION LEVEL REPEATABLE READ`)
-        const [normalizedData, [workflowRecord]] = await Promise.all([
-          loadWorkflowFromNormalizedTables(workflowId, tx),
-          tx.select().from(workflow).where(eq(workflow.id, workflowId)).limit(1),
-        ])
-        return { normalizedData, workflowRecord }
-      })
+      const snapshot = await loadWorkflowReadSnapshot(workflowId)
       const responseWorkflowData = snapshot.workflowRecord ?? workflowData
 
       // Stamp `workflowId` from the path param on each variable so the

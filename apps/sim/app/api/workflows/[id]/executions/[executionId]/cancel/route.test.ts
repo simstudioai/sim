@@ -24,6 +24,7 @@ const {
   mockReadExecutionMetaState,
   mockWriteEvent,
   mockWriteTerminalEvent,
+  mockWorkflowExecutionBelongsToWorkflow,
 } = vi.hoisted(() => ({
   mockMarkExecutionCancelled: vi.fn(),
   mockAbortManualExecution: vi.fn(),
@@ -36,6 +37,12 @@ const {
   mockReadExecutionMetaState: vi.fn(),
   mockWriteEvent: vi.fn(),
   mockWriteTerminalEvent: vi.fn(),
+  mockWorkflowExecutionBelongsToWorkflow: vi.fn(),
+}))
+
+vi.mock('@/lib/workflows/executor/execution-queries', () => ({
+  workflowExecutionBelongsToWorkflow: (...args: unknown[]) =>
+    mockWorkflowExecutionBelongsToWorkflow(...args),
 }))
 
 vi.mock('@/lib/execution/cancellation', () => ({
@@ -98,6 +105,7 @@ describe('POST /api/workflows/[id]/executions/[executionId]/cancel', () => {
     mockReadExecutionMetaState.mockResolvedValue({ status: 'missing' })
     mockWriteEvent.mockResolvedValue({ eventId: 1 })
     mockWriteTerminalEvent.mockResolvedValue({ eventId: 1 })
+    mockWorkflowExecutionBelongsToWorkflow.mockResolvedValue(true)
   })
 
   it('returns success when cancellation was durably recorded', async () => {
@@ -286,6 +294,17 @@ describe('POST /api/workflows/[id]/executions/[executionId]/cancel', () => {
     const response = await POST(makeRequest(), makeParams())
 
     expect(response.status).toBe(403)
+  })
+
+  it('returns 404 without mutating when the execution belongs to another workflow', async () => {
+    mockWorkflowExecutionBelongsToWorkflow.mockResolvedValue(false)
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(404)
+    expect(mockMarkExecutionCancelled).not.toHaveBeenCalled()
+    expect(mockBeginPausedCancellation).not.toHaveBeenCalled()
+    expect(databaseMock.db.update).not.toHaveBeenCalled()
   })
 
   it('updates execution log status in DB when durably recorded', async () => {

@@ -1354,6 +1354,149 @@
         }
       }
     },
+    "/api/v2/workflows/{id}/executions": {
+      "get": {
+        "operationId": "listWorkflowExecutionsV2",
+        "summary": "List workflow executions",
+        "description": "List the durable executions belonging to one workflow. This lifecycle collection is intentionally lightweight; fetch one execution for output and pause detail, or fetch `/api/v2/logs/{executionId}` for diagnostic trace data.",
+        "tags": ["Workflows"],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkflowId"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["queued", "pending", "running", "completed", "failed", "cancelled", "paused"]
+            }
+          },
+          {
+            "name": "trigger",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "startDate",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "endDate",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["asc", "desc"],
+              "default": "desc"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of workflow executions.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data", "nextCursor"],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/WorkflowExecutionListItem"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": ["string", "null"]
+                    }
+                  }
+                },
+                "example": {
+                  "data": [
+                    {
+                      "executionId": "exec_1",
+                      "workflowId": "wf_123",
+                      "status": "completed",
+                      "trigger": "api",
+                      "startedAt": "2026-07-31T00:00:00.000Z",
+                      "endedAt": "2026-07-31T00:00:01.000Z",
+                      "durationMs": 1000,
+                      "cost": {
+                        "total": 0.02
+                      }
+                    }
+                  ],
+                  "nextCursor": null
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
     "/api/v2/workflows/{id}/executions/{executionId}": {
       "get": {
         "operationId": "getWorkflowExecutionV2",
@@ -2714,6 +2857,54 @@
           },
           "blockType": {
             "type": "string"
+          }
+        }
+      },
+      "WorkflowExecutionListItem": {
+        "type": "object",
+        "required": [
+          "executionId",
+          "workflowId",
+          "status",
+          "trigger",
+          "startedAt",
+          "endedAt",
+          "durationMs",
+          "cost"
+        ],
+        "properties": {
+          "executionId": {
+            "type": "string"
+          },
+          "workflowId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["queued", "pending", "running", "completed", "failed", "cancelled", "paused"]
+          },
+          "trigger": {
+            "type": "string"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endedAt": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          },
+          "durationMs": {
+            "type": ["number", "null"]
+          },
+          "cost": {
+            "type": ["object", "null"],
+            "required": ["total"],
+            "properties": {
+              "total": {
+                "type": "number"
+              }
+            }
           }
         }
       },

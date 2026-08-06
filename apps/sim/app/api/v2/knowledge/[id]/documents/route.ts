@@ -104,8 +104,14 @@ export const GET = withRouteHandler(async (request: NextRequest, context: Docume
     )
     if (result instanceof NextResponse) return result
 
-    // Opaque cursor encodes the underlying offset (upgradeable to keyset later).
-    const offset = cursor ? (decodeCursor<{ offset: number }>(cursor)?.offset ?? 0) : 0
+    const decodedCursor = cursor ? decodeCursor<{ offset: number }>(cursor) : null
+    if (
+      cursor &&
+      (!decodedCursor || !Number.isInteger(decodedCursor.offset) || decodedCursor.offset < 0)
+    ) {
+      return v2Error('BAD_REQUEST', 'Invalid cursor')
+    }
+    const offset = decodedCursor?.offset ?? 0
 
     const documentsResult = await getDocuments(
       knowledgeBaseId,

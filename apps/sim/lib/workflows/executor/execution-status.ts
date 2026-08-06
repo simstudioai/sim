@@ -12,7 +12,7 @@ import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
 import {
   RESUME_EXECUTION_JOB_ID_PREFIX,
   WORKFLOW_EXECUTION_JOB_ID_PREFIX,
-} from '@/lib/workflows/executor/enqueue-execution'
+} from '@/lib/workflows/executor/execution-job-ids'
 import { getAutomaticResumeWaitingMetadata } from '@/lib/workflows/executor/paused-execution-metadata'
 import type { PausePoint } from '@/executor/types'
 

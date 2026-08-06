@@ -69,7 +69,7 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   resolveWorkspaceFileReference: vi.fn(),
 }))
 vi.mock('@/app/api/auth/oauth/utils', () => ({ getCredential: vi.fn() }))
-vi.mock('@/app/api/knowledge/search/utils', () => ({
+vi.mock('@/lib/knowledge/search/queries', () => ({
   executeKnowledgeSearch: vi.fn(),
 }))
 vi.mock('@/app/api/knowledge/utils', () => ({

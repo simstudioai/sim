@@ -1,11 +1,9 @@
-import { db } from '@sim/db'
-import { workflowExecutionLogs, workflowExecutionSnapshots } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v1GetExecutionContract } from '@/lib/api/contracts/v1/logs'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { getPublicWorkflowLog } from '@/lib/logs/public-queries'
 import { createApiResponse, getUserLimits } from '@/app/api/v1/logs/meta'
 import {
   checkRateLimit,
@@ -34,37 +32,25 @@ export const GET = withRouteHandler(
 
       logger.debug(`Fetching execution data for: ${executionId}`)
 
-      const rows = await db
-        .select()
-        .from(workflowExecutionLogs)
-        .where(eq(workflowExecutionLogs.executionId, executionId))
-        .limit(1)
+      const workflowLog = await getPublicWorkflowLog({ column: 'executionId', value: executionId })
 
-      if (rows.length === 0) {
+      if (!workflowLog) {
         return NextResponse.json({ error: 'Workflow execution not found' }, { status: 404 })
       }
-
-      const workflowLog = rows[0]
 
       const accessError = await validateWorkspaceAccess(rateLimit, userId, workflowLog.workspaceId)
       if (accessError) {
         return NextResponse.json({ error: 'Workflow execution not found' }, { status: 404 })
       }
 
-      const [snapshot] = await db
-        .select()
-        .from(workflowExecutionSnapshots)
-        .where(eq(workflowExecutionSnapshots.id, workflowLog.stateSnapshotId))
-        .limit(1)
-
-      if (!snapshot) {
+      if (!workflowLog.workflowState) {
         return NextResponse.json({ error: 'Workflow state snapshot not found' }, { status: 404 })
       }
 
       const response = {
         executionId,
         workflowId: workflowLog.workflowId,
-        workflowState: snapshot.stateData,
+        workflowState: workflowLog.workflowState,
         executionMetadata: {
           trigger: workflowLog.trigger,
           startedAt: workflowLog.startedAt.toISOString(),
@@ -78,7 +64,7 @@ export const GET = withRouteHandler(
 
       logger.debug(`Successfully fetched execution data for: ${executionId}`)
       logger.debug(
-        `Workflow state contains ${Object.keys((snapshot.stateData as any)?.blocks || {}).length} blocks`
+        `Workflow state contains ${Object.keys((workflowLog.workflowState as any)?.blocks || {}).length} blocks`
       )
 
       // Get user's workflow execution limits and usage

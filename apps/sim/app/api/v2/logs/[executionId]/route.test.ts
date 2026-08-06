@@ -35,7 +35,7 @@ vi.mock('@/lib/logs/execution/trace-store', () => ({
   materializeExecutionData: mockMaterializeExecutionData,
 }))
 
-import { GET } from '@/app/api/v2/logs/[id]/route'
+import { GET } from '@/app/api/v2/logs/[executionId]/route'
 
 const RATE_LIMIT_OK = {
   allowed: true,
@@ -47,10 +47,11 @@ const RATE_LIMIT_OK = {
 }
 
 const LOG_ROW = {
-  id: 'log-1',
   workflowId: 'workflow-1',
   workspaceId: 'workspace-1',
   executionId: 'execution-1',
+  deploymentVersionId: 'deployment-1',
+  status: 'completed',
   level: 'info',
   trigger: 'api',
   startedAt: new Date('2024-01-01T00:00:00Z'),
@@ -60,6 +61,7 @@ const LOG_ROW = {
   costTotal: '0.01',
   files: null,
   createdAt: new Date('2024-01-01T00:00:00Z'),
+  workflowState: { blocks: {}, edges: [] },
   workflowName: 'Support Agent',
   workflowDescription: 'Handles support requests',
   workflowFolderId: null,
@@ -70,13 +72,13 @@ const LOG_ROW = {
   workflowArchivedAt: null,
 }
 
-const routeContext = () => ({ params: Promise.resolve({ id: 'log-1' }) })
+const routeContext = () => ({ params: Promise.resolve({ executionId: 'execution-1' }) })
 
 function callGet() {
-  return GET(new NextRequest('http://localhost:3000/api/v2/logs/log-1'), routeContext())
+  return GET(new NextRequest('http://localhost:3000/api/v2/logs/execution-1'), routeContext())
 }
 
-describe('GET /api/v2/logs/[id]', () => {
+describe('GET /api/v2/logs/[executionId]', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
@@ -86,7 +88,7 @@ describe('GET /api/v2/logs/[id]', () => {
     dbChainMockFns.limit.mockResolvedValue([LOG_ROW])
   })
 
-  it('returns materialized trace spans as a first-class log detail field', async () => {
+  it('uses executionId as the sole public identity and includes diagnostic data', async () => {
     const traceSpans = [
       {
         id: 'span-1',
@@ -106,17 +108,20 @@ describe('GET /api/v2/logs/[id]', () => {
     const body = await response.json()
 
     expect(response.status).toBe(200)
+    expect(body.data.executionId).toBe('execution-1')
+    expect(body.data).not.toHaveProperty('id')
+    expect(body.data).not.toHaveProperty('executionData')
     expect(body.data.traceSpans).toEqual(traceSpans)
-    expect(body.data.executionData.traceSpans).toEqual(traceSpans)
+    expect(body.data.finalOutput).toEqual({ answer: 'done' })
+    expect(body.data.workflowState).toEqual({ blocks: {}, edges: [] })
   })
 
-  it('returns an empty trace span array when the execution has no spans', async () => {
-    mockMaterializeExecutionData.mockResolvedValue({ finalOutput: { answer: 'done' } })
+  it('returns empty diagnostic collections when the execution produced none', async () => {
+    mockMaterializeExecutionData.mockResolvedValue({})
 
-    const response = await callGet()
-    const body = await response.json()
+    const body = await (await callGet()).json()
 
-    expect(response.status).toBe(200)
     expect(body.data.traceSpans).toEqual([])
+    expect(body.data.finalOutput).toBeNull()
   })
 })

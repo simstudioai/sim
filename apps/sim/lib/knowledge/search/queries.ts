@@ -5,7 +5,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm'
 import type { StructuredFilter } from '@/lib/knowledge/types'
 
-const logger = createLogger('KnowledgeSearch')
+const logger = createLogger('KnowledgeSearchQueries')
 
 export interface DocumentMetadata {
   filename: string

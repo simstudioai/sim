@@ -30,11 +30,9 @@ export const revalidate = 0
 /**
  * GET /api/v2/audit-logs
  *
- * Lists audit logs scoped to the authenticated user's organization. Org-scoped
- * (not workspace-scoped): `resolveWorkspaceAccess` is intentionally NOT used —
- * access is gated by enterprise org admin/owner membership. Auth ordering
- * matches v1: `checkRateLimit` → `validateEnterpriseAuditAccess` run before the
- * untrusted query is parsed.
+ * Lists audit logs scoped to an explicitly selected organization. Audit logs
+ * are personal-key-only because a workspace-scoped key must never expand into
+ * organization-wide visibility.
  */
 export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateId().slice(0, 8)
@@ -48,11 +46,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const gate = await v2ApiGateError(userId)
     if (gate) return gate
 
-    const authResult = await resolveEnterpriseAuditAccess(userId)
-    if (!authResult.success) return v2Error('FORBIDDEN', authResult.message)
-
-    const { organizationId, orgMemberIds } = authResult.context
-
     const parsed = await parseRequest(
       v2ListAuditLogsContract,
       request,
@@ -64,6 +57,15 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     if (!parsed.success) return parsed.response
 
     const params = parsed.data.query
+
+    if (rateLimit.keyType !== 'personal') {
+      return v2Error('FORBIDDEN', 'Audit logs require a personal API key')
+    }
+
+    const authResult = await resolveEnterpriseAuditAccess(userId, params.organizationId)
+    if (!authResult.success) return v2Error('FORBIDDEN', authResult.message)
+
+    const { organizationId, orgMemberIds } = authResult.context
 
     if (params.actorId && !orgMemberIds.includes(params.actorId)) {
       return v2Error('BAD_REQUEST', 'actorId is not a member of your organization')

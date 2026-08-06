@@ -10,6 +10,7 @@ import {
 import { createExecutionEventWriter, readExecutionMetaState } from '@/lib/execution/event-buffer'
 import { abortManualExecution } from '@/lib/execution/manual-cancellation'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { workflowExecutionBelongsToWorkflow } from '@/lib/workflows/executor/execution-queries'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 
 const logger = createLogger('CancelWorkflowExecution')
@@ -120,6 +121,13 @@ export interface CancelWorkflowExecutionInput {
   workspaceId?: string
 }
 
+export class WorkflowExecutionNotFoundError extends Error {
+  constructor() {
+    super('Execution not found')
+    this.name = 'WorkflowExecutionNotFoundError'
+  }
+}
+
 /**
  * Cancels a workflow execution across the Redis abort record, the in-process
  * aborter, and the paused-HITL machinery. The interleaving is order-sensitive
@@ -130,6 +138,9 @@ export async function cancelWorkflowExecution(
   input: CancelWorkflowExecutionInput
 ): Promise<CancelWorkflowExecutionResult> {
   const { executionId, workflowId, userId, workspaceId } = input
+
+  const belongsToWorkflow = await workflowExecutionBelongsToWorkflow(executionId, workflowId)
+  if (!belongsToWorkflow) throw new WorkflowExecutionNotFoundError()
 
   let pausedCancellationStarted = false
   let pausedCancelled = false

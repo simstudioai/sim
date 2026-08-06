@@ -1,24 +1,23 @@
-import { db } from '@sim/db'
-import { workflow, workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { traceSpansSchema } from '@/lib/api/contracts/logs'
-import { type V2LogListItem, v2ListLogsContract } from '@/lib/api/contracts/v2/logs'
+import {
+  type V2LogListItem,
+  v2ListLogsContract,
+  v2LogStatusSchema,
+} from '@/lib/api/contracts/v2/logs'
 import { parseRequest } from '@/lib/api/server'
 import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
 import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
-import { buildLogFilters, getOrderBy } from '@/app/api/v1/logs/filters'
+import { decodePublicLogCursor, listPublicWorkflowLogs } from '@/lib/logs/public-queries'
 import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
 import { resolveFolderPathId } from '@/app/api/v2/lib/folders'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
-  decodeCursor,
-  encodeCursor,
   v2CursorList,
   v2Error,
   v2RateLimitError,
@@ -71,6 +70,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     )
     const includesRoot = resolvedFolderIds?.includes(null) ?? false
 
+    const decodedCursor = params.cursor ? decodePublicLogCursor(params.cursor) : null
+    if (params.cursor && !decodedCursor) return v2Error('BAD_REQUEST', 'Invalid cursor')
+    const cursor = decodedCursor ?? undefined
+
     const filters = {
       workspaceId: params.workspaceId,
       workflowIds: params.workflowIds?.split(',').filter(Boolean),
@@ -85,64 +88,24 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       minCost: params.minCost,
       maxCost: params.maxCost,
       model: params.model,
-      cursor: params.cursor
-        ? decodeCursor<{ startedAt: string; id: string }>(params.cursor) || undefined
-        : undefined,
+      cursor,
       order: params.order,
     }
 
-    const conditions = buildLogFilters(filters)
-    const rootFolderCondition = folderPaths
-      ? or(
-          includesRoot ? isNull(workflow.folderId) : undefined,
-          nonRootFolderIds && nonRootFolderIds.length > 0
-            ? inArray(workflow.folderId, nonRootFolderIds)
-            : undefined
-        )
-      : undefined
-    const orderBy = getOrderBy(params.order)
-
-    const rows = await db
-      .select({
-        id: workflowExecutionLogs.id,
-        workflowId: workflowExecutionLogs.workflowId,
-        workspaceId: workflowExecutionLogs.workspaceId,
-        executionId: workflowExecutionLogs.executionId,
-        deploymentVersionId: workflowExecutionLogs.deploymentVersionId,
-        level: workflowExecutionLogs.level,
-        trigger: workflowExecutionLogs.trigger,
-        startedAt: workflowExecutionLogs.startedAt,
-        endedAt: workflowExecutionLogs.endedAt,
-        totalDurationMs: workflowExecutionLogs.totalDurationMs,
-        costTotal: workflowExecutionLogs.costTotal,
-        files: workflowExecutionLogs.files,
-        executionData: params.details === 'full' ? workflowExecutionLogs.executionData : sql`null`,
-        workflowName: workflow.name,
-        workflowDescription: workflow.description,
-        workflowArchivedAt: workflow.archivedAt,
-      })
-      .from(workflowExecutionLogs)
-      .leftJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
-      .where(and(conditions, rootFolderCondition))
-      .orderBy(...orderBy)
-      .limit(params.limit + 1)
-
-    const hasMore = rows.length > params.limit
-    const data = rows.slice(0, params.limit)
-
-    let nextCursor: string | null = null
-    if (hasMore && data.length > 0) {
-      const lastLog = data[data.length - 1]
-      nextCursor = encodeCursor({ startedAt: lastLog.startedAt.toISOString(), id: lastLog.id })
-    }
+    const { data, nextCursor } = await listPublicWorkflowLogs({
+      filters,
+      limit: params.limit,
+      includeExecutionData: params.details === 'full',
+      folderScope: folderPaths ? { includesRoot, folderIds: nonRootFolderIds ?? [] } : undefined,
+    })
 
     type LogRow = (typeof data)[number]
     const buildItem = (log: LogRow): V2LogListItem => {
       const item: V2LogListItem = {
-        id: log.id,
-        workflowId: log.workflowId,
         executionId: log.executionId,
+        workflowId: log.workflowId,
         deploymentVersionId: log.deploymentVersionId,
+        status: v2LogStatusSchema.parse(log.status),
         level: log.level,
         trigger: log.trigger,
         startedAt: log.startedAt.toISOString(),

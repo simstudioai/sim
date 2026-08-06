@@ -777,17 +777,28 @@
       "get": {
         "operationId": "listAuditLogs",
         "summary": "List Audit Logs",
-        "description": "List audit log entries for the authenticated user's organization with opaque cursor pagination. These are organization-scoped (not workspace-scoped) enterprise endpoints: the caller must belong to an organization with an active Enterprise subscription and hold an admin or owner role — otherwise the request returns `403`. The `ipAddress` and `userAgent` fields are intentionally excluded from entries for privacy.",
+        "description": "List audit log entries for an explicitly selected organization with opaque cursor pagination. These organization-scoped enterprise endpoints require a personal API key; workspace-scoped keys return `403`. The caller must belong to the selected organization, hold an admin or owner role, and have an active Enterprise subscription. The `ipAddress` and `userAgent` fields are intentionally excluded from entries for privacy.",
         "tags": ["Audit Logs"],
         "x-codeSamples": [
           {
             "id": "curl",
             "label": "cURL",
             "lang": "bash",
-            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v2/audit-logs?limit=50\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v2/audit-logs?organizationId=org_abc123&limit=50\" \\\n  -H \"X-API-Key: YOUR_PERSONAL_API_KEY\""
           }
         ],
         "parameters": [
+          {
+            "name": "organizationId",
+            "in": "query",
+            "required": true,
+            "description": "Organization to audit. The caller must be an admin or owner of this organization.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "example": "org_abc123"
+            }
+          },
           {
             "name": "action",
             "in": "query",
@@ -958,14 +969,14 @@
       "get": {
         "operationId": "getAuditLog",
         "summary": "Get Audit Log",
-        "description": "Retrieve a single audit log entry by ID, scoped to the authenticated user's organization. Organization-scoped (not workspace-scoped): the caller must belong to an organization with an active Enterprise subscription and hold an admin or owner role — otherwise the request returns `403`. An entry outside your organization returns `404` (existence is not leaked). The `ipAddress` and `userAgent` fields are intentionally excluded for privacy.",
+        "description": "Retrieve a single audit log entry by ID within an explicitly selected organization. This endpoint requires a personal API key; workspace-scoped keys return `403`. The caller must belong to the selected organization, hold an admin or owner role, and have an active Enterprise subscription. An entry outside that organization returns `404` (existence is not leaked). The `ipAddress` and `userAgent` fields are intentionally excluded for privacy.",
         "tags": ["Audit Logs"],
         "x-codeSamples": [
           {
             "id": "curl",
             "label": "cURL",
             "lang": "bash",
-            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v2/audit-logs/{id}\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v2/audit-logs/{id}?organizationId=org_abc123\" \\\n  -H \"X-API-Key: YOUR_PERSONAL_API_KEY\""
           }
         ],
         "parameters": [
@@ -978,6 +989,17 @@
               "type": "string",
               "minLength": 1,
               "example": "audit_2c3d4e5f6g"
+            }
+          },
+          {
+            "name": "organizationId",
+            "in": "query",
+            "required": true,
+            "description": "Organization that owns the audit entry. The caller must be an admin or owner of this organization.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "example": "org_abc123"
             }
           }
         ],

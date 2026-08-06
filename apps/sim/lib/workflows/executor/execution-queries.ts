@@ -1,0 +1,131 @@
+import { db } from '@sim/db'
+import { pausedExecutions, workflowExecutionLogs } from '@sim/db/schema'
+import { and, asc, desc, eq, gt, gte, lt, lte, or, sql } from 'drizzle-orm'
+import { getJobQueue } from '@/lib/core/async-jobs'
+import { WORKFLOW_EXECUTION_JOB_ID_PREFIX } from '@/lib/workflows/executor/execution-job-ids'
+
+export type WorkflowExecutionStatus =
+  | 'queued'
+  | 'pending'
+  | 'running'
+  | 'completed'
+  | 'failed'
+  | 'cancelled'
+  | 'paused'
+
+export interface WorkflowExecutionCursor {
+  startedAt: Date
+  rowId: string
+}
+
+export interface ListWorkflowExecutionsInput {
+  workflowId: string
+  status?: WorkflowExecutionStatus
+  trigger?: string
+  startDate?: Date
+  endDate?: Date
+  limit: number
+  cursor?: WorkflowExecutionCursor
+  order: 'asc' | 'desc'
+}
+
+const executionStatus = sql<string>`CASE
+  WHEN ${pausedExecutions.status} IN ('paused', 'partially_resumed') THEN 'paused'
+  ELSE ${workflowExecutionLogs.status}
+END`
+
+/** Lists the durable execution projection for a workflow. */
+export async function listWorkflowExecutions(input: ListWorkflowExecutionsInput) {
+  const cursorCondition = input.cursor
+    ? input.order === 'desc'
+      ? or(
+          lt(workflowExecutionLogs.startedAt, input.cursor.startedAt),
+          and(
+            eq(workflowExecutionLogs.startedAt, input.cursor.startedAt),
+            lt(workflowExecutionLogs.id, input.cursor.rowId)
+          )
+        )
+      : or(
+          gt(workflowExecutionLogs.startedAt, input.cursor.startedAt),
+          and(
+            eq(workflowExecutionLogs.startedAt, input.cursor.startedAt),
+            gt(workflowExecutionLogs.id, input.cursor.rowId)
+          )
+        )
+    : undefined
+
+  const rows = await db
+    .select({
+      rowId: workflowExecutionLogs.id,
+      executionId: workflowExecutionLogs.executionId,
+      workflowId: workflowExecutionLogs.workflowId,
+      status: executionStatus,
+      trigger: workflowExecutionLogs.trigger,
+      startedAt: workflowExecutionLogs.startedAt,
+      endedAt: workflowExecutionLogs.endedAt,
+      durationMs: workflowExecutionLogs.totalDurationMs,
+      costTotal: workflowExecutionLogs.costTotal,
+    })
+    .from(workflowExecutionLogs)
+    .leftJoin(pausedExecutions, eq(pausedExecutions.executionId, workflowExecutionLogs.executionId))
+    .where(
+      and(
+        eq(workflowExecutionLogs.workflowId, input.workflowId),
+        input.status ? eq(executionStatus, input.status) : undefined,
+        input.trigger ? eq(workflowExecutionLogs.trigger, input.trigger) : undefined,
+        input.startDate ? gte(workflowExecutionLogs.startedAt, input.startDate) : undefined,
+        input.endDate ? lte(workflowExecutionLogs.startedAt, input.endDate) : undefined,
+        cursorCondition
+      )
+    )
+    .orderBy(
+      input.order === 'desc'
+        ? desc(workflowExecutionLogs.startedAt)
+        : asc(workflowExecutionLogs.startedAt),
+      input.order === 'desc' ? desc(workflowExecutionLogs.id) : asc(workflowExecutionLogs.id)
+    )
+    .limit(input.limit + 1)
+
+  const hasMore = rows.length > input.limit
+  const data = rows.slice(0, input.limit)
+  const last = data.at(-1)
+  return {
+    data,
+    nextCursor: hasMore && last ? { startedAt: last.startedAt, rowId: last.rowId } : null,
+  }
+}
+
+/**
+ * Checks the durable and queued execution records without trusting the workflow
+ * id supplied by an HTTP path. Mutating callers must use this before operating
+ * on an execution id because execution ids are globally unique, not nested DB
+ * keys under a workflow.
+ */
+export async function workflowExecutionBelongsToWorkflow(
+  executionId: string,
+  workflowId: string
+): Promise<boolean> {
+  const [logRows, pausedRows] = await Promise.all([
+    db
+      .select({ workflowId: workflowExecutionLogs.workflowId })
+      .from(workflowExecutionLogs)
+      .where(eq(workflowExecutionLogs.executionId, executionId))
+      .limit(1),
+    db
+      .select({ workflowId: pausedExecutions.workflowId })
+      .from(pausedExecutions)
+      .where(eq(pausedExecutions.executionId, executionId))
+      .limit(1),
+  ])
+
+  const durableWorkflowIds = [logRows[0]?.workflowId, pausedRows[0]?.workflowId].filter(
+    (value): value is string => typeof value === 'string'
+  )
+  if (durableWorkflowIds.length > 0) {
+    return durableWorkflowIds.every((value) => value === workflowId)
+  }
+
+  const queue = await getJobQueue()
+  const job = await queue.getJob(`${WORKFLOW_EXECUTION_JOB_ID_PREFIX}${executionId}`)
+  return job?.metadata.workflowId === workflowId
+}

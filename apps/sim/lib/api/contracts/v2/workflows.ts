@@ -462,6 +462,64 @@ export const v2ResumeWorkflowContract = defineRouteContract({
   },
 })
 
+export const v2WorkflowExecutionStatusValueSchema = z.enum([
+  'queued',
+  'pending',
+  'running',
+  'completed',
+  'failed',
+  'cancelled',
+  'paused',
+])
+
+export const v2ListWorkflowExecutionsQuerySchema = z
+  .object({
+    status: v2WorkflowExecutionStatusValueSchema.optional(),
+    trigger: z.string().min(1, 'trigger cannot be empty').optional(),
+    startDate: z.string().datetime().optional(),
+    endDate: z.string().datetime().optional(),
+    limit: z.coerce.number().int().min(1).max(100).optional().default(50),
+    cursor: z.string().min(1, 'cursor cannot be empty').optional(),
+    order: z.enum(['asc', 'desc']).optional().default('desc'),
+  })
+  .strict()
+  .refine(
+    (query) =>
+      !query.startDate ||
+      !query.endDate ||
+      Date.parse(query.startDate) <= Date.parse(query.endDate),
+    {
+      message: 'startDate must be before or equal to endDate',
+      path: ['startDate'],
+    }
+  )
+
+export type V2ListWorkflowExecutionsQuery = z.output<typeof v2ListWorkflowExecutionsQuerySchema>
+
+export const v2WorkflowExecutionListItemSchema = z.object({
+  executionId: z.string(),
+  workflowId: z.string(),
+  status: v2WorkflowExecutionStatusValueSchema,
+  trigger: z.string(),
+  startedAt: z.string(),
+  endedAt: z.string().nullable(),
+  durationMs: z.number().nullable(),
+  cost: z.object({ total: z.number() }).nullable(),
+})
+
+export type V2WorkflowExecutionListItem = z.output<typeof v2WorkflowExecutionListItemSchema>
+
+export const v2ListWorkflowExecutionsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/workflows/[id]/executions',
+  params: workflowIdParamsSchema,
+  query: v2ListWorkflowExecutionsQuerySchema,
+  response: {
+    mode: 'json',
+    schema: v2CursorListResponse(v2WorkflowExecutionListItemSchema),
+  },
+})
+
 /**
  * The polled execution resource. `queued` is backfilled from the async job
  * queue before the worker writes the durable log row — v1's jobs endpoint 404
@@ -471,7 +529,7 @@ export const v2ResumeWorkflowContract = defineRouteContract({
 export const v2WorkflowExecutionStatusSchema = z.object({
   executionId: z.string(),
   workflowId: z.string(),
-  status: z.enum(['queued', 'pending', 'running', 'completed', 'failed', 'cancelled', 'paused']),
+  status: v2WorkflowExecutionStatusValueSchema,
   trigger: z.string().nullable(),
   startedAt: z.string().nullable(),
   endedAt: z.string().nullable(),
