@@ -531,10 +531,9 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
           ...saveDiscardActions({
             dirty: hasChanges,
             saving: configureSSOMutation.isPending,
-            // Deliberately not disabled on validation errors: showErrors is only
-            // set by handleSubmit, so a disabled Save left the admin with a greyed
-            // out button and no message. Clicking now reveals what is wrong.
-            saveDisabled: false,
+            // Never disabled on validation errors: showErrors is only set by
+            // handleSubmit, so a disabled Save left the admin with a greyed out
+            // button and no message. Clicking now reveals what is wrong.
             saveLabel: isEditing ? 'Update' : 'Save',
             savingLabel: isEditing ? 'Updating...' : 'Saving...',
             onSave: () => void handleSubmit(),

@@ -523,28 +523,25 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         },
       }
 
-      /**
-       * Persist only IdP metadata the admin actually supplied, and always write the
-       * key so clearing it takes effect. Two failures sat here: a document generated
-       * from `cert` + `entryPoint` used to be stored unconditionally, and the form
-       * loads metadata back and resends it, so it won over the certificate and a
-       * cert rotation silently did nothing. Omitting the key instead is no fix —
-       * Better Auth merges SAML config with `??`, so a previously stored document
-       * would survive. An empty string is written instead, which `createIdP`
-       * falsy-guards, falling back to issuer/entryPoint/cert — the fields the form
-       * actually edits.
-       */
-      samlConfig.idpMetadata = { metadata: idpMetadata ?? '' }
-
       if (audience) samlConfig.audience = audience
       if (wantAssertionsSigned !== undefined) samlConfig.wantAssertionsSigned = wantAssertionsSigned
       if (signatureAlgorithm) samlConfig.signatureAlgorithm = signatureAlgorithm
       if (digestAlgorithm) samlConfig.digestAlgorithm = digestAlgorithm
-      // Forward an explicit empty string rather than dropping it: Better Auth
-      // merges SAML config with `??`, so omitting the key would retain a
-      // previously stored format while the caller asked for the provider default.
-      // samlify falsy-guards nameIDFormat, so '' correctly reads as unset.
-      if (identifierFormat !== undefined) samlConfig.identifierFormat = identifierFormat
+
+      /**
+       * These two are always written, empty when unset, rather than omitted.
+       * Better Auth merges SAML config with `??`, so an omitted key silently keeps
+       * whatever was stored — clearing either field would never take effect. Both
+       * are falsy-guarded downstream: `createIdP` falls back to
+       * issuer/entryPoint/cert without metadata, and `createSP` omits nameIDFormat.
+       *
+       * Metadata in particular must not be generated here. Storing a document built
+       * from cert + entryPoint made re-saving destructive, because the form loads it
+       * back, resends it, and it then outranks the certificate — so rotating a SAML
+       * cert appeared to succeed and changed nothing.
+       */
+      samlConfig.idpMetadata = { metadata: idpMetadata ?? '' }
+      samlConfig.identifierFormat = identifierFormat ?? ''
       // Better Auth reads the attribute mapping from samlConfig.mapping.
       if (mapping) samlConfig.mapping = mapping
 
