@@ -12,6 +12,7 @@ import {
   ENTERPRISE_FEATURE_LEGACY_DEFAULTS,
   type EnterpriseFeature,
   resolveEnterpriseEntitlement,
+  resolveSandboxFeatureAvailability,
 } from './enterprise-entitlements'
 import { env, envBoolean, getEnv, isFalsy, isTruthy } from './env'
 import { hasEnvCapabilityValue, inspectCapability, SANDBOX_CAPABILITY } from './env-capabilities'
@@ -441,11 +442,14 @@ export const isRemoteSandboxEnabled =
  * provider readiness into the browser; the server always verifies credentials
  * and the immutable Function base directly.
  */
-export const isSandboxesEnabled =
-  (isBillingEnabled || isSandboxDeploymentEntitled) &&
-  (typeof window === 'undefined'
-    ? isRemoteSandboxEnabled
-    : isTruthy(getEnv('NEXT_PUBLIC_SANDBOXES_ENABLED')))
+export const isSandboxesEnabled = resolveSandboxFeatureAvailability({
+  billingEnabled: isBillingEnabled,
+  deploymentEntitled: isSandboxDeploymentEntitled,
+  remoteProviderEnabled:
+    typeof window === 'undefined'
+      ? isRemoteSandboxEnabled
+      : isTruthy(getEnv('NEXT_PUBLIC_SANDBOXES_ENABLED')),
+})
 
 /**
  * Whether the selected provider can serve Mothership's own code image.

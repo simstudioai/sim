@@ -101,3 +101,25 @@ export function resolveEnterpriseEntitlement({
 }: ResolveEnterpriseEntitlementParams): boolean {
   return explicit ?? (masterEnabled || legacyDefault)
 }
+
+interface ResolveSandboxFeatureAvailabilityParams {
+  /** Whether hosted subscription enforcement supplies the deployment entitlement. */
+  billingEnabled: boolean
+  /** Enterprise-master or Sandbox-specific deployment entitlement. */
+  deploymentEntitled: boolean
+  /** Server-verified provider readiness or its public browser projection. */
+  remoteProviderEnabled: boolean
+}
+
+/**
+ * Combines Sandbox entitlement with runtime capability. Neither dimension may
+ * substitute for the other: a plan cannot create a provider, and provider
+ * credentials cannot grant a workspace feature by themselves.
+ */
+export function resolveSandboxFeatureAvailability({
+  billingEnabled,
+  deploymentEntitled,
+  remoteProviderEnabled,
+}: ResolveSandboxFeatureAvailabilityParams): boolean {
+  return remoteProviderEnabled && (billingEnabled || deploymentEntitled)
+}
