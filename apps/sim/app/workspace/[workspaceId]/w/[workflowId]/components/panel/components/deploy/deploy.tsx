@@ -20,7 +20,6 @@ interface DeployProps {
   className?: string
   compact?: boolean
   disabled?: boolean
-  disabledTooltip?: string
 }
 
 export function Deploy({
@@ -29,7 +28,6 @@ export function Deploy({
   className,
   compact = false,
   disabled = false,
-  disabledTooltip,
 }: DeployProps) {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const registryActiveWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
@@ -101,7 +99,7 @@ export function Deploy({
       return 'Admin permissions required'
     }
     if (disabled) {
-      return disabledTooltip ?? 'Workflow is locked'
+      return 'Workflow is locked'
     }
     if (isDeploying) {
       return 'Deploying...'

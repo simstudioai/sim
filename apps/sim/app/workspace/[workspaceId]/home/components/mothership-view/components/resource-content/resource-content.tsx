@@ -7,7 +7,6 @@ import {
   FileX,
   Folder as FolderIcon,
   Library,
-  RefreshCw,
   Square,
   SquareArrowUpRight,
   Workflow as WorkflowIcon,
@@ -363,16 +362,8 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
   const { data: session } = useSession()
   const hostContext = useWorkspaceHostContext()
   const { userPermissions: effectivePermissions } = useWorkspacePermissionsContext()
-  const {
-    data: workflowMap,
-    isLoading: isWorkflowMapLoading,
-    refetch: refetchWorkflowMap,
-  } = useWorkflowMap(workspaceId)
-  const {
-    data: folderMap,
-    isLoading: isFolderMapLoading,
-    refetch: refetchFolderMap,
-  } = useFolderMap(workspaceId)
+  const { data: workflowMap = {} } = useWorkflowMap(workspaceId)
+  const { data: folderMap = {} } = useFolderMap(workspaceId)
   const setActiveWorkflow = useWorkflowRegistry((state) => state.setActiveWorkflow)
   const { handleRunWorkflow, handleCancelExecution } = useWorkflowExecution()
   const isExecuting = useExecutionStore(
@@ -392,14 +383,7 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
   const isRunButtonDisabled =
     !isExecuting &&
     (isUsageGateLoading || (!effectivePermissions.canRead && !effectivePermissions.isLoading))
-  const isWorkflowLockDataLoading = isWorkflowMapLoading || isFolderMapLoading
-  const isWorkflowLockDataUnavailable = !workflowMap || !folderMap
-  const isWorkflowLocked = isWorkflowEffectivelyLocked(workflowMap?.[workflowId], folderMap ?? {})
-
-  const handleRetryWorkflowLockData = () => {
-    if (!workflowMap) void refetchWorkflowMap()
-    if (!folderMap) void refetchFolderMap()
-  }
+  const isWorkflowLocked = isWorkflowEffectivelyLocked(workflowMap[workflowId], folderMap)
 
   const handleRun = async () => {
     setActiveWorkflow(workflowId)
@@ -471,34 +455,13 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
           <p>{isExecuting ? 'Stop' : 'Run workflow'}</p>
         </Tooltip.Content>
       </Tooltip.Root>
-      {isWorkflowLockDataUnavailable && !isWorkflowLockDataLoading ? (
-        <Tooltip.Root>
-          <Tooltip.Trigger asChild>
-            <Button
-              variant='subtle'
-              onClick={handleRetryWorkflowLockData}
-              className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-              aria-label='Retry loading workflow lock status'
-            >
-              <RefreshCw className={RESOURCE_TAB_ICON_CLASS} />
-            </Button>
-          </Tooltip.Trigger>
-          <Tooltip.Content side='bottom'>
-            <p>Retry loading workflow lock status</p>
-          </Tooltip.Content>
-        </Tooltip.Root>
-      ) : (
-        <Deploy
-          activeWorkflowId={workflowId}
-          userPermissions={effectivePermissions}
-          className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-          compact
-          disabled={isWorkflowLockDataLoading || isWorkflowLocked}
-          disabledTooltip={
-            isWorkflowLockDataLoading ? 'Loading workflow lock status...' : undefined
-          }
-        />
-      )}
+      <Deploy
+        activeWorkflowId={workflowId}
+        userPermissions={effectivePermissions}
+        className={RESOURCE_TAB_ICON_BUTTON_CLASS}
+        compact
+        disabled={isWorkflowLocked}
+      />
     </>
   )
 }
