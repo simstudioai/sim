@@ -31,6 +31,7 @@ export interface EnvFlagsMockState {
   isAccessControlEnabled: boolean
   isOrganizationsEnabled: boolean
   isInboxEnabled: boolean
+  isSandboxDeploymentEntitled: boolean
   isSandboxesEnabled: boolean
   isWhitelabelingEnabled: boolean
   isAuditLogsEnabled: boolean
@@ -81,7 +82,8 @@ const defaultEnvFlagsState: EnvFlagsMockState = {
   // `true` so upgrades do not remove a feature. See
   // ENTERPRISE_FEATURE_LEGACY_DEFAULTS.
   isInboxEnabled: true,
-  isSandboxesEnabled: true,
+  isSandboxDeploymentEntitled: false,
+  isSandboxesEnabled: false,
   isWhitelabelingEnabled: true,
   isSessionPoliciesEnabled: true,
   isAuditLogsEnabled: false,

@@ -319,13 +319,14 @@ export const isInboxEnabled = enterpriseFeatureEnabled(
 )
 
 /**
- * Are custom sandboxes (workspace dependency sets for Function blocks) enabled.
+ * Whether deployment configuration entitles custom Function sandboxes.
  *
- * The server flag is the self-hosted entitlement override. In the browser,
- * custom sandbox management follows the same public flag as the remote Function
- * runtime because custom images cannot work without that provider/base.
+ * With billing enabled this is an explicit plan-gate override. Without billing,
+ * either the Enterprise master switch or the Sandbox-specific server/client pair
+ * enables the feature. Provider readiness is applied separately by
+ * {@link isSandboxesEnabled} so entitlement can never advertise a missing runtime.
  */
-export const isSandboxesEnabled = enterpriseFeatureEnabled(
+export const isSandboxDeploymentEntitled = enterpriseFeatureEnabled(
   'sandboxes',
   env.SANDBOXES_ENABLED,
   'NEXT_PUBLIC_SANDBOXES_ENABLED'
@@ -407,9 +408,10 @@ const sandboxProvider = inspectCapability(SANDBOX_CAPABILITY, env).providerId
  * deployment must build and configure the Function-owned image before exposing
  * the runtime.
  *
- * The browser twin is `NEXT_PUBLIC_SANDBOXES_ENABLED`, read by the Function
- * block's `showWhenEnvSet` gates. Set it only after this server-side provider
- * check succeeds; `bun run setup --doctor` reports mismatches in either direction.
+ * The browser cannot inspect provider credentials, so
+ * `NEXT_PUBLIC_SANDBOXES_ENABLED` is its readiness projection. Set the public
+ * value only after this server-side check succeeds; `bun run setup --doctor`
+ * reports mismatches in either direction.
  */
 export const isRemoteSandboxEnabled =
   sandboxProvider === 'daytona'
@@ -429,6 +431,21 @@ export const isRemoteSandboxEnabled =
             isValidSandboxReleaseGeneration(env.E2B_FUNCTION_TEMPLATE_GENERATION)
         )
       : false
+
+/**
+ * Whether the complete custom-Sandbox feature is available on this deployment.
+ *
+ * Billing supplies hosted entitlement, while billing-free deployments require
+ * the Enterprise pair or the Sandbox-specific pair. Both modes additionally
+ * require a configured remote Function provider. The public flag projects that
+ * provider readiness into the browser; the server always verifies credentials
+ * and the immutable Function base directly.
+ */
+export const isSandboxesEnabled =
+  (isBillingEnabled || isSandboxDeploymentEntitled) &&
+  (typeof window === 'undefined'
+    ? isRemoteSandboxEnabled
+    : isTruthy(getEnv('NEXT_PUBLIC_SANDBOXES_ENABLED')))
 
 /**
  * Whether the selected provider can serve Mothership's own code image.

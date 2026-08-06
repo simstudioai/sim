@@ -1,5 +1,5 @@
 import { CodeIcon } from '@/components/icons'
-import { getEnv, isTruthy } from '@/lib/core/config/env'
+import { isSandboxesEnabled } from '@/lib/core/config/env-flags'
 import { CodeLanguage, getLanguageDisplayName } from '@/lib/execution/languages'
 import {
   fetchWorkspaceSandboxOption,
@@ -34,13 +34,12 @@ export const FunctionBlock: BlockConfig<CodeExecutionOutput> = {
       options: () => [
         { label: getLanguageDisplayName(CodeLanguage.JavaScript), id: CodeLanguage.JavaScript },
         { label: getLanguageDisplayName(CodeLanguage.Python), id: CodeLanguage.Python },
-        ...(isTruthy(getEnv('NEXT_PUBLIC_SANDBOXES_ENABLED'))
+        ...(isSandboxesEnabled
           ? [{ label: getLanguageDisplayName(CodeLanguage.Shell), id: CodeLanguage.Shell }]
           : []),
       ],
       placeholder: 'Select language',
       value: () => CodeLanguage.JavaScript,
-      showWhenEnvSet: 'NEXT_PUBLIC_SANDBOXES_ENABLED',
     },
     {
       id: 'code',

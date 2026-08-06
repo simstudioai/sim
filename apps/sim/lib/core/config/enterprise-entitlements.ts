@@ -59,11 +59,10 @@ export type EnterpriseFeature =
  *   delete pass is gated here. Defaulting it on would start expiring logs on
  *   upgrade against plan defaults the operator never chose.
  *
- * `sandboxes` is `true` for the mirror-image reason: its gate already returns
- * true whenever billing is off, exactly like `inbox`. A `false` here would make
- * the settings-nav override disagree with the gate that actually answers the
- * request. Self-hosted builds run on the operator's own E2B/Daytona
- * credentials, so there is no Sim-side cost to withhold.
+ * `sandboxes` is deliberately `false`. A remote Function provider and immutable
+ * base are operational prerequisites, so a billing-free deployment must opt in
+ * through either the Enterprise pair or the Sandbox-specific pair. This keeps a
+ * settings surface from appearing when the deployment cannot execute it.
  *
  * Do not "tidy" these to a uniform value. Each records observed prior behavior,
  * and changing one silently alters a live deployment on upgrade.
@@ -76,7 +75,7 @@ export const ENTERPRISE_FEATURE_LEGACY_DEFAULTS: Readonly<Record<EnterpriseFeatu
   forking: false,
   inbox: true,
   organizations: false,
-  sandboxes: true,
+  sandboxes: false,
   sessionPolicies: true,
   sso: false,
   whitelabeling: true,
