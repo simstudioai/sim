@@ -136,7 +136,7 @@ describe('workspace file secret provenance', () => {
     )
   })
 
-  it('treats only canonically bound untouched legacy files as model-safe without a sidecar', async () => {
+  it('classifies attachments by their canonical storage key without requiring a database file id', async () => {
     queueTableRows(workspaceFiles, [
       {
         id: 'safe-id',
@@ -219,9 +219,11 @@ describe('workspace file secret provenance', () => {
 
     const attachments = [
       { id: 'safe-id', key: 'safe-key' },
+      { key: 'safe-key' },
+      { id: 'file-1700000000000', key: 'safe-key' },
       { id: 'tracked-no-sidecar-id', key: 'tracked-no-sidecar-key' },
       { id: 'wrong-id', key: 'safe-key' },
-      { id: 'tainted-id', key: 'tainted-key' },
+      { id: 'safe-id', key: 'tainted-key' },
       { id: 'unknown-id', key: 'unknown-key' },
       { id: 'other-workspace-id', key: 'other-workspace-key' },
       { id: 'pre-marker-sidecar-id', key: 'pre-marker-sidecar-key' },
@@ -234,6 +236,9 @@ describe('workspace file secret provenance', () => {
       filterModelSafeWorkspaceFileAttachments(attachments, { workspaceId: 'workspace-1' })
     ).resolves.toEqual([
       { id: 'safe-id', key: 'safe-key' },
+      { key: 'safe-key' },
+      { id: 'file-1700000000000', key: 'safe-key' },
+      { id: 'wrong-id', key: 'safe-key' },
       { id: 'pre-marker-sidecar-id', key: 'pre-marker-sidecar-key' },
       { id: 'synthetic-execution-id', key: 'untracked-context-key' },
       { id: 'legacy-id', key: 'legacy-key' },
