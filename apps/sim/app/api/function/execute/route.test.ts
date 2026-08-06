@@ -890,6 +890,40 @@ describe('Function Execute API Route', () => {
       )
     })
 
+    it('keeps a binary export unknown when resolved context variables reach the sandbox', async () => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+      mockExecuteInSandbox.mockResolvedValueOnce({
+        result: 'done',
+        stdout: '',
+        sandboxId: 'sandbox-123',
+        exportedFiles: { '/home/user/small.jpg': '/9j/4AAQ' },
+      })
+
+      const response = await POST(
+        createMockRequest('POST', {
+          code: 'print("done")',
+          language: 'python',
+          workspaceId: 'workspace-1',
+          // Resolved upstream block output — the route has no catalog to classify it.
+          contextVariables: { upstreamValue: 'could-be-anything' },
+          outputs: {
+            files: [
+              {
+                path: 'files/small.jpg',
+                sandboxPath: '/home/user/small.jpg',
+                mimeType: 'image/jpeg',
+              },
+            ],
+          },
+        })
+      )
+
+      expect(response.status).toBe(200)
+      expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledWith(
+        expect.objectContaining({ secretProvenance: { status: 'unknown' } })
+      )
+    })
+
     it('keeps a binary export unknown when files were mounted without a provenance envelope', async () => {
       envFlagsMock.isRemoteSandboxEnabled = true
       mockExecuteInSandbox.mockResolvedValueOnce({
