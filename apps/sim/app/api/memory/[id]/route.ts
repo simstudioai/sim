@@ -91,7 +91,14 @@ export const GET = withRouteHandler(async (request: NextRequest, context: Memory
       .limit(1)
 
     if (memories.length === 0) {
-      return NextResponse.json({ success: true, data: null }, { status: 200 })
+      return createMemoryResponse({
+        request,
+        authType: accessCheck.authType,
+        userId: accessCheck.userId,
+        workspaceId: validatedWorkspaceId,
+        body: { success: true, data: null },
+        memories: [],
+      })
     }
 
     const mem = memories[0]
