@@ -3,17 +3,24 @@
 import { memo, useState } from 'react'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { useFileContentSource } from '@/hooks/use-file-content-source'
-import { PREVIEW_LOADING_OVERLAY } from './preview-shared'
+import { PREVIEW_LOADING_OVERLAY, UnsupportedPreview } from './preview-shared'
 import { ZoomablePreview } from './zoomable-preview'
 
 export const ImagePreview = memo(function ImagePreview({ file }: { file: WorkspaceFileRecord }) {
   const source = useFileContentSource()
-  const [hasSettled, setHasSettled] = useState(false)
+  const [status, setStatus] = useState<'loading' | 'loaded' | 'error'>('loading')
   // Version the URL on updatedAt: overwrites keep the same storage key, so an unversioned
   // URL would resolve to a previously cached copy instead of the rewritten bytes.
+  // `preview` lets the server substitute a renderable derivative for a HEIC.
   const serveUrl = source.buildUrl(file.key, {
     version: Number(new Date(file.updatedAt)) || file.size,
+    preview: true,
   })
+
+  // Covers every way the bytes can turn out unrenderable — a derivative the server
+  // declined to build (too large, undecodable) and a corrupt or truncated image
+  // alike — rather than leaving a broken image in the viewer.
+  if (status === 'error') return <UnsupportedPreview file={file} />
 
   return (
     <div className='relative flex min-h-0 flex-1 flex-col'>
@@ -24,11 +31,11 @@ export const ImagePreview = memo(function ImagePreview({ file }: { file: Workspa
           className='max-h-full max-w-full select-none rounded-md object-contain'
           draggable={false}
           loading='eager'
-          onLoad={() => setHasSettled(true)}
-          onError={() => setHasSettled(true)}
+          onLoad={() => setStatus('loaded')}
+          onError={() => setStatus('error')}
         />
       </ZoomablePreview>
-      {!hasSettled && PREVIEW_LOADING_OVERLAY}
+      {status === 'loading' && PREVIEW_LOADING_OVERLAY}
     </div>
   )
 })

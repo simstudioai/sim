@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { downloadFile, uploadFile } from '@/lib/uploads/core/storage-service'
-import { isHeifContainer, transcodeHeicToJpeg } from '@/lib/uploads/server/heic'
+import { isHevcHeifContainer, transcodeHeicToJpeg } from '@/lib/uploads/server/heic'
 
 const logger = createLogger('ImageDerivative')
 
@@ -54,19 +54,21 @@ async function storeDerivative(storageKey: string, jpeg: Buffer): Promise<void> 
  * A browser-renderable form of stored image bytes, or `null` when the stored bytes
  * are already renderable and should be served untouched.
  *
- * Only HEIF needs this today: no browser outside Safari decodes it, and serving it
- * under `X-Content-Type-Options: nosniff` guarantees a broken image. The transcoded
- * JPEG is cached, because a preview is re-fetched on every view and the WebAssembly
- * decode costs roughly a second for a phone photo.
+ * Only HEVC-coded HEIF needs this today: no browser outside Safari decodes it, and
+ * serving it under `X-Content-Type-Options: nosniff` guarantees a broken image.
+ * AV1-coded HEIF (`.avif`) renders natively everywhere and is left alone — probing
+ * it would cost a decode that can only fail. The transcoded JPEG is cached, because
+ * a preview is re-fetched on every view and the WebAssembly decode costs roughly a
+ * second for a phone photo.
  *
- * The original always remains the stored object — downloads and `raw=1` serve it
- * untouched, so this never rewrites what a user gets back.
+ * The original always remains the stored object — this runs only for `preview=1`
+ * requests, so it never rewrites what a download hands back.
  */
 export async function resolveServableImageBytes(
   buffer: Buffer,
   storageKey: string
 ): Promise<{ buffer: Buffer; contentType: string } | null> {
-  if (!isHeifContainer(buffer)) return null
+  if (!isHevcHeifContainer(buffer)) return null
 
   const cached = await loadDerivative(storageKey)
   if (cached) return { buffer: cached, contentType: 'image/jpeg' }

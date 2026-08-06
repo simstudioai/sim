@@ -9,6 +9,12 @@ import {
 export interface FileContentUrlOptions {
   /** Request the uncompiled source instead of the rendered/compiled bytes. */
   raw?: boolean
+  /**
+   * Declare the bytes are being rendered, not downloaded, so the server may substitute a
+   * browser-renderable derivative for a format no browser decodes (HEIC). Downloads must
+   * leave this off — they need the stored bytes.
+   */
+  preview?: boolean
   /** Content version (e.g. the record's `updatedAt`) — makes the URL cacheable/immutable. */
   version?: string | number
   /** Append a timestamp cache-buster when there is no `version`. */
@@ -67,6 +73,7 @@ function buildServeUrl(key: string, opts?: FileContentUrlOptions): string {
   if (opts?.version != null) params.push(`v=${encodeURIComponent(String(opts.version))}`)
   else if (opts?.bust) params.push(`t=${Date.now()}`)
   if (opts?.raw) params.push('raw=1')
+  if (opts?.preview) params.push('preview=1')
   return params.length > 0 ? `${base}&${params.join('&')}` : base
 }
 
@@ -109,7 +116,10 @@ export function createPublicFileContentSource(
   token: string,
   contentUrl: string
 ): FileContentSource {
-  return inlineImageSource(() => contentUrl, `/api/files/public/${token}/inline`)
+  return inlineImageSource(
+    (_key, opts) => (opts?.preview ? `${contentUrl}?preview=1` : contentUrl),
+    `/api/files/public/${token}/inline`
+  )
 }
 
 /**

@@ -4,7 +4,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Music } from '@sim/emcn/icons'
 import dynamic from 'next/dynamic'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
-import { getFileExtension, resolveMediaMimeType } from '@/lib/uploads/utils/file-utils'
+import { resolveMediaMimeType } from '@/lib/uploads/utils/file-utils'
 import {
   useWorkspaceFileBinary,
   useWorkspaceFileContent,
@@ -28,6 +28,7 @@ import {
   PreviewErrorBoundary,
   PreviewLoadingFrame,
   resolvePreviewError,
+  UnsupportedPreview,
 } from './preview-shared'
 import { TextEditor } from './text-editor'
 import { useDocPreviewBinary } from './use-doc-preview-binary'
@@ -418,25 +419,6 @@ const MediaPreview = memo(function MediaPreview({
         // biome-ignore lint/a11y/useMediaCaption: video from workspace files
         <video src={blobUrl} controls className='max-h-full max-w-full' />
       )}
-    </div>
-  )
-})
-
-const UnsupportedPreview = memo(function UnsupportedPreview({
-  file,
-}: {
-  file: WorkspaceFileRecord
-}) {
-  const ext = getFileExtension(file.name)
-
-  return (
-    <div className='flex flex-1 flex-col items-center justify-center gap-[8px]'>
-      <p className='font-medium text-[14px] text-[var(--text-primary)]'>
-        Preview not available{ext ? ` for .${ext} files` : ' for this file'}
-      </p>
-      <p className='text-[13px] text-[var(--text-muted)]'>
-        Use the download button to view this file
-      </p>
     </div>
   )
 })

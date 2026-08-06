@@ -21,13 +21,18 @@ vi.mock('@/lib/uploads/server/heic', async (importOriginal) => ({
 
 import { resolveServableImageBytes } from '@/lib/uploads/server/image-derivative'
 
-/** An ISO-BMFF `ftyp` box declaring a HEVC-coded HEIF still. */
-function heifBytes(): Buffer {
+/** An ISO-BMFF `ftyp` box declaring `brand` as its major brand. */
+function ftypBytes(brand: string): Buffer {
   const header = Buffer.alloc(16)
   header.writeUInt32BE(16, 0)
   header.write('ftyp', 4, 'ascii')
-  header.write('heic', 8, 'ascii')
+  header.write(brand, 8, 'ascii')
   return header
+}
+
+/** An ISO-BMFF `ftyp` box declaring a HEVC-coded HEIF still. */
+function heifBytes(): Buffer {
+  return ftypBytes('heic')
 }
 
 const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0])
@@ -44,6 +49,16 @@ describe('resolveServableImageBytes', () => {
     expect(await resolveServableImageBytes(JPEG, 'workspace/ws/a.jpg')).toBeNull()
     expect(mockDownloadFile).not.toHaveBeenCalled()
     expect(mockTranscode).not.toHaveBeenCalled()
+  })
+
+  // AVIF is a HEIF container too, but AV1-coded and rendered natively by every
+  // browser. Probing it would spend a storage round trip and a WebAssembly decode
+  // on every request to learn nothing.
+  it.each(['avif', 'avis'])('leaves the %s brand untouched without probing', async (brand) => {
+    expect(await resolveServableImageBytes(ftypBytes(brand), 'workspace/ws/a.avif')).toBeNull()
+    expect(mockDownloadFile).not.toHaveBeenCalled()
+    expect(mockTranscode).not.toHaveBeenCalled()
+    expect(mockUploadFile).not.toHaveBeenCalled()
   })
 
   it('transcodes and caches on a miss', async () => {

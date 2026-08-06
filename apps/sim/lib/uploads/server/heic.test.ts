@@ -2,7 +2,11 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { isHeifContainer, transcodeHeicToJpeg } from '@/lib/uploads/server/heic'
+import {
+  isHeifContainer,
+  isHevcHeifContainer,
+  transcodeHeicToJpeg,
+} from '@/lib/uploads/server/heic'
 
 /**
  * An ISO-BMFF `ftyp` box: 4-byte size, the `ftyp` marker, the major brand, a
@@ -72,6 +76,27 @@ describe('isHeifContainer', () => {
   it('rejects buffers too short to carry a brand', () => {
     expect(isHeifContainer(Buffer.alloc(0))).toBe(false)
     expect(isHeifContainer(ftypHeader('heic').subarray(0, 11))).toBe(false)
+  })
+})
+
+describe('isHevcHeifContainer', () => {
+  it.each(['heic', 'heix', 'heim', 'heis', 'hevc', 'hevx'])(
+    'detects the %s brand, which names HEVC outright',
+    (brand) => {
+      expect(isHevcHeifContainer(ftypHeader(brand))).toBe(true)
+    }
+  )
+
+  it.each(['mif1', 'msf1'])('rejects the generic %s brand — the codec is unstated', (brand) => {
+    expect(isHevcHeifContainer(ftypHeader(brand))).toBe(false)
+  })
+
+  it.each(['avif', 'avis'])('rejects the AV1-coded %s brand, which browsers render', (brand) => {
+    expect(isHevcHeifContainer(ftypHeader(brand))).toBe(false)
+  })
+
+  it('detects an HEVC brand declared only among the compatible brands', () => {
+    expect(isHevcHeifContainer(ftypHeader('mif1', ['heic']))).toBe(true)
   })
 })
 

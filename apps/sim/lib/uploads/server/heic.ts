@@ -4,25 +4,19 @@ import { getErrorMessage } from '@sim/utils/errors'
 const logger = createLogger('HeicTranscode')
 
 /**
- * ISO-BMFF major brands in the HEIF family. The brand occupies bytes 8-11,
- * immediately after the `ftyp` box marker at 4-7.
- *
- * The list is deliberately broad, `avif` included. It answers "are these bytes
- * worth handing to a HEIF decoder", not "which codec is inside" — the brand cannot
- * answer the latter anyway, since `mif1` is generic and carries either HEVC or AV1.
+ * ISO-BMFF brands that name HEVC as the coded format outright. Every browser and
+ * every vision model rejects these, so they are exactly the set worth transcoding
+ * before anything else has been tried.
  */
-const HEIF_BRANDS = new Set([
-  'heic',
-  'heix',
-  'heim',
-  'heis',
-  'hevc',
-  'hevx',
-  'mif1',
-  'msf1',
-  'avif',
-  'avis',
-])
+const HEVC_HEIF_BRANDS = new Set(['heic', 'heix', 'heim', 'heis', 'hevc', 'hevx'])
+
+/**
+ * Every ISO-BMFF brand in the HEIF family. Broader than {@link HEVC_HEIF_BRANDS}:
+ * it answers "are these bytes worth handing to a HEIF decoder", not "which codec is
+ * inside". `mif1`/`msf1` are generic and carry either HEVC or AV1, and `avif`/`avis`
+ * are included because a decoder that already failed on them has nothing to lose.
+ */
+const HEIF_BRANDS = new Set([...HEVC_HEIF_BRANDS, 'mif1', 'msf1', 'avif', 'avis'])
 
 /**
  * Byte ceiling for a fallback decode. Uploads allow 100MB and the vision path runs
@@ -37,16 +31,17 @@ const HEIF_BRANDS = new Set([
 const MAX_TRANSCODE_INPUT_BYTES = 20 * 1024 * 1024
 
 /**
- * Whether these bytes are an ISO-BMFF container in the HEIF family.
+ * Whether an ISO-BMFF `ftyp` box names any of `brands`, as either the major brand
+ * or a compatible brand.
  *
  * Sniffed rather than read off the declared type because the common case is a
  * `.heic` stored as `application/octet-stream`, where the declared type says
  * nothing at all.
  */
-export function isHeifContainer(buffer: Buffer): boolean {
+function declaresBrand(buffer: Buffer, brands: ReadonlySet<string>): boolean {
   if (buffer.length < 12) return false
   if (buffer.toString('ascii', 4, 8) !== 'ftyp') return false
-  if (HEIF_BRANDS.has(buffer.toString('ascii', 8, 12))) return true
+  if (brands.has(buffer.toString('ascii', 8, 12))) return true
 
   // A standards-valid HEIF may carry a generic major brand such as `isom` and name
   // the HEIF brand only among the compatible brands, which follow the 4-byte
@@ -55,9 +50,28 @@ export function isHeifContainer(buffer: Buffer): boolean {
   // the loop's start, so those simply do not scan.
   const end = Math.min(buffer.readUInt32BE(0), buffer.length)
   for (let offset = 16; offset + 4 <= end; offset += 4) {
-    if (HEIF_BRANDS.has(buffer.toString('ascii', offset, offset + 4))) return true
+    if (brands.has(buffer.toString('ascii', offset, offset + 4))) return true
   }
   return false
+}
+
+/**
+ * Whether these bytes are an ISO-BMFF container in the HEIF family, whatever codec
+ * they carry. Use where a decode has already been attempted and failed — the extra
+ * breadth costs nothing there, and it catches the generic `mif1` brand.
+ */
+export function isHeifContainer(buffer: Buffer): boolean {
+  return declaresBrand(buffer, HEIF_BRANDS)
+}
+
+/**
+ * Whether these bytes declare HEVC-coded HEIF. Use where the decode has *not* been
+ * attempted yet and the answer decides whether to try: an AV1-coded HEIF (`avif`)
+ * renders natively everywhere, so treating it as a transcode candidate only buys a
+ * wasted decode and a misleading failure.
+ */
+export function isHevcHeifContainer(buffer: Buffer): boolean {
+  return declaresBrand(buffer, HEVC_HEIF_BRANDS)
 }
 
 /**
