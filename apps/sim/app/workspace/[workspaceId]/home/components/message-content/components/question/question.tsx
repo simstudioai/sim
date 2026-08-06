@@ -47,7 +47,7 @@ export function parseQuestionAnswerMessage(
 }
 
 const OPTION_ROW_CLASSES =
-  'flex items-center gap-2 border-[var(--divider)] px-2 py-2 text-left transition-colors'
+  'flex items-center gap-2 border-[var(--border)] px-2 py-2 text-left transition-colors'
 
 /** Ghost icon-button chrome shared by the stepper chevrons and the dismiss X. */
 const ICON_BUTTON_CLASSES = 'relative size-[14px] flex-shrink-0 p-0'
@@ -268,7 +268,7 @@ export function QuestionDisplay({
                   'before:absolute before:inset-[-8px] before:content-[""] disabled:opacity-50'
                 )}
               >
-                <ChevronLeft className='h-[9px] w-[7px] text-[var(--text-icon)]' />
+                <ChevronLeft className='size-[14px] text-[var(--text-icon)]' />
                 <span className='sr-only'>Previous question</span>
               </Button>
               <span className='whitespace-nowrap text-[var(--text-muted)] text-sm tabular-nums'>
@@ -286,7 +286,7 @@ export function QuestionDisplay({
                   'before:absolute before:inset-[-8px] before:content-[""] disabled:opacity-50'
                 )}
               >
-                <ChevronRight className='h-[9px] w-[7px] text-[var(--text-icon)]' />
+                <ChevronRight className='size-[14px] text-[var(--text-icon)]' />
                 <span className='sr-only'>Next question</span>
               </Button>
             </div>

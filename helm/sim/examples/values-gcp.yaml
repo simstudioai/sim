@@ -92,6 +92,7 @@ app:
     # without a key file additionally requires roles/iam.serviceAccountTokenCreator
     # on the service account itself (or set GCS_CREDENTIALS_JSON to inline
     # service-account JSON with a private key).
+    STORAGE_PROVIDER: "gcs"
     GCS_PROJECT_ID: "your-project-id"
     GCS_BUCKET_NAME: "myorg-sim-workspace-files"          # Workspace files (enables GCS)
     GCS_KB_BUCKET_NAME: "myorg-sim-knowledge-base"        # Knowledge base documents

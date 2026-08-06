@@ -16,7 +16,6 @@ import {
   Tooltip,
 } from '@sim/emcn'
 import { Folder, Plus } from '@sim/emcn/icons'
-import { truncate } from '@sim/utils/string'
 import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
 import {
   BROWSER_SESSION_RESOURCE_ID,
@@ -43,7 +42,6 @@ import { useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useLogsList } from '@/hooks/queries/logs'
 import { useMothershipChats } from '@/hooks/queries/mothership-chats'
-import { useWorkspaceSchedules } from '@/hooks/queries/schedules'
 import { useTablesList } from '@/hooks/queries/tables'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFileFolders } from '@/hooks/queries/workspace-file-folders'
@@ -173,9 +171,6 @@ export function useAvailableResources(
     { enabled }
   )
   const { data: tasks, isPending: tasksPending } = useMothershipChats(workspaceId, { enabled })
-  const { data: schedules, isPending: schedulesPending } = useWorkspaceSchedules(workspaceId, {
-    enabled,
-  })
   const { data: logsData, isPending: logsPending } = useLogsList(
     workspaceId,
     LOG_DROPDOWN_FILTERS,
@@ -202,7 +197,6 @@ export function useAvailableResources(
       foldersPending ||
       fileFoldersPending ||
       tasksPending ||
-      schedulesPending ||
       logsPending)
 
   const groups = useMemo(() => {
@@ -269,15 +263,6 @@ export function useAvailableResources(
         items: (tasks ?? []).map((t) => ({ id: t.id, name: t.name })),
       },
       {
-        type: 'scheduledtask' as const,
-        items: (schedules ?? [])
-          .filter((s) => s.sourceType === 'job')
-          .map((s) => ({
-            id: s.id,
-            name: s.jobTitle || truncate(s.prompt ?? '', 40) || 'Scheduled Task',
-          })),
-      },
-      {
         type: 'log' as const,
         items: logs.map((log) => {
           const workflowName = log.workflow?.name ?? log.workflowId ?? 'Unknown'
@@ -322,7 +307,6 @@ export function useAvailableResources(
     files,
     knowledgeBases,
     tasks,
-    schedules,
     logs,
     excludeTypes,
   ])

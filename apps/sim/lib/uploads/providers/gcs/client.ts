@@ -14,7 +14,11 @@ import type {
   GcsMultipartUploadInit,
   GcsPartUploadUrl,
 } from '@/lib/uploads/providers/gcs/types'
-import type { FileInfo } from '@/lib/uploads/shared/types'
+import type {
+  FileInfo,
+  MultipartCompletionPolicy,
+  StoredObjectInfo,
+} from '@/lib/uploads/shared/types'
 import {
   sanitizeFilenameForMetadata,
   sanitizeStorageMetadata,
@@ -25,6 +29,8 @@ const logger = createLogger('GcsClient')
 
 /** XML API host, also used to build canonical object URLs. */
 const GCS_XML_API_HOST = 'https://storage.googleapis.com'
+const GCS_MULTIPART_STAGING_PREFIX = '.sim-multipart/'
+const GCS_MULTIPART_UPLOAD_ID_METADATA_KEY = 'sim-upload-id'
 
 let _gcsClient: Storage | null = null
 
@@ -113,6 +119,26 @@ function encodeObjectKey(key: string): string {
 /** Canonical public-style URL for an object (not signed — used as a location reference). */
 function buildGcsObjectUrl(bucket: string, key: string): string {
   return `${GCS_XML_API_HOST}/${bucket}/${encodeObjectKey(key)}`
+}
+
+interface GcsMultipartStagingIdentity {
+  completionId: string
+  finalKey: string
+}
+
+function getGcsMultipartStagingKey(finalKey: string, completionId: string): string {
+  return `${GCS_MULTIPART_STAGING_PREFIX}${completionId}/${finalKey}`
+}
+
+function getGcsMultipartStagingIdentity(key: string): GcsMultipartStagingIdentity | null {
+  if (!key.startsWith(GCS_MULTIPART_STAGING_PREFIX)) return null
+  const remainder = key.slice(GCS_MULTIPART_STAGING_PREFIX.length)
+  const separator = remainder.indexOf('/')
+  if (separator <= 0 || separator === remainder.length - 1) return null
+  return {
+    completionId: remainder.slice(0, separator),
+    finalKey: remainder.slice(separator + 1),
+  }
 }
 
 /**
@@ -242,6 +268,9 @@ export async function getGcsPresignedUploadUrl(
     },
     {} as Record<string, string>
   )
+  const createOnlyHeaders = {
+    'x-goog-if-generation-match': '0',
+  }
 
   const [url] = await storage
     .bucket(customConfig.bucket)
@@ -253,7 +282,7 @@ export async function getGcsPresignedUploadUrl(
       contentType,
       extensionHeaders: {
         ...metadataHeaders,
-        'x-goog-if-generation-match': '0',
+        ...createOnlyHeaders,
       },
     })
 
@@ -261,8 +290,8 @@ export async function getGcsPresignedUploadUrl(
     url,
     signedHeaders: {
       'Content-Type': contentType,
-      'x-goog-if-generation-match': '0',
       ...metadataHeaders,
+      ...createOnlyHeaders,
     },
   }
 }
@@ -332,12 +361,7 @@ export async function downloadFromGcsStream(
 export async function headGcsObject(
   key: string,
   customConfig?: GcsConfig
-): Promise<{
-  size: number
-  contentType?: string
-  uploadId?: string
-  version: string
-} | null> {
+): Promise<StoredObjectInfo | null> {
   const config = customConfig || { bucket: GCS_CONFIG.bucket }
   const storage = await getGcsClient()
 
@@ -348,6 +372,9 @@ export async function headGcsObject(
       contentType: fileMetadata.contentType,
       uploadId: readUploadId(fileMetadata.metadata as Record<string, string> | undefined),
       version: String(fileMetadata.generation ?? ''),
+      ...(fileMetadata.metadata
+        ? { metadata: fileMetadata.metadata as Record<string, string> }
+        : {}),
     }
   } catch (error) {
     const code = (error as { code?: number } | null)?.code
@@ -383,6 +410,25 @@ export async function getGcsObjectMetadata(
   const storage = await getGcsClient()
   const [fileMetadata] = await storage.bucket(config.bucket).file(key).getMetadata()
   return (fileMetadata.metadata as Record<string, string> | undefined) || {}
+}
+
+async function getGcsMultipartCompletionId(
+  key: string,
+  customConfig?: GcsConfig
+): Promise<string | null> {
+  try {
+    const metadata = await getGcsObjectMetadata(key, customConfig)
+    return metadata[GCS_MULTIPART_UPLOAD_ID_METADATA_KEY] ?? null
+  } catch (error) {
+    if ((error as { code?: number } | null)?.code === 404) return null
+    throw error
+  }
+}
+
+function isGcsCreateConflict(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false
+  const record = error as { code?: unknown; statusCode?: unknown }
+  return record.code === 412 || record.statusCode === 412
 }
 
 /**
@@ -478,7 +524,11 @@ export async function initiateGcsMultipartUpload(
   const config = customConfig || { bucket: GCS_CONFIG.bucket }
 
   const safeFileName = sanitizeFileName(fileName)
-  const uniqueKey = customKey || `kb/${generateId()}-${safeFileName}`
+  const finalKey = customKey || `kb/${generateId()}-${safeFileName}`
+  const completionId = generateId()
+  const uniqueKey = metadata?.uploadId
+    ? finalKey
+    : getGcsMultipartStagingKey(finalKey, completionId)
 
   const response = await gcsXmlApiRequest('POST', config.bucket, uniqueKey, 'uploads', {
     headers: {
@@ -492,6 +542,7 @@ export async function initiateGcsMultipartUpload(
           value,
         ])
       ),
+      [`x-goog-meta-${GCS_MULTIPART_UPLOAD_ID_METADATA_KEY}`]: completionId,
     },
   })
 
@@ -611,9 +662,11 @@ export async function completeGcsMultipartUpload(
   key: string,
   uploadId: string,
   parts: GcsMultipartPart[],
-  customConfig?: GcsConfig
+  customConfig?: GcsConfig,
+  completionPolicy: MultipartCompletionPolicy = 'create-only'
 ): Promise<{ location: string; path: string; key: string }> {
   const config = customConfig || { bucket: GCS_CONFIG.bucket }
+  const stagingIdentity = getGcsMultipartStagingIdentity(key)
 
   const sortedParts = [...parts].sort((a, b) => a.PartNumber - b.PartNumber)
   const partsXml = sortedParts
@@ -624,23 +677,79 @@ export async function completeGcsMultipartUpload(
     .join('')
   const body = `<CompleteMultipartUpload>${partsXml}</CompleteMultipartUpload>`
 
-  const response = await gcsXmlApiRequest(
-    'POST',
-    config.bucket,
-    key,
-    `uploadId=${encodeURIComponent(uploadId)}`,
-    {
-      headers: { 'Content-Type': 'application/xml' },
-      body,
+  let responseXml: string | undefined
+  try {
+    const response = await gcsXmlApiRequest(
+      'POST',
+      config.bucket,
+      key,
+      `uploadId=${encodeURIComponent(uploadId)}`,
+      {
+        headers: { 'Content-Type': 'application/xml' },
+        body,
+      }
+    )
+    responseXml = await response.text()
+  } catch (error) {
+    if (!stagingIdentity) {
+      throw error
     }
-  )
+    if (
+      (await getGcsMultipartCompletionId(stagingIdentity.finalKey, config)) ===
+      stagingIdentity.completionId
+    ) {
+      return {
+        location: buildGcsObjectUrl(config.bucket, stagingIdentity.finalKey),
+        path: `/api/files/serve/${encodeURIComponent(stagingIdentity.finalKey)}`,
+        key: stagingIdentity.finalKey,
+      }
+    }
+    if ((await getGcsMultipartCompletionId(key, config)) !== stagingIdentity.completionId) {
+      throw error
+    }
+  }
 
   // The S3 XML dialect permits a 200 response carrying an error document; GCS
   // does not document that behavior, but checking is cheap insurance against
   // reporting a failed completion as success.
-  const responseXml = await response.text()
-  if (responseXml.includes('<Error')) {
+  if (responseXml?.includes('<Error')) {
     throw new Error(`GCS multipart completion failed for ${key}: ${responseXml.slice(0, 500)}`)
+  }
+
+  if (stagingIdentity) {
+    if ((await getGcsMultipartCompletionId(key, config)) !== stagingIdentity.completionId) {
+      throw new Error(`GCS multipart staging receipt does not match upload ${key}`)
+    }
+    const storage = await getGcsClient()
+    const bucket = storage.bucket(config.bucket)
+    const stagingFile = bucket.file(key)
+    const destinationFile = bucket.file(stagingIdentity.finalKey)
+    try {
+      await stagingFile.copy(
+        destinationFile,
+        completionPolicy === 'replace' ? {} : { preconditionOpts: { ifGenerationMatch: 0 } }
+      )
+    } catch (error) {
+      const finalCompletionId = await getGcsMultipartCompletionId(stagingIdentity.finalKey, config)
+      const isSameUpload = finalCompletionId === stagingIdentity.completionId
+      const canReuseExisting =
+        completionPolicy === 'reuse-existing' &&
+        isGcsCreateConflict(error) &&
+        finalCompletionId !== null
+      if (!isSameUpload && !canReuseExisting) {
+        throw error
+      }
+    }
+    try {
+      await stagingFile.delete({ ignoreNotFound: true })
+    } catch (error) {
+      logger.warn(`Failed to clean up finalized GCS multipart staging object ${key}`, error)
+    }
+    return {
+      location: buildGcsObjectUrl(config.bucket, stagingIdentity.finalKey),
+      path: `/api/files/serve/${encodeURIComponent(stagingIdentity.finalKey)}`,
+      key: stagingIdentity.finalKey,
+    }
   }
 
   return {

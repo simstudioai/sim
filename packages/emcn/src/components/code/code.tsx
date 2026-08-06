@@ -11,7 +11,7 @@ import {
   useState,
 } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight } from '../../icons'
 import { cn } from '../../lib/cn'
 import './code.css'
 
@@ -24,7 +24,7 @@ type PrismModule = typeof import('./prism')
 /**
  * Module-level singleton promise for the lazily-loaded Prism module.
  *
- * Prism (core + the side-effectful JS/Python/JSON grammar registrations) is kept
+ * Prism (core + the side-effectful JS/Python/JSON/Bash grammar registrations) is kept
  * out of this module's static import graph so it never lands in bundles that only
  * pull `Code` through the shared `@sim/emcn` barrel. It is loaded once per
  * session on the first highlight and cached here for all subsequent viewers.
@@ -481,7 +481,7 @@ function Container({ children, className, style, onDragOver, onDrop }: CodeConta
       className={cn(
         // Base container styling
         'group relative min-h-[100px] rounded-sm border border-[var(--border-1)]',
-        'bg-[var(--surface-1)] font-medium font-mono text-sm transition-colors',
+        'bg-[var(--surface-1)] font-mono text-sm transition-colors',
         'dark:bg-[var(--code-bg)]',
         // Overflow handling for long content
         'overflow-x-auto overflow-y-auto',
@@ -544,7 +544,7 @@ export function getCodeEditorProps(options?: {
     padding: 8,
     className: cn(
       // Base editor classes
-      'bg-transparent font-[inherit] text-[inherit] font-medium',
+      'bg-transparent font-[inherit] text-[inherit]',
       'text-[var(--text-primary)] dark:text-[var(--code-foreground)]',
       'leading-[21px] outline-none focus:outline-none',
       'min-h-[106px]',
@@ -802,7 +802,7 @@ interface CodeViewerProps {
   /** Whether to show line numbers gutter */
   showGutter?: boolean
   /** Language for syntax highlighting (default: 'json') */
-  language?: 'javascript' | 'json' | 'python'
+  language?: 'javascript' | 'json' | 'python' | 'bash'
   /** Additional CSS classes for the container */
   className?: string
   /** Left padding offset (useful for terminal alignment) */
@@ -888,7 +888,7 @@ type ViewerInnerProps = {
   /** Whether to show line numbers gutter */
   showGutter: boolean
   /** Language for syntax highlighting */
-  language: 'javascript' | 'json' | 'python'
+  language: 'javascript' | 'json' | 'python' | 'bash'
   /** Additional CSS classes for the container */
   className?: string
   /** Left padding offset in pixels */
@@ -1079,7 +1079,7 @@ const VirtualizedViewerInner = memo(function VirtualizedViewerInner({
       ref={setRefs}
       className={cn(
         'code-editor-theme relative rounded-sm border border-[var(--border-1)]',
-        'bg-[var(--surface-1)] font-medium font-mono text-sm',
+        'bg-[var(--surface-1)] font-mono text-sm',
         wrapText ? 'overflow-x-hidden' : 'overflow-x-auto',
         'overflow-y-auto',
         'dark:bg-[var(--code-bg)]',

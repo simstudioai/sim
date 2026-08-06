@@ -1796,6 +1796,7 @@ export function Files() {
             ? [
                 {
                   label: 'Rename',
+                  icon: Pencil,
                   disabled: !canEdit,
                   onClick: () => breadcrumbRenameRef.current.startRename(folder.id, folder.name),
                 },

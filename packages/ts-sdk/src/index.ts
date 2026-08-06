@@ -37,11 +37,23 @@ export interface WorkflowStatus {
 }
 
 export interface ExecutionOptions {
+  /** Client-side HTTP timeout in milliseconds. */
   timeout?: number
   stream?: boolean
   selectedOutputs?: string[]
   async?: boolean
+  /** Server-side async execution cap in seconds (1–604800). */
+  executionTimeoutSeconds?: number
 }
+
+export type SyncExecutionOptions = Omit<ExecutionOptions, 'async' | 'executionTimeoutSeconds'> & {
+  /** Async mode is controlled by executeWorkflowSync and cannot be overridden. */
+  async?: never
+  /** Server-side execution timeout overrides are async-only. */
+  executionTimeoutSeconds?: never
+}
+
+const MAX_EXECUTION_TIMEOUT_SECONDS = 604_800
 
 export interface AsyncExecutionResult {
   success: boolean
@@ -241,7 +253,26 @@ export class SimStudioClient {
     options: ExecutionOptions = {}
   ): Promise<WorkflowExecutionResult | AsyncExecutionResult> {
     const url = `${this.baseUrl}/api/v2/workflows/${workflowId}/execute`
-    const { timeout = 30000, stream, selectedOutputs, async } = options
+    const { timeout = 30000, stream, selectedOutputs, async, executionTimeoutSeconds } = options
+
+    if (executionTimeoutSeconds !== undefined) {
+      if (!async) {
+        throw new SimStudioError(
+          'executionTimeoutSeconds is supported only for async executions',
+          'INVALID_EXECUTION_TIMEOUT'
+        )
+      }
+      if (
+        !Number.isSafeInteger(executionTimeoutSeconds) ||
+        executionTimeoutSeconds < 1 ||
+        executionTimeoutSeconds > MAX_EXECUTION_TIMEOUT_SECONDS
+      ) {
+        throw new SimStudioError(
+          `executionTimeoutSeconds must be an integer between 1 and ${MAX_EXECUTION_TIMEOUT_SECONDS}`,
+          'INVALID_EXECUTION_TIMEOUT'
+        )
+      }
+    }
 
     try {
       const timeoutPromise = new Promise<never>((_, reject) => {
@@ -273,6 +304,9 @@ export class SimStudioClient {
       }
       if (async !== undefined) {
         jsonBody.async = async
+      }
+      if (executionTimeoutSeconds !== undefined) {
+        jsonBody.executionTimeoutSeconds = executionTimeoutSeconds
       }
 
       const fetchPromise = fetch(url, {
@@ -407,7 +441,7 @@ export class SimStudioClient {
   async executeWorkflowSync(
     workflowId: string,
     input?: any,
-    options: ExecutionOptions = {}
+    options: SyncExecutionOptions = {}
   ): Promise<WorkflowExecutionResult> {
     const syncOptions = { ...options, async: false }
     return this.executeWorkflow(workflowId, input, syncOptions) as Promise<WorkflowExecutionResult>

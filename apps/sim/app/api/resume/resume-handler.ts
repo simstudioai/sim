@@ -7,7 +7,9 @@ import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
 } from '@/lib/billing/core/billing-attribution'
-import { getJobQueue } from '@/lib/core/async-jobs'
+import { getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
+import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
+import { toTriggerMaxDurationSeconds } from '@/lib/core/execution-limits'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -18,8 +20,9 @@ import {
   agentStreamProtocolResponseHeaders,
   createStreamingResponse,
 } from '@/lib/workflows/streaming/streaming'
-import type { ResumeExecutionPayload } from '@/background/resume-execution'
+import { executeResumeJob, type ResumeExecutionPayload } from '@/background/resume-execution'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
+import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
 
 const logger = createLogger('WorkflowResumeAPI')
 
@@ -290,6 +293,13 @@ export async function handleResumeExecution({
     }
 
     if (isApiCaller && executionMode === 'async') {
+      const correlation: AsyncExecutionCorrelation = {
+        executionId,
+        requestId,
+        source: 'workflow',
+        workflowId,
+        triggerType: 'resume',
+      }
       const resumePayload: ResumeExecutionPayload = {
         resumeEntryId: enqueueResult.resumeEntryId,
         resumeExecutionId: enqueueResult.resumeExecutionId,
@@ -299,16 +309,33 @@ export async function handleResumeExecution({
         userId: enqueueResult.userId,
         workflowId,
         parentExecutionId: executionId,
+        executionTimeoutMs: preprocessResult.executionTimeout.async,
+        billingAttribution: preprocessResult.billingAttribution,
       }
 
       let jobId: string
       try {
         const jobQueue = await getJobQueue()
+        const executeInline = shouldExecuteInline()
         jobId = await jobQueue.enqueue('resume-execution', resumePayload, {
           ...(pollingSurface === 'v2'
             ? { jobId: `${RESUME_EXECUTION_JOB_ID_PREFIX}${enqueueResult.resumeEntryId}` }
             : {}),
-          metadata: { workflowId, workspaceId, userId },
+          metadata: {
+            executionId,
+            workflowId,
+            workspaceId,
+            userId,
+            resumeExecutionId: enqueueResult.resumeExecutionId,
+            correlation,
+          },
+          maxDurationSeconds: toTriggerMaxDurationSeconds(preprocessResult.executionTimeout.async),
+          ...(executeInline
+            ? {
+                runner: (_queuedPayload: unknown, signal: AbortSignal) =>
+                  executeResumeJob(resumePayload, signal),
+              }
+            : {}),
         })
         logger.info('Enqueued async resume execution', {
           jobId,
@@ -350,12 +377,14 @@ export async function handleResumeExecution({
     }
 
     PauseResumeManager.startResumeExecution(resumeArgs).catch((error) => {
-      logger.error('Failed to start resume execution', {
-        workflowId,
-        parentExecutionId: executionId,
-        resumeExecutionId: enqueueResult.resumeExecutionId,
-        error,
-      })
+      logger.error(
+        'Failed to start resume execution',
+        projectResolvedSecretDiagnosticError(error, undefined, {
+          workflowId,
+          parentExecutionId: executionId,
+          resumeExecutionId: enqueueResult.resumeExecutionId,
+        })
+      )
     })
 
     return NextResponse.json({
@@ -364,12 +393,14 @@ export async function handleResumeExecution({
       message: 'Resume execution started.',
     })
   } catch (error) {
-    logger.error('Resume request failed', {
-      workflowId,
-      executionId,
-      contextId,
-      error,
-    })
+    logger.error(
+      'Resume request failed',
+      projectResolvedSecretDiagnosticError(error, undefined, {
+        workflowId,
+        executionId,
+        contextId,
+      })
+    )
     const statusCode =
       isRecordLike(error) && typeof error.statusCode === 'number' ? error.statusCode : 400
     return NextResponse.json(

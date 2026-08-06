@@ -134,6 +134,44 @@ describe('POST /api/v2/tables/[tableId]/query', () => {
     expect(mockQueryRows).not.toHaveBeenCalled()
   })
 
+  it('runs the flag gate only after the access check, so it cannot leak a cohort oracle', async () => {
+    mockCheckAccess.mockResolvedValue({ ok: false, status: 403 })
+    const res = await callQuery({ workspaceId: 'workspace-1' })
+    expect(res.status).toBe(403)
+    expect(mockGate).not.toHaveBeenCalled()
+  })
+
+  it('translates a name-keyed predicate to storage ids', async () => {
+    const res = await callQuery({
+      workspaceId: 'workspace-1',
+      predicate: {
+        all: [
+          { field: 'status', op: 'eq', value: 'active' },
+          { field: 'wins', op: 'gte', value: 10 },
+        ],
+      },
+    })
+    expect(res.status).toBe(200)
+    expect(mockQueryRows.mock.calls[0][1].predicate).toEqual({
+      all: [
+        { field: 'col_status', op: 'eq', value: 'active' },
+        { field: 'col_wins', op: 'gte', value: 10 },
+      ],
+    })
+  })
+
+  it('accepts a root condition and executes its canonical all group', async () => {
+    const res = await callQuery({
+      workspaceId: 'workspace-1',
+      predicate: { field: 'status', op: 'eq', value: 'active' },
+    })
+
+    expect(res.status).toBe(200)
+    expect(mockQueryRows.mock.calls[0][1].predicate).toEqual({
+      all: [{ field: 'col_status', op: 'eq', value: 'active' }],
+    })
+  })
+
   it('applies the bounded default limit when omitted', async () => {
     await callQuery({ workspaceId: 'workspace-1' })
     expect(mockQueryRows.mock.calls[0][1].limit).toBe(100)

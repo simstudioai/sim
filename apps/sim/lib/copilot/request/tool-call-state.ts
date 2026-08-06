@@ -75,7 +75,7 @@ function getToolCallTerminalDataRaw(
 
   if (output !== undefined) {
     if (!failed) {
-      return output
+      return output === null ? { success: true, data: null } : output
     }
     /**
      * A failed call must always surface its error in the terminal data — this
@@ -95,7 +95,7 @@ function getToolCallTerminalDataRaw(
   }
 
   if (!failed) {
-    return undefined
+    return { success: true }
   }
 
   return { error: requireToolCallError(toolCall) }

@@ -566,7 +566,7 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
         type: 'block_not_allowed',
         operationType: 'edit',
         blockId: block_id,
-        reason: `Block type "${params.type}" is not allowed by permission group - type change skipped`,
+        reason: `Block type "${params.type}" is unavailable in this deployment or blocked by access control - type change skipped`,
         details: { requestedType: params.type },
       })
     } else {
@@ -744,7 +744,7 @@ export function handleAddOperation(op: EditWorkflowOperation, ctx: OperationCont
       type: 'block_not_allowed',
       operationType: 'add',
       blockId: block_id,
-      reason: `Block type "${params.type}" is not allowed by permission group - block not added`,
+      reason: `Block type "${params.type}" is unavailable in this deployment or blocked by access control - block not added`,
       details: { requestedType: params.type },
     })
     return
@@ -970,7 +970,7 @@ export function handleInsertIntoSubflowOperation(
         type: 'block_not_allowed',
         operationType: 'insert_into_subflow',
         blockId: block_id,
-        reason: `Block type "${params.type}" is not allowed by permission group - block not inserted`,
+        reason: `Block type "${params.type}" is unavailable in this deployment or blocked by access control - block not inserted`,
         details: { requestedType: params.type, subflowId },
       })
       return

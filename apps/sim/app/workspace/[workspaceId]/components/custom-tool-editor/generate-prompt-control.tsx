@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { Chip, ChipInput } from '@sim/emcn'
-import { ArrowUp } from 'lucide-react'
+import { ArrowUp } from '@sim/emcn/icons'
 
 interface GeneratePromptControlProps {
   isLoading: boolean
@@ -42,7 +42,7 @@ export function GeneratePromptControl({
 
   if (!isActive) {
     return (
-      <Chip flush onClick={activate} disabled={isLoading || isStreaming}>
+      <Chip onClick={activate} disabled={isLoading || isStreaming}>
         Generate
       </Chip>
     )
@@ -72,7 +72,6 @@ export function GeneratePromptControl({
         placeholder='Describe what to generate...'
       />
       <Chip
-        flush
         leftIcon={ArrowUp}
         aria-label='Generate'
         disabled={!prompt.trim() || isStreaming}

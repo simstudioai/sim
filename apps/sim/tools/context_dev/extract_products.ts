@@ -58,6 +58,10 @@ export const contextDevExtractProductsTool: ToolConfig<
   },
 
   request: {
+    opaqueModelInput: {
+      mode: 'reject-resolved-secrets',
+      select: (params) => params.domain,
+    },
     method: 'POST',
     url: () => `${CONTEXT_DEV_BASE_URL}/brand/ai/products`,
     headers: (params) => contextDevJsonHeaders(params.apiKey),

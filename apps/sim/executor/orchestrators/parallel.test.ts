@@ -4,7 +4,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULTS } from '@/executor/constants'
 import type { DAG, DAGNode } from '@/executor/dag/builder'
-import type { BlockStateWriter, ContextExtensions } from '@/executor/execution/types'
+import type { BlockStateController, ContextExtensions } from '@/executor/execution/types'
 import { ParallelOrchestrator } from '@/executor/orchestrators/parallel'
 import type { ExecutionContext } from '@/executor/types'
 import {
@@ -59,8 +59,11 @@ function createDagNode(id: string, metadata: DAGNode['metadata'] = {}): DAGNode 
   }
 }
 
-function createState(): BlockStateWriter {
+function createState(): BlockStateController {
   return {
+    getBlockState: vi.fn(),
+    getBlockOutput: vi.fn(),
+    hasExecuted: vi.fn(() => false),
     setBlockOutput: vi.fn(),
     setBlockState: vi.fn(),
     deleteBlockState: vi.fn(),

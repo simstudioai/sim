@@ -32,6 +32,8 @@ const {
   mockGenerateId,
   mockAdmissionRelease,
   mockEnqueue,
+  mockExecuteWebhookJob,
+  mockGetInlineJobQueue,
   mockGetJobQueue,
   mockReleaseExecutionSlot,
   mockProviderHandler,
@@ -40,6 +42,8 @@ const {
   mockGenerateId: vi.fn(),
   mockAdmissionRelease: vi.fn(),
   mockEnqueue: vi.fn(),
+  mockExecuteWebhookJob: vi.fn().mockResolvedValue({ success: true }),
+  mockGetInlineJobQueue: vi.fn(),
   mockGetJobQueue: vi.fn(),
   mockReleaseExecutionSlot: vi.fn(),
   mockProviderHandler: { current: {} as Record<string, unknown> },
@@ -68,7 +72,7 @@ vi.mock('@/lib/billing/calculations/usage-reservation', () => ({
 }))
 
 vi.mock('@/lib/core/async-jobs', () => ({
-  getInlineJobQueue: vi.fn(),
+  getInlineJobQueue: mockGetInlineJobQueue,
   getJobQueue: mockGetJobQueue,
   shouldExecuteInline: mockShouldExecuteInline,
 }))
@@ -104,7 +108,7 @@ vi.mock('@/lib/webhooks/providers', () => ({
 }))
 
 vi.mock('@/background/webhook-execution', () => ({
-  executeWebhookJob: vi.fn().mockResolvedValue({ success: true }),
+  executeWebhookJob: mockExecuteWebhookJob,
 }))
 
 vi.mock('@/executor/utils/reference-validation', () => ({
@@ -391,8 +395,10 @@ describe('webhook processor execution identity', () => {
       success: true,
       actorUserId: 'actor-user-1',
       billingAttribution,
+      executionTimeout: { sync: 0, async: 120_000 },
     })
     mockEnqueue.mockResolvedValue('job-1')
+    mockGetInlineJobQueue.mockResolvedValue({ enqueue: mockEnqueue })
     mockGetJobQueue.mockResolvedValue({ enqueue: mockEnqueue })
     mockProviderHandler.current = {}
     mockShouldExecuteInline.mockReturnValue(false)
@@ -470,6 +476,30 @@ describe('webhook processor execution identity', () => {
     expect(mockReleaseExecutionSlot).not.toHaveBeenCalled()
   })
 
+  it('runs database-inline webhook jobs through the queue cancellation signal', async () => {
+    mockShouldExecuteInline.mockReturnValue(true)
+    const result = await dispatchResolvedWebhookTarget(
+      makeWebhookRecord({ path: 'incoming/gmail', provider: 'gmail' }),
+      makeWorkflowRecord({}),
+      { event: 'message.received' },
+      createMockRequest('POST', { event: 'message.received' }) as NextRequest,
+      { requestId: 'request-1', path: 'incoming/gmail' }
+    )
+    const options = mockEnqueue.mock.calls[0]?.[2] as {
+      runner?: (payload: unknown, signal: AbortSignal) => Promise<unknown>
+    }
+    const controller = new AbortController()
+
+    expect(result.outcome).toBe('queued')
+    expect(mockGetInlineJobQueue).toHaveBeenCalledOnce()
+    expect(options.runner).toBeTypeOf('function')
+    await options.runner?.({}, controller.signal)
+    expect(mockExecuteWebhookJob).toHaveBeenCalledWith(
+      expect.objectContaining({ executionId: 'generated-execution-id' }),
+      controller.signal
+    )
+  })
+
   it('releases the reservation when enqueue fails before ownership transfer', async () => {
     mockEnqueue.mockRejectedValueOnce(new Error('queue unavailable'))
 
@@ -516,8 +546,10 @@ describe('polled webhook reservation ownership', () => {
       success: true,
       actorUserId: 'actor-user-1',
       billingAttribution,
+      executionTimeout: { sync: 0, async: 120_000 },
     })
     mockEnqueue.mockResolvedValue('job-1')
+    mockGetInlineJobQueue.mockResolvedValue({ enqueue: mockEnqueue })
     mockGetJobQueue.mockResolvedValue({ enqueue: mockEnqueue })
     mockShouldExecuteInline.mockReturnValue(false)
     workflowsPersistenceUtilsMockFns.mockBlockExistsInDeployment.mockResolvedValue(true)
@@ -620,6 +652,29 @@ describe('polled webhook reservation ownership', () => {
         workflowId: 'workflow-2',
       }),
       expect.any(Object)
+    )
+  })
+
+  it('runs database-inline polled events through the queue cancellation signal', async () => {
+    mockShouldExecuteInline.mockReturnValue(true)
+    const result = await processPolledWebhookEvent(
+      makeWebhookRecord(foundWebhook),
+      makeWorkflowRecord(foundWorkflow),
+      { event: 'message.received' },
+      'request-1'
+    )
+    const options = mockEnqueue.mock.calls[0]?.[2] as {
+      runner?: (payload: unknown, signal: AbortSignal) => Promise<unknown>
+    }
+    const controller = new AbortController()
+
+    expect(result.success).toBe(true)
+    expect(mockGetInlineJobQueue).toHaveBeenCalledOnce()
+    expect(options.runner).toBeTypeOf('function')
+    await options.runner?.({}, controller.signal)
+    expect(mockExecuteWebhookJob).toHaveBeenCalledWith(
+      expect.objectContaining({ executionId: 'generated-execution-id' }),
+      controller.signal
     )
   })
 })

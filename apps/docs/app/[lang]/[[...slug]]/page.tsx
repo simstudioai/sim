@@ -10,7 +10,6 @@ import { notFound } from 'next/navigation'
 import { PageFooter } from '@/components/docs-layout/page-footer'
 import { PageNavigationArrows } from '@/components/docs-layout/page-navigation-arrows'
 import { LLMCopyButton } from '@/components/page-actions'
-import { PageTypeBadge } from '@/components/page-type-badge'
 import { StructuredData } from '@/components/structured-data'
 import { CodeBlock } from '@/components/ui/code-block'
 import { Heading } from '@/components/ui/heading'
@@ -22,6 +21,21 @@ import { DOCS_BASE_URL } from '@/lib/urls'
 
 const SUPPORTED_LANGUAGES: Set<string> = new Set(i18n.languages)
 const BASE_URL = DOCS_BASE_URL
+
+/**
+ * Most pages close with a `## Next` / `## Next steps` grid of onward links.
+ * That heading is navigation, not content, so it is kept out of the table of
+ * contents — the ToC should say what the page covers, not where to go after it.
+ * The heading itself still renders above the cards.
+ *
+ * Matched on the slug rather than the rendered title because a ToC title is a
+ * `ReactNode`; the trailing group tolerates the slugger's dedupe suffix.
+ */
+const ONWARD_NAV_SLUG = /^#next(-steps)?(-\d+)?$/i
+
+function isContentHeading(item: { url: string }): boolean {
+  return !ONWARD_NAV_SLUG.test(item.url)
+}
 
 const OG_LOCALE_MAP: Record<string, string> = {
   en: 'en_US',
@@ -171,7 +185,7 @@ export default async function Page(props: { params: Promise<{ slug?: string[]; l
           breadcrumb={breadcrumbs}
         />
         <DocsPage
-          toc={data.toc}
+          toc={data.toc.filter(isContentHeading)}
           breadcrumb={{
             enabled: false,
           }}
@@ -218,7 +232,7 @@ export default async function Page(props: { params: Promise<{ slug?: string[]; l
         breadcrumb={breadcrumbs}
       />
       <DocsPage
-        toc={data.toc}
+        toc={data.toc.filter(isContentHeading)}
         full={data.full || isAcademy}
         breadcrumb={{
           enabled: false,
@@ -244,7 +258,6 @@ export default async function Page(props: { params: Promise<{ slug?: string[]; l
             </div>
             <PageNavigationArrows previous={neighbours?.previous} next={neighbours?.next} />
           </div>
-          {data.pageType && <PageTypeBadge type={data.pageType} className='mb-3' />}
           <DocsTitle className='mb-2'>{data.title}</DocsTitle>
         </div>
         <DocsBody>

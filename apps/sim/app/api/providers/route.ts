@@ -13,8 +13,10 @@ import {
   type BillingAttributionSnapshot,
   requireBillingAttributionHeader,
 } from '@/lib/billing/core/billing-attribution'
+import { prepareCopilotEnvironmentContext } from '@/lib/copilot/environment-context'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { inspectModelInputProvenanceRequest } from '@/lib/execution/model-input-provenance'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 import {
   getServiceAccountToken,
@@ -29,7 +31,9 @@ import {
 } from '@/ee/access-control/utils/permission-check'
 import type { StreamingExecution } from '@/executor/types'
 import { executeProviderRequest } from '@/providers'
+import { collectProviderModelInputProvenanceValues } from '@/providers/model-input-provenance'
 import { projectStreamingExecutionToByteStream } from '@/providers/stream-pump'
+import type { ProviderRequest } from '@/providers/types'
 
 const logger = createLogger('ProvidersAPI')
 
@@ -220,7 +224,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       hasBillingAttribution: !!billingAttribution,
     })
 
-    const response = await executeProviderRequest(provider, {
+    const providerRequest: ProviderRequest = {
       model,
       systemPrompt,
       context,
@@ -248,7 +252,27 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       billingAttribution,
       reasoningEffort,
       verbosity,
-    })
+    }
+    const provenanceInspection = inspectModelInputProvenanceRequest(request.headers, body)
+    if (provenanceInspection.status === 'unsupported') {
+      return NextResponse.json({ error: 'Model input provenance is unavailable' }, { status: 400 })
+    }
+    if (provenanceInspection.status === 'invalid') {
+      return NextResponse.json({ error: 'Invalid model input provenance' }, { status: 400 })
+    }
+
+    const providerRuntimeContext = await prepareCopilotEnvironmentContext(auth.userId, workspaceId)
+    const provenanceReady =
+      await providerRuntimeContext.resolvedSecretTraceRegistry.importProvenanceForValue(
+        provenanceInspection.value,
+        collectProviderModelInputProvenanceValues(providerRequest, provider),
+        { trusted: true }
+      )
+    if (!provenanceReady || !providerRuntimeContext.resolvedSecretTraceRegistry.isComplete()) {
+      return NextResponse.json({ error: 'Model input provenance is unavailable' }, { status: 400 })
+    }
+
+    const response = await executeProviderRequest(provider, providerRequest, providerRuntimeContext)
 
     const executionTime = Date.now() - startTime
     logger.info(`[${requestId}] Provider request completed successfully`, {

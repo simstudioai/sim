@@ -182,6 +182,79 @@ def test_async_header_not_set_when_false(mock_post):
     assert "X-Execution-Mode" not in call_args[1]["headers"]
 
 
+@patch('simstudio.requests.Session.post')
+def test_async_execution_timeout_body(mock_post):
+    mock_response = Mock()
+    mock_response.ok = True
+    mock_response.status_code = 202
+    mock_response.json.return_value = {
+        "data": {
+            "executionId": "execution-123",
+            "statusUrl": "/api/v2/workflows/workflow-id/executions/execution-123",
+        }
+    }
+    mock_response.headers.get.return_value = None
+    mock_post.return_value = mock_response
+
+    client = SimStudioClient(api_key="test-api-key")
+    client.execute_workflow(
+        "workflow-id",
+        {},
+        async_execution=True,
+        execution_timeout_seconds=90,
+    )
+
+    body = mock_post.call_args[1]["json"]
+    assert body["executionTimeoutSeconds"] == 90
+
+
+def test_sync_execution_rejects_execution_timeout():
+    client = SimStudioClient(api_key="test-api-key")
+
+    with pytest.raises(SimStudioError) as exc_info:
+        client.execute_workflow("workflow-id", {}, execution_timeout_seconds=90)
+
+    assert exc_info.value.code == "INVALID_EXECUTION_TIMEOUT"
+
+
+def test_execution_timeout_rejects_more_than_seven_days():
+    client = SimStudioClient(api_key="test-api-key")
+
+    with pytest.raises(SimStudioError) as exc_info:
+        client.execute_workflow(
+            "workflow-id",
+            {},
+            async_execution=True,
+            execution_timeout_seconds=604_801,
+        )
+
+    assert exc_info.value.code == "INVALID_EXECUTION_TIMEOUT"
+
+
+def test_execute_with_retry_forwards_execution_timeout():
+    client = SimStudioClient(api_key="test-api-key")
+    expected = Mock()
+
+    with patch.object(client, "execute_workflow", return_value=expected) as execute_workflow:
+        result = client.execute_with_retry(
+            "workflow-id",
+            {"message": "hello"},
+            async_execution=True,
+            execution_timeout_seconds=90,
+        )
+
+    assert result is expected
+    execute_workflow.assert_called_once_with(
+        "workflow-id",
+        {"message": "hello"},
+        timeout=30.0,
+        stream=None,
+        selected_outputs=None,
+        async_execution=True,
+        execution_timeout_seconds=90,
+    )
+
+
 @patch('simstudio.requests.Session.get')
 def test_get_job_status_success(mock_get):
     """Test getting legacy job status."""

@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { generateId, isValidUuid } from '@sim/utils/id'
 import { sortObjectKeysDeep } from '@sim/utils/object'
+import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import {
@@ -9,8 +10,9 @@ import {
   isCanonicalPair,
 } from '@/lib/workflows/subblocks/visibility'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
-import { getAllBlocks, getBlock } from '@/blocks/registry'
+import { getBlock } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
+import { overlayVisibility } from '@/blocks/visibility/context'
 import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
 import type { EditWorkflowOperation, SkippedItem, ValidationError } from './types'
 import { logSkippedItem } from './types'
@@ -31,7 +33,7 @@ export function createBlockFromParams(
   permissionConfig?: PermissionGroupConfig | null,
   skippedItems?: SkippedItem[]
 ): any {
-  const blockConfig = getAllBlocks().find((b) => b.type === params.type)
+  const blockConfig = getBlock(params.type)
 
   // Validate inputs against block configuration
   let validatedInputs: Record<string, any> | undefined
@@ -648,13 +650,30 @@ export function filterDisallowedTools(
   blockId: string,
   skippedItems: SkippedItem[]
 ): any[] {
-  if (!permissionConfig) {
-    return tools
-  }
-
-  const allowedTools: any[] = []
+  const deploymentAvailableTools: any[] = []
 
   for (const tool of tools) {
+    if (
+      typeof tool?.type === 'string' &&
+      getBlock(tool.type) &&
+      !isIntegrationDeploymentAvailableForVisibility(tool.type, overlayVisibility())
+    ) {
+      logSkippedItem(skippedItems, {
+        type: 'tool_not_allowed',
+        operationType: 'add',
+        blockId,
+        reason: `Tool block type "${tool.type}" is unavailable in this deployment - tool not added`,
+        details: { toolType: tool.type },
+      })
+      continue
+    }
+    deploymentAvailableTools.push(tool)
+  }
+
+  if (!permissionConfig) return deploymentAvailableTools
+
+  const allowedTools: any[] = []
+  for (const tool of deploymentAvailableTools) {
     if (tool.type === 'custom-tool' && permissionConfig.disableCustomTools) {
       logSkippedItem(skippedItems, {
         type: 'tool_not_allowed',

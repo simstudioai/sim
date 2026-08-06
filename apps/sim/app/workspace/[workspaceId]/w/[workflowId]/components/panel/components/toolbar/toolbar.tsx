@@ -20,8 +20,8 @@ import {
   handleKeyboardActivation,
   Info,
 } from '@sim/emcn'
+import { ChevronDown, Search } from '@sim/emcn/icons'
 import clsx from 'clsx'
-import { ChevronDown, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { captureEvent } from '@/lib/posthog/client'
@@ -800,7 +800,7 @@ export const Toolbar = memo(
           onClick={focusSearch}
           onKeyDown={(event) => handleKeyboardActivation(event, focusSearch)}
         >
-          <h2 className='font-medium text-[var(--text-primary)] text-sm'>Toolbar</h2>
+          <h2 className='text-[var(--text-primary)] text-sm'>Toolbar</h2>
           <div className='flex shrink-0 items-center gap-2'>
             {!isSearchActive ? (
               <Button
@@ -818,7 +818,7 @@ export const Toolbar = memo(
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onBlur={handleSearchBlur}
-                className='w-full border-none bg-transparent pr-0.5 text-right font-medium text-[var(--text-primary)] text-small placeholder:text-[var(--text-muted)] focus:outline-none'
+                className='w-full border-none bg-transparent pr-0.5 text-right text-[var(--text-primary)] text-small placeholder:text-[var(--text-muted)] focus:outline-none'
               />
             )}
           </div>

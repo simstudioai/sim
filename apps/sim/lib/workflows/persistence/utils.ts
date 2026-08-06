@@ -38,6 +38,13 @@ export type { DbOrTx, NormalizedWorkflowData } from '@sim/workflow-persistence/t
 
 export type WorkflowDeploymentVersion = InferSelectModel<typeof workflowDeploymentVersion>
 
+export class NoActiveDeploymentError extends Error {
+  constructor(workflowId: string) {
+    super(`Workflow ${workflowId} has no active deployment`)
+    this.name = 'NoActiveDeploymentError'
+  }
+}
+
 function hasReturnedRows(result: unknown): boolean {
   if (Array.isArray(result)) return result.length > 0
 
@@ -200,7 +207,7 @@ export async function loadDeployedWorkflowState(
       .limit(1)
 
     if (!active?.state) {
-      throw new Error(`Workflow ${workflowId} has no active deployment`)
+      throw new NoActiveDeploymentError(workflowId)
     }
 
     return materializeDeploymentState(workflowId, active, providedWorkspaceId)

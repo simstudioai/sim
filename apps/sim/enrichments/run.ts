@@ -113,7 +113,10 @@ export async function runEnrichment(
       const response = await executeTool(
         provider.toolId,
         { ...params, _context: { workspaceId: ctx.workspaceId } },
-        { signal: ctx.signal }
+        {
+          signal: ctx.signal,
+          resolvedSecretTraceRegistry: ctx.resolvedSecretTraceRegistry,
+        }
       )
       if (!response.success) {
         // A 404 means the provider simply has no record for these inputs — a

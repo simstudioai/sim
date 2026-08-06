@@ -21,6 +21,27 @@ function inlineRefQuery(ref: NonNullable<EmbeddedFileRef>): string {
     : `fileId=${encodeURIComponent(ref.fileId)}`
 }
 
+export interface ImageDimensions {
+  width: number
+  height: number
+}
+
+/**
+ * Optional per-context capability: reserve layout space for an embedded image from its intrinsic size,
+ * so it never reflows on load. The workspace source backs this with file-list metadata plus a self-
+ * correcting metadata write; public/embedded sources omit it and fall back to on-load measurement (one
+ * reflow, no persist).
+ */
+export interface ImageDimensionsSource {
+  /** Intrinsic dimensions for an embedded image `src` if already known — read synchronously at render. */
+  getImageDimensions: (src: string | undefined) => ImageDimensions | null
+  /**
+   * Persist an image's measured intrinsic dimensions (fire-and-forget). Overwrites a stored value that
+   * disagrees so a stale size self-corrects; a no-op only when the stored value already matches.
+   */
+  reportImageDimensions: (src: string | undefined, dimensions: ImageDimensions) => void
+}
+
 /**
  * Seam for "where do a file's bytes come from". The in-app viewer resolves the
  * auth-gated workspace serve URL; the public share page swaps in a token-scoped
@@ -35,6 +56,9 @@ export interface FileContentSource {
    * Non-workspace srcs (external, `data:`, public assets) pass through unchanged.
    */
   resolveImageSrc: (src: string | undefined) => string | undefined
+  /** Present only where intrinsic image dimensions are resolvable (the workspace viewer). */
+  getImageDimensions?: ImageDimensionsSource['getImageDimensions']
+  reportImageDimensions?: ImageDimensionsSource['reportImageDimensions']
 }
 
 function buildServeUrl(key: string, opts?: FileContentUrlOptions): string {
@@ -66,8 +90,14 @@ function inlineImageSource(
  * images route through `/api/workspaces/{workspaceId}/files/inline`, which resolves a reference only
  * within this workspace — a cross-workspace embed 404s and does not render.
  */
-export function createWorkspaceFileContentSource(workspaceId: string): FileContentSource {
-  return inlineImageSource(buildServeUrl, `/api/workspaces/${workspaceId}/files/inline`)
+export function createWorkspaceFileContentSource(
+  workspaceId: string,
+  imageDimensions?: ImageDimensionsSource
+): FileContentSource {
+  return {
+    ...inlineImageSource(buildServeUrl, `/api/workspaces/${workspaceId}/files/inline`),
+    ...imageDimensions,
+  }
 }
 
 /**

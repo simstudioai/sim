@@ -21,6 +21,122 @@ import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('CredentialsAPI')
 
+/**
+ * Thrown by the inner duplicate guard inside the create transaction when a
+ * concurrent request slipped a row in between the outer existence check and
+ * our INSERT. The catch maps this to a 409 with a typed `code` so the UI can
+ * map to a friendly message.
+ */
+class DuplicateCredentialError extends Error {
+  constructor() {
+    super('duplicate_display_name')
+    this.name = 'DuplicateCredentialError'
+  }
+}
+
+interface ExistingCredentialSourceParams {
+  workspaceId: string
+  type: 'oauth' | 'env_workspace' | 'env_personal' | 'service_account'
+  accountId?: string | null
+  envKey?: string | null
+  envOwnerUserId?: string | null
+  displayName?: string | null
+  providerId?: string | null
+}
+
+type DbOrTx = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0]
+
+async function findExistingCredentialBySourceWith(
+  exec: DbOrTx,
+  params: ExistingCredentialSourceParams
+) {
+  const { workspaceId, type, accountId, envKey, envOwnerUserId, displayName, providerId } = params
+
+  if (type === 'oauth' && accountId) {
+    const [row] = await exec
+      .select()
+      .from(credential)
+      .where(
+        and(
+          eq(credential.workspaceId, workspaceId),
+          eq(credential.type, 'oauth'),
+          eq(credential.accountId, accountId)
+        )
+      )
+      .limit(1)
+    return row ?? null
+  }
+
+  if (type === 'env_workspace' && envKey) {
+    const [row] = await exec
+      .select()
+      .from(credential)
+      .where(
+        and(
+          eq(credential.workspaceId, workspaceId),
+          eq(credential.type, 'env_workspace'),
+          eq(credential.envKey, envKey)
+        )
+      )
+      .limit(1)
+    return row ?? null
+  }
+
+  if (type === 'env_personal' && envKey && envOwnerUserId) {
+    const [row] = await exec
+      .select()
+      .from(credential)
+      .where(
+        and(
+          eq(credential.workspaceId, workspaceId),
+          eq(credential.type, 'env_personal'),
+          eq(credential.envKey, envKey),
+          eq(credential.envOwnerUserId, envOwnerUserId)
+        )
+      )
+      .limit(1)
+    return row ?? null
+  }
+
+  if (type === 'service_account' && displayName && providerId) {
+    const [row] = await exec
+      .select()
+      .from(credential)
+      .where(
+        and(
+          eq(credential.workspaceId, workspaceId),
+          eq(credential.type, 'service_account'),
+          eq(credential.providerId, providerId),
+          eq(credential.displayName, displayName)
+        )
+      )
+      .limit(1)
+    return row ?? null
+  }
+
+  return null
+}
+
+/**
+ * `return await` is load-bearing, not redundant. Next 16.3.0's Turbopack
+ * optimizer models a bare `return <asyncCall>()` tail call as returning the
+ * promise object, then propagates that always-truthy fact through the caller's
+ * `await`. It concludes `if (existingCredential)` is always taken and — because
+ * every branch inside that block returns — deletes the entire create path from
+ * the emitted bundle, so a first-time create throws on `existingCredential.id`.
+ * Awaiting here makes the optimizer model the resolved value instead.
+ */
+async function findExistingCredentialBySource(params: ExistingCredentialSourceParams) {
+  return await findExistingCredentialBySourceWith(db, params)
+}
+
+async function findExistingCredentialBySourceTx(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  params: ExistingCredentialSourceParams
+) {
+  return await findExistingCredentialBySourceWith(tx, params)
+}
+
 export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
   const session = await getSession()

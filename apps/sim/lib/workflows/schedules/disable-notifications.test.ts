@@ -106,33 +106,6 @@ describe('notifyScheduleAutoDisabled', () => {
     )
   })
 
-  it('resolves a job schedule through sourceUserId and links to scheduled tasks', async () => {
-    queueTableRows(schemaMock.workflowSchedule, [
-      {
-        ...WORKFLOW_SCHEDULE_ROW,
-        sourceType: 'job',
-        jobTitle: 'Weekly report',
-        sourceUserId: 'job-owner',
-        sourceWorkspaceId: 'ws-9',
-        workflowName: null,
-        workflowUserId: null,
-        workflowWorkspaceId: null,
-      },
-    ])
-    queueTableRows(schemaMock.user, [CREATOR])
-
-    await notifyScheduleAutoDisabled({ scheduleId: 's-1', reason: 'authentication_error' })
-
-    expect(renderMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        kind: 'job',
-        resourceName: 'Weekly report',
-        reason: 'authentication_error',
-        manageLink: 'https://app.sim.ai/workspace/ws-9/scheduled-tasks',
-      })
-    )
-  })
-
   it('falls back to the creator alone when the workflow has no workspace', async () => {
     queueTableRows(schemaMock.workflowSchedule, [
       { ...WORKFLOW_SCHEDULE_ROW, workflowWorkspaceId: null },

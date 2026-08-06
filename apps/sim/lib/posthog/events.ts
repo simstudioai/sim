@@ -596,11 +596,6 @@ export interface PostHogEventMap {
     connected_provider_count: number
   }
 
-  suggested_actions_shuffled: {
-    workspace_id: string
-    connected_provider_count: number
-  }
-
   suggested_actions_toggled: {
     workspace_id: string
     expanded: boolean
@@ -669,14 +664,6 @@ export interface PostHogEventMap {
 
   knowledge_base_document_deleted: {
     knowledge_base_id: string
-    workspace_id: string
-  }
-
-  scheduled_task_created: {
-    workspace_id: string
-  }
-
-  scheduled_task_deleted: {
     workspace_id: string
   }
 

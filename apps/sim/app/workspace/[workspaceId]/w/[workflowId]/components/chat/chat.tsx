@@ -14,10 +14,9 @@ import {
   Tooltip,
   Trash,
 } from '@sim/emcn'
-import { Download } from '@sim/emcn/icons'
+import { ArrowUp, CircleAlert, Download, MoreVertical, Paperclip, Square, X } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { AlertCircle, ArrowUp, MoreVertical, Paperclip, Square, X } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { useSession } from '@/lib/auth/auth-client'
 import {
@@ -957,7 +956,7 @@ export function Chat() {
                 className='!p-1.5 -m-1.5'
                 onClick={(e) => e.stopPropagation()}
               >
-                <MoreVertical className='size-[14px]' strokeWidth={2} />
+                <MoreVertical className='size-[14px]' />
               </Button>
             </PopoverTrigger>
             <PopoverContent
@@ -1031,7 +1030,7 @@ export function Chat() {
             <div>
               <div className='rounded-lg border border-[var(--terminal-status-error-border)] bg-[var(--terminal-status-error-bg)]'>
                 <div className='flex items-start gap-2'>
-                  <AlertCircle className='mt-0.5 size-3 shrink-0 text-[var(--text-error)]' />
+                  <CircleAlert className='mt-0.5 size-3 shrink-0 text-[var(--text-error)]' />
                   <div className='flex-1'>
                     <div className='mb-1 font-medium text-[var(--text-error)] text-caption'>
                       File upload error
@@ -1122,10 +1121,7 @@ export function Chat() {
                         : 'bg-[#808080] dark:bg-[#808080]'
                     )}
                   >
-                    <ArrowUp
-                      className='h-3.5 w-3.5 text-white dark:text-black'
-                      strokeWidth={2.25}
-                    />
+                    <ArrowUp className='size-3.5 text-white dark:text-black' />
                   </Button>
                 )}
               </div>

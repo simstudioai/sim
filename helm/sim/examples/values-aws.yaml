@@ -94,6 +94,7 @@ app:
 
     # AWS S3 Cloud Storage Configuration (RECOMMENDED for production)
     # Create S3 buckets in your AWS account and configure IAM permissions
+    STORAGE_PROVIDER: "s3"
     AWS_REGION: "us-west-2"
     AWS_ACCESS_KEY_ID: ""                               # AWS access key (or use IRSA for EKS)
     AWS_SECRET_ACCESS_KEY: ""                           # AWS secret key (or use IRSA for EKS)

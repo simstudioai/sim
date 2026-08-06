@@ -40,6 +40,10 @@ export const flintCreateTaskTool: ToolConfig<FlintCreateTaskParams, FlintCreateT
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({ prompt: params.prompt }),
+    },
     url: `${FLINT_API_BASE_URL}/agent/tasks`,
     method: 'POST',
     headers: (params) => flintHeaders(params),

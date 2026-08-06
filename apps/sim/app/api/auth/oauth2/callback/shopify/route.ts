@@ -7,7 +7,8 @@ import {
   shopifyShopDomainSchema,
 } from '@/lib/api/contracts/oauth-connections'
 import { getSession } from '@/lib/auth'
-import { env } from '@/lib/core/config/env'
+import { EnvCapabilityConfigurationError } from '@/lib/core/config/env-capabilities'
+import { requireConfiguredOAuthClient } from '@/lib/core/config/env-capabilities.server'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
@@ -61,13 +62,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const storedState = request.cookies.get('shopify_oauth_state')?.value
     const storedShop = request.cookies.get('shopify_shop_domain')?.value
 
-    const clientId = env.SHOPIFY_CLIENT_ID
-    const clientSecret = env.SHOPIFY_CLIENT_SECRET
-
-    if (!clientId || !clientSecret) {
-      logger.error('Shopify credentials not configured')
-      return NextResponse.redirect(`${baseUrl}/workspace?error=shopify_config_error`)
-    }
+    const {
+      values: { SHOPIFY_CLIENT_ID: clientId, SHOPIFY_CLIENT_SECRET: clientSecret },
+    } = requireConfiguredOAuthClient('shopify')
 
     if (!validateHmac(searchParams, clientSecret)) {
       logger.error('HMAC validation failed in Shopify OAuth callback')
@@ -164,6 +161,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     return response
   } catch (error) {
     logger.error('Error in Shopify OAuth callback:', error)
-    return NextResponse.redirect(`${baseUrl}/workspace?error=shopify_callback_error`)
+    const errorCode =
+      error instanceof EnvCapabilityConfigurationError && error.capabilityId === 'oauth'
+        ? 'shopify_config_error'
+        : 'shopify_callback_error'
+    return NextResponse.redirect(`${baseUrl}/workspace?error=${errorCode}`)
   }
 })

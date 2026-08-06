@@ -1,8 +1,23 @@
 import { z } from 'zod'
 import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
+import {
+  MAX_SANDBOX_CLI_TOOLS,
+  SANDBOX_CLI_TOOL_IDS,
+} from '@/lib/execution/remote-sandbox/cli-tools'
 
 export const sandboxLanguageSchema = z.enum(['javascript', 'python'])
+
+export const sandboxCliToolSchema = z.enum(SANDBOX_CLI_TOOL_IDS)
+
+export type SandboxCliToolId = z.output<typeof sandboxCliToolSchema>
+
+const sandboxCliToolsSchema = z
+  .array(sandboxCliToolSchema)
+  .max(MAX_SANDBOX_CLI_TOOLS, `A sandbox can install at most ${MAX_SANDBOX_CLI_TOOLS} CLI tools`)
+  .refine((cliTools) => new Set(cliTools).size === cliTools.length, {
+    message: 'CLI tools cannot contain duplicates',
+  })
 
 export const sandboxBuildStatusSchema = z.enum(['pending', 'building', 'ready', 'failed'])
 
@@ -28,6 +43,10 @@ const dependencyListSchema = z
   .array(z.string().max(2000, 'a dependency line is unreasonably long'))
   .max(1000, 'too many lines — paste a shorter dependency list')
 
+const systemPackageListSchema = z
+  .array(z.string().max(2000, 'a system package line is unreasonably long'))
+  .max(1000, 'too many lines — paste a shorter system package list')
+
 const sandboxNameSchema = z
   .string()
   .trim()
@@ -39,6 +58,8 @@ export const sandboxSchema = z.object({
   name: z.string(),
   language: sandboxLanguageSchema,
   dependencies: z.array(z.string()),
+  cliTools: z.array(sandboxCliToolSchema).default([]),
+  systemPackages: z.array(z.string()).default([]),
   /** Absent under the `runtime` strategy, which has nothing to build. */
   buildStatus: sandboxBuildStatusSchema.nullable(),
   /** Classified failure code from the build taxonomy. */
@@ -54,7 +75,7 @@ export const sandboxSchema = z.object({
 
 export type Sandbox = z.output<typeof sandboxSchema>
 
-/** A dependency line the server refused, addressed to the row the user typed it on. */
+/** A dependency or system-package line the server refused, addressed to its submitted row. */
 export const sandboxDependencyIssueSchema = z.object({
   line: z.number().int().positive(),
   value: z.string(),
@@ -62,6 +83,18 @@ export const sandboxDependencyIssueSchema = z.object({
 })
 
 export type SandboxDependencyIssue = z.output<typeof sandboxDependencyIssueSchema>
+
+export const sandboxIssueFieldSchema = z.enum(['dependencies', 'systemPackages'])
+
+export type SandboxIssueField = z.output<typeof sandboxIssueFieldSchema>
+
+export const sandboxValidationErrorSchema = z.object({
+  error: z.string(),
+  issueField: sandboxIssueFieldSchema,
+  issues: z.array(sandboxDependencyIssueSchema),
+})
+
+export type SandboxValidationError = z.output<typeof sandboxValidationErrorSchema>
 
 const sandboxWorkspaceParamsSchema = z.object({
   id: workspaceIdSchema,
@@ -77,6 +110,8 @@ export const createSandboxBodySchema = z.object({
   language: sandboxLanguageSchema,
   /** One entry per submitted line, comments and blanks included, so rejections keep their row. */
   dependencies: dependencyListSchema,
+  cliTools: sandboxCliToolsSchema.default([]),
+  systemPackages: systemPackageListSchema.default([]),
 })
 
 export type CreateSandboxBody = z.input<typeof createSandboxBodySchema>
@@ -86,11 +121,20 @@ export const updateSandboxBodySchema = z
     name: sandboxNameSchema.optional(),
     language: sandboxLanguageSchema.optional(),
     dependencies: dependencyListSchema.optional(),
+    cliTools: sandboxCliToolsSchema.optional(),
+    systemPackages: systemPackageListSchema.optional(),
   })
   .refine(
     (body) =>
-      body.name !== undefined || body.language !== undefined || body.dependencies !== undefined,
-    { message: 'Provide at least one of name, language, or dependencies' }
+      body.name !== undefined ||
+      body.language !== undefined ||
+      body.dependencies !== undefined ||
+      body.cliTools !== undefined ||
+      body.systemPackages !== undefined,
+    {
+      message:
+        'Provide at least one of name, language, dependencies, CLI tools, or system packages',
+    }
   )
 
 export type UpdateSandboxBody = z.input<typeof updateSandboxBodySchema>

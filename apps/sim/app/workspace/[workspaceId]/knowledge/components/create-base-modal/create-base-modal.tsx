@@ -19,9 +19,9 @@ import {
   Loader,
   toast,
 } from '@sim/emcn'
+import { X } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { type FieldErrors, useForm } from 'react-hook-form'
 import { z } from 'zod'

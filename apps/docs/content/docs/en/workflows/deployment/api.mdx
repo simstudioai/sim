@@ -282,13 +282,18 @@ The `version` field is part of the external API contract. Treat the reference as
 
 For long-running workflows, async mode returns an execution ID immediately so you don't need to hold the connection open. Set `"async": true` in the v2 request body. The API returns HTTP 202 with an execution ID and v2 status URL. Poll that execution resource until the run completes.
 
+To stop an individual async request sooner than the workspace policy, set `executionTimeoutSeconds`
+to an integer from `1` to `604800` (seven days) in the v2 request body. The effective limit is the
+smaller of this request value and the account's configured workflow execution timeout. This field
+is rejected unless `async` is `true`; your HTTP client's timeout remains separate.
+
 <Tabs items={['Start Execution', 'Check Status']}>
   <Tab value="Start Execution">
 ```bash
 curl -X POST https://sim.ai/api/v2/workflows/{workflow-id}/execute \
   -H "Content-Type: application/json" \
   -H "x-api-key: $SIM_API_KEY" \
-  -d '{ "input": { "task": "Process this large dataset" }, "async": true }'
+  -d '{ "input": { "task": "Process this large dataset" }, "async": true, "executionTimeoutSeconds": 3600 }'
 ```
 
 **Response** (HTTP 202):
@@ -358,9 +363,10 @@ Poll the `statusUrl` from the initial response until the status is `completed` o
 | Plan | Sync Limit | Async Limit |
 |------|-----------|-------------|
 | **Community** | 5 minutes | 90 minutes |
-| **Pro / Max / Team / Enterprise** | 50 minutes | 90 minutes |
+| **Pro / Max / Team** | 50 minutes | 90 minutes |
+| **Enterprise** | 50 minutes | 90 minutes by default; configurable up to 7 days |
 
-If an execution exceeds its time limit it is automatically marked as `failed`.
+If an execution exceeds its time limit it is automatically marked as `failed`. An async API request may use `executionTimeoutSeconds` to shorten its account policy, but never to extend it.
 
 #### Execution Retention
 

@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { X } from 'lucide-react'
+import { X } from '@sim/emcn/icons'
 import { BaseEdge, EdgeLabelRenderer, type EdgeProps, getSmoothStepPath } from 'reactflow'
 import type { EdgeDiffStatus, EdgeRunStatus } from '../types'
 

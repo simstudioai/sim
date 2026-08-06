@@ -1,7 +1,11 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { isValidUuid } from '@sim/utils/id'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { requestJson } from '@/lib/api/client/request'
+import { forgetPasswordContract } from '@/lib/api/contracts'
 import { client } from '@/lib/auth/auth-client'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 
 const logger = createLogger('AdminUsersQuery')
 
@@ -22,6 +26,18 @@ export interface AdminUser {
   role: string
   banned: boolean
   banReason: string | null
+}
+
+export interface AddUserInput {
+  name: string
+  email: string
+  /**
+   * Omitted when the account is provisioned via a reset email. Better Auth then
+   * creates the user with no credential account; completing the emailed reset
+   * creates one, so the operator never handles the new user's password.
+   */
+  password?: string
+  emailVerified: boolean
 }
 
 interface AdminUserListData {
@@ -45,6 +61,53 @@ function mapUser(u: {
     banned: u.banned ?? false,
     banReason: u.banReason ?? null,
   }
+}
+
+export interface AddUserResult {
+  user: AdminUser
+  /**
+   * Why the provisioning reset email could not be sent, when the account itself
+   * was created. Deliberately not a thrown error: the account exists, so
+   * re-submitting the form would only collide on the email. Callers finish the
+   * create — surfacing the user so its row, and that row's "Reset password"
+   * action, are reachable — and report this alongside.
+   */
+  resetEmailError?: string
+}
+
+export async function addUser({
+  name,
+  email,
+  password,
+  emailVerified,
+}: AddUserInput): Promise<AddUserResult> {
+  const normalizedEmail = email.trim().toLowerCase()
+  const { data, error } = await client.admin.createUser({
+    name: name.trim(),
+    email: normalizedEmail,
+    role: 'user',
+    data: { emailVerified },
+    ...(password ? { password } : {}),
+  })
+  if (error) throw new Error(error.message ?? 'Failed to add user')
+  if (!data?.user) throw new Error('Better Auth did not return the created user')
+
+  const user = mapUser(data.user)
+  if (password) return { user }
+
+  try {
+    await sendPasswordResetEmail(normalizedEmail)
+    return { user }
+  } catch (resetError) {
+    return { user, resetEmailError: getErrorMessage(resetError, 'unknown error') }
+  }
+}
+
+/** Sends the standard password reset email, the same one the login page requests. */
+async function sendPasswordResetEmail(email: string): Promise<void> {
+  await requestJson(forgetPasswordContract, {
+    body: { email, redirectTo: `${getBaseUrl()}/reset-password` },
+  })
 }
 
 async function fetchAdminUsers(
@@ -124,6 +187,30 @@ export function useAdminUsers(offset: number, limit: number, searchQuery: string
     enabled: searchQuery.length > 0,
     staleTime: ADMIN_USER_LIST_STALE_TIME,
     placeholderData: keepPreviousData,
+  })
+}
+
+export function useAddUser() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: addUser,
+    onSettled: () => queryClient.invalidateQueries({ queryKey: adminUserKeys.lists() }),
+    onError: (error) => {
+      logger.error('Failed to add user', error)
+    },
+  })
+}
+
+/**
+ * Emails a user a password reset link. Reads nothing back into the cache — the
+ * user row is unchanged — so it deliberately skips invalidation.
+ */
+export function useSendPasswordReset() {
+  return useMutation({
+    mutationFn: ({ email }: { userId: string; email: string }) => sendPasswordResetEmail(email),
+    onError: (err) => {
+      logger.error('Failed to send password reset email', err)
+    },
   })
 }
 

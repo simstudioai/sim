@@ -21,12 +21,17 @@ import { generatePresignedUploadUrl, headObject } from '@/lib/uploads/core/stora
 const CONNECTION_STRING =
   'DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;'
 
-const { mockHeadBlobObject, mockGetBlobServiceClient, mockGenerateBlobSASQueryParameters } =
-  vi.hoisted(() => ({
-    mockHeadBlobObject: vi.fn(),
-    mockGetBlobServiceClient: vi.fn(),
-    mockGenerateBlobSASQueryParameters: vi.fn(() => ({ toString: () => 'sig=fake' })),
-  }))
+const {
+  mockBlobSASPermissionsParse,
+  mockHeadBlobObject,
+  mockGetBlobServiceClient,
+  mockGenerateBlobSASQueryParameters,
+} = vi.hoisted(() => ({
+  mockBlobSASPermissionsParse: vi.fn(() => 'create-only'),
+  mockHeadBlobObject: vi.fn(),
+  mockGetBlobServiceClient: vi.fn(),
+  mockGenerateBlobSASQueryParameters: vi.fn(() => ({ toString: () => 'sig=fake' })),
+}))
 
 vi.mock('@/lib/uploads/providers/blob/client', () => ({
   headBlobObject: mockHeadBlobObject,
@@ -41,7 +46,7 @@ vi.mock('@/lib/uploads/providers/blob/client', () => ({
 
 vi.mock('@azure/storage-blob', () => ({
   StorageSharedKeyCredential: vi.fn(),
-  BlobSASPermissions: { parse: vi.fn(() => 'w') },
+  BlobSASPermissions: { parse: mockBlobSASPermissionsParse },
   generateBlobSASQueryParameters: mockGenerateBlobSASQueryParameters,
 }))
 
@@ -110,6 +115,14 @@ describe('Azure Blob storage — connection-string-only auth', () => {
     })
 
     expect(mockGenerateBlobSASQueryParameters).toHaveBeenCalled()
+    expect(mockBlobSASPermissionsParse).toHaveBeenCalledWith('c')
+    expect(result.uploadHeaders).toEqual(
+      expect.objectContaining({
+        'If-None-Match': '*',
+        'x-ms-blob-type': 'BlockBlob',
+        'x-ms-meta-simuploadid': expect.any(String),
+      })
+    )
     expect(result.url).toContain('sig=fake')
   })
 })

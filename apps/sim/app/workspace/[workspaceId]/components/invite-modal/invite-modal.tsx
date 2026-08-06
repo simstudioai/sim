@@ -327,7 +327,6 @@ export function InviteModal({
             searchable={isOrganizationInvite}
             searchPlaceholder='Search workspaces...'
             fullWidth
-            flush
             disabled={isSubmitting || !canInvite || workspaceOptions.length <= 1}
           />
         </ChipModalField>

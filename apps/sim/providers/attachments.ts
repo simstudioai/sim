@@ -63,6 +63,8 @@ export interface PreparedProviderAttachment {
   remoteUrl?: string
 }
 
+export type ProviderAttachmentFilenameProjector = (filename: string, extension: string) => string
+
 type ProviderMessageInput = {
   role: string
   content?: string | null
@@ -281,6 +283,40 @@ function getAttachmentContentType(
   return getContentType(mimeType) || (isTextDocumentMimeType(mimeType) ? 'document' : null)
 }
 
+/** True only when this request path transmits the original filename to a model provider. */
+export function isProviderAttachmentFilenameModelBound(
+  file: UserFile,
+  providerId: ProviderId | string,
+  options: { largeFilePathAvailable?: boolean } = {}
+): boolean {
+  if (
+    providerId === 'openai' &&
+    options.largeFilePathAvailable &&
+    shouldUseLargeFilePath(file, providerId)
+  ) {
+    return true
+  }
+
+  const provider = getAttachmentProvider(providerId)
+  if (!provider) return false
+  const contentType = getAttachmentContentType(inferAttachmentMimeType(file))
+  if (contentType !== 'document') return false
+
+  return (
+    providerId === 'openai' ||
+    provider === 'anthropic' ||
+    provider === 'bedrock' ||
+    provider === 'openrouter'
+  )
+}
+
+function getProviderAttachmentFilename(
+  attachment: PreparedProviderAttachment,
+  projectFilename?: ProviderAttachmentFilenameProjector
+): string {
+  return projectFilename?.(attachment.filename, attachment.extension) ?? attachment.filename
+}
+
 function sniffImageMimeType(base64: string): string {
   let bytes: Buffer
   try {
@@ -496,7 +532,8 @@ type AnthropicImageMediaType = Anthropic.Messages.Base64ImageSource['media_type'
 export function buildOpenAIMessageContent(
   content: string | null | undefined,
   files: UserFile[] | undefined,
-  providerId: ProviderId | string
+  providerId: ProviderId | string,
+  projectFilename?: ProviderAttachmentFilenameProjector
 ): string | OpenAIResponsesInputContent[] {
   const attachments = prepareProviderAttachments(files, providerId)
   if (attachments.length === 0) return content ?? ''
@@ -530,7 +567,7 @@ export function buildOpenAIMessageContent(
             } satisfies OpenAI.Responses.ResponseInputFile)
           : ({
               type: 'input_file',
-              filename: attachment.filename,
+              filename: getProviderAttachmentFilename(attachment, projectFilename),
               file_data: attachment.dataUrl,
             } satisfies OpenAI.Responses.ResponseInputFile)
       )
@@ -543,7 +580,8 @@ export function buildOpenAIMessageContent(
 export function buildAnthropicMessageContent(
   content: string | null | undefined,
   files: UserFile[] | undefined,
-  providerId: ProviderId | string
+  providerId: ProviderId | string,
+  projectFilename?: ProviderAttachmentFilenameProjector
 ): Anthropic.Messages.ContentBlockParam[] {
   const parts: Anthropic.Messages.ContentBlockParam[] = []
   if (content) {
@@ -571,7 +609,7 @@ export function buildAnthropicMessageContent(
       parts.push({
         type: 'document',
         source: { type: 'url', url: attachment.remoteUrl },
-        title: attachment.filename,
+        title: getProviderAttachmentFilename(attachment, projectFilename),
       } satisfies Anthropic.Messages.DocumentBlockParam)
     } else if (attachment.text) {
       parts.push({
@@ -581,7 +619,7 @@ export function buildAnthropicMessageContent(
           media_type: 'text/plain',
           data: attachment.text,
         },
-        title: attachment.filename,
+        title: getProviderAttachmentFilename(attachment, projectFilename),
       } satisfies Anthropic.Messages.DocumentBlockParam)
     } else {
       parts.push({
@@ -591,7 +629,7 @@ export function buildAnthropicMessageContent(
           media_type: 'application/pdf',
           data: attachment.base64 ?? '',
         },
-        title: attachment.filename,
+        title: getProviderAttachmentFilename(attachment, projectFilename),
       } satisfies Anthropic.Messages.DocumentBlockParam)
     }
   }
@@ -661,7 +699,8 @@ export function buildOpenAICompatibleChatContent(
 export function buildOpenRouterMessageContent(
   content: string | null | undefined,
   files: UserFile[] | undefined,
-  providerId: ProviderId | string
+  providerId: ProviderId | string,
+  projectFilename?: ProviderAttachmentFilenameProjector
 ): string | OpenAIChatContentPart[] {
   const attachments = prepareProviderAttachments(files, providerId)
   if (attachments.length === 0) return content ?? ''
@@ -684,7 +723,7 @@ export function buildOpenRouterMessageContent(
       parts.push({
         type: 'file',
         file: {
-          filename: attachment.filename,
+          filename: getProviderAttachmentFilename(attachment, projectFilename),
           file_data: attachment.remoteUrl ?? attachment.dataUrl ?? '',
         },
       } satisfies OpenAI.Chat.Completions.ChatCompletionContentPart.File)
@@ -700,6 +739,16 @@ function sanitizeBedrockName(filename: string): string {
   return compacted || 'Document'
 }
 
+function getBedrockDocumentName(
+  attachment: PreparedProviderAttachment,
+  projectFilename?: ProviderAttachmentFilenameProjector
+): string {
+  const projectedFilename = getProviderAttachmentFilename(attachment, projectFilename)
+  return projectedFilename === attachment.filename
+    ? sanitizeBedrockName(attachment.filename)
+    : 'Document'
+}
+
 function getBedrockDocumentFormat(attachment: PreparedProviderAttachment): string {
   if (attachment.extension === 'md' || attachment.mimeType === 'text/markdown') return 'md'
   if (attachment.extension === 'txt' || attachment.mimeType === 'text/plain') return 'txt'
@@ -713,7 +762,8 @@ function getBedrockImageFormat(attachment: PreparedProviderAttachment): string {
 export function buildBedrockMessageContent(
   content: string | null | undefined,
   files: UserFile[] | undefined,
-  providerId: ProviderId | string
+  providerId: ProviderId | string,
+  projectFilename?: ProviderAttachmentFilenameProjector
 ): ContentBlock[] {
   const parts: ContentBlock[] = []
   if (content) {
@@ -742,7 +792,7 @@ export function buildBedrockMessageContent(
           format: getBedrockDocumentFormat(
             attachment
           ) as ContentBlock.DocumentMember['document']['format'],
-          name: sanitizeBedrockName(attachment.filename),
+          name: getBedrockDocumentName(attachment, projectFilename),
           source: { bytes },
         },
       } as ContentBlock.DocumentMember)
@@ -761,7 +811,8 @@ const SDK_NATIVE_ATTACHMENT_PROVIDERS = new Set<AttachmentProvider>([
 
 export function formatMessagesForProvider(
   messages: ProviderMessageInput[],
-  providerId: ProviderId | string
+  providerId: ProviderId | string,
+  projectFilename?: ProviderAttachmentFilenameProjector
 ): ProviderFormattedMessage[] {
   const provider = getAttachmentProvider(providerId)
   if (provider && SDK_NATIVE_ATTACHMENT_PROVIDERS.has(provider)) {
@@ -777,9 +828,12 @@ export function formatMessagesForProvider(
       const { files: _omit, ...rest } = message
       return {
         ...rest,
-        content: buildOpenRouterMessageContent(message.content, message.files, providerId) as
-          | string
-          | Array<Record<string, unknown>>,
+        content: buildOpenRouterMessageContent(
+          message.content,
+          message.files,
+          providerId,
+          projectFilename
+        ) as string | Array<Record<string, unknown>>,
       }
     }
 

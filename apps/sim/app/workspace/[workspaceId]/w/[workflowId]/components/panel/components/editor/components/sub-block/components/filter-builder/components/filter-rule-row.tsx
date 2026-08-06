@@ -10,7 +10,7 @@ import {
   Label,
   Trash,
 } from '@sim/emcn'
-import { Plus } from 'lucide-react'
+import { Plus } from '@sim/emcn/icons'
 import type { FilterRule } from '@/lib/table/query-builder/constants'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
@@ -114,7 +114,7 @@ export function FilterRuleRow({
       }}
     >
       <div className='flex min-w-0 flex-1 items-center gap-2'>
-        <span className='block truncate font-medium text-[var(--text-tertiary)] text-sm'>
+        <span className='block truncate text-[var(--text-tertiary)] text-sm'>
           {rule.collapsed && rule.column
             ? formatDisplayText(getColumnLabel(rule.column), {
                 workflowSearchHighlight: getLabelHighlight('column', getColumnLabel(rule.column)),
@@ -175,12 +175,12 @@ export function FilterRuleRow({
         disabled={isReadOnly}
         autoComplete='off'
         placeholder='Enter value'
-        className='allow-scroll w-full overflow-auto text-transparent caret-foreground'
+        className='allow-scroll w-full overflow-auto text-transparent caret-foreground [letter-spacing:inherit]'
       />
       <div
         ref={overlayRef}
         className={cn(
-          'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 font-medium font-sans text-sm',
+          'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 font-sans text-sm',
           !isReadOnly && 'pointer-events-none'
         )}
       >

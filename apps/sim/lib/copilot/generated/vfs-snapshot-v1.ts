@@ -14,6 +14,7 @@ export interface VfsSnapshotV1 {
   knowledgeBases?: VfsSnapshotV1KnowledgeBase[]
   mcpServers?: VfsSnapshotV1McpServer[]
   members?: VfsSnapshotV1Member[]
+  sandboxes?: VfsSnapshotV1Sandbox[]
   skills?: VfsSnapshotV1Skill[]
   tables?: VfsSnapshotV1Table[]
   workflows?: VfsSnapshotV1Workflow[]
@@ -99,6 +100,18 @@ export interface VfsSnapshotV1Member {
   email: string
   name?: string
   permissionType?: string
+}
+/**
+ * This interface was referenced by `VfsSnapshotV1`'s JSON-Schema
+ * via the `definition` "VfsSnapshotV1Sandbox".
+ */
+export interface VfsSnapshotV1Sandbox {
+  cliTools?: string[]
+  dependencies?: string[]
+  id: string
+  language: string
+  name: string
+  systemPackages?: string[]
 }
 /**
  * This interface was referenced by `VfsSnapshotV1`'s JSON-Schema

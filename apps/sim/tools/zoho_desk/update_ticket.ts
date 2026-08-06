@@ -19,12 +19,13 @@ import {
  * `{"subject": null, "status": "Closed"}`, which either fails the PATCH or blanks
  * the ticket's subject.
  *
- * An empty string is NOT treated as unset. Zoho documents `""` as its idiom for
- * clearing a field - its own PATCH sample carries `"classification": ""` and
- * `"productId": ""` - so collapsing `''` into "leave unchanged" would make
- * clearing `classification`, `category`, `subCategory`, `resolution` or
- * `description` impossible through this tool. `null` (never touched) and `''`
- * (deliberately emptied) are different intents and are kept distinct.
+ * An empty string is NOT treated as unset. Zoho's own PATCH sample payload
+ * carries `"classification": ""` and `"productId": ""`, so `''` is the only
+ * clear-a-field signal the API surfaces (Zoho states no prose contract for it) -
+ * collapsing `''` into "leave unchanged" would make clearing `classification`,
+ * `category`, `subCategory`, `resolution` or `description` impossible through
+ * this tool. `null` (never touched) and `''` (deliberately emptied) are
+ * different intents and are kept distinct.
  */
 function omitUnset(fields: Record<string, unknown>): Record<string, unknown> {
   const result: Record<string, unknown> = {}
@@ -132,7 +133,11 @@ export const zohoDeskUpdateTicketTool: ToolConfig<ZohoDeskUpdateTicketParams, Zo
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Ticket classification: Problem, Request, Question, or Others',
+      // Not a closed set: Zoho marks the field `x-dynamic-enum` and states
+      // "Custom values are also supported", so a portal can rename or replace
+      // the system-defined values entirely.
+      description:
+        'Ticket classification. Zoho\'s system-defined values are Problem, Request, and Question; portals can define custom values. Pass "" to clear it.',
     },
     customFields: {
       type: 'json',
@@ -160,10 +165,9 @@ export const zohoDeskUpdateTicketTool: ToolConfig<ZohoDeskUpdateTicketParams, Zo
         description: params.description,
         resolution: params.resolution,
         classification: params.classification,
-        // Zoho's ticket PATCH names the custom-field object `cf`. `customFields`
-        // exists only as a deprecated alias on other Desk resources (e.g. events)
-        // and on the separate validate-field-updates endpoint - sending it here
-        // is silently ignored, so the update reports success without applying.
+        // Zoho's ticket PATCH documents both `cf` and `customFields`, but marks
+        // `customFields` deprecated. Its own sample body sends `cf`, so that is
+        // what we use.
         cf: params.customFields,
       })
       // Zoho rejects an empty PATCH; fail early with an actionable message

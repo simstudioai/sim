@@ -6,7 +6,6 @@ export const MothershipResourceType = {
   folder: 'folder',
   filefolder: 'filefolder',
   task: 'task',
-  scheduledtask: 'scheduledtask',
   log: 'log',
   integration: 'integration',
   generic: 'generic',
@@ -54,7 +53,6 @@ const RESOURCE_POLICY: Record<MothershipResourceType, ResourcePolicy> = {
   folder: { persisted: true },
   filefolder: { persisted: true },
   task: { persisted: true },
-  scheduledtask: { persisted: true },
   log: { persisted: true },
   integration: { persisted: true },
   // A synthetic panel with no addressable entity behind it to reopen.
@@ -147,7 +145,6 @@ export const GENERIC_RESOURCE_TITLES = new Set<string>([
   'Workflow',
   'Knowledge Base',
   'Folder',
-  'Scheduled Task',
   'Log',
 ])
 
@@ -157,5 +154,4 @@ export const VFS_DIR_TO_RESOURCE: Record<string, MothershipResourceType> = {
   workflows: 'workflow',
   knowledgebases: 'knowledgebase',
   folders: 'folder',
-  jobs: 'scheduledtask',
 } as const

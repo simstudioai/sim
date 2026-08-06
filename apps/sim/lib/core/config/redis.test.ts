@@ -1,7 +1,11 @@
-import { createEnvMock, createMockRedis } from '@sim/testing'
+import { createMockRedis } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { MockRedisConstructor } = vi.hoisted(() => ({
+const { mockEnv, MockRedisConstructor } = vi.hoisted(() => ({
+  mockEnv: {
+    REDIS_URL: 'redis://localhost:6379' as string | undefined,
+    REDIS_TLS_SERVERNAME: undefined as string | undefined,
+  },
   MockRedisConstructor: vi.fn(),
 }))
 
@@ -15,7 +19,7 @@ MockRedisConstructor.mockImplementation(
 )
 
 vi.unmock('@/lib/core/config/redis')
-vi.mock('@/lib/core/config/env', () => createEnvMock({ REDIS_URL: 'redis://localhost:6379' }))
+vi.mock('@/lib/core/config/env', () => ({ env: mockEnv }))
 vi.mock('ioredis', () => ({
   default: MockRedisConstructor,
 }))
@@ -33,6 +37,8 @@ describe('redis config', () => {
     vi.clearAllMocks()
     vi.useFakeTimers()
     resetForTesting()
+    mockEnv.REDIS_URL = 'redis://localhost:6379'
+    mockEnv.REDIS_TLS_SERVERNAME = undefined
     MockRedisConstructor.mockImplementation(
       class {
         constructor() {
@@ -193,17 +199,40 @@ describe('redis config', () => {
       expect(extended).toBe(false)
     })
 
-    it('returns true as a no-op when Redis is unavailable', async () => {
-      vi.resetModules()
-      vi.doMock('@/lib/core/config/env', () =>
-        createEnvMock({ REDIS_URL: undefined as unknown as string })
-      )
-      const { extendLock: extendLockNoRedis } = await import('@/lib/core/config/redis')
+    it('returns true as a no-op when the cache capability selects the database', async () => {
+      mockEnv.REDIS_URL = undefined
 
-      const extended = await extendLockNoRedis(lockKey, value, ttlSeconds)
+      const extended = await extendLock(lockKey, value, ttlSeconds)
 
       expect(extended).toBe(true)
-      vi.doUnmock('@/lib/core/config/env')
+    })
+  })
+
+  describe('capability validation', () => {
+    it('rejects a non-Redis URL before constructing a client', () => {
+      mockEnv.REDIS_URL = 'https://cache.example.com'
+
+      expect(() => getRedisClient()).toThrow(/valid redis:\/\/ or rediss:\/\/ URL/)
+      expect(MockRedisConstructor).not.toHaveBeenCalled()
+    })
+
+    it('requires TLS servername for a rediss IP before constructing a client', () => {
+      mockEnv.REDIS_URL = 'rediss://10.0.0.1:6379'
+
+      expect(() => getRedisClient()).toThrow(/REDIS_TLS_SERVERNAME is required/)
+      expect(MockRedisConstructor).not.toHaveBeenCalled()
+    })
+
+    it('passes the configured TLS servername to Redis', () => {
+      mockEnv.REDIS_URL = 'rediss://10.0.0.1:6379'
+      mockEnv.REDIS_TLS_SERVERNAME = 'cache.example.com'
+
+      getRedisClient()
+
+      expect(MockRedisConstructor).toHaveBeenCalledWith(
+        mockEnv.REDIS_URL,
+        expect.objectContaining({ tls: { servername: 'cache.example.com' } })
+      )
     })
   })
 

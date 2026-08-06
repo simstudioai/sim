@@ -47,6 +47,11 @@ vi.mock('@/lib/billing/core/subscription', () => ({
 }))
 vi.mock('@/lib/core/execution-limits', () => ({
   getExecutionTimeout: vi.fn(() => 0),
+  resolveAsyncExecutionTimeout: vi.fn((policyTimeoutMs, requestedTimeoutSeconds) => {
+    if (requestedTimeoutSeconds === undefined) return policyTimeoutMs
+    const requestedTimeoutMs = requestedTimeoutSeconds * 1000
+    return policyTimeoutMs > 0 ? Math.min(policyTimeoutMs, requestedTimeoutMs) : requestedTimeoutMs
+  }),
 }))
 vi.mock('@/lib/core/rate-limiter/rate-limiter', () => ({
   RateLimiter: vi.fn(function (this: unknown) {

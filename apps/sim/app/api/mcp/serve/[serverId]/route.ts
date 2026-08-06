@@ -59,6 +59,11 @@ import {
 import { getMeaningfulWorkflowDescription } from '@/lib/mcp/workflow-tool-schema'
 import { executeWorkflowService } from '@/lib/workflows/executor/execute-service'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
+import {
+  isResolvedSecretTraceProvenanceV1,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('WorkflowMcpServeAPI')
 const MAX_MCP_SERVE_BODY_BYTES = 10 * 1024 * 1024
@@ -191,6 +196,36 @@ function serializeToolText(value: unknown): string {
     'MCP tool result text'
   )
   return text
+}
+
+async function projectWorkflowToolOutput(
+  value: unknown,
+  provenance: unknown,
+  scope: { userId: string; workspaceId: string }
+): Promise<unknown> {
+  if (
+    !isResolvedSecretTraceProvenanceV1(provenance) ||
+    !provenance.complete ||
+    provenance.scope?.userId !== scope.userId ||
+    provenance.scope.workspaceId !== scope.workspaceId
+  ) {
+    throw new Error('MCP workflow execution provenance is unavailable')
+  }
+
+  const registry = new ResolvedSecretTraceRegistry([], scope)
+  const imported = await registry.importProvenance(provenance, { trusted: true })
+  if (!imported || !registry.isComplete()) {
+    throw new Error('MCP workflow execution provenance could not be restored')
+  }
+  const projected = projectResolvedSecretModelContent(
+    value,
+    registry,
+    MAX_MCP_TOOL_RESULT_TEXT_BYTES
+  )
+  if (!projected.safe) {
+    throw new Error('MCP workflow execution output could not be safely projected')
+  }
+  return projected.value
 }
 
 function createJsonRpcResponseWithLimit(
@@ -893,8 +928,13 @@ async function handleToolsCall(
           error: serviceResult.error,
         }
       : (serviceResult.output ?? {})
+    const projectedToolOutput = await projectWorkflowToolOutput(
+      toolOutput,
+      serviceResult.resolvedSecretTraceProvenance,
+      { userId: actorUserId, workspaceId: wf.workspaceId }
+    )
     const result: CallToolResult = {
-      content: [{ type: 'text', text: serializeToolText(toolOutput) }],
+      content: [{ type: 'text', text: serializeToolText(projectedToolOutput) }],
       isError,
     }
 

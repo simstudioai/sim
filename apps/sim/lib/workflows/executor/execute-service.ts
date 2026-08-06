@@ -46,6 +46,7 @@ import {
   hasExecutionResult,
   type StructuredExecutionError,
 } from '@/executor/utils/errors'
+import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
 import { Serializer } from '@/serializer'
 import type { CoreTriggerType } from '@/stores/logs/filters/types'
 
@@ -88,6 +89,8 @@ export interface ExecuteWorkflowServiceParams {
   rejectLargeInlineOutput?: boolean
   /** Which rate-limit bucket preprocessing debits. */
   rateLimitCounter?: 'sync' | 'async'
+  /** Optional caller-requested async cap in seconds, bounded by preprocessing policy. */
+  requestedTimeoutSeconds?: number
   /** Outer request signal; aborting cancels the run (client disconnect). */
   abortSignal?: AbortSignal
   /**
@@ -122,6 +125,8 @@ export interface ExecuteWorkflowServiceRun {
   aborted: 'client' | 'timeout' | null
   output: NormalizedBlockOutput | undefined
   error: StructuredExecutionError | null
+  /** Trusted execution-local catalog used by internal callers to project model-visible output. */
+  resolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
   hasResponseBlock: boolean
   startedAt?: string
   endedAt?: string
@@ -204,6 +209,7 @@ export async function executeWorkflowService(
     selectedOutputs = [],
     rejectLargeInlineOutput = false,
     rateLimitCounter = 'sync',
+    requestedTimeoutSeconds,
     abortSignal,
     mode = 'sync',
     requestHeaders,
@@ -280,6 +286,8 @@ export async function executeWorkflowService(
       useAuthenticatedUserAsActor,
       workflowRecord,
       billingAttribution: upstreamBillingAttribution,
+      executionType: mode === 'async' ? 'async' : 'sync',
+      requestedTimeoutSeconds,
     })
 
     if (!preprocessResult.success) {
@@ -326,6 +334,7 @@ export async function executeWorkflowService(
         triggerType,
         executionId,
         callChain,
+        executionTimeoutMs: preprocessResult.executionTimeout.async,
       })
       executionIdClaimCommitted = enqueue.retainExecutionClaim
       if (enqueue.outcome === 'rejected') {
@@ -569,6 +578,7 @@ export async function executeWorkflowService(
           aborted: 'client',
           output: undefined,
           error: { message: 'Client cancelled request', code: 'CANCELLED' },
+          resolvedSecretTraceProvenance: result.executionState?.resolvedSecretTraceProvenance,
           hasResponseBlock: false,
         }
       }
@@ -590,6 +600,7 @@ export async function executeWorkflowService(
           aborted: 'timeout',
           output: compactTimeoutOutput,
           error: { message: timeoutErrorMessage, code: 'TIMEOUT' },
+          resolvedSecretTraceProvenance: result.executionState?.resolvedSecretTraceProvenance,
           hasResponseBlock: false,
           startedAt: result.metadata?.startTime,
           endedAt: result.metadata?.endTime,
@@ -636,6 +647,7 @@ export async function executeWorkflowService(
           status === 'failed' || (status === 'cancelled' && result.error)
             ? classifyExecutionError(result.error ? new Error(result.error) : undefined, result)
             : null,
+        resolvedSecretTraceProvenance: result.executionState?.resolvedSecretTraceProvenance,
         hasResponseBlock: workflowHasResponseBlock(result),
         startedAt: result.metadata?.startTime,
         endedAt: result.metadata?.endTime,
@@ -643,6 +655,7 @@ export async function executeWorkflowService(
       }
     } catch (error: unknown) {
       const errorMessage = getErrorMessage(error, 'Unknown error')
+      const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
 
       if (isRequestAborted() && !timeoutController.isTimedOut()) {
         reqLogger.info('Execution aborted after client disconnect')
@@ -654,6 +667,8 @@ export async function executeWorkflowService(
           aborted: 'client',
           output: undefined,
           error: { message: 'Client cancelled request', code: 'CANCELLED' },
+          resolvedSecretTraceProvenance:
+            executionResult?.executionState?.resolvedSecretTraceProvenance,
           hasResponseBlock: false,
         }
       }
@@ -674,7 +689,6 @@ export async function executeWorkflowService(
 
       reqLogger.error(`Execution failed: ${errorMessage}`)
 
-      const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
       let compactErrorOutput: NormalizedBlockOutput | undefined
       if (executionResult && Object.hasOwn(executionResult, 'output')) {
         try {
@@ -705,6 +719,8 @@ export async function executeWorkflowService(
         aborted: null,
         output: compactErrorOutput,
         error: classifyExecutionError(error, executionResult),
+        resolvedSecretTraceProvenance:
+          executionResult?.executionState?.resolvedSecretTraceProvenance,
         hasResponseBlock: false,
         startedAt: executionResult?.metadata?.startTime,
         endedAt: executionResult?.metadata?.endTime,

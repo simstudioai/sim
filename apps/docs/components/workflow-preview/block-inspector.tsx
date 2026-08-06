@@ -10,7 +10,7 @@ import {
   FieldDivider,
   Label,
 } from '@sim/emcn'
-import { BookOpen, Pencil } from 'lucide-react'
+import { BookOpen, Pencil } from '@sim/emcn/icons'
 import { resolveIcon } from '@/components/workflow-preview/block-icons'
 import { formatReferences } from '@/components/workflow-preview/format-references'
 
@@ -101,7 +101,7 @@ function FieldControl({ field }: { field: InspectorField }) {
             style={{ left: `calc(${percent}% - 6px)` }}
           />
         </div>
-        <span className='text-[13px] text-[var(--text-primary)]'>{field.value}</span>
+        <span className='text-[var(--text-primary)] text-small'>{field.value}</span>
       </div>
     )
   }

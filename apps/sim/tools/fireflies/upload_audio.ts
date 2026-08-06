@@ -1,3 +1,4 @@
+import { isPlainRecord } from '@sim/utils/object'
 import type {
   FirefliesUploadAudioParams,
   FirefliesUploadAudioResponse,
@@ -66,65 +67,52 @@ export const firefliesUploadAudioTool: ToolConfig<
   },
 
   request: {
-    url: 'https://api.fireflies.ai/graphql',
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({ language: params.language }),
+      privateProvenance: (params) => {
+        if (isPlainRecord(params.audioFile)) {
+          if (params.audioFile.key) return undefined
+          if (params.audioFile.url) return { url: params.audioFile.url }
+          if (params.audioFile.path) return { path: params.audioFile.path }
+        }
+        return params.audioUrl || undefined
+      },
+    },
+    url: '/api/tools/fireflies/upload-audio',
     method: 'POST',
-    headers: (params) => {
+    headers: () => ({
+      'Content-Type': 'application/json',
+    }),
+    body: (params) => {
       if (!params.apiKey) {
         throw new Error('Missing API key for Fireflies API request')
       }
-      return {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${params.apiKey}`,
-      }
-    },
-    body: (params) => {
-      let url: string | undefined
-
-      if (params.audioFile) {
-        url = params.audioFile.url || params.audioFile.path
-      }
-
-      if (!url && params.audioUrl) {
-        url = params.audioUrl
-      }
-
-      if (!url) {
+      const hasAudioFile = Boolean(
+        params.audioFile?.key || params.audioFile?.url || params.audioFile?.path
+      )
+      if (!hasAudioFile && !params.audioUrl) {
         throw new Error('Either an audio file or audio URL is required')
       }
 
-      if (!url.startsWith('https://')) {
-        throw new Error('Audio URL must be a valid HTTPS URL')
-      }
-
-      const input: Record<string, unknown> = {
-        url,
-      }
-
-      if (params.title) input.title = params.title
-      if (params.webhook) input.webhook = params.webhook
-      if (params.language) input.custom_language = params.language
-      if (params.clientReferenceId) input.client_reference_id = params.clientReferenceId
+      let attendees: unknown
       if (params.attendees) {
         try {
-          input.attendees = JSON.parse(params.attendees)
+          attendees = JSON.parse(params.attendees)
         } catch {
           throw new Error('Invalid attendees JSON format')
         }
       }
 
       return {
-        query: `
-          mutation UploadAudio($input: AudioUploadInput) {
-            uploadAudio(input: $input) {
-              success
-              title
-              message
-            }
-          }
-        `,
-        variables: {
-          input,
-        },
+        apiKey: params.apiKey,
+        audioFile: params.audioFile,
+        audioUrl: params.audioUrl,
+        title: params.title,
+        webhook: params.webhook,
+        language: params.language,
+        attendees,
+        clientReferenceId: params.clientReferenceId,
       }
     },
   },

@@ -6,7 +6,13 @@ import { createLogger } from '@sim/logger'
 import { backoffWithJitter } from '@sim/utils/retry'
 import { useQueryClient } from '@tanstack/react-query'
 import type { ActiveDispatch } from '@/lib/api/contracts/tables'
-import type { RowData, RowExecutionMetadata, RowExecutions, TableDefinition } from '@/lib/table'
+import type {
+  RowData,
+  RowExecutionMetadata,
+  RowExecutions,
+  TableDefinition,
+  TableRow,
+} from '@/lib/table'
 import type { TableEvent, TableEventEntry } from '@/lib/table/events'
 import {
   consumeInitiatedExport,
@@ -34,6 +40,99 @@ interface UseTableEventStreamArgs {
   /** Fired when the server halts a dispatch because the billed account is over
    *  its usage limit. The page surfaces an upgrade prompt + redirect. */
   onUsageLimitReached?: (event: { dispatchId?: string; message: string }) => void
+}
+
+const TERMINAL_CELL_STATUSES = new Set<RowExecutionMetadata['status']>([
+  'completed',
+  'cancelled',
+  'error',
+])
+const ACTIVE_CELL_STATUSES = new Set<RowExecutionMetadata['status']>([
+  'pending',
+  'queued',
+  'running',
+])
+const PICKUP_CELL_STATUSES = new Set<RowExecutionMetadata['status']>(['queued', 'running'])
+
+/**
+ * Accepts only transitions that are owned by the cached attempt. A fresh run
+ * first writes an id-less pending pre-stamp and then claims it with a queued or
+ * running event. That handoff is the only identified event allowed to replace
+ * an id-less active state.
+ */
+function canApplyCellEvent(
+  prevExec: RowExecutionMetadata | undefined,
+  event: Extract<TableEvent, { kind: 'cell' }>
+): boolean {
+  if (TERMINAL_CELL_STATUSES.has(event.status)) {
+    if (!prevExec || prevExec.executionId !== event.executionId) return false
+    if (!TERMINAL_CELL_STATUSES.has(prevExec.status)) return true
+    if (prevExec.status === event.status) return true
+
+    /**
+     * Cancellation may repair an error emitted by the exact worker after the
+     * workflow log had already accepted cancellation. Once cancellation is in
+     * cache, however, delayed terminal events from that worker cannot replace it.
+     */
+    return event.status === 'cancelled' && prevExec.status === 'error'
+  }
+
+  if (!ACTIVE_CELL_STATUSES.has(event.status)) return false
+
+  if (event.executionId !== null) {
+    if (!prevExec) return false
+    const isFirstPickup =
+      prevExec.status === 'pending' &&
+      prevExec.executionId === null &&
+      PICKUP_CELL_STATUSES.has(event.status)
+    if (isFirstPickup) return true
+    return ACTIVE_CELL_STATUSES.has(prevExec.status) && prevExec.executionId === event.executionId
+  }
+
+  if (event.status !== 'pending') return false
+  if (!prevExec) return true
+  if (TERMINAL_CELL_STATUSES.has(prevExec.status)) return false
+
+  /**
+   * The run mutation optimistically marks a terminal attempt pending while
+   * retaining its old execution id. The server's id-less pre-stamp owns the
+   * next generation and is allowed to replace that synthetic state. A real
+   * paused attempt carries a job id and remains protected.
+   */
+  return prevExec.status === 'pending' && prevExec.jobId === null
+}
+
+/**
+ * Applies a cell event without letting a transition from an older attempt
+ * replace the current attempt in the row cache.
+ */
+export function applyCellEventToRow(
+  row: TableRow,
+  event: Extract<TableEvent, { kind: 'cell' }>
+): TableRow | null {
+  if (row.id !== event.rowId) return null
+
+  const prevExec = row.executions?.[event.groupId]
+  if (!canApplyCellEvent(prevExec, event)) return null
+
+  const nextExec: RowExecutionMetadata = {
+    status: event.status,
+    executionId: event.executionId,
+    jobId: event.jobId,
+    // Preserve workflowId from cache; SSE payload doesn't carry it.
+    workflowId: prevExec?.workflowId ?? '',
+    error: event.error,
+    ...(event.runningBlockIds ? { runningBlockIds: event.runningBlockIds } : {}),
+    ...(event.blockErrors ? { blockErrors: event.blockErrors } : {}),
+  }
+  const nextExecutions: RowExecutions = {
+    ...(row.executions ?? {}),
+    [event.groupId]: nextExec,
+  }
+  const nextData: RowData = event.outputs
+    ? ({ ...row.data, ...event.outputs } as RowData)
+    : row.data
+  return { ...row, executions: nextExecutions, data: nextData }
 }
 
 /**
@@ -147,42 +246,9 @@ export function useTableEventStream({
     }
 
     const applyCell = (event: Extract<TableEvent, { kind: 'cell' }>): void => {
-      const {
-        rowId,
-        groupId,
-        status,
-        executionId,
-        jobId,
-        error,
-        outputs,
-        runningBlockIds,
-        blockErrors,
-      } = event
-      void snapshotAndMutateRows(
-        queryClient,
-        tableId,
-        (row) => {
-          if (row.id !== rowId) return null
-          const prevExec = row.executions?.[groupId]
-          const nextExec: RowExecutionMetadata = {
-            status,
-            executionId: executionId ?? null,
-            jobId: jobId ?? null,
-            // Preserve workflowId from cache; SSE payload doesn't carry it.
-            workflowId: prevExec?.workflowId ?? '',
-            error: error ?? null,
-            ...(runningBlockIds ? { runningBlockIds } : {}),
-            ...(blockErrors ? { blockErrors } : {}),
-          }
-          const nextExecutions: RowExecutions = {
-            ...(row.executions ?? {}),
-            [groupId]: nextExec,
-          }
-          const nextData: RowData = outputs ? ({ ...row.data, ...outputs } as RowData) : row.data
-          return { ...row, executions: nextExecutions, data: nextData }
-        },
-        { cancelInFlight: false }
-      )
+      void snapshotAndMutateRows(queryClient, tableId, (row) => applyCellEventToRow(row, event), {
+        cancelInFlight: false,
+      })
       // `runningByRowId` (the "X running" badge + per-row gutter) is
       // server-derived: refetch the snapshot on the throttle instead of
       // maintaining client-side ±1 deltas, which drift on unloaded rows,

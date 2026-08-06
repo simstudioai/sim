@@ -30,6 +30,7 @@ import {
 import { importAppendRows, importReplaceRows } from '@/lib/table/import-data'
 import { markTableJobRunning, releaseJobClaim } from '@/lib/table/jobs/service'
 import { TableLockedError } from '@/lib/table/mutation-locks'
+import { createExactEmptyTableRowSecretProvenance } from '@/lib/table/rows/secret-provenance'
 import { batchInsertRows, dispatchAfterBatchInsert } from '@/lib/table/rows/service'
 import { createTable, deleteTable } from '@/lib/table/service'
 import type { RowData, TableDefinition, TableLockKind, TableSchema } from '@/lib/table/types'
@@ -416,7 +417,13 @@ export async function performCreateTableFromCsv(
     if (batch.length === 0) return 0
     const coerced = coerceRowsForTable(batch, state.schema, state.headerToColumn, { timezone })
     const inserted = await batchInsertRows(
-      { tableId: state.table.id, rows: coerced as RowData[], workspaceId, userId },
+      {
+        tableId: state.table.id,
+        rows: coerced as RowData[],
+        workspaceId,
+        userId,
+        secretProvenance: coerced.map(createExactEmptyTableRowSecretProvenance),
+      },
       // The created table's rowCount is frozen at 0; pass the running total so the
       // per-batch capacity check sees cumulative rows, not an always-empty table.
       { ...state.table, rowCount: currentRowCount },

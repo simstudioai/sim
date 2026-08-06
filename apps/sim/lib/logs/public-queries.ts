@@ -7,6 +7,7 @@ import {
   workflowExecutionSnapshots,
 } from '@sim/db/schema'
 import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
+import { workflowExecutionOriginSql } from '@/lib/logs/execution-origin'
 import { buildLogFilters, getOrderBy, type LogFilters } from '@/lib/logs/public-filters'
 
 export interface PublicLogCursor {
@@ -161,6 +162,7 @@ export async function getPublicWorkflowLog(lookup: PublicWorkflowLogLookup, work
       pausedStatus: pausedExecutions.status,
       pausedTotalPauseCount: pausedExecutions.totalPauseCount,
       pausedResumedCount: pausedExecutions.resumedCount,
+      executionOrigin: workflowExecutionOriginSql().as('execution_origin'),
     })
     .from(workflowExecutionLogs)
     .leftJoin(

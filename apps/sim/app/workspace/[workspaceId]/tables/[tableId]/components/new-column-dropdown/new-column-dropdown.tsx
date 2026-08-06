@@ -12,7 +12,7 @@ import {
   DropdownMenuTrigger,
   Plus,
 } from '@sim/emcn'
-import { Sparkles } from 'lucide-react'
+import { Sparkles } from '@sim/emcn/icons'
 import type { ColumnDefinition } from '@/lib/table'
 import { COLUMN_TYPE_OPTIONS } from '../column-config-sidebar'
 
@@ -71,7 +71,7 @@ export function NewColumnDropdown({
         onClick={blocked ? onBlocked : undefined}
       >
         <Plus className='size-[14px] shrink-0 text-[var(--text-icon)]' />
-        <span className='font-medium text-[var(--text-body)] text-small'>New column</span>
+        <span className='text-[var(--text-body)] text-small'>New column</span>
       </button>
     )
 

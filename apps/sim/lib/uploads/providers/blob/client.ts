@@ -13,17 +13,34 @@ import type {
   AzurePartUploadUrl,
   BlobConfig,
 } from '@/lib/uploads/providers/blob/types'
-import type { FileInfo } from '@/lib/uploads/shared/types'
+import type {
+  FileInfo,
+  MultipartCompletionPolicy,
+  StoredObjectInfo,
+} from '@/lib/uploads/shared/types'
 import { sanitizeStorageMetadata } from '@/lib/uploads/utils/file-utils'
 import { sanitizeFileName } from '@/executor/constants'
 
 const logger = createLogger('BlobClient')
+const MULTIPART_UPLOAD_ID_METADATA_KEY = 'sim_upload_id'
+const MULTIPART_STATUS_METADATA_KEY = 'sim_multipart_status'
 
 let _blobServiceClient: BlobServiceClientType | null = null
 
 interface ParsedCredentials {
   accountName: string
   accountKey: string
+}
+
+function isBlobCreateConflict(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false
+  const record = error as { statusCode?: unknown; code?: unknown }
+  return (
+    record.statusCode === 409 ||
+    record.statusCode === 412 ||
+    record.code === 'BlobAlreadyExists' ||
+    record.code === 'ConditionNotMet'
+  )
 }
 
 /**
@@ -439,12 +456,7 @@ export async function downloadFromBlobStream(
 export async function headBlobObject(
   key: string,
   customConfig?: BlobConfig
-): Promise<{
-  size: number
-  contentType?: string
-  uploadId?: string
-  version: string
-} | null> {
+): Promise<StoredObjectInfo | null> {
   const { BlobServiceClient, StorageSharedKeyCredential } = await import('@azure/storage-blob')
   let blobServiceClient: BlobServiceClientType
   let containerName: string
@@ -478,11 +490,13 @@ export async function headBlobObject(
     if (properties.copyStatus && properties.copyStatus !== 'success') {
       throw new Error(`Blob copy for ${key} is ${properties.copyStatus}`)
     }
+    const uploadId = readUploadId(properties.metadata)
     return {
       size: properties.contentLength ?? 0,
       contentType: properties.contentType,
-      uploadId: readUploadId(properties.metadata),
-      version: properties.etag ?? '',
+      ...(uploadId ? { uploadId } : {}),
+      ...(properties.etag ? { version: properties.etag } : {}),
+      ...(properties.metadata ? { metadata: properties.metadata } : {}),
     }
   } catch (err) {
     const status = (err as { statusCode?: number }).statusCode
@@ -566,7 +580,15 @@ export function deriveBlobBlockId(partNumber: number): string {
 export async function initiateMultipartUpload(
   options: AzureMultipartUploadInit
 ): Promise<{ uploadId: string; key: string }> {
-  const { fileName, customKey } = options
+  const { fileName, customConfig, customKey } = options
+
+  if (customConfig) {
+    if (!customConfig.connectionString && !(customConfig.accountName && customConfig.accountKey)) {
+      throw new Error('Invalid custom blob configuration')
+    }
+  } else {
+    await getBlobServiceClient()
+  }
 
   const safeFileName = sanitizeFileName(fileName)
   const uniqueKey = customKey || `kb/${generateId()}-${safeFileName}`
@@ -723,15 +745,32 @@ export async function stageBlobPart(
  */
 export async function commitBlobBlockList(
   key: string,
+  uploadId: string,
   parts: AzureMultipartPart[],
   contentType: string,
-  customConfig?: BlobConfig
+  customConfig?: BlobConfig,
+  completionPolicy: MultipartCompletionPolicy = 'create-only'
 ): Promise<void> {
   const blockBlobClient = await getBlockBlobClientFor(key, customConfig)
   const sortedBlockIds = parts.sort((a, b) => a.partNumber - b.partNumber).map((p) => p.blockId)
-  await blockBlobClient.commitBlockList(sortedBlockIds, {
-    blobHTTPHeaders: { blobContentType: contentType },
-  })
+  try {
+    await blockBlobClient.commitBlockList(sortedBlockIds, {
+      blobHTTPHeaders: { blobContentType: contentType },
+      ...(completionPolicy === 'replace' ? {} : { conditions: { ifNoneMatch: '*' } }),
+      metadata: {
+        [MULTIPART_UPLOAD_ID_METADATA_KEY]: uploadId,
+        [MULTIPART_STATUS_METADATA_KEY]: 'completed',
+      },
+    })
+  } catch (error) {
+    const properties = await blockBlobClient.getProperties().catch(() => null)
+    const isSameUpload = properties?.metadata?.[MULTIPART_UPLOAD_ID_METADATA_KEY] === uploadId
+    const canReuseExisting =
+      completionPolicy === 'reuse-existing' && isBlobCreateConflict(error) && properties !== null
+    if (!isSameUpload && !canReuseExisting) {
+      throw error
+    }
+  }
 }
 
 /**
@@ -739,10 +778,12 @@ export async function commitBlobBlockList(
  */
 export async function completeMultipartUpload(
   key: string,
+  uploadId: string,
   parts: AzureMultipartPart[],
   customConfig?: BlobConfig,
   contentType?: string,
-  metadata?: Record<string, string>
+  metadata?: Record<string, string>,
+  completionPolicy: MultipartCompletionPolicy = 'create-only'
 ): Promise<{ location: string; path: string; key: string }> {
   const { BlobServiceClient, StorageSharedKeyCredential } = await import('@azure/storage-blob')
   let blobServiceClient: BlobServiceClientType
@@ -776,14 +817,47 @@ export async function completeMultipartUpload(
     .sort((a, b) => a.partNumber - b.partNumber)
     .map((part) => part.blockId)
 
-  await blockBlobClient.commitBlockList(sortedBlockIds, {
-    ...(contentType ? { blobHTTPHeaders: { blobContentType: contentType } } : {}),
-    metadata: {
-      multipartUpload: 'completed',
-      uploadCompletedAt: new Date().toISOString(),
-      ...sanitizeStorageMetadata(metadata ?? {}, 8000),
-    },
-  })
+  try {
+    await blockBlobClient.commitBlockList(sortedBlockIds, {
+      ...(contentType ? { blobHTTPHeaders: { blobContentType: contentType } } : {}),
+      ...(completionPolicy === 'replace' ? {} : { conditions: { ifNoneMatch: '*' } }),
+      metadata: {
+        [MULTIPART_UPLOAD_ID_METADATA_KEY]: uploadId,
+        [MULTIPART_STATUS_METADATA_KEY]: 'completed',
+        uploadCompletedAt: new Date().toISOString(),
+        ...sanitizeStorageMetadata(metadata ?? {}, 8000),
+      },
+    })
+  } catch (error) {
+    const properties = await blockBlobClient.getProperties().catch(() => null)
+    const isSameUpload = properties?.metadata?.[MULTIPART_UPLOAD_ID_METADATA_KEY] === uploadId
+    const canReuseExisting =
+      completionPolicy === 'reuse-existing' && isBlobCreateConflict(error) && properties !== null
+    if (!isSameUpload && !canReuseExisting) {
+      const existingMetadata = properties?.metadata ?? {}
+      const legacyUploadId = existingMetadata.uploadId ?? existingMetadata.uploadid
+      const legacyStatus = existingMetadata.multipartUpload ?? existingMetadata.multipartupload
+      if (
+        completionPolicy !== 'create-only' ||
+        !isBlobCreateConflict(error) ||
+        legacyUploadId !== uploadId ||
+        legacyStatus !== 'true' ||
+        !properties?.etag
+      ) {
+        throw error
+      }
+      await blockBlobClient.commitBlockList(sortedBlockIds, {
+        conditions: { ifMatch: properties.etag },
+        ...(contentType ? { blobHTTPHeaders: { blobContentType: contentType } } : {}),
+        metadata: {
+          [MULTIPART_UPLOAD_ID_METADATA_KEY]: uploadId,
+          [MULTIPART_STATUS_METADATA_KEY]: 'completed',
+          uploadCompletedAt: new Date().toISOString(),
+          ...sanitizeStorageMetadata(metadata ?? {}, 8000),
+        },
+      })
+    }
+  }
 
   const location = blockBlobClient.url
   const path = `/api/files/serve/${encodeURIComponent(key)}`
@@ -796,17 +870,68 @@ export async function completeMultipartUpload(
 }
 
 /**
- * Abandons an Azure multipart upload without deleting its key.
- *
- * Azure has no cancellation operation for staged blocks and garbage-collects uncommitted blocks
- * after a week. Deleting by key is unsafe because a concurrent completion may already have
- * committed the final blob at that key.
+ * Aborts without deleting committed bytes. New uploads only stage uncommitted
+ * blocks, which Azure expires automatically. The guarded delete is retained
+ * solely for legacy pending placeholders created by older application nodes.
  */
-export function abortMultipartUpload(_key: string, _customConfig?: BlobConfig): Promise<void> {
-  return Promise.resolve()
+export async function abortMultipartUpload(
+  key: string,
+  uploadId: string,
+  customConfig?: BlobConfig
+): Promise<void> {
+  const { BlobServiceClient, StorageSharedKeyCredential } = await import('@azure/storage-blob')
+  let blobServiceClient: BlobServiceClientType
+  let containerName: string
+
+  if (customConfig) {
+    if (customConfig.connectionString) {
+      blobServiceClient = BlobServiceClient.fromConnectionString(customConfig.connectionString)
+    } else if (customConfig.accountName && customConfig.accountKey) {
+      const credential = new StorageSharedKeyCredential(
+        customConfig.accountName,
+        customConfig.accountKey
+      )
+      blobServiceClient = new BlobServiceClient(
+        `https://${customConfig.accountName}.blob.core.windows.net`,
+        credential
+      )
+    } else {
+      throw new Error('Invalid custom blob configuration')
+    }
+    containerName = customConfig.containerName
+  } else {
+    blobServiceClient = await getBlobServiceClient()
+    containerName = BLOB_CONFIG.containerName
+  }
+
+  const containerClient = blobServiceClient.getContainerClient(containerName)
+  const blockBlobClient = containerClient.getBlockBlobClient(key)
+
+  try {
+    const properties = await blockBlobClient.getProperties()
+    const metadata = properties.metadata ?? {}
+    const boundUploadId =
+      metadata[MULTIPART_UPLOAD_ID_METADATA_KEY] ?? metadata.uploadId ?? metadata.uploadid
+    const status =
+      metadata[MULTIPART_STATUS_METADATA_KEY] ??
+      metadata.multipartUpload ??
+      metadata.multipartupload
+    if (boundUploadId === uploadId && status !== 'completed') {
+      await blockBlobClient.deleteIfExists()
+    }
+  } catch (error) {
+    const status = (error as { statusCode?: number }).statusCode
+    const code = (error as { code?: string }).code
+    if (status !== 404 && code !== 'BlobNotFound') {
+      logger.warn('Error cleaning up multipart upload:', error)
+    }
+  }
 }
 
 function readUploadId(metadata?: Record<string, string>): string | undefined {
   if (!metadata) return undefined
-  return Object.entries(metadata).find(([key]) => key.toLowerCase() === 'uploadid')?.[1]
+  return (
+    metadata[MULTIPART_UPLOAD_ID_METADATA_KEY] ??
+    Object.entries(metadata).find(([key]) => key.toLowerCase() === 'uploadid')?.[1]
+  )
 }

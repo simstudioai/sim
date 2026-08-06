@@ -398,7 +398,7 @@ function sessionRecord(overrides: Partial<UploadSessionRecord> = {}): UploadSess
 }
 
 function uploadRow(overrides: Record<string, unknown> = {}) {
-  const now = new Date('2026-08-05T12:00:00.000Z')
+  const now = new Date()
   return {
     id: 'upload-1',
     tokenHash: sha256Hex('upload-secret'),

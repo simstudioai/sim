@@ -1,8 +1,8 @@
 'use client'
 
 import { Chip } from '@sim/emcn'
+import { Check, Duplicate } from '@sim/emcn/icons'
 import { useCopyButton } from 'fumadocs-ui/utils/use-copy-button'
-import { Check, Copy } from 'lucide-react'
 
 export function LLMCopyButton({ content }: { content: string }) {
   const [checked, onClick] = useCopyButton(() => navigator.clipboard.writeText(content))
@@ -10,7 +10,7 @@ export function LLMCopyButton({ content }: { content: string }) {
   return (
     <Chip
       onClick={onClick}
-      leftIcon={checked ? Check : Copy}
+      leftIcon={checked ? Check : Duplicate}
       aria-label={checked ? 'Copied to clipboard' : 'Copy page content'}
     >
       {checked ? 'Copied' : 'Copy page'}

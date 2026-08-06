@@ -39,8 +39,7 @@
 'use client'
 
 import * as React from 'react'
-import { X } from 'lucide-react'
-import { Loader } from '../../icons'
+import { Eye, EyeOff, Loader, X } from '../../icons'
 import { cn } from '../../lib/cn'
 import { Button } from '../button/button'
 import { Chip, type ChipProps } from '../chip/chip'
@@ -52,7 +51,7 @@ import { ChipInput } from '../chip-input/chip-input'
 import { ChipSwitch } from '../chip-switch/chip-switch'
 import { ChipTextarea } from '../chip-textarea/chip-textarea'
 import { Label } from '../label/label'
-import { Modal, ModalContent } from '../modal/modal'
+import { Modal, ModalContent, useModalDismissDisabled } from '../modal/modal'
 import { Tooltip } from '../tooltip/tooltip'
 
 /**
@@ -109,6 +108,14 @@ export interface ChipModalProps {
   size?: 'sm' | 'md' | 'lg' | 'xl' | 'full'
   /** Optional className forwarded to the outer panel ring. */
   className?: string
+  /**
+   * Refuses every exit while an action is in flight — Escape, outside-click,
+   * the header close button, and the footer Cancel. Stating it once here is the
+   * point: disabling only the buttons leaves Escape and outside-click open,
+   * which reads as handled without being handled.
+   * @default false
+   */
+  dismissDisabled?: boolean
   children?: React.ReactNode
 }
 
@@ -125,13 +132,20 @@ function ChipModal({
   srTitle = 'Dialog',
   size = 'md',
   className,
+  dismissDisabled = false,
   children,
 }: ChipModalProps) {
   const submitRef = React.useRef<ChipModalSubmit | null>(null)
   return (
     <ChipModalSubmitContext.Provider value={submitRef}>
       <Modal open={open} onOpenChange={onOpenChange}>
-        <ModalContent bare showClose={false} srTitle={srTitle} size={size}>
+        <ModalContent
+          bare
+          showClose={false}
+          srTitle={srTitle}
+          size={size}
+          dismissDisabled={dismissDisabled}
+        >
           <div
             className={cn(
               'flex min-h-0 w-full flex-col rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px] shadow-[var(--shadow-overlay)] dark:bg-[var(--surface-5)]',
@@ -155,6 +169,12 @@ export interface ChipModalHeaderProps extends React.HTMLAttributes<HTMLDivElemen
   icon?: React.ComponentType<{ className?: string }> | null
   /** Invoked when the trailing close button is activated. Always rendered. */
   onClose: () => void
+  /**
+   * Disables the trailing close button. Combines with
+   * {@link ChipModalProps.dismissDisabled}, which also blocks Escape and
+   * outside-click — prefer that for an in-flight operation.
+   */
+  closeDisabled?: boolean
   /** Accessible label for the close button. */
   closeAriaLabel?: string
 }
@@ -165,28 +185,40 @@ export interface ChipModalHeaderProps extends React.HTMLAttributes<HTMLDivElemen
  */
 const ChipModalHeader = React.forwardRef<HTMLDivElement, ChipModalHeaderProps>(
   (
-    { className, children, icon: Icon = null, onClose, closeAriaLabel = 'Close', ...props },
+    {
+      className,
+      children,
+      icon: Icon = null,
+      onClose,
+      closeDisabled,
+      closeAriaLabel = 'Close',
+      ...props
+    },
     ref
-  ) => (
-    <div ref={ref} className={cn('flex flex-col', className)} {...props}>
-      <div className='flex min-w-0 items-center justify-between gap-2 px-4 pt-3'>
-        <div className='flex min-w-0 items-center gap-2'>
-          {Icon ? <Icon className={chipContentIconClass} /> : null}
-          <span className={chipContentLabelClass}>{children}</span>
+  ) => {
+    const dismissDisabled = useModalDismissDisabled()
+    return (
+      <div ref={ref} className={cn('flex flex-col', className)} {...props}>
+        <div className='flex min-w-0 items-center justify-between gap-2 px-4 pt-3'>
+          <div className='flex min-w-0 items-center gap-2'>
+            {Icon ? <Icon className={chipContentIconClass} /> : null}
+            <span className={chipContentLabelClass}>{children}</span>
+          </div>
+          <Button
+            type='button'
+            variant='ghost'
+            onClick={onClose}
+            disabled={closeDisabled || dismissDisabled}
+            className='relative size-[14px] flex-shrink-0 p-0 before:absolute before:inset-[-14px] before:content-[""]'
+          >
+            <X className='size-[14px] text-[var(--text-icon)]' />
+            <span className='sr-only'>{closeAriaLabel}</span>
+          </Button>
         </div>
-        <Button
-          type='button'
-          variant='ghost'
-          onClick={onClose}
-          className='relative size-[14px] flex-shrink-0 p-0 before:absolute before:inset-[-14px] before:content-[""]'
-        >
-          <X className='size-[14px] text-[var(--text-icon)]' />
-          <span className='sr-only'>{closeAriaLabel}</span>
-        </Button>
+        <ChipModalSeparator className='mt-3' />
       </div>
-      <ChipModalSeparator className='mt-3' />
-    </div>
-  )
+    )
+  }
 )
 
 ChipModalHeader.displayName = 'ChipModalHeader'
@@ -410,7 +442,13 @@ interface ChipModalInputFieldProps extends ChipModalFieldBaseProps, ChipModalSin
   placeholder?: string
   maxLength?: number
   autoComplete?: string
-  /** Native input type override. Defaults to `'text'`. */
+  /**
+   * Native input type override. Defaults to `'text'`.
+   *
+   * `'password'` renders the field's canonical secret treatment — masked while
+   * unfocused, revealed while focused, plus an eye toggle — rather than a plain
+   * native password input. See {@link ChipModalPasswordControl}.
+   */
   inputType?: 'text' | 'password' | 'url' | 'tel' | 'search' | 'number'
   /**
    * Renders the value in the monospace stack (`font-mono`). Use for
@@ -591,10 +629,7 @@ function ChipModalField(props: ChipModalFieldProps) {
 
   return (
     <div className={cn('flex flex-col gap-[9px]', flush ? 'px-0' : 'px-2', className)}>
-      <Label
-        htmlFor={associatesLabel ? id : undefined}
-        className='pl-0.5 font-normal text-[var(--text-muted)]'
-      >
+      <Label htmlFor={associatesLabel ? id : undefined} className='pl-0.5 text-[var(--text-muted)]'>
         {title}
         {required && (
           <span aria-hidden className='ml-0.5 text-[var(--text-error)]'>
@@ -639,31 +674,33 @@ function renderChipModalControl(
   switch (props.type) {
     case 'input':
     case 'email': {
-      const onSubmit = props.onSubmit
+      const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) =>
+        handleSingleLineEnter(event, props, submitRef)
+
+      if (props.type === 'input' && props.inputType === 'password') {
+        return (
+          <ChipModalPasswordControl
+            id={id}
+            value={props.value}
+            onChange={props.onChange}
+            onKeyDown={onKeyDown}
+            placeholder={props.placeholder}
+            maxLength={props.maxLength}
+            autoComplete={props.autoComplete}
+            disabled={props.disabled}
+            mono={props.mono}
+            aria={aria}
+          />
+        )
+      }
+
       return (
         <ChipInput
           id={id}
           type={props.type === 'email' ? 'email' : (props.inputType ?? 'text')}
           value={props.value}
           onChange={(event) => props.onChange(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key !== 'Enter' || event.nativeEvent.isComposing) return
-            if (onSubmit) {
-              event.preventDefault()
-              event.stopPropagation()
-              onSubmit()
-              return
-            }
-            if (props.submitOnEnter === false) return
-            const submit = submitRef?.current
-            if (submit && !submit.disabled) {
-              event.preventDefault()
-              // Stop bubbling so a parent Enter handler (e.g. a modal body that
-              // also submits) can't fire the same primary action a second time.
-              event.stopPropagation()
-              submit.trigger()
-            }
-          }}
+          onKeyDown={onKeyDown}
           placeholder={props.placeholder}
           maxLength={props.type === 'input' ? props.maxLength : undefined}
           autoComplete={props.autoComplete}
@@ -720,6 +757,120 @@ function renderChipModalControl(
     case 'custom':
       return typeof props.children === 'function' ? props.children(aria) : props.children
   }
+}
+
+/**
+ * Enter handling shared by every single-line control: an explicit `onSubmit`
+ * wins, otherwise Enter fires the {@link ChipModalFooter} primary action unless
+ * the field opted out via `submitOnEnter={false}`.
+ */
+function handleSingleLineEnter(
+  event: React.KeyboardEvent<HTMLInputElement>,
+  props: ChipModalSingleLineEnterProps,
+  submitRef: React.MutableRefObject<ChipModalSubmit | null> | null
+) {
+  if (event.key !== 'Enter' || event.nativeEvent.isComposing) return
+  if (props.onSubmit) {
+    event.preventDefault()
+    event.stopPropagation()
+    props.onSubmit()
+    return
+  }
+  if (props.submitOnEnter === false) return
+  const submit = submitRef?.current
+  if (submit && !submit.disabled) {
+    event.preventDefault()
+    // Stop bubbling so a parent Enter handler (e.g. a modal body that also
+    // submits) can't fire the same primary action a second time.
+    event.stopPropagation()
+    submit.trigger()
+  }
+}
+
+/**
+ * Internal renderer for {@link ChipModalField} `type='input'` with
+ * `inputType='password'` — the canonical secret treatment, matching the secrets
+ * and SSO client-secret fields: the value is masked while the field is
+ * unfocused, revealed while it is focused, and an eye toggle pins the reveal so
+ * a typed secret can be proof-read without staying on screen.
+ *
+ * The native input stays `type='text'` and opens `readOnly`, dropping the
+ * attribute on focus. Masking therefore comes from `-webkit-text-security`
+ * (which is what makes the reveal instant), and the read-only-until-focus dance
+ * is what stops a password manager autofilling the operator's own credentials
+ * into a field that sets some other account's password.
+ */
+interface ChipModalPasswordControlProps {
+  id: string
+  value: string
+  onChange: (value: string) => void
+  onKeyDown: (event: React.KeyboardEvent<HTMLInputElement>) => void
+  placeholder?: string
+  maxLength?: number
+  autoComplete?: string
+  disabled?: boolean
+  mono?: boolean
+  /** ARIA the owning {@link ChipModalField} derives from its own state. */
+  aria: ChipModalFieldAria
+}
+
+function ChipModalPasswordControl({
+  id,
+  value,
+  onChange,
+  onKeyDown,
+  placeholder,
+  maxLength,
+  autoComplete,
+  disabled,
+  mono,
+  aria,
+}: ChipModalPasswordControlProps) {
+  const [revealed, setRevealed] = React.useState(false)
+
+  return (
+    <ChipInput
+      id={id}
+      type='text'
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      onKeyDown={onKeyDown}
+      placeholder={placeholder}
+      maxLength={maxLength}
+      autoComplete={autoComplete}
+      autoCapitalize='none'
+      autoCorrect='off'
+      spellCheck={false}
+      disabled={disabled}
+      readOnly
+      onFocus={(event) => {
+        event.currentTarget.removeAttribute('readOnly')
+        setRevealed(true)
+      }}
+      onBlurCapture={() => setRevealed(false)}
+      inputClassName={cn(!revealed && '[-webkit-text-security:disc]', mono && 'font-mono')}
+      endAdornment={
+        // Only offer the reveal once there is something to reveal.
+        value ? (
+          <Button
+            type='button'
+            variant='ghost'
+            disabled={disabled}
+            // Keep focus on the input: letting the button take it would fire the
+            // blur re-mask first, so the click would toggle back from `false`
+            // and "Hide" would leave a focused password on screen.
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => setRevealed((current) => !current)}
+            className='size-6 flex-shrink-0 p-0 text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+            aria-label={revealed ? 'Hide password' : 'Show password'}
+          >
+            {revealed ? <EyeOff className='size-[14px]' /> : <Eye className='size-[14px]' />}
+          </Button>
+        ) : undefined
+      }
+      {...aria}
+    />
+  )
 }
 
 /**
@@ -887,10 +1038,10 @@ export interface ChipModalFooterAction {
  * Escape hatch for the left-docked footer cluster: renders the given node in
  * place of a declarative action Chip. Reserve it for chip-chrome controls
  * (`ChipDatePicker`, `ChipTimePicker`, `ChipDropdown`, ...) so the footer
- * stays visually canonical — pass `flush` to the control so it sits on the
- * cluster's `gap-2` rhythm like the footer's own Chips. The primary action
- * stays declarative by design; only `secondaryActions` accepts custom
- * controls.
+ * stays visually canonical — the cluster's `gap-2` alone sets the rhythm, as
+ * it does for the footer's own Chips, so the control must carry no outer
+ * margin. The primary action stays declarative by design; only
+ * `secondaryActions` accepts custom controls.
  */
 export interface ChipModalFooterCustomAction {
   /** Chip-chrome control rendered verbatim in the slot. */
@@ -914,6 +1065,10 @@ export interface ChipModalFooterProps {
    * Disables the Cancel button. Set this while a primary/secondary action is
    * in flight (e.g. an async delete or save) so the user cannot dismiss the
    * modal and assume the operation was aborted while the mutation keeps running.
+   *
+   * This covers the Cancel button only. For an in-flight operation reach for
+   * {@link ChipModalProps.dismissDisabled} instead, which also blocks Escape,
+   * outside-click and the header's X.
    * @default false
    */
   cancelDisabled?: boolean
@@ -989,7 +1144,7 @@ function ChipModalFooterShell({
 function renderFooterSlotAction(action: ChipModalFooterSlotAction): React.ReactNode {
   if ('custom' in action) return action.custom
   return (
-    <Chip variant={action.variant} flush onClick={action.onClick} disabled={action.disabled}>
+    <Chip variant={action.variant} onClick={action.onClick} disabled={action.disabled}>
       {action.label}
     </Chip>
   )
@@ -1015,6 +1170,7 @@ function ChipModalFooter({
   primaryAdjacentAction,
   secondaryActions,
 }: ChipModalFooterProps) {
+  const dismissDisabled = useModalDismissDisabled()
   const showsDisabledTooltip = Boolean(primaryAction.disabled && primaryAction.disabledTooltip)
 
   /**
@@ -1048,7 +1204,6 @@ function ChipModalFooter({
   const primaryChip = (
     <Chip
       variant={primaryAction.variant ?? 'primary'}
-      flush
       onClick={primaryAction.onClick}
       disabled={primaryAction.disabled}
       className={cn(showsDisabledTooltip && 'pointer-events-none')}
@@ -1070,7 +1225,7 @@ function ChipModalFooter({
       }
     >
       {hideCancel ? null : (
-        <Chip flush onClick={onCancel} disabled={cancelDisabled}>
+        <Chip onClick={onCancel} disabled={cancelDisabled || dismissDisabled}>
           Cancel
         </Chip>
       )}
@@ -1294,6 +1449,7 @@ function ChipConfirmModal({
       onOpenChange={onOpenChange}
       size={size}
       srTitle={srTitle ?? (typeof title === 'string' ? title : 'Confirm')}
+      dismissDisabled={confirm.pending}
     >
       <ChipModalHeader icon={icon} onClose={dismiss}>
         {title}
@@ -1307,12 +1463,11 @@ function ChipConfirmModal({
         {children}
       </ChipModalBody>
       <ChipModalFooterShell>
-        <Chip flush onClick={dismiss} disabled={confirm.pending}>
+        <Chip onClick={dismiss} disabled={confirm.pending}>
           {dismissLabel}
         </Chip>
         <Chip
           variant={confirm.variant ?? 'destructive'}
-          flush
           onClick={confirm.onClick}
           disabled={confirm.disabled || confirm.pending}
         >

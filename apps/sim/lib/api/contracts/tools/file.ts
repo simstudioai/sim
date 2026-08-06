@@ -1,7 +1,9 @@
 import { z } from 'zod'
+import { privateSecretProvenanceBundleSchema } from '@/lib/api/contracts/primitives'
 import { shareAuthTypeSchema } from '@/lib/api/contracts/public-shares'
 import { toolJsonResponseSchema } from '@/lib/api/contracts/tools/media/shared'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { PRIVATE_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
 
 export const fileManageQuerySchema = z.object({
   userId: z.string().min(1).nullable().optional(),
@@ -14,6 +16,7 @@ export const fileManageWriteBodySchema = z.object({
   fileName: z.string({ error: 'fileName is required for write operation' }).min(1),
   content: z.string({ error: 'content is required for write operation' }),
   contentType: z.string().optional(),
+  [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
 })
 
 export const fileManageAppendBodySchema = z.object({
@@ -21,6 +24,7 @@ export const fileManageAppendBodySchema = z.object({
   workspaceId: z.string().min(1).optional(),
   fileName: z.string({ error: 'fileName is required for append operation' }).min(1),
   content: z.string({ error: 'content is required for append operation' }),
+  [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
 })
 
 export const fileManageGetBodySchema = z

@@ -1,7 +1,9 @@
 import { spawnSync } from 'node:child_process'
+import { EMAIL_SETUP, STORAGE_SETUP } from '../capability-config.ts'
+import { promptCapabilitySetup, stageCapabilitySetupTransition } from '../capability-setup.ts'
 import type { Detection } from '../detect.ts'
 import { ensureDocker } from '../docker.ts'
-import { ROOT, readEnvFile, writeEnvValues } from '../env-files.ts'
+import { ROOT, readEnvFile, reconcileEnvValues } from '../env-files.ts'
 import { SetupError } from '../errors.ts'
 import { ensurePortsFree } from '../ports.ts'
 import { httpHealth, waitFor } from '../probes.ts'
@@ -11,11 +13,9 @@ import {
   collectSecrets,
   mothershipOverride,
   promptCopilotKey,
-  promptEmail,
   promptLlmKeys,
   promptSecurity,
   promptSignInProviders,
-  promptStorage,
   promptUnlocks,
 } from '../steps.ts'
 import { glyph, theme } from '../theme.ts'
@@ -108,6 +108,7 @@ export async function runComposeMode(detection: Detection, quick: boolean): Prom
 
   const root = readEnvFile('root')
   const values = collectSecrets(root)
+  const remove = new Set<string>()
   // Before the key is minted: a half-set override mints against one environment
   // and validates against the other, and warning afterwards is too late — the
   // bad key is already stored, and the next run offers to keep it.
@@ -117,11 +118,18 @@ export async function runComposeMode(detection: Detection, quick: boolean): Prom
   Object.assign(values, chatFlagValues(copilotKey))
   Object.assign(values, await promptLlmKeys(detection, !quick))
   if (!quick) {
-    const storage = await promptStorage(root.vars, true)
-    if (storage) Object.assign(values, storage)
+    const stagedVars = new Map(root.vars)
+    for (const [key, value] of Object.entries(values)) stagedVars.set(key, value)
+    const storage = await promptCapabilitySetup(STORAGE_SETUP, stagedVars, {
+      containerized: true,
+    })
+    stageCapabilitySetupTransition(stagedVars, values, remove, storage)
     const appUrl = root.vars.get('NEXT_PUBLIC_APP_URL') ?? APP_URL
-    Object.assign(values, await promptSignInProviders(root.vars, appUrl))
-    Object.assign(values, await promptEmail(root.vars))
+    Object.assign(values, await promptSignInProviders(stagedVars, appUrl))
+    const email = await promptCapabilitySetup(EMAIL_SETUP, stagedVars, {
+      containerized: true,
+    })
+    stageCapabilitySetupTransition(stagedVars, values, remove, email)
     const security = await promptSecurity(root.vars)
     Object.assign(values, security.sim, security.mirrorToRealtime)
     Object.assign(values, await promptUnlocks(root.vars))
@@ -133,7 +141,8 @@ export async function runComposeMode(detection: Detection, quick: boolean): Prom
     )
   }
   if (!root.vars.get('NEXT_TELEMETRY_DISABLED')) values.NEXT_TELEMETRY_DISABLED = '1'
-  writeEnvValues('root', values)
+  for (const key of Object.keys(values)) remove.delete(key)
+  reconcileEnvValues('root', [...remove], values)
   p.log.step('Wrote .env (compose reads it for variable substitution)')
 
   await ensureComposePortsFree(composeFile)

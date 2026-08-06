@@ -1,10 +1,11 @@
 /**
  * @vitest-environment node
  */
-import { redisConfigMockFns, resetRedisConfigMock } from '@sim/testing'
+import { redisConfigMockFns, resetEnvMock, resetRedisConfigMock, setEnv } from '@sim/testing'
 import { sleep } from '@sim/utils/helpers'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutionEventEntry } from '@/lib/execution/event-buffer'
+import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
 import { LARGE_VALUE_REF_MARKER } from '@/lib/execution/payloads/large-value-ref'
 import type { ExecutionEvent } from '@/lib/workflows/executor/execution-events'
 
@@ -24,9 +25,31 @@ const { mockRedis, persistedEntries } = vi.hoisted(() => {
   return { mockRedis, persistedEntries }
 })
 
+const { mockRegisterLargeValueOwner, mockUploadFile } = vi.hoisted(() => ({
+  mockRegisterLargeValueOwner: vi.fn(),
+  mockUploadFile: vi.fn(),
+}))
+
+vi.mock('@/lib/uploads', () => ({
+  StorageService: {
+    uploadFile: mockUploadFile,
+  },
+}))
+
+vi.mock('@/lib/uploads/core/storage-service', () => ({
+  uploadFile: mockUploadFile,
+}))
+
+vi.mock('@/lib/execution/payloads/large-value-metadata', () => ({
+  registerLargeValueOwner: mockRegisterLargeValueOwner,
+}))
+
 const mockGetRedisClient = redisConfigMockFns.mockGetRedisClient
 
-afterAll(resetRedisConfigMock)
+afterAll(() => {
+  resetEnvMock()
+  resetRedisConfigMock()
+})
 
 import {
   createExecutionEventWriter,
@@ -77,12 +100,16 @@ function countOccurrences(haystack: string, needle: string): number {
 describe('execution event buffer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    clearLargeValueCacheForTests()
+    setEnv({ REDIS_URL: 'redis://localhost:6379' })
     persistedEntries.length = 0
     mockGetRedisClient.mockReturnValue(mockRedis)
     mockRedis.get.mockResolvedValue(null)
     mockRedis.hgetall.mockResolvedValue({})
     mockRedis.zrangebyscore.mockResolvedValue([])
     mockRedis.zremrangebyrank.mockResolvedValue(0)
+    mockUploadFile.mockImplementation(async ({ customKey }) => ({ key: customKey }))
+    mockRegisterLargeValueOwner.mockResolvedValue(true)
     mockRedis.eval.mockImplementation(async (script: string, ...args: unknown[]) => {
       if (isFlushScript(script)) {
         const { terminalStatus, zaddArgs } = parseFlushEvalArgs(args)

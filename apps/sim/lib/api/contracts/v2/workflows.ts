@@ -385,6 +385,7 @@ export const v2ExecuteWorkflowBodySchema = z
   .object({
     input: z.record(z.string(), z.unknown()).optional(),
     async: z.boolean().optional().default(false),
+    executionTimeoutSeconds: z.number().int().min(1).max(604_800).optional(),
     stream: z.boolean().optional().default(false),
     selectedOutputs: z.array(z.string().min(1)).max(100).optional(),
     includeThinking: z.boolean().optional().default(false),

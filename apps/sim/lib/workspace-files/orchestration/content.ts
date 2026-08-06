@@ -11,6 +11,7 @@ import {
   updateWorkspaceFileContent,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace'
+import { EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 
 const logger = createLogger('WorkspaceFileContentOrchestration')
 
@@ -63,7 +64,12 @@ export async function performUpdateWorkspaceFileContent(
   }
 
   try {
-    const file = await updateWorkspaceFileContent(workspaceId, fileId, userId, buffer)
+    const file = await updateWorkspaceFileContent(workspaceId, fileId, userId, buffer, undefined, {
+      secretProvenancePolicy: {
+        mode: 'replace',
+        provenance: EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE,
+      },
+    })
 
     logger.info('Updated workspace file content', { workspaceId, fileId, size: buffer.length })
 

@@ -17,6 +17,29 @@ export const LOG_COLUMNS = {
 
 export const DELETED_WORKFLOW_LABEL = 'Deleted Workflow'
 
+/**
+ * Resolves the workflow a log row points at, or null when there is nowhere to
+ * navigate. Sim agent jobs have no workflow of their own, and a deleted
+ * workflow leaves both id fields empty.
+ *
+ * Single source of truth for "is this log's workflow reachable" — the list row,
+ * its context menu, and the details panel must agree, or a row can render as
+ * "Deleted Workflow" while still linking somewhere.
+ */
+export function resolveLogWorkflowId(log: {
+  trigger?: string | null
+  workflowId?: string | null
+  workflow?: { id?: string } | null
+}): string | null {
+  if (log.trigger === 'mothership') return null
+  return log.workflow?.id || log.workflowId || null
+}
+
+/** Path to a workflow in the editor. */
+export function workflowEditorPath(workspaceId: string, workflowId: string): string {
+  return `/workspace/${workspaceId}/w/${workflowId}`
+}
+
 export type LogStatus =
   | 'error'
   | 'pending'

@@ -64,6 +64,14 @@ export const agentTool: ToolConfig<StagehandAgentParams, StagehandAgentResponse>
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({
+        task: params.task,
+        variables: params.variables,
+        outputSchema: params.outputSchema,
+      }),
+    },
     url: '/api/tools/stagehand/agent',
     method: 'POST',
     headers: () => ({

@@ -240,21 +240,27 @@ export async function listForkResourceCandidates(
   }
 }
 
+/** One live resource, by exact id. `label` is absent for kinds looked up by id only. */
+interface ForkResourceRow {
+  id: string
+  label?: string
+}
+
 /**
- * Given mapped target ids grouped by kind, return the subset that still EXISTS in the
- * target workspace (same archived/deleted filters as `listForkResourceCandidates`).
- * Used at promote time so a mapping whose target was deleted after it was saved
- * resolves as unmapped (surfaced/cleared) instead of writing a dead id into the
- * promoted workflow. Queries the exact ids (not the capped candidate list) so a valid
- * target is never wrongly dropped, and only the DB-backed kinds are checked - env-var
- * existence is handled by the resolver's `targetEnvKeys`, and `file`/`workflow` are
- * resolved by other paths.
+ * Look up the given ids, grouped by kind, in one workspace and return the rows that still EXIST
+ * (same archived/deleted filters as `listForkResourceCandidates`). Queries the exact ids - NOT
+ * the capped candidate list - so a resource sitting past `CANDIDATE_LIMIT` is never mistaken for
+ * a missing one. Only the DB-backed kinds are checked: env-var existence is handled by the
+ * resolver's `targetEnvKeys`, and `file`/`workflow` are resolved by other paths.
+ *
+ * Backs both {@link filterExistingForkTargets} (existence) and {@link loadForkResourceLabels}
+ * (display names), so the two can never disagree about what "exists" means.
  */
-export async function filterExistingForkTargets(
+async function loadForkResourceRows(
   executor: DbOrTx,
   workspaceId: string,
   idsByKind: Partial<Record<ForkRemapKind, Set<string>>>
-): Promise<Partial<Record<ForkRemapKind, Set<string>>>> {
+): Promise<Partial<Record<ForkRemapKind, ForkResourceRow[]>>> {
   const ids = (kind: ForkRemapKind): string[] => {
     const set = idsByKind[kind]
     return set && set.size > 0 ? Array.from(set) : []
@@ -272,9 +278,9 @@ export async function filterExistingForkTargets(
 
   const [creds, tables, kbs, docs, servers, tools, skills, files] = await Promise.all([
     credIds.length === 0
-      ? Promise.resolve([] as Array<{ id: string }>)
+      ? Promise.resolve([] as ForkResourceRow[])
       : executor
-          .select({ id: credential.id })
+          .select({ id: credential.id, label: credential.displayName })
           .from(credential)
           .where(
             and(
@@ -284,15 +290,15 @@ export async function filterExistingForkTargets(
             )
           ),
     tableIds.length === 0
-      ? Promise.resolve([] as Array<{ id: string }>)
+      ? Promise.resolve([] as ForkResourceRow[])
       : tableCandidatesQuery(executor, workspaceId, tableIds),
     kbIds.length === 0
-      ? Promise.resolve([] as Array<{ id: string }>)
+      ? Promise.resolve([] as ForkResourceRow[])
       : knowledgeBaseCandidatesQuery(executor, workspaceId, kbIds),
     // Documents are validated through a KB join (they are not a standalone candidate kind), so
     // this existence check stays inline rather than sharing a per-kind candidate query.
     docIds.length === 0
-      ? Promise.resolve([] as Array<{ id: string }>)
+      ? Promise.resolve([] as ForkResourceRow[])
       : executor
           .select({ id: document.id })
           .from(document)
@@ -307,29 +313,75 @@ export async function filterExistingForkTargets(
             )
           ),
     mcpIds.length === 0
-      ? Promise.resolve([] as Array<{ id: string }>)
+      ? Promise.resolve([] as ForkResourceRow[])
       : mcpServerCandidatesQuery(executor, workspaceId, mcpIds),
     toolIds.length === 0
-      ? Promise.resolve([] as Array<{ id: string }>)
+      ? Promise.resolve([] as ForkResourceRow[])
       : customToolCandidatesQuery(executor, workspaceId, toolIds),
     skillIds.length === 0
-      ? Promise.resolve([] as Array<{ id: string }>)
+      ? Promise.resolve([] as ForkResourceRow[])
       : skillCandidatesQuery(executor, workspaceId, skillIds),
     fileKeys.length === 0
-      ? Promise.resolve([] as Array<{ id: string }>)
+      ? Promise.resolve([] as ForkResourceRow[])
       : fileCandidatesQuery(executor, workspaceId, fileKeys),
   ])
 
+  const result: Partial<Record<ForkRemapKind, ForkResourceRow[]>> = {}
+  if (credIds.length > 0) result.credential = creds
+  if (tableIds.length > 0) result.table = tables
+  if (kbIds.length > 0) result['knowledge-base'] = kbs
+  if (docIds.length > 0) result['knowledge-document'] = docs
+  if (mcpIds.length > 0) result['mcp-server'] = servers
+  if (toolIds.length > 0) result['custom-tool'] = tools
+  if (skillIds.length > 0) result.skill = skills
+  // `fileCandidatesQuery` exposes the storage key under `id`, so file rows key by `r.id`.
+  if (fileKeys.length > 0) result.file = files
+  return result
+}
+
+/**
+ * Given mapped target ids grouped by kind, return the subset that still EXISTS in the target
+ * workspace. Used at promote time so a mapping whose target was deleted after it was saved
+ * resolves as unmapped (surfaced/cleared) instead of writing a dead id into the promoted
+ * workflow, and by the cleared-ref collector pointed at the SOURCE workspace to flag a
+ * reference whose resource is gone.
+ */
+export async function filterExistingForkTargets(
+  executor: DbOrTx,
+  workspaceId: string,
+  idsByKind: Partial<Record<ForkRemapKind, Set<string>>>
+): Promise<Partial<Record<ForkRemapKind, Set<string>>>> {
+  const rows = await loadForkResourceRows(executor, workspaceId, idsByKind)
   const result: Partial<Record<ForkRemapKind, Set<string>>> = {}
-  if (credIds.length > 0) result.credential = new Set(creds.map((r) => r.id))
-  if (tableIds.length > 0) result.table = new Set(tables.map((r) => r.id))
-  if (kbIds.length > 0) result['knowledge-base'] = new Set(kbs.map((r) => r.id))
-  if (docIds.length > 0) result['knowledge-document'] = new Set(docs.map((r) => r.id))
-  if (mcpIds.length > 0) result['mcp-server'] = new Set(servers.map((r) => r.id))
-  if (toolIds.length > 0) result['custom-tool'] = new Set(tools.map((r) => r.id))
-  if (skillIds.length > 0) result.skill = new Set(skills.map((r) => r.id))
-  // `fileCandidatesQuery` exposes the storage key under `id`, so file existence keys by `r.id`.
-  if (fileKeys.length > 0) result.file = new Set(files.map((r) => r.id))
+  for (const [kind, kindRows] of Object.entries(rows) as Array<
+    [ForkRemapKind, ForkResourceRow[]]
+  >) {
+    result[kind] = new Set(kindRows.map((row) => row.id))
+  }
+  return result
+}
+
+/**
+ * Display names for the given ids, grouped by kind, looked up by exact id in one workspace.
+ *
+ * The mapping view labels each scanned reference with this rather than with the capped
+ * `listForkResourceCandidates` output: a workspace past `CANDIDATE_LIMIT` would otherwise render
+ * a perfectly live resource as a raw id, indistinguishable from one that was actually deleted.
+ * With this, an id absent from the returned map means exactly one thing - the resource no longer
+ * exists in that workspace - which is what `ForkMappingEntry.sourceDeleted` reports.
+ */
+export async function loadForkResourceLabels(
+  executor: DbOrTx,
+  workspaceId: string,
+  idsByKind: Partial<Record<ForkRemapKind, Set<string>>>
+): Promise<Partial<Record<ForkRemapKind, Map<string, string>>>> {
+  const rows = await loadForkResourceRows(executor, workspaceId, idsByKind)
+  const result: Partial<Record<ForkRemapKind, Map<string, string>>> = {}
+  for (const [kind, kindRows] of Object.entries(rows) as Array<
+    [ForkRemapKind, ForkResourceRow[]]
+  >) {
+    result[kind] = new Map(kindRows.map((row) => [row.id, row.label ?? row.id]))
+  }
   return result
 }
 

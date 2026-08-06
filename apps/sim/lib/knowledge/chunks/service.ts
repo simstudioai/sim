@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { generateId } from '@sim/utils/id'
 import { and, asc, desc, eq, ilike, inArray, isNull, sql } from 'drizzle-orm'
+import type { DurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
 import type {
   BatchOperationResult,
   ChunkData,
@@ -13,6 +14,7 @@ import type {
 } from '@/lib/knowledge/chunks/types'
 import { getEmbeddingModelInfo } from '@/lib/knowledge/embedding-models'
 import { generateEmbeddings } from '@/lib/knowledge/embeddings'
+import { replaceKnowledgeEmbeddingSecretProvenanceInTx } from '@/lib/knowledge/secret-provenance'
 import { estimateTokenCount } from '@/lib/tokenization/estimators'
 
 const logger = createLogger('ChunksService')
@@ -127,7 +129,8 @@ export async function createChunk(
   docTags: Record<string, string | number | boolean | Date | null>,
   chunkData: CreateChunkData,
   requestId: string,
-  workspaceId?: string | null
+  workspaceId?: string | null,
+  secretProvenance?: DurableSecretProvenance
 ): Promise<ChunkData> {
   logger.info(`[${requestId}] Generating embedding for manual chunk`)
   const kbRow = await db
@@ -196,6 +199,7 @@ export async function createChunk(
       chunkIndex: nextChunkIndex,
       chunkHash: sha256Hex(chunkData.content),
       content: chunkData.content,
+      secretProvenanceVersion: secretProvenance ? 1 : null,
       contentLength: chunkData.content.length,
       tokenCount: tokenCount.count,
       embedding: embeddings[0],
@@ -229,6 +233,14 @@ export async function createChunk(
     }
 
     await tx.insert(embedding).values(chunkDBData)
+    if (secretProvenance) {
+      await replaceKnowledgeEmbeddingSecretProvenanceInTx(
+        tx,
+        chunkId,
+        chunkData.content,
+        secretProvenance
+      )
+    }
 
     // Update document statistics
     await tx
@@ -357,7 +369,8 @@ export async function updateChunk(
     enabled?: boolean
   },
   requestId: string,
-  workspaceId?: string | null
+  workspaceId?: string | null,
+  secretProvenance?: DurableSecretProvenance
 ): Promise<ChunkData> {
   // Content updates run in a transaction to keep document statistics
   // consistent. The embedding API call happens BEFORE the transaction opens so
@@ -412,6 +425,7 @@ export async function updateChunk(
             content: embedding.content,
             contentLength: embedding.contentLength,
             tokenCount: embedding.tokenCount,
+            secretProvenanceVersion: embedding.secretProvenanceVersion,
           })
           .from(embedding)
           .where(eq(embedding.id, chunkId))
@@ -439,11 +453,20 @@ export async function updateChunk(
           contentLength: newContentLength,
           chunkHash: sha256Hex(content),
           tokenCount: regenerated ? regenerated.tokenCount : oldTokenCount,
+          secretProvenanceVersion: secretProvenance ? 1 : currentChunk[0].secretProvenanceVersion,
           ...(regenerated ? { embedding: regenerated.embedding } : {}),
           ...(updateData.enabled !== undefined ? { enabled: updateData.enabled } : {}),
         }
 
         await tx.update(embedding).set(chunkUpdate).where(eq(embedding.id, chunkId))
+        if (secretProvenance) {
+          await replaceKnowledgeEmbeddingSecretProvenanceInTx(
+            tx,
+            chunkId,
+            content,
+            secretProvenance
+          )
+        }
 
         const charDiff = newContentLength - oldContentLength
         const tokenDiff = chunkUpdate.tokenCount - oldTokenCount

@@ -12,6 +12,7 @@ import {
   uploadWorkspaceFile,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace'
+import { EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { MAX_WORKSPACE_FILE_CONTENT_BYTES } from '@/lib/workspace-files/orchestration/content'
 
 const logger = createLogger('WorkspaceFileCreateOrchestration')
@@ -75,6 +76,7 @@ export async function performCreateWorkspaceFile(
       folderId,
       folderPath,
       exactName,
+      secretProvenance: EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE,
     })
 
     logger.info('Created workspace file', {

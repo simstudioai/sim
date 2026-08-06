@@ -1,1 +1,0 @@
-ALTER TABLE "workspace_files" ADD COLUMN "size_bytes" bigint;

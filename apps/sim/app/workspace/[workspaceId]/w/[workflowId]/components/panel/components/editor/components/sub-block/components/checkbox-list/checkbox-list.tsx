@@ -1,5 +1,5 @@
 import { Checkbox, Label, Tooltip } from '@sim/emcn'
-import { Info } from 'lucide-react'
+import { CircleInfo } from '@sim/emcn/icons'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
@@ -78,14 +78,14 @@ function CheckboxItem({
       />
       <Label
         htmlFor={`${blockId}-${option.id}`}
-        className='cursor-pointer font-medium font-sans text-[var(--text-primary)] text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-50'
+        className='cursor-pointer font-sans text-[var(--text-primary)] text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-50'
       >
         {formatDisplayText(option.label, { workflowSearchHighlight })}
       </Label>
       {option.description && (
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
-            <Info className='size-[14px] cursor-default text-[var(--text-muted)]' />
+            <CircleInfo className='size-[14px] cursor-default text-[var(--text-muted)]' />
           </Tooltip.Trigger>
           <Tooltip.Content side='top' align='start' className='max-w-xs'>
             <p>{option.description}</p>

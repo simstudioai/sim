@@ -1,11 +1,15 @@
 'use client'
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Music } from 'lucide-react'
+import { Music } from '@sim/emcn/icons'
 import dynamic from 'next/dynamic'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
-import { useWorkspaceFileBinary, useWorkspaceFileContent } from '@/hooks/queries/workspace-files'
+import {
+  useWorkspaceFileBinary,
+  useWorkspaceFileContent,
+  useWorkspaceImageDimensionsAdapter,
+} from '@/hooks/queries/workspace-files'
 import {
   createWorkspaceFileContentSource,
   type FileContentSource,
@@ -126,9 +130,10 @@ interface FileViewerProps {
 
 export function FileViewer(props: FileViewerProps) {
   const { contentSource, workspaceId } = props
+  const imageDimensions = useWorkspaceImageDimensionsAdapter(workspaceId)
   const source = useMemo(
-    () => contentSource ?? createWorkspaceFileContentSource(workspaceId),
-    [contentSource, workspaceId]
+    () => contentSource ?? createWorkspaceFileContentSource(workspaceId, imageDimensions),
+    [contentSource, workspaceId, imageDimensions]
   )
   return (
     <FileContentSourceProvider value={source}>
@@ -399,7 +404,7 @@ const MediaPreview = memo(function MediaPreview({
     return (
       <div className='flex h-full flex-col items-center justify-center gap-4 bg-[var(--surface-1)] p-8'>
         <div className='flex flex-col items-center gap-2 text-center'>
-          <Music className='size-[32px] text-[var(--text-muted)]' strokeWidth={1.5} />
+          <Music className='size-[32px] text-[var(--text-muted)]' />
           <p className='font-medium text-[14px] text-[var(--text-primary)]'>{file.name}</p>
         </div>
         {blobUrl && (

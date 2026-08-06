@@ -14,11 +14,10 @@ import {
   Search,
   toast,
 } from '@sim/emcn'
-import { ArrowLeft } from '@sim/emcn/icons'
+import { ArrowLeft, Plus } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { Plus } from 'lucide-react'
 import { CustomPatternsEditor } from '@/components/pii/custom-patterns-editor'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import type { SettingsAction } from '@/components/settings/settings-header'

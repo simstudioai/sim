@@ -1,7 +1,7 @@
 import type { SVGProps } from 'react'
 
 /**
- * Send icon component - paper plane / arrow
+ * Send icon component - paper plane
  * @param props - SVG properties including className, fill, etc.
  */
 export function Send(props: SVGProps<SVGSVGElement>) {
@@ -19,8 +19,8 @@ export function Send(props: SVGProps<SVGSVGElement>) {
       aria-hidden='true'
       {...props}
     >
-      <path d='M19.5 1.5L9 12' />
-      <path d='M19.5 1.5L13.5 19.5L9 12L1.5 8.5L19.5 1.5Z' />
+      <path d='M19.25 1.25L12.5 18.25L9 10.5L1.25 7.25L19.25 1.25Z' />
+      <path d='M19.25 1.25L9 10.5' />
     </svg>
   )
 }

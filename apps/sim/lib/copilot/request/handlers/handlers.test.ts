@@ -170,6 +170,7 @@ describe('sse-handlers tool lifecycle', () => {
       runId: 'run-1',
       userId: 'user-1',
       registry: execContext.resolvedSecretTraceRegistry,
+      toolInput: {},
     })
   })
 
@@ -408,6 +409,7 @@ describe('sse-handlers tool lifecycle', () => {
 
     const updated = context.toolCalls.get('tool-1')
     expect(updated?.status).toBe(MothershipStreamV1ToolOutcome.success)
+    expect(updated?.agentId).toBe('main')
     // Display titles are derived client-side from the tool name (+args), not the
     // stream; read with no path resolves to the static "Reading file".
     expect(updated?.displayTitle).toBe('Reading file')
@@ -482,13 +484,16 @@ describe('sse-handlers tool lifecycle', () => {
     registry.recordResolved('SECRET', 'secret-value')
     execContext.resolvedSecretTraceRegistry = registry
     execContext.chatId = 'chat-1'
-    executeTool.mockResolvedValueOnce({
-      success: true,
-      output: {
-        result: 'secret-value',
-        stdout: 'prefix secret-value',
-      },
-      resources: [{ type: 'file', id: 'file-1', title: 'secret-value.txt' }],
+    executeTool.mockImplementationOnce(async (_name, _params, toolContext) => {
+      toolContext.resolvedSecretTraceRegistry?.recordResolved('SECRET', 'secret-value')
+      return {
+        success: true,
+        output: {
+          result: 'secret-value',
+          stdout: 'prefix secret-value',
+        },
+        resources: [{ type: 'file', id: 'file-1', title: 'secret-value.txt' }],
+      }
     })
     const onEvent = vi.fn()
 
@@ -889,9 +894,11 @@ describe('sse-handlers tool lifecycle', () => {
       expect.any(Object)
     )
     expect(context.toolCalls.get('sub-tool-1')?.params).toEqual({ name: 'Example Workflow' })
+    expect(context.toolCalls.get('sub-tool-1')?.agentId).toBe('workflow')
     expect(context.subAgentToolCalls['parent-1']?.[0]?.params).toEqual({
       name: 'Example Workflow',
     })
+    expect(context.subAgentToolCalls['parent-1']?.[0]?.agentId).toBe('workflow')
   })
 
   it('routes subagent text using the event scope parent tool call id', async () => {
@@ -973,6 +980,40 @@ describe('sse-handlers tool lifecycle', () => {
     await sleep(0)
 
     expect(context.subAgentToolCalls['parent-1']?.[0]?.id).toBe('sub-tool-scope-1')
+    expect(context.toolCalls.get('sub-tool-scope-1')?.agentId).toBe('deploy')
+  })
+
+  it('retains the first agent attribution on replayed partial tool calls', async () => {
+    context.toolCalls.set('replayed-read', {
+      id: 'replayed-read',
+      name: 'read',
+      status: 'executing',
+    })
+
+    const replayPartial = (agentId: string) =>
+      subAgentHandlers.tool(
+        {
+          type: MothershipStreamV1EventType.tool,
+          scope: { lane: 'subagent', parentToolCallId: 'parent-1', agentId },
+          payload: {
+            toolCallId: 'replayed-read',
+            toolName: 'read',
+            executor: MothershipStreamV1ToolExecutor.go,
+            mode: MothershipStreamV1ToolMode.sync,
+            phase: MothershipStreamV1ToolPhase.call,
+            status: 'generating',
+            partial: true,
+          },
+        } satisfies StreamEvent,
+        context,
+        execContext,
+        { interactive: false, timeout: 1000 }
+      )
+
+    await replayPartial('workflow')
+    await replayPartial('deploy')
+
+    expect(context.toolCalls.get('replayed-read')?.agentId).toBe('workflow')
   })
 
   it('pairs compaction lifecycle events within each scoped subagent lane', async () => {

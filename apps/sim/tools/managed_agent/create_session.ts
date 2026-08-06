@@ -109,7 +109,16 @@ export const managedAgentCreateSessionTool: ToolConfig<
     },
   },
 
-  request: UNUSED_REQUEST,
+  request: {
+    ...UNUSED_REQUEST,
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({
+        userMessage: params.userMessage,
+        memoryInstructions: params.memoryInstructions,
+      }),
+    },
+  },
 
   directExecution: async (params, signal): Promise<ManagedAgentCreateSessionResponse> => {
     const apiKey = params.accessToken

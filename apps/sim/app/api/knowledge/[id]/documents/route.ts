@@ -34,6 +34,12 @@ import {
   performUploadKnowledgeDocument,
   performUploadKnowledgeDocuments,
 } from '@/lib/knowledge/orchestration'
+import { createKnowledgeDocumentSourceValue } from '@/lib/knowledge/secret-provenance'
+import {
+  createKnowledgePersistedResponse,
+  createKnowledgeProvenanceResponse,
+  resolveKnowledgeDocumentWriteSecretProvenance,
+} from '@/app/api/knowledge/secret-provenance'
 import { checkKnowledgeBaseAccess, checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
 
 const logger = createLogger('DocumentsAPI')
@@ -44,13 +50,14 @@ export const GET = withRouteHandler(
     const { id: knowledgeBaseId } = await params
 
     try {
-      const session = await getSession()
-      if (!session?.user?.id) {
+      const auth = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
+      if (!auth.success || !auth.userId) {
         logger.warn(`[${requestId}] Unauthorized documents access attempt`)
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
+      const userId = auth.userId
 
-      const accessCheck = await checkKnowledgeBaseAccess(knowledgeBaseId, session.user.id)
+      const accessCheck = await checkKnowledgeBaseAccess(knowledgeBaseId, userId)
 
       if (!accessCheck.hasAccess) {
         if ('notFound' in accessCheck && accessCheck.notFound) {
@@ -58,7 +65,7 @@ export const GET = withRouteHandler(
           return NextResponse.json({ error: 'Knowledge base not found' }, { status: 404 })
         }
         logger.warn(
-          `[${requestId}] User ${session.user.id} attempted to access unauthorized knowledge base documents ${knowledgeBaseId}`
+          `[${requestId}] User ${userId} attempted to access unauthorized knowledge base documents ${knowledgeBaseId}`
         )
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
@@ -101,12 +108,25 @@ export const GET = withRouteHandler(
         requestId
       )
 
-      return NextResponse.json({
+      const responseBody = {
         success: true,
         data: {
           documents: result.documents,
           pagination: result.pagination,
         },
+      }
+      const workspaceId = accessCheck.knowledgeBase?.workspaceId ?? undefined
+      return createKnowledgePersistedResponse({
+        request: req,
+        authType: auth.authType,
+        userId,
+        ...(workspaceId ? { workspaceId } : {}),
+        body: responseBody,
+        documents: result.documents.map((item) => ({
+          id: item.id,
+          source: createKnowledgeDocumentSourceValue(item),
+          value: item,
+        })),
       })
     } catch (error) {
       logger.error(`[${requestId}] Error fetching documents`, error)
@@ -212,6 +232,17 @@ export const POST = withRouteHandler(
         )
       }
 
+      const provenanceDocuments = body.bulk === true ? body.documents : [body]
+      const writeProvenance = resolveKnowledgeDocumentWriteSecretProvenance({
+        request: req,
+        payload: body,
+        authType: auth.authType,
+        userId,
+        ...(kbWorkspaceId ? { workspaceId: kbWorkspaceId } : {}),
+        documents: provenanceDocuments,
+      })
+      if (!writeProvenance.success) return writeProvenance.response
+
       const knowledgeBase = {
         id: knowledgeBaseId,
         name: accessCheck.knowledgeBase?.name,
@@ -233,6 +264,7 @@ export const POST = withRouteHandler(
           documents: body.documents,
           processingOptions: body.processingOptions,
           billingAttribution,
+          secretProvenances: writeProvenance.provenances,
         })
         if (!outcome.success) {
           return NextResponse.json(
@@ -242,20 +274,31 @@ export const POST = withRouteHandler(
         }
 
         const { batchSize, maxConcurrentDocuments } = getProcessingConfig()
-        return NextResponse.json({
-          success: true,
-          data: {
-            total: outcome.documents.length,
-            documentsCreated: outcome.documents.map((doc) => ({
-              documentId: doc.documentId,
-              filename: doc.filename,
-              status: 'pending',
-            })),
-            processingMethod: 'background',
-            processingConfig: {
-              maxConcurrentDocuments,
-              batchSize,
-              totalBatches: Math.ceil(outcome.documents.length / batchSize),
+        return createKnowledgeProvenanceResponse({
+          request: req,
+          authType: auth.authType,
+          userId,
+          ...(kbWorkspaceId ? { workspaceId: kbWorkspaceId } : {}),
+          provenances:
+            writeProvenance.provenances?.flatMap((provenance) => [
+              provenance.filename,
+              ...provenance.tags.map((tag) => tag.provenance),
+            ]) ?? [],
+          body: {
+            success: true,
+            data: {
+              total: outcome.documents.length,
+              documentsCreated: outcome.documents.map((doc) => ({
+                documentId: doc.documentId,
+                filename: doc.filename,
+                status: 'pending',
+              })),
+              processingMethod: 'background',
+              processingConfig: {
+                maxConcurrentDocuments,
+                batchSize,
+                totalBatches: Math.ceil(outcome.documents.length / batchSize),
+              },
             },
           },
         })
@@ -269,6 +312,7 @@ export const POST = withRouteHandler(
         knowledgeBase,
         document: singleDocumentData,
         billingAttribution,
+        secretProvenance: writeProvenance.provenances?.[0],
       })
       if (!outcome.success) {
         return NextResponse.json(
@@ -277,7 +321,18 @@ export const POST = withRouteHandler(
         )
       }
 
-      return NextResponse.json({ success: true, data: outcome.document })
+      return createKnowledgeProvenanceResponse({
+        request: req,
+        authType: auth.authType,
+        userId,
+        ...(kbWorkspaceId ? { workspaceId: kbWorkspaceId } : {}),
+        provenances:
+          writeProvenance.provenances?.flatMap((provenance) => [
+            provenance.filename,
+            ...provenance.tags.map((tag) => tag.provenance),
+          ]) ?? [],
+        body: { success: true, data: outcome.document },
+      })
     } catch (error) {
       logger.error(`[${requestId}] Error creating document`, error)
       return NextResponse.json(

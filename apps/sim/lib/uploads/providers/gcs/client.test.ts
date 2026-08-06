@@ -242,7 +242,7 @@ describe('GCS Client', () => {
       const result = await getGcsPresignedUploadUrl(
         'workspace/file.txt',
         'text/plain',
-        { originalName: 'file.txt', workspaceId: 'ws-1' },
+        { originalName: 'file.txt', workspaceId: 'ws-1', simuploadid: 'receipt-1' },
         { bucket: 'test-bucket' },
         3600
       )
@@ -256,6 +256,7 @@ describe('GCS Client', () => {
           'x-goog-if-generation-match': '0',
           'x-goog-meta-originalName': 'file.txt',
           'x-goog-meta-workspaceId': 'ws-1',
+          'x-goog-meta-simuploadid': 'receipt-1',
         }),
       })
       expect(result.url).toBe('https://example.com/signed-write')
@@ -264,6 +265,7 @@ describe('GCS Client', () => {
           'Content-Type': 'text/plain',
           'x-goog-if-generation-match': '0',
           'x-goog-meta-workspaceId': 'ws-1',
+          'x-goog-meta-simuploadid': 'receipt-1',
         })
       )
     })
@@ -310,7 +312,7 @@ describe('GCS Client', () => {
           size: '2048',
           contentType: 'text/csv',
           generation: '42',
-          metadata: { uploadid: 'upload-1' },
+          metadata: { uploadid: 'upload-1', simuploadid: 'receipt-1' },
         },
       ])
 
@@ -321,6 +323,7 @@ describe('GCS Client', () => {
         contentType: 'text/csv',
         uploadId: 'upload-1',
         version: '42',
+        metadata: { uploadid: 'upload-1', simuploadid: 'receipt-1' },
       })
     })
 
@@ -420,18 +423,21 @@ describe('GCS Client', () => {
         purpose: 'workspace',
       })
 
-      expect(result).toEqual({ uploadId: 'upload-123', key: 'workspace/ws-1/large.csv' })
+      expect(result).toEqual({
+        uploadId: 'upload-123',
+        key: expect.stringMatching(/^\.sim-multipart\/[0-9a-f-]+\/workspace\/ws-1\/large\.csv$/),
+      })
 
       const [url, init] = mockFetch.mock.calls[0]
-      expect(url).toBe(
-        'https://storage.googleapis.com/test-bucket/workspace/ws-1/large.csv?uploads'
-      )
+      expect(url).toBe(`https://storage.googleapis.com/test-bucket/${result.key}?uploads`)
       expect(init.method).toBe('POST')
+      const completionId = result.key.split('/')[1]
       expect(init.headers).toEqual(
         expect.objectContaining({
           Authorization: 'Bearer test-access-token',
           'Content-Type': 'text/csv',
           'x-goog-meta-purpose': 'workspace',
+          'x-goog-meta-sim-upload-id': completionId,
         })
       )
     })
@@ -522,7 +528,126 @@ describe('GCS Client', () => {
       })
     })
 
-    it('should restore quotes on unquoted ETags', async () => {
+    it('finalizes new multipart uploads through a create-only canonical copy', async () => {
+      mockFetch.mockResolvedValueOnce(new Response('<Complete/>', { status: 200 }))
+      mockFile.getMetadata.mockResolvedValueOnce([{ metadata: { 'sim-upload-id': 'receipt-1' } }])
+      mockFile.copy.mockResolvedValueOnce([mockFile, {}])
+      mockFile.delete.mockResolvedValueOnce(undefined)
+
+      const result = await completeGcsMultipartUpload(
+        '.sim-multipart/receipt-1/workspace/ws-1/large.csv',
+        'upload-123',
+        [{ PartNumber: 1, ETag: 'etag-1' }]
+      )
+
+      expect(mockFile.copy).toHaveBeenCalledWith(mockFile, {
+        preconditionOpts: { ifGenerationMatch: 0 },
+      })
+      expect(mockFile.delete).toHaveBeenCalledWith({ ignoreNotFound: true })
+      expect(result).toEqual({
+        location: 'https://storage.googleapis.com/test-bucket/workspace/ws-1/large.csv',
+        path: '/api/files/serve/workspace%2Fws-1%2Flarge.csv',
+        key: 'workspace/ws-1/large.csv',
+      })
+    })
+
+    it('returns the immutable canonical object when multipart completion is retried', async () => {
+      mockFetch.mockResolvedValueOnce(
+        new Response('<Error/>', { status: 404, statusText: 'Not Found' })
+      )
+      mockFile.getMetadata.mockResolvedValueOnce([{ metadata: { 'sim-upload-id': 'receipt-1' } }])
+
+      const result = await completeGcsMultipartUpload(
+        '.sim-multipart/receipt-1/workspace/ws-1/large.csv',
+        'upload-123',
+        [{ PartNumber: 1, ETag: 'etag-1' }]
+      )
+
+      expect(mockFile.copy).not.toHaveBeenCalled()
+      expect(result.key).toBe('workspace/ws-1/large.csv')
+    })
+
+    it('continues the canonical copy when XML completion succeeded before its response was lost', async () => {
+      mockFetch.mockResolvedValueOnce(
+        new Response('<Error/>', { status: 404, statusText: 'Not Found' })
+      )
+      mockFile.getMetadata
+        .mockRejectedValueOnce(Object.assign(new Error('Not Found'), { code: 404 }))
+        .mockResolvedValueOnce([{ metadata: { 'sim-upload-id': 'receipt-1' } }])
+        .mockResolvedValueOnce([{ metadata: { 'sim-upload-id': 'receipt-1' } }])
+      mockFile.copy.mockResolvedValueOnce([mockFile, {}])
+      mockFile.delete.mockResolvedValueOnce(undefined)
+
+      const result = await completeGcsMultipartUpload(
+        '.sim-multipart/receipt-1/workspace/ws-1/large.csv',
+        'upload-123',
+        [{ PartNumber: 1, ETag: 'etag-1' }]
+      )
+
+      expect(mockFile.copy).toHaveBeenCalledWith(mockFile, {
+        preconditionOpts: { ifGenerationMatch: 0 },
+      })
+      expect(result.key).toBe('workspace/ws-1/large.csv')
+    })
+
+    it('fails closed when a different object already occupies the canonical key', async () => {
+      mockFetch.mockResolvedValueOnce(new Response('<Complete/>', { status: 200 }))
+      mockFile.getMetadata
+        .mockResolvedValueOnce([{ metadata: { 'sim-upload-id': 'receipt-1' } }])
+        .mockResolvedValueOnce([{ metadata: { 'sim-upload-id': 'different-receipt' } }])
+      mockFile.copy.mockRejectedValueOnce(
+        Object.assign(new Error('condition failed'), { code: 412 })
+      )
+
+      await expect(
+        completeGcsMultipartUpload(
+          '.sim-multipart/receipt-1/workspace/ws-1/large.csv',
+          'upload-123',
+          [{ PartNumber: 1, ETag: 'etag-1' }]
+        )
+      ).rejects.toThrow('condition failed')
+
+      expect(mockFile.delete).not.toHaveBeenCalled()
+    })
+
+    it('reuses an existing immutable snapshot only under the explicit policy', async () => {
+      mockFetch.mockResolvedValueOnce(new Response('<Complete/>', { status: 200 }))
+      mockFile.getMetadata
+        .mockResolvedValueOnce([{ metadata: { 'sim-upload-id': 'receipt-1' } }])
+        .mockResolvedValueOnce([{ metadata: { 'sim-upload-id': 'other-snapshot-upload' } }])
+      mockFile.copy.mockRejectedValueOnce(
+        Object.assign(new Error('condition failed'), { code: 412 })
+      )
+
+      const result = await completeGcsMultipartUpload(
+        '.sim-multipart/receipt-1/table-snapshots/ws-1/table.csv',
+        'upload-123',
+        [{ PartNumber: 1, ETag: 'etag-1' }],
+        undefined,
+        'reuse-existing'
+      )
+
+      expect(result.key).toBe('table-snapshots/ws-1/table.csv')
+      expect(mockFile.delete).toHaveBeenCalledWith({ ignoreNotFound: true })
+    })
+
+    it('omits the create precondition for replace-policy exports', async () => {
+      mockFetch.mockResolvedValueOnce(new Response('<Complete/>', { status: 200 }))
+      mockFile.getMetadata.mockResolvedValueOnce([{ metadata: { 'sim-upload-id': 'receipt-1' } }])
+      mockFile.copy.mockResolvedValueOnce([mockFile, {}])
+
+      await completeGcsMultipartUpload(
+        '.sim-multipart/receipt-1/workspace/ws-1/export.csv',
+        'upload-123',
+        [{ PartNumber: 1, ETag: 'etag-1' }],
+        undefined,
+        'replace'
+      )
+
+      expect(mockFile.copy).toHaveBeenCalledWith(mockFile, {})
+    })
+
+    it('should restore quotes on ETags stripped by the browser upload client', async () => {
       mockFetch.mockResolvedValueOnce(new Response('<Complete/>', { status: 200 }))
 
       await completeGcsMultipartUpload('key.csv', 'upload-123', [{ PartNumber: 1, ETag: 'etag-1' }])

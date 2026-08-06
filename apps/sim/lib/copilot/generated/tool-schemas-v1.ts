@@ -2211,7 +2211,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         code: {
           type: 'string',
           description:
-            'Code to execute. For JS: raw statements auto-wrapped in async context. For Python: full script. For shell: bash script with pre-installed CLI tools. Request each needed secret with an explicit {{VAR_NAME}} reference.',
+            'Code to execute. For JS: raw statements auto-wrapped in async context. For Python: full script. For shell: bash script with pre-installed CLI tools. Use each needed secret as {{VAR_NAME}}; the reference resolves to the value exactly as stored.',
         },
         inputs: {
           type: 'object',
@@ -2332,6 +2332,11 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
               },
             },
           },
+        },
+        sandboxId: {
+          type: 'string',
+          description:
+            'Optional Sim sandbox id from agent/sandboxes/{name}.json. DEFAULT-FIRST: omit this whenever the documented default function_execute environment can do the job. Select a ready existing Sim sandbox only when a required third-party dependency, Debian system package, or managed CLI is known to be absent, or a default attempt failed specifically because it was missing. Never guess an id.',
         },
         timeout: {
           type: 'number',
@@ -3496,6 +3501,60 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  manage_sandbox: {
+    parameters: {
+      type: 'object',
+      properties: {
+        cliTools: {
+          type: 'array',
+          description:
+            'Complete managed CLI id list (maximum 10). Use exact pinned ids returned by list. On edit, passing this replaces the whole list; pass [] to clear it.',
+          items: {
+            type: 'string',
+          },
+        },
+        dependencies: {
+          type: 'array',
+          description:
+            'Complete npm or PyPI dependency list (maximum 50). On edit, passing this replaces the whole list; pass [] to clear it.',
+          items: {
+            type: 'string',
+          },
+        },
+        language: {
+          type: 'string',
+          description:
+            'Dependency language. javascript installs from npm; python installs from PyPI. Required for add; optional for edit.',
+          enum: ['javascript', 'python'],
+        },
+        name: {
+          type: 'string',
+          description:
+            'Workspace-unique Sim sandbox name (1-64 characters). Required for add; optional for edit.',
+        },
+        operation: {
+          type: 'string',
+          description: "The operation to perform: 'add', 'edit', 'list', or 'delete'.",
+          enum: ['add', 'edit', 'delete', 'list'],
+        },
+        sandboxId: {
+          type: 'string',
+          description:
+            'The Sim sandbox id. Get it from list or the inner id field in agent/sandboxes/{name}.json; never guess it. Required for edit and delete.',
+        },
+        systemPackages: {
+          type: 'array',
+          description:
+            'Complete Debian package-coordinate list in package[:architecture][=version] form (maximum 50). On edit, passing this replaces the whole list; pass [] to clear it.',
+          items: {
+            type: 'string',
+          },
+        },
+      },
+      required: ['operation'],
+    },
+    resultSchema: undefined,
+  },
   manage_scheduled_task: {
     parameters: {
       type: 'object',
@@ -3903,7 +3962,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             filter: {
               type: 'object',
               description:
-                'Predicate filter object for query_rows. A predicate is a tree: {"all":[...]} (AND) or {"any":[...]} (OR); members are leaves {field, op, value} or nested groups. Ops: eq, ne, gt, gte, lt, lte, in, nin, like, ilike (use * as the wildcard), nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. in/nin take a non-empty array value. Examples: {"all":[{"field":"status","op":"eq","value":"active"}]}; {"any":[{"field":"status","op":"eq","value":"active"},{"field":"status","op":"eq","value":"pending"}]}; {"all":[{"field":"name","op":"ilike","value":"*jo*"}]}.',
+                'Predicate filter object for query_rows. A single condition is {field, op, value}; use {"all":[...]} (AND) or {"any":[...]} (OR) for multiple or nested conditions. Ops: eq, ne, gt, gte, lt, lte, in, nin, like, ilike (use * as the wildcard), nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. in/nin take a non-empty array value. Examples: {"field":"status","op":"eq","value":"active"}; {"any":[{"field":"status","op":"eq","value":"active"},{"field":"status","op":"eq","value":"pending"}]}; {"field":"name","op":"ilike","value":"*jo*"}.',
             },
             limit: {
               type: 'number',
@@ -4185,7 +4244,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         code: {
           type: 'string',
           description:
-            'Code to execute. For JS: raw statements auto-wrapped in async context. For Python: full script. For shell: bash script with pre-installed CLI tools. Request each needed secret with an explicit {{VAR_NAME}} reference.',
+            'Code to execute. For JS: raw statements auto-wrapped in async context. For Python: full script. For shell: bash script with pre-installed CLI tools. Use each needed secret as {{VAR_NAME}}; the reference resolves to the value exactly as stored.',
         },
         inputs: {
           type: 'object',
@@ -5044,7 +5103,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             filter: {
               type: 'object',
               description:
-                'Predicate filter object for query_rows, update_rows_by_filter, delete_rows_by_filter. A predicate is a tree: {"all":[...]} (AND) or {"any":[...]} (OR); members are leaves {field, op, value} or nested groups. Ops: eq, ne, gt, gte, lt, lte, in, nin, like, ilike (use * as the wildcard), nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. in/nin take a non-empty array value. Examples: {"all":[{"field":"status","op":"eq","value":"active"}]}; {"all":[{"field":"wins","op":"gte","value":18},{"field":"status","op":"eq","value":"pending"}]}; {"any":[{"field":"status","op":"eq","value":"active"},{"field":"status","op":"eq","value":"pending"}]}; {"all":[{"field":"name","op":"ilike","value":"*jo*"}]}; {"all":[{"field":"slack_user_id","op":"in","value":["U1","U2"]}]}.',
+                'Predicate filter object for query_rows, update_rows_by_filter, delete_rows_by_filter. A single condition is {field, op, value}; use {"all":[...]} (AND) or {"any":[...]} (OR) for multiple or nested conditions. Ops: eq, ne, gt, gte, lt, lte, in, nin, like, ilike (use * as the wildcard), nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. in/nin take a non-empty array value. Examples: {"field":"status","op":"eq","value":"active"}; {"all":[{"field":"wins","op":"gte","value":18},{"field":"status","op":"eq","value":"pending"}]}; {"any":[{"field":"status","op":"eq","value":"active"},{"field":"status","op":"eq","value":"pending"}]}; {"field":"name","op":"ilike","value":"*jo*"}; {"field":"slack_user_id","op":"in","value":["U1","U2"]}.',
             },
             groupId: {
               type: 'string',

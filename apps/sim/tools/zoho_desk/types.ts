@@ -18,6 +18,9 @@ export interface ZohoDeskListTicketsParams extends ZohoDeskBaseParams {
   departmentIds?: string
   status?: string
   priority?: string
+  assignee?: string
+  channel?: string
+  receivedInDays?: number
   sortBy?: string
   include?: string
 }
@@ -47,6 +50,7 @@ export interface ZohoDeskListCommentsParams extends ZohoDeskBaseParams {
   ticketId: string
   from?: number
   limit?: number
+  sortBy?: string
 }
 
 export interface ZohoDeskAddCommentParams extends ZohoDeskBaseParams {
@@ -60,15 +64,18 @@ export interface ZohoDeskListThreadsParams extends ZohoDeskBaseParams {
   ticketId: string
   from?: number
   limit?: number
+  sortBy?: string
 }
 
 export interface ZohoDeskGetThreadParams extends ZohoDeskBaseParams {
   ticketId: string
   threadId: string
+  include?: string
 }
 
 export interface ZohoDeskGetContactParams extends ZohoDeskBaseParams {
   contactId: string
+  include?: string
 }
 
 export type ZohoDeskListOrganizationsParams = Pick<ZohoDeskBaseParams, 'accessToken' | 'apiDomain'>
@@ -146,6 +153,12 @@ export const ZOHO_DESK_TICKET_PROPERTIES: Record<string, ToolOutputProperty> = {
   },
   createdTime: { type: 'string', description: 'Created timestamp', optional: true },
   modifiedTime: { type: 'string', description: 'Last modified timestamp', optional: true },
+  customerResponseTime: {
+    type: 'string',
+    description: 'Time the last customer response was received',
+    optional: true,
+    nullable: true,
+  },
   closedTime: { type: 'string', description: 'Closed timestamp', optional: true, nullable: true },
   resolution: { type: 'string', description: 'Resolution text', optional: true, nullable: true },
   threadCount: { type: 'string', description: 'Number of threads', optional: true },
@@ -258,7 +271,7 @@ export const ZOHO_DESK_THREAD_PROPERTIES: Record<string, ToolOutputProperty> = {
   },
   status: {
     type: 'string',
-    description: 'Delivery status of an outgoing thread (SUCCESS/FAILED/DRAFT)',
+    description: 'Delivery status of the thread (e.g. SUCCESS, PENDING, FAILED, DRAFT)',
     optional: true,
   },
   isDescriptionThread: {

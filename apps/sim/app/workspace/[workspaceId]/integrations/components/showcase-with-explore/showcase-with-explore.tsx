@@ -38,7 +38,7 @@ export function ShowcaseWithExplore({ prompt }: ShowcaseWithExploreProps) {
             storeCuratedPrompt(prompt)
             router.push(`/workspace/${workspaceId}/home`)
           }}
-          className='absolute right-0 bottom-0 mx-0'
+          className='absolute right-0 bottom-0'
         >
           Explore in chat
         </Chip>

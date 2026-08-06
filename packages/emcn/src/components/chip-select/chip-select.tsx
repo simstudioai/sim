@@ -18,6 +18,8 @@ import {
 export interface ChipSelectOption {
   label: string
   value: string
+  /** Additional search-only terms. These are never rendered in the option label. */
+  searchTerms?: readonly string[]
   /** Optional leading icon. */
   icon?: React.ComponentType<{ className?: string }>
   /** Whether this option is non-selectable. */
@@ -71,6 +73,12 @@ export interface ChipSelectProps {
   dropdownWidth?: 'trigger' | number
   /** Max height of the menu in px (defaults to the menu's 240px). */
   maxHeight?: number
+  /**
+   * Keep the menu below its trigger and shrink it to the remaining viewport
+   * height instead of allowing collision handling to flip it above. Use this
+   * for long form-field menus that would otherwise obscure preceding fields.
+   */
+  stayBelow?: boolean
   /** Forwarded to the trigger button. */
   className?: string
   /** Forwarded to the menu content. */
@@ -85,6 +93,15 @@ export interface ChipSelectProps {
    * non-interactive.
    */
   modal?: boolean
+}
+
+/** Matches an option label or one of its search-only aliases. */
+export function chipSelectOptionMatchesSearch(option: ChipSelectOption, query: string): boolean {
+  const normalizedQuery = query.trim().toLowerCase()
+  if (!normalizedQuery) return true
+  return [option.label, ...(option.searchTerms ?? [])].some((term) =>
+    term.trim().toLowerCase().includes(normalizedQuery)
+  )
 }
 
 /**
@@ -126,6 +143,7 @@ export function ChipSelect({
   fullWidth = false,
   dropdownWidth,
   maxHeight,
+  stayBelow = false,
   className,
   contentClassName,
   'aria-label': ariaLabel,
@@ -157,9 +175,8 @@ export function ChipSelect({
 
   const filteredSections = React.useMemo(() => {
     if (!searchable || !query.trim()) return sections
-    const q = query.toLowerCase()
     return sections
-      .map((g) => ({ ...g, items: g.items.filter((o) => o.label.toLowerCase().includes(q)) }))
+      .map((g) => ({ ...g, items: g.items.filter((o) => chipSelectOptionMatchesSearch(o, query)) }))
       .filter((g) => g.items.length > 0)
   }, [searchable, query, sections])
 
@@ -182,7 +199,12 @@ export function ChipSelect({
   if (dropdownWidth === 'trigger') contentStyle.width = 'var(--radix-dropdown-menu-trigger-width)'
   else if (typeof dropdownWidth === 'number') contentStyle.width = dropdownWidth
   if (dropdownWidth != null) contentStyle.maxWidth = 'none'
-  if (typeof maxHeight === 'number') contentStyle.maxHeight = maxHeight
+  if (stayBelow) {
+    const preferredMaxHeight = typeof maxHeight === 'number' ? `${maxHeight}px` : '240px'
+    contentStyle.maxHeight = `min(${preferredMaxHeight}, var(--radix-dropdown-menu-content-available-height))`
+  } else if (typeof maxHeight === 'number') {
+    contentStyle.maxHeight = maxHeight
+  }
 
   const renderOption = (opt: ChipSelectOption) => {
     const Icon = opt.icon
@@ -227,7 +249,7 @@ export function ChipSelect({
           disabled={disabled}
           aria-label={ariaLabel}
           className={cn(
-            chipVariants({ variant: 'filled', flush: true, fullWidth }),
+            chipVariants({ variant: 'filled', fullWidth }),
             TRIGGER_BORDER_CLASS,
             fullWidth ? 'w-full justify-between' : 'w-fit max-w-[240px]',
             className
@@ -240,12 +262,14 @@ export function ChipSelect({
             aria-hidden
             className='inline-flex size-[16px] flex-shrink-0 items-center justify-center text-[var(--text-icon)]'
           >
-            <ChevronDown className='h-[6px] w-[10px]' />
+            <ChevronDown className='size-[14px]' />
           </span>
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align={align}
+        side={stayBelow ? 'bottom' : undefined}
+        avoidCollisions={stayBelow ? false : undefined}
         onOpenAutoFocus={searchable ? (e) => e.preventDefault() : undefined}
         style={contentStyle}
         className={cn('min-w-[160px]', contentClassName)}

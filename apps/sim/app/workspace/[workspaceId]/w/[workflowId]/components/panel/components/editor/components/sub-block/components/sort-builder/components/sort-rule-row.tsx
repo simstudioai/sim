@@ -8,7 +8,7 @@ import {
   Label,
   Trash,
 } from '@sim/emcn'
-import { Plus } from 'lucide-react'
+import { Plus } from '@sim/emcn/icons'
 import type { SortRule } from '@/lib/table/query-builder/constants'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
@@ -73,7 +73,7 @@ export function SortRuleRow({
       }}
     >
       <div className='flex min-w-0 flex-1 items-center gap-2'>
-        <span className='block truncate font-medium text-[var(--text-tertiary)] text-sm'>
+        <span className='block truncate text-[var(--text-tertiary)] text-sm'>
           {rule.collapsed && rule.column
             ? formatDisplayText(getColumnLabel(rule.column), {
                 workflowSearchHighlight: getLabelHighlight('column', getColumnLabel(rule.column)),
