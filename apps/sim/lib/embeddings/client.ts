@@ -5,7 +5,7 @@ import {
   DEFAULT_EMBEDDING_MODEL,
   type EmbeddingModelInfo,
   getEmbeddingModelInfo,
-  resolveBatchTokenCeiling,
+  hasApproximateTokenCount,
   resolveDimensions,
 } from '@/lib/embeddings/catalog'
 import { resolveProviderKey } from '@/lib/embeddings/keys'
@@ -193,17 +193,27 @@ export async function embed(texts: string[], options: EmbedOptions): Promise<Emb
   const modelInputs = options.projectInputs ? options.projectInputs(texts) : texts
 
   /**
-   * Batched against the selected model's own ceiling rather than one shared
-   * constant. A value that is too high sends oversized input the provider
-   * rejects; one that is too low silently drops content the provider would have
-   * accepted. Using the per-input ceiling as the per-batch budget also keeps
-   * every individual text within it.
+   * Batched against the selected model's own declared ceiling, exactly as
+   * declared. One shared constant sent oversized input to models with a lower
+   * limit and discarded content models with a higher one accept; discounting
+   * the ceiling to absorb tokenizer error would reintroduce the second harm.
+   *
+   * `batchByTokenLimit` truncates any text above the ceiling, and does so
+   * silently, so warn first: a shortened embedding input is otherwise
+   * indistinguishable from a good one, both to the caller and in the vector.
    */
-  const tokenBatches = batchByTokenLimit(
-    modelInputs,
-    resolveBatchTokenCeiling(provider.info),
-    model
-  )
+  const ceiling = provider.info.maxInputTokens
+  for (const text of modelInputs) {
+    if (estimateTokenCount(text, provider.info.tokenizerProvider).count <= ceiling) continue
+    logger.warn('Embedding input exceeds the model token limit and will be truncated', {
+      model,
+      maxInputTokens: ceiling,
+      chars: text.length,
+      approximateTokenCount: hasApproximateTokenCount(provider.info),
+    })
+  }
+
+  const tokenBatches = batchByTokenLimit(modelInputs, ceiling, model)
   const itemLimit = provider.adapter.maxItemsPerRequest ?? provider.info.maxItemsPerRequest
   const batches = itemLimit
     ? tokenBatches.flatMap((batch) => splitByItemLimit(batch, itemLimit))

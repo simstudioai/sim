@@ -8,8 +8,8 @@ import {
   getEmbeddingModelInfo,
   getKbEligibleModels,
   getModelsForProvider,
+  hasApproximateTokenCount,
   KB_EMBEDDING_DIMENSIONS,
-  resolveBatchTokenCeiling,
   resolveDimensions,
 } from '@/lib/embeddings/catalog'
 import { EMBEDDING_MODEL_PRICING } from '@/providers/models'
@@ -101,42 +101,30 @@ describe('splitByItemLimit', () => {
     expect(batches.flat()).toEqual(items)
   })
 
-  /**
-   * Batching counts tokens with tiktoken, which only has encodings for OpenAI
-   * models. Every other id falls back to cl100k, so a foreign model's ceiling
-   * would otherwise be enforced in the wrong token units.
-   */
-  describe('resolveBatchTokenCeiling', () => {
-    it('trusts the declared ceiling for tiktoken-native models', () => {
-      for (const [id, info] of Object.entries(EMBEDDING_MODELS)) {
-        if (info.tokenizerProvider !== 'openai') continue
-        expect(resolveBatchTokenCeiling(info), id).toBe(info.maxInputTokens)
-      }
-    })
-
-    it('discounts the ceiling for every model counted with a foreign tokenizer', () => {
-      const foreign = Object.entries(EMBEDDING_MODELS).filter(
-        ([, info]) => info.tokenizerProvider !== 'openai'
-      )
-      // Guards the test itself: the catalog must still contain such models.
-      expect(foreign.length).toBeGreaterThan(0)
-
-      for (const [id, info] of foreign) {
-        const ceiling = resolveBatchTokenCeiling(info)
-        expect(ceiling, id).toBeLessThan(info.maxInputTokens)
-        expect(ceiling, id).toBeGreaterThan(0)
-      }
-    })
-
-    it("leaves Gemini's tight ceiling below its declared 2048", () => {
-      expect(resolveBatchTokenCeiling(getEmbeddingModelInfo('gemini-embedding-001'))).toBe(1638)
-    })
-  })
-
   it("chunks to Cohere's 96-item cap", () => {
     const items = Array.from({ length: 200 }, (_, i) => i)
     const batches = splitByItemLimit(items, 96)
     expect(batches.map((b) => b.length)).toEqual([96, 96, 8])
     expect(batches.flat()).toEqual(items)
+  })
+})
+
+/**
+ * Batching counts tokens with tiktoken, which only has encodings for OpenAI
+ * models; every other id falls back to cl100k. This flag records which models
+ * are counted approximately. It must not be used to shrink the ceiling —
+ * truncating below a provider's declared limit drops valid content silently,
+ * which is strictly worse than the visible rejection it would guard against.
+ */
+describe('hasApproximateTokenCount', () => {
+  it('is false only for tiktoken-native models', () => {
+    for (const [id, info] of Object.entries(EMBEDDING_MODELS)) {
+      expect(hasApproximateTokenCount(info), id).toBe(info.tokenizerProvider !== 'openai')
+    }
+  })
+
+  it('covers at least one model, so the flag stays meaningful', () => {
+    const approximate = Object.values(EMBEDDING_MODELS).filter(hasApproximateTokenCount)
+    expect(approximate.length).toBeGreaterThan(0)
   })
 })

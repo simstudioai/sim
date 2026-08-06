@@ -8,8 +8,8 @@ export {
   getEmbeddingModelInfo,
   getKbEligibleModels,
   getModelsForProvider,
+  hasApproximateTokenCount,
   KB_EMBEDDING_DIMENSIONS,
-  resolveBatchTokenCeiling,
   resolveDimensions,
 } from '@/lib/embeddings/catalog'
 export { EmbeddingAPIError, embed } from '@/lib/embeddings/client'

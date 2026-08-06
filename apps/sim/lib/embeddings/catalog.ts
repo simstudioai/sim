@@ -158,28 +158,18 @@ export function getKbEligibleModels(): string[] {
  * optional caller-requested reduction.
  */
 /**
- * Fraction of a model's declared ceiling used for batching when its tokens are
- * counted with the wrong tokenizer. Chosen to absorb the usual spread between
- * BPE vocabularies on ordinary text; it is a guard, not a measurement.
- */
-const FOREIGN_TOKENIZER_SAFETY_FACTOR = 0.8
-
-/**
- * The token ceiling batching should enforce for a model.
+ * True when a model's tokens cannot be counted exactly.
  *
  * Batching measures with tiktoken, which only has encodings for OpenAI models —
  * every other id falls back to `cl100k_base`, so a Gemini, Cohere, or Mistral
- * limit would be enforced in OpenAI token units. Counting a foreign model's
- * text with tiktoken is an approximation, so its ceiling is discounted rather
- * than trusted exactly.
- *
- * The discount is deliberately one-sided: overshooting means the provider
- * rejects the whole request, while undershooting only trims a text that was
- * already at the limit.
+ * ceiling is enforced in approximate units. The ceiling is still applied
+ * exactly as declared: discounting it to absorb the error would truncate valid
+ * content silently, which is worse than the alternative it guards against. An
+ * undercount surfaces as a provider rejection, which is visible and
+ * actionable; silently shortening an embedding's input is not.
  */
-export function resolveBatchTokenCeiling(info: EmbeddingModelInfo): number {
-  if (info.tokenizerProvider === 'openai') return info.maxInputTokens
-  return Math.floor(info.maxInputTokens * FOREIGN_TOKENIZER_SAFETY_FACTOR)
+export function hasApproximateTokenCount(info: EmbeddingModelInfo): boolean {
+  return info.tokenizerProvider !== 'openai'
 }
 
 export function resolveDimensions(info: EmbeddingModelInfo, requested?: number): number {
