@@ -8,7 +8,7 @@ import { ssoRegistrationContract } from '@/lib/api/contracts/auth'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { auth, getSession } from '@/lib/auth'
 import { hasSSOAccess } from '@/lib/billing'
-import { isSsoEnabled } from '@/lib/core/config/env-flags'
+import { isHosted, isSsoEnabled } from '@/lib/core/config/env-flags'
 import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
@@ -659,12 +659,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
      * clause, so the write matches nothing once the proof is gone and reports that
      * as `false`. Paired with the domain-delete route clearing this flag in the
      * same transaction that removes the proof, the provider cannot end up trusted
-     * without current ownership in either commit order. Org-less (personal) SSO is
-     * not domain-gated by Sim, so it grants unconditionally as it always has.
+     * without current ownership in either commit order.
+     *
+     * Org-less (personal) SSO has no verified domain behind it, so on the hosted
+     * multi-tenant deployment it is granted no linking authority — otherwise anyone
+     * able to register one could claim a domain they do not own and have their own
+     * IdP auto-link to existing accounts on it. Sim's UI always registers
+     * org-scoped, so this only affects direct API callers. Self-hosted deployments
+     * are single-tenant, where the operator is the only tenant and the org-less
+     * path keeps working as before.
      */
     const grantProviderDomainTrust = async (): Promise<boolean> => {
       if (!orgId) {
-        await setProviderDomainVerified(true)
+        await setProviderDomainVerified(!isHosted)
         return true
       }
       const granted = await db

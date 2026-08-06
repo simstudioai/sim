@@ -379,8 +379,13 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
 
   const handleInputChange = (field: keyof typeof formData, value: string | boolean) => {
     const next = { ...formData, [field]: value }
-
+    // Claim names are protocol-specific — OIDC's `email` means nothing to a SAML
+    // IdP — so carrying an override across a protocol switch would save a mapping
+    // that cannot resolve. Clear them and fall back to the new protocol's defaults.
     if (field === 'providerType') {
+      next.mapId = ''
+      next.mapEmail = ''
+      next.mapName = ''
       setShowErrors(false)
     }
 

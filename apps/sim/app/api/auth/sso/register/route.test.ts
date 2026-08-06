@@ -311,6 +311,26 @@ describe('POST /api/auth/sso/register', () => {
     expect(dbChainMockFns.delete).toHaveBeenCalled() // …then rolled back
   })
 
+  /**
+   * A personal provider has no verified domain behind it. On the hosted
+   * multi-tenant deployment that must grant no linking authority, or anyone able
+   * to register one could claim a domain they do not own and have their own IdP
+   * auto-link to existing accounts on it.
+   */
+  it('does not grant domain trust to a personal provider when hosted', async () => {
+    setEnvFlags({ isSsoEnabled: true, isHosted: true })
+    const res = await POST(request(OIDC_BODY))
+    expect(res.status).toBe(200)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({ domainVerified: false })
+  })
+
+  it('grants domain trust to a personal provider when self-hosted', async () => {
+    setEnvFlags({ isSsoEnabled: true, isHosted: false })
+    const res = await POST(request(OIDC_BODY))
+    expect(res.status).toBe(200)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({ domainVerified: true })
+  })
+
   it('nests the attribute mapping inside oidcConfig (Better Auth reads it there)', async () => {
     queueMembers([{ organizationId: 'org1', role: 'owner' }])
     await POST(
