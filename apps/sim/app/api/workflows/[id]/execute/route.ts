@@ -28,7 +28,11 @@ import {
   releaseWorkflowToolExecutionClaim,
 } from '@/lib/copilot/async-runs/repository'
 import { COPILOT_WORKFLOW_EXECUTION_CONFLICT_CODE } from '@/lib/copilot/constants'
-import { isWorkflowToolName, resolveWorkflowToolTargetId } from '@/lib/copilot/tools/workflow-tools'
+import {
+  ASYNC_WORKFLOW_DEPLOYMENT_ERRORS,
+  isWorkflowToolName,
+  resolveWorkflowToolTargetId,
+} from '@/lib/copilot/tools/workflow-tools'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
 import { getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
 import { isAsyncJobEnqueueError } from '@/lib/core/async-jobs/types'
@@ -74,7 +78,11 @@ import {
 } from '@/lib/execution/manual-cancellation'
 import { containsLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import { compactBlockLogs, compactExecutionPayload } from '@/lib/execution/payloads/serializer'
-import { type PreprocessExecutionSuccess, preprocessExecution } from '@/lib/execution/preprocessing'
+import {
+  type PreprocessExecutionSuccess,
+  preprocessExecution,
+  WORKFLOW_NOT_DEPLOYED_CODE,
+} from '@/lib/execution/preprocessing'
 import {
   PRIVATE_SECRET_PROVENANCE_FIELD,
   PRIVATE_TOOL_METADATA_RESPONSE_HEADER,
@@ -133,6 +141,7 @@ import {
 } from '@/lib/workflows/streaming/streaming'
 import { createHttpResponseFromBlock, workflowHasResponseBlock } from '@/lib/workflows/utils'
 import { getWorkspaceBillingSettings } from '@/lib/workspaces/utils'
+import { checkNeedsRedeployment } from '@/app/api/workflows/utils'
 import { executeWorkflowJob, type WorkflowExecutionPayload } from '@/background/workflow-execution'
 import { withCustomBlockOverlay } from '@/blocks/custom/server-overlay'
 import {
@@ -380,7 +389,9 @@ type AsyncExecutionParams = {
   workspaceId: string
   input: any
   triggerType: CoreTriggerType
+  triggerBlockId?: string
   executionId: string
+  copilotToolCallId?: string
   callChain?: string[]
   executionTimeoutMs: number
   trustedInitialResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
@@ -436,7 +447,9 @@ async function handleAsyncExecution(params: AsyncExecutionParams): Promise<Async
     workspaceId,
     input,
     triggerType,
+    triggerBlockId,
     executionId,
+    copilotToolCallId,
     callChain,
     executionTimeoutMs,
     trustedInitialResolvedSecretTraceProvenance,
@@ -454,6 +467,7 @@ async function handleAsyncExecution(params: AsyncExecutionParams): Promise<Async
     requestId,
     source: 'workflow' as const,
     workflowId,
+    ...(copilotToolCallId ? { copilotToolCallId } : {}),
     triggerType,
   }
 
@@ -464,6 +478,7 @@ async function handleAsyncExecution(params: AsyncExecutionParams): Promise<Async
     workspaceId,
     input,
     triggerType,
+    triggerBlockId,
     executionId,
     requestId,
     correlation,
@@ -472,6 +487,21 @@ async function handleAsyncExecution(params: AsyncExecutionParams): Promise<Async
     admissionCompleted: true,
     executionTimeoutMs,
     trustedInitialResolvedSecretTraceProvenance,
+  }
+
+  if (copilotToolCallId && (await checkNeedsRedeployment(workflowId))) {
+    const deploymentError = ASYNC_WORKFLOW_DEPLOYMENT_ERRORS.stale
+    await releaseExecutionSlot(executionId)
+    return {
+      response: NextResponse.json(
+        {
+          error: deploymentError.message,
+          code: deploymentError.code,
+        },
+        { status: 409 }
+      ),
+      retainExecutionClaim: false,
+    }
   }
 
   let jobQueue: Awaited<ReturnType<typeof getJobQueue>>
@@ -866,8 +896,7 @@ async function handleExecutePost(
       (auth.authType !== AuthType.SESSION ||
         !isClientSession ||
         triggerType !== 'copilot' ||
-        !enableSSE ||
-        isAsyncMode)
+        (!isAsyncMode && !enableSSE))
     ) {
       return NextResponse.json(
         { error: 'Copilot tool execution binding is invalid for this request' },
@@ -1006,7 +1035,9 @@ async function handleExecutePost(
     // Public API callers always execute the deployed state, never the draft.
     const shouldUseDraftState = isPublicApiAccess
       ? false
-      : (useDraftState ?? auth.authType === AuthType.SESSION)
+      : isAsyncMode
+        ? false
+        : (useDraftState ?? auth.authType === AuthType.SESSION)
     const requiresWriteExecutionAccess = Boolean(
       useDraftState || workflowStateOverride || rawRunFromBlock
     )
@@ -1020,7 +1051,6 @@ async function handleExecutePost(
       (body.useDraftState !== undefined ||
         body.workflowStateOverride !== undefined ||
         body.runFromBlock !== undefined ||
-        body.triggerBlockId !== undefined ||
         body.stopAfterBlockId !== undefined ||
         body.selectedOutputs?.length ||
         body.includeFileBase64 !== undefined ||
@@ -1267,6 +1297,14 @@ async function handleExecutePost(
 
     if (!preprocessResult.success) {
       const preprocessError = preprocessResult.error
+      if (isAsyncMode && copilotToolCallId && preprocessError.code === WORKFLOW_NOT_DEPLOYED_CODE) {
+        const deploymentError = ASYNC_WORKFLOW_DEPLOYMENT_ERRORS.missing
+        await releaseExecutionSlot(executionId)
+        return NextResponse.json(
+          { error: deploymentError.message, code: deploymentError.code },
+          { status: preprocessError.statusCode }
+        )
+      }
       return NextResponse.json(
         { error: preprocessError.message },
         { status: preprocessError.statusCode }
@@ -1317,7 +1355,9 @@ async function handleExecutePost(
         workspaceId,
         input,
         triggerType: loggingTriggerType,
+        triggerBlockId,
         executionId,
+        copilotToolCallId,
         callChain,
         executionTimeoutMs: preprocessResult.executionTimeout.async,
         trustedInitialResolvedSecretTraceProvenance,
