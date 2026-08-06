@@ -62,17 +62,49 @@ function assertAllowedKeys(
   if (unknownKey) throw new Error(`${fieldName} contains unsupported field "${unknownKey}"`)
 }
 
-function requiredPositiveNumber(value: unknown, fieldName: string): number {
-  const parsed = typeof value === 'number' ? value : Number(value)
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    throw new Error(`${fieldName} must be a positive finite number`)
+function quickBooksMoneyDecimal(value: unknown, fieldName: string, requirement: string): Decimal {
+  if (typeof value !== 'number' && typeof value !== 'string') {
+    throw new Error(`${fieldName} must be a ${requirement}`)
   }
-  return parsed
+  const normalized = typeof value === 'string' ? value.trim() : value
+  if (normalized === '') throw new Error(`${fieldName} must be a ${requirement}`)
+
+  let decimal: Decimal
+  try {
+    decimal = new Decimal(normalized)
+  } catch {
+    throw new Error(`${fieldName} must be a ${requirement}`)
+  }
+  if (!decimal.isFinite()) throw new Error(`${fieldName} must be a ${requirement}`)
+  if (decimal.decimalPlaces() > 2) {
+    throw new Error(`${fieldName} cannot have more than two decimal places`)
+  }
+
+  const number = decimal.toNumber()
+  if (
+    !Number.isSafeInteger(decimal.times(100).toNumber()) ||
+    !Number.isFinite(number) ||
+    !new Decimal(number).equals(decimal)
+  ) {
+    throw new Error(`${fieldName} is outside the safely supported amount range`)
+  }
+  return decimal
+}
+
+function requiredPositiveNumber(value: unknown, fieldName: string): number {
+  const decimal = quickBooksMoneyDecimal(value, fieldName, 'positive finite number')
+  if (decimal.lte(0)) throw new Error(`${fieldName} must be a positive finite number`)
+  return decimal.toNumber()
 }
 
 function optionalPositiveNumber(value: unknown, fieldName: string): number | undefined {
   if (value == null || value === '') return undefined
-  const parsed = typeof value === 'number' ? value : Number(value)
+  if (typeof value !== 'number' && typeof value !== 'string') {
+    throw new Error(`${fieldName} must be a positive finite number`)
+  }
+  const normalized = typeof value === 'string' ? value.trim() : value
+  if (normalized === '') return undefined
+  const parsed = typeof normalized === 'number' ? normalized : Number(normalized)
   if (!Number.isFinite(parsed) || parsed <= 0) {
     throw new Error(`${fieldName} must be a positive finite number`)
   }
@@ -86,11 +118,9 @@ function optionalPositiveNumber(value: unknown, fieldName: string): number | und
  * a sales form. Only a zero or non-finite value is rejected.
  */
 function requiredNonZeroNumber(value: unknown, fieldName: string): number {
-  const parsed = typeof value === 'number' ? value : Number(value)
-  if (!Number.isFinite(parsed) || parsed === 0) {
-    throw new Error(`${fieldName} must be a non-zero finite number`)
-  }
-  return parsed
+  const decimal = quickBooksMoneyDecimal(value, fieldName, 'non-zero finite number')
+  if (decimal.isZero()) throw new Error(`${fieldName} must be a non-zero finite number`)
+  return decimal.toNumber()
 }
 
 function optionalNonZeroNumber(value: unknown, fieldName: string): number | undefined {
@@ -195,12 +225,18 @@ export function parseQuickBooksInvoiceAllocations(
   if (parsed.length > MAX_PAYMENT_ALLOCATIONS) {
     throw new Error(`${fieldName} cannot contain more than ${MAX_PAYMENT_ALLOCATIONS} allocations`)
   }
+  const invoiceIds = new Set<string>()
   return parsed.map((rawAllocation, index) => {
     const itemName = `${fieldName}[${index}]`
     const allocation = assertObject(rawAllocation, itemName)
     assertAllowedKeys(allocation, PAYMENT_ALLOCATION_KEYS, itemName)
+    const invoiceId = requiredStringValue(allocation.invoiceId, `${itemName}.invoiceId`)
+    if (invoiceIds.has(invoiceId)) {
+      throw new Error(`${fieldName} lists invoice ${invoiceId} more than once`)
+    }
+    invoiceIds.add(invoiceId)
     return {
-      invoiceId: requiredStringValue(allocation.invoiceId, `${itemName}.invoiceId`),
+      invoiceId,
       amount: requiredPositiveNumber(allocation.amount, `${itemName}.amount`),
     }
   })

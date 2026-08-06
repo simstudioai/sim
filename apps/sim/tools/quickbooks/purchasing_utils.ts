@@ -391,10 +391,21 @@ export function buildQuickBooksCreateBillBody(
 ): Record<string, unknown> {
   const lines = parseQuickBooksBillLines(params.lines)
   if (!lines) throw new Error('lines are required')
+  const purchaseOrderIds = [
+    ...new Set(lines.flatMap((line) => (line.purchaseOrderId ? [line.purchaseOrderId] : []))),
+  ]
   return {
     ...purchasingHeader(params),
     VendorRef: quickBooksReference(params.vendorId, 'vendorId'),
     Line: buildValidatedQuickBooksBillLines(lines),
+    ...(purchaseOrderIds.length > 0
+      ? {
+          LinkedTxn: purchaseOrderIds.map((TxnId) => ({
+            TxnId,
+            TxnType: 'PurchaseOrder',
+          })),
+        }
+      : {}),
   }
 }
 

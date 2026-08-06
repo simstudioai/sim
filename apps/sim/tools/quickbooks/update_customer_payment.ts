@@ -1,5 +1,8 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
-import { buildQuickBooksUpdatePaymentBody } from '@/tools/quickbooks/sales_utils'
+import {
+  buildQuickBooksUpdatePaymentBody,
+  parseQuickBooksInvoiceAllocations,
+} from '@/tools/quickbooks/sales_utils'
 import type {
   QuickBooksMutationResponse,
   QuickBooksSalesTransaction,
@@ -129,6 +132,10 @@ export const quickbooksUpdateCustomerPaymentTool: ToolConfig<
   directExecution: async (params, signal) => {
     const paymentId = params.paymentId?.trim()
     if (!paymentId) throw new Error('paymentId is required')
+
+    // Validate bounded allocations before the preservation read so malformed or
+    // duplicate invoice references never contact QuickBooks.
+    parseQuickBooksInvoiceAllocations(params.invoiceAllocations)
 
     let currentPayment: QuickBooksSalesTransaction | undefined
     if (params.invoiceAllocations && !params.unapplyOmittedInvoices) {
