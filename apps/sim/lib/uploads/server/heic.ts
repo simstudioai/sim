@@ -25,6 +25,18 @@ const HEIF_BRANDS = new Set([
 ])
 
 /**
+ * Byte ceiling for a fallback decode. Uploads allow 100MB and the vision path runs
+ * sharp with `limitInputPixels: false`, so without this a tenant could push an
+ * arbitrarily large HEIF through a single-threaded WebAssembly decode. 20MB leaves
+ * generous headroom over any phone photo — a 12MP iPhone HEIC is 1-4MB — while
+ * bounding what one read can cost.
+ *
+ * This bounds file size, not pixel count. A small file declaring enormous
+ * dimensions is rejected during parse by libheif's own security limits.
+ */
+const MAX_TRANSCODE_INPUT_BYTES = 20 * 1024 * 1024
+
+/**
  * Whether these bytes are an ISO-BMFF container in the HEIF family.
  *
  * Sniffed rather than read off the declared type because the common case is a
@@ -58,6 +70,14 @@ export function isHeifContainer(buffer: Buffer): boolean {
  * Returns `null` when the bytes cannot be decoded; never a partial image.
  */
 export async function transcodeHeicToJpeg(buffer: Buffer): Promise<Buffer | null> {
+  if (buffer.length > MAX_TRANSCODE_INPUT_BYTES) {
+    logger.warn('Skipped HEIC transcode above the input ceiling', {
+      bytes: buffer.length,
+      ceiling: MAX_TRANSCODE_INPUT_BYTES,
+    })
+    return null
+  }
+
   try {
     const convert = (await import('heic-convert')).default
     const jpeg = await convert({ buffer, format: 'JPEG' })

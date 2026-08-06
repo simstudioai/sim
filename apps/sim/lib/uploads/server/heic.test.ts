@@ -76,6 +76,13 @@ describe('isHeifContainer', () => {
 })
 
 describe('transcodeHeicToJpeg', () => {
+  it('refuses to decode above the input ceiling', async () => {
+    // Uploads allow 100MB; without this bound a tenant could spend an unbounded
+    // WASM decode on a single read.
+    const oversized = Buffer.alloc(20 * 1024 * 1024 + 1)
+    expect(await transcodeHeicToJpeg(oversized)).toBeNull()
+  })
+
   it('returns null for bytes libheif cannot decode', async () => {
     // Also proves the dynamic `heic-convert` import resolves at runtime, which no
     // amount of type-checking establishes for a lazily loaded WebAssembly module.
