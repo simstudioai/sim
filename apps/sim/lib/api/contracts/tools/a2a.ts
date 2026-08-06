@@ -1,6 +1,8 @@
 import { z } from 'zod'
+import { resolvedSecretTraceProvenanceSchema } from '@/lib/api/contracts/primitives'
 import { genericToolResponseSchema } from '@/lib/api/contracts/tools/shared'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { RESOLVED_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
 import { RawFileInputSchema } from '@/lib/uploads/utils/file-schemas'
 
 const a2aBaseBodySchema = z.object({
@@ -14,6 +16,7 @@ export const a2aSendMessageBodySchema = a2aBaseBodySchema.extend({
   files: z.array(RawFileInputSchema).max(20).optional(),
   taskId: z.string().optional(),
   contextId: z.string().optional(),
+  [RESOLVED_SECRET_PROVENANCE_FIELD]: resolvedSecretTraceProvenanceSchema.optional(),
 })
 
 export const a2aGetTaskBodySchema = a2aBaseBodySchema.extend({

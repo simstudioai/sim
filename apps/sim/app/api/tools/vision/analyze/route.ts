@@ -11,7 +11,16 @@ import {
 } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { isInternalFileUrl, processSingleFileToUserFile } from '@/lib/uploads/utils/file-utils'
+import { validateOpaqueModelInputProvenance } from '@/lib/execution/model-input-provenance'
+import {
+  isModelSafeWorkspaceFileKey,
+  MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
+} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import {
+  extractStorageKey,
+  isInternalFileUrl,
+  processSingleFileToUserFile,
+} from '@/lib/uploads/utils/file-utils'
 import {
   downloadFileFromStorage,
   resolveInternalFileUrl,
@@ -50,6 +59,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (!parsed.success) return parsed.response
 
     const validatedData = parsed.data.body
+    const modelInputProvenance = validateOpaqueModelInputProvenance({
+      headers: request.headers,
+      payload: validatedData,
+      isInternalRequest: true,
+    })
+    if (!modelInputProvenance.success) {
+      return NextResponse.json(
+        { success: false, error: modelInputProvenance.error },
+        { status: modelInputProvenance.status }
+      )
+    }
 
     if (!validatedData.imageUrl && !validatedData.imageFile) {
       return NextResponse.json(
@@ -96,6 +116,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           logger
         )
         if (denied) return denied
+        if (!(await isModelSafeWorkspaceFileKey(userFile.key))) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
+            },
+            { status: 400 }
+          )
+        }
         const buffer = await downloadFileFromStorage(userFile, requestId, logger)
         base64 = buffer.toString('base64')
         bufferLength = buffer.length
@@ -140,6 +169,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           )
         }
         imageSource = resolution.fileUrl || imageSource
+        if (!(await isModelSafeWorkspaceFileKey(extractStorageKey(validatedData.imageUrl!)))) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
+            },
+            { status: 400 }
+          )
+        }
       }
 
       imageUrlValidation = await validateUrlWithDNS(imageSource, 'imageUrl')

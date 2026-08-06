@@ -16,7 +16,9 @@ import {
   retryDocumentProcessing,
   updateDocument,
 } from '@/lib/knowledge/documents/service'
+import { createKnowledgeDocumentSourceValue } from '@/lib/knowledge/secret-provenance'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { createKnowledgePersistedResponse } from '@/app/api/knowledge/secret-provenance'
 import { checkDocumentAccess, checkDocumentWriteAccess } from '@/app/api/knowledge/utils'
 
 const logger = createLogger('DocumentByIdAPI')
@@ -53,9 +55,26 @@ export const GET = withRouteHandler(
         `[${requestId}] Retrieved document: ${documentId} from knowledge base ${knowledgeBaseId}`
       )
 
-      return NextResponse.json({
+      const responseBody = {
         success: true,
         data: accessCheck.document,
+      }
+      const workspaceId = accessCheck.knowledgeBase?.workspaceId ?? undefined
+      return createKnowledgePersistedResponse({
+        request: req,
+        authType: auth.authType,
+        userId,
+        ...(workspaceId ? { workspaceId } : {}),
+        body: responseBody,
+        documents: accessCheck.document
+          ? [
+              {
+                id: accessCheck.document.id,
+                source: createKnowledgeDocumentSourceValue(accessCheck.document),
+                value: accessCheck.document,
+              },
+            ]
+          : [],
       })
     } catch (error) {
       logger.error(`[${requestId}] Error fetching document`, error)

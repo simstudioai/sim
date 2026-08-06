@@ -1,4 +1,5 @@
 import { TABLE_LIMITS } from '@/lib/table/constants'
+import { selectTableRowSecretProvenance } from '@/lib/table/secret-provenance-selection'
 import { enrichTableToolSchema } from '@/tools/schema-enrichers'
 import type { TableBulkOperationResponse, TableUpdateByFilterParams } from '@/tools/table/types'
 import type { ToolConfig } from '@/tools/types'
@@ -48,6 +49,9 @@ export const tableUpdateRowsByFilterTool: ToolConfig<
   },
 
   request: {
+    secretProvenance: {
+      request: (params) => selectTableRowSecretProvenance([params.data]),
+    },
     url: (params: TableUpdateByFilterParams) => `/api/table/${params.tableId}/rows`,
     method: 'PUT',
     headers: () => ({

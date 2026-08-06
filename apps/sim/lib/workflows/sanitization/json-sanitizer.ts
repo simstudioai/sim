@@ -502,7 +502,15 @@ function extractConnectionsForBlock(
  * Sanitize workflow state for copilot by removing all UI-specific data
  * Creates nested structure for loops/parallels with their child blocks inside
  */
-export function sanitizeForCopilot(state: WorkflowState): CopilotWorkflowState {
+export interface CopilotSanitizationOptions {
+  /** Product-gated inputs to omit from Copilot state, keyed by block type. */
+  hiddenInputIdsByBlockType?: ReadonlyMap<string, ReadonlySet<string>>
+}
+
+export function sanitizeForCopilot(
+  state: WorkflowState,
+  options?: CopilotSanitizationOptions
+): CopilotWorkflowState {
   const sanitizedBlocks: Record<string, CopilotBlockState> = {}
   const processedBlocks = new Set<string>()
 
@@ -557,7 +565,11 @@ export function sanitizeForCopilot(state: WorkflowState): CopilotWorkflowState {
       // For regular blocks, sanitize subBlocks
       const hiddenIds = new Set(
         (getBlock(block.type)?.subBlocks ?? [])
-          .filter((subBlock) => subBlock.hideFromCopilot)
+          .filter(
+            (subBlock) =>
+              subBlock.hideFromCopilot ||
+              options?.hiddenInputIdsByBlockType?.get(block.type)?.has(subBlock.id)
+          )
           .map((subBlock) => subBlock.id)
       )
       inputs = sanitizeSubBlocks(block.subBlocks, hiddenIds)

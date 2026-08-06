@@ -2,7 +2,12 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { folder as folderTable, workflow, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, toError } from '@sim/utils/errors'
+import {
+  getErrorMessage,
+  getPostgresConstraintName,
+  getPostgresErrorCode,
+  toError,
+} from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import {
@@ -23,7 +28,12 @@ import {
   MAX_ARCHIVE_BYTES,
 } from '@/lib/uploads/archive'
 import { findWorkspaceFileFolderIdByPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
-import { fetchWorkspaceFileBuffer } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import {
+  allocateUniqueWorkspaceFileName,
+  fetchWorkspaceFileBuffer,
+  getWorkspaceFile,
+} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { getBoundWorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { hasCloudStorage, headObject } from '@/lib/uploads/core/storage-service'
 import { isArchiveFileName } from '@/lib/uploads/utils/file-utils'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
@@ -32,6 +42,8 @@ import { deduplicateWorkflowName } from '@/lib/workflows/utils'
 import { extractWorkflowMetadata } from '@/app/api/v1/admin/types'
 
 const logger = createLogger('MaterializeFile')
+const MAX_MATERIALIZE_NAME_RETRIES = 8
+const WORKSPACE_FILE_NAME_UNIQUE_INDEX = 'workspace_files_workspace_folder_name_active_unique'
 
 function toFileRecord(row: typeof workspaceFiles.$inferSelect) {
   const pathPrefix = getServePathPrefix()
@@ -107,46 +119,76 @@ async function executeSave(
    * workspace lock before locking its payer. Any quota/stale-payer failure
    * rolls back the row transition.
    */
-  const transition = await db.transaction(async (tx) => {
-    await tx.execute(sql`SELECT 1 FROM workspace WHERE id = ${workspaceId} FOR UPDATE`)
+  let transition: {
+    updated: { id: string; originalName: string }
+    updatedUsage: number | undefined
+  } | null = null
 
-    const [updated] = await tx
-      .update(workspaceFiles)
-      .set({
-        context: 'workspace',
-        // A workspace file has no birth chat or message — clear both provenance
-        // fields so the row reads as workspace-owned, not stale chat-owned.
-        chatId: null,
-        messageId: null,
-        originalName: row.displayName ?? row.originalName,
-        size: verifiedSize,
-      })
-      .where(
-        and(
-          eq(workspaceFiles.id, row.id),
-          eq(workspaceFiles.workspaceId, workspaceId),
-          eq(workspaceFiles.chatId, chatId),
-          eq(workspaceFiles.context, 'mothership'),
-          isNull(workspaceFiles.deletedAt)
+  for (let attempt = 0; attempt < MAX_MATERIALIZE_NAME_RETRIES; attempt++) {
+    const materializedName = await allocateUniqueWorkspaceFileName(workspaceId, displayName, null)
+
+    try {
+      transition = await db.transaction(async (tx) => {
+        await tx.execute(sql`SELECT 1 FROM workspace WHERE id = ${workspaceId} FOR UPDATE`)
+
+        const [updated] = await tx
+          .update(workspaceFiles)
+          .set({
+            context: 'workspace',
+            // A workspace file has no birth chat or message — clear both provenance
+            // fields so the row reads as workspace-owned, not stale chat-owned.
+            chatId: null,
+            messageId: null,
+            originalName: materializedName,
+            displayName: materializedName,
+            size: verifiedSize,
+          })
+          .where(
+            and(
+              eq(workspaceFiles.id, row.id),
+              eq(workspaceFiles.workspaceId, workspaceId),
+              eq(workspaceFiles.chatId, chatId),
+              eq(workspaceFiles.context, 'mothership'),
+              isNull(workspaceFiles.deletedAt)
+            )
+          )
+          .returning({ id: workspaceFiles.id, originalName: workspaceFiles.originalName })
+
+        if (!updated) {
+          return null
+        }
+
+        const updatedUsage = await incrementStorageUsageForBillingContextInTx(
+          tx,
+          billingContext,
+          verifiedSize
         )
-      )
-      .returning({ id: workspaceFiles.id, originalName: workspaceFiles.originalName })
-
-    if (!updated) {
-      return null
+        return { updated, updatedUsage }
+      })
+      break
+    } catch (error) {
+      const isNameCollision =
+        getPostgresErrorCode(error) === '23505' &&
+        getPostgresConstraintName(error) === WORKSPACE_FILE_NAME_UNIQUE_INDEX
+      if (!isNameCollision || attempt === MAX_MATERIALIZE_NAME_RETRIES - 1) {
+        throw error
+      }
+      logger.warn('Workspace file name was claimed during materialization; retrying', {
+        fileName,
+        materializedName,
+        attempt: attempt + 1,
+      })
     }
+  }
 
-    const updatedUsage = await incrementStorageUsageForBillingContextInTx(
-      tx,
-      billingContext,
-      verifiedSize
-    )
-    return { updated, updatedUsage }
-  })
-
-  const updated = transition?.updated ?? {
-    id: row.id,
-    originalName: row.displayName ?? row.originalName,
+  const replayedFile = transition
+    ? null
+    : await getWorkspaceFile(workspaceId, row.id, { throwOnError: true })
+  const updated =
+    transition?.updated ??
+    (replayedFile ? { id: replayedFile.id, originalName: replayedFile.name } : null)
+  if (!updated) {
+    return { success: false, error: `Upload no longer available: "${fileName}".` }
   }
   if (transition?.updatedUsage !== undefined) {
     void maybeNotifyStorageLimitForBillingContext(billingContext, transition.updatedUsage)
@@ -412,6 +454,11 @@ async function executeExtract(
   let result: DecompressResult
   try {
     const buffer = await fetchWorkspaceFileBuffer(record, { maxBytes: MAX_ARCHIVE_BYTES })
+    const secretProvenance = await getBoundWorkspaceFileSecretProvenance(workspaceId, {
+      fileId: row.id,
+      key: row.key,
+      context: 'mothership',
+    })
     result = await decompressArchiveBufferToWorkspaceFiles(buffer, {
       workspaceId,
       userId,
@@ -419,6 +466,7 @@ async function executeExtract(
       // The agent-facing extract drops macOS/Windows filesystem cruft so the
       // unpacked files/ tree only contains meaningful entries.
       skipNoiseEntries: true,
+      secretProvenance,
     })
   } catch (err) {
     if (err instanceof ArchiveError) {
@@ -530,7 +578,11 @@ export async function executeMaterializeFile(
       }
 
       if (result.success) {
-        succeeded.push(fileName)
+        const materializedName =
+          operation === 'save'
+            ? result.resources?.find((resource) => resource.type === 'file')?.title
+            : undefined
+        succeeded.push(materializedName ?? fileName)
         if (result.resources) resources.push(...result.resources)
       } else {
         failed.push({ fileName, error: result.error ?? 'Failed to materialize file' })
@@ -541,6 +593,8 @@ export async function executeMaterializeFile(
         operation,
         chatId: context.chatId,
         error: toError(err).message,
+        postgresCode: getPostgresErrorCode(err),
+        postgresConstraint: getPostgresConstraintName(err),
       })
       failed.push({
         fileName,

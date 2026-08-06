@@ -54,6 +54,10 @@ export const elevenLabsSoundEffectsTool: ToolConfig<
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({ text: params.text }),
+    },
     url: '/api/tools/elevenlabs/audio',
     method: 'POST',
     headers: () => ({

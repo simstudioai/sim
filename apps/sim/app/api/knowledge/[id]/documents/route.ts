@@ -1,7 +1,7 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
-import { getErrorMessage } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
@@ -31,7 +31,13 @@ import {
   processDocumentsWithQueue,
 } from '@/lib/knowledge/documents/service'
 import type { TagFilterCondition } from '@/lib/knowledge/documents/tag-filter'
+import { createKnowledgeDocumentSourceValue } from '@/lib/knowledge/secret-provenance'
 import { captureServerEvent } from '@/lib/posthog/server'
+import {
+  createKnowledgePersistedResponse,
+  createKnowledgeProvenanceResponse,
+  resolveKnowledgeDocumentWriteSecretProvenance,
+} from '@/app/api/knowledge/secret-provenance'
 import { checkKnowledgeBaseAccess, checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
 
 const logger = createLogger('DocumentsAPI')
@@ -42,13 +48,14 @@ export const GET = withRouteHandler(
     const { id: knowledgeBaseId } = await params
 
     try {
-      const session = await getSession()
-      if (!session?.user?.id) {
+      const auth = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
+      if (!auth.success || !auth.userId) {
         logger.warn(`[${requestId}] Unauthorized documents access attempt`)
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
+      const userId = auth.userId
 
-      const accessCheck = await checkKnowledgeBaseAccess(knowledgeBaseId, session.user.id)
+      const accessCheck = await checkKnowledgeBaseAccess(knowledgeBaseId, userId)
 
       if (!accessCheck.hasAccess) {
         if ('notFound' in accessCheck && accessCheck.notFound) {
@@ -56,7 +63,7 @@ export const GET = withRouteHandler(
           return NextResponse.json({ error: 'Knowledge base not found' }, { status: 404 })
         }
         logger.warn(
-          `[${requestId}] User ${session.user.id} attempted to access unauthorized knowledge base documents ${knowledgeBaseId}`
+          `[${requestId}] User ${userId} attempted to access unauthorized knowledge base documents ${knowledgeBaseId}`
         )
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
@@ -99,12 +106,25 @@ export const GET = withRouteHandler(
         requestId
       )
 
-      return NextResponse.json({
+      const responseBody = {
         success: true,
         data: {
           documents: result.documents,
           pagination: result.pagination,
         },
+      }
+      const workspaceId = accessCheck.knowledgeBase?.workspaceId ?? undefined
+      return createKnowledgePersistedResponse({
+        request: req,
+        authType: auth.authType,
+        userId,
+        ...(workspaceId ? { workspaceId } : {}),
+        body: responseBody,
+        documents: result.documents.map((item) => ({
+          id: item.id,
+          source: createKnowledgeDocumentSourceValue(item),
+          value: item,
+        })),
       })
     } catch (error) {
       logger.error(`[${requestId}] Error fetching documents`, error)
@@ -210,12 +230,24 @@ export const POST = withRouteHandler(
         )
       }
 
+      const provenanceDocuments = body.bulk === true ? body.documents : [body]
+      const writeProvenance = resolveKnowledgeDocumentWriteSecretProvenance({
+        request: req,
+        payload: body,
+        authType: auth.authType,
+        userId,
+        ...(kbWorkspaceId ? { workspaceId: kbWorkspaceId } : {}),
+        documents: provenanceDocuments,
+      })
+      if (!writeProvenance.success) return writeProvenance.response
+
       if (body.bulk === true) {
         const createdDocuments = await createDocumentRecords(
           body.documents,
           knowledgeBaseId,
           requestId,
-          userId
+          userId,
+          writeProvenance.provenances
         )
 
         logger.info(
@@ -256,7 +288,9 @@ export const POST = withRouteHandler(
           requestId,
           billingAttribution
         ).catch((error: unknown) => {
-          logger.error(`[${requestId}] Critical error in document processing pipeline:`, error)
+          logger.error(`[${requestId}] Critical error in document processing pipeline`, {
+            errorType: toError(error).name,
+          })
         })
 
         recordAudit({
@@ -276,20 +310,31 @@ export const POST = withRouteHandler(
           request: req,
         })
 
-        return NextResponse.json({
-          success: true,
-          data: {
-            total: createdDocuments.length,
-            documentsCreated: createdDocuments.map((doc) => ({
-              documentId: doc.documentId,
-              filename: doc.filename,
-              status: 'pending',
-            })),
-            processingMethod: 'background',
-            processingConfig: {
-              maxConcurrentDocuments: getProcessingConfig().maxConcurrentDocuments,
-              batchSize: getProcessingConfig().batchSize,
-              totalBatches: Math.ceil(createdDocuments.length / getProcessingConfig().batchSize),
+        return createKnowledgeProvenanceResponse({
+          request: req,
+          authType: auth.authType,
+          userId,
+          ...(kbWorkspaceId ? { workspaceId: kbWorkspaceId } : {}),
+          provenances:
+            writeProvenance.provenances?.flatMap((provenance) => [
+              provenance.filename,
+              ...provenance.tags.map((tag) => tag.provenance),
+            ]) ?? [],
+          body: {
+            success: true,
+            data: {
+              total: createdDocuments.length,
+              documentsCreated: createdDocuments.map((doc) => ({
+                documentId: doc.documentId,
+                filename: doc.filename,
+                status: 'pending',
+              })),
+              processingMethod: 'background',
+              processingConfig: {
+                maxConcurrentDocuments: getProcessingConfig().maxConcurrentDocuments,
+                batchSize: getProcessingConfig().batchSize,
+                totalBatches: Math.ceil(createdDocuments.length / getProcessingConfig().batchSize),
+              },
             },
           },
         })
@@ -300,7 +345,8 @@ export const POST = withRouteHandler(
         singleDocumentData,
         knowledgeBaseId,
         requestId,
-        userId
+        userId,
+        writeProvenance.provenances?.[0]
       )
 
       try {
@@ -350,12 +396,22 @@ export const POST = withRouteHandler(
         request: req,
       })
 
-      return NextResponse.json({
-        success: true,
-        data: newDocument,
+      return createKnowledgeProvenanceResponse({
+        request: req,
+        authType: auth.authType,
+        userId,
+        ...(kbWorkspaceId ? { workspaceId: kbWorkspaceId } : {}),
+        provenances:
+          writeProvenance.provenances?.flatMap((provenance) => [
+            provenance.filename,
+            ...provenance.tags.map((tag) => tag.provenance),
+          ]) ?? [],
+        body: { success: true, data: newDocument },
       })
     } catch (error) {
-      logger.error(`[${requestId}] Error creating document`, error)
+      logger.error(`[${requestId}] Error creating document`, {
+        errorType: toError(error).name,
+      })
 
       if (error instanceof KnowledgeBaseFileOwnershipError) {
         return NextResponse.json(
@@ -363,7 +419,6 @@ export const POST = withRouteHandler(
           { status: 403 }
         )
       }
-
       const errorMessage = getErrorMessage(error, 'Failed to create document')
       const isStorageLimitError =
         errorMessage.includes('Storage limit exceeded') || errorMessage.includes('storage limit')

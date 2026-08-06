@@ -1,9 +1,18 @@
 /**
- * Canonical runtime deployment-capability definitions. Keep this module dependency-free so
- * setup and diagnostics can consume the provider rules the application actually enforces.
+ * Canonical runtime deployment-capability definitions. Keep this module free of application
+ * runtime dependencies so setup and diagnostics can consume the rules the app enforces.
  *
  * @packageDocumentation
  */
+import {
+  IMMUTABLE_DAYTONA_SNAPSHOT_REF_ERROR,
+  IMMUTABLE_E2B_TEMPLATE_REF_ERROR,
+  isImmutableDaytonaSnapshotRef,
+  isImmutableE2BTemplateRef,
+  isValidSandboxReleaseGeneration,
+  SANDBOX_RELEASE_GENERATION_ERROR,
+} from '@sim/utils/sandbox-references'
+
 export type EnvCapabilityValue = string | number | boolean | null | undefined
 
 export const CORE_CONFIGURATION_KEYS = [
@@ -34,6 +43,18 @@ export type EnvValueValidation =
   | {
       kind: 'pattern'
       pattern: RegExp
+      message: string
+    }
+  | {
+      kind: 'immutable-e2b-template-ref'
+      message: string
+    }
+  | {
+      kind: 'immutable-daytona-snapshot-ref'
+      message: string
+    }
+  | {
+      kind: 'sandbox-release-generation'
       message: string
     }
   | {
@@ -362,6 +383,15 @@ function isValidEnvCapabilityFieldValue(
   if (validation.kind === 'pattern') {
     validation.pattern.lastIndex = 0
     return validation.pattern.test(serialized)
+  }
+  if (validation.kind === 'immutable-e2b-template-ref') {
+    return isImmutableE2BTemplateRef(serialized)
+  }
+  if (validation.kind === 'immutable-daytona-snapshot-ref') {
+    return isImmutableDaytonaSnapshotRef(serialized)
+  }
+  if (validation.kind === 'sandbox-release-generation') {
+    return isValidSandboxReleaseGeneration(serialized)
   }
   try {
     const parsed = new URL(serialized)
@@ -1028,10 +1058,24 @@ export const SANDBOX_CAPABILITY = defineCapability({
       id: 'e2b',
       label: 'E2B',
       activation: { mode: 'enabled', key: 'E2B_ENABLED' },
-      requires: envField('E2B_API_KEY'),
+      requires: allOf(
+        envField('E2B_API_KEY'),
+        envField('E2B_FUNCTION_TEMPLATE_ID', {
+          validation: {
+            kind: 'immutable-e2b-template-ref',
+            message: IMMUTABLE_E2B_TEMPLATE_REF_ERROR,
+          },
+        }),
+        envField('E2B_FUNCTION_TEMPLATE_GENERATION', {
+          validation: {
+            kind: 'sandbox-release-generation',
+            message: SANDBOX_RELEASE_GENERATION_ERROR,
+          },
+        })
+      ),
       optionalFields: [
         envField('NEXT_PUBLIC_E2B_ENABLED'),
-        envField('NEXT_PUBLIC_SANDBOX_ENABLED'),
+        envField('NEXT_PUBLIC_SANDBOXES_ENABLED'),
       ],
     },
     {
@@ -1039,21 +1083,20 @@ export const SANDBOX_CAPABILITY = defineCapability({
       label: 'Daytona',
       activation: {
         mode: 'any-present',
-        keys: ['DAYTONA_API_KEY', 'DAYTONA_SHELL_SNAPSHOT_ID'],
+        keys: ['DAYTONA_API_KEY', 'DAYTONA_FUNCTION_SNAPSHOT_ID'],
       },
       requires: allOf(
         envField('DAYTONA_API_KEY'),
-        envField('DAYTONA_SHELL_SNAPSHOT_ID', {
+        envField('DAYTONA_FUNCTION_SNAPSHOT_ID', {
           validation: {
-            kind: 'pattern',
-            pattern: /^(?!.*:(?:latest|lts|stable)$)[^:\s]+:[^:\s]+$/i,
-            message: 'must use an explicit, non-floating name:tag',
+            kind: 'immutable-daytona-snapshot-ref',
+            message: IMMUTABLE_DAYTONA_SNAPSHOT_REF_ERROR,
           },
         })
       ),
       optionalFields: [
         envField('NEXT_PUBLIC_E2B_ENABLED'),
-        envField('NEXT_PUBLIC_SANDBOX_ENABLED'),
+        envField('NEXT_PUBLIC_SANDBOXES_ENABLED'),
       ],
     },
   ],
@@ -1246,7 +1289,7 @@ export const DEPLOYMENT_CONFIGURATION_KEYS: readonly string[] = [
     ...ENV_CAPABILITIES.flatMap(capabilityKeys),
     'EMAIL_VERIFICATION_ENABLED',
     'NEXT_PUBLIC_E2B_ENABLED',
-    'NEXT_PUBLIC_SANDBOX_ENABLED',
+    'NEXT_PUBLIC_SANDBOXES_ENABLED',
     ...Object.values(LLM_KEY_POOLS).flatMap((pool) => [
       ...pool.keys,
       ...('fallbackKey' in pool ? [pool.fallbackKey] : []),

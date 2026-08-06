@@ -5,10 +5,8 @@ import {
   type LargeArrayManifest,
   type LargeArrayManifestChunk,
 } from '@/lib/execution/payloads/large-array-manifest-metadata'
-import {
-  assertInlineMaterializationSize,
-  MAX_INLINE_MATERIALIZATION_BYTES,
-} from '@/lib/execution/payloads/materialization.server'
+import { MAX_INLINE_MATERIALIZATION_BYTES } from '@/lib/execution/payloads/limits'
+import { assertInlineMaterializationSize } from '@/lib/execution/payloads/materialization.server'
 import type { LargeValueStoreContext } from '@/lib/execution/payloads/store'
 import { materializeLargeValueRef, storeLargeValue } from '@/lib/execution/payloads/store'
 

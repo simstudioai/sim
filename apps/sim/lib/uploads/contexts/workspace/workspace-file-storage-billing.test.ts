@@ -70,24 +70,27 @@ describe('workspace file storage attribution', () => {
   it.each(['external-collaborator', 'personal-api-key-user'])(
     'charges the workspace payer while retaining %s as uploader metadata',
     async (actorUserId) => {
-      dbChainMockFns.returning.mockResolvedValueOnce([
-        {
-          id: 'file-1',
-          key: 'workspace/workspace-1/123-abc-note.txt',
-          userId: actorUserId,
-          workspaceId: 'workspace-1',
-          folderId: null,
-          context: 'workspace',
-          chatId: null,
-          originalName: 'note.txt',
-          displayName: 'note.txt',
-          contentType: 'text/plain',
-          size: 5,
-          deletedAt: null,
-          uploadedAt: new Date(),
-          updatedAt: new Date(),
-        },
-      ])
+      dbChainMockFns.returning
+        .mockResolvedValueOnce([
+          {
+            id: 'file-1',
+            key: 'workspace/workspace-1/123-abc-note.txt',
+            userId: actorUserId,
+            workspaceId: 'workspace-1',
+            folderId: null,
+            context: 'workspace',
+            chatId: null,
+            originalName: 'note.txt',
+            displayName: 'note.txt',
+            contentType: 'text/plain',
+            size: 5,
+            deletedAt: null,
+            uploadedAt: new Date(),
+            updatedAt: new Date(),
+            contentUpdatedAt: new Date(),
+          },
+        ])
+        .mockResolvedValueOnce([{ id: 'file-1' }])
 
       await uploadWorkspaceFile(
         'workspace-1',

@@ -31,6 +31,7 @@ import { resolveCurrencyCode } from '@/lib/table/currency'
 import { assertColumnDestructive, assertSchemaMutable } from '@/lib/table/mutation-locks'
 import type { DbTransaction } from '@/lib/table/planner'
 import { stripGroupExecutions } from '@/lib/table/rows/executions'
+import { updateTableRowsWithDerivedSecretProvenance } from '@/lib/table/rows/secret-provenance'
 import { selectValueToNames } from '@/lib/table/select-values'
 import { withLockedTable } from '@/lib/table/service'
 import { scaledStatementTimeoutMs, setTableTxTimeouts } from '@/lib/table/tx'
@@ -294,11 +295,10 @@ function stripColumnDataInBackground(
           perRowMs: 2 * columnIds.length,
         })
         await setTableTxTimeouts(trx, { statementMs })
-        for (const id of columnIds) {
-          await trx.execute(
-            sql`UPDATE user_table_rows SET data = data - ${id}::text WHERE table_id = ${tableId} AND data ? ${id}::text`
-          )
-        }
+        await updateTableRowsWithDerivedSecretProvenance(trx, {
+          rowWhere: eq(userTableRows.tableId, tableId),
+          transformation: { mode: 'remove-columns', columnIds },
+        })
       })
       logger.info(
         `[${requestId}] Background-stripped deleted column data [${columnIds.join(', ')}] from table ${tableId}`
@@ -1285,28 +1285,37 @@ async function clearRemovedSelectOptions(
   const keptIds = JSON.stringify(options.map((o) => o.id))
 
   if (multiple) {
-    await trx.execute(
-      sql`UPDATE ${userTableRows}
-          SET data = jsonb_set(data, ARRAY[${columnKey}::text], COALESCE((
-                SELECT jsonb_agg(e.v ORDER BY e.ord)
-                FROM jsonb_array_elements(data->${columnKey}::text) WITH ORDINALITY AS e(v, ord)
-                WHERE ${keptIds}::jsonb @> jsonb_build_array(e.v)
-              ), '[]'::jsonb))
-          WHERE table_id = ${tableId}
-            AND jsonb_typeof(data->${columnKey}::text) = 'array'
-            AND NOT (${keptIds}::jsonb @> (data->${columnKey}::text))`
-    )
+    await updateTableRowsWithDerivedSecretProvenance(trx, {
+      rowWhere: and(
+        eq(userTableRows.tableId, tableId),
+        sql`jsonb_typeof(${userTableRows.data}->${columnKey}::text) = 'array'`,
+        sql`NOT (${keptIds}::jsonb @> (${userTableRows.data}->${columnKey}::text))`
+      )!,
+      transformation: {
+        mode: 'preserve',
+        dataExpression: sql`jsonb_set(${userTableRows.data}, ARRAY[${columnKey}::text], COALESCE((
+          SELECT jsonb_agg(e.v ORDER BY e.ord)
+          FROM jsonb_array_elements(${userTableRows.data}->${columnKey}::text)
+            WITH ORDINALITY AS e(v, ord)
+          WHERE ${keptIds}::jsonb @> jsonb_build_array(e.v)
+        ), '[]'::jsonb))`,
+      },
+    })
     return
   }
 
-  await trx.execute(
-    sql`UPDATE ${userTableRows}
-        SET data = jsonb_set(data, ARRAY[${columnKey}::text], 'null'::jsonb)
-        WHERE table_id = ${tableId}
-          AND jsonb_typeof(data->${columnKey}::text) = 'string'
-          AND data->>${columnKey}::text <> ''
-          AND NOT (${keptIds}::jsonb @> jsonb_build_array(data->${columnKey}::text))`
-  )
+  await updateTableRowsWithDerivedSecretProvenance(trx, {
+    rowWhere: and(
+      eq(userTableRows.tableId, tableId),
+      sql`jsonb_typeof(${userTableRows.data}->${columnKey}::text) = 'string'`,
+      sql`${userTableRows.data}->>${columnKey}::text <> ''`,
+      sql`NOT (${keptIds}::jsonb @> jsonb_build_array(${userTableRows.data}->${columnKey}::text))`
+    )!,
+    transformation: {
+      mode: 'preserve',
+      dataExpression: sql`jsonb_set(${userTableRows.data}, ARRAY[${columnKey}::text], 'null'::jsonb)`,
+    },
+  })
 }
 
 /**

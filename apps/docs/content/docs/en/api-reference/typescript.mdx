@@ -91,6 +91,7 @@ const result = await client.executeWorkflow('workflow-id', { message: 'Hello, wo
   - `stream` (boolean): Enable streaming responses (default: false)
   - `selectedOutputs` (string[]): Block outputs to stream in `blockName.attribute` format (e.g., `["agent1.content"]`)
   - `async` (boolean): Execute asynchronously (default: false)
+  - `executionTimeoutSeconds` (number): Optional server-side async execution cap from 1 to 604800 seconds. Requires `async: true` and cannot extend the account policy.
 
 **Returns:** `Promise<WorkflowExecutionResult | AsyncExecutionResult>`
 

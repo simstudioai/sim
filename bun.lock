@@ -1,10 +1,10 @@
 {
   "lockfileVersion": 1,
-  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "simstudio",
       "devDependencies": {
+        "@babel/parser": "7.29.2",
         "@biomejs/biome": "2.0.0-beta.5",
         "@clack/prompts": "1.7.0",
         "@octokit/rest": "^21.0.0",

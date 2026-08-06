@@ -21,6 +21,7 @@ import {
   sandboxIdUrlKeys,
 } from '@/app/workspace/[workspaceId]/settings/components/sandboxes/search-params'
 import {
+  canRetrySandboxBuild,
   draftFromSandbox,
   emptyDraft,
   extractIssues,
@@ -66,7 +67,8 @@ export function Sandboxes() {
   const canAdmin = canMutateWorkspaceSettingsSection('sandboxes', permissions)
 
   const [draft, setDraft] = useState<SandboxDraft | null>(null)
-  const [issues, setIssues] = useState<SandboxDependencyIssue[]>([])
+  const [dependencyIssues, setDependencyIssues] = useState<SandboxDependencyIssue[]>([])
+  const [systemPackageIssues, setSystemPackageIssues] = useState<SandboxDependencyIssue[]>([])
   const [isCreating, setIsCreating] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
@@ -78,7 +80,8 @@ export function Sandboxes() {
     setDraftOwnerId(selectedId)
     if (draft) {
       setDraft(null)
-      setIssues([])
+      setDependencyIssues([])
+      setSystemPackageIssues([])
     }
     // The confirmation belongs to the sandbox that opened it. Browser Back unmounts
     // the modal without closing it, so leaving this set would re-open it against
@@ -105,28 +108,37 @@ export function Sandboxes() {
   const isDirty =
     isEditing &&
     (isCreating
-      ? current.name.trim().length > 0 || current.dependencies.trim().length > 0
+      ? current.name.trim().length > 0 ||
+        current.dependencies.trim().length > 0 ||
+        current.systemPackages.trim().length > 0 ||
+        current.cliTools.length > 0
       : current.name !== original.name ||
         current.language !== original.language ||
-        current.dependencies !== original.dependencies)
+        current.dependencies !== original.dependencies ||
+        current.systemPackages !== original.systemPackages ||
+        current.cliTools.join(',') !== original.cliTools.join(','))
 
   // Called before every early return — a hook after a gate is skipped on gated renders.
   const guard = useSettingsUnsavedGuard({ isDirty })
 
   const closeEditor = useCallback(() => {
     setDraft(null)
-    setIssues([])
+    setDependencyIssues([])
+    setSystemPackageIssues([])
     setIsCreating(false)
     // Opening pushed a history entry; closing must not push another.
     void setSelectedId(null, { history: 'replace' })
   }, [setSelectedId])
 
   const handleSave = useCallback(async () => {
-    setIssues([])
+    setDependencyIssues([])
+    setSystemPackageIssues([])
     const body = {
       name: current.name.trim(),
       language: current.language,
       dependencies: toSubmittedLines(current.dependencies),
+      systemPackages: toSubmittedLines(current.systemPackages),
+      cliTools: current.cliTools,
     }
     try {
       if (isCreating) {
@@ -137,8 +149,9 @@ export function Sandboxes() {
       closeEditor()
     } catch (error) {
       const lineIssues = extractIssues(error)
-      if (lineIssues.length > 0) {
-        setIssues(lineIssues)
+      if (lineIssues) {
+        setDependencyIssues(lineIssues.field === 'dependencies' ? lineIssues.issues : [])
+        setSystemPackageIssues(lineIssues.field === 'systemPackages' ? lineIssues.issues : [])
         return
       }
       toast.error(getErrorMessage(error, 'Failed to save sandbox'))
@@ -158,13 +171,51 @@ export function Sandboxes() {
     [deleteSandbox, workspaceId, selectedId, closeEditor]
   )
 
+  const handleRetry = useCallback(async () => {
+    if (
+      !selected ||
+      !canRetrySandboxBuild({
+        canAdmin,
+        isDirty,
+        saving: createSandbox.isPending || updateSandbox.isPending,
+      })
+    ) {
+      return
+    }
+    try {
+      await updateSandbox.mutateAsync({
+        workspaceId,
+        sandboxId: selected.id,
+        language: selected.language,
+        dependencies: selected.dependencies,
+        systemPackages: selected.systemPackages,
+        cliTools: selected.cliTools,
+      })
+      toast.success('Sandbox build queued')
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Failed to retry sandbox build'))
+    }
+  }, [
+    canAdmin,
+    createSandbox.isPending,
+    isDirty,
+    selected,
+    updateSandbox,
+    updateSandbox.isPending,
+    workspaceId,
+  ])
+
   const filtered = useMemo(() => {
     const query = searchTerm.trim().toLowerCase()
     if (!query) return sandboxes
     return sandboxes.filter(
       (sandbox) =>
         sandbox.name.toLowerCase().includes(query) ||
-        sandbox.dependencies.some((dependency) => dependency.toLowerCase().includes(query))
+        sandbox.dependencies.some((dependency) => dependency.toLowerCase().includes(query)) ||
+        sandbox.systemPackages.some((systemPackage) =>
+          systemPackage.toLowerCase().includes(query)
+        ) ||
+        sandbox.cliTools.some((cliTool) => cliTool.toLowerCase().includes(query))
     )
   }, [sandboxes, searchTerm])
 
@@ -190,11 +241,12 @@ export function Sandboxes() {
 
   if (isEditing) {
     const saving = createSandbox.isPending || updateSandbox.isPending
+    const canRetry = canRetrySandboxBuild({ canAdmin, isDirty, saving })
     return (
       <>
         <SettingsPanel
           title={isCreating ? 'New sandbox' : (selected?.name ?? 'Sandbox')}
-          description='Packages installed into the image your Function blocks run in.'
+          description='Dependencies, system packages, and managed CLI tools available to your Function blocks.'
           back={{
             text: 'Sandboxes',
             icon: ArrowLeft,
@@ -207,7 +259,8 @@ export function Sandboxes() {
               onSave: () => void handleSave(),
               onDiscard: () => {
                 setDraft(null)
-                setIssues([])
+                setDependencyIssues([])
+                setSystemPackageIssues([])
               },
               saveDisabled: !canAdmin || current.name.trim().length === 0,
               creating: isCreating,
@@ -227,9 +280,20 @@ export function Sandboxes() {
           <SandboxEditor
             draft={current}
             onChange={setDraft}
-            issues={issues}
+            dependencyIssues={dependencyIssues}
+            systemPackageIssues={systemPackageIssues}
             disabled={!canAdmin || saving}
-            status={selected ? <SandboxStatus sandbox={selected} strategy={strategy} /> : undefined}
+            status={
+              selected ? (
+                <SandboxStatus
+                  sandbox={selected}
+                  strategy={strategy}
+                  onRetry={canAdmin ? () => void handleRetry() : undefined}
+                  retrying={updateSandbox.isPending}
+                  retryDisabled={!canRetry}
+                />
+              ) : undefined
+            }
           />
         </SettingsPanel>
 
@@ -279,7 +343,7 @@ export function Sandboxes() {
         <SettingsEmptyState variant={searchTerm ? 'inline' : 'fill'}>
           {searchTerm
             ? 'No sandboxes match your search.'
-            : 'No sandboxes yet. Create one to let Function blocks import packages.'}
+            : 'No sandboxes yet. Create one to add dependencies, system packages, and managed CLI tools to Function blocks.'}
         </SettingsEmptyState>
       ) : (
         <div className={RESOURCE_LIST_STACK}>
@@ -289,7 +353,7 @@ export function Sandboxes() {
               icon={<CodeIcon className='text-[var(--text-icon)]' />}
               iconFilled
               title={sandbox.name}
-              description={`${sandbox.language === 'python' ? 'Python' : 'JavaScript'} · ${sandbox.dependencies.length} ${sandbox.dependencies.length === 1 ? 'package' : 'packages'}`}
+              description={`${sandbox.language === 'python' ? 'Python' : 'JavaScript'} · ${sandbox.dependencies.length} ${sandbox.dependencies.length === 1 ? 'dependency' : 'dependencies'} · ${sandbox.systemPackages.length} ${sandbox.systemPackages.length === 1 ? 'system package' : 'system packages'} · ${sandbox.cliTools.length} ${sandbox.cliTools.length === 1 ? 'managed CLI' : 'managed CLIs'}`}
               onClick={() => void setSelectedId(sandbox.id)}
               clickLabel={`Open ${sandbox.name}`}
               navigable

@@ -7,10 +7,10 @@ import {
   getLargeValueMaterializationError,
   isLargeValueRef,
 } from '@/lib/execution/payloads/large-value-ref'
+import { MAX_INLINE_MATERIALIZATION_BYTES } from '@/lib/execution/payloads/limits'
 import {
   assertInlineMaterializationSize,
   type ExecutionMaterializationContext,
-  MAX_INLINE_MATERIALIZATION_BYTES,
 } from '@/lib/execution/payloads/materialization.server'
 import { materializeLargeValueRef } from '@/lib/execution/payloads/store'
 

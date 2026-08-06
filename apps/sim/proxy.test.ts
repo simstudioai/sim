@@ -88,6 +88,7 @@ describe('resolveApiCorsPolicy', () => {
     expect(policy.credentials).toBe(false)
     expect(policy.methods).toContain('PUT')
     expect(policy.headers).toContain('X-Execution-Id')
+    expect(policy.headers).toContain('X-Execution-Timeout-Seconds')
   })
 
   it('does not match the workflow execute rule for nested paths', () => {

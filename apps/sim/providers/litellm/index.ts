@@ -379,16 +379,22 @@ export const litellmProvider: ProviderConfig = {
             }
 
             const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-            const result = await executeProviderTool(toolName, executionParams, {
-              signal: request.abortSignal,
-            })
+            const { rawResponse, modelResponse } = await executeProviderTool(
+              toolName,
+              executionParams,
+              {
+                signal: request.abortSignal,
+                toolInput: toolParams,
+              }
+            )
             const toolCallEndTime = Date.now()
 
             return {
               toolCall,
               toolName,
               toolParams,
-              result,
+              result: rawResponse,
+              modelResult: modelResponse,
               startTime: toolCallStartTime,
               endTime: toolCallEndTime,
               duration: toolCallEndTime - toolCallStartTime,
@@ -431,6 +437,8 @@ export const litellmProvider: ProviderConfig = {
         for (const executionResult of executionResults) {
           const { toolCall, toolName, toolParams, result, startTime, endTime, duration } =
             executionResult
+          const modelResult =
+            'modelResult' in executionResult ? (executionResult.modelResult ?? result) : result
 
           timeSegments.push({
             type: 'tool',
@@ -454,6 +462,13 @@ export const litellmProvider: ProviderConfig = {
               tool: toolName,
             }
           }
+          const modelResultContent = modelResult.success
+            ? (modelResult.output ?? null)
+            : {
+                error: true,
+                message: modelResult.error || 'Tool execution failed',
+                tool: toolName,
+              }
 
           toolCalls.push({
             name: toolName,
@@ -469,7 +484,7 @@ export const litellmProvider: ProviderConfig = {
             role: 'tool',
             tool_call_id: toolCall.id,
             name: toolName,
-            content: JSON.stringify(resultContent),
+            content: JSON.stringify(modelResultContent),
           })
         }
 

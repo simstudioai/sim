@@ -2,7 +2,12 @@
  * @vitest-environment node
  */
 import { EventEmitter } from 'node:events'
-import { inputValidationMock, inputValidationMockFns, redisConfigMockFns } from '@sim/testing'
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+  loggerMock,
+  redisConfigMockFns,
+} from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 type MockProc = EventEmitter & {
@@ -165,10 +170,9 @@ function createReadyFetchProxyProc(fetchMessage: { url: string; optionsJson?: st
   return proc
 }
 
-const { mockSpawn, mockExecSync, mockSanitizeUrl, mockEnv } = vi.hoisted(() => ({
+const { mockSpawn, mockExecSync, mockEnv } = vi.hoisted(() => ({
   mockSpawn: vi.fn(),
   mockExecSync: vi.fn(() => Buffer.from('v23.11.0')),
-  mockSanitizeUrl: vi.fn((url: string) => url),
   mockEnv: {
     IVM_POOL_SIZE: '1',
     IVM_MAX_CONCURRENT: '100',
@@ -193,9 +197,6 @@ const mockSecureFetch = inputValidationMockFns.mockSecureFetchWithValidation
 const mockGetRedisClient = redisConfigMockFns.mockGetRedisClient
 
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
-vi.mock('@/lib/core/utils/logging', () => ({
-  sanitizeUrlForLog: mockSanitizeUrl,
-}))
 vi.mock('@/lib/core/config/env', () => ({
   env: mockEnv,
 }))
@@ -676,5 +677,36 @@ describe('isolated-vm scheduler', () => {
     const payload = JSON.parse(String(result.result))
     expect(payload.error).toContain('fetch URL exceeds maximum length')
     expect(secureFetchMock).not.toHaveBeenCalled()
+  })
+
+  it('does not log a resolved secret from a failed fetch URL or error', async () => {
+    const secret = 'fetch-path-secret-value'
+    const requestUrl = `https://example.com/${secret}`
+    const { executeInIsolatedVM } = await loadExecutionModule({
+      spawns: [() => createReadyFetchProxyProc({ url: requestUrl })],
+      secureFetchImpl: async () => {
+        throw new Error(`Request failed for ${requestUrl}`)
+      },
+    })
+    const mockLogger = vi.mocked(loggerMock.createLogger).mock.results[
+      vi
+        .mocked(loggerMock.createLogger)
+        .mock.calls.findLastIndex(([name]) => name === 'IsolatedVMExecution')
+    ].value
+
+    const result = await executeInIsolatedVM({
+      code: 'return "fetch-secret"',
+      params: {},
+      envVars: {},
+      contextVariables: {},
+      timeoutMs: 100,
+      requestId: 'req-fetch-secret',
+    })
+
+    expect(JSON.parse(String(result.result)).error).toContain(secret)
+    expect(JSON.stringify(mockLogger.warn.mock.calls)).not.toContain(secret)
+    expect(mockLogger.warn).toHaveBeenCalledWith('[req-fetch-secret] Isolated fetch failed', {
+      errorName: 'Error',
+    })
   })
 })

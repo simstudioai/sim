@@ -130,6 +130,23 @@ export function useDeleteSandbox() {
       logger.info(`Deleted sandbox ${sandboxId} from workspace ${workspaceId}`)
       return data
     },
+    onMutate: async ({ workspaceId, sandboxId }) => {
+      const queryKey = sandboxKeys.list(workspaceId)
+      await queryClient.cancelQueries({ queryKey })
+      const previous = queryClient.getQueryData<SandboxListResponse>(queryKey)
+      if (previous) {
+        queryClient.setQueryData<SandboxListResponse>(queryKey, {
+          ...previous,
+          sandboxes: previous.sandboxes.filter((sandbox) => sandbox.id !== sandboxId),
+        })
+      }
+      return { previous }
+    },
+    onError: (_error, variables, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(sandboxKeys.list(variables.workspaceId), context.previous)
+      }
+    },
     onSettled: (_data, _error, variables) =>
       queryClient.invalidateQueries({ queryKey: sandboxKeys.list(variables.workspaceId) }),
   })
