@@ -12,7 +12,7 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react'
-import { Button, cn } from '@sim/emcn'
+import { Button, cn, toast } from '@sim/emcn'
 import { PanelLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
@@ -474,6 +474,8 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
       openWorkspaceResource(resolved)
       return
     }
+    // The chip looks clickable, so refusing silently reads as a broken button.
+    toast.error(`Couldn't find "${ref.title}" in this workspace`)
     logger.warn('Ignored a resource chip that names nothing in this workspace', {
       type: ref.type,
       title: ref.title,
