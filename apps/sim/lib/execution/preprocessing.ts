@@ -116,6 +116,8 @@ export interface PreprocessExecutionError {
   cause?: Record<string, unknown>
 }
 
+export const WORKFLOW_NOT_DEPLOYED_CODE = 'WORKFLOW_NOT_DEPLOYED'
+
 export interface PreprocessExecutionSuccess {
   success: true
   actorUserId: string
@@ -286,6 +288,7 @@ export async function preprocessExecution(
       error: {
         message: 'Workflow is not deployed',
         statusCode: 403,
+        code: WORKFLOW_NOT_DEPLOYED_CODE,
       },
     }
   }

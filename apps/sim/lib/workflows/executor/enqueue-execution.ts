@@ -27,7 +27,9 @@ export interface EnqueueWorkflowExecutionParams {
   workspaceId: string
   input: unknown
   triggerType: CoreTriggerType
+  triggerBlockId?: string
   executionId: string
+  copilotToolCallId?: string
   callChain?: string[]
   executionTimeoutMs: number
   trustedInitialResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
@@ -69,7 +71,9 @@ export async function enqueueWorkflowExecution(
     workspaceId,
     input,
     triggerType,
+    triggerBlockId,
     executionId,
+    copilotToolCallId,
     callChain,
     executionTimeoutMs,
     trustedInitialResolvedSecretTraceProvenance,
@@ -87,6 +91,7 @@ export async function enqueueWorkflowExecution(
     requestId,
     source: 'workflow' as const,
     workflowId,
+    ...(copilotToolCallId ? { copilotToolCallId } : {}),
     triggerType,
   }
 
@@ -97,6 +102,7 @@ export async function enqueueWorkflowExecution(
     workspaceId,
     input,
     triggerType,
+    triggerBlockId,
     executionId,
     requestId,
     correlation,

@@ -29,6 +29,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AsyncJobEnqueueError } from '@/lib/core/async-jobs/types'
 import { getRemainingExecutionMs } from '@/lib/core/execution-limits'
 import { INTERNAL_EXECUTION_DEADLINE_HEADER } from '@/lib/execution/execution-deadline-header'
+import { WORKFLOW_NOT_DEPLOYED_CODE } from '@/lib/execution/preprocessing'
 import {
   PRIVATE_SECRET_PROVENANCE_BUNDLE_V1,
   PRIVATE_SECRET_PROVENANCE_FIELD,
@@ -39,6 +40,7 @@ const {
   mockAssertBillingAttributionSnapshot,
   mockClaimExecutionId,
   mockClaimWorkflowToolExecution,
+  mockCheckNeedsRedeployment,
   mockEnqueue,
   mockExecuteWorkflowJob,
   mockExecuteWorkflowCore,
@@ -67,6 +69,7 @@ const {
   }),
   mockClaimExecutionId: vi.fn(),
   mockClaimWorkflowToolExecution: vi.fn(),
+  mockCheckNeedsRedeployment: vi.fn(),
   mockEnqueue: vi.fn().mockResolvedValue('job-123'),
   mockExecuteWorkflowJob: vi.fn(),
   mockExecuteWorkflowCore: vi.fn(),
@@ -117,6 +120,10 @@ const mockAuthorizeWorkflowByWorkspacePermission =
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
 vi.mock('@/lib/execution/preprocessing', () => executionPreprocessingMock)
+
+vi.mock('@/app/api/workflows/utils', () => ({
+  checkNeedsRedeployment: mockCheckNeedsRedeployment,
+}))
 
 vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 
@@ -415,6 +422,7 @@ describe('workflow execute async route', () => {
       toolCallId: 'copilot-tool-1',
       claimedBy: 'workflow:execution-123',
     })
+    mockCheckNeedsRedeployment.mockResolvedValue(false)
     mockHasDurableExecutionOwner.mockResolvedValue(false)
     mockGetAsyncToolCall.mockReset().mockResolvedValue({
       toolCallId: 'copilot-tool-1',
@@ -873,6 +881,94 @@ describe('workflow execute async route', () => {
     expect(response.status).toBe(400)
     expect(mockGetAsyncToolCall).not.toHaveBeenCalled()
     expect(mockExecuteWorkflowCore).not.toHaveBeenCalled()
+  })
+
+  it('queues a bound Copilot workflow execution asynchronously', async () => {
+    const request = createBoundCopilotExecutionRequest({
+      stream: false,
+      triggerBlockId: 'trigger-async',
+    })
+    request.headers.set('X-Execution-Mode', 'async')
+
+    const response = await POST(request, {
+      params: Promise.resolve({ id: 'workflow-1' }),
+    })
+
+    expect(response.status).toBe(202)
+    expect(mockClaimWorkflowToolExecution).toHaveBeenCalledWith('copilot-tool-1', 'execution-123')
+    expect(mockPreprocessExecution).toHaveBeenCalledWith(
+      expect.objectContaining({ checkDeployment: true, executionType: 'async' })
+    )
+    expect(loggingSessionMockFns.mockSetTrustedExecutionCorrelation).toHaveBeenCalledWith({
+      executionId: 'execution-123',
+      requestId: 'req-12345678',
+      source: 'workflow',
+      workflowId: 'workflow-1',
+      triggerType: 'copilot',
+      copilotToolCallId: 'copilot-tool-1',
+    })
+    expect(mockEnqueue).toHaveBeenCalledWith(
+      'workflow-execution',
+      expect.objectContaining({
+        executionId: 'execution-123',
+        triggerBlockId: 'trigger-async',
+        correlation: expect.objectContaining({ copilotToolCallId: 'copilot-tool-1' }),
+      }),
+      expect.any(Object)
+    )
+  })
+
+  it('rejects a bound async run when the deployed workflow is stale', async () => {
+    mockCheckNeedsRedeployment.mockResolvedValueOnce(true)
+    const request = createBoundCopilotExecutionRequest({ stream: false })
+    request.headers.set('X-Execution-Mode', 'async')
+
+    const response = await POST(request, {
+      params: Promise.resolve({ id: 'workflow-1' }),
+    })
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Async execution requires the current workflow to match its deployed version',
+      code: 'ASYNC_WORKFLOW_DEPLOYMENT_STALE',
+    })
+    expect(mockClaimWorkflowToolExecution).toHaveBeenCalledWith('copilot-tool-1', 'execution-123')
+    expect(mockReleaseExecutionSlot).toHaveBeenCalledWith('execution-123')
+    expect(mockReleaseWorkflowToolExecutionClaim).toHaveBeenCalledWith(
+      'copilot-tool-1',
+      'execution-123'
+    )
+    expect(mockEnqueue).not.toHaveBeenCalled()
+  })
+
+  it('rejects a bound async run when the workflow has not been deployed', async () => {
+    mockPreprocessExecution.mockResolvedValueOnce({
+      success: false,
+      error: {
+        message: 'Workflow is not deployed',
+        statusCode: 403,
+        code: WORKFLOW_NOT_DEPLOYED_CODE,
+      },
+    })
+    const request = createBoundCopilotExecutionRequest({ stream: false })
+    request.headers.set('X-Execution-Mode', 'async')
+
+    const response = await POST(request, {
+      params: Promise.resolve({ id: 'workflow-1' }),
+    })
+
+    expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Async execution requires the workflow to be deployed first',
+      code: 'ASYNC_WORKFLOW_DEPLOYMENT_MISSING',
+    })
+    expect(mockReleaseExecutionSlot).toHaveBeenCalledWith('execution-123')
+    expect(mockReleaseWorkflowToolExecutionClaim).toHaveBeenCalledWith(
+      'copilot-tool-1',
+      'execution-123'
+    )
+    expect(mockEnqueue).not.toHaveBeenCalled()
+    expect(mockCheckNeedsRedeployment).not.toHaveBeenCalled()
   })
 
   it.each([

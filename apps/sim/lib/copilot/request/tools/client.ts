@@ -15,7 +15,9 @@ import {
 } from '@/lib/copilot/request/tools/client-completion-seal.server'
 import { inspectToolResultForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
 import {
+  type AsyncWorkflowDeploymentError,
   createStructuralWorkflowToolCompletionData,
+  getAsyncWorkflowDeploymentError,
   getWorkflowToolCompletionExecutionId,
   getWorkflowToolCompletionMessage,
   getWorkflowToolConfirmationStatus,
@@ -204,12 +206,18 @@ interface WaitForWorkflowToolCompletionOptions {
 function structuralWorkflowCompletion(
   status: AsyncTerminalCompletionSnapshot['status'],
   workflowId?: string,
-  executionId?: string
+  executionId?: string,
+  deploymentError?: AsyncWorkflowDeploymentError
 ): AsyncTerminalCompletionSnapshot {
   return {
     status,
-    message: getWorkflowToolCompletionMessage(status),
-    data: createStructuralWorkflowToolCompletionData(status, workflowId, executionId),
+    message: deploymentError?.message ?? getWorkflowToolCompletionMessage(status),
+    data: createStructuralWorkflowToolCompletionData(
+      status,
+      workflowId,
+      executionId,
+      deploymentError
+    ),
   }
 }
 
@@ -237,6 +245,7 @@ export async function waitForWorkflowToolCompletion({
     }
 
     const executionId = getWorkflowToolCompletionExecutionId(completion.data)
+    const deploymentError = getAsyncWorkflowDeploymentError(completion.data)
     if (completion.status === ASYNC_TOOL_CONFIRMATION_STATUS.background) {
       toolRegistry?.markIncomplete()
       return structuralWorkflowCompletion(completion.status, workflowId, executionId)
@@ -247,7 +256,12 @@ export async function waitForWorkflowToolCompletion({
         completion.status === MothershipStreamV1ToolOutcome.success
           ? MothershipStreamV1ToolOutcome.error
           : completion.status
-      return structuralWorkflowCompletion(structuralStatus, workflowId, executionId)
+      return structuralWorkflowCompletion(
+        structuralStatus,
+        workflowId,
+        executionId,
+        deploymentError
+      )
     }
 
     try {
