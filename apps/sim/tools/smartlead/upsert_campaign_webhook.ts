@@ -6,7 +6,6 @@ import type {
 import {
   mapSavedWebhook,
   pathSegment,
-  SMARTLEAD_WEBHOOK_EVENT_TYPES,
   smartleadBaseParamFields,
   smartleadCampaignIdParamField,
   smartleadHeaders,
@@ -53,7 +52,8 @@ export const upsertCampaignWebhookTool: ToolConfig<
       type: 'array',
       required: true,
       visibility: 'user-or-llm',
-      description: `Events to subscribe to. Allowed values: ${SMARTLEAD_WEBHOOK_EVENT_TYPES.join(', ')}`,
+      description:
+        'Events to subscribe to. Allowed values: EMAIL_SENT, EMAIL_OPEN, EMAIL_LINK_CLICK, EMAIL_REPLY, EMAIL_BOUNCE, LEAD_UNSUBSCRIBED, LEAD_CATEGORY_UPDATED',
       items: { type: 'string' },
     },
     categories: {

@@ -55,7 +55,9 @@ export const markLeadCompleteTool: ToolConfig<
     const record = await smartleadRecord(response, 'lead completion')
     const status = isRecordLike(record.status) ? record.status : {}
     // `nextSequence` is an object ({ id, delayInDays }) when a step remains, else null.
+    // `delayInDays` arrives as a string and is legitimately "0" for an immediate step.
     const next = isRecordLike(status.nextSequence) ? status.nextSequence : null
+    const delay = next === null ? Number.NaN : Number(next.delayInDays)
 
     return {
       success: true,
@@ -63,7 +65,7 @@ export const markLeadCompleteTool: ToolConfig<
         success: isOk(record),
         is_last_sequence: typeof status.isLastSequence === 'boolean' ? status.isLastSequence : null,
         next_sequence_id: next && typeof next.id === 'number' ? next.id : null,
-        next_sequence_delay_in_days: next ? Number(next.delayInDays) || null : null,
+        next_sequence_delay_in_days: Number.isFinite(delay) ? delay : null,
       },
     }
   },

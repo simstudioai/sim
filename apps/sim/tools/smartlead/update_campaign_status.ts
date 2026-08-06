@@ -4,7 +4,7 @@ import {
   actionOutputs,
   isOk,
   pathSegment,
-  SMARTLEAD_CAMPAIGN_STATUSES,
+  type SMARTLEAD_CAMPAIGN_STATUSES,
   smartleadBaseParamFields,
   smartleadCampaignIdParamField,
   smartleadHeaders,
@@ -34,7 +34,7 @@ export const updateCampaignStatusTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: `Target status: ${SMARTLEAD_CAMPAIGN_STATUSES.join(', ')}`,
+      description: 'Target status: START, PAUSED, STOPPED',
     },
   },
   request: {

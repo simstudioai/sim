@@ -6,7 +6,7 @@ import type {
 import {
   campaignStatisticsOutputs,
   pathSegment,
-  SMARTLEAD_EMAIL_STATUSES,
+  type SMARTLEAD_EMAIL_STATUSES,
   smartleadBaseParamFields,
   smartleadCampaignIdParamField,
   smartleadHeaders,
@@ -59,7 +59,8 @@ export const getCampaignStatisticsTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: `Only return rows with this engagement status: ${SMARTLEAD_EMAIL_STATUSES.join(', ')}`,
+      description:
+        'Only return rows with this engagement status: opened, clicked, replied, unsubscribed, bounced',
     },
     sentTimeStartDate: {
       type: 'string',

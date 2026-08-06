@@ -303,7 +303,7 @@ Starts, pauses, or stops a Smartlead campaign. START requires the campaign to al
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `status` | string | Yes | Target status: $\{SMARTLEAD_CAMPAIGN_STATUSES.join\(', '\)\} |
+| `status` | string | Yes | Target status: START, PAUSED, STOPPED |
 
 #### Output
 
@@ -493,8 +493,8 @@ Updates tracking, stop-on-activity, and sending settings for a Smartlead campaig
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `trackSettings` | array | No | Tracking to disable. Allowed values: $\{SMARTLEAD_TRACK_SETTINGS.join\(', '\)\} |
-| `stopLeadSettings` | string | No | Lead activity that stops the sequence: $\{SMARTLEAD_STOP_LEAD_SETTINGS.join\(', '\)\} |
+| `trackSettings` | array | No | Tracking to disable. Allowed values: DONT_TRACK_EMAIL_OPEN, DONT_TRACK_LINK_CLICK, DONT_TRACK_REPLY_TO_AN_EMAIL |
+| `stopLeadSettings` | string | No | Lead activity that stops the sequence: REPLY_TO_AN_EMAIL, CLICK_ON_A_LINK, OPEN_AN_EMAIL |
 | `sendAsPlainText` | boolean | No | Send campaign emails as plain text |
 | `followUpPercentage` | number | No | Percentage of leads that receive follow-ups |
 | `unsubscribeText` | string | No | Unsubscribe text appended to emails |
@@ -960,7 +960,7 @@ Retrieves per-email statistics rows for a Smartlead campaign, filterable by sequ
 | `offset` | number | No | Pagination offset \(default 0\) |
 | `limit` | number | No | Rows to return \(default 100\) |
 | `emailSequenceNumber` | number | No | Only return rows for this sequence step |
-| `emailStatus` | string | No | Only return rows with this engagement status: $\{SMARTLEAD_EMAIL_STATUSES.join\(', '\)\} |
+| `emailStatus` | string | No | Only return rows with this engagement status: opened, clicked, replied, unsubscribed, bounced |
 | `sentTimeStartDate` | string | No | Only return rows sent on or after this date \(YYYY-MM-DD\) |
 | `sentTimeEndDate` | string | No | Only return rows sent on or before this date \(YYYY-MM-DD\) |
 
@@ -1987,7 +1987,7 @@ Creates a webhook on a Smartlead campaign, or updates an existing one when a web
 | --------- | ---- | -------- | ----------- |
 | `name` | string | Yes | Webhook name |
 | `webhookUrl` | string | Yes | HTTPS URL Smartlead should post events to |
-| `eventTypes` | array | Yes | Events to subscribe to. Allowed values: $\{SMARTLEAD_WEBHOOK_EVENT_TYPES.join\(', '\)\} |
+| `eventTypes` | array | Yes | Events to subscribe to. Allowed values: EMAIL_SENT, EMAIL_OPEN, EMAIL_LINK_CLICK, EMAIL_REPLY, EMAIL_BOUNCE, LEAD_UNSUBSCRIBED, LEAD_CATEGORY_UPDATED |
 | `categories` | array | Yes | Lead category names the webhook applies to, e.g. Interested. Smartlead rejects an empty list. |
 | `webhookId` | number | No | Existing webhook ID to update; omit to create a new webhook |
 

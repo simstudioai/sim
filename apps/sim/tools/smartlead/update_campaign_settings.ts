@@ -5,8 +5,7 @@ import {
   isOk,
   jsonBody,
   pathSegment,
-  SMARTLEAD_STOP_LEAD_SETTINGS,
-  SMARTLEAD_TRACK_SETTINGS,
+  type SMARTLEAD_STOP_LEAD_SETTINGS,
   smartleadBaseParamFields,
   smartleadCampaignIdParamField,
   smartleadHeaders,
@@ -40,14 +39,16 @@ export const updateCampaignSettingsTool: ToolConfig<
       type: 'array',
       required: false,
       visibility: 'user-or-llm',
-      description: `Tracking to disable. Allowed values: ${SMARTLEAD_TRACK_SETTINGS.join(', ')}`,
+      description:
+        'Tracking to disable. Allowed values: DONT_TRACK_EMAIL_OPEN, DONT_TRACK_LINK_CLICK, DONT_TRACK_REPLY_TO_AN_EMAIL',
       items: { type: 'string' },
     },
     stopLeadSettings: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: `Lead activity that stops the sequence: ${SMARTLEAD_STOP_LEAD_SETTINGS.join(', ')}`,
+      description:
+        'Lead activity that stops the sequence: REPLY_TO_AN_EMAIL, CLICK_ON_A_LINK, OPEN_AN_EMAIL',
     },
     sendAsPlainText: {
       type: 'boolean',
