@@ -9,7 +9,12 @@ import { getValidationErrorMessage, parseRequest, validationErrorResponse } from
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { embed, findEmbeddingModelInfo, getModelsForProvider } from '@/lib/embeddings'
+import {
+  embed,
+  findEmbeddingModelInfo,
+  getModelsForProvider,
+  resolveDimensions,
+} from '@/lib/embeddings'
 
 const logger = createLogger('EmbeddingsToolAPI')
 
@@ -84,6 +89,20 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         success: false,
         error: `Model ${resolvedModel} belongs to ${info.provider}, not ${provider}`,
       },
+      { status: 400 }
+    )
+  }
+
+  /**
+   * Resolved here as well as inside `embed()` so an unsupported `dimensions`
+   * is reported as the client error it is. The block's dropdown constrains the
+   * field, but a reference expression can put any value on the wire.
+   */
+  try {
+    resolveDimensions(info, dimensions)
+  } catch (error) {
+    return NextResponse.json(
+      { success: false, error: getErrorMessage(error, 'Invalid dimensions') },
       { status: 400 }
     )
   }
