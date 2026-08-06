@@ -285,6 +285,29 @@ describe('embed', () => {
       expect(result.totalTokens).toBeLessThan(10)
     })
 
+    /**
+     * Projection changes length, and batching truncates whatever it measures.
+     * Batching the pre-projection text sized against a string that was never
+     * sent: a lengthening projection then exceeded the model's ceiling, and a
+     * shortening one discarded content that would have fit.
+     */
+    it('batches the projected text, not the original', async () => {
+      fetchMock.mockResolvedValue(jsonResponse({ embeddings: [{ values: [1] }] }))
+      // Under Gemini's 2048 ceiling before projection, far over it after.
+      const short = 'secret'
+
+      await embed([short], {
+        model: 'gemini-embedding-001',
+        apiKey: 'g-test',
+        projectInputs: () => ['word '.repeat(8000)],
+      })
+
+      const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)
+      const sent = body.requests[0].content.parts[0].text
+      // Truncated against the model ceiling, so the lengthened text cannot go out whole.
+      expect(sent.length).toBeLessThan('word '.repeat(8000).length)
+    })
+
     it('projects once even when the request is retried', async () => {
       const projectInputs = vi.fn((values: readonly string[]) => values.map(() => 'projected'))
       fetchMock

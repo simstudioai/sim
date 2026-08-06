@@ -111,22 +111,16 @@ async function resolveProvider(model: string, options: EmbedOptions): Promise<Re
   }
 }
 
+/** `inputs` are already projected and batched by {@link embed}. */
 async function callEmbeddingAPI(
   inputs: string[],
   provider: ResolvedProvider,
-  taskType: EmbeddingTaskType,
-  projectInputs: ((values: readonly string[]) => string[]) | null
+  taskType: EmbeddingTaskType
 ): Promise<{ embeddings: number[][]; totalTokens: number }> {
-  /**
-   * Projected once, outside the retry loop, so a retry cannot re-project
-   * already-projected content. Token counts are taken from these same values so
-   * usage reflects what was actually sent.
-   */
-  const modelInputs = projectInputs ? projectInputs(inputs) : inputs
   return retryWithExponentialBackoff(
     async () => {
       const request = provider.adapter.buildRequest({
-        inputs: modelInputs,
+        inputs,
         taskType,
         dimensions: provider.requestedDimensions,
       })
@@ -154,7 +148,7 @@ async function callEmbeddingAPI(
       const totalTokens =
         request.parseTokens?.(json) ??
         // Providers that omit usage (e.g. Gemini) get an estimate from their tokenizer
-        modelInputs.reduce(
+        inputs.reduce(
           (sum, text) => sum + estimateTokenCount(text, provider.info.tokenizerProvider).count,
           0
         )
@@ -185,14 +179,26 @@ export async function embed(texts: string[], options: EmbedOptions): Promise<Emb
   const provider = await resolveProvider(model, options)
 
   /**
-   * Batched against the selected model's own ceiling rather than one shared
-   * constant. `batchByTokenLimit` truncates any single text above the limit, so
-   * a value that is too high sends oversized input the provider rejects, and one
-   * that is too low silently drops content the provider would have accepted.
-   * Using the per-input ceiling as the per-batch budget also keeps every
-   * individual text within it.
+   * Projected before batching, not after. The projector rewrites resolved-secret
+   * plaintext to placeholders, which changes length, and `batchByTokenLimit`
+   * measures and truncates whatever it is handed. Batching the pre-projection
+   * text would size against a different string than the one actually sent: a
+   * lengthening projection then exceeds the model's ceiling and the provider
+   * rejects it, and a shortening one discards content that would have fit.
+   *
+   * Doing it here also keeps projection to exactly once per call, so no retry
+   * can re-project already-projected content.
    */
-  const tokenBatches = batchByTokenLimit(texts, provider.info.maxInputTokens, model)
+  const modelInputs = options.projectInputs ? options.projectInputs(texts) : texts
+
+  /**
+   * Batched against the selected model's own ceiling rather than one shared
+   * constant. A value that is too high sends oversized input the provider
+   * rejects; one that is too low silently drops content the provider would have
+   * accepted. Using the per-input ceiling as the per-batch budget also keeps
+   * every individual text within it.
+   */
+  const tokenBatches = batchByTokenLimit(modelInputs, provider.info.maxInputTokens, model)
   const itemLimit = provider.adapter.maxItemsPerRequest ?? provider.info.maxItemsPerRequest
   const batches = itemLimit
     ? tokenBatches.flatMap((batch) => splitByItemLimit(batch, itemLimit))
@@ -203,7 +209,7 @@ export async function embed(texts: string[], options: EmbedOptions): Promise<Emb
     MAX_CONCURRENT_BATCHES,
     async (batch, i) => {
       try {
-        return await callEmbeddingAPI(batch, provider, taskType, options.projectInputs)
+        return await callEmbeddingAPI(batch, provider, taskType)
       } catch (error) {
         logger.error(`Failed to generate embeddings for batch ${i + 1}/${batches.length}:`, error)
         throw error

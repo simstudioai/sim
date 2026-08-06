@@ -440,7 +440,16 @@ async function generateIconMapping(options: {
           }
 
           const isVersionedBlockType = isVersionedType(blockType)
-          if (!hideFromToolbar || (options.includeHidden && isVersionedBlockType)) {
+          /**
+           * A sunset block keeps its docs page — `docsLink` is baked into every
+           * placed instance — so it still needs an icon there, exactly like a
+           * hidden versioned block. Without this it renders as a text tile.
+           */
+          const isSunsetBlockType = /sunset\s*:\s*\{/.test(stripSourceComments(blockContent))
+          if (
+            !hideFromToolbar ||
+            (options.includeHidden && (isVersionedBlockType || isSunsetBlockType))
+          ) {
             iconMapping[blockType] = {
               name: iconName,
               source: resolveIconSource(fileContent, iconName),
