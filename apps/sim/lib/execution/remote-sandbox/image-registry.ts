@@ -1003,6 +1003,7 @@ export async function cleanupSandboxImages(retentionDays: number): Promise<{
   const images = provider.images
 
   const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000)
+  const beyondRetention = sql`coalesce(${sandboxImage.lastUsedAt}, ${sandboxImage.createdAt}) < ${sql.param(cutoff, sandboxImage.lastUsedAt)}`
   const stale = await db
     .select({
       id: sandboxImage.id,
@@ -1015,7 +1016,7 @@ export async function cleanupSandboxImages(retentionDays: number): Promise<{
     .where(
       and(
         eq(sandboxImage.provider, provider.id),
-        sql`coalesce(${sandboxImage.lastUsedAt}, ${sandboxImage.createdAt}) < ${cutoff}`,
+        beyondRetention,
         sql`not exists (select 1 from workspace_sandbox ws where ws.spec_hash = ${sandboxImage.specHash})`
       )
     )
@@ -1033,11 +1034,7 @@ export async function cleanupSandboxImages(retentionDays: number): Promise<{
   for (let offset = 0; offset < stale.length; offset += CLEANUP_CONCURRENCY) {
     const chunk = stale.slice(offset, offset + CLEANUP_CONCURRENCY)
     const outcomes = await Promise.all(
-      chunk.map((row) =>
-        claimAndDeleteImage(provider.id, images, row.specHash, [
-          sql`coalesce(${sandboxImage.lastUsedAt}, ${sandboxImage.createdAt}) < ${cutoff}`,
-        ])
-      )
+      chunk.map((row) => claimAndDeleteImage(provider.id, images, row.specHash, [beyondRetention]))
     )
 
     deleted += outcomes.filter((outcome) => outcome === 'released').length
