@@ -186,7 +186,7 @@ export function VerifiedDomainsSection({ organizationId }: VerifiedDomainsSectio
         text={[
           'Remove ',
           { text: pendingRemoval?.domain ?? '', bold: true },
-          "? You'll need to verify it again before you can configure SSO for it. Existing SSO sign-in is not affected.",
+          '? This immediately disables SSO sign-in for anyone on that domain, because the proof is what grants your identity provider its authority. Verifying the domain again restores it.',
         ]}
         confirm={{
           label: 'Remove',
