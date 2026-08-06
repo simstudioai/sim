@@ -24,6 +24,7 @@ import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { executeProviderRequest } from '@/providers'
+import { isAbortError } from '@/providers/streaming-tool-loop-shared'
 import { getProviderFromModel } from '@/providers/utils'
 
 const logger = createLogger('HallucinationValidator')
@@ -298,6 +299,11 @@ Evaluate the consistency and provide your score and reasoning in JSON format.`
       cost,
     }
   } catch (error: any) {
+    /**
+     * A cancelled run is not a scoring failure. Rewrapping it would erase the
+     * `AbortError` name the outer handler classifies on, so it propagates as-is.
+     */
+    if (isAbortError(error)) throw error
     logger.error(`[${requestId}] Error scoring with LLM`, {
       error: error.message,
     })
@@ -402,6 +408,12 @@ export async function validateHallucination(
         : `Low confidence: score ${score}/10 is below threshold ${threshold}`,
     }
   } catch (error: any) {
+    /**
+     * Cancellation is surfaced as cancellation, not as a guardrail verdict. Returning
+     * `passed: false` here would fail content on a run the caller abandoned, which is
+     * indistinguishable to a consumer from the model actually hallucinating.
+     */
+    if (isAbortError(error)) throw error
     logger.error(`[${requestId}] Hallucination validation error`, {
       error: error.message,
     })
