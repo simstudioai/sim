@@ -81,11 +81,10 @@ async function lockKnowledgeBaseForTagMutation(
     .for('update')
 }
 
-/** Prevents a tag clear from demoting nonempty or unverifiable provenance to legacy state. */
-async function assertTagSlotsCanBeClearedInTx(
+/** Prevents tag cleanup from demoting nonempty or unverifiable provenance to legacy state. */
+async function assertKnowledgeBaseTagsCanBeClearedInTx(
   tx: DbTransaction,
-  knowledgeBaseId: string,
-  tagSlots: readonly ValidTagSlot[]
+  knowledgeBaseId: string
 ): Promise<void> {
   const [conflict] = await tx
     .select({ id: document.id })
@@ -95,7 +94,6 @@ async function assertTagSlotsCanBeClearedInTx(
       and(
         eq(document.knowledgeBaseId, knowledgeBaseId),
         eq(document.secretProvenanceVersion, 1),
-        or(...tagSlots.map((tagSlot) => isNotNull(document[tagSlot]))),
         or(
           isNull(documentSecretProvenance.documentId),
           sql`${documentSecretProvenance.status} IS DISTINCT FROM 'exact'`,
@@ -119,7 +117,7 @@ async function clearTagSlotsInTx(
   const clearedTagValues: ClearedTagValues = {}
   for (const tagSlot of tagSlots) clearedTagValues[tagSlot] = null
 
-  await assertTagSlotsCanBeClearedInTx(tx, knowledgeBaseId, tagSlots)
+  await assertKnowledgeBaseTagsCanBeClearedInTx(tx, knowledgeBaseId)
 
   await tx
     .update(embedding)
