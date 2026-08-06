@@ -44,6 +44,12 @@ export interface HallucinationValidationInput {
     billingAttribution?: string
   }
   requestId: string
+  /**
+   * The caller's cancellation signal, forwarded to the scoring model exactly as the
+   * agent handler forwards `ctx.abortSignal`. Without it the scoring request outlives
+   * a cancelled request and keeps burning a provider slot until the transport gives up.
+   */
+  abortSignal?: AbortSignal
 }
 
 /**
@@ -113,7 +119,8 @@ async function scoreHallucinationWithLLM(
   apiKey: string | undefined,
   providerCredentials: HallucinationValidationInput['providerCredentials'],
   workspaceId: string | undefined,
-  requestId: string
+  requestId: string,
+  abortSignal: AbortSignal | undefined
 ): Promise<{ score: number; reasoning: string; cost: number }> {
   try {
     const contextText = ragContext.join('\n\n---\n\n')
@@ -186,6 +193,7 @@ Evaluate the consistency and provide your score and reasoning in JSON format.`
       bedrockSecretKey: providerCredentials?.bedrockSecretKey,
       bedrockRegion: providerCredentials?.bedrockRegion,
       workspaceId,
+      abortSignal,
     })
 
     if (response instanceof ReadableStream || ('stream' in response && 'execution' in response)) {
@@ -248,6 +256,7 @@ export async function validateHallucination(
     workspaceId,
     authHeaders,
     requestId,
+    abortSignal,
   } = input
 
   try {
@@ -290,7 +299,8 @@ export async function validateHallucination(
       apiKey,
       providerCredentials,
       workspaceId,
-      requestId
+      requestId,
+      abortSignal
     )
 
     logger.info(`[${requestId}] Confidence score: ${score}`, {

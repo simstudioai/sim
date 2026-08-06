@@ -284,7 +284,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       piiLanguage,
       piiCustomPatterns,
       authHeaders,
-      requestId
+      requestId,
+      request.signal
     )
 
     /**
@@ -397,7 +398,8 @@ async function executeValidation(
   piiLanguage: string | undefined,
   piiCustomPatterns: CustomPiiPattern[] | undefined,
   authHeaders: { cookie?: string; authorization?: string; billingAttribution?: string } | undefined,
-  requestId: string
+  requestId: string,
+  abortSignal: AbortSignal | undefined
 ): Promise<{
   passed: boolean
   error?: string
@@ -446,6 +448,7 @@ async function executeValidation(
       workspaceId,
       authHeaders,
       requestId,
+      abortSignal,
     })
   }
   if (validationType === 'pii') {
