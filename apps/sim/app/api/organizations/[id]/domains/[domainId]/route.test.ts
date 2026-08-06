@@ -97,6 +97,22 @@ describe('remove org domain route', () => {
     expect(dbChainMockFns.set).toHaveBeenCalledWith({ domainVerified: false })
   })
 
+  /**
+   * Migration 0268 grandfathered providers by stripping a leading `*.`, so a
+   * provider can be stored as `*.acme.com` while its verified row holds
+   * `acme.com`. A naive equality match would leave that provider trusted after
+   * the proof was deleted.
+   */
+  it('matches the provider domain the way it was grandfathered (wildcard-tolerant)', async () => {
+    queueTableRows(member, [{ role: 'owner' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ domain: 'acme.com' }])
+    await DELETE(createMockRequest('DELETE'), routeContext)
+    const revokeWhere = dbChainMockFns.where.mock.calls.find(([condition]) =>
+      JSON.stringify(condition ?? '').includes('regexp_replace')
+    )
+    expect(revokeWhere).toBeDefined()
+  })
+
   it('does not revoke trust when no domain was removed', async () => {
     queueTableRows(member, [{ role: 'owner' }])
     dbChainMockFns.returning.mockResolvedValueOnce([]) // delete matched nothing

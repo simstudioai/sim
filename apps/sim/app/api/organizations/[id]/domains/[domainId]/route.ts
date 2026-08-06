@@ -74,13 +74,17 @@ export const DELETE = withRouteHandler(
 
       if (!deleted) return null
 
+      // Match the provider domain the same way migration 0268 normalized it when it
+      // grandfathered these rows: lower, trimmed, leading `*.` stripped. A provider
+      // stored as `*.acme.com` against a verified row holding `acme.com` would
+      // otherwise keep its trust after the proof was deleted.
       await tx
         .update(ssoProvider)
         .set({ domainVerified: false })
         .where(
           and(
             eq(ssoProvider.organizationId, organizationId),
-            sql`lower(${ssoProvider.domain}) = ${deleted.domain}`
+            sql`lower(regexp_replace(btrim(${ssoProvider.domain}), '^\\*\\.', '')) = ${deleted.domain}`
           )
         )
 
