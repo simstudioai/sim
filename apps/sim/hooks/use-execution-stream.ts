@@ -27,7 +27,8 @@ const logger = createLogger('useExecutionStream')
 export class ExecutionStreamHttpError extends Error {
   constructor(
     message: string,
-    public readonly httpStatus: number
+    public readonly httpStatus: number,
+    public readonly code?: string
   ) {
     super(message)
     this.name = 'ExecutionStreamHttpError'

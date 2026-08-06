@@ -6,7 +6,10 @@ import {
   ASYNC_TOOL_CONFIRMATION_STATUS,
   type AsyncConfirmationStatus,
 } from '@/lib/copilot/async-runs/lifecycle'
-import { COPILOT_CONFIRM_API_PATH } from '@/lib/copilot/constants'
+import {
+  COPILOT_CONFIRM_API_PATH,
+  COPILOT_WORKFLOW_EXECUTION_CONFLICT_CODE,
+} from '@/lib/copilot/constants'
 import { MothershipStreamV1ToolOutcome } from '@/lib/copilot/generated/mothership-stream-v1'
 import {
   RunBlock,
@@ -19,7 +22,11 @@ import {
 } from '@/lib/copilot/tools/client/completion'
 import { getWorkflowToolCompletionMessage } from '@/lib/copilot/tools/workflow-tools'
 import { executeWorkflowWithFullLogging } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
-import { SSEEventHandlerError, SSEStreamInterruptedError } from '@/hooks/use-execution-stream'
+import {
+  isExecutionStreamHttpError,
+  SSEEventHandlerError,
+  SSEStreamInterruptedError,
+} from '@/hooks/use-execution-stream'
 import { useExecutionStore } from '@/stores/execution/store'
 import {
   clearExecutionPointer,
@@ -465,6 +472,16 @@ async function doExecuteRunTool(
       logger.info('[RunTool] Skipping error completion — already manually stopped', {
         toolCallId,
         toolName,
+      })
+    } else if (
+      isExecutionStreamHttpError(err) &&
+      err.httpStatus === 409 &&
+      err.code === COPILOT_WORKFLOW_EXECUTION_CONFLICT_CODE
+    ) {
+      logger.info('[RunTool] Ignoring duplicate client workflow execution', {
+        toolCallId,
+        toolName,
+        workflowId: targetWorkflowId,
       })
     } else {
       const msg = toError(err).message

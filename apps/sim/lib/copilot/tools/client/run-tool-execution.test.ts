@@ -9,6 +9,7 @@ const {
   executeWorkflowWithFullLogging,
   getWorkflowEntries,
   loadExecutionPointer,
+  MockExecutionStreamHttpError,
   MockSSEEventHandlerError,
   MockSSEStreamInterruptedError,
   saveExecutionPointer,
@@ -18,6 +19,16 @@ const {
   executeWorkflowWithFullLogging: vi.fn(),
   getWorkflowEntries: vi.fn(() => []),
   loadExecutionPointer: vi.fn(),
+  MockExecutionStreamHttpError: class ExecutionStreamHttpError extends Error {
+    constructor(
+      message: string,
+      public readonly httpStatus: number,
+      public readonly code?: string
+    ) {
+      super(message)
+      this.name = 'ExecutionStreamHttpError'
+    }
+  },
   MockSSEEventHandlerError: class SSEEventHandlerError extends Error {
     executionId?: string
 
@@ -63,6 +74,8 @@ vi.mock('@/stores/execution/store', () => ({
 }))
 
 vi.mock('@/hooks/use-execution-stream', () => ({
+  ExecutionStreamHttpError: MockExecutionStreamHttpError,
+  isExecutionStreamHttpError: (error: unknown) => error instanceof MockExecutionStreamHttpError,
   SSEEventHandlerError: MockSSEEventHandlerError,
   SSEStreamInterruptedError: MockSSEStreamInterruptedError,
 }))
@@ -313,5 +326,25 @@ describe('run tool execution cancellation', () => {
         body: expect.stringContaining('"status":"error"'),
       })
     )
+  })
+
+  it('drops a duplicate client runner without confirming or surfacing an error', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true })
+    vi.stubGlobal('fetch', fetchMock)
+    executeWorkflowWithFullLogging.mockRejectedValueOnce(
+      new MockExecutionStreamHttpError(
+        'Copilot workflow execution is already owned by another client',
+        409,
+        'COPILOT_WORKFLOW_EXECUTION_CONFLICT'
+      )
+    )
+
+    executeRunToolOnClient('tool-duplicate', 'run_workflow', { workflowId: 'wf-1' })
+
+    await vi.waitFor(() => {
+      expect(clearExecutionPointer).toHaveBeenCalledWith('wf-1')
+    })
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(setIsExecuting).toHaveBeenCalledWith('wf-1', false)
   })
 })

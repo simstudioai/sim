@@ -27,6 +27,7 @@ import {
   getRunSegment,
   releaseWorkflowToolExecutionClaim,
 } from '@/lib/copilot/async-runs/repository'
+import { COPILOT_WORKFLOW_EXECUTION_CONFLICT_CODE } from '@/lib/copilot/constants'
 import { isWorkflowToolName, resolveWorkflowToolTargetId } from '@/lib/copilot/tools/workflow-tools'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
 import { getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
@@ -1213,8 +1214,15 @@ async function handleExecutePost(
     if (copilotToolCallId) {
       const boundToolCall = await claimWorkflowToolExecution(copilotToolCallId, executionId)
       if (!boundToolCall) {
+        reqLogger.warn('Rejected duplicate Copilot workflow execution', {
+          copilotToolCallId,
+          attemptedExecutionId: executionId,
+        })
         return NextResponse.json(
-          { error: 'Copilot workflow tool is already bound to another execution' },
+          {
+            error: 'Copilot workflow tool is already bound to another execution',
+            code: COPILOT_WORKFLOW_EXECUTION_CONFLICT_CODE,
+          },
           { status: 409 }
         )
       }

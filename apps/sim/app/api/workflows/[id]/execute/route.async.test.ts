@@ -724,7 +724,9 @@ describe('workflow execute async route', () => {
     expect(response.status).toBe(409)
     expect(await response.json()).toEqual({
       error: 'Copilot workflow tool is already bound to another execution',
+      code: 'COPILOT_WORKFLOW_EXECUTION_CONFLICT',
     })
+    expect(mockGetAsyncToolCall).toHaveBeenCalledTimes(1)
     expect(loggingSessionMockFns.mockSetTrustedExecutionCorrelation).not.toHaveBeenCalled()
     expect(mockPreprocessExecution).not.toHaveBeenCalled()
     expect(mockExecuteWorkflowCore).not.toHaveBeenCalled()
