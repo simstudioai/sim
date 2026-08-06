@@ -33,6 +33,7 @@ export type JobType =
   | 'workflow-execution'
   | 'schedule-execution'
   | 'webhook-execution'
+  | 'quickbooks-webhook-ingress'
   | 'tiktok-webhook-ingress'
   | 'resume-execution'
   | 'workflow-group-cell'

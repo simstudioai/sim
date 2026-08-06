@@ -262,6 +262,7 @@ import {
   collectUnresolvedReferences,
   preValidateCredentialInputs,
   validateInputsForBlock,
+  validateValueForSubBlockType,
   validateWorkflowSelectorIds,
 } from './validation'
 
@@ -277,6 +278,40 @@ describe('validateInputsForBlock', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: [] })
+  })
+
+  it('validates every value in a multi-select dropdown array', () => {
+    const config = {
+      id: 'eventTypes',
+      type: 'dropdown' as const,
+      multiSelect: true,
+      required: true,
+      options: [
+        { id: 'created', label: 'Created' },
+        { id: 'updated', label: 'Updated' },
+      ],
+    }
+    expect(
+      validateValueForSubBlockType(
+        config,
+        ['created', 'updated'],
+        'eventTypes',
+        'quickbooks',
+        'quickbooks-1'
+      ).valid
+    ).toBe(true)
+    expect(
+      validateValueForSubBlockType(
+        config,
+        ['created', 'deleted'],
+        'eventTypes',
+        'quickbooks',
+        'quickbooks-1'
+      ).valid
+    ).toBe(false)
+    expect(
+      validateValueForSubBlockType(config, [], 'eventTypes', 'quickbooks', 'quickbooks-1').valid
+    ).toBe(false)
   })
 
   it('accepts condition-input arrays with arbitrary item ids', () => {

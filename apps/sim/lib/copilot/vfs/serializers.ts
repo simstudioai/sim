@@ -577,6 +577,7 @@ function serializeSubBlock(sb: SubBlockConfig): Record<string, unknown> {
   if (sb.required === true) result.required = true
   if (sb.defaultValue !== undefined) result.defaultValue = sb.defaultValue
   if (sb.mode) result.mode = sb.mode
+  if (sb.multiSelect) result.multiSelect = true
   if (sb.canonicalParamId) result.canonicalParamId = sb.canonicalParamId
   if (sb.condition && typeof sb.condition !== 'function') result.condition = sb.condition
   if (sb.dependsOn) result.dependsOn = sb.dependsOn
