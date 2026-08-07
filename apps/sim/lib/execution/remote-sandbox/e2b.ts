@@ -36,6 +36,7 @@ import {
   SandboxOutputFileError,
   SandboxOutputLimitError,
   SandboxProcessOutputBudget,
+  tailStreamedSandboxOutput,
 } from '@/lib/execution/remote-sandbox/output-limits'
 import {
   quoteDependency,
@@ -389,12 +390,19 @@ class E2BSandboxHandle implements SandboxHandle {
     const outputBudget = new SandboxProcessOutputBudget(
       options.maxOutputBytes ?? MAX_SANDBOX_PROCESS_OUTPUT_BYTES
     )
-    const guardOutput = (value: string, callback?: (chunk: string) => void) => {
-      try {
-        outputBudget.add(value)
-      } catch (error) {
-        void this.kill().catch(() => {})
-        throw error
+    // The budget bounds what Sim RETAINS, so a stream the caller consumes itself is exempt: it has
+    // already been delivered chunk by chunk, and only a diagnostic tail is kept. Per stream, not
+    // per command — a caller that streams stdout but not stderr still has stderr fully bounded.
+    const retainStdout = options.onStdout === undefined
+    const retainStderr = options.onStderr === undefined
+    const guardOutput = (value: string, retain: boolean, callback?: (chunk: string) => void) => {
+      if (retain) {
+        try {
+          outputBudget.add(value)
+        } catch (error) {
+          void this.kill().catch(() => {})
+          throw error
+        }
       }
       callback?.(value)
     }
@@ -405,11 +413,18 @@ class E2BSandboxHandle implements SandboxHandle {
         timeoutMs: e2bTimeoutMs(options.timeoutMs),
         ...(options.signal ? { signal: options.signal } : {}),
         ...(options.rootUser ? { user: 'root' as const } : {}),
-        onStdout: (chunk) => guardOutput(chunk, options.onStdout),
-        onStderr: (chunk) => guardOutput(chunk, options.onStderr),
+        onStdout: (chunk) => guardOutput(chunk, retainStdout, options.onStdout),
+        onStderr: (chunk) => guardOutput(chunk, retainStderr, options.onStderr),
       })
-      assertSandboxProcessOutputWithinLimit([result.stdout, result.stderr], options.maxOutputBytes)
-      return { stdout: result.stdout, stderr: result.stderr, exitCode: result.exitCode }
+      assertSandboxProcessOutputWithinLimit(
+        [retainStdout ? result.stdout : undefined, retainStderr ? result.stderr : undefined],
+        options.maxOutputBytes
+      )
+      return {
+        stdout: retainStdout ? result.stdout : tailStreamedSandboxOutput(result.stdout),
+        stderr: retainStderr ? result.stderr : tailStreamedSandboxOutput(result.stderr),
+        exitCode: result.exitCode,
+      }
     } catch (error) {
       if (outputBudget.error) throw outputBudget.error
       if (reachedE2BProviderLimit(error, this.providerLimitAtMs, options.signal)) {
@@ -432,21 +447,33 @@ class E2BSandboxHandle implements SandboxHandle {
       ) {
         throw error
       }
+      // The SDK throws on a non-zero exit, so this is the ordinary path for a failing streamed
+      // command — the same retention exemption has to apply here or a failing Pi turn still trips
+      // the budget on output the caller already consumed. `message` never streams, so it is always
+      // retained and billed.
       assertSandboxProcessOutputWithinLimit(
-        [failure.stdout, failure.stderr, failure.message],
+        [
+          retainStdout ? failure.stdout : undefined,
+          retainStderr ? failure.stderr : undefined,
+          failure.message,
+        ],
         options.maxOutputBytes
       )
+      const tailIfStreamed = (value: string | undefined, retain: boolean) =>
+        retain || value === undefined ? value : tailStreamedSandboxOutput(value)
+      const failureStdout = tailIfStreamed(failure.stdout, retainStdout)
+      const failureStderr = tailIfStreamed(failure.stderr, retainStderr)
       if (isE2BExecutionTimeout(error)) {
         return {
-          stdout: failure.stdout ?? '',
-          stderr: failure.stderr ?? failure.message ?? '',
+          stdout: failureStdout ?? '',
+          stderr: failureStderr ?? failure.message ?? '',
           exitCode: 124,
           timedOut: true,
         }
       }
       return {
-        stdout: failure.stdout ?? '',
-        stderr: failure.stderr ?? failure.message ?? getErrorMessage(error),
+        stdout: failureStdout ?? '',
+        stderr: failureStderr ?? failure.message ?? getErrorMessage(error),
         exitCode: failure.exitCode ?? 1,
       }
     }
