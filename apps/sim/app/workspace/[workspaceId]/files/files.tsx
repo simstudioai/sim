@@ -188,9 +188,16 @@ const MIME_TYPE_LABELS: Record<string, string> = {
   'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'PowerPoint',
 }
 
-/** Hoisted: derived from a frozen registry, so there is nothing to rebuild per render. */
+/**
+ * Both groups are nested behind their own submenu rather than one being listed inline. Menus cap at
+ * a fixed height, and a flat document list plus a Code entry overflows it — which would push the
+ * entry gating every code type out of sight on open. Two rows always fit.
+ *
+ * Hoisted: derived from a frozen registry, so there is nothing to rebuild per render.
+ */
 const TEXT_FILE_TYPE_MENU_GROUPS: DropdownRadioGroup[] = [
   {
+    submenuLabel: 'Document',
     items: SELECTABLE_TEXT_FILE_TYPES.filter((type) => type.group === 'document').map((type) => ({
       id: type.id,
       label: type.label,
