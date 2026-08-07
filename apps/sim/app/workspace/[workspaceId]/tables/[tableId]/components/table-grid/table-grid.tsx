@@ -4528,6 +4528,7 @@ export function TableGrid({
                 columnIndexById={columnIndexById}
                 rowIndexById={rowIndexById}
                 localSelection={normalizedSelection}
+                stickyLeftWidth={pinnedStickyLeftEdge}
                 scrollElement={scrollRef.current}
               />
             )}

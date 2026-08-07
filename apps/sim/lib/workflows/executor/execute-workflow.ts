@@ -36,6 +36,7 @@ export interface ExecuteWorkflowOptions {
     executionOrder: number
   ) => Promise<void>
   onBlockComplete?: (blockId: string, output: unknown) => Promise<void>
+  /** Transfers post-execution logging ownership to the streaming caller after execution succeeds. */
   skipLoggingComplete?: boolean
   includeFileBase64?: boolean
   base64MaxBytes?: number
@@ -109,6 +110,7 @@ export async function executeWorkflow(
   if (streamConfig?.trustedExecutionCorrelation) {
     loggingSession.setTrustedExecutionCorrelation(streamConfig.trustedExecutionCorrelation)
   }
+  let postExecutionOwnershipTransferred = false
 
   try {
     const metadata: ExecutionMetadata = {
@@ -207,6 +209,7 @@ export async function executeWorkflow(
     await handlePostExecutionPauseState({ result, workflowId, executionId, loggingSession })
 
     if (streamConfig?.skipLoggingComplete) {
+      postExecutionOwnershipTransferred = true
       return {
         ...result,
         _streamingMetadata: {
@@ -237,5 +240,9 @@ export async function executeWorkflow(
     )
 
     throw error
+  } finally {
+    if (!postExecutionOwnershipTransferred) {
+      await loggingSession.waitForPostExecution()
+    }
   }
 }

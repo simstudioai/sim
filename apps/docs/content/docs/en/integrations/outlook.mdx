@@ -43,7 +43,7 @@ Integrate Outlook into the workflow. Can send, draft, read, search, reply, forwa
 
 ## Actions
 
-### `outlook_send`
+### Outlook Send
 
 Send emails using Outlook
 
@@ -69,7 +69,7 @@ Send emails using Outlook
 | `timestamp` | string | Timestamp when email was sent |
 | `message` | string | Success or error message |
 
-### `outlook_draft`
+### Outlook Draft
 
 Draft emails using Outlook
 
@@ -96,7 +96,7 @@ Draft emails using Outlook
 | `timestamp` | string | Timestamp when draft was created |
 | `message` | string | Success or error message |
 
-### `outlook_read`
+### Outlook Read
 
 Read emails from Outlook
 
@@ -139,7 +139,7 @@ Read emails from Outlook
 |   ↳ `importance` | string | Message importance \(low, normal, high\) |
 | `attachments` | file[] | All email attachments flattened from all emails |
 
-### `outlook_search`
+### Outlook Search
 
 Search Outlook messages using a free-text query (Microsoft Graph $search)
 
@@ -180,7 +180,7 @@ Search Outlook messages using a free-text query (Microsoft Graph $search)
 |   ↳ `isRead` | boolean | Whether the message has been read |
 |   ↳ `importance` | string | Message importance \(low, normal, high\) |
 
-### `outlook_reply`
+### Outlook Reply
 
 Reply to the sender of an Outlook message with a comment
 
@@ -202,7 +202,7 @@ Reply to the sender of an Outlook message with a comment
 |   ↳ `httpStatus` | number | HTTP status code returned by the API |
 |   ↳ `requestId` | string | Microsoft Graph request-id header for tracing |
 
-### `outlook_reply_all`
+### Outlook Reply All
 
 Reply to all recipients of an Outlook message with a comment
 
@@ -224,7 +224,7 @@ Reply to all recipients of an Outlook message with a comment
 |   ↳ `httpStatus` | number | HTTP status code returned by the API |
 |   ↳ `requestId` | string | Microsoft Graph request-id header for tracing |
 
-### `outlook_forward`
+### Outlook Forward
 
 Forward an existing Outlook message to specified recipients
 
@@ -249,7 +249,7 @@ Forward an existing Outlook message to specified recipients
 |   ↳ `messageId` | string | Forwarded message ID if provided by API |
 |   ↳ `internetMessageId` | string | RFC 822 Message-ID if provided |
 
-### `outlook_move`
+### Outlook Move
 
 Move emails between Outlook folders
 
@@ -269,7 +269,7 @@ Move emails between Outlook folders
 | `messageId` | string | ID of the moved message |
 | `newFolderId` | string | ID of the destination folder |
 
-### `outlook_copy`
+### Outlook Copy
 
 Copy an Outlook message to another folder
 
@@ -290,7 +290,7 @@ Copy an Outlook message to another folder
 | `copiedMessageId` | string | ID of the copied message |
 | `destinationFolderId` | string | ID of the destination folder |
 
-### `outlook_mark_read`
+### Outlook Mark as Read
 
 Mark an Outlook message as read
 
@@ -309,7 +309,7 @@ Mark an Outlook message as read
 | `messageId` | string | ID of the message |
 | `isRead` | boolean | Read status of the message |
 
-### `outlook_mark_unread`
+### Outlook Mark as Unread
 
 Mark an Outlook message as unread
 
@@ -328,7 +328,7 @@ Mark an Outlook message as unread
 | `messageId` | string | ID of the message |
 | `isRead` | boolean | Read status of the message |
 
-### `outlook_update_message`
+### Outlook Update Message
 
 Set the categories, follow-up flag, and importance on an Outlook message
 
@@ -354,7 +354,7 @@ Set the categories, follow-up flag, and importance on an Outlook message
 |   ↳ `importance` | string | Importance of the message |
 |   ↳ `isRead` | boolean | Whether the message is read |
 
-### `outlook_delete`
+### Outlook Delete
 
 Delete an Outlook message (move to Deleted Items)
 
@@ -373,7 +373,7 @@ Delete an Outlook message (move to Deleted Items)
 | `messageId` | string | ID of the deleted message |
 | `status` | string | Deletion status |
 
-### `outlook_list_folders`
+### Outlook List Folders
 
 List mail folders in the root of the Outlook mailbox
 
@@ -398,7 +398,7 @@ List mail folders in the root of the Outlook mailbox
 |   ↳ `totalItemCount` | number | Total number of items in the folder |
 |   ↳ `isHidden` | boolean | Whether the folder is hidden |
 
-### `outlook_create_folder`
+### Outlook Create Folder
 
 Create a new mail folder in the root of the Outlook mailbox
 
@@ -423,7 +423,7 @@ Create a new mail folder in the root of the Outlook mailbox
 |   ↳ `totalItemCount` | number | Total number of items in the folder |
 |   ↳ `isHidden` | boolean | Whether the folder is hidden |
 
-### `outlook_list_attachments`
+### Outlook List Attachments
 
 List the attachments on an Outlook message (metadata only, without contents)
 
@@ -447,7 +447,7 @@ List the attachments on an Outlook message (metadata only, without contents)
 |   ↳ `attachmentType` | string | Microsoft Graph attachment type \(e.g. #microsoft.graph.fileAttachment\) |
 |   ↳ `lastModifiedDateTime` | string | When the attachment was last modified \(ISO 8601\) |
 
-### `outlook_get_attachment`
+### Outlook Get Attachment
 
 Get a single attachment on an Outlook message, including its file contents
 
@@ -473,7 +473,7 @@ Get a single attachment on an Outlook message, including its file contents
 |   ↳ `lastModifiedDateTime` | string | When the attachment was last modified \(ISO 8601\) |
 | `attachments` | file[] | The downloaded file attachment \(empty for non-file attachment types\) |
 
-### `outlook_calendar_list_events`
+### Outlook List Calendar Events
 
 List Outlook calendar events within a start/end time window
 
@@ -518,7 +518,7 @@ List Outlook calendar events within a start/end time window
 |   ↳ `webLink` | string | URL that opens the event in Outlook on the web |
 | `nextLink` | string | URL for the next page of results, if any |
 
-### `outlook_calendar_get_event`
+### Outlook Get Calendar Event
 
 Get a single Outlook calendar event by ID
 
@@ -557,7 +557,7 @@ Get a single Outlook calendar event by ID
 |     ↳ `joinUrl` | string | URL to join the online meeting |
 |   ↳ `webLink` | string | URL that opens the event in Outlook on the web |
 
-### `outlook_calendar_create_event`
+### Outlook Create Calendar Event
 
 Create a new Outlook calendar event
 
@@ -606,7 +606,7 @@ Create a new Outlook calendar event
 |     ↳ `joinUrl` | string | URL to join the online meeting |
 |   ↳ `webLink` | string | URL that opens the event in Outlook on the web |
 
-### `outlook_calendar_update_event`
+### Outlook Update Calendar Event
 
 Update an existing Outlook calendar event
 
@@ -655,7 +655,7 @@ Update an existing Outlook calendar event
 |     ↳ `joinUrl` | string | URL to join the online meeting |
 |   ↳ `webLink` | string | URL that opens the event in Outlook on the web |
 
-### `outlook_calendar_delete_event`
+### Outlook Delete Calendar Event
 
 Delete an Outlook calendar event by ID
 
@@ -674,7 +674,7 @@ Delete an Outlook calendar event by ID
 |   ↳ `eventId` | string | ID of the deleted event |
 |   ↳ `status` | string | Deletion status |
 
-### `outlook_calendar_respond`
+### Outlook Respond to Calendar Invite
 
 Accept, tentatively accept, or decline an Outlook calendar event invitation
 

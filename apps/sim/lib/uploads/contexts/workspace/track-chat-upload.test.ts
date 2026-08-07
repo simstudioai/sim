@@ -141,12 +141,7 @@ describe('trackChatUpload', () => {
         displayName: 'image.png',
       })
     )
-    expect(mockReplaceWorkspaceFileSecretProvenanceInTx).toHaveBeenCalledWith(
-      expect.anything(),
-      'wf_existing',
-      CONTENT_UPDATED_AT,
-      { status: 'exact', entries: [] }
-    )
+    expect(mockReplaceWorkspaceFileSecretProvenanceInTx).not.toHaveBeenCalled()
     expectNoWorkspaceStorageAccounting()
   })
 
@@ -173,16 +168,11 @@ describe('trackChatUpload', () => {
         displayName: 'image.png',
       })
     )
-    expect(mockReplaceWorkspaceFileSecretProvenanceInTx).toHaveBeenCalledWith(
-      expect.anything(),
-      'wf_inserted',
-      CONTENT_UPDATED_AT,
-      { status: 'exact', entries: [] }
-    )
+    expect(mockReplaceWorkspaceFileSecretProvenanceInTx).not.toHaveBeenCalled()
     expectNoWorkspaceStorageAccounting()
   })
 
-  it('fails the chat binding transaction when provenance classification fails', async () => {
+  it('does not reclassify uploaded bytes while linking chat metadata', async () => {
     queueOwnershipLookup([existingRow()])
     dbChainMockFns.returning.mockResolvedValueOnce([
       { id: 'wf_existing', contentUpdatedAt: CONTENT_UPDATED_AT },
@@ -193,9 +183,10 @@ describe('trackChatUpload', () => {
 
     await expect(
       trackChatUpload(WORKSPACE_ID, USER_ID, CHAT_ID, S3_KEY, 'image.png', 'image/png', 1024)
-    ).rejects.toThrow('provenance write failed')
+    ).resolves.toEqual({ displayName: 'image.png' })
 
     expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(1)
+    expect(mockReplaceWorkspaceFileSecretProvenanceInTx).not.toHaveBeenCalled()
   })
 
   it('stamps message_id on the UPDATE arm when the birth message is known', async () => {

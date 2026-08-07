@@ -115,7 +115,7 @@ vi.mock('@/hooks/queries/admin-users', () => ({
 }))
 
 import { AddUserModal } from '@/app/workspace/[workspaceId]/settings/components/admin/add-user-modal'
-import type { AddUserInput, AdminUser } from '@/hooks/queries/admin-users'
+import type { AddUserInput, AddUserResult, AdminUser } from '@/hooks/queries/admin-users'
 
 const CREATED_USER: AdminUser = {
   id: 'user-1',
@@ -128,7 +128,7 @@ const CREATED_USER: AdminUser = {
 
 let container: HTMLDivElement
 let root: Root
-let onCreated: ReturnType<typeof vi.fn<(user: AdminUser) => void>>
+let onCreated: ReturnType<typeof vi.fn<(user: AdminUser, resetEmailError?: string) => void>>
 let onOpenChange: ReturnType<typeof vi.fn<(open: boolean) => void>>
 
 async function renderModal() {
@@ -203,8 +203,8 @@ describe('AddUserModal', () => {
 
   it('creates a verified credential user and returns it to the admin view', async () => {
     mockMutate.mockImplementation(
-      (_input: AddUserInput, options: { onSuccess: (user: AdminUser) => void }) => {
-        options.onSuccess(CREATED_USER)
+      (_input: AddUserInput, options: { onSuccess: (result: AddUserResult) => void }) => {
+        options.onSuccess({ user: CREATED_USER })
       }
     )
     await renderModal()
@@ -226,7 +226,7 @@ describe('AddUserModal', () => {
       { onSuccess: expect.any(Function), onSettled: expect.any(Function) }
     )
     expect(onOpenChange).toHaveBeenCalledWith(false)
-    expect(onCreated).toHaveBeenCalledWith(CREATED_USER)
+    expect(onCreated).toHaveBeenCalledWith(CREATED_USER, undefined)
   })
 
   it('ignores repeated submissions before the pending state renders', async () => {
@@ -246,8 +246,8 @@ describe('AddUserModal', () => {
 
   it('supports unverified accounts without exposing a platform-role control', async () => {
     mockMutate.mockImplementation(
-      (_input: AddUserInput, options: { onSuccess: (user: AdminUser) => void }) => {
-        options.onSuccess(CREATED_USER)
+      (_input: AddUserInput, options: { onSuccess: (result: AddUserResult) => void }) => {
+        options.onSuccess({ user: CREATED_USER })
       }
     )
     await renderModal()
@@ -265,6 +265,71 @@ describe('AddUserModal', () => {
       onSuccess: expect.any(Function),
       onSettled: expect.any(Function),
     })
+  })
+
+  it('drops the password field and submits without one when emailing a reset link', async () => {
+    mockMutate.mockImplementation(
+      (_input: AddUserInput, options: { onSuccess: (result: AddUserResult) => void }) => {
+        options.onSuccess({ user: CREATED_USER })
+      }
+    )
+    await renderModal()
+    await changeField('Name', 'Canary Writer')
+    await changeField('Email', 'writer@synthetics.example.com')
+    await changeField('Credentials', 'email')
+
+    expect(container.querySelector('[aria-label="Password"]')).toBeNull()
+    expect(buttonLabelled('Add user').disabled).toBe(false)
+
+    await act(async () => {
+      buttonLabelled('Add user').dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(mockMutate).toHaveBeenCalledWith(
+      {
+        name: 'Canary Writer',
+        email: 'writer@synthetics.example.com',
+        emailVerified: true,
+      },
+      { onSuccess: expect.any(Function), onSettled: expect.any(Function) }
+    )
+    expect(onCreated).toHaveBeenCalledWith(CREATED_USER, undefined)
+  })
+
+  it('keeps a typed password across a round trip through the reset-link flow', async () => {
+    await renderModal()
+    await fillRequiredFields()
+    await changeField('Credentials', 'email')
+    await changeField('Credentials', 'set')
+
+    expect((field('Password') as HTMLInputElement).value).toBe('canary-password')
+    expect(buttonLabelled('Add user').disabled).toBe(false)
+  })
+
+  it('still hands the user back when only its reset email failed', async () => {
+    mockMutate.mockImplementation(
+      (_input: AddUserInput, options: { onSuccess: (result: AddUserResult) => void }) => {
+        options.onSuccess({ user: CREATED_USER, resetEmailError: 'SMTP unavailable' })
+      }
+    )
+    await renderModal()
+    await changeField('Name', 'Canary Writer')
+    await changeField('Email', 'writer@synthetics.example.com')
+    await changeField('Credentials', 'email')
+
+    await act(async () => {
+      buttonLabelled('Add user').dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    // The account exists, so this closes like any other create — the host
+    // surfaces the user (and the reason) rather than stranding the operator in
+    // a modal whose form no longer maps to anything.
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+    expect(onCreated).toHaveBeenCalledWith(CREATED_USER, 'SMTP unavailable')
   })
 
   it('shows Better Auth failures without closing the modal', async () => {

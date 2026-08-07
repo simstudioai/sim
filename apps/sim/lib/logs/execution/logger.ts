@@ -10,7 +10,7 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
+import { describeError, getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { checkUsageStatus as checkResolvedUsageStatus } from '@/lib/billing/calculations/usage-monitor'
@@ -1547,12 +1547,6 @@ export class ExecutionLogger implements IExecutionLoggerService {
         return 0
       }
 
-      if (workflowRecord.workspaceId && !billingContext) {
-        throw new Error('Billing attribution is required for workspace execution usage')
-      }
-      const resolvedBillingContext =
-        billingContext ?? deriveBillingContext(userId, await getHighestPrioritySubscription(userId))
-
       // Build the run's *cumulative* target ledger lines from the cost summary.
       // The usage_log is then reconciled to these targets: at each completion
       // boundary (pause or terminal) we record only the increment versus what
@@ -1615,10 +1609,20 @@ export class ExecutionLogger implements IExecutionLoggerService {
         }
       }
 
+      // Bail before requiring billing attribution: a run with no billable target
+      // (e.g. a preprocessing-gated run that never executed) writes no ledger row
+      // either way, so demanding attribution here would raise a lost-revenue
+      // error for a charge that does not exist.
       if (targets.length === 0) {
         statsLog.debug('No cost to record')
         return 0
       }
+
+      if (workflowRecord.workspaceId && !billingContext) {
+        throw new Error('Billing attribution is required for workspace execution usage')
+      }
+      const resolvedBillingContext =
+        billingContext ?? deriveBillingContext(userId, await getHighestPrioritySubscription(userId))
 
       // Matches the billedBefore key resolution (toFixed(8)): a delta below this
       // is finer than the idempotency key can distinguish across boundaries, so
@@ -1764,7 +1768,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
       statsLog.error(
         'Failed to record execution usage to usage_log ledger; charge may be unbilled',
         {
-          error,
+          cause: describeError(error),
           actorUserId,
           costSummary,
         }

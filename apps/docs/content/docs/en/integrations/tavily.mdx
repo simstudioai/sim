@@ -33,7 +33,7 @@ Integrate Tavily into the workflow. Can search the web and extract content from 
 
 ## Actions
 
-### `tavily_search`
+### Tavily Search
 
 Perform AI-powered web searches using Tavily's search API. Returns structured results with titles, URLs, snippets, and optional raw content, optimized for relevance and accuracy.
 
@@ -79,7 +79,7 @@ Perform AI-powered web searches using Tavily's search API. Returns structured re
 | `auto_parameters` | object | Automatically selected parameters based on query intent \(if enabled\) |
 | `response_time` | number | Time taken for the search request in seconds |
 
-### `tavily_extract`
+### Tavily Extract
 
 Extract raw content from multiple web pages simultaneously using Tavily's extraction API. Supports basic and advanced extraction depths with detailed error reporting for failed URLs.
 
@@ -108,7 +108,7 @@ Extract raw content from multiple web pages simultaneously using Tavily's extrac
 |   ↳ `error` | string | Error message describing why extraction failed |
 | `response_time` | number | Time taken for the extraction request in seconds |
 
-### `tavily_crawl`
+### Tavily Crawl
 
 Systematically crawl and extract content from websites using Tavily's crawl API. Supports depth control, path filtering, domain restrictions, and natural language instructions for targeted crawling.
 
@@ -144,7 +144,7 @@ Systematically crawl and extract content from websites using Tavily's crawl API.
 | `response_time` | number | Time taken for the crawl request in seconds |
 | `request_id` | string | Unique identifier for support reference |
 
-### `tavily_map`
+### Tavily Map
 
 Discover and visualize website structure using Tavily's map API. Maps out all accessible URLs from a base URL with depth control, path filtering, and domain restrictions.
 

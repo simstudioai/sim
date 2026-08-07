@@ -43,7 +43,7 @@ Integrate AgentMail into your workflow. Create and manage email inboxes, send an
 
 ## Actions
 
-### `agentmail_create_draft`
+### Create Draft
 
 Create a new email draft in AgentMail
 
@@ -82,7 +82,7 @@ Create a new email draft in AgentMail
 | `createdAt` | string | Creation timestamp |
 | `updatedAt` | string | Last updated timestamp |
 
-### `agentmail_create_inbox`
+### Create Inbox
 
 Create a new email inbox with AgentMail
 
@@ -105,7 +105,7 @@ Create a new email inbox with AgentMail
 | `createdAt` | string | Creation timestamp |
 | `updatedAt` | string | Last updated timestamp |
 
-### `agentmail_delete_draft`
+### Delete Draft
 
 Delete an email draft in AgentMail
 
@@ -123,7 +123,7 @@ Delete an email draft in AgentMail
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the draft was successfully deleted |
 
-### `agentmail_delete_inbox`
+### Delete Inbox
 
 Delete an email inbox in AgentMail
 
@@ -140,7 +140,7 @@ Delete an email inbox in AgentMail
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the inbox was successfully deleted |
 
-### `agentmail_delete_thread`
+### Delete Thread
 
 Delete an email thread in AgentMail (moves to trash, or permanently deletes if already in trash)
 
@@ -159,7 +159,7 @@ Delete an email thread in AgentMail (moves to trash, or permanently deletes if a
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the thread was successfully deleted |
 
-### `agentmail_forward_message`
+### Forward Message
 
 Forward an email message to new recipients in AgentMail
 
@@ -184,7 +184,7 @@ Forward an email message to new recipients in AgentMail
 | `messageId` | string | ID of the forwarded message |
 | `threadId` | string | ID of the thread |
 
-### `agentmail_get_draft`
+### Get Draft
 
 Get details of a specific email draft in AgentMail
 
@@ -216,7 +216,7 @@ Get details of a specific email draft in AgentMail
 | `createdAt` | string | Creation timestamp |
 | `updatedAt` | string | Last updated timestamp |
 
-### `agentmail_get_inbox`
+### Get Inbox
 
 Get details of a specific email inbox in AgentMail
 
@@ -237,7 +237,7 @@ Get details of a specific email inbox in AgentMail
 | `createdAt` | string | Creation timestamp |
 | `updatedAt` | string | Last updated timestamp |
 
-### `agentmail_get_message`
+### Get Message
 
 Get details of a specific email message in AgentMail
 
@@ -266,7 +266,7 @@ Get details of a specific email message in AgentMail
 | `timestamp` | string | Time the message was sent or drafted |
 | `createdAt` | string | Creation timestamp |
 
-### `agentmail_get_thread`
+### Get Thread
 
 Get details of a specific email thread including messages in AgentMail
 
@@ -304,7 +304,7 @@ Get details of a specific email thread including messages in AgentMail
 |   ↳ `timestamp` | string | Time the message was sent or drafted |
 |   ↳ `createdAt` | string | Creation timestamp |
 
-### `agentmail_list_drafts`
+### List Drafts
 
 List email drafts in an inbox in AgentMail
 
@@ -336,7 +336,7 @@ List email drafts in an inbox in AgentMail
 | `count` | number | Total number of drafts |
 | `nextPageToken` | string | Token for retrieving the next page |
 
-### `agentmail_list_inboxes`
+### List Inboxes
 
 List all email inboxes in AgentMail
 
@@ -361,7 +361,7 @@ List all email inboxes in AgentMail
 | `count` | number | Total number of inboxes |
 | `nextPageToken` | string | Token for retrieving the next page |
 
-### `agentmail_list_messages`
+### List Messages
 
 List messages in an inbox in AgentMail
 
@@ -389,7 +389,7 @@ List messages in an inbox in AgentMail
 | `count` | number | Total number of messages |
 | `nextPageToken` | string | Token for retrieving the next page |
 
-### `agentmail_list_threads`
+### List Threads
 
 List email threads in AgentMail
 
@@ -421,7 +421,7 @@ List email threads in AgentMail
 | `count` | number | Total number of threads |
 | `nextPageToken` | string | Token for retrieving the next page |
 
-### `agentmail_reply_message`
+### Reply to Message
 
 Reply to an existing email message in AgentMail
 
@@ -446,7 +446,7 @@ Reply to an existing email message in AgentMail
 | `messageId` | string | ID of the sent reply message |
 | `threadId` | string | ID of the thread |
 
-### `agentmail_send_draft`
+### Send Draft
 
 Send an existing email draft in AgentMail
 
@@ -465,7 +465,7 @@ Send an existing email draft in AgentMail
 | `messageId` | string | ID of the sent message |
 | `threadId` | string | ID of the thread |
 
-### `agentmail_send_message`
+### Send Message
 
 Send an email message from an AgentMail inbox
 
@@ -491,7 +491,7 @@ Send an email message from an AgentMail inbox
 | `subject` | string | Email subject line |
 | `to` | string | Recipient email address |
 
-### `agentmail_update_draft`
+### Update Draft
 
 Update an existing email draft in AgentMail
 
@@ -530,7 +530,7 @@ Update an existing email draft in AgentMail
 | `createdAt` | string | Creation timestamp |
 | `updatedAt` | string | Last updated timestamp |
 
-### `agentmail_update_inbox`
+### Update Inbox
 
 Update the display name of an email inbox in AgentMail
 
@@ -552,7 +552,7 @@ Update the display name of an email inbox in AgentMail
 | `createdAt` | string | Creation timestamp |
 | `updatedAt` | string | Last updated timestamp |
 
-### `agentmail_update_message`
+### Update Message
 
 Add or remove labels on an email message in AgentMail
 
@@ -573,7 +573,7 @@ Add or remove labels on an email message in AgentMail
 | `messageId` | string | Unique identifier for the message |
 | `labels` | array | Current labels on the message |
 
-### `agentmail_update_thread`
+### Update Thread Labels
 
 Add or remove labels on an email thread in AgentMail
 

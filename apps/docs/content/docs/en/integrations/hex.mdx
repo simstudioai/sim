@@ -40,7 +40,7 @@ Integrate Hex into your workflow. Run projects, check run status, manage collect
 
 ## Actions
 
-### `hex_cancel_run`
+### Hex Cancel Run
 
 Cancel an active Hex project run.
 
@@ -60,7 +60,7 @@ Cancel an active Hex project run.
 | `projectId` | string | Project UUID |
 | `runId` | string | Run UUID that was cancelled |
 
-### `hex_create_collection`
+### Hex Create Collection
 
 Create a new collection in the Hex workspace to organize projects.
 
@@ -83,7 +83,7 @@ Create a new collection in the Hex workspace to organize projects.
 |   ↳ `email` | string | Creator email |
 |   ↳ `id` | string | Creator UUID |
 
-### `hex_create_group`
+### Hex Create Group
 
 Create a new group in the Hex workspace, optionally with initial members.
 
@@ -103,7 +103,7 @@ Create a new group in the Hex workspace, optionally with initial members.
 | `name` | string | Group name |
 | `createdAt` | string | Creation timestamp |
 
-### `hex_deactivate_user`
+### Hex Deactivate User
 
 Deactivate a user in the Hex workspace.
 
@@ -121,7 +121,7 @@ Deactivate a user in the Hex workspace.
 | `success` | boolean | Whether the user was successfully deactivated |
 | `userId` | string | User UUID that was deactivated |
 
-### `hex_delete_group`
+### Hex Delete Group
 
 Delete a group from the Hex workspace.
 
@@ -139,7 +139,7 @@ Delete a group from the Hex workspace.
 | `success` | boolean | Whether the group was successfully deleted |
 | `groupId` | string | Group UUID that was deleted |
 
-### `hex_get_collection`
+### Hex Get Collection
 
 Retrieve details for a specific Hex collection by its ID.
 
@@ -161,7 +161,7 @@ Retrieve details for a specific Hex collection by its ID.
 |   ↳ `email` | string | Creator email |
 |   ↳ `id` | string | Creator UUID |
 
-### `hex_get_data_connection`
+### Hex Get Data Connection
 
 Retrieve details for a specific data connection including type, description, and configuration flags.
 
@@ -184,7 +184,7 @@ Retrieve details for a specific data connection including type, description, and
 | `includeMagic` | boolean | Whether Magic AI features are enabled |
 | `allowWritebackCells` | boolean | Whether writeback cells are allowed |
 
-### `hex_get_group`
+### Hex Get Group
 
 Retrieve details for a specific Hex group.
 
@@ -203,7 +203,7 @@ Retrieve details for a specific Hex group.
 | `name` | string | Group name |
 | `createdAt` | string | Creation timestamp |
 
-### `hex_get_project`
+### Hex Get Project
 
 Get metadata and details for a specific Hex project by its ID.
 
@@ -237,7 +237,7 @@ Get metadata and details for a specific Hex project by its ID.
 | `archivedAt` | string | ISO 8601 archived timestamp |
 | `trashedAt` | string | ISO 8601 trashed timestamp |
 
-### `hex_get_project_runs`
+### Hex Get Project Runs
 
 Retrieve API-triggered runs for a Hex project with optional filtering by status and pagination.
 
@@ -271,7 +271,7 @@ Retrieve API-triggered runs for a Hex project with optional filtering by status 
 | `nextPage` | string | Cursor for the next page of runs |
 | `previousPage` | string | Cursor for the previous page of runs |
 
-### `hex_get_queried_tables`
+### Hex Get Queried Tables
 
 Return the warehouse tables queried by a Hex project, including data connection and table names.
 
@@ -293,7 +293,7 @@ Return the warehouse tables queried by a Hex project, including data connection 
 |   ↳ `tableName` | string | Table name |
 | `total` | number | Total number of tables returned |
 
-### `hex_get_run_status`
+### Hex Get Run Status
 
 Check the status of a Hex project run by its run ID.
 
@@ -319,7 +319,7 @@ Check the status of a Hex project run by its run ID.
 | `traceId` | string | Trace ID for debugging |
 | `projectVersion` | number | Project version number |
 
-### `hex_list_collections`
+### Hex List Collections
 
 List all collections in the Hex workspace.
 
@@ -348,7 +348,7 @@ List all collections in the Hex workspace.
 | `after` | string | Cursor for the next page of results |
 | `before` | string | Cursor for the previous page of results |
 
-### `hex_list_data_connections`
+### Hex List Data Connections
 
 List all data connections in the Hex workspace (e.g., Snowflake, PostgreSQL, BigQuery).
 
@@ -379,7 +379,7 @@ List all data connections in the Hex workspace (e.g., Snowflake, PostgreSQL, Big
 | `after` | string | Cursor for the next page of results |
 | `before` | string | Cursor for the previous page of results |
 
-### `hex_list_groups`
+### Hex List Groups
 
 List all groups in the Hex workspace with optional sorting.
 
@@ -406,7 +406,7 @@ List all groups in the Hex workspace with optional sorting.
 | `after` | string | Cursor for the next page of results |
 | `before` | string | Cursor for the previous page of results |
 
-### `hex_list_projects`
+### Hex List Projects
 
 List all projects in your Hex workspace with optional filtering by status.
 
@@ -452,7 +452,7 @@ List all projects in your Hex workspace with optional filtering by status.
 | `after` | string | Cursor for the next page of results |
 | `before` | string | Cursor for the previous page of results |
 
-### `hex_list_users`
+### Hex List Users
 
 List all users in the Hex workspace with optional filtering and sorting.
 
@@ -483,7 +483,7 @@ List all users in the Hex workspace with optional filtering and sorting.
 | `after` | string | Cursor for the next page of results |
 | `before` | string | Cursor for the previous page of results |
 
-### `hex_run_project`
+### Hex Run Project
 
 Execute a published Hex project. Optionally pass input parameters and control caching behavior.
 
@@ -512,7 +512,7 @@ Execute a published Hex project. Optionally pass input parameters and control ca
 | `traceId` | string | Trace ID for debugging |
 | `projectVersion` | number | Project version number |
 
-### `hex_update_collection`
+### Hex Update Collection
 
 Update the name or description of an existing Hex collection.
 
@@ -536,7 +536,7 @@ Update the name or description of an existing Hex collection.
 |   ↳ `email` | string | Creator email |
 |   ↳ `id` | string | Creator UUID |
 
-### `hex_update_group`
+### Hex Update Group
 
 Rename a Hex group or add/remove members from it.
 
@@ -558,7 +558,7 @@ Rename a Hex group or add/remove members from it.
 | `name` | string | Group name |
 | `createdAt` | string | Creation timestamp |
 
-### `hex_update_project`
+### Hex Update Project
 
 Update a Hex project status label (e.g., endorsement or custom workspace statuses).
 

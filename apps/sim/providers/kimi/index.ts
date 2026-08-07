@@ -19,6 +19,7 @@ import { createStreamingExecution } from '@/providers/streaming-execution'
 import { isAbortError, parseToolArguments } from '@/providers/streaming-tool-loop-shared'
 import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
 import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
+import { openAICompatTransport } from '@/providers/transport'
 import type {
   ProviderConfig,
   ProviderRequest,
@@ -100,6 +101,7 @@ export const kimiProvider: ProviderConfig = {
 
     try {
       const kimi = new OpenAI({
+        ...openAICompatTransport(),
         apiKey: request.apiKey,
         baseURL: KIMI_BASE_URL,
       })

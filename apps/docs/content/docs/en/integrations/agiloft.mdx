@@ -40,7 +40,7 @@ Integrate with Agiloft contract lifecycle management to create, read, update, de
 
 ## Actions
 
-### `agiloft_attach_file`
+### Agiloft Attach File
 
 Attach a file to a field in an Agiloft record.
 
@@ -67,7 +67,7 @@ Attach a file to a field in an Agiloft record.
 | `fileName` | string | Name of the attached file |
 | `totalAttachments` | number | Total number of files attached in the field after the operation |
 
-### `agiloft_attachment_info`
+### Agiloft Attachment Info
 
 Get information about file attachments on a record field.
 
@@ -93,7 +93,7 @@ Get information about file attachments on a record field.
 |   ↳ `size` | number | File size in bytes |
 | `totalCount` | number | Total number of attachments in the field |
 
-### `agiloft_create_record`
+### Agiloft Create Record
 
 Create a new record in an Agiloft table.
 
@@ -115,7 +115,7 @@ Create a new record in an Agiloft table.
 | `id` | string | ID of the created record |
 | `fields` | json | Field values of the created record |
 
-### `agiloft_delete_record`
+### Agiloft Delete Record
 
 Delete a record from an Agiloft table.
 
@@ -137,7 +137,7 @@ Delete a record from an Agiloft table.
 | `id` | string | ID of the deleted record |
 | `deleted` | boolean | Whether the record was successfully deleted |
 
-### `agiloft_get_choice_line_id`
+### Agiloft Get Choice Line ID
 
 Resolve the internal numeric ID of a choice-list value, for use in EWSelect WHERE clauses against choice fields.
 
@@ -159,7 +159,7 @@ Resolve the internal numeric ID of a choice-list value, for use in EWSelect WHER
 | --------- | ---- | ----------- |
 | `choiceLineId` | number | Internal numeric line ID of the choice value |
 
-### `agiloft_lock_record`
+### Agiloft Lock Record
 
 Lock, unlock, or check the lock status of an Agiloft record.
 
@@ -184,7 +184,7 @@ Lock, unlock, or check the lock status of an Agiloft record.
 | `lockedBy` | string | Username of the user who locked the record |
 | `lockExpiresInMinutes` | number | Minutes until the lock expires |
 
-### `agiloft_read_record`
+### Agiloft Read Record
 
 Read a record by ID from an Agiloft table.
 
@@ -207,7 +207,7 @@ Read a record by ID from an Agiloft table.
 | `id` | string | ID of the record |
 | `fields` | json | Field values of the record |
 
-### `agiloft_remove_attachment`
+### Agiloft Remove Attachment
 
 Remove an attached file from a field in an Agiloft record.
 
@@ -232,7 +232,7 @@ Remove an attached file from a field in an Agiloft record.
 | `fieldName` | string | Name of the attachment field |
 | `remainingAttachments` | number | Number of attachments remaining in the field after removal |
 
-### `agiloft_retrieve_attachment`
+### Agiloft Retrieve Attachment
 
 Download an attached file from an Agiloft record field.
 
@@ -255,7 +255,7 @@ Download an attached file from an Agiloft record field.
 | --------- | ---- | ----------- |
 | `file` | file | Downloaded attachment file |
 
-### `agiloft_saved_search`
+### Agiloft Saved Search
 
 List saved searches defined for an Agiloft table.
 
@@ -279,7 +279,7 @@ List saved searches defined for an Agiloft table.
 |   ↳ `id` | number | Saved search database identifier |
 |   ↳ `description` | string | Saved search description |
 
-### `agiloft_search_records`
+### Agiloft Search Records
 
 Search for records in an Agiloft table using a query.
 
@@ -306,7 +306,7 @@ Search for records in an Agiloft table using a query.
 | `page` | number | Current page number |
 | `limit` | number | Records per page |
 
-### `agiloft_select_records`
+### Agiloft Select Records
 
 Select record IDs matching a SQL WHERE clause from an Agiloft table.
 
@@ -328,7 +328,7 @@ Select record IDs matching a SQL WHERE clause from an Agiloft table.
 | `recordIds` | array | Array of record IDs matching the query |
 | `totalCount` | number | Total number of matching records |
 
-### `agiloft_update_record`
+### Agiloft Update Record
 
 Update an existing record in an Agiloft table.
 

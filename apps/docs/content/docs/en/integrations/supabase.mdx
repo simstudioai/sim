@@ -42,7 +42,7 @@ Integrate Supabase into the workflow. Supports database operations (query, inser
 
 ## Actions
 
-### `supabase_query`
+### Supabase Query
 
 Query data from a Supabase table
 
@@ -67,7 +67,7 @@ Query data from a Supabase table
 | `message` | string | Operation status message |
 | `results` | array | Array of records returned from the query |
 
-### `supabase_insert`
+### Supabase Insert
 
 Insert data into a Supabase table
 
@@ -88,7 +88,7 @@ Insert data into a Supabase table
 | `message` | string | Operation status message |
 | `results` | array | Array of inserted records |
 
-### `supabase_get_row`
+### Supabase Get Row
 
 Get a single row from a Supabase table based on filter criteria
 
@@ -110,7 +110,7 @@ Get a single row from a Supabase table based on filter criteria
 | `message` | string | Operation status message |
 | `results` | array | Array containing the row data if found, empty array if not found |
 
-### `supabase_update`
+### Supabase Update Row
 
 Update rows in a Supabase table based on filter criteria
 
@@ -132,7 +132,7 @@ Update rows in a Supabase table based on filter criteria
 | `message` | string | Operation status message |
 | `results` | array | Array of updated records |
 
-### `supabase_delete`
+### Supabase Delete Row
 
 Delete rows from a Supabase table based on filter criteria
 
@@ -153,7 +153,7 @@ Delete rows from a Supabase table based on filter criteria
 | `message` | string | Operation status message |
 | `results` | array | Array of deleted records |
 
-### `supabase_upsert`
+### Supabase Upsert
 
 Insert or update data in a Supabase table (upsert operation)
 
@@ -175,7 +175,7 @@ Insert or update data in a Supabase table (upsert operation)
 | `message` | string | Operation status message |
 | `results` | array | Array of upserted records |
 
-### `supabase_count`
+### Supabase Count
 
 Count rows in a Supabase table
 
@@ -197,7 +197,7 @@ Count rows in a Supabase table
 | `message` | string | Operation status message |
 | `count` | number | Number of rows matching the filter |
 
-### `supabase_text_search`
+### Supabase Text Search
 
 Perform full-text search on a Supabase table
 
@@ -223,7 +223,7 @@ Perform full-text search on a Supabase table
 | `message` | string | Operation status message |
 | `results` | array | Array of records matching the search query |
 
-### `supabase_vector_search`
+### Supabase Vector Search
 
 Perform similarity search using pgvector in a Supabase table
 
@@ -245,7 +245,7 @@ Perform similarity search using pgvector in a Supabase table
 | `message` | string | Operation status message |
 | `results` | array | Array of records with similarity scores from the vector search. Each record includes a similarity field \(0-1\) indicating how similar it is to the query vector. |
 
-### `supabase_rpc`
+### Supabase RPC
 
 Call a PostgreSQL function in Supabase
 
@@ -264,7 +264,7 @@ Call a PostgreSQL function in Supabase
 | `message` | string | Operation status message |
 | `results` | json | Result returned from the function |
 
-### `supabase_invoke_function`
+### Supabase Invoke Edge Function
 
 Invoke a Supabase Edge Function over HTTP
 
@@ -286,7 +286,7 @@ Invoke a Supabase Edge Function over HTTP
 | `message` | string | Operation status message |
 | `results` | json | Response body returned by the Edge Function |
 
-### `supabase_introspect`
+### Supabase Introspect
 
 Introspect Supabase database schema from its OpenAPI spec to get table and column structures (best-effort primary/foreign key detection)
 
@@ -327,7 +327,7 @@ Introspect Supabase database schema from its OpenAPI spec to get table and colum
 |     ↳ `unique` | boolean | Whether the index enforces uniqueness |
 | `schemas` | array | List of schemas found in the database |
 
-### `supabase_storage_upload`
+### Supabase Storage Upload
 
 Upload a file to a Supabase storage bucket
 
@@ -357,7 +357,7 @@ Upload a file to a Supabase storage bucket
 |   ↳ `bucket` | string | Name of the bucket the file was uploaded to |
 |   ↳ `publicUrl` | string | Public URL for the uploaded file |
 
-### `supabase_storage_download`
+### Supabase Storage Download
 
 Download a file from a Supabase storage bucket
 
@@ -377,7 +377,7 @@ Download a file from a Supabase storage bucket
 | --------- | ---- | ----------- |
 | `file` | file | Downloaded file stored in execution files |
 
-### `supabase_storage_list`
+### Supabase Storage List
 
 List files in a Supabase storage bucket
 
@@ -415,7 +415,7 @@ List files in a Supabase storage bucket
 |     ↳ `lastModified` | string | Last modified timestamp |
 |     ↳ `eTag` | string | Entity tag for caching |
 
-### `supabase_storage_delete`
+### Supabase Storage Delete
 
 Delete files from a Supabase storage bucket
 
@@ -442,7 +442,7 @@ Delete files from a Supabase storage bucket
 |   ↳ `created_at` | string | File creation timestamp |
 |   ↳ `last_accessed_at` | string | Last access timestamp |
 
-### `supabase_storage_move`
+### Supabase Storage Move
 
 Move a file within a Supabase storage bucket
 
@@ -466,7 +466,7 @@ Move a file within a Supabase storage bucket
 |   ↳ `Id` | string | Identifier of the destination object |
 |   ↳ `Key` | string | Full object key of the destination |
 
-### `supabase_storage_copy`
+### Supabase Storage Copy
 
 Copy a file within a Supabase storage bucket
 
@@ -489,7 +489,7 @@ Copy a file within a Supabase storage bucket
 |   ↳ `Key` | string | Full object key of the copied file |
 |   ↳ `Id` | string | Identifier of the copied object |
 
-### `supabase_storage_create_bucket`
+### Supabase Storage Create Bucket
 
 Create a new storage bucket in Supabase
 
@@ -512,7 +512,7 @@ Create a new storage bucket in Supabase
 | `results` | object | Created bucket result \(name\) |
 |   ↳ `name` | string | Created bucket name |
 
-### `supabase_storage_update_bucket`
+### Supabase Storage Update Bucket
 
 Update the configuration of an existing Supabase storage bucket
 
@@ -535,7 +535,7 @@ Update the configuration of an existing Supabase storage bucket
 | `results` | object | Update operation result |
 |   ↳ `message` | string | Operation status message |
 
-### `supabase_storage_empty_bucket`
+### Supabase Storage Empty Bucket
 
 Delete all objects inside a Supabase storage bucket without deleting the bucket itself
 
@@ -555,7 +555,7 @@ Delete all objects inside a Supabase storage bucket without deleting the bucket 
 | `results` | object | Empty bucket operation result |
 |   ↳ `message` | string | Operation status message |
 
-### `supabase_storage_list_buckets`
+### Supabase Storage List Buckets
 
 List all storage buckets in Supabase
 
@@ -581,7 +581,7 @@ List all storage buckets in Supabase
 |   ↳ `file_size_limit` | number | Maximum file size allowed in bytes |
 |   ↳ `allowed_mime_types` | array | List of allowed MIME types for uploads |
 
-### `supabase_storage_delete_bucket`
+### Supabase Storage Delete Bucket
 
 Delete a storage bucket in Supabase
 
@@ -601,7 +601,7 @@ Delete a storage bucket in Supabase
 | `results` | object | Delete operation result |
 |   ↳ `message` | string | Operation status message |
 
-### `supabase_storage_get_public_url`
+### Supabase Storage Get Public URL
 
 Get the public URL for a file in a Supabase storage bucket
 
@@ -621,7 +621,7 @@ Get the public URL for a file in a Supabase storage bucket
 | `message` | string | Operation status message |
 | `publicUrl` | string | The public URL to access the file |
 
-### `supabase_storage_create_signed_url`
+### Supabase Storage Create Signed URL
 
 Create a temporary signed URL for a file in a Supabase storage bucket
 
@@ -643,7 +643,7 @@ Create a temporary signed URL for a file in a Supabase storage bucket
 | `message` | string | Operation status message |
 | `signedUrl` | string | The temporary signed URL to access the file |
 
-### `supabase_storage_create_signed_upload_url`
+### Supabase Storage Create Signed Upload URL
 
 Create a temporary signed URL a client can use to upload directly to a Supabase storage bucket
 

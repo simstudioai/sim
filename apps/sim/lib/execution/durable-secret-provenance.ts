@@ -112,11 +112,27 @@ export function durableSecretProvenanceFromRegistry(
   return durableSecretProvenanceFromEnvelope(registry.exportCommittedProvenanceForValue(value))
 }
 
+/**
+ * Checks whether a provenance source may cross into an already-authorized destination.
+ * Workspace resources accept sources from any user in that same workspace; personal resources
+ * remain restricted to the authenticated user and cannot accept workspace-scoped provenance.
+ */
+export function isPrivateSecretProvenanceScopeCompatible(
+  sourceScope: ResolvedSecretTraceScopeV1 | undefined,
+  destinationScope: { userId: string; workspaceId?: string }
+): sourceScope is ResolvedSecretTraceScopeV1 {
+  if (!sourceScope) return false
+  if (destinationScope.workspaceId !== undefined) {
+    return sourceScope.workspaceId === destinationScope.workspaceId
+  }
+  return sourceScope.userId === destinationScope.userId && sourceScope.workspaceId === undefined
+}
+
 /** Reads one authenticated private selection without exposing it through the functional payload. */
 export function durableSecretProvenanceFromPrivateBundle(
   value: unknown,
   selectionKey: string,
-  expectedScope: { userId: string; workspaceId?: string }
+  destinationScope: { userId: string; workspaceId?: string }
 ): DurableSecretProvenance | undefined {
   if (!isPrivateSecretProvenanceBundleV1(value)) return undefined
   const bundle: PrivateSecretProvenanceBundleV1 = value
@@ -127,7 +143,7 @@ export function durableSecretProvenanceFromPrivateBundle(
   }
   const selection = selections[0]
   const scope = selection.provenance.scope
-  if (scope?.userId !== expectedScope.userId || scope.workspaceId !== expectedScope.workspaceId) {
+  if (!isPrivateSecretProvenanceScopeCompatible(scope, destinationScope)) {
     return undefined
   }
   return durableSecretProvenanceFromEnvelope(selection.provenance)

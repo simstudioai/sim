@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { AuthType, type AuthTypeValue } from '@/lib/auth/hybrid'
+import { isPrivateSecretProvenanceScopeCompatible } from '@/lib/execution/durable-secret-provenance'
 import {
   inspectPrivateSecretProvenanceRequest,
   isPrivateSecretProvenanceBundleV1,
@@ -29,10 +30,19 @@ type TableWriteProvenanceResult =
 interface TableWriteProvenanceTarget {
   selectionKey: string
   rowKey: string
-  columnId: string
+  /** Storage column id, or `null` when the wire translator drops this column. */
+  columnId: string | null
 }
 
-/** Maps tool-facing column names to the stable storage ids used by the sidecar. */
+/**
+ * Maps tool-facing column names to the stable storage ids used by the sidecar.
+ *
+ * The wire translator drops keys that name no column in the table schema, and the
+ * write path drops them identically, so such a column is simply never persisted.
+ * It still gets a target — callers key one provenance selection per column they
+ * sent, and the completeness check pairs the two — but with a `null` column id so
+ * no provenance is recorded for a value that was never stored.
+ */
 export function createTableWriteProvenanceTargets(
   rows: readonly RowData[],
   translate: (data: RowData) => RowData
@@ -40,13 +50,10 @@ export function createTableWriteProvenanceTargets(
   return rows.flatMap((row, rowIndex) =>
     Object.entries(row).map(([columnKey, value]) => {
       const translatedKeys = Object.keys(translate({ [columnKey]: value }))
-      if (translatedKeys.length !== 1) {
-        throw new Error('Table row secret provenance column translation is invalid')
-      }
       return {
         selectionKey: tableRowSecretProvenanceSelectionKey(rowIndex, columnKey),
         rowKey: String(rowIndex),
-        columnId: translatedKeys[0],
+        columnId: translatedKeys.length === 1 ? translatedKeys[0] : null,
       }
     })
   )
@@ -81,6 +88,7 @@ export function resolveTableWriteSecretProvenance(options: {
       provenanceByRowKey[rowKey] = { complete: true, columns: {} }
     }
     for (const target of options.targets) {
+      if (target.columnId === null) continue
       const row = provenanceByRowKey[target.rowKey] ?? { complete: true, columns: {} }
       row.columns[target.columnId] = {
         version: 1,
@@ -131,10 +139,15 @@ export function resolveTableWriteSecretProvenance(options: {
     const target = targetBySelectionKey.get(selection.key)
     if (
       !target ||
-      selection.provenance.scope?.userId !== options.userId ||
-      selection.provenance.scope?.workspaceId !== options.workspaceId ||
-      Object.hasOwn(provenanceByRowKey[target.rowKey].columns, target.columnId)
+      !isPrivateSecretProvenanceScopeCompatible(selection.provenance.scope, {
+        userId: options.userId,
+        workspaceId: options.workspaceId,
+      })
     ) {
+      return { success: false, response: invalidProvenanceResponse() }
+    }
+    if (target.columnId === null) continue
+    if (Object.hasOwn(provenanceByRowKey[target.rowKey].columns, target.columnId)) {
       return { success: false, response: invalidProvenanceResponse() }
     }
     provenanceByRowKey[target.rowKey].columns[target.columnId] = selection.provenance

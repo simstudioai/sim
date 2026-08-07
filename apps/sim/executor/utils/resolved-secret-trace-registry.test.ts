@@ -516,6 +516,10 @@ describe('ResolvedSecretTraceRegistry', () => {
       userId: 'user-1',
       workspaceId: 'workspace-2',
     })
+    const differentUserSameWorkspace = new ResolvedSecretTraceRegistry([], {
+      userId: 'user-2',
+      workspaceId: 'workspace-1',
+    })
     const missingReceiverScope = new ResolvedSecretTraceRegistry()
     const missingSourceScope = new ResolvedSecretTraceRegistry([], {
       userId: 'user-1',
@@ -524,6 +528,9 @@ describe('ResolvedSecretTraceRegistry', () => {
 
     expect(await sameScope.importProvenance(provenance, { trusted: true })).toBe(true)
     expect(await mismatchedScope.importProvenance(provenance, { trusted: true })).toBe(true)
+    expect(await differentUserSameWorkspace.importProvenance(provenance, { trusted: true })).toBe(
+      true
+    )
     expect(await missingReceiverScope.importProvenance(provenance, { trusted: true })).toBe(true)
     expect(
       await missingSourceScope.importProvenance(
@@ -535,7 +542,12 @@ describe('ResolvedSecretTraceRegistry', () => {
     expect(sameScope.getActiveMatches()).toEqual([
       { plaintext: 'decrypted:ciphertext', replacement: '{{TOKEN}}' },
     ])
-    for (const registry of [mismatchedScope, missingReceiverScope, missingSourceScope]) {
+    for (const registry of [
+      mismatchedScope,
+      differentUserSameWorkspace,
+      missingReceiverScope,
+      missingSourceScope,
+    ]) {
       expect(registry.getActiveMatches()).toEqual([
         {
           plaintext: 'decrypted:ciphertext',

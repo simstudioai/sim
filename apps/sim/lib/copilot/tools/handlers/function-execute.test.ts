@@ -759,6 +759,22 @@ describe('executeFunctionExecute file mounts', () => {
     expect(mockExecuteTool).not.toHaveBeenCalled()
   })
 
+  it('omits the envelope when mounts it cannot attest to are already on the params', async () => {
+    mockExecuteTool.mockResolvedValue({ success: true, output: { result: 'ok' } })
+
+    await executeFunctionExecute(
+      {
+        inputFiles: ['files/data.csv'],
+        _sandboxFiles: [{ path: '/home/user/preserved.bin', content: 'from another resolver' }],
+      },
+      context
+    )
+
+    const call = mockExecuteTool.mock.calls[0]?.[1]
+    expect(call?._sandboxFiles?.length).toBeGreaterThan(1)
+    expect(call?.[PRIVATE_SECRET_PROVENANCE_FIELD]).toBeUndefined()
+  })
+
   it('projects only mounted-file secrets that cross the settled Function result', async () => {
     mockImportWorkspaceFileSecretProvenanceForRuntime.mockImplementation(
       async ({ registry }: { registry?: ResolvedSecretTraceRegistry }) =>

@@ -1252,18 +1252,20 @@ function rebuildResponseWithoutPrivateToolMetadata(
 }
 
 function rebuildSafePrivateToolResponse(response: Response): Response {
-  const headers = new Headers(response.headers)
-  headers.delete('content-length')
-  headers.delete(PRIVATE_TOOL_METADATA_RESPONSE_HEADER)
-  headers.set('content-type', 'application/json')
+  const hasHttpErrorStatus = response.status >= 400 && response.status <= 599
+  const status = hasHttpErrorStatus ? response.status : 502
+  const error = hasHttpErrorStatus
+    ? `Internal tool request failed (HTTP ${response.status})`
+    : PRIVATE_TOOL_METADATA_ERROR_MESSAGE
+  const headers = new Headers({ 'content-type': 'application/json' })
   return new Response(
     JSON.stringify({
       success: false,
-      error: PRIVATE_TOOL_METADATA_ERROR_MESSAGE,
+      error,
     }),
     {
-      status: 502,
-      statusText: 'Bad Gateway',
+      status,
+      ...(!hasHttpErrorStatus ? { statusText: 'Bad Gateway' } : {}),
       headers,
     }
   )

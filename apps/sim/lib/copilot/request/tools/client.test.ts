@@ -265,6 +265,40 @@ describe('workflow client tool completion', () => {
     expect(JSON.stringify(completion)).not.toContain('untrusted')
   })
 
+  it('preserves an allowlisted async deployment failure without an execution identity', async () => {
+    const registry = createParentRegistry()
+    waitForToolConfirmation.mockResolvedValue({
+      status: 'error',
+      message: 'Workflow execution failed.',
+      data: {
+        success: false,
+        workflowId: 'workflow-1',
+        code: 'ASYNC_WORKFLOW_DEPLOYMENT_STALE',
+        error: 'untrusted client detail',
+      },
+    })
+
+    const completion = await waitForWorkflowToolCompletion({
+      toolCallId: 'tool-1',
+      workflowId: 'workflow-1',
+      timeoutMs: 1_000,
+      registry,
+    })
+
+    expect(completion).toEqual({
+      status: 'error',
+      message: 'Async execution requires the current workflow to match its deployed version',
+      data: {
+        success: false,
+        workflowId: 'workflow-1',
+        code: 'ASYNC_WORKFLOW_DEPLOYMENT_STALE',
+        error: 'Async execution requires the current workflow to match its deployed version',
+      },
+    })
+    expect(getTrustedWorkflowToolExecution).not.toHaveBeenCalled()
+    expect(JSON.stringify(completion)).not.toContain('untrusted client detail')
+  })
+
   it('uses the bound execution status when provenance is incomplete', async () => {
     const registry = createParentRegistry()
     waitForToolConfirmation.mockResolvedValue({

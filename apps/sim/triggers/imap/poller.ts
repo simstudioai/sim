@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { MailServerIcon } from '@/components/icons'
 import { requestJson } from '@/lib/api/client/request'
 import { imapMailboxesContract } from '@/lib/api/contracts/tools/imap'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { readSubBlockValue } from '@/triggers/editor-state'
 import type { TriggerConfig } from '@/triggers/types'
 
 const logger = createLogger('ImapPollingTrigger')
@@ -78,12 +78,13 @@ export const imapPollingTrigger: TriggerConfig = {
       required: false,
       options: [],
       fetchOptions: async (blockId: string) => {
-        const store = useSubBlockStore.getState()
-        const host = store.getValue(blockId, 'host') as string | null
-        const port = store.getValue(blockId, 'port') as string | null
-        const secure = store.getValue(blockId, 'secure') as boolean | null
-        const username = store.getValue(blockId, 'username') as string | null
-        const password = store.getValue(blockId, 'password') as string | null
+        const [host, port, secure, username, password] = await Promise.all([
+          readSubBlockValue(blockId, 'host') as Promise<string | null>,
+          readSubBlockValue(blockId, 'port') as Promise<string | null>,
+          readSubBlockValue(blockId, 'secure') as Promise<boolean | null>,
+          readSubBlockValue(blockId, 'username') as Promise<string | null>,
+          readSubBlockValue(blockId, 'password') as Promise<string | null>,
+        ])
 
         if (!host || !username || !password) {
           throw new Error('Please enter IMAP server, username, and password first')

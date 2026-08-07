@@ -35,7 +35,7 @@ Send run data to LangSmith to trace executions, attach metadata, and monitor wor
 
 ## Actions
 
-### `langsmith_create_run`
+### LangSmith Create Run
 
 Forward a single run to LangSmith for ingestion.
 
@@ -70,7 +70,7 @@ Forward a single run to LangSmith for ingestion.
 | `runId` | string | Run identifier provided in the request |
 | `message` | string | Response message from LangSmith |
 
-### `langsmith_create_runs_batch`
+### LangSmith Create Runs Batch
 
 Forward multiple runs to LangSmith in a single batch.
 
@@ -91,7 +91,7 @@ Forward multiple runs to LangSmith in a single batch.
 | `message` | string | Response message from LangSmith |
 | `messages` | array | Per-run response messages, when provided |
 
-### `langsmith_update_run`
+### LangSmith Update Run
 
 Patch an existing LangSmith run with outputs, status, or timing once it completes.
 
@@ -107,7 +107,7 @@ Patch an existing LangSmith run with outputs, status, or timing once it complete
 
 This tool does not produce any outputs.
 
-### `langsmith_get_run`
+### LangSmith Get Run
 
 Retrieve a single LangSmith run by ID.
 
@@ -139,7 +139,7 @@ Retrieve a single LangSmith run by ID.
 | `totalTokens` | number | Total tokens consumed by the run |
 | `totalCost` | string | Total cost of the run |
 
-### `langsmith_create_feedback`
+### LangSmith Create Feedback
 
 Attach a score, correction, or comment to a LangSmith run.
 

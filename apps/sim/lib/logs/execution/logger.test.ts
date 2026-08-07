@@ -15,6 +15,28 @@ import type { SerializableExecutionState } from '@/executor/execution/types'
 
 afterAll(resetDbChainMock)
 
+/** Flat logger whose withMetadata() children share one spy set, so log level is assertable. */
+const { mockLogger, statsLogErrorMock } = vi.hoisted(() => {
+  const mockLogger: Record<string, ReturnType<typeof vi.fn>> = {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+    trace: vi.fn(),
+    fatal: vi.fn(),
+  }
+  mockLogger.child = vi.fn(() => mockLogger)
+  mockLogger.withMetadata = vi.fn(() => mockLogger)
+  return { mockLogger, statsLogErrorMock: mockLogger.error }
+})
+
+vi.mock('@sim/logger', () => ({
+  createLogger: vi.fn(() => mockLogger),
+  logger: mockLogger,
+  runWithRequestContext: vi.fn(<T>(_ctx: unknown, fn: () => T): T => fn()),
+  getRequestContext: vi.fn(() => undefined),
+}))
+
 // Mock billing modules
 vi.mock('@/lib/billing/core/subscription', () => ({
   getHighestPriorityPersonalSubscription: vi.fn(() => Promise.resolve(null)),
@@ -1013,6 +1035,36 @@ describe('recordExecutionUsage boundary-delta reconciliation', () => {
     expect(recordUsage).not.toHaveBeenCalled()
   })
 
+  const unbilledErrorCalls = () =>
+    mockLogger.error.mock.calls.filter((call) =>
+      String(call[0]).includes('Failed to record execution usage to usage_log ledger')
+    )
+
+  test('a structurally zero-cost run without billing context logs no unbilled-charge error', async () => {
+    mockDb([])
+
+    const recorded = await logger.recordExecutionUsage(
+      'workflow-1',
+      costSummary({ baseExecutionCharge: 0 }),
+      'api',
+      'exec-1',
+      'user-1'
+    )
+
+    expect(recorded).toBe(0)
+    expect(recordUsage).not.toHaveBeenCalled()
+    expect(unbilledErrorCalls()).toHaveLength(0)
+  })
+
+  test('a genuine ledger write failure still logs the unbilled-charge error', async () => {
+    vi.mocked(recordUsage).mockRejectedValueOnce(new Error('ledger insert failed'))
+
+    const recorded = await run(costSummary(), [])
+
+    expect(recorded).toBe(0)
+    expect(unbilledErrorCalls()).toHaveLength(1)
+  })
+
   test('retry with everything already billed records nothing (idempotent)', async () => {
     await run(
       costSummary({
@@ -1177,5 +1229,33 @@ describe('recordExecutionUsage boundary-delta reconciliation', () => {
     expect(recordUsage).toHaveBeenCalledTimes(1)
     // The ledger INSERT participates in the locked transaction.
     expect(vi.mocked(recordUsage).mock.calls[0][0]).toHaveProperty('tx')
+  })
+
+  test('reports the driver cause and SQLSTATE when the ledger write fails', async () => {
+    const driver = Object.assign(new Error('cannot execute INSERT in a read-only transaction'), {
+      code: '25006',
+    })
+    vi.mocked(recordUsage).mockRejectedValueOnce(
+      new Error('Failed query: insert into "usage_log"\nparams: user-1', { cause: driver })
+    )
+
+    await run(
+      costSummary({
+        models: {
+          'gpt-4o': { input: 0, output: 0, total: 1, tokens: { input: 0, output: 0, total: 0 } },
+        },
+      }),
+      []
+    )
+
+    expect(statsLogErrorMock).toHaveBeenCalledWith(
+      'Failed to record execution usage to usage_log ledger; charge may be unbilled',
+      expect.objectContaining({
+        cause: expect.objectContaining({
+          code: '25006',
+          message: 'cannot execute INSERT in a read-only transaction',
+        }),
+      })
+    )
   })
 })

@@ -4,6 +4,7 @@
  * @vitest-environment node
  */
 import {
+  createMockSql,
   dbChainMock,
   dbChainMockFns,
   requestUtilsMockFns,
@@ -102,7 +103,7 @@ vi.mock('drizzle-orm', () => ({
   isNull: vi.fn((field: unknown) => ({ type: 'isNull', field })),
   or: vi.fn((...conditions: unknown[]) => ({ type: 'or', conditions })),
   asc: vi.fn((field: unknown) => ({ type: 'asc', field })),
-  sql: vi.fn((strings: unknown, ...values: unknown[]) => ({ type: 'sql', strings, values })),
+  sql: createMockSql(),
 }))
 
 vi.mock('@sim/db', () => ({

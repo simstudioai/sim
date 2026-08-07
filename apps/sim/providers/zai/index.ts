@@ -14,6 +14,7 @@ import { createStreamingExecution } from '@/providers/streaming-execution'
 import { isAbortError, parseToolArguments } from '@/providers/streaming-tool-loop-shared'
 import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
 import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
+import { openAICompatTransport } from '@/providers/transport'
 import type {
   ProviderConfig,
   ProviderRequest,
@@ -83,6 +84,7 @@ export const zaiProvider: ProviderConfig = {
 
     try {
       const zai = new OpenAI({
+        ...openAICompatTransport(),
         apiKey: request.apiKey,
         baseURL: ZAI_BASE_URL,
       })

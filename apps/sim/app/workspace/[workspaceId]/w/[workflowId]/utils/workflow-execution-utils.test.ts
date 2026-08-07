@@ -2,16 +2,18 @@
  * @vitest-environment node
  */
 import { resetTerminalConsoleMock, terminalConsoleMockFns } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   addExecutionErrorConsoleEntry,
   addHttpErrorConsoleEntry,
   createBlockEventHandlers,
+  executeWorkflowWithFullLogging,
   handleExecutionCancelledConsole,
   handleExecutionErrorConsole,
   reconcileFinalBlockLogs,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
 import type { BlockLog } from '@/executor/types'
+import type { ExecutionStreamHttpError } from '@/hooks/use-execution-stream'
 import { useExecutionStore } from '@/stores/execution'
 
 describe('workflow-execution-utils', () => {
@@ -20,6 +22,43 @@ describe('workflow-execution-utils', () => {
     vi.mocked(useExecutionStore.getState).mockReturnValue({
       getCurrentExecutionId: vi.fn(() => 'exec-1'),
     } as any)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('classifies a duplicate Copilot claim without writing an HTTP error row', async () => {
+    vi.mocked(useExecutionStore.getState).mockReturnValue({
+      getCurrentExecutionId: vi.fn(() => 'exec-1'),
+      setActiveBlocks: vi.fn(),
+      setBlockRunStatus: vi.fn(),
+      setCurrentExecutionId: vi.fn(),
+      setEdgeRunStatus: vi.fn(),
+    } as any)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 409,
+        json: vi.fn().mockResolvedValue({
+          error: 'Copilot workflow tool is already bound to another execution',
+          code: 'COPILOT_WORKFLOW_EXECUTION_CONFLICT',
+        }),
+      })
+    )
+
+    const promise = executeWorkflowWithFullLogging({
+      workflowId: 'wf-1',
+      executionId: 'exec-1',
+      copilotToolCallId: 'tool-1',
+    })
+
+    await expect(promise).rejects.toMatchObject<ExecutionStreamHttpError>({
+      httpStatus: 409,
+      code: 'COPILOT_WORKFLOW_EXECUTION_CONFLICT',
+    })
+    expect(terminalConsoleMockFns.mockAddConsole).not.toHaveBeenCalled()
   })
 
   describe('createBlockEventHandlers', () => {

@@ -16,6 +16,7 @@ vi.mock('@/tools/utils.server', () => ({ getToolAsync: vi.fn() }))
 import { buildSimToolSpecs } from '@/executor/handlers/pi/sim-tools'
 import type { ExecutionContext } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import { ToolSchemaEnrichmentError } from '@/tools/params'
 
 function executionContext(registry: ResolvedSecretTraceRegistry | undefined): ExecutionContext {
   return {
@@ -74,6 +75,20 @@ describe('buildSimToolSpecs', () => {
 
     expect(specs).toHaveLength(0)
     expect(mockTransformBlockTool).not.toHaveBeenCalled()
+  })
+
+  it('fails fast when a tool schema cannot be enriched', async () => {
+    const error = new ToolSchemaEnrichmentError(
+      'table_query_rows',
+      new Error('table metadata unavailable')
+    )
+    mockTransformBlockTool.mockRejectedValueOnce(error)
+
+    await expect(
+      buildSimToolSpecs(completeExecutionContext(), [
+        { type: 'table', operation: 'query_rows', usageControl: 'auto' },
+      ])
+    ).rejects.toBe(error)
   })
 
   it('forwards a trusted _context that an LLM-supplied _context cannot override', async () => {

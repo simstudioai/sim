@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { describeError } from '@sim/utils/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -157,6 +158,32 @@ describe('workspace file metadata and storage accounting', () => {
     expect(dbChainMockFns.transaction.mock.invocationCallOrder[0]).toBeLessThan(
       mockDeleteFile.mock.invocationCallOrder[0]
     )
+  })
+
+  it('preserves the driver cause so the SQLSTATE survives the upload wrapper', async () => {
+    const driver = Object.assign(
+      new Error('cannot execute SELECT FOR UPDATE in a read-only transaction'),
+      { code: '25006' }
+    )
+    dbChainMockFns.returning.mockResolvedValueOnce([FILE_ROW])
+    mockIncrementStorageUsageForBillingContextInTx.mockRejectedValueOnce(
+      new Error(
+        'Failed query: select "storage_used_bytes" from "workspace" where id = $1 limit $2 for update\nparams: ws-1,1',
+        { cause: driver }
+      )
+    )
+
+    const thrown = await uploadWorkspaceFile(
+      FILE_ROW.workspaceId,
+      FILE_ROW.userId,
+      Buffer.from('hello'),
+      FILE_ROW.originalName,
+      FILE_ROW.contentType
+    ).catch((error: unknown) => error)
+
+    const described = describeError(thrown)
+    expect(described.code).toBe('25006')
+    expect(described.message).toBe('cannot execute SELECT FOR UPDATE in a read-only transaction')
   })
 
   it('keeps an ordinary workspace upload on the legacy untracked path', async () => {

@@ -7,7 +7,12 @@ import { randomBytes } from 'crypto'
 import { db } from '@sim/db'
 import { workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
+import {
+  describeError,
+  getErrorMessage,
+  getPostgresConstraintName,
+  getPostgresErrorCode,
+} from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { and, eq, isNotNull, isNull, or, sql } from 'drizzle-orm'
 import type { ShareRecord } from '@/lib/api/contracts/public-shares'
@@ -446,15 +451,18 @@ export async function uploadWorkspaceFile(
         )
         continue
       }
-      logger.error(`Failed to upload workspace file ${fileName}:`, error)
-      throw new Error(`Failed to upload file: ${getErrorMessage(error, 'Unknown error')}`)
+      logger.error(`Failed to upload workspace file ${fileName}:`, {
+        cause: describeError(error),
+      })
+      throw new Error(`Failed to upload file: ${getErrorMessage(error, 'Unknown error')}`, {
+        cause: error,
+      })
     }
   }
 
-  logger.error(
-    `Failed to upload workspace file after ${MAX_UPLOAD_UNIQUE_RETRIES} attempts`,
-    lastError
-  )
+  logger.error(`Failed to upload workspace file after ${MAX_UPLOAD_UNIQUE_RETRIES} attempts`, {
+    cause: describeError(lastError),
+  })
   throw new FileConflictError(fileName)
 }
 
@@ -727,6 +735,9 @@ async function resolveClaimableChatUploadRow(
  * Allocates a collision-free `displayName` (the partial unique index on
  * (chat_id, display_name) WHERE context='mothership' enforces this) and returns it
  * so callers can surface the same name to the model in the VFS read hint.
+ * This is a metadata-only operation: it preserves any content provenance already
+ * attached to the uploaded bytes. Direct user uploads use the established
+ * exact-empty/legacy classification and do not need a chat-time reclassification.
  */
 export async function trackChatUpload(
   workspaceId: string,
@@ -793,10 +804,7 @@ export async function trackChatUpload(
                 or(isNull(workspaceFiles.chatId), eq(workspaceFiles.chatId, chatId))
               )
             )
-            .returning({
-              id: workspaceFiles.id,
-              contentUpdatedAt: workspaceFiles.contentUpdatedAt,
-            })
+            .returning({ id: workspaceFiles.id })
 
           if (updated.length === 0) {
             // The ownership lookup is a separate statement, so re-assert every
@@ -807,13 +815,6 @@ export async function trackChatUpload(
             // to the chat-delete cascade.
             throw new WorkspaceFileKeyOwnershipError(s3Key)
           }
-
-          await replaceWorkspaceFileSecretProvenanceInTx(
-            tx,
-            updated[0].id,
-            updated[0].contentUpdatedAt,
-            EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE
-          )
         })
 
         logger.info(
@@ -840,20 +841,11 @@ export async function trackChatUpload(
             contentType,
             size,
           })
-          .returning({
-            id: workspaceFiles.id,
-            contentUpdatedAt: workspaceFiles.contentUpdatedAt,
-          })
+          .returning({ id: workspaceFiles.id })
 
         if (!inserted) {
           throw new Error(`Failed to track chat upload for key: ${s3Key}`)
         }
-        await replaceWorkspaceFileSecretProvenanceInTx(
-          tx,
-          inserted.id,
-          inserted.contentUpdatedAt,
-          EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE
-        )
       })
 
       logger.info(`Tracked chat upload: ${fileName} (display: ${candidate}) for chat ${chatId}`)

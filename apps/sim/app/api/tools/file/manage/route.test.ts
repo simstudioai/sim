@@ -192,7 +192,7 @@ describe('POST /api/tools/file/manage content provenance', () => {
     })
   })
 
-  it('stores exact causal provenance for a trusted file write', async () => {
+  it('stores exact causal provenance from a different user in the actor workspace', async () => {
     const response = await POST(
       createMockRequest(
         'POST',
@@ -211,7 +211,7 @@ describe('POST /api/tools/file/manage content provenance', () => {
                   version: 1,
                   complete: true,
                   entries: [{ name: 'TOKEN', encryptedValue: 'encrypted-token' }],
-                  scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+                  scope: { userId: 'workflow-owner', workspaceId: 'workspace-1' },
                 },
               },
             ],
@@ -236,13 +236,46 @@ describe('POST /api/tools/file/manage content provenance', () => {
             {
               name: 'TOKEN',
               encryptedValue: 'encrypted-token',
-              sourceUserId: 'user-1',
+              sourceUserId: 'workflow-owner',
               sourceWorkspaceId: 'workspace-1',
             },
           ],
         },
       }
     )
+  })
+
+  it('rejects file-write provenance from another workspace', async () => {
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        {
+          operation: 'write',
+          workspaceId: 'workspace-1',
+          fileName: 'new.txt',
+          content: 'secret-value',
+          __privateSecretProvenance: {
+            version: 1,
+            complete: true,
+            selections: [
+              {
+                key: 'content',
+                provenance: {
+                  version: 1,
+                  complete: true,
+                  entries: [{ name: 'TOKEN', encryptedValue: 'encrypted-token' }],
+                  scope: { userId: 'workflow-owner', workspaceId: 'workspace-2' },
+                },
+              },
+            ],
+          },
+        },
+        PRIVATE_SECRET_PROVENANCE_HEADER
+      )
+    )
+
+    expect(response.status).toBe(400)
+    expect(mockUploadWorkspaceFile).not.toHaveBeenCalled()
   })
 
   it('preserves existing file-path behavior when a filename was resolved from a secret', async () => {

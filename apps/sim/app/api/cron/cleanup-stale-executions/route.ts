@@ -245,10 +245,14 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
               = (${asyncJobs.metadata}->>'maxDurationSeconds')::numeric
         ELSE FALSE
       END`
+      // A bare `Date` in a raw template reaches the driver unserialized; `sql.param`
+      // binds it through the column encoder, as `lt(column, date)` does elsewhere here.
+      const staleProcessingCutoff = sql.param(now, asyncJobs.startedAt)
+      const staleProcessingFallbackCutoff = sql.param(staleThreshold, asyncJobs.startedAt)
       const staleProcessingDurationPredicate = sql<boolean>`CASE
         WHEN ${hasPositiveMaxDuration}
-          THEN ${asyncJobs.startedAt} + ((${asyncJobs.metadata}->>'maxDurationSeconds')::double precision * interval '1 second') < ${now}
-        ELSE ${asyncJobs.startedAt} < ${staleThreshold}
+          THEN ${asyncJobs.startedAt} + ((${asyncJobs.metadata}->>'maxDurationSeconds')::double precision * interval '1 second') < ${staleProcessingCutoff}
+        ELSE ${asyncJobs.startedAt} < ${staleProcessingFallbackCutoff}
       END`
       const staleProcessingPredicate = and(
         eq(asyncJobs.status, JOB_STATUS.PROCESSING),

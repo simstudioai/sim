@@ -42,7 +42,7 @@ Integrate LaunchDarkly into your workflow. List, create, update, toggle, and del
 
 ## Actions
 
-### `launchdarkly_create_flag`
+### LaunchDarkly Create Flag
 
 Create a new feature flag in a LaunchDarkly project.
 
@@ -78,7 +78,7 @@ Create a new feature flag in a LaunchDarkly project.
 | `maintainerId` | string | The ID of the member who maintains this flag |
 | `maintainerEmail` | string | The email of the member who maintains this flag |
 
-### `launchdarkly_delete_flag`
+### LaunchDarkly Delete Flag
 
 Delete a feature flag from a LaunchDarkly project.
 
@@ -96,7 +96,7 @@ Delete a feature flag from a LaunchDarkly project.
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the flag was successfully deleted |
 
-### `launchdarkly_get_audit_log`
+### LaunchDarkly Get Audit Log
 
 List audit log entries from your LaunchDarkly account.
 
@@ -124,7 +124,7 @@ List audit log entries from your LaunchDarkly account.
 |   ↳ `targetKind` | string | Resource specifier of the target \(e.g. proj/default:env/production:flag/my-flag\) |
 | `totalCount` | number | Total number of audit log entries |
 
-### `launchdarkly_get_flag`
+### LaunchDarkly Get Flag
 
 Get a single feature flag by key from a LaunchDarkly project.
 
@@ -158,7 +158,7 @@ Get a single feature flag by key from a LaunchDarkly project.
 | `maintainerEmail` | string | The email of the member who maintains this flag |
 | `on` | boolean | Whether the flag is on in the requested environment \(null when the flag spans multiple environments and no environment key was provided\) |
 
-### `launchdarkly_get_flag_status`
+### LaunchDarkly Get Flag Status
 
 Get the status of a feature flag across environments (active, inactive, launched, etc.).
 
@@ -179,7 +179,7 @@ Get the status of a feature flag across environments (active, inactive, launched
 | `lastRequested` | string | Timestamp of the last evaluation |
 | `defaultVal` | string | The default variation value |
 
-### `launchdarkly_list_environments`
+### LaunchDarkly List Environments
 
 List environments in a LaunchDarkly project.
 
@@ -205,7 +205,7 @@ List environments in a LaunchDarkly project.
 |   ↳ `tags` | array | Tags applied to the environment |
 | `totalCount` | number | Total number of environments |
 
-### `launchdarkly_list_flags`
+### LaunchDarkly List Flags
 
 List feature flags in a LaunchDarkly project.
 
@@ -241,7 +241,7 @@ List feature flags in a LaunchDarkly project.
 |   ↳ `maintainerEmail` | string | The email of the member who maintains this flag |
 | `totalCount` | number | Total number of flags |
 
-### `launchdarkly_list_members`
+### LaunchDarkly List Members
 
 List account members in your LaunchDarkly organization.
 
@@ -267,7 +267,7 @@ List account members in your LaunchDarkly organization.
 |   ↳ `verified` | boolean | Whether the member email is verified |
 | `totalCount` | number | Total number of members |
 
-### `launchdarkly_list_projects`
+### LaunchDarkly List Projects
 
 List all projects in your LaunchDarkly account.
 
@@ -289,7 +289,7 @@ List all projects in your LaunchDarkly account.
 |   ↳ `tags` | array | Tags applied to the project |
 | `totalCount` | number | Total number of projects |
 
-### `launchdarkly_list_segments`
+### LaunchDarkly List Segments
 
 List user segments in a LaunchDarkly project and environment.
 
@@ -317,7 +317,7 @@ List user segments in a LaunchDarkly project and environment.
 |   ↳ `excluded` | array | User keys explicitly excluded from the segment |
 | `totalCount` | number | Total number of segments |
 
-### `launchdarkly_toggle_flag`
+### LaunchDarkly Toggle Flag
 
 Toggle a feature flag on or off in a specific LaunchDarkly environment.
 
@@ -352,7 +352,7 @@ Toggle a feature flag on or off in a specific LaunchDarkly environment.
 | `maintainerEmail` | string | The email of the member who maintains this flag |
 | `on` | boolean | Whether the flag is now on in the target environment |
 
-### `launchdarkly_update_flag`
+### LaunchDarkly Update Flag
 
 Update feature flag metadata (name, description, tags, temporary, archived) using semantic patch.
 

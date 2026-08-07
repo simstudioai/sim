@@ -19,6 +19,7 @@ import {
 } from '@/providers/together/utils'
 import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
 import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
+import { openAICompatTransport } from '@/providers/transport'
 import type {
   FunctionCallResponse,
   Message,
@@ -86,6 +87,7 @@ export const togetherProvider: ProviderConfig = {
     }
 
     const client = new OpenAI({
+      ...openAICompatTransport(),
       apiKey: request.apiKey,
       baseURL: 'https://api.together.ai/v1',
     })

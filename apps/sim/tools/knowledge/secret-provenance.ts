@@ -4,9 +4,10 @@ import {
   knowledgeDocumentFilenameSelectionKey,
   knowledgeDocumentTagNameSelectionKey,
   knowledgeDocumentTagValueSelectionKey,
+  parseKnowledgeDocumentTagProvenanceTargets,
 } from '@/lib/knowledge/secret-provenance-selection'
 import { inferDocumentFileInfo } from '@/tools/knowledge/types'
-import { parseDocumentTags } from '@/tools/shared/tags'
+import { formatDocumentTagsForAPI, parseDocumentTags } from '@/tools/shared/tags'
 
 /** Selects each causally independent persisted document field before request serialization. */
 export function selectKnowledgeDocumentWriteSecretProvenance(params: {
@@ -17,7 +18,9 @@ export function selectKnowledgeDocumentWriteSecretProvenance(params: {
   const name = typeof params.name === 'string' ? params.name.trim() : ''
   const content = typeof params.content === 'string' ? params.content.trim() : params.content
   const filename = inferDocumentFileInfo(name).filename
-  const tags = parseDocumentTags(params.documentTags)
+  const tags = parseKnowledgeDocumentTagProvenanceTargets(
+    formatDocumentTagsForAPI(parseDocumentTags(params.documentTags)).documentTagsData
+  )
 
   return [
     { key: knowledgeDocumentFilenameSelectionKey(0), value: filename },

@@ -18,6 +18,7 @@ import {
   vi,
 } from 'vitest'
 import type { AutoRoutingSignals } from '@/lib/model-router/resolve'
+import * as userFileBase64 from '@/lib/uploads/utils/user-file-base64.server'
 import { getAllBlocks } from '@/blocks'
 import { AGENT, BlockType, isMcpTool } from '@/executor/constants'
 import { AgentBlockHandler } from '@/executor/handlers/agent/agent-handler'
@@ -29,6 +30,7 @@ import { SIM_AUTO_MODEL_ID } from '@/providers/models'
 import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import { executeTool } from '@/tools'
+import { ToolSchemaEnrichmentError } from '@/tools/params'
 
 process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
 
@@ -289,6 +291,24 @@ describe('AgentBlockHandler', () => {
       expect(result).toEqual(expectedOutput)
     })
 
+    it('fails fast when a configured tool schema cannot be enriched', async () => {
+      const error = new ToolSchemaEnrichmentError(
+        'table_query_rows',
+        new Error('table metadata unavailable')
+      )
+      mockTransformBlockTool.mockRejectedValueOnce(error)
+
+      await expect(
+        handler.execute(mockContext, mockBlock, {
+          model: 'gpt-4o',
+          userPrompt: 'Query the table',
+          apiKey: 'test-api-key',
+          tools: [{ type: 'table', operation: 'query_rows', usageControl: 'auto' }],
+        })
+      ).rejects.toBe(error)
+      expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
+    })
+
     it('reports a sim-auto run under the sim-auto identity, not the model that served it', async () => {
       mockExecuteProviderRequest.mockResolvedValue({
         content: 'Mocked response content',
@@ -467,6 +487,47 @@ describe('AgentBlockHandler', () => {
           },
         ],
       })
+    })
+
+    it('normalizes the persisted workspace-picker shape before provider execution', async () => {
+      const key = 'workspace/ws-1/example.png'
+      const hydrationSpy = vi
+        .spyOn(userFileBase64, 'hydrateUserFilesWithBase64')
+        .mockImplementationOnce(async (files) =>
+          files.map((file) => ({ ...file, base64: 'aW1hZ2U=' }))
+        )
+
+      try {
+        mockGetProviderFromModel.mockReturnValue('openai')
+
+        await handler.execute(mockContext, mockBlock, {
+          model: 'gpt-4o',
+          userPrompt: 'Analyze this file',
+          files: [
+            {
+              name: 'example.png',
+              path: `/api/files/serve/${encodeURIComponent(key)}?context=workspace`,
+              key,
+              size: 128,
+              type: 'image/png',
+            },
+          ],
+          apiKey: 'test-api-key',
+        })
+
+        const normalizedFile = hydrationSpy.mock.calls[0][0][0]
+        expect(normalizedFile).toMatchObject({
+          id: expect.stringMatching(/^file-\d+$/),
+          key,
+          name: 'example.png',
+          type: 'image/png',
+        })
+        expect(mockExecuteProviderRequest.mock.calls[0][1].messages.at(-1)?.files).toEqual([
+          expect.objectContaining({ key, name: 'example.png', base64: 'aW1hZ2U=' }),
+        ])
+      } finally {
+        hydrationSpy.mockRestore()
+      }
     })
 
     it('should reject files for providers without attachment support', async () => {

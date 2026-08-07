@@ -20,6 +20,30 @@ import {
   resolveMemoryWriteSecretProvenance,
 } from '@/app/api/memory/secret-provenance'
 
+function privateMemoryWrite(
+  scope: { userId: string; workspaceId?: string },
+  entries: Array<{ name: string; encryptedValue: string }> = []
+) {
+  const payload = {
+    [PRIVATE_SECRET_PROVENANCE_FIELD]: {
+      version: 1 as const,
+      complete: true,
+      selections: [
+        {
+          key: 'data',
+          provenance: { version: 1 as const, complete: true, entries, scope },
+        },
+      ],
+    },
+  }
+  const request = new NextRequest('http://localhost/api/memory', {
+    method: 'POST',
+    headers: { [PRIVATE_SECRET_PROVENANCE_HEADER]: PRIVATE_SECRET_PROVENANCE_BUNDLE_V1 },
+    body: JSON.stringify(payload),
+  })
+  return { payload, request }
+}
+
 describe('memory write secret provenance', () => {
   beforeEach(() => {
     resetDbChainMock()
@@ -76,6 +100,70 @@ describe('memory write secret provenance', () => {
       payload,
       authType: AuthType.INTERNAL_JWT,
       userId: 'user-1',
+      workspaceId: 'workspace-1',
+    })
+
+    expect(result.success).toBe(false)
+    if (!result.success) expect(result.response.status).toBe(400)
+  })
+
+  it('accepts exact-empty provenance from the workflow owner in the actor workspace', () => {
+    const { payload, request } = privateMemoryWrite({
+      userId: 'workflow-owner',
+      workspaceId: 'workspace-1',
+    })
+
+    expect(
+      resolveMemoryWriteSecretProvenance({
+        request,
+        payload,
+        authType: AuthType.INTERNAL_JWT,
+        userId: 'billing-actor',
+        workspaceId: 'workspace-1',
+      })
+    ).toEqual({ success: true, provenance: { status: 'exact', entries: [] } })
+  })
+
+  it('preserves the workflow owner as the source of same-workspace provenance', () => {
+    const { payload, request } = privateMemoryWrite(
+      { userId: 'workflow-owner', workspaceId: 'workspace-1' },
+      [{ name: 'TOKEN', encryptedValue: 'encrypted-token' }]
+    )
+
+    expect(
+      resolveMemoryWriteSecretProvenance({
+        request,
+        payload,
+        authType: AuthType.INTERNAL_JWT,
+        userId: 'billing-actor',
+        workspaceId: 'workspace-1',
+      })
+    ).toEqual({
+      success: true,
+      provenance: {
+        status: 'exact',
+        entries: [
+          {
+            name: 'TOKEN',
+            encryptedValue: 'encrypted-token',
+            sourceUserId: 'workflow-owner',
+            sourceWorkspaceId: 'workspace-1',
+          },
+        ],
+      },
+    })
+  })
+
+  it('rejects provenance from another workspace', () => {
+    const { payload, request } = privateMemoryWrite({
+      userId: 'workflow-owner',
+      workspaceId: 'workspace-2',
+    })
+    const result = resolveMemoryWriteSecretProvenance({
+      request,
+      payload,
+      authType: AuthType.INTERNAL_JWT,
+      userId: 'billing-actor',
       workspaceId: 'workspace-1',
     })
 

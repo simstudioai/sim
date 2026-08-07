@@ -42,7 +42,7 @@ Integrate Box into your workflow to manage files, folders, and e-signatures. Upl
 
 ## Actions
 
-### `box_upload_file`
+### Box Upload File
 
 Upload a file to a Box folder
 
@@ -68,7 +68,7 @@ Upload a file to a Box folder
 | `parentId` | string | Parent folder ID |
 | `parentName` | string | Parent folder name |
 
-### `box_download_file`
+### Box Download File
 
 Download a file from Box
 
@@ -85,7 +85,7 @@ Download a file from Box
 | `file` | file | Downloaded file stored in execution files |
 | `content` | string | Base64 encoded file content |
 
-### `box_get_file_info`
+### Box Get File Info
 
 Get detailed information about a file in Box
 
@@ -115,7 +115,7 @@ Get detailed information about a file in Box
 | `tags` | array | File tags |
 | `commentCount` | number | Number of comments |
 
-### `box_list_folder_items`
+### Box List Folder Items
 
 List files and folders in a Box folder
 
@@ -144,7 +144,7 @@ List files and folders in a Box folder
 | `offset` | number | Current pagination offset |
 | `limit` | number | Current pagination limit |
 
-### `box_create_folder`
+### Box Create Folder
 
 Create a new folder in Box
 
@@ -166,7 +166,7 @@ Create a new folder in Box
 | `parentId` | string | Parent folder ID |
 | `parentName` | string | Parent folder name |
 
-### `box_delete_file`
+### Box Delete File
 
 Delete a file from Box
 
@@ -183,7 +183,7 @@ Delete a file from Box
 | `deleted` | boolean | Whether the file was successfully deleted |
 | `message` | string | Success confirmation message |
 
-### `box_delete_folder`
+### Box Delete Folder
 
 Delete a folder from Box
 
@@ -201,7 +201,7 @@ Delete a folder from Box
 | `deleted` | boolean | Whether the folder was successfully deleted |
 | `message` | string | Success confirmation message |
 
-### `box_copy_file`
+### Box Copy File
 
 Copy a file to another folder in Box
 
@@ -226,7 +226,7 @@ Copy a file to another folder in Box
 | `parentId` | string | Parent folder ID |
 | `parentName` | string | Parent folder name |
 
-### `box_search`
+### Box Search
 
 Search for files and folders in Box
 
@@ -256,7 +256,7 @@ Search for files and folders in Box
 |   ↳ `parentName` | string | Parent folder name |
 | `totalCount` | number | Total number of matching results |
 
-### `box_update_file`
+### Box Update File
 
 Update file info in Box (rename, move, change description, add tags)
 
@@ -290,7 +290,7 @@ Update file info in Box (rename, move, change description, add tags)
 | `tags` | array | File tags |
 | `commentCount` | number | Number of comments |
 
-### `box_sign_create_request`
+### Box Sign Create Request
 
 Create a new Box Sign request to send documents for e-signature
 
@@ -333,7 +333,7 @@ Create a new Box Sign request to send documents for e-signature
 | `prepareUrl` | string | URL for document preparation \(if preparation is needed\) |
 | `senderEmail` | string | Email of the sender |
 
-### `box_sign_get_request`
+### Box Sign Get Request
 
 Get the details and status of a Box Sign request
 
@@ -361,7 +361,7 @@ Get the details and status of a Box Sign request
 | `prepareUrl` | string | URL for document preparation \(if preparation is needed\) |
 | `senderEmail` | string | Email of the sender |
 
-### `box_sign_list_requests`
+### Box Sign List Requests
 
 List all Box Sign requests
 
@@ -393,7 +393,7 @@ List all Box Sign requests
 | `count` | number | Number of sign requests returned in this page |
 | `nextMarker` | string | Marker for next page of results |
 
-### `box_sign_cancel_request`
+### Box Sign Cancel Request
 
 Cancel a pending Box Sign request
 
@@ -421,7 +421,7 @@ Cancel a pending Box Sign request
 | `prepareUrl` | string | URL for document preparation \(if preparation is needed\) |
 | `senderEmail` | string | Email of the sender |
 
-### `box_sign_resend_request`
+### Box Sign Resend Request
 
 Resend a Box Sign request to signers who have not yet signed
 

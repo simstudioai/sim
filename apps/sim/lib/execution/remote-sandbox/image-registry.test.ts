@@ -6,6 +6,7 @@
  * guard down, plus the failure modes that must leave the retention sweep a job to
  * finish rather than losing the image silently.
  */
+import { createMockSql } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -88,7 +89,7 @@ vi.mock('drizzle-orm', () => ({
   lt: (...args: unknown[]) => args,
   notInArray: (...args: unknown[]) => args,
   or: (...args: unknown[]) => args,
-  sql: (...args: unknown[]) => args,
+  sql: createMockSql(),
 }))
 
 vi.mock('@/lib/execution/remote-sandbox/provider', () => ({
@@ -977,10 +978,16 @@ describe('cleanupSandboxImages', () => {
   })
 })
 
-/** True when any leaf of the mocked predicate tree is a `Date`, i.e. a time bound. */
+/**
+ * True when any leaf of the mocked predicate tree is a `Date`, i.e. a time bound.
+ * Cutoffs are bound through `sql.param(date, column)`, so the walk descends into
+ * the mock's fragment and param objects as well as condition arrays.
+ */
 function hasTimeBound(predicate: unknown): boolean {
   if (predicate instanceof Date) return true
-  return Array.isArray(predicate) && predicate.some(hasTimeBound)
+  if (Array.isArray(predicate)) return predicate.some(hasTimeBound)
+  if (predicate && typeof predicate === 'object') return Object.values(predicate).some(hasTimeBound)
+  return false
 }
 
 /**
