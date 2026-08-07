@@ -91,6 +91,35 @@ describe('workspaceSource', () => {
     )
   })
 
+  /**
+   * The five call sites that hand-built these paths before `{ to: 'list' }`
+   * existed lived in two different route trees, which is exactly how a route
+   * rename escapes one of them.
+   */
+  it('resolves a list link to its own kind index, for every kind', () => {
+    const expected: Record<ResourceKind, string> = {
+      file: '/workspace/ws_1/files',
+      table: '/workspace/ws_1/tables',
+      knowledge: '/workspace/ws_1/knowledge',
+      log: '/workspace/ws_1/logs',
+    }
+
+    for (const kind of RESOURCE_KINDS) {
+      const source = workspaceSource({ kind, workspaceId: 'ws_1', resourceId: 'id_1' })
+      expect(source.hrefFor({ to: 'list' })).toBe(expected[kind])
+    }
+  })
+
+  it('escapes the workspace id on a list link too', () => {
+    const source = workspaceSource({
+      kind: 'table',
+      workspaceId: 'ws/../../evil',
+      resourceId: 'tbl_1',
+    })
+
+    expect(source.hrefFor({ to: 'list' })).toBe('/workspace/ws%2F..%2F..%2Fevil/tables')
+  })
+
   it('escapes ids so a hostile id cannot graft extra path or query onto the route', () => {
     const source = workspaceSource({
       kind: 'file',
@@ -164,6 +193,7 @@ describe('shareSource', () => {
     for (const kind of SHAREABLE_KINDS) {
       const source = makeShareSource(kind)
       expect(source.hrefFor({ to: 'self' })).toBeNull()
+      expect(source.hrefFor({ to: 'list' })).toBeNull()
       for (const target of RESOURCE_KINDS) {
         expect(source.hrefFor({ to: 'resource', kind: target, id: 'id_1' })).toBeNull()
       }
