@@ -131,7 +131,14 @@ interface PathRule {
   prefix: string
   suffix: string
   wildcard: boolean
-  /** Absolute targets; `*` is retained verbatim and substituted at match time. */
+  /**
+   * Absolute targets; `*` is retained verbatim and substituted at match time.
+   *
+   * Substituted with `replaceAll`, not `replace`: Node's own `exports` resolver uses a
+   * global regex, so a target carrying more than one `*` gets every occurrence filled.
+   * Replacing only the first would leave a literal `*` in the path and report a valid
+   * subpath as missing.
+   */
   targets: string[]
 }
 
@@ -195,7 +202,7 @@ function resolveViaPaths(spec: string, importer: string): string | null | undefi
     if (suffix && !spec.endsWith(suffix)) continue
     const middle = spec.slice(prefix.length, suffix ? spec.length - suffix.length : undefined)
     for (const t of targets) {
-      const hit = probe(t.replace('*', middle))
+      const hit = probe(t.replaceAll('*', middle))
       if (hit) return hit
     }
     return null
@@ -266,7 +273,7 @@ function resolveSpecifier(spec: string, importer: string): Outcome | null {
       const tail = pattern.slice(star + 1)
       if (!key.startsWith(head) || !key.endsWith(tail)) continue
       const middle = key.slice(head.length, key.length - tail.length)
-      if (probe(target.replace('*', middle))) return { ok: true }
+      if (probe(target.replaceAll('*', middle))) return { ok: true }
       return { ok: false, reason: `${pkg}'s '${pattern}' export has no file for '${key}'` }
     }
 
