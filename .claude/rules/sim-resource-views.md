@@ -25,7 +25,7 @@ Enforced by `bun run check:resources` (strict CI gate: `bun run check:resources:
 | Axis | Type | Replaces |
 | --- | --- | --- |
 | `source` | `WorkspaceSource<K> \| ShareSource<K>`, discriminated on `via` | `workspaceId`, `token`, `contentSource`, `isPublic`, `isShared` |
-| `grants` | `{ write: boolean; run: boolean }` | `canEdit`, `canRun`, `canAdmin`, `canDelete`, `disableEdit/Insert/Delete` |
+| `grants` | `{ write; run; manage; settled }` | `canEdit`, `canRun`, `canAdmin`, `canDelete`, `disableEdit/Insert/Delete` |
 | `host` | `'page' \| 'panel' \| 'public'` | `embedded`, `isEmbedded`, `compact`, `minimal` |
 
 There is no fourth axis. Agent streaming is **one optional prop on `FileView`** (`streaming?: FileViewStreaming`), because only files stream.
@@ -87,7 +87,8 @@ return <FileView source={source} grants={grants} host='panel' streaming={streami
 
 - Import from the **unit barrel** (`@/components/resources/file-view`), never a file inside it.
 - Copy that differs between workspace and share belongs on the **source** (`source.unavailableCopy`), not in the view. A share must never say "workspace" — that is what stops the view becoming an existence oracle.
-- Links belong on the source too (`source.hrefFor(link)`), which returns `null` in share scope so nobody hand-builds `/workspace/${token}/…`.
+- Links belong on the source too (`source.hrefFor(link)`), which returns `null` in share scope so nobody hand-builds `/workspace/${token}/…`. Three destinations: `{ to: 'self' }`, `{ to: 'resource', kind, id }`, and `{ to: 'list' }` for the index route the kind lives under — a breadcrumb root, or where to go after the resource being shown is deleted.
+- `grants.settled` says whether `write`/`run`/`manage` are final. A resolving membership and a denied one produce identical booleans, so a surface that renders an affordance disabled while permissions load — or fires a one-shot effect — must check it rather than reading `write === false` as a decision.
 - `host` decides chrome and URL ownership. `hostOwnsUrl(host)` is the single place the "embedded views do not write nuqs keys" rule lives.
 
 ## Never do this

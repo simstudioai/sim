@@ -89,9 +89,10 @@ export type ResourceSource<K extends ResourceKind = ResourceKind> = K extends Re
   : never
 
 /**
- * The in-app route for a resource, used by {@link workspaceSource}'s `hrefFor`.
- * The one table — every in-app destination for a resource is spelled here and
- * nowhere else, so a surface cannot drift onto a route that no longer exists.
+ * The in-app index route a kind lives under, used by {@link workspaceSource}'s
+ * `hrefFor` for `{ to: 'list' }`. Sibling to {@link resourceHref}, and exhaustive
+ * for the same reason: a kind added without a list route fails to compile here
+ * rather than sending a breadcrumb somewhere that does not exist.
  */
 function resourceListHref(workspaceId: string, kind: ResourceKind): string {
   const workspace = `/workspace/${encodeURIComponent(workspaceId)}`
@@ -107,6 +108,11 @@ function resourceListHref(workspaceId: string, kind: ResourceKind): string {
   }
 }
 
+/**
+ * The in-app route for a resource, used by {@link workspaceSource}'s `hrefFor`.
+ * The one table — every in-app destination for a resource is spelled here and
+ * nowhere else, so a surface cannot drift onto a route that no longer exists.
+ */
 function resourceHref(workspaceId: string, kind: ResourceKind, id: string): string {
   const workspace = `/workspace/${encodeURIComponent(workspaceId)}`
   const resource = encodeURIComponent(id)
