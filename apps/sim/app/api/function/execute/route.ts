@@ -113,8 +113,6 @@ const TAG_PATTERN = createReferencePattern()
 const E2B_JS_WRAPPER_LINES = 3
 const E2B_PYTHON_WRAPPER_LINES = 1
 const MAX_SANDBOX_OUTPUT_FILES = 20
-const MAX_PRIVATE_RESOLVED_SECRET_NAMES = 10_000
-const MAX_PRIVATE_RESOLVED_SECRET_NAMES_BYTES = 1024 * 1024
 const MAX_PRIVATE_FILE_SECRET_MATCH_EVENTS = 1_000_000
 const SANDBOX_RUNTIME_PAYLOAD_PATH_ENV = '__SIM_RUNTIME_PAYLOAD_PATH'
 
@@ -984,7 +982,6 @@ interface FunctionRouteExecutionContext {
   resolvedSecretNames: Set<string>
   includePrivateResolvedSecretNames: boolean
   privateResolvedSecretNamesMetadataType?: ResolvedSecretNamesMetadataType
-  outputProvenanceComplete: boolean
   outputSecretMatcher?: ResolvedSecretMatcher
   outputSecretNamesByScanLiteral: Map<string, string[]>
   outputSecretPlaintextsByName: Map<string, string>
@@ -1193,7 +1190,10 @@ function activateOutputSecretProvenance(
   body: unknown,
   context: FunctionRouteExecutionContext
 ): void {
-  if (!context.outputSecretMatcher) return
+  if (!context.outputSecretMatcher) {
+    activateCompiledSecretProvenance(context)
+    return
+  }
 
   const matchedPlaintexts = new Set<string>()
   const projection = projectResolvedSecretContent(
@@ -1205,13 +1205,24 @@ function activateOutputSecretProvenance(
     }
   )
   if (!projection.safe) {
-    context.outputProvenanceComplete = false
+    activateCompiledSecretProvenance(context)
     return
   }
   for (const plaintext of matchedPlaintexts) {
     for (const name of context.outputSecretNamesByScanLiteral.get(plaintext) ?? []) {
       context.resolvedSecretNames.add(name)
     }
+  }
+}
+
+/**
+ * Conservatively activates only secrets whose placeholders were compiled for this invocation.
+ * This fallback is used when the bounded output classifier cannot inspect a result; it never
+ * considers configured-but-unused environment values and never mutates the functional result.
+ */
+function activateCompiledSecretProvenance(context: FunctionRouteExecutionContext): void {
+  for (const name of context.outputSecretPlaintextsByName.keys()) {
+    context.resolvedSecretNames.add(name)
   }
 }
 
@@ -1267,7 +1278,6 @@ async function getOutputFileSecretProvenance(
       MAX_PRIVATE_FILE_SECRET_MATCH_EVENTS
     )
   } catch {
-    context.outputProvenanceComplete = false
     return { status: 'unknown' }
   }
 
@@ -1292,17 +1302,8 @@ async function getOutputFileSecretProvenance(
   }
 }
 
-function getPrivateResolvedSecretNames(context: FunctionRouteExecutionContext): string[] | null {
-  if (!context.outputProvenanceComplete) return null
-  if (context.resolvedSecretNames.size > MAX_PRIVATE_RESOLVED_SECRET_NAMES) return null
-
-  const names = Array.from(context.resolvedSecretNames).sort()
-  let bytes = 0
-  for (const name of names) {
-    bytes += Buffer.byteLength(name, 'utf8')
-    if (bytes > MAX_PRIVATE_RESOLVED_SECRET_NAMES_BYTES) return null
-  }
-  return names
+function getPrivateResolvedSecretNames(context: FunctionRouteExecutionContext): string[] {
+  return Array.from(context.resolvedSecretNames).sort()
 }
 
 async function appendResolvedSecretNames(
@@ -1326,21 +1327,17 @@ async function appendPrivateResolvedSecretNames(
 ): Promise<NextResponse> {
   if (!names || !metadataType) return response
 
-  try {
-    const body = (await response.clone().json()) as Record<string, unknown>
-    const headers = new Headers(response.headers)
-    headers.delete('content-length')
-    headers.set(PRIVATE_TOOL_METADATA_RESPONSE_HEADER, metadataType)
-    return NextResponse.json(
-      {
-        ...body,
-        [RESOLVED_SECRET_NAMES_FIELD]: names,
-      },
-      { status: response.status, statusText: response.statusText, headers }
-    )
-  } catch {
-    return response
-  }
+  const body = (await response.json()) as Record<string, unknown>
+  const headers = new Headers(response.headers)
+  headers.delete('content-length')
+  headers.set(PRIVATE_TOOL_METADATA_RESPONSE_HEADER, metadataType)
+  return NextResponse.json(
+    {
+      ...body,
+      [RESOLVED_SECRET_NAMES_FIELD]: names,
+    },
+    { status: response.status, statusText: response.statusText, headers }
+  )
 }
 
 /**
@@ -2025,7 +2022,6 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       resolvedSecretNames: new Set<string>(),
       includePrivateResolvedSecretNames,
       privateResolvedSecretNamesMetadataType,
-      outputProvenanceComplete: true,
       outputSecretNamesByScanLiteral: new Map(),
       outputSecretPlaintextsByName: new Map(),
       mountedFileSecretProvenanceScanner,
@@ -2078,7 +2074,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
           }))
         )
       } catch {
-        routeContext.outputProvenanceComplete = false
+        activateCompiledSecretProvenance(routeContext)
       }
     }
     resolvedCode = compilation.code

@@ -2089,6 +2089,50 @@ describe('Function Execute API Route', () => {
       expect((await response.json()).__resolvedSecretNames).toEqual([])
     })
 
+    it('conservatively reports only compiled secrets when bounded output classification is exceeded', async () => {
+      const result = Array.from({ length: 100_001 }, () => 'ordinary')
+      mockExecuteInIsolatedVM.mockResolvedValueOnce({ result, stdout: '' })
+
+      const response = await POST(
+        createMockRequest(
+          'POST',
+          {
+            code: 'const key = {{API_KEY}}; return params.items',
+            params: { items: result },
+            envVars: { API_KEY: 'secret-value', UNUSED: 'x' },
+          },
+          { 'x-sim-request-private-tool-metadata': 'resolved-secret-names-v1' }
+        )
+      )
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(response.headers.get('x-sim-private-tool-metadata')).toBe('resolved-secret-names-v1')
+      expect(data.output.result).toHaveLength(100_001)
+      expect(data.output.result[0]).toBe('ordinary')
+      expect(data.__resolvedSecretNames).toEqual(['API_KEY'])
+    })
+
+    it('conservatively reports a compiled secret whose value exceeds matcher capacity', async () => {
+      mockExecuteInIsolatedVM.mockResolvedValueOnce({ result: 'ordinary', stdout: '' })
+
+      const response = await POST(
+        createMockRequest(
+          'POST',
+          {
+            code: 'const key = {{OVERSIZED_SECRET}}; return "ordinary"',
+            envVars: { OVERSIZED_SECRET: 's'.repeat(64 * 1024 + 1), UNUSED: 'x' },
+          },
+          { 'x-sim-request-private-tool-metadata': 'resolved-secret-names-v1' }
+        )
+      )
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.output.result).toBe('ordinary')
+      expect(data.__resolvedSecretNames).toEqual(['OVERSIZED_SECRET'])
+    })
+
     it('tracks only compiled names when configured secrets share the same value', async () => {
       mockExecuteInIsolatedVM.mockResolvedValueOnce({ result: 'true', stdout: '' })
       const oneResponse = await POST(

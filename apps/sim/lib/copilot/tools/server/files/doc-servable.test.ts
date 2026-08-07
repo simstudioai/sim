@@ -250,49 +250,72 @@ describe('resolveServableDocBytes', () => {
     expect(mockExecuteInSandbox).not.toHaveBeenCalled()
   })
 
-  it('does not serve a legacy artifact when a referenced file is missing', async () => {
+  it('keeps a legacy artifact servable when a referenced file is missing', async () => {
     const source = Buffer.from(`image = await getFileBase64('reference-1')`, 'utf-8')
     mockGetWorkspaceFile.mockResolvedValue(null)
-    mockLoadCompiledDoc.mockResolvedValue(null)
+    const legacyArtifact = Buffer.from('%PDF-legacy')
+    mockLoadCompiledDoc.mockResolvedValueOnce(null).mockResolvedValueOnce(legacyArtifact)
 
     await expect(resolveServableDoc(WORKSPACE_ID, source, 'report.pdf')).resolves.toEqual({
-      kind: 'unavailable',
+      kind: 'artifact',
+      buffer: legacyArtifact,
+      contentType: 'application/pdf',
     })
-    expect(mockLoadCompiledDoc).toHaveBeenCalledTimes(1)
-    expect(mockLoadCompiledDoc).toHaveBeenCalledWith(
+    expect(mockLoadCompiledDoc).toHaveBeenNthCalledWith(
+      1,
       WORKSPACE_ID,
       source.toString('utf-8'),
       'pdf',
       expect.stringContaining('missing')
     )
+    expect(mockLoadCompiledDoc).toHaveBeenNthCalledWith(
+      2,
+      WORKSPACE_ID,
+      source.toString('utf-8'),
+      'pdf'
+    )
+    expect(mockExecuteInSandbox).not.toHaveBeenCalled()
   })
 
-  it('does not serve a legacy artifact when a referenced-file lookup fails', async () => {
+  it('keeps a legacy artifact servable when a referenced-file lookup fails', async () => {
     const source = Buffer.from(`image = await getFileBase64('reference-1')`, 'utf-8')
     mockGetWorkspaceFile.mockRejectedValue(new Error('database unavailable'))
-    mockLoadCompiledDoc.mockResolvedValue(null)
+    const legacyArtifact = Buffer.from('%PDF-legacy')
+    mockLoadCompiledDoc.mockResolvedValueOnce(null).mockResolvedValueOnce(legacyArtifact)
 
     await expect(resolveServableDoc(WORKSPACE_ID, source, 'report.pdf')).resolves.toEqual({
-      kind: 'unavailable',
+      kind: 'artifact',
+      buffer: legacyArtifact,
+      contentType: 'application/pdf',
     })
-    expect(mockLoadCompiledDoc).toHaveBeenCalledTimes(1)
-    expect(mockLoadCompiledDoc).toHaveBeenCalledWith(
+    expect(mockLoadCompiledDoc).toHaveBeenNthCalledWith(
+      1,
       WORKSPACE_ID,
       source.toString('utf-8'),
       'pdf',
       expect.stringContaining('unavailable')
     )
+    expect(mockLoadCompiledDoc).toHaveBeenNthCalledWith(
+      2,
+      WORKSPACE_ID,
+      source.toString('utf-8'),
+      'pdf'
+    )
+    expect(mockExecuteInSandbox).not.toHaveBeenCalled()
   })
 
-  it('keeps a public document with more than 20 references unavailable without resolving files', async () => {
+  it('serves a legacy artifact with more than 20 references without resolving files', async () => {
     const source = referencedFileSource(21)
-    mockLoadCompiledDoc.mockResolvedValue(Buffer.from('%PDF-legacy'))
+    const legacyArtifact = Buffer.from('%PDF-legacy')
+    mockLoadCompiledDoc.mockResolvedValue(legacyArtifact)
 
     await expect(resolveServableDoc(WORKSPACE_ID, source, 'report.pdf')).resolves.toEqual({
-      kind: 'unavailable',
+      kind: 'artifact',
+      buffer: legacyArtifact,
+      contentType: 'application/pdf',
     })
     expect(mockGetWorkspaceFile).not.toHaveBeenCalled()
-    expect(mockLoadCompiledDoc).not.toHaveBeenCalled()
+    expect(mockLoadCompiledDoc).toHaveBeenCalledWith(WORKSPACE_ID, source.toString('utf-8'), 'pdf')
     expect(mockExecuteInSandbox).not.toHaveBeenCalled()
   })
 

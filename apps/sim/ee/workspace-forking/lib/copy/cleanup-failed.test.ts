@@ -1,7 +1,13 @@
 /**
  * @vitest-environment node
  */
-import { knowledgeBase, workflow, workflowBlocks, workflowDeploymentVersion } from '@sim/db/schema'
+import {
+  document,
+  knowledgeBase,
+  workflow,
+  workflowBlocks,
+  workflowDeploymentVersion,
+} from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -339,6 +345,75 @@ describe('cleanup-failed', () => {
       expect(mockInvalidateDeployedStateCache).not.toHaveBeenCalled()
       expect(deletes()).toHaveLength(1)
       expect(deletes()[0].table).toBe(knowledgeBase)
+    })
+
+    it('keeps a failed copied knowledge base when it contains a non-fork document', async () => {
+      queueTableRows(knowledgeBase, [{ id: 'failed-kb' }])
+
+      const cleaned = await clearFailedForkResourceReferences({
+        childWorkspaceId: 'child-ws',
+        failures: [{ kind: 'knowledge-base', childId: 'failed-kb', documentChildIds: [] }],
+        requestId: 'test',
+      })
+
+      expect(cleaned).toEqual({ cleared: 0, clearingFailed: false })
+      expect(dbChainMockFns.update).not.toHaveBeenCalled()
+      expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+      expect(mockInvalidateDeployedStateCache).not.toHaveBeenCalled()
+    })
+
+    it('clears only failed fork-document references when a user document keeps the KB alive', async () => {
+      queueTableRows(knowledgeBase, [{ id: 'failed-kb' }])
+      queueTableRows(workflow, [{ id: 'wf-1' }])
+      queueTableRows(workflowBlocks, [
+        {
+          ...draftBlockRow('failed-kb'),
+          subBlocks: {
+            ...draftBlockRow('failed-kb').subBlocks,
+            documentId: {
+              id: 'documentId',
+              type: 'document-selector',
+              value: 'fork_document_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            },
+          },
+        },
+      ])
+
+      const cleaned = await clearFailedForkResourceReferences({
+        childWorkspaceId: 'child-ws',
+        failures: [
+          {
+            kind: 'knowledge-base',
+            childId: 'failed-kb',
+            documentChildIds: ['fork_document_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'],
+          },
+        ],
+        requestId: 'test',
+      })
+
+      expect(cleaned).toEqual({ cleared: 1, clearingFailed: false })
+      const cleared = updates()[0].values.subBlocks as Record<string, { value: unknown }>
+      expect(cleared.knowledgeBaseId.value).toBe('failed-kb')
+      expect(cleared.documentId.value).toBe('')
+      expect(deletes().map(({ table }) => table)).toEqual([document])
+    })
+
+    it('guards the final KB delete against a non-fork document inserted during cleanup', async () => {
+      queueTableRows(workflow, [])
+
+      await clearFailedForkResourceReferences({
+        childWorkspaceId: 'child-ws',
+        failures: [{ kind: 'knowledge-base', childId: 'failed-kb', documentChildIds: [] }],
+        requestId: 'test',
+      })
+
+      const deletePredicate = dbChainMockFns.where.mock.calls.at(-1)?.[0]
+      expect(deletePredicate).toEqual(
+        expect.objectContaining({
+          type: 'and',
+          conditions: expect.arrayContaining([expect.objectContaining({ type: 'notExists' })]),
+        })
+      )
     })
 
     it('sweeps a deployed target version even when no draft referenced the failed id', async () => {

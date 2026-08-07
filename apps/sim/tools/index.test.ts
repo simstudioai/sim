@@ -1754,7 +1754,7 @@ describe('executeTool Function', () => {
     expect(registry.isComplete()).toBe(true)
   })
 
-  it('projects a thrown error with complete provenance before committing it', async () => {
+  it('preserves a thrown error while committing provenance for downstream projection', async () => {
     const secret = 'transaction-throw-secret'
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'API_KEY', plaintext: secret, encryptedValue: 'encrypted-value' },
@@ -1778,8 +1778,9 @@ describe('executeTool Function', () => {
       ),
       { preconnect: vi.fn() }
     ) as typeof fetch
+    const originalError = new Error(secret)
     mockToolsLogger.error.mockImplementation(() => {
-      throw new Error(secret)
+      throw originalError
     })
 
     const execution = executeTool(
@@ -1788,12 +1789,15 @@ describe('executeTool Function', () => {
       { resolvedSecretTraceRegistry: registry }
     )
 
-    await expect(execution).rejects.toMatchObject({ message: '{{API_KEY}}' })
+    await expect(execution).rejects.toBe(originalError)
     expect(registry.getActiveMatches()).toEqual([{ plaintext: secret, replacement: '{{API_KEY}}' }])
     expect(registry.isComplete()).toBe(true)
+    expect(
+      projectToolResultForCopilot({ success: false, error: originalError.message }, registry)
+    ).toEqual({ success: false, error: '{{API_KEY}}' })
   })
 
-  it('throws the fixed metadata error unchanged when a failure has no dynamic message', async () => {
+  it('preserves empty thrown errors instead of replacing their runtime semantics', async () => {
     const secret = '!'
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'API_KEY', plaintext: secret, encryptedValue: 'encrypted-value' },
@@ -1817,8 +1821,9 @@ describe('executeTool Function', () => {
       ),
       { preconnect: vi.fn() }
     ) as typeof fetch
+    const originalError = new Error('')
     mockToolsLogger.error.mockImplementation(() => {
-      throw new Error('')
+      throw originalError
     })
 
     const execution = executeTool(
@@ -1827,9 +1832,47 @@ describe('executeTool Function', () => {
       { resolvedSecretTraceRegistry: registry }
     )
 
-    await expect(execution).rejects.toMatchObject({
-      message: 'Internal tool response metadata could not be verified',
+    await expect(execution).rejects.toBe(originalError)
+    expect(registry.getActiveMatches()).toEqual([{ plaintext: secret, replacement: '{{API_KEY}}' }])
+  })
+
+  it('does not rewrite coincidental low-entropy matches in thrown runtime errors', async () => {
+    const secret = 'x'
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'API_KEY', plaintext: secret, encryptedValue: 'encrypted-value' },
+    ])
+    global.fetch = Object.assign(
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            success: false,
+            error: secret,
+            __resolvedSecretNames: ['API_KEY'],
+          }),
+          {
+            status: 500,
+            headers: {
+              'content-type': 'application/json',
+              'x-sim-private-tool-metadata': 'resolved-secret-names-v1',
+            },
+          }
+        )
+      ),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+    const originalError = new Error('Box failed')
+    mockToolsLogger.error.mockImplementation(() => {
+      throw originalError
     })
+
+    const execution = executeTool(
+      'function_execute',
+      { code: 'throw new Error({{API_KEY}})', envVars: { API_KEY: secret } },
+      { resolvedSecretTraceRegistry: registry }
+    )
+
+    await expect(execution).rejects.toBe(originalError)
+    expect(originalError.message).toBe('Box failed')
     expect(registry.getActiveMatches()).toEqual([{ plaintext: secret, replacement: '{{API_KEY}}' }])
   })
 

@@ -9,17 +9,11 @@ const {
   mockDiscoverServerTools,
   mockExecuteTool,
   mockGetExecutionTimeout,
-  mockReadResponseToBufferWithLimit,
 } = vi.hoisted(() => ({
   mockCapExecutionTimeoutMs: vi.fn((_policy: number, requested?: number) => requested ?? 0),
   mockDiscoverServerTools: vi.fn(),
   mockExecuteTool: vi.fn(),
   mockGetExecutionTimeout: vi.fn(() => 0),
-  mockReadResponseToBufferWithLimit: vi.fn(),
-}))
-
-vi.mock('@/lib/core/utils/stream-limits', () => ({
-  readResponseToBufferWithLimit: mockReadResponseToBufferWithLimit,
 }))
 
 vi.mock('@/lib/mcp/middleware', () => ({
@@ -102,9 +96,6 @@ describe('MCP tool execution private secret provenance', () => {
     vi.clearAllMocks()
     mockDiscoverServerTools.mockResolvedValue([{ name: 'example_tool', inputSchema: {} }])
     mockExecuteTool.mockResolvedValue({ content: [{ type: 'text', text: 'ok' }] })
-    mockReadResponseToBufferWithLimit.mockImplementation(async (response: Response) =>
-      Buffer.from(await response.arrayBuffer())
-    )
   })
 
   it('returns provenance activated by this MCP transport call', async () => {
@@ -160,10 +151,10 @@ describe('MCP tool execution private secret provenance', () => {
     expect(mockExecuteTool.mock.calls[0]?.[5]).toBeUndefined()
   })
 
-  it('preserves the functional response when private provenance cannot be attached', async () => {
-    mockReadResponseToBufferWithLimit.mockRejectedValueOnce(new Error('Response exceeds limit'))
+  it('attaches private provenance without imposing a second functional response limit', async () => {
+    const largeText = 'x'.repeat(10 * 1024 * 1024 + 1)
     mockExecuteTool.mockResolvedValueOnce({
-      content: [{ type: 'text', text: 'unchanged' }],
+      content: [{ type: 'text', text: largeText }],
     })
     const request = createRequest({
       'x-sim-request-private-tool-metadata': 'resolved-secret-provenance-v1',
@@ -174,8 +165,15 @@ describe('MCP tool execution private secret provenance', () => {
 
     expect(response.status).toBe(200)
     expect(response.ok).toBe(true)
-    expect(response.headers.has('x-sim-private-tool-metadata')).toBe(false)
-    expect(body).not.toHaveProperty('__resolvedSecretTraceProvenance')
+    expect(response.headers.get('x-sim-private-tool-metadata')).toBe(
+      'resolved-secret-provenance-v1'
+    )
+    expect(body.__resolvedSecretTraceProvenance).toEqual({
+      version: 1,
+      complete: true,
+      entries: [],
+      scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+    })
     expect(body).toMatchObject({
       success: true,
       data: {
@@ -185,7 +183,7 @@ describe('MCP tool execution private secret provenance', () => {
     })
     expect(
       (body.data as { output: { content: Array<{ text?: unknown }> } }).output.content[0]?.text
-    ).toBe('unchanged')
+    ).toBe(largeText)
   })
 
   it('uses the remaining workflow deadline for trusted internal tool calls', async () => {

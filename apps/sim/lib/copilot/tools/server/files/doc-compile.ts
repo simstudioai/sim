@@ -133,7 +133,6 @@ interface ReferencedImageResolution {
   images: ResolvedReferencedImage[]
   referenceCount: number
   artifactIdentity?: string
-  legacyArtifactEligible: boolean
 }
 
 export interface CompiledDocResult {
@@ -185,12 +184,11 @@ async function resolveReferencedImages(
     )
   }
   if (ids.size === 0) {
-    return { images: [], referenceCount: 0, legacyArtifactEligible: false }
+    return { images: [], referenceCount: 0 }
   }
 
   const images: ResolvedReferencedImage[] = []
   const identity: Array<Record<string, unknown>> = []
-  let legacyArtifactEligible = true
   for (const fileId of ids) {
     let record: Awaited<ReturnType<typeof getWorkspaceFile>>
     try {
@@ -202,12 +200,10 @@ async function resolveReferencedImages(
         error: getErrorMessage(err),
       })
       identity.push({ fileId, state: 'unavailable' })
-      legacyArtifactEligible = false
       continue
     }
     if (!record) {
       identity.push({ fileId, state: 'missing' })
-      legacyArtifactEligible = false
       continue
     }
     identity.push({
@@ -224,7 +220,6 @@ async function resolveReferencedImages(
     images,
     referenceCount: ids.size,
     artifactIdentity: JSON.stringify({ version: 1, inputs: identity }),
-    legacyArtifactEligible,
   }
 }
 
@@ -588,9 +583,8 @@ export async function compileDoc(args: CompileArgs): Promise<CompiledDocResult> 
 
 /**
  * Loads a dependency-bound compiled artifact. Public shares may also read a pre-cutover
- * source-keyed artifact when every current reference still resolves. That narrow fallback
- * preserves already-public documents until an authenticated read or edit publishes the
- * dependency-bound replacement; it never executes source.
+ * source-keyed artifact. That fallback preserves already-public documents even when their
+ * original inputs no longer resolve; it only reads an existing binary and never executes source.
  */
 export async function loadCompiledDocByExt(
   workspaceId: string,
@@ -601,7 +595,11 @@ export async function loadCompiledDocByExt(
   const fmt = await getE2BDocFormat(`x.${ext}`)
   if (!fmt) return null
   const referencedFileIds = collectReferencedFileIds(source)
-  if (referencedFileIds.size > MAX_STAGED_INPUTS) return null
+  if (referencedFileIds.size > MAX_STAGED_INPUTS) {
+    if (!options.allowLegacyReferencedArtifact) return null
+    const legacyBuffer = await loadCompiledDoc(workspaceId, source, fmt.ext)
+    return legacyBuffer ? { buffer: legacyBuffer, contentType: fmt.contentType } : null
+  }
   const referencedImages = await resolveReferencedImages(source, workspaceId, referencedFileIds)
   const buffer = await loadCompiledDoc(
     workspaceId,
@@ -610,11 +608,7 @@ export async function loadCompiledDocByExt(
     referencedImages.artifactIdentity
   )
   if (buffer) return { buffer, contentType: fmt.contentType }
-  if (
-    referencedImages.artifactIdentity &&
-    referencedImages.legacyArtifactEligible &&
-    options.allowLegacyReferencedArtifact
-  ) {
+  if (referencedImages.artifactIdentity && options.allowLegacyReferencedArtifact) {
     const legacyBuffer = await loadCompiledDoc(workspaceId, source, fmt.ext)
     if (legacyBuffer) return { buffer: legacyBuffer, contentType: fmt.contentType }
   }

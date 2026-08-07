@@ -299,6 +299,72 @@ describe('copyForkResourceContent', () => {
     expect(mockPersistCopiedResourceMappings).not.toHaveBeenCalled()
   })
 
+  it('uses the blob content digest so a retry cannot adopt an older failed snapshot', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([sourceDoc])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([sourceDoc])
+    const body = Buffer.from('new-source-bytes')
+    storageServiceMockFns.mockDownloadFile.mockResolvedValueOnce(body)
+    storageServiceMockFns.mockHeadObject.mockImplementationOnce(async (key: string) =>
+      key === 'kb/fork-child-doc-1' ? { size: 321 } : null
+    )
+
+    const result = await copyForkResourceContent({
+      contentPlan: basePlan({
+        knowledgeBases: [
+          {
+            sourceId: 'src-kb',
+            childId: 'child-kb',
+            documentIdMap: { 'doc-1': 'child-doc-1' },
+          },
+        ],
+      }),
+      requestId: 'test',
+    })
+
+    const expectedKey = `kb/fork-child-doc-1-${sha256Hex(body)}`
+    expect(result).toEqual({ copied: 1, failed: 0, failures: [] })
+    expect(storageServiceMockFns.mockHeadObject).toHaveBeenCalledWith(expectedKey, 'knowledge-base')
+    expect(storageServiceMockFns.mockUploadFile).toHaveBeenCalledWith(
+      expect.objectContaining({ customKey: expectedKey })
+    )
+    expect(mockRecordKnowledgeBaseFileOwnership).toHaveBeenCalledWith(
+      expect.objectContaining({ key: expectedKey }),
+      expect.anything()
+    )
+  })
+
+  it('reuses a content-addressed blob only after hashing the current source bytes', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([sourceDoc])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([sourceDoc])
+    const body = Buffer.from('same-source-bytes')
+    const expectedKey = `kb/fork-child-doc-1-${sha256Hex(body)}`
+    storageServiceMockFns.mockDownloadFile.mockResolvedValueOnce(body)
+    storageServiceMockFns.mockHeadObject.mockResolvedValueOnce({ size: body.length })
+
+    const result = await copyForkResourceContent({
+      contentPlan: basePlan({
+        knowledgeBases: [
+          {
+            sourceId: 'src-kb',
+            childId: 'child-kb',
+            documentIdMap: { 'doc-1': 'child-doc-1' },
+          },
+        ],
+      }),
+      requestId: 'test',
+    })
+
+    expect(result).toEqual({ copied: 1, failed: 0, failures: [] })
+    expect(storageServiceMockFns.mockDownloadFile).toHaveBeenCalledTimes(1)
+    expect(storageServiceMockFns.mockHeadObject).toHaveBeenCalledWith(expectedKey, 'knowledge-base')
+    expect(storageServiceMockFns.mockUploadFile).not.toHaveBeenCalled()
+    expect(storageServiceMockFns.mockDeleteFile).not.toHaveBeenCalled()
+  })
+
   it('persists every successfully copied full-KB document identity with bounded page orientation', async () => {
     dbChainMockFns.limit
       .mockResolvedValueOnce([sourceDoc])
@@ -471,6 +537,35 @@ describe('copyForkResourceContent', () => {
     expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
   })
 
+  it('adopts a finalized content-addressed document from a prior attempt', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([sourceDoc]).mockResolvedValueOnce([
+      {
+        id: 'child-doc-1',
+        knowledgeBaseId: 'child-kb',
+        storageKey: `kb/fork-child-doc-1-${'a'.repeat(64)}`,
+        archivedAt: null,
+        deletedAt: null,
+      },
+    ])
+
+    const result = await copyForkResourceContent({
+      contentPlan: basePlan({
+        knowledgeBases: [
+          {
+            sourceId: 'src-kb',
+            childId: 'child-kb',
+            documentIdMap: { 'doc-1': 'child-doc-1' },
+          },
+        ],
+      }),
+      requestId: 'test',
+    })
+
+    expect(result).toEqual({ copied: 1, failed: 0, failures: [] })
+    expect(storageServiceMockFns.mockDownloadFile).not.toHaveBeenCalled()
+    expect(storageServiceMockFns.mockUploadFile).not.toHaveBeenCalled()
+  })
+
   it('repairs a missing mapping for a full-KB document finalized by a prior attempt', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([sourceDoc]).mockResolvedValueOnce([
       {
@@ -621,6 +716,10 @@ describe('copyForkResourceContent', () => {
           id: 'child-doc-1',
           knowledgeBaseId: 'child-kb',
           storageKey: 'kb/fork-child-doc-1',
+          filename: 'winner.pdf',
+          mimeType: 'application/pdf',
+          fileSize: 456,
+          uploadedBy: 'winner-user',
           archivedAt: null,
           deletedAt: null,
         },
@@ -643,8 +742,22 @@ describe('copyForkResourceContent', () => {
     expect(result).toEqual({ copied: 1, failed: 0, failures: [] })
     expect(storageServiceMockFns.mockUploadFile).toHaveBeenCalledTimes(1)
     expect(mockResolveStorageBillingContext).toHaveBeenCalledTimes(1)
-    expect(mockRecordKnowledgeBaseFileOwnership).toHaveBeenCalledTimes(1)
+    expect(mockRecordKnowledgeBaseFileOwnership).toHaveBeenCalledWith(
+      {
+        key: 'kb/fork-child-doc-1',
+        userId: 'winner-user',
+        workspaceId: 'child-ws',
+        originalName: 'winner.pdf',
+        contentType: 'application/pdf',
+        size: 456,
+      },
+      expect.anything()
+    )
     expect(mockIncrementStorageUsageInTx).not.toHaveBeenCalled()
+    expect(storageServiceMockFns.mockDeleteFile).toHaveBeenCalledWith({
+      key: `kb/fork-child-doc-1-${sha256Hex(Buffer.from('blob-bytes'))}`,
+      context: 'knowledge-base',
+    })
   })
 
   it('#4 re-reads a copied skill body post-commit and rewrites it via db.update (never from payload)', async () => {

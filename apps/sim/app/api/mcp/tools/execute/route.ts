@@ -11,7 +11,6 @@ import {
 } from '@/lib/billing/core/billing-attribution'
 import { capExecutionTimeoutMs, getExecutionTimeout } from '@/lib/core/execution-limits'
 import type { SubscriptionPlan } from '@/lib/core/rate-limiter/types'
-import { readResponseToBufferWithLimit } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { SIM_VIA_HEADER } from '@/lib/execution/call-chain'
 import { parseRemainingExecutionDeadlineMs } from '@/lib/execution/execution-deadline-header'
@@ -45,7 +44,6 @@ import {
 } from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('McpToolExecutionAPI')
-const MAX_PRIVATE_MCP_RESPONSE_BYTES = 10 * 1024 * 1024
 
 export const dynamic = 'force-dynamic'
 
@@ -72,21 +70,11 @@ async function attachPrivateProvenance(
   response: NextResponse,
   provenance: ResolvedSecretTraceProvenanceAccumulator
 ): Promise<NextResponse> {
-  let payload: Record<string, unknown>
-  try {
-    const body = await readResponseToBufferWithLimit(response.clone(), {
-      maxBytes: MAX_PRIVATE_MCP_RESPONSE_BYTES,
-      label: 'MCP private metadata response',
-      allowNoBodyFallback: true,
-    })
-    const parsed: unknown = JSON.parse(body.toString('utf8'))
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      throw new Error('MCP response is not a JSON object')
-    }
-    payload = parsed as Record<string, unknown>
-  } catch {
-    return response
+  const parsed: unknown = await response.json()
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('MCP response is not a JSON object')
   }
+  const payload = parsed as Record<string, unknown>
 
   const headers = new Headers(response.headers)
   headers.delete('content-length')

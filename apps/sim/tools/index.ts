@@ -63,10 +63,7 @@ import { isCustomTool, isMcpTool } from '@/executor/constants'
 import { resolveSkillContent } from '@/executor/handlers/agent/skills-resolver'
 import type { ExecutionContext, UserFile } from '@/executor/types'
 import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
-import {
-  projectResolvedSecretDiagnosticContent,
-  projectResolvedSecretModelContent,
-} from '@/executor/utils/resolved-secret-content-projection'
+import { projectResolvedSecretDiagnosticContent } from '@/executor/utils/resolved-secret-content-projection'
 import {
   isResolvedSecretTraceProvenanceV1,
   type ResolvedSecretInputPath,
@@ -1456,44 +1453,8 @@ export async function executeTool(
       resolvedSecretTraceRegistry: toolRegistry,
     })
   } catch (error) {
-    const errorName =
-      error && typeof error === 'object' && 'name' in error ? String(error.name) : undefined
-    if (!toolRegistry.isComplete()) {
-      parentRegistry.mergeToolCallRegistry(toolRegistry)
-      throw error
-    }
-
-    const errorMessage = getErrorMessage(error, '')
-    if (!errorMessage) {
-      parentRegistry.mergeToolCallRegistry(toolRegistry)
-      if (errorName === 'AbortError' || errorName === 'APIUserAbortError') {
-        throw new DOMException(PRIVATE_TOOL_METADATA_ERROR_MESSAGE, 'AbortError')
-      }
-      throw new Error(PRIVATE_TOOL_METADATA_ERROR_MESSAGE)
-    }
-
-    const messageProjection = projectResolvedSecretModelContent(errorMessage, toolRegistry)
-    if (
-      !messageProjection.safe ||
-      typeof messageProjection.value !== 'string' ||
-      messageProjection.value.length === 0
-    ) {
-      if (errorName === 'AbortError' || errorName === 'APIUserAbortError') {
-        throw new DOMException(PRIVATE_TOOL_METADATA_ERROR_MESSAGE, 'AbortError')
-      }
-      return {
-        success: false,
-        output: {},
-        error: PRIVATE_TOOL_METADATA_ERROR_MESSAGE,
-      }
-    }
-
-    const projectedMessage = messageProjection.value
     parentRegistry.mergeToolCallRegistry(toolRegistry)
-    if (errorName === 'AbortError' || errorName === 'APIUserAbortError') {
-      throw new DOMException(projectedMessage, 'AbortError')
-    }
-    throw new Error(projectedMessage)
+    throw error
   }
 
   parentRegistry.mergeToolCallRegistry(toolRegistry)

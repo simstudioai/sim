@@ -21,7 +21,19 @@ import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { omit } from '@sim/utils/object'
-import { and, asc, eq, exists, gt, inArray, isNotNull, isNull, type SQL, sql } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  eq,
+  exists,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  or,
+  type SQL,
+  sql,
+} from 'drizzle-orm'
 import {
   decrementStorageUsageForBillingContextInTx,
   incrementStorageUsageForBillingContextInTx,
@@ -48,7 +60,12 @@ import {
   TABLE_ROW_SECRET_PROVENANCE_VERSION,
 } from '@/lib/table/rows/secret-provenance'
 import type { TableSchema } from '@/lib/table/types'
-import { downloadFile, headObject, uploadFile } from '@/lib/uploads/core/storage-service'
+import {
+  deleteFile,
+  downloadFile,
+  headObject,
+  uploadFile,
+} from '@/lib/uploads/core/storage-service'
 import {
   type KnowledgeBaseFileOwnership,
   recordKnowledgeBaseFileOwnership,
@@ -102,7 +119,7 @@ function isForkProvenancePageWithinBudget(sidecars: readonly { entries: unknown 
  * processes one page at a time, so peak concurrency stays at this cap regardless of KB size.
  */
 const KB_DOCUMENT_COPY_CONCURRENCY = 5
-const FORK_DOCUMENT_ID_PATTERN = '^fork_document_[0-9a-f]{40}$'
+export const FORK_DOCUMENT_ID_PATTERN = '^fork_document_[0-9a-f]{40}$'
 
 function deriveCopyIdentity(
   kind: 'document' | 'embedding',
@@ -113,15 +130,26 @@ function deriveCopyIdentity(
   return `fork_${kind}_${digest}`
 }
 
-/** Stable object key so a replay overwrites or reuses the same copied KB blob. */
-function deriveKbDocumentStorageKey(childDocumentId: string): string {
-  return `kb/fork-${childDocumentId}`
+/**
+ * Stable legacy key prefix for a copied KB document. New blobs append their content digest so
+ * retries of different source snapshots cannot overwrite one another; the unsuffixed form remains
+ * valid for copies finalized by an older worker during a rolling deployment.
+ */
+function deriveKbDocumentStorageKey(childDocumentId: string, contentHash?: string): string {
+  const prefix = `kb/fork-${childDocumentId}`
+  return contentHash ? `${prefix}-${contentHash}` : prefix
+}
+
+function isKbDocumentStorageKey(key: string, childDocumentId: string): boolean {
+  const prefix = deriveKbDocumentStorageKey(childDocumentId)
+  if (key === prefix) return true
+  if (!key.startsWith(`${prefix}-`)) return false
+  return /^[0-9a-f]{64}$/.test(key.slice(prefix.length + 1))
 }
 
 interface TargetDocumentExpectation {
   childDocumentId: string
   childKnowledgeBaseId: string
-  canonicalStorageKey: string
 }
 
 interface TargetDocumentState {
@@ -142,7 +170,7 @@ function validateTargetDocumentState(
   if (row.knowledgeBaseId !== expected.childKnowledgeBaseId || row.deletedAt) {
     throw new Error(`Copied document ${row.id} has conflicting storage identity`)
   }
-  if (row.storageKey !== null && row.storageKey !== expected.canonicalStorageKey) {
+  if (row.storageKey !== null && !isKbDocumentStorageKey(row.storageKey, row.id)) {
     throw new Error(`Copied document ${row.id} has conflicting storage`)
   }
   return row.archivedAt ? 'archived' : 'active'
@@ -854,7 +882,6 @@ export async function planForkMappedKbDocumentCopies(params: {
     const expectedTarget = {
       childDocumentId: childDocId,
       childKnowledgeBaseId: targetKbId,
-      canonicalStorageKey: deriveKbDocumentStorageKey(childDocId),
     }
     const existingTargetState = existingTarget
       ? validateTargetDocumentState(existingTarget, expectedTarget)
@@ -1092,7 +1119,6 @@ export async function copyForkResourceContent(params: {
           documentCopies.map(({ childDocumentId }) => ({
             childDocumentId,
             childKnowledgeBaseId: kb.childId,
-            canonicalStorageKey: deriveKbDocumentStorageKey(childDocumentId),
           }))
         )
         const documentsToCopy = documentCopies.filter(
@@ -1195,7 +1221,6 @@ export async function copyForkResourceContent(params: {
       const active = await isActiveTargetDocument({
         childDocumentId: docEntry.childDocId,
         childKnowledgeBaseId: docEntry.childKnowledgeBaseId,
-        canonicalStorageKey: deriveKbDocumentStorageKey(docEntry.childDocId),
       })
       if (active) {
         copiedResources += 1
@@ -1373,7 +1398,7 @@ async function finalizeKbDocument(params: {
   fileOwnership?: KnowledgeBaseFileOwnership
   secretProvenance?: DurableSecretProvenance
   provenanceSource?: KnowledgeDocumentSourceValue
-}): Promise<void> {
+}): Promise<string | null> {
   const {
     childDocumentId,
     childKnowledgeBaseId,
@@ -1384,7 +1409,7 @@ async function finalizeKbDocument(params: {
     secretProvenance,
     provenanceSource,
   } = params
-  await db.transaction(async (tx) => {
+  return db.transaction(async (tx) => {
     const [lockedKnowledgeBase] = await tx
       .select({ workspaceId: knowledgeBase.workspaceId })
       .from(knowledgeBase)
@@ -1423,6 +1448,10 @@ async function finalizeKbDocument(params: {
           id: document.id,
           knowledgeBaseId: document.knowledgeBaseId,
           storageKey: document.storageKey,
+          filename: document.filename,
+          mimeType: document.mimeType,
+          fileSize: document.fileSize,
+          uploadedBy: document.uploadedBy,
         })
         .from(document)
         .where(
@@ -1434,16 +1463,27 @@ async function finalizeKbDocument(params: {
         )
         .limit(1)
       if (!active) throw new Error(`Copied document placeholder ${childDocumentId} is missing`)
-      if (
-        active.knowledgeBaseId !== childKnowledgeBaseId ||
-        (fileOwnership && active.storageKey !== fileOwnership.key)
-      ) {
+      if (active.knowledgeBaseId !== childKnowledgeBaseId) {
         throw new Error(`Copied document ${childDocumentId} has conflicting active storage`)
       }
       if (fileOwnership) {
-        await recordKnowledgeBaseFileOwnership(fileOwnership, tx)
+        const activeStorageKey = active.storageKey
+        if (!activeStorageKey || !isKbDocumentStorageKey(activeStorageKey, childDocumentId)) {
+          throw new Error(`Copied document ${childDocumentId} has conflicting active storage`)
+        }
+        await recordKnowledgeBaseFileOwnership(
+          {
+            key: activeStorageKey,
+            userId: active.uploadedBy ?? fileOwnership.userId,
+            workspaceId: fileOwnership.workspaceId,
+            originalName: active.filename,
+            contentType: active.mimeType,
+            size: active.fileSize,
+          },
+          tx
+        )
       }
-      return
+      return active.storageKey
     }
 
     if (fileOwnership) {
@@ -1460,6 +1500,7 @@ async function finalizeKbDocument(params: {
     }
 
     await incrementStorageUsageForBillingContextInTx(tx, billingContext, bytes)
+    return fileOwnership?.key ?? null
   })
 }
 
@@ -1508,7 +1549,7 @@ async function copyKbDocument(params: {
     secretProvenanceVersion: sourceSecretContext.tracked ? 1 : null,
   }
   const copiedSource = createKnowledgeDocumentSourceValue(copiedValues)
-  await finalizeKbDocument({
+  const finalizedStorageKey = await finalizeKbDocument({
     childDocumentId,
     childKnowledgeBaseId,
     billingContext,
@@ -1537,6 +1578,17 @@ async function copyKbDocument(params: {
         }
       : {}),
   })
+  if (blob && finalizedStorageKey !== blob.storageKey) {
+    try {
+      await deleteFile({ key: blob.storageKey, context: 'knowledge-base' })
+    } catch (error) {
+      logger.warn(`Failed to remove an unreferenced losing fork document blob`, {
+        childDocumentId,
+        storageKey: blob.storageKey,
+        error: getErrorMessage(error),
+      })
+    }
+  }
 }
 
 /**
@@ -1595,7 +1647,10 @@ async function rollbackCopiedKbDocuments(
                   isNull(document.deletedAt),
                   isNull(document.archivedAt),
                   eq(document.storageKey, workspaceFiles.key),
-                  eq(workspaceFiles.key, sql<string>`'kb/fork-' || ${document.id}`)
+                  or(
+                    eq(workspaceFiles.key, sql<string>`'kb/fork-' || ${document.id}`),
+                    sql`${workspaceFiles.key} ~ ('^kb/fork-' || ${document.id} || '-[0-9a-f]{64}$')`
+                  )
                 )
               )
           )
@@ -1739,8 +1794,9 @@ async function copyDocumentEmbeddings(
  * download-denied (no binding = deny). Returns the new `storageKey` + serve `fileUrl`, or null
  * when there is no internal blob to copy (external/`data:` docs have a null `storageKey`) or the
  * copy fails. A stored source blob is required to copy successfully; callers keep the target
- * placeholder archived and report the existing resource failure. Failed attempts retain the
- * deterministic object because another concurrent attempt may already own the same key.
+ * placeholder archived and report the existing resource failure. The content digest in the key
+ * makes reuse safe for identical retries and prevents a later source snapshot from adopting or
+ * overwriting bytes left by an earlier failed attempt.
  */
 async function copyKbDocumentBlob(
   doc: { storageKey: string | null; filename: string; mimeType: string },
@@ -1749,14 +1805,14 @@ async function copyKbDocumentBlob(
   childDocumentId: string
 ): Promise<{ storageKey: string; fileUrl: string } | null> {
   if (!doc.storageKey) return null
-  const targetKey = deriveKbDocumentStorageKey(childDocumentId)
+  const buffer = await downloadFile({
+    key: doc.storageKey,
+    context: 'knowledge-base',
+    maxBytes: MAX_FILE_SIZE,
+  })
+  const targetKey = deriveKbDocumentStorageKey(childDocumentId, sha256Hex(buffer))
   const existing = await headObject(targetKey, 'knowledge-base')
   if (!existing) {
-    const buffer = await downloadFile({
-      key: doc.storageKey,
-      context: 'knowledge-base',
-      maxBytes: MAX_FILE_SIZE,
-    })
     await uploadFile({
       file: buffer,
       fileName: doc.filename,
