@@ -15,7 +15,7 @@ import {
 } from '@/lib/execution/payloads/large-value-ref'
 import {
   assertUserFileContentAccess,
-  readUserFileContent,
+  readUserFileContentWithContributors,
 } from '@/lib/execution/payloads/materialization.server'
 import { materializeLargeValueRef } from '@/lib/execution/payloads/store'
 import {
@@ -24,6 +24,7 @@ import {
   getExecutionRedisBudgetLimits,
 } from '@/lib/execution/redis-budget.server'
 import { ExecutionResourceLimitError } from '@/lib/execution/resource-errors'
+import type { WorkspaceFileSecretProvenanceIdentity } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { isGeneratedDocumentSourceType } from '@/lib/uploads/utils/file-utils'
 import type { UserFile } from '@/executor/types'
 
@@ -168,6 +169,10 @@ export interface Base64HydrationOptions {
   timeoutMs?: number
   cacheTtlSeconds?: number
   preserveLargeValueMetadata?: boolean
+  onServableFileContributors?: (
+    file: UserFile,
+    contributors: readonly WorkspaceFileSecretProvenanceIdentity[]
+  ) => Promise<void>
 }
 
 class InMemoryBase64Cache implements Base64Cache {
@@ -398,7 +403,10 @@ async function resolveBase64(
   file: UserFile,
   options: Base64HydrationOptions,
   logger: Logger
-): Promise<string | null> {
+): Promise<{
+  base64: string | null
+  contributingFiles?: readonly WorkspaceFileSecretProvenanceIdentity[]
+}> {
   const maxBytes = options.maxBytes ?? DEFAULT_MAX_BASE64_BYTES
 
   if (file.base64) {
@@ -407,9 +415,9 @@ async function resolveBase64(
       logger.warn(
         `[${options.requestId}] Skipping existing base64 for ${file.name} (decoded ${base64Bytes} exceeds ${maxBytes})`
       )
-      return null
+      return { base64: null }
     }
-    return file.base64
+    return { base64: file.base64 }
   }
 
   const allowUnknownSize = options.allowUnknownSize ?? false
@@ -423,7 +431,7 @@ async function resolveBase64(
     logger.warn(
       `[${options.requestId}] Skipping base64 for ${file.name} (size ${file.size} exceeds ${maxBytes})`
     )
-    return null
+    return { base64: null }
   }
 
   if (
@@ -432,12 +440,12 @@ async function resolveBase64(
     !hasStableStorageKey
   ) {
     logger.warn(`[${options.requestId}] Skipping base64 for ${file.name} (unknown file size)`)
-    return null
+    return { base64: null }
   }
 
   const requestId = options.requestId ?? 'unknown'
   try {
-    return await readUserFileContent(file, {
+    const result = await readUserFileContentWithContributors(file, {
       requestId,
       workspaceId: options.workspaceId,
       workflowId: options.workflowId,
@@ -449,12 +457,16 @@ async function resolveBase64(
       encoding: 'base64',
       maxBytes,
     })
+    return {
+      base64: result.content,
+      ...(result.contributingFiles ? { contributingFiles: result.contributingFiles } : {}),
+    }
   } catch (error) {
     if (error instanceof Error && error.name === 'DocCompileUserError') {
       throw error
     }
     logger.warn(`[${requestId}] Failed to hydrate base64 for ${file.name}`, error)
-    return null
+    return { base64: null }
   }
 }
 
@@ -483,7 +495,9 @@ async function hydrateUserFile(
     }
   }
 
-  const cached = await state.cache.get(file)
+  const needsContributorVerification =
+    Boolean(options.onServableFileContributors) && isGeneratedDocumentSourceType(file.type)
+  const cached = needsContributorVerification ? null : await state.cache.get(file)
   if (cached) {
     const maxBytes = options.maxBytes ?? DEFAULT_MAX_BASE64_BYTES
     const cachedBytes = Buffer.byteLength(cached, 'base64')
@@ -496,9 +510,13 @@ async function hydrateUserFile(
     return { ...file, base64: cached }
   }
 
-  const base64 = await resolveBase64(file, options, logger)
+  const { base64, contributingFiles } = await resolveBase64(file, options, logger)
   if (!base64) {
     return stripBase64(file)
+  }
+
+  if (contributingFiles && contributingFiles.length > 0) {
+    await options.onServableFileContributors?.(file, contributingFiles)
   }
 
   await state.cache.set(file, base64, state.cacheTtlSeconds)

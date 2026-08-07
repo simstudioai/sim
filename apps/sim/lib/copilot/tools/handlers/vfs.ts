@@ -98,15 +98,31 @@ async function canReturnWorkspaceFileValue(
   file: WorkspaceFileSecretProvenanceIdentity | undefined,
   value: unknown,
   context: ExecutionContext,
-  view: 'complete' | 'derived'
+  view: 'complete' | 'derived',
+  contributingFiles: readonly WorkspaceFileSecretProvenanceIdentity[] = []
 ): Promise<boolean> {
-  if (!file || !context.workspaceId) return true
-  return importWorkspaceFileSecretProvenanceForModelView({
-    workspaceId: context.workspaceId,
-    identity: file,
-    registry: context.resolvedSecretTraceRegistry,
-    view: hasModelAttachment(value) ? 'opaque' : view,
-  })
+  if (!context.workspaceId) return true
+  const files = new Map<string, WorkspaceFileSecretProvenanceIdentity>()
+  for (const identity of file ? [file, ...contributingFiles] : contributingFiles) {
+    files.set(`${identity.context}:${identity.fileId}:${identity.key}`, identity)
+  }
+  if (files.size === 0) return true
+
+  const provenanceView = hasModelAttachment(value) ? 'opaque' : view
+  for (const identity of files.values()) {
+    if (
+      !(await importWorkspaceFileSecretProvenanceForModelView({
+        workspaceId: context.workspaceId,
+        identity,
+        registry: context.resolvedSecretTraceRegistry,
+        view: provenanceView,
+        value,
+      }))
+    ) {
+      return false
+    }
+  }
+  return true
 }
 
 export async function executeVfsGrep(
@@ -350,7 +366,8 @@ export async function executeVfsRead(
             uploadEnvelope?.file,
             windowedUpload,
             context,
-            provenanceView
+            provenanceView,
+            uploadEnvelope?.contributingFiles
           ))
         ) {
           return {
@@ -414,7 +431,8 @@ export async function executeVfsRead(
           fileEnvelope?.file,
           windowedFileContent,
           context,
-          provenanceView
+          provenanceView,
+          fileEnvelope?.contributingFiles
         ))
       ) {
         return {

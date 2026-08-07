@@ -275,12 +275,7 @@ describe('mothership private trace provenance transport', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(mockBuildTaggedMcpToolSchemas).toHaveBeenCalledWith(
-      'user-1',
-      'workspace-1',
-      ['123'],
-      expect.any(Function)
-    )
+    expect(mockBuildTaggedMcpToolSchemas).toHaveBeenCalledWith('user-1', 'workspace-1', ['123'])
     expect(mockProcessContextsServer).toHaveBeenCalledWith(
       [
         {
@@ -415,7 +410,7 @@ describe('mothership private trace provenance transport', () => {
     })
   })
 
-  it('returns encrypted provenance on a marker-gated successful request', async () => {
+  it('returns exact-empty output provenance on a marker-gated successful request', async () => {
     mockRunHeadlessCopilotLifecycle.mockImplementation(
       async (_payload: Record<string, unknown>, options: CopilotLifecycleOptions) => {
         expect(options.environmentContext).not.toHaveProperty('decryptedEnvVars')
@@ -447,48 +442,31 @@ describe('mothership private trace provenance transport', () => {
     expect(body.__resolvedSecretTraceProvenance).toEqual({
       version: 1,
       complete: true,
-      entries: [{ name: 'API_KEY', encryptedValue: 'encrypted-secret' }],
+      entries: [],
       scope: { userId: 'user-1', workspaceId: 'workspace-1' },
     })
     expect(JSON.stringify(body.__resolvedSecretTraceProvenance)).not.toContain('secret-value')
     expect(mockGetPersonalAndWorkspaceEnv).toHaveBeenCalledTimes(1)
   })
 
-  it('imports only MCP provenance present in the discovered schemas', async () => {
-    const provenance = {
-      version: 1,
-      complete: true,
-      entries: [
-        { name: 'API_KEY', encryptedValue: 'encrypted-secret' },
-        { name: 'UNRELATED', encryptedValue: 'encrypted-unrelated' },
-      ],
-      scope: { userId: 'user-1', workspaceId: 'workspace-1' },
-    }
-    mockDecryptSecret.mockImplementation(async (encryptedValue: string) => ({
-      decrypted: encryptedValue === 'encrypted-secret' ? 'secret-value' : 'unrelated-value',
-    }))
-    mockBuildTaggedMcpToolSchemas.mockImplementationOnce(
-      async (
-        _userId: string,
-        _workspaceId: string,
-        _serverIds: string[],
-        report: (value: unknown) => void
-      ) => {
-        report(provenance)
-        return [{ name: 'mcp-docs', description: 'Uses secret-value' }]
-      }
-    )
+  it('keeps discovered MCP schemas raw without activating matching configured secrets', async () => {
+    mockBuildTaggedMcpToolSchemas.mockResolvedValueOnce([
+      { name: 'mcp-docs', description: 'Uses secret-value' },
+    ])
     mockRunHeadlessCopilotLifecycle.mockImplementation(
       async (payload: Record<string, unknown>, options: CopilotLifecycleOptions) => {
         const registry =
           options.environmentContext?.resolvedSecretTraceRegistry ??
           options.resolvedSecretTraceRegistry
         expect(registry?.exportProvenance()).toEqual({
-          ...provenance,
-          entries: [{ name: 'API_KEY', encryptedValue: 'encrypted-secret' }],
+          version: 1,
+          complete: true,
+          entries: [],
+          scope: { userId: 'user-1', workspaceId: 'workspace-1' },
         })
-        expect(JSON.stringify(payload)).not.toContain('encrypted-secret')
-        expect(JSON.stringify(payload)).not.toContain('__resolvedSecretTraceProvenance')
+        expect(payload.mothershipTools).toEqual([
+          { name: 'mcp-docs', description: 'Uses secret-value' },
+        ])
         return successResult()
       }
     )
@@ -514,62 +492,15 @@ describe('mothership private trace provenance transport', () => {
     expect({ status: response.status, provenance: body.__resolvedSecretTraceProvenance }).toEqual({
       status: 200,
       provenance: {
-        ...provenance,
-        entries: [{ name: 'API_KEY', encryptedValue: 'encrypted-secret' }],
+        version: 1,
+        complete: true,
+        entries: [],
+        scope: { userId: 'user-1', workspaceId: 'workspace-1' },
       },
     })
   })
 
-  it('omits MCP tools with malformed discovery provenance without poisoning the lifecycle', async () => {
-    mockBuildTaggedMcpToolSchemas.mockImplementationOnce(
-      async (
-        _userId: string,
-        _workspaceId: string,
-        _serverIds: string[],
-        report: (value: unknown) => void
-      ) => {
-        report({ version: 1, complete: true, entries: 'invalid' })
-        return []
-      }
-    )
-    mockRunHeadlessCopilotLifecycle.mockImplementation(
-      async (payload: Record<string, unknown>, options: CopilotLifecycleOptions) => {
-        const registry =
-          options.environmentContext?.resolvedSecretTraceRegistry ??
-          options.resolvedSecretTraceRegistry
-        expect(registry?.isComplete()).toBe(true)
-        expect(payload).not.toHaveProperty('mothershipTools')
-        return successResult()
-      }
-    )
-
-    const response = await POST(
-      createMockRequest(
-        'POST',
-        {
-          ...requestBody,
-          contexts: [{ kind: 'mcp', label: 'Docs', serverId: 'server-1' }],
-        },
-        {
-          Authorization: 'Bearer internal',
-          'x-sim-billing-attribution': 'billing',
-          'x-sim-request-private-tool-metadata': 'resolved-secret-provenance-v1',
-        },
-        'http://localhost:3000/api/mothership/execute'
-      )
-    )
-    const body = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(body.__resolvedSecretTraceProvenance).toEqual({
-      version: 1,
-      complete: true,
-      entries: [],
-      scope: { userId: 'user-1', workspaceId: 'workspace-1' },
-    })
-  })
-
-  it('returns encrypted provenance with marker-gated failures', async () => {
+  it('returns exact-empty provenance for an already projected marker-gated failure', async () => {
     mockRunHeadlessCopilotLifecycle.mockImplementation(
       async (_payload: Record<string, unknown>, options: CopilotLifecycleOptions) => {
         activateSecret(options)
@@ -601,12 +532,10 @@ describe('mothership private trace provenance transport', () => {
       'resolved-secret-provenance-v1'
     )
     expect(body.content).toBe('secret-value')
-    expect(body.__resolvedSecretTraceProvenance.entries).toEqual([
-      { name: 'API_KEY', encryptedValue: 'encrypted-secret' },
-    ])
+    expect(body.__resolvedSecretTraceProvenance.entries).toEqual([])
   })
 
-  it('places encrypted provenance only on the terminal streamed event', async () => {
+  it('places exact-empty provenance only on the terminal streamed event', async () => {
     mockRunHeadlessCopilotLifecycle.mockImplementation(
       async (_payload: Record<string, unknown>, options: CopilotLifecycleOptions) => {
         activateSecret(options)
@@ -642,7 +571,7 @@ describe('mothership private trace provenance transport', () => {
       data: {
         content: 'secret-value',
         __resolvedSecretTraceProvenance: {
-          entries: [{ name: 'API_KEY', encryptedValue: 'encrypted-secret' }],
+          entries: [],
         },
       },
     })

@@ -1,25 +1,14 @@
-import type { ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import {
   isOpaqueWorkspaceFileEgressSafe,
   MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
-import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 
 export class ServerToolModelInputError extends Error {
   constructor(message: string) {
     super(message)
     this.name = 'ServerToolModelInputError'
   }
-}
-
-/** Projects rewritable server-tool input immediately before it crosses a model boundary. */
-export function projectServerToolModelInput<T>(value: T, context?: ServerToolContext): T {
-  const projection = projectResolvedSecretModelContent(value, context?.resolvedSecretTraceRegistry)
-  if (!projection.safe) {
-    throw new ServerToolModelInputError('Model input could not be projected safely')
-  }
-  return projection.value as T
 }
 
 /**

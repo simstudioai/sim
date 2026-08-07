@@ -178,6 +178,234 @@ describe('ResolvedSecretTraceRegistry', () => {
     }
   })
 
+  it('projects only resolver-recorded leaves and never rewrites sibling bytes or object keys', () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: 'x', encryptedValue: 'encrypted-token' },
+    ])
+    registry.recordResolvedAtInputPath('TOKEN', 'x', ['prompt'])
+    registry.recordResolvedInputProjection(['prompt'], 'Box x', 'Box {{TOKEN}}')
+    const unrelatedNonCloneableInput = () => 'unchanged'
+
+    expect(
+      registry.projectResolvedInputSelection({
+        prompt: 'Box x',
+        auxiliary: 'xylophone',
+        Box: 'unchanged',
+        unrelatedNonCloneableInput,
+      })
+    ).toEqual({
+      complete: true,
+      value: {
+        prompt: 'Box {{TOKEN}}',
+        auxiliary: 'xylophone',
+        Box: 'unchanged',
+        unrelatedNonCloneableInput,
+      },
+    })
+  })
+
+  it('keeps equal secret values causally bound to their own resolver paths', () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'FIRST', plaintext: 'true', encryptedValue: 'encrypted-first' },
+      { name: 'SECOND', plaintext: 'true', encryptedValue: 'encrypted-second' },
+    ])
+    registry.recordResolvedAtInputPath('FIRST', 'true', ['first'])
+    registry.recordResolvedInputProjection(['first'], 'true', '{{FIRST}}')
+    registry.recordResolvedAtInputPath('SECOND', 'true', ['second'])
+    registry.recordResolvedInputProjection(['second'], 'true', '{{SECOND}}')
+
+    expect(registry.projectResolvedInputSelection({ first: 'true', second: 'true' })).toEqual({
+      complete: true,
+      value: { first: '{{FIRST}}', second: '{{SECOND}}' },
+    })
+    expect(registry.exportCommittedProvenanceForInputPaths([['first']])).toMatchObject({
+      complete: true,
+      entries: [{ name: 'FIRST', encryptedValue: 'encrypted-first' }],
+    })
+  })
+
+  it('isolates incomplete provenance to its known input path', async () => {
+    const registry = new ResolvedSecretTraceRegistry()
+
+    expect(
+      await registry.importProvenanceForValueAtInputPath(
+        { version: 1 },
+        'unknown-value',
+        ['tools', '0', 'params', 'apiKey'],
+        { trusted: true }
+      )
+    ).toEqual({ success: false, matched: false })
+
+    expect(registry.isComplete()).toBe(false)
+    expect(registry.projectResolvedInputSelection({ userPrompt: 'Public prompt' })).toEqual({
+      complete: true,
+      value: { userPrompt: 'Public prompt' },
+    })
+    expect(registry.exportCommittedProvenanceForInputPaths([['userPrompt']])).toEqual({
+      version: 1,
+      complete: true,
+      entries: [],
+    })
+    expect(registry.forkForInputPaths([['userPrompt']]).isComplete()).toBe(true)
+  })
+
+  it('propagates authenticated incomplete provenance without classifying it as malformed', async () => {
+    const scope = { userId: 'user-1', workspaceId: 'workspace-1' }
+    const registry = new ResolvedSecretTraceRegistry([], scope)
+
+    expect(
+      await registry.importProvenanceForValueAtInputPath(
+        { version: 1, complete: false, entries: [], scope },
+        'untrusted value',
+        ['toolResult'],
+        { trusted: true }
+      )
+    ).toEqual({ success: true, matched: false })
+    expect(registry.forkForInputPaths([['publicPrompt']]).isComplete()).toBe(true)
+    expect(registry.forkForInputPaths([['toolResult']]).isComplete()).toBe(false)
+  })
+
+  it('localizes a failed exact resolution when the resolver supplies its input path', () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: 'expected', encryptedValue: 'encrypted-token' },
+    ])
+
+    expect(
+      registry.recordResolvedAtInputPath('TOKEN', 'unexpected', ['tools', '0', 'params', 'apiKey'])
+    ).toBe(false)
+
+    expect(registry.projectResolvedInputSelection({ userPrompt: 'Public prompt' })).toEqual({
+      complete: true,
+      value: { userPrompt: 'Public prompt' },
+    })
+    expect(registry.forkForInputPaths([['userPrompt']]).isComplete()).toBe(true)
+    expect(registry.forkForInputPaths([['tools', '0', 'params']]).isComplete()).toBe(false)
+    expect(registry.getModelEgressSnapshot()).toEqual({ complete: false })
+  })
+
+  it('fails closed for a selected unknown path and arbitrary output projection', async () => {
+    const scope = { userId: 'user-1', workspaceId: 'workspace-1' }
+    const registry = new ResolvedSecretTraceRegistry([], scope)
+    await registry.importProvenanceForValueAtInputPath(
+      { version: 1 },
+      'unknown-value',
+      ['tools', '0', 'params', 'apiKey'],
+      { trusted: true }
+    )
+
+    expect(
+      registry.projectResolvedInputSelection({ tools: [{ params: { apiKey: 'value' } }] })
+    ).toEqual({ complete: false })
+    expect(registry.exportCommittedProvenanceForInputPaths([['tools', '0', 'params']])).toEqual({
+      version: 1,
+      complete: false,
+      entries: [],
+      scope,
+    })
+    expect(registry.forkForInputPaths([['tools', '0', 'params']]).isComplete()).toBe(false)
+    expect(registry.getModelEgressSnapshot()).toEqual({ complete: false })
+    expect(registry.exportProvenanceForValue('arbitrary output')).toEqual({
+      version: 1,
+      complete: false,
+      entries: [],
+      scope,
+    })
+  })
+
+  it('propagates only selected input-path entries when explicitly requested', () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'SELECTED', plaintext: 'selected', encryptedValue: 'encrypted-selected' },
+      { name: 'UNSELECTED', plaintext: 'unselected', encryptedValue: 'encrypted-unselected' },
+    ])
+    registry.recordResolvedAtInputPath('SELECTED', 'selected', ['selected'])
+    registry.recordResolvedAtInputPath('UNSELECTED', 'unselected', ['unselected'])
+
+    const ordinaryFork = registry.forkForInputPaths([['selected']])
+    expect(ordinaryFork.forkForPropagatedEntries().exportProvenance().entries).toEqual([])
+
+    const propagatedFork = registry.forkForInputPaths([['selected']], { propagated: true })
+    expect(propagatedFork.forkForPropagatedEntries().exportProvenance().entries).toEqual([
+      { name: 'SELECTED', encryptedValue: 'encrypted-selected' },
+    ])
+    expect(propagatedFork.exportProvenance().entries).not.toContainEqual({
+      name: 'UNSELECTED',
+      encryptedValue: 'encrypted-unselected',
+    })
+  })
+
+  it('preserves exact paths through renamed and parsed parameter transforms', () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'FIRST', plaintext: 'true', encryptedValue: 'encrypted-first' },
+      { name: 'SECOND', plaintext: 'true', encryptedValue: 'encrypted-second' },
+      { name: 'UNUSED', plaintext: 'true', encryptedValue: 'encrypted-unused' },
+    ])
+    registry.recordResolvedAtInputPath('FIRST', 'true', ['rowTemplate'])
+    registry.recordResolvedAtInputPath('SECOND', 'true', ['rowTemplate'])
+    registry.recordResolvedInputProjection(
+      ['rowTemplate'],
+      '{"first":true,"second":true,"public":true}',
+      '{"first":{{FIRST}},"second":{{SECOND}},"public":true}'
+    )
+
+    registry.recordTransformedInputProjection(
+      { data: { first: true, second: true, public: true } },
+      { data: { first: '{{FIRST}}', second: '{{SECOND}}', public: true } }
+    )
+
+    expect(
+      registry.projectResolvedInputSelection({
+        data: { first: true, second: true, public: true },
+      })
+    ).toEqual({
+      complete: true,
+      value: {
+        data: { first: '{{FIRST}}', second: '{{SECOND}}', public: true },
+      },
+    })
+    expect(registry.exportCommittedProvenanceForInputPaths([['data', 'first']])).toMatchObject({
+      complete: true,
+      entries: [{ name: 'FIRST', encryptedValue: 'encrypted-first' }],
+    })
+    expect(registry.exportCommittedProvenanceForInputPaths([['data', 'second']])).toMatchObject({
+      complete: true,
+      entries: [{ name: 'SECOND', encryptedValue: 'encrypted-second' }],
+    })
+    expect(registry.exportCommittedProvenanceForInputPaths([['data', 'public']])).toMatchObject({
+      complete: true,
+      entries: [],
+    })
+  })
+
+  it('fails closed when independent secret paths collapse into one transformed string', () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'FIRST', plaintext: 'first', encryptedValue: 'encrypted-first' },
+      { name: 'SECOND', plaintext: 'second', encryptedValue: 'encrypted-second' },
+    ])
+    registry.recordResolvedAtInputPath('FIRST', 'first', ['first'])
+    registry.recordResolvedInputProjection(['first'], 'first', '{{FIRST}}')
+    registry.recordResolvedAtInputPath('SECOND', 'second', ['second'])
+    registry.recordResolvedInputProjection(['second'], 'second', '{{SECOND}}')
+
+    registry.recordTransformedInputProjection(
+      { combined: 'first:second' },
+      { combined: '{{FIRST}}:second' }
+    )
+    registry.recordTransformedInputProjection(
+      { combined: 'first:second' },
+      { combined: 'first:{{SECOND}}' }
+    )
+
+    expect(registry.isComplete()).toBe(false)
+    expect(registry.projectResolvedInputSelection({ unrelated: 'public' })).toEqual({
+      complete: true,
+      value: { unrelated: 'public' },
+    })
+    expect(registry.projectResolvedInputSelection({ combined: 'first:second' })).toEqual({
+      complete: false,
+    })
+    expect(registry.getModelEgressSnapshot()).toEqual({ complete: false })
+  })
+
   it('does not invalidate the model matcher for duplicate activations', () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'API_KEY', plaintext: 'secret-value', encryptedValue: 'encrypted-value' },
@@ -326,45 +554,6 @@ describe('ResolvedSecretTraceRegistry', () => {
       complete: true,
       entries: [{ name: 'API_KEY', encryptedValue: 'encrypted-value' }],
     })
-  })
-
-  it('seeds a tool child only with active provenance present in that tool input', () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'INPUT', plaintext: 'input-secret', encryptedValue: 'input-ciphertext' },
-      { name: 'UNRELATED', plaintext: 'Test', encryptedValue: 'unrelated-ciphertext' },
-    ])
-    registry.recordResolved('INPUT', 'input-secret')
-    registry.recordResolved('UNRELATED', 'Test')
-
-    const child = registry.forkForToolInput({ authorization: 'Bearer input-secret' })
-
-    expect(child.getActiveMatches()).toEqual([
-      { plaintext: 'input-secret', replacement: '{{INPUT}}' },
-    ])
-    expect(child.recordResolved('UNRELATED', 'Test')).toBe(true)
-  })
-
-  it('forks independent roots without treating static param names or array indexes as data', () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'PROMPT', plaintext: 'prompt', encryptedValue: 'prompt-ciphertext' },
-      { name: 'ZERO', plaintext: '0', encryptedValue: 'zero-ciphertext' },
-      { name: 'VALUE', plaintext: 'input-secret', encryptedValue: 'value-ciphertext' },
-    ])
-    registry.recordResolved('PROMPT', 'prompt')
-    registry.recordResolved('ZERO', '0')
-    registry.recordResolved('VALUE', 'input-secret')
-
-    const child = registry.forkForToolInputValues(['safe', { nested: 'input-secret' }])
-
-    expect(child.getActiveMatches()).toEqual([
-      { plaintext: 'input-secret', replacement: '{{VALUE}}' },
-    ])
-    expect(registry.forkForToolInputValues([{ prompt: 'safe' }]).getActiveMatches()).toEqual([
-      { plaintext: 'prompt', replacement: '{{PROMPT}}' },
-    ])
-    expect(registry.forkForToolInputValues([0]).getActiveMatches()).toEqual([
-      { plaintext: '0', replacement: '{{ZERO}}' },
-    ])
   })
 
   it('uses the workspace catalog entry when personal and workspace names conflict', async () => {
@@ -932,11 +1121,13 @@ describe('ResolvedSecretTraceRegistry', () => {
     registry.recordResolved('A_TOKEN', 'same')
     registry.recordResolved('EMPTY', '')
 
-    expect(registry.getActiveMatches()).toEqual([{ plaintext: 'same', replacement: '{{A_TOKEN}}' }])
+    expect(registry.getActiveMatches()).toEqual([
+      { plaintext: 'same', replacement: ANONYMOUS_SECRET_TRACE_REPLACEMENT },
+    ])
 
     registry.recordResolved('A', 'A')
     expect(registry.getActiveMatches()).toEqual([
-      { plaintext: 'same', replacement: '{{A_TOKEN}}' },
+      { plaintext: 'same', replacement: ANONYMOUS_SECRET_TRACE_REPLACEMENT },
       { plaintext: 'A', replacement: '{{A}}' },
     ])
   })
@@ -955,6 +1146,22 @@ describe('ResolvedSecretTraceRegistry', () => {
 
     expect(registry.isComplete()).toBe(false)
     expect(registry.exportProvenance().entries).toEqual([])
+  })
+
+  it('does not poison unrelated inputs when dormant catalog entries exceed the hard cap', () => {
+    const entries = Array.from({ length: 10_001 }, (_, index) => ({
+      name: `SECRET_${index}`,
+      plaintext: `value-${index}`,
+      encryptedValue: `ciphertext-${index}`,
+    }))
+    const registry = new ResolvedSecretTraceRegistry(entries)
+
+    expect(registry.isComplete()).toBe(true)
+    expect(registry.recordResolvedAtInputPath('SECRET_10000', 'value-10000', ['userPrompt'])).toBe(
+      false
+    )
+    expect(registry.forkForInputPaths([['systemPrompt']]).isComplete()).toBe(true)
+    expect(registry.forkForInputPaths([['userPrompt']]).isComplete()).toBe(false)
   })
 
   it('bounds provenance by serialized JSON bytes including control-character escapes', () => {
@@ -1024,7 +1231,7 @@ describe('ResolvedSecretTraceRegistry', () => {
     )
   })
 
-  it('stops consuming a dormant catalog when its entry cap is exceeded', () => {
+  it('does not let a large dormant catalog poison unrelated execution provenance', () => {
     let yieldedEntries = 0
     function* catalogEntries() {
       for (let index = 0; index < 20_000; index++) {
@@ -1040,11 +1247,11 @@ describe('ResolvedSecretTraceRegistry', () => {
     const registry = new ResolvedSecretTraceRegistry(catalogEntries())
 
     expect(yieldedEntries).toBe(10_001)
-    expect(registry.isComplete()).toBe(false)
+    expect(registry.isComplete()).toBe(true)
     expect(registry.exportProvenance().entries).toEqual([])
   })
 
-  it('marks an oversized dormant catalog value incomplete without retaining it', () => {
+  it('keeps an oversized dormant value inert until that exact secret is resolved', () => {
     const oversizedPlaintext = 'x'.repeat(8 * 1024 * 1024)
     const registry = new ResolvedSecretTraceRegistry([
       {
@@ -1052,10 +1259,23 @@ describe('ResolvedSecretTraceRegistry', () => {
         plaintext: oversizedPlaintext,
         encryptedValue: 'ciphertext',
       },
+      {
+        name: 'NORMAL',
+        plaintext: 'normal-secret',
+        encryptedValue: 'normal-ciphertext',
+      },
     ])
 
-    expect(registry.isComplete()).toBe(false)
-    expect(registry.recordResolved('OVERSIZED', oversizedPlaintext)).toBe(false)
-    expect(registry.getActiveMatches()).toEqual([])
+    expect(registry.isComplete()).toBe(true)
+    expect(registry.getModelEgressSnapshot()).toEqual({ complete: true, matches: [] })
+    expect(registry.recordResolvedAtInputPath('NORMAL', 'normal-secret', ['systemPrompt'])).toBe(
+      true
+    )
+    expect(
+      registry.recordResolvedAtInputPath('OVERSIZED', oversizedPlaintext, ['userPrompt'])
+    ).toBe(false)
+    expect(registry.forkForInputPaths([['systemPrompt']]).isComplete()).toBe(true)
+    expect(registry.forkForInputPaths([['userPrompt']]).isComplete()).toBe(false)
+    expect(registry.getModelEgressSnapshot()).toEqual({ complete: false })
   })
 })

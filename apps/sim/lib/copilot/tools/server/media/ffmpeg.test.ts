@@ -259,4 +259,41 @@ describe('ffmpeg server tool secret provenance', () => {
     })
     expect(runFfmpegOperationMock).not.toHaveBeenCalled()
   })
+
+  it('projects dynamic parser errors before returning them', async () => {
+    const secret = 'decoder-secret'
+    const errorRegistry = new ResolvedSecretTraceRegistry([
+      { name: 'DECODER_SECRET', plaintext: secret, encryptedValue: 'encrypted-decoder-secret' },
+    ])
+    errorRegistry.recordResolved('DECODER_SECRET', secret)
+    runFfmpegOperationMock.mockRejectedValue(new Error(`decoder failed near ${secret}`))
+
+    const result = await ffmpegServerTool.execute(
+      { operation: 'convert', inputs: { files: [{ path: 'files/input.mp4' }] } },
+      { ...context, resolvedSecretTraceRegistry: errorRegistry }
+    )
+
+    expect(result).toEqual({
+      success: false,
+      message: 'ffmpeg convert failed: decoder failed near {{DECODER_SECRET}}',
+    })
+  })
+
+  it('uses the fixed safe message directly when no dynamic error text exists', async () => {
+    const errorRegistry = new ResolvedSecretTraceRegistry([
+      { name: 'T_SECRET', plaintext: 'T', encryptedValue: 'encrypted-t' },
+    ])
+    errorRegistry.recordResolved('T_SECRET', 'T')
+    runFfmpegOperationMock.mockRejectedValue(new Error(''))
+
+    const result = await ffmpegServerTool.execute(
+      { operation: 'convert', inputs: { files: [{ path: 'files/input.mp4' }] } },
+      { ...context, resolvedSecretTraceRegistry: errorRegistry }
+    )
+
+    expect(result).toEqual({
+      success: false,
+      message: 'ffmpeg convert failed: The media operation failed safely',
+    })
+  })
 })

@@ -1,4 +1,5 @@
-import { selectModelBoundFileInput } from '@/lib/uploads/utils/model-input'
+import { selectModelBoundFileInputPaths } from '@/lib/uploads/utils/model-input'
+import type { ResolvedSecretInputPath } from '@/executor/utils/resolved-secret-trace-registry'
 
 interface SttAudioModelInputParams {
   audioFile?: unknown
@@ -6,21 +7,25 @@ interface SttAudioModelInputParams {
   audioUrl?: unknown
 }
 
-/** Selects the single audio source consumed by the shared STT route. */
-export function selectSttAudioModelInput(
+/** Selects exact resolver paths for the single audio source consumed by the shared STT route. */
+export function selectSttAudioModelInputPaths(
   params: SttAudioModelInputParams,
   options: { includeName?: boolean } = {}
-): unknown {
+): readonly ResolvedSecretInputPath[] {
   const fileOptions = { includeName: options.includeName ?? false } as const
 
   if (params.audioFile) {
-    return selectModelBoundFileInput(params.audioFile, fileOptions)
+    return selectModelBoundFileInputPaths(params.audioFile, ['audioFile'], fileOptions)
   }
   if (params.audioFileReference) {
-    return selectModelBoundFileInput(params.audioFileReference, fileOptions)
+    return selectModelBoundFileInputPaths(
+      params.audioFileReference,
+      ['audioFileReference'],
+      fileOptions
+    )
   }
   if (typeof params.audioUrl === 'string' && params.audioUrl.trim() !== '') {
-    return params.audioUrl.trim()
+    return [['audioUrl']]
   }
-  return undefined
+  return []
 }

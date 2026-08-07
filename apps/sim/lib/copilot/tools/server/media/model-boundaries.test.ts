@@ -110,7 +110,7 @@ describe('Mothership media model boundaries', () => {
     })
   })
 
-  it('projects image prompts immediately before the Gemini call', async () => {
+  it('preserves image prompts that merely collide with ambient secret plaintext', async () => {
     const context = contextWithSecrets([{ name: 'PROMPT', plaintext: 'private prompt' }])
 
     await generateImageServerTool.execute({ prompt: 'private prompt' }, context)
@@ -119,15 +119,16 @@ describe('Mothership media model boundaries', () => {
       expect.objectContaining({
         contents: [
           expect.objectContaining({
-            parts: [expect.objectContaining({ text: expect.stringContaining('{{PROMPT}}') })],
+            parts: [expect.objectContaining({ text: expect.stringContaining('private prompt') })],
           }),
         ],
       })
     )
-    expect(JSON.stringify(mockGenerateContent.mock.calls[0]?.[0])).not.toContain('private prompt')
+    expect(JSON.stringify(mockGenerateContent.mock.calls[0]?.[0])).toContain('private prompt')
+    expect(JSON.stringify(mockGenerateContent.mock.calls[0]?.[0])).not.toContain('{{PROMPT}}')
   })
 
-  it('projects video prompt fields immediately before the Fal call', async () => {
+  it('preserves video prompt fields that merely collide with ambient secret plaintext', async () => {
     const context = contextWithSecrets([
       { name: 'PROMPT', plaintext: 'private prompt' },
       { name: 'NEGATIVE', plaintext: 'private negative prompt' },
@@ -139,11 +140,14 @@ describe('Mothership media model boundaries', () => {
     )
 
     expect(mockGenerateFalVideo).toHaveBeenCalledWith(
-      expect.objectContaining({ prompt: '{{PROMPT}}', negativePrompt: '{{NEGATIVE}}' })
+      expect.objectContaining({
+        prompt: 'private prompt',
+        negativePrompt: 'private negative prompt',
+      })
     )
   })
 
-  it('projects audio prompt fields immediately before the Fal call', async () => {
+  it('preserves audio prompt fields that merely collide with ambient secret plaintext', async () => {
     const context = contextWithSecrets([
       { name: 'PROMPT', plaintext: 'private prompt' },
       { name: 'LYRICS', plaintext: 'private lyrics' },
@@ -155,7 +159,7 @@ describe('Mothership media model boundaries', () => {
     )
 
     expect(mockGenerateFalAudio).toHaveBeenCalledWith(
-      expect.objectContaining({ prompt: '{{PROMPT}}', lyrics: '{{LYRICS}}' })
+      expect.objectContaining({ prompt: 'private prompt', lyrics: 'private lyrics' })
     )
   })
 

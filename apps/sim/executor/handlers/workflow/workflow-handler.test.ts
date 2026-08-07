@@ -1247,6 +1247,7 @@ describe('WorkflowBlockHandler', () => {
       mockExecutorExecute.mockImplementationOnce(async () => {
         childRegistry = executorOptions.at(-1)?.contextExtensions
           .resolvedSecretTraceRegistry as ResolvedSecretTraceRegistry
+        expect(childRegistry.recordResolved('SECRET', 'publisher-secret')).toBe(true)
         return {
           success: true,
           output: {},
@@ -1273,7 +1274,9 @@ describe('WorkflowBlockHandler', () => {
           replacement: ANONYMOUS_SECRET_TRACE_REPLACEMENT,
         },
       ])
-      expect(childRegistry?.getActiveMatches()).toEqual([])
+      expect(childRegistry?.getActiveMatches()).toEqual([
+        { plaintext: 'publisher-secret', replacement: '{{SECRET}}' },
+      ])
       expect(mockSetResolvedSecretTraceRegistry).toHaveBeenCalledTimes(1)
     })
 

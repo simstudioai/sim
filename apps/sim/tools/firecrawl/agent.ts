@@ -63,7 +63,7 @@ export const agentTool: ToolConfig<AgentParams, AgentResponse> = {
     },
     opaqueModelInput: {
       mode: 'reject-resolved-secrets',
-      select: (params) => params.urls,
+      inputPaths: () => [['urls']],
     },
     method: 'POST',
     url: 'https://api.firecrawl.dev/v2/agent',

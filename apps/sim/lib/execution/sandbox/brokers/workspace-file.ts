@@ -8,7 +8,6 @@ import {
   fetchWorkspaceFileBuffer,
   getWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { isOpaqueWorkspaceFileEgressSafe } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 
 const logger = createLogger('SandboxWorkspaceFileBroker')
 
@@ -45,15 +44,6 @@ export const workspaceFileBroker: SandboxBroker<WorkspaceFileArgs, WorkspaceFile
       throw new Error(`File not found: ${args.fileId}`)
     }
 
-    const safe = await isOpaqueWorkspaceFileEgressSafe(ctx.workspaceId, {
-      fileId: record.id,
-      key: record.key,
-      context: record.storageContext ?? 'workspace',
-    })
-    if (!safe) {
-      throw new Error('File cannot be embedded because its secret provenance is unavailable')
-    }
-
     const mime = record.type || 'image/png'
     const dataUriPrefix = `data:${mime};base64,`
     const envelopeChars = JSON.stringify({ dataUri: dataUriPrefix }).length
@@ -66,6 +56,12 @@ export const workspaceFileBroker: SandboxBroker<WorkspaceFileArgs, WorkspaceFile
     )
     const maxBytes = Math.floor(availableBase64Chars / 4) * 3
     const buffer = await fetchWorkspaceFileBuffer(record, { maxBytes })
+    ctx.onWorkspaceFileAccess?.({
+      fileId: record.id,
+      key: record.key,
+      context: record.storageContext ?? 'workspace',
+      contentUpdatedAt: record.contentUpdatedAt ?? record.updatedAt,
+    })
     return { dataUri: `${dataUriPrefix}${buffer.toString('base64')}` }
   },
 }

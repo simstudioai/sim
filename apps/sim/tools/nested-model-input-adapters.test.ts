@@ -25,7 +25,7 @@ describe('nested model-input adapters', () => {
       }
 
       expect(modelInput.select({ [key]: text })).toStrictEqual({ [key]: text })
-      expect(opaqueModelInput.select({ [key]: text })).toBeUndefined()
+      expect(opaqueModelInput.inputPaths({ [key]: text })).toEqual([])
     }
   )
 
@@ -92,12 +92,7 @@ describe('nested model-input adapters', () => {
         promptText: 'Inspect this image',
       })
 
-      expect(opaqueModelInput.select({ promptImages })).toStrictEqual([
-        {
-          data: 'quote" slash\\ newline\n123 true',
-          dimension: { width: 100, height: 200 },
-        },
-      ])
+      expect(opaqueModelInput.inputPaths({ promptImages })).toStrictEqual([['promptImages']])
 
       const body = tool.request.body?.({
         apiKey: 'key',
@@ -105,9 +100,12 @@ describe('nested model-input adapters', () => {
         promptText: 'Inspect this image',
         promptImages,
       })
-      expect((body as { prompt: { images: unknown } }).prompt.images).toStrictEqual(
-        opaqueModelInput.select({ promptImages })
-      )
+      expect((body as { prompt: { images: unknown } }).prompt.images).toStrictEqual([
+        {
+          data: 'quote" slash\\ newline\n123 true',
+          dimension: { width: 100, height: 200 },
+        },
+      ])
     }
   )
 
@@ -128,7 +126,7 @@ describe('nested model-input adapters', () => {
           promptImages: 'not-json',
         })
       ).toStrictEqual({ followupPromptText: 'Continue' })
-      expect(opaqueModelInput.select({ promptImages: 'not-json' })).toStrictEqual([])
+      expect(opaqueModelInput.inputPaths({ promptImages: 'not-json' })).toStrictEqual([])
 
       const body = tool.request.body?.({
         apiKey: 'key',

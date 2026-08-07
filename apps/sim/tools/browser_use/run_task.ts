@@ -417,7 +417,7 @@ export const runTaskTool: ToolConfig<BrowserUseRunTaskParams, BrowserUseRunTaskR
     },
     opaqueModelInput: {
       mode: 'reject-resolved-secrets',
-      select: (params) => params.startUrl,
+      inputPaths: () => [['startUrl']],
     },
   },
 

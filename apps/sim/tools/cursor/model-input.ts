@@ -24,6 +24,10 @@ export function selectCursorPromptModelInput(
 }
 
 /** Selects the effective image payload exactly as Cursor's request formatter will send it. */
-export function selectCursorPromptOpaqueModelInput(params: CursorPromptModelInputParams): unknown {
-  return parseCursorPromptImages(params.promptImages)
+export function selectCursorPromptOpaqueModelInputPaths(
+  params: CursorPromptModelInputParams
+): readonly (readonly string[])[] {
+  const parsed = parseCursorPromptImages(params.promptImages)
+  if (parsed === undefined || (Array.isArray(parsed) && parsed.length === 0)) return []
+  return [['promptImages']]
 }

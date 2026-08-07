@@ -336,6 +336,59 @@ describe('vfs handlers oversize policy', () => {
     expect(result.output).toEqual(imageResult)
   })
 
+  it('checks every compiled-document contributor at the opaque model boundary', async () => {
+    const vfs = makeVfs()
+    const contentUpdatedAt = new Date('2026-08-06T00:00:00.000Z')
+    vfs.readFileContentWithProvenance.mockResolvedValue({
+      value: {
+        content: 'Compiled file: report.pdf',
+        totalLines: 1,
+        attachment: {
+          type: 'file',
+          name: 'report.pdf',
+          source: { type: 'base64', media_type: 'application/pdf', data: 'AAAA' },
+        },
+      },
+      file: { fileId: 'source-1', key: 'workspace/source-1', context: 'workspace' },
+      contributingFiles: [
+        {
+          fileId: 'image-1',
+          key: 'workspace/image-1',
+          context: 'workspace',
+          contentUpdatedAt,
+        },
+      ],
+    })
+    getOrMaterializeVFS.mockResolvedValue(vfs)
+    importWorkspaceFileSecretProvenanceForModelView
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(false)
+
+    const result = await executeVfsRead({ path: 'files/report.pdf/compiled' }, GREP_CTX)
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('cannot be shared safely')
+    expect(importWorkspaceFileSecretProvenanceForModelView).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        identity: { fileId: 'source-1', key: 'workspace/source-1', context: 'workspace' },
+        view: 'opaque',
+      })
+    )
+    expect(importWorkspaceFileSecretProvenanceForModelView).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        identity: {
+          fileId: 'image-1',
+          key: 'workspace/image-1',
+          context: 'workspace',
+          contentUpdatedAt,
+        },
+        view: 'opaque',
+      })
+    )
+  })
+
   it('uses the source-declared view for an unwindowed read', async () => {
     const vfs = makeVfs()
     vfs.readFileContentWithProvenance.mockResolvedValue({

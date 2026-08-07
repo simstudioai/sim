@@ -13,11 +13,7 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () 
     'File cannot be sent to a model because its secret provenance is unavailable',
 }))
 
-import {
-  assertOpaqueWorkspaceFileModelSafe,
-  projectServerToolModelInput,
-} from '@/lib/copilot/tools/server/model-input'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import { assertOpaqueWorkspaceFileModelSafe } from '@/lib/copilot/tools/server/model-input'
 
 const file = {
   id: 'file-1',
@@ -37,37 +33,6 @@ describe('server tool model-input boundary', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockIsOpaqueWorkspaceFileEgressSafe.mockResolvedValue(true)
-  })
-
-  it('projects only active text secrets to their canonical aliases', () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'PROMPT', plaintext: 'private prompt', encryptedValue: 'encrypted-prompt' },
-      { name: 'LYRICS', plaintext: 'private lyrics', encryptedValue: 'encrypted-lyrics' },
-    ])
-    registry.recordResolved('PROMPT', 'private prompt')
-    registry.recordResolved('LYRICS', 'private lyrics')
-
-    expect(
-      projectServerToolModelInput(
-        { prompt: 'private prompt', lyrics: 'private lyrics', ordinary: 'keep me' },
-        { userId: 'user-1', resolvedSecretTraceRegistry: registry }
-      )
-    ).toEqual({ prompt: '{{PROMPT}}', lyrics: '{{LYRICS}}', ordinary: 'keep me' })
-  })
-
-  it('fails closed when the child registry is missing or incomplete', () => {
-    expect(() => projectServerToolModelInput({ prompt: 'hello' })).toThrow(
-      'could not be projected safely'
-    )
-
-    const registry = new ResolvedSecretTraceRegistry()
-    registry.markIncomplete()
-    expect(() =>
-      projectServerToolModelInput(
-        { prompt: 'hello' },
-        { userId: 'user-1', resolvedSecretTraceRegistry: registry }
-      )
-    ).toThrow('could not be projected safely')
   })
 
   it('binds opaque checks to the exact workspace file before allowing model egress', async () => {

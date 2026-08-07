@@ -130,7 +130,10 @@ import {
   listWorkspaceFiles,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import type { WorkspaceFileSecretProvenanceEnvelope } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import type {
+  WorkspaceFileSecretProvenanceEnvelope,
+  WorkspaceFileSecretProvenanceIdentity,
+} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { listCustomBlocksWithInputsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
@@ -163,7 +166,8 @@ const MAX_COMPILED_ATTACHMENT_BYTES = 5 * 1024 * 1024
 function bindWorkspaceFileResult<T>(
   record: WorkspaceFileRecord,
   value: T,
-  view: 'complete' | 'derived' = 'derived'
+  view: 'complete' | 'derived' = 'derived',
+  contributingFiles: readonly WorkspaceFileSecretProvenanceIdentity[] = []
 ): WorkspaceFileSecretProvenanceEnvelope<T> {
   return {
     value,
@@ -173,7 +177,15 @@ function bindWorkspaceFileResult<T>(
       key: record.key,
       context: record.storageContext ?? 'workspace',
     },
+    ...(contributingFiles.length > 0 ? { contributingFiles } : {}),
   }
+}
+
+function recordContributingFile(
+  files: Map<string, WorkspaceFileSecretProvenanceIdentity>,
+  identity: WorkspaceFileSecretProvenanceIdentity
+): void {
+  files.set(`${identity.context}:${identity.fileId}:${identity.key}`, identity)
 }
 
 /**
@@ -1057,7 +1069,8 @@ export class WorkspaceVFS {
   private async renderDocRecordResult(
     record: WorkspaceFileRecord,
     ext: string,
-    buildMessage: (pageCount: number) => string
+    buildMessage: (pageCount: number) => string,
+    contributingFiles: Map<string, WorkspaceFileSecretProvenanceIdentity>
   ): Promise<FileReadResult> {
     if (typeof record.size === 'number' && record.size > MAX_DOC_READ_INPUT_BYTES) {
       return {
@@ -1087,9 +1100,15 @@ export class WorkspaceVFS {
         }
       }
       if (await getE2BDocFormat(record.name)) {
-        bin = (
-          await compileDoc({ source: code, fileName: record.name, workspaceId: this._workspaceId })
-        ).buffer
+        const compiled = await compileDoc({
+          source: code,
+          fileName: record.name,
+          workspaceId: this._workspaceId,
+        })
+        for (const identity of compiled.contributingFiles ?? []) {
+          recordContributingFile(contributingFiles, identity)
+        }
+        bin = compiled.buffer
       } else {
         const taskId = BINARY_DOC_TASKS[ext]
         if (!taskId) {
@@ -1098,7 +1117,14 @@ export class WorkspaceVFS {
             totalLines: 1,
           }
         }
-        bin = await runSandboxTask(taskId, { code, workspaceId: this._workspaceId })
+        bin = await runSandboxTask(
+          taskId,
+          { code, workspaceId: this._workspaceId },
+          {
+            onWorkspaceFileAccess: (identity) =>
+              recordContributingFile(contributingFiles, identity),
+          }
+        )
       }
     }
     const { grid, pageCount } = await renderDocToGrid({
@@ -1141,6 +1167,7 @@ export class WorkspaceVFS {
     const compiledMatch = /^files\/.+\/compiled$/.test(path)
     if (compiledMatch) {
       let record: WorkspaceFileRecord | null = null
+      const contributingFiles = new Map<string, WorkspaceFileSecretProvenanceIdentity>()
       try {
         record = await this.resolveWorkspaceFileForDynamicRead(path, 'compiled')
         if (!record) return null
@@ -1158,15 +1185,16 @@ export class WorkspaceVFS {
         if (ext !== 'pdf') {
           if (isRenderableDocExt(ext)) {
             const compiledName = record.name
-            return bindWorkspaceFileResult(
+            const rendered = await this.renderDocRecordResult(
               record,
-              await this.renderDocRecordResult(
-                record,
-                ext,
-                (pageCount) =>
-                  `${compiledName}: the raw ${ext.toUpperCase()} binary isn't model-readable, so it was rendered to ${pageCount} page image(s) for inspection.`
-              )
+              ext,
+              (pageCount) =>
+                `${compiledName}: the raw ${ext.toUpperCase()} binary isn't model-readable, so it was rendered to ${pageCount} page image(s) for inspection.`,
+              contributingFiles
             )
+            return bindWorkspaceFileResult(record, rendered, 'derived', [
+              ...contributingFiles.values(),
+            ])
           }
           const extractPath = `${canonicalWorkspaceFilePath({
             folderPath: record.folderPath,
@@ -1186,34 +1214,51 @@ export class WorkspaceVFS {
             totalLines: 1,
           })
         }
-        const compiled = docFmt
-          ? (
-              await compileDoc({
-                source: code,
-                fileName: record.name,
-                workspaceId: this._workspaceId,
-              })
-            ).buffer
-          : await runSandboxTask(taskId, { code, workspaceId: this._workspaceId })
+        let compiled: Buffer
+        if (docFmt) {
+          const compiledResult = await compileDoc({
+            source: code,
+            fileName: record.name,
+            workspaceId: this._workspaceId,
+          })
+          for (const identity of compiledResult.contributingFiles ?? []) {
+            recordContributingFile(contributingFiles, identity)
+          }
+          compiled = compiledResult.buffer
+        } else {
+          compiled = await runSandboxTask(
+            taskId,
+            { code, workspaceId: this._workspaceId },
+            {
+              onWorkspaceFileAccess: (identity) =>
+                recordContributingFile(contributingFiles, identity),
+            }
+          )
+        }
         if (compiled.length > MAX_COMPILED_ATTACHMENT_BYTES) {
           return bindWorkspaceFileResult(record, {
             content: `[Compiled artifact too large: ${record.name} (${compiled.length} bytes, limit ${MAX_COMPILED_ATTACHMENT_BYTES})]`,
             totalLines: 1,
           })
         }
-        return bindWorkspaceFileResult(record, {
-          content: `Compiled file: ${record.name} (${compiled.length} bytes, application/pdf)`,
-          totalLines: 1,
-          attachment: {
-            type: 'file',
-            name: record.name,
-            source: {
-              type: 'base64',
-              media_type: 'application/pdf',
-              data: compiled.toString('base64'),
+        return bindWorkspaceFileResult(
+          record,
+          {
+            content: `Compiled file: ${record.name} (${compiled.length} bytes, application/pdf)`,
+            totalLines: 1,
+            attachment: {
+              type: 'file',
+              name: record.name,
+              source: {
+                type: 'base64',
+                media_type: 'application/pdf',
+                data: compiled.toString('base64'),
+              },
             },
           },
-        })
+          'derived',
+          [...contributingFiles.values()]
+        )
       } catch (err) {
         logger.warn('Compiled artifact read failed via VFS', {
           workspaceId: this._workspaceId,
@@ -1238,6 +1283,7 @@ export class WorkspaceVFS {
     const renderMatch = /^files\/.+\/render$/.test(path)
     if (renderMatch) {
       let record: WorkspaceFileRecord | null = null
+      const contributingFiles = new Map<string, WorkspaceFileSecretProvenanceIdentity>()
       try {
         record = await this.resolveWorkspaceFileForDynamicRead(path, 'render')
         if (!record) return null
@@ -1252,15 +1298,14 @@ export class WorkspaceVFS {
           })
         }
         const renderName = record.name
-        return bindWorkspaceFileResult(
+        const rendered = await this.renderDocRecordResult(
           record,
-          await this.renderDocRecordResult(
-            record,
-            ext,
-            (pageCount) =>
-              `Rendered ${pageCount} page(s) of ${renderName} as a contact-sheet grid for visual QA. Inspect each page for text overflow/cutoff, overlapping elements, low contrast, misalignment, and leftover placeholder text; fix and re-render until clean.`
-          )
+          ext,
+          (pageCount) =>
+            `Rendered ${pageCount} page(s) of ${renderName} as a contact-sheet grid for visual QA. Inspect each page for text overflow/cutoff, overlapping elements, low contrast, misalignment, and leftover placeholder text; fix and re-render until clean.`,
+          contributingFiles
         )
+        return bindWorkspaceFileResult(record, rendered, 'derived', [...contributingFiles.values()])
       } catch (err) {
         logger.warn('Render read failed via VFS', {
           workspaceId: this._workspaceId,

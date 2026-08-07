@@ -587,6 +587,31 @@ describe('workspace file secret provenance', () => {
     )
   })
 
+  it('rejects a contributor identity captured from an older file content version', async () => {
+    queueTableRows(workspaceFiles, [
+      {
+        fileContentUpdatedAt: CONTENT_UPDATED_AT,
+        secretProvenanceVersion: null,
+        provenanceContentUpdatedAt: null,
+        status: null,
+        entries: null,
+      },
+    ])
+
+    await expect(
+      importWorkspaceFileSecretProvenanceForModelView({
+        workspaceId: 'workspace-1',
+        identity: {
+          fileId: 'file-1',
+          key: 'file-key',
+          context: 'workspace',
+          contentUpdatedAt: new Date(CONTENT_UPDATED_AT.getTime() - 1),
+        },
+        view: 'opaque',
+      })
+    ).resolves.toBe(false)
+  })
+
   it('rejects derived content views of tracked files', async () => {
     const registry = {
       importProvenance: vi.fn().mockResolvedValue(true),
@@ -610,6 +635,42 @@ describe('workspace file secret provenance', () => {
       })
     ).resolves.toBe(false)
     expect(registry.importProvenance).not.toHaveBeenCalled()
+  })
+
+  it('filters tracked provenance against the exact derived model view', async () => {
+    const registry = {
+      importProvenanceForValue: vi.fn().mockResolvedValue(true),
+      isPermanentlyIncomplete: vi.fn().mockReturnValue(false),
+    } as unknown as ResolvedSecretTraceRegistry
+    queueTableRows(workspaceFiles, [
+      {
+        fileContentUpdatedAt: CONTENT_UPDATED_AT,
+        secretProvenanceVersion: 1,
+        provenanceContentUpdatedAt: CONTENT_UPDATED_AT,
+        status: 'exact',
+        entries: [{ name: 'TOKEN', encryptedValue: 'encrypted', sourceUserId: 'user-1' }],
+      },
+    ])
+
+    await expect(
+      importWorkspaceFileSecretProvenanceForModelView({
+        workspaceId: 'workspace-1',
+        identity: { fileId: 'file-1', key: 'file-key', context: 'workspace' },
+        registry,
+        view: 'derived',
+        value: 'derived text',
+      })
+    ).resolves.toBe(true)
+    expect(registry.importProvenanceForValue).toHaveBeenCalledWith(
+      {
+        version: 1,
+        complete: true,
+        entries: [{ name: 'TOKEN', encryptedValue: 'encrypted' }],
+        scope: { userId: 'user-1' },
+      },
+      'derived text',
+      { trusted: true }
+    )
   })
 
   it('rejects unavailable mounted-file provenance without importing it', async () => {

@@ -137,10 +137,10 @@ export const batchScrapeTool: ToolConfig<FirecrawlBatchScrapeParams, FirecrawlBa
       },
       opaqueModelInput: {
         mode: 'reject-resolved-secrets',
-        select: (params) =>
+        inputPaths: (params) =>
           hasFirecrawlModelInputFormat(params.formats ?? params.scrapeOptions?.formats)
-            ? params.urls
-            : undefined,
+            ? [['urls']]
+            : [],
       },
       method: 'POST',
       url: 'https://api.firecrawl.dev/v2/batch/scrape',

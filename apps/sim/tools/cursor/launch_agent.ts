@@ -1,6 +1,6 @@
 import {
   selectCursorPromptModelInput,
-  selectCursorPromptOpaqueModelInput,
+  selectCursorPromptOpaqueModelInputPaths,
 } from '@/tools/cursor/model-input'
 import type { LaunchAgentParams, LaunchAgentResponse } from '@/tools/cursor/types'
 import type { ToolConfig } from '@/tools/types'
@@ -75,7 +75,7 @@ const launchAgentBase = {
     },
     opaqueModelInput: {
       mode: 'reject-resolved-secrets',
-      select: selectCursorPromptOpaqueModelInput,
+      inputPaths: selectCursorPromptOpaqueModelInputPaths,
     },
     url: () => 'https://api.cursor.com/v0/agents',
     method: 'POST',

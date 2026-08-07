@@ -3,21 +3,14 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { fetchWorkspaceFileBufferMock, getWorkspaceFileMock, isOpaqueEgressSafeMock } = vi.hoisted(
-  () => ({
-    fetchWorkspaceFileBufferMock: vi.fn(),
-    getWorkspaceFileMock: vi.fn(),
-    isOpaqueEgressSafeMock: vi.fn(),
-  })
-)
+const { fetchWorkspaceFileBufferMock, getWorkspaceFileMock } = vi.hoisted(() => ({
+  fetchWorkspaceFileBufferMock: vi.fn(),
+  getWorkspaceFileMock: vi.fn(),
+}))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   fetchWorkspaceFileBuffer: fetchWorkspaceFileBufferMock,
   getWorkspaceFile: getWorkspaceFileMock,
-}))
-
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  isOpaqueWorkspaceFileEgressSafe: isOpaqueEgressSafeMock,
 }))
 
 import {
@@ -49,7 +42,6 @@ function workspaceFileRecord(version: number) {
 describe('workspaceFileBroker', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    isOpaqueEgressSafeMock.mockResolvedValue(true)
   })
 
   it('resolves and verifies the current file version on every broker call', async () => {
@@ -59,23 +51,27 @@ describe('workspaceFileBroker', () => {
     fetchWorkspaceFileBufferMock
       .mockResolvedValueOnce(Buffer.from('first'))
       .mockResolvedValueOnce(Buffer.from('second'))
+    const onWorkspaceFileAccess = vi.fn()
+    const context = { ...CONTEXT, onWorkspaceFileAccess }
 
-    await expect(workspaceFileBroker.handle(CONTEXT, { fileId: 'file-1' })).resolves.toEqual({
+    await expect(workspaceFileBroker.handle(context, { fileId: 'file-1' })).resolves.toEqual({
       dataUri: `data:image/png;base64,${Buffer.from('first').toString('base64')}`,
     })
-    await expect(workspaceFileBroker.handle(CONTEXT, { fileId: 'file-1' })).resolves.toEqual({
+    await expect(workspaceFileBroker.handle(context, { fileId: 'file-1' })).resolves.toEqual({
       dataUri: `data:image/png;base64,${Buffer.from('second').toString('base64')}`,
     })
 
-    expect(isOpaqueEgressSafeMock).toHaveBeenNthCalledWith(1, CONTEXT.workspaceId, {
+    expect(onWorkspaceFileAccess).toHaveBeenNthCalledWith(1, {
       fileId: first.id,
       key: first.key,
       context: 'workspace',
+      contentUpdatedAt: first.contentUpdatedAt,
     })
-    expect(isOpaqueEgressSafeMock).toHaveBeenNthCalledWith(2, CONTEXT.workspaceId, {
+    expect(onWorkspaceFileAccess).toHaveBeenNthCalledWith(2, {
       fileId: second.id,
       key: second.key,
       context: 'workspace',
+      contentUpdatedAt: second.contentUpdatedAt,
     })
     const dataUriPrefix = 'data:image/png;base64,'
     const envelopeChars = JSON.stringify({ dataUri: dataUriPrefix }).length
@@ -97,14 +93,15 @@ describe('workspaceFileBroker', () => {
     expect(fetchWorkspaceFileBufferMock).toHaveBeenNthCalledWith(2, second, { maxBytes })
   })
 
-  it('rejects an unsafe current version before reading its bytes', async () => {
+  it('does not report a file access when reading its bytes fails', async () => {
     const record = workspaceFileRecord(1)
     getWorkspaceFileMock.mockResolvedValue(record)
-    isOpaqueEgressSafeMock.mockResolvedValue(false)
+    fetchWorkspaceFileBufferMock.mockRejectedValue(new Error('read failed'))
+    const onWorkspaceFileAccess = vi.fn()
 
-    await expect(workspaceFileBroker.handle(CONTEXT, { fileId: record.id })).rejects.toThrow(
-      'secret provenance is unavailable'
-    )
-    expect(fetchWorkspaceFileBufferMock).not.toHaveBeenCalled()
+    await expect(
+      workspaceFileBroker.handle({ ...CONTEXT, onWorkspaceFileAccess }, { fileId: record.id })
+    ).rejects.toThrow('read failed')
+    expect(onWorkspaceFileAccess).not.toHaveBeenCalled()
   })
 })

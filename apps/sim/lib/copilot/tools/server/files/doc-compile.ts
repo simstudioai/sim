@@ -13,7 +13,7 @@ import {
   fetchWorkspaceFileBuffer,
   getWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { isOpaqueWorkspaceFileEgressSafe } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import type { WorkspaceFileSecretProvenanceIdentity } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { getContentType } from '@/app/api/files/utils'
 import type { SandboxTaskId } from '@/sandbox-tasks/registry'
 import { loadCompiledDoc, storeCompiledDoc } from './doc-compiled-store'
@@ -136,6 +136,23 @@ interface ReferencedImageResolution {
   legacyArtifactEligible: boolean
 }
 
+export interface CompiledDocResult {
+  buffer: Buffer
+  contentType: string
+  contributingFiles?: readonly WorkspaceFileSecretProvenanceIdentity[]
+}
+
+function referencedImageIdentities(
+  resolution: ReferencedImageResolution
+): WorkspaceFileSecretProvenanceIdentity[] {
+  return resolution.images.map(({ record }) => ({
+    fileId: record.id,
+    key: record.key,
+    context: record.storageContext ?? 'workspace',
+    contentUpdatedAt: record.contentUpdatedAt ?? record.updatedAt,
+  }))
+}
+
 /**
  * Collects the workspace file ids a doc source references — from the injected
  * image-helper call sites and the legacy `/home/user/inputs/<id>` path. Matching
@@ -200,17 +217,6 @@ async function resolveReferencedImages(
       contentVersion: (record.contentUpdatedAt ?? record.updatedAt).toISOString(),
       size: record.size,
     })
-    if (
-      !(await isOpaqueWorkspaceFileEgressSafe(workspaceId, {
-        fileId: record.id,
-        key: record.key,
-        context: record.storageContext ?? 'workspace',
-      }))
-    ) {
-      throw new DocCompileUserError(
-        `Referenced file cannot be staged because its secret provenance is unavailable: ${fileId}`
-      )
-    }
     images.push({ fileId, record })
   }
 
@@ -466,7 +472,7 @@ async function buildCompiledDoc(
   args: CompileArgs,
   fmt: E2BDocFormat,
   referencedImages: ReferencedImageResolution
-): Promise<{ buffer: Buffer; contentType: string }> {
+): Promise<CompiledDocResult> {
   const { source, fileName, workspaceId } = args
   const buffer =
     fmt.engine === 'node'
@@ -484,7 +490,12 @@ async function buildCompiledDoc(
     buffer,
     referencedImages.artifactIdentity
   )
-  return { buffer, contentType: fmt.contentType }
+  const contributingFiles = referencedImageIdentities(referencedImages)
+  return {
+    buffer,
+    contentType: fmt.contentType,
+    ...(contributingFiles.length > 0 ? { contributingFiles } : {}),
+  }
 }
 
 interface CompilableFormat {
@@ -505,7 +516,7 @@ const COMPILABLE_FORMATS: Record<string, CompilableFormat> = {
 async function compileDocInLegacySandbox(
   args: CompileArgs,
   fmt: E2BDocFormat
-): Promise<{ buffer: Buffer; contentType: string }> {
+): Promise<CompiledDocResult> {
   const format = COMPILABLE_FORMATS[`.${fmt.ext}`]
   if (!format) {
     throw new DocCompileUserError('Document is still being generated')
@@ -513,15 +524,34 @@ async function compileDocInLegacySandbox(
 
   const cacheKey = sha256Hex(`.${fmt.ext}${args.source}${args.workspaceId}`)
   const cached = compiledDocCache.get(cacheKey)
-  if (cached) return { buffer: cached, contentType: fmt.contentType }
+  if (cached) {
+    return {
+      buffer: cached.buffer,
+      contentType: fmt.contentType,
+      ...(cached.contributingFiles && cached.contributingFiles.length > 0
+        ? { contributingFiles: cached.contributingFiles }
+        : {}),
+    }
+  }
 
+  const contributingFiles = new Map<string, WorkspaceFileSecretProvenanceIdentity>()
   const buffer = await runSandboxTask(
     format.taskId,
     { code: args.source, workspaceId: args.workspaceId },
-    { ownerKey: args.ownerKey, signal: args.signal }
+    {
+      ownerKey: args.ownerKey,
+      signal: args.signal,
+      onWorkspaceFileAccess: (identity) => {
+        contributingFiles.set(`${identity.context}:${identity.fileId}:${identity.key}`, identity)
+      },
+    }
   )
-  compiledCacheSet(cacheKey, buffer)
-  return { buffer, contentType: fmt.contentType }
+  compiledCacheSet(cacheKey, buffer, [...contributingFiles.values()])
+  return {
+    buffer,
+    contentType: fmt.contentType,
+    ...(contributingFiles.size > 0 ? { contributingFiles: [...contributingFiles.values()] } : {}),
+  }
 }
 
 /**
@@ -530,9 +560,7 @@ async function compileDocInLegacySandbox(
  * its live-broker semantics and keeps only a small process-local cache; it cannot publish a durable
  * artifact until broker calls can report the exact file versions they accessed.
  */
-export async function compileDoc(
-  args: CompileArgs
-): Promise<{ buffer: Buffer; contentType: string }> {
+export async function compileDoc(args: CompileArgs): Promise<CompiledDocResult> {
   const { source, fileName, workspaceId } = args
   const fmt = await getE2BDocFormat(fileName)
   if (!fmt) throw new Error(`Unsupported document format: ${fileName}`)
@@ -547,15 +575,22 @@ export async function compileDoc(
     fmt.ext,
     referencedImages.artifactIdentity
   )
-  if (existing) return { buffer: existing, contentType: fmt.contentType }
+  if (existing) {
+    const contributingFiles = referencedImageIdentities(referencedImages)
+    return {
+      buffer: existing,
+      contentType: fmt.contentType,
+      ...(contributingFiles.length > 0 ? { contributingFiles } : {}),
+    }
+  }
   return buildCompiledDoc(args, fmt, referencedImages)
 }
 
 /**
- * Loads a dependency-bound compiled artifact. Public shares may also read the pre-cutover
- * source-keyed artifact after every current reference passes the opaque-egress check. That narrow
- * fallback preserves an already-public document until an authenticated read or edit publishes the
- * dependency-bound replacement; it never executes source or admits a currently tracked secret.
+ * Loads a dependency-bound compiled artifact. Public shares may also read a pre-cutover
+ * source-keyed artifact when every current reference still resolves. That narrow fallback
+ * preserves already-public documents until an authenticated read or edit publishes the
+ * dependency-bound replacement; it never executes source.
  */
 export async function loadCompiledDocByExt(
   workspaceId: string,
@@ -594,8 +629,7 @@ function bufferStartsWith(buffer: Buffer, magic: Buffer): boolean {
  * How a read-only consumer (e.g. the public share route) should serve a stored doc:
  * - `passthrough` — serve the raw stored bytes as-is (a non-doc file, or an uploaded
  *   binary that already carries its format magic).
- * - `artifact` — serve a dependency-bound compiled binary, or a pre-cutover public artifact whose
- *   current references all pass the opaque-egress check.
+ * - `artifact` — serve a dependency-bound compiled binary, or an eligible pre-cutover public artifact.
  * - `unavailable` — a generated doc stored as source whose compiled artifact does
  *   not exist yet; the raw bytes are source, so serving them under the file's binary
  *   content type would be corrupt. The caller should signal "not ready" instead.
@@ -629,13 +663,25 @@ export async function resolveServableDoc(
 }
 
 const MAX_COMPILED_DOC_CACHE = 10
-const compiledDocCache = new Map<string, Buffer>()
+interface CompiledDocCacheEntry {
+  buffer: Buffer
+  contributingFiles?: readonly WorkspaceFileSecretProvenanceIdentity[]
+}
 
-function compiledCacheSet(key: string, buffer: Buffer): void {
+const compiledDocCache = new Map<string, CompiledDocCacheEntry>()
+
+function compiledCacheSet(
+  key: string,
+  buffer: Buffer,
+  contributingFiles: readonly WorkspaceFileSecretProvenanceIdentity[] = []
+): void {
   if (compiledDocCache.size >= MAX_COMPILED_DOC_CACHE) {
     compiledDocCache.delete(compiledDocCache.keys().next().value as string)
   }
-  compiledDocCache.set(key, buffer)
+  compiledDocCache.set(key, {
+    buffer,
+    ...(contributingFiles.length > 0 ? { contributingFiles } : {}),
+  })
 }
 
 /**
@@ -668,7 +714,7 @@ export async function resolveServableDocBytes(args: {
   workspaceId: string | undefined
   ownerKey?: string
   signal?: AbortSignal
-}): Promise<{ buffer: Buffer; contentType: string }> {
+}): Promise<CompiledDocResult> {
   const { rawBuffer, fileName, workspaceId, ownerKey, signal } = args
   const ext = fileName.slice(fileName.lastIndexOf('.')).toLowerCase()
   const extNoDot = ext.replace(/^\./, '')
@@ -703,7 +749,13 @@ export async function resolveServableDocBytes(args: {
   const cacheKey = sha256Hex(`${ext}${source}${workspaceId ?? ''}`)
   const cached = compiledDocCache.get(cacheKey)
   if (cached) {
-    return { buffer: cached, contentType: format.contentType }
+    return {
+      buffer: cached.buffer,
+      contentType: format.contentType,
+      ...(cached.contributingFiles && cached.contributingFiles.length > 0
+        ? { contributingFiles: cached.contributingFiles }
+        : {}),
+    }
   }
 
   const compiled = await runSandboxTask(

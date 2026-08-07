@@ -58,6 +58,7 @@ export interface WorkspaceFileSecretProvenanceIdentity {
   fileId: string
   key: string
   context: 'workspace' | 'mothership'
+  contentUpdatedAt?: Date
 }
 
 interface WorkspaceFileSecretProvenanceCopySource {
@@ -77,6 +78,7 @@ interface WorkspaceFileSecretProvenanceMetadataIdentity {
 export interface WorkspaceFileSecretProvenanceEnvelope<T> {
   value: T
   file?: WorkspaceFileSecretProvenanceIdentity
+  contributingFiles?: readonly WorkspaceFileSecretProvenanceIdentity[]
   view?: 'complete' | 'derived'
 }
 
@@ -615,6 +617,12 @@ export async function getBoundWorkspaceFileSecretProvenance(
     .limit(1)
 
   if (!row) return { status: 'unknown' }
+  if (
+    identity.contentUpdatedAt &&
+    identity.contentUpdatedAt.getTime() !== row.fileContentUpdatedAt.getTime()
+  ) {
+    return { status: 'unknown' }
+  }
   if (row.secretProvenanceVersion === null) return EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE
   if (row.secretProvenanceVersion !== 1) return { status: 'unknown' }
   if (
@@ -692,21 +700,29 @@ export async function getBoundWorkspaceFileSecretProvenanceByMetadata(
 
 /**
  * Authorizes one model-facing view of an exact workspace-file version. Complete text views import
- * the entire sidecar so representation-changing consumers (for example CSV parsing) retain the
- * original secret lineage. Derived and opaque views cannot preserve that lineage and fail closed.
+ * the entire sidecar so representation-changing consumers retain the original lineage. Derived
+ * text views import only entries present in the returned value; opaque bytes cannot be inspected
+ * and therefore require an exact-empty sidecar.
  */
 export async function importWorkspaceFileSecretProvenanceForModelView(args: {
   workspaceId: string
   identity: WorkspaceFileSecretProvenanceIdentity
   registry?: ResolvedSecretTraceRegistry
   view: 'complete' | 'derived' | 'opaque'
+  value?: unknown
 }): Promise<boolean> {
   const provenance = await getBoundWorkspaceFileSecretProvenance(args.workspaceId, args.identity)
   if (provenance.status === 'unknown') return false
   if (provenance.entries.length === 0) return true
-  if (args.view !== 'complete' || !args.registry) return false
+  if (args.view === 'opaque' || !args.registry) return false
 
-  return importDurableSecretProvenance(args.registry, provenance)
+  if (args.view === 'derived' && args.value === undefined) return false
+
+  return importDurableSecretProvenance(
+    args.registry,
+    provenance,
+    args.view === 'derived' ? args.value : undefined
+  )
 }
 
 /** Allows opaque bytes to leave private storage only when their exact sidecar is provably empty. */

@@ -107,40 +107,22 @@ describe('MCP tool execution private secret provenance', () => {
     )
   })
 
-  it('returns fail-closed scoped provenance only to an authenticated internal caller', async () => {
+  it('returns provenance activated by this MCP transport call', async () => {
     mockDiscoverServerTools.mockImplementationOnce(
       async (
         _userId: string,
         _serverId: string,
         _workspaceId: string,
         _forceRefresh: boolean,
-        report: (value: unknown) => void
+        recordProvenance?: (provenance: unknown) => void
       ) => {
-        report({
+        recordProvenance?.({
           version: 1,
-          complete: false,
-          entries: [],
+          complete: true,
+          entries: [{ name: 'MCP_TOKEN', encryptedValue: 'encrypted-mcp-token' }],
           scope: { userId: 'user-1', workspaceId: 'workspace-1' },
         })
         return [{ name: 'example_tool', inputSchema: {} }]
-      }
-    )
-    mockExecuteTool.mockImplementationOnce(
-      async (
-        _userId: string,
-        _serverId: string,
-        _toolCall: unknown,
-        _workspaceId: string,
-        _headers: unknown,
-        report: (value: unknown) => void
-      ) => {
-        report({
-          version: 1,
-          complete: true,
-          entries: [{ name: 'NEW_TOKEN', encryptedValue: 'encrypted-v2' }],
-          scope: { userId: 'user-1', workspaceId: 'workspace-1' },
-        })
-        return { content: [{ type: 'text', text: 'ok' }] }
       }
     )
     const request = createRequest({
@@ -155,10 +137,12 @@ describe('MCP tool execution private secret provenance', () => {
     )
     expect(body.__resolvedSecretTraceProvenance).toEqual({
       version: 1,
-      complete: false,
-      entries: [],
+      complete: true,
+      entries: [{ name: 'MCP_TOKEN', encryptedValue: 'encrypted-mcp-token' }],
       scope: { userId: 'user-1', workspaceId: 'workspace-1' },
     })
+    expect(mockDiscoverServerTools.mock.calls[0]?.[4]).toEqual(expect.any(Function))
+    expect(mockExecuteTool.mock.calls[0]?.[5]).toEqual(expect.any(Function))
   })
 
   it('does not expose private provenance metadata to a session caller', async () => {

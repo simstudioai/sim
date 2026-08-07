@@ -166,8 +166,8 @@ describe('maybeWriteOutputToTable', () => {
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
     parentRegistry.recordResolved('UNRELATED', 'true')
-    const toolRegistry = parentRegistry.forkForToolInput({ code: 'return {{OUTPUT_SECRET}}' })
-    toolRegistry.recordResolved('OUTPUT_SECRET', 'secret-value')
+    const toolRegistry = parentRegistry.forkForInputPaths([])
+    toolRegistry.recordResolved('OUTPUT_SECRET', 'secret-value', { propagated: true })
     const runtimeRows = [{ name: 'secret-value', age: '123', status: 'true' }]
 
     const result = await maybeWriteOutputToTable(
@@ -334,7 +334,7 @@ describe('maybeWriteOutputToTable', () => {
     ).toEqual({ userId: 'workflow-owner', workspaceId: 'workspace-1' })
   })
 
-  it('rejects nonempty provenance from another workspace before mutating the table', async () => {
+  it('persists raw rows with unknown provenance when the source workspace differs', async () => {
     const registry = new ResolvedSecretTraceRegistry(
       [{ name: 'OUTPUT_SECRET', plaintext: 'secret-value', encryptedValue: 'encrypted-secret' }],
       { userId: 'user-1', workspaceId: 'workspace-2' }
@@ -348,14 +348,15 @@ describe('maybeWriteOutputToTable', () => {
       buildContext({ resolvedSecretTraceRegistry: registry })
     )
 
-    expect(result).toEqual({
-      success: false,
-      error: 'Tool output could not be persisted safely because secret provenance was unavailable.',
-    })
-    expect(mockReplaceTableRows).not.toHaveBeenCalled()
+    expect(result.success).toBe(true)
+    expect(mockReplaceTableRows).toHaveBeenCalledWith(
+      expect.objectContaining({ secretProvenance: [{ complete: false, columns: {} }] }),
+      expect.anything(),
+      expect.any(String)
+    )
   })
 
-  it('rejects nonempty unscoped provenance before mutating the table', async () => {
+  it('persists raw rows with unknown provenance when the source scope is unavailable', async () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'OUTPUT_SECRET', plaintext: 'secret-value', encryptedValue: 'encrypted-secret' },
     ])
@@ -368,14 +369,15 @@ describe('maybeWriteOutputToTable', () => {
       buildContext({ resolvedSecretTraceRegistry: registry })
     )
 
-    expect(result).toEqual({
-      success: false,
-      error: 'Tool output could not be persisted safely because secret provenance was unavailable.',
-    })
-    expect(mockReplaceTableRows).not.toHaveBeenCalled()
+    expect(result.success).toBe(true)
+    expect(mockReplaceTableRows).toHaveBeenCalledWith(
+      expect.objectContaining({ secretProvenance: [{ complete: false, columns: {} }] }),
+      expect.anything(),
+      expect.any(String)
+    )
   })
 
-  it('does not write when table persistence provenance is incomplete', async () => {
+  it('persists raw rows with unknown provenance when lineage is incomplete', async () => {
     const registry = new ResolvedSecretTraceRegistry()
     registry.markIncomplete()
 
@@ -386,11 +388,12 @@ describe('maybeWriteOutputToTable', () => {
       buildContext({ resolvedSecretTraceRegistry: registry })
     )
 
-    expect(result).toEqual({
-      success: false,
-      error: 'Tool output could not be persisted safely because secret provenance was unavailable.',
-    })
-    expect(mockReplaceTableRows).not.toHaveBeenCalled()
+    expect(result.success).toBe(true)
+    expect(mockReplaceTableRows).toHaveBeenCalledWith(
+      expect.objectContaining({ secretProvenance: [{ complete: false, columns: {} }] }),
+      expect.anything(),
+      expect.any(String)
+    )
   })
 
   it('preserves legacy table writes without certifying unavailable provenance', async () => {
@@ -457,7 +460,7 @@ describe('maybeWriteOutputToTable', () => {
       [{ name: 'SECRET', plaintext: 'secret-value', encryptedValue: 'encrypted-secret-value' }],
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
-    registry.recordResolved('SECRET', 'secret-value')
+    registry.recordResolved('SECRET', 'secret-value', { propagated: true })
     mockReplaceTableRows.mockRejectedValue(new Error('Duplicate value "secret-value"'))
 
     const result = await maybeWriteOutputToTable(
@@ -675,7 +678,7 @@ describe('maybeWriteReadCsvToTable', () => {
     )
   })
 
-  it('does not import CSV rows when persistence provenance is incomplete', async () => {
+  it('imports raw CSV rows with unknown provenance when lineage is incomplete', async () => {
     const registry = new ResolvedSecretTraceRegistry()
     registry.markIncomplete()
 
@@ -686,11 +689,12 @@ describe('maybeWriteReadCsvToTable', () => {
       buildContext({ resolvedSecretTraceRegistry: registry })
     )
 
-    expect(result).toEqual({
-      success: false,
-      error: 'Tool output could not be persisted safely because secret provenance was unavailable.',
-    })
-    expect(mockReplaceTableRows).not.toHaveBeenCalled()
+    expect(result.success).toBe(true)
+    expect(mockReplaceTableRows).toHaveBeenCalledWith(
+      expect.objectContaining({ secretProvenance: [{ complete: false, columns: {} }] }),
+      expect.anything(),
+      expect.any(String)
+    )
   })
 
   it('preserves legacy CSV imports without certifying unavailable provenance', async () => {
@@ -744,7 +748,7 @@ describe('maybeWriteReadCsvToTable', () => {
       [{ name: 'SECRET', plaintext: 'secret-value', encryptedValue: 'encrypted-secret-value' }],
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
-    registry.recordResolved('SECRET', 'secret-value')
+    registry.recordResolved('SECRET', 'secret-value', { propagated: true })
     mockReplaceTableRows.mockRejectedValue(new Error('Duplicate value "secret-value"'))
 
     const result = await maybeWriteReadCsvToTable(

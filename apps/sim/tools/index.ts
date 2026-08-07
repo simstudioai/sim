@@ -65,9 +65,13 @@ import type { ExecutionContext, UserFile } from '@/executor/types'
 import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
 import {
   projectResolvedSecretDiagnosticContent,
-  projectResolvedSecretModelControlMessage,
+  projectResolvedSecretModelContent,
 } from '@/executor/utils/resolved-secret-content-projection'
-import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  isResolvedSecretTraceProvenanceV1,
+  type ResolvedSecretInputPath,
+  type ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 import type { ErrorInfo } from '@/tools/error-extractors'
 import { extractErrorMessage } from '@/tools/error-extractors'
 import { HostedKeyRateLimitedError, HostedKeyUnavailableError } from '@/tools/errors'
@@ -105,17 +109,17 @@ function assertOpaqueToolModelInputSafe(
     throw new Error(OPAQUE_MODEL_INPUT_PROVENANCE_UNAVAILABLE_ERROR)
   }
 
-  let selection: unknown
+  let inputPaths: readonly ResolvedSecretInputPath[]
   try {
-    selection = opaqueModelInput.select(params)
+    inputPaths = opaqueModelInput.inputPaths(params)
   } catch {
     throw new Error(OPAQUE_MODEL_INPUT_PROVENANCE_UNAVAILABLE_ERROR)
   }
-  if (selection === undefined) return
+  if (inputPaths.length === 0) return
 
   let provenance
   try {
-    provenance = registry.exportCommittedProvenanceForValue(selection)
+    provenance = registry.exportCommittedProvenanceForInputPaths(inputPaths)
   } catch {
     throw new Error(OPAQUE_MODEL_INPUT_PROVENANCE_UNAVAILABLE_ERROR)
   }
@@ -131,11 +135,10 @@ function projectToolLogMetadata(
   metadata: Record<string, unknown>,
   registry: ResolvedSecretTraceRegistry | undefined,
   structuralFallback: Record<string, unknown>,
-  structuralOnlyWithoutRegistry = false
+  structuralOnly = false
 ): Record<string, unknown> {
-  if (!registry) {
-    return structuralOnlyWithoutRegistry ? { ...structuralFallback, redacted: true } : metadata
-  }
+  if (structuralOnly) return { ...structuralFallback, redacted: true }
+  if (!registry) return metadata
 
   const projection = projectResolvedSecretDiagnosticContent(metadata, registry)
   return projection.safe && isPlainRecord(projection.value)
@@ -333,7 +336,9 @@ async function resolveCopilotEnvReferences(
         allowEmbedded: false,
         missingKeys,
         onResolved: (name, resolvedValue) => {
-          resolvedSecretTraceRegistry?.recordResolved(name, resolvedValue)
+          resolvedSecretTraceRegistry?.recordResolvedAtInputPath(name, resolvedValue, [paramId], {
+            propagated: true,
+          })
         },
       })
       if (missingKeys.length > 0) {
@@ -346,6 +351,11 @@ async function resolveCopilotEnvReferences(
         )
       }
       params[paramId] = resolved as string
+      resolvedSecretTraceRegistry?.recordResolvedInputProjection(
+        [paramId],
+        resolved as string,
+        value
+      )
     }
   } finally {
     completePendingActivation?.()
@@ -1158,7 +1168,7 @@ interface PrivateToolMetadataPolicy {
   incomplete: 'reject' | 'propagate'
 }
 
-type PrivateToolMetadataConsumption = 'verified' | 'unsupported' | 'invalid'
+type PrivateToolMetadataConsumption = 'verified' | 'incomplete' | 'invalid'
 
 function getFunctionExportedWorkspaceFileIds(payload: Record<string, unknown>): string[] {
   const ids = new Set<string>()
@@ -1187,35 +1197,33 @@ function consumeResolvedSecretNames(
   payload: unknown,
   params: Record<string, any>,
   registry?: ResolvedSecretTraceRegistry
-): void {
-  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return
+): boolean {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return false
 
   const response = payload as Record<string, unknown>
-  if (!Object.hasOwn(response, RESOLVED_SECRET_NAMES_FIELD)) return
+  if (!Object.hasOwn(response, RESOLVED_SECRET_NAMES_FIELD)) return false
 
   const names = response[RESOLVED_SECRET_NAMES_FIELD]
   response[RESOLVED_SECRET_NAMES_FIELD] = undefined
-  if (!registry) return
-
   if (!Array.isArray(names) || !names.every((name) => typeof name === 'string')) {
-    registry.markIncomplete()
-    return
+    return false
   }
 
   const envVars = params.envVars
   if (!envVars || typeof envVars !== 'object' || Array.isArray(envVars)) {
-    registry.markIncomplete()
-    return
+    return false
   }
 
+  const targetRegistry = registry?.forkForToolCall()
   for (const name of names) {
     const value = (envVars as Record<string, unknown>)[name]
-    if (typeof value !== 'string') {
-      registry.markIncomplete()
-      continue
+    if (typeof value !== 'string') return false
+    if (targetRegistry && !targetRegistry.recordResolved(name, value, { propagated: true })) {
+      return false
     }
-    registry.recordResolved(name, value)
   }
+  if (registry && targetRegistry) registry.mergeToolCallRegistry(targetRegistry)
+  return true
 }
 
 async function consumeResolvedSecretProvenance(
@@ -1229,9 +1237,15 @@ async function consumeResolvedSecretProvenance(
 
   const provenance = response[RESOLVED_SECRET_PROVENANCE_FIELD]
   response[RESOLVED_SECRET_PROVENANCE_FIELD] = undefined
-  if (registry) {
-    await registry.importCrossingProvenance(provenance, response, { trusted: true })
-  }
+  if (!isResolvedSecretTraceProvenanceV1(provenance)) return false
+  if (!registry) return true
+
+  const targetRegistry = registry.forkForToolCall()
+  const imported = await targetRegistry.importCrossingProvenance(provenance, response, {
+    trusted: true,
+  })
+  if (!imported) return false
+  registry.mergeToolCallRegistry(targetRegistry)
   return true
 }
 
@@ -1276,8 +1290,7 @@ async function consumePrivateToolPayloadMetadata(
   headers: Headers,
   requestedType: PrivateToolMetadataType | undefined,
   params: Record<string, any>,
-  registry?: ResolvedSecretTraceRegistry,
-  incomplete: 'reject' | 'propagate' = 'reject'
+  registry?: ResolvedSecretTraceRegistry
 ): Promise<PrivateToolMetadataConsumption> {
   if (!requestedType) return 'verified'
 
@@ -1300,13 +1313,9 @@ async function consumePrivateToolPayloadMetadata(
           RESOLVED_SECRET_NAMES_METADATA_V1
         )
         if (legacyInspection.status !== 'verified') return 'invalid'
-        consumeResolvedSecretNames(record, params, registry)
+        if (!consumeResolvedSecretNames(record, params, registry)) return 'invalid'
       } else {
-        if (!registry) return 'unsupported'
-        const reconstructed = registry.exportCatalogProvenanceForValue(record)
-        if (!reconstructed.complete) return 'invalid'
-        const imported = await registry.importProvenance(reconstructed, { trusted: true })
-        if (!imported) return 'invalid'
+        if (inspection.status !== 'unsupported') return 'invalid'
       }
 
       const fileIds = getFunctionExportedWorkspaceFileIds(record)
@@ -1321,25 +1330,15 @@ async function consumePrivateToolPayloadMetadata(
         await markWorkspaceFileSecretProvenanceUnknown(workspaceId, fileIds)
       }
       record[RESOLVED_SECRET_NAMES_FIELD] = undefined
-      return registry?.isPermanentlyIncomplete() && incomplete === 'reject' ? 'invalid' : 'verified'
+      return registry?.isPermanentlyIncomplete() ? 'incomplete' : 'verified'
     }
   }
 
   if (inspection.status === 'unsupported') {
-    if (requestedType !== RESOLVED_SECRET_NAMES_METADATA_V1 || !record || !registry) {
-      return 'unsupported'
-    }
-    const reconstructed = registry.exportCatalogProvenanceForValue(record)
-    if (!reconstructed.complete) {
-      registry.markIncomplete()
-      return 'invalid'
-    }
-    const imported = await registry.importProvenance(reconstructed, { trusted: true })
-    return imported ? 'verified' : 'invalid'
+    return 'verified'
   }
 
   if (inspection.status === 'invalid' || !record) {
-    registry?.markIncomplete()
     return 'invalid'
   }
 
@@ -1348,26 +1347,24 @@ async function consumePrivateToolPayloadMetadata(
       requestedType === RESOLVED_SECRET_NAMES_METADATA_V1 ||
       requestedType === RESOLVED_SECRET_NAMES_DURABLE_FILES_METADATA_V2
     ) {
-      consumeResolvedSecretNames(record, params, registry)
+      if (!consumeResolvedSecretNames(record, params, registry)) return 'invalid'
     } else {
-      await consumeResolvedSecretProvenance(record, registry)
+      if (!(await consumeResolvedSecretProvenance(record, registry))) return 'invalid'
     }
   } catch {
-    registry?.markIncomplete()
     return 'invalid'
   }
 
   record[RESOLVED_SECRET_NAMES_FIELD] = undefined
   record[RESOLVED_SECRET_PROVENANCE_FIELD] = undefined
-  return registry?.isPermanentlyIncomplete() && incomplete === 'reject' ? 'invalid' : 'verified'
+  return registry?.isPermanentlyIncomplete() ? 'incomplete' : 'verified'
 }
 
 async function consumePrivateToolResponseMetadata(
   response: Response,
   requestedType: PrivateToolMetadataType | undefined,
   params: Record<string, any>,
-  registry?: ResolvedSecretTraceRegistry,
-  incomplete: 'reject' | 'propagate' = 'reject'
+  registry?: ResolvedSecretTraceRegistry
 ): Promise<PrivateToolResponseMetadataResult> {
   if (!requestedType) return { response }
 
@@ -1380,8 +1377,10 @@ async function consumePrivateToolResponseMetadata(
       undefined,
       requestedType
     )
-    if (inspection.status === 'invalid') registry?.markIncomplete()
-    return { response: rebuildSafePrivateToolResponse(response) }
+    if (inspection.status === 'invalid') {
+      return { response: rebuildSafePrivateToolResponse(response) }
+    }
+    return { response }
   }
 
   const consumption = await consumePrivateToolPayloadMetadata(
@@ -1389,13 +1388,15 @@ async function consumePrivateToolResponseMetadata(
     response.headers,
     requestedType,
     params,
-    registry,
-    incomplete
+    registry
   )
-  if (consumption !== 'verified') {
+  if (consumption === 'invalid') {
     return { response: rebuildSafePrivateToolResponse(response) }
   }
 
+  if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) {
+    return { response }
+  }
   return {
     response: rebuildResponseWithoutPrivateToolMetadata(
       response,
@@ -1419,19 +1420,10 @@ function getPrivateToolMetadataPolicy(toolId: string): PrivateToolMetadataPolicy
   return undefined
 }
 
-function createPrivateProvenanceFailure(timing?: ToolResponse['timing']): ToolResponse {
-  return {
-    success: false,
-    output: {},
-    error: PRIVATE_TOOL_METADATA_ERROR_MESSAGE,
-    ...(timing ? { timing } : {}),
-  }
-}
-
 /**
- * Runs private-provenance tools against an isolated registry and commits only a complete
- * settlement. Invalid metadata therefore fails this call without poisoning the workflow's
- * parent registry, while valid success and error provenance remain available to later blocks.
+ * Runs private-provenance tools against an isolated registry. Unavailable authenticated lineage
+ * marks the parent unknown without replacing the tool's functional result; malformed metadata is
+ * rejected inside the transport consumer and never committed to the parent.
  */
 export async function executeTool(
   toolId: string,
@@ -1447,16 +1439,12 @@ export async function executeTool(
   if (privateMetadataPolicy.incomplete === 'propagate') {
     return executeToolImplementation(toolId, params, options)
   }
-  if (parentRegistry.isPermanentlyIncomplete()) {
-    return createPrivateProvenanceFailure()
-  }
 
   const paramEntries = getOwnEnumerableDataEntries(params)
-  if (!paramEntries) return createPrivateProvenanceFailure()
-  const toolRegistry = parentRegistry.forkForToolInputValues(paramEntries.map(([, value]) => value))
-  if (!toolRegistry.isComplete()) {
-    return createPrivateProvenanceFailure()
-  }
+  const toolRegistry = paramEntries
+    ? parentRegistry.forkForInputPaths(paramEntries.map(([key]) => [key] as const))
+    : parentRegistry.forkForToolCall()
+  if (!paramEntries) toolRegistry.markIncomplete()
   const executionContext = options.executionContext
     ? { ...options.executionContext, resolvedSecretTraceRegistry: toolRegistry }
     : undefined
@@ -1471,32 +1459,41 @@ export async function executeTool(
     const errorName =
       error && typeof error === 'object' && 'name' in error ? String(error.name) : undefined
     if (!toolRegistry.isComplete()) {
+      parentRegistry.mergeToolCallRegistry(toolRegistry)
+      throw error
+    }
+
+    const errorMessage = getErrorMessage(error, '')
+    if (!errorMessage) {
+      parentRegistry.mergeToolCallRegistry(toolRegistry)
       if (errorName === 'AbortError' || errorName === 'APIUserAbortError') {
         throw new DOMException(PRIVATE_TOOL_METADATA_ERROR_MESSAGE, 'AbortError')
       }
-      return createPrivateProvenanceFailure()
+      throw new Error(PRIVATE_TOOL_METADATA_ERROR_MESSAGE)
     }
 
-    const projectedMessage = projectResolvedSecretModelControlMessage(
-      getErrorMessage(error, PRIVATE_TOOL_METADATA_ERROR_MESSAGE),
-      toolRegistry
-    )
-    if (projectedMessage === undefined) {
+    const messageProjection = projectResolvedSecretModelContent(errorMessage, toolRegistry)
+    if (
+      !messageProjection.safe ||
+      typeof messageProjection.value !== 'string' ||
+      messageProjection.value.length === 0
+    ) {
       if (errorName === 'AbortError' || errorName === 'APIUserAbortError') {
         throw new DOMException(PRIVATE_TOOL_METADATA_ERROR_MESSAGE, 'AbortError')
       }
-      return createPrivateProvenanceFailure()
+      return {
+        success: false,
+        output: {},
+        error: PRIVATE_TOOL_METADATA_ERROR_MESSAGE,
+      }
     }
 
+    const projectedMessage = messageProjection.value
     parentRegistry.mergeToolCallRegistry(toolRegistry)
     if (errorName === 'AbortError' || errorName === 'APIUserAbortError') {
       throw new DOMException(projectedMessage, 'AbortError')
     }
     throw new Error(projectedMessage)
-  }
-
-  if (!toolRegistry.isComplete()) {
-    return createPrivateProvenanceFailure(result.timing)
   }
 
   parentRegistry.mergeToolCallRegistry(toolRegistry)
@@ -1534,8 +1531,13 @@ async function executeToolImplementation(
   const startTime = new Date()
   const startTimeISO = startTime.toISOString()
   const requestId = generateRequestId()
+  const privateToolMetadataPolicy = resolvedSecretTraceRegistry
+    ? getPrivateToolMetadataPolicy(toolId)
+    : undefined
   const structuralOnlyToolLogs =
-    normalizeToolId(toolId) === 'function_execute' || isCustomTool(toolId)
+    normalizeToolId(toolId) === 'function_execute' ||
+    isCustomTool(toolId) ||
+    privateToolMetadataPolicy !== undefined
 
   // Hoisted so the outer catch can attribute a thrown failure to the chosen key.
   let hostedKeyForMetrics: { provider: string; tool: string; key: string } | undefined
@@ -1560,9 +1562,6 @@ async function executeToolImplementation(
           : isMcpTool(normalizedToolId)
             ? 'mcp'
             : undefined
-    const privateToolMetadataPolicy = resolvedSecretTraceRegistry
-      ? getPrivateToolMetadataPolicy(normalizedToolId)
-      : undefined
     const privateToolMetadataType = privateToolMetadataPolicy?.type
 
     if (resolvedSecretTraceRegistry && privateToolMetadataType) {
@@ -1836,7 +1835,7 @@ async function executeToolImplementation(
       if (
         tool.request.modelInput?.mode === 'private-provenance' ||
         (tool.request.modelInput?.mode === 'project' &&
-          tool.request.modelInput.privateProvenance !== undefined)
+          tool.request.modelInput.privateInputPaths !== undefined)
       ) {
         throw new Error(PRIVATE_MODEL_INPUT_DIRECT_EXECUTION_ERROR_MESSAGE)
       }
@@ -1915,7 +1914,6 @@ async function executeToolImplementation(
               contextParams,
               effectiveSignal,
               privateToolMetadataType,
-              privateToolMetadataPolicy?.incomplete,
               resolvedSecretTraceRegistry,
               internalSandboxProfile
             ),
@@ -1943,7 +1941,6 @@ async function executeToolImplementation(
                   contextParams,
                   effectiveSignal,
                   privateToolMetadataType,
-                  privateToolMetadataPolicy?.incomplete,
                   resolvedSecretTraceRegistry,
                   internalSandboxProfile
                 )
@@ -1956,7 +1953,6 @@ async function executeToolImplementation(
           contextParams,
           effectiveSignal,
           privateToolMetadataType,
-          privateToolMetadataPolicy?.incomplete,
           resolvedSecretTraceRegistry,
           internalSandboxProfile
         )
@@ -2283,13 +2279,14 @@ async function executeToolRequest(
   params: Record<string, any>,
   signal?: AbortSignal,
   privateToolMetadataType?: PrivateToolMetadataType,
-  privateToolMetadataIncomplete: 'reject' | 'propagate' = 'reject',
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry,
   internalSandboxProfile?: InternalSandboxProfile
 ): Promise<ToolResponse> {
   const requestId = generateRequestId()
   const structuralOnlyToolLogs =
-    normalizeToolId(toolId) === 'function_execute' || isCustomTool(toolId)
+    normalizeToolId(toolId) === 'function_execute' ||
+    isCustomTool(toolId) ||
+    privateToolMetadataType !== undefined
   try {
     const requestParams = prepareToolRequest(tool, params, resolvedSecretTraceRegistry)
     const endpointUrl = requestParams.url
@@ -2593,8 +2590,7 @@ async function executeToolRequest(
       response,
       privateToolMetadataType,
       params,
-      resolvedSecretTraceRegistry,
-      privateToolMetadataIncomplete
+      resolvedSecretTraceRegistry
     )
     response = privateMetadata.response
 
@@ -2604,7 +2600,11 @@ async function executeToolRequest(
         toolId,
         signal,
       })
-      response = new Response(new Uint8Array(functionalBody), {
+      const body =
+        response.status === 204 || response.status === 205 || response.status === 304
+          ? null
+          : new Uint8Array(functionalBody)
+      response = new Response(body, {
         status: response.status,
         statusText: response.statusText,
         headers: cloneResponseHeaders(response.headers),
@@ -3005,12 +3005,20 @@ async function executeMcpTool(
       mcpUrl.searchParams.set('userId', mcpScope.userId)
     }
 
-    const response = await fetch(mcpUrl.toString(), {
+    let response = await fetch(mcpUrl.toString(), {
       method: 'POST',
       headers,
       body,
       signal,
     })
+    response = (
+      await consumePrivateToolResponseMetadata(
+        response,
+        privateToolMetadataType,
+        params,
+        resolvedSecretTraceRegistry
+      )
+    ).response
 
     const endTime = new Date()
     const endTimeISO = endTime.toISOString()
@@ -3036,16 +3044,7 @@ async function executeMcpTool(
 
       try {
         const errorData = await response.json()
-        const metadataConsumption = await consumePrivateToolPayloadMetadata(
-          errorData,
-          response.headers,
-          privateToolMetadataType,
-          params,
-          resolvedSecretTraceRegistry
-        )
-        if (metadataConsumption === 'verified' && errorData.error) {
-          errorMessage = errorData.error
-        }
+        if (errorData.error) errorMessage = errorData.error
       } catch {
         // Failed to parse error response, use default message
       }
@@ -3063,26 +3062,6 @@ async function executeMcpTool(
     }
 
     const result = await response.json()
-    const metadataConsumption = await consumePrivateToolPayloadMetadata(
-      result,
-      response.headers,
-      privateToolMetadataType,
-      params,
-      resolvedSecretTraceRegistry
-    )
-    if (metadataConsumption !== 'verified') {
-      return {
-        success: false,
-        output: {},
-        error: PRIVATE_TOOL_METADATA_ERROR_MESSAGE,
-        timing: {
-          startTime: actualStartTime,
-          endTime: endTimeISO,
-          duration,
-        },
-      }
-    }
-
     if (!result.success) {
       return {
         success: false,

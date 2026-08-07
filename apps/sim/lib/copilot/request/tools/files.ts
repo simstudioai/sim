@@ -7,15 +7,13 @@ import { TraceEvent } from '@/lib/copilot/generated/trace-events-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { withCopilotSpan } from '@/lib/copilot/request/otel'
 import { denyOutputWriteWithoutWritePermission } from '@/lib/copilot/request/tools/permissions'
-import {
-  projectToolErrorMessageForCopilot,
-  TOOL_OUTPUT_PERSISTENCE_UNAVAILABLE_ERROR,
-} from '@/lib/copilot/request/tools/resolved-secret-result'
+import { projectToolErrorMessageForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { decodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
 import { writeWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
 import {
   createWorkspaceFileSecretProvenanceFromRegistry,
+  type WorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenanceRepresentation,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import type { ResolvedSecretMatcher } from '@/executor/utils/resolved-secret-matcher'
@@ -396,9 +394,7 @@ export async function maybeWriteOutputToFile(
           OutputFormat,
           Promise<{
             buffer: Buffer
-            secretProvenanceDecision: Awaited<
-              ReturnType<typeof createWorkspaceFileSecretProvenanceFromRegistry>
-            >
+            secretProvenance: WorkspaceFileSecretProvenance
           }>
         >()
         const preparedFiles = []
@@ -417,40 +413,29 @@ export async function maybeWriteOutputToFile(
                 provenanceRepresentations,
                 provenanceRepresentationsComplete,
               } = prepareOutputForFile(result.output, format, registry)
+              const decision = await createWorkspaceFileSecretProvenanceFromRegistry(
+                registry,
+                content,
+                { userId, workspaceId },
+                provenanceValue,
+                provenanceRepresentations,
+                provenanceRepresentationsComplete
+              )
               return {
                 buffer: Buffer.from(content, 'utf-8'),
-                secretProvenanceDecision: await createWorkspaceFileSecretProvenanceFromRegistry(
-                  registry,
-                  content,
-                  { userId, workspaceId },
-                  provenanceValue,
-                  provenanceRepresentations,
-                  provenanceRepresentationsComplete
-                ),
+                secretProvenance: decision.safe ? decision.provenance : { status: 'unknown' },
               }
             })()
             preparedByFormat.set(format, prepared)
           }
-          const { buffer, secretProvenanceDecision } = await prepared
-          preparedFiles.push({ outputFile, format, contentType, buffer, secretProvenanceDecision })
-        }
-        if (preparedFiles.some(({ secretProvenanceDecision }) => !secretProvenanceDecision.safe)) {
-          return { success: false, error: TOOL_OUTPUT_PERSISTENCE_UNAVAILABLE_ERROR }
+          const { buffer, secretProvenance } = await prepared
+          preparedFiles.push({ outputFile, format, contentType, buffer, secretProvenance })
         }
 
         const writtenFiles = []
-        for (const {
-          outputFile,
-          format,
-          contentType,
-          buffer,
-          secretProvenanceDecision,
-        } of preparedFiles) {
+        for (const { outputFile, format, contentType, buffer, secretProvenance } of preparedFiles) {
           if (context.abortSignal?.aborted) {
             throw new Error('Request aborted before tool mutation could be applied')
-          }
-          if (!secretProvenanceDecision.safe) {
-            return { success: false, error: TOOL_OUTPUT_PERSISTENCE_UNAVAILABLE_ERROR }
           }
 
           const written = await writeWorkspaceFileByPath({
@@ -463,7 +448,7 @@ export async function maybeWriteOutputToFile(
             },
             buffer,
             inferredMimeType: contentType,
-            secretProvenance: secretProvenanceDecision.provenance,
+            secretProvenance,
           })
           writtenFiles.push({
             ...written,

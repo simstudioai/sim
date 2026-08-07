@@ -228,7 +228,7 @@ describe('maybeWriteOutputToFile', () => {
     )
   })
 
-  it('fails deterministically before writing when serialized output exceeds the scan byte budget', async () => {
+  it('writes raw output with unknown provenance when serialized output exceeds the scan budget', async () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'encrypted-token' },
     ])
@@ -244,11 +244,10 @@ describe('maybeWriteOutputToFile', () => {
       buildContext({ resolvedSecretTraceRegistry: registry })
     )
 
-    expect(result).toEqual({
-      success: false,
-      error: 'Tool output could not be persisted safely because secret provenance was unavailable.',
-    })
-    expect(mockWriteWorkspaceFileByPath).not.toHaveBeenCalled()
+    expect(result.success).toBe(true)
+    expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledWith(
+      expect.objectContaining({ secretProvenance: { status: 'unknown' } })
+    )
   })
 
   it('persists raw bytes with exact provenance and leaves sibling literals unclassified', async () => {
@@ -268,7 +267,7 @@ describe('maybeWriteOutputToFile', () => {
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
     parentRegistry.recordResolved('UNRELATED', 'true')
-    const toolRegistry = parentRegistry.forkForToolInput({ code: 'return {{OUTPUT_SECRET}}' })
+    const toolRegistry = parentRegistry.forkForInputPaths([])
     toolRegistry.recordResolved('OUTPUT_SECRET', 'secret-value')
     const runtimeOutput = {
       result: { token: 'secret-value', publicLabel: 'true', enabled: true },
@@ -514,7 +513,7 @@ describe('maybeWriteOutputToFile', () => {
     )
   })
 
-  it('rejects output provenance from another workspace before writing', async () => {
+  it('writes raw output with unknown provenance when the source scope differs', async () => {
     const registry = new ResolvedSecretTraceRegistry(
       [
         {
@@ -534,14 +533,13 @@ describe('maybeWriteOutputToFile', () => {
       buildContext({ userId: 'billing-actor', resolvedSecretTraceRegistry: registry })
     )
 
-    expect(result).toEqual({
-      success: false,
-      error: 'Tool output could not be persisted safely because secret provenance was unavailable.',
-    })
-    expect(mockWriteWorkspaceFileByPath).not.toHaveBeenCalled()
+    expect(result.success).toBe(true)
+    expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledWith(
+      expect.objectContaining({ secretProvenance: { status: 'unknown' } })
+    )
   })
 
-  it('prepares every file provenance before performing the first write', async () => {
+  it('prepares every file provenance and marks unavailable lineage unknown', async () => {
     const exportCommittedProvenanceForValue = vi
       .fn()
       .mockReturnValueOnce({ version: 1, complete: true, entries: [] })
@@ -564,12 +562,12 @@ describe('maybeWriteOutputToFile', () => {
       buildContext({ resolvedSecretTraceRegistry: registry })
     )
 
-    expect(result).toEqual({
-      success: false,
-      error: 'Tool output could not be persisted safely because secret provenance was unavailable.',
-    })
+    expect(result.success).toBe(true)
     expect(exportCommittedProvenanceForValue).toHaveBeenCalledTimes(2)
-    expect(mockWriteWorkspaceFileByPath).not.toHaveBeenCalled()
+    expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledTimes(2)
+    expect(mockWriteWorkspaceFileByPath.mock.calls[1]?.[0]).toEqual(
+      expect.objectContaining({ secretProvenance: { status: 'unknown' } })
+    )
   })
 
   it('preserves legacy writes without a registry and marks their provenance unknown', async () => {

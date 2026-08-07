@@ -1008,7 +1008,7 @@ describe('MCP Serve Route', () => {
     expect(JSON.stringify(body)).not.toContain(RESOLVED_SECRET_PROVENANCE_FIELD)
   })
 
-  it('fails closed when a successful workflow MCP response omits private provenance', async () => {
+  it('preserves a successful legacy workflow MCP response without private provenance', async () => {
     dbChainMockFns.limit
       .mockResolvedValueOnce([
         {
@@ -1041,9 +1041,8 @@ describe('MCP Serve Route', () => {
     const response = await POST(req, { params: Promise.resolve({ serverId: 'server-1' }) })
     const body = await response.json()
 
-    expect(response.status).toBe(500)
-    expect(body.error.message).toBe('Tool execution failed')
-    expect(JSON.stringify(body)).not.toContain('secret-value')
+    expect(response.status).toBe(200)
+    expect(body.result.content[0].text).toBe('"secret-value"')
   })
 
   it.each([

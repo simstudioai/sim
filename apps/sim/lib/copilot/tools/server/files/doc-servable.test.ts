@@ -8,7 +8,6 @@ const {
   mockExecuteInSandbox,
   mockFetchWorkspaceFileBuffer,
   mockGetWorkspaceFile,
-  mockIsOpaqueWorkspaceFileEgressSafe,
   mockLoadCompiledDoc,
   mockRunSandboxTask,
   mockStoreCompiledDoc,
@@ -16,7 +15,6 @@ const {
   mockExecuteInSandbox: vi.fn(),
   mockFetchWorkspaceFileBuffer: vi.fn(),
   mockGetWorkspaceFile: vi.fn(),
-  mockIsOpaqueWorkspaceFileEgressSafe: vi.fn(),
   mockLoadCompiledDoc: vi.fn(),
   mockRunSandboxTask: vi.fn(),
   mockStoreCompiledDoc: vi.fn(),
@@ -36,9 +34,6 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   getWorkspaceFile: mockGetWorkspaceFile,
   fetchWorkspaceFileBuffer: mockFetchWorkspaceFileBuffer,
 }))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  isOpaqueWorkspaceFileEgressSafe: mockIsOpaqueWorkspaceFileEgressSafe,
-}))
 vi.mock('./doc-compiled-store', () => ({
   loadCompiledDoc: mockLoadCompiledDoc,
   storeCompiledDoc: mockStoreCompiledDoc,
@@ -52,7 +47,12 @@ vi.mock('@/app/api/files/utils', () => ({
         : 'application/octet-stream',
 }))
 
-import { DocCompileUserError, resolveServableDoc, resolveServableDocBytes } from './doc-compile'
+import {
+  compileDoc,
+  DocCompileUserError,
+  resolveServableDoc,
+  resolveServableDocBytes,
+} from './doc-compile'
 
 const WORKSPACE_ID = '550e8400-e29b-41d4-a716-446655440000'
 const PDF_MAGIC = Buffer.from('%PDF-1.7\n...binary...')
@@ -73,7 +73,6 @@ describe('resolveServableDocBytes', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     setEnvFlags({ isDocSandboxEnabled: true })
-    mockIsOpaqueWorkspaceFileEgressSafe.mockResolvedValue(true)
   })
 
   it('swaps generated-doc source for the compiled artifact + binary content type', async () => {
@@ -156,6 +155,14 @@ describe('resolveServableDocBytes', () => {
     expect(result).toEqual({
       buffer: Buffer.from('%PDF-rebuilt'),
       contentType: 'application/pdf',
+      contributingFiles: [
+        {
+          fileId: 'reference-1',
+          key: `workspace/${WORKSPACE_ID}/reference.png`,
+          context: 'workspace',
+          contentUpdatedAt,
+        },
+      ],
     })
     expect(mockFetchWorkspaceFileBuffer).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'reference-1' }),
@@ -214,7 +221,7 @@ describe('resolveServableDocBytes', () => {
     expect(mockStoreCompiledDoc).not.toHaveBeenCalled()
   })
 
-  it('does not serve a legacy artifact when a current reference has secret provenance', async () => {
+  it('does not apply model-only provenance policy while serving a public legacy artifact', async () => {
     const source = Buffer.from(`image = await getFileBase64('reference-1')`, 'utf-8')
     const contentUpdatedAt = new Date('2026-08-05T01:00:00.000Z')
     mockGetWorkspaceFile.mockResolvedValue({
@@ -231,12 +238,15 @@ describe('resolveServableDocBytes', () => {
       contentUpdatedAt,
       storageContext: 'workspace',
     })
-    mockIsOpaqueWorkspaceFileEgressSafe.mockResolvedValue(false)
+    const legacyArtifact = Buffer.from('%PDF-legacy')
+    mockLoadCompiledDoc.mockResolvedValueOnce(null).mockResolvedValueOnce(legacyArtifact)
 
     await expect(resolveServableDoc(WORKSPACE_ID, source, 'report.pdf')).resolves.toEqual({
-      kind: 'unavailable',
+      kind: 'artifact',
+      buffer: legacyArtifact,
+      contentType: 'application/pdf',
     })
-    expect(mockLoadCompiledDoc).not.toHaveBeenCalled()
+    expect(mockLoadCompiledDoc).toHaveBeenCalledTimes(2)
     expect(mockExecuteInSandbox).not.toHaveBeenCalled()
   })
 
@@ -339,6 +349,45 @@ describe('resolveServableDocBytes', () => {
     expect(mockStoreCompiledDoc).not.toHaveBeenCalled()
   })
 
+  it('preserves contributor identities when a servable document hits the local compile cache', async () => {
+    const source = 'const cacheContributor = true'
+    const compiled = Buffer.from('%PDF-cached-with-contributor')
+    const contentUpdatedAt = new Date('2026-08-06T01:00:00.000Z')
+    const contributor = {
+      fileId: 'reference-cache-1',
+      key: 'workspace/workspace-1/reference-cache-1.png',
+      context: 'workspace' as const,
+      contentUpdatedAt,
+    }
+    setEnvFlags({ isDocSandboxEnabled: false })
+    mockRunSandboxTask.mockImplementationOnce((...args: unknown[]) => {
+      const options = args[2] as {
+        onWorkspaceFileAccess?: (identity: typeof contributor) => void
+      }
+      options.onWorkspaceFileAccess?.(contributor)
+      return Promise.resolve(compiled)
+    })
+
+    await expect(compileDoc({ source, fileName: 'report.pdf', workspaceId: '' })).resolves.toEqual({
+      buffer: compiled,
+      contentType: 'application/pdf',
+      contributingFiles: [contributor],
+    })
+
+    await expect(
+      resolveServableDocBytes({
+        rawBuffer: Buffer.from(source),
+        fileName: 'report.pdf',
+        workspaceId: undefined,
+      })
+    ).resolves.toEqual({
+      buffer: compiled,
+      contentType: 'application/pdf',
+      contributingFiles: [contributor],
+    })
+    expect(mockRunSandboxTask).toHaveBeenCalledTimes(1)
+  })
+
   it('keeps the isolated-vm fallback for referenced documents when E2B is disabled', async () => {
     const source = Buffer.from(`const image = getFileBase64('reference-1')`, 'utf-8')
     const contentUpdatedAt = new Date('2026-08-05T01:00:00.000Z')
@@ -375,7 +424,6 @@ describe('resolveServableDocBytes', () => {
       expect.objectContaining({})
     )
     expect(mockGetWorkspaceFile).not.toHaveBeenCalled()
-    expect(mockIsOpaqueWorkspaceFileEgressSafe).not.toHaveBeenCalled()
     expect(mockLoadCompiledDoc).not.toHaveBeenCalled()
     expect(mockStoreCompiledDoc).not.toHaveBeenCalled()
   })

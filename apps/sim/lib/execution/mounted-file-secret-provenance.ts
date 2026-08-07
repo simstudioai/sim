@@ -22,6 +22,11 @@ export interface MountedFileSecretProvenanceScanner {
   scan(buffer: Buffer): WorkspaceFileSecretProvenance
 }
 
+const UNKNOWN_MOUNTED_FILE_SECRET_PROVENANCE_SCANNER: MountedFileSecretProvenanceScanner = {
+  hasSecrets: true,
+  scan: () => ({ status: 'unknown' }),
+}
+
 function compareStrings(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0
 }
@@ -34,7 +39,8 @@ function compareStrings(left: string, right: string): number {
 export async function createMountedFileSecretProvenanceScanner(
   provenance: ResolvedSecretTraceProvenanceV1
 ): Promise<MountedFileSecretProvenanceScanner | undefined> {
-  if (!provenance.complete || !provenance.scope?.userId) return undefined
+  if (!provenance.complete) return UNKNOWN_MOUNTED_FILE_SECRET_PROVENANCE_SCANNER
+  if (!provenance.scope?.userId) return undefined
 
   const hasSecrets = provenance.entries.length > 0
   const entriesByScanLiteral = new Map<string, Map<string, WorkspaceFileSecretProvenanceEntry>>()
@@ -62,7 +68,7 @@ export async function createMountedFileSecretProvenanceScanner(
       }
     }
   } catch {
-    return undefined
+    return UNKNOWN_MOUNTED_FILE_SECRET_PROVENANCE_SCANNER
   }
 
   if (entriesByScanLiteral.size === 0) {
@@ -75,7 +81,7 @@ export async function createMountedFileSecretProvenanceScanner(
       [...entriesByScanLiteral.keys()].map((plaintext) => ({ plaintext, replacement: '' }))
     )
   } catch {
-    return undefined
+    return UNKNOWN_MOUNTED_FILE_SECRET_PROVENANCE_SCANNER
   }
   if (!matcher) {
     return { hasSecrets, scan: () => ({ status: 'exact', entries: [] }) }

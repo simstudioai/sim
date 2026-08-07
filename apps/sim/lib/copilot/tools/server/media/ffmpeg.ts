@@ -18,9 +18,10 @@ import {
   mergeWorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenance,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
-import { projectResolvedSecretModelControlMessage } from '@/executor/utils/resolved-secret-content-projection'
+import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 
 const logger = createLogger('FfmpegTool')
+const MEDIA_OPERATION_FAILED_SAFELY = 'The media operation failed safely'
 
 const VALID_OPERATIONS: FfmpegOperation[] = [
   'overlay_audio',
@@ -184,12 +185,16 @@ export const ffmpegServerTool: BaseServerTool<FfmpegArgs, FfmpegResult> = {
         downloadUrl: written.downloadUrl,
       }
     } catch (error) {
-      const message = inputRequiresOpaqueError
-        ? 'The media operation failed safely'
-        : (projectResolvedSecretModelControlMessage(
-            getErrorMessage(error, 'Unknown error'),
-            context.resolvedSecretTraceRegistry
-          ) ?? 'The media operation failed safely')
+      const errorMessage = getErrorMessage(error, '')
+      const projection = inputRequiresOpaqueError
+        ? undefined
+        : errorMessage
+          ? projectResolvedSecretModelContent(errorMessage, context.resolvedSecretTraceRegistry)
+          : undefined
+      const message =
+        projection?.safe && typeof projection.value === 'string' && projection.value.length > 0
+          ? projection.value
+          : MEDIA_OPERATION_FAILED_SAFELY
       logger.error('ffmpeg operation failed', { operation: params.operation, error: message })
       return { success: false, message: `ffmpeg ${params.operation} failed: ${message}` }
     }

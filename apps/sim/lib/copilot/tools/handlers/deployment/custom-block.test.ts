@@ -17,7 +17,6 @@ const {
   getCustomBlockWithInputsByWorkflowIdMock,
   listWorkspaceFilesMock,
   fetchWorkspaceFileBufferMock,
-  isOpaqueWorkspaceFileEgressSafeMock,
   uploadFileMock,
 } = vi.hoisted(() => ({
   ensureWorkflowAccessMock: vi.fn(),
@@ -30,7 +29,6 @@ const {
   getCustomBlockWithInputsByWorkflowIdMock: vi.fn(),
   listWorkspaceFilesMock: vi.fn(),
   fetchWorkspaceFileBufferMock: vi.fn(),
-  isOpaqueWorkspaceFileEgressSafeMock: vi.fn(),
   uploadFileMock: vi.fn(),
 }))
 
@@ -56,10 +54,6 @@ vi.mock('@/lib/billing', () => ({
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   listWorkspaceFiles: listWorkspaceFilesMock,
   fetchWorkspaceFileBuffer: fetchWorkspaceFileBufferMock,
-}))
-
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  isOpaqueWorkspaceFileEgressSafe: isOpaqueWorkspaceFileEgressSafeMock,
 }))
 
 vi.mock('@/lib/uploads/core/storage-service', () => ({
@@ -111,7 +105,6 @@ describe('executeDeployCustomBlock', () => {
     isFeatureEnabledMock.mockResolvedValue(true)
     isOrganizationOnEnterprisePlanMock.mockResolvedValue(true)
     getCustomBlockWithInputsByWorkflowIdMock.mockResolvedValue(null)
-    isOpaqueWorkspaceFileEgressSafeMock.mockResolvedValue(true)
   })
 
   it('publishes a new custom block', async () => {
@@ -372,37 +365,6 @@ describe('executeDeployCustomBlock', () => {
       expect.objectContaining({ iconUrl: '/api/files/serve/s3/workspace-logos%2Ficon.png' })
     )
     expect(result.success).toBe(true)
-  })
-
-  it('rejects an unsafe workspace icon before copying it to public storage', async () => {
-    listWorkspaceFilesMock.mockResolvedValue([
-      {
-        id: 'file-1',
-        workspaceId: 'ws-1',
-        name: 'icon.png',
-        folderPath: null,
-        type: 'image/png',
-        size: 1024,
-        key: 'workspace/ws-1/123-abc-icon.png',
-        storageContext: 'workspace',
-      },
-    ])
-    isOpaqueWorkspaceFileEgressSafeMock.mockResolvedValue(false)
-
-    const result = await executeDeployCustomBlock(
-      {
-        name: 'Enrich Lead',
-        exposedOutputs: [{ blockId: 'b1', path: 'content', name: 'answer' }],
-        iconUrl: 'files/icon.png',
-      },
-      context
-    )
-
-    expect(result.success).toBe(false)
-    expect(result.error).toContain('secret provenance is unavailable')
-    expect(fetchWorkspaceFileBufferMock).not.toHaveBeenCalled()
-    expect(uploadFileMock).not.toHaveBeenCalled()
-    expect(publishCustomBlockMock).not.toHaveBeenCalled()
   })
 
   it('passes an external icon URL through without ingestion', async () => {

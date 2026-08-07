@@ -85,7 +85,7 @@ export const mapTool: ToolConfig<TavilyMapParams, MapResponse> = {
     },
     opaqueModelInput: {
       mode: 'reject-resolved-secrets',
-      select: (params) => (params.instructions ? params.url : undefined),
+      inputPaths: (params) => (params.instructions ? [['url']] : []),
     },
     url: 'https://api.tavily.com/map',
     method: 'POST',

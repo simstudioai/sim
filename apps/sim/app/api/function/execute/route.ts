@@ -989,7 +989,6 @@ interface FunctionRouteExecutionContext {
   outputSecretNamesByScanLiteral: Map<string, string[]>
   outputSecretPlaintextsByName: Map<string, string>
   mountedFileSecretProvenanceScanner?: MountedFileSecretProvenanceScanner
-  hasMountedSandboxFiles: boolean
 }
 
 type ResolvedSecretNamesMetadataType =
@@ -1007,10 +1006,16 @@ function inspectMountedWorkspaceFileProvenance(
 ): MountedWorkspaceFileProvenanceInspection {
   const inspection = inspectPrivateSecretProvenanceRequest(headers, body)
   if (inspection.status === 'unsupported') return { status: 'none' }
+  if (inspection.status !== 'verified' || !isPrivateSecretProvenanceBundleV1(inspection.value)) {
+    return { status: 'invalid' }
+  }
+  if (!inspection.value.complete) {
+    return {
+      status: 'verified',
+      provenance: { version: 1, complete: false, entries: [] },
+    }
+  }
   if (
-    inspection.status !== 'verified' ||
-    !isPrivateSecretProvenanceBundleV1(inspection.value) ||
-    !inspection.value.complete ||
     inspection.value.selections.length !== 1 ||
     inspection.value.selections[0]?.key !== MOUNTED_WORKSPACE_FILES_PROVENANCE_KEY
   ) {
@@ -1211,19 +1216,13 @@ function activateOutputSecretProvenance(
 }
 
 /**
- * True when any secret material was in scope for this execution — a mounted environment secret, or
- * a secret carried by a mounted input file. When false, nothing secret ever reached the sandbox, so
- * no export of any kind can carry one.
- *
- * Mounted bytes are classified from the caller's provenance envelope. Files mounted *without* one
- * are unclassifiable rather than clean: absence of an envelope is absence of evidence, not evidence
- * the mount carried nothing. Those fail closed here so the classification can never be stronger
- * than what the caller actually attested to.
+ * True when this execution compiled a secret placeholder or received a mounted file with verified
+ * secret provenance. Ordinary mounts without a provenance envelope are user data, not evidence that
+ * a Sim secret was resolved in this call.
  */
 function hasSecretMaterialInScope(context: FunctionRouteExecutionContext): boolean {
   if (context.outputSecretPlaintextsByName.size > 0) return true
-  const scanner = context.mountedFileSecretProvenanceScanner
-  return scanner ? scanner.hasSecrets : context.hasMountedSandboxFiles
+  return context.mountedFileSecretProvenanceScanner?.hasSecrets ?? false
 }
 
 /**
@@ -2030,29 +2029,6 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       outputSecretNamesByScanLiteral: new Map(),
       outputSecretPlaintextsByName: new Map(),
       mountedFileSecretProvenanceScanner,
-      hasMountedSandboxFiles: (_sandboxFiles?.length ?? 0) > 0,
-    }
-    for (const [name, plaintext] of Object.entries(envVars)) {
-      if (!plaintext) continue
-      routeContext.outputSecretPlaintextsByName.set(name, plaintext)
-      const scanLiterals = new Set([plaintext, JSON.stringify(plaintext).slice(1, -1)])
-      for (const scanLiteral of scanLiterals) {
-        const names = routeContext.outputSecretNamesByScanLiteral.get(scanLiteral) ?? []
-        names.push(name)
-        routeContext.outputSecretNamesByScanLiteral.set(scanLiteral, names)
-      }
-    }
-    if (routeContext.outputSecretNamesByScanLiteral.size > 0) {
-      try {
-        routeContext.outputSecretMatcher = createResolvedSecretMatcher(
-          [...routeContext.outputSecretNamesByScanLiteral].map(([plaintext, names]) => ({
-            plaintext,
-            replacement: `{{${names[0]}}}`,
-          }))
-        )
-      } catch {
-        routeContext.outputProvenanceComplete = false
-      }
     }
 
     const lang = isValidCodeLanguage(language) ? language : DEFAULT_CODE_LANGUAGE
@@ -2081,6 +2057,30 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       environmentVariables: envVars,
       reservedNames: Object.keys(contextVariables),
     })
+    for (const name of compilation.resolvedSecretNames) {
+      if (!Object.hasOwn(envVars, name)) continue
+      const plaintext = envVars[name]
+      if (!plaintext) continue
+      routeContext.outputSecretPlaintextsByName.set(name, plaintext)
+      const scanLiterals = new Set([plaintext, JSON.stringify(plaintext).slice(1, -1)])
+      for (const scanLiteral of scanLiterals) {
+        const names = routeContext.outputSecretNamesByScanLiteral.get(scanLiteral) ?? []
+        names.push(name)
+        routeContext.outputSecretNamesByScanLiteral.set(scanLiteral, names)
+      }
+    }
+    if (routeContext.outputSecretNamesByScanLiteral.size > 0) {
+      try {
+        routeContext.outputSecretMatcher = createResolvedSecretMatcher(
+          [...routeContext.outputSecretNamesByScanLiteral].map(([plaintext, names]) => ({
+            plaintext,
+            replacement: `{{${[...names].sort()[0]}}}`,
+          }))
+        )
+      } catch {
+        routeContext.outputProvenanceComplete = false
+      }
+    }
     resolvedCode = compilation.code
     compilerInternalIdentifiers = [...compilation.internalIdentifiers]
     compilerPrivateInputs = [...compilation.privateInputs]

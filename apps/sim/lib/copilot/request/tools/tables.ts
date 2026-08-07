@@ -10,10 +10,7 @@ import { TraceEvent } from '@/lib/copilot/generated/trace-events-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { withCopilotSpan } from '@/lib/copilot/request/otel'
 import { denyOutputWriteWithoutWritePermission } from '@/lib/copilot/request/tools/permissions'
-import {
-  projectToolErrorMessageForCopilot,
-  TOOL_OUTPUT_PERSISTENCE_UNAVAILABLE_ERROR,
-} from '@/lib/copilot/request/tools/resolved-secret-result'
+import { projectToolErrorMessageForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { isPrivateSecretProvenanceScopeCompatible } from '@/lib/execution/durable-secret-provenance'
 import type { RowData, TableDefinition } from '@/lib/table'
@@ -59,24 +56,18 @@ async function replaceTableRowsFromWire(
     coerceRowValues(persistedRow, table.schema)
     return persistedRow
   })
-  const secretProvenance = registry
-    ? persistedRows.map((row) => createTableRowSecretProvenanceFromRegistry(row, registry))
-    : persistedRows.map(() => createUnknownTableRowSecretProvenance())
-  if (registry && secretProvenance.some((provenance) => !provenance.complete)) {
-    return { error: TOOL_OUTPUT_PERSISTENCE_UNAVAILABLE_ERROR }
-  }
   const destinationScope = { userId: context.userId, workspaceId: table.workspaceId }
-  if (
-    secretProvenance.some((rowProvenance) =>
-      Object.values(rowProvenance.columns).some(
-        (columnProvenance) =>
-          columnProvenance.entries.length > 0 &&
-          !isPrivateSecretProvenanceScopeCompatible(columnProvenance.scope, destinationScope)
-      )
+  const secretProvenance = persistedRows.map((row) => {
+    if (!registry) return createUnknownTableRowSecretProvenance()
+    const provenance = createTableRowSecretProvenanceFromRegistry(row, registry)
+    if (!provenance.complete) return createUnknownTableRowSecretProvenance()
+    const compatible = Object.values(provenance.columns).every(
+      (columnProvenance) =>
+        columnProvenance.entries.length === 0 ||
+        isPrivateSecretProvenanceScopeCompatible(columnProvenance.scope, destinationScope)
     )
-  ) {
-    return { error: TOOL_OUTPUT_PERSISTENCE_UNAVAILABLE_ERROR }
-  }
+    return compatible ? provenance : createUnknownTableRowSecretProvenance()
+  })
   await replaceTableRows(
     {
       tableId: table.id,
