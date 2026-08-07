@@ -1,9 +1,11 @@
+import { trace } from '@opentelemetry/api'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { backoffWithJitter } from '@sim/utils/retry'
 import { foldDocsIndexPath } from '@/lib/copilot/docs/docs-path'
 import { DOCS_MANIFEST } from '@/lib/copilot/generated/docs-manifest'
+import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import type { GrepCountEntry, GrepMatch, GrepOptions } from '@/lib/copilot/vfs/operations'
 import { glob as globPaths, grep, grepReadResult } from '@/lib/copilot/vfs/operations'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
@@ -212,6 +214,7 @@ export async function grepDocs(
   }
   const dir = `${key}/`
   const pages = [...docsKeyView.keys()].filter((pageKey) => pageKey.startsWith(dir))
+  trace.getActiveSpan()?.setAttribute(TraceAttr.CopilotVfsGrepDocsPageCount, pages.length)
   let unreachable = 0
   const results = await mapWithConcurrency(pages, GREP_FETCH_CONCURRENCY, async (pageKey) => {
     // Once any page is unreachable the grep is going to fail — skip the
