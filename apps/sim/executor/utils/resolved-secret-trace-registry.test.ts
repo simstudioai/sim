@@ -1046,6 +1046,54 @@ describe('ResolvedSecretTraceRegistry non-secret exemption', () => {
     expect(registry.getActiveMatches()).toEqual([])
   })
 
+  /**
+   * The no-regression guard. Every workspace that has never marked a key
+   * non-secret runs with an empty exempt set, so this pins that the feature is
+   * completely inert there: all three keys still activate, redact, and export
+   * exactly as before.
+   */
+  it('is inert with an empty exempt set — every key still behaves as a secret', async () => {
+    const registry = await createResolvedSecretTraceRegistry({
+      personalEncrypted: { PERSONAL_KEY: 'enc-p' },
+      workspaceEncrypted: { STRIPE_KEY: 'enc-s', SUPPORT_EMAIL: 'enc-e' },
+      personalDecrypted: { PERSONAL_KEY: 'p-secret' },
+      workspaceDecrypted: { STRIPE_KEY: 'sk-live', SUPPORT_EMAIL: 'help@acme.com' },
+      nonSecretNames: EMPTY_NON_SECRET_NAMES,
+    })
+    registry.recordResolved('PERSONAL_KEY', 'p-secret')
+    registry.recordResolved('STRIPE_KEY', 'sk-live')
+    registry.recordResolved('SUPPORT_EMAIL', 'help@acme.com')
+
+    expect(registry.isComplete()).toBe(true)
+    expect(
+      registry
+        .getActiveMatches()
+        .map((match) => match.replacement)
+        .sort()
+    ).toEqual(['{{PERSONAL_KEY}}', '{{STRIPE_KEY}}', '{{SUPPORT_EMAIL}}'])
+    expect(registry.exportProvenance().entries).toHaveLength(3)
+  })
+
+  /** Exempting one key must not perturb the secrets sitting beside it. */
+  it('removes exactly the exempt key and leaves sibling secrets redacting', async () => {
+    const registry = await createResolvedSecretTraceRegistry({
+      personalEncrypted: { PERSONAL_KEY: 'enc-p' },
+      workspaceEncrypted: { STRIPE_KEY: 'enc-s', SUPPORT_EMAIL: 'enc-e' },
+      personalDecrypted: { PERSONAL_KEY: 'p-secret' },
+      workspaceDecrypted: { STRIPE_KEY: 'sk-live', SUPPORT_EMAIL: 'help@acme.com' },
+      nonSecretNames: new Set(['SUPPORT_EMAIL']),
+    })
+    registry.recordResolved('PERSONAL_KEY', 'p-secret')
+    registry.recordResolved('STRIPE_KEY', 'sk-live')
+    registry.recordResolved('SUPPORT_EMAIL', 'help@acme.com')
+
+    expect(registry.isComplete()).toBe(true)
+    const matches = registry.getActiveMatches()
+    expect(matches.some((match) => match.plaintext === 'sk-live')).toBe(true)
+    expect(matches.some((match) => match.plaintext === 'p-secret')).toBe(true)
+    expect(matches.some((match) => match.plaintext === 'help@acme.com')).toBe(false)
+  })
+
   it('never activates or exports a non-secret name', async () => {
     const registry = await createResolvedSecretTraceRegistry({
       personalEncrypted: {},
