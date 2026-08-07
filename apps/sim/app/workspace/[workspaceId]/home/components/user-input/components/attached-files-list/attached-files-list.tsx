@@ -115,7 +115,9 @@ const AttachedFileChip = React.memo(function AttachedFileChip({
             onRemoveFile(file.id)
           }}
           aria-label={`Remove ${file.name}`}
-          className='absolute top-[2px] right-[2px] flex size-[16px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-body)] opacity-0 transition-opacity group-hover:opacity-100'
+          /* Visible by default so a coarse pointer never has to discover it through an
+             emulated hover; fine pointers get the reveal-on-hover treatment. */
+          className='absolute top-[2px] right-[2px] flex size-[16px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-body)] transition-opacity hover-hover:opacity-0 hover-hover:group-hover:opacity-100'
         >
           <X className='size-[10px]' />
         </button>
