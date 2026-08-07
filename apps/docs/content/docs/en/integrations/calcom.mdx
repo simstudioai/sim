@@ -808,6 +808,17 @@ Trigger workflow when a booking is cancelled in Cal.com
 |   ↳ `status` | string | Booking status |
 |   ↳ `location` | string | Meeting location or URL |
 |   ↳ `cancellationReason` | string | Reason for cancellation |
+|   ↳ `organizer` | object | Organizer details |
+|     ↳ `id` | number | Organizer user ID |
+|     ↳ `name` | string | Organizer name |
+|     ↳ `email` | string | Organizer email |
+|     ↳ `username` | string | Organizer username |
+|     ↳ `timeZone` | string | Organizer timezone |
+|   ↳ `attendees` | array | List of attendees |
+|     ↳ `name` | string | Attendee name |
+|     ↳ `email` | string | Attendee email |
+|     ↳ `timeZone` | string | Attendee timezone |
+|     ↳ `language` | string | Attendee language preference |
 |   ↳ `responses` | json | Booking form responses |
 |   ↳ `metadata` | json | Custom metadata attached to the booking |
 
@@ -840,6 +851,17 @@ Trigger workflow when a new booking is created in Cal.com
 |   ↳ `bookingId` | number | Numeric booking ID |
 |   ↳ `status` | string | Booking status |
 |   ↳ `location` | string | Meeting location or URL |
+|   ↳ `organizer` | object | Organizer details |
+|     ↳ `id` | number | Organizer user ID |
+|     ↳ `name` | string | Organizer name |
+|     ↳ `email` | string | Organizer email |
+|     ↳ `username` | string | Organizer username |
+|     ↳ `timeZone` | string | Organizer timezone |
+|   ↳ `attendees` | array | List of attendees |
+|     ↳ `name` | string | Attendee name |
+|     ↳ `email` | string | Attendee email |
+|     ↳ `timeZone` | string | Attendee timezone |
+|     ↳ `language` | string | Attendee language preference |
 |   ↳ `responses` | json | Booking form responses \(dynamic - fields depend on your event type configuration\) |
 |   ↳ `metadata` | json | Custom metadata attached to the booking \(dynamic - user-defined key-value pairs\) |
 |   ↳ `videoCallData` | json | Video call details \(structure varies by provider\) |
@@ -878,6 +900,17 @@ Trigger workflow when payment is completed for a paid booking
 |     ↳ `amount` | number | Payment amount |
 |     ↳ `currency` | string | Payment currency |
 |     ↳ `success` | boolean | Whether payment succeeded |
+|   ↳ `organizer` | object | Organizer details |
+|     ↳ `id` | number | Organizer user ID |
+|     ↳ `name` | string | Organizer name |
+|     ↳ `email` | string | Organizer email |
+|     ↳ `username` | string | Organizer username |
+|     ↳ `timeZone` | string | Organizer timezone |
+|   ↳ `attendees` | array | List of attendees |
+|     ↳ `name` | string | Attendee name |
+|     ↳ `email` | string | Attendee email |
+|     ↳ `timeZone` | string | Attendee timezone |
+|     ↳ `language` | string | Attendee language preference |
 |   ↳ `metadata` | json | Custom metadata attached to the booking |
 
 
@@ -909,6 +942,17 @@ Trigger workflow when a booking request is rejected by the host
 |   ↳ `bookingId` | number | Numeric booking ID |
 |   ↳ `status` | string | Booking status \(rejected\) |
 |   ↳ `rejectionReason` | string | Reason for rejection provided by host |
+|   ↳ `organizer` | object | Organizer details |
+|     ↳ `id` | number | Organizer user ID |
+|     ↳ `name` | string | Organizer name |
+|     ↳ `email` | string | Organizer email |
+|     ↳ `username` | string | Organizer username |
+|     ↳ `timeZone` | string | Organizer timezone |
+|   ↳ `attendees` | array | List of attendees |
+|     ↳ `name` | string | Attendee name |
+|     ↳ `email` | string | Attendee email |
+|     ↳ `timeZone` | string | Attendee timezone |
+|     ↳ `language` | string | Attendee language preference |
 |   ↳ `metadata` | json | Custom metadata attached to the booking |
 
 
@@ -940,6 +984,17 @@ Trigger workflow when a booking request is submitted (pending confirmation)
 |   ↳ `bookingId` | number | Numeric booking ID |
 |   ↳ `status` | string | Booking status \(pending\) |
 |   ↳ `location` | string | Meeting location or URL |
+|   ↳ `organizer` | object | Organizer details |
+|     ↳ `id` | number | Organizer user ID |
+|     ↳ `name` | string | Organizer name |
+|     ↳ `email` | string | Organizer email |
+|     ↳ `username` | string | Organizer username |
+|     ↳ `timeZone` | string | Organizer timezone |
+|   ↳ `attendees` | array | List of attendees |
+|     ↳ `name` | string | Attendee name |
+|     ↳ `email` | string | Attendee email |
+|     ↳ `timeZone` | string | Attendee timezone |
+|     ↳ `language` | string | Attendee language preference |
 |   ↳ `responses` | json | Booking form responses |
 |   ↳ `metadata` | json | Custom metadata attached to the booking |
 
@@ -976,6 +1031,17 @@ Trigger workflow when a booking is rescheduled in Cal.com
 |   ↳ `rescheduleUid` | string | Previous booking UID |
 |   ↳ `rescheduleStartTime` | string | Original start time \(ISO 8601\) |
 |   ↳ `rescheduleEndTime` | string | Original end time \(ISO 8601\) |
+|   ↳ `organizer` | object | Organizer details |
+|     ↳ `id` | number | Organizer user ID |
+|     ↳ `name` | string | Organizer name |
+|     ↳ `email` | string | Organizer email |
+|     ↳ `username` | string | Organizer username |
+|     ↳ `timeZone` | string | Organizer timezone |
+|   ↳ `attendees` | array | List of attendees |
+|     ↳ `name` | string | Attendee name |
+|     ↳ `email` | string | Attendee email |
+|     ↳ `timeZone` | string | Attendee timezone |
+|     ↳ `language` | string | Attendee language preference |
 |   ↳ `responses` | json | Booking form responses |
 |   ↳ `metadata` | json | Custom metadata attached to the booking |
 
@@ -1006,6 +1072,17 @@ Trigger workflow when a Cal.com meeting ends
 |   ↳ `uid` | string | Unique booking identifier |
 |   ↳ `bookingId` | number | Numeric booking ID |
 |   ↳ `duration` | number | Actual meeting duration in minutes |
+|   ↳ `organizer` | object | Organizer details |
+|     ↳ `id` | number | Organizer user ID |
+|     ↳ `name` | string | Organizer name |
+|     ↳ `email` | string | Organizer email |
+|     ↳ `username` | string | Organizer username |
+|     ↳ `timeZone` | string | Organizer timezone |
+|   ↳ `attendees` | array | List of attendees |
+|     ↳ `name` | string | Attendee name |
+|     ↳ `email` | string | Attendee email |
+|     ↳ `timeZone` | string | Attendee timezone |
+|     ↳ `language` | string | Attendee language preference |
 |   ↳ `videoCallData` | json | Video call details |
 
 
@@ -1036,6 +1113,17 @@ Trigger workflow when a meeting recording is ready for download
 |   ↳ `bookingId` | number | Numeric booking ID |
 |   ↳ `recordingUrl` | string | URL to download the recording |
 |   ↳ `transcription` | string | Meeting transcription text \(if available\) |
+|   ↳ `organizer` | object | Organizer details |
+|     ↳ `id` | number | Organizer user ID |
+|     ↳ `name` | string | Organizer name |
+|     ↳ `email` | string | Organizer email |
+|     ↳ `username` | string | Organizer username |
+|     ↳ `timeZone` | string | Organizer timezone |
+|   ↳ `attendees` | array | List of attendees |
+|     ↳ `name` | string | Attendee name |
+|     ↳ `email` | string | Attendee email |
+|     ↳ `timeZone` | string | Attendee timezone |
+|     ↳ `language` | string | Attendee language preference |
 
 
 ---

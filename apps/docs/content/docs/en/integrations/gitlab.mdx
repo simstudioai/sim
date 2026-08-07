@@ -1863,6 +1863,15 @@ Trigger workflow when a comment is added on a commit, merge request, or issue
 | --------- | ---- | ----------- |
 | `object_kind` | string | Event kind \(note\) |
 | `event_type` | string | GitLab event type from the X-Gitlab-Event header |
+| `user` | object | user output from the tool |
+|   ↳ `id` | number | User ID |
+|   ↳ `name` | string | User display name |
+|   ↳ `username` | string | Username |
+| `project` | object | project output from the tool |
+|   ↳ `id` | number | Project ID |
+|   ↳ `name` | string | Project name |
+|   ↳ `web_url` | string | Project web URL |
+|   ↳ `path_with_namespace` | string | Full path \(namespace/project\) |
 | `object_attributes` | object | object_attributes output from the tool |
 |   ↳ `id` | number | Comment ID |
 |   ↳ `note` | string | Comment body |
@@ -1892,6 +1901,11 @@ Trigger workflow from any GitLab webhook event
 | `object_kind` | string | Event kind \(push, merge_request, issue, etc.\) |
 | `event_type` | string | GitLab event type from the X-Gitlab-Event header |
 | `user` | json | Actor that triggered the event \(when present\) |
+| `project` | object | project output from the tool |
+|   ↳ `id` | number | Project ID |
+|   ↳ `name` | string | Project name |
+|   ↳ `web_url` | string | Project web URL |
+|   ↳ `path_with_namespace` | string | Full path \(namespace/project\) |
 | `object_attributes` | json | Event-specific attributes \(varies by object_kind\) |
 
 
@@ -1915,6 +1929,15 @@ Trigger workflow when an issue is opened, updated, or closed in GitLab
 | --------- | ---- | ----------- |
 | `object_kind` | string | Event kind \(issue\) |
 | `event_type` | string | GitLab event type from the X-Gitlab-Event header |
+| `user` | object | user output from the tool |
+|   ↳ `id` | number | User ID |
+|   ↳ `name` | string | User display name |
+|   ↳ `username` | string | Username |
+| `project` | object | project output from the tool |
+|   ↳ `id` | number | Project ID |
+|   ↳ `name` | string | Project name |
+|   ↳ `web_url` | string | Project web URL |
+|   ↳ `path_with_namespace` | string | Full path \(namespace/project\) |
 | `object_attributes` | object | object_attributes output from the tool |
 |   ↳ `id` | number | Global issue ID |
 |   ↳ `iid` | number | Project-scoped issue number |
@@ -1947,6 +1970,15 @@ Trigger workflow when a merge request is opened, updated, or merged in GitLab
 | --------- | ---- | ----------- |
 | `object_kind` | string | Event kind \(merge_request\) |
 | `event_type` | string | GitLab event type from the X-Gitlab-Event header |
+| `user` | object | user output from the tool |
+|   ↳ `id` | number | User ID |
+|   ↳ `name` | string | User display name |
+|   ↳ `username` | string | Username |
+| `project` | object | project output from the tool |
+|   ↳ `id` | number | Project ID |
+|   ↳ `name` | string | Project name |
+|   ↳ `web_url` | string | Project web URL |
+|   ↳ `path_with_namespace` | string | Full path \(namespace/project\) |
 | `object_attributes` | object | object_attributes output from the tool |
 |   ↳ `id` | number | Global merge request ID |
 |   ↳ `iid` | number | Project-scoped merge request number |
@@ -1981,6 +2013,15 @@ Trigger workflow when a pipeline status changes in GitLab
 | --------- | ---- | ----------- |
 | `object_kind` | string | Event kind \(pipeline\) |
 | `event_type` | string | GitLab event type from the X-Gitlab-Event header |
+| `user` | object | user output from the tool |
+|   ↳ `id` | number | User ID |
+|   ↳ `name` | string | User display name |
+|   ↳ `username` | string | Username |
+| `project` | object | project output from the tool |
+|   ↳ `id` | number | Project ID |
+|   ↳ `name` | string | Project name |
+|   ↳ `web_url` | string | Project web URL |
+|   ↳ `path_with_namespace` | string | Full path \(namespace/project\) |
 | `object_attributes` | object | object_attributes output from the tool |
 |   ↳ `id` | number | Pipeline ID |
 |   ↳ `status` | string | Pipeline status \(success, failed, running, etc.\) |
@@ -2021,5 +2062,10 @@ Trigger workflow when commits are pushed to a GitLab project
 | `user_name` | string | Display name of the pusher |
 | `user_email` | string | Email of the pusher |
 | `total_commits_count` | number | Number of commits in the push |
+| `project` | object | project output from the tool |
+|   ↳ `id` | number | Project ID |
+|   ↳ `name` | string | Project name |
+|   ↳ `web_url` | string | Project web URL |
+|   ↳ `path_with_namespace` | string | Full path \(namespace/project\) |
 | `commits` | json | Array of commit objects included in this push |
 

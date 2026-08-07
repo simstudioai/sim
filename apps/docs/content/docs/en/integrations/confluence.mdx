@@ -1459,17 +1459,17 @@ Trigger workflow when an attachment is uploaded in Confluence
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
-| `id` | number | Content ID |
-| `title` | string | Content title |
-| `contentType` | string | Content type \(page, blogpost, comment, attachment\) |
-| `version` | number | Version number |
-| `spaceKey` | string | Space key the content belongs to |
-| `creatorAccountId` | string | Account ID of the creator |
-| `lastModifierAccountId` | string | Account ID of the last modifier |
-| `self` | string | URL link to the content |
-| `creationDate` | number | Creation timestamp \(Unix epoch milliseconds\) |
-| `modificationDate` | number | Last modification timestamp \(Unix epoch milliseconds\) |
 | `attachment` | object | attachment output from the tool |
+|   ↳ `id` | number | Content ID |
+|   ↳ `title` | string | Content title |
+|   ↳ `contentType` | string | Content type \(page, blogpost, comment, attachment\) |
+|   ↳ `version` | number | Version number |
+|   ↳ `spaceKey` | string | Space key the content belongs to |
+|   ↳ `creatorAccountId` | string | Account ID of the creator |
+|   ↳ `lastModifierAccountId` | string | Account ID of the last modifier |
+|   ↳ `self` | string | URL link to the content |
+|   ↳ `creationDate` | number | Creation timestamp \(Unix epoch milliseconds\) |
+|   ↳ `modificationDate` | number | Last modification timestamp \(Unix epoch milliseconds\) |
 |   ↳ `mediaType` | string | MIME type of the attachment |
 |   ↳ `fileSize` | number | File size in bytes |
 |   ↳ `parent` | object | parent output from the tool |
@@ -1502,17 +1502,17 @@ Trigger workflow when an attachment is removed in Confluence
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
-| `id` | number | Content ID |
-| `title` | string | Content title |
-| `contentType` | string | Content type \(page, blogpost, comment, attachment\) |
-| `version` | number | Version number |
-| `spaceKey` | string | Space key the content belongs to |
-| `creatorAccountId` | string | Account ID of the creator |
-| `lastModifierAccountId` | string | Account ID of the last modifier |
-| `self` | string | URL link to the content |
-| `creationDate` | number | Creation timestamp \(Unix epoch milliseconds\) |
-| `modificationDate` | number | Last modification timestamp \(Unix epoch milliseconds\) |
 | `attachment` | object | attachment output from the tool |
+|   ↳ `id` | number | Content ID |
+|   ↳ `title` | string | Content title |
+|   ↳ `contentType` | string | Content type \(page, blogpost, comment, attachment\) |
+|   ↳ `version` | number | Version number |
+|   ↳ `spaceKey` | string | Space key the content belongs to |
+|   ↳ `creatorAccountId` | string | Account ID of the creator |
+|   ↳ `lastModifierAccountId` | string | Account ID of the last modifier |
+|   ↳ `self` | string | URL link to the content |
+|   ↳ `creationDate` | number | Creation timestamp \(Unix epoch milliseconds\) |
+|   ↳ `modificationDate` | number | Last modification timestamp \(Unix epoch milliseconds\) |
 |   ↳ `mediaType` | string | MIME type of the attachment |
 |   ↳ `fileSize` | number | File size in bytes |
 |   ↳ `parent` | object | parent output from the tool |
@@ -1545,17 +1545,17 @@ Trigger workflow when an attachment is updated in Confluence
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
-| `id` | number | Content ID |
-| `title` | string | Content title |
-| `contentType` | string | Content type \(page, blogpost, comment, attachment\) |
-| `version` | number | Version number |
-| `spaceKey` | string | Space key the content belongs to |
-| `creatorAccountId` | string | Account ID of the creator |
-| `lastModifierAccountId` | string | Account ID of the last modifier |
-| `self` | string | URL link to the content |
-| `creationDate` | number | Creation timestamp \(Unix epoch milliseconds\) |
-| `modificationDate` | number | Last modification timestamp \(Unix epoch milliseconds\) |
 | `attachment` | object | attachment output from the tool |
+|   ↳ `id` | number | Content ID |
+|   ↳ `title` | string | Content title |
+|   ↳ `contentType` | string | Content type \(page, blogpost, comment, attachment\) |
+|   ↳ `version` | number | Version number |
+|   ↳ `spaceKey` | string | Space key the content belongs to |
+|   ↳ `creatorAccountId` | string | Account ID of the creator |
+|   ↳ `lastModifierAccountId` | string | Account ID of the last modifier |
+|   ↳ `self` | string | URL link to the content |
+|   ↳ `creationDate` | number | Creation timestamp \(Unix epoch milliseconds\) |
+|   ↳ `modificationDate` | number | Last modification timestamp \(Unix epoch milliseconds\) |
 |   ↳ `mediaType` | string | MIME type of the attachment |
 |   ↳ `fileSize` | number | File size in bytes |
 |   ↳ `parent` | object | parent output from the tool |
@@ -1585,6 +1585,17 @@ Trigger workflow when a blog post is created in Confluence
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
+| `blog` | object | blog output from the tool |
+|   ↳ `id` | number | Content ID |
+|   ↳ `title` | string | Content title |
+|   ↳ `contentType` | string | Content type \(page, blogpost, comment, attachment\) |
+|   ↳ `version` | number | Version number |
+|   ↳ `spaceKey` | string | Space key the content belongs to |
+|   ↳ `creatorAccountId` | string | Account ID of the creator |
+|   ↳ `lastModifierAccountId` | string | Account ID of the last modifier |
+|   ↳ `self` | string | URL link to the content |
+|   ↳ `creationDate` | number | Creation timestamp \(Unix epoch milliseconds\) |
+|   ↳ `modificationDate` | number | Last modification timestamp \(Unix epoch milliseconds\) |
 
 
 ---
@@ -1607,6 +1618,17 @@ Trigger workflow when a blog post is removed in Confluence
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
+| `blog` | object | blog output from the tool |
+|   ↳ `id` | number | Content ID |
+|   ↳ `title` | string | Content title |
+|   ↳ `contentType` | string | Content type \(page, blogpost, comment, attachment\) |
+|   ↳ `version` | number | Version number |
+|   ↳ `spaceKey` | string | Space key the content belongs to |
+|   ↳ `creatorAccountId` | string | Account ID of the creator |
+|   ↳ `lastModifierAccountId` | string | Account ID of the last modifier |
+|   ↳ `self` | string | URL link to the content |
+|   ↳ `creationDate` | number | Creation timestamp \(Unix epoch milliseconds\) |
+|   ↳ `modificationDate` | number | Last modification timestamp \(Unix epoch milliseconds\) |
 
 
 ---
@@ -1629,6 +1651,17 @@ Trigger workflow when a blog post is restored from trash in Confluence
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
+| `blog` | object | blog output from the tool |
+|   ↳ `id` | number | Content ID |
+|   ↳ `title` | string | Content title |
+|   ↳ `contentType` | string | Content type \(page, blogpost, comment, attachment\) |
+|   ↳ `version` | number | Version number |
+|   ↳ `spaceKey` | string | Space key the content belongs to |
+|   ↳ `creatorAccountId` | string | Account ID of the creator |
+|   ↳ `lastModifierAccountId` | string | Account ID of the last modifier |
+|   ↳ `self` | string | URL link to the content |
+|   ↳ `creationDate` | number | Creation timestamp \(Unix epoch milliseconds\) |
+|   ↳ `modificationDate` | number | Last modification timestamp \(Unix epoch milliseconds\) |
 
 
 ---
@@ -1651,6 +1684,17 @@ Trigger workflow when a blog post is updated in Confluence
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
+| `blog` | object | blog output from the tool |
+|   ↳ `id` | number | Content ID |
+|   ↳ `title` | string | Content title |
+|   ↳ `contentType` | string | Content type \(page, blogpost, comment, attachment\) |
+|   ↳ `version` | number | Version number |
+|   ↳ `spaceKey` | string | Space key the content belongs to |
+|   ↳ `creatorAccountId` | string | Account ID of the creator |
+|   ↳ `lastModifierAccountId` | string | Account ID of the last modifier |
+|   ↳ `self` | string | URL link to the content |
+|   ↳ `creationDate` | number | Creation timestamp \(Unix epoch milliseconds\) |
+|   ↳ `modificationDate` | number | Last modification timestamp \(Unix epoch milliseconds\) |
 
 
 ---
@@ -1673,17 +1717,17 @@ Trigger workflow when a comment is created in Confluence
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
-| `id` | number | Content ID |
-| `title` | string | Content title |
-| `contentType` | string | Content type \(page, blogpost, comment, attachment\) |
-| `version` | number | Version number |
-| `spaceKey` | string | Space key the content belongs to |
-| `creatorAccountId` | string | Account ID of the creator |
-| `lastModifierAccountId` | string | Account ID of the last modifier |
-| `self` | string | URL link to the content |
-| `creationDate` | number | Creation timestamp \(Unix epoch milliseconds\) |
-| `modificationDate` | number | Last modification timestamp \(Unix epoch milliseconds\) |
 | `comment` | object | comment output from the tool |
+|   ↳ `id` | number | Content ID |
+|   ↳ `title` | string | Content title |
+|   ↳ `contentType` | string | Content type \(page, blogpost, comment, attachment\) |
+|   ↳ `version` | number | Version number |
+|   ↳ `spaceKey` | string | Space key the content belongs to |
+|   ↳ `creatorAccountId` | string | Account ID of the creator |
+|   ↳ `lastModifierAccountId` | string | Account ID of the last modifier |
+|   ↳ `self` | string | URL link to the content |
+|   ↳ `creationDate` | number | Creation timestamp \(Unix epoch milliseconds\) |
+|   ↳ `modificationDate` | number | Last modification timestamp \(Unix epoch milliseconds\) |
 |   ↳ `parent` | object | parent output from the tool |
 |     ↳ `id` | number | Parent page/blog ID |
 |     ↳ `title` | string | Parent page/blog title |
@@ -1712,17 +1756,17 @@ Trigger workflow when a comment is removed in Confluence
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
-| `id` | number | Content ID |
-| `title` | string | Content title |
-| `contentType` | string | Content type \(page, blogpost, comment, attachment\) |
-| `version` | number | Version number |
-| `spaceKey` | string | Space key the content belongs to |
-| `creatorAccountId` | string | Account ID of the creator |
-| `lastModifierAccountId` | string | Account ID of the last modifier |
-| `self` | string | URL link to the content |
-| `creationDate` | number | Creation timestamp \(Unix epoch milliseconds\) |
-| `modificationDate` | number | Last modification timestamp \(Unix epoch milliseconds\) |
 | `comment` | object | comment output from the tool |
+|   ↳ `id` | number | Content ID |
+|   ↳ `title` | string | Content title |
+|   ↳ `contentType` | string | Content type \(page, blogpost, comment, attachment\) |
+|   ↳ `version` | number | Version number |
+|   ↳ `spaceKey` | string | Space key the content belongs to |
+|   ↳ `creatorAccountId` | string | Account ID of the creator |
+|   ↳ `lastModifierAccountId` | string | Account ID of the last modifier |
+|   ↳ `self` | string | URL link to the content |
+|   ↳ `creationDate` | number | Creation timestamp \(Unix epoch milliseconds\) |
+|   ↳ `modificationDate` | number | Last modification timestamp \(Unix epoch milliseconds\) |
 |   ↳ `parent` | object | parent output from the tool |
 |     ↳ `id` | number | Parent page/blog ID |
 |     ↳ `title` | string | Parent page/blog title |
@@ -1751,17 +1795,17 @@ Trigger workflow when a comment is updated in Confluence
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
-| `id` | number | Content ID |
-| `title` | string | Content title |
-| `contentType` | string | Content type \(page, blogpost, comment, attachment\) |
-| `version` | number | Version number |
-| `spaceKey` | string | Space key the content belongs to |
-| `creatorAccountId` | string | Account ID of the creator |
-| `lastModifierAccountId` | string | Account ID of the last modifier |
-| `self` | string | URL link to the content |
-| `creationDate` | number | Creation timestamp \(Unix epoch milliseconds\) |
-| `modificationDate` | number | Last modification timestamp \(Unix epoch milliseconds\) |
 | `comment` | object | comment output from the tool |
+|   ↳ `id` | number | Content ID |
+|   ↳ `title` | string | Content title |
+|   ↳ `contentType` | string | Content type \(page, blogpost, comment, attachment\) |
+|   ↳ `version` | number | Version number |
+|   ↳ `spaceKey` | string | Space key the content belongs to |
+|   ↳ `creatorAccountId` | string | Account ID of the creator |
+|   ↳ `lastModifierAccountId` | string | Account ID of the last modifier |
+|   ↳ `self` | string | URL link to the content |
+|   ↳ `creationDate` | number | Creation timestamp \(Unix epoch milliseconds\) |
+|   ↳ `modificationDate` | number | Last modification timestamp \(Unix epoch milliseconds\) |
 |   ↳ `parent` | object | parent output from the tool |
 |     ↳ `id` | number | Parent page/blog ID |
 |     ↳ `title` | string | Parent page/blog title |
@@ -1850,6 +1894,17 @@ Trigger workflow when a new page is created in Confluence
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
+| `page` | object | page output from the tool |
+|   ↳ `id` | number | Content ID |
+|   ↳ `title` | string | Content title |
+|   ↳ `contentType` | string | Content type \(page, blogpost, comment, attachment\) |
+|   ↳ `version` | number | Version number |
+|   ↳ `spaceKey` | string | Space key the content belongs to |
+|   ↳ `creatorAccountId` | string | Account ID of the creator |
+|   ↳ `lastModifierAccountId` | string | Account ID of the last modifier |
+|   ↳ `self` | string | URL link to the content |
+|   ↳ `creationDate` | number | Creation timestamp \(Unix epoch milliseconds\) |
+|   ↳ `modificationDate` | number | Last modification timestamp \(Unix epoch milliseconds\) |
 
 
 ---
@@ -1872,6 +1927,17 @@ Trigger workflow when a page is moved in Confluence
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
+| `page` | object | page output from the tool |
+|   ↳ `id` | number | Content ID |
+|   ↳ `title` | string | Content title |
+|   ↳ `contentType` | string | Content type \(page, blogpost, comment, attachment\) |
+|   ↳ `version` | number | Version number |
+|   ↳ `spaceKey` | string | Space key the content belongs to |
+|   ↳ `creatorAccountId` | string | Account ID of the creator |
+|   ↳ `lastModifierAccountId` | string | Account ID of the last modifier |
+|   ↳ `self` | string | URL link to the content |
+|   ↳ `creationDate` | number | Creation timestamp \(Unix epoch milliseconds\) |
+|   ↳ `modificationDate` | number | Last modification timestamp \(Unix epoch milliseconds\) |
 
 
 ---
@@ -1894,17 +1960,17 @@ Trigger workflow when page permissions are changed in Confluence
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
-| `id` | number | Content ID |
-| `title` | string | Content title |
-| `contentType` | string | Content type \(page, blogpost, comment, attachment\) |
-| `version` | number | Version number |
-| `spaceKey` | string | Space key the content belongs to |
-| `creatorAccountId` | string | Account ID of the creator |
-| `lastModifierAccountId` | string | Account ID of the last modifier |
-| `self` | string | URL link to the content |
-| `creationDate` | number | Creation timestamp \(Unix epoch milliseconds\) |
-| `modificationDate` | number | Last modification timestamp \(Unix epoch milliseconds\) |
 | `page` | object | page output from the tool |
+|   ↳ `id` | number | Content ID |
+|   ↳ `title` | string | Content title |
+|   ↳ `contentType` | string | Content type \(page, blogpost, comment, attachment\) |
+|   ↳ `version` | number | Version number |
+|   ↳ `spaceKey` | string | Space key the content belongs to |
+|   ↳ `creatorAccountId` | string | Account ID of the creator |
+|   ↳ `lastModifierAccountId` | string | Account ID of the last modifier |
+|   ↳ `self` | string | URL link to the content |
+|   ↳ `creationDate` | number | Creation timestamp \(Unix epoch milliseconds\) |
+|   ↳ `modificationDate` | number | Last modification timestamp \(Unix epoch milliseconds\) |
 |   ↳ `permissions` | json | Updated permissions object for the page |
 
 
@@ -1928,6 +1994,17 @@ Trigger workflow when a page is removed or trashed in Confluence
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
+| `page` | object | page output from the tool |
+|   ↳ `id` | number | Content ID |
+|   ↳ `title` | string | Content title |
+|   ↳ `contentType` | string | Content type \(page, blogpost, comment, attachment\) |
+|   ↳ `version` | number | Version number |
+|   ↳ `spaceKey` | string | Space key the content belongs to |
+|   ↳ `creatorAccountId` | string | Account ID of the creator |
+|   ↳ `lastModifierAccountId` | string | Account ID of the last modifier |
+|   ↳ `self` | string | URL link to the content |
+|   ↳ `creationDate` | number | Creation timestamp \(Unix epoch milliseconds\) |
+|   ↳ `modificationDate` | number | Last modification timestamp \(Unix epoch milliseconds\) |
 
 
 ---
@@ -1950,6 +2027,17 @@ Trigger workflow when a page is restored from trash in Confluence
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
+| `page` | object | page output from the tool |
+|   ↳ `id` | number | Content ID |
+|   ↳ `title` | string | Content title |
+|   ↳ `contentType` | string | Content type \(page, blogpost, comment, attachment\) |
+|   ↳ `version` | number | Version number |
+|   ↳ `spaceKey` | string | Space key the content belongs to |
+|   ↳ `creatorAccountId` | string | Account ID of the creator |
+|   ↳ `lastModifierAccountId` | string | Account ID of the last modifier |
+|   ↳ `self` | string | URL link to the content |
+|   ↳ `creationDate` | number | Creation timestamp \(Unix epoch milliseconds\) |
+|   ↳ `modificationDate` | number | Last modification timestamp \(Unix epoch milliseconds\) |
 
 
 ---
@@ -1972,6 +2060,17 @@ Trigger workflow when a page is updated in Confluence
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
+| `page` | object | page output from the tool |
+|   ↳ `id` | number | Content ID |
+|   ↳ `title` | string | Content title |
+|   ↳ `contentType` | string | Content type \(page, blogpost, comment, attachment\) |
+|   ↳ `version` | number | Version number |
+|   ↳ `spaceKey` | string | Space key the content belongs to |
+|   ↳ `creatorAccountId` | string | Account ID of the creator |
+|   ↳ `lastModifierAccountId` | string | Account ID of the last modifier |
+|   ↳ `self` | string | URL link to the content |
+|   ↳ `creationDate` | number | Creation timestamp \(Unix epoch milliseconds\) |
+|   ↳ `modificationDate` | number | Last modification timestamp \(Unix epoch milliseconds\) |
 
 
 ---

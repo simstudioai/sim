@@ -269,6 +269,7 @@ interface RegistrySubBlock {
 
 interface RegistryTrigger {
   subBlocks?: RegistrySubBlock[]
+  outputs?: Record<string, any>
 }
 
 /** Present for the operator, not part of a trigger's configuration surface. */
@@ -3374,234 +3375,70 @@ function resolveConstVariable(
   return {}
 }
 
+/** Keys a `TriggerOutput` reserves for itself; everything else is a nested property. */
+const TRIGGER_OUTPUT_RESERVED_KEYS = new Set([
+  'type',
+  'description',
+  'condition',
+  'properties',
+  'items',
+])
+
 /**
- * Recursively resolve a trigger output builder function.
- * Handles the common pattern where builders spread other builders:
- *   `return { ...buildBaseOutputs(), fieldA: { type: 'string', ... } }`
- * Also handles variable spreads:
- *   `return { ...coreOutputs, ...deploymentOutputs }`
+ * Convert a trigger's registry `outputs` into the `{ type, description, properties }`
+ * shape the docs renderer walks.
  *
- * Searches for the function definition in `primaryContent` first, then `utilsContent`.
- * Recursion depth is capped to avoid infinite loops.
+ * A `TriggerOutput` expresses a nested object by simply omitting `type` and holding its
+ * children as sibling keys (`issue: { id: {...}, title: {...} }`), while the renderer only
+ * descends into `properties` on a node typed `object`/`json`. Handing it the raw registry
+ * value would print every nested group as a single `unknown` row with its children dropped.
+ *
+ * Classification is unambiguous: a node with a string `type` is a leaf, anything else is a
+ * group. No registry group carries a string `description` of its own, so a nested property
+ * genuinely named `description` is preserved rather than mistaken for the group's own text.
  */
-function resolveTriggerBuilderFunction(
-  funcName: string,
-  primaryContent: string,
-  utilsContent: string,
-  depth = 0
-): Record<string, any> {
-  if (depth > 8) return {}
+function normalizeTriggerOutputs(raw: Record<string, any>): Record<string, any> {
+  const normalized: Record<string, any> = {}
+  for (const [key, value] of Object.entries(raw)) {
+    if (key === 'condition') continue
+    if (typeof value !== 'object' || value === null) continue
+    normalized[key] = normalizeTriggerOutputNode(value)
+  }
+  return normalized
+}
 
-  const funcRegex = new RegExp(`(?:export\\s+)?function\\s+${funcName}\\s*\\(`)
-  let funcBody: string | null = null
+function normalizeTriggerOutputNode(node: Record<string, any>): Record<string, any> {
+  const type = typeof node.type === 'string' ? node.type : undefined
+  const description = typeof node.description === 'string' ? node.description : ''
 
-  for (const content of [primaryContent, utilsContent]) {
-    const funcMatch = funcRegex.exec(content)
-    if (!funcMatch) continue
-
-    const bodyStart = content.indexOf('{', funcMatch.index)
-    if (bodyStart === -1) continue
-
-    const bodyEnd = findMatchingClose(content, bodyStart)
-    if (bodyEnd === -1) continue
-
-    funcBody = content.substring(bodyStart + 1, bodyEnd - 1)
-    break
+  const inlineChildren: Record<string, any> = {}
+  for (const [key, value] of Object.entries(node)) {
+    const isOwnDescription = key === 'description' && typeof node.description === 'string'
+    if (isOwnDescription || (TRIGGER_OUTPUT_RESERVED_KEYS.has(key) && key !== 'description')) {
+      continue
+    }
+    if (typeof value !== 'object' || value === null) continue
+    inlineChildren[key] = value
   }
 
-  if (!funcBody) return {}
-
-  // Handle `return anotherFunc(...)` — full delegation to another builder,
-  // with or without arguments (argument values are ignored; only structure matters).
-  const returnFuncCallMatch = /\breturn\s+([a-z][a-zA-Z0-9_]*)\s*\(/.exec(funcBody.trim())
-  if (returnFuncCallMatch) {
-    return resolveTriggerBuilderFunction(
-      returnFuncCallMatch[1],
-      primaryContent,
-      utilsContent,
-      depth + 1
-    )
+  if (type === undefined) {
+    return { type: 'object', description, properties: normalizeTriggerOutputs(inlineChildren) }
   }
 
-  const returnMatch = /\breturn\s*\{/.exec(funcBody)
-  if (!returnMatch) return {}
-
-  const returnObjStart = funcBody.indexOf('{', returnMatch.index)
-  const returnObjEnd = findMatchingClose(funcBody, returnObjStart)
-  if (returnObjEnd === -1) return {}
-
-  const returnBody = funcBody.substring(returnObjStart + 1, returnObjEnd - 1).trim()
-
-  const result: Record<string, any> = {}
-
-  // Expand function-call spreads first: ...innerFuncName()
-  const spreadFuncRegex = /\.\.\.\s*(\w+)\s*\(\s*\)/g
-  let spreadMatch: RegExpExecArray | null
-  while ((spreadMatch = spreadFuncRegex.exec(returnBody)) !== null) {
-    const innerFuncName = spreadMatch[1]
-    const resolved = resolveTriggerBuilderFunction(
-      innerFuncName,
-      primaryContent,
-      utilsContent,
-      depth + 1
-    )
-    Object.assign(result, resolved)
+  const result: Record<string, any> = { type, description }
+  if (node.items && typeof node.items === 'object') {
+    const items = node.items as Record<string, any>
+    result.items =
+      items.properties && typeof items.properties === 'object'
+        ? { ...items, properties: normalizeTriggerOutputs(items.properties) }
+        : items
   }
-
-  // Expand variable spreads: ...varName (no parentheses — const references)
-  const spreadVarRegex = /\.\.\.\s*([a-zA-Z_]\w*)\b(?!\s*\()/g
-  let spreadVarMatch: RegExpExecArray | null
-  while ((spreadVarMatch = spreadVarRegex.exec(returnBody)) !== null) {
-    const varName = spreadVarMatch[1]
-    const resolved = resolveConstVariable(varName, primaryContent, utilsContent, depth + 1)
-    Object.assign(result, resolved)
+  const declaredProperties =
+    node.properties && typeof node.properties === 'object' ? node.properties : undefined
+  if (declaredProperties || Object.keys(inlineChildren).length > 0) {
+    result.properties = normalizeTriggerOutputs({ ...declaredProperties, ...inlineChildren })
   }
-
-  // Then parse any inline field definitions (strip all spread lines first)
-  const bodyWithoutSpreads = returnBody
-    .replace(/\.\.\.\s*\w+\s*\(\s*\)\s*,?\s*/g, '') // function call spreads
-    .replace(/\.\.\.\s*\w+\b(?!\s*\()\s*,?\s*/g, '') // variable spreads
-  const inlineOutputs = parseToolOutputsField(bodyWithoutSpreads)
-  Object.assign(result, inlineOutputs)
-
   return result
-}
-
-/**
- * Read every sibling module of a trigger file so identifiers it references —
- * builder functions and shared `outputs`/config constants alike — can be
- * resolved from source text. Triggers keep these in `utils.ts` or `shared.ts`
- * depending on the provider, so the whole directory is scanned rather than one
- * hard-coded filename.
- */
-function readTriggerSiblingModules(triggerFile: string): string {
-  const dir = path.dirname(triggerFile)
-  if (!fs.existsSync(dir)) return ''
-  return fs
-    .readdirSync(dir)
-    .filter((f) => f.endsWith('.ts') && !f.includes('.test.') && path.join(dir, f) !== triggerFile)
-    .map((f) => {
-      try {
-        return fs.readFileSync(path.join(dir, f), 'utf-8')
-      } catch {
-        return ''
-      }
-    })
-    .join('\n')
-}
-
-/**
- * Resolve `outputs: SOME_CONSTANT` by locating the constant's object literal in
- * the trigger file or one of its siblings. Without this the generated page
- * silently loses the trigger's entire Output table the moment a provider
- * factors its outputs out into a shared constant.
- */
-function resolveTriggerOutputsConstant(
-  constName: string,
-  primaryContent: string,
-  siblingContent: string
-): Record<string, any> {
-  const declRegex = new RegExp(`(?:export\\s+)?const\\s+${constName}\\s*(?::[^=]+)?=\\s*\\{`)
-  for (const content of [primaryContent, siblingContent]) {
-    const declMatch = declRegex.exec(content)
-    if (!declMatch) continue
-    const openPos = content.indexOf('{', declMatch.index)
-    if (openPos === -1) continue
-    const closePos = findMatchingClose(content, openPos)
-    if (closePos === -1) continue
-    return parseToolOutputsField(content.substring(openPos + 1, closePos - 1).trim())
-  }
-  return {}
-}
-
-/**
- * Extract the outputs object from a TriggerConfig segment.
- * Handles inline `outputs: { ... }`, function-call patterns like
- * `outputs: buildIssueOutputs()`, and bare constant references like
- * `outputs: SLACK_TRIGGER_OUTPUTS`, resolving each from the trigger file
- * itself and its sibling modules.
- */
-function extractTriggerOutputs(
-  segment: string,
-  fileContent: string,
-  utilsContent: string
-): Record<string, any> {
-  // 1. Inline outputs: outputs: { ... }
-  const outputsMatch = /\boutputs\s*:\s*\{/.exec(segment)
-  if (outputsMatch) {
-    const openPos = segment.indexOf('{', outputsMatch.index + outputsMatch[0].length - 1)
-    if (openPos !== -1) {
-      const closePos = findMatchingClose(segment, openPos)
-      if (closePos !== -1) {
-        const outputsContent = segment.substring(openPos + 1, closePos - 1).trim()
-        return parseToolOutputsField(outputsContent)
-      }
-    }
-  }
-
-  // 2. Function-call outputs: outputs: buildFoo()
-  const funcCallMatch = /\boutputs\s*:\s*(\w+)\s*\(\s*\)/.exec(segment)
-  if (funcCallMatch) {
-    return resolveTriggerBuilderFunction(funcCallMatch[1], fileContent, utilsContent)
-  }
-
-  // 3. Constant reference: outputs: SLACK_TRIGGER_OUTPUTS
-  const constRefMatch = /\boutputs\s*:\s*([A-Za-z_$][\w$]*)\s*[,\n}]/.exec(segment)
-  if (constRefMatch) {
-    return resolveTriggerOutputsConstant(constRefMatch[1], fileContent, utilsContent)
-  }
-
-  return {}
-}
-
-/**
- * Lazy-loaded cache of all TypeScript files in `lib/webhooks/providers/`.
- * Used to resolve exported string constants that are imported by trigger utils files
- * (e.g. `GONG_JWT_PUBLIC_KEY_CONFIG_KEY` from `lib/webhooks/providers/gong.ts`).
- */
-let _webhookProviderConstantsCache: string | null = null
-function getWebhookProviderConstants(): string {
-  if (_webhookProviderConstantsCache === null) {
-    const dir = path.join(rootDir, 'apps/sim/lib/webhooks/providers')
-    if (fs.existsSync(dir)) {
-      _webhookProviderConstantsCache = fs
-        .readdirSync(dir)
-        .filter((f) => f.endsWith('.ts'))
-        .map((f) => fs.readFileSync(path.join(dir, f), 'utf-8'))
-        .join('\n')
-    } else {
-      _webhookProviderConstantsCache = ''
-    }
-  }
-  return _webhookProviderConstantsCache
-}
-
-/**
- * Try to resolve a SCREAMING_SNAKE_CASE constant to its string value by
- * searching in the given content AND the webhook provider constants cache.
- */
-function resolveConstStringValue(constName: string, content: string): string | null {
-  const pattern = new RegExp(`\\b${constName}\\s*=\\s*['"]([^'"]+)['"]`)
-  return pattern.exec(content)?.[1] ?? pattern.exec(getWebhookProviderConstants())?.[1] ?? null
-}
-
-/**
- * Parse a single SubBlockConfig object literal into a TriggerConfigField.
- * Returns null for blocks that should be skipped (UI-only IDs, text type, readOnly).
- * Accepts optional `resolverContent` to resolve const-reference field IDs.
- */
-/**
- * Read a quoted string property, matching the opening quote to its own closing
- * quote. A single `['"]…[^'"]+…['"]` character class ends the match at the
- * first quote of *either* kind, so an apostrophe inside a double-quoted string
- * ("Doesn't fire…") truncates the value mid-word.
- */
-function matchQuotedProperty(content: string, propName: string): string | undefined {
-  const match = new RegExp(`\\b${propName}\\s*:\\s*(?:'([^']*)'|"([^"]*)"|\`([^\`]*)\`)`).exec(
-    content
-  )
-  if (!match) return undefined
-  return match[1] ?? match[2] ?? match[3]
 }
 
 /**
@@ -3652,10 +3489,6 @@ async function buildFullTriggerRegistry(): Promise<Map<string, TriggerFullInfo>>
     try {
       const content = fs.readFileSync(file, 'utf-8')
 
-      // Load sibling modules (utils.ts, shared.ts, …) so shared output constants
-      // referenced by name still resolve.
-      const utilsContent = readTriggerSiblingModules(file)
-
       const exportRegex = /export\s+const\s+\w+\s*:\s*TriggerConfig\s*=\s*\{/g
       let exportMatch: RegExpExecArray | null
       const exportStarts: number[] = []
@@ -3681,6 +3514,7 @@ async function buildFullTriggerRegistry(): Promise<Map<string, TriggerFullInfo>>
         if (/\bdeprecated\s*:\s*true/.test(segment)) continue
 
         const polling = /\bpolling\s*:\s*true/.test(segment)
+        const registryTrigger = registryTriggers[idMatch[1]]
 
         registry.set(idMatch[1], {
           id: idMatch[1],
@@ -3688,8 +3522,8 @@ async function buildFullTriggerRegistry(): Promise<Map<string, TriggerFullInfo>>
           description: descMatch?.[1] ?? '',
           provider: providerMatch[1],
           polling,
-          outputs: extractTriggerOutputs(segment, content, utilsContent),
-          configFields: triggerConfigFields(registryTriggers[idMatch[1]]),
+          outputs: normalizeTriggerOutputs(registryTrigger?.outputs ?? {}),
+          configFields: triggerConfigFields(registryTrigger),
         })
       }
     } catch {

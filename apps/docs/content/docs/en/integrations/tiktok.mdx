@@ -185,6 +185,17 @@ Trigger when a draft notification is delivered to the creator inbox
 | --------- | ---- | -------- | ----------- |
 | `triggerCredentials` | string | Yes | TikTok Account |
 
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | TikTok webhook event name |
+| `createTime` | number | UTC epoch seconds when the event occurred |
+| `userOpenId` | string | TikTok user open_id for the connected account |
+| `clientKey` | string | TikTok app client_key that received the event |
+| `publishId` | string | Content Posting API publish_id |
+| `publishType` | string | Publish type \(e.g. DIRECT_POST, INBOX_SHARE\) |
+
 
 ---
 
@@ -197,6 +208,18 @@ Trigger when a post is no longer publicly viewable on TikTok
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `triggerCredentials` | string | Yes | TikTok Account |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | TikTok webhook event name |
+| `createTime` | number | UTC epoch seconds when the event occurred |
+| `userOpenId` | string | TikTok user open_id for the connected account |
+| `clientKey` | string | TikTok app client_key that received the event |
+| `publishId` | string | Content Posting API publish_id |
+| `publishType` | string | Publish type \(e.g. DIRECT_POST, INBOX_SHARE\) |
+| `postId` | string | TikTok post_id when the post is publicly available |
 
 
 ---
@@ -211,6 +234,18 @@ Trigger when a published post becomes publicly viewable on TikTok
 | --------- | ---- | -------- | ----------- |
 | `triggerCredentials` | string | Yes | TikTok Account |
 
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | TikTok webhook event name |
+| `createTime` | number | UTC epoch seconds when the event occurred |
+| `userOpenId` | string | TikTok user open_id for the connected account |
+| `clientKey` | string | TikTok app client_key that received the event |
+| `publishId` | string | Content Posting API publish_id |
+| `publishType` | string | Publish type \(e.g. DIRECT_POST, INBOX_SHARE\) |
+| `postId` | string | TikTok post_id when the post is publicly available |
+
 
 ---
 
@@ -224,6 +259,17 @@ Trigger when a TikTok Content Posting publish completes
 | --------- | ---- | -------- | ----------- |
 | `triggerCredentials` | string | Yes | TikTok Account |
 
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | TikTok webhook event name |
+| `createTime` | number | UTC epoch seconds when the event occurred |
+| `userOpenId` | string | TikTok user open_id for the connected account |
+| `clientKey` | string | TikTok app client_key that received the event |
+| `publishId` | string | Content Posting API publish_id |
+| `publishType` | string | Publish type \(e.g. DIRECT_POST, INBOX_SHARE\) |
+
 
 ---
 
@@ -236,4 +282,16 @@ Trigger when a TikTok Content Posting publish fails
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `triggerCredentials` | string | Yes | TikTok Account |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | TikTok webhook event name |
+| `createTime` | number | UTC epoch seconds when the event occurred |
+| `userOpenId` | string | TikTok user open_id for the connected account |
+| `clientKey` | string | TikTok app client_key that received the event |
+| `publishId` | string | Content Posting API publish_id |
+| `publishType` | string | Publish type \(e.g. DIRECT_POST, INBOX_SHARE\) |
+| `failReason` | string | Failure reason enum from TikTok when publishing fails |
 

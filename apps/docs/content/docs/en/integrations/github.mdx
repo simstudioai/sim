@@ -4583,7 +4583,14 @@ Trigger workflow from GitHub events like push, pull requests, issues, and more
 |     ↳ `user_view_type` | string | User view type |
 |     ↳ `site_admin` | boolean | Whether the owner is a site admin |
 |   ↳ `license` | object | Repository license information |
+|     ↳ `key` | string | License key \(e.g., apache-2.0\) |
+|     ↳ `name` | string | License name |
+|     ↳ `spdx_id` | string | SPDX license identifier |
+|     ↳ `url` | string | License URL |
+|     ↳ `node_id` | string | License node ID |
 | `pusher` | object | Information about who pushed the changes |
+|   ↳ `name` | string | Pusher name |
+|   ↳ `email` | string | Pusher email |
 | `sender` | object | sender output from the tool |
 |   ↳ `login` | string | Sender username |
 |   ↳ `id` | number | Sender ID |
@@ -4596,6 +4603,21 @@ Trigger workflow from GitHub events like push, pull requests, issues, and more
 |   ↳ `site_admin` | boolean | Whether the sender is a site admin |
 | `commits` | array | Array of commit objects |
 | `head_commit` | object | Head commit object |
+|   ↳ `id` | string | Commit SHA |
+|   ↳ `tree_id` | string | Tree SHA |
+|   ↳ `distinct` | boolean | Whether the commit is distinct |
+|   ↳ `message` | string | Commit message |
+|   ↳ `timestamp` | string | Commit timestamp |
+|   ↳ `url` | string | Commit URL |
+|   ↳ `author` | object | Commit author |
+|     ↳ `name` | string | Author name |
+|     ↳ `email` | string | Author email |
+|   ↳ `committer` | object | Commit committer |
+|     ↳ `name` | string | Committer name |
+|     ↳ `email` | string | Committer email |
+|   ↳ `added` | array | Array of added files |
+|   ↳ `removed` | array | Array of removed files |
+|   ↳ `modified` | array | Array of modified files |
 | `event_type` | string | Type of GitHub event \(e.g., push, pull_request, issues\) |
 | `action` | string | The action that was performed \(e.g., opened, closed, synchronize\) |
 | `branch` | string | Branch name extracted from ref |

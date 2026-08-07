@@ -324,6 +324,14 @@ Trigger workflow when someone cancels a scheduled event on Calendly
 |   ↳ `status` | string | Invitee status \(active or canceled\) |
 |   ↳ `timezone` | string | Invitee timezone |
 |   ↳ `event` | string | Scheduled event URI |
+|   ↳ `questions_and_answers` | array | Questions and answers from the booking form |
+|   ↳ `tracking` | object | tracking output from the tool |
+|     ↳ `utm_campaign` | string | UTM campaign parameter |
+|     ↳ `utm_source` | string | UTM source parameter |
+|     ↳ `utm_medium` | string | UTM medium parameter |
+|     ↳ `utm_content` | string | UTM content parameter |
+|     ↳ `utm_term` | string | UTM term parameter |
+|     ↳ `salesforce_uuid` | string | Salesforce UUID |
 |   ↳ `text_reminder_number` | string | Phone number for text reminders |
 |   ↳ `rescheduled` | boolean | Whether this invitee rescheduled |
 |   ↳ `old_invitee` | string | URI of the old invitee \(if rescheduled\) |
@@ -379,6 +387,14 @@ Trigger workflow when someone schedules a new event on Calendly
 |   ↳ `status` | string | Invitee status \(active or canceled\) |
 |   ↳ `timezone` | string | Invitee timezone |
 |   ↳ `event` | string | Scheduled event URI |
+|   ↳ `questions_and_answers` | array | Questions and answers from the booking form |
+|   ↳ `tracking` | object | tracking output from the tool |
+|     ↳ `utm_campaign` | string | UTM campaign parameter |
+|     ↳ `utm_source` | string | UTM source parameter |
+|     ↳ `utm_medium` | string | UTM medium parameter |
+|     ↳ `utm_content` | string | UTM content parameter |
+|     ↳ `utm_term` | string | UTM term parameter |
+|     ↳ `salesforce_uuid` | string | Salesforce UUID |
 |   ↳ `text_reminder_number` | string | Phone number for text reminders |
 |   ↳ `rescheduled` | boolean | Whether this invitee rescheduled |
 |   ↳ `old_invitee` | string | URI of the old invitee \(if rescheduled\) |
@@ -433,6 +449,14 @@ Trigger workflow when someone submits a Calendly routing form
 |     ↳ `email` | string | Submitter email address |
 |     ↳ `name` | string | Submitter full name |
 |   ↳ `submitter_type` | string | Type of submitter |
+|   ↳ `questions_and_answers` | array | Questions and answers from the booking form |
+|   ↳ `tracking` | object | tracking output from the tool |
+|     ↳ `utm_campaign` | string | UTM campaign parameter |
+|     ↳ `utm_source` | string | UTM source parameter |
+|     ↳ `utm_medium` | string | UTM medium parameter |
+|     ↳ `utm_content` | string | UTM content parameter |
+|     ↳ `utm_term` | string | UTM term parameter |
+|     ↳ `salesforce_uuid` | string | Salesforce UUID |
 |   ↳ `result` | object | Routing result details |
 |     ↳ `type` | string | Result type \(event_type, custom_message, or external_url\) |
 |     ↳ `value` | string | Result value \(event type URI, message, or URL\) |

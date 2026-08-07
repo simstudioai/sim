@@ -523,10 +523,10 @@ Trigger workflow when a candidate is hired
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `action` | string | The webhook event type \(hire_candidate\) |
 | `applicationId` | number | Application id when present \(`payload.application.id` or flat `payload.application_id` on offers\) |
 | `candidateId` | number | Candidate id when `payload.application.candidate.id` is present |
 | `jobId` | number | Job id from `payload.job.id` or flat `payload.job_id` when present |
-| `action` | string | The webhook event type \(hire_candidate\) |
 | `payload` | object | payload output from the tool |
 |   ↳ `application` | object | application output from the tool |
 |     ↳ `id` | number | Application ID |
@@ -548,6 +548,10 @@ Trigger workflow when a candidate is hired
 |       ↳ `recruiter` | json | Assigned recruiter |
 |       ↳ `coordinator` | json | Assigned coordinator |
 |     ↳ `jobs` | json | Associated jobs \(array\) |
+|     ↳ `source` | object | source output from the tool |
+|       ↳ `id` | number | Source ID |
+|       ↳ `name` | string | Source name when provided by Greenhouse |
+|       ↳ `public_name` | string | Public-facing source name when provided by Greenhouse |
 |     ↳ `offer` | object | offer output from the tool |
 |       ↳ `id` | number | Offer ID |
 |       ↳ `version` | number | Offer version |
@@ -572,10 +576,10 @@ Trigger workflow when a candidate is rejected
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `action` | string | The webhook event type \(reject_candidate\) |
 | `applicationId` | number | Application id when present \(`payload.application.id` or flat `payload.application_id` on offers\) |
 | `candidateId` | number | Candidate id when `payload.application.candidate.id` is present |
 | `jobId` | number | Job id from `payload.job.id` or flat `payload.job_id` when present |
-| `action` | string | The webhook event type \(reject_candidate\) |
 | `payload` | object | payload output from the tool |
 |   ↳ `application` | object | application output from the tool |
 |     ↳ `id` | number | Application ID |
@@ -615,10 +619,10 @@ Trigger workflow when a candidate changes interview stages
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `action` | string | The webhook event type \(candidate_stage_change\) |
 | `applicationId` | number | Application id when present \(`payload.application.id` or flat `payload.application_id` on offers\) |
 | `candidateId` | number | Candidate id when `payload.application.candidate.id` is present |
 | `jobId` | number | Job id from `payload.job.id` or flat `payload.job_id` when present |
-| `action` | string | The webhook event type \(candidate_stage_change\) |
 | `payload` | object | payload output from the tool |
 |   ↳ `application` | object | application output from the tool |
 |     ↳ `id` | number | Application ID |
@@ -639,6 +643,10 @@ Trigger workflow when a candidate changes interview stages
 |       ↳ `email_addresses` | json | Email addresses |
 |       ↳ `phone_numbers` | json | Phone numbers |
 |     ↳ `jobs` | json | Associated jobs \(array\) |
+|     ↳ `source` | object | source output from the tool |
+|       ↳ `id` | number | Source ID |
+|       ↳ `name` | string | Source name when provided by Greenhouse |
+|       ↳ `public_name` | string | Public-facing source name when provided by Greenhouse |
 |     ↳ `custom_fields` | json | Application custom fields |
 
 
@@ -658,10 +666,25 @@ Trigger workflow when a new job is created
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `action` | string | The webhook event type \(job_created\) |
 | `applicationId` | number | Application id when present \(`payload.application.id` or flat `payload.application_id` on offers\) |
 | `candidateId` | number | Candidate id when `payload.application.candidate.id` is present |
 | `jobId` | number | Job id from `payload.job.id` or flat `payload.job_id` when present |
-| `action` | string | The webhook event type \(job_created\) |
+| `payload` | object | payload output from the tool |
+|   ↳ `job` | object | job output from the tool |
+|     ↳ `id` | number | Job ID |
+|     ↳ `name` | string | Job title |
+|     ↳ `requisition_id` | string | Requisition ID |
+|     ↳ `status` | string | Job status \(open, closed, draft\) |
+|     ↳ `confidential` | boolean | Whether the job is confidential |
+|     ↳ `created_at` | string | When the job was created |
+|     ↳ `opened_at` | string | When the job was opened |
+|     ↳ `closed_at` | string | When the job was closed |
+|     ↳ `departments` | json | Associated departments |
+|     ↳ `offices` | json | Associated offices |
+|     ↳ `hiring_team` | json | Hiring team \(managers, recruiters, etc.\) |
+|     ↳ `openings` | json | Job openings |
+|     ↳ `custom_fields` | json | Custom field values |
 
 
 ---
@@ -680,10 +703,25 @@ Trigger workflow when a job is updated
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `action` | string | The webhook event type \(job_updated\) |
 | `applicationId` | number | Application id when present \(`payload.application.id` or flat `payload.application_id` on offers\) |
 | `candidateId` | number | Candidate id when `payload.application.candidate.id` is present |
 | `jobId` | number | Job id from `payload.job.id` or flat `payload.job_id` when present |
-| `action` | string | The webhook event type \(job_updated\) |
+| `payload` | object | payload output from the tool |
+|   ↳ `job` | object | job output from the tool |
+|     ↳ `id` | number | Job ID |
+|     ↳ `name` | string | Job title |
+|     ↳ `requisition_id` | string | Requisition ID |
+|     ↳ `status` | string | Job status \(open, closed, draft\) |
+|     ↳ `confidential` | boolean | Whether the job is confidential |
+|     ↳ `created_at` | string | When the job was created |
+|     ↳ `opened_at` | string | When the job was opened |
+|     ↳ `closed_at` | string | When the job was closed |
+|     ↳ `departments` | json | Associated departments |
+|     ↳ `offices` | json | Associated offices |
+|     ↳ `hiring_team` | json | Hiring team \(managers, recruiters, etc.\) |
+|     ↳ `openings` | json | Job openings |
+|     ↳ `custom_fields` | json | Custom field values |
 
 
 ---
@@ -702,10 +740,10 @@ Trigger workflow when a new application is submitted
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `action` | string | The webhook event type \(new_candidate_application\) |
 | `applicationId` | number | Application id when present \(`payload.application.id` or flat `payload.application_id` on offers\) |
 | `candidateId` | number | Candidate id when `payload.application.candidate.id` is present |
 | `jobId` | number | Job id from `payload.job.id` or flat `payload.job_id` when present |
-| `action` | string | The webhook event type \(new_candidate_application\) |
 | `payload` | object | payload output from the tool |
 |   ↳ `application` | object | application output from the tool |
 |     ↳ `id` | number | Application ID |
@@ -727,6 +765,10 @@ Trigger workflow when a new application is submitted
 |       ↳ `phone_numbers` | json | Phone numbers |
 |       ↳ `tags` | json | Candidate tags |
 |     ↳ `jobs` | json | Associated jobs \(array\) |
+|     ↳ `source` | object | source output from the tool |
+|       ↳ `id` | number | Source ID |
+|       ↳ `name` | string | Source name when provided by Greenhouse |
+|       ↳ `public_name` | string | Public-facing source name when provided by Greenhouse |
 |     ↳ `answers` | json | Application question answers |
 |     ↳ `attachments` | json | Application attachments |
 |     ↳ `custom_fields` | json | Application custom fields |
@@ -748,10 +790,10 @@ Trigger workflow when a new offer is created
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `action` | string | The webhook event type \(offer_created\) |
 | `applicationId` | number | Application id when present \(`payload.application.id` or flat `payload.application_id` on offers\) |
 | `candidateId` | number | Candidate id when `payload.application.candidate.id` is present |
 | `jobId` | number | Job id from `payload.job.id` or flat `payload.job_id` when present |
-| `action` | string | The webhook event type \(offer_created\) |
 | `payload` | object | payload output from the tool |
 |   ↳ `id` | number | Offer ID |
 |   ↳ `application_id` | number | Associated application ID |
@@ -782,9 +824,9 @@ Trigger on whichever event types you select for this URL in Greenhouse. Sim does
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `action` | string | The webhook event type |
 | `applicationId` | number | Application id when present \(`payload.application.id` or flat `payload.application_id` on offers\) |
 | `candidateId` | number | Candidate id when `payload.application.candidate.id` is present |
 | `jobId` | number | Job id from `payload.job.id` or flat `payload.job_id` when present |
-| `action` | string | The webhook event type |
 | `payload` | json | Full event payload |
 

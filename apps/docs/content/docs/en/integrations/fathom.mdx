@@ -268,8 +268,12 @@ Trigger workflow when new meeting content is ready in Fathom
 | `transcript_language` | string | Language of the transcript |
 | `calendar_invitees_domains_type` | string | Domain type: only_internal or one_or_more_external |
 | `recorded_by` | object | Recorder details |
+|   ↳ `name` | string | Name of the recorder |
+|   ↳ `email` | string | Email of the recorder |
 | `calendar_invitees` | array | Array of calendar invitees with name and email |
 | `default_summary` | object | Meeting summary |
+|   ↳ `template_name` | string | Summary template name |
+|   ↳ `markdown_formatted` | string | Markdown-formatted summary |
 | `transcript` | array | Array of transcript entries with speaker, text, and timestamp |
 | `action_items` | array | Array of action items extracted from the meeting |
 | `crm_matches` | json | Matched CRM contacts, companies, and deals from linked CRM |
@@ -309,8 +313,12 @@ Generic webhook trigger for all Fathom events
 | `transcript_language` | string | Language of the transcript |
 | `calendar_invitees_domains_type` | string | Domain type: only_internal or one_or_more_external |
 | `recorded_by` | object | Recorder details |
+|   ↳ `name` | string | Name of the recorder |
+|   ↳ `email` | string | Email of the recorder |
 | `calendar_invitees` | array | Array of calendar invitees with name and email |
 | `default_summary` | object | Meeting summary |
+|   ↳ `template_name` | string | Summary template name |
+|   ↳ `markdown_formatted` | string | Markdown-formatted summary |
 | `transcript` | array | Array of transcript entries with speaker, text, and timestamp |
 | `action_items` | array | Array of action items extracted from the meeting |
 | `crm_matches` | json | Matched CRM contacts, companies, and deals from linked CRM |

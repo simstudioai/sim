@@ -1911,6 +1911,8 @@ Trigger workflow when a domain is created
 |   ↳ `url` | string | Deployment URL |
 |   ↳ `name` | string | Deployment name |
 |   ↳ `meta` | json | Deployment metadata map \(e.g. Git metadata\), per Vercel Webhooks API |
+| `target` | string | Deployment target \(production, staging, or preview\) |
+| `plan` | string | Account plan type |
 | `domain` | object | domain output from the tool |
 |   ↳ `name` | string | Domain name |
 |   ↳ `delegated` | boolean | Whether the domain was delegated/shared \(domain.created\), per Vercel Webhooks API |
@@ -1961,6 +1963,11 @@ Trigger workflow when a new project is created
 |   ↳ `id` | string | Team ID |
 | `user` | object | user output from the tool |
 |   ↳ `id` | string | User ID |
+| `target` | string | Deployment target \(production, staging, or preview\) |
+| `plan` | string | Account plan type |
+| `domain` | object | domain output from the tool |
+|   ↳ `name` | string | Domain name |
+|   ↳ `delegated` | boolean | Whether the domain was delegated/shared when present on the payload |
 
 
 ---
@@ -2002,6 +2009,11 @@ Trigger workflow when a project is removed
 |   ↳ `id` | string | Team ID |
 | `user` | object | user output from the tool |
 |   ↳ `id` | string | User ID |
+| `target` | string | Deployment target \(production, staging, or preview\) |
+| `plan` | string | Account plan type |
+| `domain` | object | domain output from the tool |
+|   ↳ `name` | string | Domain name |
+|   ↳ `delegated` | boolean | Whether the domain was delegated/shared when present on the payload |
 
 
 ---
@@ -2026,6 +2038,7 @@ Trigger on a curated set of common Vercel events (deployments, projects, domains
 | `id` | string | Unique webhook delivery ID \(string\) |
 | `createdAt` | number | Event timestamp in milliseconds |
 | `region` | string | Region where the event occurred |
+| `payload` | json | Full event payload |
 | `links` | object | links output from the tool |
 |   ↳ `deployment` | string | Vercel Dashboard URL for the deployment |
 |   ↳ `project` | string | Vercel Dashboard URL for the project |
@@ -2035,5 +2048,16 @@ Trigger on a curated set of common Vercel events (deployments, projects, domains
 |   ↳ `url` | string | Deployment URL |
 |   ↳ `name` | string | Deployment name |
 |   ↳ `meta` | json | Deployment metadata map \(e.g. Git metadata\), per Vercel Webhooks API |
-| `payload` | json | Full event payload |
+| `project` | object | project output from the tool |
+|   ↳ `id` | string | Project ID |
+|   ↳ `name` | string | Project name |
+| `team` | object | team output from the tool |
+|   ↳ `id` | string | Team ID |
+| `user` | object | user output from the tool |
+|   ↳ `id` | string | User ID |
+| `target` | string | Deployment target \(production, staging, or preview\) |
+| `plan` | string | Account plan type |
+| `domain` | object | domain output from the tool |
+|   ↳ `name` | string | Domain name |
+|   ↳ `delegated` | boolean | Whether the domain was delegated/shared when present on the payload |
 
