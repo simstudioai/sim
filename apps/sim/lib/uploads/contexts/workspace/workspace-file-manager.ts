@@ -1389,7 +1389,12 @@ export async function updateWorkspaceFileContent(
           .set({
             key: uploadResult.key,
             size: content.length,
-            contentType: nextContentType,
+            // Only written when the caller actually declared a type. `nextContentType` falls back to
+            // a read taken BEFORE this row was locked, so writing it unconditionally lets a content
+            // save that overlaps a retype resurrect the pre-retype type — the file ends up named
+            // `.txt` while still stored as `text/markdown`. A content write carries no opinion about
+            // the file's type unless it says so, so leave the committed value alone.
+            ...(contentType ? { contentType } : {}),
             // Replaced bytes: drop the old image's dimensions so the row never describes stale content.
             // The next view reserves nothing (the baseline first-load reflow) rather than a wrong-sized
             // box, then the browser's measurement backfills the correct value. No server-side decode here
@@ -1479,7 +1484,7 @@ export async function updateWorkspaceFileContent(
     // persist and empty-shell creates pass `syncLiveDoc: false` to stay out of it.
     if (
       options?.syncLiveDoc !== false &&
-      isMarkdownFile({ type: nextContentType, name: finalized.file.originalName })
+      isMarkdownFile({ type: finalized.file.contentType, name: finalized.file.originalName })
     ) {
       // Pass the new CONTENT version this write produced, so the relay records that its live doc now
       // incorporates this durable version — the collab persist's optimistic-concurrency guard then won't

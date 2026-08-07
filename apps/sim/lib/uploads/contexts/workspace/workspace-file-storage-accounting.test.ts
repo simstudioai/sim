@@ -407,6 +407,45 @@ describe('workspace file metadata and storage accounting', () => {
     expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
   })
 
+  /**
+   * A content write reads the row BEFORE taking the FOR UPDATE lock. If it wrote that stale
+   * `contentType` back, a save overlapping a type change would resurrect the pre-change type and
+   * leave the file named `.txt` while stored as `text/markdown`.
+   */
+  it('leaves contentType alone when the caller declares none', async () => {
+    const retypedFile = { ...FILE_ROW, originalName: 'note.md', contentType: 'text/markdown' }
+    dbChainMockFns.limit.mockResolvedValueOnce([FILE_ROW]).mockResolvedValueOnce([retypedFile])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ ...retypedFile, size: 10 }])
+    mockUploadFile.mockResolvedValueOnce({ key: `${FILE_ROW.key}-replacement` })
+
+    const updated = await updateWorkspaceFileContent(
+      FILE_ROW.workspaceId,
+      FILE_ROW.id,
+      FILE_ROW.userId,
+      Buffer.alloc(10)
+    )
+
+    const written = dbChainMockFns.set.mock.calls.at(-1)?.[0] as Record<string, unknown>
+    expect(written).not.toHaveProperty('contentType')
+    expect(updated.type).toBe('text/markdown')
+  })
+
+  it('writes contentType when the caller declares one', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([FILE_ROW]).mockResolvedValueOnce([FILE_ROW])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ ...FILE_ROW, contentType: 'text/csv' }])
+    mockUploadFile.mockResolvedValueOnce({ key: `${FILE_ROW.key}-replacement` })
+
+    await updateWorkspaceFileContent(
+      FILE_ROW.workspaceId,
+      FILE_ROW.id,
+      FILE_ROW.userId,
+      Buffer.alloc(10),
+      'text/csv'
+    )
+
+    expect(dbChainMockFns.set.mock.calls.at(-1)?.[0]).toMatchObject({ contentType: 'text/csv' })
+  })
+
   it('uploads an overwrite before atomically swapping the locked row and exact delta', async () => {
     const concurrentFile = { ...FILE_ROW, size: 7 }
     const replacementKey = `${FILE_ROW.key}-replacement`
