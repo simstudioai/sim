@@ -288,6 +288,7 @@ export function Admin() {
                   : {
                       label: 'Ban',
                       onSelect: () => {
+                        banUser.reset()
                         setBanReason('')
                         setPendingAction({ type: 'ban', user: u })
                       },
