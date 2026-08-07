@@ -20,6 +20,7 @@ import {
   readNodeStreamToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { S3_CONFIG, S3_KB_CONFIG } from '@/lib/uploads/config'
+import { isObjectNotFoundError } from '@/lib/uploads/core/errors'
 import type {
   S3Config,
   S3MultipartPart,
@@ -36,7 +37,6 @@ import {
   sanitizeStorageMetadata,
 } from '@/lib/uploads/utils/file-utils'
 import { sanitizeFileName } from '@/executor/constants'
-import { isObjectNotFoundError } from '@/lib/uploads/core/errors'
 
 let _s3Client: S3Client | null = null
 

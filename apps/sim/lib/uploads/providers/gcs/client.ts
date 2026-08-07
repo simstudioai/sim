@@ -8,6 +8,7 @@ import {
   readNodeStreamToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { GCS_CONFIG } from '@/lib/uploads/config'
+import { isObjectNotFoundError } from '@/lib/uploads/core/errors'
 import type {
   GcsConfig,
   GcsMultipartPart,
@@ -24,7 +25,6 @@ import {
   sanitizeStorageMetadata,
 } from '@/lib/uploads/utils/file-utils'
 import { sanitizeFileName } from '@/executor/constants'
-import { isObjectNotFoundError } from '@/lib/uploads/core/errors'
 
 const logger = createLogger('GcsClient')
 

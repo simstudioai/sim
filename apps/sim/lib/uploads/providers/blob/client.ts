@@ -7,6 +7,7 @@ import {
   readNodeStreamToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { BLOB_CONFIG } from '@/lib/uploads/config'
+import { isObjectNotFoundError } from '@/lib/uploads/core/errors'
 import type {
   AzureMultipartPart,
   AzureMultipartUploadInit,
@@ -20,7 +21,6 @@ import type {
 } from '@/lib/uploads/shared/types'
 import { sanitizeStorageMetadata } from '@/lib/uploads/utils/file-utils'
 import { sanitizeFileName } from '@/executor/constants'
-import { isObjectNotFoundError } from '@/lib/uploads/core/errors'
 
 const logger = createLogger('BlobClient')
 const MULTIPART_UPLOAD_ID_METADATA_KEY = 'sim_upload_id'

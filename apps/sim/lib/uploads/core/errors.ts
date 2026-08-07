@@ -1,3 +1,5 @@
+const NOT_FOUND_LABELS = new Set(['NotFound', 'NoSuchKey', 'BlobNotFound'])
+
 /**
  * True when a storage provider reports that an object simply does not exist.
  *
@@ -13,19 +15,20 @@
 export function isObjectNotFoundError(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false
 
-  const candidate = error as {
+  const { name, code, statusCode, $metadata } = error as {
     name?: unknown
     code?: unknown
     statusCode?: unknown
     $metadata?: { httpStatusCode?: unknown }
   }
 
-  const label = typeof candidate.name === 'string' ? candidate.name : candidate.code
-  if (label === 'NotFound' || label === 'NoSuchKey' || label === 'BlobNotFound') return true
+  /**
+   * `name` and `code` are checked independently: Azure raises a `RestError` whose
+   * `name` says nothing useful and whose `code` carries the reason, while the AWS
+   * SDK puts the reason in `name`.
+   */
+  if (typeof name === 'string' && NOT_FOUND_LABELS.has(name)) return true
+  if (typeof code === 'string' && NOT_FOUND_LABELS.has(code)) return true
 
-  return (
-    candidate.code === 404 ||
-    candidate.statusCode === 404 ||
-    candidate.$metadata?.httpStatusCode === 404
-  )
+  return code === 404 || statusCode === 404 || $metadata?.httpStatusCode === 404
 }

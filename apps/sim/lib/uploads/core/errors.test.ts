@@ -24,6 +24,12 @@ describe('isObjectNotFoundError', () => {
     expect(isObjectNotFoundError({ code: 404 })).toBe(true)
   })
 
+  it('reads the label from code when name carries the error class instead', () => {
+    /** Azure raises a `RestError`; the reason lives in `code`, not `name`. */
+    expect(isObjectNotFoundError({ name: 'RestError', code: 'BlobNotFound' })).toBe(true)
+    expect(isObjectNotFoundError({ name: 'Error', code: 'NoSuchKey' })).toBe(true)
+  })
+
   it('matches on status alone when the provider sends no label', () => {
     expect(isObjectNotFoundError({ $metadata: { httpStatusCode: 404 } })).toBe(true)
     expect(isObjectNotFoundError({ statusCode: 404 })).toBe(true)
