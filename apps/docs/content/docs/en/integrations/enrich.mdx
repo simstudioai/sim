@@ -34,7 +34,7 @@ Access real-time B2B data intelligence with Enrich.so. Enrich profiles from emai
 
 ## Actions
 
-### `enrich_check_credits`
+### Enrich Check Credits
 
 Check your Enrich API credit usage and remaining balance.
 
@@ -52,7 +52,7 @@ Check your Enrich API credit usage and remaining balance.
 | `creditsUsed` | number | Credits consumed so far |
 | `creditsRemaining` | number | Available credits remaining |
 
-### `enrich_email_to_profile`
+### Enrich Email to Profile
 
 Retrieve detailed LinkedIn profile information using an email address including work history, education, and skills.
 
@@ -101,7 +101,7 @@ Retrieve detailed LinkedIn profile information using an email address including 
 | `locale` | string | Profile locale \(e.g., en_US\) |
 | `version` | number | Profile version number |
 
-### `enrich_email_to_person_lite`
+### Enrich Email to Person Lite
 
 Retrieve basic LinkedIn profile information from an email address. A lighter version with essential data only.
 
@@ -137,7 +137,7 @@ Retrieve basic LinkedIn profile information from an email address. A lighter ver
 | `certifications` | array | Certifications |
 | `volunteerExperience` | array | Volunteer experience |
 
-### `enrich_linkedin_profile`
+### Enrich LinkedIn Profile
 
 Enrich a LinkedIn profile URL with detailed information including positions, education, and social metrics.
 
@@ -179,7 +179,7 @@ Enrich a LinkedIn profile URL with detailed information including positions, edu
 |   ↳ `endDate` | string | End date |
 | `websites` | array | Personal websites |
 
-### `enrich_find_email`
+### Enrich Find Email
 
 Find a person's work email address using their full name and company domain.
 
@@ -202,7 +202,7 @@ Find a person's work email address using their full name and company domain.
 | `found` | boolean | Whether an email was found |
 | `acceptAll` | boolean | Whether the domain accepts all emails |
 
-### `enrich_linkedin_to_work_email`
+### Enrich LinkedIn to Work Email
 
 Find a work email address from a LinkedIn profile URL.
 
@@ -221,7 +221,7 @@ Find a work email address from a LinkedIn profile URL.
 | `found` | boolean | Whether an email was found |
 | `status` | string | Request status \(in_progress or completed\) |
 
-### `enrich_linkedin_to_personal_email`
+### Enrich LinkedIn to Personal Email
 
 Find personal email address from a LinkedIn profile URL.
 
@@ -240,7 +240,7 @@ Find personal email address from a LinkedIn profile URL.
 | `found` | boolean | Whether an email was found |
 | `status` | string | Request status |
 
-### `enrich_phone_finder`
+### Enrich Phone Finder
 
 Find a phone number from a LinkedIn profile URL.
 
@@ -260,7 +260,7 @@ Find a phone number from a LinkedIn profile URL.
 | `found` | boolean | Whether a phone number was found |
 | `status` | string | Request status \(in_progress or completed\) |
 
-### `enrich_email_to_phone`
+### Enrich Email to Phone
 
 Find a phone number associated with an email address.
 
@@ -280,7 +280,7 @@ Find a phone number associated with an email address.
 | `found` | boolean | Whether a phone number was found |
 | `status` | string | Request status \(in_progress or completed\) |
 
-### `enrich_verify_email`
+### Enrich Verify Email
 
 Verify an email address for deliverability, including catch-all detection and provider identification.
 
@@ -304,7 +304,7 @@ Verify an email address for deliverability, including catch-all detection and pr
 | `mailAcceptAll` | boolean | Whether the domain is a catch-all domain |
 | `free` | boolean | Whether the email uses a free email service |
 
-### `enrich_disposable_email_check`
+### Enrich Disposable Email Check
 
 Check if an email address is from a disposable or temporary email provider. Returns a score and validation details.
 
@@ -329,7 +329,7 @@ Check if an email address is from a disposable or temporary email provider. Retu
 |   ↳ `host` | string | MX record host |
 |   ↳ `pref` | number | MX record preference |
 
-### `enrich_email_to_ip`
+### Enrich Email to IP
 
 Discover an IP address associated with an email address.
 
@@ -348,7 +348,7 @@ Discover an IP address associated with an email address.
 | `ip` | string | Associated IP address |
 | `found` | boolean | Whether an IP address was found |
 
-### `enrich_ip_to_company`
+### Enrich IP to Company
 
 Identify a company from an IP address with detailed firmographic information.
 
@@ -381,7 +381,7 @@ Identify a company from an IP address with detailed firmographic information.
 | `twitterUrl` | string | Twitter URL |
 | `facebookUrl` | string | Facebook URL |
 
-### `enrich_company_lookup`
+### Enrich Company Lookup
 
 Look up comprehensive company information by name or domain including funding, location, and social profiles.
 
@@ -423,7 +423,7 @@ Look up comprehensive company information by name or domain including funding, l
 |   ↳ `currency` | string | Currency |
 |   ↳ `investors` | array | Investors |
 
-### `enrich_company_funding`
+### Enrich Company Funding
 
 Retrieve company funding history, traffic metrics, and executive information by domain.
 
@@ -455,7 +455,7 @@ Retrieve company funding history, traffic metrics, and executive information by 
 |   ↳ `name` | string | Name |
 |   ↳ `title` | string | Title |
 
-### `enrich_company_revenue`
+### Enrich Company Revenue
 
 Retrieve company revenue data, CEO information, and competitive analysis by domain.
 
@@ -497,7 +497,7 @@ Retrieve company revenue data, CEO information, and competitive analysis by doma
 |   ↳ `employeeCount` | number | Employee count |
 |   ↳ `headquarters` | string | Headquarters |
 
-### `enrich_search_people`
+### Enrich Search People
 
 Search for professionals by various criteria including name, title, skills, education, and company.
 
@@ -547,7 +547,7 @@ Search for professionals by various criteria including name, title, skills, educ
 |   ↳ `country` | string | Country |
 |   ↳ `expertSkills` | array | Skills |
 
-### `enrich_search_company`
+### Enrich Search Company
 
 Search for companies by various criteria including name, industry, location, and size.
 
@@ -590,7 +590,7 @@ Search for companies by various criteria including name, industry, location, and
 |   ↳ `teamSize` | number | Team size |
 |   ↳ `linkedInProfile` | string | LinkedIn URL |
 
-### `enrich_search_company_employees`
+### Enrich Search Company Employees
 
 Search for employees within specific companies by location and job title.
 
@@ -625,7 +625,7 @@ Search for employees within specific companies by location and job title.
 |   ↳ `country` | string | Country |
 |   ↳ `expertSkills` | array | Skills |
 
-### `enrich_search_similar_companies`
+### Enrich Search Similar Companies
 
 Find companies similar to a given company by LinkedIn URL with filters for location and size.
 
@@ -660,7 +660,7 @@ Find companies similar to a given company by LinkedIn URL with filters for locat
 |   ↳ `relevancyScore` | number | Relevancy score |
 |   ↳ `relevancyValue` | string | Relevancy value |
 
-### `enrich_sales_pointer_people`
+### Enrich Sales Pointer People
 
 Advanced people search with complex filters for location, company size, seniority, experience, and more.
 
@@ -690,7 +690,7 @@ Advanced people search with complex filters for location, company size, seniorit
 |   ↳ `start` | number | Start position |
 |   ↳ `limit` | number | Limit |
 
-### `enrich_search_jobs`
+### Enrich Search Jobs
 
 Search LinkedIn job postings by keywords with filters for location, job type, workplace type, experience level, and company.
 
@@ -725,7 +725,7 @@ Search LinkedIn job postings by keywords with filters for location, job type, wo
 |   ↳ `hiringStatus` | string | Hiring status |
 |   ↳ `criteria` | object | Employment criteria \(seniority, type, function\) |
 
-### `enrich_search_posts`
+### Enrich Search Posts
 
 Search LinkedIn posts by keywords with date filtering.
 
@@ -758,7 +758,7 @@ Search LinkedIn posts by keywords with date filtering.
 |   ↳ `reactions` | number | Number of reactions |
 |   ↳ `commentsCount` | number | Number of comments |
 
-### `enrich_get_post_details`
+### Enrich Get Post Details
 
 Get detailed information about a LinkedIn post by URL.
 
@@ -786,7 +786,7 @@ Get detailed information about a LinkedIn post by URL.
 | `reactions` | number | Number of reactions |
 | `commentsCount` | number | Number of comments |
 
-### `enrich_search_post_reactions`
+### Enrich Search Post Reactions
 
 Get reactions on a LinkedIn post with filtering by reaction type.
 
@@ -815,7 +815,7 @@ Get reactions on a LinkedIn post with filtering by reaction type.
 |     ↳ `profilePicture` | string | Profile picture URL |
 |     ↳ `linkedInUrl` | string | LinkedIn URL |
 
-### `enrich_search_post_reactions_by_url`
+### Enrich Search Post Reactions by URL
 
 Get reactions on a LinkedIn post by its URL, filtered by reaction type.
 
@@ -844,7 +844,7 @@ Get reactions on a LinkedIn post by its URL, filtered by reaction type.
 |     ↳ `profilePicture` | string | Profile picture URL |
 |     ↳ `linkedInUrl` | string | LinkedIn URL |
 
-### `enrich_search_post_comments`
+### Enrich Search Post Comments
 
 Get comments on a LinkedIn post.
 
@@ -882,7 +882,7 @@ Get comments on a LinkedIn post.
 |     ↳ `empathy` | number | Number of empathy reactions |
 |     ↳ `other` | number | Number of other reactions |
 
-### `enrich_search_post_comments_by_url`
+### Enrich Search Post Comments by URL
 
 Get comments on a LinkedIn post by its URL.
 
@@ -920,7 +920,7 @@ Get comments on a LinkedIn post by its URL.
 |     ↳ `empathy` | number | Number of empathy reactions |
 |     ↳ `other` | number | Number of other reactions |
 
-### `enrich_search_people_activities`
+### Enrich Search People Activities
 
 Get a person's LinkedIn activities (posts, comments, or articles) by profile ID.
 
@@ -955,7 +955,7 @@ Get a person's LinkedIn activities (posts, comments, or articles) by profile ID.
 |     ↳ `other` | number | Other reactions |
 |   ↳ `attachments` | array | Attachment URLs |
 
-### `enrich_search_company_activities`
+### Enrich Search Company Activities
 
 Get a company's LinkedIn activities (posts, comments, or articles) by company ID.
 
@@ -991,7 +991,7 @@ Get a company's LinkedIn activities (posts, comments, or articles) by company ID
 |     ↳ `other` | number | Other reactions |
 |   ↳ `attachments` | array | Attachments |
 
-### `enrich_reverse_hash_lookup`
+### Enrich Reverse Hash Lookup
 
 Convert an MD5 email hash back to the original email address and display name.
 
@@ -1011,7 +1011,7 @@ Convert an MD5 email hash back to the original email address and display name.
 | `displayName` | string | Display name associated with the email |
 | `found` | boolean | Whether an email was found for the hash |
 
-### `enrich_search_logo`
+### Enrich Search Logo
 
 Get a company logo image URL by domain.
 

@@ -43,7 +43,7 @@ Integrate Amazon DynamoDB into workflows. Supports Get, Put, Query, Scan, Update
 
 ## Actions
 
-### `dynamodb_get`
+### DynamoDB Get
 
 Get an item from a DynamoDB table by primary key
 
@@ -65,7 +65,7 @@ Get an item from a DynamoDB table by primary key
 | `message` | string | Operation status message |
 | `item` | json | Retrieved item |
 
-### `dynamodb_put`
+### DynamoDB Put
 
 Put an item into a DynamoDB table
 
@@ -89,7 +89,7 @@ Put an item into a DynamoDB table
 | `message` | string | Operation status message |
 | `item` | json | Created item |
 
-### `dynamodb_query`
+### DynamoDB Query
 
 Query items from a DynamoDB table using key conditions
 
@@ -119,7 +119,7 @@ Query items from a DynamoDB table using key conditions
 | `count` | number | Number of items returned |
 | `lastEvaluatedKey` | json | Pagination token to pass as exclusiveStartKey to fetch the next page of results |
 
-### `dynamodb_scan`
+### DynamoDB Scan
 
 Scan all items in a DynamoDB table
 
@@ -147,7 +147,7 @@ Scan all items in a DynamoDB table
 | `count` | number | Number of items returned |
 | `lastEvaluatedKey` | json | Pagination token to pass as exclusiveStartKey to fetch the next page of results |
 
-### `dynamodb_update`
+### DynamoDB Update
 
 Update an item in a DynamoDB table
 
@@ -172,7 +172,7 @@ Update an item in a DynamoDB table
 | `message` | string | Operation status message |
 | `item` | json | Updated item with all attributes |
 
-### `dynamodb_delete`
+### DynamoDB Delete
 
 Delete an item from a DynamoDB table
 
@@ -195,7 +195,7 @@ Delete an item from a DynamoDB table
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
-### `dynamodb_introspect`
+### DynamoDB Introspect
 
 Introspect DynamoDB to list tables or get detailed schema information for a specific table
 

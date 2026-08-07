@@ -36,7 +36,7 @@ Build, edit, and export branded Google Slides presentations end-to-end. Copy a t
 
 ## Actions
 
-### `google_slides_read`
+### Read Google Slides Presentation
 
 Read content from a Google Slides presentation
 
@@ -60,7 +60,7 @@ Read content from a Google Slides presentation
 |   ↳ `mimeType` | string | The mime type of the presentation |
 |   ↳ `url` | string | URL to open the presentation |
 
-### `google_slides_write`
+### Write to Google Slides Presentation
 
 Write or update content in a Google Slides presentation
 
@@ -83,7 +83,7 @@ Write or update content in a Google Slides presentation
 |   ↳ `mimeType` | string | The mime type of the presentation |
 |   ↳ `url` | string | URL to open the presentation |
 
-### `google_slides_create`
+### Create Google Slides Presentation
 
 Create a new Google Slides presentation
 
@@ -106,7 +106,7 @@ Create a new Google Slides presentation
 |   ↳ `mimeType` | string | The mime type of the presentation |
 |   ↳ `url` | string | URL to open the presentation |
 
-### `google_slides_replace_all_text`
+### Replace All Text in Google Slides
 
 Find and replace all occurrences of text throughout a Google Slides presentation
 
@@ -131,7 +131,7 @@ Find and replace all occurrences of text throughout a Google Slides presentation
 |   ↳ `replaceText` | string | The text that replaced the matches |
 |   ↳ `url` | string | URL to open the presentation |
 
-### `google_slides_add_slide`
+### Add Slide to Google Slides
 
 Add a new slide to a Google Slides presentation with a specified layout
 
@@ -155,7 +155,7 @@ Add a new slide to a Google Slides presentation with a specified layout
 |   ↳ `insertionIndex` | number | The zero-based index where the slide was inserted |
 |   ↳ `url` | string | URL to open the presentation |
 
-### `google_slides_add_image`
+### Add Image to Google Slides
 
 Insert an image into a specific slide in a Google Slides presentation
 
@@ -182,7 +182,7 @@ Insert an image into a specific slide in a Google Slides presentation
 |   ↳ `imageUrl` | string | The source image URL |
 |   ↳ `url` | string | URL to open the presentation |
 
-### `google_slides_get_thumbnail`
+### Get Slide Thumbnail
 
 Generate a thumbnail image of a specific slide in a Google Slides presentation
 
@@ -208,7 +208,7 @@ Generate a thumbnail image of a specific slide in a Google Slides presentation
 |   ↳ `thumbnailSize` | string | The requested thumbnail size |
 |   ↳ `mimeType` | string | The thumbnail MIME type |
 
-### `google_slides_get_page`
+### Get Slide Page
 
 Get detailed information about a specific slide/page in a Google Slides presentation
 
@@ -234,7 +234,7 @@ Get detailed information about a specific slide/page in a Google Slides presenta
 |   ↳ `presentationId` | string | The presentation ID |
 |   ↳ `url` | string | URL to the presentation |
 
-### `google_slides_delete_object`
+### Delete Object from Google Slides
 
 Delete a page element (shape, image, table, etc.) or an entire slide from a Google Slides presentation
 
@@ -255,7 +255,7 @@ Delete a page element (shape, image, table, etc.) or an entire slide from a Goog
 |   ↳ `presentationId` | string | The presentation ID |
 |   ↳ `url` | string | URL to the presentation |
 
-### `google_slides_duplicate_object`
+### Duplicate Object in Google Slides
 
 Duplicate an object (slide, shape, image, table, etc.) in a Google Slides presentation
 
@@ -277,7 +277,7 @@ Duplicate an object (slide, shape, image, table, etc.) in a Google Slides presen
 |   ↳ `sourceObjectId` | string | The original object ID that was duplicated |
 |   ↳ `url` | string | URL to the presentation |
 
-### `google_slides_update_slides_position`
+### Reorder Slides in Google Slides
 
 Move one or more slides to a new position in a Google Slides presentation
 
@@ -300,7 +300,7 @@ Move one or more slides to a new position in a Google Slides presentation
 |   ↳ `presentationId` | string | The presentation ID |
 |   ↳ `url` | string | URL to the presentation |
 
-### `google_slides_create_table`
+### Create Table in Google Slides
 
 Create a new table on a slide in a Google Slides presentation
 
@@ -329,7 +329,7 @@ Create a new table on a slide in a Google Slides presentation
 |   ↳ `pageObjectId` | string | The page object ID where the table was created |
 |   ↳ `url` | string | URL to the presentation |
 
-### `google_slides_create_shape`
+### Create Shape in Google Slides
 
 Create a shape (rectangle, ellipse, text box, arrow, etc.) on a slide in a Google Slides presentation
 
@@ -356,7 +356,7 @@ Create a shape (rectangle, ellipse, text box, arrow, etc.) on a slide in a Googl
 |   ↳ `pageObjectId` | string | The page object ID where the shape was created |
 |   ↳ `url` | string | URL to the presentation |
 
-### `google_slides_insert_text`
+### Insert Text in Google Slides
 
 Insert text into a shape or table cell in a Google Slides presentation. Use this to add text to text boxes, shapes, or table cells.
 
@@ -380,7 +380,7 @@ Insert text into a shape or table cell in a Google Slides presentation. Use this
 |   ↳ `presentationId` | string | The presentation ID |
 |   ↳ `url` | string | URL to the presentation |
 
-### `google_slides_update_text_style`
+### Update Text Style in Google Slides
 
 Update the styling of text in a shape or table cell (bold, italic, font family, font size, foreground/background color, link, etc.). Only the fields you set are applied.
 
@@ -420,7 +420,7 @@ Update the styling of text in a shape or table cell (bold, italic, font family, 
 |   ↳ `presentationId` | string | The presentation ID |
 |   ↳ `url` | string | URL to the presentation |
 
-### `google_slides_update_paragraph_style`
+### Update Paragraph Style in Google Slides
 
 Update paragraph styling — alignment, line spacing, indents, space above/below — for text in a shape or table cell.
 
@@ -458,7 +458,7 @@ Update paragraph styling — alignment, line spacing, indents, space above/below
 |   ↳ `presentationId` | string | The presentation ID |
 |   ↳ `url` | string | URL to the presentation |
 
-### `google_slides_delete_text`
+### Delete Text in Google Slides
 
 Delete text from a shape or table cell. Use range type ALL to clear all text, or FIXED_RANGE / FROM_START_INDEX to delete a specific span.
 
@@ -484,7 +484,7 @@ Delete text from a shape or table cell. Use range type ALL to clear all text, or
 |   ↳ `presentationId` | string | The presentation ID |
 |   ↳ `url` | string | URL to the presentation |
 
-### `google_slides_create_paragraph_bullets`
+### Create Paragraph Bullets in Google Slides
 
 Convert paragraphs in a shape or table cell into a bulleted or numbered list using a Google Slides bullet preset.
 
@@ -511,7 +511,7 @@ Convert paragraphs in a shape or table cell into a bulleted or numbered list usi
 |   ↳ `presentationId` | string | The presentation ID |
 |   ↳ `url` | string | URL to the presentation |
 
-### `google_slides_delete_paragraph_bullets`
+### Delete Paragraph Bullets in Google Slides
 
 Remove bullets/numbering from paragraphs in a shape or table cell.
 
@@ -537,7 +537,7 @@ Remove bullets/numbering from paragraphs in a shape or table cell.
 |   ↳ `presentationId` | string | The presentation ID |
 |   ↳ `url` | string | URL to the presentation |
 
-### `google_slides_replace_all_shapes_with_image`
+### Replace All Shapes With Image in Google Slides
 
 Find every shape whose text matches the given token (e.g. \{\{cover-image\}\}) and replace it with an image, preserving the shape's position and bounds.
 
@@ -563,7 +563,7 @@ Find every shape whose text matches the given token (e.g. \{\{cover-image\}\}) a
 |   ↳ `imageUrl` | string | The image URL inserted |
 |   ↳ `findText` | string | The matched text token |
 
-### `google_slides_replace_image`
+### Replace Image in Google Slides
 
 Replace the source of an existing image with a new image URL, preserving the image's position, size, and properties.
 
@@ -587,7 +587,7 @@ Replace the source of an existing image with a new image URL, preserving the ima
 |   ↳ `url` | string | URL to the presentation |
 |   ↳ `imageUrl` | string | The new image URL |
 
-### `google_slides_update_image_properties`
+### Update Image Properties in Google Slides
 
 Update image properties — brightness, contrast, transparency, crop, outline, link — on an existing image.
 
@@ -623,7 +623,7 @@ Update image properties — brightness, contrast, transparency, crop, outline, l
 |   ↳ `presentationId` | string | The presentation ID |
 |   ↳ `url` | string | URL to the presentation |
 
-### `google_slides_update_shape_properties`
+### Update Shape Properties in Google Slides
 
 Update a shape's appearance — background fill color, outline, link, content alignment, autofit. Pass only the properties you want to change.
 
@@ -657,7 +657,7 @@ Update a shape's appearance — background fill color, outline, link, content al
 |   ↳ `presentationId` | string | The presentation ID |
 |   ↳ `url` | string | URL to the presentation |
 
-### `google_slides_update_page_properties`
+### Update Page Properties in Google Slides
 
 Update slide/page background — solid color or stretched picture — and other page properties.
 
@@ -685,7 +685,7 @@ Update slide/page background — solid color or stretched picture — and other 
 |   ↳ `presentationId` | string | The presentation ID |
 |   ↳ `url` | string | URL to the presentation |
 
-### `google_slides_update_slide_properties`
+### Update Slide Properties in Google Slides
 
 Update slide-specific properties such as whether the slide is skipped during presentation.
 
@@ -710,7 +710,7 @@ Update slide-specific properties such as whether the slide is skipped during pre
 |   ↳ `presentationId` | string | The presentation ID |
 |   ↳ `url` | string | URL to the presentation |
 
-### `google_slides_update_page_element_alt_text`
+### Update Alt Text in Google Slides
 
 Set the accessibility title and/or description (alt text) of a page element such as an image, shape, or group.
 
@@ -733,7 +733,7 @@ Set the accessibility title and/or description (alt text) of a page element such
 |   ↳ `presentationId` | string | The presentation ID |
 |   ↳ `url` | string | URL to the presentation |
 
-### `google_slides_update_page_element_transform`
+### Update Page Element Transform in Google Slides
 
 Move, resize, scale, or shear a page element. Translate is specified in points; applyMode controls whether the transform is absolute (default) or relative (multiplied with the current transform).
 
@@ -761,7 +761,7 @@ Move, resize, scale, or shear a page element. Translate is specified in points; 
 |   ↳ `presentationId` | string | The presentation ID |
 |   ↳ `url` | string | URL to the presentation |
 
-### `google_slides_update_page_elements_z_order`
+### Update Z-Order in Google Slides
 
 Bring elements to front, send to back, or step them one layer forward/backward.
 
@@ -784,7 +784,7 @@ Bring elements to front, send to back, or step them one layer forward/backward.
 |   ↳ `presentationId` | string | The presentation ID |
 |   ↳ `url` | string | URL to the presentation |
 
-### `google_slides_group_objects`
+### Group Objects in Google Slides
 
 Group two or more page elements on the same slide into a single object group.
 
@@ -807,7 +807,7 @@ Group two or more page elements on the same slide into a single object group.
 |   ↳ `presentationId` | string | The presentation ID |
 |   ↳ `url` | string | URL to the presentation |
 
-### `google_slides_ungroup_objects`
+### Ungroup Objects in Google Slides
 
 Ungroup one or more object groups, releasing their children back to the slide.
 
@@ -828,7 +828,7 @@ Ungroup one or more object groups, releasing their children back to the slide.
 |   ↳ `presentationId` | string | The presentation ID |
 |   ↳ `url` | string | URL to the presentation |
 
-### `google_slides_create_line`
+### Create Line in Google Slides
 
 Create a line or connector on a slide.
 
@@ -855,7 +855,7 @@ Create a line or connector on a slide.
 |   ↳ `pageObjectId` | string | The slide ID |
 |   ↳ `url` | string | URL to the presentation |
 
-### `google_slides_update_line_properties`
+### Update Line Properties in Google Slides
 
 Update line appearance — color, weight, dash style, arrows, link.
 
@@ -885,7 +885,7 @@ Update line appearance — color, weight, dash style, arrows, link.
 |   ↳ `presentationId` | string | The presentation ID |
 |   ↳ `url` | string | URL to the presentation |
 
-### `google_slides_update_line_category`
+### Update Line Category in Google Slides
 
 Change a connector line's category (STRAIGHT, BENT, or CURVED).
 
@@ -908,7 +908,7 @@ Change a connector line's category (STRAIGHT, BENT, or CURVED).
 |   ↳ `presentationId` | string | The presentation ID |
 |   ↳ `url` | string | URL to the presentation |
 
-### `google_slides_reroute_line`
+### Reroute Line in Google Slides
 
 Reroute a connector line so it efficiently connects its endpoint shapes — useful after moving the shapes the line connects.
 
@@ -929,7 +929,7 @@ Reroute a connector line so it efficiently connects its endpoint shapes — usef
 |   ↳ `presentationId` | string | The presentation ID |
 |   ↳ `url` | string | URL to the presentation |
 
-### `google_slides_insert_table_rows`
+### Insert Table Rows in Google Slides
 
 Insert one or more rows into a table, above or below a reference cell.
 
@@ -955,7 +955,7 @@ Insert one or more rows into a table, above or below a reference cell.
 |   ↳ `presentationId` | string | The presentation ID |
 |   ↳ `url` | string | URL to the presentation |
 
-### `google_slides_insert_table_columns`
+### Insert Table Columns in Google Slides
 
 Insert one or more columns into a table, left or right of a reference cell.
 
@@ -981,7 +981,7 @@ Insert one or more columns into a table, left or right of a reference cell.
 |   ↳ `presentationId` | string | The presentation ID |
 |   ↳ `url` | string | URL to the presentation |
 
-### `google_slides_delete_table_row`
+### Delete Table Row in Google Slides
 
 Delete the row containing the reference cell from a table.
 
@@ -1004,7 +1004,7 @@ Delete the row containing the reference cell from a table.
 |   ↳ `presentationId` | string | The presentation ID |
 |   ↳ `url` | string | URL to the presentation |
 
-### `google_slides_delete_table_column`
+### Delete Table Column in Google Slides
 
 Delete the column containing the reference cell from a table.
 
@@ -1027,7 +1027,7 @@ Delete the column containing the reference cell from a table.
 |   ↳ `presentationId` | string | The presentation ID |
 |   ↳ `url` | string | URL to the presentation |
 
-### `google_slides_merge_table_cells`
+### Merge Table Cells in Google Slides
 
 Merge a rectangular range of table cells into a single cell. The range starts at (rowIndex, columnIndex) and covers rowSpan × columnSpan cells.
 
@@ -1052,7 +1052,7 @@ Merge a rectangular range of table cells into a single cell. The range starts at
 |   ↳ `presentationId` | string | The presentation ID |
 |   ↳ `url` | string | URL to the presentation |
 
-### `google_slides_unmerge_table_cells`
+### Unmerge Table Cells in Google Slides
 
 Unmerge any merged cells within the given table range.
 
@@ -1077,7 +1077,7 @@ Unmerge any merged cells within the given table range.
 |   ↳ `presentationId` | string | The presentation ID |
 |   ↳ `url` | string | URL to the presentation |
 
-### `google_slides_update_table_cell_properties`
+### Update Table Cell Properties in Google Slides
 
 Update background fill and content alignment for a range of table cells.
 
@@ -1108,7 +1108,7 @@ Update background fill and content alignment for a range of table cells.
 |   ↳ `presentationId` | string | The presentation ID |
 |   ↳ `url` | string | URL to the presentation |
 
-### `google_slides_update_table_border_properties`
+### Update Table Border Properties in Google Slides
 
 Update border color, weight, and dash style for a position (e.g. ALL, INNER, OUTER) in a table range.
 
@@ -1140,7 +1140,7 @@ Update border color, weight, and dash style for a position (e.g. ALL, INNER, OUT
 |   ↳ `presentationId` | string | The presentation ID |
 |   ↳ `url` | string | URL to the presentation |
 
-### `google_slides_update_table_column_properties`
+### Update Table Column Properties in Google Slides
 
 Update column widths and other column-level table properties.
 
@@ -1166,7 +1166,7 @@ Update column widths and other column-level table properties.
 |   ↳ `presentationId` | string | The presentation ID |
 |   ↳ `url` | string | URL to the presentation |
 
-### `google_slides_update_table_row_properties`
+### Update Table Row Properties in Google Slides
 
 Update minimum row heights and other row-level table properties.
 
@@ -1192,7 +1192,7 @@ Update minimum row heights and other row-level table properties.
 |   ↳ `presentationId` | string | The presentation ID |
 |   ↳ `url` | string | URL to the presentation |
 
-### `google_slides_create_sheets_chart`
+### Embed Google Sheets Chart in Slides
 
 Embed a chart from a Google Sheets spreadsheet onto a slide. LINKED charts can be refreshed; NOT_LINKED_IMAGE inserts a static image of the chart.
 
@@ -1220,7 +1220,7 @@ Embed a chart from a Google Sheets spreadsheet onto a slide. LINKED charts can b
 |   ↳ `pageObjectId` | string | The slide ID |
 |   ↳ `url` | string | URL to the presentation |
 
-### `google_slides_refresh_sheets_chart`
+### Refresh Sheets Chart in Slides
 
 Refresh an embedded linked Sheets chart so it reflects the latest spreadsheet data.
 
@@ -1241,7 +1241,7 @@ Refresh an embedded linked Sheets chart so it reflects the latest spreadsheet da
 |   ↳ `presentationId` | string | The presentation ID |
 |   ↳ `url` | string | URL to the presentation |
 
-### `google_slides_replace_all_shapes_with_sheets_chart`
+### Replace All Shapes With Sheets Chart in Slides
 
 Find every shape matching a text token (e.g. \{\{revenue-chart\}\}) and replace each with the same embedded Sheets chart, preserving the shape's position and bounds.
 
@@ -1269,7 +1269,7 @@ Find every shape matching a text token (e.g. \{\{revenue-chart\}\}) and replace 
 |   ↳ `spreadsheetId` | string | Source spreadsheet ID |
 |   ↳ `chartId` | number | Source chart ID |
 
-### `google_slides_create_video`
+### Embed Video in Google Slides
 
 Embed a YouTube or Google Drive video on a slide.
 
@@ -1296,7 +1296,7 @@ Embed a YouTube or Google Drive video on a slide.
 |   ↳ `pageObjectId` | string | The slide ID |
 |   ↳ `url` | string | URL to the presentation |
 
-### `google_slides_update_video_properties`
+### Update Video Properties in Google Slides
 
 Update video playback options (autoPlay, mute, start/end) and outline.
 
@@ -1327,7 +1327,7 @@ Update video playback options (autoPlay, mute, start/end) and outline.
 |   ↳ `presentationId` | string | The presentation ID |
 |   ↳ `url` | string | URL to the presentation |
 
-### `google_slides_batch_update`
+### Batch Update Google Slides (Raw)
 
 Run a raw Slides API batchUpdate with a list of Request objects. Use this when the higher-level tools do not cover an operation, or to bundle multiple operations into a single atomic batch (all-or-nothing).
 
@@ -1350,7 +1350,7 @@ Run a raw Slides API batchUpdate with a list of Request objects. Use this when t
 |   ↳ `url` | string | URL to the presentation |
 |   ↳ `requestCount` | number | Number of replies returned |
 
-### `google_slides_copy_presentation`
+### Copy Google Slides Presentation
 
 Copy a template presentation in Drive to a new file. Use this before merging data so the original template is never modified.
 
@@ -1375,7 +1375,7 @@ Copy a template presentation in Drive to a new file. Use this before merging dat
 |   ↳ `mimeType` | string | MIME type of the presentation |
 |   ↳ `url` | string | URL to the new presentation |
 
-### `google_slides_export_presentation`
+### Export Google Slides Presentation
 
 Export a presentation to PDF, PPTX, ODP, TXT, PNG, JPEG, or SVG via the Drive export endpoint. Stores the exported file as an execution file when execution context is available.
 

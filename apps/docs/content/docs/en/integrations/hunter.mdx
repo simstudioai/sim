@@ -33,7 +33,7 @@ Integrate Hunter into the workflow. Can search domains, find email addresses, ve
 
 ## Actions
 
-### `hunter_discover`
+### Hunter Discover
 
 Returns companies matching a set of criteria using Hunter.io AI-powered search.
 
@@ -59,7 +59,7 @@ Returns companies matching a set of criteria using Hunter.io AI-powered search.
 |   ↳ `generic_emails` | number | Count of generic \(role-based\) emails |
 |   ↳ `total_emails` | number | Total emails found for the company |
 
-### `hunter_domain_search`
+### Hunter Domain Search
 
 Returns all the email addresses found using one given domain name, with sources.
 
@@ -109,7 +109,7 @@ Returns all the email addresses found using one given domain name, with sources.
 | `organization` | string | The organization/company name |
 | `linked_domains` | array | Other domains linked to the organization |
 
-### `hunter_email_finder`
+### Hunter Email Finder
 
 Finds the most likely email address for a person given their name and company domain.
 
@@ -148,7 +148,7 @@ Finds the most likely email address for a person given their name and company do
 | `phone_number` | string | Phone number |
 | `company` | string | Company name |
 
-### `hunter_email_verifier`
+### Hunter Email Verifier
 
 Verifies the deliverability of an email address and provides detailed verification status.
 
@@ -183,7 +183,7 @@ Verifies the deliverability of an email address and provides detailed verificati
 | `block` | boolean | Whether the domain is blocking verification \(validity could not be determined\) |
 | `status` | string | Verification status: valid, invalid, accept_all, webmail, disposable, unknown, or blocked |
 
-### `hunter_companies_find`
+### Hunter Companies Find
 
 Enriches company data using domain name.
 
@@ -217,7 +217,7 @@ Enriches company data using domain name.
 | `phone` | string | Company phone number |
 | `tech` | array | Technologies used by the company |
 
-### `hunter_email_count`
+### Hunter Email Count
 
 Returns the total number of email addresses found for a domain or company.
 

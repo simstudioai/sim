@@ -35,7 +35,7 @@ Integrate S3 into the workflow. Upload, download, copy, and delete objects (indi
 
 ## Actions
 
-### `s3_put_object`
+### S3 Put Object
 
 Upload a file to an AWS S3 bucket
 
@@ -61,7 +61,7 @@ Upload a file to an AWS S3 bucket
 | `uri` | string | S3 URI of the uploaded object \(s3://bucket/key\) |
 | `metadata` | object | Upload metadata including ETag and location |
 
-### `s3_get_object`
+### S3 Get Object
 
 Retrieve an object from an AWS S3 bucket
 
@@ -82,7 +82,7 @@ Retrieve an object from an AWS S3 bucket
 | `file` | file | Downloaded file stored in execution files |
 | `metadata` | object | File metadata including type, size, name, and last modified date |
 
-### `s3_list_objects`
+### S3 List Objects
 
 List objects in an AWS S3 bucket
 
@@ -109,7 +109,7 @@ List objects in an AWS S3 bucket
 |   ↳ `etag` | string | Entity tag |
 | `metadata` | object | Listing metadata including pagination info |
 
-### `s3_delete_object`
+### S3 Delete Object
 
 Delete an object from an AWS S3 bucket
 
@@ -130,7 +130,7 @@ Delete an object from an AWS S3 bucket
 | `deleted` | boolean | Whether the object was successfully deleted |
 | `metadata` | object | Deletion metadata |
 
-### `s3_copy_object`
+### S3 Copy Object
 
 Copy an object within or between AWS S3 buckets
 
@@ -155,7 +155,7 @@ Copy an object within or between AWS S3 buckets
 | `uri` | string | S3 URI of the copied object \(s3://bucket/key\) |
 | `metadata` | object | Copy operation metadata |
 
-### `s3_list_buckets`
+### S3 List Buckets
 
 List the S3 buckets owned by the authenticated AWS account
 
@@ -180,7 +180,7 @@ List the S3 buckets owned by the authenticated AWS account
 |   ↳ `region` | string | AWS region where the bucket is located |
 | `metadata` | object | Listing metadata including owner and pagination info |
 
-### `s3_head_object`
+### S3 Head Object
 
 Retrieve metadata for an S3 object without downloading its body
 
@@ -202,7 +202,7 @@ Retrieve metadata for an S3 object without downloading its body
 | `exists` | boolean | Whether the object exists and was reachable |
 | `metadata` | object | Object metadata including size, content type, ETag, and last modified date |
 
-### `s3_create_bucket`
+### S3 Create Bucket
 
 Create a new AWS S3 bucket in the specified region
 
@@ -222,7 +222,7 @@ Create a new AWS S3 bucket in the specified region
 | --------- | ---- | ----------- |
 | `metadata` | object | Created bucket metadata including name and location |
 
-### `s3_delete_bucket`
+### S3 Delete Bucket
 
 Delete an empty AWS S3 bucket
 
@@ -242,7 +242,7 @@ Delete an empty AWS S3 bucket
 | `deleted` | boolean | Whether the bucket was successfully deleted |
 | `metadata` | object | Deletion metadata including bucket name |
 
-### `s3_presigned_url`
+### S3 Presigned URL
 
 Generate a time-limited presigned URL to download or upload an S3 object
 
@@ -266,7 +266,7 @@ Generate a time-limited presigned URL to download or upload an S3 object
 | `url` | string | The generated presigned URL |
 | `metadata` | object | Presigned URL metadata including method and expiration |
 
-### `s3_delete_objects`
+### S3 Delete Objects
 
 Delete multiple objects from an AWS S3 bucket in a single batch request
 

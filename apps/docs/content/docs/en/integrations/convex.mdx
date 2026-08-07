@@ -42,7 +42,7 @@ Integrate Convex into the workflow. Run query, mutation, and action functions on
 
 ## Actions
 
-### `convex_query`
+### Convex Run Query
 
 Run a Convex query function and return its result
 
@@ -62,7 +62,7 @@ Run a Convex query function and return its result
 | `value` | json | Result returned by the query function |
 | `logLines` | array | Log lines printed during the function execution |
 
-### `convex_mutation`
+### Convex Run Mutation
 
 Run a Convex mutation function to write data and return its result
 
@@ -82,7 +82,7 @@ Run a Convex mutation function to write data and return its result
 | `value` | json | Result returned by the mutation function |
 | `logLines` | array | Log lines printed during the function execution |
 
-### `convex_action`
+### Convex Run Action
 
 Run a Convex action function and return its result
 
@@ -102,7 +102,7 @@ Run a Convex action function and return its result
 | `value` | json | Result returned by the action function |
 | `logLines` | array | Log lines printed during the function execution |
 
-### `convex_run_function`
+### Convex Run Function
 
 Run any Convex function (query, mutation, or action) by path without specifying its type
 
@@ -122,7 +122,7 @@ Run any Convex function (query, mutation, or action) by path without specifying 
 | `value` | json | Result returned by the function |
 | `logLines` | array | Log lines printed during the function execution |
 
-### `convex_list_tables`
+### Convex List Tables
 
 List all tables in a Convex deployment along with their JSON schemas. Requires streaming export, available on Convex paid plans.
 
@@ -140,7 +140,7 @@ List all tables in a Convex deployment along with their JSON schemas. Requires s
 | `tables` | array | Names of the tables in the deployment |
 | `schemas` | json | Map of table name to the JSON schema of its documents |
 
-### `convex_list_documents`
+### Convex List Documents
 
 List documents from a Convex table via a paginated snapshot. Pass the returned snapshot and page cursor back in to fetch the next page. Requires streaming export, available on Convex paid plans.
 
@@ -163,7 +163,7 @@ List documents from a Convex table via a paginated snapshot. Pass the returned s
 | `snapshot` | string | Snapshot timestamp to pass back in when fetching the next page |
 | `pageCursor` | string | Page cursor to pass back in when fetching the next page |
 
-### `convex_document_deltas`
+### Convex Document Deltas
 
 List documents that changed after a snapshot or previous delta cursor. Deleted documents are returned with a _deleted flag. Requires streaming export, available on Convex paid plans.
 

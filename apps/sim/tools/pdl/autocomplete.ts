@@ -1,6 +1,6 @@
-import type { PdlAutocompleteParams, PdlAutocompleteResponse } from '@/tools/peopledatalabs/types'
-import { PEOPLEDATALABS_API_KEY_PREFIX } from '@/tools/peopledatalabs/types'
-import { buildQueryString } from '@/tools/peopledatalabs/utils'
+import type { PdlAutocompleteParams, PdlAutocompleteResponse } from '@/tools/pdl/types'
+import { PEOPLEDATALABS_API_KEY_PREFIX } from '@/tools/pdl/types'
+import { buildQueryString } from '@/tools/pdl/utils'
 import type { OutputProperty, ToolConfig } from '@/tools/types'
 
 const SUGGESTION_PROPERTIES = {

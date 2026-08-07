@@ -33,7 +33,7 @@ Integrate Google Docs into the workflow. Read, write, and create documents, inse
 
 ## Actions
 
-### `google_docs_read`
+### Read Google Docs Document
 
 Read content from a Google Docs document
 
@@ -54,7 +54,7 @@ Read content from a Google Docs document
 |   ↳ `mimeType` | string | Document MIME type |
 |   ↳ `url` | string | Document URL |
 
-### `google_docs_write`
+### Write to Google Docs Document
 
 Append content to a Google Docs document. Content is inserted literally; Markdown is not interpreted. For formatted output from Markdown, use the Create operation with the markdown toggle enabled.
 
@@ -76,7 +76,7 @@ Append content to a Google Docs document. Content is inserted literally; Markdow
 |   ↳ `mimeType` | string | Document MIME type |
 |   ↳ `url` | string | Document URL |
 
-### `google_docs_create`
+### Create Google Docs Document
 
 Create a new Google Docs document
 
@@ -100,7 +100,7 @@ Create a new Google Docs document
 |   ↳ `mimeType` | string | Document MIME type |
 |   ↳ `url` | string | Document URL |
 
-### `google_docs_insert_text`
+### Insert Text into Google Docs Document
 
 Insert text at a specific index in a Google Docs document. When no index is provided, text is appended to the end of the document. Text is inserted literally; Markdown is not interpreted.
 
@@ -123,7 +123,7 @@ Insert text at a specific index in a Google Docs document. When no index is prov
 |   ↳ `mimeType` | string | Document MIME type |
 |   ↳ `url` | string | Document URL |
 
-### `google_docs_replace_text`
+### Find and Replace Text in Google Docs Document
 
 Replace all occurrences of a search string with new text across a Google Docs document.
 
@@ -147,7 +147,7 @@ Replace all occurrences of a search string with new text across a Google Docs do
 |   ↳ `mimeType` | string | Document MIME type |
 |   ↳ `url` | string | Document URL |
 
-### `google_docs_insert_table`
+### Insert Table into Google Docs Document
 
 Insert an empty table with the given number of rows and columns into a Google Docs document. When no index is provided, the table is appended to the end of the document.
 
@@ -171,7 +171,7 @@ Insert an empty table with the given number of rows and columns into a Google Do
 |   ↳ `mimeType` | string | Document MIME type |
 |   ↳ `url` | string | Document URL |
 
-### `google_docs_insert_image`
+### Insert Image into Google Docs Document
 
 Insert an inline image from a public URL into a Google Docs document. The image must be publicly accessible and under 50 MB. When no index is provided, the image is appended to the end of the document.
 
@@ -196,7 +196,7 @@ Insert an inline image from a public URL into a Google Docs document. The image 
 |   ↳ `mimeType` | string | Document MIME type |
 |   ↳ `url` | string | Document URL |
 
-### `google_docs_insert_page_break`
+### Insert Page Break into Google Docs Document
 
 Insert a page break into a Google Docs document. When no index is provided, the page break is appended to the end of the document.
 
@@ -218,7 +218,7 @@ Insert a page break into a Google Docs document. When no index is provided, the 
 |   ↳ `mimeType` | string | Document MIME type |
 |   ↳ `url` | string | Document URL |
 
-### `google_docs_update_text_style`
+### Apply Text Style in Google Docs Document
 
 Apply bold, italic, underline, and/or font size to a range of text in a Google Docs document, identified by its start and end character index.
 
@@ -245,7 +245,7 @@ Apply bold, italic, underline, and/or font size to a range of text in a Google D
 |   ↳ `mimeType` | string | Document MIME type |
 |   ↳ `url` | string | Document URL |
 
-### `google_docs_update_paragraph_style`
+### Update Paragraph Style in Google Docs Document
 
 Apply a named paragraph style (such as a heading or title) and/or alignment to the paragraphs overlapping a range of text in a Google Docs document, identified by its start and end character index.
 
@@ -270,7 +270,7 @@ Apply a named paragraph style (such as a heading or title) and/or alignment to t
 |   ↳ `mimeType` | string | Document MIME type |
 |   ↳ `url` | string | Document URL |
 
-### `google_docs_create_paragraph_bullets`
+### Create Paragraph Bullets in Google Docs Document
 
 Add bulleted or numbered list formatting to the paragraphs overlapping a range of text in a Google Docs document, using a chosen bullet glyph preset.
 
@@ -294,7 +294,7 @@ Add bulleted or numbered list formatting to the paragraphs overlapping a range o
 |   ↳ `mimeType` | string | Document MIME type |
 |   ↳ `url` | string | Document URL |
 
-### `google_docs_delete_paragraph_bullets`
+### Delete Paragraph Bullets in Google Docs Document
 
 Remove bullet or numbered list formatting from the paragraphs overlapping a range of text in a Google Docs document, identified by its start and end character index.
 
@@ -317,7 +317,7 @@ Remove bullet or numbered list formatting from the paragraphs overlapping a rang
 |   ↳ `mimeType` | string | Document MIME type |
 |   ↳ `url` | string | Document URL |
 
-### `google_docs_delete_content_range`
+### Delete Content Range in Google Docs Document
 
 Delete all content between a start and end character index in a Google Docs document. The endIndex is exclusive and must be greater than the startIndex.
 
@@ -340,7 +340,7 @@ Delete all content between a start and end character index in a Google Docs docu
 |   ↳ `mimeType` | string | Document MIME type |
 |   ↳ `url` | string | Document URL |
 
-### `google_docs_create_named_range`
+### Create Named Range in Google Docs Document
 
 Create a named range over a span of content in a Google Docs document so it can be referenced or deleted later. The name may be 1-256 characters and need not be unique.
 
@@ -364,7 +364,7 @@ Create a named range over a span of content in a Google Docs document so it can 
 |   ↳ `mimeType` | string | Document MIME type |
 |   ↳ `url` | string | Document URL |
 
-### `google_docs_delete_named_range`
+### Delete Named Range in Google Docs Document
 
 Delete one or more named ranges from a Google Docs document by their ID or by name. Provide exactly one of namedRangeId or name; deleting by name removes all ranges sharing that name. The content itself is not removed.
 

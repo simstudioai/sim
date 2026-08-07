@@ -35,7 +35,7 @@ Integrate Pipedrive into your workflow. Manage deals, contacts, sales pipeline, 
 
 ## Actions
 
-### `pipedrive_get_all_deals`
+### Get All Deals from Pipedrive
 
 Retrieve all deals from Pipedrive with optional filters
 
@@ -80,7 +80,7 @@ Retrieve all deals from Pipedrive with optional filters
 |   ↳ `next_start` | number | Offset for fetching the next page \(v1 endpoints\) |
 | `success` | boolean | Operation success status |
 
-### `pipedrive_get_deal`
+### Get Deal Details from Pipedrive
 
 Retrieve detailed information about a specific deal
 
@@ -98,7 +98,7 @@ Retrieve detailed information about a specific deal
 | `deal` | object | Deal object with full details |
 | `success` | boolean | Operation success status |
 
-### `pipedrive_create_deal`
+### Create Deal in Pipedrive
 
 Create a new deal in Pipedrive
 
@@ -124,7 +124,7 @@ Create a new deal in Pipedrive
 | `deal` | object | The created deal object |
 | `success` | boolean | Operation success status |
 
-### `pipedrive_update_deal`
+### Update Deal in Pipedrive
 
 Update an existing deal in Pipedrive
 
@@ -147,7 +147,7 @@ Update an existing deal in Pipedrive
 | `deal` | object | The updated deal object |
 | `success` | boolean | Operation success status |
 
-### `pipedrive_get_files`
+### Get Files from Pipedrive
 
 Retrieve files from Pipedrive with optional filters
 
@@ -182,7 +182,7 @@ Retrieve files from Pipedrive with optional filters
 | `next_start` | number | Offset for fetching the next page |
 | `success` | boolean | Operation success status |
 
-### `pipedrive_get_mail_messages`
+### Get Mail Threads from Pipedrive
 
 Retrieve mail threads from Pipedrive mailbox
 
@@ -205,7 +205,7 @@ Retrieve mail threads from Pipedrive mailbox
 | `next_start` | number | Offset for fetching the next page |
 | `success` | boolean | Operation success status |
 
-### `pipedrive_get_mail_thread`
+### Get Mail Thread Messages from Pipedrive
 
 Retrieve all messages from a specific mail thread
 
@@ -224,7 +224,7 @@ Retrieve all messages from a specific mail thread
 | `metadata` | object | Thread and pagination metadata |
 | `success` | boolean | Operation success status |
 
-### `pipedrive_get_pipelines`
+### Get Pipelines from Pipedrive
 
 Retrieve all pipelines from Pipedrive
 
@@ -256,7 +256,7 @@ Retrieve all pipelines from Pipedrive
 | `next_start` | number | Offset for fetching the next page |
 | `success` | boolean | Operation success status |
 
-### `pipedrive_get_pipeline_deals`
+### Get Pipeline Deals from Pipedrive
 
 Retrieve all deals in a specific pipeline
 
@@ -278,7 +278,7 @@ Retrieve all deals in a specific pipeline
 | `metadata` | object | Pipeline and pagination metadata |
 | `success` | boolean | Operation success status |
 
-### `pipedrive_get_projects`
+### Get Projects from Pipedrive
 
 Retrieve all projects or a specific project from Pipedrive
 
@@ -303,7 +303,7 @@ Retrieve all projects or a specific project from Pipedrive
 | `next_cursor` | string | Cursor for fetching the next page |
 | `success` | boolean | Operation success status |
 
-### `pipedrive_create_project`
+### Create Project in Pipedrive
 
 Create a new project in Pipedrive
 
@@ -324,7 +324,7 @@ Create a new project in Pipedrive
 | `project` | object | The created project object |
 | `success` | boolean | Operation success status |
 
-### `pipedrive_get_activities`
+### Get Activities from Pipedrive
 
 Retrieve activities (tasks) from Pipedrive with optional filters
 
@@ -362,7 +362,7 @@ Retrieve activities (tasks) from Pipedrive with optional filters
 | `next_start` | number | Offset for fetching the next page |
 | `success` | boolean | Operation success status |
 
-### `pipedrive_create_activity`
+### Create Activity in Pipedrive
 
 Create a new activity (task) in Pipedrive
 
@@ -388,7 +388,7 @@ Create a new activity (task) in Pipedrive
 | `activity` | object | The created activity object |
 | `success` | boolean | Operation success status |
 
-### `pipedrive_update_activity`
+### Update Activity in Pipedrive
 
 Update an existing activity (task) in Pipedrive
 
@@ -412,7 +412,7 @@ Update an existing activity (task) in Pipedrive
 | `activity` | object | The updated activity object |
 | `success` | boolean | Operation success status |
 
-### `pipedrive_get_leads`
+### Get Leads from Pipedrive
 
 Retrieve all leads or a specific lead from Pipedrive
 
@@ -466,7 +466,7 @@ Retrieve all leads or a specific lead from Pipedrive
 | `next_start` | number | Offset for fetching the next page |
 | `success` | boolean | Operation success status |
 
-### `pipedrive_create_lead`
+### Create Lead in Pipedrive
 
 Create a new lead in Pipedrive
 
@@ -491,7 +491,7 @@ Create a new lead in Pipedrive
 | `lead` | object | The created lead object |
 | `success` | boolean | Operation success status |
 
-### `pipedrive_update_lead`
+### Update Lead in Pipedrive
 
 Update an existing lead in Pipedrive
 
@@ -517,7 +517,7 @@ Update an existing lead in Pipedrive
 | `lead` | object | The updated lead object |
 | `success` | boolean | Operation success status |
 
-### `pipedrive_delete_lead`
+### Delete Lead from Pipedrive
 
 Delete a specific lead from Pipedrive
 

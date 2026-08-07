@@ -284,11 +284,12 @@ const ReadOnlyTextPreview = memo(function ReadOnlyTextPreview({
 
   const resolvedError = resolvePreviewError((error as Error | null) ?? null, null)
   if (resolvedError) return <PreviewError label='file' error={resolvedError} />
-  if (isLoading || content == null) return <PreviewLoadingFrame className='h-full' tone='surface' />
+  if (isLoading || content == null)
+    return <PreviewLoadingFrame className='min-h-0 flex-1' tone='surface' />
 
   if (resolvePreviewType(file.type, file.name)) {
     return (
-      <div className='h-full min-h-0 w-full overflow-auto'>
+      <div className='flex min-h-0 w-full flex-1 flex-col overflow-auto'>
         <PreviewPanel
           content={content}
           mimeType={file.type}
@@ -302,7 +303,7 @@ const ReadOnlyTextPreview = memo(function ReadOnlyTextPreview({
   }
 
   return (
-    <div className='h-full min-h-0 w-full overflow-auto bg-[var(--surface-1)] p-4'>
+    <div className='min-h-0 w-full flex-1 overflow-auto bg-[var(--surface-1)] p-4'>
       <pre className='whitespace-pre-wrap break-words font-mono text-[13px] text-[var(--text-body)]'>
         {content}
       </pre>

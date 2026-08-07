@@ -88,7 +88,7 @@ export function PromptEditor({
    * container, letting the browser clamp a bottom-pinned transcript upward by
    * the input's grown height on every multi-line edit.
    */
-  useLayoutEffect(() => {
+  const autosize = useCallback(() => {
     const textarea = textareaRef.current
     if (!textarea) return
     const scroller = scrollerRef.current
@@ -96,7 +96,38 @@ export function PromptEditor({
     textarea.style.height = 'auto'
     textarea.style.height = `${textarea.scrollHeight}px`
     if (scroller) scroller.style.height = ''
-  }, [value, textareaRef])
+  }, [textareaRef])
+
+  useLayoutEffect(() => {
+    autosize()
+  }, [value, autosize])
+
+  /**
+   * The textarea carries an inline pixel height, so a width change (window
+   * resize, sidebar toggle, chat column reflow) rewraps the text taller while
+   * the box stays at its old height. The mirror overlay paints the full text
+   * regardless, so the spilled lines render over the scroller with no textarea
+   * beneath them — visible, scrollable text that swallows clicks instead of
+   * placing the caret.
+   *
+   * Only width is compared: `autosize` writes the textarea's height, which
+   * re-notifies this observer, so reacting to height would feed itself. The
+   * first delivery is measured like any other — the width can change between
+   * the mount-time measure and `observe()`.
+   */
+  useEffect(() => {
+    const scroller = scrollerRef.current
+    if (!scroller) return
+    let lastWidth: number | null = null
+    const observer = new ResizeObserver(([entry]) => {
+      const width = entry.contentRect.width
+      if (width === lastWidth) return
+      lastWidth = width
+      autosize()
+    })
+    observer.observe(scroller)
+    return () => observer.disconnect()
+  }, [autosize])
 
   useEffect(() => {
     if (autoFocus && !readOnly) editor.focusAtEnd()

@@ -7,6 +7,12 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import * as sdk from '@earendil-works/pi-coding-agent'
+import {
+  hasPython3,
+  hasRipgrep,
+  PYTHON_SKIP_REASON,
+  RIPGREP_SKIP_REASON,
+} from '@sim/testing/environment'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PiSandboxRunner } from '@/lib/execution/remote-sandbox'
 import {
@@ -61,7 +67,9 @@ describe('cloud review tools', () => {
     expect(source).not.toContain('--unified=20')
   })
 
-  it('enforces read-size and canonical path bounds in the actual helper', async () => {
+  it('enforces read-size and canonical path bounds in the actual helper', async (ctx) => {
+    if (!hasPython3()) ctx.skip(PYTHON_SKIP_REASON)
+    if (!hasRipgrep()) ctx.skip(RIPGREP_SKIP_REASON)
     await installCloudReviewTools(runner)
     const source = writeFile.mock.calls[0][1] as string
     const testDir = await mkdtemp(join(tmpdir(), 'sim-review-tools-'))

@@ -17,10 +17,12 @@ const logger = createLogger('TrelloStore')
 export const dynamic = 'force-dynamic'
 
 const TRELLO_STATE_COOKIE = 'trello_oauth_state'
+const TRELLO_RETURN_URL_COOKIE = 'trello_return_url'
 const TRELLO_STATE_COOKIE_PATH = '/api/auth/trello'
 
 function clearStateCookie(response: NextResponse) {
   response.cookies.delete({ name: TRELLO_STATE_COOKIE, path: TRELLO_STATE_COOKIE_PATH })
+  response.cookies.delete({ name: TRELLO_RETURN_URL_COOKIE, path: TRELLO_STATE_COOKIE_PATH })
   return response
 }
 
