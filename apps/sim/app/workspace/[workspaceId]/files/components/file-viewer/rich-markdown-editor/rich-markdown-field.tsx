@@ -131,7 +131,15 @@ function LoadedRichMarkdownField({
     content: initialContent,
     editorProps: {
       attributes: {
-        class: 'rich-markdown-prose rich-markdown-field-prose',
+        /*
+         * The shared prose classes pin the field's own ink and type ramp on
+         * the ProseMirror root — `--text-primary` at 15px/25px, then 14px/22px
+         * from the field layer. A bare host owns typography (the Note card
+         * matches its rendered view via `proseClassName`), so on that surface
+         * the root classes would recolor the text and shift its metrics the
+         * moment editing opens.
+         */
+        class: isBare ? '' : 'rich-markdown-prose rich-markdown-field-prose',
         // Claim ⌘K so the bubble-menu link editor wins over the global search palette.
         'data-owned-shortcuts': 'Mod+K',
       },
