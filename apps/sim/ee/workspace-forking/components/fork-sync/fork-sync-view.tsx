@@ -78,8 +78,12 @@ const NEW_COPY_VALUE = '__new_copy__'
  */
 const NEW_TRIGGER_URL_VALUE = '__new_trigger_url__'
 
-/** Fixed target-picker width so every mapping row's control lines up as one column (mirrors General). */
-const MAPPING_TARGET_TRIGGER_CLASS = 'w-[240px] flex-shrink-0'
+/**
+ * Fixed target-picker width so every mapping row's control lines up as one column (mirrors
+ * General). Wide enough to hold a full-length secret key - these are the longest labels the
+ * picker shows, and clipping them is what makes two same-prefixed keys indistinguishable.
+ */
+const MAPPING_TARGET_TRIGGER_CLASS = 'w-[320px] flex-shrink-0'
 
 interface DependentBlock {
   targetBlockId: string
@@ -400,6 +404,8 @@ function MappingEntry({ controller, group, entry }: MappingEntryProps) {
               value={copying ? NEW_COPY_VALUE : target || undefined}
               onChange={(value) => controller.setTarget(entry, value)}
               placeholder='Select target'
+              searchable
+              searchPlaceholder='Search targets'
             />
           </div>
         </div>
