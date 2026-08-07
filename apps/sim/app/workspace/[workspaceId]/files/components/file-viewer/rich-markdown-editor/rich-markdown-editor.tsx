@@ -82,6 +82,14 @@ const STREAM_REPARSE_THROTTLE_MS = 120
 const DERIVE_TITLE_DEBOUNCE_MS = 600
 
 /**
+ * The editor's reading column — the centered, padded surface both the live editor and the read-only
+ * {@link ReadOnlyPlaceholder} render into, so the two are geometrically identical and the placeholder →
+ * live swap never reflows. Shared as one constant to keep them in lockstep.
+ */
+const EDITOR_SURFACE_CLASS =
+  'mx-auto flex w-full max-w-[48rem] flex-1 flex-col px-8 py-6 selection:bg-[var(--selection-bg)] selection:text-[var(--text-primary)] dark:selection:bg-[var(--selection-dark)] dark:selection:text-white'
+
+/**
  * Read-only editor that renders the already-fetched markdown while a collaborative doc waits for its
  * server seed, so the pane shows content instantly instead of blocking blank on the socket round-trip
  * (the seed IS the same markdown, so the swap on `collabReady` is seamless). It shares the live
@@ -92,21 +100,23 @@ const DERIVE_TITLE_DEBOUNCE_MS = 600
  * (a client seed would duplicate it), and `editable={false}` disables every editing affordance. Mounted
  * only while the placeholder shows, so no second editor lingers once the live one takes over.
  */
-function ReadOnlyPlaceholder({ content }: { content: JSONContent }) {
+interface ReadOnlyPlaceholderProps {
+  content: JSONContent
+}
+
+function ReadOnlyPlaceholder({ content }: ReadOnlyPlaceholderProps) {
   const editor = useEditor({
     extensions: EXTENSIONS,
     editable: false,
-    immediatelyRender: false,
+    // Render synchronously on first paint (safe — this surface is client-only, never SSR'd) so the
+    // placeholder appears instantly like the static HTML it replaced, instead of blanking for a frame
+    // while the editor mounts.
+    immediatelyRender: true,
     shouldRerenderOnTransaction: false,
     content,
     editorProps: { attributes: { class: 'rich-markdown-prose' } },
   })
-  return (
-    <EditorContent
-      editor={editor}
-      className='mx-auto flex w-full max-w-[48rem] flex-1 flex-col px-8 py-6'
-    />
-  )
+  return <EditorContent editor={editor} className={EDITOR_SURFACE_CLASS} />
 }
 
 interface RichMarkdownEditorProps {
@@ -1226,10 +1236,7 @@ export function LoadedRichMarkdownEditor({
       )}
       <EditorContent
         editor={editor}
-        className={cn(
-          'mx-auto flex w-full max-w-[48rem] flex-1 flex-col px-8 py-6 selection:bg-[var(--selection-bg)] selection:text-[var(--text-primary)] dark:selection:bg-[var(--selection-dark)] dark:selection:text-white',
-          showPlaceholder && placeholderContent && 'hidden'
-        )}
+        className={cn(EDITOR_SURFACE_CLASS, showPlaceholder && 'hidden')}
       />
     </div>
   )
