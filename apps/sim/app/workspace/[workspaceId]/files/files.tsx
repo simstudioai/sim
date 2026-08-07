@@ -1245,7 +1245,15 @@ export function Files() {
         // The persist minted a new storage key and deleted the previous blob, so the cached record
         // the viewer renders from now points at a key that 404s. Wait for the refreshed list before
         // the rename swaps editors, or the newly mounted viewer reads the dead key.
-        await refreshFiles(workspaceId)
+        try {
+          await refreshFiles(workspaceId)
+        } catch (err) {
+          // Proceed rather than abort: the edits are already durable, the retype is an explicit
+          // action, and the rename's own invalidation refetches immediately after. The cost of a
+          // failed refresh is one stale first paint, which is the pre-fix behaviour - not losing
+          // the user's type change on a transient list fetch.
+          logger.warn('Retyping against a stale file list; the first read may 404', { err })
+        }
       } else {
         // Not an error - `unchanged` means there was nothing to write, and `skipped` means the write
         // did not land in time. The retype proceeds either way; this is the breadcrumb for a stale

@@ -340,6 +340,40 @@ describe('useRefreshWorkspaceFiles', () => {
     unmount()
   })
 
+  /**
+   * react-query resolves an invalidation whether or not the refetch succeeded. A caller awaiting
+   * this for a usable storage key would otherwise read the dead one back as if it were fresh.
+   */
+  it('rejects when the refetch fails instead of resolving on the stale cache', async () => {
+    let call = 0
+    const queryFn = vi.fn(async () => {
+      call += 1
+      if (call > 1) throw new Error('network down')
+      return [{ id: 'file-1', key: 'workspace/ws-1/old-key' }]
+    })
+
+    const { refresh, queryClient, unmount } = renderRefresh()
+    const queryKey = workspaceFilesKeys.list(WS, 'active')
+    await act(async () => {
+      await queryClient.fetchQuery({ queryKey, queryFn })
+    })
+
+    let rejection: unknown = null
+    await act(async () => {
+      await refresh()(WS).catch((err) => {
+        rejection = err
+      })
+    })
+
+    expect(rejection).toBeInstanceOf(Error)
+    // The stale record is still cached — the caller has to decide what to do about it, not be told
+    // the refresh worked.
+    expect(queryClient.getQueryData<{ key: string }[]>(queryKey)?.[0].key).toBe(
+      'workspace/ws-1/old-key'
+    )
+    unmount()
+  })
+
   it('leaves another workspace list alone', async () => {
     const otherQueryFn = vi.fn(async () => [{ id: 'file-2', key: 'k2' }])
     const { refresh, queryClient, unmount } = renderRefresh()

@@ -581,25 +581,33 @@ export function useUpdateWorkspaceFileContent() {
 }
 
 /**
- * Refetch the workspace file list and resolve once the fresh records have landed.
+ * Refetch the workspace file list, resolving once the fresh records have landed and **rejecting**
+ * if the refetch failed.
  *
  * Every content write mints a new storage key and deletes the previous blob, so a cached record's
  * `key` is dead the moment one lands. A caller that is about to mount a viewer from that record -
  * a retype, which swaps editors optimistically - has to wait for the refreshed list, or the new
  * viewer fetches a key the store has already deleted.
+ *
+ * The rejection is the point: react-query resolves an invalidation whether or not the refetch
+ * succeeded, so a caller awaiting a usable key cannot otherwise tell fresh records from the dead
+ * ones still sitting in the cache. Callers decide what a failure means for them.
  */
 export function useRefreshWorkspaceFiles() {
   const queryClient = useQueryClient()
 
   return useCallback(
     (workspaceId: string) =>
-      queryClient.invalidateQueries({
-        queryKey: workspaceFilesKeys.workspaceLists(workspaceId),
-        // `all`, not the default `active`: the caller awaits this to get a usable key back, and an
-        // invalidation that only marks an unobserved list stale resolves immediately with the dead
-        // key still cached - the exact staleness this exists to close.
-        refetchType: 'all',
-      }),
+      queryClient.invalidateQueries(
+        {
+          queryKey: workspaceFilesKeys.workspaceLists(workspaceId),
+          // `all`, not the default `active`: the caller awaits this to get a usable key back, and an
+          // invalidation that only marks an unobserved list stale resolves immediately with the dead
+          // key still cached - the exact staleness this exists to close.
+          refetchType: 'all',
+        },
+        { throwOnError: true }
+      ),
     [queryClient]
   )
 }
