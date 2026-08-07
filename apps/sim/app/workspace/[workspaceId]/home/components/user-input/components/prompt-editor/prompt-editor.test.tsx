@@ -33,9 +33,12 @@ let editorWidth = 700
 let autosizeCalls = 0
 
 /**
- * Mirrors the real observer's contract closely enough to test the width guard:
- * `observe` delivers an initial notification for the current size (browsers do),
- * and {@link resizeTo} delivers subsequent ones.
+ * Mirrors the real observer's contract closely enough to test the width guard.
+ * `observe` only registers the target — real deliveries, including the initial
+ * one browsers send, are asynchronous, so every test drives them explicitly via
+ * {@link resizeTo} / {@link FakeResizeObserver.deliverAll}. Delivering inside
+ * `observe` would hide the window between the mount-time measure and the first
+ * notification, which is exactly where a width change can be missed.
  */
 class FakeResizeObserver implements ResizeObserver {
   private static instances: FakeResizeObserver[] = []
@@ -49,7 +52,6 @@ class FakeResizeObserver implements ResizeObserver {
 
   observe(target: Element) {
     this.targets.push(target)
-    this.deliver()
   }
 
   unobserve(target: Element) {
@@ -114,6 +116,14 @@ function resizeTo(width: number, wrappedHeight: number) {
   act(() => FakeResizeObserver.deliverAll())
 }
 
+/**
+ * Delivers the observer's initial notification at the mounted width, putting the
+ * editor in the steady state a test can then resize away from.
+ */
+function settle() {
+  act(() => FakeResizeObserver.deliverAll())
+}
+
 describe('PromptEditor autosize', () => {
   let originalScrollHeight: PropertyDescriptor | undefined
 
@@ -157,6 +167,7 @@ describe('PromptEditor autosize', () => {
    */
   it('re-measures when the editor width changes so no text falls outside the textarea', () => {
     const { textarea, unmount } = mountEditor()
+    settle()
     expect(textarea.style.height).toBe('240px')
 
     resizeTo(340, 500)
@@ -167,11 +178,28 @@ describe('PromptEditor autosize', () => {
 
   it('re-measures again when the editor widens back', () => {
     const { textarea, unmount } = mountEditor()
+    settle()
 
     resizeTo(340, 500)
     resizeTo(700, 240)
 
     expect(textarea.style.height).toBe('240px')
+    unmount()
+  })
+
+  /**
+   * `observe` registers the target, but the first notification arrives a frame
+   * later. A sidebar or side-panel transition can change the width inside that
+   * window, so the first delivery must be measured like any other rather than
+   * trusted to confirm the width the mount-time measure used.
+   */
+  it('re-measures on the first delivery when the width changed before it arrived', () => {
+    const { textarea, unmount } = mountEditor()
+    expect(textarea.style.height).toBe('240px')
+
+    resizeTo(340, 500)
+
+    expect(textarea.style.height).toBe('500px')
     unmount()
   })
 
@@ -182,21 +210,14 @@ describe('PromptEditor autosize', () => {
    */
   it('ignores resize notifications that do not change the width', () => {
     const { textarea, unmount } = mountEditor()
-    const callsAfterMount = autosizeCalls
+    settle()
+    const callsAfterSettle = autosizeCalls
 
     contentHeight = 500
     act(() => FakeResizeObserver.deliverAll())
 
     expect(textarea.style.height).toBe('240px')
-    expect(autosizeCalls).toBe(callsAfterMount)
-    unmount()
-  })
-
-  /** The observer's initial delivery reports the width the mount measure used. */
-  it('does not re-measure on the observer’s first delivery', () => {
-    const { unmount } = mountEditor()
-
-    expect(autosizeCalls).toBe(1)
+    expect(autosizeCalls).toBe(callsAfterSettle)
     unmount()
   })
 

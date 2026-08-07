@@ -112,8 +112,9 @@ export function PromptEditor({
    *
    * Only width is compared: `autosize` writes the textarea's height, which grows
    * the scroller until its cap and re-notifies this observer, so reacting to
-   * height would feed itself. The first delivery reports the width the
-   * mount-time measure already used, so it is recorded without re-measuring.
+   * height would feed itself. The first delivery is measured like any other —
+   * the width can change between the mount-time measure and `observe()`, and
+   * re-measuring an unchanged width only writes the same height back.
    */
   useEffect(() => {
     const scroller = scrollerRef.current
@@ -121,9 +122,9 @@ export function PromptEditor({
     let lastWidth: number | null = null
     const observer = new ResizeObserver(([entry]) => {
       const width = entry.contentRect.width
-      const previousWidth = lastWidth
+      if (width === lastWidth) return
       lastWidth = width
-      if (previousWidth !== null && previousWidth !== width) autosize()
+      autosize()
     })
     observer.observe(scroller)
     return () => observer.disconnect()
