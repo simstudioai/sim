@@ -26,7 +26,7 @@ function fakeNode(attrs: Record<string, unknown>) {
 }
 
 function fakeEditor(): Editor {
-  return { storage: { mention: { navigable: false } } } as unknown as Editor
+  return { storage: { mentionMenu: { navigable: false } } } as unknown as Editor
 }
 
 let container: HTMLDivElement | null = null

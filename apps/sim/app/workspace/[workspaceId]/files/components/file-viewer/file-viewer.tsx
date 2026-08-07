@@ -131,7 +131,10 @@ interface FileViewerProps {
 
 export function FileViewer(props: FileViewerProps) {
   const { contentSource, workspaceId } = props
-  const imageDimensions = useWorkspaceImageDimensionsAdapter(workspaceId)
+  // A caller-supplied contentSource means the adapter is unused (and its `workspaceId` may be a share token).
+  const imageDimensions = useWorkspaceImageDimensionsAdapter(workspaceId, {
+    enabled: !contentSource,
+  })
   const source = useMemo(
     () => contentSource ?? createWorkspaceFileContentSource(workspaceId, imageDimensions),
     [contentSource, workspaceId, imageDimensions]
