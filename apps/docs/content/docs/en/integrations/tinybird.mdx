@@ -36,7 +36,7 @@ Interact with Tinybird: stream JSON or NDJSON events with the Events API, run SQ
 
 ## Actions
 
-### `tinybird_events`
+### Tinybird Events
 
 Send events to a Tinybird Data Source using the Events API. Supports JSON and NDJSON formats with optional gzip compression.
 
@@ -59,7 +59,7 @@ Send events to a Tinybird Data Source using the Events API. Supports JSON and ND
 | `successful_rows` | number | Number of rows successfully ingested |
 | `quarantined_rows` | number | Number of rows quarantined \(failed validation\) |
 
-### `tinybird_query`
+### Tinybird Query
 
 Execute SQL queries against Tinybird Pipes and Data Sources using the Query API.
 
@@ -84,7 +84,7 @@ Execute SQL queries against Tinybird Pipes and Data Sources using the Query API.
 | `rows_before_limit_at_least` | number | Minimum number of rows there would be without a LIMIT clause \(only available with FORMAT JSON\) |
 | `statistics` | json | Query execution statistics - elapsed time, rows read, bytes read \(only available with FORMAT JSON\) |
 
-### `tinybird_query_pipe`
+### Tinybird Query Pipe
 
 Call a published Tinybird Pipe API Endpoint by name, passing dynamic parameters and receiving structured JSON results.
 
@@ -113,7 +113,7 @@ Call a published Tinybird Pipe API Endpoint by name, passing dynamic parameters 
 |   ↳ `rows_read` | number | Number of rows processed |
 |   ↳ `bytes_read` | number | Number of bytes processed |
 
-### `tinybird_append_datasource`
+### Tinybird Append Data Source
 
 Append data to a Tinybird Data Source from a remote file URL (CSV, NDJSON, Parquet).
 
@@ -139,7 +139,7 @@ Append data to a Tinybird Data Source from a remote file URL (CSV, NDJSON, Parqu
 | `job` | json | Full import job details \(kind, id, status, created_at, datasource, ...\) |
 | `datasource` | json | Target Data Source metadata \(id, name, ...\) |
 
-### `tinybird_truncate_datasource`
+### Tinybird Truncate Data Source
 
 Delete all rows from a Tinybird Data Source.
 
@@ -158,7 +158,7 @@ Delete all rows from a Tinybird Data Source.
 | `truncated` | boolean | Whether the Data Source was truncated successfully |
 | `result` | json | Raw response body from the truncate endpoint, if any |
 
-### `tinybird_delete_datasource_rows`
+### Tinybird Delete Data Source Rows
 
 Delete rows from a Tinybird Data Source matching a SQL condition.
 
@@ -183,7 +183,7 @@ Delete rows from a Tinybird Data Source matching a SQL condition.
 | `status` | string | Current job status \(e.g., "waiting", "done"\) |
 | `job` | json | Full delete job details \(kind, id, status, delete_condition, rows_affected, ...\) |
 
-### `tinybird_get_job`
+### Tinybird Get Job
 
 Check the status of an asynchronous Tinybird job (import, delete, etc.) by ID.
 

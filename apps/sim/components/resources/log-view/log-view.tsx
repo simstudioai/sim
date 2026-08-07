@@ -21,8 +21,19 @@ import {
   Tooltip,
   useCopyToClipboard,
 } from '@sim/emcn'
-import { ArrowDown, ArrowUp, Check, Clipboard, Search, Workflow, Wrench, X } from '@sim/emcn/icons'
+import {
+  ArrowDown,
+  ArrowUp,
+  Check,
+  Clipboard,
+  Search,
+  SquareArrowUpRight,
+  Workflow,
+  Wrench,
+  X,
+} from '@sim/emcn/icons'
 import { formatDuration } from '@sim/utils/formatting'
+import Link from 'next/link'
 import { createPortal } from 'react-dom'
 import { getDisplayStatus, StatusBadge } from '@/components/execution-status'
 import { ExecutionSnapshot } from '@/components/resources/log-view/components/execution-snapshot'
@@ -44,7 +55,7 @@ import { sendMothershipMessage } from '@/lib/mothership/events'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
 import { formatCost } from '@/providers/utils'
 import type { ResourceGrants, ResourceHost, ResourceSource } from '@/resources'
-import { hostOwnsUrl } from '@/resources'
+import { hostOwnsUrl, logWorkflowHref, resolveLogWorkflowId } from '@/resources'
 import type { ChatContext } from '@/stores/panel'
 
 /**
@@ -439,6 +450,20 @@ export function LogView({
   const logStatus = getDisplayStatus(log.status)
 
   /**
+   * The editor link for this run's workflow, or null when there is nowhere to
+   * go: a Sim agent job, a deleted workflow, or a share source that owns no
+   * workspace routes. The label follows the same resolution so a row can never
+   * read "Deleted Workflow" while still linking somewhere.
+   */
+  const workflowHref = logWorkflowHref(source, log)
+  const workflowLabel =
+    log.trigger === 'mothership'
+      ? log.jobTitle || 'Untitled Job'
+      : resolveLogWorkflowId(log)
+        ? log.workflow?.name || 'Unknown'
+        : DELETED_WORKFLOW_LABEL
+
+  /**
    * Troubleshooting hands the failed run off to Chat, tagging it by
    * `executionId`. A real Chat run can't be debugged from inside itself, so
    * mothership-triggered logs are excluded — `isLikelyExecution` already encodes
@@ -503,15 +528,31 @@ export function LogView({
                   <span className='font-medium text-[var(--text-tertiary)] text-caption'>
                     {log.trigger === 'mothership' ? 'Job' : 'Workflow'}
                   </span>
-                  <div className='flex min-w-0 items-center gap-1.5'>
-                    <Workflow className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-                    <span className='min-w-0 truncate font-medium text-[var(--text-secondary)] text-sm'>
-                      {log.trigger === 'mothership'
-                        ? log.jobTitle || 'Untitled Job'
-                        : log.workflow?.name ||
-                          (!log.workflowId ? DELETED_WORKFLOW_LABEL : 'Unknown')}
-                    </span>
-                  </div>
+                  {workflowHref ? (
+                    <Link
+                      href={workflowHref}
+                      target='_blank'
+                      rel='noopener noreferrer'
+                      prefetch={false}
+                      className='-mx-1.5 -my-0.5 group flex w-fit min-w-0 max-w-[calc(100%+0.75rem)] items-center gap-1.5 rounded-[5px] px-1.5 py-0.5 transition-colors hover-hover:bg-[var(--surface-active)] focus-visible:bg-[var(--surface-active)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--text-muted)_30%,transparent)]'
+                    >
+                      <span className='inline-grid size-[14px] shrink-0 place-items-center'>
+                        <Workflow className='col-start-1 row-start-1 size-[14px] text-[var(--text-icon)] opacity-100 blur-0 transition-[opacity,filter,transform] duration-200 ease-in-out group-hover:scale-[0.25] group-hover:opacity-0 group-hover:blur-[2px] group-focus-visible:scale-[0.25] group-focus-visible:opacity-0 group-focus-visible:blur-[2px] motion-reduce:transition-none' />
+                        <SquareArrowUpRight className='col-start-1 row-start-1 size-[14px] scale-[0.25] text-[var(--text-icon)] opacity-0 blur-[2px] transition-[opacity,filter,transform] duration-200 ease-in-out group-hover:scale-100 group-hover:opacity-100 group-hover:blur-0 group-focus-visible:scale-100 group-focus-visible:opacity-100 group-focus-visible:blur-0 motion-reduce:transition-none' />
+                      </span>
+                      <span className='min-w-0 truncate font-medium text-[var(--text-secondary)] text-sm transition-colors group-hover:text-[var(--text-primary)] group-focus-visible:text-[var(--text-primary)]'>
+                        {workflowLabel}
+                      </span>
+                      <span className='sr-only'>(opens in a new tab)</span>
+                    </Link>
+                  ) : (
+                    <div className='flex min-w-0 items-center gap-1.5'>
+                      <Workflow className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+                      <span className='min-w-0 truncate font-medium text-[var(--text-secondary)] text-sm'>
+                        {workflowLabel}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 

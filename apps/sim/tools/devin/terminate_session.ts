@@ -7,7 +7,7 @@ export const devinTerminateSessionTool: ToolConfig<
   DevinTerminateSessionResponse
 > = {
   id: 'devin_terminate_session',
-  name: 'terminate_session',
+  name: 'Devin Terminate Session',
   description:
     'Terminate a Devin session. Optionally archive the session instead of permanently terminating it.',
   version: '1.0.0',

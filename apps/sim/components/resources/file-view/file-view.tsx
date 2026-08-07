@@ -1,8 +1,7 @@
 'use client'
 
 import { memo, useMemo, useState } from 'react'
-import { ChipLink } from '@sim/emcn'
-import { Download, FileX, Music } from '@sim/emcn/icons'
+import { FileX, Music } from '@sim/emcn/icons'
 import dynamic from 'next/dynamic'
 import { CsvTablePreview } from '@/components/resources/file-view/components/csv-table-preview/csv-table-preview'
 import { DocxPreview } from '@/components/resources/file-view/components/docx-preview/docx-preview'
@@ -19,6 +18,7 @@ import {
   PreviewErrorBoundary,
   PreviewLoadingFrame,
   resolvePreviewError,
+  UnsupportedPreview,
 } from '@/components/resources/file-view/components/preview-shared/preview-shared'
 import { TextEditor } from '@/components/resources/file-view/components/text-editor/text-editor'
 import { XlsxPreview } from '@/components/resources/file-view/components/xlsx-preview/xlsx-preview'
@@ -513,37 +513,6 @@ const MediaPreview = memo(function MediaPreview({
         onError={() => setFailed(true)}
         className='h-full w-full object-contain'
       />
-    </div>
-  )
-})
-
-/**
- * The dead end for a file no renderer handles — an archive, an installer, a
- * columnar dataset. It carries its own download link rather than pointing at a
- * button in the surrounding chrome: this view is mounted on surfaces that draw
- * no chrome at all (the fullscreen file route, an interface's file module), and
- * telling a visitor to press a button that is not on the page strands them with
- * no way to reach the bytes.
- */
-const UnsupportedPreview = memo(function UnsupportedPreview({ file }: { file: FileViewRecord }) {
-  const { source } = useResourceOfKind('file')
-  const ext = getFileExtension(file.name)
-  const href = file.key
-    ? fileContentUrl(source, file.key, { version: file.updatedAt.getTime() })
-    : null
-
-  return (
-    <div className='flex flex-1 flex-col items-center justify-center gap-[8px]'>
-      <p className='font-medium text-[var(--text-primary)] text-sm'>
-        Preview not available{ext ? ` for .${ext} files` : ' for this file'}
-      </p>
-      {href ? (
-        <ChipLink href={href} download={file.name} leftIcon={Download} className='mt-[4px]'>
-          Download
-        </ChipLink>
-      ) : (
-        <p className='text-[var(--text-muted)] text-small'>This file has no content yet</p>
-      )}
     </div>
   )
 })

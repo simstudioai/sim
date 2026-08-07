@@ -2,20 +2,30 @@
  * @vitest-environment node
  */
 import { knowledgeConnector } from '@sim/db/schema'
-import { queueTableRows, resetDbChainMock, resetUrlsMock, urlsMockFns } from '@sim/testing'
+import {
+  loggerMock,
+  queueTableRows,
+  resetDbChainMock,
+  resetUrlsMock,
+  urlsMockFns,
+} from '@sim/testing'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockAssertBillingAttributionSnapshot,
   mockCheckKnowledgeBaseWriteAccess,
   mockFetch,
+  mockGetBoundWorkspaceFileSecretProvenance,
   mockGenerateInternalToken,
+  mockImportKnowledgeSearchResultSecretProvenance,
   mockSerializeBillingAttributionHeader,
 } = vi.hoisted(() => ({
   mockAssertBillingAttributionSnapshot: vi.fn(),
   mockCheckKnowledgeBaseWriteAccess: vi.fn(),
   mockFetch: vi.fn(),
+  mockGetBoundWorkspaceFileSecretProvenance: vi.fn(),
   mockGenerateInternalToken: vi.fn(),
+  mockImportKnowledgeSearchResultSecretProvenance: vi.fn(),
   mockSerializeBillingAttributionHeader: vi.fn(),
 }))
 
@@ -60,6 +70,9 @@ vi.mock('@/lib/knowledge/service', () => ({
   getKnowledgeBaseById: vi.fn(),
   updateKnowledgeBase: vi.fn(),
 }))
+vi.mock('@/lib/knowledge/secret-provenance', () => ({
+  importKnowledgeSearchResultSecretProvenance: mockImportKnowledgeSearchResultSecretProvenance,
+}))
 vi.mock('@/lib/knowledge/tags/service', () => ({
   createTagDefinition: vi.fn(),
   deleteTagDefinition: vi.fn(),
@@ -73,6 +86,9 @@ vi.mock('@/lib/uploads', () => ({ StorageService: {} }))
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   resolveWorkspaceFileReference: vi.fn(),
 }))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
+  getBoundWorkspaceFileSecretProvenance: mockGetBoundWorkspaceFileSecretProvenance,
+}))
 vi.mock('@/app/api/knowledge/search/utils', () => ({
   executeKnowledgeSearch: vi.fn(),
 }))
@@ -83,10 +99,20 @@ vi.mock('@/app/api/knowledge/utils', () => ({
 }))
 
 import { checkAttributedUsageLimits } from '@/lib/billing/core/billing-attribution'
+import { projectToolResultForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
 import { knowledgeBaseServerTool } from '@/lib/copilot/tools/server/knowledge/knowledge-base'
 import { createSingleDocument } from '@/lib/knowledge/documents/service'
+import { generateSearchEmbedding, recordSearchEmbeddingUsage } from '@/lib/knowledge/embeddings'
 import { getKnowledgeBaseById } from '@/lib/knowledge/service'
 import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { executeKnowledgeSearch } from '@/app/api/knowledge/search/utils'
+import { checkKnowledgeBaseAccess } from '@/app/api/knowledge/utils'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+
+const knowledgeLoggerIndex = loggerMock.createLogger.mock.calls.findIndex(
+  ([name]) => name === 'KnowledgeBaseServerTool'
+)
+const knowledgeLogger = loggerMock.createLogger.mock.results[knowledgeLoggerIndex]?.value
 
 const BILLING_ATTRIBUTION = {
   actorUserId: 'external-admin',
@@ -178,6 +204,170 @@ describe('knowledge base connector Copilot operations', () => {
   )
 })
 
+describe('knowledge base query model boundary', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    vi.mocked(checkKnowledgeBaseAccess).mockResolvedValue({ hasAccess: true })
+    vi.mocked(getKnowledgeBaseById).mockResolvedValue({
+      id: 'knowledge-base-1',
+      name: 'Private KB',
+      workspaceId: 'workspace-paid',
+      embeddingModel: 'text-embedding-3-small',
+    } as Awaited<ReturnType<typeof getKnowledgeBaseById>>)
+    vi.mocked(checkAttributedUsageLimits).mockResolvedValue({ isExceeded: false })
+    vi.mocked(generateSearchEmbedding).mockResolvedValue({
+      embedding: [0.1, 0.2],
+      isBYOK: false,
+    })
+    vi.mocked(executeKnowledgeSearch).mockResolvedValue([])
+    vi.mocked(recordSearchEmbeddingUsage).mockResolvedValue(undefined)
+    mockImportKnowledgeSearchResultSecretProvenance.mockResolvedValue({
+      imported: true,
+      documentMetadata: {},
+    })
+  })
+
+  it('projects the query at embedding, search, and usage boundaries', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      {
+        name: 'KB_QUERY',
+        plaintext: 'private knowledge query',
+        encryptedValue: 'encrypted-query',
+      },
+    ])
+    registry.recordResolved('KB_QUERY', 'private knowledge query')
+
+    const result = await knowledgeBaseServerTool.execute(
+      {
+        operation: 'query',
+        args: {
+          knowledgeBaseId: 'knowledge-base-1',
+          query: 'private knowledge query',
+        },
+      },
+      {
+        userId: 'external-admin',
+        workspaceId: 'workspace-paid',
+        billingAttribution: BILLING_ATTRIBUTION,
+        resolvedSecretTraceRegistry: registry,
+      }
+    )
+
+    expect(result.success).toBe(true)
+    expect(result.data?.query).toBe('private knowledge query')
+    expect(generateSearchEmbedding).toHaveBeenCalledWith(
+      '{{KB_QUERY}}',
+      'text-embedding-3-small',
+      'workspace-paid'
+    )
+    expect(executeKnowledgeSearch).toHaveBeenCalledWith(
+      expect.objectContaining({ query: '{{KB_QUERY}}' })
+    )
+    expect(recordSearchEmbeddingUsage).toHaveBeenCalledWith(
+      expect.objectContaining({ query: '{{KB_QUERY}}' })
+    )
+    expect(mockImportKnowledgeSearchResultSecretProvenance).toHaveBeenCalledWith({
+      registry,
+      results: [],
+    })
+    expect(knowledgeLogger).toBeDefined()
+    expect(JSON.stringify(knowledgeLogger?.info.mock.calls)).not.toContain(
+      'private knowledge query'
+    )
+  })
+
+  it('imports exact persisted result provenance before the Copilot result is projected', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      {
+        name: 'STORED_TOKEN',
+        plaintext: 'stored-secret-value',
+        encryptedValue: 'encrypted-stored-secret',
+      },
+    ])
+    const results = [
+      {
+        id: 'embedding-1',
+        documentId: 'document-1',
+        content: 'stored-secret-value',
+        chunkIndex: 0,
+        distance: 0.1,
+      },
+    ]
+    vi.mocked(executeKnowledgeSearch).mockResolvedValue(results)
+    mockImportKnowledgeSearchResultSecretProvenance.mockImplementationOnce(
+      async ({ registry: resultRegistry }) => {
+        expect(resultRegistry.recordResolved('STORED_TOKEN', 'stored-secret-value')).toBe(true)
+        return { imported: true, documentMetadata: {} }
+      }
+    )
+
+    const result = await knowledgeBaseServerTool.execute(
+      {
+        operation: 'query',
+        args: {
+          knowledgeBaseId: 'knowledge-base-1',
+          query: 'public query',
+        },
+      },
+      {
+        userId: 'external-admin',
+        workspaceId: 'workspace-paid',
+        billingAttribution: BILLING_ATTRIBUTION,
+        resolvedSecretTraceRegistry: registry,
+      }
+    )
+
+    expect(result.success).toBe(true)
+    expect(result.data?.results[0].content).toBe('stored-secret-value')
+    expect(projectToolResultForCopilot({ success: true, output: result }, registry)).toMatchObject({
+      success: true,
+      output: {
+        data: { results: [{ content: '{{STORED_TOKEN}}' }] },
+      },
+    })
+  })
+
+  it('fails closed when persisted result provenance cannot be established', async () => {
+    const registry = new ResolvedSecretTraceRegistry()
+    vi.mocked(executeKnowledgeSearch).mockResolvedValue([
+      {
+        id: 'embedding-1',
+        documentId: 'document-1',
+        content: 'unclassified persisted content',
+        chunkIndex: 0,
+        distance: 0.1,
+      },
+    ])
+    mockImportKnowledgeSearchResultSecretProvenance.mockResolvedValueOnce({
+      imported: false,
+      documentMetadata: {},
+    })
+
+    const result = await knowledgeBaseServerTool.execute(
+      {
+        operation: 'query',
+        args: {
+          knowledgeBaseId: 'knowledge-base-1',
+          query: 'public query',
+        },
+      },
+      {
+        userId: 'external-admin',
+        workspaceId: 'workspace-paid',
+        billingAttribution: BILLING_ATTRIBUTION,
+        resolvedSecretTraceRegistry: registry,
+      }
+    )
+
+    expect(result).toEqual({
+      success: false,
+      message: 'Failed to query knowledge base: Knowledge result secret provenance is unavailable',
+    })
+    expect(registry.isPermanentlyIncomplete()).toBe(true)
+  })
+})
+
 describe('knowledge base add_file usage gate', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -190,6 +380,10 @@ describe('knowledge base add_file usage gate', () => {
       id: 'knowledge-base-1',
       workspaceId: 'workspace-paid',
     } as Awaited<ReturnType<typeof getKnowledgeBaseById>>)
+    mockGetBoundWorkspaceFileSecretProvenance.mockResolvedValue({
+      status: 'exact',
+      entries: [],
+    })
   })
 
   function addFile() {
@@ -230,5 +424,32 @@ describe('knowledge base add_file usage gate', () => {
     await addFile()
 
     expect(checkAttributedUsageLimits).toHaveBeenCalledWith(BILLING_ATTRIBUTION)
+  })
+
+  it('does not index a workspace file containing resolved-secret provenance', async () => {
+    vi.mocked(checkAttributedUsageLimits).mockResolvedValue({
+      isExceeded: false,
+    } as Awaited<ReturnType<typeof checkAttributedUsageLimits>>)
+    vi.mocked(resolveWorkspaceFileReference).mockResolvedValue({
+      id: 'file-1',
+      key: 'workspace/workspace-paid/report.pdf',
+      name: 'report.pdf',
+      size: 100,
+      type: 'application/pdf',
+    } as Awaited<ReturnType<typeof resolveWorkspaceFileReference>>)
+    mockGetBoundWorkspaceFileSecretProvenance.mockResolvedValueOnce({
+      status: 'exact',
+      entries: [{ name: 'API_KEY', encryptedValue: 'encrypted-secret' }],
+    })
+
+    const result = await addFile()
+
+    expect(result.success).toBe(false)
+    expect(mockGetBoundWorkspaceFileSecretProvenance).toHaveBeenCalledWith('workspace-paid', {
+      fileId: 'file-1',
+      key: 'workspace/workspace-paid/report.pdf',
+      context: 'workspace',
+    })
+    expect(createSingleDocument).not.toHaveBeenCalled()
   })
 })

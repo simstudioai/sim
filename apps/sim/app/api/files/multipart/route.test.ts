@@ -51,14 +51,23 @@ vi.mock('@/lib/uploads/providers/blob/client', () => ({
   abortMultipartUpload: vi.fn(),
 }))
 
+vi.mock('@/lib/uploads/contexts/execution/utils', () => ({
+  generateExecutionAttachmentKey: mockGenerateExecutionAttachmentKey,
+}))
+
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
-const { mockCheckStorageQuota, mockInitiateS3MultipartUpload, mockResolveStorageBillingContext } =
-  vi.hoisted(() => ({
-    mockCheckStorageQuota: vi.fn(),
-    mockInitiateS3MultipartUpload: vi.fn(),
-    mockResolveStorageBillingContext: vi.fn(),
-  }))
+const {
+  mockCheckStorageQuota,
+  mockGenerateExecutionAttachmentKey,
+  mockInitiateS3MultipartUpload,
+  mockResolveStorageBillingContext,
+} = vi.hoisted(() => ({
+  mockCheckStorageQuota: vi.fn(),
+  mockGenerateExecutionAttachmentKey: vi.fn(),
+  mockInitiateS3MultipartUpload: vi.fn(),
+  mockResolveStorageBillingContext: vi.fn(),
+}))
 
 vi.mock('@/lib/billing/storage', () => ({
   checkStorageQuotaForBillingContext: mockCheckStorageQuota,
@@ -180,6 +189,7 @@ describe('POST /api/files/multipart action=complete', () => {
     expect(mockDeriveBlobBlockId).toHaveBeenCalledWith(2)
     expect(mockCompleteBlobMultipartUpload).toHaveBeenCalledWith(
       tokenPayload.key,
+      tokenPayload.uploadId,
       [
         { partNumber: 1, blockId: 'block-000001' },
         { partNumber: 2, blockId: 'block-000002' },
@@ -240,6 +250,13 @@ describe('POST /api/files/multipart action=initiate quota enforcement', () => {
     mockResolveStorageBillingContext.mockResolvedValue(STORAGE_CONTEXT)
     mockCheckStorageQuota.mockResolvedValue({ allowed: true })
     mockInitiateS3MultipartUpload.mockResolvedValue({ uploadId: 'up-1', key: 'k/file.bin' })
+    mockGenerateExecutionAttachmentKey.mockImplementation(
+      (
+        context: { workspaceId: string; workflowId: string; executionId: string },
+        fileName: string
+      ) =>
+        `execution/${context.workspaceId}/${context.workflowId}/${context.executionId}/unique-${fileName}`
+    )
   })
 
   it('blocks upload when fileSize: 0 exceeds quota', async () => {
@@ -291,6 +308,38 @@ describe('POST /api/files/multipart action=initiate quota enforcement', () => {
     expect(mockResolveStorageBillingContext).not.toHaveBeenCalled()
     expect(mockCheckStorageQuota).not.toHaveBeenCalled()
     expect(mockInitiateS3MultipartUpload).toHaveBeenCalled()
+  })
+
+  it('allocates distinct multipart keys for duplicate execution attachment names', async () => {
+    mockGenerateExecutionAttachmentKey
+      .mockReturnValueOnce('execution/ws-1/wf-1/exec-1/one-output.bin')
+      .mockReturnValueOnce('execution/ws-1/wf-1/exec-1/two-output.bin')
+    mockInitiateS3MultipartUpload.mockImplementation(async ({ customKey }) => ({
+      uploadId: `upload-${customKey}`,
+      key: customKey,
+    }))
+
+    const makeExecutionRequest = (fileSize: number) =>
+      makeInitiateRequest({
+        fileName: 'output.bin',
+        contentType: 'application/octet-stream',
+        fileSize,
+        workspaceId: 'ws-1',
+        workflowId: 'wf-1',
+        executionId: 'exec-1',
+        context: 'execution',
+      })
+
+    const first = await POST(makeExecutionRequest(60 * 1024 * 1024))
+    const second = await POST(makeExecutionRequest(70 * 1024 * 1024))
+    const firstBody = await first.json()
+    const secondBody = await second.json()
+
+    expect(first.status).toBe(200)
+    expect(second.status).toBe(200)
+    expect(firstBody.key).toBe('execution/ws-1/wf-1/exec-1/one-output.bin')
+    expect(secondBody.key).toBe('execution/ws-1/wf-1/exec-1/two-output.bin')
+    expect(firstBody.key).not.toBe(secondBody.key)
   })
 
   it.each(['og-images', 'profile-pictures', 'workspace-logos', 'logs'])(

@@ -1,7 +1,6 @@
 ---
 title: Variables
 description: Define reusable workflow variables referenced with angle brackets and environment variables referenced with double curly braces.
-pageType: reference
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
@@ -76,7 +75,7 @@ Each run starts fresh from the values defined in the panel. A change made during
 
 Environment variables let you keep sensitive values like API keys and tokens out of your saved workflow configuration. Create them under **Settings → Secrets** by adding a key-value pair.
 
-Reference them with double curly braces in any block field, including Agent system prompts and Function block code. The value is substituted before the block runs. When a saved secret is successfully substituted through `{{KEY}}`, exact occurrences of that value are masked in the live block-log display and stored execution trace without changing the runtime value. See [Execution log protection](/platform/credentials#execution-log-protection) for the exact scope and limitations.
+Reference them with double curly braces in any block field, including Agent system prompts and Function block code. Most fields resolve the reference before the block runs. Function and Custom Tool code preserve `{{KEY}}` until their shared compiler runs at the execution boundary, where the value is bound separately from the source. This keeps its exact string contents out of saved and executed source code. When a saved secret is successfully resolved through `{{KEY}}`, exact occurrences of that value are masked in the live block-log display and stored execution trace without changing the runtime value. Exact secret values are also projected back to placeholders before content is sent to a model. See [Execution log protection](/platform/credentials#execution-log-protection) for the exact scope and limitations.
 
 ```
 {{API_KEY}}

@@ -102,6 +102,30 @@ describe('describeError', () => {
     ])
   })
 
+  it('redacts driver-appended bound parameter values from every reported message', () => {
+    const driver = Object.assign(
+      new Error('cannot execute SELECT FOR UPDATE in a read-only transaction'),
+      {
+        code: '25006',
+      }
+    )
+    const wrapped = new Error(
+      'Failed query: select "storage_used_bytes" from "workspace" where id = $1 limit $2 for update\nparams: ws-secret-id,1',
+      { cause: driver }
+    )
+    const described = describeError(wrapped)
+    expect(described.code).toBe('25006')
+    expect(described.causeChain?.[0]).toBe(
+      'Error: Failed query: select "storage_used_bytes" from "workspace" where id = $1 limit $2 for update\nparams: [redacted]'
+    )
+    expect(JSON.stringify(described)).not.toContain('ws-secret-id')
+  })
+
+  it('redacts bound parameter values from an unwrapped driver error message', () => {
+    const described = describeError(new Error('Failed query: select 1\nparams: ws-secret-id'))
+    expect(described.message).toBe('Failed query: select 1\nparams: [redacted]')
+  })
+
   it('always returns the cause for unclassified errors (AbortError)', () => {
     const aborted = Object.assign(new Error('The operation was aborted'), { name: 'AbortError' })
     expect(describeError(aborted)).toEqual({

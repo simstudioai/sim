@@ -1,9 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { isPlainRecord } from '@sim/utils/object'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { WorkflowBlockHandler } from '@/executor/handlers/workflow/workflow-handler'
 import type { ExecutionContext } from '@/executor/types'
+import { projectResolvedSecretDiagnosticContent } from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { SerializedBlock } from '@/serializer/types'
 import type { ToolResponse } from '@/tools/types'
@@ -144,7 +146,20 @@ export async function runCustomBlockTool(
     // child's own logging session already billed whatever it spent before failing,
     // so nothing is rolled up here.
     const message = getErrorMessage(error, 'Custom block execution failed')
-    logger.info('Custom block tool execution failed', { blockType: params.blockType, message })
+    const logProjection = projectResolvedSecretDiagnosticContent(
+      { blockType: params.blockType, message },
+      options.resolvedSecretTraceRegistry
+    )
+    logger.info(
+      'Custom block tool execution failed',
+      logProjection.safe && isPlainRecord(logProjection.value)
+        ? logProjection.value
+        : {
+            hasBlockType: params.blockType.length > 0,
+            errorName: error instanceof Error ? error.name : 'UnknownError',
+            redacted: true,
+          }
+    )
     return { success: false, output: {}, error: message }
   }
 }

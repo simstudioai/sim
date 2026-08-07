@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { describeError } from '@sim/utils/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -11,10 +12,12 @@ const {
   mockHasCloudStorage,
   mockHeadObject,
   mockIncrementStorageUsageForBillingContextInTx,
+  mockInitializeWorkspaceFileSecretProvenanceInTx,
   mockMaybeNotifyStorageLimitForBillingContext,
   mockMergeEditIntoLiveFileDoc,
   mockNotifyWorkspaceFilesChanged,
   mockResolveStorageBillingContext,
+  mockReplaceWorkspaceFileSecretProvenanceInTx,
   mockUploadFile,
 } = vi.hoisted(() => ({
   mockDecrementStorageUsageForBillingContextInTx: vi.fn(),
@@ -23,11 +26,20 @@ const {
   mockHasCloudStorage: vi.fn(),
   mockHeadObject: vi.fn(),
   mockIncrementStorageUsageForBillingContextInTx: vi.fn(),
+  mockInitializeWorkspaceFileSecretProvenanceInTx: vi.fn(),
   mockMaybeNotifyStorageLimitForBillingContext: vi.fn(),
   mockMergeEditIntoLiveFileDoc: vi.fn(),
   mockNotifyWorkspaceFilesChanged: vi.fn(),
   mockResolveStorageBillingContext: vi.fn(),
+  mockReplaceWorkspaceFileSecretProvenanceInTx: vi.fn(),
   mockUploadFile: vi.fn(),
+}))
+
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
+  EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE: { status: 'exact', entries: [] },
+  initializeWorkspaceFileSecretProvenanceInTx: mockInitializeWorkspaceFileSecretProvenanceInTx,
+  preserveWorkspaceFileSecretProvenanceInTx: vi.fn(),
+  replaceWorkspaceFileSecretProvenanceInTx: mockReplaceWorkspaceFileSecretProvenanceInTx,
 }))
 
 vi.mock('@/lib/realtime/notify', () => ({
@@ -101,6 +113,7 @@ const FILE_ROW = {
   uploadedAt: new Date('2026-07-01T00:00:00.000Z'),
   updatedAt: new Date('2026-07-01T00:00:00.000Z'),
   contentUpdatedAt: new Date('2026-07-01T00:00:00.000Z'),
+  secretProvenanceVersion: 1,
 }
 
 describe('workspace file metadata and storage accounting', () => {
@@ -113,11 +126,13 @@ describe('workspace file metadata and storage accounting', () => {
     mockUploadFile.mockResolvedValue({ key: FILE_ROW.key })
     mockGetWorkspaceWithOwner.mockResolvedValue({ archivedAt: null })
     mockIncrementStorageUsageForBillingContextInTx.mockResolvedValue(10)
+    mockInitializeWorkspaceFileSecretProvenanceInTx.mockResolvedValue(undefined)
     mockDecrementStorageUsageForBillingContextInTx.mockResolvedValue(undefined)
     mockMaybeNotifyStorageLimitForBillingContext.mockResolvedValue(undefined)
     mockDeleteFile.mockResolvedValue(undefined)
     mockMergeEditIntoLiveFileDoc.mockResolvedValue(undefined)
     mockNotifyWorkspaceFilesChanged.mockResolvedValue(undefined)
+    mockReplaceWorkspaceFileSecretProvenanceInTx.mockResolvedValue(undefined)
   })
 
   it('cleans up a newly uploaded object when atomic metadata finalization rolls back', async () => {
@@ -142,6 +157,66 @@ describe('workspace file metadata and storage accounting', () => {
     )
     expect(dbChainMockFns.transaction.mock.invocationCallOrder[0]).toBeLessThan(
       mockDeleteFile.mock.invocationCallOrder[0]
+    )
+  })
+
+  it('preserves the driver cause so the SQLSTATE survives the upload wrapper', async () => {
+    const driver = Object.assign(
+      new Error('cannot execute SELECT FOR UPDATE in a read-only transaction'),
+      { code: '25006' }
+    )
+    dbChainMockFns.returning.mockResolvedValueOnce([FILE_ROW])
+    mockIncrementStorageUsageForBillingContextInTx.mockRejectedValueOnce(
+      new Error(
+        'Failed query: select "storage_used_bytes" from "workspace" where id = $1 limit $2 for update\nparams: ws-1,1',
+        { cause: driver }
+      )
+    )
+
+    const thrown = await uploadWorkspaceFile(
+      FILE_ROW.workspaceId,
+      FILE_ROW.userId,
+      Buffer.from('hello'),
+      FILE_ROW.originalName,
+      FILE_ROW.contentType
+    ).catch((error: unknown) => error)
+
+    const described = describeError(thrown)
+    expect(described.code).toBe('25006')
+    expect(described.message).toBe('cannot execute SELECT FOR UPDATE in a read-only transaction')
+  })
+
+  it('keeps an ordinary workspace upload on the legacy untracked path', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([FILE_ROW])
+
+    await uploadWorkspaceFile(
+      FILE_ROW.workspaceId,
+      FILE_ROW.userId,
+      Buffer.from('hello'),
+      FILE_ROW.originalName,
+      FILE_ROW.contentType
+    )
+
+    expect(mockReplaceWorkspaceFileSecretProvenanceInTx).not.toHaveBeenCalled()
+  })
+
+  it('persists explicitly supplied workspace upload provenance', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([FILE_ROW])
+
+    await uploadWorkspaceFile(
+      FILE_ROW.workspaceId,
+      FILE_ROW.userId,
+      Buffer.from('hello'),
+      FILE_ROW.originalName,
+      FILE_ROW.contentType,
+      { secretProvenance: { status: 'exact', entries: [] } }
+    )
+
+    expect(mockReplaceWorkspaceFileSecretProvenanceInTx).toHaveBeenCalledWith(
+      expect.any(Object),
+      FILE_ROW.id,
+      FILE_ROW.contentUpdatedAt,
+      { status: 'exact', entries: [] }
     )
   })
 
@@ -172,7 +247,62 @@ describe('workspace file metadata and storage accounting', () => {
 
     expect([first.created, second.created].sort()).toEqual([false, true])
     expect(mockIncrementStorageUsageForBillingContextInTx).toHaveBeenCalledTimes(1)
+    expect(mockReplaceWorkspaceFileSecretProvenanceInTx).toHaveBeenCalledTimes(1)
+    expect(mockReplaceWorkspaceFileSecretProvenanceInTx).toHaveBeenCalledWith(
+      expect.any(Object),
+      FILE_ROW.id,
+      FILE_ROW.contentUpdatedAt,
+      { status: 'exact', entries: [] }
+    )
+    expect(mockInitializeWorkspaceFileSecretProvenanceInTx).toHaveBeenCalledTimes(1)
+    expect(mockInitializeWorkspaceFileSecretProvenanceInTx).toHaveBeenCalledWith(
+      expect.any(Object),
+      FILE_ROW.id,
+      FILE_ROW.contentUpdatedAt,
+      { status: 'exact', entries: [] }
+    )
     expect(mockDeleteFile).not.toHaveBeenCalled()
+  })
+
+  it('repairs a tracked direct upload missing its sidecar without charging storage again', async () => {
+    mockHasCloudStorage.mockReturnValue(true)
+    dbChainMockFns.limit.mockResolvedValueOnce([FILE_ROW])
+
+    const result = await registerUploadedWorkspaceFile({
+      workspaceId: FILE_ROW.workspaceId,
+      userId: FILE_ROW.userId,
+      key: FILE_ROW.key,
+      originalName: FILE_ROW.originalName,
+      contentType: FILE_ROW.contentType,
+    })
+
+    expect(result.created).toBe(false)
+    expect(mockInitializeWorkspaceFileSecretProvenanceInTx).toHaveBeenCalledWith(
+      expect.any(Object),
+      FILE_ROW.id,
+      FILE_ROW.contentUpdatedAt,
+      { status: 'exact', entries: [] }
+    )
+    expect(mockReplaceWorkspaceFileSecretProvenanceInTx).not.toHaveBeenCalled()
+    expect(mockIncrementStorageUsageForBillingContextInTx).not.toHaveBeenCalled()
+  })
+
+  it('preserves marker-null legacy registration behavior without creating a sidecar', async () => {
+    mockHasCloudStorage.mockReturnValue(true)
+    dbChainMockFns.limit.mockResolvedValueOnce([{ ...FILE_ROW, secretProvenanceVersion: null }])
+
+    const result = await registerUploadedWorkspaceFile({
+      workspaceId: FILE_ROW.workspaceId,
+      userId: FILE_ROW.userId,
+      key: FILE_ROW.key,
+      originalName: FILE_ROW.originalName,
+      contentType: FILE_ROW.contentType,
+    })
+
+    expect(result.created).toBe(false)
+    expect(mockInitializeWorkspaceFileSecretProvenanceInTx).not.toHaveBeenCalled()
+    expect(mockReplaceWorkspaceFileSecretProvenanceInTx).not.toHaveBeenCalled()
+    expect(mockIncrementStorageUsageForBillingContextInTx).not.toHaveBeenCalled()
   })
 
   it('does not delete an object when a registration race finds a different operation', async () => {
@@ -308,6 +438,12 @@ describe('workspace file metadata and storage accounting', () => {
       expect.any(Object),
       STORAGE_CONTEXT,
       3
+    )
+    expect(mockReplaceWorkspaceFileSecretProvenanceInTx).toHaveBeenCalledWith(
+      expect.any(Object),
+      FILE_ROW.id,
+      updatedFile.contentUpdatedAt,
+      { status: 'unknown' }
     )
     expect(mockDeleteFile).toHaveBeenCalledWith({ key: FILE_ROW.key, context: 'workspace' })
     expect(updated.key).toBe(replacementKey)

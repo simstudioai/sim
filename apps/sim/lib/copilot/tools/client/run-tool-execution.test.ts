@@ -9,6 +9,7 @@ const {
   executeWorkflowWithFullLogging,
   getWorkflowEntries,
   loadExecutionPointer,
+  MockExecutionStreamHttpError,
   MockSSEEventHandlerError,
   MockSSEStreamInterruptedError,
   saveExecutionPointer,
@@ -18,6 +19,16 @@ const {
   executeWorkflowWithFullLogging: vi.fn(),
   getWorkflowEntries: vi.fn(() => []),
   loadExecutionPointer: vi.fn(),
+  MockExecutionStreamHttpError: class ExecutionStreamHttpError extends Error {
+    constructor(
+      message: string,
+      public readonly httpStatus: number,
+      public readonly code?: string
+    ) {
+      super(message)
+      this.name = 'ExecutionStreamHttpError'
+    }
+  },
   MockSSEEventHandlerError: class SSEEventHandlerError extends Error {
     executionId?: string
 
@@ -63,6 +74,8 @@ vi.mock('@/stores/execution/store', () => ({
 }))
 
 vi.mock('@/hooks/use-execution-stream', () => ({
+  ExecutionStreamHttpError: MockExecutionStreamHttpError,
+  isExecutionStreamHttpError: (error: unknown) => error instanceof MockExecutionStreamHttpError,
   SSEEventHandlerError: MockSSEEventHandlerError,
   SSEStreamInterruptedError: MockSSEStreamInterruptedError,
 }))
@@ -96,6 +109,7 @@ import {
   bindRunToolToExecution,
   cancelRunToolExecution,
   executeRunToolOnClient,
+  isRunToolActiveForId,
   reportManualRunToolStop,
 } from './run-tool-execution'
 
@@ -185,6 +199,128 @@ describe('run tool execution cancellation', () => {
       )
     })
     expect(fetch.mock.calls[0][1]?.body).not.toContain('raw-secret')
+  })
+
+  it('queues run_workflow asynchronously and reports the execution as background', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 202,
+        json: vi.fn().mockResolvedValue({
+          success: true,
+          async: true,
+          executionId: 'exec-async',
+        }),
+      })
+      .mockResolvedValueOnce({ ok: true })
+    vi.stubGlobal('fetch', fetchMock)
+
+    executeRunToolOnClient('tool-async', 'run_workflow', {
+      workflowId: 'wf-1',
+      workflow_input: { prompt: 'long-running task' },
+      triggerBlockId: 'trigger-async',
+      async: true,
+    })
+
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+
+    expect(executeWorkflowWithFullLogging).not.toHaveBeenCalled()
+    expect(setIsExecuting).not.toHaveBeenCalled()
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/workflows/wf-1/execute')
+    expect(fetchMock.mock.calls[0][1]).toEqual(
+      expect.objectContaining({
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Execution-Mode': 'async',
+        },
+      })
+    )
+    expect(JSON.parse(fetchMock.mock.calls[0][1]?.body as string)).toMatchObject({
+      input: { prompt: 'long-running task' },
+      triggerType: 'copilot',
+      triggerBlockId: 'trigger-async',
+      isClientSession: true,
+      copilotToolCallId: 'tool-async',
+    })
+    expect(fetchMock.mock.calls[1][0]).toBe('/api/copilot/confirm')
+    expect(fetchMock.mock.calls[1][1]?.body).toContain('"status":"background"')
+    expect(fetchMock.mock.calls[1][1]?.body).toContain('"executionId":"exec-async"')
+    expect(saveExecutionPointer).toHaveBeenCalledWith({
+      workflowId: 'wf-1',
+      executionId: 'exec-async',
+      lastEventId: 0,
+    })
+    expect(clearExecutionPointer).toHaveBeenCalledWith('wf-1')
+  })
+
+  it('recovers a queued async launch by re-reporting it without enqueueing again', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 202,
+        json: vi.fn().mockResolvedValue({ executionId: 'exec-recover-async' }),
+      })
+      .mockResolvedValueOnce({ ok: false, status: 503 })
+      .mockResolvedValueOnce({ ok: false, status: 503 })
+      .mockResolvedValue({ ok: true })
+    vi.stubGlobal('fetch', fetchMock)
+
+    executeRunToolOnClient('tool-recover-async', 'run_workflow', {
+      workflowId: 'wf-1',
+      async: true,
+    })
+
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3))
+    await vi.waitFor(() => expect(isRunToolActiveForId('tool-recover-async')).toBe(false))
+    loadExecutionPointer.mockResolvedValueOnce({
+      workflowId: 'wf-1',
+      executionId: 'exec-recover-async',
+      lastEventId: 0,
+    })
+
+    await expect(bindRunToolToExecution('tool-recover-async', 'wf-1')).resolves.toBe(true)
+
+    expect(fetchMock).toHaveBeenCalledTimes(4)
+    expect(fetchMock.mock.calls[3][0]).toBe('/api/copilot/confirm')
+    expect(fetchMock.mock.calls[3][1]?.body).toContain('"status":"background"')
+    expect(fetchMock.mock.calls[3][1]?.body).toContain('"executionId":"exec-recover-async"')
+    expect(
+      fetchMock.mock.calls.filter(([url]) => url === '/api/workflows/wf-1/execute')
+    ).toHaveLength(1)
+    expect(clearExecutionPointer).toHaveBeenCalledWith('wf-1')
+  })
+
+  it('reports a stale deployment as an async tool failure without queueing completion', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        json: vi.fn().mockResolvedValue({
+          error: 'Async execution requires the current workflow to match its deployed version',
+          code: 'ASYNC_WORKFLOW_DEPLOYMENT_STALE',
+        }),
+      })
+      .mockResolvedValueOnce({ ok: true })
+    vi.stubGlobal('fetch', fetchMock)
+
+    executeRunToolOnClient('tool-stale', 'run_workflow', {
+      workflowId: 'wf-1',
+      async: true,
+    })
+
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+
+    expect(fetchMock.mock.calls[1][0]).toBe('/api/copilot/confirm')
+    expect(fetchMock.mock.calls[1][1]?.body).toContain('"status":"error"')
+    expect(fetchMock.mock.calls[1][1]?.body).toContain(
+      'Async execution requires the current workflow to match its deployed version'
+    )
+    expect(fetchMock.mock.calls[1][1]?.body).toContain('"code":"ASYNC_WORKFLOW_DEPLOYMENT_STALE"')
+    expect(fetchMock.mock.calls[1][1]?.body).not.toContain('"status":"background"')
   })
 
   it('reports the workflow execution id with terminal error results', async () => {
@@ -313,5 +449,25 @@ describe('run tool execution cancellation', () => {
         body: expect.stringContaining('"status":"error"'),
       })
     )
+  })
+
+  it('drops a duplicate client runner without confirming or surfacing an error', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true })
+    vi.stubGlobal('fetch', fetchMock)
+    executeWorkflowWithFullLogging.mockRejectedValueOnce(
+      new MockExecutionStreamHttpError(
+        'Copilot workflow execution is already owned by another client',
+        409,
+        'COPILOT_WORKFLOW_EXECUTION_CONFLICT'
+      )
+    )
+
+    executeRunToolOnClient('tool-duplicate', 'run_workflow', { workflowId: 'wf-1' })
+
+    await vi.waitFor(() => {
+      expect(clearExecutionPointer).toHaveBeenCalledWith('wf-1')
+    })
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(setIsExecuting).toHaveBeenCalledWith('wf-1', false)
   })
 })

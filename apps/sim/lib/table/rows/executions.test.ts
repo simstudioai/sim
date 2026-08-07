@@ -77,4 +77,36 @@ describe('writeExecutionsPatch guards', () => {
     expect(condition).toContain('IS DISTINCT FROM')
     expect(condition).toContain("= 'pending'")
   })
+
+  it('guards usage-limit deletion against cancelled and newer execution rows', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+
+    await expect(
+      writeExecutionsPatch(
+        dbChainMock.db as unknown as Parameters<typeof writeExecutionsPatch>[0],
+        'table-1',
+        'row-1',
+        { 'group-1': null },
+        { groupId: 'group-1', executionId: 'execution-1' }
+      )
+    ).resolves.toBe('guard-rejected')
+
+    const condition = renderCondition(dbChainMockFns.where.mock.calls.at(-1)?.[0])
+    expect(condition).toContain("<> 'cancelled'")
+    expect(condition).toContain('IS NULL OR')
+  })
+
+  it('deletes the usage-limit pre-stamp only when its execution guard wins', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([{ rowId: 'row-1' }])
+
+    await expect(
+      writeExecutionsPatch(
+        dbChainMock.db as unknown as Parameters<typeof writeExecutionsPatch>[0],
+        'table-1',
+        'row-1',
+        { 'group-1': null },
+        { groupId: 'group-1', executionId: 'execution-1' }
+      )
+    ).resolves.toBe('wrote')
+  })
 })

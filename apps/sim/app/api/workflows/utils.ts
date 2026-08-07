@@ -1,6 +1,6 @@
 import { db, workflowDeploymentVersion } from '@sim/db'
 import { createLogger } from '@sim/logger'
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { hasWorkflowChanged } from '@/lib/workflows/comparison'
 import { loadWorkflowDeploymentSnapshot } from '@/lib/workflows/persistence/utils'
@@ -45,20 +45,23 @@ export function computeNeedsRedeployment(
 }
 
 export async function checkNeedsRedeployment(workflowId: string): Promise<boolean> {
-  const [active] = await db
-    .select({ state: workflowDeploymentVersion.state })
-    .from(workflowDeploymentVersion)
-    .where(
-      and(
-        eq(workflowDeploymentVersion.workflowId, workflowId),
-        eq(workflowDeploymentVersion.isActive, true)
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`SET TRANSACTION ISOLATION LEVEL REPEATABLE READ`)
+    const [active] = await tx
+      .select({ state: workflowDeploymentVersion.state })
+      .from(workflowDeploymentVersion)
+      .where(
+        and(
+          eq(workflowDeploymentVersion.workflowId, workflowId),
+          eq(workflowDeploymentVersion.isActive, true)
+        )
       )
-    )
-    .orderBy(desc(workflowDeploymentVersion.createdAt))
-    .limit(1)
+      .orderBy(desc(workflowDeploymentVersion.createdAt))
+      .limit(1)
 
-  const currentState = await loadWorkflowDeploymentSnapshot(workflowId)
-  return computeNeedsRedeployment(currentState, (active?.state as WorkflowState) ?? null)
+    const currentState = await loadWorkflowDeploymentSnapshot(workflowId, tx)
+    return computeNeedsRedeployment(currentState, (active?.state as WorkflowState) ?? null)
+  })
 }
 
 /**

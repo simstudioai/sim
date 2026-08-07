@@ -5,12 +5,16 @@ import { createLogger } from '@sim/logger'
 import { describe, expect, it } from 'vitest'
 import {
   extractStorageKey,
+  getMimeTypeFromExtension,
   inferContextFromKey,
   isAbortError,
   isInternalFileUrl,
   isMarkdownFile,
   isNetworkError,
   processSingleFileToUserFile,
+  resolveEffectiveMimeType,
+  resolveFileType,
+  resolveMediaMimeType,
   resolveTrustedFileContext,
 } from '@/lib/uploads/utils/file-utils'
 
@@ -191,5 +195,88 @@ describe('processSingleFileToUserFile', () => {
     expect(result.providerFileUri).toBeUndefined()
     expect(result.remoteUrl).toBeUndefined()
     expect(result.key).toBe('workspace/ws-1/doc.pdf')
+  })
+})
+
+describe('resolveEffectiveMimeType', () => {
+  it('keeps a specific stored type', () => {
+    expect(resolveEffectiveMimeType('video/quicktime', 'clip.mp4')).toBe('video/quicktime')
+    expect(resolveEffectiveMimeType('text/markdown', 'notes.md')).toBe('text/markdown')
+  })
+
+  it.each([
+    ['clip.mp4', 'video/mp4'],
+    ['clip.mov', 'video/quicktime'],
+    ['clip.mkv', 'video/x-matroska'],
+    ['song.mp3', 'audio/mpeg'],
+    ['song.flac', 'audio/flac'],
+    ['icon.ico', 'image/x-icon'],
+    ['shot.avif', 'image/avif'],
+  ])('resolves a stored application/octet-stream for %s from the extension', (name, expected) => {
+    expect(resolveEffectiveMimeType('application/octet-stream', name)).toBe(expected)
+  })
+
+  it('resolves binary/octet-stream and blank stored types too', () => {
+    expect(resolveEffectiveMimeType('binary/octet-stream', 'clip.mp4')).toBe('video/mp4')
+    expect(resolveEffectiveMimeType('  ', 'clip.mp4')).toBe('video/mp4')
+    expect(resolveEffectiveMimeType(null, 'clip.mp4')).toBe('video/mp4')
+    expect(resolveEffectiveMimeType(undefined, 'clip.mp4')).toBe('video/mp4')
+  })
+
+  it('resolves a dual audio/video container to video, matching how the app presents it', () => {
+    expect(resolveEffectiveMimeType('application/octet-stream', 'clip.webm')).toBe('video/webm')
+    expect(resolveEffectiveMimeType(null, 'clip.webm')).toBe('video/webm')
+  })
+
+  it('still keeps an explicit audio/webm declared by the browser', () => {
+    expect(resolveEffectiveMimeType('audio/webm', 'recording.webm')).toBe('audio/webm')
+  })
+
+  it('leaves the upload-time extension table alone for dual containers', () => {
+    expect(getMimeTypeFromExtension('webm')).toBe('audio/webm')
+  })
+
+  it('never lets the video default reach the type that gets persisted', () => {
+    // resolveFileType writes user_file.content_type, which the speech-to-text route reads
+    // back as file.type — a video/* value there sends the upload into ffmpeg extraction.
+    expect(resolveFileType({ type: '', name: 'clip.webm' })).toBe('audio/webm')
+    expect(resolveFileType({ type: 'application/octet-stream', name: 'clip.webm' })).toBe(
+      'audio/webm'
+    )
+    expect(resolveFileType({ type: 'audio/webm', name: 'clip.webm' })).toBe('audio/webm')
+  })
+
+  it('stays generic when the extension identifies nothing either', () => {
+    expect(resolveEffectiveMimeType('application/octet-stream', 'firmware.bin')).toBe(
+      'application/octet-stream'
+    )
+    expect(resolveEffectiveMimeType(null, 'firmware.bin')).toBe('application/octet-stream')
+    expect(resolveEffectiveMimeType('', 'noextension')).toBe('application/octet-stream')
+  })
+})
+
+describe('resolveMediaMimeType', () => {
+  it('resolves a generic stored type from the extension', () => {
+    expect(resolveMediaMimeType('application/octet-stream', 'clip.mp4', 'video')).toBe('video/mp4')
+    expect(resolveMediaMimeType('application/octet-stream', 'song.flac', 'audio')).toBe(
+      'audio/flac'
+    )
+  })
+
+  it('retags a dual audio/video container to the kind being rendered', () => {
+    expect(resolveMediaMimeType(null, 'clip.webm', 'video')).toBe('video/webm')
+    expect(resolveMediaMimeType('audio/webm', 'clip.webm', 'video')).toBe('video/webm')
+    expect(resolveMediaMimeType(null, 'recording.webm', 'audio')).toBe('audio/webm')
+    expect(resolveMediaMimeType('video/webm', 'recording.webm', 'audio')).toBe('audio/webm')
+  })
+
+  it('keeps a specific type that already names the right kind', () => {
+    expect(resolveMediaMimeType('video/quicktime', 'clip.mov', 'video')).toBe('video/quicktime')
+    expect(resolveMediaMimeType('audio/opus', 'voice.opus', 'audio')).toBe('audio/opus')
+  })
+
+  it('falls back to the kind default when nothing names a media format', () => {
+    expect(resolveMediaMimeType('application/zip', 'weird.bin', 'audio')).toBe('audio/mpeg')
+    expect(resolveMediaMimeType(null, 'weird.bin', 'video')).toBe('video/mp4')
   })
 })

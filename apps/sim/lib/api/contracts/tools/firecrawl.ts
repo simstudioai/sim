@@ -1,10 +1,12 @@
 import { z } from 'zod'
+import { resolvedSecretTraceProvenanceSchema } from '@/lib/api/contracts/primitives'
 import type {
   ContractBody,
   ContractBodyInput,
   ContractJsonResponse,
 } from '@/lib/api/contracts/types'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { RESOLVED_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
 import { RawFileInputSchema } from '@/lib/uploads/utils/file-schemas'
 
 const firecrawlParseResponseSchema = z.object({
@@ -17,6 +19,7 @@ export const firecrawlParseBodySchema = z.object({
   apiKey: z.string().min(1, 'API key is required'),
   file: RawFileInputSchema,
   options: z.record(z.string(), z.unknown()).optional(),
+  [RESOLVED_SECRET_PROVENANCE_FIELD]: resolvedSecretTraceProvenanceSchema.optional(),
 })
 
 export const firecrawlParseContract = defineRouteContract({

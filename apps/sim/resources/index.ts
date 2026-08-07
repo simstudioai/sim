@@ -30,6 +30,11 @@ export type {
   ShareableKind,
 } from '@/resources/kinds'
 export { isResourceKind, RESOURCE_KINDS } from '@/resources/kinds'
+export {
+  logWorkflowHref,
+  resolveLogWorkflowId,
+  workflowEditorPath,
+} from '@/resources/log-source'
 export type {
   ResourceLink,
   ResourceSource,

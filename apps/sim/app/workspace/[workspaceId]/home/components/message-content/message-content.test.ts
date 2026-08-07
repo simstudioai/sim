@@ -452,6 +452,23 @@ describe('completed tool titles', () => {
     )
   })
 
+  it('renders an accepted async workflow launch in past tense', () => {
+    expect(
+      firstToolTitle([
+        {
+          type: 'tool_call',
+          toolCall: {
+            id: 'async-workflow',
+            name: 'run_workflow',
+            status: 'success',
+            params: { async: true },
+          },
+          timestamp: 1,
+        },
+      ])
+    ).toBe('Ran workflow')
+  })
+
   it('renders the completed deployment action and deployment type', () => {
     expect(
       firstToolTitle([

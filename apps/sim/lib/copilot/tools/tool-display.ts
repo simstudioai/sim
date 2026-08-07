@@ -244,6 +244,29 @@ function searchKnowledgeBaseTitle(args: ToolArgs): string {
   return titles[stringArg(args, 'operation')] ?? 'Searching knowledge base'
 }
 
+function manageSandboxTitle(args: ToolArgs): string {
+  const titles: Record<string, string> = {
+    add: 'Creating sandbox',
+    edit: 'Updating sandbox',
+    delete: 'Deleting sandbox',
+    list: 'Listing sandboxes',
+  }
+  return titles[stringArg(args, 'operation')] ?? 'Managing sandbox'
+}
+
+function manageScheduledTaskTitle(args: ToolArgs): string {
+  const operationArgs = recordArg(args, 'args')
+  const title = stringArg(operationArgs, 'title')
+  const titles: Record<string, string> = {
+    create: `Creating ${title || 'scheduled task'}`,
+    list: 'Listing scheduled tasks',
+    get: 'Reading scheduled task',
+    update: `Updating ${title || 'scheduled task'}`,
+    delete: 'Deleting scheduled task',
+  }
+  return titles[stringArg(args, 'operation')] ?? 'Managing scheduled task'
+}
+
 function userTableTitle(args: ToolArgs): string {
   const operation = stringArg(args, 'operation')
   const operationArgs = recordArg(args, 'args')
@@ -444,12 +467,14 @@ const TOOL_TITLES: Record<string, string> = {
   diff_workflows: 'Comparing workflows',
   download_to_workspace_file: 'Downloading file',
   function_execute: 'Running code',
+  complete_scheduled_task: 'Completing scheduled task',
   generate_api_key: 'Generating API key',
   get_block_outputs: 'Getting block outputs',
   get_block_upstream_references: 'Getting block references',
   get_deployed_workflow_state: 'Getting deployed workflow',
   get_deployment_log: 'Getting deployment logs',
   get_platform_actions: 'Getting platform actions',
+  get_scheduled_task_logs: 'Reading scheduled task logs',
   get_workflow_data: 'Getting workflow data',
   get_workflow_run_options: 'Getting run options',
   list_file_folders: 'Listing folders',
@@ -458,6 +483,8 @@ const TOOL_TITLES: Record<string, string> = {
   list_workspace_mcp_servers: 'Listing MCP servers',
   load_deployment: 'Loading deployment',
   materialize_file: 'Preparing file',
+  manage_sandbox: 'Managing sandbox',
+  manage_scheduled_task: 'Managing scheduled task',
   move_file: 'Moving file',
   move_file_folder: 'Moving folder',
   move_workflow: 'Moving workflow',
@@ -470,12 +497,14 @@ const TOOL_TITLES: Record<string, string> = {
   rename_workflow: 'Renaming workflow',
   restore_resource: 'Restoring resource',
   run_block: 'Running block',
+  scheduled_task: 'Managing scheduled task',
   search_documentation: 'Searching documentation',
   search_patterns: 'Searching patterns',
   set_block_enabled: 'Toggling block',
   set_environment_variables: 'Setting environment variables',
   set_global_workflow_variables: 'Setting workflow variables',
   update_deployment_version: 'Updating deployment',
+  update_scheduled_task_history: 'Updating scheduled task history',
   update_workspace_mcp_server: 'Updating MCP server',
   // Browser agent tools without an argument-aware title.
   browser_go_back: 'Going back',
@@ -657,6 +686,10 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
       return queryUserTableTitle(args)
     case 'search_knowledge_base':
       return searchKnowledgeBaseTitle(args)
+    case 'manage_sandbox':
+      return manageSandboxTitle(args)
+    case 'manage_scheduled_task':
+      return manageScheduledTaskTitle(args)
     case 'user_table':
       return userTableTitle(args)
     case 'materialize_file':

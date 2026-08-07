@@ -1,11 +1,52 @@
 'use client'
 
-import { Component, type ErrorInfo, type ReactNode } from 'react'
-import { cn } from '@sim/emcn'
-import { Loader } from '@sim/emcn/icons'
+import { Component, type ErrorInfo, memo, type ReactNode } from 'react'
+import { ChipLink, cn } from '@sim/emcn'
+import { Download, Loader } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
+import { useResourceOfKind } from '@/components/resources/resource-provider'
+import { getFileExtension } from '@/lib/uploads/utils/file-utils'
+import { type FileViewRecord, fileContentUrl } from '@/resources/file-source'
 
 const logger = createLogger('FilePreview')
+
+/**
+ * The dead end for a file no renderer handles — an archive, an installer, a
+ * columnar dataset — and the terminal fallback for a viewer that was expected
+ * to work but failed (a HEIC whose server-side derivative could not be built).
+ *
+ * It carries its own download link rather than pointing at a button in the
+ * surrounding chrome: this view is mounted on surfaces that draw no chrome at
+ * all (the fullscreen file route, an interface's file module), and telling a
+ * visitor to press a button that is not on the page strands them with no way to
+ * reach the bytes.
+ */
+export const UnsupportedPreview = memo(function UnsupportedPreview({
+  file,
+}: {
+  file: FileViewRecord
+}) {
+  const { source } = useResourceOfKind('file')
+  const ext = getFileExtension(file.name)
+  const href = file.key
+    ? fileContentUrl(source, file.key, { version: file.updatedAt.getTime() })
+    : null
+
+  return (
+    <div className='flex flex-1 flex-col items-center justify-center gap-[8px]'>
+      <p className='font-medium text-[var(--text-primary)] text-sm'>
+        Preview not available{ext ? ` for .${ext} files` : ' for this file'}
+      </p>
+      {href ? (
+        <ChipLink href={href} download={file.name} leftIcon={Download} className='mt-[4px]'>
+          Download
+        </ChipLink>
+      ) : (
+        <p className='text-[var(--text-muted)] text-small'>This file has no content yet</p>
+      )}
+    </div>
+  )
+})
 
 export function PreviewError({ label, error }: { label: string; error: string }) {
   return (

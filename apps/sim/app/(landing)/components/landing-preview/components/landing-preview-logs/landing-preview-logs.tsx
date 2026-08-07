@@ -236,10 +236,7 @@ export function LandingPreviewLogs() {
           <thead className='border-[var(--border)] border-b'>
             <tr>
               {COL_HEADERS.map(({ key, label }) => (
-                <th
-                  key={key}
-                  className='h-10 px-6 py-1.5 text-left align-middle font-normal text-caption'
-                >
+                <th key={key} className='h-10 px-6 py-1.5 text-left align-middle text-caption'>
                   <button
                     type='button'
                     onClick={() => handleSort(key)}

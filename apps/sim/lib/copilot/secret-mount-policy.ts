@@ -73,3 +73,20 @@ export function applySecretMountPolicy(
 
   return requested
 }
+
+/**
+ * Filters secret-name discovery surfaces to the names visible under a mount policy.
+ * Unlike {@link applySecretMountPolicy}, this does not reject inaccessible names because
+ * inventory generation starts from the complete workspace catalog.
+ */
+export function filterSecretNamesByMountPolicy(
+  availableNames: readonly string[],
+  input?: SecretMountPolicyInput | null
+): string[] {
+  const policy = normalizeSecretMountPolicy(input)
+  const available = normalizeSecretNames(availableNames)
+  if (policy.secretScope === 'all') return available
+
+  const allowed = new Set(policy.mountedSecrets)
+  return available.filter((name) => allowed.has(name))
+}

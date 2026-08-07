@@ -1,6 +1,7 @@
 import { toError } from '@sim/utils/errors'
 import type { z } from 'zod'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 /**
  * Normalizes an unexpected tool failure for logging and for the model:
@@ -39,6 +40,8 @@ export interface ServerToolContext {
   abortSignal?: AbortSignal
   /** Fires only on explicit user stop, never on passive transport disconnect. */
   userStopSignal?: AbortSignal
+  /** Private in-process provenance channel; never copied into tool arguments or results. */
+  resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
 }
 
 export function assertServerToolNotAborted(

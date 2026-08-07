@@ -1,22 +1,36 @@
 import { db } from '@sim/db'
 import { sandboxImage, workspaceSandbox } from '@sim/db/schema'
+import { getErrorMessage } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
-import type { Sandbox } from '@/lib/api/contracts/sandboxes'
-import { ensureSandboxImage } from '@/lib/execution/remote-sandbox/image-registry'
+import type { CreateSandboxBody, Sandbox, UpdateSandboxBody } from '@/lib/api/contracts/sandboxes'
+import { runDetached } from '@/lib/core/utils/background'
+import {
+  canonicalizeSandboxCliTools,
+  type SandboxCliToolId,
+} from '@/lib/execution/remote-sandbox/cli-tools'
+import { assertSandboxCliToolsSupported } from '@/lib/execution/remote-sandbox/cli-tools.server'
+import {
+  ensureSandboxImage,
+  releaseSandboxImage,
+} from '@/lib/execution/remote-sandbox/image-registry'
 import { resolveProvider } from '@/lib/execution/remote-sandbox/provider'
 import { invalidateSandboxResolution } from '@/lib/execution/remote-sandbox/resolve'
 import {
+  canonicalizeSystemPackages,
   type DependencyIssue,
   hashSandboxSpec,
   type SandboxLanguage,
+  type SystemPackageIssue,
   validateDependencies,
+  validateSystemPackages,
 } from '@/lib/execution/remote-sandbox/sandbox-spec'
 import type { SandboxDependencyStrategy } from '@/lib/execution/remote-sandbox/types'
 
-/** 403 copy for a workspace whose plan does not include sandbox authoring. */
-export const MAX_PLAN_REQUIRED = 'Sandboxes require an active Max or Enterprise plan.'
+/** 403 copy for a workspace whose plan does not include Sim sandbox access. */
+export const MAX_PLAN_REQUIRED = 'Sim sandboxes require an active Max or Enterprise plan.'
 
-export const SANDBOX_ADMIN_REQUIRED = 'Only workspace admins can manage sandboxes'
+export const SANDBOX_ADMIN_REQUIRED = 'Only workspace admins can manage Sim sandboxes'
 
 /**
  * The unique index that actually arbitrates sandbox-name collisions. Named here
@@ -42,9 +56,33 @@ export class SandboxDependencyError extends Error {
   }
 }
 
+/** Thrown when a submitted Debian package coordinate is invalid. */
+export class SandboxSystemPackageError extends Error {
+  constructor(readonly issues: SystemPackageIssue[]) {
+    super(issues[0]?.reason ?? 'Invalid system package list')
+    this.name = 'SandboxSystemPackageError'
+  }
+}
+
+export class WorkspaceSandboxNotFoundError extends Error {
+  constructor() {
+    super('Sandbox not found')
+    this.name = 'WorkspaceSandboxNotFoundError'
+  }
+}
+
+export class WorkspaceSandboxNameConflictError extends Error {
+  constructor(readonly sandboxName: string) {
+    super(`A sandbox named "${sandboxName}" already exists in this workspace`)
+    this.name = 'WorkspaceSandboxNameConflictError'
+  }
+}
+
 export interface SandboxSpecUpdate {
   language: SandboxLanguage
   dependencies: string[]
+  cliTools: SandboxCliToolId[]
+  systemPackages: string[]
   specHash: string
 }
 
@@ -55,14 +93,29 @@ export interface SandboxSpecUpdate {
  */
 export function buildSpecUpdate(
   language: SandboxLanguage,
-  submitted: readonly string[]
+  submitted: readonly string[],
+  submittedCliTools: readonly string[] = [],
+  submittedSystemPackages: readonly string[] = []
 ): SandboxSpecUpdate {
   const validation = validateDependencies(language, submitted)
   if (!validation.ok) throw new SandboxDependencyError(validation.issues)
+  const systemPackageValidation = validateSystemPackages(submittedSystemPackages)
+  if (!systemPackageValidation.ok) {
+    throw new SandboxSystemPackageError(systemPackageValidation.issues)
+  }
+  const cliTools = canonicalizeSandboxCliTools(submittedCliTools)
+  assertSandboxCliToolsSupported(cliTools, resolveProvider().id)
   return {
     language,
     dependencies: validation.dependencies,
-    specHash: hashSandboxSpec({ language, dependencies: validation.dependencies }),
+    cliTools,
+    systemPackages: systemPackageValidation.systemPackages,
+    specHash: hashSandboxSpec({
+      language,
+      dependencies: validation.dependencies,
+      cliTools,
+      systemPackages: systemPackageValidation.systemPackages,
+    }),
   }
 }
 
@@ -75,6 +128,8 @@ interface SandboxRow {
   name: string
   language: string
   dependencies: string[] | null
+  cliTools: string[] | null
+  systemPackages: string[] | null
   createdAt: Date
   updatedAt: Date
 }
@@ -93,6 +148,8 @@ function toSandbox(row: SandboxRow, image: ImageRow | undefined): Sandbox {
     name: row.name,
     language: row.language as Sandbox['language'],
     dependencies: row.dependencies ?? [],
+    cliTools: canonicalizeSandboxCliTools(row.cliTools ?? []),
+    systemPackages: canonicalizeSystemPackages(row.systemPackages ?? []),
     // A runtime-strategy deployment has no build, so the status is genuinely absent
     // rather than pending — the UI branches on that to explain the tradeoff.
     buildStatus: (image?.status as Sandbox['buildStatus']) ?? null,
@@ -141,6 +198,8 @@ const SANDBOX_COLUMNS = {
   name: workspaceSandbox.name,
   language: workspaceSandbox.language,
   dependencies: workspaceSandbox.dependencies,
+  cliTools: workspaceSandbox.cliTools,
+  systemPackages: workspaceSandbox.systemPackages,
   specHash: workspaceSandbox.specHash,
   createdAt: workspaceSandbox.createdAt,
   updatedAt: workspaceSandbox.updatedAt,
@@ -186,7 +245,12 @@ export async function readWorkspaceSandbox(
 export async function scheduleSandboxBuild(spec: SandboxSpecUpdate): Promise<void> {
   invalidateSandboxResolution()
   await ensureSandboxImage(
-    { language: spec.language, dependencies: spec.dependencies },
+    {
+      language: spec.language,
+      dependencies: spec.dependencies,
+      cliTools: spec.cliTools,
+      systemPackages: spec.systemPackages,
+    },
     spec.specHash
   )
 }
@@ -203,4 +267,146 @@ export async function isSandboxNameTaken(
     .where(and(eq(workspaceSandbox.workspaceId, workspaceId), eq(workspaceSandbox.name, name)))
     .limit(1)
   return Boolean(existing && existing.id !== excludeId)
+}
+
+/** Whether a write lost the workspace/name unique-index race. */
+export function isWorkspaceSandboxNameConflictError(error: unknown): boolean {
+  const message = getErrorMessage(error)
+  return message.includes(WORKSPACE_SANDBOX_NAME_INDEX) || message.includes('23505')
+}
+
+/**
+ * Creates a sandbox through the same validation, persistence, build scheduling,
+ * and read-back path used by every product surface.
+ */
+export async function createWorkspaceSandbox(
+  workspaceId: string,
+  createdBy: string,
+  input: CreateSandboxBody
+): Promise<Sandbox> {
+  const spec = buildSpecUpdate(
+    input.language,
+    input.dependencies,
+    input.cliTools,
+    input.systemPackages
+  )
+
+  if (await isSandboxNameTaken(workspaceId, input.name)) {
+    throw new WorkspaceSandboxNameConflictError(input.name)
+  }
+
+  const id = generateId()
+  try {
+    await db.insert(workspaceSandbox).values({
+      id,
+      workspaceId,
+      name: input.name,
+      language: spec.language,
+      dependencies: spec.dependencies,
+      cliTools: spec.cliTools,
+      systemPackages: spec.systemPackages,
+      specHash: spec.specHash,
+      createdBy,
+    })
+  } catch (error) {
+    if (isWorkspaceSandboxNameConflictError(error)) {
+      throw new WorkspaceSandboxNameConflictError(input.name)
+    }
+    throw error
+  }
+
+  await scheduleSandboxBuild(spec)
+  const sandbox = await readWorkspaceSandbox(workspaceId, id)
+  if (!sandbox) throw new Error('Failed to read back the created sandbox')
+  return sandbox
+}
+
+/**
+ * Applies a partial sandbox edit. The complete resulting spec is always
+ * revalidated so language changes cannot retain dependencies from the wrong
+ * registry.
+ */
+export async function updateWorkspaceSandbox(
+  workspaceId: string,
+  sandboxId: string,
+  input: UpdateSandboxBody
+): Promise<Sandbox> {
+  const [existing] = await db
+    .select({
+      id: workspaceSandbox.id,
+      name: workspaceSandbox.name,
+      language: workspaceSandbox.language,
+      dependencies: workspaceSandbox.dependencies,
+      cliTools: workspaceSandbox.cliTools,
+      systemPackages: workspaceSandbox.systemPackages,
+      specHash: workspaceSandbox.specHash,
+    })
+    .from(workspaceSandbox)
+    .where(and(eq(workspaceSandbox.id, sandboxId), eq(workspaceSandbox.workspaceId, workspaceId)))
+    .limit(1)
+
+  if (!existing) throw new WorkspaceSandboxNotFoundError()
+
+  const nextName = input.name ?? existing.name
+  if (
+    input.name &&
+    input.name !== existing.name &&
+    (await isSandboxNameTaken(workspaceId, input.name, sandboxId))
+  ) {
+    throw new WorkspaceSandboxNameConflictError(input.name)
+  }
+
+  const spec = buildSpecUpdate(
+    input.language ?? (existing.language as SandboxLanguage),
+    input.dependencies ?? existing.dependencies ?? [],
+    input.cliTools ?? existing.cliTools ?? [],
+    input.systemPackages ?? existing.systemPackages ?? []
+  )
+
+  try {
+    await db
+      .update(workspaceSandbox)
+      .set({
+        name: nextName,
+        language: spec.language,
+        dependencies: spec.dependencies,
+        cliTools: spec.cliTools,
+        systemPackages: spec.systemPackages,
+        specHash: spec.specHash,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(workspaceSandbox.id, sandboxId), eq(workspaceSandbox.workspaceId, workspaceId)))
+  } catch (error) {
+    if (isWorkspaceSandboxNameConflictError(error)) {
+      throw new WorkspaceSandboxNameConflictError(nextName)
+    }
+    throw error
+  }
+
+  // The registry makes this idempotent for unchanged or in-flight specs and
+  // deliberately retries a previously failed build on an explicit save.
+  await scheduleSandboxBuild(spec)
+  if (spec.specHash !== existing.specHash) {
+    runDetached('release-sandbox-image', () => releaseSandboxImage(existing.specHash))
+  }
+
+  const sandbox = await readWorkspaceSandbox(workspaceId, sandboxId)
+  if (!sandbox) throw new Error('Failed to read back the updated sandbox')
+  return sandbox
+}
+
+/** Deletes a sandbox while allowing existing Function references to fail closed. */
+export async function deleteWorkspaceSandbox(
+  workspaceId: string,
+  sandboxId: string
+): Promise<void> {
+  const deleted = await db
+    .delete(workspaceSandbox)
+    .where(and(eq(workspaceSandbox.id, sandboxId), eq(workspaceSandbox.workspaceId, workspaceId)))
+    .returning({ id: workspaceSandbox.id, specHash: workspaceSandbox.specHash })
+
+  if (deleted.length === 0) throw new WorkspaceSandboxNotFoundError()
+
+  invalidateSandboxResolution()
+  runDetached('release-sandbox-image', () => releaseSandboxImage(deleted[0].specHash))
 }

@@ -59,7 +59,7 @@ export async function claimCooldown(
     .onConflictDoUpdate({
       target: [simTriggerState.workflowId, simTriggerState.blockId, simTriggerState.scopeKey],
       set: { lastFiredAt: now, updatedAt: now },
-      setWhere: sql`${simTriggerState.lastFiredAt} IS NULL OR ${simTriggerState.lastFiredAt} < ${threshold}`,
+      setWhere: sql`${simTriggerState.lastFiredAt} IS NULL OR ${simTriggerState.lastFiredAt} < ${sql.param(threshold, simTriggerState.lastFiredAt)}`,
     })
     .returning({ workflowId: simTriggerState.workflowId })
 

@@ -15,6 +15,7 @@ import {
   MothershipStreamV1TextChannel,
   MothershipStreamV1ToolPhase,
 } from '@/lib/copilot/generated/mothership-stream-v1'
+import { hasAddressableId } from '@/lib/copilot/resources/types'
 import type { FilePreviewTargetKind } from './file-preview-session-contract'
 
 type JsonRecord = Record<string, unknown>
@@ -265,13 +266,18 @@ function isValidSpanPayload(payload: JsonRecord): boolean {
 }
 
 function isValidResourcePayload(payload: JsonRecord): boolean {
-  return (
-    (payload.op === MothershipStreamV1ResourceOp.upsert ||
-      payload.op === MothershipStreamV1ResourceOp.remove) &&
-    isRecordLike(payload.resource) &&
-    typeof (payload.resource as JsonRecord).id === 'string' &&
-    typeof (payload.resource as JsonRecord).type === 'string'
-  )
+  if (
+    payload.op !== MothershipStreamV1ResourceOp.upsert &&
+    payload.op !== MothershipStreamV1ResourceOp.remove
+  ) {
+    return false
+  }
+  if (!isRecordLike(payload.resource)) return false
+  const resource = payload.resource as JsonRecord
+  // Dropping a blank id here is the only guard covering both branches
+  // downstream: the handler adds a suppressed file resource to the tab strip
+  // directly, bypassing the checks in `addResource`.
+  return hasAddressableId(resource.id) && typeof resource.type === 'string'
 }
 
 function isValidRunPayload(payload: JsonRecord): boolean {

@@ -30,6 +30,7 @@ import {
   isBillingEnabled,
   isHosted,
   isInboxEnabled,
+  isSandboxDeploymentEntitled,
   isSandboxesEnabled,
   isSsoEnabled,
 } from '@/lib/core/config/env-flags'
@@ -688,22 +689,26 @@ export async function hasWorkspaceLiveSyncAccess(workspaceId: string): Promise<b
 }
 
 /**
- * Checks whether the exact workspace payer can create and edit custom sandboxes.
+ * Checks whether the exact workspace payer can discover, author, or directly
+ * select custom Sim sandboxes through Copilot.
  *
- * Same entitlement as the inbox (Sim Mailer), and the same shape: the
- * `SANDBOXES_ENABLED` self-hosted override wins first, then a deployment
- * without billing is unrestricted, and otherwise the workspace payer must hold
- * a usable Max or Enterprise subscription. Builds cost provider compute and
- * storage, so this deliberately sits above the plain paid tier.
+ * A configured remote Function provider is mandatory. On billing-free
+ * deployments, the Enterprise pair or Sandbox-specific pair grants access. With
+ * billing enabled, an explicit Sandbox deployment override wins; otherwise the
+ * workspace payer must hold a usable Max or Enterprise subscription. Builds cost
+ * provider compute and storage, so this deliberately sits above the plain paid
+ * tier.
  *
- * This gates creating and editing only. Execution deliberately does not consult
- * it (see `resolveWorkspaceSandbox`), so a workspace that downgrades keeps
- * running the sandboxes it already built.
+ * Existing Function execution deliberately does not consult it (see
+ * `resolveWorkspaceSandbox`), so a workspace that downgrades keeps running the
+ * sandboxes it already built. New Copilot discovery, mutations, attachments,
+ * and direct function_execute selections do re-check it.
  */
 export async function hasWorkspaceSandboxAccess(workspaceId: string): Promise<boolean> {
   try {
-    if (isSandboxesEnabled) return true
-    if (!isBillingEnabled) return true
+    if (!isSandboxesEnabled) return false
+    if (isSandboxDeploymentEntitled) return true
+    if (!isBillingEnabled) return false
     return await hasMaxTierWorkspaceAccess(workspaceId)
   } catch (error) {
     logger.error('Error checking workspace sandbox access', { error, workspaceId })

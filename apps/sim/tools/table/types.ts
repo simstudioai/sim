@@ -5,7 +5,7 @@ import type {
   Sort,
   SortSpec,
   TableDefinition,
-  TablePredicate,
+  TablePredicateInput,
   TableRow,
   TableSchema,
 } from '@/lib/table/types'
@@ -61,7 +61,7 @@ export interface TableRowGetParams {
 /** v2 query params: typed predicate/sort objects + opaque cursor (no offset). */
 export interface TableRowQueryV2Params {
   tableId: string
-  filter?: TablePredicate
+  filter?: TablePredicateInput
   order?: SortSpec
   limit?: number
   cursor?: string

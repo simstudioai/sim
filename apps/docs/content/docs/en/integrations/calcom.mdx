@@ -34,7 +34,7 @@ Integrate Cal.com into your workflow. Create and manage bookings, event types, s
 
 ## Actions
 
-### `calcom_create_booking`
+### Cal.com Create Booking
 
 Create a new booking on Cal.com
 
@@ -90,7 +90,7 @@ Create a new booking on Cal.com
 |   ↳ `icsUid` | string | ICS calendar UID |
 |   ↳ `createdAt` | string | When the booking was created |
 
-### `calcom_get_booking`
+### Cal.com Get Booking
 
 Get details of a specific booking by its UID
 
@@ -150,7 +150,7 @@ Get details of a specific booking by its UID
 |   ↳ `createdAt` | string | When the booking was created |
 |   ↳ `updatedAt` | string | When the booking was last updated |
 
-### `calcom_list_bookings`
+### Cal.com List Bookings
 
 List all bookings with optional status filter
 
@@ -221,7 +221,7 @@ List all bookings with optional status filter
 |   ↳ `hasNextPage` | boolean | Whether there is a next page |
 |   ↳ `hasPreviousPage` | boolean | Whether there is a previous page |
 
-### `calcom_cancel_booking`
+### Cal.com Cancel Booking
 
 Cancel an existing booking
 
@@ -270,7 +270,7 @@ Cancel an existing booking
 |   ↳ `createdAt` | string | When the booking was created |
 |   ↳ `status` | string | Booking status \(should be cancelled\) |
 
-### `calcom_reschedule_booking`
+### Cal.com Reschedule Booking
 
 Reschedule an existing booking to a new time
 
@@ -324,7 +324,7 @@ Reschedule an existing booking to a new time
 |   ↳ `start` | string | New start time in ISO 8601 format |
 |   ↳ `end` | string | New end time in ISO 8601 format |
 
-### `calcom_confirm_booking`
+### Cal.com Confirm Booking
 
 Confirm a pending booking that requires confirmation
 
@@ -373,7 +373,7 @@ Confirm a pending booking that requires confirmation
 |   ↳ `createdAt` | string | When the booking was created |
 |   ↳ `status` | string | Booking status \(should be accepted/confirmed\) |
 
-### `calcom_decline_booking`
+### Cal.com Decline Booking
 
 Decline a pending booking request
 
@@ -421,7 +421,7 @@ Decline a pending booking request
 |   ↳ `createdAt` | string | When the booking was created |
 |   ↳ `status` | string | Booking status \(should be cancelled/rejected\) |
 
-### `calcom_create_event_type`
+### Cal.com Create Event Type
 
 Create a new event type in Cal.com
 
@@ -460,7 +460,7 @@ Create a new event type in Cal.com
 |   ↳ `createdAt` | string | ISO timestamp of creation |
 |   ↳ `updatedAt` | string | ISO timestamp of last update |
 
-### `calcom_get_event_type`
+### Cal.com Get Event Type
 
 Get detailed information about a specific event type
 
@@ -490,7 +490,7 @@ Get detailed information about a specific event type
 |   ↳ `createdAt` | string | ISO timestamp of creation |
 |   ↳ `updatedAt` | string | ISO timestamp of last update |
 
-### `calcom_list_event_types`
+### Cal.com List Event Types
 
 Retrieve a list of all event types
 
@@ -520,7 +520,7 @@ Retrieve a list of all event types
 |   ↳ `createdAt` | string | ISO timestamp of creation |
 |   ↳ `updatedAt` | string | ISO timestamp of last update |
 
-### `calcom_update_event_type`
+### Cal.com Update Event Type
 
 Update an existing event type in Cal.com
 
@@ -560,7 +560,7 @@ Update an existing event type in Cal.com
 |   ↳ `createdAt` | string | ISO timestamp of creation |
 |   ↳ `updatedAt` | string | ISO timestamp of last update |
 
-### `calcom_delete_event_type`
+### Cal.com Delete Event Type
 
 Delete an event type from Cal.com
 
@@ -581,7 +581,7 @@ Delete an event type from Cal.com
 |   ↳ `title` | string | Event type title |
 |   ↳ `slug` | string | Event type slug |
 
-### `calcom_create_schedule`
+### Cal.com Create Schedule
 
 Create a new availability schedule in Cal.com
 
@@ -614,7 +614,7 @@ Create a new availability schedule in Cal.com
 |     ↳ `startTime` | string | Start time in HH:MM format |
 |     ↳ `endTime` | string | End time in HH:MM format |
 
-### `calcom_get_schedule`
+### Cal.com Get Schedule
 
 Get a specific schedule by ID from Cal.com
 
@@ -644,7 +644,7 @@ Get a specific schedule by ID from Cal.com
 |     ↳ `startTime` | string | Start time in HH:MM format |
 |     ↳ `endTime` | string | End time in HH:MM format |
 
-### `calcom_list_schedules`
+### Cal.com List Schedules
 
 List all availability schedules from Cal.com
 
@@ -673,7 +673,7 @@ List all availability schedules from Cal.com
 |     ↳ `startTime` | string | Start time in HH:MM format |
 |     ↳ `endTime` | string | End time in HH:MM format |
 
-### `calcom_update_schedule`
+### Cal.com Update Schedule
 
 Update an existing schedule in Cal.com
 
@@ -707,7 +707,7 @@ Update an existing schedule in Cal.com
 |     ↳ `startTime` | string | Start time in HH:MM format |
 |     ↳ `endTime` | string | End time in HH:MM format |
 
-### `calcom_delete_schedule`
+### Cal.com Delete Schedule
 
 Delete a schedule from Cal.com
 
@@ -723,7 +723,7 @@ Delete a schedule from Cal.com
 | --------- | ---- | ----------- |
 | `status` | string | Response status \(success or error\) |
 
-### `calcom_get_default_schedule`
+### Cal.com Get Default Schedule
 
 Get the default availability schedule from Cal.com
 
@@ -752,7 +752,7 @@ Get the default availability schedule from Cal.com
 |     ↳ `startTime` | string | Start time in HH:MM format |
 |     ↳ `endTime` | string | End time in HH:MM format |
 
-### `calcom_get_slots`
+### Cal.com Get Slots
 
 Get available booking slots for a Cal.com event type within a time range
 
@@ -808,6 +808,17 @@ Trigger workflow when a booking is cancelled in Cal.com
 |   ↳ `status` | string | Booking status |
 |   ↳ `location` | string | Meeting location or URL |
 |   ↳ `cancellationReason` | string | Reason for cancellation |
+|   ↳ `organizer` | object | Organizer details |
+|     ↳ `id` | number | Organizer user ID |
+|     ↳ `name` | string | Organizer name |
+|     ↳ `email` | string | Organizer email |
+|     ↳ `username` | string | Organizer username |
+|     ↳ `timeZone` | string | Organizer timezone |
+|   ↳ `attendees` | array | List of attendees |
+|     ↳ `name` | string | Attendee name |
+|     ↳ `email` | string | Attendee email |
+|     ↳ `timeZone` | string | Attendee timezone |
+|     ↳ `language` | string | Attendee language preference |
 |   ↳ `responses` | json | Booking form responses |
 |   ↳ `metadata` | json | Custom metadata attached to the booking |
 
@@ -840,6 +851,17 @@ Trigger workflow when a new booking is created in Cal.com
 |   ↳ `bookingId` | number | Numeric booking ID |
 |   ↳ `status` | string | Booking status |
 |   ↳ `location` | string | Meeting location or URL |
+|   ↳ `organizer` | object | Organizer details |
+|     ↳ `id` | number | Organizer user ID |
+|     ↳ `name` | string | Organizer name |
+|     ↳ `email` | string | Organizer email |
+|     ↳ `username` | string | Organizer username |
+|     ↳ `timeZone` | string | Organizer timezone |
+|   ↳ `attendees` | array | List of attendees |
+|     ↳ `name` | string | Attendee name |
+|     ↳ `email` | string | Attendee email |
+|     ↳ `timeZone` | string | Attendee timezone |
+|     ↳ `language` | string | Attendee language preference |
 |   ↳ `responses` | json | Booking form responses \(dynamic - fields depend on your event type configuration\) |
 |   ↳ `metadata` | json | Custom metadata attached to the booking \(dynamic - user-defined key-value pairs\) |
 |   ↳ `videoCallData` | json | Video call details \(structure varies by provider\) |
@@ -878,6 +900,17 @@ Trigger workflow when payment is completed for a paid booking
 |     ↳ `amount` | number | Payment amount |
 |     ↳ `currency` | string | Payment currency |
 |     ↳ `success` | boolean | Whether payment succeeded |
+|   ↳ `organizer` | object | Organizer details |
+|     ↳ `id` | number | Organizer user ID |
+|     ↳ `name` | string | Organizer name |
+|     ↳ `email` | string | Organizer email |
+|     ↳ `username` | string | Organizer username |
+|     ↳ `timeZone` | string | Organizer timezone |
+|   ↳ `attendees` | array | List of attendees |
+|     ↳ `name` | string | Attendee name |
+|     ↳ `email` | string | Attendee email |
+|     ↳ `timeZone` | string | Attendee timezone |
+|     ↳ `language` | string | Attendee language preference |
 |   ↳ `metadata` | json | Custom metadata attached to the booking |
 
 
@@ -909,6 +942,17 @@ Trigger workflow when a booking request is rejected by the host
 |   ↳ `bookingId` | number | Numeric booking ID |
 |   ↳ `status` | string | Booking status \(rejected\) |
 |   ↳ `rejectionReason` | string | Reason for rejection provided by host |
+|   ↳ `organizer` | object | Organizer details |
+|     ↳ `id` | number | Organizer user ID |
+|     ↳ `name` | string | Organizer name |
+|     ↳ `email` | string | Organizer email |
+|     ↳ `username` | string | Organizer username |
+|     ↳ `timeZone` | string | Organizer timezone |
+|   ↳ `attendees` | array | List of attendees |
+|     ↳ `name` | string | Attendee name |
+|     ↳ `email` | string | Attendee email |
+|     ↳ `timeZone` | string | Attendee timezone |
+|     ↳ `language` | string | Attendee language preference |
 |   ↳ `metadata` | json | Custom metadata attached to the booking |
 
 
@@ -940,6 +984,17 @@ Trigger workflow when a booking request is submitted (pending confirmation)
 |   ↳ `bookingId` | number | Numeric booking ID |
 |   ↳ `status` | string | Booking status \(pending\) |
 |   ↳ `location` | string | Meeting location or URL |
+|   ↳ `organizer` | object | Organizer details |
+|     ↳ `id` | number | Organizer user ID |
+|     ↳ `name` | string | Organizer name |
+|     ↳ `email` | string | Organizer email |
+|     ↳ `username` | string | Organizer username |
+|     ↳ `timeZone` | string | Organizer timezone |
+|   ↳ `attendees` | array | List of attendees |
+|     ↳ `name` | string | Attendee name |
+|     ↳ `email` | string | Attendee email |
+|     ↳ `timeZone` | string | Attendee timezone |
+|     ↳ `language` | string | Attendee language preference |
 |   ↳ `responses` | json | Booking form responses |
 |   ↳ `metadata` | json | Custom metadata attached to the booking |
 
@@ -976,6 +1031,17 @@ Trigger workflow when a booking is rescheduled in Cal.com
 |   ↳ `rescheduleUid` | string | Previous booking UID |
 |   ↳ `rescheduleStartTime` | string | Original start time \(ISO 8601\) |
 |   ↳ `rescheduleEndTime` | string | Original end time \(ISO 8601\) |
+|   ↳ `organizer` | object | Organizer details |
+|     ↳ `id` | number | Organizer user ID |
+|     ↳ `name` | string | Organizer name |
+|     ↳ `email` | string | Organizer email |
+|     ↳ `username` | string | Organizer username |
+|     ↳ `timeZone` | string | Organizer timezone |
+|   ↳ `attendees` | array | List of attendees |
+|     ↳ `name` | string | Attendee name |
+|     ↳ `email` | string | Attendee email |
+|     ↳ `timeZone` | string | Attendee timezone |
+|     ↳ `language` | string | Attendee language preference |
 |   ↳ `responses` | json | Booking form responses |
 |   ↳ `metadata` | json | Custom metadata attached to the booking |
 
@@ -1006,6 +1072,17 @@ Trigger workflow when a Cal.com meeting ends
 |   ↳ `uid` | string | Unique booking identifier |
 |   ↳ `bookingId` | number | Numeric booking ID |
 |   ↳ `duration` | number | Actual meeting duration in minutes |
+|   ↳ `organizer` | object | Organizer details |
+|     ↳ `id` | number | Organizer user ID |
+|     ↳ `name` | string | Organizer name |
+|     ↳ `email` | string | Organizer email |
+|     ↳ `username` | string | Organizer username |
+|     ↳ `timeZone` | string | Organizer timezone |
+|   ↳ `attendees` | array | List of attendees |
+|     ↳ `name` | string | Attendee name |
+|     ↳ `email` | string | Attendee email |
+|     ↳ `timeZone` | string | Attendee timezone |
+|     ↳ `language` | string | Attendee language preference |
 |   ↳ `videoCallData` | json | Video call details |
 
 
@@ -1036,6 +1113,17 @@ Trigger workflow when a meeting recording is ready for download
 |   ↳ `bookingId` | number | Numeric booking ID |
 |   ↳ `recordingUrl` | string | URL to download the recording |
 |   ↳ `transcription` | string | Meeting transcription text \(if available\) |
+|   ↳ `organizer` | object | Organizer details |
+|     ↳ `id` | number | Organizer user ID |
+|     ↳ `name` | string | Organizer name |
+|     ↳ `email` | string | Organizer email |
+|     ↳ `username` | string | Organizer username |
+|     ↳ `timeZone` | string | Organizer timezone |
+|   ↳ `attendees` | array | List of attendees |
+|     ↳ `name` | string | Attendee name |
+|     ↳ `email` | string | Attendee email |
+|     ↳ `timeZone` | string | Attendee timezone |
+|     ↳ `language` | string | Attendee language preference |
 
 
 ---

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { selectPreferredModelBoundFileInput } from '@/lib/uploads/utils/model-input'
 import type { TextractAnalyzeIdOutput, TextractAnalyzeIdV2Input } from '@/tools/textract/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -58,6 +59,25 @@ export const textractAnalyzeIdTool: ToolConfig<TextractAnalyzeIdV2Input, Textrac
     },
 
     request: {
+      modelInput: {
+        mode: 'private-provenance',
+        select: (params) => {
+          const front = selectPreferredModelBoundFileInput({
+            file: params.file,
+            filePath: params.filePath,
+            prefer: 'file',
+          })
+          const back = selectPreferredModelBoundFileInput({
+            file: params.fileBack,
+            filePath: params.filePathBack,
+            prefer: 'file',
+          })
+          return {
+            ...(front !== undefined ? { front } : {}),
+            ...(back !== undefined ? { back } : {}),
+          }
+        },
+      },
       url: '/api/tools/textract/analyze-id',
       method: 'POST',
       headers: () => ({

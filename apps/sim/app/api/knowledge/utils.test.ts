@@ -165,6 +165,14 @@ describe('Knowledge Utils', () => {
           uploadedBy: null,
         },
       ])
+      /** Legacy untracked documents have exact-empty provenance. */
+      queueTableRows(schemaMock.document, [
+        {
+          filename: 'file.txt',
+          fileUrl: 'https://example.com/file.txt',
+          secretProvenanceVersion: null,
+        },
+      ])
       /** In-transaction active-document recheck. */
       queueTableRows(schemaMock.document, [{ id: 'doc1' }])
 

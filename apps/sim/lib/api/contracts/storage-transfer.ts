@@ -62,6 +62,14 @@ export const abortMultipartResponseSchema = z.object({
   success: z.literal(true),
 })
 
+export const verifyPresignedUploadBodySchema = z.object({
+  uploadToken: z.string().min(1, 'Upload token is required'),
+})
+
+export const verifyPresignedUploadResponseSchema = z.object({
+  uploaded: z.boolean(),
+})
+
 export const multipartUploadResponseSchema = z.union([
   initiateMultipartResponseSchema,
   getMultipartPartUrlsResponseSchema,
@@ -493,6 +501,8 @@ export const fileServeParamsSchema = z.object({
 
 export const fileServeQuerySchema = z.object({
   raw: z.string().nullish(),
+  /** `1` => rendering, not downloading — a HEIC may be substituted with a JPEG derivative. */
+  preview: z.string().nullish(),
   /** Content version (the file record's `updatedAt`). Present => the URL is content-immutable and may be cached indefinitely by the browser. */
   v: z.string().nullish(),
 })
@@ -748,6 +758,13 @@ export const abortMultipartUploadContract = defineRouteContract({
   path: '/api/files/multipart',
   body: tokenBoundMultipartBodySchema,
   response: { mode: 'json', schema: abortMultipartResponseSchema },
+})
+
+export const verifyPresignedUploadContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/files/presigned/verify',
+  body: verifyPresignedUploadBodySchema,
+  response: { mode: 'json', schema: verifyPresignedUploadResponseSchema },
 })
 
 export const fileServeContract = defineRouteContract({

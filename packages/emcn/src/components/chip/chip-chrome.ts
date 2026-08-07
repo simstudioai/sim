@@ -26,9 +26,18 @@ export const chipFieldSurfaceClass = `rounded-lg ${chipFilledSurfaceTokens} tran
  */
 export const chipBorderShadowRing =
   'shadow-[0_0_0_1px_rgba(28,40,64,0.08),0_1px_3px_0_rgba(28,40,64,0.1)] dark:shadow-[0_0_0_1px_var(--border-1),0_1px_3px_0_rgba(0,0,0,0.3)]'
-/** Typography shared by the chip text fields — normal weight, `--text-body`, muted placeholder, no focus outline. */
+/**
+ * Typography shared by the chip text fields — normal weight, `--text-body`, muted
+ * placeholder, no focus outline.
+ *
+ * `[letter-spacing:inherit]` undoes the UA stylesheet, which pins form controls to
+ * `letter-spacing: normal`. Without it a chip field's text tracks differently from
+ * the labels around it, and any transparent-field-over-mirror overlay diverges from
+ * its mirror by the inherited tracking on every character — so the caret drifts
+ * further from the visible text the longer the value. Matches `Input`/`Textarea`.
+ */
 export const chipFieldTextClass =
-  'text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-muted)]'
+  'text-[var(--text-body)] text-sm [letter-spacing:inherit] outline-none placeholder:text-[var(--text-muted)]'
 
 /**
  * Icon↔label gap of the canonical chip-content row — the icon↔label pair inside

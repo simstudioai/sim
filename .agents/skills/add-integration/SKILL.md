@@ -1,6 +1,6 @@
 ---
 name: add-integration
-description: Add a complete Sim integration from API docs, covering tools, block, icon, optional triggers, registrations, and integration conventions. Use when introducing a new service under `apps/sim/tools`, `apps/sim/blocks`, and `apps/sim/triggers`.
+description: Add a complete Sim integration from API docs, covering tools, block, icon, optional triggers, registrations, resolved-secret/model-input safety, and integration conventions. Use when introducing a new service under `apps/sim/tools`, `apps/sim/blocks`, and `apps/sim/triggers`.
 argument-hint: <service-name> [api-docs-url]
 ---
 
@@ -121,6 +121,64 @@ export const {service}{Action}Tool: ToolConfig<Params, Response> = {
 - Never output raw JSON dumps - extract meaningful fields
 - When using `type: 'json'` and you know the object shape, define `properties` with the inner fields so downstream consumers know the structure. Only use bare `type: 'json'` when the shape is truly dynamic
 - If you do not know the response JSON shape from docs or verified examples, you MUST tell the user and stop. Never guess outputs or response mappings.
+
+### Resolved Secrets at Model and Persistence Boundaries
+
+Classify every request field before implementing the tool:
+
+This is opt-in, not a blanket integration migration. Add a model-input declaration only when the
+service's official documentation or an unambiguous local execution path proves that the exact
+field is consumed by an AI model. If that cannot be established, preserve existing tool behavior
+and leave the field unannotated.
+
+- **Ordinary provider/API input:** leave it unchanged. Do not add blanket result sanitization.
+- **Text or structured content consumed by an AI model:** declare `request.modelInput` with
+  `mode: 'project'` and select only the exact model-visible fields. The shared executor replaces
+  activated Sim secrets with canonical `{{NAME}}` labels before request formatting. For nested or
+  JSON-string fields, use a small shared selector plus `applyProjected`; verify that selecting the
+  rebuilt params reproduces the projected selection.
+- **Opaque model input sent directly to an external provider** such as a model-read URL or image
+  payload: declare `request.opaqueModelInput` with `mode: 'reject-resolved-secrets'` and select only
+  the exact effective value. The shared `executeTool` preflight rejects incomplete or secret-bearing
+  committed provenance before URL/body formatting or network I/O, preserves safe request bytes,
+  and sends no provenance metadata to the provider.
+- **Opaque model input owned by an authenticated internal route** such as uploaded audio, image,
+  video, file bytes, or signed URLs: add `privateProvenance` to a projected request, or use
+  `mode: 'private-provenance'` when there is no textual projection. The route must call
+  `validateOpaqueModelInputProvenance` before downloading or sending content to the model and must
+  apply the workspace-file provenance guard before reading a persisted workspace file.
+- **Sim-owned durable storage or internal execution handoff** that can later enter a workflow/model
+  (table cells, Agent memory, knowledge documents/chunks, workspace-file contents, or child-workflow
+  input): transport encrypted field-scoped provenance with `request.secretProvenance`. The
+  authenticated receiver validates the exact selection and scope, strips the private envelope, and
+  persists, imports, or propagates it at the owning boundary. Preserve shared legacy behavior for
+  headerless internal calls and rows/files whose provenance marker is `NULL`; never invent a
+  tool-local migration rule.
+
+Hard rules:
+
+- Never substitute secret plaintext into source or serialize plaintext provenance.
+- Never hand-roll private provenance headers/envelopes; the shared `executeTool` boundary owns
+  transport and strips private metadata from functional results.
+- Never attach private provenance to an external URL or to `directExecution`. Use the centralized
+  `opaqueModelInput` rejection mode for external/direct opaque model inputs, or an authenticated
+  internal route when encrypted provenance must cross the boundary.
+- Never sanitize arbitrary third-party tool results. Projection applies only to secrets activated
+  by Sim's resolved-secret provenance for that execution/tool call.
+- Do not add provenance merely because a value is persisted, returned by a tool, or appears in a
+  filename. Require a concrete Sim `{{...}}` resolution path and a later model/log boundary. If an
+  unsupported field can resolve a secret but does not justify durable tracking (for example a
+  `file_write` path), reject it at that exact ingress.
+- At diagnostic boundaries, project only values carrying execution-scoped provenance. Ordinary
+  provider responses, filenames, URLs, and errors remain unchanged when Sim did not resolve a
+  secret into them.
+
+Add focused tests covering named projection, ordinary identical text without provenance, nested
+shape preservation, malformed/incomplete private metadata failing closed, centralized external
+opaque rejection before formatting/I/O without byte changes or metadata transport, headerless
+legacy requests, and absence of private metadata in the public tool result. For durable sinks, also
+cover legacy `NULL` markers, exact-empty new writes, tracked secret writes, stale/missing sidecars,
+and scope isolation.
 
 ## Step 3: Create Block
 
@@ -535,6 +593,11 @@ If creating V2 versions (API-aligned outputs):
 - [ ] Created `index.ts` barrel export
 - [ ] Registered all tools in `tools/registry.ts`
 - [ ] Ran `bun run tool-metadata:generate` and committed the regenerated artifacts
+- [ ] Classified every model-visible, opaque, Sim-durable, and internal-execution request field
+- [ ] Added shared model-input projection, centralized opaque rejection, or private provenance only
+      where required
+- [ ] Confirmed ordinary third-party tool results are not generically sanitized
+- [ ] Added provenance compatibility and fail-closed boundary tests where applicable
 
 ### Block
 - [ ] Created `blocks/blocks/{service}.ts`

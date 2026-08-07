@@ -33,7 +33,7 @@ Upload, download, list, and manage files on remote servers via SFTP. Supports bo
 
 ## Actions
 
-### `sftp_upload`
+### SFTP Upload
 
 Upload files to a remote SFTP server
 
@@ -62,7 +62,7 @@ Upload files to a remote SFTP server
 | `uploadedFiles` | json | Array of uploaded file details \(name, remotePath, size\) |
 | `message` | string | Operation status message |
 
-### `sftp_download`
+### SFTP Download
 
 Download a file from a remote SFTP server
 
@@ -91,7 +91,7 @@ Download a file from a remote SFTP server
 | `encoding` | string | Content encoding \(utf-8 or base64\) |
 | `message` | string | Operation status message |
 
-### `sftp_list`
+### SFTP List Directory
 
 List files and directories on a remote SFTP server
 
@@ -118,7 +118,7 @@ List files and directories on a remote SFTP server
 | `count` | number | Number of entries in the directory |
 | `message` | string | Operation status message |
 
-### `sftp_delete`
+### SFTP Delete
 
 Delete a file or directory on a remote SFTP server
 
@@ -143,7 +143,7 @@ Delete a file or directory on a remote SFTP server
 | `deletedPath` | string | Path that was deleted |
 | `message` | string | Operation status message |
 
-### `sftp_mkdir`
+### SFTP Create Directory
 
 Create a directory on a remote SFTP server
 

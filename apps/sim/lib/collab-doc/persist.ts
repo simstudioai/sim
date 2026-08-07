@@ -8,6 +8,7 @@ import {
 } from '@/lib/uploads/contexts/workspace'
 import { hashMarkdown, saveCollabDocState } from './collab-state'
 import { yDocToFileMarkdown } from './converter'
+import { stripEmptyTopLevelParagraphs } from './normalize'
 
 const logger = createLogger('FileDocPersist')
 
@@ -68,8 +69,14 @@ export async function persistFileDoc(
 
   const ydoc = new Y.Doc()
   let markdownBuffer: Buffer
+  // The Yjs snapshot cached below (`saveCollabDocState`) seeds a later cold room open directly, so it
+  // must never carry structure the markdown re-parse would strip — a top-level empty paragraph left in
+  // the snapshot resurfaces as a stray blank line when that warm doc settles, diverging from the static
+  // placeholder. Normalize it out here so the cached binary matches the durable markdown by construction.
+  let cachedDocState = docState
   try {
     Y.applyUpdate(ydoc, docState)
+    if (stripEmptyTopLevelParagraphs(ydoc)) cachedDocState = Y.encodeStateAsUpdate(ydoc)
     markdownBuffer = Buffer.from(yDocToFileMarkdown(ydoc), 'utf-8')
   } finally {
     ydoc.destroy()
@@ -87,13 +94,14 @@ export async function persistFileDoc(
         syncLiveDoc: false,
         // If-Match: only if the durable file is still at the version the live doc synced from.
         expectedUpdatedAt: expectedVersion !== undefined ? new Date(expectedVersion) : undefined,
+        secretProvenancePolicy: { mode: 'preserve' },
       }
     )
 
     // Cache the Yjs binary (tagged with the exact markdown just written) so a later cold room open loads
     // it directly instead of re-converting. Best-effort — the markdown is the durable source of truth.
     try {
-      await saveCollabDocState(fileId, docState, hashMarkdown(markdownBuffer))
+      await saveCollabDocState(fileId, cachedDocState, hashMarkdown(markdownBuffer))
     } catch (error) {
       logger.warn(`Failed to cache collab doc state for file ${fileId}`, {
         error: getErrorMessage(error),

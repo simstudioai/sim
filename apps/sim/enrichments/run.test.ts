@@ -8,6 +8,7 @@ vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
 
 import { runEnrichment, skippedEnrichmentDetail } from '@/enrichments/run'
 import type { EnrichmentConfig, EnrichmentProvider } from '@/enrichments/types'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const ICON = (() => null) as unknown as EnrichmentConfig['icon']
 
@@ -92,6 +93,26 @@ describe('runEnrichment cascade detail', () => {
     expect(outcome.detail.providers[1]?.status).toBe('matched')
     // Only provider b actually called the tool.
     expect(mockExecuteTool).toHaveBeenCalledTimes(1)
+  })
+
+  it('threads the isolated row provenance registry through each provider tool call', async () => {
+    const registry = new ResolvedSecretTraceRegistry()
+    mockExecuteTool.mockResolvedValue({ success: true, output: { email: 'j@acme.com' } })
+
+    await runEnrichment(
+      config([prov('a')]),
+      {},
+      {
+        ...ctx,
+        resolvedSecretTraceRegistry: registry,
+      }
+    )
+
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      'tool_a',
+      expect.anything(),
+      expect.objectContaining({ resolvedSecretTraceRegistry: registry })
+    )
   })
 
   it('sets error only when every provider that ran errored', async () => {

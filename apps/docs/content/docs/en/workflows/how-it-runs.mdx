@@ -1,7 +1,6 @@
 ---
 title: How workflows run
 description: How Sim orders the blocks, runs independent ones in parallel, and follows branches.
-pageType: concept
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
@@ -56,7 +55,7 @@ Here `throwError` fails, so the run leaves through its red error port to `handle
 
 ## How long a run can take
 
-A synchronous run is capped at **5 minutes on the free plan** and **50 minutes on paid plans**; an async run gets **90 minutes**. A run that hits the ceiling fails with "Execution timed out." The usual causes are a loop over a large list or a slow agent or API call — split the work, or run it async. Self-hosted deployments can configure these limits.
+A synchronous run is capped at **5 minutes on the free plan** and **50 minutes on paid plans**. Async runs get **90 minutes** by default; Enterprise administrators can configure their workflow policy up to **7 days**. Direct async API callers may shorten that policy for an individual request, but cannot extend it. A run that hits the ceiling fails with "Execution timed out." The usual causes are a loop over a large list or a slow agent or API call — split the work, or run it async. Self-hosted deployments can configure these limits.
 
 ## Watching a run
 

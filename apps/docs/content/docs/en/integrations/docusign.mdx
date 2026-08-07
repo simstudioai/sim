@@ -35,7 +35,7 @@ Create and send envelopes for e-signature, use templates, check signing status, 
 
 ## Actions
 
-### `docusign_send_envelope`
+### Send DocuSign Envelope
 
 Create and send a DocuSign envelope with a document for e-signature
 
@@ -61,7 +61,7 @@ Create and send a DocuSign envelope with a document for e-signature
 | `statusDateTime` | string | Status change datetime |
 | `uri` | string | Envelope URI |
 
-### `docusign_create_from_template`
+### Send from DocuSign Template
 
 Create and send a DocuSign envelope using a pre-built template
 
@@ -84,7 +84,7 @@ Create and send a DocuSign envelope using a pre-built template
 | `statusDateTime` | string | Status change datetime |
 | `uri` | string | Envelope URI |
 
-### `docusign_get_envelope`
+### Get DocuSign Envelope
 
 Get the details and status of a DocuSign envelope
 
@@ -109,7 +109,7 @@ Get the details and status of a DocuSign envelope
 | `signerCount` | number | Number of signers |
 | `documentCount` | number | Number of documents |
 
-### `docusign_list_envelopes`
+### List DocuSign Envelopes
 
 List envelopes from your DocuSign account with optional filters
 
@@ -138,7 +138,7 @@ List envelopes from your DocuSign account with optional filters
 | `totalSetSize` | number | Total number of matching envelopes |
 | `resultSetSize` | number | Number of envelopes returned in this response |
 
-### `docusign_void_envelope`
+### Void DocuSign Envelope
 
 Void (cancel) a sent DocuSign envelope that has not yet been completed
 
@@ -156,7 +156,7 @@ Void (cancel) a sent DocuSign envelope that has not yet been completed
 | `envelopeId` | string | Voided envelope ID |
 | `status` | string | Envelope status \(voided\) |
 
-### `docusign_download_document`
+### Download DocuSign Document
 
 Download a signed document from a completed DocuSign envelope
 
@@ -176,7 +176,7 @@ Download a signed document from a completed DocuSign envelope
 | `mimeType` | string | MIME type of the document |
 | `fileName` | string | Original file name |
 
-### `docusign_list_templates`
+### List DocuSign Templates
 
 List available templates in your DocuSign account
 
@@ -201,7 +201,7 @@ List available templates in your DocuSign account
 | `totalSetSize` | number | Total number of matching templates |
 | `resultSetSize` | number | Number of templates returned in this response |
 
-### `docusign_list_recipients`
+### List DocuSign Recipients
 
 Get the recipient status details for a DocuSign envelope
 

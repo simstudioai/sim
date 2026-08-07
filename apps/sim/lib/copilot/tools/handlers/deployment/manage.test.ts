@@ -200,7 +200,7 @@ describe('executePromoteToLive', () => {
       workflowId: 'wf-1',
       version: 3,
       userId: 'user-1',
-      idempotencyKey: 'copilot:execution-1:tool-call:call-1',
+      idempotencyKey: 'copilot:execution-1:operation:promote_to_live',
     })
     expect(result.success).toBe(true)
     expect(result.output).toMatchObject({

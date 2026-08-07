@@ -2,6 +2,7 @@ import { type Grammar, languages, highlight as prismHighlight } from 'prismjs'
 import 'prismjs/components/prism-javascript'
 import 'prismjs/components/prism-python'
 import 'prismjs/components/prism-json'
+import 'prismjs/components/prism-bash'
 
 /**
  * Prism.js highlighting utilities isolated in a dedicated module.

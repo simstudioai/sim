@@ -65,20 +65,10 @@ When the user runs `/ship`:
     echo "❌ block registry audit failed — do not ship"
     exit 1
   }
-  rm -f /tmp/ship-audit-results
-  for s in check:boundaries check:api-validation:strict check:desktop-bridge check:desktop-ipc \
-           check:utils check:zustand-v5 \
-           check:react-query check:client-boundary check:bare-icons check:icon-paths \
-           check:realtime-prune check:tool-registry-boundary tool-metadata:check \
-           integration-catalog:check skills:check agent-stream-docs:check; do
-    ( bun run "$s" >"/tmp/ship-audit-${s//:/-}.log" 2>&1; echo "$? $s" >>/tmp/ship-audit-results ) &
-  done
-  wait
-  # any non-zero line is a failing audit — read its /tmp/ship-audit-<name>.log and fix before shipping.
-  # `exit 1` on failure preserves the original sequential checks' semantics (their non-zero exit is
-  # what an agent gates on); never use `grep … && echo ❌ || echo ✅` here — it always exits 0.
-  if grep -vE '^0 ' /tmp/ship-audit-results; then echo "❌ audit(s) failed — do not ship"; exit 1; fi
-  echo "✅ all audits passed"
+  # Runs every audit CI runs, concurrently, and replays the output of any that fail.
+  # Do not hand-list the audits here: the list is derived in scripts/run-audits.ts, and the
+  # copy that used to live in this file had already drifted five audits behind package.json.
+  bun run check:audits || { echo "❌ audit(s) failed — do not ship"; exit 1; }
   ```
   If Phase A regenerated a file, its matching `:check` in Phase B now passes trivially — that parity is the point. Do not ship with any generator or audit failing; fix the cause (never silence it) and re-run. `check:migrations` and `type-check` are covered by steps 5 and CI respectively and are not repeated here.
 7. **Stage and commit** the changes with the generated message — including any files Phase A regenerated in step 6

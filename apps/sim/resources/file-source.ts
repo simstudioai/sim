@@ -32,6 +32,12 @@ export interface FileViewRecord {
 export interface FileContentUrlOptions {
   /** Request the uncompiled source instead of the rendered/compiled bytes. */
   raw?: boolean
+  /**
+   * Declare the bytes are being rendered, not downloaded, so the server may
+   * substitute a browser-renderable derivative for a format no browser decodes
+   * (HEIC). Downloads must leave this off — they need the stored bytes.
+   */
+  preview?: boolean
   /** Content version (e.g. the record's `updatedAt`) — makes the URL cacheable/immutable. */
   version?: string | number
   /** Append a timestamp cache-buster when there is no `version`. */
@@ -73,14 +79,46 @@ export function fileContentUrl(
   key: string,
   options?: FileContentUrlOptions
 ): string {
-  if (source.via === 'share') return `${shareBase(source)}/content`
+  if (source.via === 'share') {
+    const base = `${shareBase(source)}/content`
+    return options?.preview ? `${base}?preview=1` : base
+  }
 
   const base = `/api/files/serve/${encodeURIComponent(key)}?context=workspace`
   const params: string[] = []
   if (options?.version != null) params.push(`v=${encodeURIComponent(String(options.version))}`)
   else if (options?.bust) params.push(`t=${Date.now()}`)
   if (options?.raw) params.push('raw=1')
+  if (options?.preview) params.push('preview=1')
   return params.length > 0 ? `${base}&${params.join('&')}` : base
+}
+
+export interface ImageDimensions {
+  width: number
+  height: number
+}
+
+/**
+ * Optional per-source capability: reserve layout space for an embedded image from its
+ * intrinsic size, so it never reflows on load. The workspace source backs this with
+ * file-list metadata plus a self-correcting metadata write; a share source has no file
+ * list to read and no write to make, so it falls back to on-load measurement (one
+ * reflow, no persist).
+ */
+export interface ImageDimensionsSource {
+  /** Intrinsic dimensions for an embedded image `src` if already known — read synchronously at render. */
+  getImageDimensions: (src: string | undefined) => ImageDimensions | null
+  /**
+   * Persist an image's measured intrinsic dimensions (fire-and-forget). Overwrites a stored value that
+   * disagrees so a stale size self-corrects; a no-op only when the stored value already matches.
+   */
+  reportImageDimensions: (src: string | undefined, dimensions: ImageDimensions) => void
+}
+
+/** The capability for a source that resolves no dimensions. Module scope, so its identity is stable. */
+export const NO_IMAGE_DIMENSIONS: ImageDimensionsSource = {
+  getImageDimensions: () => null,
+  reportImageDimensions: () => {},
 }
 
 function inlineRefQuery(ref: NonNullable<EmbeddedFileRef>): string {

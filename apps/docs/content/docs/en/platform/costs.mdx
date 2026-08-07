@@ -246,11 +246,11 @@ When configured, workflows use your key instead of Sim's hosted keys. If removed
 
 ## Voice Input
 
-Voice input uses ElevenLabs Scribe v2 Realtime for speech-to-text transcription. It is available in the Mothership chat and in deployed chat voice mode.
+Voice input uses ElevenLabs Scribe v2 Realtime for speech-to-text transcription. It is available in Chat and in deployed chat voice mode.
 
 | Context | Cost per session | Max duration |
 |---------|-----------------|--------------|
-| Mothership (workspace) | ~5 credits ($0.024) | 3 minutes |
+| Chat (workspace) | ~5 credits ($0.024) | 3 minutes |
 | Deployed chat (voice mode) | ~2 credits ($0.008) | 1 minute |
 
 Each voice session is billed when it starts. In deployed chat voice mode, each conversation turn (speak → agent responds → speak again) is a separate session. Multi-turn conversations are billed per turn.
@@ -361,10 +361,11 @@ Storage follows the paid tier: Pro and Pro for Teams share the Pro limit, while 
 | Plan | Sync | Async |
 |------|------|-------|
 | **Free** | 5 minutes | 90 minutes |
-| **Pro / Max / Team / Enterprise** | 50 minutes | 90 minutes |
+| **Pro / Max / Team** | 50 minutes | 90 minutes |
+| **Enterprise** | 50 minutes | 90 minutes by default; configurable up to 7 days |
 
 **Sync runs** complete immediately and return results directly. These are triggered via the API with `async: false` (default) or through the UI.
-**Async runs** (triggered via API with `async: true`, webhooks, or schedules) run in the background.
+**Async runs** (triggered via API with `async: true`, webhooks, schedules, polling triggers, or table workflow columns) run in the background. A direct async API request can shorten the account policy for that request, but cannot extend it.
 
 <Callout type="info">
   If a workflow exceeds its time limit, it will be terminated and marked as failed with a timeout error. Design long-running workflows to use async runs or break them into smaller workflows.

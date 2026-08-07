@@ -1,4 +1,5 @@
 import {
+  loggerMock,
   queueTableRows,
   resetDbChainMock,
   resetEnvFlagsMock,
@@ -16,16 +17,20 @@ import {
   type Mock,
   vi,
 } from 'vitest'
+import type { AutoRoutingSignals } from '@/lib/model-router/resolve'
+import * as userFileBase64 from '@/lib/uploads/utils/user-file-base64.server'
 import { getAllBlocks } from '@/blocks'
 import { AGENT, BlockType, isMcpTool } from '@/executor/constants'
 import { AgentBlockHandler } from '@/executor/handlers/agent/agent-handler'
 import type { ExecutionContext, StreamingExecution } from '@/executor/types'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { executeProviderRequest } from '@/providers'
 import { installStreamingCostPolicy } from '@/providers/cost-policy'
 import { SIM_AUTO_MODEL_ID } from '@/providers/models'
 import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import { executeTool } from '@/tools'
+import { ToolSchemaEnrichmentError } from '@/tools/params'
 
 process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
 
@@ -117,6 +122,9 @@ const mockGetProviderFromModel = getProviderFromModel as Mock
 const mockTransformBlockTool = transformBlockTool as Mock
 const mockFetch = vi.fn()
 const mockExecuteProviderRequest = executeProviderRequest as Mock
+const mockAgentLogger = vi.mocked(loggerMock.createLogger).mock.results[
+  vi.mocked(loggerMock.createLogger).mock.calls.findIndex(([name]) => name === 'AgentBlockHandler')
+].value
 
 beforeAll(() => {
   setEnvFlags({ isDev: true, isTest: false })
@@ -176,6 +184,7 @@ describe('AgentBlockHandler', () => {
         version: '1.0.0',
         loops: {},
       } as SerializedWorkflow,
+      resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
     }
     mockGetProviderFromModel.mockReturnValue('mock-provider')
 
@@ -282,6 +291,24 @@ describe('AgentBlockHandler', () => {
       expect(result).toEqual(expectedOutput)
     })
 
+    it('fails fast when a configured tool schema cannot be enriched', async () => {
+      const error = new ToolSchemaEnrichmentError(
+        'table_query_rows',
+        new Error('table metadata unavailable')
+      )
+      mockTransformBlockTool.mockRejectedValueOnce(error)
+
+      await expect(
+        handler.execute(mockContext, mockBlock, {
+          model: 'gpt-4o',
+          userPrompt: 'Query the table',
+          apiKey: 'test-api-key',
+          tools: [{ type: 'table', operation: 'query_rows', usageControl: 'auto' }],
+        })
+      ).rejects.toBe(error)
+      expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
+    })
+
     it('reports a sim-auto run under the sim-auto identity, not the model that served it', async () => {
       mockExecuteProviderRequest.mockResolvedValue({
         content: 'Mocked response content',
@@ -322,6 +349,18 @@ describe('AgentBlockHandler', () => {
           buildAutoRoutingSignals: (i: unknown, rf: unknown) => { mediaKind: string }
         }
       ).buildAutoRoutingSignals(inputs, undefined)
+
+    it('leaves auto-routing signal projection to the shared model router boundary', () => {
+      const signals = buildAutoRoutingSignalsFor({
+        systemPrompt: 'Keep routing-secret-value private',
+        userPrompt: 'Use routing-secret-value',
+        tools: [{ title: 'routing-secret-value' }],
+      }) as AutoRoutingSignals
+
+      expect(signals.systemPrompt).toBe('Keep routing-secret-value private')
+      expect(signals.lastMessage).toBe('Use routing-secret-value')
+      expect(signals.toolNames).toEqual(['routing-secret-value'])
+    })
 
     const png = { id: 'f1', type: 'image/png' }
     const pdf = { id: 'f2', type: 'application/pdf' }
@@ -448,6 +487,47 @@ describe('AgentBlockHandler', () => {
           },
         ],
       })
+    })
+
+    it('normalizes the persisted workspace-picker shape before provider execution', async () => {
+      const key = 'workspace/ws-1/example.png'
+      const hydrationSpy = vi
+        .spyOn(userFileBase64, 'hydrateUserFilesWithBase64')
+        .mockImplementationOnce(async (files) =>
+          files.map((file) => ({ ...file, base64: 'aW1hZ2U=' }))
+        )
+
+      try {
+        mockGetProviderFromModel.mockReturnValue('openai')
+
+        await handler.execute(mockContext, mockBlock, {
+          model: 'gpt-4o',
+          userPrompt: 'Analyze this file',
+          files: [
+            {
+              name: 'example.png',
+              path: `/api/files/serve/${encodeURIComponent(key)}?context=workspace`,
+              key,
+              size: 128,
+              type: 'image/png',
+            },
+          ],
+          apiKey: 'test-api-key',
+        })
+
+        const normalizedFile = hydrationSpy.mock.calls[0][0][0]
+        expect(normalizedFile).toMatchObject({
+          id: expect.stringMatching(/^file-\d+$/),
+          key,
+          name: 'example.png',
+          type: 'image/png',
+        })
+        expect(mockExecuteProviderRequest.mock.calls[0][1].messages.at(-1)?.files).toEqual([
+          expect.objectContaining({ key, name: 'example.png', base64: 'aW1hZ2U=' }),
+        ])
+      } finally {
+        hydrationSpy.mockRestore()
+      }
     })
 
     it('should reject files for providers without attachment support', async () => {
@@ -977,6 +1057,49 @@ describe('AgentBlockHandler', () => {
       await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
         'Provider API Error'
       )
+    })
+
+    /**
+     * A stalled model call reaches here as the runtime's own `TimeoutError`, whose bare
+     * message ("The operation timed out.") names nothing. It must become a Sim-level
+     * message WITHOUT discarding the phase detail the provider attached — that detail is
+     * the only thing distinguishing "never answered" from "body never completed".
+     */
+    it('maps a provider TimeoutError to a Sim message while keeping the phase detail', async () => {
+      const inputs = { model: 'gpt-4o', userPrompt: 'hi', apiKey: 'test-api-key' }
+      mockGetProviderFromModel.mockReturnValue('openai')
+
+      // Faithful to production: providers rewrap the transport failure in a
+      // ProviderError, which overwrites `name` — so only the cause still classifies it.
+      const transport = new Error(
+        'The operation timed out. [phase=reading-response-body elapsedMs=60001 status=200 contentLength=32116]'
+      )
+      transport.name = 'TimeoutError'
+      const wrapped = new Error(transport.message, { cause: transport })
+      wrapped.name = 'ProviderError'
+      mockExecuteProviderRequest.mockRejectedValueOnce(wrapped)
+
+      const error = await handler.execute(mockContext, mockBlock, inputs).catch((e) => e)
+
+      expect(error.message).toContain('Provider request timed out')
+      expect(error.message).toContain('phase=reading-response-body')
+      expect(error.message).toContain('status=200')
+    })
+
+    it('maps a provider AbortError the same way', async () => {
+      const inputs = { model: 'gpt-4o', userPrompt: 'hi', apiKey: 'test-api-key' }
+      mockGetProviderFromModel.mockReturnValue('openai')
+
+      const aborted = new Error('aborted [phase=awaiting-response-headers elapsedMs=12]')
+      aborted.name = 'AbortError'
+      const wrapped = new Error(aborted.message, { cause: aborted })
+      wrapped.name = 'ProviderError'
+      mockExecuteProviderRequest.mockRejectedValueOnce(wrapped)
+
+      const error = await handler.execute(mockContext, mockBlock, inputs).catch((e) => e)
+
+      expect(error.message).toContain('Provider request timed out')
+      expect(error.message).toContain('phase=awaiting-response-headers')
     })
 
     it('should handle streaming responses with text/event-stream content type', async () => {
@@ -2497,6 +2620,200 @@ describe('AgentBlockHandler', () => {
         expect(tools[0].name).toBe('formatReport')
         expect(tools[0].parameters.required).not.toContain('format')
       })
+    })
+  })
+
+  describe('secret-safe diagnostics', () => {
+    const privateHandler = () =>
+      handler as unknown as {
+        formatTools: (
+          ctx: ExecutionContext,
+          tools: Array<Record<string, unknown>>
+        ) => Promise<unknown[]>
+        handleExecutionError: (
+          error: unknown,
+          startTime: number,
+          provider: string,
+          model: string,
+          ctx: ExecutionContext,
+          block: SerializedBlock
+        ) => void
+        processStructuredResponse: (
+          result: Record<string, unknown>,
+          responseFormat: unknown,
+          ctx: ExecutionContext
+        ) => Record<string, unknown>
+      }
+
+    it('projects provider errors and internal runtime identifiers before logging', () => {
+      const registry = new ResolvedSecretTraceRegistry([
+        {
+          name: 'TOKEN',
+          plaintext: 'diagnostic-secret',
+          encryptedValue: 'encrypted-diagnostic-secret',
+        },
+      ])
+      registry.recordResolved('TOKEN', 'diagnostic-secret')
+      const ctx = { ...mockContext, resolvedSecretTraceRegistry: registry }
+
+      privateHandler().handleExecutionError(
+        new Error('failed with diagnostic-secret __var_TOKEN __sim_runtime_test_1'),
+        Date.now(),
+        'diagnostic-secret',
+        '__var_TOKEN',
+        ctx,
+        mockBlock
+      )
+
+      const serializedCalls = JSON.stringify(mockAgentLogger.error.mock.calls)
+      expect(serializedCalls).not.toContain('diagnostic-secret')
+      expect(serializedCalls).not.toContain('__var_')
+      expect(serializedCalls).not.toContain('__sim_')
+      expect(mockAgentLogger.error).toHaveBeenCalledWith(
+        'Error executing provider request',
+        expect.objectContaining({
+          provider: '{{TOKEN}}',
+          model: '{{TOKEN}}',
+          errorMessage: 'failed with {{TOKEN}} {{TOKEN}} [RUNTIME_BINDING]',
+        })
+      )
+    })
+
+    it('fails closed to structural provider diagnostics without a complete registry', () => {
+      const ctx = { ...mockContext, resolvedSecretTraceRegistry: undefined }
+
+      privateHandler().handleExecutionError(
+        new Error('untracked-secret __var_TOKEN __sim_runtime_test_1'),
+        Date.now(),
+        'untracked-secret',
+        '__var_TOKEN',
+        ctx,
+        mockBlock
+      )
+
+      const metadata = mockAgentLogger.error.mock.calls.at(-1)?.[1]
+      expect(metadata).toEqual(
+        expect.objectContaining({
+          workflowId: mockContext.workflowId,
+          blockId: mockBlock.id,
+          errorType: 'error',
+        })
+      )
+      expect(metadata).not.toHaveProperty('provider')
+      expect(metadata).not.toHaveProperty('model')
+      expect(metadata).not.toHaveProperty('errorMessage')
+      expect(JSON.stringify(mockAgentLogger.error.mock.calls)).not.toContain('untracked-secret')
+      expect(JSON.stringify(mockAgentLogger.error.mock.calls)).not.toContain('__var_')
+      expect(JSON.stringify(mockAgentLogger.error.mock.calls)).not.toContain('__sim_')
+    })
+
+    it('projects tool diagnostics without logging code or raw params', async () => {
+      const registry = new ResolvedSecretTraceRegistry([
+        {
+          name: 'TOKEN',
+          plaintext: 'tool-secret',
+          encryptedValue: 'encrypted-tool-secret',
+        },
+      ])
+      registry.recordResolved('TOKEN', 'tool-secret')
+      const ctx = { ...mockContext, resolvedSecretTraceRegistry: registry }
+      vi.spyOn(handler as never, 'createCustomTool' as never).mockRejectedValueOnce(
+        new Error('tool-secret __var_TOKEN __sim_runtime_test_1') as never
+      )
+
+      await privateHandler().formatTools(ctx, [
+        {
+          type: 'custom-tool',
+          title: 'tool-secret',
+          operation: 'tool-secret',
+          code: 'raw-code-must-not-be-logged',
+          schema: {},
+          params: {
+            toolName: '__var_TOKEN',
+            serverId: 'tool-secret',
+            config: 'raw-config-must-not-be-logged',
+          },
+        },
+      ])
+
+      const serializedCalls = JSON.stringify(mockAgentLogger.error.mock.calls)
+      expect(serializedCalls).not.toContain('tool-secret')
+      expect(serializedCalls).not.toContain('__var_')
+      expect(serializedCalls).not.toContain('__sim_')
+      expect(serializedCalls).not.toContain('raw-code-must-not-be-logged')
+      expect(serializedCalls).not.toContain('raw-config-must-not-be-logged')
+      expect(mockAgentLogger.error).toHaveBeenCalledWith(
+        '[AgentHandler] Error creating tool',
+        expect.objectContaining({
+          title: '{{TOKEN}}',
+          operation: '{{TOKEN}}',
+          toolName: '{{TOKEN}}',
+          serverId: '{{TOKEN}}',
+          errorMessage: '{{TOKEN}} {{TOKEN}} [RUNTIME_BINDING]',
+          hasParams: true,
+        })
+      )
+    })
+
+    it('retains useful ordinary tool diagnostics with a complete empty registry', async () => {
+      vi.spyOn(handler as never, 'createCustomTool' as never).mockRejectedValueOnce(
+        new Error('ordinary transform failure') as never
+      )
+
+      await privateHandler().formatTools(mockContext, [
+        {
+          type: 'custom-tool',
+          title: 'Ordinary Tool',
+          operation: 'lookup',
+          schema: {},
+          params: { toolName: 'lookup_item', serverId: 'server-1' },
+        },
+      ])
+
+      expect(mockAgentLogger.error).toHaveBeenCalledWith(
+        '[AgentHandler] Error creating tool',
+        expect.objectContaining({
+          toolType: 'custom-tool',
+          title: 'Ordinary Tool',
+          operation: 'lookup',
+          toolName: 'lookup_item',
+          serverId: 'server-1',
+          errorMessage: 'ordinary transform failure',
+          hasParams: true,
+        })
+      )
+    })
+
+    it('projects malformed model content and response format only in diagnostics', () => {
+      const registry = new ResolvedSecretTraceRegistry([
+        {
+          name: 'TOKEN',
+          plaintext: 'format-secret',
+          encryptedValue: 'encrypted-format-secret',
+        },
+      ])
+      registry.recordResolved('TOKEN', 'format-secret')
+      const ctx = { ...mockContext, resolvedSecretTraceRegistry: registry }
+      const content = 'not-json format-secret __var_TOKEN __sim_runtime_test_1'
+
+      const result = privateHandler().processStructuredResponse(
+        { content },
+        { schema: 'format-secret', alias: '__var_TOKEN' },
+        ctx
+      )
+
+      expect(result.content).toBe(content)
+      const serializedCalls = JSON.stringify(mockAgentLogger.error.mock.calls)
+      expect(serializedCalls).not.toContain('format-secret')
+      expect(serializedCalls).not.toContain('__var_')
+      expect(serializedCalls).not.toContain('__sim_')
+      expect(mockAgentLogger.error).toHaveBeenCalledWith(
+        'LLM did not adhere to structured response format',
+        expect.objectContaining({
+          content: 'not-json {{TOKEN}} {{TOKEN}} [RUNTIME_BINDING]',
+          responseFormat: { schema: '{{TOKEN}}', alias: '{{TOKEN}}' },
+        })
+      )
     })
   })
 

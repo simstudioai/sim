@@ -18,7 +18,12 @@ import {
   readResponseToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { validateOpaqueModelInputProvenance } from '@/lib/execution/model-input-provenance'
 import { type FalAICostMetadata, getFalAICostMetadata } from '@/lib/tools/falai-pricing'
+import {
+  isModelSafeWorkspaceFileKey,
+  MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
+} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 import type { UserFile } from '@/executor/types'
@@ -30,11 +35,11 @@ const MAX_VIDEO_JSON_BYTES = 2 * 1024 * 1024
 
 export const dynamic = 'force-dynamic'
 /**
- * Mirrors the maximum plan execution timeout (enterprise async, 90 minutes) used by
+ * Mirrors the hosted workflow execution ceiling (7 days) used by
  * `getMaxExecutionTimeout()` for the provider polling loops below. Next.js requires a
  * static literal for `maxDuration`, so this value must be kept in sync with that source.
  */
-export const maxDuration = 5400
+export const maxDuration = 604800
 
 async function readVideoResponseBuffer(response: Response, label: string): Promise<Buffer> {
   return readResponseToBufferWithLimit(response, {
@@ -88,6 +93,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const body = parsed.data.body
     const { provider, apiKey, model, prompt, duration, aspectRatio, resolution } = body
+    if (provider === 'runway') {
+      const modelInputProvenance = validateOpaqueModelInputProvenance({
+        headers: request.headers,
+        payload: body,
+        isInternalRequest: true,
+      })
+      if (!modelInputProvenance.success) {
+        return NextResponse.json(
+          { error: modelInputProvenance.error },
+          { status: modelInputProvenance.status }
+        )
+      }
+    }
 
     const validProviders = videoProviders
     if (!validProviders.includes(provider as (typeof videoProviders)[number])) {
@@ -155,6 +173,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         logger
       )
       if (denied) return denied
+      if (!(await isModelSafeWorkspaceFileKey(body.visualReference.key))) {
+        return NextResponse.json(
+          { error: MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE },
+          { status: 400 }
+        )
+      }
     }
 
     try {

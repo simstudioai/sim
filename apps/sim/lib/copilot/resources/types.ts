@@ -22,6 +22,21 @@ export interface MothershipResource {
   path?: string
 }
 
+/**
+ * What a chip in an assistant message knows about the resource it points at,
+ * before it has been resolved. The agent writes these tags as text, so a file
+ * it just created is usually named but not yet identified. A ref becomes a
+ * {@link MothershipResource} only through resolution, which may fail — see
+ * {@link isAddressableResource} for why the unresolved state is modelled rather
+ * than filled in.
+ */
+export interface WorkspaceResourceRef {
+  type: MothershipResourceType
+  id?: string
+  path?: string
+  title: string
+}
+
 interface ResourcePolicy {
   /** Stored with the chat, so the tab is still there when the chat is reopened. */
   persisted: boolean
@@ -120,8 +135,36 @@ export function canonicalizeDesktopSessionResource(
   return resource
 }
 
-/** Canonicalizes and deduplicates the singleton desktop panels in display order. */
-export function canonicalizeDesktopSessionResources(
+/**
+ * Whether an id value names something the app can act on.
+ *
+ * This is the definition every layer defers to, so they cannot disagree about
+ * whitespace. Takes `unknown` because two of its callers validate untrusted
+ * input — a stream payload and a chat request body — before it has a type.
+ */
+export function hasAddressableId(id: unknown): boolean {
+  return typeof id === 'string' && id.trim().length > 0
+}
+
+/**
+ * True when the resource names something the app can actually act on.
+ *
+ * A blank id points at nothing: it cannot be opened, resolved into agent
+ * context, or even removed, since the resources API requires a non-empty
+ * `resourceId` to delete. Storing one used to be possible, and it made the chat
+ * reject every later message — the write contract accepted `id: ''` while the
+ * send schema required `min(1)`.
+ */
+export function isAddressableResource(resource: MothershipResource): boolean {
+  return hasAddressableId(resource.id)
+}
+
+/**
+ * Canonicalizes and deduplicates the singleton desktop panels in display order.
+ * Module-private: callers want {@link sanitizeChatResources}, which also drops
+ * unaddressable resources.
+ */
+function canonicalizeDesktopSessionResources(
   resources: readonly MothershipResource[]
 ): MothershipResource[] {
   const seenDesktopTypes = new Set<'browser' | 'terminal'>()
@@ -136,6 +179,19 @@ export function canonicalizeDesktopSessionResources(
   }
 
   return canonical
+}
+
+/**
+ * The canonical form of a chat's resource list: singleton desktop panels
+ * collapsed, unaddressable resources dropped. Every path that reads or writes
+ * stored resources goes through this, which is what heals chats that already
+ * hold one. Canonicalization runs first, so the browser and terminal panels —
+ * which are given their ids there — are never dropped for arriving without one.
+ */
+export function sanitizeChatResources(
+  resources: readonly MothershipResource[]
+): MothershipResource[] {
+  return canonicalizeDesktopSessionResources(resources).filter(isAddressableResource)
 }
 
 /** Placeholder resource titles that a more specific title may overwrite during dedup. */

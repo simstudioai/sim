@@ -22,6 +22,7 @@ import {
   externalizeExecutionData,
   materializeExecutionData,
   projectExecutionDataForDisplay,
+  SECRET_PROJECTION_VERSION,
   TRACE_STORE_REF_KEY,
 } from '@/lib/logs/execution/trace-store'
 
@@ -55,6 +56,7 @@ describe('execution data storage', () => {
 
     const slim = await externalizeExecutionData(
       {
+        secretProjectionVersion: SECRET_PROJECTION_VERSION,
         correlation,
         hasTraceSpans: true,
         traceSpanCount: 2,
@@ -73,12 +75,14 @@ describe('execution data storage', () => {
         key: 'execution/workspace-1/workflow-1/execution-1/large-value-lv_bbbbbbbbbbbb.json',
         executionId: 'execution-1',
       },
+      secretProjectionVersion: SECRET_PROJECTION_VERSION,
       correlation,
       hasTraceSpans: true,
       traceSpanCount: 2,
     })
 
     await expect(materializeExecutionData(slim, CONTEXT)).resolves.toEqual({
+      secretProjectionVersion: SECRET_PROJECTION_VERSION,
       correlation,
       hasTraceSpans: true,
       traceSpanCount: 2,
@@ -87,7 +91,7 @@ describe('execution data storage', () => {
 })
 
 describe('projectExecutionDataForDisplay', () => {
-  it('projects persisted output, input, errors, and spans from trusted provenance', async () => {
+  it('retains run-global projection for legacy rows without exact value sidecars', async () => {
     const executionData = {
       finalOutput: { result: 1234, derived: 1239 },
       workflowInput: { nested: { token: 'prefix-1234-suffix' } },
@@ -140,12 +144,44 @@ describe('projectExecutionDataForDisplay', () => {
     expect(JSON.stringify(displayData)).not.toContain('1234')
   })
 
-  it('omits log content and keeps only structural traces without trusted provenance', async () => {
+  it('projects only values carrying exact provenance when sibling fields share low-entropy bytes', async () => {
+    decryptSecretMock.mockResolvedValue({ decrypted: 'Test' })
+    const secretProvenance = {
+      version: 1 as const,
+      complete: true,
+      entries: [{ name: 'TOKEN', encryptedValue: 'ciphertext' }],
+      scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+    }
+    const emptyProvenance = {
+      version: 1 as const,
+      complete: true,
+      entries: [],
+      scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+    }
+    const executionData = {
+      finalOutput: { result: 'Test' },
+      workflowInput: { token: 'Test' },
+      executionState: {
+        resolvedSecretTraceProvenance: secretProvenance,
+        finalOutputResolvedSecretTraceProvenance: emptyProvenance,
+        workflowInputResolvedSecretTraceProvenance: secretProvenance,
+      },
+    }
+
+    const displayData = await projectExecutionDataForDisplay(executionData, CONTEXT)
+
+    expect(displayData.finalOutput).toEqual({ result: 'Test' })
+    expect(displayData.workflowInput).toEqual({ token: '{{TOKEN}}' })
+    expect(displayData).not.toHaveProperty('executionState')
+  })
+
+  it('preserves the full display envelope for legacy rows without a projection contract', async () => {
     const displayData = await projectExecutionDataForDisplay(
       {
         finalOutput: { result: 'unknown-secret' },
         workflowInput: { token: 'unknown-secret' },
         completionFailure: 'unknown-secret',
+        executionState: { blockStates: { start: { output: 'legacy-input' } } },
         traceSpans: [
           {
             id: 'span-1',
@@ -161,12 +197,60 @@ describe('projectExecutionDataForDisplay', () => {
       CONTEXT
     )
 
+    expect(displayData.finalOutput).toEqual({ result: 'unknown-secret' })
+    expect(displayData.workflowInput).toEqual({ token: 'unknown-secret' })
+    expect(displayData.completionFailure).toBe('unknown-secret')
+    expect(displayData).not.toHaveProperty('executionState')
+    expect(displayData.traceSpans).toEqual([
+      expect.objectContaining({ output: { result: 'unknown-secret' } }),
+    ])
+  })
+
+  it('fails closed for contract-aware rows without provenance', async () => {
+    const displayData = await projectExecutionDataForDisplay(
+      {
+        secretProjectionVersion: SECRET_PROJECTION_VERSION,
+        finalOutput: { result: 'unknown-secret' },
+        workflowInput: { token: 'unknown-secret' },
+        traceSpans: [
+          {
+            id: 'span-1',
+            name: 'Function 1',
+            type: 'function',
+            duration: 1,
+            startTime: '2026-07-31T00:00:00.000Z',
+            endTime: '2026-07-31T00:00:00.001Z',
+            output: { result: 'unknown-secret' },
+          },
+        ],
+      },
+      CONTEXT
+    )
+
+    expect(displayData).not.toHaveProperty('secretProjectionVersion')
     expect(displayData).not.toHaveProperty('finalOutput')
     expect(displayData).not.toHaveProperty('workflowInput')
-    expect(displayData).not.toHaveProperty('completionFailure')
     expect(displayData.traceSpans).toEqual([
       expect.not.objectContaining({ output: expect.anything() }),
     ])
+  })
+
+  it('fails closed when persisted provenance is incomplete', async () => {
+    const displayData = await projectExecutionDataForDisplay(
+      {
+        finalOutput: { result: 'unknown-secret' },
+        executionState: {
+          resolvedSecretTraceProvenance: {
+            version: 1,
+            complete: false,
+            entries: [],
+          },
+        },
+      },
+      CONTEXT
+    )
+
+    expect(displayData).not.toHaveProperty('finalOutput')
   })
 
   it('preserves direct literals when trusted provenance has no activated secrets', async () => {
@@ -191,6 +275,7 @@ describe('projectExecutionDataForDisplay', () => {
   it('omits malformed trace content even when it was present on the stored row', async () => {
     const displayData = await projectExecutionDataForDisplay(
       {
+        secretProjectionVersion: SECRET_PROJECTION_VERSION,
         traceSpans: { output: 'unsafe' },
       },
       CONTEXT

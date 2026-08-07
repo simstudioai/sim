@@ -20,7 +20,7 @@ import { env } from '@/lib/core/config/env'
 import { getCostMultiplier, isBillingEnabled } from '@/lib/core/config/env-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { enrichSandboxPackages } from '@/lib/execution/remote-sandbox/wand-enricher'
+import { enrichSandboxCapabilities } from '@/lib/execution/remote-sandbox/wand-enricher'
 import { enrichTableSchema } from '@/lib/table/llm/wand'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 import { extractResponseText, parseResponsesUsage } from '@/providers/openai/utils'
@@ -91,9 +91,8 @@ Use this context to calculate relative dates like "yesterday", "last week", "beg
   },
 
   'table-schema': enrichTableSchema,
-  // Both the JavaScript and Python code prompts generate under this type — the
-  // Python swap in `code.tsx` replaces the prompt text but keeps the type.
-  'javascript-function-body': enrichSandboxPackages,
+  /** JavaScript, Python, and Shell swap prompt text while retaining sandbox enrichment. */
+  'javascript-function-body': enrichSandboxCapabilities,
 }
 
 async function updateUserStatsForWand(
@@ -326,6 +325,13 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     if (generationType === 'cron-expression') {
       finalSystemPrompt +=
         '\n\nIMPORTANT: Return ONLY the raw cron expression (e.g., "0 9 * * 1-5"). Do NOT wrap it in markdown code blocks, backticks, or quotes. Do NOT include any explanation or text before or after the expression.'
+    }
+
+    // Both the JavaScript and Python function-body prompts share this type, so
+    // the reinforcement stays language-neutral.
+    if (generationType === 'javascript-function-body') {
+      finalSystemPrompt +=
+        '\n\nIMPORTANT: Return ONLY the raw function body. Do NOT wrap it in markdown code blocks (no ```javascript, no ```python, no ```). Do NOT include any explanation before or after the code.'
     }
 
     if (generationType === 'json-object') {

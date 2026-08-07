@@ -7,6 +7,13 @@ import { getClientIp } from '@/lib/core/utils/request'
 
 const logger = createLogger('CronAuth')
 
+export type InternalSandboxProfile = 'mothership'
+
+export interface InternalTokenClaims {
+  /** Selects a server-owned sandbox image for a trusted internal execution. */
+  sandboxProfile?: InternalSandboxProfile
+}
+
 const getJwtSecret = () => {
   // Prefer a dedicated JWT signing key so the internal-JWT trust domain is
   // separable from the raw INTERNAL_API_SECRET shared-bearer secret: leaking one
@@ -21,13 +28,22 @@ const getJwtSecret = () => {
  * Generate an internal JWT token for server-side API calls
  * Token expires in 5 minutes to keep it short-lived
  * @param userId Optional user ID to embed in token payload
+ * @param claims Optional server-owned claims for the receiving internal route
  */
-export async function generateInternalToken(userId?: string): Promise<string> {
+export async function generateInternalToken(
+  userId?: string,
+  claims: InternalTokenClaims = {}
+): Promise<string> {
   const secret = getJwtSecret()
 
-  const payload: { type: string; userId?: string } = { type: 'internal' }
+  const payload: { type: string; userId?: string; sandboxProfile?: InternalSandboxProfile } = {
+    type: 'internal',
+  }
   if (userId) {
     payload.userId = userId
+  }
+  if (claims.sandboxProfile) {
+    payload.sandboxProfile = claims.sandboxProfile
   }
 
   const token = await new SignJWT(payload)
@@ -47,7 +63,7 @@ export async function generateInternalToken(userId?: string): Promise<string> {
  */
 export async function verifyInternalToken(
   token: string
-): Promise<{ valid: boolean; userId?: string }> {
+): Promise<{ valid: boolean; userId?: string; sandboxProfile?: InternalSandboxProfile }> {
   try {
     const secret = getJwtSecret()
 
@@ -58,9 +74,15 @@ export async function verifyInternalToken(
 
     // Check that it's an internal token
     if (payload.type === 'internal') {
+      if (payload.sandboxProfile !== undefined && payload.sandboxProfile !== 'mothership') {
+        return { valid: false }
+      }
       return {
         valid: true,
         userId: typeof payload.userId === 'string' ? payload.userId : undefined,
+        ...(payload.sandboxProfile === 'mothership'
+          ? { sandboxProfile: 'mothership' as const }
+          : {}),
       }
     }
 

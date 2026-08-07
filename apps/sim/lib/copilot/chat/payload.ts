@@ -395,10 +395,19 @@ export async function buildCopilotRequestPayload(
           content: lines.join('\n'),
         })
       } catch (err) {
+        const cause = toError(err)
         logger.warn('Failed to track chat upload', {
           filename,
           chatId,
-          error: toError(err).message,
+          error: cause.message,
+        })
+        // Isolate failures by entry. Aborting here discarded every valid
+        // sibling attachment in the request, even ones already tracked. Give
+        // the model a local marker for this file and continue preparing the
+        // rest of the batch.
+        uploadContexts.push({
+          type: 'uploaded_file',
+          content: `File "${filename}" could not be prepared for Copilot and was omitted. Other attached files remain available.`,
         })
       }
     }

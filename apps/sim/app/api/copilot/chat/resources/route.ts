@@ -19,8 +19,8 @@ import {
 import type { ChatResource } from '@/lib/copilot/resources/persistence'
 import {
   canonicalizeDesktopSessionResource,
-  canonicalizeDesktopSessionResources,
   GENERIC_RESOURCE_TITLES,
+  sanitizeChatResources,
 } from '@/lib/copilot/resources/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
@@ -67,7 +67,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       return createNotFoundResponse('Chat not found or unauthorized')
     }
 
-    const existing = canonicalizeDesktopSessionResources(
+    const existing = sanitizeChatResources(
       Array.isArray(chat.resources) ? (chat.resources as ChatResource[]) : []
     )
     const key = `${resource.type}:${resource.id}`
@@ -141,10 +141,10 @@ export const PATCH = withRouteHandler(async (req: NextRequest) => {
       return createNotFoundResponse('Chat not found or unauthorized')
     }
 
-    const existing = canonicalizeDesktopSessionResources(
+    const existing = sanitizeChatResources(
       Array.isArray(chat.resources) ? (chat.resources as ChatResource[]) : []
     )
-    const canonicalOrder = canonicalizeDesktopSessionResources(newOrder)
+    const canonicalOrder = sanitizeChatResources(newOrder)
     const existingKeys = new Set(existing.map((r) => `${r.type}:${r.id}`))
     const newKeys = new Set(canonicalOrder.map((r) => `${r.type}:${r.id}`))
 

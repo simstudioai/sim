@@ -9,6 +9,7 @@ const {
   mockUpdateColumnType,
   mockUpdateColumnOptions,
   mockResolveWorkspaceFileReference,
+  mockGetBoundWorkspaceFileSecretProvenance,
   mockDownloadWorkspaceFile,
   mockGetTableById,
   mockBatchInsertRows,
@@ -30,6 +31,7 @@ const {
   mockUpdateColumnType: vi.fn(),
   mockUpdateColumnOptions: vi.fn(),
   mockResolveWorkspaceFileReference: vi.fn(),
+  mockGetBoundWorkspaceFileSecretProvenance: vi.fn(),
   mockDownloadWorkspaceFile: vi.fn(),
   mockGetTableById: vi.fn(),
   mockBatchInsertRows: vi.fn(),
@@ -68,6 +70,10 @@ vi.mock('@sim/utils/id', () => ({
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   resolveWorkspaceFileReference: mockResolveWorkspaceFileReference,
   fetchWorkspaceFileBuffer: mockDownloadWorkspaceFile,
+}))
+
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
+  getBoundWorkspaceFileSecretProvenance: mockGetBoundWorkspaceFileSecretProvenance,
 }))
 
 vi.mock('@/enrichments/registry', () => ({
@@ -230,11 +236,13 @@ describe('userTableServerTool.import_file', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockResolveWorkspaceFileReference.mockResolvedValue({
+      id: 'file-1',
       name: 'people.csv',
       type: 'text/csv',
       key: 'workspace/workspace-1/people.csv',
       size: 100,
     })
+    mockGetBoundWorkspaceFileSecretProvenance.mockResolvedValue({ status: 'exact', entries: [] })
     mockDownloadWorkspaceFile.mockResolvedValue(Buffer.from('name,age\nAlice,30\nBob,40'))
     mockGetTableById.mockResolvedValue(buildTable())
     mockMarkTableJobRunning.mockResolvedValue(true)
@@ -282,6 +290,25 @@ describe('userTableServerTool.import_file', () => {
     expect(result.data?.insertedCount).toBe(2)
     expect(mockReplaceTableRows).toHaveBeenCalledTimes(1)
     expect(mockBatchInsertRows).not.toHaveBeenCalled()
+    const call = mockReplaceTableRows.mock.calls[0][0] as {
+      secretProvenance: Array<{ complete: boolean; columns: Record<string, unknown> }>
+    }
+    expect(call.secretProvenance).toEqual([
+      {
+        complete: true,
+        columns: {
+          name: { version: 1, complete: true, entries: [] },
+          age: { version: 1, complete: true, entries: [] },
+        },
+      },
+      {
+        complete: true,
+        columns: {
+          name: { version: 1, complete: true, entries: [] },
+          age: { version: 1, complete: true, entries: [] },
+        },
+      },
+    ])
   })
 
   it('uses the caller-provided mapping', async () => {
@@ -391,6 +418,7 @@ describe('userTableServerTool.import_file', () => {
 
   it('dispatches a background import for large CSV files', async () => {
     mockResolveWorkspaceFileReference.mockResolvedValueOnce({
+      id: 'file-1',
       name: 'big.csv',
       type: 'text/csv',
       key: 'workspace/workspace-1/big.csv',
@@ -418,6 +446,24 @@ describe('userTableServerTool.import_file', () => {
       mode: 'replace',
       deleteSourceFile: false,
     })
+  })
+
+  it('rejects a workspace file with resolved-secret provenance before importing rows', async () => {
+    mockGetBoundWorkspaceFileSecretProvenance.mockResolvedValueOnce({
+      status: 'exact',
+      entries: [{ name: 'API_KEY', encryptedValue: 'encrypted' }],
+    })
+
+    const result = await userTableServerTool.execute(
+      { operation: 'import_file', args: { tableId: 'tbl_1', fileId: 'file-1' } },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.message).toMatch(/cannot be verified as free of resolved secrets/i)
+    expect(mockDownloadWorkspaceFile).not.toHaveBeenCalled()
+    expect(mockMarkTableJobRunning).not.toHaveBeenCalled()
+    expect(mockBatchInsertRows).not.toHaveBeenCalled()
   })
 
   it('points a chat-upload path at materialize_file instead of globbing files/', async () => {
@@ -476,11 +522,13 @@ describe('userTableServerTool.create_from_file', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockResolveWorkspaceFileReference.mockResolvedValue({
+      id: 'file-1',
       name: 'people.csv',
       type: 'text/csv',
       key: 'workspace/workspace-1/people.csv',
       size: 100,
     })
+    mockGetBoundWorkspaceFileSecretProvenance.mockResolvedValue({ status: 'exact', entries: [] })
     mockDownloadWorkspaceFile.mockResolvedValue(Buffer.from('name,age\nAlice,30\nBob,40'))
     mockGetWorkspaceTableLimits.mockResolvedValue({ maxRowsPerTable: 1000, maxTables: 3 })
     mockCreateTable.mockResolvedValue(buildTable({ id: 'tbl_new', name: 'people' }))
@@ -537,6 +585,7 @@ describe('userTableServerTool.create_from_file', () => {
 
   it('creates a placeholder table and dispatches a background import for large CSV files', async () => {
     mockResolveWorkspaceFileReference.mockResolvedValueOnce({
+      id: 'file-1',
       name: 'big.csv',
       type: 'text/csv',
       key: 'workspace/workspace-1/big.csv',
@@ -567,6 +616,20 @@ describe('userTableServerTool.create_from_file', () => {
       fileKey: 'workspace/workspace-1/big.csv',
       deleteSourceFile: false,
     })
+  })
+
+  it('rejects unknown workspace-file provenance before creating a table', async () => {
+    mockGetBoundWorkspaceFileSecretProvenance.mockResolvedValueOnce({ status: 'unknown' })
+
+    const result = await userTableServerTool.execute(
+      { operation: 'create_from_file', args: { fileId: 'file-1' } },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.message).toMatch(/cannot be verified as free of resolved secrets/i)
+    expect(mockDownloadWorkspaceFile).not.toHaveBeenCalled()
+    expect(mockCreateTable).not.toHaveBeenCalled()
   })
 })
 
@@ -806,6 +869,21 @@ describe('userTableServerTool.query_rows', () => {
     expect(options.limit).toBeUndefined()
   })
 
+  it('normalizes a root condition before querying', async () => {
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'query_rows',
+        args: { tableId: 'tbl_1', filter: { field: 'name', op: 'eq', value: 'r1' } },
+      },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockQueryRows.mock.calls[0][1].predicate).toEqual({
+      all: [{ field: 'name', op: 'eq', value: 'r1' }],
+    })
+  })
+
   it('decodes an opaque cursor into after/offset and skips the count', async () => {
     const cursor = encodeCursor({
       lastRow: { id: 'row_9', orderKey: 'a9' },
@@ -929,6 +1007,19 @@ describe('userTableServerTool.delete_rows_by_filter', () => {
     // Inline delete still claims (and releases) the table's write-job slot.
     expect(mockMarkTableJobRunning).toHaveBeenCalledWith('tbl_1', expect.any(String), 'delete')
     expect(mockReleaseJobClaim).toHaveBeenCalled()
+  })
+
+  it('normalizes a root condition before deleting', async () => {
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'delete_rows_by_filter',
+        args: { tableId: 'tbl_1', filter: { field: 'name', op: 'eq', value: 'x' } },
+      },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockDeleteRowsByFilter.mock.calls[0][1].filter).toEqual({ $and: [{ name: 'x' }] })
   })
 
   it('rejects an inline delete while another job holds the table slot', async () => {
@@ -1088,6 +1179,23 @@ describe('userTableServerTool.update_rows_by_filter', () => {
     expect(result.data?.affectedCount).toBe(5)
     expect(mockUpdateRowsByFilter).toHaveBeenCalledTimes(1)
     expect(mockMarkTableJobRunning).not.toHaveBeenCalled()
+  })
+
+  it('normalizes a root condition before updating', async () => {
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'update_rows_by_filter',
+        args: {
+          tableId: 'tbl_1',
+          filter: { field: 'name', op: 'eq', value: 'x' },
+          data: { age: 1 },
+        },
+      },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockUpdateRowsByFilter.mock.calls[0][1].filter).toEqual({ $and: [{ name: 'x' }] })
   })
 
   it('dispatches a background update when the unbounded match count exceeds the cap', async () => {

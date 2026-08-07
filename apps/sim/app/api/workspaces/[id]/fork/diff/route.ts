@@ -10,6 +10,7 @@ import { loadTargetDraftSubBlocks } from '@/ee/workspace-forking/lib/copy/copy-w
 import {
   listForkExcludedDeployedWorkflows,
   loadSourceDeployedStates,
+  loadTargetWebhookPathsByBlock,
 } from '@/ee/workspace-forking/lib/copy/deploy-bridge'
 import { assertCanPromote } from '@/ee/workspace-forking/lib/lineage/authz'
 import { loadForkBlockMap } from '@/ee/workspace-forking/lib/mapping/block-map-store'
@@ -27,6 +28,7 @@ import {
   collectForkClearedRefCandidates,
 } from '@/ee/workspace-forking/lib/promote/cleared-refs'
 import { computeForkPromotePlan } from '@/ee/workspace-forking/lib/promote/promote-plan'
+import { buildForkTriggerPlan } from '@/ee/workspace-forking/lib/promote/trigger-urls'
 import { buildForkBlockIdResolver } from '@/ee/workspace-forking/lib/remap/block-identity'
 import { readTargetDraftDependentValue } from '@/ee/workspace-forking/lib/remap/remap-references'
 
@@ -173,6 +175,42 @@ export const GET = withRouteHandler(
       })
     )
 
+    // Trigger URLs this sync decides in the target - the "we had to re-paste the Slack Request
+    // URL again" case, surfaced as an editable pairing before the overwrite instead of discovered
+    // after it. The preview reports the plan's DEFAULT resolution; the user's picks ride the
+    // promote call, where the same plan is rebuilt and validated against them.
+    const triggerPlan = buildForkTriggerPlan({
+      items: plan.items,
+      sourceStates,
+      resolveBlockId,
+      targetWebhooks: await loadTargetWebhookPathsByBlock(db, allTargetIds),
+    })
+    // The RAW retiring set, not the default resolution: the client derives which of these actually
+    // stop being served from the picks the user is making right now, so the heads-up and the
+    // overwrite confirm can never disagree with the Trigger URLs rows.
+    const retiringTriggerUrls = triggerPlan.retiring.map((row) => ({
+      workflowName: row.workflowName,
+      path: row.path,
+    }))
+    // Every trigger that HAS a public URL, plus every one whose URL is up for decision - not just
+    // the decisions, so the section reads as a standing statement of each URL rather than an alert.
+    //
+    // A trigger with neither is deliberately absent: whether a block will serve a URL at all is
+    // only knowable from its webhook row, and a schedule / chat / manual / poller trigger never
+    // gets one. Claiming "gets a new URL" for those would be a straight lie, and no declarative
+    // flag separates them - `polling` is set on 10 of the trigger defs, while `webhook` is set on
+    // 345 including `slack_oauth`, which routes by `routingKey` with a NULL path.
+    const triggerMappings = triggerPlan.slots
+      .filter((slot) => slot.ownPath !== null || slot.adoptablePaths.length > 0)
+      .map((slot) => ({
+        sourceBlockId: slot.sourceBlockId,
+        blockName: slot.blockName,
+        workflowName: slot.workflowName,
+        ownPath: slot.ownPath,
+        adoptablePaths: slot.adoptablePaths,
+        defaultAdoptPath: slot.defaultAdoptPath,
+      }))
+
     const toRef = (reference: (typeof plan.unmappedRequired)[number]) => ({
       kind: reference.kind,
       sourceId: reference.sourceId,
@@ -224,6 +262,8 @@ export const GET = withRouteHandler(
       resourceUsages: collectForkResourceUsages(plan.items, sourceStates),
       copyableUnmapped: plan.copyableUnmapped,
       clearedRefs,
+      retiringTriggerUrls,
+      triggerMappings,
     })
   }
 )

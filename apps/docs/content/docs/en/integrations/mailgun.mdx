@@ -36,7 +36,7 @@ Integrate Mailgun into your workflow. Send transactional emails, manage mailing 
 
 ## Actions
 
-### `mailgun_send_message`
+### Mailgun Send Message
 
 Send an email using Mailgun API
 
@@ -63,7 +63,7 @@ Send an email using Mailgun API
 | `id` | string | Message ID |
 | `message` | string | Response message from Mailgun |
 
-### `mailgun_get_message`
+### Mailgun Get Message
 
 Retrieve a stored message by its key
 
@@ -93,7 +93,7 @@ Retrieve a stored message by its key
 | `messageHeaders` | json | Message headers |
 | `contentIdMap` | json | Content ID map |
 
-### `mailgun_list_messages`
+### Mailgun List Messages
 
 List events (logs) for messages sent through Mailgun
 
@@ -114,7 +114,7 @@ List events (logs) for messages sent through Mailgun
 | `items` | json | Array of event items |
 | `paging` | json | Paging information |
 
-### `mailgun_create_mailing_list`
+### Mailgun Create Mailing List
 
 Create a new mailing list
 
@@ -136,7 +136,7 @@ Create a new mailing list
 | `message` | string | Response message |
 | `list` | json | Created mailing list details |
 
-### `mailgun_get_mailing_list`
+### Mailgun Get Mailing List
 
 Get details of a mailing list
 
@@ -154,7 +154,7 @@ Get details of a mailing list
 | `success` | boolean | Whether the request was successful |
 | `list` | json | Mailing list details |
 
-### `mailgun_add_list_member`
+### Mailgun Add List Member
 
 Add a member to a mailing list
 
@@ -177,7 +177,7 @@ Add a member to a mailing list
 | `message` | string | Response message |
 | `member` | json | Added member details |
 
-### `mailgun_list_domains`
+### Mailgun List Domains
 
 List all domains for your Mailgun account
 
@@ -195,7 +195,7 @@ List all domains for your Mailgun account
 | `totalCount` | number | Total number of domains |
 | `items` | json | Array of domain objects |
 
-### `mailgun_get_domain`
+### Mailgun Get Domain
 
 Get details of a specific domain
 

@@ -49,6 +49,7 @@ import {
   getMimeTypeFromExtension,
   isAudioFileType,
   isVideoFileType,
+  resolveEffectiveMimeType,
 } from '@/lib/uploads/utils/file-utils'
 import {
   DEFAULT_UNTITLED_NAME,
@@ -201,19 +202,21 @@ const parseRowId = (rowId: string): { kind: 'file' | 'folder'; id: string } => {
 const hasExternalFiles = (dataTransfer: DataTransfer): boolean =>
   dataTransfer.types.includes('Files')
 
-function formatFileType(mimeType: string | null, filename: string): string {
-  if (mimeType && MIME_TYPE_LABELS[mimeType]) {
+function formatFileType(storedType: string | null, filename: string): string {
+  const mimeType = resolveEffectiveMimeType(storedType, filename)
+
+  if (MIME_TYPE_LABELS[mimeType]) {
     return MIME_TYPE_LABELS[mimeType]
   }
 
-  if (mimeType?.startsWith('audio/')) return 'Audio'
-  if (mimeType?.startsWith('video/')) return 'Video'
-  if (mimeType?.startsWith('image/')) return 'Image'
+  if (mimeType.startsWith('audio/')) return 'Audio'
+  if (mimeType.startsWith('video/')) return 'Video'
+  if (mimeType.startsWith('image/')) return 'Image'
 
   const ext = getFileExtension(filename)
   if (ext) return ext.toUpperCase()
 
-  return mimeType ?? 'File'
+  return storedType ?? 'File'
 }
 
 export function Files() {
@@ -511,10 +514,13 @@ export function Files() {
     if (typeFilter.length > 0) {
       result = result.filter((f) => {
         const ext = getFileExtension(f.name)
+        // Matching the raw stored type would hide every file the browser uploaded as
+        // `application/octet-stream` from the audio/video/image filters.
+        const type = resolveEffectiveMimeType(f.type, f.name)
         if (typeFilter.includes('document') && isSupportedExtension(ext)) return true
-        if (typeFilter.includes('audio') && isAudioFileType(f.type)) return true
-        if (typeFilter.includes('video') && isVideoFileType(f.type)) return true
-        if (typeFilter.includes('image') && f.type?.startsWith('image/')) return true
+        if (typeFilter.includes('audio') && isAudioFileType(type)) return true
+        if (typeFilter.includes('video') && isVideoFileType(type)) return true
+        if (typeFilter.includes('image') && type.startsWith('image/')) return true
         return false
       })
     }

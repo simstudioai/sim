@@ -17,6 +17,7 @@ export type {
 export type {
   MothershipResource,
   MothershipResourceType,
+  WorkspaceResourceRef,
 } from '@/lib/copilot/resources/types'
 
 export interface FileAttachmentForApi {

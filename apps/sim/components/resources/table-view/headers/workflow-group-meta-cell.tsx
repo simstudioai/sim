@@ -25,6 +25,7 @@ import {
   Trash,
   Workflow,
 } from '@sim/emcn/icons'
+import { HeaderLabel } from '@/components/resources/table-view/headers/header-label'
 import type { RunLimit, RunMode } from '@/lib/api/contracts/tables'
 import type { WorkflowGroupType } from '@/lib/table'
 import { getEnrichment } from '@/enrichments/registry'
@@ -368,8 +369,9 @@ export function WorkflowGroupMetaCell({
 
     const ghost = document.createElement('div')
     ghost.textContent = name
+    ghost.className = 'text-xs'
     ghost.style.cssText =
-      'position:absolute;top:-9999px;padding:4px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;font-size:13px;font-weight:500;white-space:nowrap;color:var(--text-primary)'
+      'position:absolute;top:-9999px;padding:4px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;white-space:nowrap;color:var(--text-primary)'
     document.body.appendChild(ghost)
     e.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, ghost.offsetHeight / 2)
     requestAnimationFrame(() => ghost.parentNode?.removeChild(ghost))
@@ -438,9 +440,7 @@ export function WorkflowGroupMetaCell({
         ) : (
           <Workflow className='size-[12px] shrink-0 text-[var(--text-icon)]' />
         )}
-        <span className='min-w-0 truncate font-medium text-[11px] text-[var(--text-secondary)]'>
-          {name}
-        </span>
+        <HeaderLabel label={name} className='text-[var(--text-secondary)] text-xs' />
         {onRunColumn && (
           <DropdownMenu open={runMenuOpen} onOpenChange={setRunMenuOpen}>
             <DropdownMenuTrigger asChild>

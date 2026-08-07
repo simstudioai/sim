@@ -215,10 +215,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
               { status: 400 }
             )
           }
-          const { generateExecutionFileKey } = await import(
+          const { generateExecutionAttachmentKey } = await import(
             '@/lib/uploads/contexts/execution/utils'
           )
-          customKey = generateExecutionFileKey({ workspaceId, workflowId, executionId }, fileName)
+          customKey = generateExecutionAttachmentKey(
+            { workspaceId, workflowId, executionId },
+            fileName
+          )
         }
 
         let uploadId: string
@@ -389,7 +392,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
               partNumber: p.partNumber,
               blockId: deriveBlobBlockId(p.partNumber),
             }))
-            completed = await completeMultipartUpload(key, blobParts, buildBlobCustomConfig(config))
+            completed = await completeMultipartUpload(
+              key,
+              uploadId,
+              blobParts,
+              buildBlobCustomConfig(config)
+            )
           } else if (storageProvider === 'gcs' && gcsModule) {
             const { completeGcsMultipartUpload } = gcsModule
             const gcsParts = parts.map((p) => {
@@ -501,7 +509,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           logger.info(`Aborted S3 multipart upload for key ${key} (context: ${context})`)
         } else if (storageProvider === 'blob') {
           const { abortMultipartUpload } = await import('@/lib/uploads/providers/blob/client')
-          await abortMultipartUpload(key, buildBlobCustomConfig(config))
+          await abortMultipartUpload(key, uploadId, buildBlobCustomConfig(config))
           logger.info(`Aborted Azure multipart upload for key ${key} (context: ${context})`)
         } else if (storageProvider === 'gcs') {
           const { abortGcsMultipartUpload } = await import('@/lib/uploads/providers/gcs/client')

@@ -245,8 +245,10 @@ function inspectSandbox(values: EnvCapabilityValues): SandboxCapabilityStatus {
       coherenceProblems.push('E2B_ENABLED and NEXT_PUBLIC_E2B_ENABLED disagree')
     }
     const remoteAvailable = providerId !== null && providerId !== 'disabled'
-    if (remoteAvailable !== isTruthyEnvCapabilityValue(values, 'NEXT_PUBLIC_SANDBOX_ENABLED')) {
-      coherenceProblems.push('remote sandbox availability and NEXT_PUBLIC_SANDBOX_ENABLED disagree')
+    if (remoteAvailable !== isTruthyEnvCapabilityValue(values, 'NEXT_PUBLIC_SANDBOXES_ENABLED')) {
+      coherenceProblems.push(
+        'remote sandbox availability and NEXT_PUBLIC_SANDBOXES_ENABLED disagree'
+      )
     }
     if (coherenceProblems.length > 0) {
       return {
