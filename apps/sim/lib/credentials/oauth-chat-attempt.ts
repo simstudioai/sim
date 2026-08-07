@@ -203,6 +203,13 @@ export function setActiveDesktopOAuthChatAttempt(attemptId: string): void {
   window.localStorage.setItem(ACTIVE_DESKTOP_ATTEMPT_KEY, attemptId)
 }
 
+export function clearActiveDesktopOAuthChatAttempt(attemptId: string): void {
+  if (typeof window === 'undefined') return
+  if (window.localStorage.getItem(ACTIVE_DESKTOP_ATTEMPT_KEY) === attemptId) {
+    window.localStorage.removeItem(ACTIVE_DESKTOP_ATTEMPT_KEY)
+  }
+}
+
 export function resolveActiveDesktopOAuthChatAttempt(
   status: Extract<OAuthChatAttemptStatus, 'connected' | 'failed'>
 ): OAuthChatAttempt | null {
@@ -211,6 +218,24 @@ export function resolveActiveDesktopOAuthChatAttempt(
   if (!attemptId) return null
   window.localStorage.removeItem(ACTIVE_DESKTOP_ATTEMPT_KEY)
   return setOAuthChatAttemptStatus(attemptId, status)
+}
+
+/**
+ * Resolves the exact chat attempt echoed by a current desktop shell. A null
+ * correlation explicitly means an ordinary integrations-page flow and must
+ * not consume a stale chat attempt. Only legacy shells omit the field, in
+ * which case the former single-active-attempt behavior remains as a fallback.
+ */
+export function resolveDesktopOAuthChatAttempt(
+  result: { chatAttemptId?: string | null },
+  status: Extract<OAuthChatAttemptStatus, 'connected' | 'failed'>
+): OAuthChatAttempt | null {
+  if (Object.hasOwn(result, 'chatAttemptId')) {
+    if (!result.chatAttemptId) return null
+    clearActiveDesktopOAuthChatAttempt(result.chatAttemptId)
+    return setOAuthChatAttemptStatus(result.chatAttemptId, status)
+  }
+  return resolveActiveDesktopOAuthChatAttempt(status)
 }
 
 function appendAttemptToReturnUrl(rawReturnUrl: string, attemptId: string): string {

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import {
   addOAuthChatAttemptToAuthorizeUrl,
+  clearActiveDesktopOAuthChatAttempt,
   createOAuthChatAttempt,
   getOAuthCredentialBaseline,
   hasOAuthCredentialChanged,
@@ -315,9 +316,13 @@ export function useOAuthChipConnection({
           .beginOAuthConnect(providerId, {
             workspaceId: url.searchParams.get('workspaceId') ?? workspaceId,
             credentialId: url.searchParams.get('credentialId') ?? undefined,
+            chatAttemptId: attempt.id,
           })
           .then((opened) => {
-            if (!opened) setOAuthChatAttemptStatus(attempt.id, 'failed')
+            if (!opened) {
+              clearActiveDesktopOAuthChatAttempt(attempt.id)
+              setOAuthChatAttemptStatus(attempt.id, 'failed')
+            }
           })
         return
       }

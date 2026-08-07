@@ -19,7 +19,7 @@ import {
   OAUTH_CHAT_ATTEMPT_MAX_AGE_MS,
   OAUTH_CHAT_ATTEMPT_PARAM,
   readOAuthChatAttempt,
-  resolveActiveDesktopOAuthChatAttempt,
+  resolveDesktopOAuthChatAttempt,
   setOAuthChatAttemptStatus,
 } from '@/lib/credentials/oauth-chat-attempt'
 import { getDesktopBridge } from '@/lib/desktop'
@@ -266,7 +266,7 @@ export function useDesktopOAuthConnectListener() {
       const rawCtx = readOAuthReturnContext()
       if (rawCtx) consumeOAuthReturnContext()
       const ctx = rawCtx && Date.now() - rawCtx.requestedAt <= CONTEXT_MAX_AGE_MS ? rawCtx : null
-      const chatAttempt = resolveActiveDesktopOAuthChatAttempt(result.ok ? 'connected' : 'failed')
+      const chatAttempt = resolveDesktopOAuthChatAttempt(result, result.ok ? 'connected' : 'failed')
 
       if (!result.ok) {
         toast.error('The account connection didn’t finish. Try connecting again.')
