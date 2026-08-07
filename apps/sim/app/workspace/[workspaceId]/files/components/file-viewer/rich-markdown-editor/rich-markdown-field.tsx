@@ -31,6 +31,13 @@ interface RichMarkdownFieldProps {
   /** True while `value` is being pushed in externally (AI generation) — the editor turns read-only and mirrors each update. */
   isStreaming?: boolean
   autoFocus?: boolean
+  /**
+   * Viewport point to place the caret at on mount, instead of the document end.
+   * For hosts whose read view sits under a click-to-edit overlay: the overlay
+   * consumes the click that opens editing, so without the point the caret can
+   * only land at the end and the user's aim is lost.
+   */
+  autoFocusAt?: { clientX: number; clientY: number } | null
   /** Min height of the editor box in px. */
   minHeight?: number
   /**
@@ -82,6 +89,7 @@ function LoadedRichMarkdownField({
   disabled = false,
   isStreaming = false,
   autoFocus = false,
+  autoFocusAt = null,
   minHeight,
   maxHeight,
   error = false,
@@ -108,6 +116,7 @@ function LoadedRichMarkdownField({
   onChangeRef.current = onChange
   const onPasteTextRef = useRef(onPasteText)
   onPasteTextRef.current = onPasteText
+  const autoFocusAtRef = useRef(autoFocusAt)
 
   /**
    * The original value verbatim, plus its canonical serialization. The editor only ever emits canonical
@@ -125,7 +134,7 @@ function LoadedRichMarkdownField({
     extensions,
     editable: !disabled && !isStreaming,
     enablePasteRules: false,
-    autofocus: autoFocus ? 'end' : false,
+    autofocus: autoFocusAt ? false : autoFocus ? 'end' : false,
     immediatelyRender: false,
     shouldRerenderOnTransaction: false,
     content: initialContent,
@@ -161,6 +170,14 @@ function LoadedRichMarkdownField({
         }
         return false
       },
+    },
+    /* Resolved after creation, not via `autofocus`: mapping a point to a
+       document position needs the editor's DOM laid out. */
+    onCreate: ({ editor }) => {
+      const point = autoFocusAtRef.current
+      if (!point) return
+      const resolved = editor.view.posAtCoords({ left: point.clientX, top: point.clientY })
+      editor.commands.focus(resolved ? resolved.pos : 'end')
     },
     onUpdate: ({ editor }) => {
       const md = postProcessSerializedMarkdown(editor.getMarkdown())

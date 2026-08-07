@@ -2,6 +2,7 @@ export * from './dimensions'
 export { WorkflowEdgeView, type WorkflowEdgeViewProps } from './edge/workflow-edge-view'
 export { humanizeBlockName } from './lib/humanize-block-name'
 export {
+  NOTE_MARKDOWN_FLOW,
   NoteBlockView,
   type NoteBlockViewProps,
   type NoteContentEditorProps,

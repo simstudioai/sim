@@ -37,6 +37,15 @@ export interface NoteContentEditorProps {
   value: string
   /** The note colour's selection tint, applied to the editor's own prose. */
   selectionClassName: string
+  /** The note colour's caret, so the cursor reads against the card's own fill. */
+  caretClassName: string
+  /**
+   * Viewport point of the click that opened editing, so the caret lands where
+   * the user aimed. The read view sits under a full-bleed overlay that has to
+   * swallow that click to enter editing, so the position cannot reach the
+   * editor any other way. Null for keyboard activation, which has no point.
+   */
+  openedAt: { clientX: number; clientY: number } | null
   /** Persists as the user types; the note has no uncommitted buffer. */
   onChange: (content: string) => void
 }
@@ -203,9 +212,27 @@ const NOTE_COMPONENTS = {
   ),
 }
 
+/**
+ * Block rhythm for the note's markdown, and the contract the inline editor
+ * mirrors on its ProseMirror root.
+ *
+ * Streamdown wraps its output in a container that applies exactly this by
+ * default, which outranks the per-element margins in {@link NOTE_COMPONENTS} —
+ * so it, not those margins, is what the read view actually paints. Passing it
+ * explicitly makes the rule the note's own: a Streamdown upgrade can no longer
+ * move the read view out from under the editor, which is what made every block
+ * after the first jump the moment editing opened.
+ */
+export const NOTE_MARKDOWN_FLOW = 'space-y-4 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0'
+
 const NoteMarkdown = memo(function NoteMarkdown({ content }: { content: string }) {
   return (
-    <Streamdown mode='static' remarkPlugins={NOTE_REMARK_PLUGINS} components={NOTE_COMPONENTS}>
+    <Streamdown
+      mode='static'
+      className={NOTE_MARKDOWN_FLOW}
+      remarkPlugins={NOTE_REMARK_PLUGINS}
+      components={NOTE_COMPONENTS}
+    >
       {content}
     </Streamdown>
   )
@@ -278,6 +305,10 @@ export function NoteBlockView({
   const editPointerStartRef = useRef<EditPointerStart>(null)
   const notePointerStartRef = useRef<NotePointerStart>(null)
   const [editingField, setEditingField] = useState<NoteEditingField>(null)
+  const [contentEditOpenedAt, setContentEditOpenedAt] = useState<{
+    clientX: number
+    clientY: number
+  } | null>(null)
   const [draftName, setDraftName] = useState(name ?? '')
   const [draftContent, setDraftContent] = useState(content)
   const [compactHeight, setCompactHeight] = useState(() => estimateNoteBlockHeight(content))
@@ -343,7 +374,12 @@ export function NoteBlockView({
     if (!isKeyboardActivation && !isIntentionalClick) return
 
     if (field === 'title') setDraftName(name ?? '')
-    if (field === 'content') setDraftContent(content)
+    if (field === 'content') {
+      setDraftContent(content)
+      setContentEditOpenedAt(
+        isKeyboardActivation ? null : { clientX: event.clientX, clientY: event.clientY }
+      )
+    }
     setEditingField(field)
   }
 
@@ -740,6 +776,8 @@ export function NoteBlockView({
                 {renderContentEditor({
                   value: draftContent,
                   selectionClassName: colorOption.selectionClassName,
+                  caretClassName: colorOption.caretClassName,
+                  openedAt: contentEditOpenedAt,
                   onChange: (nextContent) => {
                     setDraftContent(nextContent)
                     onContentChange?.(nextContent)

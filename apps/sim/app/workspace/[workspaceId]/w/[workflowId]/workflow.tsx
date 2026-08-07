@@ -151,6 +151,18 @@ const CONNECTION_LINE_STYLE = {
   strokeWidth: 2,
 }
 
+/**
+ * Puts the in-flight drag line at the top of the canvas z-scale this file owns
+ * (cards 21/22, selected 31, container children 1000, selected children 1010).
+ *
+ * React Flow ships `.react-flow__connectionline { z-index: 1001 }`, which is
+ * both below a selected container child and a stylesheet rule rather than
+ * something our scale accounts for — the line rendered under subflow bodies,
+ * which paint an opaque fill. Declaring it here is the seam React Flow provides
+ * for this, and it keeps every layer of the canvas readable in one place.
+ */
+const CONNECTION_LINE_CONTAINER_STYLE = { zIndex: 1500 }
+
 const getRegularBlockWidth = (type: string) =>
   type === 'note' || type === 'noteBlock'
     ? BLOCK_DIMENSIONS.NOTE_WIDTH
@@ -4614,13 +4626,7 @@ const WorkflowContent = React.memo(
           <div
             ref={canvasContainerRef}
             onPointerDownCapture={handleCanvasPointerDownCapture}
-            /* Default in-flight stroke is `--text-muted`, not `--workflow-edge`:
-               the resting-edge grey (#e0e0e0) disappears against a loop's
-               opaque `--surface-3` body (~1.1:1), so a drag inside any
-               container — nested included — drew an invisible line. One token
-               with contrast on every canvas surface, still lighter than the
-               `selected` variant so the hierarchy holds. */
-            className='relative flex-1 overflow-hidden [--connection-line-stroke:var(--text-muted)] data-[connection-line=error]:[--connection-line-stroke:var(--text-error)] data-[connection-line=selected]:[--connection-line-stroke:var(--text-secondary)] data-[connection-active=true]:[&_.react-flow__handle.source]:pointer-events-none'
+            className='relative flex-1 overflow-hidden [--connection-line-stroke:var(--workflow-edge)] data-[connection-line=error]:[--connection-line-stroke:var(--text-error)] data-[connection-line=selected]:[--connection-line-stroke:var(--text-secondary)] data-[connection-active=true]:[&_.react-flow__handle.source]:pointer-events-none'
           >
             {!isWorkflowReady && (
               <div className='absolute inset-0 z-[5] flex items-center justify-center bg-[var(--bg)]'>
@@ -4695,6 +4701,7 @@ const WorkflowContent = React.memo(
                   defaultEdgeOptions={defaultEdgeOptions}
                   proOptions={reactFlowProOptions}
                   connectionLineStyle={CONNECTION_LINE_STYLE}
+                  connectionLineContainerStyle={CONNECTION_LINE_CONTAINER_STYLE}
                   connectionLineType={ConnectionLineType.SmoothStep}
                   onPaneClick={onPaneClick}
                   onEdgeClick={embedded ? undefined : onEdgeClick}

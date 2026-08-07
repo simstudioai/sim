@@ -16,6 +16,7 @@ const NOTE_COLOR_OPTIONS_BY_ID = {
     textClassName: 'text-black/75 hover:text-[#171717]',
     placeholderClassName: 'text-black/45',
     selectionClassName: 'selection:bg-black/15',
+    caretClassName: 'caret-black',
     swatchClassName: 'bg-white',
   },
   'light-gray': {
@@ -27,6 +28,7 @@ const NOTE_COLOR_OPTIONS_BY_ID = {
     textClassName: 'text-black/75 hover:text-[#171717]',
     placeholderClassName: 'text-black/45',
     selectionClassName: 'selection:bg-black/15',
+    caretClassName: 'caret-black',
     swatchClassName: 'bg-[#E5E5E5]',
   },
   carbon: {
@@ -38,6 +40,7 @@ const NOTE_COLOR_OPTIONS_BY_ID = {
     textClassName: 'text-white/75 hover:text-white',
     placeholderClassName: 'text-white/55',
     selectionClassName: 'selection:bg-white/25',
+    caretClassName: 'caret-white',
     swatchClassName: 'bg-[#525252]',
   },
 } as const

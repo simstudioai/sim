@@ -4,8 +4,14 @@ import { cn } from '@sim/emcn'
 import type { NoteContentEditorProps } from '@sim/workflow-renderer'
 import { RichMarkdownField } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/rich-markdown-field'
 
-const NOTE_EDITOR_PROSE_CLASS_NAME = [
+export const NOTE_EDITOR_PROSE_CLASS_NAME = [
   'min-h-full w-full text-current',
+  /* Mirrors NOTE_MARKDOWN_FLOW, the rhythm Streamdown paints in the read view.
+     Tailwind's JIT only sees literal class strings, so this cannot be composed
+     from that constant — the note view exports it, and the parity test pins the
+     two together. Without it the editor falls back to the per-element margins
+     and every block after the first sits ~12px higher than when viewing. */
+  '[&_.ProseMirror]:space-y-4 [&_.ProseMirror>*:first-child]:mt-0 [&_.ProseMirror>*:last-child]:mb-0',
   '[&_.ProseMirror]:min-h-full [&_.ProseMirror]:break-words [&_.ProseMirror]:pt-0.5 [&_.ProseMirror]:pb-2 [&_.ProseMirror]:outline-none',
   '[&_.ProseMirror_p]:mb-1 [&_.ProseMirror_p]:text-sm [&_.ProseMirror_p]:leading-[1.25rem] [&_.ProseMirror_p:last-child]:mb-0',
   '[&_.ProseMirror_h1]:mt-3 [&_.ProseMirror_h1]:mb-3 [&_.ProseMirror_h1]:font-semibold [&_.ProseMirror_h1]:text-lg [&_.ProseMirror_h1:first-child]:mt-0',
