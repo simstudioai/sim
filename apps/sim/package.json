@@ -261,13 +261,12 @@
     "@types/react-dom": "^19",
     "@types/ssh2": "^1.15.5",
     "@types/three": "0.177.0",
-    "@vitejs/plugin-react": "^4.3.4",
+    "@vitejs/plugin-react": "^6.0.5",
     "@vitest/coverage-v8": "^4.1.0",
     "postcss": "^8",
     "react-email": "6.9.0",
     "tailwindcss": "^3.4.1",
     "typescript": "^7.0.2",
-    "vite-tsconfig-paths": "^5.1.4",
     "vitest": "^4.1.0"
   }
 }
