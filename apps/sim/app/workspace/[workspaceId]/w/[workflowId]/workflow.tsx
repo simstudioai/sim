@@ -4614,7 +4614,13 @@ const WorkflowContent = React.memo(
           <div
             ref={canvasContainerRef}
             onPointerDownCapture={handleCanvasPointerDownCapture}
-            className='relative flex-1 overflow-hidden [--connection-line-stroke:var(--workflow-edge)] data-[connection-line=error]:[--connection-line-stroke:var(--text-error)] data-[connection-line=selected]:[--connection-line-stroke:var(--text-secondary)] data-[connection-active=true]:[&_.react-flow__handle.source]:pointer-events-none'
+            /* Default in-flight stroke is `--text-muted`, not `--workflow-edge`:
+               the resting-edge grey (#e0e0e0) disappears against a loop's
+               opaque `--surface-3` body (~1.1:1), so a drag inside any
+               container — nested included — drew an invisible line. One token
+               with contrast on every canvas surface, still lighter than the
+               `selected` variant so the hierarchy holds. */
+            className='relative flex-1 overflow-hidden [--connection-line-stroke:var(--text-muted)] data-[connection-line=error]:[--connection-line-stroke:var(--text-error)] data-[connection-line=selected]:[--connection-line-stroke:var(--text-secondary)] data-[connection-active=true]:[&_.react-flow__handle.source]:pointer-events-none'
           >
             {!isWorkflowReady && (
               <div className='absolute inset-0 z-[5] flex items-center justify-center bg-[var(--bg)]'>
