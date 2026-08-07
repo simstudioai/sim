@@ -181,7 +181,7 @@ describe('POST /api/v2/tables/imports', () => {
     expect(response.status).toBe(201)
     expect(mockCreateTableImportResource).toHaveBeenCalledWith(
       requestBody,
-      'payer-1',
+      'creator-1',
       'http://localhost:3000',
       undefined,
       {

@@ -90,13 +90,13 @@ export interface RateLimitResult {
   userId?: string
   /** The API-key owner. Differs from `userId` for an admitted v2 workspace key. */
   principalUserId?: string
+  /** Frozen creator permission used to authorize an admitted v2 workspace key. */
+  principalWorkspacePermission?: PermissionType
   keyId?: string
   workspaceId?: string
   keyType?: 'personal' | 'workspace'
   /** Frozen exact workspace payer decision for v2 workspace-key requests. */
   billingAttribution?: BillingAttributionSnapshot
-  /** Set only after v2 verifies the key creator still belongs to its bound workspace. */
-  v2WorkspaceKeyAuthorized?: true
   error?: string
 }
 
@@ -120,6 +120,7 @@ export type V2ApiKeyIdentity =
       keyId: string
       workspaceId: string
       principalUserId: string
+      principalWorkspacePermission: PermissionType
       actorUserId: string
       billingAttribution: BillingAttributionSnapshot
     }
@@ -166,6 +167,7 @@ export async function authenticateV2ApiKey(request: NextRequest): Promise<V2ApiK
     keyId: auth.keyId,
     workspaceId: auth.workspaceId,
     principalUserId: auth.userId,
+    principalWorkspacePermission: creatorPermission,
     actorUserId: billingAttribution.actorUserId,
     billingAttribution,
   }
@@ -286,12 +288,12 @@ export async function checkV2RateLimit(
   const actorUserId = auth.actorUserId
   let subscription: { plan: string; referenceId: string } | null
   let billingAttribution: BillingAttributionSnapshot | undefined
-  let v2WorkspaceKeyAuthorized: true | undefined
+  let principalWorkspacePermission: PermissionType | undefined
 
   if (auth.keyType === 'workspace') {
     billingAttribution = auth.billingAttribution
     subscription = toUsageLimitSubscription(billingAttribution)
-    v2WorkspaceKeyAuthorized = true
+    principalWorkspacePermission = auth.principalWorkspacePermission
   } else {
     subscription = await getHighestPrioritySubscription(principalUserId, {
       onError: 'throw',
@@ -332,11 +334,11 @@ export async function checkV2RateLimit(
     retryAfterMs: result.retryAfterMs,
     userId: actorUserId,
     principalUserId,
+    principalWorkspacePermission,
     keyId: auth.keyId,
     workspaceId: auth.keyType === 'workspace' ? auth.workspaceId : undefined,
     keyType: auth.keyType,
     billingAttribution,
-    v2WorkspaceKeyAuthorized,
   }
 }
 
@@ -446,8 +448,13 @@ export async function resolveWorkspaceAccess(
   const scopeError = await resolveWorkspaceScope(rateLimit, workspaceId)
   if (scopeError) return scopeError
 
-  if (rateLimit.keyType === 'workspace' && rateLimit.v2WorkspaceKeyAuthorized) {
-    return null
+  if (rateLimit.keyType === 'workspace' && rateLimit.principalUserId) {
+    if (!rateLimit.principalWorkspacePermission) {
+      throw new Error('Admitted v2 workspace API key is missing its principal permission')
+    }
+    return permissionSatisfies(rateLimit.principalWorkspacePermission, level)
+      ? null
+      : { status: 403, code: 'FORBIDDEN', message: 'Access denied' }
   }
 
   const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)

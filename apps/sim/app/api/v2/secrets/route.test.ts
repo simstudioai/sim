@@ -116,6 +116,22 @@ describe('GET /api/v2/secrets', () => {
     expect((await res.json()).data).toEqual([])
   })
 
+  it('uses the key creator for workspace-secret visibility, never the billing actor', async () => {
+    mockCheckRateLimit.mockResolvedValue({
+      ...RATE_LIMIT_OK,
+      userId: 'billing-actor',
+      principalUserId: 'key-creator',
+    })
+
+    const res = await callList(`workspaceId=${WORKSPACE_ID}`)
+
+    expect(res.status).toBe(200)
+    expect(mockCheckWorkspaceAccess).toHaveBeenCalledWith(WORKSPACE_ID, 'key-creator')
+    expect(mockListVisibleWorkspaceCredentials).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'key-creator' })
+    )
+  })
+
   it('requires a personal key when personal scope is explicit', async () => {
     const res = await callList(`workspaceId=${WORKSPACE_ID}&scope=personal`)
 

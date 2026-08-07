@@ -178,6 +178,11 @@ describe('v2 runs status + cancel', () => {
     const res = await callStatus()
 
     expect(res.status).toBe(404)
+    expect(mockAuthorize).toHaveBeenCalledWith({
+      workflowId: 'workflow-1',
+      userId: 'key-user-1',
+      action: 'read',
+    })
     expect(mockGetWorkflowExecutionStatus).not.toHaveBeenCalled()
   })
 

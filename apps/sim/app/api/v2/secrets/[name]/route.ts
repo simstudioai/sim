@@ -94,14 +94,13 @@ export const PUT = withPublicApiRouteHandler({
       return v2Error('PERSONAL_KEY_REQUIRED', 'Personal secrets require a personal API key')
     }
 
-    const workspaceAccess = isWorkspaceKey
-      ? { canWrite: true, canAdmin: true }
-      : await checkWorkspaceAccess(workspaceId, userId)
+    const principalUserId = rateLimit.principalUserId ?? userId
+    const workspaceAccess = await checkWorkspaceAccess(workspaceId, principalUserId)
     if (scope === 'workspace') {
       const permissionError = await workspaceSecretAccessError({
         workspaceId,
         name,
-        userId,
+        userId: principalUserId,
         canWrite: workspaceAccess.canWrite,
         canAdmin: workspaceAccess.canAdmin,
       })
@@ -112,7 +111,13 @@ export const PUT = withPublicApiRouteHandler({
       scope === 'workspace'
         ? await setWorkspaceSecret({ workspaceId, name, value, userId })
         : await setPersonalSecret({ userId, name, value })
-    const secret = await getSecretMetadata({ workspaceId, name, scope, userId, workspaceAccess })
+    const secret = await getSecretMetadata({
+      workspaceId,
+      name,
+      scope,
+      userId: principalUserId,
+      workspaceAccess,
+    })
 
     recordAudit({
       workspaceId,
@@ -144,14 +149,13 @@ export const DELETE = withPublicApiRouteHandler({
       return v2Error('PERSONAL_KEY_REQUIRED', 'Personal secrets require a personal API key')
     }
 
-    const workspaceAccess = isWorkspaceKey
-      ? { canWrite: true, canAdmin: true }
-      : await checkWorkspaceAccess(workspaceId, userId)
+    const principalUserId = rateLimit.principalUserId ?? userId
+    const workspaceAccess = await checkWorkspaceAccess(workspaceId, principalUserId)
     if (scope === 'workspace') {
       const permissionError = await workspaceSecretAccessError({
         workspaceId,
         name,
-        userId,
+        userId: principalUserId,
         canWrite: workspaceAccess.canWrite,
         canAdmin: workspaceAccess.canAdmin,
       })

@@ -156,6 +156,22 @@ describe('GET /api/v2/credentials', () => {
     )
   })
 
+  it('uses the key creator for credential visibility instead of the billing actor', async () => {
+    mockCheckRateLimit.mockResolvedValue({
+      ...RATE_LIMIT_OK,
+      userId: 'billing-actor',
+      principalUserId: 'key-creator',
+    })
+
+    const res = await callList(`workspaceId=${WORKSPACE_ID}`)
+
+    expect(res.status).toBe(200)
+    expect(mockCheckWorkspaceAccess).toHaveBeenCalledWith(WORKSPACE_ID, 'key-creator')
+    expect(mockListVisibleWorkspaceCredentials).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'key-creator' })
+    )
+  })
+
   it('accepts only OAuth and service-account type filters', async () => {
     await callList(`workspaceId=${WORKSPACE_ID}&type=oauth&providerId=slack`)
     expect(mockListVisibleWorkspaceCredentials).toHaveBeenCalledWith(

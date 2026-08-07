@@ -167,6 +167,23 @@ describe('DELETE /api/v2/tables/[tableId]', () => {
     expect(mockRecordAudit).not.toHaveBeenCalled()
   })
 
+  it('authorizes as the key creator while attributing the delete to the billing actor', async () => {
+    mockCheckRateLimit.mockResolvedValue({
+      ...RATE_LIMIT_OK,
+      userId: 'billing-actor',
+      principalUserId: 'key-creator',
+    })
+    mockPerformDeleteTable.mockResolvedValue({ success: true })
+
+    const res = await callDelete()
+
+    expect(res.status).toBe(200)
+    expect(mockCheckAccess).toHaveBeenCalledWith('table-1', 'key-creator', 'write')
+    expect(mockPerformDeleteTable).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'billing-actor' })
+    )
+  })
+
   it('returns 423 LOCKED for a delete-locked table instead of a 500', async () => {
     mockPerformDeleteTable.mockResolvedValue({
       success: false,

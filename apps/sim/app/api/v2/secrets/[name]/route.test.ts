@@ -149,6 +149,33 @@ describe('PUT /api/v2/secrets/[name]', () => {
     })
   })
 
+  it('authorizes as the key creator while attributing the write to the billing actor', async () => {
+    mockCheckRateLimit.mockResolvedValue({
+      ...RATE_LIMIT_OK,
+      userId: 'billing-actor',
+      principalUserId: 'key-creator',
+    })
+
+    const res = await callSet('workspace')
+
+    expect(res.status).toBe(201)
+    expect(mockCheckWorkspaceAccess).toHaveBeenCalledWith(WORKSPACE_ID, 'key-creator')
+    expect(mockGetWorkspaceEnvKeyAdminAccess).toHaveBeenCalledWith({
+      workspaceId: WORKSPACE_ID,
+      envKeys: ['STRIPE_API_KEY'],
+      userId: 'key-creator',
+    })
+    expect(mockSetWorkspaceSecret).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'billing-actor' })
+    )
+    expect(mockListVisibleWorkspaceCredentials).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'key-creator' })
+    )
+    expect(mockRecordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({ actorId: 'billing-actor' })
+    )
+  })
+
   it('updates an existing workspace secret only for a secret admin', async () => {
     mockCheckRateLimit.mockResolvedValue({ ...RATE_LIMIT_OK, keyType: 'personal' })
     mockGetWorkspaceEnvKeyAdminAccess.mockResolvedValue({

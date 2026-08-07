@@ -42,7 +42,7 @@ export const POST = withPublicApiRouteHandler({
       const scopeError = await resolveWorkspaceScope(rateLimit, workspaceId)
       if (scopeError) return v2WorkspaceAccessError(scopeError)
 
-      const accessResult = await checkAccess(tableId, userId, 'read')
+      const accessResult = await checkAccess(tableId, rateLimit.principalUserId ?? userId, 'read')
       // Mask not-authorized and not-found alike so cross-workspace existence never leaks.
       if (!accessResult.ok) return v2Error('NOT_FOUND', 'Table not found')
 

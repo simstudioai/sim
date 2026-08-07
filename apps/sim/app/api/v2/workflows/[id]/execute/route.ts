@@ -215,28 +215,18 @@ export const POST = withRouteHandler(
         requestedExecutionId = runIdHeader
       }
 
-      let workflowRecord: typeof workflowTable.$inferSelect
-      if (apiKeyType === 'workspace') {
-        const [record] = await db
-          .select()
-          .from(workflowTable)
-          .where(eq(workflowTable.id, workflowId))
-          .limit(1)
-        if (!record || record.workspaceId !== apiKeyWorkspaceId) {
-          return v2Error('NOT_FOUND', 'Workflow not found')
-        }
-        workflowRecord = record
-      } else {
-        const workflowAuthorization = await authorizeWorkflowByWorkspacePermission({
-          workflowId,
-          userId: principalUserId,
-          action: 'read',
-        })
-        // Mask authorization failures as 404 so cross-workspace existence never leaks.
-        if (!workflowAuthorization.allowed || !workflowAuthorization.workflow) {
-          return v2Error('NOT_FOUND', 'Workflow not found')
-        }
-        workflowRecord = workflowAuthorization.workflow
+      const workflowAuthorization = await authorizeWorkflowByWorkspacePermission({
+        workflowId,
+        userId: principalUserId,
+        action: 'read',
+      })
+      // Mask authorization failures as 404 so cross-workspace existence never leaks.
+      if (!workflowAuthorization.allowed || !workflowAuthorization.workflow) {
+        return v2Error('NOT_FOUND', 'Workflow not found')
+      }
+      const workflowRecord = workflowAuthorization.workflow
+      if (apiKeyType === 'workspace' && workflowRecord.workspaceId !== apiKeyWorkspaceId) {
+        return v2Error('NOT_FOUND', 'Workflow not found')
       }
       if (apiKeyType === 'personal' && workflowRecord.workspaceId) {
         const settings = await getWorkspaceBillingSettings(workflowRecord.workspaceId)

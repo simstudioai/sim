@@ -34,7 +34,7 @@ export const POST = withPublicApiRouteHandler({
       const scopeError = await resolveWorkspaceScope(rateLimit, validated.workspaceId)
       if (scopeError) return v2WorkspaceAccessError(scopeError)
 
-      const result = await checkAccess(tableId, userId, 'write')
+      const result = await checkAccess(tableId, rateLimit.principalUserId ?? userId, 'write')
       if (!result.ok) return v2TableAccessError(result)
 
       const { table } = result
@@ -80,7 +80,7 @@ export const PATCH = withPublicApiRouteHandler({
       const scopeError = await resolveWorkspaceScope(rateLimit, validated.workspaceId)
       if (scopeError) return v2WorkspaceAccessError(scopeError)
 
-      const result = await checkAccess(tableId, userId, 'write')
+      const result = await checkAccess(tableId, rateLimit.principalUserId ?? userId, 'write')
       if (!result.ok) return v2TableAccessError(result)
 
       const { table } = result
@@ -120,7 +120,7 @@ export const DELETE = withPublicApiRouteHandler({
       const scopeError = await resolveWorkspaceScope(rateLimit, validated.workspaceId)
       if (scopeError) return v2WorkspaceAccessError(scopeError)
 
-      const result = await checkAccess(tableId, userId, 'write')
+      const result = await checkAccess(tableId, rateLimit.principalUserId ?? userId, 'write')
       if (!result.ok) return v2TableAccessError(result)
 
       const { table } = result

@@ -63,6 +63,7 @@ import {
   authenticateRequest,
   checkRateLimit,
   createRateLimitResponse,
+  resolveWorkspaceAccess,
   v1ValidationErrorResponse,
 } from '@/app/api/v1/middleware'
 
@@ -217,8 +218,30 @@ describe('v2 attribution', () => {
       workspaceId: 'workspace-1',
       keyType: 'workspace',
       billingAttribution: BILLING_ATTRIBUTION,
-      v2WorkspaceKeyAuthorized: true,
+      principalWorkspacePermission: 'read',
     })
+  })
+
+  it('preserves the creator permission when authorizing a workspace key', async () => {
+    const rateLimit = {
+      allowed: true,
+      remaining: 399,
+      limit: TEAM_BUCKET.maxTokens,
+      resetAt: new Date('2026-07-28T18:28:48.354Z'),
+      userId: 'billing-actor',
+      principalUserId: 'key-creator',
+      principalWorkspacePermission: 'read' as const,
+      workspaceId: 'workspace-1',
+      keyType: 'workspace' as const,
+    }
+
+    await expect(
+      resolveWorkspaceAccess(rateLimit, 'billing-actor', 'workspace-1', 'read')
+    ).resolves.toBeNull()
+    await expect(
+      resolveWorkspaceAccess(rateLimit, 'billing-actor', 'workspace-1', 'write')
+    ).resolves.toMatchObject({ status: 403, message: 'Access denied' })
+    expect(mockGetUserEntityPermissions).not.toHaveBeenCalled()
   })
 
   it('rejects a workspace key after its creator loses workspace membership', async () => {

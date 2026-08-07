@@ -22,12 +22,11 @@ export const GET = withPublicApiRouteHandler({
       return v2Error('PERSONAL_KEY_REQUIRED', 'Personal secrets require a personal API key')
     }
 
-    const workspaceAccess = isWorkspaceKey
-      ? { canAdmin: true }
-      : await checkWorkspaceAccess(workspaceId, userId)
+    const principalUserId = rateLimit.principalUserId ?? userId
+    const workspaceAccess = await checkWorkspaceAccess(workspaceId, principalUserId)
     const credentials = await listVisibleWorkspaceCredentials({
       workspaceId,
-      userId,
+      userId: principalUserId,
       workspaceAccess,
       types: [...secretCredentialTypes(isWorkspaceKey ? 'workspace' : scope)],
       search,
@@ -36,9 +35,11 @@ export const GET = withPublicApiRouteHandler({
     })
     const secrets = credentials
       .filter(
-        (row) => row.type === 'env_workspace' || (!isWorkspaceKey && row.envOwnerUserId === userId)
+        (row) =>
+          row.type === 'env_workspace' ||
+          (!isWorkspaceKey && row.envOwnerUserId === principalUserId)
       )
-      .map((row) => toV2Secret(row, userId))
+      .map((row) => toV2Secret(row, principalUserId))
 
     return v2CursorList(secrets, null, { rateLimit })
   },

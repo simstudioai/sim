@@ -32,7 +32,11 @@ export const GET = withPublicApiRouteHandler({
       const { workspaceId } = input.query
       const scopeError = await resolveWorkspaceScope(rateLimit, workspaceId)
       if (scopeError) return v2WorkspaceAccessError(scopeError)
-      const record = await authorizeExport(input.params.exportId, workspaceId, userId)
+      const record = await authorizeExport(
+        input.params.exportId,
+        workspaceId,
+        rateLimit.principalUserId ?? userId
+      )
       if (!record) return v2Error('NOT_FOUND', 'Table export not found')
       return v2Data(toV2TableExport(record), { rateLimit })
     } catch (error) {
@@ -51,7 +55,11 @@ export const DELETE = withPublicApiRouteHandler({
       const { workspaceId } = input.query
       const scopeError = await resolveWorkspaceScope(rateLimit, workspaceId)
       if (scopeError) return v2WorkspaceAccessError(scopeError)
-      const record = await authorizeExport(input.params.exportId, workspaceId, userId)
+      const record = await authorizeExport(
+        input.params.exportId,
+        workspaceId,
+        rateLimit.principalUserId ?? userId
+      )
       if (!record) return v2Error('NOT_FOUND', 'Table export not found')
       return v2Data(toV2TableExport(await cancelTableExportResource(record)), { rateLimit })
     } catch (error) {

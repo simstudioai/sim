@@ -36,7 +36,7 @@ export const POST = withPublicApiRouteHandler({
         if (!resolution.found) return v2Error('NOT_FOUND', 'Folder not found')
         created = await createTableImportResource(
           input.body,
-          userId,
+          importAttribution.ownerUserId,
           request.nextUrl.origin,
           resolution.folderId,
           importAttribution
@@ -44,7 +44,7 @@ export const POST = withPublicApiRouteHandler({
       } else {
         created = await createTableImportResource(
           input.body,
-          userId,
+          importAttribution.ownerUserId,
           request.nextUrl.origin,
           undefined,
           importAttribution

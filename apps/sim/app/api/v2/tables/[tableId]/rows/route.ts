@@ -58,7 +58,7 @@ async function handleBatchInsert(
   userId: string,
   rateLimit: RateLimitResult
 ): Promise<NextResponse> {
-  const accessResult = await checkAccess(tableId, userId, 'write')
+  const accessResult = await checkAccess(tableId, rateLimit.principalUserId ?? userId, 'write')
   if (!accessResult.ok) return v2TableAccessError(accessResult)
 
   const { table } = accessResult
@@ -115,7 +115,7 @@ export const GET = withPublicApiRouteHandler({
       const scopeError = await resolveWorkspaceScope(rateLimit, validated.workspaceId)
       if (scopeError) return v2WorkspaceAccessError(scopeError)
 
-      const accessResult = await checkAccess(tableId, userId, 'read')
+      const accessResult = await checkAccess(tableId, rateLimit.principalUserId ?? userId, 'read')
       // Mask not-authorized and not-found alike so cross-workspace existence never leaks.
       if (!accessResult.ok) return v2Error('NOT_FOUND', 'Table not found')
 
@@ -181,7 +181,7 @@ export const POST = withPublicApiRouteHandler({
       const scopeError = await resolveWorkspaceScope(rateLimit, validated.workspaceId)
       if (scopeError) return v2WorkspaceAccessError(scopeError)
 
-      const accessResult = await checkAccess(tableId, userId, 'write')
+      const accessResult = await checkAccess(tableId, rateLimit.principalUserId ?? userId, 'write')
       if (!accessResult.ok) return v2TableAccessError(accessResult)
 
       const { table } = accessResult
@@ -230,7 +230,7 @@ export const PUT = withPublicApiRouteHandler({
       const scopeError = await resolveWorkspaceScope(rateLimit, validated.workspaceId)
       if (scopeError) return v2WorkspaceAccessError(scopeError)
 
-      const accessResult = await checkAccess(tableId, userId, 'write')
+      const accessResult = await checkAccess(tableId, rateLimit.principalUserId ?? userId, 'write')
       if (!accessResult.ok) return v2TableAccessError(accessResult)
 
       const { table } = accessResult
@@ -287,7 +287,7 @@ export const DELETE = withPublicApiRouteHandler({
       const scopeError = await resolveWorkspaceScope(rateLimit, validated.workspaceId)
       if (scopeError) return v2WorkspaceAccessError(scopeError)
 
-      const accessResult = await checkAccess(tableId, userId, 'write')
+      const accessResult = await checkAccess(tableId, rateLimit.principalUserId ?? userId, 'write')
       if (!accessResult.ok) return v2TableAccessError(accessResult)
 
       const { table } = accessResult

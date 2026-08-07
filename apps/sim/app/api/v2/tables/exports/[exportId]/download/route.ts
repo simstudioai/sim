@@ -22,7 +22,7 @@ export const GET = withPublicApiRouteHandler({
       const scopeError = await resolveWorkspaceScope(rateLimit, workspaceId)
       if (scopeError) return v2WorkspaceAccessError(scopeError)
       const record = await requireTableExport(input.params.exportId, workspaceId)
-      const access = await checkAccess(record.tableId, userId, 'read')
+      const access = await checkAccess(record.tableId, rateLimit.principalUserId ?? userId, 'read')
       if (!access.ok || access.table.workspaceId !== workspaceId) {
         return v2Error('NOT_FOUND', 'Table export not found')
       }

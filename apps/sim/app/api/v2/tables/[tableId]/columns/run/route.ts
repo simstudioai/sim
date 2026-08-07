@@ -42,7 +42,7 @@ export const POST = withPublicApiRouteHandler({
       const scopeError = await resolveWorkspaceScope(rateLimit, workspaceId)
       if (scopeError) return v2WorkspaceAccessError(scopeError)
 
-      const access = await checkAccess(tableId, userId, 'write')
+      const access = await checkAccess(tableId, rateLimit.principalUserId ?? userId, 'write')
       if (!access.ok) return v2TableAccessError(access)
 
       if (access.table.workspaceId !== workspaceId) {

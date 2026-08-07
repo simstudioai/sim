@@ -22,7 +22,11 @@ export const POST = withPublicApiRouteHandler({
       const { workspaceId, format } = input.body
       const scopeError = await resolveWorkspaceScope(rateLimit, workspaceId)
       if (scopeError) return v2WorkspaceAccessError(scopeError)
-      const access = await checkAccess(input.params.tableId, userId, 'read')
+      const access = await checkAccess(
+        input.params.tableId,
+        rateLimit.principalUserId ?? userId,
+        'read'
+      )
       if (!access.ok || access.table.workspaceId !== workspaceId) {
         return v2Error('NOT_FOUND', 'Table not found')
       }

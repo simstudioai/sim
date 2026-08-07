@@ -328,12 +328,14 @@ describe('POST /api/v2/workflows/[id]/execute', () => {
       workspaceId: 'workspace-1',
       billingAttribution,
     })
-    dbChainMockFns.limit.mockResolvedValue([workflowRecord])
-
     const res = await callExecute({ input: { hello: 'workspace' } })
 
     expect(res.status).toBe(200)
-    expect(mockAuthorize).not.toHaveBeenCalled()
+    expect(mockAuthorize).toHaveBeenCalledWith({
+      workflowId: 'workflow-1',
+      userId: 'key-user-1',
+      action: 'read',
+    })
     expect(mockPreprocessExecution).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: 'actor-1',
