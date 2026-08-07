@@ -117,10 +117,10 @@ const AttachedFileChip = React.memo(function AttachedFileChip({
             onRemoveFile(file.id)
           }}
           aria-label={`Remove ${file.name}`}
-          /* Visible by default so a coarse pointer never has to discover it through an
-             emulated hover; fine pointers get reveal-on-hover, plus reveal-on-focus so
-             it is never transparent while it holds the keyboard focus. */
-          className='absolute top-[2px] right-[2px] flex size-[16px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-body)] transition-opacity hover-hover:opacity-0 hover-hover:focus-visible:opacity-100 hover-hover:group-hover:opacity-100'
+          /* Always visible: reveal-on-hover would hide it from touch and from keyboard
+             focus, and `hover-hover` cannot express "while the chip is hovered" from
+             here anyway — it carries its own `&:hover`, so it binds to this element. */
+          className='absolute top-[2px] right-[2px] flex size-[16px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-body)]'
         >
           <X className='size-[10px]' />
         </button>
