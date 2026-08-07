@@ -1,5 +1,5 @@
 import { USE_BLOB_STORAGE, USE_GCS_STORAGE, USE_S3_STORAGE } from '@/lib/uploads/config'
-import { isObjectNotFoundError } from '@/lib/uploads/core/errors'
+import { hasObjectNotFoundLabel } from '@/lib/uploads/core/errors'
 import type { StorageConfig } from '@/lib/uploads/shared/types'
 
 export type { StorageConfig } from '@/lib/uploads/shared/types'
@@ -40,8 +40,12 @@ export async function getFileMetadata(
      * previous key finds nothing. Report it the way this function already reports
      * "nothing known about this key" rather than as a failure, so callers fall
      * through to their own not-found handling instead of an error path.
+     *
+     * Deliberately the labelled check: this dispatches across every provider and so
+     * cannot attribute a bare 404 to the object rather than its bucket. An
+     * unlabelled 404 keeps propagating, exactly as it did before.
      */
-    if (isObjectNotFoundError(error)) return {}
+    if (hasObjectNotFoundLabel(error)) return {}
     throw error
   }
 }

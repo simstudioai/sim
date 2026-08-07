@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { isObjectNotFoundError } from '@/lib/uploads/core/errors'
+import { hasObjectNotFoundLabel, isObjectNotFoundError } from '@/lib/uploads/core/errors'
 
 describe('isObjectNotFoundError', () => {
   it('matches the shapes each storage provider uses for a missing object', () => {
@@ -65,5 +65,25 @@ describe('isObjectNotFoundError', () => {
     expect(isObjectNotFoundError(undefined)).toBe(false)
     expect(isObjectNotFoundError('NotFound')).toBe(false)
     expect(isObjectNotFoundError(404)).toBe(false)
+  })
+})
+
+describe('hasObjectNotFoundLabel', () => {
+  it('accepts only a provider that names the object as the missing resource', () => {
+    expect(hasObjectNotFoundLabel({ name: 'NotFound' })).toBe(true)
+    expect(hasObjectNotFoundLabel({ name: 'NoSuchKey' })).toBe(true)
+    expect(hasObjectNotFoundLabel({ name: 'RestError', code: 'BlobNotFound' })).toBe(true)
+  })
+
+  it('rejects an unlabelled 404, which cannot be attributed to the object', () => {
+    /** GCS answers a missing object and a missing bucket identically. */
+    expect(hasObjectNotFoundLabel({ code: 404 })).toBe(false)
+    expect(hasObjectNotFoundLabel({ statusCode: 404 })).toBe(false)
+    expect(hasObjectNotFoundLabel({ $metadata: { httpStatusCode: 404 } })).toBe(false)
+  })
+
+  it('rejects a missing bucket or container', () => {
+    expect(hasObjectNotFoundLabel({ name: 'NoSuchBucket' })).toBe(false)
+    expect(hasObjectNotFoundLabel({ name: 'RestError', code: 'ContainerNotFound' })).toBe(false)
   })
 })
