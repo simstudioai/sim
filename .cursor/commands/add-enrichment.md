@@ -122,7 +122,7 @@ export const ENRICHMENT_REGISTRY: EnrichmentRegistry = {
 
 ## Step 5: Verify
 
-1. `bunx tsc --noEmit` (from `apps/sim`, `NODE_OPTIONS=--max-old-space-size=8192`) and `bunx biome check` on the changed files.
+1. `bun run type-check` (from `apps/sim`) and `bunx biome check` on the changed files.
 2. In a table → **+ New column → Enrichments** → pick the new enrichment, map its inputs to columns, name the output column(s), Save. Confirm it appears in the catalog with its icon/description.
 3. With hosted keys (or a workspace BYOK key) configured for each provider's service, run a row and confirm the cell fills; the dev-server log shows `Enrichment hit { provider }`. A row whose providers all miss completes blank; a row where every provider errored shows an error cell.
 

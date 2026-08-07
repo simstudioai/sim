@@ -192,6 +192,12 @@ jobs:
           fi
           bun run check:migrations "$BASE_REF"
 
+      # Runs before the type-check itself: if a bare `tsc` has fallen back to the
+      # JavaScript TypeScript 6 compiler that `@typescript/typescript6` drags in
+      # transitively, the type-check below still passes — it just takes ~10x longer.
+      - name: Native type-check audit
+        run: bun run check:native-typecheck
+
       # Every workspace, not just realtime. packages/emcn, packages/utils,
       # apps/desktop and apps/docs had no type check in CI at all; apps/sim's
       # source was covered only as a side effect of `next build` in the separate

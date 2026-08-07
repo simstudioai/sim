@@ -37,7 +37,7 @@ Key paths:
    hand-roll a Save button, a `beforeunload`, or an "Unsaved changes" modal —
    they're centralized. See the "Save / Discard + unsaved-changes guard" section
    in `.claude/rules/sim-settings-pages.md`.
-5. **Verify:** `cd apps/sim && bunx tsc --noEmit`; `bunx biome check --write <file>`.
+5. **Verify:** `cd apps/sim && bun run type-check`; `bunx biome check --write <file>`.
 
 ## Mode B — Audit existing settings pages
 
@@ -76,7 +76,7 @@ For each page component, confirm the checklist in `.claude/rules/sim-settings-pa
    unless they're also being changed for an unrelated, deliberate reason.
 7. Remove now-unused imports (`ChipInput`/`Search`) ONLY after grepping that
    they are not still used elsewhere in the file (e.g. by a detail view).
-8. **Verify the whole sweep:** `tsc --noEmit`, `biome check` on every touched
+8. **Verify the whole sweep:** `bun run type-check`, `biome check` on every touched
    file, and run the affected pages' tests. Diff each file against the base and
    confirm the change is purely structural before shipping.
 
@@ -105,5 +105,5 @@ contract. Then, per page:
 7. Check what the old row rendered *beside* the title (a badge, a timestamp, a
    transport label). The row's title truncates as one unit, so anything folded
    into it can be ellipsised away — move it to `description` or `badge`.
-8. Verify: `tsc --noEmit`, `biome check`, the page's tests, and a diff read of
+8. Verify: `bun run type-check`, `biome check`, the page's tests, and a diff read of
    every converted block for lost props, conditions, and `key` placement.
