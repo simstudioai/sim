@@ -2,7 +2,7 @@ import type { Readable } from 'node:stream'
 import { randomBytes } from 'crypto'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
+import { generateId, generateShortId } from '@sim/utils/id'
 import { assertKnownSizeWithinLimit } from '@/lib/core/utils/stream-limits'
 import {
   getStorageConfig,
@@ -210,7 +210,7 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
     return uploadResult
   }
 
-  const { writeFile, mkdir } = await import('fs/promises')
+  const { writeFile, mkdir, rename, rm } = await import('fs/promises')
   const { join, dirname } = await import('path')
   const { UPLOAD_DIR_SERVER } = await import('./setup.server')
 
@@ -220,7 +220,25 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
 
   await mkdir(dirname(filesystemPath), { recursive: true })
 
-  await writeFile(filesystemPath, file)
+  /**
+   * Write to a sibling temp file, then rename over the target.
+   *
+   * Every cloud backend commits an object atomically — an interrupted PUT leaves
+   * nothing behind — and callers rely on that: the fork copier and the KB
+   * document copier both treat "the object is there" as "the copy finished" and
+   * skip re-copying. A bare `writeFile` here would let a crash mid-write leave a
+   * truncated file that satisfies that check forever. `rename` within the same
+   * directory is atomic on POSIX and replaces the target in one step, so the key
+   * either names the previous bytes or the complete new ones and never a prefix.
+   */
+  const pendingPath = `${filesystemPath}.${generateShortId(12)}.partial`
+  try {
+    await writeFile(pendingPath, file)
+    await rename(pendingPath, filesystemPath)
+  } catch (error) {
+    await rm(pendingPath, { force: true }).catch(() => {})
+    throw error
+  }
 
   if (metadata && persistMetadata) {
     await insertFileMetadataHelper(
