@@ -83,6 +83,7 @@ import {
   resolveWorkspaceFileReference,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import {
+  EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE,
   mergeWorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenance,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
@@ -988,6 +989,7 @@ interface FunctionRouteExecutionContext {
   outputSecretNamesByScanLiteral: Map<string, string[]>
   outputSecretPlaintextsByName: Map<string, string>
   mountedFileSecretProvenanceScanner?: MountedFileSecretProvenanceScanner
+  hasMountedSandboxFiles: boolean
 }
 
 type ResolvedSecretNamesMetadataType =
@@ -1208,13 +1210,42 @@ function activateOutputSecretProvenance(
   }
 }
 
+/**
+ * True when any secret material was in scope for this execution — a mounted environment secret, or
+ * a secret carried by a mounted input file. When false, nothing secret ever reached the sandbox, so
+ * no export of any kind can carry one.
+ *
+ * Mounted bytes are classified from the caller's provenance envelope. Files mounted *without* one
+ * are unclassifiable rather than clean: absence of an envelope is absence of evidence, not evidence
+ * the mount carried nothing. Those fail closed here so the classification can never be stronger
+ * than what the caller actually attested to.
+ */
+function hasSecretMaterialInScope(context: FunctionRouteExecutionContext): boolean {
+  if (context.outputSecretPlaintextsByName.size > 0) return true
+  const scanner = context.mountedFileSecretProvenanceScanner
+  return scanner ? scanner.hasSecrets : context.hasMountedSandboxFiles
+}
+
+/**
+ * Classifies the secret provenance of one exported sandbox file.
+ *
+ * Text exports are scanned for the exact resolved-secret plaintexts in scope. Binary exports cannot
+ * be scanned soundly — re-encoding can carry a secret without leaving a literal substring — so they
+ * are classified only when no secret material was in scope at all; with nothing available to embed,
+ * the bytes are provably secret-free. Otherwise they stay unknown, which fails closed at every
+ * model and runtime boundary that later reads the file.
+ */
 async function getOutputFileSecretProvenance(
   buffer: Buffer,
   isBinary: boolean,
   context: FunctionRouteExecutionContext,
   scope: { userId: string; workspaceId: string }
 ): Promise<WorkspaceFileSecretProvenance> {
-  if (isBinary) return { status: 'unknown' }
+  if (isBinary) {
+    return hasSecretMaterialInScope(context)
+      ? { status: 'unknown' }
+      : EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE
+  }
   const mountedFileProvenance = context.mountedFileSecretProvenanceScanner?.scan(buffer) ?? {
     status: 'exact' as const,
     entries: [],
@@ -1999,6 +2030,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       outputSecretNamesByScanLiteral: new Map(),
       outputSecretPlaintextsByName: new Map(),
       mountedFileSecretProvenanceScanner,
+      hasMountedSandboxFiles: (_sandboxFiles?.length ?? 0) > 0,
     }
     for (const [name, plaintext] of Object.entries(envVars)) {
       if (!plaintext) continue
