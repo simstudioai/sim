@@ -26,6 +26,23 @@ import {
 
 const logger = createLogger('FilesServeAPI')
 
+/**
+ * Records a failed serve at a level that matches whose fault it is.
+ *
+ * A file that is not there is an ordinary answer rather than a server fault: a
+ * workspace file is rewritten under a new key on every content update, so a reader
+ * holding the previous key lands here routinely and correctly receives a 404. Each
+ * handler rethrows into the outer one, so logging those at `error` reports the same
+ * expected 404 twice and buries the failures that do warrant attention.
+ */
+function logServeFailure(message: string, error: unknown): void {
+  if (error instanceof FileNotFoundError) {
+    logger.info(message, { reason: error.message })
+    return
+  }
+  logger.error(message, error)
+}
+
 interface ServeOptions {
   /** `raw=1` — bypass all resolution and serve the stored source as-is. */
   raw: boolean
@@ -179,7 +196,7 @@ export const GET = withRouteHandler(
         return NextResponse.json({ error: 'Document is still being generated' }, { status: 409 })
       }
 
-      logger.error('Error serving file:', error)
+      logServeFailure('Error serving file:', error)
 
       if (error instanceof FileNotFoundError) {
         return createErrorResponse(error)
@@ -244,7 +261,7 @@ async function handleLocalFile(
       cacheControl: resolveServeCacheControl(options.versioned, contextParam),
     })
   } catch (error) {
-    logger.error('Error reading local file:', error)
+    logServeFailure('Error reading local file:', error)
     throw error
   }
 }
@@ -311,7 +328,7 @@ async function handleCloudProxy(
       cacheControl: resolveServeCacheControl(options.versioned, context),
     })
   } catch (error) {
-    logger.error('Error downloading from cloud storage:', error)
+    logServeFailure('Error downloading from cloud storage:', error)
     throw error
   }
 }
@@ -348,7 +365,7 @@ async function handleCloudProxyPublic(
       cacheControl: PUBLIC_ASSET_CACHE_CONTROL,
     })
   } catch (error) {
-    logger.error('Error serving public cloud file:', error)
+    logServeFailure('Error serving public cloud file:', error)
     throw error
   }
 }
@@ -373,7 +390,7 @@ async function handleLocalFilePublic(filename: string): Promise<NextResponse> {
       cacheControl: PUBLIC_ASSET_CACHE_CONTROL,
     })
   } catch (error) {
-    logger.error('Error reading public local file:', error)
+    logServeFailure('Error reading public local file:', error)
     throw error
   }
 }

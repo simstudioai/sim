@@ -27,6 +27,7 @@ import {
 } from '@sim/emcn/icons'
 import type { RunLimit, RunMode } from '@/lib/api/contracts/tables'
 import type { WorkflowGroupType } from '@/lib/table'
+import { HeaderLabel } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/headers/header-label'
 import { getEnrichment } from '@/enrichments/registry'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { SELECTION_TINT_BG } from '../constants'
@@ -439,7 +440,7 @@ export function WorkflowGroupMetaCell({
         ) : (
           <Workflow className='size-[12px] shrink-0 text-[var(--text-icon)]' />
         )}
-        <span className='min-w-0 truncate text-[var(--text-secondary)] text-xs'>{name}</span>
+        <HeaderLabel label={name} className='text-[var(--text-secondary)] text-xs' />
         {onRunColumn && (
           <DropdownMenu open={runMenuOpen} onOpenChange={setRunMenuOpen}>
             <DropdownMenuTrigger asChild>

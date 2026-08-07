@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { cn } from '@sim/emcn'
 import { ChevronDown } from '@sim/emcn/icons'
 import type { WorkflowGroup } from '@/lib/table'
+import { HeaderLabel } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/headers/header-label'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { COL_WIDTH, SELECTION_TINT_BG } from '../constants'
 import type { ColumnSourceInfo, DisplayColumn } from '../types'
@@ -296,9 +297,10 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
             blockIconInfo={sourceInfo?.blockIconInfo}
             blockMissing={blockMissing}
           />
-          <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap text-[var(--text-primary)] text-small'>
-            {column.workflowGroupId ? column.headerLabel : column.name}
-          </span>
+          <HeaderLabel
+            label={column.workflowGroupId ? column.headerLabel : column.name}
+            className='ml-1.5 text-[var(--text-primary)] text-small'
+          />
         </div>
       ) : (
         <div className='flex h-full w-full min-w-0 items-center'>
@@ -314,9 +316,10 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
               blockIconInfo={sourceInfo?.blockIconInfo}
               blockMissing={blockMissing}
             />
-            <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap text-[var(--text-primary)] text-small'>
-              {column.workflowGroupId ? column.headerLabel : column.name}
-            </span>
+            <HeaderLabel
+              label={column.workflowGroupId ? column.headerLabel : column.name}
+              className='ml-1.5 text-[var(--text-primary)] text-small'
+            />
           </button>
           <button
             type='button'

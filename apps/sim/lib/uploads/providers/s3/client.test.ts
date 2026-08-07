@@ -213,6 +213,45 @@ describe('S3 Client', () => {
         metadata: { simuploadid: 'receipt-1' },
       })
     })
+
+    it('reports an absent object as null rather than raising', async () => {
+      /**
+       * A workspace file is rewritten under a new key on every content update, so a
+       * reader holding the previous key lands here routinely. Absence is the answer,
+       * not a failure.
+       */
+      mockSend.mockRejectedValueOnce(
+        Object.assign(new Error('NotFound'), {
+          name: 'NotFound',
+          $metadata: { httpStatusCode: 404 },
+        })
+      )
+
+      await expect(headS3Object('workspace/superseded.md')).resolves.toBeNull()
+    })
+
+    it('raises when the bucket itself is missing', async () => {
+      /** Also a 404, but a misconfiguration — reporting absence would hide an outage. */
+      mockSend.mockRejectedValueOnce(
+        Object.assign(new Error('NoSuchBucket'), {
+          name: 'NoSuchBucket',
+          $metadata: { httpStatusCode: 404 },
+        })
+      )
+
+      await expect(headS3Object('workspace/file.txt')).rejects.toThrow('NoSuchBucket')
+    })
+
+    it('raises on a permission failure', async () => {
+      mockSend.mockRejectedValueOnce(
+        Object.assign(new Error('AccessDenied'), {
+          name: 'AccessDenied',
+          $metadata: { httpStatusCode: 403 },
+        })
+      )
+
+      await expect(headS3Object('workspace/file.txt')).rejects.toThrow('AccessDenied')
+    })
   })
 
   describe('getPresignedUrl', () => {

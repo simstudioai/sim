@@ -300,7 +300,7 @@ export function CollapsedChatFlyoutItem({
         <ConversationListItem
           title={chat.name}
           isActive={!!chat.isActive}
-          isUnread={!!chat.isUnread}
+          isUnread={!!chat.isUnread && !isCurrentRoute}
         />
       </Link>
     </DropdownMenuItem>
