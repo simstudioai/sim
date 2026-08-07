@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { chunkArray } from '@sim/utils'
+import { chunkArray } from '@sim/utils/helpers'
 import { env, envNumber } from '@/lib/core/config/env'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import {
