@@ -18,7 +18,7 @@ Integrate Smartlead into workflows. Create campaigns, write multi-step email seq
 
 ## Actions
 
-### `smartlead_list_campaigns`
+### Smartlead List Campaigns
 
 Retrieves all Smartlead campaigns for the authenticated account.
 
@@ -128,7 +128,7 @@ Retrieves all Smartlead campaigns for the authenticated account.
 | `tags` | array | Tags on the record |
 | `email_campaign_id` | number | Campaign the webhook belongs to |
 
-### `smartlead_get_campaign`
+### Smartlead Get Campaign
 
 Retrieves a single Smartlead campaign by ID.
 
@@ -236,7 +236,7 @@ Retrieves a single Smartlead campaign by ID.
 | `tags` | array | Tags on the record |
 | `email_campaign_id` | number | Campaign the webhook belongs to |
 
-### `smartlead_create_campaign`
+### Smartlead Create Campaign
 
 Creates a Smartlead campaign. The campaign starts in DRAFTED status; add sequences, email accounts, and a schedule before starting it.
 
@@ -346,7 +346,7 @@ Creates a Smartlead campaign. The campaign starts in DRAFTED status; add sequenc
 | `tags` | array | Tags on the record |
 | `email_campaign_id` | number | Campaign the webhook belongs to |
 
-### `smartlead_update_campaign_status`
+### Smartlead Update Campaign Status
 
 Starts, pauses, or stops a Smartlead campaign. START requires the campaign to already have a schedule, sequences, and at least one email account.
 
@@ -455,7 +455,7 @@ Starts, pauses, or stops a Smartlead campaign. START requires the campaign to al
 | `tags` | array | Tags on the record |
 | `email_campaign_id` | number | Campaign the webhook belongs to |
 
-### `smartlead_update_campaign_schedule`
+### Smartlead Update Campaign Schedule
 
 Sets the sending window, timezone, and throughput limits for a Smartlead campaign. A campaign cannot be started until a schedule exists.
 
@@ -570,7 +570,7 @@ Sets the sending window, timezone, and throughput limits for a Smartlead campaig
 | `tags` | array | Tags on the record |
 | `email_campaign_id` | number | Campaign the webhook belongs to |
 
-### `smartlead_update_campaign_settings`
+### Smartlead Update Campaign Settings
 
 Updates tracking, stop-on-activity, and sending settings for a Smartlead campaign.
 
@@ -684,7 +684,7 @@ Updates tracking, stop-on-activity, and sending settings for a Smartlead campaig
 | `tags` | array | Tags on the record |
 | `email_campaign_id` | number | Campaign the webhook belongs to |
 
-### `smartlead_get_campaign_analytics`
+### Smartlead Get Campaign Analytics
 
 Retrieves lifetime performance totals for a Smartlead campaign — sends, opens, clicks, replies, bounces, and lead counts by state.
 
@@ -792,7 +792,7 @@ Retrieves lifetime performance totals for a Smartlead campaign — sends, opens,
 | `tags` | array | Tags on the record |
 | `email_campaign_id` | number | Campaign the webhook belongs to |
 
-### `smartlead_get_campaign_analytics_by_date`
+### Smartlead Get Campaign Analytics By Date
 
 Retrieves Smartlead campaign performance totals for a date range. Smartlead rejects ranges longer than roughly one month.
 
@@ -902,7 +902,7 @@ Retrieves Smartlead campaign performance totals for a date range. Smartlead reje
 | `tags` | array | Tags on the record |
 | `email_campaign_id` | number | Campaign the webhook belongs to |
 
-### `smartlead_get_campaign_sequences`
+### Smartlead Get Campaign Sequences
 
 Retrieves the email sequence steps for a Smartlead campaign, including subjects, bodies, and per-step delays.
 
@@ -1010,7 +1010,7 @@ Retrieves the email sequence steps for a Smartlead campaign, including subjects,
 | `tags` | array | Tags on the record |
 | `email_campaign_id` | number | Campaign the webhook belongs to |
 
-### `smartlead_save_campaign_sequences`
+### Smartlead Save Campaign Sequences
 
 Replaces the email sequence for a Smartlead campaign. Send every step in one call — steps omitted from the request are removed. An empty subject makes a step reply in the previous thread.
 
@@ -1119,7 +1119,7 @@ Replaces the email sequence for a Smartlead campaign. Send every step in one cal
 | `tags` | array | Tags on the record |
 | `email_campaign_id` | number | Campaign the webhook belongs to |
 
-### `smartlead_get_campaign_statistics`
+### Smartlead Get Campaign Statistics
 
 Retrieves per-email statistics rows for a Smartlead campaign, filterable by sequence step, engagement status, and sent-time range.
 
@@ -1233,7 +1233,7 @@ Retrieves per-email statistics rows for a Smartlead campaign, filterable by sequ
 | `tags` | array | Tags on the record |
 | `email_campaign_id` | number | Campaign the webhook belongs to |
 
-### `smartlead_add_leads_to_campaign`
+### Smartlead Add Leads to Campaign
 
 Adds leads to a Smartlead campaign, up to 400 per call. Returns per-reason counts for leads that were skipped as duplicates, blocked, bounced, or invalid.
 
@@ -1346,7 +1346,7 @@ Adds leads to a Smartlead campaign, up to 400 per call. Returns per-reason count
 | `tags` | array | Tags on the record |
 | `email_campaign_id` | number | Campaign the webhook belongs to |
 
-### `smartlead_list_campaign_leads`
+### Smartlead List Campaign Leads
 
 Retrieves the leads in a Smartlead campaign with their per-campaign status.
 
@@ -1456,7 +1456,7 @@ Retrieves the leads in a Smartlead campaign with their per-campaign status.
 | `tags` | array | Tags on the record |
 | `email_campaign_id` | number | Campaign the webhook belongs to |
 
-### `smartlead_get_lead_by_email`
+### Smartlead Get Lead by Email
 
 Looks up a Smartlead lead by email address and returns the lead record plus every campaign it belongs to.
 
@@ -1565,7 +1565,7 @@ Looks up a Smartlead lead by email address and returns the lead record plus ever
 | `tags` | array | Tags on the record |
 | `email_campaign_id` | number | Campaign the webhook belongs to |
 
-### `smartlead_update_lead`
+### Smartlead Update Lead
 
 Updates a lead in a Smartlead campaign. Smartlead requires the email field even when it is unchanged, and lead edits apply across every campaign the lead belongs to.
 
@@ -1683,7 +1683,7 @@ Updates a lead in a Smartlead campaign. Smartlead requires the email field even 
 | `tags` | array | Tags on the record |
 | `email_campaign_id` | number | Campaign the webhook belongs to |
 
-### `smartlead_update_lead_category`
+### Smartlead Update Lead Category
 
 Sets the category of a lead in a Smartlead campaign, such as Interested or Not Interested. Use List Lead Categories to resolve a category ID.
 
@@ -1793,7 +1793,7 @@ Sets the category of a lead in a Smartlead campaign, such as Interested or Not I
 | `tags` | array | Tags on the record |
 | `email_campaign_id` | number | Campaign the webhook belongs to |
 
-### `smartlead_pause_lead`
+### Smartlead Pause Lead
 
 Pauses a lead in a Smartlead campaign so it stops receiving sequence emails.
 
@@ -1901,7 +1901,7 @@ Pauses a lead in a Smartlead campaign so it stops receiving sequence emails.
 | `tags` | array | Tags on the record |
 | `email_campaign_id` | number | Campaign the webhook belongs to |
 
-### `smartlead_resume_lead`
+### Smartlead Resume Lead
 
 Resumes a paused lead in a Smartlead campaign, optionally after a delay.
 
@@ -2010,7 +2010,7 @@ Resumes a paused lead in a Smartlead campaign, optionally after a delay.
 | `tags` | array | Tags on the record |
 | `email_campaign_id` | number | Campaign the webhook belongs to |
 
-### `smartlead_list_lead_categories`
+### Smartlead List Lead Categories
 
 Retrieves the lead categories configured on the Smartlead account, with the category IDs needed to categorize a lead.
 
@@ -2118,7 +2118,7 @@ Retrieves the lead categories configured on the Smartlead account, with the cate
 | `tags` | array | Tags on the record |
 | `email_campaign_id` | number | Campaign the webhook belongs to |
 
-### `smartlead_get_lead_message_history`
+### Smartlead Get Lead Message History
 
 Retrieves the sent-and-received message history for a lead in a Smartlead campaign.
 
@@ -2226,7 +2226,7 @@ Retrieves the sent-and-received message history for a lead in a Smartlead campai
 | `tags` | array | Tags on the record |
 | `email_campaign_id` | number | Campaign the webhook belongs to |
 
-### `smartlead_list_campaign_webhooks`
+### Smartlead List Campaign Webhooks
 
 Retrieves the webhooks registered on a Smartlead campaign.
 
@@ -2334,7 +2334,7 @@ Retrieves the webhooks registered on a Smartlead campaign.
 | `tags` | array | Tags on the record |
 | `email_campaign_id` | number | Campaign the webhook belongs to |
 
-### `smartlead_upsert_campaign_webhook`
+### Smartlead Create or Update Campaign Webhook
 
 Creates a webhook on a Smartlead campaign, or updates an existing one when a webhook ID is supplied. Smartlead requires at least one lead category.
 
@@ -2447,7 +2447,7 @@ Creates a webhook on a Smartlead campaign, or updates an existing one when a web
 | `tags` | array | Tags on the record |
 | `email_campaign_id` | number | Campaign the webhook belongs to |
 
-### `smartlead_delete_campaign_webhook`
+### Smartlead Delete Campaign Webhook
 
 Deletes a webhook from a Smartlead campaign.
 
@@ -2556,7 +2556,7 @@ Deletes a webhook from a Smartlead campaign.
 | `tags` | array | Tags on the record |
 | `email_campaign_id` | number | Campaign the webhook belongs to |
 
-### `smartlead_get_campaign_webhook_summary`
+### Smartlead Get Campaign Webhook Summary
 
 Retrieves webhook delivery counts for a Smartlead campaign over a time window, for checking whether events are reaching their destination.
 
@@ -2666,9 +2666,9 @@ Retrieves webhook delivery counts for a Smartlead campaign over a time window, f
 | `tags` | array | Tags on the record |
 | `email_campaign_id` | number | Campaign the webhook belongs to |
 
-### `smartlead_duplicate_campaign`
+### Smartlead Duplicate Campaign
 
-Copies a Smartlead campaign, including its sequences and settings. The copy is named "<original> - copy" and starts in DRAFTED status.
+Copies a Smartlead campaign, including its sequences and settings. The copy is named "&lt;original&gt; - copy" and starts in DRAFTED status.
 
 #### Input
 
@@ -2774,7 +2774,7 @@ Copies a Smartlead campaign, including its sequences and settings. The copy is n
 | `tags` | array | Tags on the record |
 | `email_campaign_id` | number | Campaign the webhook belongs to |
 
-### `smartlead_delete_campaign`
+### Smartlead Delete Campaign
 
 Permanently deletes a Smartlead campaign along with its sequences, leads, and webhooks. This cannot be undone.
 
@@ -2882,7 +2882,7 @@ Permanently deletes a Smartlead campaign along with its sequences, leads, and we
 | `tags` | array | Tags on the record |
 | `email_campaign_id` | number | Campaign the webhook belongs to |
 
-### `smartlead_export_campaign_leads`
+### Smartlead Export Campaign Leads
 
 Exports every lead in a Smartlead campaign as CSV, including engagement counts and the sequence step last sent to each lead.
 
@@ -2990,7 +2990,7 @@ Exports every lead in a Smartlead campaign as CSV, including engagement counts a
 | `tags` | array | Tags on the record |
 | `email_campaign_id` | number | Campaign the webhook belongs to |
 
-### `smartlead_list_campaign_email_accounts`
+### Smartlead List Campaign Email Accounts
 
 Retrieves the sending email accounts attached to a Smartlead campaign.
 
@@ -3098,7 +3098,7 @@ Retrieves the sending email accounts attached to a Smartlead campaign.
 | `tags` | array | Tags on the record |
 | `email_campaign_id` | number | Campaign the webhook belongs to |
 
-### `smartlead_add_email_accounts_to_campaign`
+### Smartlead Add Email Accounts to Campaign
 
 Attaches sending email accounts to a Smartlead campaign. A campaign needs at least one attached account before it can start.
 
@@ -3207,7 +3207,7 @@ Attaches sending email accounts to a Smartlead campaign. A campaign needs at lea
 | `tags` | array | Tags on the record |
 | `email_campaign_id` | number | Campaign the webhook belongs to |
 
-### `smartlead_remove_email_accounts_from_campaign`
+### Smartlead Remove Email Accounts from Campaign
 
 Detaches sending email accounts from a Smartlead campaign.
 
@@ -3316,7 +3316,7 @@ Detaches sending email accounts from a Smartlead campaign.
 | `tags` | array | Tags on the record |
 | `email_campaign_id` | number | Campaign the webhook belongs to |
 
-### `smartlead_list_email_accounts`
+### Smartlead List Email Accounts
 
 Retrieves the sending email accounts on the Smartlead account, including their IDs for attaching to a campaign.
 
@@ -3427,7 +3427,7 @@ Retrieves the sending email accounts on the Smartlead account, including their I
 | `tags` | array | Tags on the record |
 | `email_campaign_id` | number | Campaign the webhook belongs to |
 
-### `smartlead_get_campaign_lead_statistics`
+### Smartlead Get Campaign Lead Statistics
 
 Retrieves per-lead engagement statistics for a Smartlead campaign.
 
@@ -3537,7 +3537,7 @@ Retrieves per-lead engagement statistics for a Smartlead campaign.
 | `tags` | array | Tags on the record |
 | `email_campaign_id` | number | Campaign the webhook belongs to |
 
-### `smartlead_get_campaign_mailbox_statistics`
+### Smartlead Get Campaign Mailbox Statistics
 
 Retrieves per-mailbox sending statistics for a Smartlead campaign, for spotting which sending accounts are underperforming.
 
@@ -3645,7 +3645,7 @@ Retrieves per-mailbox sending statistics for a Smartlead campaign, for spotting 
 | `tags` | array | Tags on the record |
 | `email_campaign_id` | number | Campaign the webhook belongs to |
 
-### `smartlead_get_campaign_top_level_analytics_by_date`
+### Smartlead Get Campaign Top-Level Analytics By Date
 
 Retrieves top-level Smartlead campaign counts for a date range, including positive replies, skipped, failed, and stopped counts not present in the standard analytics.
 
@@ -3755,7 +3755,7 @@ Retrieves top-level Smartlead campaign counts for a date range, including positi
 | `tags` | array | Tags on the record |
 | `email_campaign_id` | number | Campaign the webhook belongs to |
 
-### `smartlead_list_lead_activities`
+### Smartlead List Lead Activities
 
 Retrieves recent lead activity across all Smartlead campaigns — opens, clicks, replies, and status changes. Smartlead exposes no campaign filter on this endpoint.
 
@@ -3865,7 +3865,7 @@ Retrieves recent lead activity across all Smartlead campaigns — opens, clicks,
 | `tags` | array | Tags on the record |
 | `email_campaign_id` | number | Campaign the webhook belongs to |
 
-### `smartlead_get_lead_by_id`
+### Smartlead Get Lead by ID
 
 Looks up a Smartlead lead by its ID.
 
@@ -3974,7 +3974,7 @@ Looks up a Smartlead lead by its ID.
 | `tags` | array | Tags on the record |
 | `email_campaign_id` | number | Campaign the webhook belongs to |
 
-### `smartlead_unsubscribe_lead_from_campaign`
+### Smartlead Unsubscribe Lead from Campaign
 
 Unsubscribes a lead from a single Smartlead campaign, leaving it active in other campaigns.
 
@@ -4082,7 +4082,7 @@ Unsubscribes a lead from a single Smartlead campaign, leaving it active in other
 | `tags` | array | Tags on the record |
 | `email_campaign_id` | number | Campaign the webhook belongs to |
 
-### `smartlead_unsubscribe_lead_globally`
+### Smartlead Unsubscribe Lead Globally
 
 Unsubscribes a lead across every Smartlead campaign and adds it to the account-wide unsubscribe list.
 
@@ -4191,7 +4191,7 @@ Unsubscribes a lead across every Smartlead campaign and adds it to the account-w
 | `tags` | array | Tags on the record |
 | `email_campaign_id` | number | Campaign the webhook belongs to |
 
-### `smartlead_mark_lead_complete`
+### Smartlead Mark Lead Complete
 
 Marks a lead as completed in a Smartlead campaign so it stops receiving further sequence steps.
 
@@ -4300,7 +4300,7 @@ Marks a lead as completed in a Smartlead campaign so it stops receiving further 
 | `tags` | array | Tags on the record |
 | `email_campaign_id` | number | Campaign the webhook belongs to |
 
-### `smartlead_delete_lead_from_campaign`
+### Smartlead Delete Lead from Campaign
 
 Removes a lead from a Smartlead campaign. The lead record itself remains on the account.
 
@@ -4408,7 +4408,7 @@ Removes a lead from a Smartlead campaign. The lead record itself remains on the 
 | `tags` | array | Tags on the record |
 | `email_campaign_id` | number | Campaign the webhook belongs to |
 
-### `smartlead_list_inbox_replies`
+### Smartlead List Inbox Replies
 
 Retrieves replies from the Smartlead master inbox across all campaigns, optionally limited to unread replies. Smartlead exposes no campaign filter on this endpoint.
 
@@ -4519,7 +4519,7 @@ Retrieves replies from the Smartlead master inbox across all campaigns, optional
 | `tags` | array | Tags on the record |
 | `email_campaign_id` | number | Campaign the webhook belongs to |
 
-### `smartlead_list_lead_lists`
+### Smartlead List Lead Lists
 
 Retrieves the lead lists on the Smartlead account with their lead counts.
 
@@ -4629,7 +4629,7 @@ Retrieves the lead lists on the Smartlead account with their lead counts.
 | `tags` | array | Tags on the record |
 | `email_campaign_id` | number | Campaign the webhook belongs to |
 
-### `smartlead_get_lead_list`
+### Smartlead Get Lead List
 
 Retrieves a single Smartlead lead list by ID.
 
@@ -4738,7 +4738,7 @@ Retrieves a single Smartlead lead list by ID.
 | `tags` | array | Tags on the record |
 | `email_campaign_id` | number | Campaign the webhook belongs to |
 
-### `smartlead_create_lead_list`
+### Smartlead Create Lead List
 
 Creates a lead list on the Smartlead account.
 
@@ -4847,7 +4847,7 @@ Creates a lead list on the Smartlead account.
 | `tags` | array | Tags on the record |
 | `email_campaign_id` | number | Campaign the webhook belongs to |
 
-### `smartlead_update_lead_list`
+### Smartlead Update Lead List
 
 Renames a Smartlead lead list.
 
@@ -4957,7 +4957,7 @@ Renames a Smartlead lead list.
 | `tags` | array | Tags on the record |
 | `email_campaign_id` | number | Campaign the webhook belongs to |
 
-### `smartlead_delete_lead_list`
+### Smartlead Delete Lead List
 
 Deletes a Smartlead lead list.
 
@@ -5066,7 +5066,7 @@ Deletes a Smartlead lead list.
 | `tags` | array | Tags on the record |
 | `email_campaign_id` | number | Campaign the webhook belongs to |
 
-### `smartlead_list_clients`
+### Smartlead List Clients
 
 Retrieves the clients on a Smartlead agency account, including the client IDs used to scope campaigns and email accounts.
 

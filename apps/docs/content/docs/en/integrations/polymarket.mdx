@@ -35,7 +35,7 @@ Integrate Polymarket prediction markets into the workflow. Can get markets, mark
 
 ## Actions
 
-### `polymarket_get_markets`
+### Get Markets from Polymarket
 
 Retrieve a list of prediction markets from Polymarket with optional filtering
 
@@ -71,7 +71,7 @@ Retrieve a list of prediction markets from Polymarket with optional filtering
 |   ↳ `liquidityNum` | number | Liquidity as number |
 |   ↳ `clobTokenIds` | array | CLOB token IDs |
 
-### `polymarket_get_market`
+### Get Market from Polymarket
 
 Retrieve details of a specific prediction market by ID or slug
 
@@ -110,7 +110,7 @@ Retrieve details of a specific prediction market by ID or slug
 |   ↳ `acceptingOrders` | boolean | Whether accepting orders |
 |   ↳ `negRisk` | boolean | Whether negative risk |
 
-### `polymarket_get_events`
+### Get Events from Polymarket
 
 Retrieve a list of events from Polymarket with optional filtering
 
@@ -146,7 +146,7 @@ Retrieve a list of events from Polymarket with optional filtering
 |   ↳ `volume` | number | Total volume |
 |   ↳ `markets` | array | Array of markets in this event |
 
-### `polymarket_get_event`
+### Get Event from Polymarket
 
 Retrieve details of a specific event by ID or slug
 
@@ -181,7 +181,7 @@ Retrieve details of a specific event by ID or slug
 |   ↳ `commentCount` | number | Comment count |
 |   ↳ `markets` | array | Array of markets in this event |
 
-### `polymarket_get_tags`
+### Get Tags from Polymarket
 
 Retrieve available tags for filtering markets from Polymarket
 
@@ -203,7 +203,7 @@ Retrieve available tags for filtering markets from Polymarket
 |   ↳ `createdAt` | string | Creation timestamp |
 |   ↳ `updatedAt` | string | Last update timestamp |
 
-### `polymarket_search`
+### Search Polymarket
 
 Search for markets, events, and profiles on Polymarket
 
@@ -234,7 +234,7 @@ Search for markets, events, and profiles on Polymarket
 |   ↳ `tags` | array | Array of matching tag objects |
 |   ↳ `profiles` | array | Array of matching profile objects |
 
-### `polymarket_get_series`
+### Get Series from Polymarket
 
 Retrieve series (related market groups) from Polymarket
 
@@ -266,7 +266,7 @@ Retrieve series (related market groups) from Polymarket
 |   ↳ `liquidity` | number | Total liquidity |
 |   ↳ `eventCount` | number | Number of events in series |
 
-### `polymarket_get_series_by_id`
+### Get Series by ID from Polymarket
 
 Retrieve a specific series (related market group) by ID from Polymarket
 
@@ -299,7 +299,7 @@ Retrieve a specific series (related market group) by ID from Polymarket
 |   ↳ `eventCount` | number | Number of events in series |
 |   ↳ `events` | array | Array of events in this series |
 
-### `polymarket_get_orderbook`
+### Get Orderbook from Polymarket
 
 Retrieve the order book summary for a specific token
 
@@ -329,7 +329,7 @@ Retrieve the order book summary for a specific token
 |   ↳ `neg_risk` | boolean | Whether negative risk |
 |   ↳ `last_trade_price` | string | Last trade price |
 
-### `polymarket_get_price`
+### Get Price from Polymarket
 
 Retrieve the market price for a specific token and side
 
@@ -346,7 +346,7 @@ Retrieve the market price for a specific token and side
 | --------- | ---- | ----------- |
 | `price` | string | Market price |
 
-### `polymarket_get_midpoint`
+### Get Midpoint Price from Polymarket
 
 Retrieve the midpoint price for a specific token
 
@@ -362,7 +362,7 @@ Retrieve the midpoint price for a specific token
 | --------- | ---- | ----------- |
 | `midpoint` | string | Midpoint price |
 
-### `polymarket_get_price_history`
+### Get Price History from Polymarket
 
 Retrieve historical price data for a specific market token
 
@@ -384,7 +384,7 @@ Retrieve historical price data for a specific market token
 |   ↳ `t` | number | Unix timestamp |
 |   ↳ `p` | number | Price at timestamp |
 
-### `polymarket_get_last_trade_price`
+### Get Last Trade Price from Polymarket
 
 Retrieve the last trade price for a specific token
 
@@ -401,7 +401,7 @@ Retrieve the last trade price for a specific token
 | `price` | string | Last trade price |
 | `side` | string | Side of the last trade \(BUY or SELL\) |
 
-### `polymarket_get_spread`
+### Get Spread from Polymarket
 
 Retrieve the bid-ask spread for a specific token
 
@@ -418,7 +418,7 @@ Retrieve the bid-ask spread for a specific token
 | `spread` | object | Spread value between bid and ask |
 |   ↳ `spread` | string | The spread value |
 
-### `polymarket_get_tick_size`
+### Get Tick Size from Polymarket
 
 Retrieve the minimum tick size for a specific token
 
@@ -434,7 +434,7 @@ Retrieve the minimum tick size for a specific token
 | --------- | ---- | ----------- |
 | `tickSize` | string | Minimum tick size |
 
-### `polymarket_get_positions`
+### Get Positions from Polymarket
 
 Retrieve user positions from Polymarket
 
@@ -485,7 +485,7 @@ Retrieve user positions from Polymarket
 |   ↳ `endDate` | string | End date |
 |   ↳ `negativeRisk` | boolean | Whether negative risk |
 
-### `polymarket_get_trades`
+### Get Trades from Polymarket
 
 Retrieve trade history from Polymarket
 
@@ -528,7 +528,7 @@ Retrieve trade history from Polymarket
 |   ↳ `profileImageOptimized` | string | Optimized profile image URL |
 |   ↳ `transactionHash` | string | Transaction hash |
 
-### `polymarket_get_activity`
+### Get Activity from Polymarket
 
 Retrieve on-chain activity for a user including trades, splits, merges, redemptions, rewards, and conversions
 
@@ -575,7 +575,7 @@ Retrieve on-chain activity for a user including trades, splits, merges, redempti
 |   ↳ `profileImage` | string | User profile image URL |
 |   ↳ `profileImageOptimized` | string | Optimized profile image URL |
 
-### `polymarket_get_leaderboard`
+### Get Leaderboard from Polymarket
 
 Retrieve trader leaderboard rankings by profit/loss or volume
 
@@ -605,7 +605,7 @@ Retrieve trader leaderboard rankings by profit/loss or volume
 |   ↳ `xUsername` | string | Twitter/X username |
 |   ↳ `verifiedBadge` | boolean | Whether user has verified badge |
 
-### `polymarket_get_holders`
+### Get Market Holders from Polymarket
 
 Retrieve top holders of a specific market token
 

@@ -32,7 +32,7 @@ Integrate the Sportmonks sports data APIs into the workflow from a single block.
 
 ## Actions
 
-### `sportmonks_football_expected_by_player`
+### Get Expected xG by Player
 
 Retrieve lineup-level expected goals (xG) values per player from Sportmonks
 
@@ -61,7 +61,7 @@ Retrieve lineup-level expected goals (xG) values per player from Sportmonks
 |   ↳ `data` | object | The expected value payload |
 |     ↳ `value` | number | The xG value |
 
-### `sportmonks_football_expected_by_team`
+### Get Expected xG by Team
 
 Retrieve fixture-level expected goals (xG) values per team from Sportmonks
 
@@ -89,7 +89,7 @@ Retrieve fixture-level expected goals (xG) values per team from Sportmonks
 |     ↳ `value` | number | The xG value |
 |   ↳ `location` | string | Home or away |
 
-### `sportmonks_football_get_all_commentaries`
+### Get All Commentaries
 
 Retrieve all textual commentaries available within your Sportmonks subscription
 
@@ -118,7 +118,7 @@ Retrieve all textual commentaries available within your Sportmonks subscription
 |   ↳ `is_important` | boolean | Whether the comment is important |
 |   ↳ `order` | number | Order of the comment |
 
-### `sportmonks_football_get_all_fixtures`
+### Get All Fixtures
 
 Retrieve all football fixtures available within your Sportmonks subscription
 
@@ -159,7 +159,7 @@ Retrieve all football fixtures available within your Sportmonks subscription
 |   ↳ `has_premium_odds` | boolean | Whether premium odds are available |
 |   ↳ `starting_at_timestamp` | number | UNIX timestamp of the start time |
 
-### `sportmonks_football_get_all_players`
+### Get All Players
 
 Retrieve all football players available within your Sportmonks subscription
 
@@ -198,7 +198,7 @@ Retrieve all football players available within your Sportmonks subscription
 |   ↳ `date_of_birth` | string | Date of birth of the player |
 |   ↳ `gender` | string | Gender of the player |
 
-### `sportmonks_football_get_all_rivals`
+### Get All Rivals
 
 Retrieve all teams with their rivals information from Sportmonks
 
@@ -222,7 +222,7 @@ Retrieve all teams with their rivals information from Sportmonks
 |   ↳ `team_id` | number | Team the rivalry belongs to |
 |   ↳ `rival_id` | number | Rival team id |
 
-### `sportmonks_football_get_all_teams`
+### Get All Teams
 
 Retrieve all football teams available within your Sportmonks subscription
 
@@ -255,7 +255,7 @@ Retrieve all football teams available within your Sportmonks subscription
 |   ↳ `placeholder` | boolean | Whether the team is a placeholder |
 |   ↳ `last_played_at` | string | Date and time of the last played match |
 
-### `sportmonks_football_get_all_transfer_rumours`
+### Get All Transfer Rumours
 
 Retrieve all transfer rumours available within your Sportmonks subscription
 
@@ -290,7 +290,7 @@ Retrieve all transfer rumours available within your Sportmonks subscription
 |   ↳ `date` | string | Date of the rumour |
 |   ↳ `type_id` | number | Type of the transfer rumour |
 
-### `sportmonks_football_get_all_transfers`
+### Get All Transfers
 
 Retrieve all transfers available within your Sportmonks subscription
 
@@ -323,7 +323,7 @@ Retrieve all transfers available within your Sportmonks subscription
 |   ↳ `completed` | boolean | Whether the transfer is completed |
 |   ↳ `amount` | number | Transfer fee amount |
 
-### `sportmonks_football_get_brackets_by_season`
+### Get Brackets by Season
 
 Retrieve the knockout-stage tournament bracket (stages and progression edges) for a season ID
 
@@ -341,7 +341,7 @@ Retrieve the knockout-stage tournament bracket (stages and progression edges) fo
 | --------- | ---- | ----------- |
 | `brackets` | json | Bracket object containing stages \(fixtures grouped by knockout round\) and edges \(progression paths between fixtures\) |
 
-### `sportmonks_football_get_coach`
+### Get Coach by ID
 
 Retrieve a single football coach by their ID from Sportmonks
 
@@ -376,7 +376,7 @@ Retrieve a single football coach by their ID from Sportmonks
 |   ↳ `date_of_birth` | string | Date of birth of the coach |
 |   ↳ `gender` | string | Gender of the coach |
 
-### `sportmonks_football_get_coaches`
+### Get Coaches
 
 Retrieve all football coaches available within your Sportmonks subscription
 
@@ -413,7 +413,7 @@ Retrieve all football coaches available within your Sportmonks subscription
 |   ↳ `date_of_birth` | string | Date of birth of the coach |
 |   ↳ `gender` | string | Gender of the coach |
 
-### `sportmonks_football_get_coaches_by_country`
+### Get Coaches by Country
 
 Retrieve all coaches for a country ID from Sportmonks
 
@@ -451,7 +451,7 @@ Retrieve all coaches for a country ID from Sportmonks
 |   ↳ `date_of_birth` | string | Date of birth of the coach |
 |   ↳ `gender` | string | Gender of the coach |
 
-### `sportmonks_football_get_commentaries_by_fixture`
+### Get Commentaries by Fixture
 
 Retrieve textual commentary for a fixture by fixture ID from Sportmonks
 
@@ -477,7 +477,7 @@ Retrieve textual commentary for a fixture by fixture ID from Sportmonks
 |   ↳ `is_important` | boolean | Whether the comment is important |
 |   ↳ `order` | number | Order of the comment |
 
-### `sportmonks_football_get_current_leagues_by_team`
+### Get Current Leagues by Team
 
 Retrieve all current leagues for a team ID from Sportmonks
 
@@ -510,7 +510,7 @@ Retrieve all current leagues for a team ID from Sportmonks
 |   ↳ `last_played_at` | string | Date the last fixture was played |
 |   ↳ `category` | number | Importance category of the league \(1-4\) |
 
-### `sportmonks_football_get_expected_lineups_by_player`
+### Get Expected Lineups by Player
 
 Retrieve the premium expected lineups for a player ID from Sportmonks
 
@@ -544,7 +544,7 @@ Retrieve the premium expected lineups for a player ID from Sportmonks
 |   ↳ `player_name` | string | Name of the player |
 |   ↳ `jersey_number` | number | Jersey number of the player |
 
-### `sportmonks_football_get_expected_lineups_by_team`
+### Get Expected Lineups by Team
 
 Retrieve the premium expected lineups for a team ID from Sportmonks
 
@@ -578,7 +578,7 @@ Retrieve the premium expected lineups for a team ID from Sportmonks
 |   ↳ `player_name` | string | Name of the player |
 |   ↳ `jersey_number` | number | Jersey number of the player |
 
-### `sportmonks_football_get_extended_team_squad`
+### Get Extended Team Squad
 
 Retrieve all squad entries for a team (based on current seasons) by team ID
 
@@ -606,7 +606,7 @@ Retrieve all squad entries for a team (based on current seasons) by team ID
 |   ↳ `start` | string | Start contract date of the player |
 |   ↳ `end` | string | End contract date of the player |
 
-### `sportmonks_football_get_fixture`
+### Get Fixture by ID
 
 Retrieve a single football fixture by its ID from Sportmonks
 
@@ -645,7 +645,7 @@ Retrieve a single football fixture by its ID from Sportmonks
 |   ↳ `has_premium_odds` | boolean | Whether premium odds are available |
 |   ↳ `starting_at_timestamp` | number | UNIX timestamp of the start time |
 
-### `sportmonks_football_get_fixtures_by_date`
+### Get Fixtures by Date
 
 Retrieve all football fixtures on a specific date (YYYY-MM-DD) from Sportmonks
 
@@ -687,7 +687,7 @@ Retrieve all football fixtures on a specific date (YYYY-MM-DD) from Sportmonks
 |   ↳ `has_premium_odds` | boolean | Whether premium odds are available |
 |   ↳ `starting_at_timestamp` | number | UNIX timestamp of the start time |
 
-### `sportmonks_football_get_fixtures_by_date_range`
+### Get Fixtures by Date Range
 
 Retrieve football fixtures between two dates (YYYY-MM-DD) from Sportmonks. Max range is 100 days.
 
@@ -730,7 +730,7 @@ Retrieve football fixtures between two dates (YYYY-MM-DD) from Sportmonks. Max r
 |   ↳ `has_premium_odds` | boolean | Whether premium odds are available |
 |   ↳ `starting_at_timestamp` | number | UNIX timestamp of the start time |
 
-### `sportmonks_football_get_fixtures_by_date_range_for_team`
+### Get Fixtures by Date Range for Team
 
 Retrieve fixtures for a team within a date range (YYYY-MM-DD) from Sportmonks
 
@@ -774,7 +774,7 @@ Retrieve fixtures for a team within a date range (YYYY-MM-DD) from Sportmonks
 |   ↳ `has_premium_odds` | boolean | Whether premium odds are available |
 |   ↳ `starting_at_timestamp` | number | UNIX timestamp of the start time |
 
-### `sportmonks_football_get_fixtures_by_ids`
+### Get Fixtures by Multiple IDs
 
 Retrieve multiple football fixtures by a comma-separated list of IDs (max 50)
 
@@ -813,7 +813,7 @@ Retrieve multiple football fixtures by a comma-separated list of IDs (max 50)
 |   ↳ `has_premium_odds` | boolean | Whether premium odds are available |
 |   ↳ `starting_at_timestamp` | number | UNIX timestamp of the start time |
 
-### `sportmonks_football_get_grouped_standings_by_round`
+### Get Grouped Standings by Round
 
 Retrieve the standing table for a round ID grouped by group where applicable from Sportmonks
 
@@ -832,7 +832,7 @@ Retrieve the standing table for a round ID grouped by group where applicable fro
 | --------- | ---- | ----------- |
 | `standings` | json | Standings for the round: an array of groups \(each with id, name and a standings array\) when groups exist, otherwise a flat array of standing entries |
 
-### `sportmonks_football_get_head_to_head`
+### Get Head to Head
 
 Retrieve the head-to-head fixtures between two teams from Sportmonks
 
@@ -875,7 +875,7 @@ Retrieve the head-to-head fixtures between two teams from Sportmonks
 |   ↳ `has_premium_odds` | boolean | Whether premium odds are available |
 |   ↳ `starting_at_timestamp` | number | UNIX timestamp of the start time |
 
-### `sportmonks_football_get_inplay_livescores`
+### Get Inplay Livescores
 
 Retrieve all fixtures that are currently being played (in-play) from Sportmonks
 
@@ -913,7 +913,7 @@ Retrieve all fixtures that are currently being played (in-play) from Sportmonks
 |   ↳ `has_premium_odds` | boolean | Whether premium odds are available |
 |   ↳ `starting_at_timestamp` | number | UNIX timestamp of the start time |
 
-### `sportmonks_football_get_latest_coaches`
+### Get Last Updated Coaches
 
 Retrieve all coaches that have received updates in the past two hours
 
@@ -950,7 +950,7 @@ Retrieve all coaches that have received updates in the past two hours
 |   ↳ `date_of_birth` | string | Date of birth of the coach |
 |   ↳ `gender` | string | Gender of the coach |
 
-### `sportmonks_football_get_latest_fixtures`
+### Get Latest Updated Fixtures
 
 Retrieve all fixtures that have received updates within the last 10 seconds
 
@@ -988,7 +988,7 @@ Retrieve all fixtures that have received updates within the last 10 seconds
 |   ↳ `has_premium_odds` | boolean | Whether premium odds are available |
 |   ↳ `starting_at_timestamp` | number | UNIX timestamp of the start time |
 
-### `sportmonks_football_get_latest_livescores`
+### Get Latest Updated Livescores
 
 Retrieve all livescores that have received updates within the last 10 seconds
 
@@ -1026,7 +1026,7 @@ Retrieve all livescores that have received updates within the last 10 seconds
 |   ↳ `has_premium_odds` | boolean | Whether premium odds are available |
 |   ↳ `starting_at_timestamp` | number | UNIX timestamp of the start time |
 
-### `sportmonks_football_get_latest_players`
+### Get Last Updated Players
 
 Retrieve all players that have received updates in the past two hours
 
@@ -1062,7 +1062,7 @@ Retrieve all players that have received updates in the past two hours
 |   ↳ `date_of_birth` | string | Date of birth of the player |
 |   ↳ `gender` | string | Gender of the player |
 
-### `sportmonks_football_get_latest_totw`
+### Get Latest Team of the Week
 
 Retrieve the latest Team of the Week (TOTW) for a league ID from Sportmonks
 
@@ -1088,7 +1088,7 @@ Retrieve the latest Team of the Week (TOTW) for a league ID from Sportmonks
 |   ↳ `formation_position` | number | Player position in the TOTW formation |
 |   ↳ `formation` | string | The TOTW's formation |
 
-### `sportmonks_football_get_latest_transfers`
+### Get Latest Transfers
 
 Retrieve the latest transfers available within your Sportmonks subscription
 
@@ -1121,7 +1121,7 @@ Retrieve the latest transfers available within your Sportmonks subscription
 |   ↳ `completed` | boolean | Whether the transfer is completed |
 |   ↳ `amount` | number | Transfer fee amount |
 
-### `sportmonks_football_get_league`
+### Get League by ID
 
 Retrieve a single football league by its ID from Sportmonks
 
@@ -1151,7 +1151,7 @@ Retrieve a single football league by its ID from Sportmonks
 |   ↳ `last_played_at` | string | Date the last fixture was played |
 |   ↳ `category` | number | Importance category of the league \(1-4\) |
 
-### `sportmonks_football_get_leagues`
+### Get Leagues
 
 Retrieve all football leagues available within your Sportmonks subscription
 
@@ -1183,7 +1183,7 @@ Retrieve all football leagues available within your Sportmonks subscription
 |   ↳ `last_played_at` | string | Date the last fixture was played |
 |   ↳ `category` | number | Importance category of the league \(1-4\) |
 
-### `sportmonks_football_get_leagues_by_country`
+### Get Leagues by Country
 
 Retrieve all leagues for a country ID from Sportmonks
 
@@ -1216,7 +1216,7 @@ Retrieve all leagues for a country ID from Sportmonks
 |   ↳ `last_played_at` | string | Date the last fixture was played |
 |   ↳ `category` | number | Importance category of the league \(1-4\) |
 
-### `sportmonks_football_get_leagues_by_date`
+### Get Leagues by Date
 
 Retrieve all leagues with fixtures on a given date (YYYY-MM-DD) from Sportmonks
 
@@ -1249,7 +1249,7 @@ Retrieve all leagues with fixtures on a given date (YYYY-MM-DD) from Sportmonks
 |   ↳ `last_played_at` | string | Date the last fixture was played |
 |   ↳ `category` | number | Importance category of the league \(1-4\) |
 
-### `sportmonks_football_get_leagues_by_team`
+### Get Leagues by Team
 
 Retrieve all current and historical leagues for a team ID from Sportmonks
 
@@ -1282,7 +1282,7 @@ Retrieve all current and historical leagues for a team ID from Sportmonks
 |   ↳ `last_played_at` | string | Date the last fixture was played |
 |   ↳ `category` | number | Importance category of the league \(1-4\) |
 
-### `sportmonks_football_get_live_leagues`
+### Get Live Leagues
 
 Retrieve all leagues that have fixtures currently being played from Sportmonks
 
@@ -1314,7 +1314,7 @@ Retrieve all leagues that have fixtures currently being played from Sportmonks
 |   ↳ `last_played_at` | string | Date the last fixture was played |
 |   ↳ `category` | number | Importance category of the league \(1-4\) |
 
-### `sportmonks_football_get_live_probabilities`
+### Get Live Probabilities
 
 Retrieve all live (in-play) prediction probabilities from Sportmonks
 
@@ -1340,7 +1340,7 @@ Retrieve all live (in-play) prediction probabilities from Sportmonks
 |   ↳ `predictions` | json | Home win, away win and draw probabilities as percentages |
 |   ↳ `type_id` | number | Type of the prediction \(237 for fulltime result\) |
 
-### `sportmonks_football_get_live_probabilities_by_fixture`
+### Get Live Probabilities by Fixture
 
 Retrieve all live (in-play) prediction probabilities for a fixture ID from Sportmonks
 
@@ -1367,7 +1367,7 @@ Retrieve all live (in-play) prediction probabilities for a fixture ID from Sport
 |   ↳ `predictions` | json | Home win, away win and draw probabilities as percentages |
 |   ↳ `type_id` | number | Type of the prediction \(237 for fulltime result\) |
 
-### `sportmonks_football_get_live_standings_by_league`
+### Get Live Standings by League
 
 Retrieve the live standing table for a league ID from Sportmonks
 
@@ -1398,7 +1398,7 @@ Retrieve the live standing table for a league ID from Sportmonks
 |   ↳ `result` | string | Movement of the team in the standing |
 |   ↳ `points` | number | Points the team has gathered |
 
-### `sportmonks_football_get_livescores`
+### Get Livescores
 
 Retrieve fixtures starting within 15 minutes and currently in progress from Sportmonks
 
@@ -1436,7 +1436,7 @@ Retrieve fixtures starting within 15 minutes and currently in progress from Spor
 |   ↳ `has_premium_odds` | boolean | Whether premium odds are available |
 |   ↳ `starting_at_timestamp` | number | UNIX timestamp of the start time |
 
-### `sportmonks_football_get_match_facts`
+### Get All Match Facts
 
 Retrieve all available match facts within your Sportmonks subscription (beta)
 
@@ -1467,7 +1467,7 @@ Retrieve all available match facts within your Sportmonks subscription (beta)
 |   ↳ `category` | string | Category of the match fact |
 |   ↳ `scope` | string | Scope of the match fact |
 
-### `sportmonks_football_get_match_facts_by_date_range`
+### Get Match Facts by Date Range
 
 Retrieve match facts within a date range (YYYY-MM-DD) from Sportmonks (beta)
 
@@ -1500,7 +1500,7 @@ Retrieve match facts within a date range (YYYY-MM-DD) from Sportmonks (beta)
 |   ↳ `category` | string | Category of the match fact |
 |   ↳ `scope` | string | Scope of the match fact |
 
-### `sportmonks_football_get_match_facts_by_fixture`
+### Get Match Facts by Fixture
 
 Retrieve match facts for a fixture ID from Sportmonks (beta)
 
@@ -1532,7 +1532,7 @@ Retrieve match facts for a fixture ID from Sportmonks (beta)
 |   ↳ `category` | string | Category of the match fact |
 |   ↳ `scope` | string | Scope of the match fact |
 
-### `sportmonks_football_get_match_facts_by_league`
+### Get Match Facts by League
 
 Retrieve match facts for a league ID from Sportmonks (beta)
 
@@ -1564,7 +1564,7 @@ Retrieve match facts for a league ID from Sportmonks (beta)
 |   ↳ `category` | string | Category of the match fact |
 |   ↳ `scope` | string | Scope of the match fact |
 
-### `sportmonks_football_get_past_fixtures_by_tv_station`
+### Get Past Fixtures by TV Station
 
 Retrieve all past fixtures that were available for a TV station ID from Sportmonks
 
@@ -1606,7 +1606,7 @@ Retrieve all past fixtures that were available for a TV station ID from Sportmon
 |   ↳ `has_premium_odds` | boolean | Whether premium odds are available |
 |   ↳ `starting_at_timestamp` | number | UNIX timestamp of the start time |
 
-### `sportmonks_football_get_player`
+### Get Player by ID
 
 Retrieve a single football player by their ID from Sportmonks
 
@@ -1643,7 +1643,7 @@ Retrieve a single football player by their ID from Sportmonks
 |   ↳ `date_of_birth` | string | Date of birth of the player |
 |   ↳ `gender` | string | Gender of the player |
 
-### `sportmonks_football_get_players_by_country`
+### Get Players by Country
 
 Retrieve all players for a country ID from Sportmonks
 
@@ -1683,7 +1683,7 @@ Retrieve all players for a country ID from Sportmonks
 |   ↳ `date_of_birth` | string | Date of birth of the player |
 |   ↳ `gender` | string | Gender of the player |
 
-### `sportmonks_football_get_postmatch_news`
+### Get Post-Match News
 
 Retrieve all post-match news articles available within your Sportmonks subscription
 
@@ -1709,7 +1709,7 @@ Retrieve all post-match news articles available within your Sportmonks subscript
 |   ↳ `title` | string | Title of the news article |
 |   ↳ `type` | string | Type of the news \(prematch or postmatch\) |
 
-### `sportmonks_football_get_postmatch_news_by_season`
+### Get Post-Match News by Season
 
 Retrieve all post-match news articles for a season ID from Sportmonks
 
@@ -1736,7 +1736,7 @@ Retrieve all post-match news articles for a season ID from Sportmonks
 |   ↳ `title` | string | Title of the news article |
 |   ↳ `type` | string | Type of the news \(prematch or postmatch\) |
 
-### `sportmonks_football_get_predictability_by_league`
+### Get Predictability by League
 
 Retrieve the predictions model performance for a league ID from Sportmonks
 
@@ -1762,7 +1762,7 @@ Retrieve the predictions model performance for a league ID from Sportmonks
 |   ↳ `type_id` | number | Type of the predictability |
 |   ↳ `data` | json | Predictability values per market |
 
-### `sportmonks_football_get_prematch_news`
+### Get Pre-Match News
 
 Retrieve all pre-match news articles available within your Sportmonks subscription
 
@@ -1788,7 +1788,7 @@ Retrieve all pre-match news articles available within your Sportmonks subscripti
 |   ↳ `title` | string | Title of the news article |
 |   ↳ `type` | string | Type of the news \(prematch or postmatch\) |
 
-### `sportmonks_football_get_prematch_news_by_season`
+### Get Pre-Match News by Season
 
 Retrieve all pre-match news articles for a season ID from Sportmonks
 
@@ -1815,7 +1815,7 @@ Retrieve all pre-match news articles for a season ID from Sportmonks
 |   ↳ `title` | string | Title of the news article |
 |   ↳ `type` | string | Type of the news \(prematch or postmatch\) |
 
-### `sportmonks_football_get_prematch_news_upcoming`
+### Get Pre-Match News for Upcoming Fixtures
 
 Retrieve all pre-match news articles for upcoming fixtures from Sportmonks
 
@@ -1841,7 +1841,7 @@ Retrieve all pre-match news articles for upcoming fixtures from Sportmonks
 |   ↳ `title` | string | Title of the news article |
 |   ↳ `type` | string | Type of the news \(prematch or postmatch\) |
 
-### `sportmonks_football_get_probabilities`
+### Get Probabilities
 
 Retrieve all prediction probabilities available within your Sportmonks subscription
 
@@ -1866,7 +1866,7 @@ Retrieve all prediction probabilities available within your Sportmonks subscript
 |   ↳ `predictions` | json | Prediction payload \(varies by type: score map, value bet object, etc.\) |
 |   ↳ `type_id` | number | Type of the prediction |
 
-### `sportmonks_football_get_probabilities_by_fixture`
+### Get Predictions by Fixture
 
 Retrieve prediction probabilities for a fixture by fixture ID from Sportmonks
 
@@ -1892,7 +1892,7 @@ Retrieve prediction probabilities for a fixture by fixture ID from Sportmonks
 |   ↳ `predictions` | json | Prediction payload \(varies by type: score map, value bet object, etc.\) |
 |   ↳ `type_id` | number | Type of the prediction |
 
-### `sportmonks_football_get_referee`
+### Get Referee by ID
 
 Retrieve a single football referee by their ID from Sportmonks
 
@@ -1926,7 +1926,7 @@ Retrieve a single football referee by their ID from Sportmonks
 |   ↳ `date_of_birth` | string | Date of birth of the referee |
 |   ↳ `gender` | string | Gender of the referee |
 
-### `sportmonks_football_get_referees`
+### Get Referees
 
 Retrieve all football referees available within your Sportmonks subscription
 
@@ -1962,7 +1962,7 @@ Retrieve all football referees available within your Sportmonks subscription
 |   ↳ `date_of_birth` | string | Date of birth of the referee |
 |   ↳ `gender` | string | Gender of the referee |
 
-### `sportmonks_football_get_referees_by_country`
+### Get Referees by Country
 
 Retrieve all referees for a country ID from Sportmonks
 
@@ -1999,7 +1999,7 @@ Retrieve all referees for a country ID from Sportmonks
 |   ↳ `date_of_birth` | string | Date of birth of the referee |
 |   ↳ `gender` | string | Gender of the referee |
 
-### `sportmonks_football_get_referees_by_season`
+### Get Referees by Season
 
 Retrieve all referees for a season ID from Sportmonks
 
@@ -2036,7 +2036,7 @@ Retrieve all referees for a season ID from Sportmonks
 |   ↳ `date_of_birth` | string | Date of birth of the referee |
 |   ↳ `gender` | string | Gender of the referee |
 
-### `sportmonks_football_get_rivals_by_team`
+### Get Rivals by Team
 
 Retrieve rival teams for a team by team ID from Sportmonks
 
@@ -2057,7 +2057,7 @@ Retrieve rival teams for a team by team ID from Sportmonks
 |   ↳ `team_id` | number | Team the rivalry belongs to |
 |   ↳ `rival_id` | number | Rival team id |
 
-### `sportmonks_football_get_round`
+### Get Round by ID
 
 Retrieve a single football round by its ID from Sportmonks
 
@@ -2087,7 +2087,7 @@ Retrieve a single football round by its ID from Sportmonks
 |   ↳ `ending_at` | string | End date of the round |
 |   ↳ `games_in_current_week` | boolean | Whether the round has fixtures this week |
 
-### `sportmonks_football_get_round_statistics`
+### Get Round Statistics
 
 Retrieve all available statistics for a round ID from Sportmonks
 
@@ -2114,7 +2114,7 @@ Retrieve all available statistics for a round ID from Sportmonks
 |   ↳ `relation_id` | number | Related entity id \(e.g. participant\) when applicable |
 |   ↳ `value` | json | Statistic value payload \(varies by type\) |
 
-### `sportmonks_football_get_rounds`
+### Get Rounds
 
 Retrieve all football rounds available within your Sportmonks subscription
 
@@ -2146,7 +2146,7 @@ Retrieve all football rounds available within your Sportmonks subscription
 |   ↳ `ending_at` | string | End date of the round |
 |   ↳ `games_in_current_week` | boolean | Whether the round has fixtures this week |
 
-### `sportmonks_football_get_rounds_by_season`
+### Get Rounds by Season
 
 Retrieve all rounds for a season ID from Sportmonks
 
@@ -2176,7 +2176,7 @@ Retrieve all rounds for a season ID from Sportmonks
 |   ↳ `ending_at` | string | End date of the round |
 |   ↳ `games_in_current_week` | boolean | Whether the round has fixtures this week |
 
-### `sportmonks_football_get_schedules_by_season`
+### Get Schedules by Season
 
 Retrieve the full schedule (stages, rounds and fixtures) for a season by season ID
 
@@ -2193,7 +2193,7 @@ Retrieve the full schedule (stages, rounds and fixtures) for a season by season 
 | --------- | ---- | ----------- |
 | `schedules` | json | Array of stages, each with nested rounds and their fixtures \(participants, scores\) |
 
-### `sportmonks_football_get_schedules_by_season_and_team`
+### Get Schedules by Season and Team
 
 Retrieve the full season schedule for a specific team by season ID and team ID
 
@@ -2211,7 +2211,7 @@ Retrieve the full season schedule for a specific team by season ID and team ID
 | --------- | ---- | ----------- |
 | `schedules` | json | Array of stages, each with nested rounds and their fixtures for the team in the season |
 
-### `sportmonks_football_get_schedules_by_team`
+### Get Schedules by Team
 
 Retrieve the full schedule (stages, rounds and fixtures) for a team by team ID
 
@@ -2228,7 +2228,7 @@ Retrieve the full schedule (stages, rounds and fixtures) for a team by team ID
 | --------- | ---- | ----------- |
 | `schedules` | json | Array of stages, each with nested rounds and their fixtures \(participants, scores\) |
 
-### `sportmonks_football_get_season`
+### Get Season by ID
 
 Retrieve a single football season by its ID from Sportmonks
 
@@ -2260,7 +2260,7 @@ Retrieve a single football season by its ID from Sportmonks
 |   ↳ `standings_recalculated_at` | string | Last standings recalculation time |
 |   ↳ `games_in_current_week` | boolean | Whether the season has fixtures this week |
 
-### `sportmonks_football_get_seasons`
+### Get Seasons
 
 Retrieve all football seasons available within your Sportmonks subscription
 
@@ -2294,7 +2294,7 @@ Retrieve all football seasons available within your Sportmonks subscription
 |   ↳ `standings_recalculated_at` | string | Last standings recalculation time |
 |   ↳ `games_in_current_week` | boolean | Whether the season has fixtures this week |
 
-### `sportmonks_football_get_seasons_by_team`
+### Get Seasons by Team
 
 Retrieve all seasons for a team ID from Sportmonks
 
@@ -2326,7 +2326,7 @@ Retrieve all seasons for a team ID from Sportmonks
 |   ↳ `standings_recalculated_at` | string | Last standings recalculation time |
 |   ↳ `games_in_current_week` | boolean | Whether the season has fixtures this week |
 
-### `sportmonks_football_get_stage`
+### Get Stage by ID
 
 Retrieve a single football stage by its ID from Sportmonks
 
@@ -2357,7 +2357,7 @@ Retrieve a single football stage by its ID from Sportmonks
 |   ↳ `ending_at` | string | End date of the stage |
 |   ↳ `games_in_current_week` | boolean | Whether the stage has fixtures this week |
 
-### `sportmonks_football_get_stage_statistics`
+### Get Stage Statistics
 
 Retrieve all available statistics for a stage ID from Sportmonks
 
@@ -2384,7 +2384,7 @@ Retrieve all available statistics for a stage ID from Sportmonks
 |   ↳ `relation_id` | number | Related entity id \(e.g. participant\) when applicable |
 |   ↳ `value` | json | Statistic value payload \(varies by type\) |
 
-### `sportmonks_football_get_stages`
+### Get Stages
 
 Retrieve all football stages available within your Sportmonks subscription
 
@@ -2417,7 +2417,7 @@ Retrieve all football stages available within your Sportmonks subscription
 |   ↳ `ending_at` | string | End date of the stage |
 |   ↳ `games_in_current_week` | boolean | Whether the stage has fixtures this week |
 
-### `sportmonks_football_get_stages_by_season`
+### Get Stages by Season
 
 Retrieve all stages for a season ID from Sportmonks
 
@@ -2448,7 +2448,7 @@ Retrieve all stages for a season ID from Sportmonks
 |   ↳ `ending_at` | string | End date of the stage |
 |   ↳ `games_in_current_week` | boolean | Whether the stage has fixtures this week |
 
-### `sportmonks_football_get_standing_corrections_by_season`
+### Get Standing Corrections by Season
 
 Retrieve point corrections (awarded or deducted) for a season ID from Sportmonks
 
@@ -2477,7 +2477,7 @@ Retrieve point corrections (awarded or deducted) for a season ID from Sportmonks
 |   ↳ `participant_id` | number | Participant the correction applies to |
 |   ↳ `active` | boolean | Whether the correction is active |
 
-### `sportmonks_football_get_standings`
+### Get All Standings
 
 Retrieve all standings available within your Sportmonks subscription
 
@@ -2510,7 +2510,7 @@ Retrieve all standings available within your Sportmonks subscription
 |   ↳ `result` | string | Movement of the team in the standing |
 |   ↳ `points` | number | Points the team has gathered |
 
-### `sportmonks_football_get_standings_by_round`
+### Get Standings by Round
 
 Retrieve the full standing table for a round ID from Sportmonks
 
@@ -2541,7 +2541,7 @@ Retrieve the full standing table for a round ID from Sportmonks
 |   ↳ `result` | string | Movement of the team in the standing |
 |   ↳ `points` | number | Points the team has gathered |
 
-### `sportmonks_football_get_standings_by_season`
+### Get Standings by Season
 
 Retrieve the full league standings table for a season by season ID from Sportmonks
 
@@ -2572,7 +2572,7 @@ Retrieve the full league standings table for a season by season ID from Sportmon
 |   ↳ `result` | string | Movement of the team in the standing |
 |   ↳ `points` | number | Points the team has gathered |
 
-### `sportmonks_football_get_state`
+### Get State by ID
 
 Retrieve a single fixture state by its ID from Sportmonks
 
@@ -2594,7 +2594,7 @@ Retrieve a single fixture state by its ID from Sportmonks
 |   ↳ `short_name` | string | Short name of the state \(e.g. NS\) |
 |   ↳ `developer_name` | string | Developer name of the state |
 
-### `sportmonks_football_get_states`
+### Get States
 
 Retrieve all fixture states (e.g. Not Started, 1st Half, Full Time) from Sportmonks
 
@@ -2618,7 +2618,7 @@ Retrieve all fixture states (e.g. Not Started, 1st Half, Full Time) from Sportmo
 |   ↳ `short_name` | string | Short name of the state \(e.g. NS\) |
 |   ↳ `developer_name` | string | Developer name of the state |
 
-### `sportmonks_football_get_team`
+### Get Team by ID
 
 Retrieve a single football team by its ID from Sportmonks
 
@@ -2649,7 +2649,7 @@ Retrieve a single football team by its ID from Sportmonks
 |   ↳ `placeholder` | boolean | Whether the team is a placeholder |
 |   ↳ `last_played_at` | string | Date and time of the last played match |
 
-### `sportmonks_football_get_team_rankings`
+### Get All Team Rankings
 
 Retrieve all team rankings available within your Sportmonks subscription (beta)
 
@@ -2674,7 +2674,7 @@ Retrieve all team rankings available within your Sportmonks subscription (beta)
 |   ↳ `current_rank` | number | Placement of the team on that date |
 |   ↳ `scaled_score` | number | Scaled score of the team \(0-100\) |
 
-### `sportmonks_football_get_team_rankings_by_date`
+### Get Team Rankings by Date
 
 Retrieve team rankings for a given date (YYYY-MM-DD) from Sportmonks (beta)
 
@@ -2700,7 +2700,7 @@ Retrieve team rankings for a given date (YYYY-MM-DD) from Sportmonks (beta)
 |   ↳ `current_rank` | number | Placement of the team on that date |
 |   ↳ `scaled_score` | number | Scaled score of the team \(0-100\) |
 
-### `sportmonks_football_get_team_rankings_by_team`
+### Get Team Rankings by Team
 
 Retrieve team rankings for a team ID from Sportmonks (beta)
 
@@ -2726,7 +2726,7 @@ Retrieve team rankings for a team ID from Sportmonks (beta)
 |   ↳ `current_rank` | number | Placement of the team on that date |
 |   ↳ `scaled_score` | number | Scaled score of the team \(0-100\) |
 
-### `sportmonks_football_get_team_squad`
+### Get Team Squad
 
 Retrieve the current domestic squad for a team by team ID from Sportmonks
 
@@ -2754,7 +2754,7 @@ Retrieve the current domestic squad for a team by team ID from Sportmonks
 |   ↳ `start` | string | Start contract date of the player |
 |   ↳ `end` | string | End contract date of the player |
 
-### `sportmonks_football_get_team_squad_by_season`
+### Get Team Squad by Season
 
 Retrieve the (historical) squad for a team in a specific season from Sportmonks
 
@@ -2783,7 +2783,7 @@ Retrieve the (historical) squad for a team in a specific season from Sportmonks
 |   ↳ `start` | string | Start contract date of the player |
 |   ↳ `end` | string | End contract date of the player |
 
-### `sportmonks_football_get_teams_by_country`
+### Get Teams by Country
 
 Retrieve all teams for a country ID from Sportmonks
 
@@ -2817,7 +2817,7 @@ Retrieve all teams for a country ID from Sportmonks
 |   ↳ `placeholder` | boolean | Whether the team is a placeholder |
 |   ↳ `last_played_at` | string | Date and time of the last played match |
 
-### `sportmonks_football_get_teams_by_season`
+### Get Teams by Season
 
 Retrieve all teams for a season ID from Sportmonks
 
@@ -2851,7 +2851,7 @@ Retrieve all teams for a season ID from Sportmonks
 |   ↳ `placeholder` | boolean | Whether the team is a placeholder |
 |   ↳ `last_played_at` | string | Date and time of the last played match |
 
-### `sportmonks_football_get_topscorers_by_season`
+### Get Topscorers by Season
 
 Retrieve the topscorers (goals, assists, cards) for a season by season ID from Sportmonks
 
@@ -2882,7 +2882,7 @@ Retrieve the topscorers (goals, assists, cards) for a season by season ID from S
 |   ↳ `position` | number | Position of the topscorer |
 |   ↳ `total` | number | Number of goals, assists or cards |
 
-### `sportmonks_football_get_topscorers_by_stage`
+### Get Topscorers by Stage
 
 Retrieve topscorers for a stage by stage ID from Sportmonks
 
@@ -2913,7 +2913,7 @@ Retrieve topscorers for a stage by stage ID from Sportmonks
 |   ↳ `position` | number | Position of the topscorer |
 |   ↳ `total` | number | Number of goals, assists or cards |
 
-### `sportmonks_football_get_totw`
+### Get All Team of the Week
 
 Retrieve all available Team of the Week (TOTW) entries from Sportmonks
 
@@ -2941,7 +2941,7 @@ Retrieve all available Team of the Week (TOTW) entries from Sportmonks
 |   ↳ `formation_position` | number | Player position in the TOTW formation |
 |   ↳ `formation` | string | The TOTW's formation |
 
-### `sportmonks_football_get_totw_by_round`
+### Get Team of the Week by Round
 
 Retrieve the Team of the Week (TOTW) for a round ID from Sportmonks
 
@@ -2967,7 +2967,7 @@ Retrieve the Team of the Week (TOTW) for a round ID from Sportmonks
 |   ↳ `formation_position` | number | Player position in the TOTW formation |
 |   ↳ `formation` | string | The TOTW's formation |
 
-### `sportmonks_football_get_transfer`
+### Get Transfer by ID
 
 Retrieve a single transfer by its ID from Sportmonks
 
@@ -2998,7 +2998,7 @@ Retrieve a single transfer by its ID from Sportmonks
 |   ↳ `completed` | boolean | Whether the transfer is completed |
 |   ↳ `amount` | number | Transfer fee amount |
 
-### `sportmonks_football_get_transfer_rumour`
+### Get Transfer Rumour by ID
 
 Retrieve a single transfer rumour by its ID from Sportmonks
 
@@ -3031,7 +3031,7 @@ Retrieve a single transfer rumour by its ID from Sportmonks
 |   ↳ `date` | string | Date of the rumour |
 |   ↳ `type_id` | number | Type of the transfer rumour |
 
-### `sportmonks_football_get_transfer_rumours_between_dates`
+### Get Transfer Rumours Between Dates
 
 Retrieve transfer rumours within a date range (YYYY-MM-DD) from Sportmonks
 
@@ -3068,7 +3068,7 @@ Retrieve transfer rumours within a date range (YYYY-MM-DD) from Sportmonks
 |   ↳ `date` | string | Date of the rumour |
 |   ↳ `type_id` | number | Type of the transfer rumour |
 
-### `sportmonks_football_get_transfer_rumours_by_player`
+### Get Transfer Rumours by Player
 
 Retrieve transfer rumours for a player ID from Sportmonks
 
@@ -3104,7 +3104,7 @@ Retrieve transfer rumours for a player ID from Sportmonks
 |   ↳ `date` | string | Date of the rumour |
 |   ↳ `type_id` | number | Type of the transfer rumour |
 
-### `sportmonks_football_get_transfer_rumours_by_team`
+### Get Transfer Rumours by Team
 
 Retrieve transfer rumours for a team ID from Sportmonks
 
@@ -3140,7 +3140,7 @@ Retrieve transfer rumours for a team ID from Sportmonks
 |   ↳ `date` | string | Date of the rumour |
 |   ↳ `type_id` | number | Type of the transfer rumour |
 
-### `sportmonks_football_get_transfers_between_dates`
+### Get Transfers Between Dates
 
 Retrieve transfers within a date range (YYYY-MM-DD) from Sportmonks
 
@@ -3175,7 +3175,7 @@ Retrieve transfers within a date range (YYYY-MM-DD) from Sportmonks
 |   ↳ `completed` | boolean | Whether the transfer is completed |
 |   ↳ `amount` | number | Transfer fee amount |
 
-### `sportmonks_football_get_transfers_by_player`
+### Get Transfers by Player
 
 Retrieve transfers for a player by player ID from Sportmonks
 
@@ -3209,7 +3209,7 @@ Retrieve transfers for a player by player ID from Sportmonks
 |   ↳ `completed` | boolean | Whether the transfer is completed |
 |   ↳ `amount` | number | Transfer fee amount |
 
-### `sportmonks_football_get_transfers_by_team`
+### Get Transfers by Team
 
 Retrieve transfers for a team by team ID from Sportmonks
 
@@ -3243,7 +3243,7 @@ Retrieve transfers for a team by team ID from Sportmonks
 |   ↳ `completed` | boolean | Whether the transfer is completed |
 |   ↳ `amount` | number | Transfer fee amount |
 
-### `sportmonks_football_get_tv_station`
+### Get TV Station by ID
 
 Retrieve a single TV station by its ID from Sportmonks
 
@@ -3268,7 +3268,7 @@ Retrieve a single TV station by its ID from Sportmonks
 |   ↳ `type` | string | Type of the TV station \(tv, channel\) |
 |   ↳ `related_id` | number | Related id of the TV station |
 
-### `sportmonks_football_get_tv_stations`
+### Get TV Stations
 
 Retrieve all TV stations available within your Sportmonks subscription
 
@@ -3295,7 +3295,7 @@ Retrieve all TV stations available within your Sportmonks subscription
 |   ↳ `type` | string | Type of the TV station \(tv, channel\) |
 |   ↳ `related_id` | number | Related id of the TV station |
 
-### `sportmonks_football_get_tv_stations_by_fixture`
+### Get TV Stations by Fixture
 
 Retrieve broadcasting TV stations for a fixture by fixture ID from Sportmonks
 
@@ -3323,7 +3323,7 @@ Retrieve broadcasting TV stations for a fixture by fixture ID from Sportmonks
 |   ↳ `type` | string | Type of the TV station \(tv, channel\) |
 |   ↳ `related_id` | number | Related id of the TV station |
 
-### `sportmonks_football_get_upcoming_fixtures_by_market`
+### Get Upcoming Fixtures by Market
 
 Retrieve all upcoming fixtures for a market ID from Sportmonks
 
@@ -3365,7 +3365,7 @@ Retrieve all upcoming fixtures for a market ID from Sportmonks
 |   ↳ `has_premium_odds` | boolean | Whether premium odds are available |
 |   ↳ `starting_at_timestamp` | number | UNIX timestamp of the start time |
 
-### `sportmonks_football_get_upcoming_fixtures_by_tv_station`
+### Get Upcoming Fixtures by TV Station
 
 Retrieve all upcoming fixtures available for a TV station ID from Sportmonks
 
@@ -3407,7 +3407,7 @@ Retrieve all upcoming fixtures available for a TV station ID from Sportmonks
 |   ↳ `has_premium_odds` | boolean | Whether premium odds are available |
 |   ↳ `starting_at_timestamp` | number | UNIX timestamp of the start time |
 
-### `sportmonks_football_get_value_bets`
+### Get Value Bets
 
 Retrieve all value bets available within your Sportmonks subscription
 
@@ -3431,7 +3431,7 @@ Retrieve all value bets available within your Sportmonks subscription
 |   ↳ `predictions` | json | Prediction payload \(varies by type: score map, value bet object, etc.\) |
 |   ↳ `type_id` | number | Type of the prediction |
 
-### `sportmonks_football_get_value_bets_by_fixture`
+### Get Value Bets by Fixture
 
 Retrieve value bet predictions for a fixture by fixture ID from Sportmonks
 
@@ -3456,7 +3456,7 @@ Retrieve value bet predictions for a fixture by fixture ID from Sportmonks
 |   ↳ `predictions` | json | Prediction payload \(varies by type: score map, value bet object, etc.\) |
 |   ↳ `type_id` | number | Type of the prediction |
 
-### `sportmonks_football_get_venue`
+### Get Venue by ID
 
 Retrieve a single football venue by its ID from Sportmonks
 
@@ -3488,7 +3488,7 @@ Retrieve a single football venue by its ID from Sportmonks
 |   ↳ `surface` | string | Surface type of the venue |
 |   ↳ `national_team` | boolean | Whether the venue is used by the national team |
 
-### `sportmonks_football_get_venues`
+### Get Venues
 
 Retrieve all football venues available within your Sportmonks subscription
 
@@ -3522,7 +3522,7 @@ Retrieve all football venues available within your Sportmonks subscription
 |   ↳ `surface` | string | Surface type of the venue |
 |   ↳ `national_team` | boolean | Whether the venue is used by the national team |
 
-### `sportmonks_football_get_venues_by_season`
+### Get Venues by Season
 
 Retrieve all venues for a season ID from Sportmonks
 
@@ -3554,7 +3554,7 @@ Retrieve all venues for a season ID from Sportmonks
 |   ↳ `surface` | string | Surface type of the venue |
 |   ↳ `national_team` | boolean | Whether the venue is used by the national team |
 
-### `sportmonks_football_search_coaches`
+### Search Coaches
 
 Search for football coaches by name from Sportmonks
 
@@ -3592,7 +3592,7 @@ Search for football coaches by name from Sportmonks
 |   ↳ `date_of_birth` | string | Date of birth of the coach |
 |   ↳ `gender` | string | Gender of the coach |
 
-### `sportmonks_football_search_fixtures`
+### Search Fixtures
 
 Search for football fixtures by name (participants) from Sportmonks
 
@@ -3634,7 +3634,7 @@ Search for football fixtures by name (participants) from Sportmonks
 |   ↳ `has_premium_odds` | boolean | Whether premium odds are available |
 |   ↳ `starting_at_timestamp` | number | UNIX timestamp of the start time |
 
-### `sportmonks_football_search_leagues`
+### Search Leagues
 
 Search for football leagues by name from Sportmonks
 
@@ -3667,7 +3667,7 @@ Search for football leagues by name from Sportmonks
 |   ↳ `last_played_at` | string | Date the last fixture was played |
 |   ↳ `category` | number | Importance category of the league \(1-4\) |
 
-### `sportmonks_football_search_players`
+### Search Players
 
 Search for football players by name from Sportmonks
 
@@ -3707,7 +3707,7 @@ Search for football players by name from Sportmonks
 |   ↳ `date_of_birth` | string | Date of birth of the player |
 |   ↳ `gender` | string | Gender of the player |
 
-### `sportmonks_football_search_referees`
+### Search Referees
 
 Search for football referees by name from Sportmonks
 
@@ -3744,7 +3744,7 @@ Search for football referees by name from Sportmonks
 |   ↳ `date_of_birth` | string | Date of birth of the referee |
 |   ↳ `gender` | string | Gender of the referee |
 
-### `sportmonks_football_search_rounds`
+### Search Rounds
 
 Search for football rounds by name from Sportmonks
 
@@ -3777,7 +3777,7 @@ Search for football rounds by name from Sportmonks
 |   ↳ `ending_at` | string | End date of the round |
 |   ↳ `games_in_current_week` | boolean | Whether the round has fixtures this week |
 
-### `sportmonks_football_search_seasons`
+### Search Seasons
 
 Search for football seasons by name from Sportmonks
 
@@ -3812,7 +3812,7 @@ Search for football seasons by name from Sportmonks
 |   ↳ `standings_recalculated_at` | string | Last standings recalculation time |
 |   ↳ `games_in_current_week` | boolean | Whether the season has fixtures this week |
 
-### `sportmonks_football_search_stages`
+### Search Stages
 
 Search for football stages by name from Sportmonks
 
@@ -3846,7 +3846,7 @@ Search for football stages by name from Sportmonks
 |   ↳ `ending_at` | string | End date of the stage |
 |   ↳ `games_in_current_week` | boolean | Whether the stage has fixtures this week |
 
-### `sportmonks_football_search_teams`
+### Search Teams
 
 Search for football teams by name from Sportmonks
 
@@ -3880,7 +3880,7 @@ Search for football teams by name from Sportmonks
 |   ↳ `placeholder` | boolean | Whether the team is a placeholder |
 |   ↳ `last_played_at` | string | Date and time of the last played match |
 
-### `sportmonks_football_search_venues`
+### Search Venues
 
 Search for football venues by name from Sportmonks
 
@@ -3915,7 +3915,7 @@ Search for football venues by name from Sportmonks
 |   ↳ `surface` | string | Surface type of the venue |
 |   ↳ `national_team` | boolean | Whether the venue is used by the national team |
 
-### `sportmonks_motorsport_get_all_fixtures`
+### Get All Motorsport Fixtures
 
 Retrieve all motorsport fixtures (sessions) from Sportmonks
 
@@ -3956,7 +3956,7 @@ Retrieve all motorsport fixtures (sessions) from Sportmonks
 |   ↳ `has_premium_odds` | boolean | Not used in the Motorsport API |
 |   ↳ `starting_at_timestamp` | number | UNIX timestamp of the start time |
 
-### `sportmonks_motorsport_get_current_leagues_by_team`
+### Get Current Leagues by Team
 
 Retrieve the current motorsport leagues for a team by team ID from Sportmonks
 
@@ -3990,7 +3990,7 @@ Retrieve the current motorsport leagues for a team by team ID from Sportmonks
 |   ↳ `category` | number | Category of the league |
 |   ↳ `has_jerseys` | boolean | Not used in the Motorsport API |
 
-### `sportmonks_motorsport_get_driver`
+### Get Driver by ID
 
 Retrieve a single motorsport driver by their ID from Sportmonks
 
@@ -4027,7 +4027,7 @@ Retrieve a single motorsport driver by their ID from Sportmonks
 |   ↳ `date_of_birth` | string | Date of birth of the driver |
 |   ↳ `gender` | string | Gender of the driver |
 
-### `sportmonks_motorsport_get_driver_standings`
+### Get All Driver Standings
 
 Retrieve all driver championship standings from Sportmonks
 
@@ -4060,7 +4060,7 @@ Retrieve all driver championship standings from Sportmonks
 |   ↳ `result` | string | Not used in the Motorsport API |
 |   ↳ `points` | number | Points the participant has gathered |
 
-### `sportmonks_motorsport_get_driver_standings_by_season`
+### Get Driver Standings by Season
 
 Retrieve the drivers championship standings for a season by season ID from Sportmonks
 
@@ -4094,7 +4094,7 @@ Retrieve the drivers championship standings for a season by season ID from Sport
 |   ↳ `result` | string | Not used in the Motorsport API |
 |   ↳ `points` | number | Points the participant has gathered |
 
-### `sportmonks_motorsport_get_drivers`
+### Get Drivers
 
 Retrieve all motorsport drivers from Sportmonks
 
@@ -4133,7 +4133,7 @@ Retrieve all motorsport drivers from Sportmonks
 |   ↳ `date_of_birth` | string | Date of birth of the driver |
 |   ↳ `gender` | string | Gender of the driver |
 
-### `sportmonks_motorsport_get_drivers_by_country`
+### Get Drivers by Country
 
 Retrieve all motorsport drivers for a country by country ID from Sportmonks
 
@@ -4173,7 +4173,7 @@ Retrieve all motorsport drivers for a country by country ID from Sportmonks
 |   ↳ `date_of_birth` | string | Date of birth of the driver |
 |   ↳ `gender` | string | Gender of the driver |
 
-### `sportmonks_motorsport_get_drivers_by_season`
+### Get Drivers by Season
 
 Retrieve all motorsport drivers for a season by season ID from Sportmonks
 
@@ -4213,7 +4213,7 @@ Retrieve all motorsport drivers for a season by season ID from Sportmonks
 |   ↳ `date_of_birth` | string | Date of birth of the driver |
 |   ↳ `gender` | string | Gender of the driver |
 
-### `sportmonks_motorsport_get_fixture`
+### Get Motorsport Fixture by ID
 
 Retrieve a single motorsport fixture (session) by its ID from Sportmonks
 
@@ -4252,7 +4252,7 @@ Retrieve a single motorsport fixture (session) by its ID from Sportmonks
 |   ↳ `has_premium_odds` | boolean | Not used in the Motorsport API |
 |   ↳ `starting_at_timestamp` | number | UNIX timestamp of the start time |
 
-### `sportmonks_motorsport_get_fixtures_by_date`
+### Get Motorsport Fixtures by Date
 
 Retrieve motorsport fixtures (sessions) on a specific date (YYYY-MM-DD) from Sportmonks
 
@@ -4294,7 +4294,7 @@ Retrieve motorsport fixtures (sessions) on a specific date (YYYY-MM-DD) from Spo
 |   ↳ `has_premium_odds` | boolean | Not used in the Motorsport API |
 |   ↳ `starting_at_timestamp` | number | UNIX timestamp of the start time |
 
-### `sportmonks_motorsport_get_fixtures_by_date_range`
+### Get Motorsport Fixtures by Date Range
 
 Retrieve motorsport fixtures (sessions) between two dates (YYYY-MM-DD, max 100 days) from Sportmonks
 
@@ -4337,7 +4337,7 @@ Retrieve motorsport fixtures (sessions) between two dates (YYYY-MM-DD, max 100 d
 |   ↳ `has_premium_odds` | boolean | Not used in the Motorsport API |
 |   ↳ `starting_at_timestamp` | number | UNIX timestamp of the start time |
 
-### `sportmonks_motorsport_get_fixtures_by_ids`
+### Get Motorsport Fixtures by IDs
 
 Retrieve multiple motorsport fixtures (sessions) by their IDs (max 50) from Sportmonks
 
@@ -4379,7 +4379,7 @@ Retrieve multiple motorsport fixtures (sessions) by their IDs (max 50) from Spor
 |   ↳ `has_premium_odds` | boolean | Not used in the Motorsport API |
 |   ↳ `starting_at_timestamp` | number | UNIX timestamp of the start time |
 
-### `sportmonks_motorsport_get_laps_by_fixture`
+### Get Laps by Fixture
 
 Retrieve all laps for a motorsport fixture (session) by fixture ID from Sportmonks
 
@@ -4404,7 +4404,7 @@ Retrieve all laps for a motorsport fixture (session) by fixture ID from Sportmon
 |   ↳ `participant_id` | number | Driver related to the lap/pitstop |
 |   ↳ `is_latest` | boolean | Whether it is the latest lap/pitstop |
 
-### `sportmonks_motorsport_get_laps_by_fixture_and_driver`
+### Get Laps by Fixture and Driver
 
 Retrieve all laps for a motorsport fixture and driver from Sportmonks
 
@@ -4430,7 +4430,7 @@ Retrieve all laps for a motorsport fixture and driver from Sportmonks
 |   ↳ `participant_id` | number | Driver related to the lap/pitstop |
 |   ↳ `is_latest` | boolean | Whether it is the latest lap/pitstop |
 
-### `sportmonks_motorsport_get_laps_by_fixture_and_lap`
+### Get Laps by Fixture and Lap Number
 
 Retrieve all laps for a motorsport fixture and lap number from Sportmonks
 
@@ -4456,7 +4456,7 @@ Retrieve all laps for a motorsport fixture and lap number from Sportmonks
 |   ↳ `participant_id` | number | Driver related to the lap/pitstop |
 |   ↳ `is_latest` | boolean | Whether it is the latest lap/pitstop |
 
-### `sportmonks_motorsport_get_latest_laps_by_fixture`
+### Get Latest Laps by Fixture
 
 Retrieve the latest laps for a motorsport fixture (session) by fixture ID from Sportmonks
 
@@ -4481,7 +4481,7 @@ Retrieve the latest laps for a motorsport fixture (session) by fixture ID from S
 |   ↳ `participant_id` | number | Driver related to the lap/pitstop |
 |   ↳ `is_latest` | boolean | Whether it is the latest lap/pitstop |
 
-### `sportmonks_motorsport_get_latest_pitstops_by_fixture`
+### Get Latest Pitstops by Fixture
 
 Retrieve the latest pitstops for a motorsport fixture (session) by fixture ID from Sportmonks
 
@@ -4506,7 +4506,7 @@ Retrieve the latest pitstops for a motorsport fixture (session) by fixture ID fr
 |   ↳ `participant_id` | number | Driver related to the lap/pitstop |
 |   ↳ `is_latest` | boolean | Whether it is the latest lap/pitstop |
 
-### `sportmonks_motorsport_get_latest_stints_by_fixture`
+### Get Latest Stints by Fixture
 
 Retrieve the latest tyre stints for a motorsport fixture (session) by fixture ID from Sportmonks
 
@@ -4531,7 +4531,7 @@ Retrieve the latest tyre stints for a motorsport fixture (session) by fixture ID
 |   ↳ `participant_id` | number | Driver related to the stint |
 |   ↳ `is_latest` | boolean | Whether it is the latest stint |
 
-### `sportmonks_motorsport_get_latest_updated_drivers`
+### Get Latest Updated Drivers
 
 Retrieve the most recently updated motorsport drivers from Sportmonks
 
@@ -4570,7 +4570,7 @@ Retrieve the most recently updated motorsport drivers from Sportmonks
 |   ↳ `date_of_birth` | string | Date of birth of the driver |
 |   ↳ `gender` | string | Gender of the driver |
 
-### `sportmonks_motorsport_get_latest_updated_fixtures`
+### Get Latest Updated Motorsport Fixtures
 
 Retrieve the most recently updated motorsport fixtures (sessions) from Sportmonks
 
@@ -4611,7 +4611,7 @@ Retrieve the most recently updated motorsport fixtures (sessions) from Sportmonk
 |   ↳ `has_premium_odds` | boolean | Not used in the Motorsport API |
 |   ↳ `starting_at_timestamp` | number | UNIX timestamp of the start time |
 
-### `sportmonks_motorsport_get_league`
+### Get League by ID
 
 Retrieve a single motorsport league by its ID from Sportmonks
 
@@ -4642,7 +4642,7 @@ Retrieve a single motorsport league by its ID from Sportmonks
 |   ↳ `category` | number | Category of the league |
 |   ↳ `has_jerseys` | boolean | Not used in the Motorsport API |
 
-### `sportmonks_motorsport_get_leagues`
+### Get All Leagues
 
 Retrieve all motorsport leagues from Sportmonks
 
@@ -4675,7 +4675,7 @@ Retrieve all motorsport leagues from Sportmonks
 |   ↳ `category` | number | Category of the league |
 |   ↳ `has_jerseys` | boolean | Not used in the Motorsport API |
 
-### `sportmonks_motorsport_get_leagues_by_country`
+### Get Leagues by Country
 
 Retrieve all motorsport leagues for a country by country ID from Sportmonks
 
@@ -4709,7 +4709,7 @@ Retrieve all motorsport leagues for a country by country ID from Sportmonks
 |   ↳ `category` | number | Category of the league |
 |   ↳ `has_jerseys` | boolean | Not used in the Motorsport API |
 
-### `sportmonks_motorsport_get_leagues_by_date`
+### Get Leagues by Fixture Date
 
 Retrieve all motorsport leagues with fixtures on a specific date (YYYY-MM-DD) from Sportmonks
 
@@ -4743,7 +4743,7 @@ Retrieve all motorsport leagues with fixtures on a specific date (YYYY-MM-DD) fr
 |   ↳ `category` | number | Category of the league |
 |   ↳ `has_jerseys` | boolean | Not used in the Motorsport API |
 
-### `sportmonks_motorsport_get_leagues_by_live`
+### Get Leagues by Live
 
 Retrieve all motorsport leagues that currently have live fixtures from Sportmonks
 
@@ -4776,7 +4776,7 @@ Retrieve all motorsport leagues that currently have live fixtures from Sportmonk
 |   ↳ `category` | number | Category of the league |
 |   ↳ `has_jerseys` | boolean | Not used in the Motorsport API |
 
-### `sportmonks_motorsport_get_leagues_by_team`
+### Get Leagues by Team
 
 Retrieve all current and historical motorsport leagues for a team by team ID from Sportmonks
 
@@ -4810,7 +4810,7 @@ Retrieve all current and historical motorsport leagues for a team by team ID fro
 |   ↳ `category` | number | Category of the league |
 |   ↳ `has_jerseys` | boolean | Not used in the Motorsport API |
 
-### `sportmonks_motorsport_get_livescores`
+### Get Motorsport Livescores
 
 Retrieve all live motorsport fixtures (sessions) from Sportmonks
 
@@ -4851,7 +4851,7 @@ Retrieve all live motorsport fixtures (sessions) from Sportmonks
 |   ↳ `has_premium_odds` | boolean | Not used in the Motorsport API |
 |   ↳ `starting_at_timestamp` | number | UNIX timestamp of the start time |
 
-### `sportmonks_motorsport_get_pitstops_by_fixture`
+### Get Pitstops by Fixture
 
 Retrieve all pitstops for a motorsport fixture (session) by fixture ID from Sportmonks
 
@@ -4876,7 +4876,7 @@ Retrieve all pitstops for a motorsport fixture (session) by fixture ID from Spor
 |   ↳ `participant_id` | number | Driver related to the lap/pitstop |
 |   ↳ `is_latest` | boolean | Whether it is the latest lap/pitstop |
 
-### `sportmonks_motorsport_get_pitstops_by_fixture_and_driver`
+### Get Pitstops by Fixture and Driver
 
 Retrieve all pitstops for a motorsport fixture and driver from Sportmonks
 
@@ -4902,7 +4902,7 @@ Retrieve all pitstops for a motorsport fixture and driver from Sportmonks
 |   ↳ `participant_id` | number | Driver related to the lap/pitstop |
 |   ↳ `is_latest` | boolean | Whether it is the latest lap/pitstop |
 
-### `sportmonks_motorsport_get_pitstops_by_fixture_and_lap`
+### Get Pitstops by Fixture and Lap Number
 
 Retrieve all pitstops for a motorsport fixture and lap number from Sportmonks
 
@@ -4928,7 +4928,7 @@ Retrieve all pitstops for a motorsport fixture and lap number from Sportmonks
 |   ↳ `participant_id` | number | Driver related to the lap/pitstop |
 |   ↳ `is_latest` | boolean | Whether it is the latest lap/pitstop |
 
-### `sportmonks_motorsport_get_race_results_by_season_and_driver`
+### Get Race Results by Season and Driver
 
 Retrieve race results (stages with fixtures, lineups and lineup details) for a season and driver from Sportmonks
 
@@ -4964,7 +4964,7 @@ Retrieve race results (stages with fixtures, lineups and lineup details) for a s
 |   ↳ `games_in_current_week` | boolean | Not used in the Motorsport API |
 |   ↳ `tie_breaker_rule_id` | number | Not used in the Motorsport API |
 
-### `sportmonks_motorsport_get_race_results_by_season_and_team`
+### Get Race Results by Season and Team
 
 Retrieve race results (stages with fixtures, lineups and lineup details) for a season and team from Sportmonks
 
@@ -5000,7 +5000,7 @@ Retrieve race results (stages with fixtures, lineups and lineup details) for a s
 |   ↳ `games_in_current_week` | boolean | Not used in the Motorsport API |
 |   ↳ `tie_breaker_rule_id` | number | Not used in the Motorsport API |
 
-### `sportmonks_motorsport_get_schedules_by_season`
+### Get Schedules by Season
 
 Retrieve the full schedule (stages with nested fixtures and venues) for a season by season ID from Sportmonks
 
@@ -5035,7 +5035,7 @@ Retrieve the full schedule (stages with nested fixtures and venues) for a season
 |   ↳ `games_in_current_week` | boolean | Not used in the Motorsport API |
 |   ↳ `tie_breaker_rule_id` | number | Not used in the Motorsport API |
 
-### `sportmonks_motorsport_get_season`
+### Get Season by ID
 
 Retrieve a single motorsport season by its ID from Sportmonks
 
@@ -5066,7 +5066,7 @@ Retrieve a single motorsport season by its ID from Sportmonks
 |   ↳ `standings_recalculated_at` | string | Timestamp when standings were last updated |
 |   ↳ `games_in_current_week` | boolean | Not used in the Motorsport API |
 
-### `sportmonks_motorsport_get_seasons`
+### Get All Seasons
 
 Retrieve all motorsport seasons from Sportmonks
 
@@ -5099,7 +5099,7 @@ Retrieve all motorsport seasons from Sportmonks
 |   ↳ `standings_recalculated_at` | string | Timestamp when standings were last updated |
 |   ↳ `games_in_current_week` | boolean | Not used in the Motorsport API |
 
-### `sportmonks_motorsport_get_stage`
+### Get Stage by ID
 
 Retrieve a single motorsport stage (race weekend) by its ID from Sportmonks
 
@@ -5131,7 +5131,7 @@ Retrieve a single motorsport stage (race weekend) by its ID from Sportmonks
 |   ↳ `games_in_current_week` | boolean | Not used in the Motorsport API |
 |   ↳ `tie_breaker_rule_id` | number | Not used in the Motorsport API |
 
-### `sportmonks_motorsport_get_stages`
+### Get All Stages
 
 Retrieve all motorsport stages (race weekends) from Sportmonks
 
@@ -5165,7 +5165,7 @@ Retrieve all motorsport stages (race weekends) from Sportmonks
 |   ↳ `games_in_current_week` | boolean | Not used in the Motorsport API |
 |   ↳ `tie_breaker_rule_id` | number | Not used in the Motorsport API |
 
-### `sportmonks_motorsport_get_stages_by_season`
+### Get Stages by Season
 
 Retrieve all motorsport stages (race weekends) for a season by season ID from Sportmonks
 
@@ -5200,7 +5200,7 @@ Retrieve all motorsport stages (race weekends) for a season by season ID from Sp
 |   ↳ `games_in_current_week` | boolean | Not used in the Motorsport API |
 |   ↳ `tie_breaker_rule_id` | number | Not used in the Motorsport API |
 
-### `sportmonks_motorsport_get_state`
+### Get State by ID
 
 Retrieve a single motorsport fixture state by its ID from Sportmonks
 
@@ -5224,7 +5224,7 @@ Retrieve a single motorsport fixture state by its ID from Sportmonks
 |   ↳ `short_name` | string | Short name of the state |
 |   ↳ `developer_name` | string | Name recommended for developers to use |
 
-### `sportmonks_motorsport_get_states`
+### Get All States
 
 Retrieve all possible motorsport fixture states from Sportmonks
 
@@ -5250,7 +5250,7 @@ Retrieve all possible motorsport fixture states from Sportmonks
 |   ↳ `short_name` | string | Short name of the state |
 |   ↳ `developer_name` | string | Name recommended for developers to use |
 
-### `sportmonks_motorsport_get_stints_by_fixture`
+### Get Stints by Fixture
 
 Retrieve all tyre stints for a motorsport fixture (session) by fixture ID from Sportmonks
 
@@ -5275,7 +5275,7 @@ Retrieve all tyre stints for a motorsport fixture (session) by fixture ID from S
 |   ↳ `participant_id` | number | Driver related to the stint |
 |   ↳ `is_latest` | boolean | Whether it is the latest stint |
 
-### `sportmonks_motorsport_get_stints_by_fixture_and_driver`
+### Get Stints by Fixture and Driver
 
 Retrieve all tyre stints for a motorsport fixture and driver from Sportmonks
 
@@ -5301,7 +5301,7 @@ Retrieve all tyre stints for a motorsport fixture and driver from Sportmonks
 |   ↳ `participant_id` | number | Driver related to the stint |
 |   ↳ `is_latest` | boolean | Whether it is the latest stint |
 
-### `sportmonks_motorsport_get_stints_by_fixture_and_stint`
+### Get Stints by Fixture and Stint Number
 
 Retrieve all tyre stints for a motorsport fixture and stint number from Sportmonks
 
@@ -5327,7 +5327,7 @@ Retrieve all tyre stints for a motorsport fixture and stint number from Sportmon
 |   ↳ `participant_id` | number | Driver related to the stint |
 |   ↳ `is_latest` | boolean | Whether it is the latest stint |
 
-### `sportmonks_motorsport_get_team`
+### Get Team by ID
 
 Retrieve a single motorsport team (constructor) by its ID from Sportmonks
 
@@ -5358,7 +5358,7 @@ Retrieve a single motorsport team (constructor) by its ID from Sportmonks
 |   ↳ `placeholder` | boolean | Whether the team is a placeholder |
 |   ↳ `last_played_at` | string | Date and time of the team's last session |
 
-### `sportmonks_motorsport_get_team_standings`
+### Get All Team Standings
 
 Retrieve all team (constructor) championship standings from Sportmonks
 
@@ -5391,7 +5391,7 @@ Retrieve all team (constructor) championship standings from Sportmonks
 |   ↳ `result` | string | Not used in the Motorsport API |
 |   ↳ `points` | number | Points the participant has gathered |
 
-### `sportmonks_motorsport_get_team_standings_by_season`
+### Get Team Standings by Season
 
 Retrieve the constructors championship standings for a season by season ID from Sportmonks
 
@@ -5425,7 +5425,7 @@ Retrieve the constructors championship standings for a season by season ID from 
 |   ↳ `result` | string | Not used in the Motorsport API |
 |   ↳ `points` | number | Points the participant has gathered |
 
-### `sportmonks_motorsport_get_teams`
+### Get Teams
 
 Retrieve all motorsport teams (constructors) from Sportmonks
 
@@ -5458,7 +5458,7 @@ Retrieve all motorsport teams (constructors) from Sportmonks
 |   ↳ `placeholder` | boolean | Whether the team is a placeholder |
 |   ↳ `last_played_at` | string | Date and time of the team's last session |
 
-### `sportmonks_motorsport_get_teams_by_country`
+### Get Teams by Country
 
 Retrieve all motorsport teams (constructors) for a country by country ID from Sportmonks
 
@@ -5492,7 +5492,7 @@ Retrieve all motorsport teams (constructors) for a country by country ID from Sp
 |   ↳ `placeholder` | boolean | Whether the team is a placeholder |
 |   ↳ `last_played_at` | string | Date and time of the team's last session |
 
-### `sportmonks_motorsport_get_teams_by_season`
+### Get Teams by Season
 
 Retrieve all motorsport teams (constructors) for a season by season ID from Sportmonks
 
@@ -5526,7 +5526,7 @@ Retrieve all motorsport teams (constructors) for a season by season ID from Spor
 |   ↳ `placeholder` | boolean | Whether the team is a placeholder |
 |   ↳ `last_played_at` | string | Date and time of the team's last session |
 
-### `sportmonks_motorsport_get_venue`
+### Get Venue by ID
 
 Retrieve a single motorsport venue (racing track) by its ID from Sportmonks
 
@@ -5558,7 +5558,7 @@ Retrieve a single motorsport venue (racing track) by its ID from Sportmonks
 |   ↳ `surface` | string | Surface of the venue |
 |   ↳ `national_team` | boolean | Not used in the Motorsport API |
 
-### `sportmonks_motorsport_get_venues`
+### Get Venues
 
 Retrieve all motorsport venues (racing tracks) from Sportmonks
 
@@ -5592,7 +5592,7 @@ Retrieve all motorsport venues (racing tracks) from Sportmonks
 |   ↳ `surface` | string | Surface of the venue |
 |   ↳ `national_team` | boolean | Not used in the Motorsport API |
 
-### `sportmonks_motorsport_get_venues_by_season`
+### Get Venues by Season
 
 Retrieve all motorsport venues (racing tracks) for a season by season ID from Sportmonks
 
@@ -5627,7 +5627,7 @@ Retrieve all motorsport venues (racing tracks) for a season by season ID from Sp
 |   ↳ `surface` | string | Surface of the venue |
 |   ↳ `national_team` | boolean | Not used in the Motorsport API |
 
-### `sportmonks_motorsport_search_drivers`
+### Search Drivers
 
 Search for motorsport drivers by name from Sportmonks
 
@@ -5667,7 +5667,7 @@ Search for motorsport drivers by name from Sportmonks
 |   ↳ `date_of_birth` | string | Date of birth of the driver |
 |   ↳ `gender` | string | Gender of the driver |
 
-### `sportmonks_motorsport_search_leagues`
+### Search Leagues
 
 Search for motorsport leagues by name from Sportmonks
 
@@ -5701,7 +5701,7 @@ Search for motorsport leagues by name from Sportmonks
 |   ↳ `category` | number | Category of the league |
 |   ↳ `has_jerseys` | boolean | Not used in the Motorsport API |
 
-### `sportmonks_motorsport_search_stages`
+### Search Stages
 
 Search for motorsport stages (race weekends) by name from Sportmonks
 
@@ -5736,7 +5736,7 @@ Search for motorsport stages (race weekends) by name from Sportmonks
 |   ↳ `games_in_current_week` | boolean | Not used in the Motorsport API |
 |   ↳ `tie_breaker_rule_id` | number | Not used in the Motorsport API |
 
-### `sportmonks_motorsport_search_teams`
+### Search Teams
 
 Search for motorsport teams (constructors) by name from Sportmonks
 
@@ -5770,7 +5770,7 @@ Search for motorsport teams (constructors) by name from Sportmonks
 |   ↳ `placeholder` | boolean | Whether the team is a placeholder |
 |   ↳ `last_played_at` | string | Date and time of the team's last session |
 
-### `sportmonks_motorsport_search_venues`
+### Search Venues
 
 Search for motorsport venues (racing tracks) by name from Sportmonks
 
@@ -5805,7 +5805,7 @@ Search for motorsport venues (racing tracks) by name from Sportmonks
 |   ↳ `surface` | string | Surface of the venue |
 |   ↳ `national_team` | boolean | Not used in the Motorsport API |
 
-### `sportmonks_odds_get_all_historical_odds`
+### Get All Historical Odds
 
 Retrieve all available historical (premium) pre-match odd values from the Sportmonks Odds API
 
@@ -5834,7 +5834,7 @@ Retrieve all available historical (premium) pre-match odd values from the Sportm
 |   ↳ `american` | string | American/moneyline odds |
 |   ↳ `bookmaker_update` | string | Bookmaker's update timestamp for this record \(UTC\) |
 
-### `sportmonks_odds_get_all_inplay_odds`
+### Get All In-play Odds
 
 Retrieve all available live (in-play) odds from the Sportmonks Odds API
 
@@ -5875,7 +5875,7 @@ Retrieve all available live (in-play) odds from the Sportmonks Odds API
 |   ↳ `handicap` | string | Handicap line for handicap markets |
 |   ↳ `participants` | string | Participant ids related to the outcome |
 
-### `sportmonks_odds_get_all_pre_match_odds`
+### Get All Pre-match Odds
 
 Retrieve all available pre-match odds from the Sportmonks Odds API
 
@@ -5915,7 +5915,7 @@ Retrieve all available pre-match odds from the Sportmonks Odds API
 |   ↳ `participants` | string | Participant ids related to the outcome |
 |   ↳ `original_label` | string | Original handicap value of the odd \(handicap markets\) |
 
-### `sportmonks_odds_get_all_premium_odds`
+### Get All Premium Odds
 
 Retrieve all available premium (historical) pre-match odds from the Sportmonks Odds API
 
@@ -5955,7 +5955,7 @@ Retrieve all available premium (historical) pre-match odds from the Sportmonks O
 |   ↳ `updated_at` | string | Timestamp the odd was last updated \(UTC\) |
 |   ↳ `latest_bookmaker_update` | string | Bookmaker's own last-update timestamp \(UTC\) |
 
-### `sportmonks_odds_get_bookmaker`
+### Get Bookmaker by ID
 
 Retrieve a single bookmaker by its ID from the Sportmonks Odds API
 
@@ -5975,7 +5975,7 @@ Retrieve a single bookmaker by its ID from the Sportmonks Odds API
 |   ↳ `name` | string | Name of the bookmaker |
 |   ↳ `logo` | string | Logo of the bookmaker |
 
-### `sportmonks_odds_get_bookmaker_event_ids_by_fixture`
+### Get Bookmaker Event IDs by Fixture
 
 Retrieve bookmakers' own event ids mapped to a Sportmonks fixture via the Sportmonks Odds API
 
@@ -5999,7 +5999,7 @@ Retrieve bookmakers' own event ids mapped to a Sportmonks fixture via the Sportm
 |   ↳ `bookmaker_name` | string | Name of the bookmaker |
 |   ↳ `bookmaker_event_id` | string | The fixture's event id at the bookmaker |
 
-### `sportmonks_odds_get_bookmakers`
+### Get Bookmakers
 
 Retrieve all bookmakers from the Sportmonks Odds API
 
@@ -6022,7 +6022,7 @@ Retrieve all bookmakers from the Sportmonks Odds API
 |   ↳ `name` | string | Name of the bookmaker |
 |   ↳ `logo` | string | Logo of the bookmaker |
 
-### `sportmonks_odds_get_bookmakers_by_fixture`
+### Get Bookmakers by Fixture
 
 Retrieve all bookmakers available for a fixture from the Sportmonks Odds API
 
@@ -6045,7 +6045,7 @@ Retrieve all bookmakers available for a fixture from the Sportmonks Odds API
 |   ↳ `name` | string | Name of the bookmaker |
 |   ↳ `logo` | string | Logo of the bookmaker |
 
-### `sportmonks_odds_get_inplay_odds_by_fixture`
+### Get In-play Odds by Fixture
 
 Retrieve live (in-play) odds for a fixture by fixture ID from the Sportmonks Odds API
 
@@ -6087,7 +6087,7 @@ Retrieve live (in-play) odds for a fixture by fixture ID from the Sportmonks Odd
 |   ↳ `handicap` | string | Handicap line for handicap markets |
 |   ↳ `participants` | string | Participant ids related to the outcome |
 
-### `sportmonks_odds_get_inplay_odds_by_fixture_and_bookmaker`
+### Get In-play Odds by Fixture and Bookmaker
 
 Retrieve live (in-play) odds for a fixture from a specific bookmaker via the Sportmonks Odds API
 
@@ -6127,7 +6127,7 @@ Retrieve live (in-play) odds for a fixture from a specific bookmaker via the Spo
 |   ↳ `handicap` | string | Handicap line for handicap markets |
 |   ↳ `participants` | string | Participant ids related to the outcome |
 
-### `sportmonks_odds_get_inplay_odds_by_fixture_and_market`
+### Get In-play Odds by Fixture and Market
 
 Retrieve live (in-play) odds for a fixture on a specific market via the Sportmonks Odds API
 
@@ -6167,7 +6167,7 @@ Retrieve live (in-play) odds for a fixture on a specific market via the Sportmon
 |   ↳ `handicap` | string | Handicap line for handicap markets |
 |   ↳ `participants` | string | Participant ids related to the outcome |
 
-### `sportmonks_odds_get_last_updated_inplay_odds`
+### Get Last Updated In-play Odds
 
 Retrieve in-play odds updated in the last 10 seconds from the Sportmonks Odds API
 
@@ -6205,7 +6205,7 @@ Retrieve in-play odds updated in the last 10 seconds from the Sportmonks Odds AP
 |   ↳ `handicap` | string | Handicap line for handicap markets |
 |   ↳ `participants` | string | Participant ids related to the outcome |
 
-### `sportmonks_odds_get_last_updated_pre_match_odds`
+### Get Last Updated Pre-match Odds
 
 Retrieve pre-match odds updated in the last 10 seconds from the Sportmonks Odds API
 
@@ -6242,7 +6242,7 @@ Retrieve pre-match odds updated in the last 10 seconds from the Sportmonks Odds 
 |   ↳ `participants` | string | Participant ids related to the outcome |
 |   ↳ `original_label` | string | Original handicap value of the odd \(handicap markets\) |
 
-### `sportmonks_odds_get_market`
+### Get Market by ID
 
 Retrieve a single betting market by its ID from the Sportmonks Odds API
 
@@ -6262,7 +6262,7 @@ Retrieve a single betting market by its ID from the Sportmonks Odds API
 |   ↳ `name` | string | Name of the market |
 |   ↳ `developer_name` | string | Developer \(machine-readable\) name of the market |
 
-### `sportmonks_odds_get_markets`
+### Get Markets
 
 Retrieve all betting markets from the Sportmonks Odds API
 
@@ -6285,7 +6285,7 @@ Retrieve all betting markets from the Sportmonks Odds API
 |   ↳ `name` | string | Name of the market |
 |   ↳ `developer_name` | string | Developer \(machine-readable\) name of the market |
 
-### `sportmonks_odds_get_pre_match_odds_by_fixture`
+### Get Pre-match Odds by Fixture
 
 Retrieve pre-match odds for a fixture by fixture ID from the Sportmonks Odds API
 
@@ -6326,7 +6326,7 @@ Retrieve pre-match odds for a fixture by fixture ID from the Sportmonks Odds API
 |   ↳ `participants` | string | Participant ids related to the outcome |
 |   ↳ `original_label` | string | Original handicap value of the odd \(handicap markets\) |
 
-### `sportmonks_odds_get_pre_match_odds_by_fixture_and_bookmaker`
+### Get Pre-match Odds by Fixture and Bookmaker
 
 Retrieve pre-match odds for a fixture from a specific bookmaker via the Sportmonks Odds API
 
@@ -6365,7 +6365,7 @@ Retrieve pre-match odds for a fixture from a specific bookmaker via the Sportmon
 |   ↳ `participants` | string | Participant ids related to the outcome |
 |   ↳ `original_label` | string | Original handicap value of the odd \(handicap markets\) |
 
-### `sportmonks_odds_get_pre_match_odds_by_fixture_and_market`
+### Get Pre-match Odds by Fixture and Market
 
 Retrieve pre-match odds for a fixture on a specific market via the Sportmonks Odds API
 
@@ -6404,7 +6404,7 @@ Retrieve pre-match odds for a fixture on a specific market via the Sportmonks Od
 |   ↳ `participants` | string | Participant ids related to the outcome |
 |   ↳ `original_label` | string | Original handicap value of the odd \(handicap markets\) |
 
-### `sportmonks_odds_get_premium_odds_by_fixture`
+### Get Premium Odds by Fixture
 
 Retrieve premium (historical) pre-match odds for a fixture from the Sportmonks Odds API
 
@@ -6442,7 +6442,7 @@ Retrieve premium (historical) pre-match odds for a fixture from the Sportmonks O
 |   ↳ `updated_at` | string | Timestamp the odd was last updated \(UTC\) |
 |   ↳ `latest_bookmaker_update` | string | Bookmaker's own last-update timestamp \(UTC\) |
 
-### `sportmonks_odds_get_premium_odds_by_fixture_and_bookmaker`
+### Get Premium Odds by Fixture and Bookmaker
 
 Retrieve premium pre-match odds for a fixture from a specific bookmaker via the Sportmonks Odds API
 
@@ -6481,7 +6481,7 @@ Retrieve premium pre-match odds for a fixture from a specific bookmaker via the 
 |   ↳ `updated_at` | string | Timestamp the odd was last updated \(UTC\) |
 |   ↳ `latest_bookmaker_update` | string | Bookmaker's own last-update timestamp \(UTC\) |
 
-### `sportmonks_odds_get_premium_odds_by_fixture_and_market`
+### Get Premium Odds by Fixture and Market
 
 Retrieve premium pre-match odds for a fixture on a specific market via the Sportmonks Odds API
 
@@ -6520,7 +6520,7 @@ Retrieve premium pre-match odds for a fixture on a specific market via the Sport
 |   ↳ `updated_at` | string | Timestamp the odd was last updated \(UTC\) |
 |   ↳ `latest_bookmaker_update` | string | Bookmaker's own last-update timestamp \(UTC\) |
 
-### `sportmonks_odds_get_updated_historical_odds_between`
+### Get Updated Historical Odds Between Time Range
 
 Retrieve historical (premium) odds updated between two UNIX timestamps (max 5 minutes) from the Sportmonks Odds API
 
@@ -6551,7 +6551,7 @@ Retrieve historical (premium) odds updated between two UNIX timestamps (max 5 mi
 |   ↳ `american` | string | American/moneyline odds |
 |   ↳ `bookmaker_update` | string | Bookmaker's update timestamp for this record \(UTC\) |
 
-### `sportmonks_odds_get_updated_premium_odds_between`
+### Get Updated Premium Odds Between Time Range
 
 Retrieve premium odds updated between two UNIX timestamps (max 5 minutes) from the Sportmonks Odds API
 
@@ -6593,7 +6593,7 @@ Retrieve premium odds updated between two UNIX timestamps (max 5 minutes) from t
 |   ↳ `updated_at` | string | Timestamp the odd was last updated \(UTC\) |
 |   ↳ `latest_bookmaker_update` | string | Bookmaker's own last-update timestamp \(UTC\) |
 
-### `sportmonks_odds_search_bookmakers`
+### Search Bookmakers
 
 Search for bookmakers by name from the Sportmonks Odds API
 
@@ -6616,7 +6616,7 @@ Search for bookmakers by name from the Sportmonks Odds API
 |   ↳ `name` | string | Name of the bookmaker |
 |   ↳ `logo` | string | Logo of the bookmaker |
 
-### `sportmonks_odds_search_markets`
+### Search Markets
 
 Search for betting markets by name from the Sportmonks Odds API
 
@@ -6639,7 +6639,7 @@ Search for betting markets by name from the Sportmonks Odds API
 |   ↳ `name` | string | Name of the market |
 |   ↳ `developer_name` | string | Developer \(machine-readable\) name of the market |
 
-### `sportmonks_core_get_cities`
+### Get Cities
 
 Retrieve all cities from the Sportmonks Core API
 
@@ -6667,7 +6667,7 @@ Retrieve all cities from the Sportmonks Core API
 |   ↳ `longitude` | string | Longitude of the city |
 |   ↳ `geonameid` | number | Official geonameid of the city |
 
-### `sportmonks_core_get_city`
+### Get City by ID
 
 Retrieve a single city by its ID from the Sportmonks Core API
 
@@ -6692,7 +6692,7 @@ Retrieve a single city by its ID from the Sportmonks Core API
 |   ↳ `longitude` | string | Longitude of the city |
 |   ↳ `geonameid` | number | Official geonameid of the city |
 
-### `sportmonks_core_get_continent`
+### Get Continent by ID
 
 Retrieve a single continent by its ID from the Sportmonks Core API
 
@@ -6713,7 +6713,7 @@ Retrieve a single continent by its ID from the Sportmonks Core API
 |   ↳ `name` | string | Name of the continent |
 |   ↳ `code` | string | Short code of the continent |
 
-### `sportmonks_core_get_continents`
+### Get Continents
 
 Retrieve all continents from the Sportmonks Core API
 
@@ -6736,7 +6736,7 @@ Retrieve all continents from the Sportmonks Core API
 |   ↳ `name` | string | Name of the continent |
 |   ↳ `code` | string | Short code of the continent |
 
-### `sportmonks_core_get_countries`
+### Get Countries
 
 Retrieve all countries from the Sportmonks Core API
 
@@ -6769,7 +6769,7 @@ Retrieve all countries from the Sportmonks Core API
 |   ↳ `borders` | array | Neighbouring countries \(ISO3 codes\) |
 |   ↳ `image_path` | string | Image path to the country flag |
 
-### `sportmonks_core_get_country`
+### Get Country by ID
 
 Retrieve a single country by its ID from the Sportmonks Core API
 
@@ -6799,7 +6799,7 @@ Retrieve a single country by its ID from the Sportmonks Core API
 |   ↳ `borders` | array | Neighbouring countries \(ISO3 codes\) |
 |   ↳ `image_path` | string | Image path to the country flag |
 
-### `sportmonks_core_get_entity_filters`
+### Get All Entity Filters
 
 Retrieve all available filters grouped per entity from the Sportmonks Core API
 
@@ -6815,7 +6815,7 @@ Retrieve all available filters grouped per entity from the Sportmonks Core API
 | --------- | ---- | ----------- |
 | `entityFilters` | json | Map of entity name to its available filter names, e.g. \{fixture: \["fixtureLeagues", "fixtureSeasons"\], event: \["eventTypes"\]\} |
 
-### `sportmonks_core_get_my_usage`
+### Get My Usage
 
 Retrieve your Sportmonks API usage aggregated per 5 minutes
 
@@ -6841,7 +6841,7 @@ Retrieve your Sportmonks API usage aggregated per 5 minutes
 |   ↳ `period_start` | number | Timestamp representing the aggregation start time |
 |   ↳ `period_end` | number | Timestamp representing the aggregation end time |
 
-### `sportmonks_core_get_region`
+### Get Region by ID
 
 Retrieve a single region by its ID from the Sportmonks Core API
 
@@ -6862,7 +6862,7 @@ Retrieve a single region by its ID from the Sportmonks Core API
 |   ↳ `country_id` | number | Country of the region |
 |   ↳ `name` | string | Name of the region |
 
-### `sportmonks_core_get_regions`
+### Get Regions
 
 Retrieve all regions from the Sportmonks Core API
 
@@ -6886,7 +6886,7 @@ Retrieve all regions from the Sportmonks Core API
 |   ↳ `country_id` | number | Country of the region |
 |   ↳ `name` | string | Name of the region |
 
-### `sportmonks_core_get_timezones`
+### Get Timezones
 
 Retrieve all supported time zones (IANA names) from the Sportmonks Core API
 
@@ -6902,7 +6902,7 @@ Retrieve all supported time zones (IANA names) from the Sportmonks Core API
 | --------- | ---- | ----------- |
 | `timezones` | array | Array of supported IANA time zone names \(e.g. Europe/London\) |
 
-### `sportmonks_core_get_type`
+### Get Type by ID
 
 Retrieve a single type by its ID from the Sportmonks Core API
 
@@ -6926,7 +6926,7 @@ Retrieve a single type by its ID from the Sportmonks Core API
 |   ↳ `group` | string | Group the type falls under |
 |   ↳ `description` | string | Description of the type |
 
-### `sportmonks_core_get_type_by_entity`
+### Get Type by Entity
 
 Retrieve the available types grouped per entity from the Sportmonks Core API
 
@@ -6942,7 +6942,7 @@ Retrieve the available types grouped per entity from the Sportmonks Core API
 | --------- | ---- | ----------- |
 | `typesByEntity` | json | Map of entity name to its available types, e.g. \{CoachStatisticDetail: \{updated_at, types: \[\{id, name, code, developer_name, model_type, stat_group\}\]\}\} |
 
-### `sportmonks_core_get_types`
+### Get Types
 
 Retrieve all types (reference data describing events, statistics, positions, etc.) from the Sportmonks Core API
 
@@ -6968,7 +6968,7 @@ Retrieve all types (reference data describing events, statistics, positions, etc
 |   ↳ `group` | string | Group the type falls under |
 |   ↳ `description` | string | Description of the type |
 
-### `sportmonks_core_search_cities`
+### Search Cities
 
 Search for cities by name from the Sportmonks Core API
 
@@ -6997,7 +6997,7 @@ Search for cities by name from the Sportmonks Core API
 |   ↳ `longitude` | string | Longitude of the city |
 |   ↳ `geonameid` | number | Official geonameid of the city |
 
-### `sportmonks_core_search_countries`
+### Search Countries
 
 Search for countries by name from the Sportmonks Core API
 
@@ -7031,7 +7031,7 @@ Search for countries by name from the Sportmonks Core API
 |   ↳ `borders` | array | Neighbouring countries \(ISO3 codes\) |
 |   ↳ `image_path` | string | Image path to the country flag |
 
-### `sportmonks_core_search_regions`
+### Search Regions
 
 Search for regions by name from the Sportmonks Core API
 

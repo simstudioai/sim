@@ -33,7 +33,7 @@ Integrate Datadog monitoring into workflows. Submit metrics, manage monitors, qu
 
 ## Actions
 
-### `datadog_submit_metrics`
+### Datadog Submit Metrics
 
 Submit custom metrics to Datadog. Use for tracking application performance, business metrics, or custom monitoring data.
 
@@ -52,7 +52,7 @@ Submit custom metrics to Datadog. Use for tracking application performance, busi
 | `success` | boolean | Whether the metrics were submitted successfully |
 | `errors` | array | Any errors that occurred during submission |
 
-### `datadog_query_timeseries`
+### Datadog Query Timeseries
 
 Query metric timeseries data from Datadog. Use for analyzing trends, creating reports, or retrieving metric values.
 
@@ -74,7 +74,7 @@ Query metric timeseries data from Datadog. Use for analyzing trends, creating re
 | `series` | array | Array of timeseries data with metric name, tags, and data points |
 | `status` | string | Query status |
 
-### `datadog_create_event`
+### Datadog Create Event
 
 Post an event to the Datadog event stream. Use for deployment notifications, alerts, or any significant occurrences.
 
@@ -109,7 +109,7 @@ Post an event to the Datadog event stream. Use for deployment notifications, ale
 |   ↳ `tags` | array | Event tags |
 |   ↳ `url` | string | URL to view the event in Datadog |
 
-### `datadog_create_monitor`
+### Datadog Create Monitor
 
 Create a new monitor/alert in Datadog. Monitors can track metrics, service checks, events, and more.
 
@@ -144,7 +144,7 @@ Create a new monitor/alert in Datadog. Monitors can track metrics, service check
 |   ↳ `created` | string | Creation timestamp |
 |   ↳ `modified` | string | Last modification timestamp |
 
-### `datadog_get_monitor`
+### Datadog Get Monitor
 
 Retrieve details of a specific monitor by ID.
 
@@ -175,7 +175,7 @@ Retrieve details of a specific monitor by ID.
 |   ↳ `created` | string | Creation timestamp |
 |   ↳ `modified` | string | Last modification timestamp |
 
-### `datadog_list_monitors`
+### Datadog List Monitors
 
 List all monitors in Datadog with optional filtering by name, tags, or state.
 
@@ -206,7 +206,7 @@ List all monitors in Datadog with optional filtering by name, tags, or state.
 |   ↳ `overall_state` | string | Current state |
 |   ↳ `tags` | array | Tags |
 
-### `datadog_mute_monitor`
+### Datadog Mute Monitor
 
 Mute a monitor to temporarily suppress notifications.
 
@@ -227,7 +227,7 @@ Mute a monitor to temporarily suppress notifications.
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the monitor was successfully muted |
 
-### `datadog_query_logs`
+### Datadog Query Logs
 
 Search and retrieve logs from Datadog. Use for troubleshooting, analysis, or monitoring.
 
@@ -259,7 +259,7 @@ Search and retrieve logs from Datadog. Use for troubleshooting, analysis, or mon
 |     ↳ `status` | string | Log status/level |
 | `nextLogId` | string | Cursor for pagination |
 
-### `datadog_send_logs`
+### Datadog Send Logs
 
 Send log entries to Datadog for centralized logging and analysis.
 
@@ -277,7 +277,7 @@ Send log entries to Datadog for centralized logging and analysis.
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the logs were sent successfully |
 
-### `datadog_create_downtime`
+### Datadog Create Downtime
 
 Schedule a downtime to suppress monitor notifications during maintenance windows.
 
@@ -309,7 +309,7 @@ Schedule a downtime to suppress monitor notifications during maintenance windows
 |   ↳ `end` | number | End time \(Unix timestamp\) |
 |   ↳ `active` | boolean | Whether downtime is currently active |
 
-### `datadog_list_downtimes`
+### Datadog List Downtimes
 
 List all scheduled downtimes in Datadog.
 
@@ -335,7 +335,7 @@ List all scheduled downtimes in Datadog.
 |   ↳ `end` | number | End time \(Unix timestamp\) |
 |   ↳ `active` | boolean | Whether downtime is currently active |
 
-### `datadog_cancel_downtime`
+### Datadog Cancel Downtime
 
 Cancel a scheduled downtime.
 

@@ -36,7 +36,7 @@ Integrate Google Sheets into the workflow with explicit sheet selection. Can rea
 
 ## Actions
 
-### `google_sheets_read`
+### Read from Google Sheets V2
 
 Read data from a specific sheet in a Google Sheets spreadsheet
 
@@ -62,7 +62,7 @@ Read data from a specific sheet in a Google Sheets spreadsheet
 |   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
 |   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
 
-### `google_sheets_write`
+### Write to Google Sheets V2
 
 Write data to a specific sheet in a Google Sheets spreadsheet
 
@@ -89,7 +89,7 @@ Write data to a specific sheet in a Google Sheets spreadsheet
 |   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
 |   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
 
-### `google_sheets_update`
+### Update Google Sheets V2
 
 Update data in a specific sheet in a Google Sheets spreadsheet
 
@@ -116,7 +116,7 @@ Update data in a specific sheet in a Google Sheets spreadsheet
 |   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
 |   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
 
-### `google_sheets_append`
+### Append to Google Sheets V2
 
 Append data to the end of a specific sheet in a Google Sheets spreadsheet
 
@@ -144,7 +144,7 @@ Append data to the end of a specific sheet in a Google Sheets spreadsheet
 |   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
 |   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
 
-### `google_sheets_clear`
+### Clear Google Sheets Range V2
 
 Clear values from a specific range in a Google Sheets spreadsheet
 
@@ -166,7 +166,7 @@ Clear values from a specific range in a Google Sheets spreadsheet
 |   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
 |   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
 
-### `google_sheets_get_spreadsheet`
+### Get Spreadsheet Info V2
 
 Get metadata about a Google Sheets spreadsheet including title and sheet list
 
@@ -194,7 +194,7 @@ Get metadata about a Google Sheets spreadsheet including title and sheet list
 |   ↳ `columnCount` | number | Number of columns in the sheet |
 |   ↳ `hidden` | boolean | Whether the sheet is hidden |
 
-### `google_sheets_create_spreadsheet`
+### Create Spreadsheet V2
 
 Create a new Google Sheets spreadsheet
 
@@ -219,7 +219,7 @@ Create a new Google Sheets spreadsheet
 |   ↳ `title` | string | The sheet title/name |
 |   ↳ `index` | number | The sheet index \(position\) |
 
-### `google_sheets_batch_get`
+### Batch Read Google Sheets V2
 
 Read multiple ranges from a Google Sheets spreadsheet in a single request
 
@@ -245,7 +245,7 @@ Read multiple ranges from a Google Sheets spreadsheet in a single request
 |   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
 |   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
 
-### `google_sheets_batch_update`
+### Batch Update Google Sheets V2
 
 Update multiple ranges in a Google Sheets spreadsheet in a single request
 
@@ -276,7 +276,7 @@ Update multiple ranges in a Google Sheets spreadsheet in a single request
 |   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
 |   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
 
-### `google_sheets_batch_clear`
+### Batch Clear Google Sheets V2
 
 Clear multiple ranges in a Google Sheets spreadsheet in a single request
 
@@ -297,7 +297,7 @@ Clear multiple ranges in a Google Sheets spreadsheet in a single request
 |   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
 |   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
 
-### `google_sheets_copy_sheet`
+### Copy Sheet V2
 
 Copy a sheet from one spreadsheet to another
 
@@ -320,7 +320,7 @@ Copy a sheet from one spreadsheet to another
 | `destinationSpreadsheetId` | string | The ID of the destination spreadsheet |
 | `destinationSpreadsheetUrl` | string | URL to the destination spreadsheet |
 
-### `google_sheets_delete_rows`
+### Delete Rows from Google Sheets V2
 
 Delete rows from a sheet in a Google Sheets spreadsheet
 
@@ -344,7 +344,7 @@ Delete rows from a sheet in a Google Sheets spreadsheet
 |   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
 |   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
 
-### `google_sheets_delete_sheet`
+### Delete Sheet V2
 
 Delete a sheet/tab from a Google Sheets spreadsheet
 
@@ -365,7 +365,7 @@ Delete a sheet/tab from a Google Sheets spreadsheet
 |   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
 |   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
 
-### `google_sheets_delete_spreadsheet`
+### Delete Spreadsheet V2
 
 Permanently delete a Google Sheets spreadsheet using the Google Drive API
 

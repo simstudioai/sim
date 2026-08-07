@@ -51,7 +51,7 @@ Integrate Zendesk into the workflow. Can get tickets, get ticket, create ticket,
 
 ## Actions
 
-### `zendesk_get_tickets`
+### Get Tickets from Zendesk
 
 Retrieve a list of tickets from Zendesk with optional filtering
 
@@ -136,7 +136,7 @@ Retrieve a list of tickets from Zendesk with optional filtering
 |   ↳ `total_returned` | number | Number of items returned in this response |
 |   ↳ `has_more` | boolean | Whether more items are available |
 
-### `zendesk_get_ticket`
+### Get Single Ticket from Zendesk
 
 Get a single ticket by ID from Zendesk
 
@@ -208,7 +208,7 @@ Get a single ticket by ID from Zendesk
 |   ↳ `generated_timestamp` | number | Unix timestamp of the ticket generation |
 | `ticket_id` | number | The ticket ID |
 
-### `zendesk_create_ticket`
+### Create Ticket in Zendesk
 
 Create a new ticket in Zendesk with support for custom fields
 
@@ -289,7 +289,7 @@ Create a new ticket in Zendesk with support for custom fields
 |   ↳ `generated_timestamp` | number | Unix timestamp of the ticket generation |
 | `ticket_id` | number | The created ticket ID |
 
-### `zendesk_create_tickets_bulk`
+### Bulk Create Tickets in Zendesk
 
 Create multiple tickets in Zendesk at once (max 100)
 
@@ -323,7 +323,7 @@ Create multiple tickets in Zendesk at once (max 100)
 |     ↳ `error` | string | Error message if operation failed |
 | `job_id` | string | The bulk operation job ID |
 
-### `zendesk_update_ticket`
+### Update Ticket in Zendesk
 
 Update an existing ticket in Zendesk with support for custom fields
 
@@ -404,7 +404,7 @@ Update an existing ticket in Zendesk with support for custom fields
 |   ↳ `generated_timestamp` | number | Unix timestamp of the ticket generation |
 | `ticket_id` | number | The updated ticket ID |
 
-### `zendesk_update_tickets_bulk`
+### Bulk Update Tickets in Zendesk
 
 Update multiple tickets in Zendesk at once (max 100)
 
@@ -443,7 +443,7 @@ Update multiple tickets in Zendesk at once (max 100)
 |     ↳ `error` | string | Error message if operation failed |
 | `job_id` | string | The bulk operation job ID |
 
-### `zendesk_delete_ticket`
+### Delete Ticket from Zendesk
 
 Delete a ticket from Zendesk
 
@@ -463,7 +463,7 @@ Delete a ticket from Zendesk
 | `deleted` | boolean | Deletion success |
 | `ticket_id` | string | The deleted ticket ID |
 
-### `zendesk_merge_tickets`
+### Merge Tickets in Zendesk
 
 Merge multiple tickets into a target ticket
 
@@ -500,7 +500,7 @@ Merge multiple tickets into a target ticket
 | `job_id` | string | The merge job ID |
 | `target_ticket_id` | string | The target ticket ID that tickets were merged into |
 
-### `zendesk_get_users`
+### Get Users from Zendesk
 
 Retrieve a list of users from Zendesk with optional filtering
 
@@ -570,7 +570,7 @@ Retrieve a list of users from Zendesk with optional filtering
 |   ↳ `total_returned` | number | Number of items returned in this response |
 |   ↳ `has_more` | boolean | Whether more items are available |
 
-### `zendesk_get_user`
+### Get Single User from Zendesk
 
 Get a single user by ID from Zendesk
 
@@ -631,7 +631,7 @@ Get a single user by ID from Zendesk
 |   ↳ `remote_photo_url` | string | URL to a remote photo |
 | `user_id` | number | The user ID |
 
-### `zendesk_get_current_user`
+### Get Current User from Zendesk
 
 Get the currently authenticated user from Zendesk
 
@@ -691,7 +691,7 @@ Get the currently authenticated user from Zendesk
 |   ↳ `remote_photo_url` | string | URL to a remote photo |
 | `user_id` | number | The current user ID |
 
-### `zendesk_search_users`
+### Search Users in Zendesk
 
 Search for users in Zendesk using a query string
 
@@ -761,7 +761,7 @@ Search for users in Zendesk using a query string
 |   ↳ `total_returned` | number | Number of items returned in this response |
 |   ↳ `has_more` | boolean | Whether more items are available |
 
-### `zendesk_create_user`
+### Create User in Zendesk
 
 Create a new user in Zendesk
 
@@ -829,7 +829,7 @@ Create a new user in Zendesk
 |   ↳ `remote_photo_url` | string | URL to a remote photo |
 | `user_id` | number | The created user ID |
 
-### `zendesk_create_users_bulk`
+### Bulk Create Users in Zendesk
 
 Create multiple users in Zendesk using bulk import
 
@@ -863,7 +863,7 @@ Create multiple users in Zendesk using bulk import
 |     ↳ `error` | string | Error message if operation failed |
 | `job_id` | string | The bulk operation job ID |
 
-### `zendesk_update_user`
+### Update User in Zendesk
 
 Update an existing user in Zendesk
 
@@ -932,7 +932,7 @@ Update an existing user in Zendesk
 |   ↳ `remote_photo_url` | string | URL to a remote photo |
 | `user_id` | number | The updated user ID |
 
-### `zendesk_update_users_bulk`
+### Bulk Update Users in Zendesk
 
 Update multiple users in Zendesk using bulk update
 
@@ -966,7 +966,7 @@ Update multiple users in Zendesk using bulk update
 |     ↳ `error` | string | Error message if operation failed |
 | `job_id` | string | The bulk operation job ID |
 
-### `zendesk_delete_user`
+### Delete User from Zendesk
 
 Delete a user from Zendesk
 
@@ -986,7 +986,7 @@ Delete a user from Zendesk
 | `deleted` | boolean | Deletion success |
 | `user_id` | string | The deleted user ID |
 
-### `zendesk_get_organizations`
+### Get Organizations from Zendesk
 
 Retrieve a list of organizations from Zendesk
 
@@ -1027,7 +1027,7 @@ Retrieve a list of organizations from Zendesk
 |   ↳ `total_returned` | number | Number of items returned in this response |
 |   ↳ `has_more` | boolean | Whether more items are available |
 
-### `zendesk_get_organization`
+### Get Single Organization from Zendesk
 
 Get a single organization by ID from Zendesk
 
@@ -1061,7 +1061,7 @@ Get a single organization by ID from Zendesk
 |   ↳ `external_id` | string | External ID for linking to external records |
 | `organization_id` | number | The organization ID |
 
-### `zendesk_autocomplete_organizations`
+### Autocomplete Organizations in Zendesk
 
 Autocomplete organizations in Zendesk by name prefix (for name matching/autocomplete)
 
@@ -1103,7 +1103,7 @@ Autocomplete organizations in Zendesk by name prefix (for name matching/autocomp
 |   ↳ `total_returned` | number | Number of items returned in this response |
 |   ↳ `has_more` | boolean | Whether more items are available |
 
-### `zendesk_create_organization`
+### Create Organization in Zendesk
 
 Create a new organization in Zendesk
 
@@ -1142,7 +1142,7 @@ Create a new organization in Zendesk
 |   ↳ `external_id` | string | External ID for linking to external records |
 | `organization_id` | number | The created organization ID |
 
-### `zendesk_create_organizations_bulk`
+### Bulk Create Organizations in Zendesk
 
 Create multiple organizations in Zendesk using bulk import
 
@@ -1176,7 +1176,7 @@ Create multiple organizations in Zendesk using bulk import
 |     ↳ `error` | string | Error message if operation failed |
 | `job_id` | string | The bulk operation job ID |
 
-### `zendesk_update_organization`
+### Update Organization in Zendesk
 
 Update an existing organization in Zendesk
 
@@ -1216,7 +1216,7 @@ Update an existing organization in Zendesk
 |   ↳ `external_id` | string | External ID for linking to external records |
 | `organization_id` | number | The updated organization ID |
 
-### `zendesk_delete_organization`
+### Delete Organization from Zendesk
 
 Delete an organization from Zendesk
 
@@ -1236,7 +1236,7 @@ Delete an organization from Zendesk
 | `deleted` | boolean | Whether the organization was successfully deleted |
 | `organization_id` | string | The deleted organization ID |
 
-### `zendesk_search`
+### Search Zendesk
 
 Unified search across tickets, users, and organizations in Zendesk
 
@@ -1265,7 +1265,7 @@ Unified search across tickets, users, and organizations in Zendesk
 |   ↳ `has_more` | boolean | Whether more items are available |
 | `results` | array | Array of result objects \(tickets, users, or organizations depending on search query\) |
 
-### `zendesk_search_count`
+### Count Search Results in Zendesk
 
 Count the number of search results matching a query in Zendesk
 

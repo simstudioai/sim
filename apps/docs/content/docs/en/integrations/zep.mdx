@@ -36,7 +36,7 @@ Integrate Zep for long-term memory management. Create threads, add messages, ret
 
 ## Actions
 
-### `zep_create_thread`
+### Create Thread
 
 Start a new conversation thread in Zep
 
@@ -58,7 +58,7 @@ Start a new conversation thread in Zep
 | `createdAt` | string | Creation timestamp \(ISO 8601\) |
 | `projectUuid` | string | Project UUID |
 
-### `zep_get_threads`
+### Get Threads
 
 List all conversation threads
 
@@ -87,7 +87,7 @@ List all conversation threads
 | `responseCount` | number | Number of items in this response |
 | `totalCount` | number | Total number of items available |
 
-### `zep_delete_thread`
+### Delete Thread
 
 Delete a conversation thread from Zep
 
@@ -104,7 +104,7 @@ Delete a conversation thread from Zep
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the thread was deleted |
 
-### `zep_get_context`
+### Get User Context
 
 Retrieve user context from a thread with summary or basic mode
 
@@ -123,7 +123,7 @@ Retrieve user context from a thread with summary or basic mode
 | --------- | ---- | ----------- |
 | `context` | string | The context string \(summary or basic mode\) |
 
-### `zep_get_messages`
+### Get Messages
 
 Retrieve messages from a thread
 
@@ -153,7 +153,7 @@ Retrieve messages from a thread
 | `rowCount` | number | Number of rows returned |
 | `totalCount` | number | Total number of items available |
 
-### `zep_add_messages`
+### Add Messages
 
 Add messages to an existing thread
 
@@ -173,7 +173,7 @@ Add messages to an existing thread
 | `added` | boolean | Whether messages were added successfully |
 | `messageIds` | array | Array of added message UUIDs |
 
-### `zep_add_user`
+### Add User
 
 Create a new user in Zep
 
@@ -200,7 +200,7 @@ Create a new user in Zep
 | `createdAt` | string | Creation timestamp \(ISO 8601\) |
 | `metadata` | object | User metadata \(dynamic key-value pairs\) |
 
-### `zep_get_user`
+### Get User
 
 Retrieve user information from Zep
 
@@ -224,7 +224,7 @@ Retrieve user information from Zep
 | `updatedAt` | string | Last update timestamp \(ISO 8601\) |
 | `metadata` | object | User metadata \(dynamic key-value pairs\) |
 
-### `zep_get_user_threads`
+### Get User Threads
 
 List all conversation threads for a specific user
 

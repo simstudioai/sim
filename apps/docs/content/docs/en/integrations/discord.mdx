@@ -44,7 +44,7 @@ Comprehensive Discord integration: messages, threads, channels, roles, members, 
 
 ## Actions
 
-### `discord_send_message`
+### Discord Send Message
 
 Send a message to a Discord channel
 
@@ -81,7 +81,7 @@ Send a message to a Discord channel
 |   ↳ `mention_roles` | array | Role mentions in message |
 |   ↳ `mention_everyone` | boolean | Whether message mentions everyone |
 
-### `discord_get_messages`
+### Discord Get Messages
 
 Retrieve messages from a Discord channel
 
@@ -117,7 +117,7 @@ Retrieve messages from a Discord channel
 |     ↳ `mention_everyone` | boolean | Whether message mentions everyone |
 |   ↳ `channel_id` | string | Channel ID |
 
-### `discord_get_server`
+### Discord Get Server
 
 Retrieve information about a Discord server (guild)
 
@@ -143,7 +143,7 @@ Retrieve information about a Discord server (guild)
 |   ↳ `approximate_member_count` | number | Approximate total member count |
 |   ↳ `approximate_presence_count` | number | Approximate online member count |
 
-### `discord_get_user`
+### Discord Get User
 
 Retrieve information about a Discord user
 
@@ -169,7 +169,7 @@ Retrieve information about a Discord user
 |   ↳ `email` | string | User email \(if available\) |
 |   ↳ `verified` | boolean | Whether user email is verified |
 
-### `discord_edit_message`
+### Discord Edit Message
 
 Edit an existing message in a Discord channel
 
@@ -194,7 +194,7 @@ Edit an existing message in a Discord channel
 |   ↳ `channel_id` | string | Channel ID |
 |   ↳ `edited_timestamp` | string | Message edited timestamp |
 
-### `discord_delete_message`
+### Discord Delete Message
 
 Delete a message from a Discord channel
 
@@ -213,7 +213,7 @@ Delete a message from a Discord channel
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 
-### `discord_bulk_delete_messages`
+### Discord Bulk Delete Messages
 
 Delete 2-100 messages from a Discord channel in a single request
 
@@ -232,7 +232,7 @@ Delete 2-100 messages from a Discord channel in a single request
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 
-### `discord_add_reaction`
+### Discord Add Reaction
 
 Add a reaction emoji to a Discord message
 
@@ -252,7 +252,7 @@ Add a reaction emoji to a Discord message
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 
-### `discord_remove_reaction`
+### Discord Remove Reaction
 
 Remove a reaction from a Discord message
 
@@ -273,7 +273,7 @@ Remove a reaction from a Discord message
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 
-### `discord_pin_message`
+### Discord Pin Message
 
 Pin a message in a Discord channel
 
@@ -292,7 +292,7 @@ Pin a message in a Discord channel
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 
-### `discord_unpin_message`
+### Discord Unpin Message
 
 Unpin a message in a Discord channel
 
@@ -311,7 +311,7 @@ Unpin a message in a Discord channel
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 
-### `discord_get_pinned_messages`
+### Discord Get Pinned Messages
 
 Retrieve all pinned messages in a Discord channel
 
@@ -340,7 +340,7 @@ Retrieve all pinned messages in a Discord channel
 |     ↳ `username` | string | Author username |
 | `hasMore` | boolean | Whether more pinned messages exist beyond this page |
 
-### `discord_create_thread`
+### Discord Create Thread
 
 Create a thread in a Discord channel
 
@@ -368,7 +368,7 @@ Create a thread in a Discord channel
 |   ↳ `guild_id` | string | Server ID |
 |   ↳ `parent_id` | string | Parent channel ID |
 
-### `discord_join_thread`
+### Discord Join Thread
 
 Join a thread in Discord
 
@@ -386,7 +386,7 @@ Join a thread in Discord
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 
-### `discord_leave_thread`
+### Discord Leave Thread
 
 Leave a thread in Discord
 
@@ -404,7 +404,7 @@ Leave a thread in Discord
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 
-### `discord_archive_thread`
+### Discord Archive Thread
 
 Archive or unarchive a thread in Discord
 
@@ -426,7 +426,7 @@ Archive or unarchive a thread in Discord
 |   ↳ `id` | string | Thread ID |
 |   ↳ `archived` | boolean | Whether thread is archived |
 
-### `discord_create_channel`
+### Discord Create Channel
 
 Create a new channel in a Discord server
 
@@ -452,7 +452,7 @@ Create a new channel in a Discord server
 |   ↳ `type` | number | Channel type |
 |   ↳ `guild_id` | string | Server ID |
 
-### `discord_update_channel`
+### Discord Update Channel
 
 Update a Discord channel
 
@@ -477,7 +477,7 @@ Update a Discord channel
 |   ↳ `type` | number | Channel type |
 |   ↳ `topic` | string | Channel topic |
 
-### `discord_delete_channel`
+### Discord Delete Channel
 
 Delete a Discord channel
 
@@ -500,7 +500,7 @@ Delete a Discord channel
 |   ↳ `type` | number | Channel type |
 |   ↳ `guild_id` | string | Server ID |
 
-### `discord_get_channel`
+### Discord Get Channel
 
 Get information about a Discord channel
 
@@ -524,7 +524,7 @@ Get information about a Discord channel
 |   ↳ `topic` | string | Channel topic |
 |   ↳ `guild_id` | string | Server ID |
 
-### `discord_list_channels`
+### Discord List Channels
 
 List all channels in a Discord server
 
@@ -548,7 +548,7 @@ List all channels in a Discord server
 |   ↳ `parent_id` | string | Parent category ID |
 |   ↳ `position` | number | Sort position within the channel list |
 
-### `discord_create_role`
+### Discord Create Role
 
 Create a new role in a Discord server
 
@@ -575,7 +575,7 @@ Create a new role in a Discord server
 |   ↳ `hoist` | boolean | Whether role is hoisted |
 |   ↳ `mentionable` | boolean | Whether role is mentionable |
 
-### `discord_update_role`
+### Discord Update Role
 
 Update a role in a Discord server
 
@@ -601,7 +601,7 @@ Update a role in a Discord server
 |   ↳ `name` | string | Role name |
 |   ↳ `color` | number | Role color |
 
-### `discord_delete_role`
+### Discord Delete Role
 
 Delete a role from a Discord server
 
@@ -619,7 +619,7 @@ Delete a role from a Discord server
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 
-### `discord_assign_role`
+### Discord Assign Role
 
 Assign a role to a member in a Discord server
 
@@ -638,7 +638,7 @@ Assign a role to a member in a Discord server
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 
-### `discord_remove_role`
+### Discord Remove Role
 
 Remove a role from a member in a Discord server
 
@@ -657,7 +657,7 @@ Remove a role from a member in a Discord server
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 
-### `discord_list_roles`
+### Discord List Roles
 
 List all roles in a Discord server
 
@@ -681,7 +681,7 @@ List all roles in a Discord server
 |   ↳ `position` | number | Role position in the hierarchy |
 |   ↳ `mentionable` | boolean | Whether role is mentionable |
 
-### `discord_kick_member`
+### Discord Kick Member
 
 Kick a member from a Discord server
 
@@ -700,7 +700,7 @@ Kick a member from a Discord server
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 
-### `discord_ban_member`
+### Discord Ban Member
 
 Ban a member from a Discord server
 
@@ -720,7 +720,7 @@ Ban a member from a Discord server
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 
-### `discord_unban_member`
+### Discord Unban Member
 
 Unban a member from a Discord server
 
@@ -739,7 +739,7 @@ Unban a member from a Discord server
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 
-### `discord_get_member`
+### Discord Get Member
 
 Get information about a member in a Discord server
 
@@ -765,7 +765,7 @@ Get information about a member in a Discord server
 |   ↳ `roles` | array | Array of role IDs |
 |   ↳ `joined_at` | string | When the member joined |
 
-### `discord_update_member`
+### Discord Update Member
 
 Update a member in a Discord server (e.g., change nickname)
 
@@ -790,7 +790,7 @@ Update a member in a Discord server (e.g., change nickname)
 |   ↳ `mute` | boolean | Voice mute status |
 |   ↳ `deaf` | boolean | Voice deaf status |
 
-### `discord_create_invite`
+### Discord Create Invite
 
 Create an invite link for a Discord channel
 
@@ -817,7 +817,7 @@ Create an invite link for a Discord channel
 |   ↳ `max_uses` | number | Max uses |
 |   ↳ `temporary` | boolean | Whether temporary |
 
-### `discord_get_invite`
+### Discord Get Invite
 
 Get information about a Discord invite
 
@@ -841,7 +841,7 @@ Get information about a Discord invite
 |   ↳ `approximate_member_count` | number | Approximate member count |
 |   ↳ `approximate_presence_count` | number | Approximate online count |
 
-### `discord_delete_invite`
+### Discord Delete Invite
 
 Delete a Discord invite
 
@@ -859,7 +859,7 @@ Delete a Discord invite
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 
-### `discord_create_webhook`
+### Discord Create Webhook
 
 Create a webhook in a Discord channel
 
@@ -884,7 +884,7 @@ Create a webhook in a Discord channel
 |   ↳ `url` | string | Webhook URL |
 |   ↳ `channel_id` | string | Channel ID |
 
-### `discord_execute_webhook`
+### Discord Execute Webhook
 
 Execute a Discord webhook to send a message
 
@@ -909,7 +909,7 @@ Execute a Discord webhook to send a message
 |   ↳ `channel_id` | string | Channel ID |
 |   ↳ `timestamp` | string | Message timestamp |
 
-### `discord_get_webhook`
+### Discord Get Webhook
 
 Get information about a Discord webhook
 
@@ -933,7 +933,7 @@ Get information about a Discord webhook
 |   ↳ `guild_id` | string | Server ID |
 |   ↳ `token` | string | Webhook token |
 
-### `discord_delete_webhook`
+### Discord Delete Webhook
 
 Delete a Discord webhook
 

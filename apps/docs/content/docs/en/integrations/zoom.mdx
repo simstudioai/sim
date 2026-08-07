@@ -41,7 +41,7 @@ Integrate Zoom into workflows. Create, list, update, and delete Zoom meetings. G
 
 ## Actions
 
-### `zoom_create_meeting`
+### Zoom Create Meeting
 
 Create a new Zoom meeting
 
@@ -113,7 +113,7 @@ Create a new Zoom meeting
 |     ↳ `duration` | number | Duration in minutes |
 |     ↳ `status` | string | Occurrence status |
 
-### `zoom_list_meetings`
+### Zoom List Meetings
 
 List all meetings for a Zoom user
 
@@ -149,7 +149,7 @@ List all meetings for a Zoom user
 |   ↳ `totalRecords` | number | Total number of records |
 |   ↳ `nextPageToken` | string | Token for next page of results |
 
-### `zoom_get_meeting`
+### Zoom Get Meeting
 
 Get details of a specific Zoom meeting
 
@@ -210,7 +210,7 @@ Get details of a specific Zoom meeting
 |     ↳ `duration` | number | Duration in minutes |
 |     ↳ `status` | string | Occurrence status |
 
-### `zoom_update_meeting`
+### Zoom Update Meeting
 
 Update an existing Zoom meeting
 
@@ -239,7 +239,7 @@ Update an existing Zoom meeting
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the meeting was updated successfully |
 
-### `zoom_delete_meeting`
+### Zoom Delete Meeting
 
 Delete or cancel a Zoom meeting
 
@@ -258,7 +258,7 @@ Delete or cancel a Zoom meeting
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the meeting was deleted successfully |
 
-### `zoom_get_meeting_invitation`
+### Zoom Get Meeting Invitation
 
 Get the meeting invitation text for a Zoom meeting
 
@@ -274,7 +274,7 @@ Get the meeting invitation text for a Zoom meeting
 | --------- | ---- | ----------- |
 | `invitation` | string | The meeting invitation text |
 
-### `zoom_list_recordings`
+### Zoom List Recordings
 
 List all cloud recordings for a Zoom user
 
@@ -324,7 +324,7 @@ List all cloud recordings for a Zoom user
 |   ↳ `totalRecords` | number | Total number of records |
 |   ↳ `nextPageToken` | string | Token for next page of results |
 
-### `zoom_get_meeting_recordings`
+### Zoom Get Meeting Recordings
 
 Get all recordings for a specific Zoom meeting
 
@@ -367,7 +367,7 @@ Get all recordings for a specific Zoom meeting
 |     ↳ `recording_type` | string | Type of recording \(shared_screen, audio_only, etc.\) |
 | `files` | file[] | Downloaded recording files |
 
-### `zoom_delete_recording`
+### Zoom Delete Recording
 
 Delete cloud recordings for a Zoom meeting
 
@@ -385,7 +385,7 @@ Delete cloud recordings for a Zoom meeting
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the recording was deleted successfully |
 
-### `zoom_list_past_participants`
+### Zoom List Past Participants
 
 List participants from a past Zoom meeting
 

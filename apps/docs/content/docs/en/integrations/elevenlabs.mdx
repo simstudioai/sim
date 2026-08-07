@@ -33,7 +33,7 @@ Integrate ElevenLabs into the workflow. Convert text to speech, generate sound e
 
 ## Actions
 
-### `elevenlabs_tts`
+### ElevenLabs TTS
 
 Convert text to speech using ElevenLabs voices
 
@@ -55,7 +55,7 @@ Convert text to speech using ElevenLabs voices
 | `audioUrl` | string | The URL of the generated audio |
 | `audioFile` | file | The generated audio file |
 
-### `elevenlabs_sound_effects`
+### ElevenLabs Sound Effects
 
 Generate a sound effect from a text prompt using ElevenLabs
 
@@ -77,7 +77,7 @@ Generate a sound effect from a text prompt using ElevenLabs
 | `audioUrl` | string | URL of the generated sound effect |
 | `audioFile` | file | The generated sound effect file |
 
-### `elevenlabs_speech_to_speech`
+### ElevenLabs Speech to Speech
 
 Convert audio into a chosen ElevenLabs voice while preserving content and emotion
 
@@ -98,7 +98,7 @@ Convert audio into a chosen ElevenLabs voice while preserving content and emotio
 | `audioUrl` | string | URL of the converted audio |
 | `audioFile` | file | The converted audio file |
 
-### `elevenlabs_audio_isolation`
+### ElevenLabs Audio Isolation
 
 Remove background noise from an audio file, isolating the speech using ElevenLabs
 
@@ -116,7 +116,7 @@ Remove background noise from an audio file, isolating the speech using ElevenLab
 | `audioUrl` | string | URL of the isolated audio |
 | `audioFile` | file | The isolated audio file |
 
-### `elevenlabs_list_voices`
+### ElevenLabs List Voices
 
 List the voices available in your ElevenLabs account
 
@@ -146,7 +146,7 @@ List the voices available in your ElevenLabs account
 | `hasMore` | boolean | Whether more voices are available |
 | `nextPageToken` | string | Token to fetch the next page |
 
-### `elevenlabs_get_voice`
+### ElevenLabs Get Voice
 
 Get metadata and settings for a specific ElevenLabs voice
 
@@ -172,7 +172,7 @@ Get metadata and settings for a specific ElevenLabs voice
 | `highQualityBaseModelIds` | array | Model IDs that support high-quality output for this voice |
 | `isOwner` | boolean | Whether the current user owns this voice |
 
-### `elevenlabs_get_voice_settings`
+### ElevenLabs Get Voice Settings
 
 Get the configured settings for a specific ElevenLabs voice
 
@@ -193,7 +193,7 @@ Get the configured settings for a specific ElevenLabs voice
 | `useSpeakerBoost` | boolean | Whether speaker boost is enabled |
 | `speed` | number | Speech speed \(1.0 = normal\) |
 
-### `elevenlabs_edit_voice_settings`
+### ElevenLabs Edit Voice Settings
 
 Update the settings for a specific ElevenLabs voice
 
@@ -215,7 +215,7 @@ Update the settings for a specific ElevenLabs voice
 | --------- | ---- | ----------- |
 | `status` | string | Request outcome \("ok" on success\) |
 
-### `elevenlabs_list_models`
+### ElevenLabs List Models
 
 List the models available in ElevenLabs
 
@@ -241,7 +241,7 @@ List the models available in ElevenLabs
 |     ↳ `languageId` | string | Language code |
 |     ↳ `name` | string | Language name |
 
-### `elevenlabs_get_user`
+### ElevenLabs Get User
 
 Get account and subscription information for the ElevenLabs user
 

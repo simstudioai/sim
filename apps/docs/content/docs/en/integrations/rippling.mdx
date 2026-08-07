@@ -46,7 +46,7 @@ Integrate Rippling Platform into your workflow. Manage workers, users, departmen
 
 ## Actions
 
-### `rippling_list_workers`
+### Rippling List Workers
 
 List all workers with optional filtering and pagination
 
@@ -101,7 +101,7 @@ List all workers with optional filtering and pagination
 | `nextLink` | string | Link to next page of results |
 | `__meta` | json | Metadata including redacted_fields |
 
-### `rippling_get_worker`
+### Rippling Get Worker
 
 Get a specific worker by ID
 
@@ -151,7 +151,7 @@ Get a specific worker by ID
 | `country_fields` | json | Country-specific fields |
 | `__meta` | json | Metadata including redacted_fields |
 
-### `rippling_list_users`
+### Rippling List Users
 
 List all users with optional pagination
 
@@ -187,7 +187,7 @@ List all users with optional pagination
 | `nextLink` | string | Link to next page of results |
 | `__meta` | json | Metadata including redacted_fields |
 
-### `rippling_get_user`
+### Rippling Get User
 
 Get a specific user by ID
 
@@ -219,7 +219,7 @@ Get a specific user by ID
 | `photos` | json | Photos |
 | `__meta` | json | Metadata including redacted_fields |
 
-### `rippling_list_companies`
+### Rippling List Companies
 
 List all companies
 
@@ -252,7 +252,7 @@ List all companies
 | `nextLink` | string | Link to next page of results |
 | `__meta` | json | Metadata including redacted_fields |
 
-### `rippling_get_current_user`
+### Rippling Get Current User
 
 Get SSO information for the current user
 
@@ -274,7 +274,7 @@ Get SSO information for the current user
 | `company_id` | string | Company ID |
 | `company` | json | Expanded company object |
 
-### `rippling_list_entitlements`
+### Rippling List Entitlements
 
 List all entitlements
 
@@ -296,7 +296,7 @@ List all entitlements
 | `nextLink` | string | Link to next page of results |
 | `__meta` | json | Metadata including redacted_fields |
 
-### `rippling_list_departments`
+### Rippling List Departments
 
 List all departments
 
@@ -327,7 +327,7 @@ List all departments
 | `nextLink` | string | Link to next page of results |
 | `__meta` | json | Metadata including redacted_fields |
 
-### `rippling_get_department`
+### Rippling Get Department
 
 Get a specific department by ID
 
@@ -354,7 +354,7 @@ Get a specific department by ID
 | `department_hierarchy` | json | Expanded department hierarchy |
 | `__meta` | json | Metadata including redacted_fields |
 
-### `rippling_create_department`
+### Rippling Create Department
 
 Create a new department
 
@@ -381,7 +381,7 @@ Create a new department
 | `parent` | json | Expanded parent department |
 | `department_hierarchy` | json | Expanded department hierarchy |
 
-### `rippling_update_department`
+### Rippling Update Department
 
 Update an existing department
 
@@ -409,7 +409,7 @@ Update an existing department
 | `parent` | json | Expanded parent department |
 | `department_hierarchy` | json | Expanded department hierarchy |
 
-### `rippling_list_teams`
+### Rippling List Teams
 
 List all teams
 
@@ -437,7 +437,7 @@ List all teams
 | `nextLink` | string | Link to next page of results |
 | `__meta` | json | Metadata including redacted_fields |
 
-### `rippling_get_team`
+### Rippling Get Team
 
 Get a specific team by ID
 
@@ -461,7 +461,7 @@ Get a specific team by ID
 | `parent` | json | Expanded parent team |
 | `__meta` | json | Metadata including redacted_fields |
 
-### `rippling_list_employment_types`
+### Rippling List Employment Types
 
 List all employment types
 
@@ -490,7 +490,7 @@ List all employment types
 | `nextLink` | string | Link to next page of results |
 | `__meta` | json | Metadata including redacted_fields |
 
-### `rippling_get_employment_type`
+### Rippling Get Employment Type
 
 Get a specific employment type by ID
 
@@ -515,7 +515,7 @@ Get a specific employment type by ID
 | `amount_worked` | string | Amount worked \(PART-TIME, FULL-TIME, TEMPORARY\) |
 | `__meta` | json | Metadata including redacted_fields |
 
-### `rippling_list_titles`
+### Rippling List Titles
 
 List all titles
 
@@ -540,7 +540,7 @@ List all titles
 | `nextLink` | string | Link to next page of results |
 | `__meta` | json | Metadata including redacted_fields |
 
-### `rippling_get_title`
+### Rippling Get Title
 
 Get a specific title by ID
 
@@ -561,7 +561,7 @@ Get a specific title by ID
 | `name` | string | Title name |
 | `__meta` | json | Metadata including redacted_fields |
 
-### `rippling_create_title`
+### Rippling Create Title
 
 Create a new title
 
@@ -581,7 +581,7 @@ Create a new title
 | `updated_at` | string | Update date |
 | `name` | string | Title name |
 
-### `rippling_update_title`
+### Rippling Update Title
 
 Update an existing title
 
@@ -602,7 +602,7 @@ Update an existing title
 | `updated_at` | string | Update date |
 | `name` | string | Title name |
 
-### `rippling_delete_title`
+### Rippling Delete Title
 
 Delete a title
 
@@ -619,7 +619,7 @@ Delete a title
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the resource was deleted |
 
-### `rippling_list_custom_fields`
+### Rippling List Custom Fields
 
 List all custom fields
 
@@ -647,7 +647,7 @@ List all custom fields
 | `nextLink` | string | Link to next page of results |
 | `__meta` | json | Metadata including redacted_fields |
 
-### `rippling_list_job_functions`
+### Rippling List Job Functions
 
 List all job functions
 
@@ -672,7 +672,7 @@ List all job functions
 | `nextLink` | string | Link to next page of results |
 | `__meta` | json | Metadata including redacted_fields |
 
-### `rippling_get_job_function`
+### Rippling Get Job Function
 
 Get a specific job function by ID
 
@@ -693,7 +693,7 @@ Get a specific job function by ID
 | `name` | string | Name |
 | `__meta` | json | Metadata including redacted_fields |
 
-### `rippling_list_work_locations`
+### Rippling List Work Locations
 
 List all work locations
 
@@ -719,7 +719,7 @@ List all work locations
 | `nextLink` | string | Link to next page of results |
 | `__meta` | json | Metadata including redacted_fields |
 
-### `rippling_get_work_location`
+### Rippling Get Work Location
 
 Get a specific work location by ID
 
@@ -741,7 +741,7 @@ Get a specific work location by ID
 | `address` | json | Address object |
 | `__meta` | json | Metadata including redacted_fields |
 
-### `rippling_create_work_location`
+### Rippling Create Work Location
 
 Create a new work location
 
@@ -768,7 +768,7 @@ Create a new work location
 | `name` | string | Name |
 | `address` | json | Address |
 
-### `rippling_update_work_location`
+### Rippling Update Work Location
 
 Update a work location
 
@@ -796,7 +796,7 @@ Update a work location
 | `name` | string | Name |
 | `address` | json | Address |
 
-### `rippling_delete_work_location`
+### Rippling Delete Work Location
 
 Delete a work location
 
@@ -813,7 +813,7 @@ Delete a work location
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the resource was deleted |
 
-### `rippling_list_business_partners`
+### Rippling List Business Partners
 
 List all business partners
 
@@ -843,7 +843,7 @@ List all business partners
 | `nextLink` | string | Link to next page of results |
 | `__meta` | json | Metadata including redacted_fields |
 
-### `rippling_get_business_partner`
+### Rippling Get Business Partner
 
 Get a specific business partner by ID
 
@@ -868,7 +868,7 @@ Get a specific business partner by ID
 | `client_group_member_count` | number | Client group member count |
 | `__meta` | json | Metadata including redacted_fields |
 
-### `rippling_create_business_partner`
+### Rippling Create Business Partner
 
 Create a new business partner
 
@@ -892,7 +892,7 @@ Create a new business partner
 | `client_group_id` | string | Client group ID |
 | `client_group_member_count` | number | Client group member count |
 
-### `rippling_delete_business_partner`
+### Rippling Delete Business Partner
 
 Delete a business partner
 
@@ -909,7 +909,7 @@ Delete a business partner
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the resource was deleted |
 
-### `rippling_list_business_partner_groups`
+### Rippling List Business Partner Groups
 
 List all business partner groups
 
@@ -937,7 +937,7 @@ List all business partner groups
 | `nextLink` | string | Link to next page of results |
 | `__meta` | json | Metadata including redacted_fields |
 
-### `rippling_get_business_partner_group`
+### Rippling Get Business Partner Group
 
 Get a specific business partner group by ID
 
@@ -961,7 +961,7 @@ Get a specific business partner group by ID
 | `default_business_partner_id` | string | Default partner ID |
 | `__meta` | json | Metadata including redacted_fields |
 
-### `rippling_create_business_partner_group`
+### Rippling Create Business Partner Group
 
 Create a new business partner group
 
@@ -985,7 +985,7 @@ Create a new business partner group
 | `domain` | string | Domain |
 | `default_business_partner_id` | string | Default partner ID |
 
-### `rippling_delete_business_partner_group`
+### Rippling Delete Business Partner Group
 
 Delete a business partner group
 
@@ -1002,7 +1002,7 @@ Delete a business partner group
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the resource was deleted |
 
-### `rippling_list_supergroups`
+### Rippling List Supergroups
 
 List all supergroups
 
@@ -1042,7 +1042,7 @@ List all supergroups
 | `nextLink` | string | Link to next page of results |
 | `__meta` | json | Metadata including redacted_fields |
 
-### `rippling_get_supergroup`
+### Rippling Get Supergroup
 
 Get a specific supergroup by ID
 
@@ -1078,7 +1078,7 @@ Get a specific supergroup by ID
 | `ignore_prov_group_matching` | boolean | Whether to ignore provisioning group matching |
 | `__meta` | json | Metadata including redacted_fields |
 
-### `rippling_list_supergroup_members`
+### Rippling List Supergroup Members
 
 List members of a supergroup
 
@@ -1107,7 +1107,7 @@ List members of a supergroup
 | `nextLink` | string | Next page link |
 | `__meta` | json | Metadata including redacted_fields |
 
-### `rippling_list_supergroup_inclusion_members`
+### Rippling List Supergroup Inclusion Members
 
 List inclusion members of a supergroup
 
@@ -1136,7 +1136,7 @@ List inclusion members of a supergroup
 | `nextLink` | string | Next page link |
 | `__meta` | json | Metadata including redacted_fields |
 
-### `rippling_list_supergroup_exclusion_members`
+### Rippling List Supergroup Exclusion Members
 
 List exclusion members of a supergroup
 
@@ -1165,7 +1165,7 @@ List exclusion members of a supergroup
 | `nextLink` | string | Next page link |
 | `__meta` | json | Metadata including redacted_fields |
 
-### `rippling_update_supergroup_inclusion_members`
+### Rippling Update Supergroup Inclusion Members
 
 Update inclusion members of a supergroup
 
@@ -1183,7 +1183,7 @@ Update inclusion members of a supergroup
 | --------- | ---- | ----------- |
 | `ok` | boolean | Whether the operation succeeded |
 
-### `rippling_update_supergroup_exclusion_members`
+### Rippling Update Supergroup Exclusion Members
 
 Update exclusion members of a supergroup
 
@@ -1201,7 +1201,7 @@ Update exclusion members of a supergroup
 | --------- | ---- | ----------- |
 | `ok` | boolean | Whether the operation succeeded |
 
-### `rippling_list_custom_objects`
+### Rippling List Custom Objects
 
 List all custom objects
 
@@ -1231,7 +1231,7 @@ List all custom objects
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
 
-### `rippling_get_custom_object`
+### Rippling Get Custom Object
 
 Get a custom object by API name
 
@@ -1259,7 +1259,7 @@ Get a custom object by API name
 | `managed_package_install_id` | string | Package install ID |
 | `owner_id` | string | Owner ID |
 
-### `rippling_create_custom_object`
+### Rippling Create Custom Object
 
 Create a new custom object
 
@@ -1289,7 +1289,7 @@ Create a new custom object
 | `managed_package_install_id` | string | Package install ID |
 | `owner_id` | string | Owner ID |
 
-### `rippling_update_custom_object`
+### Rippling Update Custom Object
 
 Update a custom object
 
@@ -1322,7 +1322,7 @@ Update a custom object
 | `managed_package_install_id` | string | Package install ID |
 | `owner_id` | string | Owner ID |
 
-### `rippling_delete_custom_object`
+### Rippling Delete Custom Object
 
 Delete a custom object
 
@@ -1339,7 +1339,7 @@ Delete a custom object
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the resource was deleted |
 
-### `rippling_list_custom_object_fields`
+### Rippling List Custom Object Fields
 
 List all fields for a custom object
 
@@ -1371,7 +1371,7 @@ List all fields for a custom object
 | `totalCount` | number | Number of fields returned |
 | `nextLink` | string | Next page link |
 
-### `rippling_get_custom_object_field`
+### Rippling Get Custom Object Field
 
 Get a specific field of a custom object
 
@@ -1401,7 +1401,7 @@ Get a specific field of a custom object
 | `enable_history` | boolean | History enabled |
 | `managed_package_install_id` | string | Package install ID |
 
-### `rippling_create_custom_object_field`
+### Rippling Create Custom Object Field
 
 Create a field on a custom object
 
@@ -1441,7 +1441,7 @@ Create a field on a custom object
 | `enable_history` | boolean | History enabled |
 | `managed_package_install_id` | string | Package install ID |
 
-### `rippling_update_custom_object_field`
+### Rippling Update Custom Object Field
 
 Update a field on a custom object
 
@@ -1482,7 +1482,7 @@ Update a field on a custom object
 | `enable_history` | boolean | History enabled |
 | `managed_package_install_id` | string | Package install ID |
 
-### `rippling_delete_custom_object_field`
+### Rippling Delete Custom Object Field
 
 Delete a field from a custom object
 
@@ -1500,7 +1500,7 @@ Delete a field from a custom object
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the field was deleted |
 
-### `rippling_list_custom_object_records`
+### Rippling List Custom Object Records
 
 List all records for a custom object
 
@@ -1529,7 +1529,7 @@ List all records for a custom object
 | `totalCount` | number | Number of records returned |
 | `nextLink` | string | Next page link |
 
-### `rippling_get_custom_object_record`
+### Rippling Get Custom Object Record
 
 Get a specific custom object record
 
@@ -1556,7 +1556,7 @@ Get a specific custom object record
 | `system_updated_at` | string | System update timestamp |
 | `data` | json | Full record data |
 
-### `rippling_get_custom_object_record_by_external_id`
+### Rippling Get Record By External ID
 
 Get a custom object record by external ID
 
@@ -1583,7 +1583,7 @@ Get a custom object record by external ID
 | `system_updated_at` | string | System update timestamp |
 | `data` | json | Full record data |
 
-### `rippling_query_custom_object_records`
+### Rippling Query Custom Object Records
 
 Query custom object records with filters
 
@@ -1615,7 +1615,7 @@ Query custom object records with filters
 | `totalCount` | number | Number of records returned |
 | `cursor` | string | Cursor for next page of results |
 
-### `rippling_create_custom_object_record`
+### Rippling Create Custom Object Record
 
 Create a custom object record
 
@@ -1643,7 +1643,7 @@ Create a custom object record
 | `system_updated_at` | string | System update timestamp |
 | `data` | json | Full record data |
 
-### `rippling_update_custom_object_record`
+### Rippling Update Custom Object Record
 
 Update a custom object record
 
@@ -1672,7 +1672,7 @@ Update a custom object record
 | `system_updated_at` | string | System update timestamp |
 | `data` | json | Full record data |
 
-### `rippling_delete_custom_object_record`
+### Rippling Delete Custom Object Record
 
 Delete a custom object record
 
@@ -1690,7 +1690,7 @@ Delete a custom object record
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the record was deleted |
 
-### `rippling_bulk_create_custom_object_records`
+### Rippling Bulk Create Custom Object Records
 
 Bulk create custom object records
 
@@ -1710,7 +1710,7 @@ Bulk create custom object records
 | `createdRecords` | array | Created custom object records |
 | `totalCount` | number | Number of records created |
 
-### `rippling_bulk_update_custom_object_records`
+### Rippling Bulk Update Custom Object Records
 
 Bulk update custom object records
 
@@ -1730,7 +1730,7 @@ Bulk update custom object records
 | `updatedRecords` | array | Updated custom object records |
 | `totalCount` | number | Number of records updated |
 
-### `rippling_bulk_delete_custom_object_records`
+### Rippling Bulk Delete Custom Object Records
 
 Bulk delete custom object records
 
@@ -1749,7 +1749,7 @@ Bulk delete custom object records
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the bulk delete succeeded |
 
-### `rippling_list_custom_apps`
+### Rippling List CustomApps
 
 List all custom apps
 
@@ -1776,7 +1776,7 @@ List all custom apps
 | `nextLink` | string | Link to next page of results |
 | `__meta` | json | Metadata including redacted_fields |
 
-### `rippling_get_custom_app`
+### Rippling Get CustomApp
 
 Get a specific custom app
 
@@ -1801,7 +1801,7 @@ Get a specific custom app
 | `pages` | json | Array of page summaries |
 | `__meta` | json | Metadata including redacted_fields |
 
-### `rippling_create_custom_app`
+### Rippling Create Custom App
 
 Create a new custom app
 
@@ -1827,7 +1827,7 @@ Create a new custom app
 | `icon` | string | Icon URL |
 | `pages` | json | Array of page summaries |
 
-### `rippling_update_custom_app`
+### Rippling Update CustomApp
 
 Update a custom app
 
@@ -1854,7 +1854,7 @@ Update a custom app
 | `icon` | string | Icon URL |
 | `pages` | json | Array of page summaries |
 
-### `rippling_delete_custom_app`
+### Rippling Delete CustomApp
 
 Delete a custom app
 
@@ -1871,7 +1871,7 @@ Delete a custom app
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the resource was deleted |
 
-### `rippling_list_custom_pages`
+### Rippling List CustomPages
 
 List all custom pages
 
@@ -1899,7 +1899,7 @@ List all custom pages
 | `nextLink` | string | Link to next page of results |
 | `__meta` | json | Metadata including redacted_fields |
 
-### `rippling_get_custom_page`
+### Rippling Get CustomPage
 
 Get a specific custom page
 
@@ -1925,7 +1925,7 @@ Get a specific custom page
 | `media` | json | Page media |
 | `__meta` | json | Metadata including redacted_fields |
 
-### `rippling_create_custom_page`
+### Rippling Create CustomPage
 
 Create a new custom page
 
@@ -1950,7 +1950,7 @@ Create a new custom page
 | `variables` | json | Page variables |
 | `media` | json | Page media |
 
-### `rippling_update_custom_page`
+### Rippling Update CustomPage
 
 Update a custom page
 
@@ -1976,7 +1976,7 @@ Update a custom page
 | `variables` | json | Page variables |
 | `media` | json | Page media |
 
-### `rippling_delete_custom_page`
+### Rippling Delete CustomPage
 
 Delete a custom page
 
@@ -1993,7 +1993,7 @@ Delete a custom page
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the resource was deleted |
 
-### `rippling_list_custom_settings`
+### Rippling List Custom Settings
 
 List all custom settings
 
@@ -2024,7 +2024,7 @@ List all custom settings
 | `nextLink` | string | Link to next page of results |
 | `__meta` | json | Metadata including redacted_fields |
 
-### `rippling_get_custom_setting`
+### Rippling Get Custom Setting
 
 Get a specific custom setting
 
@@ -2051,7 +2051,7 @@ Get a specific custom setting
 | `boolean_value` | boolean | Boolean value |
 | `__meta` | json | Metadata including redacted_fields |
 
-### `rippling_create_custom_setting`
+### Rippling Create Custom Setting
 
 Create a new custom setting
 
@@ -2083,7 +2083,7 @@ Create a new custom setting
 | `number_value` | number | Number value |
 | `boolean_value` | boolean | Boolean value |
 
-### `rippling_update_custom_setting`
+### Rippling Update Custom Setting
 
 Update a custom setting
 
@@ -2116,7 +2116,7 @@ Update a custom setting
 | `number_value` | number | Number value |
 | `boolean_value` | boolean | Boolean value |
 
-### `rippling_delete_custom_setting`
+### Rippling Delete Custom Setting
 
 Delete a custom setting
 
@@ -2133,7 +2133,7 @@ Delete a custom setting
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the resource was deleted |
 
-### `rippling_list_object_categories`
+### Rippling List Object Categories
 
 List all object categories
 
@@ -2156,7 +2156,7 @@ List all object categories
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
 
-### `rippling_get_object_category`
+### Rippling Get ObjectCategory
 
 Get a specific object category
 
@@ -2177,7 +2177,7 @@ Get a specific object category
 | `name` | string | Name |
 | `description` | string | Description |
 
-### `rippling_create_object_category`
+### Rippling Create ObjectCategory
 
 Create a new object category
 
@@ -2199,7 +2199,7 @@ Create a new object category
 | `name` | string | Name |
 | `description` | string | Description |
 
-### `rippling_update_object_category`
+### Rippling Update ObjectCategory
 
 Update an object category
 
@@ -2222,7 +2222,7 @@ Update an object category
 | `name` | string | Name |
 | `description` | string | Description |
 
-### `rippling_delete_object_category`
+### Rippling Delete ObjectCategory
 
 Delete an object category
 
@@ -2239,7 +2239,7 @@ Delete an object category
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the resource was deleted |
 
-### `rippling_get_report_run`
+### Rippling Get Report Run
 
 Get a report run by ID
 
@@ -2262,7 +2262,7 @@ Get a report run by ID
 | `output_type` | string | Output format \(JSON or CSV\) |
 | `__meta` | json | Metadata including redacted_fields |
 
-### `rippling_trigger_report_run`
+### Rippling Trigger Report Run
 
 Trigger a new report run
 
@@ -2289,7 +2289,7 @@ Trigger a new report run
 | `expires_at` | string | Expiration timestamp for the file URL |
 | `output_type` | string | Output format \(JSON or CSV\) |
 
-### `rippling_create_draft_hires`
+### Rippling Create Draft Hires
 
 Create bulk draft hires
 
