@@ -7,6 +7,7 @@ import {
   getDefaultWorkspaceId,
 } from '@/lib/copilot/tools/handlers/access'
 import type { BaseServerTool, ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
+import type { EnvVisibility } from '@/lib/credentials/environment'
 import { upsertPersonalEnvVars, upsertWorkspaceEnvVars } from '@/lib/environment/utils'
 
 type EnvironmentVariableInputValue = string | number | boolean | null | undefined
@@ -19,6 +20,12 @@ interface EnvironmentVariableInput {
 interface SetEnvironmentVariablesParams {
   variables: Record<string, EnvironmentVariableInputValue> | EnvironmentVariableInput[]
   scope?: 'personal' | 'workspace'
+  /**
+   * Disclosure policy for the keys being set. Defaults to `secret`; `variable`
+   * marks them readable by every workspace member and by the agent. Workspace
+   * scope only — the schema forbids a non-secret personal secret.
+   */
+  kind?: EnvVisibility
   workflowId?: string
   workspaceId?: string
 }
@@ -98,6 +105,12 @@ export const setEnvironmentVariablesServerTool: BaseServerTool<
     const authenticatedUserId = context.userId
     const { variables } = params || ({} as SetEnvironmentVariablesParams)
     const scope = params.scope === 'personal' ? 'personal' : 'workspace'
+    // Fail closed on anything unrecognized: only the exact literal opts a key
+    // out of redaction.
+    const kind: EnvVisibility = params.kind === 'variable' ? 'variable' : 'secret'
+    if (params.kind === 'variable' && scope === 'personal') {
+      throw new Error('Only workspace environment variables can be marked non-secret')
+    }
 
     const normalized = normalizeVariables(variables || {})
     const { variables: validatedVariables } = EnvVarSchema.parse({ variables: normalized })
@@ -112,7 +125,10 @@ export const setEnvironmentVariablesServerTool: BaseServerTool<
       workspaceUpdated = await upsertWorkspaceEnvVars(
         resolvedWorkspaceId,
         validatedVariables,
-        authenticatedUserId
+        authenticatedUserId,
+        {
+          visibilityByKey: Object.fromEntries(variableNames.map((name) => [name, kind])),
+        }
       )
     } else {
       const result = await upsertPersonalEnvVars(authenticatedUserId, validatedVariables)
@@ -125,6 +141,7 @@ export const setEnvironmentVariablesServerTool: BaseServerTool<
     logger.info('Saved environment variables', {
       userId: authenticatedUserId,
       scope,
+      kind,
       addedCount: added.length,
       updatedCount: updated.length,
       workspaceUpdatedCount: workspaceUpdated.length,

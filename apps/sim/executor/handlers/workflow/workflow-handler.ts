@@ -440,6 +440,10 @@ export class WorkflowBlockHandler implements BlockHandler {
           personalDecrypted: ownerEnv.personalDecrypted,
           workspaceDecrypted: ownerEnv.workspaceDecrypted,
           decryptionFailures: ownerEnv.decryptionFailures,
+          // Recomputed from the source owner's own environment, never inherited
+          // from the parent: a name that is non-secret in the parent workspace
+          // may well be a secret in this one.
+          nonSecretNames: new Set(ownerEnv.workspaceVariableKeys),
           scope: { userId: loadUserId, workspaceId: sourceWorkspaceId },
         })
         if (ctx.resolvedSecretTraceRegistry) {

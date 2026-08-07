@@ -4733,6 +4733,13 @@ export const SetEnvironmentVariables: ToolCatalogEntry = {
   parameters: {
     type: 'object',
     properties: {
+      kind: {
+        type: 'string',
+        description:
+          'Whether these values are secret (masked from non-admins, hidden from you, redacted from logs and traces) or non-secret variables (readable by every workspace member and by you, and kept verbatim in logs). Defaults to secret. Only use variable for values that are genuinely not sensitive, such as a support email, a region, or a base URL. Workspace scope only. Applies to NEWLY created names only: this tool never changes the visibility of an env var that already exists, because turning an existing secret into a readable value is a disclosure the workspace owner must confirm in Settings.',
+        enum: ['secret', 'variable'],
+        default: 'secret',
+      },
       scope: {
         type: 'string',
         description:

@@ -18,6 +18,7 @@ import {
 import type { ExecutionContext } from '@/executor/types'
 import {
   ANONYMOUS_SECRET_TRACE_REPLACEMENT,
+  EMPTY_NON_SECRET_NAMES,
   ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
 import type { SerializedBlock } from '@/serializer/types'
@@ -1259,7 +1260,7 @@ describe('WorkflowBlockHandler', () => {
           ],
         }
       })
-      const parentRegistry = new ResolvedSecretTraceRegistry()
+      const parentRegistry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
       const result = await handler.execute(
         customBlockContext({ resolvedSecretTraceRegistry: parentRegistry }),
         customBlock(),
@@ -1554,7 +1555,7 @@ describe('WorkflowBlockHandler', () => {
     })
 
     it('leaves regular workflow blocks entirely alone', async () => {
-      const registry = new ResolvedSecretTraceRegistry()
+      const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
       const ctx = {
         ...mockContext,
         workspaceId: 'workspace-1',

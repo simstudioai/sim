@@ -357,6 +357,41 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     )
   })
 
+  /**
+   * The persisted `environment` object used to be safe BY CONSTRUCTION — it was
+   * the encrypted map, so no downstream bug could put a secret plaintext on a
+   * log row. Non-secret values make it safe BY POLICY instead, and log rows are
+   * immutable and exportable, so this asserts BOTH halves in one run: a test
+   * that only checked the non-secret value would still pass if the substitution
+   * accidentally widened to every key.
+   */
+  it('logs non-secret values in plaintext while secrets stay ciphertext', async () => {
+    getPersonalAndWorkspaceEnvMock.mockResolvedValue({
+      personalEncrypted: {},
+      workspaceEncrypted: {
+        SUPPORT_EMAIL: 'iv:cipher-email:tag',
+        STRIPE_KEY: 'iv:cipher-stripe:tag',
+      },
+      personalDecrypted: {},
+      workspaceDecrypted: {
+        SUPPORT_EMAIL: 'help@acme.com',
+        STRIPE_KEY: 'sk-live-do-not-log',
+      },
+      workspaceVariableKeys: ['SUPPORT_EMAIL'],
+    })
+
+    await executeWorkflowCore({
+      snapshot: createSnapshot() as any,
+      callbacks: {},
+      loggingSession: loggingSession as any,
+    })
+
+    const loggedVariables = safeStartMock.mock.calls[0]?.[0]?.variables
+    expect(loggedVariables.SUPPORT_EMAIL).toBe('help@acme.com')
+    expect(loggedVariables.STRIPE_KEY).toBe('iv:cipher-stripe:tag')
+    expect(JSON.stringify(loggedVariables)).not.toContain('sk-live-do-not-log')
+  })
+
   it('starts logging with the workflow state that will be executed', async () => {
     const executedWorkflowState = {
       blocks: {

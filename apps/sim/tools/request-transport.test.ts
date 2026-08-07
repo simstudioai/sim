@@ -4,7 +4,10 @@ import {
   RESOLVED_SECRET_PROVENANCE_FIELD,
   RESOLVED_SECRET_PROVENANCE_METADATA_V1,
 } from '@/lib/execution/private-tool-metadata'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  EMPTY_NON_SECRET_NAMES,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 import { tools } from '@/tools/registry'
 import { prepareToolRequest } from '@/tools/request-transport'
 import type { ToolConfig } from '@/tools/types'
@@ -45,7 +48,11 @@ describe('private-provenance tool registry invariant', () => {
           },
         },
       }
-      const prepared = prepareToolRequest(transportProbe, {}, new ResolvedSecretTraceRegistry())
+      const prepared = prepareToolRequest(
+        transportProbe,
+        {},
+        new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
+      )
       const body = JSON.parse(prepared.body ?? '{}') as Record<string, unknown>
 
       expect(prepared.headers.get(PRIVATE_MODEL_INPUT_PROVENANCE_HEADER)).toBe(

@@ -2,13 +2,11 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { formatGeneratedSource } from './format-generated-source'
+import { resolveMothershipContract } from './mothership-contracts-path'
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(SCRIPT_DIR, '..')
-const DEFAULT_CONTRACT_PATH = resolve(
-  ROOT,
-  '../copilot/copilot/contracts/billing-protocol-v1.schema.json'
-)
+const DEFAULT_CONTRACT_PATH = () => resolveMothershipContract('billing-protocol-v1.schema.json')
 const OUTPUT_PATH = resolve(ROOT, 'apps/sim/lib/copilot/generated/billing-protocol-v1.ts')
 
 type SchemaNode = Record<string, unknown>
@@ -259,7 +257,7 @@ async function main() {
   const inputArg = process.argv.find((argument) => argument.startsWith('--input='))
   const inputPath = inputArg
     ? resolve(ROOT, inputArg.slice('--input='.length))
-    : DEFAULT_CONTRACT_PATH
+    : DEFAULT_CONTRACT_PATH()
 
   const schema = JSON.parse(await readFile(inputPath, 'utf8')) as SchemaNode
   const rendered = formatGeneratedSource(render(schema), OUTPUT_PATH, ROOT)

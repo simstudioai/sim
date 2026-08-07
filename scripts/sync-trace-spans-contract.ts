@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { formatGeneratedSource } from './format-generated-source'
+import { resolveMothershipContract } from './mothership-contracts-path'
 
 /**
  * Generate `apps/sim/lib/copilot/generated/trace-spans-v1.ts` from the
@@ -21,10 +22,7 @@ import { formatGeneratedSource } from './format-generated-source'
  */
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(SCRIPT_DIR, '..')
-const DEFAULT_CONTRACT_PATH = resolve(
-  ROOT,
-  '../copilot/copilot/contracts/trace-spans-v1.schema.json'
-)
+const DEFAULT_CONTRACT_PATH = () => resolveMothershipContract('trace-spans-v1.schema.json')
 const OUTPUT_PATH = resolve(ROOT, 'apps/sim/lib/copilot/generated/trace-spans-v1.ts')
 
 function extractSpanNames(schema: Record<string, unknown>): string[] {
@@ -114,7 +112,7 @@ async function main() {
   const inputArg = process.argv.find((a) => a.startsWith('--input='))
   const inputPath = inputArg
     ? resolve(ROOT, inputArg.slice('--input='.length))
-    : DEFAULT_CONTRACT_PATH
+    : DEFAULT_CONTRACT_PATH()
 
   const raw = await readFile(inputPath, 'utf8')
   const schema = JSON.parse(raw)

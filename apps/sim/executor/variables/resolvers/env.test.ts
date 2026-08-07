@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  EMPTY_NON_SECRET_NAMES,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 import { EnvResolver } from './env'
 import type { ResolutionContext } from './reference'
 
@@ -51,9 +54,11 @@ describe('EnvResolver', () => {
   describe('resolve', () => {
     it('records only successful Secrets-tab substitutions', () => {
       const resolver = new EnvResolver()
-      const registry = new ResolvedSecretTraceRegistry([
-        { name: 'API_KEY', plaintext: 'secret-api-key', encryptedValue: 'ciphertext' },
-      ])
+      const registry = new ResolvedSecretTraceRegistry(
+        [{ name: 'API_KEY', plaintext: 'secret-api-key', encryptedValue: 'ciphertext' }],
+        undefined,
+        EMPTY_NON_SECRET_NAMES
+      )
       const ctx = createTestContext({ API_KEY: 'secret-api-key' })
       ctx.executionContext.resolvedSecretTraceRegistry = registry
 

@@ -87,7 +87,10 @@ import {
   subAgentHandlers,
 } from '@/lib/copilot/request/handlers'
 import type { ExecutionContext, StreamEvent, StreamingContext } from '@/lib/copilot/request/types'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  EMPTY_NON_SECRET_NAMES,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 
 describe('sse-handlers tool lifecycle', () => {
   let context: StreamingContext
@@ -132,7 +135,11 @@ describe('sse-handlers tool lifecycle', () => {
     execContext = {
       userId: 'user-1',
       workflowId: 'workflow-1',
-      resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry([]),
+      resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(
+        [],
+        undefined,
+        EMPTY_NON_SECRET_NAMES
+      ),
     }
   })
 
@@ -474,13 +481,17 @@ describe('sse-handlers tool lifecycle', () => {
   })
 
   it('projects resolved Function secrets before every Copilot-visible result sink', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'SECRET',
-        plaintext: 'secret-value',
-        encryptedValue: 'encrypted-secret-value',
-      },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        {
+          name: 'SECRET',
+          plaintext: 'secret-value',
+          encryptedValue: 'encrypted-secret-value',
+        },
+      ],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('SECRET', 'secret-value')
     execContext.resolvedSecretTraceRegistry = registry
     execContext.chatId = 'chat-1'

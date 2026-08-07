@@ -23,6 +23,7 @@ describe('environment-utils mock', () => {
       workspaceDecrypted: {},
       conflicts: [],
       decryptionFailures: [],
+      workspaceVariableKeys: [],
     })
     await expect(environmentUtilsMock.getEffectiveEnvironmentSnapshot('user-1')).resolves.toEqual({
       personalEncrypted: {},
@@ -31,6 +32,7 @@ describe('environment-utils mock', () => {
       workspaceDecrypted: {},
       conflicts: [],
       decryptionFailures: [],
+      workspaceVariableKeys: [],
     })
     await expect(environmentUtilsMock.upsertPersonalEnvVars('user-1', {})).resolves.toEqual({
       added: [],

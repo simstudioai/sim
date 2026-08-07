@@ -3614,6 +3614,22 @@ export const credentialTypeEnum = pgEnum('credential_type', [
   'service_account',
 ])
 
+/**
+ * Disclosure policy for an environment-variable credential.
+ *
+ * `secret` (the default) is the existing behavior: the value is masked from
+ * non-admins, redacted out of traces by the resolved-secret projection, and
+ * exposed to the agent by name only. `variable` marks a value as non-sensitive
+ * — readable by every workspace member, retained verbatim in traces and logs,
+ * and surfaced to the agent with its value.
+ *
+ * This is a read-side policy only; write authorization is identical for both.
+ */
+export const credentialEnvVisibilityEnum = pgEnum('credential_env_visibility', [
+  'secret',
+  'variable',
+])
+
 export const credential = pgTable(
   'credential',
   {
@@ -3628,6 +3644,7 @@ export const credential = pgTable(
     accountId: text('account_id').references(() => account.id, { onDelete: 'cascade' }),
     envKey: text('env_key'),
     envOwnerUserId: text('env_owner_user_id').references(() => user.id, { onDelete: 'cascade' }),
+    envVisibility: credentialEnvVisibilityEnum('env_visibility').notNull().default('secret'),
     encryptedServiceAccountKey: text('encrypted_service_account_key'),
     createdBy: text('created_by')
       .notNull()
@@ -3661,6 +3678,13 @@ export const credential = pgTable(
     personalEnvSourceConstraint: check(
       'credential_personal_env_source_check',
       sql`(type <> 'env_personal') OR (env_key IS NOT NULL AND env_owner_user_id IS NOT NULL)`
+    ),
+    // A non-secret value is only ever a workspace-scoped concept. Enforced in
+    // the database so no route, backfill, or future caller can mark a personal
+    // secret (or an OAuth/service-account row) readable by the whole workspace.
+    envVisibilityScopeConstraint: check(
+      'credential_env_visibility_scope_check',
+      sql`(env_visibility = 'secret') OR (type = 'env_workspace')`
     ),
   })
 )

@@ -18,7 +18,10 @@ import { hashDurableSecretProvenanceValue } from '@/lib/execution/durable-secret
 import { MEMORY } from '@/executor/constants'
 import { Memory } from '@/executor/handlers/agent/memory'
 import type { Message } from '@/executor/handlers/agent/types'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  EMPTY_NON_SECRET_NAMES,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 
 const mockMemoryLogger = vi.mocked(loggerMock.createLogger).mock.results[
   vi.mocked(loggerMock.createLogger).mock.calls.findIndex(([name]) => name === 'Memory')
@@ -246,9 +249,11 @@ describe('Memory', () => {
     }
 
     it('does not reinterpret dormant catalog values as secret-bearing memory', async () => {
-      const registry = new ResolvedSecretTraceRegistry([
-        { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
-      ])
+      const registry = new ResolvedSecretTraceRegistry(
+        [{ name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' }],
+        undefined,
+        EMPTY_NON_SECRET_NAMES
+      )
       mockRedactObjectStrings.mockImplementationOnce(async (content: unknown) => {
         expect(content).toBe('Bearer secret-value')
         return content
@@ -267,7 +272,7 @@ describe('Memory', () => {
     })
 
     it('does not write memory when projection fails closed', async () => {
-      const registry = new ResolvedSecretTraceRegistry()
+      const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
       registry.markIncomplete()
       const appendMessage = vi
         .spyOn(memoryService as any, 'appendMessage')
@@ -283,9 +288,11 @@ describe('Memory', () => {
     })
 
     it('preserves legacy stored messages when no current resolution activated the value', async () => {
-      const registry = new ResolvedSecretTraceRegistry([
-        { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
-      ])
+      const registry = new ResolvedSecretTraceRegistry(
+        [{ name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' }],
+        undefined,
+        EMPTY_NON_SECRET_NAMES
+      )
       vi.spyOn(memoryService as any, 'fetchMemory').mockResolvedValue({
         messages: [{ role: 'assistant', content: 'old secret-value' }],
         provenance: { status: 'exact', entries: [] },
@@ -301,10 +308,14 @@ describe('Memory', () => {
 
     it('keeps raw foreign-scope content in functional storage', async () => {
       mockDecryptSecret.mockResolvedValueOnce({ decrypted: 'foreign-secret' })
-      const registry = new ResolvedSecretTraceRegistry([], {
-        userId: 'user-1',
-        workspaceId: 'workspace-1',
-      })
+      const registry = new ResolvedSecretTraceRegistry(
+        [],
+        {
+          userId: 'user-1',
+          workspaceId: 'workspace-1',
+        },
+        EMPTY_NON_SECRET_NAMES
+      )
       await registry.importProvenance(
         {
           version: 1,
@@ -326,9 +337,11 @@ describe('Memory', () => {
     it.each(['123', 'true'])(
       'projects low-entropy secret %s only in model text and arguments',
       async (secret) => {
-        const registry = new ResolvedSecretTraceRegistry([
-          { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
-        ])
+        const registry = new ResolvedSecretTraceRegistry(
+          [{ name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' }],
+          undefined,
+          EMPTY_NON_SECRET_NAMES
+        )
         registry.recordResolved('TOKEN', secret)
         const converted = secret === '123' ? 123 : true
         const message: Message = {
@@ -404,9 +417,11 @@ describe('Memory', () => {
     it.each(['name', 'functionName', 'toolCallId', 'toolName'] as const)(
       'rejects an active resolved secret in the %s control field',
       (field) => {
-        const registry = new ResolvedSecretTraceRegistry([
-          { name: 'TOKEN', plaintext: 'control-secret', encryptedValue: 'ciphertext' },
-        ])
+        const registry = new ResolvedSecretTraceRegistry(
+          [{ name: 'TOKEN', plaintext: 'control-secret', encryptedValue: 'ciphertext' }],
+          undefined,
+          EMPTY_NON_SECRET_NAMES
+        )
         registry.recordResolved('TOKEN', 'control-secret')
         const message = {
           role: 'assistant',
@@ -437,10 +452,14 @@ describe('Memory', () => {
     it('does not activate provenance from a message dropped by the selected window', async () => {
       const oldSecretMessage: Message = { role: 'user', content: 'same-value' }
       const retainedPublicMessage: Message = { role: 'assistant', content: 'same-value' }
-      const registry = new ResolvedSecretTraceRegistry([], {
-        userId: 'user-1',
-        workspaceId: 'workspace-1',
-      })
+      const registry = new ResolvedSecretTraceRegistry(
+        [],
+        {
+          userId: 'user-1',
+          workspaceId: 'workspace-1',
+        },
+        EMPTY_NON_SECRET_NAMES
+      )
       vi.spyOn(memoryService as any, 'fetchMemory').mockResolvedValueOnce({
         messages: [oldSecretMessage, retainedPublicMessage],
         provenance: {
@@ -470,13 +489,17 @@ describe('Memory', () => {
 
   describe('secret-safe diagnostics', () => {
     it('never logs conversation IDs while retaining structural memory metadata', async () => {
-      const registry = new ResolvedSecretTraceRegistry([
-        {
-          name: 'TOKEN',
-          plaintext: 'conversation-secret',
-          encryptedValue: 'encrypted-conversation-secret',
-        },
-      ])
+      const registry = new ResolvedSecretTraceRegistry(
+        [
+          {
+            name: 'TOKEN',
+            plaintext: 'conversation-secret',
+            encryptedValue: 'encrypted-conversation-secret',
+          },
+        ],
+        undefined,
+        EMPTY_NON_SECRET_NAMES
+      )
       const ctx = {
         workspaceId: 'workspace-1',
         resolvedSecretTraceRegistry: registry,

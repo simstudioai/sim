@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import { ExecutionState } from '@/executor/execution/state'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  EMPTY_NON_SECRET_NAMES,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 import { BlockResolver } from './block'
 import { RESOLVED_EMPTY, type ResolutionContext } from './reference'
 
@@ -627,7 +630,7 @@ describe('BlockResolver', () => {
       const workflow = createTestWorkflow([{ id: 'source' }])
       const resolver = new BlockResolver(workflow)
       const ctx = createTestContext('current')
-      const registry = new ResolvedSecretTraceRegistry()
+      const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
       ctx.executionContext.resolvedSecretTraceRegistry = registry
       ctx.executionState.setBlockOutput('source', { result: 'secret-value' }, 0, {
         version: 1,

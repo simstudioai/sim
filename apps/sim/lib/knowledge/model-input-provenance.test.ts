@@ -13,7 +13,10 @@ import {
   projectKnowledgeModelInput,
   runWithKnowledgeModelInputProvenance,
 } from '@/lib/knowledge/model-input-provenance'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  EMPTY_NON_SECRET_NAMES,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 
 function verifiedHeaders(): Headers {
   return new Headers({
@@ -118,12 +121,16 @@ describe('Knowledge model input provenance', () => {
   })
 
   it('projects exact active values only inside the matching asynchronous context', async () => {
-    const first = new ResolvedSecretTraceRegistry([
-      { name: 'FIRST', plaintext: 'first-secret', encryptedValue: 'encrypted-first' },
-    ])
-    const second = new ResolvedSecretTraceRegistry([
-      { name: 'SECOND', plaintext: 'second-secret', encryptedValue: 'encrypted-second' },
-    ])
+    const first = new ResolvedSecretTraceRegistry(
+      [{ name: 'FIRST', plaintext: 'first-secret', encryptedValue: 'encrypted-first' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
+    const second = new ResolvedSecretTraceRegistry(
+      [{ name: 'SECOND', plaintext: 'second-secret', encryptedValue: 'encrypted-second' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     first.recordResolved('FIRST', 'first-secret')
     second.recordResolved('SECOND', 'second-secret')
 
@@ -146,7 +153,7 @@ describe('Knowledge model input provenance', () => {
   })
 
   it('fails before model egress when an active request registry is incomplete', () => {
-    const registry = new ResolvedSecretTraceRegistry([])
+    const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
     registry.markIncomplete()
 
     expect(() =>

@@ -4,7 +4,10 @@ import {
   isLargeArrayManifest,
 } from '@/lib/execution/payloads/large-array-manifest'
 import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  EMPTY_NON_SECRET_NAMES,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 import { navigatePathAsync } from '@/executor/variables/resolvers/reference-async.server'
 import type { ResolutionContext } from './reference'
 import { WorkflowResolver } from './workflow'
@@ -183,7 +186,7 @@ describe('WorkflowResolver', () => {
       const variables = {
         'var-1': { id: 'var-1', name: 'token', type: 'plain', value: 'secret-value' },
       }
-      const registry = new ResolvedSecretTraceRegistry()
+      const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
       const context = createTestContext(variables)
       context.executionContext.resolvedSecretTraceRegistry = registry
       context.executionContext.workflowVariableResolvedSecretTraceProvenance = {

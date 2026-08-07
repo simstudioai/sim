@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   cn,
   Popover,
@@ -10,7 +10,6 @@ import {
 } from '@sim/emcn'
 import { Plus } from '@sim/emcn/icons'
 import { writePendingCredentialCreateRequest } from '@/lib/credentials/client-state'
-import type { WorkspaceEnvironmentData } from '@/lib/environment/api'
 import { usePersonalEnvironment, useWorkspaceEnvironment } from '@/hooks/queries/environment'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 
@@ -121,16 +120,7 @@ export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
 
   // React Query hooks for environment variables
   const { data: personalEnv = {} } = usePersonalEnvironment()
-  const { data: workspaceEnvData } = useWorkspaceEnvironment(workspaceId || '', {
-    select: useCallback(
-      (data: WorkspaceEnvironmentData): WorkspaceEnvironmentData => ({
-        workspace: data.workspace || {},
-        personal: data.personal || {},
-        conflicts: data.conflicts || [],
-      }),
-      []
-    ),
-  })
+  const { data: workspaceEnvData } = useWorkspaceEnvironment(workspaceId || '')
 
   const userEnvVars = Object.keys(personalEnv)
   const [selectedIndex, setSelectedIndex] = useState(0)

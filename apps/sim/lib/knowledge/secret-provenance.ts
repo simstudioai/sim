@@ -19,6 +19,7 @@ import {
   normalizeDurableSecretProvenanceEntries,
 } from '@/lib/execution/durable-secret-provenance'
 import {
+  EMPTY_NON_SECRET_NAMES,
   ResolvedSecretTraceRegistry,
   type ResolvedSecretTraceScopeV1,
 } from '@/executor/utils/resolved-secret-trace-registry'
@@ -408,7 +409,7 @@ export async function loadKnowledgeDocumentSecretRegistry(
       provenance,
       tracked: row.secretProvenanceVersion === 1 || currentSourceFileProvenance !== undefined,
     }
-  const registry = new ResolvedSecretTraceRegistry([], scope)
+  const registry = new ResolvedSecretTraceRegistry([], scope, EMPTY_NON_SECRET_NAMES)
   if (!(await importDurableSecretProvenance(registry, provenance))) {
     throw new Error('Knowledge document secret provenance is unavailable')
   }

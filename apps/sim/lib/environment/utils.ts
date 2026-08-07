@@ -9,6 +9,7 @@ import { LRUCache } from 'lru-cache'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import {
   createWorkspaceEnvCredentials,
+  type EnvVisibility,
   getAccessibleEnvCredentials,
   getWorkspaceEnvKeyAdminAccess,
   syncPersonalEnvCredentialsForUser,
@@ -32,6 +33,20 @@ const WORKSPACE_ENV_DENIAL_MESSAGES: Record<WorkspaceEnvDenialReason, string> = 
   'write-access-required': 'Write access is required to add new secrets',
 }
 
+/**
+ * Thrown when a caller asks to change the disclosure policy of an EXISTING key
+ * through the value-upsert path, which cannot apply it. Loud rather than a
+ * silent no-op: a caller told the change succeeded would never retry it.
+ */
+export class WorkspaceEnvVisibilityUnsupportedError extends Error {
+  constructor(readonly keys: string[]) {
+    super(
+      `Changing visibility of an existing environment variable is not supported here (${keys.join(', ')}); change it in workspace settings`
+    )
+    this.name = 'WorkspaceEnvVisibilityUnsupportedError'
+  }
+}
+
 /** Thrown when the acting user may not write one of the requested env keys. */
 export class WorkspaceEnvAccessError extends Error {
   constructor(
@@ -51,6 +66,16 @@ export interface EnvironmentResolutionSnapshot {
   personalOwners: Record<string, string>
   conflicts: string[]
   decryptionFailures: string[]
+  /**
+   * Workspace keys whose values are non-secret: readable by any member, kept
+   * verbatim in traces and logs, and exposed to the agent with their value.
+   *
+   * This is the single source every resolved-secret registry construction site
+   * derives its exemption set from, so it must only ever contain keys that are
+   * actually present in `workspaceEncrypted` — a stale credential row without a
+   * stored value must not exempt anything.
+   */
+  workspaceVariableKeys: string[]
 }
 
 interface EffectiveEnvironmentCacheEntry {
@@ -79,6 +104,7 @@ function cloneEnvironmentResolutionSnapshot(
     personalOwners: { ...snapshot.personalOwners },
     conflicts: [...snapshot.conflicts],
     decryptionFailures: [...snapshot.decryptionFailures],
+    workspaceVariableKeys: [...snapshot.workspaceVariableKeys],
   }
 }
 
@@ -160,7 +186,10 @@ export async function getPersonalAndWorkspaceEnv(
           .limit(1)
       : Promise.resolve([] as any[]),
     workspaceId
-      ? getAccessibleEnvCredentials(workspaceId, userId, { isWorkspaceAdmin: workspaceCanAdmin })
+      ? getAccessibleEnvCredentials(workspaceId, userId, {
+          isWorkspaceAdmin: workspaceCanAdmin,
+          hasWorkspaceAccess: true,
+        })
       : Promise.resolve([]),
   ])
 
@@ -262,6 +291,13 @@ export async function getPersonalAndWorkspaceEnv(
 
   const conflicts = Object.keys(personalEncrypted).filter((k) => k in workspaceEncrypted)
 
+  // Intersected with the values actually stored: a credential row that outlived
+  // its jsonb entry must never exempt a key from secret redaction.
+  const workspaceVariableKeys = accessibleEnvCredentials
+    .filter((row) => row.type === 'env_workspace' && row.envVisibility === 'variable')
+    .map((row) => row.envKey)
+    .filter((envKey) => envKey in workspaceEncrypted)
+
   if (decryptionFailures.length > 0) {
     logger.warn('Some environment variables failed to decrypt', {
       userId,
@@ -279,6 +315,7 @@ export async function getPersonalAndWorkspaceEnv(
     personalOwners,
     conflicts,
     decryptionFailures,
+    workspaceVariableKeys,
   }
 }
 
@@ -358,10 +395,55 @@ export async function upsertPersonalEnvVars(
 /**
  * Encrypts and upserts workspace environment variables, merging with existing.
  */
+/**
+ * Rejects a requested disclosure policy that this path cannot apply.
+ *
+ * `visibilityByKey` only reaches credential CREATION, so a policy requested for
+ * a key that already exists would be silently dropped while the call still
+ * reported success — including a `variable -> secret` remediation, the case
+ * where a false success is most harmful. Flipping an existing key needs the
+ * stricter disclosure gate this path does not perform, so surface the mismatch
+ * rather than pretend it applied.
+ *
+ * `existingKeys` is the stored ciphertext map read under the caller's advisory
+ * lock: a key present there is not created by this call, so its policy is
+ * whatever it already had. Callers must invoke this BEFORE writing anything.
+ */
+async function assertRequestedVisibilityApplies(params: {
+  workspaceId: string
+  actingUserId: string
+  updatedKeys: string[]
+  existingKeys: Record<string, string>
+  visibilityByKey?: Record<string, EnvVisibility>
+}): Promise<void> {
+  const { workspaceId, actingUserId, updatedKeys, existingKeys, visibilityByKey } = params
+  if (!visibilityByKey) return
+
+  const requested = Object.fromEntries(
+    updatedKeys
+      .filter((key) => key in existingKeys && visibilityByKey[key])
+      .map((key) => [key, visibilityByKey[key] as EnvVisibility])
+  )
+  if (Object.keys(requested).length === 0) return
+
+  const { variableKeys } = await getWorkspaceEnvKeyAdminAccess({
+    workspaceId,
+    envKeys: Object.keys(requested),
+    userId: actingUserId,
+  })
+  const unapplied = Object.entries(requested)
+    .filter(([key, next]) => (variableKeys.has(key) ? 'variable' : 'secret') !== next)
+    .map(([key]) => key)
+  if (unapplied.length > 0) {
+    throw new WorkspaceEnvVisibilityUnsupportedError(unapplied)
+  }
+}
+
 export async function upsertWorkspaceEnvVars(
   workspaceId: string,
   newVars: Record<string, string>,
-  actingUserId: string
+  actingUserId: string,
+  options?: { visibilityByKey?: Record<string, EnvVisibility> }
 ): Promise<string[]> {
   const updatedKeys = Object.keys(newVars)
   if (updatedKeys.length === 0) return []
@@ -423,6 +505,20 @@ export async function upsertWorkspaceEnvVars(
     const existing = (existingRow?.variables as Record<string, string>) || {}
     const merged = { ...existing, ...newlyEncrypted }
 
+    // Rejected BEFORE the write, inside the same transaction that reads
+    // `existing` — which is what makes "already exists" exact rather than a
+    // guess taken outside the lock. Validating after the upsert (and after
+    // createWorkspaceEnvCredentials) meant a rejected call still changed
+    // workspace values and could mint credential rows, then threw and skipped
+    // its audit record.
+    await assertRequestedVisibilityApplies({
+      workspaceId,
+      actingUserId,
+      updatedKeys,
+      existingKeys: existing,
+      visibilityByKey: options?.visibilityByKey,
+    })
+
     await tx
       .insert(workspaceEnvironment)
       .values({
@@ -445,7 +541,12 @@ export async function upsertWorkspaceEnvVars(
   // secret present in the jsonb map without a credential row is NOT new, and
   // minting an ACL for it would make the caller its secret-admin.
   const newKeys = updatedKeys.filter((key) => !(key in existingEncrypted))
-  await createWorkspaceEnvCredentials({ workspaceId, newKeys, actingUserId })
+  await createWorkspaceEnvCredentials({
+    workspaceId,
+    newKeys,
+    actingUserId,
+    visibilityByKey: options?.visibilityByKey,
+  })
 
   recordAudit({
     workspaceId,

@@ -5,6 +5,7 @@ import {
   type PrivateSecretProvenanceBundleV1,
 } from '@/lib/execution/model-input-provenance'
 import {
+  EMPTY_NON_SECRET_NAMES,
   type ResolvedSecretTraceProvenanceV1,
   ResolvedSecretTraceRegistry,
   type ResolvedSecretTraceScopeV1,
@@ -252,7 +253,7 @@ export async function createDurableSecretProvenanceRegistry(
     throw new Error('Durable secret provenance is unavailable')
   }
   if (provenance.entries.length === 0) return undefined
-  const registry = new ResolvedSecretTraceRegistry([], scope)
+  const registry = new ResolvedSecretTraceRegistry([], scope, EMPTY_NON_SECRET_NAMES)
   if (!(await importDurableSecretProvenance(registry, provenance))) {
     throw new Error('Durable secret provenance is unavailable')
   }

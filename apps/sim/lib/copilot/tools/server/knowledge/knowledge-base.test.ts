@@ -107,7 +107,10 @@ import { getKnowledgeBaseById } from '@/lib/knowledge/service'
 import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { executeKnowledgeSearch } from '@/app/api/knowledge/search/utils'
 import { checkKnowledgeBaseAccess } from '@/app/api/knowledge/utils'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  EMPTY_NON_SECRET_NAMES,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 
 const knowledgeLoggerIndex = loggerMock.createLogger.mock.calls.findIndex(
   ([name]) => name === 'KnowledgeBaseServerTool'
@@ -229,13 +232,17 @@ describe('knowledge base query model boundary', () => {
   })
 
   it('projects the query at embedding, search, and usage boundaries', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'KB_QUERY',
-        plaintext: 'private knowledge query',
-        encryptedValue: 'encrypted-query',
-      },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        {
+          name: 'KB_QUERY',
+          plaintext: 'private knowledge query',
+          encryptedValue: 'encrypted-query',
+        },
+      ],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('KB_QUERY', 'private knowledge query')
 
     const result = await knowledgeBaseServerTool.execute(
@@ -278,13 +285,17 @@ describe('knowledge base query model boundary', () => {
   })
 
   it('imports exact persisted result provenance before the Copilot result is projected', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'STORED_TOKEN',
-        plaintext: 'stored-secret-value',
-        encryptedValue: 'encrypted-stored-secret',
-      },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        {
+          name: 'STORED_TOKEN',
+          plaintext: 'stored-secret-value',
+          encryptedValue: 'encrypted-stored-secret',
+        },
+      ],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     const results = [
       {
         id: 'embedding-1',
@@ -329,7 +340,7 @@ describe('knowledge base query model boundary', () => {
   })
 
   it('fails closed when persisted result provenance cannot be established', async () => {
-    const registry = new ResolvedSecretTraceRegistry()
+    const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
     vi.mocked(executeKnowledgeSearch).mockResolvedValue([
       {
         id: 'embedding-1',

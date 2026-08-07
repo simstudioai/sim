@@ -32,6 +32,7 @@ import { createTimeoutAbortController } from '@/lib/core/execution-limits'
 import { INTERNAL_EXECUTION_DEADLINE_HEADER } from '@/lib/execution/execution-deadline-header'
 import {
   ANONYMOUS_SECRET_TRACE_REPLACEMENT,
+  EMPTY_NON_SECRET_NAMES,
   ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
 import { fileGetContentTool } from '@/tools/file/get'
@@ -708,10 +709,14 @@ describe('executeTool Function', () => {
   })
 
   it('imports File Get Content provenance without exposing private transport metadata', async () => {
-    const registry = new ResolvedSecretTraceRegistry([], {
-      userId: 'user-1',
-      workspaceId: 'workspace-1',
-    })
+    const registry = new ResolvedSecretTraceRegistry(
+      [],
+      {
+        userId: 'user-1',
+        workspaceId: 'workspace-1',
+      },
+      EMPTY_NON_SECRET_NAMES
+    )
     encryptionMockFns.mockDecryptSecret.mockResolvedValue({ decrypted: 'secret-value' })
     global.fetch = Object.assign(
       vi.fn().mockResolvedValue(
@@ -784,10 +789,14 @@ describe('executeTool Function', () => {
   ])(
     'preserves an unverified error status for the $name without exposing its body or headers',
     async ({ toolId, status, params }) => {
-      const registry = new ResolvedSecretTraceRegistry([], {
-        userId: 'user-1',
-        workspaceId: 'workspace-1',
-      })
+      const registry = new ResolvedSecretTraceRegistry(
+        [],
+        {
+          userId: 'user-1',
+          workspaceId: 'workspace-1',
+        },
+        EMPTY_NON_SECRET_NAMES
+      )
       const untrustedDetail = 'route-secret-plaintext'
       const untrustedHeader = 'route-secret-header-value'
       global.fetch = Object.assign(
@@ -820,7 +829,7 @@ describe('executeTool Function', () => {
   )
 
   it('maps an unverified non-error HTTP status to a metadata failure', async () => {
-    const registry = new ResolvedSecretTraceRegistry()
+    const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
     global.fetch = Object.assign(vi.fn().mockResolvedValue(new Response(null, { status: 304 })), {
       preconnect: vi.fn(),
     }) as typeof fetch
@@ -846,10 +855,14 @@ describe('executeTool Function', () => {
   })
 
   it('contains incomplete File Get Content provenance within that tool call', async () => {
-    const registry = new ResolvedSecretTraceRegistry([], {
-      userId: 'user-1',
-      workspaceId: 'workspace-1',
-    })
+    const registry = new ResolvedSecretTraceRegistry(
+      [],
+      {
+        userId: 'user-1',
+        workspaceId: 'workspace-1',
+      },
+      EMPTY_NON_SECRET_NAMES
+    )
     global.fetch = Object.assign(
       vi.fn().mockResolvedValue(
         new Response(
@@ -895,10 +908,14 @@ describe('executeTool Function', () => {
   })
 
   it('fails one legacy File Get Content response without poisoning the parent registry', async () => {
-    const registry = new ResolvedSecretTraceRegistry([], {
-      userId: 'user-1',
-      workspaceId: 'workspace-1',
-    })
+    const registry = new ResolvedSecretTraceRegistry(
+      [],
+      {
+        userId: 'user-1',
+        workspaceId: 'workspace-1',
+      },
+      EMPTY_NON_SECRET_NAMES
+    )
     global.fetch = Object.assign(
       vi.fn().mockResolvedValue(
         new Response(JSON.stringify({ success: true, data: { contents: ['legacy content'] } }), {
@@ -925,13 +942,17 @@ describe('executeTool Function', () => {
   })
 
   it('consumes Function secret provenance without exposing private transport metadata', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'API_KEY',
-        plaintext: 'secret-value',
-        encryptedValue: 'encrypted-value',
-      },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        {
+          name: 'API_KEY',
+          plaintext: 'secret-value',
+          encryptedValue: 'encrypted-value',
+        },
+      ],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     global.fetch = Object.assign(
       vi.fn().mockResolvedValue(
         new Response(
@@ -976,7 +997,7 @@ describe('executeTool Function', () => {
   })
 
   it('marks legacy Function file exports unknown before exposing their receipt', async () => {
-    const registry = new ResolvedSecretTraceRegistry()
+    const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
     global.fetch = Object.assign(
       vi.fn().mockResolvedValue(
         new Response(
@@ -1025,13 +1046,17 @@ describe('executeTool Function', () => {
   it('does not log plaintext or runtime aliases from Function errors', async () => {
     const secret = 'function-error-secret-value'
     const runtimeAlias = '__var_API_KEY'
-    const registry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'API_KEY',
-        plaintext: secret,
-        encryptedValue: 'encrypted-value',
-      },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        {
+          name: 'API_KEY',
+          plaintext: secret,
+          encryptedValue: 'encrypted-value',
+        },
+      ],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     global.fetch = Object.assign(
       vi.fn().mockResolvedValue(
         new Response(
@@ -1141,13 +1166,17 @@ describe('executeTool Function', () => {
 
   it('does not let pending custom-tool provenance affect an unrelated result', async () => {
     const secret = 'custom-tool-secret-value'
-    const registry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'API_KEY',
-        plaintext: secret,
-        encryptedValue: 'encrypted-value',
-      },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        {
+          name: 'API_KEY',
+          plaintext: secret,
+          encryptedValue: 'encrypted-value',
+        },
+      ],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     mockGetToolAsync.mockResolvedValueOnce({
       id: 'custom_pending-provenance',
       name: 'Pending provenance custom tool',
@@ -1222,7 +1251,7 @@ describe('executeTool Function', () => {
   })
 
   it('isolates invalid custom-tool provenance and allows a later call to proceed', async () => {
-    const registry = new ResolvedSecretTraceRegistry()
+    const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
     mockGetToolAsync.mockResolvedValue({
       id: 'custom_invalid-provenance',
       name: 'Invalid provenance custom tool',
@@ -1312,7 +1341,7 @@ describe('executeTool Function', () => {
   })
 
   it('accepts a legacy Function response after reconstructing its local provenance', async () => {
-    const registry = new ResolvedSecretTraceRegistry()
+    const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
     global.fetch = Object.assign(
       vi
         .fn()
@@ -1340,9 +1369,11 @@ describe('executeTool Function', () => {
   })
 
   it('reconstructs a crossing secret from a legacy Function response', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'API_KEY', plaintext: 'legacy-secret', encryptedValue: 'encrypted-value' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'API_KEY', plaintext: 'legacy-secret', encryptedValue: 'encrypted-value' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     encryptionMockFns.mockDecryptSecret.mockResolvedValueOnce({ decrypted: 'legacy-secret' })
     global.fetch = Object.assign(
       vi.fn().mockResolvedValue(
@@ -1379,7 +1410,8 @@ describe('executeTool Function', () => {
           encryptedValue: 'encrypted-input-secret',
         },
       ],
-      { userId: 'parent-owner', workspaceId: 'workspace-456' }
+      { userId: 'parent-owner', workspaceId: 'workspace-456' },
+      EMPTY_NON_SECRET_NAMES
     )
     expect(registry.recordResolved('INPUT_SECRET', 'secret-value')).toBe(true)
     global.fetch = Object.assign(
@@ -1444,10 +1476,14 @@ describe('executeTool Function', () => {
   })
 
   it('filters cross-scope workflow provenance to literals present in the unchanged result', async () => {
-    const registry = new ResolvedSecretTraceRegistry([], {
-      userId: 'parent-user',
-      workspaceId: 'workspace-456',
-    })
+    const registry = new ResolvedSecretTraceRegistry(
+      [],
+      {
+        userId: 'parent-user',
+        workspaceId: 'workspace-456',
+      },
+      EMPTY_NON_SECRET_NAMES
+    )
     encryptionMockFns.mockDecryptSecret.mockImplementation(async (encryptedValue: string) => ({
       decrypted: encryptedValue === 'crossed-encrypted' ? 'crossed-secret' : 'unrelated-secret',
     }))
@@ -1520,10 +1556,14 @@ describe('executeTool Function', () => {
   })
 
   it('drops a legacy workflow response without poisoning later provenance', async () => {
-    const registry = new ResolvedSecretTraceRegistry([], {
-      userId: 'parent-user',
-      workspaceId: 'workspace-456',
-    })
+    const registry = new ResolvedSecretTraceRegistry(
+      [],
+      {
+        userId: 'parent-user',
+        workspaceId: 'workspace-456',
+      },
+      EMPTY_NON_SECRET_NAMES
+    )
     global.fetch = Object.assign(
       vi.fn().mockResolvedValue(
         new Response(
@@ -1592,10 +1632,14 @@ describe('executeTool Function', () => {
   })
 
   it('contains incomplete workflow provenance within that tool call', async () => {
-    const registry = new ResolvedSecretTraceRegistry([], {
-      userId: 'parent-user',
-      workspaceId: 'workspace-456',
-    })
+    const registry = new ResolvedSecretTraceRegistry(
+      [],
+      {
+        userId: 'parent-user',
+        workspaceId: 'workspace-456',
+      },
+      EMPTY_NON_SECRET_NAMES
+    )
     global.fetch = Object.assign(
       vi.fn().mockResolvedValue(
         new Response(
@@ -1641,10 +1685,14 @@ describe('executeTool Function', () => {
   })
 
   it('does not charge private provenance against the functional response limit', async () => {
-    const registry = new ResolvedSecretTraceRegistry([], {
-      userId: 'parent-user',
-      workspaceId: 'workspace-456',
-    })
+    const registry = new ResolvedSecretTraceRegistry(
+      [],
+      {
+        userId: 'parent-user',
+        workspaceId: 'workspace-456',
+      },
+      EMPTY_NON_SECRET_NAMES
+    )
     const functionalValue = 'f'.repeat(9 * 1024 * 1024)
     const encryptedValue = 'e'.repeat(2 * 1024 * 1024)
     encryptionMockFns.mockDecryptSecret.mockResolvedValueOnce({ decrypted: 'secret-value' })
@@ -1693,7 +1741,7 @@ describe('executeTool Function', () => {
   })
 
   it('strips private metadata even when an internal endpoint returns the wrong marker', async () => {
-    const registry = new ResolvedSecretTraceRegistry()
+    const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
     global.fetch = Object.assign(
       vi.fn().mockResolvedValue(
         new Response(
@@ -1744,7 +1792,7 @@ describe('executeTool Function', () => {
   })
 
   it('fails closed when a marked private response envelope is malformed', async () => {
-    const registry = new ResolvedSecretTraceRegistry()
+    const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
     global.fetch = Object.assign(
       vi.fn().mockResolvedValue(
         new Response('{"__resolvedSecretNames":["API_KEY"],"value":"secret-value"', {
@@ -1775,9 +1823,11 @@ describe('executeTool Function', () => {
 
   it('projects a thrown error with complete provenance before committing it', async () => {
     const secret = 'transaction-throw-secret'
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'API_KEY', plaintext: secret, encryptedValue: 'encrypted-value' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'API_KEY', plaintext: secret, encryptedValue: 'encrypted-value' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     global.fetch = Object.assign(
       vi.fn().mockResolvedValue(
         new Response(
@@ -1813,7 +1863,7 @@ describe('executeTool Function', () => {
   })
 
   it('contains an incomplete thrown settlement and leaves later calls available', async () => {
-    const registry = new ResolvedSecretTraceRegistry()
+    const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
     global.fetch = Object.assign(
       vi.fn().mockResolvedValue(
         new Response(
@@ -1868,7 +1918,7 @@ describe('executeTool Function', () => {
   })
 
   it('does not start a private-provenance call from a permanently incomplete parent', async () => {
-    const registry = new ResolvedSecretTraceRegistry()
+    const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
     registry.markIncomplete()
     const fetchMock = vi.mocked(global.fetch)
 
@@ -1887,7 +1937,7 @@ describe('executeTool Function', () => {
   })
 
   it('does not start a private-provenance call when its input cannot be bounded', async () => {
-    const registry = new ResolvedSecretTraceRegistry()
+    const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
     const incompleteToolRegistry = registry.forkForToolCall()
     incompleteToolRegistry.markIncomplete()
     vi.spyOn(registry, 'forkForToolInputValues').mockReturnValue(incompleteToolRegistry)
@@ -2090,18 +2140,22 @@ describe('Automatic Internal Route Detection', () => {
   })
 
   it('transports only active provenance selected for an internal model input', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'PROMPT_TOKEN',
-        plaintext: 'prompt-secret',
-        encryptedValue: 'encrypted-prompt-secret',
-      },
-      {
-        name: 'UNUSED_TOKEN',
-        plaintext: 'unused-secret',
-        encryptedValue: 'encrypted-unused-secret',
-      },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        {
+          name: 'PROMPT_TOKEN',
+          plaintext: 'prompt-secret',
+          encryptedValue: 'encrypted-prompt-secret',
+        },
+        {
+          name: 'UNUSED_TOKEN',
+          plaintext: 'unused-secret',
+          encryptedValue: 'encrypted-unused-secret',
+        },
+      ],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('PROMPT_TOKEN', 'prompt-secret')
     const mockTool = {
       id: 'test_internal_model_tool',
@@ -2202,7 +2256,13 @@ describe('Automatic Internal Route Detection', () => {
       const result = await executeTool(
         'test_internal_optional_model_tool',
         {},
-        { resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry() }
+        {
+          resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(
+            [],
+            undefined,
+            EMPTY_NON_SECRET_NAMES
+          ),
+        }
       )
 
       expect(result.success).toBe(true)
@@ -2212,23 +2272,27 @@ describe('Automatic Internal Route Detection', () => {
   })
 
   it('projects only selected values without treating declared param keys as secret data', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'MODEL_SECRET',
-        plaintext: 'prompt',
-        encryptedValue: 'encrypted-model-secret',
-      },
-      {
-        name: 'UNRELATED_SECRET',
-        plaintext: 'unrelated-secret',
-        encryptedValue: 'encrypted-unrelated-secret',
-      },
-      {
-        name: 'SYNTHETIC_INDEX_COLLISION',
-        plaintext: '0',
-        encryptedValue: 'encrypted-synthetic-index-collision',
-      },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        {
+          name: 'MODEL_SECRET',
+          plaintext: 'prompt',
+          encryptedValue: 'encrypted-model-secret',
+        },
+        {
+          name: 'UNRELATED_SECRET',
+          plaintext: 'unrelated-secret',
+          encryptedValue: 'encrypted-unrelated-secret',
+        },
+        {
+          name: 'SYNTHETIC_INDEX_COLLISION',
+          plaintext: '0',
+          encryptedValue: 'encrypted-synthetic-index-collision',
+        },
+      ],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('MODEL_SECRET', 'prompt')
     registry.recordResolved('UNRELATED_SECRET', 'unrelated-secret')
     registry.recordResolved('SYNTHETIC_INDEX_COLLISION', '0')
@@ -2295,18 +2359,22 @@ describe('Automatic Internal Route Detection', () => {
   })
 
   it('projects text while transporting opaque model-input provenance out of band', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'PROMPT_SECRET',
-        plaintext: 'prompt-secret',
-        encryptedValue: 'encrypted-prompt-secret',
-      },
-      {
-        name: 'FILE_SECRET',
-        plaintext: 'file-secret',
-        encryptedValue: 'encrypted-file-secret',
-      },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        {
+          name: 'PROMPT_SECRET',
+          plaintext: 'prompt-secret',
+          encryptedValue: 'encrypted-prompt-secret',
+        },
+        {
+          name: 'FILE_SECRET',
+          plaintext: 'file-secret',
+          encryptedValue: 'encrypted-file-secret',
+        },
+      ],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('PROMPT_SECRET', 'prompt-secret')
     registry.recordResolved('FILE_SECRET', 'file-secret')
     const mockTool = {
@@ -2379,13 +2447,17 @@ describe('Automatic Internal Route Detection', () => {
   })
 
   it('projects only selected nested model fields and preserves sibling values', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'NESTED_SECRET',
-        plaintext: 'nested-secret',
-        encryptedValue: 'encrypted-nested-secret',
-      },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        {
+          name: 'NESTED_SECRET',
+          plaintext: 'nested-secret',
+          encryptedValue: 'encrypted-nested-secret',
+        },
+      ],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('NESTED_SECRET', 'nested-secret')
     const mockTool = {
       id: 'test_nested_projected_model_tool',
@@ -2467,13 +2539,17 @@ describe('Automatic Internal Route Detection', () => {
   })
 
   it('fails closed when a nested projection adapter does not reapply projected values', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'NESTED_SECRET',
-        plaintext: 'nested-secret',
-        encryptedValue: 'encrypted-nested-secret',
-      },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        {
+          name: 'NESTED_SECRET',
+          plaintext: 'nested-secret',
+          encryptedValue: 'encrypted-nested-secret',
+        },
+      ],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('NESTED_SECRET', 'nested-secret')
     const body = vi.fn()
     const mockTool = {
@@ -2521,13 +2597,17 @@ describe('Automatic Internal Route Detection', () => {
   })
 
   it('projects selected params before formatting an external JSON request', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'PROMPT_SECRET',
-        plaintext: 'external-secret',
-        encryptedValue: 'encrypted-external-secret',
-      },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        {
+          name: 'PROMPT_SECRET',
+          plaintext: 'external-secret',
+          encryptedValue: 'encrypted-external-secret',
+        },
+      ],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('PROMPT_SECRET', 'external-secret')
     const mockTool = {
       id: 'test_external_projected_model_tool',
@@ -2569,9 +2649,11 @@ describe('Automatic Internal Route Detection', () => {
 
   it('rejects secret-derived opaque input before request formatting or network I/O', async () => {
     const secret = 'quote" slash\\ newline\n123 true'
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'OPAQUE_URL', plaintext: secret, encryptedValue: 'encrypted-opaque-secret' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'OPAQUE_URL', plaintext: secret, encryptedValue: 'encrypted-opaque-secret' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('OPAQUE_URL', secret)
     const url = vi.fn(() => 'https://api.example.com/opaque')
     const headers = vi.fn(() => ({ 'Content-Type': 'application/json' }))
@@ -2617,7 +2699,7 @@ describe('Automatic Internal Route Detection', () => {
   })
 
   it('rejects opaque input with incomplete provenance before direct execution', async () => {
-    const registry = new ResolvedSecretTraceRegistry()
+    const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
     registry.markIncomplete()
     const directExecution = vi.fn().mockResolvedValue({ success: true, output: {} })
     const mockTool = {
@@ -2691,7 +2773,7 @@ describe('Automatic Internal Route Detection', () => {
   })
 
   it('skips an inactive opaque boundary even when unrelated provenance is incomplete', async () => {
-    const registry = new ResolvedSecretTraceRegistry()
+    const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
     registry.markIncomplete()
     const directExecution = vi.fn().mockResolvedValue({ success: true, output: {} })
     const mockTool = {
@@ -2728,9 +2810,11 @@ describe('Automatic Internal Route Detection', () => {
   })
 
   it('preserves safe opaque bytes and sends no provenance metadata externally', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'LOW_ENTROPY', plaintext: 'true', encryptedValue: 'encrypted-low-entropy' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'LOW_ENTROPY', plaintext: 'true', encryptedValue: 'encrypted-low-entropy' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('LOW_ENTROPY', 'true')
     const opaquePayload = 'quote" slash\\ newline\n123'
     const mockTool = {
@@ -2783,13 +2867,17 @@ describe('Automatic Internal Route Detection', () => {
   })
 
   it('projects only selected model input before direct execution', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'PROMPT_SECRET',
-        plaintext: 'direct-secret',
-        encryptedValue: 'encrypted-direct-secret',
-      },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        {
+          name: 'PROMPT_SECRET',
+          plaintext: 'direct-secret',
+          encryptedValue: 'encrypted-direct-secret',
+        },
+      ],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('PROMPT_SECRET', 'direct-secret')
     const directExecution = vi.fn().mockResolvedValue({ success: true, output: { ok: true } })
     const postProcess = vi.fn(
@@ -2888,7 +2976,7 @@ describe('Automatic Internal Route Detection', () => {
   })
 
   it('blocks the request with a stable error when selected model input cannot be projected', async () => {
-    const registry = new ResolvedSecretTraceRegistry()
+    const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
     const cyclicPrompt: Record<string, unknown> = {}
     cyclicPrompt.self = cyclicPrompt
     const body = vi.fn((params: { prompt: unknown }) => ({ prompt: params.prompt }))
@@ -2957,7 +3045,13 @@ describe('Automatic Internal Route Detection', () => {
       const result = await executeTool(
         'test_external_private_model_tool',
         { prompt: 'plaintext' },
-        { resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry() }
+        {
+          resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(
+            [],
+            undefined,
+            EMPTY_NON_SECRET_NAMES
+          ),
+        }
       )
 
       expect(result).toMatchObject({
@@ -3659,13 +3753,17 @@ describe('Copilot Env Variable Reference Resolution', () => {
 
   it('does not let a pending user-only reference affect an unrelated result', async () => {
     const secret = 'sntrys_real_token'
-    const registry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'SENTRY_AUTH_TOKEN',
-        plaintext: secret,
-        encryptedValue: 'encrypted-token',
-      },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        {
+          name: 'SENTRY_AUTH_TOKEN',
+          plaintext: secret,
+          encryptedValue: 'encrypted-token',
+        },
+      ],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     let resolveEnvironment!: (variables: Record<string, string>) => void
     let markResolutionStarted!: () => void
     const resolutionStarted = new Promise<void>((resolve) => {
@@ -4114,10 +4212,14 @@ describe('MCP Tool Execution', () => {
   })
 
   it('consumes marker-gated MCP provenance while leaving the tool result unchanged', async () => {
-    const registry = new ResolvedSecretTraceRegistry([], {
-      userId: 'test-user',
-      workspaceId: 'workspace-456',
-    })
+    const registry = new ResolvedSecretTraceRegistry(
+      [],
+      {
+        userId: 'test-user',
+        workspaceId: 'workspace-456',
+      },
+      EMPTY_NON_SECRET_NAMES
+    )
     encryptionMockFns.mockDecryptSecret.mockResolvedValue({ decrypted: 'secret-value' })
     global.fetch = Object.assign(
       vi.fn().mockResolvedValue(
@@ -4168,10 +4270,14 @@ describe('MCP Tool Execution', () => {
 
   it('does not let pending MCP provenance affect an unrelated result', async () => {
     const secret = 'mcp-secret-value'
-    const registry = new ResolvedSecretTraceRegistry([], {
-      userId: 'test-user',
-      workspaceId: 'workspace-456',
-    })
+    const registry = new ResolvedSecretTraceRegistry(
+      [],
+      {
+        userId: 'test-user',
+        workspaceId: 'workspace-456',
+      },
+      EMPTY_NON_SECRET_NAMES
+    )
     encryptionMockFns.mockDecryptSecret.mockResolvedValue({ decrypted: secret })
 
     let resolveRequest!: (response: Response) => void
@@ -4235,7 +4341,7 @@ describe('MCP Tool Execution', () => {
   })
 
   it('rejects unmarked MCP provenance instead of trusting a response body field', async () => {
-    const registry = new ResolvedSecretTraceRegistry()
+    const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
     global.fetch = Object.assign(
       vi.fn().mockResolvedValue(
         new Response(
@@ -4304,7 +4410,7 @@ describe('MCP Tool Execution', () => {
   })
 
   it('drops a legacy MCP response without poisoning later provenance', async () => {
-    const registry = new ResolvedSecretTraceRegistry()
+    const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
     global.fetch = Object.assign(
       vi.fn().mockResolvedValue(
         new Response(
@@ -4336,7 +4442,7 @@ describe('MCP Tool Execution', () => {
   })
 
   it('preserves MCP error semantics while stripping marked private provenance', async () => {
-    const registry = new ResolvedSecretTraceRegistry()
+    const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
     global.fetch = Object.assign(
       vi.fn().mockResolvedValue(
         new Response(
@@ -4371,7 +4477,7 @@ describe('MCP Tool Execution', () => {
   })
 
   it('accepts MCP responses above the generic tool cap while stripping private metadata', async () => {
-    const registry = new ResolvedSecretTraceRegistry()
+    const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
     global.fetch = Object.assign(
       vi.fn().mockResolvedValue(
         new Response(

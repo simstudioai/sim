@@ -94,10 +94,14 @@ export function useUpsertWorkspaceEnvironment() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ workspaceId, variables }: UpsertWorkspaceEnvironmentParams) => {
+    mutationFn: async ({
+      workspaceId,
+      variables,
+      visibility,
+    }: UpsertWorkspaceEnvironmentParams) => {
       const data = await requestJson(upsertWorkspaceEnvironmentContract, {
         params: { id: workspaceId },
-        body: { variables },
+        body: { variables, ...(visibility ? { visibility } : {}) },
       })
       logger.info(`Upserted workspace environment variables for workspace: ${workspaceId}`)
       return data

@@ -9,6 +9,7 @@ import { and, asc, eq, gt, inArray, type SQL, sql } from 'drizzle-orm'
 import type { DbExecutor, DbTransaction } from '@/lib/table/planner'
 import type { RowData, TableRowSecretProvenanceWrite } from '@/lib/table/types'
 import {
+  EMPTY_NON_SECRET_NAMES,
   isResolvedSecretTraceProvenanceV1,
   type ResolvedSecretTraceProvenanceEntryV1,
   type ResolvedSecretTraceProvenanceV1,
@@ -251,7 +252,7 @@ export async function createTableRowSecretProvenanceFromEncryptedExecution(
   if (!isResolvedSecretTraceProvenanceV1(provenance)) {
     return createUnknownTableRowSecretProvenance()
   }
-  const registry = new ResolvedSecretTraceRegistry([], provenance.scope)
+  const registry = new ResolvedSecretTraceRegistry([], provenance.scope, EMPTY_NON_SECRET_NAMES)
   if (!(await registry.importProvenance(provenance, { trusted: true })) || !registry.isComplete()) {
     return createUnknownTableRowSecretProvenance()
   }

@@ -15,7 +15,10 @@ vi.mock('@/tools/utils.server', () => ({ getToolAsync: vi.fn() }))
 
 import { buildSimToolSpecs } from '@/executor/handlers/pi/sim-tools'
 import type { ExecutionContext } from '@/executor/types'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  EMPTY_NON_SECRET_NAMES,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 import { ToolSchemaEnrichmentError } from '@/tools/params'
 
 function executionContext(registry: ResolvedSecretTraceRegistry | undefined): ExecutionContext {
@@ -26,7 +29,7 @@ function executionContext(registry: ResolvedSecretTraceRegistry | undefined): Ex
 }
 
 function completeExecutionContext(): ExecutionContext {
-  return executionContext(new ResolvedSecretTraceRegistry())
+  return executionContext(new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES))
 }
 
 const toolInput = [{ type: 'exa', operation: 'exa_search', usageControl: 'auto' }]
@@ -104,7 +107,11 @@ describe('buildSimToolSpecs', () => {
       workspaceId: 'ws-1',
       workflowId: 'wf-1',
       userId: 'user-1',
-      resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
+      resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(
+        [],
+        undefined,
+        EMPTY_NON_SECRET_NAMES
+      ),
     } as ExecutionContext
 
     const [spec] = await buildSimToolSpecs(trustedCtx, [
@@ -126,9 +133,11 @@ describe('buildSimToolSpecs', () => {
       success: true,
       output: { authorization: 'Bearer secret-value' },
     })
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'API_KEY', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'API_KEY', plaintext: 'secret-value', encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('API_KEY', 'secret-value')
 
     const [spec] = await buildSimToolSpecs(executionContext(registry), toolInput)
@@ -151,7 +160,7 @@ describe('buildSimToolSpecs', () => {
         output: { token: 'foreign-secret' },
       }
     })
-    const registry = new ResolvedSecretTraceRegistry()
+    const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
 
     const [spec] = await buildSimToolSpecs(executionContext(registry), toolInput)
 
@@ -179,9 +188,11 @@ describe('buildSimToolSpecs', () => {
   it('does not rewrite an unrelated result that collides with low-entropy run provenance', async () => {
     mockToolAdapter()
     mockExecuteTool.mockResolvedValue({ success: true, output: 'Test' })
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'TEST_SECRET', plaintext: 'Test', encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'TEST_SECRET', plaintext: 'Test', encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('TEST_SECRET', 'Test')
 
     const [spec] = await buildSimToolSpecs(executionContext(registry), toolInput)
@@ -191,9 +202,11 @@ describe('buildSimToolSpecs', () => {
 
   it('projects error text returned or thrown by a Sim tool', async () => {
     mockToolAdapter({ apiKey: 'secret-value' })
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'API_KEY', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'API_KEY', plaintext: 'secret-value', encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('API_KEY', 'secret-value')
     const [spec] = await buildSimToolSpecs(executionContext(registry), toolInput)
 
@@ -219,7 +232,7 @@ describe('buildSimToolSpecs', () => {
     [
       'incomplete',
       (() => {
-        const registry = new ResolvedSecretTraceRegistry()
+        const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
         registry.markIncomplete()
         return registry
       })(),

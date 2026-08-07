@@ -112,6 +112,7 @@ vi.mock('@/lib/logs/execution/logging-factory', () => ({
 
 import { calculateCostSummary } from '@/lib/logs/execution/logging-factory'
 import {
+  EMPTY_NON_SECRET_NAMES,
   type ResolvedSecretTraceMatch,
   ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
@@ -150,9 +151,11 @@ describe('LoggingSession diagnostic projection', () => {
     const secret = 'logging-session-secret-7f3a91'
     const error = new Error(`failed ${secret} __var_API_KEY __sim_code_2_binding_1`)
     const session = new LoggingSession('workflow-1', 'execution-1', 'manual')
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'API_KEY', plaintext: secret, encryptedValue: 'encrypted-api-key' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'API_KEY', plaintext: secret, encryptedValue: 'encrypted-api-key' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('API_KEY', secret)
     session.setResolvedSecretTraceRegistry(registry)
 

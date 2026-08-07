@@ -16,7 +16,10 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vites
 import { env } from '@/lib/core/config/env'
 import * as documentsUtilsModule from '@/lib/knowledge/documents/utils'
 import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-input-provenance'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  EMPTY_NON_SECRET_NAMES,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 
 /**
  * Spy on the real documents/utils namespace instead of vi.mock: the shared
@@ -804,9 +807,11 @@ describe('Knowledge Search Utils', () => {
         },
       })
 
-      const registry = new ResolvedSecretTraceRegistry([
-        { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'encrypted-token' },
-      ])
+      const registry = new ResolvedSecretTraceRegistry(
+        [{ name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'encrypted-token' }],
+        undefined,
+        EMPTY_NON_SECRET_NAMES
+      )
       registry.recordResolved('TOKEN', 'secret-value')
 
       await runWithKnowledgeModelInputProvenance(registry, () =>

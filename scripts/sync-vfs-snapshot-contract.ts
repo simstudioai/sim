@@ -3,16 +3,14 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { compile } from 'json-schema-to-typescript'
 import { formatGeneratedSource } from './format-generated-source'
+import { resolveMothershipContract } from './mothership-contracts-path'
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(SCRIPT_DIR, '..')
 // Matches the sibling sync scripts' canonical layout. In a repo where the Go
 // service lives at `mothership/copilot`, pass `--input=` (e.g.
 // `--input=../mothership/copilot/contracts/vfs-snapshot-v1.schema.json`).
-const DEFAULT_CONTRACT_PATH = resolve(
-  ROOT,
-  '../copilot/copilot/contracts/vfs-snapshot-v1.schema.json'
-)
+const DEFAULT_CONTRACT_PATH = () => resolveMothershipContract('vfs-snapshot-v1.schema.json')
 const OUTPUT_PATH = resolve(ROOT, 'apps/sim/lib/copilot/generated/vfs-snapshot-v1.ts')
 
 async function main() {
@@ -20,7 +18,7 @@ async function main() {
   const inputPathArg = process.argv.find((arg) => arg.startsWith('--input='))
   const inputPath = inputPathArg
     ? resolve(ROOT, inputPathArg.slice('--input='.length))
-    : DEFAULT_CONTRACT_PATH
+    : DEFAULT_CONTRACT_PATH()
 
   const raw = await readFile(inputPath, 'utf8')
   const schema = JSON.parse(raw)

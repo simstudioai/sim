@@ -818,16 +818,25 @@ export function serializeApiKeyIntegrations(
 
 /**
  * Serialize environment variables for VFS environment/variables.json.
- * Shows variable NAMES only — NOT values.
+ *
+ * Secrets appear as NAMES ONLY. Keys explicitly marked non-secret additionally
+ * appear under `nonSecretValues` with their value, which is what lets the agent
+ * use and quote them instead of guessing.
+ *
+ * The key is named `nonSecretValues` rather than `values` so the file is
+ * self-describing when read cold, and so the safety rule can be stated in one
+ * line: a name absent from `nonSecretValues` is a secret.
  */
 export function serializeEnvironmentVariables(
   personalVarNames: string[],
-  workspaceVarNames: string[]
+  workspaceVarNames: string[],
+  nonSecretValues: Record<string, string> = {}
 ): string {
   return JSON.stringify(
     {
       personal: personalVarNames,
       workspace: workspaceVarNames,
+      nonSecretValues,
     },
     null,
     2

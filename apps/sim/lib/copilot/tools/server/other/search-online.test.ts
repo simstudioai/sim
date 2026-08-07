@@ -14,16 +14,23 @@ vi.mock('@/lib/copilot/generated/tool-catalog-v1', () => ({
 vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
 
 import { searchOnlineServerTool } from '@/lib/copilot/tools/server/other/search-online'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  EMPTY_NON_SECRET_NAMES,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 
 function activeQueryRegistry(): ResolvedSecretTraceRegistry {
-  const registry = new ResolvedSecretTraceRegistry([
-    {
-      name: 'SEARCH_QUERY',
-      plaintext: 'private search query',
-      encryptedValue: 'encrypted-query',
-    },
-  ])
+  const registry = new ResolvedSecretTraceRegistry(
+    [
+      {
+        name: 'SEARCH_QUERY',
+        plaintext: 'private search query',
+        encryptedValue: 'encrypted-query',
+      },
+    ],
+    undefined,
+    EMPTY_NON_SECRET_NAMES
+  )
   registry.recordResolved('SEARCH_QUERY', 'private search query')
   return registry
 }

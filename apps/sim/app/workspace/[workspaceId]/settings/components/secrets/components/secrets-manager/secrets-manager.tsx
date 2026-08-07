@@ -1,19 +1,20 @@
 'use client'
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
-import { ChipInput, cn, toast } from '@sim/emcn'
+import { ChipConfirmModal, ChipInput, cn, toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
+import type { EnvVisibility } from '@/lib/api/contracts/environment'
 import {
   clearPendingCredentialCreateRequest,
   PENDING_CREDENTIAL_CREATE_REQUEST_EVENT,
   type PendingCredentialCreateRequest,
   readPendingCredentialCreateRequest,
 } from '@/lib/credentials/client-state'
-import type { WorkspaceEnvironmentData } from '@/lib/environment/api'
 import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SecretValueField } from '@/app/workspace/[workspaceId]/settings/components/secrets/components/secret-value-field'
@@ -52,13 +53,23 @@ interface SecretRowMenuProps {
   onViewDetails?: () => void
   /** Deletes the secret (or clears the draft row); omit when the caller can't delete. */
   onDelete?: () => void
+  /** Flips the row between secret and non-secret; omit when the caller can't. */
+  onToggleVisibility?: () => void
+  /** Current disclosure policy, used to label the toggle. */
+  visibility?: EnvVisibility
 }
 
 /**
  * Trailing `...` actions menu for a secret row. Mirrors the Teammates /
  * Organization member menu so the settings experience is consistent.
  */
-function SecretRowMenu({ onCopyName, onViewDetails, onDelete }: SecretRowMenuProps) {
+function SecretRowMenu({
+  onCopyName,
+  onViewDetails,
+  onDelete,
+  onToggleVisibility,
+  visibility = 'secret',
+}: SecretRowMenuProps) {
   return (
     <RowActionsMenu
       label='Secret actions'
@@ -66,6 +77,15 @@ function SecretRowMenu({ onCopyName, onViewDetails, onDelete }: SecretRowMenuPro
       actions={[
         ...(onViewDetails ? [{ label: 'View details', onSelect: onViewDetails }] : []),
         { label: 'Copy name', onSelect: onCopyName },
+        ...(onToggleVisibility
+          ? [
+              {
+                label:
+                  visibility === 'variable' ? 'Change to secret' : 'Change to non-secret variable',
+                onSelect: onToggleVisibility,
+              },
+            ]
+          : []),
         ...(onDelete ? [{ label: 'Delete', destructive: true, onSelect: onDelete }] : []),
       ]}
     />
@@ -200,6 +220,10 @@ interface WorkspaceVariableRowProps {
   onValueChange: (key: string, value: string) => void
   onDelete: (key: string) => void
   onViewDetails?: (envKey: string) => void
+  /** Disclosure policy for this key; `variable` renders the value unmasked. */
+  visibility: EnvVisibility
+  /** Flips the disclosure policy; omit when the caller can't administer the key. */
+  onToggleVisibility?: (envKey: string, next: EnvVisibility) => void
 }
 
 function WorkspaceVariableRow({
@@ -216,6 +240,8 @@ function WorkspaceVariableRow({
   onValueChange,
   onDelete,
   onViewDetails,
+  visibility,
+  onToggleVisibility,
 }: WorkspaceVariableRowProps) {
   /**
    * Salts the generated `name` attributes so password managers can't match them
@@ -250,12 +276,24 @@ function WorkspaceVariableRow({
         value={value}
         onChange={(next) => onValueChange(envKey, next)}
         canEdit={canEdit}
+        visibility={visibility}
         name={`workspace_env_value_${envKey}_${autofillSalt}`}
       />
+      {/*
+        No per-row kind tag: the section heading already says which kind this is,
+        and a tag in the trailing `auto` track widened the column and knocked
+        every other row's `...` out of alignment.
+      */}
       <SecretRowMenu
         onCopyName={() => copyName(envKey)}
         onViewDetails={hasCredential && onViewDetails ? () => onViewDetails(envKey) : undefined}
         onDelete={canEdit ? () => onDelete(envKey) : undefined}
+        visibility={visibility}
+        onToggleVisibility={
+          canEdit && onToggleVisibility
+            ? () => onToggleVisibility(envKey, visibility === 'variable' ? 'secret' : 'variable')
+            : undefined
+        }
       />
     </div>
   )
@@ -352,19 +390,8 @@ export function SecretsManager() {
   const workspaceId = (params?.workspaceId as string) || ''
 
   const { data: personalEnvData, isLoading: isPersonalLoading } = usePersonalEnvironment()
-  const { data: workspaceEnvData, isLoading: isWorkspaceLoading } = useWorkspaceEnvironment(
-    workspaceId,
-    {
-      select: useCallback(
-        (data: WorkspaceEnvironmentData): WorkspaceEnvironmentData => ({
-          workspace: data.workspace || {},
-          personal: data.personal || {},
-          conflicts: data.conflicts || [],
-        }),
-        []
-      ),
-    }
-  )
+  const { data: workspaceEnvData, isLoading: isWorkspaceLoading } =
+    useWorkspaceEnvironment(workspaceId)
   const savePersonalMutation = useSavePersonalEnvironment()
   const upsertWorkspaceMutation = useUpsertWorkspaceEnvironment()
   const removeWorkspaceMutation = useRemoveWorkspaceEnvironment()
@@ -387,14 +414,33 @@ export function SecretsManager() {
   const isLoading = isPersonalLoading || isWorkspaceLoading
 
   const [envVars, setEnvVars] = useState<UIEnvironmentVariable[]>([])
+  // One draft array per section. A single array carrying a `kind` looked
+  // tempting, but `updateEnvVarArray`'s auto-add/auto-remove keys off "is this
+  // the LAST row", which stops meaning anything once two kinds are interleaved.
   const [newWorkspaceRows, setNewWorkspaceRows] = useState<UIEnvironmentVariable[]>([
     createEmptyEnvVar(),
   ])
+  const [newWorkspaceVariableRows, setNewWorkspaceVariableRows] = useState<UIEnvironmentVariable[]>(
+    [createEmptyEnvVar()]
+  )
   const [searchTerm, setSearchTerm] = useSettingsSearch()
   const [showUnsavedChanges, setShowUnsavedChanges] = useState(false)
   const [workspaceVars, setWorkspaceVars] = useState<Record<string, string>>({})
   const [renamingKey, setRenamingKey] = useState<string | null>(null)
+  /**
+   * Visibility carried across a rename. A rename saves as delete-old +
+   * create-new, and only the new name reaches the server — so without this the
+   * recreated key defaults to `secret`, silently revoking every member's read
+   * access and bouncing the row into the Secrets section.
+   */
+  const [renamedKeyVisibility, setRenamedKeyVisibility] = useState<Record<string, EnvVisibility>>(
+    {}
+  )
   const [pendingKeyValue, setPendingKeyValue] = useState<string>('')
+  const [pendingVisibilityChange, setPendingVisibilityChange] = useState<{
+    envKey: string
+    next: EnvVisibility
+  } | null>(null)
   const initialWorkspaceVarsRef = useRef<Record<string, string>>({})
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const initialVarsRef = useRef<UIEnvironmentVariable[]>([])
@@ -412,6 +458,29 @@ export function SecretsManager() {
     return map
   }, [workspaceEnvCredentials])
 
+  /**
+   * Applies a confirmed disclosure change. Sent as a visibility-only PUT — the
+   * value is untouched, so re-sending it would only mean a redundant re-encrypt.
+   */
+  const handleConfirmVisibilityChange = useCallback(async () => {
+    if (!pendingVisibilityChange || !workspaceId) return
+    const { envKey, next } = pendingVisibilityChange
+    setPendingVisibilityChange(null)
+    try {
+      await upsertWorkspaceMutation.mutateAsync({
+        workspaceId,
+        variables: {},
+        visibility: { [envKey]: next },
+      })
+      toast.success(
+        next === 'variable' ? `${envKey} is now a non-secret variable` : `${envKey} is now a secret`
+      )
+    } catch (error) {
+      logger.error('Failed to change secret visibility', { error })
+      toast.error(getErrorMessage(error, 'Failed to change visibility'))
+    }
+  }, [pendingVisibilityChange, workspaceId, upsertWorkspaceMutation])
+
   const filteredEnvVars = useMemo(() => {
     const mapped = envVars.map((envVar, index) => ({ envVar, originalIndex: index }))
     if (!searchTerm.trim()) return mapped
@@ -426,6 +495,13 @@ export function SecretsManager() {
     return entries.filter(([key]) => key.toLowerCase().includes(term))
   }, [workspaceVars, searchTerm])
 
+  const filteredNewWorkspaceVariableRows = useMemo(() => {
+    const mapped = newWorkspaceVariableRows.map((row, index) => ({ row, originalIndex: index }))
+    if (!searchTerm.trim()) return mapped
+    const term = searchTerm.toLowerCase()
+    return mapped.filter(({ row }) => row.key.toLowerCase().includes(term))
+  }, [newWorkspaceVariableRows, searchTerm])
+
   const filteredNewWorkspaceRows = useMemo(() => {
     const mapped = newWorkspaceRows.map((row, index) => ({ row, originalIndex: index }))
     if (!searchTerm.trim()) return mapped
@@ -433,13 +509,19 @@ export function SecretsManager() {
     return mapped.filter(({ row }) => row.key.toLowerCase().includes(term))
   }, [newWorkspaceRows, searchTerm])
 
+  /**
+   * Every name that will exist at workspace scope after save — saved keys plus
+   * BOTH sections' drafts. Personal-vs-workspace conflict detection reads this,
+   * so omitting the variable drafts let a clashing name save from the Variables
+   * section that the Secrets section would have blocked.
+   */
   const allWorkspaceKeys = useMemo(() => {
     const keys = new Set(Object.keys(workspaceVars))
-    for (const row of newWorkspaceRows) {
+    for (const row of [...newWorkspaceRows, ...newWorkspaceVariableRows]) {
       if (row.key) keys.add(row.key)
     }
     return keys
-  }, [workspaceVars, newWorkspaceRows])
+  }, [workspaceVars, newWorkspaceRows, newWorkspaceVariableRows])
 
   const hasChanges = useMemo(() => {
     const initialVars = initialVarsRef.current.filter((v) => v.key || v.value)
@@ -468,19 +550,44 @@ export function SecretsManager() {
     }
 
     if (newWorkspaceRows.some((row) => row.key && row.value)) return true
+    if (newWorkspaceVariableRows.some((row) => row.key && row.value)) return true
 
     return false
-  }, [envVars, workspaceVars, newWorkspaceRows])
+  }, [envVars, workspaceVars, newWorkspaceRows, newWorkspaceVariableRows])
 
   const hasConflicts = useMemo(() => {
     return envVars.some((envVar) => !!envVar.key && allWorkspaceKeys.has(envVar.key))
   }, [envVars, allWorkspaceKeys])
 
+  /**
+   * Names drafted in one workspace section that already exist in the other, or
+   * in both drafts at once. A new key only takes its section's visibility on
+   * create; saving a name that already exists would quietly keep the old
+   * policy, so this blocks the save instead of producing a row whose section
+   * lies about its kind.
+   */
+  const duplicateDraftKeys = useMemo(() => {
+    const savedVisibility = workspaceEnvData?.visibility ?? {}
+    const clashes = new Set<string>()
+    const secretDraftKeys = new Set(newWorkspaceRows.filter((r) => r.key).map((r) => r.key))
+    for (const row of newWorkspaceVariableRows) {
+      if (!row.key) continue
+      if (secretDraftKeys.has(row.key)) clashes.add(row.key)
+      if (savedVisibility[row.key] === 'secret') clashes.add(row.key)
+    }
+    for (const row of newWorkspaceRows) {
+      if (row.key && savedVisibility[row.key] === 'variable') clashes.add(row.key)
+    }
+    return clashes
+  }, [newWorkspaceRows, newWorkspaceVariableRows, workspaceEnvData?.visibility])
+
   const hasInvalidKeys = useMemo(() => {
     const personalInvalid = envVars.some((envVar) => !!envVar.key && validateEnvVarKey(envVar.key))
-    const workspaceInvalid = newWorkspaceRows.some((row) => !!row.key && validateEnvVarKey(row.key))
+    const workspaceInvalid = [...newWorkspaceRows, ...newWorkspaceVariableRows].some(
+      (row) => !!row.key && validateEnvVarKey(row.key)
+    )
     return personalInvalid || workspaceInvalid
-  }, [envVars, newWorkspaceRows])
+  }, [envVars, newWorkspaceRows, newWorkspaceVariableRows])
 
   const isListSaving =
     savePersonalMutation.isPending ||
@@ -653,6 +760,14 @@ export function SecretsManager() {
       next[newKey] = currentValue
       return next
     })
+    const previousVisibility =
+      renamedKeyVisibility[currentKey] ?? workspaceEnvData?.visibility?.[currentKey] ?? 'secret'
+    setRenamedKeyVisibility((prev) => {
+      const next = { ...prev }
+      delete next[currentKey]
+      if (previousVisibility === 'variable') next[newKey] = 'variable'
+      return next
+    })
   }
 
   const handleWorkspaceValueChange = (key: string, value: string) => {
@@ -669,6 +784,10 @@ export function SecretsManager() {
 
   const updateNewWorkspaceRow = (index: number, field: 'key' | 'value', value: string) => {
     setNewWorkspaceRows((prev) => updateEnvVarArray(prev, index, field, value))
+  }
+
+  const updateNewWorkspaceVariableRow = (index: number, field: 'key' | 'value', value: string) => {
+    setNewWorkspaceVariableRows((prev) => updateEnvVarArray(prev, index, field, value))
   }
 
   const updateEnvVar = (index: number, field: 'key' | 'value', value: string) => {
@@ -767,10 +886,127 @@ export function SecretsManager() {
     setEnvVars(structuredClone(initialVarsRef.current))
     setWorkspaceVars({ ...initialWorkspaceVarsRef.current })
     setNewWorkspaceRows([createEmptyEnvVar()])
+    setNewWorkspaceVariableRows([createEmptyEnvVar()])
+    setRenamedKeyVisibility({})
     setShowUnsavedChanges(false)
   }
 
   const handleCancel = resetToSaved
+
+  /**
+   * Saved workspace rows in render order, paired with their disclosure policy so
+   * each section can take its own slice. Derived once rather than filtered twice
+   * so the two sections cannot disagree about which kind a key is.
+   */
+  /**
+   * The carried rename visibility, narrowed to keys the server has no opinion
+   * about — the single source both the render and the save payload read.
+   *
+   * The narrowing is the safety property, not an optimization. A rename-back,
+   * or a rename onto a key that already exists, leaves an entry for a key that
+   * still has a credential; sending that in the save payload would flip a real
+   * key's disclosure. Since the PUT now applies visibility to existing keys,
+   * that could revert a confirmed convert-to-secret on the next unrelated value
+   * save, or turn an existing secret into a variable with no confirm dialog at
+   * all. Restricted to keys the server does not know, the carried value can
+   * only ever describe the new name it was created for.
+   */
+  const carriedRenameVisibility = useMemo(() => {
+    const serverVisibility = workspaceEnvData?.visibility ?? {}
+    const carried: Record<string, EnvVisibility> = {}
+    for (const [key, visibility] of Object.entries(renamedKeyVisibility)) {
+      if (!(key in serverVisibility)) carried[key] = visibility
+    }
+    return carried
+  }, [renamedKeyVisibility, workspaceEnvData?.visibility])
+
+  const workspaceEntriesForRender = useMemo(() => {
+    const entries = searchTerm.trim() ? filteredWorkspaceEntries : Object.entries(workspaceVars)
+    const visibilityMap = workspaceEnvData?.visibility ?? {}
+    return entries.map(([key, value]) => ({
+      key,
+      value,
+      // A renamed key has no server visibility yet, so without the carried
+      // fallback it would default to `secret` and bounce into Workspace
+      // secrets, bullet-masking a value the member can plainly read. The
+      // carried map is already narrowed to keys the server does not know, so
+      // the two can never disagree about a key that exists.
+      visibility: visibilityMap[key] ?? carriedRenameVisibility[key] ?? ('secret' as EnvVisibility),
+    }))
+  }, [
+    searchTerm,
+    filteredWorkspaceEntries,
+    workspaceVars,
+    workspaceEnvData?.visibility,
+    carriedRenameVisibility,
+  ])
+
+  /**
+   * Renders one workspace section. Both sections share the row component and
+   * grid; only the slice of saved rows, the draft array, and the label differ.
+   * A section always renders when the search box is empty, so its draft row is
+   * there to create that kind directly.
+   */
+  const renderWorkspaceSection = ({
+    label,
+    visibility,
+    entries,
+    draftRows,
+    onUpdateDraft,
+  }: {
+    label: string
+    visibility: EnvVisibility
+    entries: Array<{ key: string; value: string; visibility: EnvVisibility }>
+    draftRows: Array<{ row: UIEnvironmentVariable; originalIndex: number }>
+    onUpdateDraft: (index: number, field: 'key' | 'value', value: string) => void
+  }) => {
+    const rows = entries.filter((entry) => entry.visibility === visibility)
+    const searching = Boolean(searchTerm.trim())
+    if (searching && rows.length === 0 && draftRows.length === 0) return null
+
+    return (
+      <SettingsSection label={label}>
+        <div className={`${GRID_COLS} gap-y-2`}>
+          {rows.map(({ key, value }) => {
+            const cred = workspaceEnvKeyToCredential.get(key)
+            const canEditRow = canCreateWorkspaceSecret && cred?.role === 'admin'
+            return (
+              <WorkspaceVariableRow
+                key={key}
+                envKey={key}
+                value={value}
+                renamingKey={renamingKey}
+                pendingKeyValue={pendingKeyValue}
+                hasCredential={Boolean(cred)}
+                canEdit={canEditRow}
+                canRename={canCreateWorkspaceSecret && canEditRow}
+                onRenameStart={setRenamingKey}
+                onPendingKeyChange={setPendingKeyValue}
+                onRenameEnd={handleWorkspaceKeyRename}
+                onValueChange={handleWorkspaceValueChange}
+                onDelete={handleDeleteWorkspaceVar}
+                onViewDetails={canCreateWorkspaceSecret && cred ? handleViewDetails : undefined}
+                visibility={visibility}
+                onToggleVisibility={
+                  cred ? (envKey, next) => setPendingVisibilityChange({ envKey, next }) : undefined
+                }
+              />
+            )
+          })}
+          {canCreateWorkspaceSecret &&
+            draftRows.map(({ row, originalIndex }) => (
+              <NewWorkspaceVariableRow
+                key={row.id || originalIndex}
+                envVar={row}
+                index={originalIndex}
+                onUpdate={onUpdateDraft}
+                onPaste={handleWorkspacePaste}
+              />
+            ))}
+        </div>
+      </SettingsSection>
+    )
+  }
 
   const handleSave = async () => {
     if (isListSaving) return
@@ -783,6 +1019,19 @@ export function SecretsManager() {
     for (const row of newWorkspaceRows) {
       if (row.key && row.value) {
         mergedWorkspaceVars[row.key] = row.value
+      }
+    }
+    // Names drafted in the Variables section, plus any carried across a rename.
+    // Both only ever describe keys the server does not already know: the PUT
+    // does apply visibility to existing keys, so an entry for an existing key
+    // would flip its disclosure with no confirm dialog. `duplicateDraftKeys`
+    // blocks a draft name that already exists, and `carriedRenameVisibility` is
+    // narrowed to unknown keys for the same reason.
+    const draftVariableVisibility: Record<string, EnvVisibility> = { ...carriedRenameVisibility }
+    for (const row of newWorkspaceVariableRows) {
+      if (row.key && row.value) {
+        mergedWorkspaceVars[row.key] = row.value
+        draftVariableVisibility[row.key] = 'variable'
       }
     }
 
@@ -828,7 +1077,16 @@ export function SecretsManager() {
       mutations.push(
         (async () => {
           if (Object.keys(toUpsert).length) {
-            await upsertWorkspaceMutation.mutateAsync({ workspaceId, variables: toUpsert })
+            const visibility = Object.fromEntries(
+              Object.keys(toUpsert)
+                .filter((key) => draftVariableVisibility[key])
+                .map((key) => [key, draftVariableVisibility[key]])
+            )
+            await upsertWorkspaceMutation.mutateAsync({
+              workspaceId,
+              variables: toUpsert,
+              ...(Object.keys(visibility).length ? { visibility } : {}),
+            })
           }
           if (toDelete.length) {
             await removeWorkspaceMutation.mutateAsync({ workspaceId, keys: toDelete })
@@ -849,7 +1107,14 @@ export function SecretsManager() {
       initialVarsRef.current = structuredClone(envVars.filter((v) => v.key && v.value))
 
       setWorkspaceVars(mergedWorkspaceVars)
+      // Both draft arrays clear: the saved rows now render from workspaceVars,
+      // so leaving either behind shows the same key twice — once saved, once
+      // still drafted.
       setNewWorkspaceRows([createEmptyEnvVar()])
+      setNewWorkspaceVariableRows([createEmptyEnvVar()])
+      // Carried visibility is consumed by the save it belonged to; the refetched
+      // server state is authoritative from here.
+      setRenamedKeyVisibility({})
       if (mutations.length > 0) {
         toast.success('Secrets saved')
       }
@@ -987,67 +1252,40 @@ export function SecretsManager() {
           saving: isListSaving,
           onSave: handleSave,
           onDiscard: handleCancel,
-          saveDisabled: hasConflicts || hasInvalidKeys || isLoading,
+          saveDisabled: hasConflicts || hasInvalidKeys || duplicateDraftKeys.size > 0 || isLoading,
           saveTooltip: hasConflicts
             ? 'Resolve all conflicts before saving'
             : hasInvalidKeys
               ? 'Fix invalid variable names before saving'
-              : undefined,
+              : duplicateDraftKeys.size > 0
+                ? `${[...duplicateDraftKeys].join(', ')} already exists in the other section`
+                : undefined,
         })}
       >
         {!isLoading && (
           <div className='flex flex-col gap-7'>
-            {(!searchTerm.trim() ||
-              filteredWorkspaceEntries.length > 0 ||
-              filteredNewWorkspaceRows.length > 0) && (
-              <SettingsSection label='Workspace'>
-                <div className={`${GRID_COLS} gap-y-2`}>
-                  {(searchTerm.trim()
-                    ? filteredWorkspaceEntries
-                    : Object.entries(workspaceVars)
-                  ).map(([key, value]) => {
-                    const cred = workspaceEnvKeyToCredential.get(key)
-                    const canEditRow = canCreateWorkspaceSecret && cred?.role === 'admin'
-                    return (
-                      <WorkspaceVariableRow
-                        key={key}
-                        envKey={key}
-                        value={value}
-                        renamingKey={renamingKey}
-                        pendingKeyValue={pendingKeyValue}
-                        hasCredential={Boolean(cred)}
-                        canEdit={canEditRow}
-                        canRename={canCreateWorkspaceSecret && canEditRow}
-                        onRenameStart={setRenamingKey}
-                        onPendingKeyChange={setPendingKeyValue}
-                        onRenameEnd={handleWorkspaceKeyRename}
-                        onValueChange={handleWorkspaceValueChange}
-                        onDelete={handleDeleteWorkspaceVar}
-                        onViewDetails={
-                          canCreateWorkspaceSecret && cred ? handleViewDetails : undefined
-                        }
-                      />
-                    )
-                  })}
-                  {canCreateWorkspaceSecret &&
-                    (searchTerm.trim()
-                      ? filteredNewWorkspaceRows
-                      : newWorkspaceRows.map((row, index) => ({ row, originalIndex: index }))
-                    ).map(({ row, originalIndex }) => (
-                      <NewWorkspaceVariableRow
-                        key={row.id || originalIndex}
-                        envVar={row}
-                        index={originalIndex}
-                        onUpdate={updateNewWorkspaceRow}
-                        onPaste={handleWorkspacePaste}
-                      />
-                    ))}
-                </div>
-              </SettingsSection>
-            )}
+            {renderWorkspaceSection({
+              label: 'Workspace secrets',
+              visibility: 'secret',
+              entries: workspaceEntriesForRender,
+              draftRows: searchTerm.trim()
+                ? filteredNewWorkspaceRows
+                : newWorkspaceRows.map((row, index) => ({ row, originalIndex: index })),
+              onUpdateDraft: updateNewWorkspaceRow,
+            })}
+
+            {renderWorkspaceSection({
+              label: 'Workspace variables',
+              visibility: 'variable',
+              entries: workspaceEntriesForRender,
+              draftRows: searchTerm.trim()
+                ? filteredNewWorkspaceVariableRows
+                : newWorkspaceVariableRows.map((row, index) => ({ row, originalIndex: index })),
+              onUpdateDraft: updateNewWorkspaceVariableRow,
+            })}
 
             {(!searchTerm.trim() || filteredEnvVars.length > 0) && (
-              <SettingsSection label='Personal'>
+              <SettingsSection label='Personal secrets'>
                 <div className={`${GRID_COLS} gap-y-2`}>
                   {filteredEnvVars.map(({ envVar, originalIndex }) => (
                     <div key={envVar.id || originalIndex} className='contents'>
@@ -1071,6 +1309,45 @@ export function SecretsManager() {
           </div>
         )}
       </SettingsPanel>
+
+      {/*
+        The gate for this change is server-side; this dialog's job is the copy.
+        Turning a secret into a variable is a disclosure that flipping back does
+        not undo, and flipping back is therefore not remediation — rotation is.
+      */}
+      <ChipConfirmModal
+        open={pendingVisibilityChange !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingVisibilityChange(null)
+        }}
+        title={
+          pendingVisibilityChange?.next === 'variable'
+            ? 'Make this value visible?'
+            : 'Make this value secret?'
+        }
+        text={
+          pendingVisibilityChange?.next === 'variable'
+            ? [
+                'Everyone in this workspace, and Sim, will be able to read ',
+                { text: pendingVisibilityChange?.envKey ?? '', bold: true },
+                '. Its value will also appear in run logs and traces. Switching it back later will not undo this.',
+              ]
+            : [
+                'New runs will hide ',
+                { text: pendingVisibilityChange?.envKey ?? '', bold: true },
+                ' again, but its value has already been visible in logs, traces, and Sim conversations. ',
+                { text: 'Rotate the value if it is sensitive.', error: true },
+              ]
+        }
+        confirm={{
+          label: pendingVisibilityChange?.next === 'variable' ? 'Make visible' : 'Make secret',
+          onClick: handleConfirmVisibilityChange,
+          // Making a value public is the consequential direction, so it keeps
+          // the destructive default; hiding it again is a plain primary.
+          variant: pendingVisibilityChange?.next === 'variable' ? 'destructive' : 'primary',
+          pending: upsertWorkspaceMutation.isPending,
+        }}
+      />
 
       <UnsavedChangesModal
         open={showUnsavedChanges}

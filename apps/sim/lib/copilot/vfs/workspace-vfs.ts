@@ -829,6 +829,7 @@ export class WorkspaceVFS {
               files: fileSummary,
               oauthIntegrations: envSummary.oauthIntegrations,
               envVariables: envSummary.envVariables,
+              nonSecretEnvVariables: envSummary.nonSecretEnvVariables,
               customTools: toolsSummary,
               customBlocks: customBlocksSummary,
               mcpServers: mcpServersSummary,
@@ -2388,6 +2389,7 @@ export class WorkspaceVFS {
   ): Promise<{
     oauthIntegrations: WorkspaceMdData['oauthIntegrations']
     envVariables: WorkspaceMdData['envVariables']
+    nonSecretEnvVariables: WorkspaceMdData['nonSecretEnvVariables']
   }> {
     try {
       const isWorkspaceAdmin = await hasWorkspaceAdminAccess(userId, workspaceId)
@@ -2455,9 +2457,21 @@ export class WorkspaceVFS {
         Object.keys(envData.workspaceEncrypted),
         secretMountPolicy
       )
+      // Values are emitted only for keys explicitly marked non-secret, and only
+      // for names that already survived the mount policy above — a workspace
+      // that restricts discovery to selected names must not have that choice
+      // quietly widened just because a key is non-secret. Names still come from
+      // the encrypted maps, so no secret plaintext can reach the VFS.
+      const visibleWorkspaceVarNames = new Set(workspaceVarNames)
+      const nonSecretValues: Record<string, string> = {}
+      for (const name of envData.workspaceVariableKeys) {
+        if (!visibleWorkspaceVarNames.has(name)) continue
+        const value = envData.workspaceDecrypted[name]
+        if (value !== undefined) nonSecretValues[name] = value
+      }
       this.files.set(
         'environment/variables.json',
-        serializeEnvironmentVariables(personalVarNames, workspaceVarNames)
+        serializeEnvironmentVariables(personalVarNames, workspaceVarNames, nonSecretValues)
       )
 
       const envKeys = [...visibleEnvCredentialNames]
@@ -2469,13 +2483,20 @@ export class WorkspaceVFS {
           role: c.role,
         })),
         envVariables: envKeys,
+        // Reuses the same map written to environment/variables.json above, so
+        // the inventory and the VFS file can never disagree about which names
+        // are non-secret or what their values are.
+        nonSecretEnvVariables: Object.entries(nonSecretValues).map(([name, value]) => ({
+          name,
+          value,
+        })),
       }
     } catch (err) {
       logger.warn('Failed to materialize environment data', {
         workspaceId,
         error: toError(err).message,
       })
-      return { oauthIntegrations: [], envVariables: [] }
+      return { oauthIntegrations: [], envVariables: [], nonSecretEnvVariables: [] }
     }
   }
 }

@@ -3,6 +3,7 @@
 import type { ComponentProps, CSSProperties } from 'react'
 import { useState } from 'react'
 import { ChipInput } from '@sim/emcn'
+import type { EnvVisibility } from '@/lib/api/contracts/environment'
 
 const BULLET = '\u2022'
 
@@ -29,6 +30,12 @@ type SecretValueFieldProps = Omit<
   unmasked?: boolean
   /** Force read-only even when {@link canEdit} is true (e.g. a conflicted field). */
   readOnly?: boolean
+  /**
+   * Disclosure policy for this key. `variable` means the value is non-secret and
+   * is shown in full to everyone — including viewers who cannot edit it, who
+   * would otherwise get the bullet mask. Defaults to `secret`.
+   */
+  visibility?: EnvVisibility
 }
 
 /**
@@ -48,6 +55,7 @@ export function SecretValueField({
   canEdit = true,
   unmasked = false,
   readOnly = false,
+  visibility = 'secret',
   onFocus,
   onBlur,
   style,
@@ -55,9 +63,12 @@ export function SecretValueField({
   ...props
 }: SecretValueFieldProps) {
   const [focused, setFocused] = useState(false)
+  const nonSecret = visibility === 'variable'
   const editable = canEdit && !readOnly
-  const maskActive = canEdit && !unmasked && !focused
-  const displayValue = canEdit ? value : BULLET.repeat(VIEWER_MASK_LENGTH)
+  const maskActive = !nonSecret && canEdit && !unmasked && !focused
+  // A non-secret value is shown in full even to a viewer who cannot edit it —
+  // the bullet mask below is only for values the server withheld.
+  const displayValue = nonSecret || canEdit ? value : BULLET.repeat(VIEWER_MASK_LENGTH)
 
   const mergedStyle: CSSProperties | undefined = maskActive
     ? ({ ...style, WebkitTextSecurity: 'disc' } as CSSProperties)

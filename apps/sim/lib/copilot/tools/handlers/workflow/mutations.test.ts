@@ -25,6 +25,7 @@ import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attr
 import type { ExecutionContext } from '@/lib/copilot/request/types'
 import {
   ANONYMOUS_SECRET_TRACE_REPLACEMENT,
+  EMPTY_NON_SECRET_NAMES,
   ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -630,7 +631,8 @@ describe('Copilot workflow execution billing attribution', () => {
           encryptedValue: 'unrelated-ciphertext',
         },
       ],
-      { userId: 'user-1', workspaceId: 'workspace-1' }
+      { userId: 'user-1', workspaceId: 'workspace-1' },
+      EMPTY_NON_SECRET_NAMES
     )
     registry.recordResolved('INPUT_SECRET', 'input-secret')
     registry.recordResolved('UNRELATED_SECRET', 'unrelated-secret')
@@ -678,10 +680,14 @@ describe('Copilot workflow execution billing attribution', () => {
   })
 
   it('imports child provenance without returning private metadata to the model', async () => {
-    const registry = new ResolvedSecretTraceRegistry([], {
-      userId: 'user-1',
-      workspaceId: 'workspace-1',
-    })
+    const registry = new ResolvedSecretTraceRegistry(
+      [],
+      {
+        userId: 'user-1',
+        workspaceId: 'workspace-1',
+      },
+      EMPTY_NON_SECRET_NAMES
+    )
     const context: ExecutionContext = {
       ...executionContext,
       resolvedSecretTraceRegistry: registry,
@@ -718,10 +724,14 @@ describe('Copilot workflow execution billing attribution', () => {
   })
 
   it('keeps unrelated tool-result projection available while child provenance is pending', async () => {
-    const registry = new ResolvedSecretTraceRegistry([], {
-      userId: 'user-1',
-      workspaceId: 'workspace-1',
-    })
+    const registry = new ResolvedSecretTraceRegistry(
+      [],
+      {
+        userId: 'user-1',
+        workspaceId: 'workspace-1',
+      },
+      EMPTY_NON_SECRET_NAMES
+    )
     const context: ExecutionContext = {
       ...executionContext,
       resolvedSecretTraceRegistry: registry,
@@ -773,7 +783,7 @@ describe('Copilot workflow execution billing attribution', () => {
   })
 
   it('marks provenance incomplete when child execution returns no trusted state', async () => {
-    const registry = new ResolvedSecretTraceRegistry()
+    const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
     const context: ExecutionContext = {
       ...executionContext,
       resolvedSecretTraceRegistry: registry,
@@ -789,10 +799,14 @@ describe('Copilot workflow execution billing attribution', () => {
   })
 
   it('filters and anonymizes cross-workspace child provenance to values that cross back', async () => {
-    const registry = new ResolvedSecretTraceRegistry([], {
-      userId: 'user-1',
-      workspaceId: 'workspace-1',
-    })
+    const registry = new ResolvedSecretTraceRegistry(
+      [],
+      {
+        userId: 'user-1',
+        workspaceId: 'workspace-1',
+      },
+      EMPTY_NON_SECRET_NAMES
+    )
     const context: ExecutionContext = {
       ...executionContext,
       resolvedSecretTraceRegistry: registry,

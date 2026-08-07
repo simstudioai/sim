@@ -39,7 +39,10 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () 
     mockFilterModelSafeWorkspaceFileAttachments(...args),
 }))
 
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  EMPTY_NON_SECRET_NAMES,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 import { executeProviderRequest } from '@/providers'
 import type { ProviderResponse } from '@/providers/types'
 
@@ -453,9 +456,11 @@ describe('executeProviderRequest — model secret projection', () => {
 
   it('projects only model-visible request content before provider execution', async () => {
     const secret = 'quoted"secret\\with\nnewline'
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('TOKEN', secret)
 
     await executeProviderRequest(
@@ -574,7 +579,7 @@ describe('executeProviderRequest — model secret projection', () => {
   })
 
   it('does not infer provenance from a dormant request environment map', async () => {
-    const registry = new ResolvedSecretTraceRegistry()
+    const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
 
     await executeProviderRequest(
       'anthropic',
@@ -591,10 +596,14 @@ describe('executeProviderRequest — model secret projection', () => {
   })
 
   it('does not let dormant low-entropy secrets invalidate ordinary prompts or JSON Schema', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'TYPE_SECRET', plaintext: 'string', encryptedValue: 'encrypted-type' },
-      { name: 'BOOLEAN_SECRET', plaintext: 'true', encryptedValue: 'encrypted-boolean' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        { name: 'TYPE_SECRET', plaintext: 'string', encryptedValue: 'encrypted-type' },
+        { name: 'BOOLEAN_SECRET', plaintext: 'true', encryptedValue: 'encrypted-boolean' },
+      ],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
 
     await executeProviderRequest(
       'openai',
@@ -629,9 +638,11 @@ describe('executeProviderRequest — model secret projection', () => {
   })
 
   it('does not carry an earlier active secret into unrelated public schema grammar', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'TYPE_SECRET', plaintext: 'string', encryptedValue: 'encrypted-type' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'TYPE_SECRET', plaintext: 'string', encryptedValue: 'encrypted-type' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('TYPE_SECRET', 'string')
 
     await executeProviderRequest(
@@ -667,9 +678,11 @@ describe('executeProviderRequest — model secret projection', () => {
   })
 
   it('omits only the response format when an active secret collides with its semantic keys', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'SCHEMA_KEY', plaintext: 'messages', encryptedValue: 'encrypted-schema-key' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'SCHEMA_KEY', plaintext: 'messages', encryptedValue: 'encrypted-schema-key' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('SCHEMA_KEY', 'messages')
 
     await executeProviderRequest(
@@ -700,9 +713,11 @@ describe('executeProviderRequest — model secret projection', () => {
   })
 
   it('omits a safe schema when no deterministic response-format name avoids an active secret', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'UNDERSCORE', plaintext: '_', encryptedValue: 'encrypted-underscore' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'UNDERSCORE', plaintext: '_', encryptedValue: 'encrypted-underscore' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('UNDERSCORE', '_')
 
     await executeProviderRequest(
@@ -725,7 +740,7 @@ describe('executeProviderRequest — model secret projection', () => {
   })
 
   it('omits malformed and oversized optional schemas without failing the model call', async () => {
-    const registry = new ResolvedSecretTraceRegistry()
+    const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
     const oversizedSchema = { allOf: new Array(100_001) }
 
     for (const schema of [{ properties: { field: 'not-a-schema' } }, oversizedSchema]) {
@@ -760,9 +775,11 @@ describe('executeProviderRequest — model secret projection', () => {
   it('keeps attachment metadata raw through storage resolution and provider upload', async () => {
     const secret = 'attachment-secret'
     const rawStorageKey = `workspace/raw-${secret}/document.pdf`
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('TOKEN', secret)
 
     await executeProviderRequest(
@@ -864,9 +881,11 @@ describe('executeProviderRequest — model secret projection', () => {
   })
 
   it('projects JSON arguments without mutating attachment metadata before serialization', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'TOKEN', plaintext: 'TOKEN', encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'TOKEN', plaintext: 'TOKEN', encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('TOKEN', 'TOKEN')
 
     await executeProviderRequest(
@@ -936,9 +955,11 @@ describe('executeProviderRequest — model secret projection', () => {
   it.each(['123', 'true'])(
     'keeps low-entropy JSON valid, projects typed conversions, and preserves transport IDs (%s)',
     async (secret) => {
-      const registry = new ResolvedSecretTraceRegistry([
-        { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
-      ])
+      const registry = new ResolvedSecretTraceRegistry(
+        [{ name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' }],
+        undefined,
+        EMPTY_NON_SECRET_NAMES
+      )
       registry.recordResolved('TOKEN', secret)
       const converted = secret === '123' ? 123 : true
 
@@ -1112,9 +1133,11 @@ describe('executeProviderRequest — model secret projection', () => {
     'guards arbitrary %s schema controls while omitting only the unsafe model capability',
     async (controlKey) => {
       const secret = `schema-control-secret-${controlKey}`
-      const registry = new ResolvedSecretTraceRegistry([
-        { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
-      ])
+      const registry = new ResolvedSecretTraceRegistry(
+        [{ name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' }],
+        undefined,
+        EMPTY_NON_SECRET_NAMES
+      )
       registry.recordResolved('TOKEN', secret)
       const unsafeSchema = {
         type: 'object',
@@ -1176,9 +1199,11 @@ describe('executeProviderRequest — model secret projection', () => {
   ])(
     'preserves validated schema controls when they equal active secret bytes (%s)',
     async (secret, schema) => {
-      const registry = new ResolvedSecretTraceRegistry([
-        { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
-      ])
+      const registry = new ResolvedSecretTraceRegistry(
+        [{ name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' }],
+        undefined,
+        EMPTY_NON_SECRET_NAMES
+      )
       registry.recordResolved('TOKEN', secret)
 
       await executeProviderRequest(
@@ -1224,9 +1249,11 @@ describe('executeProviderRequest — model secret projection', () => {
   )
 
   it('forwards safe canonical schema controls byte-for-byte', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'TOKEN', plaintext: 'unrelated-secret', encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'TOKEN', plaintext: 'unrelated-secret', encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     const schema = {
       type: ['object', 'null'],
       nullable: true,
@@ -1249,9 +1276,11 @@ describe('executeProviderRequest — model secret projection', () => {
   it.each(['123', 'true'])(
     'omits a response schema whose semantic value equals a secret (%s)',
     async (secret) => {
-      const registry = new ResolvedSecretTraceRegistry([
-        { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
-      ])
+      const registry = new ResolvedSecretTraceRegistry(
+        [{ name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' }],
+        undefined,
+        EMPTY_NON_SECRET_NAMES
+      )
       registry.recordResolved('TOKEN', secret)
       const semanticValue = secret === '123' ? 123 : true
 
@@ -1278,7 +1307,7 @@ describe('executeProviderRequest — model secret projection', () => {
   )
 
   it('fails before invoking a provider when an expected registry is incomplete or missing', async () => {
-    const incomplete = new ResolvedSecretTraceRegistry()
+    const incomplete = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
     incomplete.markIncomplete()
 
     await expect(

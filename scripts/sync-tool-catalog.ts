@@ -2,10 +2,11 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { formatGeneratedSource } from './format-generated-source'
+import { resolveMothershipContract } from './mothership-contracts-path'
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(SCRIPT_DIR, '..')
-const DEFAULT_CATALOG_PATH = resolve(ROOT, '../copilot/copilot/contracts/tool-catalog-v1.json')
+const DEFAULT_CATALOG_PATH = () => resolveMothershipContract('tool-catalog-v1.json')
 const OUTPUT_PATH = resolve(ROOT, 'apps/sim/lib/copilot/generated/tool-catalog-v1.ts')
 const RUNTIME_SCHEMA_OUTPUT_PATH = resolve(
   ROOT,
@@ -139,7 +140,7 @@ async function main() {
   const inputPathArg = process.argv.find((arg) => arg.startsWith('--input='))
   const inputPath = inputPathArg
     ? resolve(ROOT, inputPathArg.slice('--input='.length))
-    : DEFAULT_CATALOG_PATH
+    : DEFAULT_CATALOG_PATH()
 
   const raw = await readFile(inputPath, 'utf8')
   const catalog = JSON.parse(raw) as { version: string; tools: Record<string, unknown>[] }

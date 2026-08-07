@@ -3,6 +3,7 @@ import {
   isPrivateSecretProvenanceBundleV1,
 } from '@/lib/execution/model-input-provenance'
 import {
+  EMPTY_NON_SECRET_NAMES,
   type ResolvedSecretTraceProvenanceV1,
   ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
@@ -77,7 +78,11 @@ export async function resolveWorkflowInputSecretProvenance(options: {
     return { success: false, error: INVALID_WORKFLOW_INPUT_PROVENANCE_ERROR }
   }
 
-  const sourceRegistry = new ResolvedSecretTraceRegistry([], provenance.scope)
+  const sourceRegistry = new ResolvedSecretTraceRegistry(
+    [],
+    provenance.scope,
+    EMPTY_NON_SECRET_NAMES
+  )
   const imported = await sourceRegistry.importProvenance(provenance, { trusted: true })
   const inputProvenance = sourceRegistry.exportProvenanceForValue(options.input)
   if (

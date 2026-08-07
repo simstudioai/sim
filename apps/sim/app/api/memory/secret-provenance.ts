@@ -20,7 +20,10 @@ import {
   serializePrivateToolMetadataResponseEnvelope,
 } from '@/lib/execution/private-tool-metadata'
 import { readBoundMemorySecretProvenance } from '@/lib/memory/secret-provenance'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  EMPTY_NON_SECRET_NAMES,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 
 const MAX_PRIVATE_MEMORY_CROSSINGS = 10_000
 const PRIVATE_MEMORY_QUERY_CHUNK_SIZE = 8
@@ -91,10 +94,14 @@ export async function createMemoryResponse(options: {
   if (negotiation.status === 'not-requested') return NextResponse.json(options.body)
   if (negotiation.status === 'rejected') return invalidMemoryProvenanceResponse()
 
-  const registry = new ResolvedSecretTraceRegistry([], {
-    userId: options.userId,
-    workspaceId: options.workspaceId,
-  })
+  const registry = new ResolvedSecretTraceRegistry(
+    [],
+    {
+      userId: options.userId,
+      workspaceId: options.workspaceId,
+    },
+    EMPTY_NON_SECRET_NAMES
+  )
   if (options.memories.length > MAX_PRIVATE_MEMORY_CROSSINGS) {
     registry.markIncomplete()
   } else {

@@ -7,16 +7,23 @@ import {
   projectToolResultForCopilot,
   TOOL_RESULT_UNAVAILABLE_ERROR,
 } from '@/lib/copilot/request/tools/resolved-secret-result'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  EMPTY_NON_SECRET_NAMES,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 
 function createRegistry(): ResolvedSecretTraceRegistry {
-  return new ResolvedSecretTraceRegistry([
-    {
-      name: 'SECRET',
-      plaintext: 'secret-value',
-      encryptedValue: 'encrypted-secret-value',
-    },
-  ])
+  return new ResolvedSecretTraceRegistry(
+    [
+      {
+        name: 'SECRET',
+        plaintext: 'secret-value',
+        encryptedValue: 'encrypted-secret-value',
+      },
+    ],
+    undefined,
+    EMPTY_NON_SECRET_NAMES
+  )
 }
 
 describe('projectToolResultForCopilot', () => {
@@ -48,9 +55,11 @@ describe('projectToolResultForCopilot', () => {
   )
 
   it('projects an exact-name/exact-value Function result to its named placeholder', () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'Test', plaintext: 'Test', encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'Test', plaintext: 'Test', encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('Test', 'Test')
     const runtimeResult = {
       success: true,
@@ -128,11 +137,15 @@ describe('projectToolResultForCopilot', () => {
   })
 
   it('uses an opaque marker when a replacement contains another active literal', () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'MIDDLE', plaintext: 'B', encryptedValue: 'encrypted-b' },
-      { name: 'BRACE', plaintext: '{', encryptedValue: 'encrypted-brace' },
-      { name: 'JOINED', plaintext: 'ac', encryptedValue: 'encrypted-ac' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        { name: 'MIDDLE', plaintext: 'B', encryptedValue: 'encrypted-b' },
+        { name: 'BRACE', plaintext: '{', encryptedValue: 'encrypted-brace' },
+        { name: 'JOINED', plaintext: 'ac', encryptedValue: 'encrypted-ac' },
+      ],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('MIDDLE', 'B')
     registry.recordResolved('BRACE', '{')
     registry.recordResolved('JOINED', 'ac')
@@ -144,9 +157,11 @@ describe('projectToolResultForCopilot', () => {
   })
 
   it('keeps content and the control error safe from active one-character values', () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'F_SECRET', plaintext: 'F', encryptedValue: 'encrypted-f' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'F_SECRET', plaintext: 'F', encryptedValue: 'encrypted-f' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('F_SECRET', 'F')
 
     const projected = projectToolResultForCopilot(
@@ -176,11 +191,15 @@ describe('projectToolResultForCopilot', () => {
   })
 
   it('projects exact typed primitive secrets and the same values as strings', () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'NUMBER', plaintext: '123', encryptedValue: 'number-ciphertext' },
-      { name: 'BOOLEAN', plaintext: 'true', encryptedValue: 'boolean-ciphertext' },
-      { name: 'NULL', plaintext: 'null', encryptedValue: 'null-ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        { name: 'NUMBER', plaintext: '123', encryptedValue: 'number-ciphertext' },
+        { name: 'BOOLEAN', plaintext: 'true', encryptedValue: 'boolean-ciphertext' },
+        { name: 'NULL', plaintext: 'null', encryptedValue: 'null-ciphertext' },
+      ],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('NUMBER', '123')
     registry.recordResolved('BOOLEAN', 'true')
     registry.recordResolved('NULL', 'null')
@@ -227,7 +246,7 @@ describe('projectToolResultForCopilot', () => {
   })
 
   it('serializes table-style dates for Copilot without mutating the runtime result', () => {
-    const registry = new ResolvedSecretTraceRegistry()
+    const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
     const createdAt = new Date('2026-08-05T12:34:56.789Z')
     const runtimeResult = {
       success: true,
@@ -249,7 +268,7 @@ describe('projectToolResultForCopilot', () => {
   })
 
   it('preserves foreign internal-looking tool output when the registry has no matching alias', () => {
-    const registry = new ResolvedSecretTraceRegistry()
+    const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
 
     expect(
       projectToolResultForCopilot(

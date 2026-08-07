@@ -5,7 +5,10 @@
  * text classified by turn_end, abort → cancelled, per-turn usage accumulation.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  EMPTY_NON_SECRET_NAMES,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 import {
   anthropicThinkingTextToolExpectedThinking,
   anthropicThinkingTextToolStreamEvents,
@@ -257,9 +260,11 @@ describe('createAnthropicStreamingToolLoopStream', () => {
 
   it('keeps raw tool results for execution records and projects only the model continuation', async () => {
     const secret = 'secret-value'
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('TOKEN', secret)
     mockPrepareToolExecution.mockReturnValue({
       toolParams: { token: secret },

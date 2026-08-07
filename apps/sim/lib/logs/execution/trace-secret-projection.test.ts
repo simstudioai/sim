@@ -30,6 +30,7 @@ import {
 } from '@/lib/logs/execution/trace-secret-projection'
 import type { TraceSpan } from '@/lib/logs/types'
 import {
+  EMPTY_NON_SECRET_NAMES,
   type ResolvedSecretTraceMatch,
   ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
@@ -72,13 +73,17 @@ beforeEach(() => {
 
 describe('projectTraceSpansForSecrets', () => {
   it('removes compiler and legacy runtime aliases from projected trace content', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'API_SECRET',
-        plaintext: 'trace-secret',
-        encryptedValue: 'encrypted-api-secret',
-      },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        {
+          name: 'API_SECRET',
+          plaintext: 'trace-secret',
+          encryptedValue: 'encrypted-api-secret',
+        },
+      ],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     expect(registry.recordResolved('API_SECRET', 'trace-secret')).toBe(true)
 
     const [projected] = await projectTraceSpansForSecrets(
@@ -102,9 +107,11 @@ describe('projectTraceSpansForSecrets', () => {
   })
 
   it('preserves named provenance when an exact secret name and value overlap', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'Test', plaintext: 'Test', encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'Test', plaintext: 'Test', encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     expect(registry.recordResolved('Test', 'Test')).toBe(true)
     const source = createSpan({
       input: { code: 'return {{Test}}' },
@@ -138,13 +145,17 @@ describe('projectTraceSpansForSecrets', () => {
 
   it('protects only literals activated by a successful Secrets-tab substitution', async () => {
     const plaintext = 'trace/secret+value'
-    const registry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'API_SECRET',
-        plaintext,
-        encryptedValue: 'encrypted-api-secret',
-      },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        {
+          name: 'API_SECRET',
+          plaintext,
+          encryptedValue: 'encrypted-api-secret',
+        },
+      ],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     const transformations = {
       urlEncoded: encodeURIComponent(plaintext),
       base64: Buffer.from(plaintext).toString('base64'),

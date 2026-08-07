@@ -18,8 +18,11 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   createWorkspaceEnvCredentials,
   deleteWorkspaceEnvCredentials,
+  type EnvVisibility,
   getPersonalEnvKeyRawAccess,
   getWorkspaceEnvKeyAdminAccess,
+  setWorkspaceEnvVisibility,
+  WorkspaceEnvVisibilityAccessError,
 } from '@/lib/credentials/environment'
 import {
   getPersonalAndWorkspaceEnv,
@@ -44,10 +47,18 @@ const WORKSPACE_ENV_LOCK_TIMEOUT_MS = 5_000
 /**
  * Restricts decrypted workspace env values to administrators. Members (including
  * read-only) receive the variable names with empty values so editor autocomplete
- * and conflict detection keep working without leaking secret values. A value is
- * revealed when the caller is a workspace admin (which includes organization
- * admins) or a per-secret credential admin of that key. Mirrors the per-key edit
- * gating in PUT/DELETE: if you can administer a secret, you can read it.
+ * and conflict detection keep working without leaking secret values. A secret's
+ * value is revealed when the caller is a workspace admin (which includes
+ * organization admins) or a per-secret credential admin of that key. Mirrors the
+ * per-key edit gating in PUT/DELETE: if you can administer a secret, you can
+ * read it.
+ *
+ * Keys marked `variable` are non-secret by definition and are returned in full
+ * to anyone with workspace access — that disclosure is the entire point of the
+ * flag, and workspace membership was already checked by the caller.
+ *
+ * Returns the masked map alongside the per-key visibility so the client can
+ * render secrets and variables differently without a second request.
  */
 async function maskWorkspaceEnvForViewer({
   workspaceDecrypted,
@@ -59,20 +70,23 @@ async function maskWorkspaceEnvForViewer({
   workspaceId: string
   userId: string
   permission: PermissionType
-}): Promise<Record<string, string>> {
+}): Promise<{ masked: Record<string, string>; visibility: Record<string, EnvVisibility> }> {
   const workspaceKeys = Object.keys(workspaceDecrypted)
-  const { adminKeys } = await getWorkspaceEnvKeyAdminAccess({
+  const { adminKeys, variableKeys } = await getWorkspaceEnvKeyAdminAccess({
     workspaceId,
     envKeys: workspaceKeys,
     userId,
   })
 
   const masked: Record<string, string> = {}
+  const visibility: Record<string, EnvVisibility> = {}
   for (const key of workspaceKeys) {
-    const canViewValue = permission === 'admin' || adminKeys.has(key)
+    const isVariable = variableKeys.has(key)
+    const canViewValue = isVariable || permission === 'admin' || adminKeys.has(key)
     masked[key] = canViewValue ? workspaceDecrypted[key] : ''
+    visibility[key] = isVariable ? 'variable' : 'secret'
   }
-  return masked
+  return { masked, visibility }
 }
 
 async function maskPersonalEnvForViewer({
@@ -128,18 +142,20 @@ export const GET = withRouteHandler(
       const { workspaceDecrypted, personalDecrypted, personalOwners, conflicts } =
         await getPersonalAndWorkspaceEnv(userId, workspaceId)
 
-      const workspace = await maskWorkspaceEnvForViewer({
-        workspaceDecrypted,
-        workspaceId,
-        userId,
-        permission,
-      })
-      const personal = await maskPersonalEnvForViewer({
-        personalDecrypted,
-        personalOwners,
-        workspaceId,
-        userId,
-      })
+      const [{ masked: workspace, visibility }, personal] = await Promise.all([
+        maskWorkspaceEnvForViewer({
+          workspaceDecrypted,
+          workspaceId,
+          userId,
+          permission,
+        }),
+        maskPersonalEnvForViewer({
+          personalDecrypted,
+          personalOwners,
+          workspaceId,
+          userId,
+        }),
+      ])
 
       return NextResponse.json(
         {
@@ -147,6 +163,7 @@ export const GET = withRouteHandler(
             workspace,
             personal,
             conflicts,
+            visibility,
           },
         },
         { status: 200 }
@@ -183,7 +200,7 @@ export const PUT = withRouteHandler(
 
       const parsed = await parseRequest(upsertWorkspaceEnvironmentContract, request, context)
       if (!parsed.success) return parsed.response
-      const { variables } = parsed.data.body
+      const { variables, visibility } = parsed.data.body
 
       const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
       if (!permission) {
@@ -191,7 +208,9 @@ export const PUT = withRouteHandler(
       }
 
       const incomingKeys = Object.keys(variables)
-      if (incomingKeys.length === 0) {
+      // A visibility-only request carries no values but is still a real mutation,
+      // so it must not take the no-op path below.
+      if (incomingKeys.length === 0 && !visibility) {
         return NextResponse.json({ success: true })
       }
       const { adminKeys, knownKeys } = await getWorkspaceEnvKeyAdminAccess({
@@ -237,44 +256,97 @@ export const PUT = withRouteHandler(
         })
       ).then((entries) => Object.fromEntries(entries))
 
-      const { existingEncrypted, merged } = await db.transaction(async (tx) => {
-        await tx.execute(
-          sql`SELECT set_config('lock_timeout', ${`${WORKSPACE_ENV_LOCK_TIMEOUT_MS}ms`}, true)`
-        )
-        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${workspaceId}, 0))`)
+      /**
+       * One transaction for authorization AND every write it guards.
+       *
+       * The value upsert, the credential rows, and the visibility flip used to
+       * be three separate commits with the disclosure check somewhere among
+       * them, so a request that was ultimately rejected could still leave the
+       * first writes committed and skip its audit record. Ordering the check
+       * earlier only moved which writes were stranded. With all of it in one
+       * transaction there is no ordering to get wrong: a denial throws and
+       * every write in the request rolls back together.
+       *
+       * `setWorkspaceEnvVisibility` runs LAST, after the writes it must not be
+       * separated from, and share-locks the rows granting the caller's access
+       * before reading them — so a revocation committing mid-request either is
+       * observed and denies, or waits for this transaction.
+       */
+      let flippedKeys: string[] = []
+      let existingEncrypted: Record<string, string>
+      let merged: Record<string, string>
+      try {
+        ;({ existingEncrypted, merged } = await db.transaction(async (tx) => {
+          await tx.execute(
+            sql`SELECT set_config('lock_timeout', ${`${WORKSPACE_ENV_LOCK_TIMEOUT_MS}ms`}, true)`
+          )
+          await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${workspaceId}, 0))`)
 
-        const [existingRow] = await tx
-          .select()
-          .from(workspaceEnvironment)
-          .where(eq(workspaceEnvironment.workspaceId, workspaceId))
-          .limit(1)
+          const [existingRow] = await tx
+            .select()
+            .from(workspaceEnvironment)
+            .where(eq(workspaceEnvironment.workspaceId, workspaceId))
+            .limit(1)
 
-        const existing = ((existingRow?.variables as Record<string, string>) ?? {}) as Record<
-          string,
-          string
-        >
-        const mergedVars = { ...existing, ...encryptedIncoming }
+          const existing = ((existingRow?.variables as Record<string, string>) ?? {}) as Record<
+            string,
+            string
+          >
+          const mergedVars = { ...existing, ...encryptedIncoming }
 
-        await tx
-          .insert(workspaceEnvironment)
-          .values({
-            id: generateId(),
+          if (Object.keys(encryptedIncoming).length > 0) {
+            await tx
+              .insert(workspaceEnvironment)
+              .values({
+                id: generateId(),
+                workspaceId,
+                variables: mergedVars,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              })
+              .onConflictDoUpdate({
+                target: [workspaceEnvironment.workspaceId],
+                set: { variables: mergedVars, updatedAt: new Date() },
+              })
+          }
+
+          // Derived from the stored map, not the credential rows: a legacy key
+          // present in jsonb without a credential row is NOT new, and minting an
+          // ACL for it would make the caller its secret-admin.
+          await createWorkspaceEnvCredentials({
             workspaceId,
-            variables: mergedVars,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          })
-          .onConflictDoUpdate({
-            target: [workspaceEnvironment.workspaceId],
-            set: { variables: mergedVars, updatedAt: new Date() },
+            newKeys: Object.keys(variables).filter((k) => !(k in existing)),
+            actingUserId: userId,
+            visibilityByKey: visibility,
+            executor: tx,
           })
 
-        return { existingEncrypted: existing, merged: mergedVars }
-      })
+          if (visibility) {
+            const applied = await setWorkspaceEnvVisibility({
+              workspaceId,
+              updates: visibility,
+              actingUserId: userId,
+              executor: tx,
+            })
+            flippedKeys = applied.changedKeys
+          }
+
+          return { existingEncrypted: existing, merged: mergedVars }
+        }))
+      } catch (error) {
+        if (error instanceof WorkspaceEnvVisibilityAccessError) {
+          logger.warn(`[${requestId}] Workspace env visibility change denied`, {
+            workspaceId,
+            userId,
+            keys: error.keys,
+          })
+          // Nothing to undo: the denial rolled the whole transaction back.
+          return NextResponse.json({ error: error.message }, { status: 403 })
+        }
+        throw error
+      }
 
       invalidateEffectiveDecryptedEnvCache({ workspaceId })
-      const newKeys = Object.keys(variables).filter((k) => !(k in existingEncrypted))
-      await createWorkspaceEnvCredentials({ workspaceId, newKeys, actingUserId: userId })
 
       recordAudit({
         workspaceId,
@@ -284,11 +356,19 @@ export const PUT = withRouteHandler(
         action: AuditAction.ENVIRONMENT_UPDATED,
         resourceType: AuditResourceType.ENVIRONMENT,
         resourceId: workspaceId,
-        description: `Updated ${Object.keys(variables).length} workspace environment variable(s)`,
+        description:
+          incomingKeys.length === 0 && flippedKeys.length > 0
+            ? `Changed visibility of ${flippedKeys.length} workspace environment variable(s)`
+            : `Updated ${incomingKeys.length} workspace environment variable(s)`,
         metadata: {
           variableCount: Object.keys(variables).length,
           updatedKeys: Object.keys(variables),
           totalKeysAfterUpdate: Object.keys(merged).length,
+          // Disclosure changes are the security-relevant part of this audit
+          // entry: `secret -> variable` cannot be undone by flipping back.
+          ...(flippedKeys.length > 0
+            ? { visibilityChangedKeys: flippedKeys, visibilityChanges: visibility }
+            : {}),
         },
         request,
       })

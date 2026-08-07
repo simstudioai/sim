@@ -2,7 +2,10 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  EMPTY_NON_SECRET_NAMES,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 import {
   buildOpenAIMessageContent,
   INLINE_ATTACHMENT_THRESHOLD_BYTES,
@@ -126,9 +129,11 @@ describe('OpenAI large-file attachment lifecycle', () => {
 
   it('projects the multipart filename without mutating upload preparation metadata', async () => {
     const request = makeRequest(CSV_BYTES)
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'FILE_NAME', plaintext: 'data_10mb.csv', encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'FILE_NAME', plaintext: 'data_10mb.csv', encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('FILE_NAME', 'data_10mb.csv')
 
     await runWithProviderRuntimeContext({ resolvedSecretTraceRegistry: registry }, async () => {

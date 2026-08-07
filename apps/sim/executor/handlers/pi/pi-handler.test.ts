@@ -108,7 +108,10 @@ vi.mock('@/blocks/utils', () => ({
 
 import { PiBlockHandler, parsePiReviewMentions } from '@/executor/handlers/pi/pi-handler'
 import type { ExecutionContext, StreamingExecution } from '@/executor/types'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  EMPTY_NON_SECRET_NAMES,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 import type { SerializedBlock } from '@/serializer/types'
 
 const block = { id: 'blk', metadata: { id: 'pi' } } as unknown as SerializedBlock
@@ -118,7 +121,11 @@ function ctx(overrides: Partial<ExecutionContext> = {}): ExecutionContext {
     workflowId: 'wf',
     workspaceId: 'ws',
     userId: 'user',
-    resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
+    resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(
+      [],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    ),
     ...overrides,
   } as ExecutionContext
 }
@@ -188,9 +195,11 @@ describe('PiBlockHandler', () => {
   })
 
   it('projects activated task secrets at the final Pi input boundary', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'API_KEY', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'API_KEY', plaintext: 'secret-value', encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('API_KEY', 'secret-value')
 
     await handler.execute(
@@ -207,7 +216,7 @@ describe('PiBlockHandler', () => {
     [
       'incomplete',
       (() => {
-        const registry = new ResolvedSecretTraceRegistry()
+        const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
         registry.markIncomplete()
         return registry
       })(),

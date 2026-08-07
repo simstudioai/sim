@@ -35,7 +35,14 @@ interface AuthorizedEncryptedSecret {
 
 export interface MaterializedCopilotCodeSecrets {
   envVars: Record<string, string>
+  /** Catalog entries for genuine secrets only — non-secret names are excluded. */
   catalogEntries: ResolvedSecretTraceCatalogEntry[]
+  /**
+   * Mounted names explicitly marked non-secret. Kept out of `catalogEntries` and
+   * handed to the registry as its exempt set, so their values survive verbatim
+   * in tool results instead of being replaced with `{{NAME}}`.
+   */
+  nonSecretNames: string[]
 }
 
 export class CopilotCodeSecretAccessError extends Error {
@@ -133,7 +140,7 @@ export async function materializeCopilotCodeSecrets(params: {
   requestedNames: readonly string[]
 }): Promise<MaterializedCopilotCodeSecrets> {
   const requestedNames = normalizeRequestedNames(params.requestedNames)
-  if (requestedNames.length === 0) return { envVars: {}, catalogEntries: [] }
+  if (requestedNames.length === 0) return { envVars: {}, catalogEntries: [], nonSecretNames: [] }
 
   const access = await checkWorkspaceAccess(params.workspaceId, params.actorUserId)
   if (!access.exists || !access.canWrite) {
@@ -305,8 +312,27 @@ export async function materializeCopilotCodeSecrets(params: {
     }
   }
 
+  // Resolved from stored visibility rather than anything the caller supplied.
+  // Non-secret names are dropped from the catalog so they can never activate,
+  // which is what keeps their values readable in the tool result.
+  const nonSecretRows = await db
+    .select({ envKey: credential.envKey })
+    .from(credential)
+    .where(
+      and(
+        eq(credential.workspaceId, params.workspaceId),
+        eq(credential.type, 'env_workspace'),
+        eq(credential.envVisibility, 'variable'),
+        inArray(credential.envKey, requestedNames)
+      )
+    )
+  const nonSecretNames = new Set(
+    nonSecretRows.map((row) => row.envKey).filter((key): key is string => key !== null)
+  )
+
   return {
     envVars: Object.fromEntries(decryptedEntries.map((entry) => [entry.name, entry.plaintext])),
-    catalogEntries: decryptedEntries,
+    catalogEntries: decryptedEntries.filter((entry) => !nonSecretNames.has(entry.name)),
+    nonSecretNames: [...nonSecretNames],
   }
 }

@@ -31,6 +31,7 @@ import type {
   WorkflowGroupOutput,
 } from '@/lib/table/types'
 import {
+  EMPTY_NON_SECRET_NAMES,
   isResolvedSecretTraceProvenanceV1,
   RESOLVED_SECRET_TRACE_CHECKPOINT_VERSION,
   ResolvedSecretTraceRegistry,
@@ -77,7 +78,11 @@ export async function createBackfillExecutionSecretRegistry(options: {
     state?.sourceExecutionId === options.executionId &&
     isResolvedSecretTraceProvenanceV1(provenance) &&
     provenance.scope?.workspaceId === options.workspaceId
-  const registry = new ResolvedSecretTraceRegistry([], valid ? provenance.scope : undefined)
+  const registry = new ResolvedSecretTraceRegistry(
+    [],
+    valid ? provenance.scope : undefined,
+    EMPTY_NON_SECRET_NAMES
+  )
   if (!valid) {
     registry.markIncomplete()
     return registry

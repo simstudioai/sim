@@ -35,7 +35,10 @@ import type { DAG, DAGNode } from '@/executor/dag/builder'
 import type { EdgeManager } from '@/executor/execution/edge-manager'
 import type { NodeExecutionOrchestrator } from '@/executor/orchestrators/node'
 import type { ExecutionContext } from '@/executor/types'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  EMPTY_NON_SECRET_NAMES,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 import type { SerializedBlock } from '@/serializer/types'
 import { ExecutionEngine } from './engine'
 
@@ -200,9 +203,11 @@ describe('ExecutionEngine', () => {
 
     it('persists the selected final block provenance instead of run-global matches', async () => {
       const node = createMockNode('function', 'function')
-      const registry = new ResolvedSecretTraceRegistry([
-        { name: 'TOKEN', plaintext: 'Test', encryptedValue: 'ciphertext' },
-      ])
+      const registry = new ResolvedSecretTraceRegistry(
+        [{ name: 'TOKEN', plaintext: 'Test', encryptedValue: 'ciphertext' }],
+        undefined,
+        EMPTY_NON_SECRET_NAMES
+      )
       registry.recordResolved('TOKEN', 'Test')
       const context = createMockContext({
         decisions: { router: new Map(), condition: new Map() },
@@ -1010,9 +1015,11 @@ describe('ExecutionEngine', () => {
 
       const dag = createMockDAG([startNode, errorNode])
       const context = createMockContext({
-        resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry([
-          { name: 'API_KEY', plaintext: secret, encryptedValue: 'encrypted-api-key' },
-        ]),
+        resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(
+          [{ name: 'API_KEY', plaintext: secret, encryptedValue: 'encrypted-api-key' }],
+          undefined,
+          EMPTY_NON_SECRET_NAMES
+        ),
       })
       const edgeManager = createMockEdgeManager((node) => {
         if (node.id === 'start') return ['error-node']

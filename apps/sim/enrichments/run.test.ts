@@ -8,7 +8,10 @@ vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
 
 import { runEnrichment, skippedEnrichmentDetail } from '@/enrichments/run'
 import type { EnrichmentConfig, EnrichmentProvider } from '@/enrichments/types'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  EMPTY_NON_SECRET_NAMES,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 
 const ICON = (() => null) as unknown as EnrichmentConfig['icon']
 
@@ -96,7 +99,7 @@ describe('runEnrichment cascade detail', () => {
   })
 
   it('threads the isolated row provenance registry through each provider tool call', async () => {
-    const registry = new ResolvedSecretTraceRegistry()
+    const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
     mockExecuteTool.mockResolvedValue({ success: true, output: { email: 'j@acme.com' } })
 
     await runEnrichment(

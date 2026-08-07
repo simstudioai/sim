@@ -40,7 +40,10 @@ import {
 import { BlockType } from '@/executor/constants'
 import { EvaluatorBlockHandler } from '@/executor/handlers/evaluator/evaluator-handler'
 import type { ExecutionContext } from '@/executor/types'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  EMPTY_NON_SECRET_NAMES,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 import { getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 
@@ -206,23 +209,27 @@ describe('EvaluatorBlockHandler', () => {
     const contentSecret = 'resolved-evaluator-content'
     const metricSecret = 'resolved-evaluator-metric'
     const credentialSecret = 'resolved-evaluator-credential'
-    const registry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'CONTENT_SECRET',
-        plaintext: contentSecret,
-        encryptedValue: 'encrypted-evaluator-content',
-      },
-      {
-        name: 'METRIC_SECRET',
-        plaintext: metricSecret,
-        encryptedValue: 'encrypted-evaluator-metric',
-      },
-      {
-        name: 'API_KEY',
-        plaintext: credentialSecret,
-        encryptedValue: 'encrypted-evaluator-credential',
-      },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        {
+          name: 'CONTENT_SECRET',
+          plaintext: contentSecret,
+          encryptedValue: 'encrypted-evaluator-content',
+        },
+        {
+          name: 'METRIC_SECRET',
+          plaintext: metricSecret,
+          encryptedValue: 'encrypted-evaluator-metric',
+        },
+        {
+          name: 'API_KEY',
+          plaintext: credentialSecret,
+          encryptedValue: 'encrypted-evaluator-credential',
+        },
+      ],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('CONTENT_SECRET', contentSecret)
     registry.recordResolved('METRIC_SECRET', metricSecret)
     registry.recordResolved('API_KEY', credentialSecret)
@@ -611,13 +618,17 @@ describe('EvaluatorBlockHandler', () => {
 
   it('projects evaluator failures before logging without changing the thrown error', async () => {
     const providerError = 'provider echoed resolved-evaluator-secret __var_CONTENT_SECRET'
-    const registry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'CONTENT_SECRET',
-        plaintext: 'resolved-evaluator-secret',
-        encryptedValue: 'encrypted-evaluator-secret',
-      },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        {
+          name: 'CONTENT_SECRET',
+          plaintext: 'resolved-evaluator-secret',
+          encryptedValue: 'encrypted-evaluator-secret',
+        },
+      ],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('CONTENT_SECRET', 'resolved-evaluator-secret')
     mockContext.resolvedSecretTraceRegistry = registry
     mockFetch.mockResolvedValueOnce({

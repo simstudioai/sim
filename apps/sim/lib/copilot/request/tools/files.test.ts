@@ -29,7 +29,10 @@ import {
 } from '@/lib/copilot/request/tools/files'
 import { projectToolResultForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
 import type { ExecutionContext } from '@/lib/copilot/request/types'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  EMPTY_NON_SECRET_NAMES,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 
 describe('unwrapFunctionExecuteOutput', () => {
   it('unwraps the function_execute envelope { result, stdout }', () => {
@@ -114,7 +117,11 @@ describe('maybeWriteOutputToFile', () => {
       workflowId: 'wf-1',
       workspaceId: 'workspace-1',
       userPermission: 'write',
-      resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
+      resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(
+        [],
+        undefined,
+        EMPTY_NON_SECRET_NAMES
+      ),
       ...overrides,
     }
   }
@@ -167,18 +174,22 @@ describe('maybeWriteOutputToFile', () => {
   })
 
   it('persists canonical aliases and leaves unrelated low-entropy public values unchanged', async () => {
-    const parentRegistry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'OUTPUT_SECRET',
-        plaintext: 'secret-value',
-        encryptedValue: 'encrypted-output-secret',
-      },
-      {
-        name: 'UNRELATED',
-        plaintext: 'true',
-        encryptedValue: 'encrypted-unrelated',
-      },
-    ])
+    const parentRegistry = new ResolvedSecretTraceRegistry(
+      [
+        {
+          name: 'OUTPUT_SECRET',
+          plaintext: 'secret-value',
+          encryptedValue: 'encrypted-output-secret',
+        },
+        {
+          name: 'UNRELATED',
+          plaintext: 'true',
+          encryptedValue: 'encrypted-unrelated',
+        },
+      ],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     parentRegistry.recordResolved('UNRELATED', 'true')
     const toolRegistry = parentRegistry.forkForToolInput({ code: 'return {{OUTPUT_SECRET}}' })
     toolRegistry.recordResolved('OUTPUT_SECRET', 'secret-value')
@@ -205,7 +216,7 @@ describe('maybeWriteOutputToFile', () => {
 
     const laterRead = projectToolResultForCopilot(
       { success: true, output: { content: persisted } },
-      new ResolvedSecretTraceRegistry()
+      new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
     )
     expect(JSON.parse((laterRead.output as { content: string }).content)).toEqual({
       token: '{{OUTPUT_SECRET}}',

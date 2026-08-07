@@ -16,7 +16,10 @@ vi.mock('@/lib/knowledge/embeddings', () => ({
 }))
 
 import { searchDocumentationServerTool } from '@/lib/copilot/tools/server/docs/search-documentation'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  EMPTY_NON_SECRET_NAMES,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 
 describe('documentation search model boundary', () => {
   beforeEach(() => {
@@ -25,13 +28,17 @@ describe('documentation search model boundary', () => {
   })
 
   it('projects the query immediately before embedding without logging plaintext', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'DOCS_QUERY',
-        plaintext: 'private documentation query',
-        encryptedValue: 'encrypted-query',
-      },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        {
+          name: 'DOCS_QUERY',
+          plaintext: 'private documentation query',
+          encryptedValue: 'encrypted-query',
+        },
+      ],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('DOCS_QUERY', 'private documentation query')
 
     const result = await searchDocumentationServerTool.execute(

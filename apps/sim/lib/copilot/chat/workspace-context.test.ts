@@ -125,7 +125,39 @@ describe('buildWorkspaceMd - connected integrations / credentials', () => {
     expect(md).toContain('## Environment Variables (2)')
     expect(md).toContain('- OPENAI_API_KEY')
     expect(md).toContain('- STRIPE_SECRET_KEY')
-    expect(buildVfsSnapshot(data).envVars).toEqual(['OPENAI_API_KEY', 'STRIPE_SECRET_KEY'])
+    expect(buildVfsSnapshot(data).envVars).toEqual([
+      { name: 'OPENAI_API_KEY' },
+      { name: 'STRIPE_SECRET_KEY' },
+    ])
+  })
+
+  it('shows values for non-secret env vars and only names for secrets', () => {
+    const data = baseData({
+      envVariables: ['OPENAI_API_KEY', 'SUPPORT_EMAIL'],
+      nonSecretEnvVariables: [{ name: 'SUPPORT_EMAIL', value: 'help@acme.com' }],
+    })
+
+    const md = buildWorkspaceMd(data)
+    expect(md).toContain('- SUPPORT_EMAIL = help@acme.com')
+    // Both halves in one assertion set: a secret must stay a bare name even
+    // when a sibling key in the same section is non-secret.
+    expect(md).toContain('- OPENAI_API_KEY\n')
+    expect(md).not.toContain('OPENAI_API_KEY =')
+
+    // One kind carries both: a secret is name-only, a non-secret adds its value
+    // so Go can diff a VALUE change and not just a name.
+    expect(buildVfsSnapshot(data).envVars).toEqual([
+      { name: 'OPENAI_API_KEY' },
+      { name: 'SUPPORT_EMAIL', value: 'help@acme.com' },
+    ])
+  })
+
+  it('renders every name bare and omits the kind when nothing is non-secret', () => {
+    const data = baseData({ envVariables: ['OPENAI_API_KEY'] })
+
+    expect(buildWorkspaceMd(data)).not.toContain('non-secret')
+    // Every name still ships; none carries a value.
+    expect(buildVfsSnapshot(data).envVars).toEqual([{ name: 'OPENAI_API_KEY' }])
   })
 })
 

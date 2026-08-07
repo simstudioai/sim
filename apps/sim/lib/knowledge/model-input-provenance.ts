@@ -3,6 +3,7 @@ import { prepareCopilotEnvironmentContext } from '@/lib/copilot/environment-cont
 import { inspectModelInputProvenanceRequest } from '@/lib/execution/model-input-provenance'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import {
+  EMPTY_NON_SECRET_NAMES,
   isResolvedSecretTraceProvenanceV1,
   ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
@@ -52,10 +53,14 @@ export async function prepareKnowledgeModelInputProvenance(options: {
   if (inspection.value.entries.length === 0) {
     return {
       success: true,
-      registry: new ResolvedSecretTraceRegistry([], {
-        userId: options.userId,
-        ...(options.workspaceId ? { workspaceId: options.workspaceId } : {}),
-      }),
+      registry: new ResolvedSecretTraceRegistry(
+        [],
+        {
+          userId: options.userId,
+          ...(options.workspaceId ? { workspaceId: options.workspaceId } : {}),
+        },
+        EMPTY_NON_SECRET_NAMES
+      ),
     }
   }
 
@@ -106,7 +111,7 @@ export function getKnowledgeOpaqueModelInputRegistry(): ResolvedSecretTraceRegis
   if (!context?.opaqueInputSafe) {
     throw new Error(MODEL_INPUT_PROJECTION_ERROR)
   }
-  return context.registry ?? new ResolvedSecretTraceRegistry()
+  return context.registry ?? new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
 }
 
 /** Projects one string immediately before it enters an embedding or reranking request. */
