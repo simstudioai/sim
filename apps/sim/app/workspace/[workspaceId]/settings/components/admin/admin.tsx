@@ -56,14 +56,14 @@ const USER_TABLE_HEADER = (
 )
 
 /**
- * The row action awaiting confirmation in {@link ChipConfirmModal}. Holds only
- * the id so the modal reads the live row — a background refetch while it is
- * open must not leave the confirm acting on a stale role.
+ * The row action awaiting confirmation in {@link ChipConfirmModal}. Carries the
+ * id plus, for a role change, the role the admin chose to apply — never the
+ * whole user row. A refetch while the modal is open therefore refreshes the
+ * name it shows without ever redirecting the action the admin committed to.
  */
-interface PendingUserAction {
-  type: 'ban' | 'role'
-  userId: string
-}
+type PendingUserAction =
+  | { type: 'ban'; userId: string }
+  | { type: 'role'; userId: string; nextRole: 'admin' | 'user' }
 
 const MOTHERSHIP_ENV_OPTIONS: { value: MothershipEnvironment; label: string }[] = [
   { value: 'default', label: 'Default' },
@@ -184,7 +184,7 @@ export function Admin() {
       recentUsers?.find((u) => u.id === pendingAction.userId) ??
       null)
     : null
-  const isDemotion = pendingUser?.role === 'admin'
+  const isDemotion = pendingAction?.type === 'role' && pendingAction.nextRole === 'user'
 
   const closePendingAction = () => {
     setPendingAction(null)
@@ -204,9 +204,9 @@ export function Admin() {
   }
 
   const handleConfirmRoleChange = () => {
-    if (pendingAction?.type !== 'role' || !pendingUser) return
+    if (pendingAction?.type !== 'role') return
     setUserRole.mutate(
-      { userId: pendingUser.id, role: isDemotion ? 'user' : 'admin' },
+      { userId: pendingAction.userId, role: pendingAction.nextRole },
       { onSuccess: closePendingAction }
     )
   }
@@ -258,7 +258,11 @@ export function Admin() {
                   label: u.role === 'admin' ? 'Demote' : 'Promote',
                   onSelect: () => {
                     setUserRole.reset()
-                    setPendingAction({ type: 'role', userId: u.id })
+                    setPendingAction({
+                      type: 'role',
+                      userId: u.id,
+                      nextRole: u.role === 'admin' ? 'user' : 'admin',
+                    })
                   },
                   disabled: pendingUserIds.has(u.id),
                 },
