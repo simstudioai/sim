@@ -6,7 +6,7 @@ import { useToast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
-import { useSocket } from '@/app/workspace/providers/socket-provider'
+import { useSocket } from '@/components/socket-provider'
 import {
   useWorkspacePermissionsQuery,
   type WorkspacePermissions,

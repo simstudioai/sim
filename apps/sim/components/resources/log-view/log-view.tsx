@@ -39,11 +39,7 @@ import { getDisplayStatus, StatusBadge } from '@/components/execution-status'
 import { ExecutionSnapshot } from '@/components/resources/log-view/components/execution-snapshot'
 import { FileCards } from '@/components/resources/log-view/components/file-download'
 import { TraceView } from '@/components/resources/log-view/components/trace-view'
-import {
-  DELETED_WORKFLOW_LABEL,
-  formatDate,
-  TriggerBadge,
-} from '@/components/resources/log-view/utils/log-presentation'
+import { formatDate, TriggerBadge } from '@/components/resources/log-view/utils/log-presentation'
 import type { WorkflowLogRow } from '@/lib/api/contracts/logs'
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
 import { apportionCredits, dollarsToCredits } from '@/lib/billing/credits/conversion'
@@ -52,6 +48,7 @@ import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { filterHiddenOutputKeys } from '@/lib/logs/execution/trace-spans/trace-spans'
 import type { TraceSpan } from '@/lib/logs/types'
 import { sendMothershipMessage } from '@/lib/mothership/events'
+import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/labels'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
 import { formatCost } from '@/providers/utils'
 import type { ResourceGrants, ResourceHost, ResourceSource } from '@/resources'

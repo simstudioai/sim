@@ -34,12 +34,7 @@ import {
   STATUS_CONFIG,
   StatusBadge,
 } from '@/components/execution-status'
-import {
-  DELETED_WORKFLOW_LABEL,
-  ExecutionSnapshot,
-  formatDate,
-  TriggerBadge,
-} from '@/components/resources/log-view'
+import { ExecutionSnapshot, formatDate, TriggerBadge } from '@/components/resources/log-view'
 import type {
   WorkflowLogDetail,
   WorkflowLogRow,
@@ -61,6 +56,7 @@ import {
   type WorkflowData,
 } from '@/lib/logs/search-suggestions'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
+import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/labels'
 import type {
   FilterTag,
   ResourceAction,

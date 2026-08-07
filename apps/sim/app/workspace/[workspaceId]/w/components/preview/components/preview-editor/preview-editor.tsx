@@ -30,7 +30,7 @@ import {
 import { formatDuration } from '@sim/utils/formatting'
 import { useParams } from 'next/navigation'
 import { ReactFlowProvider } from 'reactflow'
-import { DELETED_WORKFLOW_LABEL } from '@/components/resources/log-view'
+import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/labels'
 import { extractReferencePrefixes } from '@/lib/workflows/sanitization/references'
 import {
   buildCanonicalIndex,

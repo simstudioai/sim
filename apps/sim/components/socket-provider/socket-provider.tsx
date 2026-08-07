@@ -30,15 +30,15 @@ import { backoffWithJitter } from '@sim/utils/retry'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
 import type { Socket } from 'socket.io-client'
-import { getSocketUrl } from '@/lib/core/utils/urls'
 import {
   type SocketJoinCommand,
   SocketJoinController,
-} from '@/app/workspace/providers/socket-join-controller'
+} from '@/components/socket-provider/socket-join-controller'
 import {
   isSocketWorkflowVisible,
   resolveSocketWorkflowTarget,
-} from '@/app/workspace/providers/socket-join-target'
+} from '@/components/socket-provider/socket-join-target'
+import { getSocketUrl } from '@/lib/core/utils/urls'
 import { refreshSessionQuery } from '@/hooks/queries/session'
 import { useOperationQueueStore } from '@/stores/operation-queue/store'
 import type {

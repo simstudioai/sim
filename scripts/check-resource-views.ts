@@ -124,6 +124,20 @@ const RESOURCE_POLICY_BASELINE = {
    * described a tree that no longer existed rather than a budget anyone spent.
    */
   crossTreeWorkspaceImports: 37,
+  /**
+   * R3c — a canonical unit importing the authenticated route tree.
+   *
+   * Held at 0, unlike R3b's inherited budget. R3b counts the whole app; this
+   * counts only `components/resources/**`, where the edge is not a smell but a
+   * defect: a unit is mounted by anonymous surfaces, so an import of
+   * `@/app/workspace/[workspaceId]/**` pulls the workspace route tree into the
+   * public chunk and re-creates the coupling the axes exist to delete. The
+   * migration itself introduced two, both since resolved — the socket provider
+   * moved to `components/socket-provider`, and the log view's frozen-canvas
+   * modal is annotated because the workflow editor's Preview genuinely is
+   * editor UI.
+   */
+  unitRouteTreeImports: 0,
   /** R4a — unsanctioned capability/chrome attributes at a canonical-view mount. */
   viewPropVocabularyViolations: 0,
   /** R4b — unsanctioned capability/chrome props declared on a canonical view's props type. */
@@ -948,6 +962,38 @@ function auditCrossTree(
 }
 
 /**
+ * R3c — a canonical unit importing the authenticated route tree.
+ *
+ * The same edge R3b counts, narrowed to `components/resources/**` and held at
+ * zero. R3b carries an inherited budget across the whole app; inside a unit
+ * there is no budget, because a unit is what anonymous surfaces mount. Escape
+ * hatch is `// boundary-resource-tree:`, so a deliberate exception is a
+ * sentence someone had to write rather than a number someone had to notice.
+ */
+function auditUnitRouteTree(
+  relativePath: string,
+  content: string,
+  imports: readonly ImportInfo[]
+): RuleSummary {
+  const summary = emptySummary()
+  if (!unitForPath(relativePath)) return summary
+
+  for (const imp of imports) {
+    if (!imp.specifier.startsWith('@/app/')) continue
+    record(
+      summary,
+      content,
+      relativePath,
+      imp.index,
+      'tree',
+      `canonical unit imports '${imp.specifier}' from the app route tree`
+    )
+  }
+
+  return summary
+}
+
+/**
  * R4a — vocabulary at a mount site.
  *
  * Capability, chrome and addressing were historically spelled five ways each:
@@ -1154,6 +1200,7 @@ async function main(): Promise<void> {
 
   const shadowNameFindings: Finding[] = []
   const crossTreeFindings: Finding[] = []
+  const unitTreeSummary = emptySummary()
   const contextLeakFindings: Finding[] = []
   const axisClientFindings: Finding[] = []
 
@@ -1183,6 +1230,7 @@ async function main(): Promise<void> {
     const crossTree = auditCrossTree(relativePath, content, imports)
     mergeSummary(publicTreeSummary, crossTree.publicSurface)
     crossTreeFindings.push(...crossTree.all)
+    mergeSummary(unitTreeSummary, auditUnitRouteTree(relativePath, content, imports))
 
     shadowNameFindings.push(...auditShadowNames(relativePath, content))
     contextLeakFindings.push(...auditUnitContextLeaks(relativePath, content))
@@ -1219,6 +1267,11 @@ async function main(): Promise<void> {
       key: 'crossTreeWorkspaceImports',
       label: 'R3b files outside app/workspace importing @/app/workspace/[workspaceId]/**',
       current: new Set(crossTreeFindings.map((finding) => finding.path)).size,
+    },
+    {
+      key: 'unitRouteTreeImports',
+      label: 'R3c canonical units importing the app route tree',
+      current: unitTreeSummary.findings.length,
     },
     {
       key: 'viewPropVocabularyViolations',
@@ -1305,6 +1358,7 @@ async function main(): Promise<void> {
   printFindings('R1b shadow-named components', shadowNameFindings)
   printFindings('R2  imports past a unit barrel', internalSummary.findings)
   printFindings('R3a anonymous surface -> workspace tree', publicTreeSummary.findings)
+  printFindings('R3c canonical unit -> app route tree', unitTreeSummary.findings)
   printFindings(
     'R3b cross-tree workspace imports (pass --list-cross-tree)',
     listCrossTree ? crossTreeFindings : []

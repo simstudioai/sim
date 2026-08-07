@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   isSocketWorkflowVisible,
   resolveSocketWorkflowTarget,
-} from '@/app/workspace/providers/socket-join-target'
+} from '@/components/socket-provider/socket-join-target'
 
 describe('socket join target helpers', () => {
   it('uses the route workflow when there is no explicit workflow target', () => {

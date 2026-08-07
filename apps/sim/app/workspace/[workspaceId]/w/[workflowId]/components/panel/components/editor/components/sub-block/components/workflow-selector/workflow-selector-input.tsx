@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react'
 import { useParams } from 'next/navigation'
-import { DELETED_WORKFLOW_LABEL } from '@/components/resources/log-view'
+import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/labels'
 import { SelectorCombobox } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/selector-combobox/selector-combobox'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { SelectorContext } from '@/hooks/selectors/types'

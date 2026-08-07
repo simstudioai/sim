@@ -6,8 +6,6 @@ import { getIntegrationMetadata } from '@/lib/logs/get-trigger-options'
 import { getBlock } from '@/blocks/registry'
 import { CORE_TRIGGER_TYPES } from '@/stores/logs/filters/types'
 
-export const DELETED_WORKFLOW_LABEL = 'Deleted Workflow'
-
 const TRIGGER_VARIANT_MAP: Record<string, React.ComponentProps<typeof Badge>['variant']> = {
   manual: 'gray-secondary',
   api: 'blue',

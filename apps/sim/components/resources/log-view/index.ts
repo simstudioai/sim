@@ -8,7 +8,7 @@
 export { ExecutionSnapshot } from './components/execution-snapshot'
 export type { LogViewProps, LogViewTab } from './log-view'
 export { LogView, WorkflowOutputSection } from './log-view'
-export { DELETED_WORKFLOW_LABEL, formatDate, TriggerBadge } from './utils/log-presentation'
+export { formatDate, TriggerBadge } from './utils/log-presentation'
 export {
   adjustBgForContrast,
   getBlockIconAndColor,

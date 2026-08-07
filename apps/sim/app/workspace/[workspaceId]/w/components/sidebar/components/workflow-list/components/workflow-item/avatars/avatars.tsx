@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react'
 import { PresenceAvatars } from '@/components/presence'
-import { useSocket } from '@/app/workspace/providers/socket-provider'
+import { useSocket } from '@/components/socket-provider'
 import { SIDEBAR_WIDTH } from '@/stores/constants'
 import { usePresenceStore } from '@/stores/presence/store'
 import { useSidebarStore } from '@/stores/sidebar/store'

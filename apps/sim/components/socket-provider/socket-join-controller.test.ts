@@ -3,7 +3,7 @@ import {
   SOCKET_JOIN_RETRY_BASE_DELAY_MS,
   SOCKET_JOIN_RETRY_MAX_DELAY_MS,
   SocketJoinController,
-} from '@/app/workspace/providers/socket-join-controller'
+} from '@/components/socket-provider/socket-join-controller'
 
 describe('SocketJoinController', () => {
   it('blocks rejoining a deleted workflow until the desired workflow changes', () => {

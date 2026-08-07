@@ -18,6 +18,14 @@ import {
 } from '@sim/emcn'
 import { CircleAlert } from '@sim/emcn/icons'
 import { createPortal } from 'react-dom'
+/**
+ * The frozen-canvas modal renders the workflow editor's read-only `Preview`, which reads
+ * `useParams<{ workspaceId }>()` and pulls in the editor's subblock and edge components.
+ * It IS workspace-editor UI, so hoisting it out would drag half the editor into
+ * `components/`. The day a log becomes share-reachable, this modal has to leave the unit
+ * and be handed in by the host instead.
+ */
+// boundary-resource-tree: renders the workflow editor's Preview; safe only while `log`'s share seed is `never`, so no anonymous surface can mount LogView
 import { Preview } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { useExecutionSnapshot } from '@/hooks/queries/logs'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
