@@ -1,9 +1,6 @@
-import type { PdlCleanSchoolParams, PdlCleanSchoolResponse } from '@/tools/peopledatalabs/types'
-import {
-  PDL_SCHOOL_OUTPUT_PROPERTIES,
-  PEOPLEDATALABS_API_KEY_PREFIX,
-} from '@/tools/peopledatalabs/types'
-import { projectSchool } from '@/tools/peopledatalabs/utils'
+import type { PdlCleanSchoolParams, PdlCleanSchoolResponse } from '@/tools/pdl/types'
+import { PDL_SCHOOL_OUTPUT_PROPERTIES, PEOPLEDATALABS_API_KEY_PREFIX } from '@/tools/pdl/types'
+import { projectSchool } from '@/tools/pdl/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const cleanSchoolTool: ToolConfig<PdlCleanSchoolParams, PdlCleanSchoolResponse> = {

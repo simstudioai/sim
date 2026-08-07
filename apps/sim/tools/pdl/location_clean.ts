@@ -1,9 +1,6 @@
-import type { PdlCleanLocationParams, PdlCleanLocationResponse } from '@/tools/peopledatalabs/types'
-import {
-  PDL_LOCATION_OUTPUT_PROPERTIES,
-  PEOPLEDATALABS_API_KEY_PREFIX,
-} from '@/tools/peopledatalabs/types'
-import { projectLocation } from '@/tools/peopledatalabs/utils'
+import type { PdlCleanLocationParams, PdlCleanLocationResponse } from '@/tools/pdl/types'
+import { PDL_LOCATION_OUTPUT_PROPERTIES, PEOPLEDATALABS_API_KEY_PREFIX } from '@/tools/pdl/types'
+import { projectLocation } from '@/tools/pdl/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const cleanLocationTool: ToolConfig<PdlCleanLocationParams, PdlCleanLocationResponse> = {

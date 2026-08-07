@@ -3,7 +3,7 @@ import type {
   PdlLocationRecord,
   PdlPersonRecord,
   PdlSchoolRecord,
-} from '@/tools/peopledatalabs/types'
+} from '@/tools/pdl/types'
 
 /**
  * Count matched records in a bulk enrich output `results` array.
