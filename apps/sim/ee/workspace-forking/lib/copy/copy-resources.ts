@@ -1796,10 +1796,12 @@ async function copyDocumentEmbeddings(
  * copy fails. A stored source blob is required to copy successfully; callers keep the target
  * placeholder archived and report the existing resource failure. The content digest in the key
  * makes reuse safe for identical retries and prevents a later source snapshot from adopting or
- * overwriting bytes left by an earlier failed attempt.
+ * overwriting bytes left by an earlier failed attempt. Ownership is recorded before storage I/O,
+ * matching the presigned-upload lifecycle: successful finalization reuses the immutable binding,
+ * while the existing orphan-binding sweep eventually reclaims an abandoned object or reservation.
  */
 async function copyKbDocumentBlob(
-  doc: { storageKey: string | null; filename: string; mimeType: string },
+  doc: { storageKey: string | null; filename: string; mimeType: string; fileSize: number },
   childWorkspaceId: string,
   userId: string,
   childDocumentId: string
@@ -1811,6 +1813,14 @@ async function copyKbDocumentBlob(
     maxBytes: MAX_FILE_SIZE,
   })
   const targetKey = deriveKbDocumentStorageKey(childDocumentId, sha256Hex(buffer))
+  await recordKnowledgeBaseFileOwnership({
+    key: targetKey,
+    userId,
+    workspaceId: childWorkspaceId,
+    originalName: doc.filename,
+    contentType: doc.mimeType,
+    size: doc.fileSize,
+  })
   const existing = await headObject(targetKey, 'knowledge-base')
   if (!existing) {
     await uploadFile({

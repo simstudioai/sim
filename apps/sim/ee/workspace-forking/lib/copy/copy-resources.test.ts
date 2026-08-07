@@ -281,6 +281,14 @@ describe('copyForkResourceContent', () => {
       workspaceId: 'child-ws',
       originalName: 'report.pdf',
     })
+    expect(mockRecordKnowledgeBaseFileOwnership).toHaveBeenNthCalledWith(1, {
+      key: uploadArg.customKey,
+      userId: 'user-1',
+      workspaceId: 'child-ws',
+      originalName: 'report.pdf',
+      contentType: 'application/pdf',
+      size: 321,
+    })
     expect(mockRecordKnowledgeBaseFileOwnership).toHaveBeenCalledWith(
       {
         key: uploadArg.customKey,
@@ -291,6 +299,9 @@ describe('copyForkResourceContent', () => {
         size: 321,
       },
       expect.anything()
+    )
+    expect(mockRecordKnowledgeBaseFileOwnership.mock.invocationCallOrder[0]).toBeLessThan(
+      storageServiceMockFns.mockUploadFile.mock.invocationCallOrder[0]
     )
     expect(mockRecordKnowledgeBaseFileOwnership.mock.invocationCallOrder[0]).toBeLessThan(
       mockIncrementStorageUsageInTx.mock.invocationCallOrder[0]
@@ -492,6 +503,42 @@ describe('copyForkResourceContent', () => {
     expect(storageServiceMockFns.mockUploadFile.mock.invocationCallOrder[0]).toBeLessThan(
       mockIncrementStorageUsageInTx.mock.invocationCallOrder[0]
     )
+  })
+
+  it('leaves a discoverable ownership reservation when a copied KB upload fails', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([sourceDoc])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([sourceDoc])
+    storageServiceMockFns.mockUploadFile.mockRejectedValueOnce(new Error('upload failed'))
+
+    const result = await copyForkResourceContent({
+      contentPlan: basePlan({
+        knowledgeBases: [
+          {
+            sourceId: 'src-kb',
+            childId: 'child-kb',
+            documentIdMap: { 'doc-1': 'child-doc-1' },
+          },
+        ],
+      }),
+      requestId: 'test',
+    })
+
+    const targetKey = `kb/fork-child-doc-1-${sha256Hex(Buffer.from('blob-bytes'))}`
+    expect(result.failed).toBe(1)
+    expect(mockRecordKnowledgeBaseFileOwnership).toHaveBeenCalledWith({
+      key: targetKey,
+      userId: 'user-1',
+      workspaceId: 'child-ws',
+      originalName: 'report.pdf',
+      contentType: 'application/pdf',
+      size: 321,
+    })
+    expect(mockRecordKnowledgeBaseFileOwnership.mock.invocationCallOrder[0]).toBeLessThan(
+      storageServiceMockFns.mockUploadFile.mock.invocationCallOrder[0]
+    )
+    expect(storageServiceMockFns.mockDeleteFile).not.toHaveBeenCalled()
   })
 
   it('does not resolve KB billing context for an empty document page', async () => {

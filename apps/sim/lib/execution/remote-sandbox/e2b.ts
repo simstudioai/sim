@@ -390,19 +390,20 @@ class E2BSandboxHandle implements SandboxHandle {
     const outputBudget = new SandboxProcessOutputBudget(
       options.maxOutputBytes ?? MAX_SANDBOX_PROCESS_OUTPUT_BYTES
     )
-    // The budget bounds what Sim RETAINS, so a stream the caller consumes itself is exempt: it has
-    // already been delivered chunk by chunk, and only a diagnostic tail is kept. Per stream, not
-    // per command — a caller that streams stdout but not stderr still has stderr fully bounded.
+    /**
+     * E2B's SDK accumulates every callback-delivered chunk in its own result strings, so all streams
+     * must share the process budget even when Sim's caller consumes them incrementally. The callback
+     * still receives each chunk that fits; the sandbox is stopped before later chunks can make the
+     * SDK's retained copy grow without bound.
+     */
     const retainStdout = options.onStdout === undefined
     const retainStderr = options.onStderr === undefined
-    const guardOutput = (value: string, retain: boolean, callback?: (chunk: string) => void) => {
-      if (retain) {
-        try {
-          outputBudget.add(value)
-        } catch (error) {
-          void this.kill().catch(() => {})
-          throw error
-        }
+    const guardOutput = (value: string, callback?: (chunk: string) => void) => {
+      try {
+        outputBudget.add(value)
+      } catch (error) {
+        void this.kill().catch(() => {})
+        throw error
       }
       callback?.(value)
     }
@@ -413,13 +414,10 @@ class E2BSandboxHandle implements SandboxHandle {
         timeoutMs: e2bTimeoutMs(options.timeoutMs),
         ...(options.signal ? { signal: options.signal } : {}),
         ...(options.rootUser ? { user: 'root' as const } : {}),
-        onStdout: (chunk) => guardOutput(chunk, retainStdout, options.onStdout),
-        onStderr: (chunk) => guardOutput(chunk, retainStderr, options.onStderr),
+        onStdout: (chunk) => guardOutput(chunk, options.onStdout),
+        onStderr: (chunk) => guardOutput(chunk, options.onStderr),
       })
-      assertSandboxProcessOutputWithinLimit(
-        [retainStdout ? result.stdout : undefined, retainStderr ? result.stderr : undefined],
-        options.maxOutputBytes
-      )
+      assertSandboxProcessOutputWithinLimit([result.stdout, result.stderr], options.maxOutputBytes)
       return {
         stdout: retainStdout ? result.stdout : tailStreamedSandboxOutput(result.stdout),
         stderr: retainStderr ? result.stderr : tailStreamedSandboxOutput(result.stderr),
@@ -447,16 +445,8 @@ class E2BSandboxHandle implements SandboxHandle {
       ) {
         throw error
       }
-      // The SDK throws on a non-zero exit, so this is the ordinary path for a failing streamed
-      // command — the same retention exemption has to apply here or a failing Pi turn still trips
-      // the budget on output the caller already consumed. `message` never streams, so it is always
-      // retained and billed.
       assertSandboxProcessOutputWithinLimit(
-        [
-          retainStdout ? failure.stdout : undefined,
-          retainStderr ? failure.stderr : undefined,
-          failure.message,
-        ],
+        [failure.stdout, failure.stderr, failure.message],
         options.maxOutputBytes
       )
       const tailIfStreamed = (value: string | undefined, retain: boolean) =>

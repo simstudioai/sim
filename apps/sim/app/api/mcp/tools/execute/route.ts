@@ -15,10 +15,9 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { SIM_VIA_HEADER } from '@/lib/execution/call-chain'
 import { parseRemainingExecutionDeadlineMs } from '@/lib/execution/execution-deadline-header'
 import {
-  PRIVATE_TOOL_METADATA_RESPONSE_HEADER,
-  RESOLVED_SECRET_PROVENANCE_FIELD,
   RESOLVED_SECRET_PROVENANCE_METADATA_V1,
   requestsPrivateToolMetadata,
+  serializePrivateToolMetadataResponseEnvelope,
 } from '@/lib/execution/private-tool-metadata'
 import {
   mcpBodyReadErrorResponse,
@@ -33,7 +32,7 @@ import {
   type McpToolCall,
   type McpToolResult,
 } from '@/lib/mcp/types'
-import { categorizeError, createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
+import { categorizeError } from '@/lib/mcp/utils'
 import {
   assertPermissionsAllowed,
   McpToolsNotAllowedError,
@@ -66,23 +65,21 @@ function hasType(prop: unknown): prop is SchemaProperty {
   return typeof prop === 'object' && prop !== null && 'type' in prop
 }
 
-async function attachPrivateProvenance(
-  response: NextResponse,
-  provenance: ResolvedSecretTraceProvenanceAccumulator
-): Promise<NextResponse> {
-  const parsed: unknown = await response.json()
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new Error('MCP response is not a JSON object')
+function createToolExecutionResponse(
+  body: Record<string, unknown>,
+  status: number,
+  provenance: ResolvedSecretTraceProvenanceAccumulator | undefined
+): NextResponse {
+  if (!provenance) {
+    return NextResponse.json(body, { status })
   }
-  const payload = parsed as Record<string, unknown>
 
-  const headers = new Headers(response.headers)
-  headers.delete('content-length')
-  headers.set(PRIVATE_TOOL_METADATA_RESPONSE_HEADER, RESOLVED_SECRET_PROVENANCE_METADATA_V1)
-  return NextResponse.json(
-    { ...payload, [RESOLVED_SECRET_PROVENANCE_FIELD]: provenance.exportProvenance() },
-    { status: response.status, headers }
+  const envelope = serializePrivateToolMetadataResponseEnvelope(
+    body,
+    RESOLVED_SECRET_PROVENANCE_METADATA_V1,
+    provenance.exportProvenance()
   )
+  return NextResponse.json(envelope.body, { status, headers: envelope.headers })
 }
 
 /**
@@ -103,13 +100,22 @@ export const POST = withRouteHandler(
             resolvedSecretTraceProvenance.record(provenance)
           }
         : undefined
-      const response = await (async (): Promise<NextResponse> => {
+      const errorResponse = (message: string, status: number): NextResponse =>
+        createToolExecutionResponse(
+          { success: false, error: message },
+          status,
+          resolvedSecretTraceProvenance
+        )
+      const successResponse = <T>(data: T, status = 200): NextResponse =>
+        createToolExecutionResponse({ success: true, data }, status, resolvedSecretTraceProvenance)
+
+      return (async (): Promise<NextResponse> => {
         try {
           const rawBody = await readMcpJsonBodyWithLimit(request)
           const parsedBody = mcpToolExecutionBodySchema.safeParse(rawBody)
 
           if (!parsedBody.success) {
-            return createMcpErrorResponse(parsedBody.error, 'Invalid request format', 400)
+            return errorResponse('Invalid request format', 400)
           }
 
           const body = parsedBody.data
@@ -136,7 +142,7 @@ export const POST = withRouteHandler(
             })
           } catch (err) {
             if (err instanceof McpToolsNotAllowedError) {
-              return createMcpErrorResponse(err, err.message, 403)
+              return errorResponse(err.message, 403)
             }
             throw err
           }
@@ -160,11 +166,7 @@ export const POST = withRouteHandler(
               logger.warn(`[${requestId}] Tool ${toolName} not found on server ${serverId}`, {
                 availableTools: tools.map((t) => t.name),
               })
-              return createMcpErrorResponse(
-                new Error('Tool not found'),
-                'Tool not found on the specified server',
-                404
-              )
+              return errorResponse('Tool not found on the specified server', 404)
             }
 
             if (tool.inputSchema?.properties) {
@@ -229,11 +231,7 @@ export const POST = withRouteHandler(
             const validationError = validateToolArguments(tool, args)
             if (validationError) {
               logger.warn(`[${requestId}] Tool validation failed: ${validationError}`)
-              return createMcpErrorResponse(
-                new Error(`Invalid arguments for tool ${toolName}: ${validationError}`),
-                'Invalid tool arguments',
-                400
-              )
+              return errorResponse('Invalid tool arguments', 400)
             }
           }
 
@@ -305,11 +303,7 @@ export const POST = withRouteHandler(
             logger.warn(
               `[${requestId}] Tool execution returned error for ${toolName} on ${serverId}`
             )
-            return createMcpErrorResponse(
-              transformedResult,
-              transformedResult.error || 'Tool execution failed',
-              400
-            )
+            return errorResponse(transformedResult.error || 'Tool execution failed', 400)
           }
           logger.info(`[${requestId}] Successfully executed tool ${toolName} on server ${serverId}`)
 
@@ -330,7 +324,7 @@ export const POST = withRouteHandler(
             })
           }
 
-          return createMcpSuccessResponse(transformedResult)
+          return successResponse(transformedResult)
         } catch (error) {
           if (getErrorMessage(error) === 'Tool execution timeout') {
             resolvedSecretTraceProvenance?.markIncomplete()
@@ -347,27 +341,24 @@ export const POST = withRouteHandler(
             logger.warn(`[${requestId}] OAuth re-authorization required for MCP tool execution`, {
               serverId: errorServerId,
             })
-            return NextResponse.json(
+            return createToolExecutionResponse(
               {
                 success: false,
                 error: 'OAuth re-authorization required',
                 code: 'reauth_required',
                 serverId: errorServerId,
               },
-              { status: 401 }
+              401,
+              resolvedSecretTraceProvenance
             )
           }
 
           logger.error(`[${requestId}] Error executing MCP tool:`, error)
 
           const { message, status } = categorizeError(error)
-          return createMcpErrorResponse(new Error(message), message, status)
+          return errorResponse(message, status)
         }
       })()
-
-      return resolvedSecretTraceProvenance
-        ? attachPrivateProvenance(response, resolvedSecretTraceProvenance)
-        : response
     }
   )
 )

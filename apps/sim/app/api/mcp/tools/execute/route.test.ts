@@ -151,6 +151,34 @@ describe('MCP tool execution private secret provenance', () => {
     expect(mockExecuteTool.mock.calls[0]?.[5]).toBeUndefined()
   })
 
+  it('preserves MCP error status and message when attaching private provenance', async () => {
+    mockExecuteTool.mockResolvedValueOnce({
+      isError: true,
+      content: [{ type: 'text', text: 'Provider rejected the request' }],
+    })
+    const request = createRequest({
+      'x-sim-request-private-tool-metadata': 'resolved-secret-provenance-v1',
+    })
+
+    const response = await POST(request, {})
+    const body = (await response.json()) as Record<string, unknown>
+
+    expect(response.status).toBe(400)
+    expect(response.headers.get('x-sim-private-tool-metadata')).toBe(
+      'resolved-secret-provenance-v1'
+    )
+    expect(body).toMatchObject({
+      success: false,
+      error: 'Provider rejected the request',
+      __resolvedSecretTraceProvenance: {
+        version: 1,
+        complete: true,
+        entries: [],
+        scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+      },
+    })
+  })
+
   it('attaches private provenance without imposing a second functional response limit', async () => {
     const largeText = 'x'.repeat(10 * 1024 * 1024 + 1)
     mockExecuteTool.mockResolvedValueOnce({
@@ -160,7 +188,16 @@ describe('MCP tool execution private secret provenance', () => {
       'x-sim-request-private-tool-metadata': 'resolved-secret-provenance-v1',
     })
 
-    const response = await POST(request, {})
+    const response = await (async () => {
+      const responseJsonSpy = vi.spyOn(Response.prototype, 'json')
+      try {
+        const result = await POST(request, {})
+        expect(responseJsonSpy).not.toHaveBeenCalled()
+        return result
+      } finally {
+        responseJsonSpy.mockRestore()
+      }
+    })()
     const body = (await response.json()) as Record<string, unknown>
 
     expect(response.status).toBe(200)
