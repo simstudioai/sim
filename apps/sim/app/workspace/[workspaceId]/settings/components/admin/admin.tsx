@@ -7,6 +7,7 @@ import {
   Chip,
   ChipConfirmModal,
   ChipInput,
+  ChipModalError,
   ChipModalField,
   ChipSelect,
   Label,
@@ -269,7 +270,10 @@ export function Admin() {
                 },
                 {
                   label: u.role === 'admin' ? 'Demote' : 'Promote',
-                  onSelect: () => setPendingAction({ type: 'role', user: u }),
+                  onSelect: () => {
+                    setUserRole.reset()
+                    setPendingAction({ type: 'role', user: u })
+                  },
                   disabled: pendingUserIds.has(u.id),
                 },
                 u.banned
@@ -527,6 +531,7 @@ export function Admin() {
           placeholder='Optional'
           disabled={banUser.isPending}
         />
+        <ChipModalError>{banUser.error?.message}</ChipModalError>
       </ChipConfirmModal>
 
       <ChipConfirmModal
@@ -553,7 +558,9 @@ export function Admin() {
           pending: setUserRole.isPending,
           pendingLabel: isDemotion ? 'Demoting...' : 'Promoting...',
         }}
-      />
+      >
+        <ChipModalError>{setUserRole.error?.message}</ChipModalError>
+      </ChipConfirmModal>
 
       <AddUserModal
         open={isAddUserOpen}
