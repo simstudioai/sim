@@ -8,7 +8,6 @@ import { ZoomablePreview } from './zoomable-preview'
 
 export const ImagePreview = memo(function ImagePreview({ file }: { file: WorkspaceFileRecord }) {
   const source = useFileContentSource()
-  const [status, setStatus] = useState<'loading' | 'loaded' | 'error'>('loading')
   // Version the URL on updatedAt: overwrites keep the same storage key, so an unversioned
   // URL would resolve to a previously cached copy instead of the rewritten bytes.
   // `preview` lets the server substitute a renderable derivative for a HEIC.
@@ -16,6 +15,17 @@ export const ImagePreview = memo(function ImagePreview({ file }: { file: Workspa
     version: Number(new Date(file.updatedAt)) || file.size,
     preview: true,
   })
+
+  const [status, setStatus] = useState<'loading' | 'loaded' | 'error'>('loading')
+  const [loadedUrl, setLoadedUrl] = useState(serveUrl)
+
+  // The parent keys this on `file.key`, which an overwrite preserves — only the
+  // version changes. Without this the outcome of the previous bytes would stick,
+  // leaving a replaced image permanently on the unsupported state.
+  if (loadedUrl !== serveUrl) {
+    setLoadedUrl(serveUrl)
+    setStatus('loading')
+  }
 
   // Covers every way the bytes can turn out unrenderable — a derivative the server
   // declined to build (too large, undecodable) and a corrupt or truncated image

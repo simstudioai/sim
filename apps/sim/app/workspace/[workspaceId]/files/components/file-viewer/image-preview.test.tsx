@@ -42,8 +42,8 @@ afterEach(() => {
   container.remove()
 })
 
-function render() {
-  act(() => root.render(<ImagePreview file={file} />))
+function render(record: WorkspaceFileRecord = file) {
+  act(() => root.render(<ImagePreview file={record} />))
 }
 
 describe('ImagePreview', () => {
@@ -67,5 +67,21 @@ describe('ImagePreview', () => {
 
     expect(container.querySelector('img')).toBeNull()
     expect(container.textContent).toContain('Preview not available')
+  })
+
+  it('retries when the file is overwritten, which keeps the same storage key', () => {
+    render()
+
+    act(() => {
+      container.querySelector('img')?.dispatchEvent(new Event('error'))
+    })
+    expect(container.textContent).toContain('Preview not available')
+
+    // An overwrite preserves `file.key` — the parent's key — so only the version
+    // changes and the component never remounts.
+    render({ ...file, updatedAt: new Date('2026-02-01T00:00:00Z') })
+
+    expect(container.querySelector('img')).not.toBeNull()
+    expect(container.textContent).not.toContain('Preview not available')
   })
 })
