@@ -40,9 +40,7 @@ interface AuditResult {
   output: string
 }
 
-async function auditScripts(): Promise<string[]> {
-  const manifest = await Bun.file(path.join(ROOT, 'package.json')).json()
-  const scripts = manifest.scripts as Record<string, string>
+function auditScripts(scripts: Record<string, string>): string[] {
   const derived = Object.keys(scripts).filter(
     (name) => name.startsWith('check:') && !(name in EXCLUDED)
   )
@@ -79,7 +77,7 @@ async function runAudit(script: string, command: string): Promise<AuditResult> {
 
 const manifest = await Bun.file(path.join(ROOT, 'package.json')).json()
 const commands = manifest.scripts as Record<string, string>
-const queue = await auditScripts()
+const queue = auditScripts(commands)
 const total = queue.length
 // The coordinator only awaits, so it does not need a core reserved for it.
 const workers = Math.min(Math.max(2, navigator.hardwareConcurrency), total)
