@@ -30,6 +30,9 @@ const HEIF_BRANDS = new Set([...HEVC_HEIF_BRANDS, 'mif1', 'msf1', 'avif', 'avis'
  */
 const MAX_TRANSCODE_INPUT_BYTES = 20 * 1024 * 1024
 
+/** A real `ftyp` box holds a handful of brands; anything larger is malformed or hostile. */
+const MAX_FTYP_BOX_BYTES = 512
+
 /**
  * Whether an ISO-BMFF `ftyp` box names any of `brands`, as either the major brand
  * or a compatible brand.
@@ -47,8 +50,9 @@ function declaresBrand(buffer: Buffer, brands: ReadonlySet<string>): boolean {
   // the HEIF brand only among the compatible brands, which follow the 4-byte
   // minor_version at offset 12 and run to the end of the box. A declared size of 0
   // or 1 (the ISO-BMFF size escapes, which `ftyp` does not use) leaves `end` below
-  // the loop's start, so those simply do not scan.
-  const end = Math.min(buffer.readUInt32BE(0), buffer.length)
+  // the loop's start, so those simply do not scan. The size is attacker-controlled
+  // and this runs on every preview, so cap it rather than trusting the declaration.
+  const end = Math.min(buffer.readUInt32BE(0), buffer.length, MAX_FTYP_BOX_BYTES)
   for (let offset = 16; offset + 4 <= end; offset += 4) {
     if (brands.has(buffer.toString('ascii', offset, offset + 4))) return true
   }

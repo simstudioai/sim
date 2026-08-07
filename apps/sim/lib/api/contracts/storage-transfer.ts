@@ -501,7 +501,7 @@ export const fileServeParamsSchema = z.object({
 
 export const fileServeQuerySchema = z.object({
   raw: z.string().nullish(),
-  /** `1` => the caller is rendering these bytes, not downloading them, so a format no browser decodes (HEIC) may be substituted with a renderable derivative. Absent => the stored bytes are served. */
+  /** `1` => rendering, not downloading — a HEIC may be substituted with a JPEG derivative. */
   preview: z.string().nullish(),
   /** Content version (the file record's `updatedAt`). Present => the URL is content-immutable and may be cached indefinitely by the browser. */
   v: z.string().nullish(),

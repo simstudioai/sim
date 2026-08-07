@@ -171,7 +171,7 @@ function FileViewerContent({
       // browser. CsvTablePreview's streamed fallback is workspace-only, so on the
       // read-only public path a large CSV is download-only.
       if (isCsvStreamOnly(file)) {
-        return <UnsupportedPreview file={file} />
+        return <UnsupportedPreview name={file.name} />
       }
       // Markdown renders through the inline rich editor (non-editable) so the public share
       // surface matches the in-app reading experience; canEdit={false} disables autosave,
@@ -260,7 +260,7 @@ function FileViewerContent({
     return <XlsxPreview key={file.id} file={file} workspaceId={workspaceId} />
   }
 
-  return <UnsupportedPreview file={file} />
+  return <UnsupportedPreview name={file.name} />
 }
 
 /**

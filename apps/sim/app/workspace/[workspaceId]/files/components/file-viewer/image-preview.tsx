@@ -8,29 +8,19 @@ import { ZoomablePreview } from './zoomable-preview'
 
 export const ImagePreview = memo(function ImagePreview({ file }: { file: WorkspaceFileRecord }) {
   const source = useFileContentSource()
-  // Version the URL on updatedAt: overwrites keep the same storage key, so an unversioned
-  // URL would resolve to a previously cached copy instead of the rewritten bytes.
-  // `preview` lets the server substitute a renderable derivative for a HEIC.
+  /** `v` busts the browser cache across content writes; `preview` lets the server
+   *  substitute a renderable JPEG for a HEIC. */
   const serveUrl = source.buildUrl(file.key, {
     version: Number(new Date(file.updatedAt)) || file.size,
     preview: true,
   })
 
   const [status, setStatus] = useState<'loading' | 'loaded' | 'error'>('loading')
-  const [loadedUrl, setLoadedUrl] = useState(serveUrl)
 
-  // The parent keys this on `file.key`, which an overwrite preserves — only the
-  // version changes. Without this the outcome of the previous bytes would stick,
-  // leaving a replaced image permanently on the unsupported state.
-  if (loadedUrl !== serveUrl) {
-    setLoadedUrl(serveUrl)
-    setStatus('loading')
-  }
-
-  // Covers every way the bytes can turn out unrenderable — a derivative the server
-  // declined to build (too large, undecodable) and a corrupt or truncated image
-  // alike — rather than leaving a broken image in the viewer.
-  if (status === 'error') return <UnsupportedPreview file={file} />
+  /** A derivative the server declined to build, or corrupt bytes — show the download
+   *  fallback rather than a broken image. Content writes mint a new storage key, so
+   *  the parent's `key={file.key}` resets this. */
+  if (status === 'error') return <UnsupportedPreview name={file.name} />
 
   return (
     <div className='relative flex min-h-0 flex-1 flex-col'>

@@ -69,17 +69,18 @@ describe('ImagePreview', () => {
     expect(container.textContent).toContain('Preview not available')
   })
 
-  it('retries when the file is overwritten, which keeps the same storage key', () => {
-    render()
+  it('retries after an overwrite, which mints a new storage key and remounts', () => {
+    act(() => root.render(<ImagePreview key={file.key} file={file} />))
 
     act(() => {
       container.querySelector('img')?.dispatchEvent(new Event('error'))
     })
     expect(container.textContent).toContain('Preview not available')
 
-    // An overwrite preserves `file.key` — the parent's key — so only the version
-    // changes and the component never remounts.
-    render({ ...file, updatedAt: new Date('2026-02-01T00:00:00Z') })
+    // Every content write mints a fresh key, so the parent's `key={file.key}`
+    // remounts this and the previous bytes' outcome cannot stick.
+    const overwritten = { ...file, key: 'workspace/ws-1/photo-v2.heic' }
+    act(() => root.render(<ImagePreview key={overwritten.key} file={overwritten} />))
 
     expect(container.querySelector('img')).not.toBeNull()
     expect(container.textContent).not.toContain('Preview not available')

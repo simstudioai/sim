@@ -13,12 +13,8 @@ const logger = createLogger('FilePreview')
  * viewer at all, or a viewer that was expected to work failed (e.g. a HEIC whose
  * server-side derivative could not be produced).
  */
-export const UnsupportedPreview = memo(function UnsupportedPreview({
-  file,
-}: {
-  file: { name: string }
-}) {
-  const ext = getFileExtension(file.name)
+export const UnsupportedPreview = memo(function UnsupportedPreview({ name }: { name: string }) {
+  const ext = getFileExtension(name)
 
   return (
     <div className='flex flex-1 flex-col items-center justify-center gap-[8px]'>

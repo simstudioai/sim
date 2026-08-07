@@ -117,7 +117,7 @@ export const getPublicFileContract = defineRouteContract({
 })
 
 const publicFileContentQuerySchema = z.object({
-  /** `1` => the caller is rendering these bytes, not downloading them, so a format no browser decodes (HEIC) may be substituted with a renderable derivative. Absent => the stored bytes are served. */
+  /** `1` => rendering, not downloading — a HEIC may be substituted with a JPEG derivative. */
   preview: z.string().nullish(),
 })
 

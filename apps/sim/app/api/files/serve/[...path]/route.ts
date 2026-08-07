@@ -57,9 +57,8 @@ async function resolveServableBytes(params: {
   if (options.raw) return { buffer, contentType: getContentType(filename) }
 
   if (options.preview) {
-    // Images resolve first and independently of the document path: a HEIF has no
-    // compiled-source concept, and its derivative is keyed by storage key rather
-    // than by source hash.
+    // Images resolve independently of the document path: a HEIF has no compiled-source
+    // concept, so it never reaches the doc branch.
     const image = await resolveServableImageBytes(buffer, storageKey)
     if (image) return image
   }

@@ -117,7 +117,8 @@ export function createPublicFileContentSource(
   contentUrl: string
 ): FileContentSource {
   return inlineImageSource(
-    (_key, opts) => (opts?.preview ? `${contentUrl}?preview=1` : contentUrl),
+    (_key, opts) =>
+      opts?.preview ? `${contentUrl}${contentUrl.includes('?') ? '&' : '?'}preview=1` : contentUrl,
     `/api/files/public/${token}/inline`
   )
 }

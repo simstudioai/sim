@@ -73,6 +73,17 @@ describe('isHeifContainer', () => {
     expect(isHeifContainer(truncated)).toBe(false)
   })
 
+  it('caps the scan so an inflated declared box size cannot drive the loop', () => {
+    // The declared size is attacker-controlled; without the cap this scans the
+    // whole buffer, and this runs on every preview request.
+    const inflated = Buffer.alloc(64 * 1024)
+    inflated.writeUInt32BE(0xffffffff, 0)
+    inflated.write('ftyp', 4, 'ascii')
+    inflated.write('isom', 8, 'ascii')
+    inflated.write('heic', 60 * 1024, 'ascii')
+    expect(isHeifContainer(inflated)).toBe(false)
+  })
+
   it('rejects buffers too short to carry a brand', () => {
     expect(isHeifContainer(Buffer.alloc(0))).toBe(false)
     expect(isHeifContainer(ftypHeader('heic').subarray(0, 11))).toBe(false)
