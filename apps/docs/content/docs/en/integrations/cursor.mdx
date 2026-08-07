@@ -34,7 +34,7 @@ Interact with Cursor Cloud Agents API to launch AI agents that can work on your 
 
 ## Actions
 
-### `cursor_list_agents`
+### Cursor List Agents
 
 List all cloud agents for the authenticated user with optional pagination. Returns API-aligned fields only.
 
@@ -54,7 +54,7 @@ List all cloud agents for the authenticated user with optional pagination. Retur
 | `agents` | array | Array of agent objects |
 | `nextCursor` | string | Pagination cursor for next page |
 
-### `cursor_get_agent`
+### Cursor Get Agent
 
 Retrieve the current status and results of a cloud agent. Returns API-aligned fields only.
 
@@ -77,7 +77,7 @@ Retrieve the current status and results of a cloud agent. Returns API-aligned fi
 | `summary` | string | Agent summary |
 | `createdAt` | string | Creation timestamp |
 
-### `cursor_get_conversation`
+### Cursor Get Conversation
 
 Retrieve the conversation history of a cloud agent, including all user prompts and assistant responses. Returns API-aligned fields only.
 
@@ -95,7 +95,7 @@ Retrieve the conversation history of a cloud agent, including all user prompts a
 | `id` | string | Agent ID |
 | `messages` | array | Array of conversation messages |
 
-### `cursor_launch_agent`
+### Cursor Launch Agent
 
 Start a new cloud agent to work on a GitHub repository with the given instructions. Returns API-aligned fields only.
 
@@ -121,7 +121,7 @@ Start a new cloud agent to work on a GitHub repository with the given instructio
 | `id` | string | Agent ID |
 | `url` | string | Agent URL |
 
-### `cursor_add_followup`
+### Cursor Add Follow-up
 
 Add a follow-up instruction to an existing cloud agent. Returns API-aligned fields only.
 
@@ -140,7 +140,7 @@ Add a follow-up instruction to an existing cloud agent. Returns API-aligned fiel
 | --------- | ---- | ----------- |
 | `id` | string | Agent ID |
 
-### `cursor_stop_agent`
+### Cursor Stop Agent
 
 Stop a running cloud agent. Returns API-aligned fields only.
 
@@ -157,7 +157,7 @@ Stop a running cloud agent. Returns API-aligned fields only.
 | --------- | ---- | ----------- |
 | `id` | string | Agent ID |
 
-### `cursor_delete_agent`
+### Cursor Delete Agent
 
 Permanently delete a cloud agent. Returns API-aligned fields only.
 
@@ -174,7 +174,7 @@ Permanently delete a cloud agent. Returns API-aligned fields only.
 | --------- | ---- | ----------- |
 | `id` | string | Agent ID |
 
-### `cursor_list_artifacts`
+### Cursor List Artifacts
 
 List generated artifact files for a cloud agent. Returns API-aligned fields only.
 
@@ -193,7 +193,7 @@ List generated artifact files for a cloud agent. Returns API-aligned fields only
 |   ↳ `path` | string | Artifact file path |
 |   ↳ `size` | number | File size in bytes |
 
-### `cursor_download_artifact`
+### Cursor Download Artifact
 
 Download a generated artifact file from a cloud agent. Returns the file for execution storage.
 
@@ -211,7 +211,7 @@ Download a generated artifact file from a cloud agent. Returns the file for exec
 | --------- | ---- | ----------- |
 | `file` | file | Downloaded artifact file stored in execution files |
 
-### `cursor_list_models`
+### Cursor List Models
 
 List the models available for launching cloud agents. Returns API-aligned fields only.
 
@@ -227,7 +227,7 @@ List the models available for launching cloud agents. Returns API-aligned fields
 | --------- | ---- | ----------- |
 | `models` | array | Array of available model names |
 
-### `cursor_list_repositories`
+### Cursor List Repositories
 
 List the GitHub repositories accessible to the authenticated user. Returns API-aligned fields only.
 
@@ -246,7 +246,7 @@ List the GitHub repositories accessible to the authenticated user. Returns API-a
 |   ↳ `name` | string | Repository name |
 |   ↳ `repository` | string | Repository URL |
 
-### `cursor_get_api_key_info`
+### Cursor Get API Key Info
 
 Retrieve details about the API key currently in use. Returns API-aligned fields only.
 

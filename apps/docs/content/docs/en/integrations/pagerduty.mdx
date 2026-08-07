@@ -36,7 +36,7 @@ Integrate PagerDuty into your workflow to list, get, create, update, snooze, and
 
 ## Actions
 
-### `pagerduty_list_incidents`
+### PagerDuty List Incidents
 
 List incidents from PagerDuty with optional filters.
 
@@ -76,7 +76,7 @@ List incidents from PagerDuty with optional filters.
 | `more` | boolean | Whether more results are available |
 | `offset` | number | Offset used for this page of results |
 
-### `pagerduty_get_incident`
+### PagerDuty Get Incident
 
 Get a single incident from PagerDuty by ID.
 
@@ -108,7 +108,7 @@ Get a single incident from PagerDuty by ID.
 | `incidentKey` | string | De-duplication key |
 | `htmlUrl` | string | PagerDuty web URL |
 
-### `pagerduty_create_incident`
+### PagerDuty Create Incident
 
 Create a new incident in PagerDuty.
 
@@ -140,7 +140,7 @@ Create a new incident in PagerDuty.
 | `serviceId` | string | Service ID |
 | `htmlUrl` | string | PagerDuty web URL |
 
-### `pagerduty_update_incident`
+### PagerDuty Update Incident
 
 Update an incident in PagerDuty (acknowledge, resolve, change urgency, etc.).
 
@@ -169,7 +169,7 @@ Update an incident in PagerDuty (acknowledge, resolve, change urgency, etc.).
 | `updatedAt` | string | Last updated timestamp |
 | `htmlUrl` | string | PagerDuty web URL |
 
-### `pagerduty_snooze_incident`
+### PagerDuty Snooze Incident
 
 Snooze a triggered PagerDuty incident for a number of seconds, after which it returns to triggered.
 
@@ -191,7 +191,7 @@ Snooze a triggered PagerDuty incident for a number of seconds, after which it re
 | `status` | string | Incident status after snoozing |
 | `htmlUrl` | string | PagerDuty web URL |
 
-### `pagerduty_merge_incidents`
+### PagerDuty Merge Incidents
 
 Merge one or more source incidents into a target incident. Source incidents are resolved and their alerts move to the target.
 
@@ -214,7 +214,7 @@ Merge one or more source incidents into a target incident. Source incidents are 
 | `status` | string | Target incident status |
 | `htmlUrl` | string | PagerDuty web URL |
 
-### `pagerduty_add_note`
+### PagerDuty Add Note
 
 Add a note to an existing PagerDuty incident.
 
@@ -236,7 +236,7 @@ Add a note to an existing PagerDuty incident.
 | `createdAt` | string | Creation timestamp |
 | `userName` | string | Name of the user who created the note |
 
-### `pagerduty_list_incident_alerts`
+### PagerDuty List Incident Alerts
 
 List the individual alerts attached to a PagerDuty incident.
 
@@ -268,7 +268,7 @@ List the individual alerts attached to a PagerDuty incident.
 | `more` | boolean | Whether more results are available |
 | `offset` | number | Offset used for this page of results |
 
-### `pagerduty_list_services`
+### PagerDuty List Services
 
 List services from PagerDuty with optional name filter.
 
@@ -298,7 +298,7 @@ List services from PagerDuty with optional name filter.
 | `more` | boolean | Whether more results are available |
 | `offset` | number | Offset used for this page of results |
 
-### `pagerduty_get_service`
+### PagerDuty Get Service
 
 Get a single service from PagerDuty by ID.
 
@@ -325,7 +325,7 @@ Get a single service from PagerDuty by ID.
 | `escalationPolicyId` | string | Escalation policy ID |
 | `htmlUrl` | string | PagerDuty web URL |
 
-### `pagerduty_list_oncalls`
+### PagerDuty List On-Calls
 
 List current on-call entries from PagerDuty.
 
@@ -359,7 +359,7 @@ List current on-call entries from PagerDuty.
 | `more` | boolean | Whether more results are available |
 | `offset` | number | Offset used for this page of results |
 
-### `pagerduty_list_escalation_policies`
+### PagerDuty List Escalation Policies
 
 List escalation policies from PagerDuty with an optional name filter.
 
@@ -387,7 +387,7 @@ List escalation policies from PagerDuty with an optional name filter.
 | `more` | boolean | Whether more results are available |
 | `offset` | number | Offset used for this page of results |
 
-### `pagerduty_list_schedules`
+### PagerDuty List Schedules
 
 List on-call schedules from PagerDuty with an optional name filter.
 
@@ -414,7 +414,7 @@ List on-call schedules from PagerDuty with an optional name filter.
 | `more` | boolean | Whether more results are available |
 | `offset` | number | Offset used for this page of results |
 
-### `pagerduty_list_users`
+### PagerDuty List Users
 
 List users from PagerDuty with an optional name/email filter.
 
@@ -443,7 +443,7 @@ List users from PagerDuty with an optional name/email filter.
 | `more` | boolean | Whether more results are available |
 | `offset` | number | Offset used for this page of results |
 
-### `pagerduty_send_event`
+### PagerDuty Send Event
 
 Send a trigger, acknowledge, or resolve event to PagerDuty Events API v2 using a service integration key. Used to page from monitoring/alerting sources without a PagerDuty user account.
 

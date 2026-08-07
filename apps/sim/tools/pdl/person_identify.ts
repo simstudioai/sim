@@ -1,13 +1,10 @@
-import type {
-  PdlPersonIdentifyParams,
-  PdlPersonIdentifyResponse,
-} from '@/tools/peopledatalabs/types'
+import type { PdlPersonIdentifyParams, PdlPersonIdentifyResponse } from '@/tools/pdl/types'
 import {
   PDL_CREDIT_USD,
   PDL_PERSON_OUTPUT_PROPERTIES,
   PEOPLEDATALABS_API_KEY_PREFIX,
-} from '@/tools/peopledatalabs/types'
-import { buildQueryString, projectPerson } from '@/tools/peopledatalabs/utils'
+} from '@/tools/pdl/types'
+import { buildQueryString, projectPerson } from '@/tools/pdl/utils'
 import type { OutputProperty, ToolConfig } from '@/tools/types'
 
 const IDENTIFY_MATCH_PROPERTIES = {

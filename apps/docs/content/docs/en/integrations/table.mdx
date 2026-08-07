@@ -60,7 +60,7 @@ Create and manage custom data tables. Store, query, and manipulate structured da
 
 ## Actions
 
-### `table_insert_row`
+### Insert Row
 
 Insert a new row into a table. IMPORTANT: You must use the "data" parameter (not "values", "row", "fields", or other variations) to specify the row contents.
 
@@ -79,7 +79,7 @@ Insert a new row into a table. IMPORTANT: You must use the "data" parameter (not
 | `row` | json | Inserted row data |
 | `message` | string | Status message |
 
-### `table_batch_insert_rows`
+### Batch Insert Rows
 
 Insert multiple rows into a table at once (up to $\{TABLE_LIMITS.MAX_BATCH_INSERT_SIZE\} rows)
 
@@ -99,7 +99,7 @@ Insert multiple rows into a table at once (up to $\{TABLE_LIMITS.MAX_BATCH_INSER
 | `insertedCount` | number | Number of rows inserted |
 | `message` | string | Status message |
 
-### `table_upsert_row`
+### Upsert Row
 
 Insert or update a row based on unique column constraints. If a row with matching unique field exists, update it; otherwise insert a new row. IMPORTANT: You must use the "data" parameter (not "values", "row", "fields", or other variations) to specify the row contents.
 
@@ -120,7 +120,7 @@ Insert or update a row based on unique column constraints. If a row with matchin
 | `operation` | string | Operation performed: insert or update |
 | `message` | string | Status message |
 
-### `table_update_row`
+### Update Row
 
 Update an existing row in a table. Supports partial updates - only include the fields you want to change. IMPORTANT: You must use the "data" parameter (not "values", "row", "fields", or other variations) to specify the fields to update.
 
@@ -140,7 +140,7 @@ Update an existing row in a table. Supports partial updates - only include the f
 | `row` | json | Updated row data |
 | `message` | string | Status message |
 
-### `table_update_rows_by_filter`
+### Update Rows by Filter
 
 Update multiple rows that match filter criteria. Data is merged with existing row data.
 
@@ -162,7 +162,7 @@ Update multiple rows that match filter criteria. Data is merged with existing ro
 | `updatedRowIds` | array | IDs of updated rows |
 | `message` | string | Status message |
 
-### `table_delete_row`
+### Delete Row
 
 Delete a row from a table
 
@@ -181,7 +181,7 @@ Delete a row from a table
 | `deletedCount` | number | Number of rows deleted |
 | `message` | string | Status message |
 
-### `table_delete_rows_by_filter`
+### Delete Rows by Filter
 
 Delete multiple rows that match filter criteria. Use with caution - supports optional limit for safety.
 
@@ -202,7 +202,7 @@ Delete multiple rows that match filter criteria. Use with caution - supports opt
 | `deletedRowIds` | array | IDs of deleted rows |
 | `message` | string | Status message |
 
-### `table_query_rows`
+### Query Rows
 
 Query rows from a table with filtering, sorting, and pagination
 
@@ -227,7 +227,7 @@ Query rows from a table with filtering, sorting, and pagination
 | `limit` | number | Limit used in query |
 | `offset` | number | Offset used in query |
 
-### `table_get_row`
+### Get Row
 
 Get a single row by ID
 
@@ -246,7 +246,7 @@ Get a single row by ID
 | `row` | json | Row data |
 | `message` | string | Status message |
 
-### `table_get_schema`
+### Get Schema
 
 Get the schema configuration of a table
 

@@ -1,10 +1,10 @@
-import type { PdlCompanyEnrichParams, PdlCompanyEnrichResponse } from '@/tools/peopledatalabs/types'
+import type { PdlCompanyEnrichParams, PdlCompanyEnrichResponse } from '@/tools/pdl/types'
 import {
   PDL_COMPANY_OUTPUT_PROPERTIES,
   PDL_CREDIT_USD,
   PEOPLEDATALABS_API_KEY_PREFIX,
-} from '@/tools/peopledatalabs/types'
-import { buildQueryString, projectCompany } from '@/tools/peopledatalabs/utils'
+} from '@/tools/pdl/types'
+import { buildQueryString, projectCompany } from '@/tools/pdl/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const companyEnrichTool: ToolConfig<PdlCompanyEnrichParams, PdlCompanyEnrichResponse> = {

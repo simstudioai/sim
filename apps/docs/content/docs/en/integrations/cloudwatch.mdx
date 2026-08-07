@@ -36,7 +36,7 @@ Integrate AWS CloudWatch into workflows. Run Log Insights queries, list log grou
 
 ## Actions
 
-### `cloudwatch_query_logs`
+### CloudWatch Query Logs
 
 Run a CloudWatch Log Insights query against one or more log groups
 
@@ -64,7 +64,7 @@ Run a CloudWatch Log Insights query against one or more log groups
 |   ↳ `recordsScanned` | number | Total log records scanned |
 | `status` | string | Query completion status \(Complete, Failed, Cancelled, or Timeout\) |
 
-### `cloudwatch_filter_log_events`
+### CloudWatch Filter Log Events
 
 Search log events across all streams in a log group by filter pattern and time range, without writing a Log Insights query
 
@@ -93,7 +93,7 @@ Search log events across all streams in a log group by filter pattern and time r
 |   ↳ `message` | string | Log event message |
 |   ↳ `ingestionTime` | number | Ingestion time in epoch milliseconds |
 
-### `cloudwatch_describe_log_groups`
+### CloudWatch Describe Log Groups
 
 List available CloudWatch log groups
 
@@ -118,7 +118,7 @@ List available CloudWatch log groups
 |   ↳ `retentionInDays` | number | Retention period in days \(if set\) |
 |   ↳ `creationTime` | number | Creation time in epoch milliseconds |
 
-### `cloudwatch_get_log_events`
+### CloudWatch Get Log Events
 
 Retrieve log events from a specific CloudWatch log stream
 
@@ -144,7 +144,7 @@ Retrieve log events from a specific CloudWatch log stream
 |   ↳ `message` | string | Log event message |
 |   ↳ `ingestionTime` | number | Ingestion time in epoch milliseconds |
 
-### `cloudwatch_describe_log_streams`
+### CloudWatch Describe Log Streams
 
 List log streams within a CloudWatch log group
 
@@ -170,7 +170,7 @@ List log streams within a CloudWatch log group
 |   ↳ `creationTime` | number | Stream creation time in epoch milliseconds |
 |   ↳ `storedBytes` | number | Total stored bytes |
 
-### `cloudwatch_put_log_group_retention`
+### CloudWatch Set Log Group Retention
 
 Set (or clear, for never-expire) the retention period for a CloudWatch log group
 
@@ -192,7 +192,7 @@ Set (or clear, for never-expire) the retention period for a CloudWatch log group
 | `logGroupName` | string | Log group the policy applies to |
 | `retentionInDays` | number | Retention period in days, or null if events never expire |
 
-### `cloudwatch_list_metrics`
+### CloudWatch List Metrics
 
 List available CloudWatch metrics
 
@@ -217,7 +217,7 @@ List available CloudWatch metrics
 |   ↳ `metricName` | string | Metric name \(e.g., CPUUtilization\) |
 |   ↳ `dimensions` | array | Array of name/value dimension pairs |
 
-### `cloudwatch_get_metric_statistics`
+### CloudWatch Get Metric Statistics
 
 Get statistics for a CloudWatch metric over a time range
 
@@ -250,7 +250,7 @@ Get statistics for a CloudWatch metric over a time range
 |   ↳ `sampleCount` | number | Sample count statistic value |
 |   ↳ `unit` | string | Unit of the metric |
 
-### `cloudwatch_put_metric_data`
+### CloudWatch Publish Metric
 
 Publish a custom metric data point to CloudWatch
 
@@ -278,7 +278,7 @@ Publish a custom metric data point to CloudWatch
 | `unit` | string | Metric unit |
 | `timestamp` | string | Timestamp when the metric was published |
 
-### `cloudwatch_describe_alarms`
+### CloudWatch Describe Alarms
 
 List and filter CloudWatch alarms
 
@@ -308,7 +308,7 @@ List and filter CloudWatch alarms
 |   ↳ `threshold` | number | Threshold value \(MetricAlarm only\) |
 |   ↳ `stateUpdatedTimestamp` | number | Epoch ms when state last changed |
 
-### `cloudwatch_describe_alarm_history`
+### CloudWatch Describe Alarm History
 
 Retrieve state-change and configuration history for CloudWatch alarms
 
@@ -337,7 +337,7 @@ Retrieve state-change and configuration history for CloudWatch alarms
 |   ↳ `historyItemType` | string | ConfigurationUpdate, StateUpdate, Action, or contributor variants |
 |   ↳ `historySummary` | string | Human-readable summary of the event |
 
-### `cloudwatch_mute_alarm`
+### CloudWatch Mute Alarm
 
 Create a CloudWatch alarm mute rule that suppresses alarms for a fixed duration
 
@@ -365,7 +365,7 @@ Create a CloudWatch alarm mute rule that suppresses alarms for a fixed duration
 | `expression` | string | Schedule expression used by the mute rule |
 | `duration` | string | ISO 8601 duration of the mute window |
 
-### `cloudwatch_unmute_alarm`
+### CloudWatch Unmute Alarm
 
 Delete a CloudWatch alarm mute rule, restoring alarm notifications
 

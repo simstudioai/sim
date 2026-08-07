@@ -1,7 +1,7 @@
 import { PeopleDataLabsIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { PdlPersonEnrichResponse } from '@/tools/peopledatalabs/types'
+import type { PdlPersonEnrichResponse } from '@/tools/pdl/types'
 
 export const PeopleDataLabsBlock: BlockConfig<PdlPersonEnrichResponse> = {
   type: 'peopledatalabs',

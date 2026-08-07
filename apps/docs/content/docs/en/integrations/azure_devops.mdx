@@ -35,7 +35,7 @@ Integrate Azure DevOps into your workflow. List and inspect pipelines and builds
 
 ## Actions
 
-### `azure_devops_list_pipelines`
+### Azure DevOps List Pipelines
 
 List all pipelines in an Azure DevOps project. Returns pipeline ID, name, folder, revision, and URL.
 
@@ -63,7 +63,7 @@ List all pipelines in an Azure DevOps project. Returns pipeline ID, name, folder
 |     ↳ `revision` | number | Pipeline revision number |
 |     ↳ `url` | string | Pipeline API URL |
 
-### `azure_devops_get_pipeline`
+### Azure DevOps Get Pipeline
 
 Get details for a specific pipeline in an Azure DevOps project, including configuration and repository info.
 
@@ -98,7 +98,7 @@ Get details for a specific pipeline in an Azure DevOps project, including config
 |       ↳ `self` | string | API self-link |
 |       ↳ `web` | string | Browser URL for the pipeline |
 
-### `azure_devops_list_pipeline_runs`
+### Azure DevOps List Pipeline Runs
 
 List runs for a specific pipeline in an Azure DevOps project. Returns run ID, name, state, result, and timestamps.
 
@@ -127,7 +127,7 @@ List runs for a specific pipeline in an Azure DevOps project. Returns run ID, na
 |     ↳ `url` | string | Run API URL |
 |     ↳ `webUrl` | string | Browser URL for the run |
 
-### `azure_devops_get_pipeline_run`
+### Azure DevOps Get Pipeline Run
 
 Get details for a specific pipeline run in an Azure DevOps project. Returns run state, result, timestamps, and the pipeline reference.
 
@@ -162,7 +162,7 @@ Get details for a specific pipeline run in an Azure DevOps project. Returns run 
 |       ↳ `revision` | number | Pipeline revision number |
 |       ↳ `url` | string | Pipeline API URL |
 
-### `azure_devops_list_builds`
+### Azure DevOps List Builds
 
 List builds in an Azure DevOps project. Optionally filter by pipeline definition, status, result, or branch.
 
@@ -200,7 +200,7 @@ List builds in an Azure DevOps project. Optionally filter by pipeline definition
 |       ↳ `name` | string | Definition name |
 |     ↳ `webUrl` | string | Browser URL for the build |
 
-### `azure_devops_list_build_logs`
+### Azure DevOps List Build Logs
 
 List all log entries for a specific build in Azure DevOps. Returns log IDs, types, and line counts — use the log ID with the Get Build Log tool to fetch actual log text.
 
@@ -227,7 +227,7 @@ List all log entries for a specific build in Azure DevOps. Returns log IDs, type
 |     ↳ `createdOn` | string | ISO 8601 creation timestamp |
 |     ↳ `lastChangedOn` | string | ISO 8601 last-changed timestamp |
 
-### `azure_devops_get_build_log`
+### Azure DevOps Get Build Log
 
 Fetch the text content of a specific build log in Azure DevOps. Use List Build Logs first to get the log ID. Optionally retrieve only a line range with startLine/endLine.
 
@@ -250,7 +250,7 @@ Fetch the text content of a specific build log in Azure DevOps. Use List Build L
 | `metadata` | object | Log metadata |
 |   ↳ `lineCount` | number | Number of lines in the returned log text |
 
-### `azure_devops_get_build_timeline`
+### Azure DevOps Get Build Timeline
 
 Get the execution timeline for an Azure DevOps build — every stage, job, and task with its result and log ID. Use this to identify which steps failed before fetching their logs with Get Build Log.
 
@@ -291,7 +291,7 @@ Get the execution timeline for an Azure DevOps build — every stage, job, and t
 |     ↳ `startTime` | string | ISO 8601 start timestamp |
 |     ↳ `finishTime` | string | ISO 8601 finish timestamp |
 
-### `azure_devops_get_work_items_between_builds`
+### Azure DevOps Get Work Items Between Builds
 
 Get work item references associated with commits between two builds in Azure DevOps. Returns work item IDs and URLs — use Get Work Items Batch for full field details.
 
@@ -315,7 +315,7 @@ Get work item references associated with commits between two builds in Azure Dev
 |     ↳ `id` | string | Work item ID |
 |     ↳ `url` | string | API URL for the work item |
 
-### `azure_devops_query_work_items`
+### Azure DevOps Query Work Items
 
 Execute a WIQL query to search for work items in Azure DevOps and return full field details. Use TOP N in your query to limit results (Azure enforces a 200-item maximum per batch fetch).
 
@@ -344,7 +344,7 @@ Execute a WIQL query to search for work items in Azure DevOps and return full fi
 |     ↳ `areaPath` | string | Area path of the work item |
 |     ↳ `url` | string | API URL for the work item |
 
-### `azure_devops_get_work_item`
+### Azure DevOps Get Work Item
 
 Fetch full details of a single work item by ID from Azure DevOps, including title, state, type, assignee, and area path.
 
@@ -371,7 +371,7 @@ Fetch full details of a single work item by ID from Azure DevOps, including titl
 |     ↳ `areaPath` | string | Area path of the work item |
 |     ↳ `url` | string | API URL for the work item |
 
-### `azure_devops_get_work_items_batch`
+### Azure DevOps Get Work Items Batch
 
 Fetch full details for multiple work items by ID from Azure DevOps. Pass comma-separated IDs (e.g. "123,456,789"). Requests with more than 200 IDs are automatically split into chunks.
 
@@ -400,7 +400,7 @@ Fetch full details for multiple work items by ID from Azure DevOps. Pass comma-s
 |     ↳ `areaPath` | string | Area path of the work item |
 |     ↳ `url` | string | API URL for the work item |
 
-### `azure_devops_create_work_item`
+### Azure DevOps Create Work Item
 
 Create a new Basic-process work item (Issue, Task, or Epic) in Azure DevOps. Returns the created work item with its assigned ID.
 
@@ -440,7 +440,7 @@ Create a new Basic-process work item (Issue, Task, or Epic) in Azure DevOps. Ret
 |     ↳ `areaPath` | string | Area path of the work item |
 |     ↳ `url` | string | API URL for the created work item |
 
-### `azure_devops_update_work_item`
+### Azure DevOps Update Work Item
 
 Update one or more fields on an existing work item in Azure DevOps. Provide only the fields you want to change.
 
@@ -480,7 +480,7 @@ Update one or more fields on an existing work item in Azure DevOps. Provide only
 |     ↳ `areaPath` | string | Area path of the work item |
 |     ↳ `url` | string | API URL for the work item |
 
-### `azure_devops_add_comment`
+### Azure DevOps Add Comment
 
 Add a comment to a work item in Azure DevOps.
 
@@ -512,7 +512,7 @@ Add a comment to a work item in Azure DevOps.
 |     ↳ `isDeleted` | boolean | Whether the comment is deleted |
 |     ↳ `url` | string | API URL for the comment |
 
-### `azure_devops_get_comments`
+### Azure DevOps Get Comments
 
 List comments for an Azure DevOps work item.
 

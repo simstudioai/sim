@@ -32,7 +32,7 @@ Integrate with Monday.com to list boards, get board details, fetch and search it
 
 ## Actions
 
-### `monday_list_boards`
+### Monday List Boards
 
 List boards from your Monday.com account
 
@@ -58,7 +58,7 @@ List boards from your Monday.com account
 |   ↳ `updatedAt` | string | Last updated timestamp |
 | `count` | number | Number of boards returned |
 
-### `monday_get_board`
+### Monday Get Board
 
 Get a specific Monday.com board with its groups and columns
 
@@ -93,7 +93,7 @@ Get a specific Monday.com board with its groups and columns
 |   ↳ `title` | string | Column title |
 |   ↳ `type` | string | Column type |
 
-### `monday_get_item`
+### Monday Get Item
 
 Get a specific item by ID from Monday.com
 
@@ -123,7 +123,7 @@ Get a specific item by ID from Monday.com
 |   ↳ `updatedAt` | string | Last updated timestamp |
 |   ↳ `url` | string | Item URL |
 
-### `monday_get_items`
+### Monday Get Items
 
 Get items from a Monday.com board
 
@@ -156,7 +156,7 @@ Get items from a Monday.com board
 |   ↳ `url` | string | Item URL |
 | `count` | number | Number of items returned |
 
-### `monday_search_items`
+### Monday Search Items
 
 Search for items on a Monday.com board by column values
 
@@ -191,7 +191,7 @@ Search for items on a Monday.com board by column values
 | `count` | number | Number of items returned |
 | `cursor` | string | Pagination cursor for fetching the next page |
 
-### `monday_create_item`
+### Monday Create Item
 
 Create a new item on a Monday.com board
 
@@ -224,7 +224,7 @@ Create a new item on a Monday.com board
 |   ↳ `updatedAt` | string | Last updated timestamp |
 |   ↳ `url` | string | Item URL |
 
-### `monday_update_item`
+### Monday Update Item
 
 Update column values of an item on a Monday.com board
 
@@ -256,7 +256,7 @@ Update column values of an item on a Monday.com board
 |   ↳ `updatedAt` | string | Last updated timestamp |
 |   ↳ `url` | string | Item URL |
 
-### `monday_change_column_value`
+### Monday Change Column Value
 
 Update a single column's value on a Monday.com item
 
@@ -290,7 +290,7 @@ Update a single column's value on a Monday.com item
 |   ↳ `updatedAt` | string | Last updated timestamp |
 |   ↳ `url` | string | Item URL |
 
-### `monday_duplicate_item`
+### Monday Duplicate Item
 
 Duplicate an existing item on a Monday.com board
 
@@ -322,7 +322,7 @@ Duplicate an existing item on a Monday.com board
 |   ↳ `updatedAt` | string | Last updated timestamp |
 |   ↳ `url` | string | Item URL |
 
-### `monday_delete_item`
+### Monday Delete Item
 
 Delete an item from a Monday.com board
 
@@ -338,7 +338,7 @@ Delete an item from a Monday.com board
 | --------- | ---- | ----------- |
 | `id` | string | The ID of the deleted item |
 
-### `monday_archive_item`
+### Monday Archive Item
 
 Archive an item on a Monday.com board
 
@@ -354,7 +354,7 @@ Archive an item on a Monday.com board
 | --------- | ---- | ----------- |
 | `id` | string | The ID of the archived item |
 
-### `monday_move_item_to_group`
+### Monday Move Item to Group
 
 Move an item to a different group on a Monday.com board
 
@@ -385,7 +385,7 @@ Move an item to a different group on a Monday.com board
 |   ↳ `updatedAt` | string | Last updated timestamp |
 |   ↳ `url` | string | Item URL |
 
-### `monday_create_subitem`
+### Monday Create Subitem
 
 Create a subitem under a parent item on Monday.com
 
@@ -417,7 +417,7 @@ Create a subitem under a parent item on Monday.com
 |   ↳ `updatedAt` | string | Last updated timestamp |
 |   ↳ `url` | string | Item URL |
 
-### `monday_create_update`
+### Monday Create Update
 
 Add an update (comment) to a Monday.com item
 
@@ -440,7 +440,7 @@ Add an update (comment) to a Monday.com item
 |   ↳ `creatorId` | string | Creator user ID |
 |   ↳ `itemId` | string | Item ID |
 
-### `monday_create_group`
+### Monday Create Group
 
 Create a new group on a Monday.com board
 
@@ -464,7 +464,7 @@ Create a new group on a Monday.com board
 |   ↳ `deleted` | boolean | Whether deleted |
 |   ↳ `position` | string | Group position |
 
-### `monday_get_groups`
+### Monday Get Groups
 
 Get the groups on a Monday.com board
 
@@ -487,7 +487,7 @@ Get the groups on a Monday.com board
 |   ↳ `position` | string | Group position |
 | `count` | number | Number of returned groups |
 
-### `monday_create_board`
+### Monday Create Board
 
 Create a new board in Monday.com
 
@@ -515,7 +515,7 @@ Create a new board in Monday.com
 |   ↳ `url` | string | Board URL |
 |   ↳ `updatedAt` | string | Last updated timestamp |
 
-### `monday_create_column`
+### Monday Create Column
 
 Create a new column on a Monday.com board
 
@@ -548,6 +548,13 @@ A **Trigger** is a block that starts a workflow when an event happens in this se
 
 Trigger workflow when any column value changes on a Monday.com board
 
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | Select your Monday.com account to create the webhook automatically. |
+| `boardId` | string | Yes | The ID of the board to monitor. Find it in the URL: monday.com/boards/BOARD_ID |
+
 #### Output
 
 | Parameter | Type | Description |
@@ -573,6 +580,13 @@ Trigger workflow when any column value changes on a Monday.com board
 
 Trigger workflow when an item is archived on a Monday.com board
 
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | Select your Monday.com account to create the webhook automatically. |
+| `boardId` | string | Yes | The ID of the board to monitor. Find it in the URL: monday.com/boards/BOARD_ID |
+
 #### Output
 
 | Parameter | Type | Description |
@@ -592,6 +606,13 @@ Trigger workflow when an item is archived on a Monday.com board
 ### Monday Item Created
 
 Trigger workflow when a new item is created on a Monday.com board
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | Select your Monday.com account to create the webhook automatically. |
+| `boardId` | string | Yes | The ID of the board to monitor. Find it in the URL: monday.com/boards/BOARD_ID |
 
 #### Output
 
@@ -613,6 +634,13 @@ Trigger workflow when a new item is created on a Monday.com board
 
 Trigger workflow when an item is deleted on a Monday.com board
 
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | Select your Monday.com account to create the webhook automatically. |
+| `boardId` | string | Yes | The ID of the board to monitor. Find it in the URL: monday.com/boards/BOARD_ID |
+
 #### Output
 
 | Parameter | Type | Description |
@@ -632,6 +660,13 @@ Trigger workflow when an item is deleted on a Monday.com board
 ### Monday Item Moved to Group
 
 Trigger workflow when an item is moved to any group on a Monday.com board
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | Select your Monday.com account to create the webhook automatically. |
+| `boardId` | string | Yes | The ID of the board to monitor. Find it in the URL: monday.com/boards/BOARD_ID |
 
 #### Output
 
@@ -654,6 +689,13 @@ Trigger workflow when an item is moved to any group on a Monday.com board
 ### Monday Item Name Changed
 
 Trigger workflow when an item name changes on a Monday.com board
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | Select your Monday.com account to create the webhook automatically. |
+| `boardId` | string | Yes | The ID of the board to monitor. Find it in the URL: monday.com/boards/BOARD_ID |
 
 #### Output
 
@@ -680,6 +722,13 @@ Trigger workflow when an item name changes on a Monday.com board
 
 Trigger workflow when a status column value changes on a Monday.com board
 
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | Select your Monday.com account to create the webhook automatically. |
+| `boardId` | string | Yes | The ID of the board to monitor. Find it in the URL: monday.com/boards/BOARD_ID |
+
 #### Output
 
 | Parameter | Type | Description |
@@ -705,6 +754,13 @@ Trigger workflow when a status column value changes on a Monday.com board
 
 Trigger workflow when a subitem is created on a Monday.com board
 
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | Select your Monday.com account to create the webhook automatically. |
+| `boardId` | string | Yes | The ID of the board to monitor. Find it in the URL: monday.com/boards/BOARD_ID |
+
 #### Output
 
 | Parameter | Type | Description |
@@ -726,6 +782,13 @@ Trigger workflow when a subitem is created on a Monday.com board
 ### Monday Update Posted
 
 Trigger workflow when an update or comment is posted on a Monday.com item
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | Select your Monday.com account to create the webhook automatically. |
+| `boardId` | string | Yes | The ID of the board to monitor. Find it in the URL: monday.com/boards/BOARD_ID |
 
 #### Output
 

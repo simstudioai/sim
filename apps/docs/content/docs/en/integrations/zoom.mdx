@@ -41,7 +41,7 @@ Integrate Zoom into workflows. Create, list, update, and delete Zoom meetings. G
 
 ## Actions
 
-### `zoom_create_meeting`
+### Zoom Create Meeting
 
 Create a new Zoom meeting
 
@@ -113,7 +113,7 @@ Create a new Zoom meeting
 |     ↳ `duration` | number | Duration in minutes |
 |     ↳ `status` | string | Occurrence status |
 
-### `zoom_list_meetings`
+### Zoom List Meetings
 
 List all meetings for a Zoom user
 
@@ -149,7 +149,7 @@ List all meetings for a Zoom user
 |   ↳ `totalRecords` | number | Total number of records |
 |   ↳ `nextPageToken` | string | Token for next page of results |
 
-### `zoom_get_meeting`
+### Zoom Get Meeting
 
 Get details of a specific Zoom meeting
 
@@ -210,7 +210,7 @@ Get details of a specific Zoom meeting
 |     ↳ `duration` | number | Duration in minutes |
 |     ↳ `status` | string | Occurrence status |
 
-### `zoom_update_meeting`
+### Zoom Update Meeting
 
 Update an existing Zoom meeting
 
@@ -239,7 +239,7 @@ Update an existing Zoom meeting
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the meeting was updated successfully |
 
-### `zoom_delete_meeting`
+### Zoom Delete Meeting
 
 Delete or cancel a Zoom meeting
 
@@ -258,7 +258,7 @@ Delete or cancel a Zoom meeting
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the meeting was deleted successfully |
 
-### `zoom_get_meeting_invitation`
+### Zoom Get Meeting Invitation
 
 Get the meeting invitation text for a Zoom meeting
 
@@ -274,7 +274,7 @@ Get the meeting invitation text for a Zoom meeting
 | --------- | ---- | ----------- |
 | `invitation` | string | The meeting invitation text |
 
-### `zoom_list_recordings`
+### Zoom List Recordings
 
 List all cloud recordings for a Zoom user
 
@@ -324,7 +324,7 @@ List all cloud recordings for a Zoom user
 |   ↳ `totalRecords` | number | Total number of records |
 |   ↳ `nextPageToken` | string | Token for next page of results |
 
-### `zoom_get_meeting_recordings`
+### Zoom Get Meeting Recordings
 
 Get all recordings for a specific Zoom meeting
 
@@ -367,7 +367,7 @@ Get all recordings for a specific Zoom meeting
 |     ↳ `recording_type` | string | Type of recording \(shared_screen, audio_only, etc.\) |
 | `files` | file[] | Downloaded recording files |
 
-### `zoom_delete_recording`
+### Zoom Delete Recording
 
 Delete cloud recordings for a Zoom meeting
 
@@ -385,7 +385,7 @@ Delete cloud recordings for a Zoom meeting
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the recording was deleted successfully |
 
-### `zoom_list_past_participants`
+### Zoom List Past Participants
 
 List participants from a past Zoom meeting
 
@@ -442,6 +442,21 @@ Trigger workflow when a Zoom meeting ends
 | `payload` | object | payload output from the tool |
 |   ↳ `account_id` | string | Zoom account ID |
 |   ↳ `object` | object | Meeting details \(shape aligns with Zoom Meetings webhook object fields\) |
+|     ↳ `id` | number | Meeting ID |
+|     ↳ `uuid` | string | Meeting UUID |
+|     ↳ `topic` | string | Meeting topic |
+|     ↳ `meeting_type` | number | Meeting type \(1=instant, 2=scheduled, etc.; maps to Zoom `type`\) |
+|     ↳ `host_id` | string | Host user ID |
+|     ↳ `host_email` | string | Host email address \(when provided by Zoom\) |
+|     ↳ `start_time` | string | Meeting start time \(ISO 8601\) |
+|     ↳ `end_time` | string | Meeting end time \(ISO 8601, present on meeting.ended\) |
+|     ↳ `timezone` | string | Meeting timezone |
+|     ↳ `duration` | number | Meeting duration in minutes |
+|     ↳ `agenda` | string | Meeting agenda or description \(when provided\) |
+|     ↳ `join_url` | string | URL for participants to join \(when provided\) |
+|     ↳ `password` | string | Meeting password \(when provided\) |
+|     ↳ `status` | string | Meeting status \(e.g. waiting, started; when provided\) |
+|     ↳ `created_at` | string | Creation timestamp in ISO 8601 format \(when provided\) |
 
 
 ---
@@ -465,6 +480,21 @@ Trigger workflow when a Zoom meeting starts
 | `payload` | object | payload output from the tool |
 |   ↳ `account_id` | string | Zoom account ID |
 |   ↳ `object` | object | Meeting details \(shape aligns with Zoom Meetings webhook object fields\) |
+|     ↳ `id` | number | Meeting ID |
+|     ↳ `uuid` | string | Meeting UUID |
+|     ↳ `topic` | string | Meeting topic |
+|     ↳ `meeting_type` | number | Meeting type \(1=instant, 2=scheduled, etc.; maps to Zoom `type`\) |
+|     ↳ `host_id` | string | Host user ID |
+|     ↳ `host_email` | string | Host email address \(when provided by Zoom\) |
+|     ↳ `start_time` | string | Meeting start time \(ISO 8601\) |
+|     ↳ `end_time` | string | Meeting end time \(ISO 8601, present on meeting.ended\) |
+|     ↳ `timezone` | string | Meeting timezone |
+|     ↳ `duration` | number | Meeting duration in minutes |
+|     ↳ `agenda` | string | Meeting agenda or description \(when provided\) |
+|     ↳ `join_url` | string | URL for participants to join \(when provided\) |
+|     ↳ `password` | string | Meeting password \(when provided\) |
+|     ↳ `status` | string | Meeting status \(e.g. waiting, started; when provided\) |
+|     ↳ `created_at` | string | Creation timestamp in ISO 8601 format \(when provided\) |
 
 
 ---
@@ -488,6 +518,19 @@ Trigger workflow when a participant joins a Zoom meeting
 | `payload` | object | payload output from the tool |
 |   ↳ `account_id` | string | Zoom account ID |
 |   ↳ `object` | object | Meeting and participant details |
+|     ↳ `id` | number | Meeting ID |
+|     ↳ `uuid` | string | Meeting UUID |
+|     ↳ `topic` | string | Meeting topic |
+|     ↳ `host_id` | string | Host user ID |
+|     ↳ `join_url` | string | URL for participants to join \(when provided\) |
+|     ↳ `participant` | object | Participant details |
+|       ↳ `id` | string | Participant identifier |
+|       ↳ `user_id` | string | Participant user ID \(when a Zoom user\) |
+|       ↳ `user_name` | string | Participant display name |
+|       ↳ `email` | string | Participant email \(when available\) |
+|       ↳ `join_time` | string | Time participant joined \(ISO 8601\) |
+|       ↳ `leave_time` | string | Time participant left \(ISO 8601, present on participant_left\) |
+|       ↳ `duration` | number | Seconds the participant was in the meeting \(when provided\) |
 
 
 ---
@@ -511,6 +554,19 @@ Trigger workflow when a participant leaves a Zoom meeting
 | `payload` | object | payload output from the tool |
 |   ↳ `account_id` | string | Zoom account ID |
 |   ↳ `object` | object | Meeting and participant details |
+|     ↳ `id` | number | Meeting ID |
+|     ↳ `uuid` | string | Meeting UUID |
+|     ↳ `topic` | string | Meeting topic |
+|     ↳ `host_id` | string | Host user ID |
+|     ↳ `join_url` | string | URL for participants to join \(when provided\) |
+|     ↳ `participant` | object | Participant details |
+|       ↳ `id` | string | Participant identifier |
+|       ↳ `user_id` | string | Participant user ID \(when a Zoom user\) |
+|       ↳ `user_name` | string | Participant display name |
+|       ↳ `email` | string | Participant email \(when available\) |
+|       ↳ `join_time` | string | Time participant joined \(ISO 8601\) |
+|       ↳ `leave_time` | string | Time participant left \(ISO 8601, present on participant_left\) |
+|       ↳ `duration` | number | Seconds the participant was in the meeting \(when provided\) |
 
 
 ---
@@ -534,6 +590,20 @@ Trigger workflow when a Zoom cloud recording is completed
 | `payload` | object | payload output from the tool |
 |   ↳ `account_id` | string | Zoom account ID |
 |   ↳ `object` | object | Cloud recording details \(aligns with Zoom cloud recording objects\) |
+|     ↳ `id` | number | Meeting ID |
+|     ↳ `uuid` | string | Meeting UUID |
+|     ↳ `topic` | string | Meeting topic |
+|     ↳ `meeting_type` | number | Meeting type \(when provided; maps to Zoom `type`\) |
+|     ↳ `host_id` | string | Host user ID |
+|     ↳ `host_email` | string | Host email |
+|     ↳ `start_time` | string | Recording start time \(ISO 8601\) |
+|     ↳ `timezone` | string | Meeting timezone \(when provided\) |
+|     ↳ `agenda` | string | Meeting agenda \(when provided\) |
+|     ↳ `duration` | number | Recording duration in minutes |
+|     ↳ `total_size` | number | Total recording size in bytes |
+|     ↳ `recording_count` | number | Number of recording files |
+|     ↳ `share_url` | string | URL to share the recording |
+|     ↳ `recording_files` | json | Array of recording file objects \(e.g. id, file_type, play_url, download_url\) per Zoom cloud recording payloads |
 
 
 ---

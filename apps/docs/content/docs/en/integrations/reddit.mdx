@@ -30,7 +30,7 @@ Integrate Reddit into workflows. Read posts, comments, and search content. Submi
 
 ## Actions
 
-### `reddit_get_posts`
+### Get Reddit Posts
 
 Fetch posts from a subreddit with different sorting options
 
@@ -71,7 +71,7 @@ Fetch posts from a subreddit with different sorting options
 | `after` | string | Fullname of the last item for forward pagination |
 | `before` | string | Fullname of the first item for backward pagination |
 
-### `reddit_get_comments`
+### Get Reddit Comments
 
 Fetch comments from a specific Reddit post
 
@@ -114,7 +114,7 @@ Fetch comments from a specific Reddit post
 |   ↳ `permalink` | string | Comment permalink |
 |   ↳ `replies` | array | Nested reply comments |
 
-### `reddit_get_controversial`
+### Get Reddit Controversial Posts
 
 Fetch controversial posts from a subreddit
 
@@ -153,7 +153,7 @@ Fetch controversial posts from a subreddit
 | `after` | string | Fullname of the last item for forward pagination |
 | `before` | string | Fullname of the first item for backward pagination |
 
-### `reddit_search`
+### Search Reddit
 
 Search for posts within a subreddit
 
@@ -196,7 +196,7 @@ Search for posts within a subreddit
 | `after` | string | Fullname of the last item for forward pagination |
 | `before` | string | Fullname of the first item for backward pagination |
 
-### `reddit_submit_post`
+### Submit Reddit Post
 
 Submit a new post to a subreddit (text or link)
 
@@ -227,7 +227,7 @@ Submit a new post to a subreddit (text or link)
 |   ↳ `url` | string | Post URL from API response |
 |   ↳ `permalink` | string | Full Reddit permalink |
 
-### `reddit_vote`
+### Vote on Reddit Post/Comment
 
 Upvote, downvote, or unvote a Reddit post or comment
 
@@ -245,7 +245,7 @@ Upvote, downvote, or unvote a Reddit post or comment
 | `success` | boolean | Whether the vote was successful |
 | `message` | string | Success or error message |
 
-### `reddit_save`
+### Save Reddit Post/Comment
 
 Save a Reddit post or comment to your saved items
 
@@ -263,7 +263,7 @@ Save a Reddit post or comment to your saved items
 | `success` | boolean | Whether the save was successful |
 | `message` | string | Success or error message |
 
-### `reddit_unsave`
+### Unsave Reddit Post/Comment
 
 Remove a Reddit post or comment from your saved items
 
@@ -280,7 +280,7 @@ Remove a Reddit post or comment from your saved items
 | `success` | boolean | Whether the unsave was successful |
 | `message` | string | Success or error message |
 
-### `reddit_reply`
+### Reply to Reddit Post/Comment
 
 Add a comment reply to a Reddit post or comment
 
@@ -304,7 +304,7 @@ Add a comment reply to a Reddit post or comment
 |   ↳ `permalink` | string | Comment permalink |
 |   ↳ `body` | string | Comment body text |
 
-### `reddit_edit`
+### Edit Reddit Post/Comment
 
 Edit the text of your own Reddit post or comment
 
@@ -326,7 +326,7 @@ Edit the text of your own Reddit post or comment
 |   ↳ `body` | string | Updated comment body \(for comments\) |
 |   ↳ `selftext` | string | Updated post text \(for self posts\) |
 
-### `reddit_delete`
+### Delete Reddit Post/Comment
 
 Delete your own Reddit post or comment
 
@@ -343,7 +343,7 @@ Delete your own Reddit post or comment
 | `success` | boolean | Whether the deletion was successful |
 | `message` | string | Success or error message |
 
-### `reddit_subscribe`
+### Subscribe/Unsubscribe from Subreddit
 
 Subscribe or unsubscribe from a subreddit
 
@@ -361,7 +361,7 @@ Subscribe or unsubscribe from a subreddit
 | `success` | boolean | Whether the subscription action was successful |
 | `message` | string | Success or error message |
 
-### `reddit_get_me`
+### Get Reddit User Identity
 
 Get information about the authenticated Reddit user
 
@@ -385,7 +385,7 @@ Get information about the authenticated Reddit user
 | `has_verified_email` | boolean | Whether email is verified |
 | `icon_img` | string | User avatar/icon URL |
 
-### `reddit_get_user`
+### Get Reddit User Profile
 
 Get public profile information about any Reddit user by username
 
@@ -410,7 +410,7 @@ Get public profile information about any Reddit user by username
 | `has_verified_email` | boolean | Whether email is verified |
 | `icon_img` | string | User avatar/icon URL |
 
-### `reddit_send_message`
+### Send Reddit Message
 
 Send a private message to a Reddit user
 
@@ -430,7 +430,7 @@ Send a private message to a Reddit user
 | `success` | boolean | Whether the message was sent successfully |
 | `message` | string | Success or error message |
 
-### `reddit_get_messages`
+### Get Reddit Messages
 
 Retrieve private messages from your Reddit inbox
 
@@ -465,7 +465,7 @@ Retrieve private messages from your Reddit inbox
 | `after` | string | Fullname of the last item for forward pagination |
 | `before` | string | Fullname of the first item for backward pagination |
 
-### `reddit_get_subreddit_info`
+### Get Subreddit Info
 
 Get metadata and information about a subreddit
 
@@ -495,7 +495,7 @@ Get metadata and information about a subreddit
 | `icon_img` | string | Subreddit icon URL |
 | `banner_img` | string | Subreddit banner URL |
 
-### `reddit_get_subreddit_rules`
+### Get Subreddit Rules
 
 Get the rules and site-wide rules that apply to a subreddit
 
@@ -520,7 +520,7 @@ Get the rules and site-wide rules that apply to a subreddit
 | `site_rules` | array | Reddit site-wide rules that apply to the subreddit |
 | `site_rules_flow` | array | Structured site-wide rules flow used by the report menu |
 
-### `reddit_get_user_posts`
+### Get Reddit User Posts
 
 Fetch submitted posts (t3) from a Reddit user profile
 
@@ -559,7 +559,7 @@ Fetch submitted posts (t3) from a Reddit user profile
 | `after` | string | Fullname of the last item for forward pagination |
 | `before` | string | Fullname of the first item for backward pagination |
 
-### `reddit_get_user_comments`
+### Get Reddit User Comments
 
 Fetch comments (t1) made by a Reddit user
 
@@ -592,7 +592,7 @@ Fetch comments (t1) made by a Reddit user
 | `after` | string | Fullname of the last item for forward pagination |
 | `before` | string | Fullname of the first item for backward pagination |
 
-### `reddit_get_saved`
+### Get Reddit Saved Items
 
 Fetch your own saved posts (t3) and comments (t1). You can only read your own saved items
 
@@ -637,7 +637,7 @@ Fetch your own saved posts (t3) and comments (t1). You can only read your own sa
 | `after` | string | Fullname of the last item for forward pagination |
 | `before` | string | Fullname of the first item for backward pagination |
 
-### `reddit_get_info`
+### Get Reddit Info
 
 Fetch information about one or more Reddit things (posts, comments, or subreddits) by their fullnames
 
@@ -687,7 +687,7 @@ Fetch information about one or more Reddit things (posts, comments, or subreddit
 |   ↳ `created_utc` | number | Creation time in UTC epoch seconds |
 |   ↳ `accounts_active` | number | Number of currently active users |
 
-### `reddit_search_subreddits`
+### Search Subreddits
 
 Search for subreddits by name and description
 
@@ -723,7 +723,7 @@ Search for subreddits by name and description
 | `after` | string | Fullname of the last item for forward pagination |
 | `before` | string | Fullname of the first item for backward pagination |
 
-### `reddit_list_my_subreddits`
+### List My Subreddits
 
 List the subreddits the authenticated user is subscribed to
 
@@ -758,7 +758,7 @@ List the subreddits the authenticated user is subscribed to
 | `after` | string | Fullname of the last item for forward pagination |
 | `before` | string | Fullname of the first item for backward pagination |
 
-### `reddit_report`
+### Report Reddit Post/Comment
 
 Report a Reddit post or comment to subreddit moderators for a rules violation
 
@@ -777,7 +777,7 @@ Report a Reddit post or comment to subreddit moderators for a rules violation
 | `success` | boolean | Whether the report was successful |
 | `message` | string | Success or error message |
 
-### `reddit_hide`
+### Hide Reddit Post
 
 Hide one or more Reddit posts from your listings
 
@@ -794,7 +794,7 @@ Hide one or more Reddit posts from your listings
 | `success` | boolean | Whether the hide was successful |
 | `message` | string | Success or error message |
 
-### `reddit_unhide`
+### Unhide Reddit Post
 
 Unhide one or more previously hidden Reddit posts
 
@@ -811,7 +811,7 @@ Unhide one or more previously hidden Reddit posts
 | `success` | boolean | Whether the unhide was successful |
 | `message` | string | Success or error message |
 
-### `reddit_marknsfw`
+### Mark Reddit Post NSFW
 
 Mark a Reddit post as NSFW (not safe for work)
 
@@ -828,7 +828,7 @@ Mark a Reddit post as NSFW (not safe for work)
 | `success` | boolean | Whether the operation was successful |
 | `message` | string | Success or error message |
 
-### `reddit_unmarknsfw`
+### Unmark Reddit Post NSFW
 
 Remove the NSFW (not safe for work) mark from a Reddit post
 
@@ -845,7 +845,7 @@ Remove the NSFW (not safe for work) mark from a Reddit post
 | `success` | boolean | Whether the operation was successful |
 | `message` | string | Success or error message |
 
-### `reddit_mark_read`
+### Mark Reddit Messages Read
 
 Mark one or more private messages as read
 
@@ -862,7 +862,7 @@ Mark one or more private messages as read
 | `success` | boolean | Whether the operation was successful |
 | `message` | string | Success or error message |
 
-### `reddit_mark_all_read`
+### Mark All Reddit Messages Read
 
 Mark all private messages in the inbox as read
 
@@ -878,7 +878,7 @@ Mark all private messages in the inbox as read
 | `success` | boolean | Whether the operation was successful |
 | `message` | string | Success or error message |
 
-### `reddit_mod_approve`
+### Approve Reddit Post/Comment (Mod)
 
 Approve a reported or removed Reddit post or comment as a moderator
 
@@ -895,7 +895,7 @@ Approve a reported or removed Reddit post or comment as a moderator
 | `success` | boolean | Whether the approval was successful |
 | `message` | string | Success or error message |
 
-### `reddit_mod_remove`
+### Remove Reddit Post/Comment (Mod)
 
 Remove a Reddit post or comment as a moderator, optionally marking it as spam
 
@@ -913,7 +913,7 @@ Remove a Reddit post or comment as a moderator, optionally marking it as spam
 | `success` | boolean | Whether the removal was successful |
 | `message` | string | Success or error message |
 
-### `reddit_mod_distinguish`
+### Distinguish Reddit Post/Comment (Mod)
 
 Distinguish or un-distinguish a Reddit post or comment as a moderator
 
@@ -932,7 +932,7 @@ Distinguish or un-distinguish a Reddit post or comment as a moderator
 | `success` | boolean | Whether the distinguish action was successful |
 | `message` | string | Success or error message |
 
-### `reddit_lock`
+### Lock Reddit Post/Comment (Mod)
 
 Lock a Reddit post or comment to prevent further replies (moderator action)
 
@@ -949,7 +949,7 @@ Lock a Reddit post or comment to prevent further replies (moderator action)
 | `success` | boolean | Whether the lock was successful |
 | `message` | string | Success or error message |
 
-### `reddit_unlock`
+### Unlock Reddit Post/Comment (Mod)
 
 Unlock a Reddit post or comment to allow replies again (moderator action)
 
@@ -966,7 +966,7 @@ Unlock a Reddit post or comment to allow replies again (moderator action)
 | `success` | boolean | Whether the unlock was successful |
 | `message` | string | Success or error message |
 
-### `reddit_mod_sticky`
+### Sticky Reddit Post (Mod)
 
 Sticky or unsticky a Reddit post to the top of a subreddit (moderator action)
 

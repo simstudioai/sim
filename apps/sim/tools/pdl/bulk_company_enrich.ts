@@ -2,9 +2,9 @@ import type {
   PdlBulkCompanyEnrichParams,
   PdlBulkCompanyEnrichResponse,
   PdlBulkCompanyResultItem,
-} from '@/tools/peopledatalabs/types'
-import { PDL_CREDIT_USD, PEOPLEDATALABS_API_KEY_PREFIX } from '@/tools/peopledatalabs/types'
-import { countBulkMatched, projectCompany } from '@/tools/peopledatalabs/utils'
+} from '@/tools/pdl/types'
+import { PDL_CREDIT_USD, PEOPLEDATALABS_API_KEY_PREFIX } from '@/tools/pdl/types'
+import { countBulkMatched, projectCompany } from '@/tools/pdl/utils'
 import type { OutputProperty, ToolConfig } from '@/tools/types'
 
 const BULK_COMPANY_RESULT_PROPERTIES = {

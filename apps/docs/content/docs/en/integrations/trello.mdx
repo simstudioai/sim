@@ -43,7 +43,7 @@ Integrate with Trello to list, search, create, update, and delete cards and list
 
 ## Actions
 
-### `trello_list_lists`
+### Trello Get Lists
 
 List all lists on a Trello board
 
@@ -66,7 +66,7 @@ List all lists on a Trello board
 |   ↳ `idBoard` | string | Board ID containing the list |
 | `count` | number | Number of lists returned |
 
-### `trello_list_cards`
+### Trello List Cards
 
 List cards from a Trello board or list
 
@@ -99,7 +99,7 @@ List cards from a Trello board or list
 |   ↳ `dueComplete` | boolean | Whether the due date is complete |
 | `count` | number | Number of cards returned |
 
-### `trello_search`
+### Trello Search
 
 Search Trello cards and boards by keyword
 
@@ -133,7 +133,7 @@ Search Trello cards and boards by keyword
 |   ↳ `idOrganization` | string | Workspace/organization ID that owns the board |
 | `count` | number | Total number of cards and boards returned |
 
-### `trello_create_card`
+### Trello Create Card
 
 Create a new card in a Trello list
 
@@ -170,7 +170,7 @@ Create a new card in a Trello list
 |   ↳ `due` | string | Card due date in ISO 8601 format |
 |   ↳ `dueComplete` | boolean | Whether the due date is complete |
 
-### `trello_update_card`
+### Trello Update Card
 
 Update an existing card on Trello
 
@@ -206,7 +206,7 @@ Update an existing card on Trello
 |   ↳ `due` | string | Card due date in ISO 8601 format |
 |   ↳ `dueComplete` | boolean | Whether the due date is complete |
 
-### `trello_delete_card`
+### Trello Delete Card
 
 Permanently delete a Trello card
 
@@ -222,7 +222,7 @@ Permanently delete a Trello card
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the card was deleted |
 
-### `trello_get_actions`
+### Trello Get Actions
 
 Get activity/actions from a board or card
 
@@ -267,7 +267,7 @@ Get activity/actions from a board or card
 |     ↳ `name` | string | List name |
 | `count` | number | Number of actions returned |
 
-### `trello_add_comment`
+### Trello Add Comment
 
 Add a comment to a Trello card
 
@@ -306,7 +306,7 @@ Add a comment to a Trello card
 |     ↳ `id` | string | List ID |
 |     ↳ `name` | string | List name |
 
-### `trello_create_board`
+### Trello Create Board
 
 Create a new Trello board
 
@@ -331,7 +331,7 @@ Create a new Trello board
 |   ↳ `closed` | boolean | Whether the board is closed |
 |   ↳ `idOrganization` | string | ID of the workspace/organization the board belongs to |
 
-### `trello_get_board`
+### Trello Get Board
 
 Retrieve a single Trello board by ID
 
@@ -353,7 +353,7 @@ Retrieve a single Trello board by ID
 |   ↳ `closed` | boolean | Whether the board is closed |
 |   ↳ `idOrganization` | string | ID of the workspace/organization the board belongs to |
 
-### `trello_create_list`
+### Trello Create List
 
 Create a new list on a Trello board
 
@@ -376,7 +376,7 @@ Create a new list on a Trello board
 |   ↳ `pos` | number | List position on the board |
 |   ↳ `idBoard` | string | Board ID containing the list |
 
-### `trello_update_list`
+### Trello Update List
 
 Rename, move, archive, or reopen a Trello list
 
@@ -401,7 +401,7 @@ Rename, move, archive, or reopen a Trello list
 |   ↳ `pos` | number | List position on the board |
 |   ↳ `idBoard` | string | Board ID containing the list |
 
-### `trello_get_card`
+### Trello Get Card
 
 Retrieve a single Trello card by ID
 
@@ -431,7 +431,7 @@ Retrieve a single Trello card by ID
 |   ↳ `due` | string | Card due date in ISO 8601 format |
 |   ↳ `dueComplete` | boolean | Whether the due date is complete |
 
-### `trello_add_checklist`
+### Trello Add Checklist
 
 Add a checklist to a Trello card
 
@@ -454,7 +454,7 @@ Add a checklist to a Trello card
 |   ↳ `idBoard` | string | Board ID containing the checklist |
 |   ↳ `pos` | number | Checklist position on the card |
 
-### `trello_add_checklist_item`
+### Trello Add Checklist Item
 
 Add an item to a Trello checklist
 
@@ -478,7 +478,7 @@ Add an item to a Trello checklist
 |   ↳ `pos` | number | Item position on the checklist |
 |   ↳ `idChecklist` | string | Checklist ID containing the item |
 
-### `trello_update_checklist_item`
+### Trello Update Checklist Item
 
 Check off, uncheck, or rename a Trello checklist item
 
@@ -502,7 +502,7 @@ Check off, uncheck, or rename a Trello checklist item
 |   ↳ `pos` | number | Item position on the checklist |
 |   ↳ `idChecklist` | string | Checklist ID containing the item |
 
-### `trello_add_label`
+### Trello Add Label
 
 Attach an existing label to a Trello card
 
@@ -519,7 +519,7 @@ Attach an existing label to a Trello card
 | --------- | ---- | ----------- |
 | `labelIds` | array | Label IDs now applied to the card |
 
-### `trello_remove_label`
+### Trello Remove Label
 
 Detach a label from a Trello card
 
@@ -536,7 +536,7 @@ Detach a label from a Trello card
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the label was removed from the card |
 
-### `trello_add_member`
+### Trello Add Member
 
 Assign a member to a Trello card
 
@@ -553,7 +553,7 @@ Assign a member to a Trello card
 | --------- | ---- | ----------- |
 | `memberIds` | array | Member IDs now assigned to the card |
 
-### `trello_remove_member`
+### Trello Remove Member
 
 Unassign a member from a Trello card
 
@@ -570,7 +570,7 @@ Unassign a member from a Trello card
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the member was removed from the card |
 
-### `trello_list_members`
+### Trello List Members
 
 List members of a Trello board
 

@@ -32,7 +32,7 @@ Integrate AWS CodePipeline into workflows. Start, stop, and monitor pipeline exe
 
 ## Actions
 
-### `codepipeline_list_pipelines`
+### CodePipeline List Pipelines
 
 List all CodePipeline pipelines in an AWS account and region
 
@@ -59,7 +59,7 @@ List all CodePipeline pipelines in an AWS account and region
 |   ↳ `updated` | number | Epoch ms when the pipeline was last updated |
 | `nextToken` | string | Pagination token for the next page of results |
 
-### `codepipeline_get_pipeline`
+### CodePipeline Get Pipeline
 
 Get the structure of a CodePipeline pipeline, including its stages, actions, and variables
 
@@ -95,7 +95,7 @@ Get the structure of a CodePipeline pipeline, including its stages, actions, and
 | `created` | number | Epoch ms when the pipeline was created |
 | `updated` | number | Epoch ms when the pipeline was last updated |
 
-### `codepipeline_get_pipeline_state`
+### CodePipeline Get Pipeline State
 
 Get the current state of a CodePipeline pipeline, including stage and action status and pending approval tokens
 
@@ -123,7 +123,7 @@ Get the current state of a CodePipeline pipeline, including stage and action sta
 |   ↳ `inboundTransitionEnabled` | boolean | Whether the inbound transition into the stage is enabled |
 |   ↳ `actionStates` | array | Per-action state with status, summary, error details, and approval token \(for pending manual approvals\) |
 
-### `codepipeline_get_pipeline_execution`
+### CodePipeline Get Pipeline Execution
 
 Get details of a CodePipeline execution, including status, trigger, source revisions, and resolved variables
 
@@ -160,7 +160,7 @@ Get details of a CodePipeline execution, including status, trigger, source revis
 |   ↳ `name` | string | Variable name |
 |   ↳ `resolvedValue` | string | Resolved variable value |
 
-### `codepipeline_list_pipeline_executions`
+### CodePipeline List Pipeline Executions
 
 List recent executions of a CodePipeline pipeline with status and source revisions
 
@@ -195,7 +195,7 @@ List recent executions of a CodePipeline pipeline with status and source revisio
 |   ↳ `sourceRevisions` | array | Source revisions \(commit IDs, summaries, URLs\) for the execution |
 | `nextToken` | string | Pagination token for the next page of results |
 
-### `codepipeline_list_action_executions`
+### CodePipeline List Action Executions
 
 List action-level execution history for a CodePipeline pipeline, including per-action status, timing, and error details
 
@@ -232,7 +232,7 @@ List action-level execution history for a CodePipeline pipeline, including per-a
 |   ↳ `errorMessage` | string | Error message if the action failed |
 | `nextToken` | string | Pagination token for the next page of results |
 
-### `codepipeline_start_execution`
+### CodePipeline Start Execution
 
 Start a CodePipeline pipeline execution, optionally overriding pipeline variables
 
@@ -253,7 +253,7 @@ Start a CodePipeline pipeline execution, optionally overriding pipeline variable
 | --------- | ---- | ----------- |
 | `pipelineExecutionId` | string | ID of the pipeline execution that was started |
 
-### `codepipeline_stop_execution`
+### CodePipeline Stop Execution
 
 Stop a CodePipeline pipeline execution, either finishing in-progress actions or abandoning them
 
@@ -275,7 +275,7 @@ Stop a CodePipeline pipeline execution, either finishing in-progress actions or 
 | --------- | ---- | ----------- |
 | `pipelineExecutionId` | string | ID of the pipeline execution that was stopped |
 
-### `codepipeline_retry_stage_execution`
+### CodePipeline Retry Stage Execution
 
 Retry the failed actions (or all actions) of a failed CodePipeline stage
 
@@ -297,7 +297,7 @@ Retry the failed actions (or all actions) of a failed CodePipeline stage
 | --------- | ---- | ----------- |
 | `pipelineExecutionId` | string | ID of the pipeline execution with the retried stage |
 
-### `codepipeline_put_approval_result`
+### CodePipeline Put Approval Result
 
 Approve or reject a pending CodePipeline manual approval action. The approval token is available from Get Pipeline State on the pending approval action
 
@@ -322,7 +322,7 @@ Approve or reject a pending CodePipeline manual approval action. The approval to
 | `approvedAt` | number | Epoch ms when the approval or rejection was submitted |
 | `status` | string | The submitted approval decision \(Approved or Rejected\) |
 
-### `codepipeline_disable_stage_transition`
+### CodePipeline Disable Stage Transition
 
 Prevent artifacts from transitioning into or out of a CodePipeline stage, freezing the pipeline at that point
 
@@ -346,7 +346,7 @@ Prevent artifacts from transitioning into or out of a CodePipeline stage, freezi
 | `stageName` | string | Stage whose transition was disabled |
 | `transitionType` | string | Transition type that was disabled \(Inbound or Outbound\) |
 
-### `codepipeline_enable_stage_transition`
+### CodePipeline Enable Stage Transition
 
 Re-enable artifacts transitioning into or out of a CodePipeline stage after it was disabled
 

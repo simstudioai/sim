@@ -33,7 +33,7 @@ Integrate AWS Identity and Access Management into your workflow. Create and mana
 
 ## Actions
 
-### `iam_list_users`
+### IAM List Users
 
 List IAM users in your AWS account
 
@@ -57,7 +57,7 @@ List IAM users in your AWS account
 | `marker` | string | Pagination marker for the next page of results |
 | `count` | number | Number of users returned |
 
-### `iam_get_user`
+### IAM Get User
 
 Get detailed information about an IAM user
 
@@ -83,7 +83,7 @@ Get detailed information about an IAM user
 | `permissionsBoundaryArn` | string | ARN of the permissions boundary policy |
 | `tags` | json | Tags attached to the user \(key, value pairs\) |
 
-### `iam_create_user`
+### IAM Create User
 
 Create a new IAM user
 
@@ -108,7 +108,7 @@ Create a new IAM user
 | `path` | string | The path of the created user |
 | `createDate` | string | Date the user was created |
 
-### `iam_delete_user`
+### IAM Delete User
 
 Delete an IAM user
 
@@ -127,7 +127,7 @@ Delete an IAM user
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
-### `iam_list_roles`
+### IAM List Roles
 
 List IAM roles in your AWS account
 
@@ -151,7 +151,7 @@ List IAM roles in your AWS account
 | `marker` | string | Pagination marker for the next page of results |
 | `count` | number | Number of roles returned |
 
-### `iam_get_role`
+### IAM Get Role
 
 Get detailed information about an IAM role
 
@@ -179,7 +179,7 @@ Get detailed information about an IAM role
 | `roleLastUsedDate` | string | Date the role was last used |
 | `roleLastUsedRegion` | string | AWS region where the role was last used |
 
-### `iam_create_role`
+### IAM Create Role
 
 Create a new IAM role with a trust policy
 
@@ -207,7 +207,7 @@ Create a new IAM role with a trust policy
 | `path` | string | The path of the created role |
 | `createDate` | string | Date the role was created |
 
-### `iam_delete_role`
+### IAM Delete Role
 
 Delete an IAM role
 
@@ -226,7 +226,7 @@ Delete an IAM role
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
-### `iam_attach_user_policy`
+### IAM Attach User Policy
 
 Attach a managed policy to an IAM user
 
@@ -246,7 +246,7 @@ Attach a managed policy to an IAM user
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
-### `iam_detach_user_policy`
+### IAM Detach User Policy
 
 Remove a managed policy from an IAM user
 
@@ -266,7 +266,7 @@ Remove a managed policy from an IAM user
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
-### `iam_attach_role_policy`
+### IAM Attach Role Policy
 
 Attach a managed policy to an IAM role
 
@@ -286,7 +286,7 @@ Attach a managed policy to an IAM role
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
-### `iam_detach_role_policy`
+### IAM Detach Role Policy
 
 Remove a managed policy from an IAM role
 
@@ -306,7 +306,7 @@ Remove a managed policy from an IAM role
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
-### `iam_list_policies`
+### IAM List Policies
 
 List managed IAM policies
 
@@ -332,7 +332,7 @@ List managed IAM policies
 | `marker` | string | Pagination marker for the next page of results |
 | `count` | number | Number of policies returned |
 
-### `iam_create_access_key`
+### IAM Create Access Key
 
 Create a new access key pair for an IAM user
 
@@ -356,7 +356,7 @@ Create a new access key pair for an IAM user
 | `status` | string | Status of the access key \(Active\) |
 | `createDate` | string | Date the key was created |
 
-### `iam_delete_access_key`
+### IAM Delete Access Key
 
 Delete an access key pair for an IAM user
 
@@ -376,7 +376,7 @@ Delete an access key pair for an IAM user
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
-### `iam_list_groups`
+### IAM List Groups
 
 List IAM groups in your AWS account
 
@@ -400,7 +400,7 @@ List IAM groups in your AWS account
 | `marker` | string | Pagination marker for the next page of results |
 | `count` | number | Number of groups returned |
 
-### `iam_add_user_to_group`
+### IAM Add User to Group
 
 Add an IAM user to a group
 
@@ -420,7 +420,7 @@ Add an IAM user to a group
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
-### `iam_remove_user_from_group`
+### IAM Remove User from Group
 
 Remove an IAM user from a group
 
@@ -440,7 +440,7 @@ Remove an IAM user from a group
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
-### `iam_list_attached_role_policies`
+### IAM List Attached Role Policies
 
 List all managed policies attached to an IAM role
 
@@ -465,7 +465,7 @@ List all managed policies attached to an IAM role
 | `marker` | string | Pagination marker for the next page of results |
 | `count` | number | Number of attached policies returned |
 
-### `iam_list_attached_user_policies`
+### IAM List Attached User Policies
 
 List all managed policies attached to an IAM user
 
@@ -490,7 +490,7 @@ List all managed policies attached to an IAM user
 | `marker` | string | Pagination marker for the next page of results |
 | `count` | number | Number of attached policies returned |
 
-### `iam_simulate_principal_policy`
+### IAM Simulate Principal Policy
 
 Simulate whether a user, role, or group is allowed to perform specific AWS actions — useful for pre-flight access checks
 
