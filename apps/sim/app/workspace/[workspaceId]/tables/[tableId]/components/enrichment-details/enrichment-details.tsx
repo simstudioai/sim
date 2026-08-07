@@ -3,14 +3,14 @@
 import { useEffect, useState } from 'react'
 import { Badge, Button, ChipModalTabs, cn, X } from '@sim/emcn'
 import { formatDuration } from '@sim/utils/formatting'
-import type { EnrichmentProviderOutcome, EnrichmentRunDetail } from '@/lib/table'
 import {
   adjustBgForContrast,
+  formatDate,
   getBlockIconAndColor,
   iconColorClass,
-} from '@/app/workspace/[workspaceId]/logs/components/log-details/utils'
+} from '@/components/resources/log-view'
+import type { EnrichmentProviderOutcome, EnrichmentRunDetail } from '@/lib/table'
 import { useLogDetailsResize } from '@/app/workspace/[workspaceId]/logs/hooks'
-import { formatDate } from '@/app/workspace/[workspaceId]/logs/utils'
 import { useEnrichmentDetail } from '@/hooks/queries/tables'
 import { formatCost } from '@/providers/utils'
 import { useLogDetailsUIStore } from '@/stores/logs/store'

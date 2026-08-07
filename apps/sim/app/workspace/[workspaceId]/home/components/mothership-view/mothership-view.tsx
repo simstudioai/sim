@@ -19,7 +19,7 @@ import type {
 } from '@/app/workspace/[workspaceId]/home/types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
-import { ResourceActions, ResourceContent, ResourceTabs } from './components'
+import { ResourceContent, ResourceTabActions, ResourceTabs } from './components'
 
 /**
  * Panels that are kept mounted across resource switches rather than rebuilt.
@@ -188,7 +188,7 @@ export const MothershipView = memo(
             activeId={active?.id ?? null}
             useFixedResourceToggle={useFixedResourceToggle}
             actions={
-              active ? <ResourceActions workspaceId={workspaceId} resource={active} /> : null
+              active ? <ResourceTabActions workspaceId={workspaceId} resource={active} /> : null
             }
             previewMode={isActivePreviewable ? previewMode : undefined}
             onCyclePreviewMode={isActivePreviewable ? handleCyclePreview : undefined}

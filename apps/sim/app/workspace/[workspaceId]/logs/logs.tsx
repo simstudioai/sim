@@ -33,6 +33,12 @@ import {
   STATUS_CONFIG,
   StatusBadge,
 } from '@/components/execution-status'
+import {
+  DELETED_WORKFLOW_LABEL,
+  ExecutionSnapshot,
+  formatDate,
+  TriggerBadge,
+} from '@/components/resources/log-view'
 import type {
   WorkflowLogDetail,
   WorkflowLogRow,
@@ -91,8 +97,8 @@ import { useDebounce } from '@/hooks/use-debounce'
 import { useUrlSort } from '@/hooks/use-url-sort'
 import { useFilterStore } from '@/stores/logs/filters/store'
 import { CORE_TRIGGER_TYPES } from '@/stores/logs/filters/types'
-import { Dashboard, ExecutionSnapshot, LogDetails, LogRowContextMenu } from './components'
-import { DELETED_WORKFLOW_LABEL, formatDate, parseDuration, TriggerBadge } from './utils'
+import { Dashboard, LogDetails, LogRowContextMenu } from './components'
+import { parseDuration } from './utils'
 
 const LOGS_PER_PAGE = 50 as const
 const REFRESH_SPINNER_DURATION_MS = 1000 as const

@@ -3,7 +3,7 @@
 Follow-up work after the file resource was moved onto the three axes, and the table's
 view layer was moved out of its route.
 
-This is the playbook for making a resource — a table, a knowledge base, a log, a scheduled task —
+This is the playbook for making a resource — a table, a knowledge base, a log —
 render the same way everywhere: on its own page, in a chat/mothership tab, and on a public
 share. Read `.claude/rules/sim-resource-views.md` first; that is the rule.
 This is the migration plan.
@@ -16,7 +16,6 @@ This is the migration plan.
 | **table** | *view layer only* (`components/resources/table-view`) | tables page + mothership, via the editing shell that mounts its parts | Moved out of the route tree; no standalone read-only view has a consumer yet. |
 | **knowledge** | — | knowledge page, mothership panel | No public consumer yet. |
 | **log** | — | logs page, mothership panel, tables page | `LogDetailsContent` is already shared; it just leaks context. |
-| **schedule** | — | scheduled-tasks page, mothership panel | Smallest surface. |
 | **workflow** | *deliberately excluded* | — | Not a document. See "Why workflow is not a resource". |
 | **folder** | *not a resource* | — | Organisational structure inside files/knowledge, not a thing you render. |
 
@@ -86,6 +85,10 @@ resource from the stored share on every request, so there is nothing for a calle
 
 Add the unit to `CANONICAL_UNITS`. Migrate every consumer in the same PR. Lower the `R1b`
 (`shadowNamedComponents`) baseline as each `Embedded*` component for that kind disappears.
+
+Tab chrome is not a view and never blocked a migration: the mothership's five `Embedded*Actions`
+differed only in icon, copy and destination, so they are now one kind-keyed `ResourceTabActions`
+driven by a `RESOURCE_TAB_ACTIONS` config map.
 
 ---
 
@@ -168,7 +171,7 @@ a chat panel fetch 1000 rows to show ten, or make every bulk operation ten times
   editing-shell, or mutation hooks end up shipped to anonymous surfaces.
 - **`[...arr].sort()`**, never `toSorted` — SWC does not polyfill it and it throws on iOS 15.
 
-## Knowledge, log, schedule
+## Knowledge and log
 
 Lower value, and none has a public consumer today.
 
@@ -178,7 +181,6 @@ Lower value, and none has a public consumer today.
 - **knowledge** — `KnowledgeBaseProps` is `{ id, knowledgeBaseName?, workspaceId? }`, so it
   structurally cannot leave the workspace. It also writes unnamespaced nuqs keys
   (`?addConnector/?page/?q/?enabled`) that pollute the host URL when embedded — `host` fixes that.
-- **schedule** — smallest surface; do it last or fold it into whichever PR is already open.
 
 ## Why workflow is not a resource
 
@@ -208,5 +210,18 @@ Carry these into whichever PR touches the area:
   byte-serves correctly (both are media) but the wrong player element is chosen.
 - `components/rich-markdown-editor/` moved as a unit and keeps its own flat internal layout, which is
   inconsistent with the rest of `file-view/`.
-- The mothership keeps 8 `Embedded*` components for kinds with no canonical view. Each disappears
-  with its kind's migration; lower the `R1b` baseline as they go.
+- The mothership keeps 3 `Embedded*` components — `EmbeddedWorkflow`, `EmbeddedFolder`,
+  `EmbeddedLog` — for kinds with no canonical view. Each disappears with its kind's migration;
+  lower the `R1b` baseline as they go. The tab-chrome half is done: the five `Embedded*Actions`
+  collapsed into one kind-keyed `ResourceTabActions`.
+- **Two mothership tab destinations do not match `resourceHref`, and were left alone.** Both are
+  kept verbatim in `RESOURCE_TAB_ACTIONS` rather than silently moved onto the axis:
+  - **file** — the tab opens `/files/<id>` (the browser with the file selected); the axis spells
+    `/files/<id>/view` (the separate fullscreen route). Both routes exist, so this is a product
+    question — which one should "Open in files" mean? — not a bug.
+  - **log** — the tab opens `?executionId=<log.executionId>`, read off the fetched detail; the axis
+    builds `?executionId=<resourceId>`. A log resource is addressed by its **log-row id**, and the
+    logs page resolves `?executionId` through `/api/logs/by-execution/[executionId]`. So
+    `resourceHref('log', …)` is latently wrong for every caller that passes a log id — today only
+    `simLinkPath`, which no surface emits a `sim:log/<id>` mention into. Fix it by deciding which id
+    the axis addresses a log by, then making both sides agree.

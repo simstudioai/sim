@@ -18,7 +18,7 @@ import {
   Search,
   X,
 } from '@sim/emcn'
-import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
+import { FloatingOverflowText } from '@/components/resource/components/floating-overflow-text'
 
 const SEARCH_ICON = (
   <Search className='pointer-events-none size-[14px] shrink-0 text-[var(--text-muted)]' />

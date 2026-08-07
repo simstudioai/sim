@@ -33,9 +33,9 @@ import {
 } from '@sim/emcn'
 import { ArrowUpLeft } from '@sim/emcn/icons'
 import { createPortal } from 'react-dom'
+import { InlineRenameInput } from '@/components/inline-rename-input'
 import { HEADER_ACTION_CLUSTER, TITLE_BAR_LANE_PT } from '@/components/page-header-bar'
 import { orderHeaderActions } from '@/components/settings/settings-header'
-import { InlineRenameInput } from '@/app/workspace/[workspaceId]/components/inline-rename-input'
 
 export interface DropdownOption {
   label: string

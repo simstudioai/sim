@@ -62,10 +62,10 @@ describe('workspaceSource', () => {
       workspaceId: 'ws_1',
       resourceId: 'kb_1',
     })
-    const schedule = workspaceSource({ kind: 'schedule', workspaceId: 'ws_1', resourceId: 'sch_1' })
+    const log = workspaceSource({ kind: 'log', workspaceId: 'ws_1', resourceId: 'exec_1' })
 
     expect(knowledge.unavailableCopy('missing')).toContain('knowledge base')
-    expect(schedule.unavailableCopy('missing')).toContain('scheduled task')
+    expect(log.unavailableCopy('missing')).toContain('log')
   })
 
   it('resolves a self link to its own workspace route', () => {
@@ -88,9 +88,6 @@ describe('workspaceSource', () => {
     )
     expect(source.hrefFor({ to: 'resource', kind: 'log', id: 'exec_1' })).toBe(
       '/workspace/ws_1/logs?executionId=exec_1'
-    )
-    expect(source.hrefFor({ to: 'resource', kind: 'schedule', id: 'sch_1' })).toBe(
-      '/workspace/ws_1/scheduled-tasks?taskId=sch_1'
     )
   })
 
@@ -202,10 +199,10 @@ describe('shareSource', () => {
     const knowledge = shareSource({ kind: 'knowledge', token: 't', grantId: 'g', seed: {} })
     // @ts-expect-error — 'log' seeds `never`.
     const log = shareSource({ kind: 'log', token: 't', grantId: 'g', seed: {} })
-    // @ts-expect-error — 'schedule' seeds `never`.
-    const schedule = shareSource({ kind: 'schedule', token: 't', grantId: 'g', seed: {} })
+    // @ts-expect-error — 'table' seeds `never`.
+    const table = shareSource({ kind: 'table', token: 't', grantId: 'g', seed: {} })
 
-    expect([knowledge.via, log.via, schedule.via]).toEqual(['share', 'share', 'share'])
+    expect([knowledge.via, log.via, table.via]).toEqual(['share', 'share', 'share'])
   })
 })
 

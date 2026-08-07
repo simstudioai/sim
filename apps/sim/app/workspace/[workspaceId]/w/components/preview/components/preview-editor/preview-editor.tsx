@@ -30,6 +30,7 @@ import {
 import { formatDuration } from '@sim/utils/formatting'
 import { useParams } from 'next/navigation'
 import { ReactFlowProvider } from 'reactflow'
+import { DELETED_WORKFLOW_LABEL } from '@/components/resources/log-view'
 import { extractReferencePrefixes } from '@/lib/workflows/sanitization/references'
 import {
   buildCanonicalIndex,
@@ -39,7 +40,6 @@ import {
   isSubBlockVisibleForMode,
   isToolInputOnlySubBlock,
 } from '@/lib/workflows/subblocks/visibility'
-import { DELETED_WORKFLOW_LABEL } from '@/app/workspace/[workspaceId]/logs/utils'
 import { SubBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components'
 import { PreviewContextMenu } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-context-menu'
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow'

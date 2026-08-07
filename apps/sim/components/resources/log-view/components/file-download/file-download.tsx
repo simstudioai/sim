@@ -3,7 +3,6 @@
 import { Button } from '@sim/emcn'
 import { Download } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import { useRouter } from 'next/navigation'
 import { extractWorkspaceIdFromExecutionKey, getViewerUrl } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('FileCards')
@@ -23,12 +22,18 @@ interface FileCardsProps {
   files: FileData[]
   isExecutionFile?: boolean
   workspaceId?: string
+  /**
+   * How the host moves the viewer to a file's in-app viewer. Omitted by a host
+   * with no router (a share), where the navigation is inert by construction.
+   */
+  onNavigate?: (path: string) => void
 }
 
 interface FileCardProps {
   file: FileData
   isExecutionFile?: boolean
   workspaceId?: string
+  onNavigate?: (path: string) => void
 }
 
 function formatFileSize(bytes: number): string {
@@ -39,9 +44,7 @@ function formatFileSize(bytes: number): string {
   return `${Number.parseFloat((bytes / k ** i).toFixed(1))} ${sizes[i]}`
 }
 
-function FileCard({ file, isExecutionFile = false, workspaceId }: FileCardProps) {
-  const router = useRouter()
-
+function FileCard({ file, isExecutionFile = false, workspaceId, onNavigate }: FileCardProps) {
   const handleDownload = () => {
     try {
       logger.info(`Initiating download for file: ${file.name}`)
@@ -72,8 +75,8 @@ function FileCard({ file, isExecutionFile = false, workspaceId }: FileCardProps)
       } else {
         const viewerUrl = resolvedWorkspaceId ? getViewerUrl(file.key, resolvedWorkspaceId) : null
 
-        if (viewerUrl) {
-          router.push(viewerUrl)
+        if (viewerUrl && onNavigate) {
+          onNavigate(viewerUrl)
           logger.info(`Navigated to viewer URL: ${viewerUrl}`)
         } else {
           logger.warn(
@@ -114,7 +117,12 @@ function FileCard({ file, isExecutionFile = false, workspaceId }: FileCardProps)
   )
 }
 
-export function FileCards({ files, isExecutionFile = false, workspaceId }: FileCardsProps) {
+export function FileCards({
+  files,
+  isExecutionFile = false,
+  workspaceId,
+  onNavigate,
+}: FileCardsProps) {
   if (!files || files.length === 0) {
     return null
   }
@@ -130,6 +138,7 @@ export function FileCards({ files, isExecutionFile = false, workspaceId }: FileC
           file={file}
           isExecutionFile={isExecutionFile}
           workspaceId={workspaceId}
+          onNavigate={onNavigate}
         />
       ))}
     </div>
