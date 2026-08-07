@@ -1763,6 +1763,9 @@ async function executeToolImplementation(
         if (data.domain && !contextParams.domain) {
           contextParams.domain = data.domain
         }
+        if (data.realmId) {
+          contextParams.realmId = data.realmId
+        }
         if (data.authStyle && !contextParams.authStyle) {
           contextParams.authStyle = data.authStyle
         }

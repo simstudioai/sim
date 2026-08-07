@@ -85,4 +85,17 @@ describe('capability setup configuration', () => {
       )
     }
   })
+
+  it('configures the QuickBooks API environment with its OAuth credentials', () => {
+    expect(OAUTH_CLIENT_CAPABILITIES.quickbooks).toEqual([
+      'QUICKBOOKS_CLIENT_ID',
+      'QUICKBOOKS_CLIENT_SECRET',
+      'QUICKBOOKS_ENV',
+    ])
+    expect(getOAuthClientSetupFields('quickbooks')).toEqual([
+      { key: 'QUICKBOOKS_CLIENT_ID', input: 'text' },
+      { key: 'QUICKBOOKS_CLIENT_SECRET', input: 'secret' },
+      { key: 'QUICKBOOKS_ENV', input: 'text' },
+    ])
+  })
 })

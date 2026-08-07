@@ -39,6 +39,9 @@ beforeAll(() => {
     ASANA_CLIENT_SECRET: 'asana_client_secret',
     PIPEDRIVE_CLIENT_ID: 'pipedrive_client_id',
     PIPEDRIVE_CLIENT_SECRET: 'pipedrive_client_secret',
+    QUICKBOOKS_CLIENT_ID: 'quickbooks_client_id',
+    QUICKBOOKS_CLIENT_SECRET: 'quickbooks_client_secret',
+    QUICKBOOKS_ENV: 'sandbox',
     HUBSPOT_CLIENT_ID: 'hubspot_client_id',
     HUBSPOT_CLIENT_SECRET: 'hubspot_client_secret',
     LINKEDIN_CLIENT_ID: 'linkedin_client_id',
@@ -109,6 +112,11 @@ describe('OAuth Token Refresh', () => {
         name: 'Reddit',
         providerId: 'reddit',
         endpoint: 'https://www.reddit.com/api/v1/access_token',
+      },
+      {
+        name: 'QuickBooks',
+        providerId: 'quickbooks',
+        endpoint: 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer',
       },
       {
         name: 'Asana',
@@ -448,6 +456,30 @@ describe('OAuth Token Refresh', () => {
   })
 
   describe('Token Response Handling', () => {
+    it.concurrent(
+      'should preserve QuickBooks one-hour expiry and rotating refresh token',
+      async () => {
+        const mockFetch = vi.fn().mockResolvedValue(
+          Response.json({
+            access_token: 'new_quickbooks_access_token',
+            expires_in: 3600,
+            refresh_token: 'rotated_quickbooks_refresh_token',
+          })
+        )
+
+        const result = await withMockFetch(mockFetch, () =>
+          refreshOAuthToken('quickbooks', 'old_quickbooks_refresh_token')
+        )
+
+        expect(result).toEqual({
+          ok: true,
+          accessToken: 'new_quickbooks_access_token',
+          expiresIn: 3600,
+          refreshToken: 'rotated_quickbooks_refresh_token',
+        })
+      }
+    )
+
     it.concurrent('should handle providers that return new refresh tokens', async () => {
       const refreshToken = 'old_refresh_token'
       const newRefreshToken = 'new_refresh_token'

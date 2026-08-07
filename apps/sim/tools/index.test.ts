@@ -227,6 +227,55 @@ const mockRegistryTools: Record<string, any> = {
     params: {},
     request: { url: '/api/tools/gmail/send', method: 'POST' },
   },
+  test_quickbooks_context: {
+    id: 'test_quickbooks_context',
+    name: 'Test QuickBooks Context',
+    description: 'Verifies provider context propagation',
+    version: '1.0.0',
+    oauth: { required: true, provider: 'quickbooks' },
+    errorExtractor: 'quickbooks-fault',
+    params: {
+      accessToken: { type: 'string', required: true, visibility: 'hidden' },
+      realmId: { type: 'string', required: true, visibility: 'hidden' },
+    },
+    request: {
+      url: '/api/tools/test/quickbooks-context',
+      method: 'POST',
+      headers: () => ({ 'Content-Type': 'application/json' }),
+      body: (params: any) => ({
+        accessToken: params.accessToken,
+        realmId: params.realmId,
+      }),
+    },
+    transformResponse: async (response: Response) => ({
+      success: true,
+      output: await response.json(),
+    }),
+  },
+  test_salesforce_context: {
+    id: 'test_salesforce_context',
+    name: 'Test Salesforce Context',
+    description: 'Verifies standard OAuth metadata propagation',
+    version: '1.0.0',
+    oauth: { required: true, provider: 'salesforce' },
+    params: {
+      accessToken: { type: 'string', required: true, visibility: 'hidden' },
+      instanceUrl: { type: 'string', required: true, visibility: 'hidden' },
+    },
+    request: {
+      url: '/api/tools/test/salesforce-context',
+      method: 'POST',
+      headers: () => ({ 'Content-Type': 'application/json' }),
+      body: (params: any) => ({
+        accessToken: params.accessToken,
+        instanceUrl: params.instanceUrl,
+      }),
+    },
+    transformResponse: async (response: Response) => ({
+      success: true,
+      output: await response.json(),
+    }),
+  },
   test_single_file_tool: {
     id: 'test_single_file_tool',
     name: 'Test Single File Tool',
@@ -3600,6 +3649,134 @@ describe('Copilot OAuth Credential Enforcement', () => {
     expect(result.error).toContain('credentialId')
     expect(result.error).toContain('environment/credentials.json')
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('OAuth provider context propagation', () => {
+  it('continues copying standard non-QuickBooks OAuth metadata into tool parameters', async () => {
+    mockGenerateInternalToken.mockResolvedValue('internal-token')
+    const fetchMock = vi.fn().mockImplementation(async (url: string, options?: RequestInit) => {
+      if (url.includes('/api/auth/oauth/token')) {
+        return new Response(
+          JSON.stringify({
+            accessToken: 'fresh-access-token',
+            instanceUrl: 'https://credential-bound.salesforce.example',
+          }),
+          { headers: { 'Content-Type': 'application/json' } }
+        )
+      }
+
+      return new Response(options?.body, {
+        headers: { 'Content-Type': 'application/json' },
+      })
+    })
+    global.fetch = Object.assign(fetchMock, { preconnect: vi.fn() }) as typeof fetch
+
+    const result = await executeTool(
+      'test_salesforce_context',
+      {
+        credential: 'salesforce-credential',
+        instanceUrl: 'https://workflow-supplied.salesforce.example',
+      },
+      {
+        executionContext: createToolExecutionContext({
+          userId: 'user-123',
+          workflowId: 'workflow-123',
+        }),
+      }
+    )
+
+    expect(result).toMatchObject({
+      success: true,
+      output: {
+        accessToken: 'fresh-access-token',
+        instanceUrl: 'https://credential-bound.salesforce.example',
+      },
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('copies the QuickBooks realm from the token response into tool parameters', async () => {
+    mockGenerateInternalToken.mockResolvedValue('internal-token')
+    const fetchMock = vi.fn().mockImplementation(async (url: string, options?: RequestInit) => {
+      if (url.includes('/api/auth/oauth/token')) {
+        return new Response(
+          JSON.stringify({
+            accessToken: 'fresh-access-token',
+            realmId: '123456789',
+          }),
+          { headers: { 'Content-Type': 'application/json' } }
+        )
+      }
+
+      return new Response(options?.body, {
+        headers: { 'Content-Type': 'application/json' },
+      })
+    })
+    global.fetch = Object.assign(fetchMock, { preconnect: vi.fn() }) as typeof fetch
+
+    const result = await executeTool(
+      'test_quickbooks_context',
+      { credential: 'quickbooks-credential' },
+      {
+        executionContext: createToolExecutionContext({
+          userId: 'user-123',
+          workflowId: 'workflow-123',
+        }),
+      }
+    )
+
+    expect(result).toMatchObject({
+      success: true,
+      output: {
+        accessToken: 'fresh-access-token',
+        realmId: '123456789',
+      },
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('overwrites a caller-supplied QuickBooks realm with the credential binding', async () => {
+    mockGenerateInternalToken.mockResolvedValue('internal-token')
+    const fetchMock = vi.fn().mockImplementation(async (url: string, options?: RequestInit) => {
+      if (url.includes('/api/auth/oauth/token')) {
+        return new Response(
+          JSON.stringify({
+            accessToken: 'fresh-access-token',
+            realmId: 'credential-bound-company',
+          }),
+          { headers: { 'Content-Type': 'application/json' } }
+        )
+      }
+
+      return new Response(options?.body, {
+        headers: { 'Content-Type': 'application/json' },
+      })
+    })
+    global.fetch = Object.assign(fetchMock, { preconnect: vi.fn() }) as typeof fetch
+
+    const result = await executeTool(
+      'test_quickbooks_context',
+      {
+        credential: 'quickbooks-credential',
+        realmId: 'workflow-supplied-company',
+      },
+      {
+        executionContext: createToolExecutionContext({
+          userId: 'user-123',
+          workflowId: 'workflow-123',
+        }),
+      }
+    )
+
+    expect(result).toMatchObject({
+      success: true,
+      output: {
+        accessToken: 'fresh-access-token',
+        realmId: 'credential-bound-company',
+      },
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 })
 

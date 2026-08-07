@@ -169,6 +169,36 @@ describe('Error Extractors', () => {
   })
 
   describe('extractErrorMessage with explicit extractorId', () => {
+    it('formats QuickBooks faults with status guidance', () => {
+      const errorInfo: ErrorInfo = {
+        status: 401,
+        data: {
+          Fault: {
+            Error: [
+              {
+                code: '3200',
+                Message: 'Authentication failed',
+                Detail: 'Token expired',
+              },
+            ],
+          },
+        },
+      }
+
+      expect(extractErrorMessage(errorInfo, ErrorExtractorId.QUICKBOOKS_FAULT)).toBe(
+        'QuickBooks request failed with HTTP 401. Reconnect the QuickBooks credential. 3200: Authentication failed: Token expired'
+      )
+    })
+
+    it('does not claim non-QuickBooks payloads', () => {
+      expect(
+        extractErrorMessage(
+          { status: 400, data: { message: 'Unrelated provider error' } },
+          ErrorExtractorId.QUICKBOOKS_FAULT
+        )
+      ).toBe('Request failed with status 400')
+    })
+
     it('should use specified extractor directly (deterministic)', () => {
       const errorInfo: ErrorInfo = {
         status: 403,

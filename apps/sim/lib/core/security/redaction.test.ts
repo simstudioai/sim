@@ -53,6 +53,10 @@ describe('isSensitiveKey', () => {
       expect(isSensitiveKey('refresh_token')).toBe(true)
       expect(isSensitiveKey('auth_token')).toBe(true)
       expect(isSensitiveKey('accessToken')).toBe(true)
+      expect(isSensitiveKey('sessionToken')).toBe(true)
+      expect(isSensitiveKey('webIdentityToken')).toBe(true)
+      expect(isSensitiveKey('verificationToken')).toBe(true)
+      expect(isSensitiveKey('githubToken')).toBe(true)
     })
 
     it.concurrent('should match secret variations', () => {
@@ -107,9 +111,28 @@ describe('isSensitiveKey', () => {
     it.concurrent('should match ssh passphrases', () => {
       expect(isSensitiveKey('passphrase')).toBe(true)
     })
+
+    it.concurrent('should not allow arbitrary keys ending in workflow token names', () => {
+      expect(isSensitiveKey('asyncToken')).toBe(true)
+      expect(isSensitiveKey('homepageToken')).toBe(true)
+    })
   })
 
   describe('non-sensitive keys (no false positives)', () => {
+    it.concurrent('should bypass the exact allowlisted non-secret token fields', () => {
+      expect(isSensitiveKey('nextPageToken')).toBe(false)
+      expect(isSensitiveKey('syncToken')).toBe(false)
+      expect(isSensitiveKey('SyncToken')).toBe(false)
+      expect(isSensitiveKey('subjectFromWebIdentityToken')).toBe(false)
+    })
+
+    it.concurrent('should keep the allowlist exact rather than suffix-based', () => {
+      expect(isSensitiveKey('nextSyncToken')).toBe(true)
+      expect(isSensitiveKey('pageToken')).toBe(true)
+      expect(isSensitiveKey('nextToken')).toBe(true)
+      expect(isSensitiveKey('webIdentityToken')).toBe(true)
+    })
+
     it.concurrent('should not match keys with sensitive words as prefix only', () => {
       expect(isSensitiveKey('tokenCount')).toBe(false)
       expect(isSensitiveKey('tokenizer')).toBe(false)
@@ -228,6 +251,24 @@ describe('redactApiKeys', () => {
 
       expect(result.config.apiKey).toBe('[REDACTED]')
       expect(result.config.normalField).toBe('normal-value')
+    })
+
+    it.concurrent('should preserve allowlisted token fields while redacting credentials', () => {
+      const result = redactApiKeys({
+        nextPageToken: 'page-2',
+        subjectFromWebIdentityToken: 'arn-subject',
+        record: { Id: '42', SyncToken: '3' },
+        accessToken: 'access-secret',
+        sessionToken: 'session-secret',
+      })
+
+      expect(result).toEqual({
+        nextPageToken: 'page-2',
+        subjectFromWebIdentityToken: 'arn-subject',
+        record: { Id: '42', SyncToken: '3' },
+        accessToken: REDACTED_MARKER,
+        sessionToken: REDACTED_MARKER,
+      })
     })
 
     it.concurrent('should redact sensitive keys in arrays', () => {

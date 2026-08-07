@@ -43,6 +43,7 @@ import {
   NotionIcon,
   OutlookIcon,
   PipedriveIcon,
+  QuickBooksIcon,
   RedditIcon,
   SalesforceIcon,
   ShopifyIcon,
@@ -1015,6 +1016,22 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'pipedrive',
   },
+  quickbooks: {
+    name: 'QuickBooks',
+    icon: QuickBooksIcon,
+    services: {
+      quickbooks: {
+        name: 'QuickBooks',
+        description:
+          'Access company data and manage customers, vendors, and items in QuickBooks Online.',
+        providerId: 'quickbooks',
+        icon: QuickBooksIcon,
+        baseProviderIcon: QuickBooksIcon,
+        scopes: ['openid', 'profile', 'email', 'com.intuit.quickbooks.accounting'],
+      },
+    },
+    defaultService: 'quickbooks',
+  },
   hubspot: {
     name: 'HubSpot',
     icon: HubspotIcon,
@@ -1573,6 +1590,20 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientId,
         clientSecret,
         useBasicAuth: false,
+        supportsRefreshTokenRotation: true,
+      }
+    }
+    case 'quickbooks': {
+      const { clientId, clientSecret } = getConfiguredClientCredentials(
+        'quickbooks',
+        'QUICKBOOKS_CLIENT_ID',
+        'QUICKBOOKS_CLIENT_SECRET'
+      )
+      return {
+        tokenEndpoint: 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer',
+        clientId,
+        clientSecret,
+        useBasicAuth: true,
         supportsRefreshTokenRotation: true,
       }
     }

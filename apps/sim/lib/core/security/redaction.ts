@@ -7,7 +7,21 @@ import { filterUserFileForDisplay, isUserFile } from '@/lib/core/utils/user-file
 export const REDACTED_MARKER = '[REDACTED]'
 export const TRUNCATED_MARKER = '[TRUNCATED]'
 
-const BYPASS_REDACTION_KEYS = new Set(['nextPageToken'])
+/**
+ * Exact `*token` field names that carry workflow state rather than authorization.
+ * Entries are lowercased; lookup is case-insensitive.
+ *
+ * `SENSITIVE_KEY_PATTERNS` below contains `/^.*token$/i`, which over-redacts a
+ * small set of documented, non-secret outputs. Keep this allowlist exact and tiny —
+ * unknown `*token` fields must stay redacted by default.
+ *
+ * - `nextpagetoken` — pagination cursor users pass into the next request.
+ * - `synctoken` — QuickBooks Online optimistic-concurrency version; every update
+ *   tool requires it as an input, so it must stay readable in tool output.
+ * - `subjectfromwebidentitytoken` — documented STS block output (a subject-claim
+ *   identifier, not a credential). See `apps/sim/blocks/blocks/sts.ts`.
+ */
+const BYPASS_REDACTION_KEYS = new Set(['nextpagetoken', 'synctoken', 'subjectfromwebidentitytoken'])
 
 /** Keys that contain large binary/encoded data that should be truncated in logs */
 const LARGE_DATA_KEYS = new Set(['base64'])
@@ -74,10 +88,10 @@ const SENSITIVE_VALUE_PATTERNS: Array<{
 ]
 
 export function isSensitiveKey(key: string): boolean {
-  if (BYPASS_REDACTION_KEYS.has(key)) {
+  const lowerKey = key.toLowerCase()
+  if (BYPASS_REDACTION_KEYS.has(lowerKey)) {
     return false
   }
-  const lowerKey = key.toLowerCase()
   return SENSITIVE_KEY_PATTERNS.some((pattern) => pattern.test(lowerKey))
 }
 

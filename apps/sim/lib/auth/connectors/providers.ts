@@ -13,6 +13,13 @@ import {
 } from '@/lib/core/utils/stream-limits'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getMicrosoftUserInfoFromIdToken } from '@/lib/oauth/microsoft'
+import {
+  fetchQuickBooksConnectionProfile,
+  getQuickBooksCallbackRealm,
+  QUICKBOOKS_AUTHORIZATION_URL,
+  QUICKBOOKS_OIDC_CLAIMS,
+  QUICKBOOKS_TOKEN_URL,
+} from '@/lib/oauth/quickbooks'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
 import { deriveZohoDeskBaseFromApiDomain } from '@/tools/zoho_desk/host-allowlist'
 
@@ -2354,6 +2361,42 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
         } catch (error) {
           logger.error('Error in DocuSign getUserInfo:', { error })
           return null
+        }
+      },
+    },
+
+    {
+      providerId: 'quickbooks',
+      clientId: env.QUICKBOOKS_CLIENT_ID as string,
+      clientSecret: env.QUICKBOOKS_CLIENT_SECRET as string,
+      authorizationUrl: QUICKBOOKS_AUTHORIZATION_URL,
+      tokenUrl: QUICKBOOKS_TOKEN_URL,
+      scopes: getCanonicalScopesForProvider('quickbooks'),
+      responseType: 'code',
+      accessType: 'offline',
+      prompt: 'consent',
+      authentication: 'basic',
+      redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/quickbooks`,
+      authorizationUrlParams: {
+        claims: JSON.stringify(QUICKBOOKS_OIDC_CLAIMS),
+      },
+      getUserInfo: async (tokens) => {
+        if (!tokens.accessToken) {
+          throw new Error('QuickBooks OAuth did not issue an access token')
+        }
+
+        const profile = await fetchQuickBooksConnectionProfile(
+          tokens.accessToken,
+          getQuickBooksCallbackRealm()
+        )
+        const now = new Date()
+        return {
+          id: profile.accountId,
+          name: profile.name,
+          email: profile.email,
+          emailVerified: profile.emailVerified,
+          createdAt: now,
+          updatedAt: now,
         }
       },
     },
