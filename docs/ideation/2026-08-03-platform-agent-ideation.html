@@ -1,0 +1,511 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Platform agent — ideation</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f4f5f2;
+      --surface: #ffffff;
+      --surface-2: #eef2ee;
+      --text: #17201c;
+      --muted: #5a6861;
+      --border: #d5ddd7;
+      --accent: #126a4a;
+      --accent-soft: #dff3e8;
+      --accent-text: #0c5138;
+      --blue-soft: #e5effa;
+      --blue-text: #184e7a;
+      --amber-soft: #fbf0d8;
+      --amber-text: #704b09;
+      --rose-soft: #f8e7e5;
+      --rose-text: #7a342e;
+      --shadow: 0 12px 36px rgb(26 45 35 / 8%);
+      --radius: 18px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #111713;
+        --surface: #19211c;
+        --surface-2: #202b24;
+        --text: #edf4ef;
+        --muted: #adbbb2;
+        --border: #334139;
+        --accent: #72d3a3;
+        --accent-soft: #183f2d;
+        --accent-text: #a8e8c7;
+        --blue-soft: #183349;
+        --blue-text: #a8d1f2;
+        --amber-soft: #463918;
+        --amber-text: #f2d18a;
+        --rose-soft: #482724;
+        --rose-text: #efb0aa;
+        --shadow: 0 14px 40px rgb(0 0 0 / 24%);
+      }
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 15px/1.62 ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      text-rendering: optimizeLegibility;
+    }
+    a { color: var(--accent); text-underline-offset: 3px; }
+    code {
+      font: 0.9em/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.08rem 0.35rem;
+    }
+    strong { color: inherit; }
+
+    .page {
+      width: min(940px, calc(100% - 32px));
+      margin: 36px auto 64px;
+    }
+    .hero {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 26px;
+      box-shadow: var(--shadow);
+      padding: clamp(26px, 5vw, 52px);
+    }
+    .eyebrow {
+      margin: 0 0 8px;
+      color: var(--accent);
+      font-size: 0.76rem;
+      font-weight: 750;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    h1, h2, h3 { line-height: 1.15; letter-spacing: -0.025em; }
+    h1 { margin: 0; font-size: clamp(2rem, 5vw, 3.5rem); max-width: 17ch; }
+    h2 { margin: 0 0 16px; font-size: clamp(1.45rem, 3vw, 2rem); }
+    h3 { margin: 0; font-size: 1.25rem; }
+    .lede { max-width: 70ch; margin: 20px 0 0; color: var(--muted); font-size: 1.05rem; }
+    .metadata, .stats, .idea-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .metadata { margin-top: 24px; }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--surface-2);
+      color: var(--muted);
+      padding: 3px 10px;
+      font-size: 0.78rem;
+      font-weight: 650;
+    }
+    .pill.accent { background: var(--accent-soft); color: var(--accent-text); border-color: transparent; }
+    .pill.blue { background: var(--blue-soft); color: var(--blue-text); border-color: transparent; }
+    .pill.amber { background: var(--amber-soft); color: var(--amber-text); border-color: transparent; }
+
+    .stats { margin-top: 26px; gap: 12px; }
+    .stat {
+      flex: 1 1 150px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px 16px;
+    }
+    .stat b { display: block; font-size: 1.35rem; line-height: 1.1; }
+    .stat span { color: var(--muted); font-size: 0.78rem; }
+
+    nav {
+      margin: 20px 0 0;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px 18px;
+      font-size: 0.86rem;
+    }
+    nav a { font-weight: 650; text-decoration: none; }
+    nav a:hover { text-decoration: underline; }
+
+    section {
+      margin-top: 48px;
+      scroll-margin-top: 24px;
+    }
+    section > p, .measure { max-width: 72ch; }
+    .context-grid, .axis-grid, .lens-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .context-card, .axis-card, .lens {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px 18px;
+    }
+    .context-card h3, .axis-card h3 { font-size: 1rem; margin-bottom: 6px; }
+    .context-card p, .axis-card p, .lens p { margin: 0; color: var(--muted); }
+
+    .diagram {
+      margin-top: 22px;
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      padding: 18px;
+    }
+    .diagram svg { display: block; width: 100%; min-width: 700px; height: auto; }
+    .diagram figcaption { max-width: 72ch; margin-top: 12px; color: var(--muted); font-size: 0.82rem; }
+
+    .jump-list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin: 18px 0 24px;
+      padding: 0;
+      list-style: none;
+    }
+    .jump-list a {
+      display: block;
+      height: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--surface);
+      text-decoration: none;
+      font-weight: 650;
+    }
+    .jump-list a:hover { background: var(--surface-2); }
+
+    .idea {
+      margin: 18px 0;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: clamp(20px, 4vw, 30px);
+      scroll-margin-top: 24px;
+    }
+    .idea-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 14px;
+    }
+    .rank {
+      flex: 0 0 auto;
+      display: inline-grid;
+      place-items: center;
+      width: 38px;
+      height: 38px;
+      border-radius: 12px;
+      background: var(--accent-soft);
+      color: var(--accent-text);
+      font-weight: 800;
+    }
+    .idea-title { display: flex; gap: 14px; align-items: center; }
+    .idea p { max-width: 72ch; }
+    .idea dl {
+      display: grid;
+      grid-template-columns: 110px minmax(0, 1fr);
+      gap: 10px 16px;
+      margin: 22px 0 0;
+      padding-top: 18px;
+      border-top: 1px solid var(--border);
+    }
+    .idea dt {
+      color: var(--muted);
+      font-size: 0.72rem;
+      font-weight: 750;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .idea dd { margin: 0; }
+
+    .lens-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 18px 0; }
+    .lens { background: var(--blue-soft); border-color: transparent; }
+    .lens b { display: block; margin-bottom: 4px; color: var(--blue-text); }
+    .lens p { color: var(--blue-text); font-size: 0.85rem; }
+
+    .callout {
+      margin-top: 18px;
+      padding: 16px 18px;
+      border: 1px solid transparent;
+      border-radius: 14px;
+      background: var(--amber-soft);
+      color: var(--amber-text);
+    }
+    .callout b { display: block; margin-bottom: 3px; }
+
+    table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      overflow: hidden;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      font-size: 0.86rem;
+    }
+    th, td { padding: 12px 14px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--border); }
+    th { background: var(--surface-2); color: var(--muted); font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; }
+    tr:last-child td { border-bottom: 0; }
+
+    footer {
+      margin-top: 44px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 0.78rem;
+    }
+
+    @media (max-width: 700px) {
+      .page { width: min(100% - 20px, 940px); margin-top: 10px; }
+      .hero { border-radius: 18px; }
+      .context-grid, .axis-grid, .jump-list, .lens-grid { grid-template-columns: 1fr; }
+      .idea-head { display: block; }
+      .idea-meta { margin-top: 12px; }
+      .idea dl { grid-template-columns: 1fr; gap: 4px; }
+      .idea dd { margin-bottom: 12px; }
+      table { display: block; overflow-x: auto; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="hero">
+      <p class="eyebrow">Ideation · Platform intelligence</p>
+      <h1>Turn the docs agent into a trusted platform operator</h1>
+      <p class="lede">The strongest direction is not an omniscient agent. It is a source-aware agent that knows the user’s operating context, fetches private state only when needed, explains access and billing in product language, and leaves evidence behind whenever it reads sensitive data.</p>
+
+      <div class="metadata" aria-label="Artifact metadata">
+        <span class="pill accent">Date · <time datetime="2026-08-03">2026-08-03</time></span>
+        <span class="pill">Topic · platform-agent</span>
+        <span class="pill">Mode · repo-grounded</span>
+        <span class="pill blue">Focus · tools, prompt context, private platform data</span>
+      </div>
+
+      <div class="stats" aria-label="Ideation summary">
+        <div class="stat"><b>30</b><span>raw candidates</span></div>
+        <div class="stat"><b>12</b><span>deduped directions</span></div>
+        <div class="stat"><b>6</b><span>ranked survivors</span></div>
+        <div class="stat"><b>4</b><span>topic axes covered</span></div>
+      </div>
+
+      <nav aria-label="Document sections">
+        <a href="#grounding-context">Grounding Context</a>
+        <a href="#topic-axes">Topic Axes</a>
+        <a href="#ranked-ideas">Ranked Ideas</a>
+        <a href="#rejection-summary">Rejection Summary</a>
+      </nav>
+    </header>
+
+    <section id="grounding-context">
+      <p class="eyebrow">What the codebase already gives us</p>
+      <h2>Grounding Context</h2>
+      <p class="measure">The branch introduces a dedicated platform child that is intentionally isolated from parent conversation and restricted to documentation search, VFS reads, and response. That isolation is useful, but the runtime already has stronger seams than the prompt admits.</p>
+
+      <div class="context-grid">
+        <article class="context-card">
+          <h3>Trusted request context already exists</h3>
+          <p>Child execution carries trusted user/workspace IDs, effective permission, entitlements, timezone, and workspace/session/workflow bootstrap. Human-readable <code>UserMetadata</code> is the notable omission.</p>
+        </article>
+        <article class="context-card">
+          <h3>Central handlers are the security seam</h3>
+          <p>Sim-side tool handlers receive authenticated actor/workspace context and can enforce permission before returning data. Model-supplied IDs do not need to become authority.</p>
+        </article>
+        <article class="context-card">
+          <h3>Most live data services already exist</h3>
+          <p>Billing, permission groups, audit events, execution logs and metrics, and metadata-only subagent invocation records already expose the underlying facts with distinct gates.</p>
+        </article>
+        <article class="context-card">
+          <h3>Prior art converges on the same split</h3>
+          <p><a href="https://learn.microsoft.com/en-us/microsoft-365/copilot/microsoft-365-copilot-architecture">Microsoft</a>, <a href="https://docs.aws.amazon.com/cost-management/latest/userguide/ce-q-security.html">AWS</a>, and <a href="https://www.intercom.com/help/en/articles/10521711-batch-test-fin-ai-agent">Intercom</a> separate ambient identity from permission-trimmed retrieval and persona-specific behavior.</p>
+        </article>
+      </div>
+
+      <figure class="diagram">
+        <svg viewBox="0 0 840 285" role="img" aria-labelledby="source-map-title source-map-desc">
+          <title id="source-map-title">Four source-of-truth layers feeding the platform agent</title>
+          <desc id="source-map-desc">Injected context, live tools, public docs, and component schemas each answer a different class of question. The platform agent synthesizes them into a scoped answer with provenance.</desc>
+          <defs>
+            <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+              <path d="M0,0 L8,4 L0,8 Z" fill="var(--accent)"/>
+            </marker>
+          </defs>
+          <rect x="20" y="24" width="170" height="70" rx="14" fill="var(--accent-soft)" stroke="var(--accent)"/>
+          <text x="105" y="53" text-anchor="middle" fill="var(--accent-text)" font-size="15" font-weight="700">Injected context</text>
+          <text x="105" y="76" text-anchor="middle" fill="var(--accent-text)" font-size="12">who · where · current role</text>
+
+          <rect x="230" y="24" width="170" height="70" rx="14" fill="var(--blue-soft)" stroke="var(--blue-text)"/>
+          <text x="315" y="53" text-anchor="middle" fill="var(--blue-text)" font-size="15" font-weight="700">Live Sim tools</text>
+          <text x="315" y="76" text-anchor="middle" fill="var(--blue-text)" font-size="12">private · mutable · scoped</text>
+
+          <rect x="440" y="24" width="170" height="70" rx="14" fill="var(--amber-soft)" stroke="var(--amber-text)"/>
+          <text x="525" y="53" text-anchor="middle" fill="var(--amber-text)" font-size="15" font-weight="700">Product docs</text>
+          <text x="525" y="76" text-anchor="middle" fill="var(--amber-text)" font-size="12">behavior · limits · UI</text>
+
+          <rect x="650" y="24" width="170" height="70" rx="14" fill="var(--rose-soft)" stroke="var(--rose-text)"/>
+          <text x="735" y="53" text-anchor="middle" fill="var(--rose-text)" font-size="15" font-weight="700">Component schemas</text>
+          <text x="735" y="76" text-anchor="middle" fill="var(--rose-text)" font-size="12">fields · enums · tool IDs</text>
+
+          <path d="M105 105 L105 134 L335 134 L335 158" fill="none" stroke="var(--accent)" stroke-width="2" marker-end="url(#arrow)"/>
+          <path d="M315 105 L315 142 L370 142 L370 158" fill="none" stroke="var(--accent)" stroke-width="2" marker-end="url(#arrow)"/>
+          <path d="M525 105 L525 142 L470 142 L470 158" fill="none" stroke="var(--accent)" stroke-width="2" marker-end="url(#arrow)"/>
+          <path d="M735 105 L735 134 L505 134 L505 158" fill="none" stroke="var(--accent)" stroke-width="2" marker-end="url(#arrow)"/>
+
+          <rect x="310" y="166" width="220" height="62" rx="16" fill="var(--surface-2)" stroke="var(--border)" stroke-width="2"/>
+          <text x="420" y="193" text-anchor="middle" fill="var(--text)" font-size="16" font-weight="750">Platform agent</text>
+          <text x="420" y="215" text-anchor="middle" fill="var(--muted)" font-size="12">chooses authority by question</text>
+
+          <path d="M420 228 L420 251" fill="none" stroke="var(--accent)" stroke-width="2" marker-end="url(#arrow)"/>
+          <text x="438" y="249" fill="var(--muted)" font-size="11">scoped + cited + fresh</text>
+          <rect x="310" y="258" width="220" height="22" rx="11" fill="var(--accent-soft)"/>
+          <text x="420" y="274" text-anchor="middle" fill="var(--accent-text)" font-size="12" font-weight="700">Answer with provenance</text>
+        </svg>
+        <figcaption>Directional overview: each source is authoritative for a different kind of fact. The model chooses among them; authorization remains in Sim.</figcaption>
+      </figure>
+    </section>
+
+    <section id="topic-axes">
+      <p class="eyebrow">Surface map</p>
+      <h2>Topic Axes</h2>
+      <div class="axis-grid">
+        <article class="axis-card"><h3>1. Identity and current context</h3><p>Who is asking, where they are operating, and what request-local context is safe to carry ambiently.</p></article>
+        <article class="axis-card"><h3>2. Access and resource visibility</h3><p>What the viewer may discover or do, why something is unavailable, and how to avoid resource-existence leaks.</p></article>
+        <article class="axis-card"><h3>3. Plan, billing, and usage</h3><p>Personal plan, effective coverage, exact workspace payer, usage gates, limits, credits, and management authority.</p></article>
+        <article class="axis-card"><h3>4. Activity, audit, and operational health</h3><p>What changed, what failed, which evidence source applies, and how private reads become inspectable.</p></article>
+      </div>
+    </section>
+
+    <section id="ranked-ideas">
+      <p class="eyebrow">Qualified directions</p>
+      <h2>Ranked Ideas</h2>
+      <ul class="jump-list">
+        <li><a href="#idea-1">1. Context passport + source hierarchy</a></li>
+        <li><a href="#idea-2">2. Capability/access explainer</a></li>
+        <li><a href="#idea-3">3. Three-lens billing + preflight</a></li>
+        <li><a href="#idea-4">4. Evidence-routed investigation</a></li>
+        <li><a href="#idea-5">5. Sensitive-read receipts</a></li>
+        <li><a href="#idea-6">6. Persona/access evaluation matrix</a></li>
+      </ul>
+
+      <article class="idea" id="idea-1">
+        <div class="idea-head">
+          <div class="idea-title"><span class="rank">1</span><h3>Idea 1. Context passport + source hierarchy</h3></div>
+          <div class="idea-meta"><span class="pill accent">Confidence · 94%</span><span class="pill">Complexity · Low</span></div>
+        </div>
+        <p><strong>Description:</strong> Inject a small trusted <code>Current Platform Context</code> block into the child: display name, timezone, workspace name/ID, current workflow or selected resource, effective <code>read|write|admin</code>, broad entitlements, and an <code>asOf</code> value. Rewrite the prompt around four authorities: this passport for orientation, live tools for private or mutable facts, docs for product behavior, and component schemas for exact configuration.</p>
+        <dl>
+          <dt>Axis</dt><dd>Identity and current context</dd>
+          <dt>Basis</dt><dd><strong>direct:</strong> The request already threads trusted workspace, permission, entitlement, timezone, session/workflow bootstrap, and VFS inventory to the child, but not human-readable <code>UserMetadata</code>. The current prompt already distinguishes docs behavior from schema truth, so this adds the missing live-data tier rather than replacing the model.</dd>
+          <dt>Rationale</dt><dd>It removes repeated disambiguation while creating a crisp rule for stale, conflicting, or private facts. This is the smallest change that makes every later tool safer and easier to use.</dd>
+          <dt>Downsides</dt><dd>The passport becomes a compatibility contract and must stay deliberately small. Current page/resource context needs careful selection so it does not leak browser state to children unnecessarily.</dd>
+        </dl>
+      </article>
+
+      <article class="idea" id="idea-2">
+        <div class="idea-head">
+          <div class="idea-title"><span class="rank">2</span><h3>Idea 2. Capability/access explainer</h3></div>
+          <div class="idea-meta"><span class="pill accent">Confidence · 92%</span><span class="pill">Complexity · Medium</span></div>
+        </div>
+        <p><strong>Description:</strong> Add <code>explain_capability(action, resourceType?)</code>. It returns <code>available</code>, <code>needs_write</code>, <code>needs_admin</code>, <code>blocked_by_policy</code>, <code>not_entitled</code>, or <code>not_configured</code>, identifies the controlling layer, and gives a safe next step. It never returns names, counts, or existence signals for hidden resources.</p>
+        <dl>
+          <dt>Axis</dt><dd>Access and resource visibility</dd>
+          <dt>Basis</dt><dd><strong>direct:</strong> Sim already combines workspace permission, organization role, permission-group restrictions, integration/model/tool allowlists, and per-viewer feature visibility. Handler-side enforcement and trusted execution context are already the normal boundary.</dd>
+          <dt>Rationale</dt><dd>This turns “the docs say I can” into “here is whether you can, why, and what legitimate path exists.” It can absorb the useful part of a buildability map without exposing a broad hidden-feature manifest.</dd>
+          <dt>Downsides</dt><dd>A stable causal vocabulary is product work, not just plumbing. Incorrect denial explanations are worse than a generic denial, so the tool must reuse the same policy decisions as execution rather than reimplementing them.</dd>
+        </dl>
+      </article>
+
+      <article class="idea" id="idea-3">
+        <div class="idea-head">
+          <div class="idea-title"><span class="rank">3</span><h3>Idea 3. Three-lens billing snapshot + run preflight</h3></div>
+          <div class="idea-meta"><span class="pill accent">Confidence · 91%</span><span class="pill">Complexity · Medium</span></div>
+        </div>
+        <p><strong>Description:</strong> Add one billing tool with explicit lenses: <code>personal_subscription</code>, <code>effective_user_coverage</code>, and <code>current_workspace_payer</code>. Return only decision-ready fields—plan/status, usable/block state, usage and limit, credits, period, management authority, freshness—and an optional operation preflight that reports the first live gate and user-appropriate remediation.</p>
+        <div class="lens-grid" aria-label="Billing lenses">
+          <div class="lens"><b>Personal</b><p>What the user personally owns or pays for.</p></div>
+          <div class="lens"><b>Effective</b><p>What coverage the user currently receives.</p></div>
+          <div class="lens"><b>Workspace payer</b><p>Which billing pool governs work here.</p></div>
+        </div>
+        <dl>
+          <dt>Axis</dt><dd>Plan, billing, and usage</dd>
+          <dt>Basis</dt><dd><strong>direct:</strong> Those three meanings deliberately differ in the billing code. Billing status also differs from product-usable access, and enforcement-grade reads have stronger freshness requirements than display reads.</dd>
+          <dt>Rationale</dt><dd>A naïve <code>get_plan</code> would encode the wrong product semantics. A lens-based projection answers “what plan am I on?”, “who pays for this?”, and “why is this run blocked?” without exposing raw subscriptions, Stripe identifiers, invoices, or other members’ usage.</dd>
+          <dt>Downsides</dt><dd>Organizations and personal accounts need different redaction and management guidance. Live preflight may cost more than a replica-backed informational answer, so freshness must be explicit.</dd>
+        </dl>
+      </article>
+
+      <article class="idea" id="idea-4">
+        <div class="idea-head">
+          <div class="idea-title"><span class="rank">4</span><h3>Idea 4. Evidence-routed activity investigator</h3></div>
+          <div class="idea-meta"><span class="pill blue">Confidence · 88%</span><span class="pill">Complexity · High</span></div>
+        </div>
+        <p><strong>Description:</strong> Add <code>investigate_activity(question, timeRange)</code>. It classifies the symptom and queries only the authorized evidence family: execution percentiles for latency, workflow logs for failures, organization audit events for “who changed this?”, and metadata-only subagent invocation records for delegation health. It returns a bounded timeline, saved filters or deep links, truncation/freshness notices, and facts clearly separated from hypotheses.</p>
+        <dl>
+          <dt>Axis</dt><dd>Activity, audit, and operational health</dd>
+          <dt>Basis</dt><dd><strong>direct:</strong> Sim already has each source with separate authorization, filter, pagination, and payload semantics. <strong>external:</strong> Azure copilots use reviewable queries and deep links rather than becoming a parallel source of truth.</dd>
+          <dt>Rationale</dt><dd>This is the step-function move: the platform agent becomes a credible first responder for “what changed?” and “why did this fail?” while preserving the authority of existing observability surfaces.</dd>
+          <dt>Downsides</dt><dd>Joining evidence can create false causality. The first version should route and summarize rather than claim root cause, and enterprise audit access must stay independently gated.</dd>
+        </dl>
+      </article>
+
+      <article class="idea" id="idea-5">
+        <div class="idea-head">
+          <div class="idea-title"><span class="rank">5</span><h3>Idea 5. Sensitive-read receipts</h3></div>
+          <div class="idea-meta"><span class="pill blue">Confidence · 87%</span><span class="pill">Complexity · Medium</span></div>
+        </div>
+        <p><strong>Description:</strong> Treat read-only billing, audit, member, and execution-data access as sensitive. Every lookup emits a metadata-only receipt containing actor, scope, tool, authorization result, reason or query hash, timestamp, and trace linkage—never the returned private body. The prompt briefly discloses when private records were inspected and offers an inspectable activity link.</p>
+        <dl>
+          <dt>Axis</dt><dd>Activity, audit, and operational health</dd>
+          <dt>Basis</dt><dd><strong>direct:</strong> Sim already records audit metadata and durable subagent-invocation metadata without conversational content. <strong>external:</strong> AWS and Google log agent-mediated or admin data reads, including dry-run permission checks.</dd>
+          <dt>Rationale</dt><dd>This is the trust foundation for every private-data tool. It makes agent access governable and answers the security question “what did the agent look at?” without storing sensitive outputs twice.</dd>
+          <dt>Downsides</dt><dd>Receipts create volume, retention, and user-experience questions. Query hashes and reason fields must avoid becoming a new content-leak channel.</dd>
+        </dl>
+      </article>
+
+      <article class="idea" id="idea-6">
+        <div class="idea-head">
+          <div class="idea-title"><span class="rank">6</span><h3>Idea 6. Persona/access evaluation matrix</h3></div>
+          <div class="idea-meta"><span class="pill blue">Confidence · 85%</span><span class="pill">Complexity · Medium</span></div>
+        </div>
+        <p><strong>Description:</strong> Evaluate the same platform questions as free/paid, member/admin/owner, billing-manager/non-manager, policy-restricted/unrestricted, and resource-access/no-access personas. Assert the answer, visible tools, denial wording, non-disclosure, citations, freshness labels, and sensitive-read receipts—not only whether a handler returns 200 or 403.</p>
+        <dl>
+          <dt>Axis</dt><dd>Access and resource visibility</dd>
+          <dt>Basis</dt><dd><strong>external:</strong> Intercom tests Fin as real or synthetic users, plans, audiences, and brands while inspecting triggered behavior. <strong>direct:</strong> Sim’s access semantics span enough independent layers that isolated handler tests cannot validate what the model ultimately says.</dd>
+          <dt>Rationale</dt><dd>This converts permission awareness from an architectural claim into product behavior that can be regression-tested. It is especially valuable for “must not reveal” cases where a function-level authorization test can pass while the answer leaks context.</dd>
+          <dt>Downsides</dt><dd>Model-evaluation stability and fixture maintenance are real costs. Start with a small invariant suite around identity, capability denials, billing lenses, and audit authorization.</dd>
+        </dl>
+        <div class="callout"><b>Useful invariant</b>The same question should produce different, correct answers for a member and an admin—without either answer mentioning what the other persona can see.</div>
+      </article>
+    </section>
+
+    <section id="rejection-summary">
+      <p class="eyebrow">What did not survive intact</p>
+      <h2>Rejection Summary</h2>
+      <table>
+        <thead><tr><th>#</th><th>Idea</th><th>Reason rejected or merged</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Viewer-specific buildability map</td><td>The proposed breadth outran current evidence; its supported capability categories were folded into Idea 2.</td></tr>
+          <tr><td>2</td><td>Standalone run-capability preflight</td><td>Strong but duplicate; merged into the exact-payer billing semantics in Idea 3.</td></tr>
+          <tr><td>3</td><td>Usage-driver narrative</td><td>Reduced public logs do not support detailed workflow attribution without crossing payer-sensitive boundaries.</td></tr>
+          <tr><td>4</td><td>Standalone source hierarchy</td><td>Strong but inseparable from ambient context design; merged into Idea 1.</td></tr>
+          <tr><td>5</td><td>Intent-gated private-tool reveal</td><td>Request-time permission filtering already exists; extra progressive revelation lacked demonstrated value.</td></tr>
+          <tr><td>6</td><td>Standalone deep-link behavior</td><td>Valuable response behavior rather than a product direction; merged into Idea 4.</td></tr>
+          <tr><td>7</td><td>Repeated context, access, billing, and incident variants</td><td>Five independent lenses converged; duplicates were combined into the strongest source-aware forms above.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <footer class="composition-signal">Composed <time datetime="2026-08-03T18:39:21Z">2026-08-03T18:39:21Z</time> by <code>ce-ideate</code> from the platform-agent enhancement prompt and the active Sim/Mothership worktrees.</footer>
+  </main>
+</body>
+</html>
