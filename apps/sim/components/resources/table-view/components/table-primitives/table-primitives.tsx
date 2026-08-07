@@ -3,8 +3,12 @@
 import React from 'react'
 import { Button, Checkbox, cn } from '@sim/emcn'
 import { Plus } from '@sim/emcn/icons'
-import { ADD_COL_WIDTH, CELL_HEADER_CHECKBOX, COL_WIDTH } from './constants'
-import type { DisplayColumn } from './types'
+import type { DisplayColumn } from '@/components/resources/table-view/types'
+import {
+  ADD_COL_WIDTH,
+  CELL_HEADER_CHECKBOX,
+  COL_WIDTH,
+} from '@/components/resources/table-view/utils/constants'
 
 export const TableColGroup = React.memo(function TableColGroup({
   columns,

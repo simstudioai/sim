@@ -1,3 +1,4 @@
+import type { DisplayColumn } from '@/components/resources/table-view/types'
 import type { ActiveDispatch } from '@/lib/api/contracts/tables'
 import {
   buildTableSelectionLabel,
@@ -16,7 +17,6 @@ import { TABLE_LIMITS } from '@/lib/table/constants'
 import { areGroupDepsSatisfied, areOutputsFilled } from '@/lib/table/deps'
 import type { ChatContext } from '@/stores/panel'
 import type { DeletedRowSnapshot } from '@/stores/table/types'
-import type { DisplayColumn } from './types'
 
 /**
  * `all` means "every row matching the active filter" — including rows not yet loaded by the

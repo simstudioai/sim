@@ -3,8 +3,8 @@
 import type React from 'react'
 import { Tooltip } from '@sim/emcn'
 import { PlayOutline, WorkflowX } from '@sim/emcn/icons'
+import type { BlockIconInfo } from '@/components/resources/table-view/types'
 import { columnTypeById } from '@/lib/table/column-types'
-import type { BlockIconInfo } from '../types'
 
 /**
  * Icon for a column type. Reads the column-type registry rather than restating

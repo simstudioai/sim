@@ -5,13 +5,19 @@ import { useEffect, useRef, useState } from 'react'
 import { Badge, Checkbox, cn, Tooltip } from '@sim/emcn'
 import { parse } from 'tldts'
 import { StatusBadge } from '@/components/execution-status'
+import {
+  SimResourceCell,
+  type SimResourceType,
+} from '@/components/resources/table-view/components/cells/sim-resource-cell'
+import {
+  resolveSelectOptions,
+  SelectPill,
+} from '@/components/resources/table-view/components/select-pill'
+import type { DisplayColumn } from '@/components/resources/table-view/types'
+import { storageToDisplay } from '@/components/resources/table-view/utils/values'
 import { faviconUrl } from '@/lib/core/utils/favicon'
 import type { RowExecutionMetadata, SelectOption } from '@/lib/table'
 import { columnTypeOf } from '@/lib/table/column-types'
-import { resolveSelectOptions, SelectPill } from '../select-pill'
-import type { DisplayColumn } from '../types'
-import { storageToDisplay } from '../values'
-import { SimResourceCell, type SimResourceType } from './sim-resource-cell'
 
 export type CellRenderKind =
   // Workflow-output cells

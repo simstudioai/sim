@@ -37,7 +37,30 @@ apps/sim/resources/                    # kinds.ts · source.ts · grants.ts · h
 apps/sim/components/resources/<unit>/  # 'use client' — THE view, one per resource
 ```
 
-A resource kind with no canonical view yet (`table`, `knowledge`, `log`) is simply **absent** from `CANONICAL_UNITS` in the check. That is the correct state for an unmigrated kind. Do not add a flag, a shim, or a placeholder entry for it.
+Every unit has the same layout, so moving between them costs nothing:
+
+```
+<unit>/
+├── <unit>.tsx                  # THE view — the only component the barrel mounts
+├── index.ts                    # the barrel; the only entry point consumers use
+├── components/<child>/         # <child>.tsx + index.ts, one folder per child
+├── hooks/<name>.ts             # optional; tests colocated
+├── utils/<name>.ts             # pure helpers; tests colocated
+└── types.ts                    # optional; shared types the whole unit reads
+```
+
+Imports **inside** a unit are absolute (`@/components/resources/<unit>/...`) like
+everywhere else in the app. The one exception is a folder's own `index.ts`
+naming its siblings, which stays relative (`./<child>`) — it is describing its
+own directory, not reaching across the app.
+
+`table-view` is the one unit with no `<unit>.tsx`, and deliberately so: a table
+has no read-only surface yet, because everything that draws a grid today also
+writes one. It is absent from `CANONICAL_UNITS`' view list for exactly that
+reason, and carries the layout above so a future `TableView` lands in the shape
+the other three already have.
+
+A resource kind with no canonical view yet — `table` alone today — is simply **absent** from the view list in `CANONICAL_UNITS`. That is the correct state for an unmigrated kind. Do not add a flag, a shim, or a placeholder entry for it.
 
 ## Consume: construct the axes, then mount
 

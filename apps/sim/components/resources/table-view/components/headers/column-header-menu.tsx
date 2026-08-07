@@ -3,13 +3,13 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { cn } from '@sim/emcn'
 import { ChevronDown } from '@sim/emcn/icons'
-import { HeaderLabel } from '@/components/resources/table-view/headers/header-label'
+import { ColumnTypeIcon } from '@/components/resources/table-view/components/headers/column-type-icon'
+import { HeaderLabel } from '@/components/resources/table-view/components/headers/header-label'
+import { ColumnOptionsMenu } from '@/components/resources/table-view/components/headers/workflow-group-meta-cell'
+import type { ColumnSourceInfo, DisplayColumn } from '@/components/resources/table-view/types'
+import { COL_WIDTH, SELECTION_TINT_BG } from '@/components/resources/table-view/utils/constants'
 import type { WorkflowGroup } from '@/lib/table'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
-import { COL_WIDTH, SELECTION_TINT_BG } from '../constants'
-import type { ColumnSourceInfo, DisplayColumn } from '../types'
-import { ColumnTypeIcon } from './column-type-icon'
-import { ColumnOptionsMenu } from './workflow-group-meta-cell'
 
 interface ColumnHeaderMenuProps {
   column: DisplayColumn

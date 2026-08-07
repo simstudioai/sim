@@ -1,9 +1,12 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import {
+  CellRender,
+  resolveCellRender,
+} from '@/components/resources/table-view/components/cells/cell-render'
+import type { DisplayColumn } from '@/components/resources/table-view/types'
 import type { RowExecutionMetadata } from '@/lib/table'
-import type { DisplayColumn } from '../types'
-import { CellRender, resolveCellRender } from './cell-render'
 
 interface CellContentProps {
   value: unknown

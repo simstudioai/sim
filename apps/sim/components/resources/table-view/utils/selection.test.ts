@@ -2,19 +2,19 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import {
-  MAX_TABLE_SELECTION_COLUMNS,
-  MAX_TABLE_SELECTION_ROWS,
-} from '@/lib/copilot/chat/selection-context'
-import { TABLE_LIMITS } from '@/lib/table/constants'
-import type { DisplayColumn } from './types'
+import type { DisplayColumn } from '@/components/resources/table-view/types'
 import {
   buildTableSelectionContext,
   canWriteRowsWithChip,
   chipRowCount,
   drainTargetForChip,
   selectedColumnIds,
-} from './utils'
+} from '@/components/resources/table-view/utils/selection'
+import {
+  MAX_TABLE_SELECTION_COLUMNS,
+  MAX_TABLE_SELECTION_ROWS,
+} from '@/lib/copilot/chat/selection-context'
+import { TABLE_LIMITS } from '@/lib/table/constants'
 
 function columns(count: number): DisplayColumn[] {
   return Array.from({ length: count }, (_, i) => ({

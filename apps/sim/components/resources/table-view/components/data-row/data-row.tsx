@@ -3,19 +3,22 @@
 import React, { type ReactNode } from 'react'
 import { Button, Checkbox, cn, handleKeyboardActivation } from '@sim/emcn'
 import { PlayOutline, Square } from '@sim/emcn/icons'
-import type { ActiveDispatch } from '@/lib/api/contracts/tables'
-import type { TableRow as TableRowType, WorkflowGroup } from '@/lib/table'
-import { getUnmetGroupDeps } from '@/lib/table/deps'
-import { CellContent } from './cells'
+import { CellContent } from '@/components/resources/table-view/components/cells'
+import type { DisplayColumn } from '@/components/resources/table-view/types'
 import {
   CELL,
   CELL_CHECKBOX,
   CELL_CONTENT,
   SELECTION_OVERLAY,
   SELECTION_TINT_BG,
-} from './constants'
-import type { DisplayColumn } from './types'
-import { type NormalizedSelection, resolveCellExec } from './utils'
+} from '@/components/resources/table-view/utils/constants'
+import {
+  type NormalizedSelection,
+  resolveCellExec,
+} from '@/components/resources/table-view/utils/selection'
+import type { ActiveDispatch } from '@/lib/api/contracts/tables'
+import type { TableRow as TableRowType, WorkflowGroup } from '@/lib/table'
+import { getUnmetGroupDeps } from '@/lib/table/deps'
 
 export interface DataRowProps {
   row: TableRowType
