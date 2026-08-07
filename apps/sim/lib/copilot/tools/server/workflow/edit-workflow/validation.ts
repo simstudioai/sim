@@ -248,6 +248,34 @@ function validateAgentToolEntry(item: any, index: number): string | null {
     if (!isIntegrationDeploymentAvailableForVisibility(type, overlayVisibility())) {
       return `${where} block type "${type}" is unavailable in this deployment`
     }
+
+    const operationConfig = block.subBlocks?.find((subBlock) => subBlock.id === 'operation')
+    if (operationConfig?.options) {
+      let validOperations: string[]
+      try {
+        const options =
+          typeof operationConfig.options === 'function'
+            ? operationConfig.options()
+            : operationConfig.options
+        validOperations = options.map((option) => option.id)
+      } catch (error) {
+        return `${where} could not validate operations for block type "${type}": ${toError(error).message}`
+      }
+
+      const operation = item.operation
+      if (
+        validOperations.length > 1 &&
+        (typeof operation !== 'string' || operation.trim() === '')
+      ) {
+        return `${where} block type "${type}" requires an operation. Valid operations: ${validOperations.join(', ')}`
+      }
+      if (
+        operation !== undefined &&
+        (typeof operation !== 'string' || !validOperations.includes(operation))
+      ) {
+        return `${where} block type "${type}" has invalid operation "${String(operation)}". Valid operations: ${validOperations.join(', ')}. Use one of the block operation ids above; it may differ from the underlying tool id.`
+      }
+    }
   }
 
   return null
