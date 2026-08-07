@@ -584,7 +584,11 @@ export async function executeFunctionExecute(
   try {
     const secretActorUserId =
       context.secretActorUserId === undefined ? context.userId : context.secretActorUserId
-    let mounted: MaterializedCopilotCodeSecrets = { envVars: {}, catalogEntries: [] }
+    let mounted: MaterializedCopilotCodeSecrets = {
+      envVars: {},
+      catalogEntries: [],
+      nonSecretNames: [],
+    }
     if (requestedNames.length > 0) {
       if (!secretActorUserId) {
         throw new CopilotCodeSecretAccessError('Secret access is unavailable for this Copilot run')
@@ -600,10 +604,14 @@ export async function executeFunctionExecute(
         requestedNames,
       })
     }
-    mountedRegistry = new ResolvedSecretTraceRegistry(mounted.catalogEntries, {
-      userId: secretActorUserId ?? context.userId,
-      ...(context.workspaceId ? { workspaceId: context.workspaceId } : {}),
-    })
+    mountedRegistry = new ResolvedSecretTraceRegistry(
+      mounted.catalogEntries,
+      {
+        userId: secretActorUserId ?? context.userId,
+        ...(context.workspaceId ? { workspaceId: context.workspaceId } : {}),
+      },
+      new Set(mounted.nonSecretNames)
+    )
 
     enrichedParams.envVars = mounted.envVars
     enrichedParams.secretScope = 'selected'

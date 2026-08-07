@@ -6,7 +6,10 @@ import type { DAG, DAGNode } from '@/executor/dag/builder'
 import { EdgeManager } from '@/executor/execution/edge-manager'
 import { serializePauseSnapshot } from '@/executor/execution/snapshot-serializer'
 import type { ExecutionContext } from '@/executor/types'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  EMPTY_NON_SECRET_NAMES,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 
 function createContext(overrides: Partial<ExecutionContext> = {}): ExecutionContext {
   return {
@@ -40,9 +43,11 @@ function createContext(overrides: Partial<ExecutionContext> = {}): ExecutionCont
 
 describe('serializePauseSnapshot', () => {
   it('persists encrypted resolved-secret provenance and the source execution id', () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'TOKEN', plaintext: 'raw-secret', encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'TOKEN', plaintext: 'raw-secret', encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('TOKEN', 'raw-secret')
     const context = createContext({ resolvedSecretTraceRegistry: registry })
 
@@ -60,10 +65,14 @@ describe('serializePauseSnapshot', () => {
   })
 
   it('persists a complete zero-entry provenance state for a fresh execution', () => {
-    const registry = new ResolvedSecretTraceRegistry([], {
-      userId: 'user-1',
-      workspaceId: 'workspace-1',
-    })
+    const registry = new ResolvedSecretTraceRegistry(
+      [],
+      {
+        userId: 'user-1',
+        workspaceId: 'workspace-1',
+      },
+      EMPTY_NON_SECRET_NAMES
+    )
 
     const snapshot = serializePauseSnapshot(
       createContext({ resolvedSecretTraceRegistry: registry }),
@@ -135,9 +144,11 @@ describe('serializePauseSnapshot', () => {
   })
 
   it('does not persist a temporary activation guard as permanent incompleteness', () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'TOKEN', plaintext: 'raw-secret', encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'TOKEN', plaintext: 'raw-secret', encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('TOKEN', 'raw-secret')
     const completePendingActivation = registry.beginPendingActivation()
 

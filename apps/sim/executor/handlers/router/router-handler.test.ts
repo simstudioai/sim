@@ -41,7 +41,10 @@ import { generateRouterPrompt, generateRouterV2Prompt } from '@/blocks/blocks/ro
 import { BlockType } from '@/executor/constants'
 import { RouterBlockHandler } from '@/executor/handlers/router/router-handler'
 import type { ExecutionContext } from '@/executor/types'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  EMPTY_NON_SECRET_NAMES,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 import { getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
@@ -246,18 +249,22 @@ describe('RouterBlockHandler', () => {
   it('sends only model-visible legacy router provenance and excludes credentials', async () => {
     const promptSecret = 'resolved-router-prompt'
     const credentialSecret = 'resolved-router-credential'
-    const registry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'PROMPT_SECRET',
-        plaintext: promptSecret,
-        encryptedValue: 'encrypted-router-prompt',
-      },
-      {
-        name: 'API_KEY',
-        plaintext: credentialSecret,
-        encryptedValue: 'encrypted-router-credential',
-      },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        {
+          name: 'PROMPT_SECRET',
+          plaintext: promptSecret,
+          encryptedValue: 'encrypted-router-prompt',
+        },
+        {
+          name: 'API_KEY',
+          plaintext: credentialSecret,
+          encryptedValue: 'encrypted-router-credential',
+        },
+      ],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('PROMPT_SECRET', promptSecret)
     registry.recordResolved('API_KEY', credentialSecret)
     mockContext.resolvedSecretTraceRegistry = registry
@@ -653,18 +660,22 @@ describe('RouterBlockHandler V2', () => {
   it('sends only model-visible router V2 provenance and excludes credentials', async () => {
     const contextSecret = 'resolved-router-v2-context'
     const credentialSecret = 'resolved-router-v2-credential'
-    const registry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'CONTEXT_SECRET',
-        plaintext: contextSecret,
-        encryptedValue: 'encrypted-router-v2-context',
-      },
-      {
-        name: 'API_KEY',
-        plaintext: credentialSecret,
-        encryptedValue: 'encrypted-router-v2-credential',
-      },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        {
+          name: 'CONTEXT_SECRET',
+          plaintext: contextSecret,
+          encryptedValue: 'encrypted-router-v2-context',
+        },
+        {
+          name: 'API_KEY',
+          plaintext: credentialSecret,
+          encryptedValue: 'encrypted-router-v2-credential',
+        },
+      ],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('CONTEXT_SECRET', contextSecret)
     registry.recordResolved('API_KEY', credentialSecret)
     mockContext.resolvedSecretTraceRegistry = registry

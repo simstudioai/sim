@@ -1,15 +1,12 @@
-import type { z } from 'zod'
 import { requestJson } from '@/lib/api/client/request'
 import {
-  type environmentVariableSchema,
+  type EnvironmentVariable,
   getPersonalEnvironmentContract,
   getWorkspaceEnvironmentContract,
-  type workspaceEnvironmentDataSchema,
+  type WorkspaceEnvironmentData,
 } from '@/lib/api/contracts'
 
-export type EnvironmentVariable = z.output<typeof environmentVariableSchema>
-
-export type WorkspaceEnvironmentData = z.output<typeof workspaceEnvironmentDataSchema>
+export type { EnvironmentVariable, WorkspaceEnvironmentData }
 
 export async function fetchPersonalEnvironment(
   signal?: AbortSignal
@@ -32,9 +29,9 @@ export async function fetchWorkspaceEnvironment(
     signal,
   })
 
-  return {
-    workspace: data.workspace || {},
-    personal: data.personal || {},
-    conflicts: data.conflicts || [],
-  }
+  // Returned whole rather than rebuilt field-by-field: `requestJson` has already
+  // validated against the contract and applied every `.default({})`, so
+  // reconstructing here only creates a place for new response fields to be
+  // silently dropped.
+  return data
 }

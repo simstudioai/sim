@@ -12,7 +12,10 @@ import type { DAGNode } from '@/executor/dag/builder'
 import { BlockExecutor } from '@/executor/execution/block-executor'
 import { ExecutionState } from '@/executor/execution/state'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  EMPTY_NON_SECRET_NAMES,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 import { VariableResolver } from '@/executor/variables/resolver'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
@@ -367,9 +370,11 @@ describe('BlockExecutor', () => {
       state
     )
     const ctx = createContext(state)
-    ctx.resolvedSecretTraceRegistry = new ResolvedSecretTraceRegistry([
-      { name: 'API_KEY', plaintext: secret, encryptedValue: 'encrypted-api-key' },
-    ])
+    ctx.resolvedSecretTraceRegistry = new ResolvedSecretTraceRegistry(
+      [{ name: 'API_KEY', plaintext: secret, encryptedValue: 'encrypted-api-key' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
 
     await expect(executor.execute(ctx, createNode(block), block)).resolves.toEqual(output)
     expect(state.getBlockOutput(block.id)).toEqual(output)
@@ -418,7 +423,8 @@ describe('BlockExecutor', () => {
     const onBlockComplete = vi.fn(async () => {})
     const registry = new ResolvedSecretTraceRegistry(
       [{ name: 'API_KEY', plaintext: 'secret-value', encryptedValue: 'encrypted-secret' }],
-      { userId: 'user-1', workspaceId: 'workspace-1' }
+      { userId: 'user-1', workspaceId: 'workspace-1' },
+      EMPTY_NON_SECRET_NAMES
     )
     const executor = new BlockExecutor(
       [
@@ -463,9 +469,11 @@ describe('BlockExecutor', () => {
     const state = new ExecutionState()
     const resolver = new VariableResolver(workflow, {}, state)
     const onBlockComplete = vi.fn(async () => {})
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'SHORT_SECRET', plaintext: 'Test', encryptedValue: 'encrypted-test' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'SHORT_SECRET', plaintext: 'Test', encryptedValue: 'encrypted-test' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     const handler: BlockHandler = {
       canHandle: () => true,
       execute: async (blockContext, block) => {
@@ -695,13 +703,17 @@ describe('BlockExecutor', () => {
       parallels: {},
     }
     const state = new ExecutionState()
-    const registry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'OPENAI_API_KEY',
-        plaintext: secret,
-        encryptedValue: 'encrypted-openai-api-key',
-      },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        {
+          name: 'OPENAI_API_KEY',
+          plaintext: secret,
+          encryptedValue: 'encrypted-openai-api-key',
+        },
+      ],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     const resolver = new VariableResolver(workflow, {}, state)
     const syntaxError =
       'Syntax Error: Line 1: `return {{OPENAI_API_KEY}}` - Invalid or unexpected token'
@@ -820,13 +832,17 @@ describe('BlockExecutor', () => {
       state
     )
     const ctx = createContext(state)
-    ctx.resolvedSecretTraceRegistry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'API_KEY',
-        plaintext: secret,
-        encryptedValue: 'encrypted-api-key',
-      },
-    ])
+    ctx.resolvedSecretTraceRegistry = new ResolvedSecretTraceRegistry(
+      [
+        {
+          name: 'API_KEY',
+          plaintext: secret,
+          encryptedValue: 'encrypted-api-key',
+        },
+      ],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     const node = createNode(block)
     node.outgoingEdges.set('error-edge', { target: 'error-handler', sourceHandle: EDGE.ERROR })
 
@@ -1034,9 +1050,11 @@ describe('BlockExecutor streaming pump', () => {
     })
     const { executor, block, state } = createExecutor(handler)
     const ctx = createContext(state)
-    ctx.resolvedSecretTraceRegistry = new ResolvedSecretTraceRegistry([
-      { name: 'API_KEY', plaintext: secret, encryptedValue: 'encrypted-api-key' },
-    ])
+    ctx.resolvedSecretTraceRegistry = new ResolvedSecretTraceRegistry(
+      [{ name: 'API_KEY', plaintext: secret, encryptedValue: 'encrypted-api-key' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     ctx.onStream = async (streamingExec) => {
       const reader = streamingExec.stream.getReader()
       try {
@@ -1083,9 +1101,11 @@ describe('BlockExecutor streaming pump', () => {
     const { executor, block, state } = createExecutor(handler)
     block.config.params = { responseFormat: 'json' }
     const ctx = createContext(state)
-    ctx.resolvedSecretTraceRegistry = new ResolvedSecretTraceRegistry([
-      { name: 'API_KEY', plaintext: secret, encryptedValue: 'encrypted-api-key' },
-    ])
+    ctx.resolvedSecretTraceRegistry = new ResolvedSecretTraceRegistry(
+      [{ name: 'API_KEY', plaintext: secret, encryptedValue: 'encrypted-api-key' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
 
     await executor.execute(ctx, createNode(block), block)
 

@@ -27,7 +27,10 @@ import {
   knowledgeDocumentTagValueSelectionKey,
   parseKnowledgeDocumentTagProvenanceTargets,
 } from '@/lib/knowledge/secret-provenance-selection'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  EMPTY_NON_SECRET_NAMES,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 
 function invalidKnowledgeProvenanceResponse(): NextResponse {
   return NextResponse.json({ error: 'Invalid knowledge secret provenance' }, { status: 400 })
@@ -151,10 +154,14 @@ export async function createKnowledgeProvenanceResponse(options: {
   )
   if (negotiation.status === 'not-requested') return NextResponse.json(options.body)
   if (negotiation.status === 'rejected') return invalidKnowledgeProvenanceResponse()
-  const registry = new ResolvedSecretTraceRegistry([], {
-    userId: options.userId,
-    ...(options.workspaceId ? { workspaceId: options.workspaceId } : {}),
-  })
+  const registry = new ResolvedSecretTraceRegistry(
+    [],
+    {
+      userId: options.userId,
+      ...(options.workspaceId ? { workspaceId: options.workspaceId } : {}),
+    },
+    EMPTY_NON_SECRET_NAMES
+  )
   for (const provenance of options.provenances) {
     if (provenance.status === 'unknown') {
       registry.markIncomplete()
@@ -225,10 +232,14 @@ export async function createKnowledgePersistedResponse(options: {
   if (negotiation.status === 'not-requested') return NextResponse.json(options.body)
   if (negotiation.status === 'rejected') return invalidKnowledgeProvenanceResponse()
 
-  const registry = new ResolvedSecretTraceRegistry([], {
-    userId: options.userId,
-    ...(options.workspaceId ? { workspaceId: options.workspaceId } : {}),
-  })
+  const registry = new ResolvedSecretTraceRegistry(
+    [],
+    {
+      userId: options.userId,
+      ...(options.workspaceId ? { workspaceId: options.workspaceId } : {}),
+    },
+    EMPTY_NON_SECRET_NAMES
+  )
   await importKnowledgePersistedResponseSecretProvenance({
     registry,
     documents: options.documents,

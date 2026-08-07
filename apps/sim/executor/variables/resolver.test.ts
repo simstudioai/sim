@@ -10,7 +10,10 @@ import {
 import { BlockType } from '@/executor/constants'
 import { ExecutionState } from '@/executor/execution/state'
 import type { ExecutionContext } from '@/executor/types'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  EMPTY_NON_SECRET_NAMES,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 import { VariableResolver } from '@/executor/variables/resolver'
 import { navigatePathAsync } from '@/executor/variables/resolvers/reference-async.server'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
@@ -168,9 +171,11 @@ describe('VariableResolver function block inputs', () => {
 
   it('records a secret reached through workflow-variable indirection', async () => {
     const { ctx, resolver } = createResolver()
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'TOKEN', plaintext: 'resolved-secret', encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'TOKEN', plaintext: 'resolved-secret', encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     ctx.workflowVariables = {
       'var-1': { id: 'var-1', name: 'indirect', type: 'string', value: '{{TOKEN}}' },
     }
@@ -267,9 +272,11 @@ describe('VariableResolver function block inputs', () => {
     'preserves an exact-name/exact-value secret in %s source until the execution boundary',
     async (language) => {
       const { block, ctx, resolver } = createResolver(language)
-      const registry = new ResolvedSecretTraceRegistry([
-        { name: 'Test', plaintext: 'Test', encryptedValue: 'ciphertext' },
-      ])
+      const registry = new ResolvedSecretTraceRegistry(
+        [{ name: 'Test', plaintext: 'Test', encryptedValue: 'ciphertext' }],
+        undefined,
+        EMPTY_NON_SECRET_NAMES
+      )
       const source = 'return {{Test}}'
       ctx.environmentVariables = { Test: 'Test' }
       ctx.resolvedSecretTraceRegistry = registry

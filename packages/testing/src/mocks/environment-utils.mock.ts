@@ -7,6 +7,7 @@ function emptyPersonalAndWorkspaceEnv(): {
   workspaceDecrypted: Record<string, string>
   conflicts: string[]
   decryptionFailures: string[]
+  workspaceVariableKeys: string[]
 } {
   return {
     personalEncrypted: {},
@@ -15,6 +16,7 @@ function emptyPersonalAndWorkspaceEnv(): {
     workspaceDecrypted: {},
     conflicts: [],
     decryptionFailures: [],
+    workspaceVariableKeys: [],
   }
 }
 

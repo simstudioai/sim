@@ -23,7 +23,10 @@ import { getAllBlocks } from '@/blocks'
 import { AGENT, BlockType, isMcpTool } from '@/executor/constants'
 import { AgentBlockHandler } from '@/executor/handlers/agent/agent-handler'
 import type { ExecutionContext, StreamingExecution } from '@/executor/types'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  EMPTY_NON_SECRET_NAMES,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 import { executeProviderRequest } from '@/providers'
 import { installStreamingCostPolicy } from '@/providers/cost-policy'
 import { SIM_AUTO_MODEL_ID } from '@/providers/models'
@@ -184,7 +187,11 @@ describe('AgentBlockHandler', () => {
         version: '1.0.0',
         loops: {},
       } as SerializedWorkflow,
-      resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
+      resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(
+        [],
+        undefined,
+        EMPTY_NON_SECRET_NAMES
+      ),
     }
     mockGetProviderFromModel.mockReturnValue('mock-provider')
 
@@ -2646,13 +2653,17 @@ describe('AgentBlockHandler', () => {
       }
 
     it('projects provider errors and internal runtime identifiers before logging', () => {
-      const registry = new ResolvedSecretTraceRegistry([
-        {
-          name: 'TOKEN',
-          plaintext: 'diagnostic-secret',
-          encryptedValue: 'encrypted-diagnostic-secret',
-        },
-      ])
+      const registry = new ResolvedSecretTraceRegistry(
+        [
+          {
+            name: 'TOKEN',
+            plaintext: 'diagnostic-secret',
+            encryptedValue: 'encrypted-diagnostic-secret',
+          },
+        ],
+        undefined,
+        EMPTY_NON_SECRET_NAMES
+      )
       registry.recordResolved('TOKEN', 'diagnostic-secret')
       const ctx = { ...mockContext, resolvedSecretTraceRegistry: registry }
 
@@ -2708,13 +2719,17 @@ describe('AgentBlockHandler', () => {
     })
 
     it('projects tool diagnostics without logging code or raw params', async () => {
-      const registry = new ResolvedSecretTraceRegistry([
-        {
-          name: 'TOKEN',
-          plaintext: 'tool-secret',
-          encryptedValue: 'encrypted-tool-secret',
-        },
-      ])
+      const registry = new ResolvedSecretTraceRegistry(
+        [
+          {
+            name: 'TOKEN',
+            plaintext: 'tool-secret',
+            encryptedValue: 'encrypted-tool-secret',
+          },
+        ],
+        undefined,
+        EMPTY_NON_SECRET_NAMES
+      )
       registry.recordResolved('TOKEN', 'tool-secret')
       const ctx = { ...mockContext, resolvedSecretTraceRegistry: registry }
       vi.spyOn(handler as never, 'createCustomTool' as never).mockRejectedValueOnce(
@@ -2785,13 +2800,17 @@ describe('AgentBlockHandler', () => {
     })
 
     it('projects malformed model content and response format only in diagnostics', () => {
-      const registry = new ResolvedSecretTraceRegistry([
-        {
-          name: 'TOKEN',
-          plaintext: 'format-secret',
-          encryptedValue: 'encrypted-format-secret',
-        },
-      ])
+      const registry = new ResolvedSecretTraceRegistry(
+        [
+          {
+            name: 'TOKEN',
+            plaintext: 'format-secret',
+            encryptedValue: 'encrypted-format-secret',
+          },
+        ],
+        undefined,
+        EMPTY_NON_SECRET_NAMES
+      )
       registry.recordResolved('TOKEN', 'format-secret')
       const ctx = { ...mockContext, resolvedSecretTraceRegistry: registry }
       const content = 'not-json format-secret __var_TOKEN __sim_runtime_test_1'

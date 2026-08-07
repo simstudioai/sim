@@ -3,7 +3,10 @@
  */
 import type OpenAI from 'openai'
 import { describe, expect, it } from 'vitest'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  EMPTY_NON_SECRET_NAMES,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 import {
   buildResponsesInputFromMessages,
   parseResponsesUsage,
@@ -116,9 +119,11 @@ describe('buildResponsesInputFromMessages', () => {
   })
 
   it('projects a document filename at the Responses serialization boundary', () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'FILE_NAME', plaintext: 'report.pdf', encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'FILE_NAME', plaintext: 'report.pdf', encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('FILE_NAME', 'report.pdf')
 
     const input = runWithProviderRuntimeContext({ resolvedSecretTraceRegistry: registry }, () =>

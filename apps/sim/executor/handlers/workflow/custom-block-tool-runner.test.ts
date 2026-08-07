@@ -19,7 +19,10 @@ import {
   buildCustomBlockExecutionContext,
   runCustomBlockTool,
 } from '@/executor/handlers/workflow/custom-block-tool-runner'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  EMPTY_NON_SECRET_NAMES,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 
 const mockRunnerLogger =
   vi.mocked(createLogger).mock.results[
@@ -98,9 +101,11 @@ describe('runCustomBlockTool', () => {
   it('does not log a secret-bearing child workflow error with or without provenance', async () => {
     const secret = 'custom-block-child-secret-value'
     const message = `${secret} __var_API_KEY __sim_code_0_binding_0`
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'API_KEY', plaintext: secret, encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'API_KEY', plaintext: secret, encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     mockExecute.mockRejectedValue(new Error(message))
 
     const projected = await runCustomBlockTool(
@@ -181,7 +186,7 @@ describe('buildCustomBlockExecutionContext cancellation', () => {
 
 describe('buildCustomBlockExecutionContext secret provenance', () => {
   it('carries the server-only parent registry without putting it in model parameters', () => {
-    const registry = new ResolvedSecretTraceRegistry()
+    const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
 
     const ctx = buildCustomBlockExecutionContext(
       { workspaceId: 'ws-1' },

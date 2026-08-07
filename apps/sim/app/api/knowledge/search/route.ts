@@ -39,7 +39,10 @@ import {
 } from '@/app/api/knowledge/search/utils'
 import { createKnowledgeRegistryResponse } from '@/app/api/knowledge/secret-provenance'
 import { checkKnowledgeBaseAccess, type KnowledgeBaseAccessResult } from '@/app/api/knowledge/utils'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  EMPTY_NON_SECRET_NAMES,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 import { getRerankModelPricing } from '@/providers/models'
 import { calculateCost } from '@/providers/utils'
 
@@ -372,10 +375,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const resultSecretRegistry =
       modelInputProvenance.registry ??
-      new ResolvedSecretTraceRegistry([], {
-        userId,
-        ...(workspaceId ? { workspaceId } : {}),
-      })
+      new ResolvedSecretTraceRegistry(
+        [],
+        {
+          userId,
+          ...(workspaceId ? { workspaceId } : {}),
+        },
+        EMPTY_NON_SECRET_NAMES
+      )
     const resultProvenanceSnapshot = await importKnowledgeSearchResultSecretProvenance({
       registry: resultSecretRegistry,
       results,

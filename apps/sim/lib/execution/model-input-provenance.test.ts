@@ -12,7 +12,10 @@ import {
   RESOLVED_SECRET_PROVENANCE_FIELD,
   RESOLVED_SECRET_PROVENANCE_METADATA_V1,
 } from '@/lib/execution/private-tool-metadata'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  EMPTY_NON_SECRET_NAMES,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 
 const ENTRY = {
   name: 'TOKEN',
@@ -22,7 +25,7 @@ const ENTRY = {
 
 describe('model input provenance transport', () => {
   it('exports only committed provenance present in the selected model input', () => {
-    const registry = new ResolvedSecretTraceRegistry([ENTRY])
+    const registry = new ResolvedSecretTraceRegistry([ENTRY], undefined, EMPTY_NON_SECRET_NAMES)
     registry.recordResolved(ENTRY.name, ENTRY.plaintext)
 
     const metadata = createModelInputProvenanceRequestMetadata(registry, {
@@ -43,9 +46,11 @@ describe('model input provenance transport', () => {
 
   it('preserves provenance through a JSON-encoded model-input field', () => {
     const secret = 'quote" slash\\ newline\n'
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'TOKEN', plaintext: secret, encryptedValue: 'encrypted-token' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'TOKEN', plaintext: secret, encryptedValue: 'encrypted-token' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('TOKEN', secret)
 
     const metadata = createModelInputProvenanceRequestMetadata(

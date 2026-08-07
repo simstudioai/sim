@@ -39,7 +39,10 @@ vi.mock('@/providers/utils', () => ({
 }))
 
 import { validateHallucination } from '@/lib/guardrails/validate_hallucination'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  EMPTY_NON_SECRET_NAMES,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 
 const BILLING_ATTRIBUTION: BillingAttributionSnapshot = {
   actorUserId: 'user-1',
@@ -104,9 +107,11 @@ describe('validateHallucination', () => {
   })
 
   it('uses authenticated private Knowledge transport and carries result provenance into the provider boundary', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     expect(registry.recordResolved('TOKEN', 'secret-value')).toBe(true)
     const knowledgeBody = {
       data: { results: [{ content: 'reference-secret' }] },
@@ -167,7 +172,7 @@ describe('validateHallucination', () => {
   })
 
   it('fails only the hallucination model-bound leg when Knowledge omits private provenance', async () => {
-    const registry = new ResolvedSecretTraceRegistry()
+    const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => Response.json({ data: { results: [{ content: 'public context' }] } }))
@@ -190,7 +195,7 @@ describe('validateHallucination', () => {
    * consumer from the model actually hallucinating.
    */
   it('surfaces a cancelled run as cancellation, not as a failed guardrail', async () => {
-    const registry = new ResolvedSecretTraceRegistry()
+    const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
     const fetchMock = vi.fn(async () =>
       createPrivateKnowledgeResponse({ data: { results: [{ content: 'reference' }] } })
     )

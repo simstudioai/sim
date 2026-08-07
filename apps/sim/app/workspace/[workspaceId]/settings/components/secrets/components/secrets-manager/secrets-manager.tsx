@@ -1,19 +1,19 @@
 'use client'
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
-import { ChipInput, cn, toast } from '@sim/emcn'
+import { ChipConfirmModal, ChipInput, ChipTag, cn, toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
+import type { EnvVisibility } from '@/lib/api/contracts/environment'
 import {
   clearPendingCredentialCreateRequest,
   PENDING_CREDENTIAL_CREATE_REQUEST_EVENT,
   type PendingCredentialCreateRequest,
   readPendingCredentialCreateRequest,
 } from '@/lib/credentials/client-state'
-import type { WorkspaceEnvironmentData } from '@/lib/environment/api'
 import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SecretValueField } from '@/app/workspace/[workspaceId]/settings/components/secrets/components/secret-value-field'
@@ -52,13 +52,23 @@ interface SecretRowMenuProps {
   onViewDetails?: () => void
   /** Deletes the secret (or clears the draft row); omit when the caller can't delete. */
   onDelete?: () => void
+  /** Flips the row between secret and non-secret; omit when the caller can't. */
+  onToggleVisibility?: () => void
+  /** Current disclosure policy, used to label the toggle. */
+  visibility?: EnvVisibility
 }
 
 /**
  * Trailing `...` actions menu for a secret row. Mirrors the Teammates /
  * Organization member menu so the settings experience is consistent.
  */
-function SecretRowMenu({ onCopyName, onViewDetails, onDelete }: SecretRowMenuProps) {
+function SecretRowMenu({
+  onCopyName,
+  onViewDetails,
+  onDelete,
+  onToggleVisibility,
+  visibility = 'secret',
+}: SecretRowMenuProps) {
   return (
     <RowActionsMenu
       label='Secret actions'
@@ -66,6 +76,15 @@ function SecretRowMenu({ onCopyName, onViewDetails, onDelete }: SecretRowMenuPro
       actions={[
         ...(onViewDetails ? [{ label: 'View details', onSelect: onViewDetails }] : []),
         { label: 'Copy name', onSelect: onCopyName },
+        ...(onToggleVisibility
+          ? [
+              {
+                label:
+                  visibility === 'variable' ? 'Change to secret' : 'Change to non-secret variable',
+                onSelect: onToggleVisibility,
+              },
+            ]
+          : []),
         ...(onDelete ? [{ label: 'Delete', destructive: true, onSelect: onDelete }] : []),
       ]}
     />
@@ -200,6 +219,10 @@ interface WorkspaceVariableRowProps {
   onValueChange: (key: string, value: string) => void
   onDelete: (key: string) => void
   onViewDetails?: (envKey: string) => void
+  /** Disclosure policy for this key; `variable` renders the value unmasked. */
+  visibility: EnvVisibility
+  /** Flips the disclosure policy; omit when the caller can't administer the key. */
+  onToggleVisibility?: (envKey: string, next: EnvVisibility) => void
 }
 
 function WorkspaceVariableRow({
@@ -216,6 +239,8 @@ function WorkspaceVariableRow({
   onValueChange,
   onDelete,
   onViewDetails,
+  visibility,
+  onToggleVisibility,
 }: WorkspaceVariableRowProps) {
   /**
    * Salts the generated `name` attributes so password managers can't match them
@@ -250,13 +275,23 @@ function WorkspaceVariableRow({
         value={value}
         onChange={(next) => onValueChange(envKey, next)}
         canEdit={canEdit}
+        visibility={visibility}
         name={`workspace_env_value_${envKey}_${autofillSalt}`}
       />
-      <SecretRowMenu
-        onCopyName={() => copyName(envKey)}
-        onViewDetails={hasCredential && onViewDetails ? () => onViewDetails(envKey) : undefined}
-        onDelete={canEdit ? () => onDelete(envKey) : undefined}
-      />
+      <div className='flex items-center'>
+        {visibility === 'variable' && <ChipTag>Non-secret</ChipTag>}
+        <SecretRowMenu
+          onCopyName={() => copyName(envKey)}
+          onViewDetails={hasCredential && onViewDetails ? () => onViewDetails(envKey) : undefined}
+          onDelete={canEdit ? () => onDelete(envKey) : undefined}
+          visibility={visibility}
+          onToggleVisibility={
+            canEdit && onToggleVisibility
+              ? () => onToggleVisibility(envKey, visibility === 'variable' ? 'secret' : 'variable')
+              : undefined
+          }
+        />
+      </div>
     </div>
   )
 }
@@ -352,19 +387,8 @@ export function SecretsManager() {
   const workspaceId = (params?.workspaceId as string) || ''
 
   const { data: personalEnvData, isLoading: isPersonalLoading } = usePersonalEnvironment()
-  const { data: workspaceEnvData, isLoading: isWorkspaceLoading } = useWorkspaceEnvironment(
-    workspaceId,
-    {
-      select: useCallback(
-        (data: WorkspaceEnvironmentData): WorkspaceEnvironmentData => ({
-          workspace: data.workspace || {},
-          personal: data.personal || {},
-          conflicts: data.conflicts || [],
-        }),
-        []
-      ),
-    }
-  )
+  const { data: workspaceEnvData, isLoading: isWorkspaceLoading } =
+    useWorkspaceEnvironment(workspaceId)
   const savePersonalMutation = useSavePersonalEnvironment()
   const upsertWorkspaceMutation = useUpsertWorkspaceEnvironment()
   const removeWorkspaceMutation = useRemoveWorkspaceEnvironment()
@@ -395,6 +419,10 @@ export function SecretsManager() {
   const [workspaceVars, setWorkspaceVars] = useState<Record<string, string>>({})
   const [renamingKey, setRenamingKey] = useState<string | null>(null)
   const [pendingKeyValue, setPendingKeyValue] = useState<string>('')
+  const [pendingVisibilityChange, setPendingVisibilityChange] = useState<{
+    envKey: string
+    next: EnvVisibility
+  } | null>(null)
   const initialWorkspaceVarsRef = useRef<Record<string, string>>({})
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const initialVarsRef = useRef<UIEnvironmentVariable[]>([])
@@ -411,6 +439,29 @@ export function SecretsManager() {
     }
     return map
   }, [workspaceEnvCredentials])
+
+  /**
+   * Applies a confirmed disclosure change. Sent as a visibility-only PUT — the
+   * value is untouched, so re-sending it would only mean a redundant re-encrypt.
+   */
+  const handleConfirmVisibilityChange = useCallback(async () => {
+    if (!pendingVisibilityChange || !workspaceId) return
+    const { envKey, next } = pendingVisibilityChange
+    setPendingVisibilityChange(null)
+    try {
+      await upsertWorkspaceMutation.mutateAsync({
+        workspaceId,
+        variables: {},
+        visibility: { [envKey]: next },
+      })
+      toast.success(
+        next === 'variable' ? `${envKey} is now a non-secret variable` : `${envKey} is now a secret`
+      )
+    } catch (error) {
+      logger.error('Failed to change secret visibility', { error })
+      toast.error(error instanceof Error ? error.message : 'Failed to change visibility')
+    }
+  }, [pendingVisibilityChange, workspaceId, upsertWorkspaceMutation])
 
   const filteredEnvVars = useMemo(() => {
     const mapped = envVars.map((envVar, index) => ({ envVar, originalIndex: index }))
@@ -1026,6 +1077,12 @@ export function SecretsManager() {
                         onViewDetails={
                           canCreateWorkspaceSecret && cred ? handleViewDetails : undefined
                         }
+                        visibility={workspaceEnvData?.visibility?.[key] ?? 'secret'}
+                        onToggleVisibility={
+                          cred
+                            ? (envKey, next) => setPendingVisibilityChange({ envKey, next })
+                            : undefined
+                        }
                       />
                     )
                   })}
@@ -1071,6 +1128,45 @@ export function SecretsManager() {
           </div>
         )}
       </SettingsPanel>
+
+      {/*
+        The gate for this change is server-side; this dialog's job is the copy.
+        Turning a secret into a variable is a disclosure that flipping back does
+        not undo, and flipping back is therefore not remediation — rotation is.
+      */}
+      <ChipConfirmModal
+        open={pendingVisibilityChange !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingVisibilityChange(null)
+        }}
+        title={
+          pendingVisibilityChange?.next === 'variable'
+            ? 'Make this value visible?'
+            : 'Make this value secret?'
+        }
+        text={
+          pendingVisibilityChange?.next === 'variable'
+            ? [
+                'Everyone in this workspace, and Sim, will be able to read ',
+                { text: pendingVisibilityChange?.envKey ?? '', bold: true },
+                '. Its value will also appear in run logs and traces. Switching it back later will not undo this.',
+              ]
+            : [
+                'New runs will hide ',
+                { text: pendingVisibilityChange?.envKey ?? '', bold: true },
+                ' again, but its value has already been visible in logs, traces, and Sim conversations. ',
+                { text: 'Rotate the value if it is sensitive.', error: true },
+              ]
+        }
+        confirm={{
+          label: pendingVisibilityChange?.next === 'variable' ? 'Make visible' : 'Make secret',
+          onClick: handleConfirmVisibilityChange,
+          // Making a value public is the consequential direction, so it keeps
+          // the destructive default; hiding it again is a plain primary.
+          variant: pendingVisibilityChange?.next === 'variable' ? 'destructive' : 'primary',
+          pending: upsertWorkspaceMutation.isPending,
+        }}
+      />
 
       <UnsavedChangesModal
         open={showUnsavedChanges}

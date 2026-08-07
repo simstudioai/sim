@@ -5,7 +5,10 @@
 import { resetEnvFlagsMock, resetEnvironmentUtilsMock, setEnvFlags } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutionContext, StreamingContext } from '@/lib/copilot/request/types'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  EMPTY_NON_SECRET_NAMES,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 
 afterAll(resetEnvironmentUtilsMock)
 
@@ -163,12 +166,16 @@ describe('runCopilotLifecycle', () => {
     mockGetMothershipBaseURL.mockResolvedValue('http://mothership.test')
     mockGetMothershipSourceEnvHeaders.mockReturnValue({})
     mockPrepareCopilotEnvironmentContext.mockResolvedValue({
-      resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
+      resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(
+        [],
+        undefined,
+        EMPTY_NON_SECRET_NAMES
+      ),
     })
   })
 
   it('threads trace provenance through server execution context only', async () => {
-    const registry = new ResolvedSecretTraceRegistry()
+    const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
     const executionContext: ExecutionContext = {
       userId: 'user-1',
       workflowId: '',
@@ -245,13 +252,17 @@ describe('runCopilotLifecycle', () => {
   )
 
   it('does not infer model provenance from a dormant environment catalog', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'RUNTIME_TOKEN',
-        plaintext: 'runtime-secret',
-        encryptedValue: 'runtime-ciphertext',
-      },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        {
+          name: 'RUNTIME_TOKEN',
+          plaintext: 'runtime-secret',
+          encryptedValue: 'runtime-ciphertext',
+        },
+      ],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     mockPrepareCopilotEnvironmentContext.mockResolvedValueOnce({
       resolvedSecretTraceRegistry: registry,
     })
@@ -281,9 +292,11 @@ describe('runCopilotLifecycle', () => {
 
   it('projects secrets in every model-visible initial Go payload field without rewriting foreign aliases', async () => {
     const secret = 'mothership-secret'
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('TOKEN', secret)
     let capturedRequestBody = ''
     mockRunStreamLoop.mockImplementationOnce(async (_url: string, request: RequestInit) => {
@@ -341,9 +354,11 @@ describe('runCopilotLifecycle', () => {
   })
 
   it('projects large tool catalogs at the tool-definition boundary', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'TOKEN', plaintext: 'catalog-secret', encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'TOKEN', plaintext: 'catalog-secret', encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('TOKEN', 'catalog-secret')
     const toolCount = 4_000
     const propertiesPerTool = 8
@@ -399,9 +414,11 @@ describe('runCopilotLifecycle', () => {
   })
 
   it('projects selected JSON and attachment fields exactly once when plaintext overlaps its alias', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'TOKEN', plaintext: 'TOKEN', encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'TOKEN', plaintext: 'TOKEN', encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('TOKEN', 'TOKEN')
     let capturedRequestBody = ''
     mockRunStreamLoop.mockImplementationOnce(async (_url: string, request: RequestInit) => {
@@ -523,9 +540,11 @@ describe('runCopilotLifecycle', () => {
   it.each(['123', 'true'])(
     'keeps low-entropy Copilot JSON valid while separating content from controls (%s)',
     async (secret) => {
-      const registry = new ResolvedSecretTraceRegistry([
-        { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
-      ])
+      const registry = new ResolvedSecretTraceRegistry(
+        [{ name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' }],
+        undefined,
+        EMPTY_NON_SECRET_NAMES
+      )
       registry.recordResolved('TOKEN', secret)
       const converted = secret === '123' ? 123 : true
       let capturedRequestBody = ''
@@ -881,9 +900,11 @@ describe('runCopilotLifecycle', () => {
     'guards arbitrary %s schema controls before initial Copilot model egress',
     async (controlKey) => {
       const secret = `copilot-schema-control-secret-${controlKey}`
-      const registry = new ResolvedSecretTraceRegistry([
-        { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
-      ])
+      const registry = new ResolvedSecretTraceRegistry(
+        [{ name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' }],
+        undefined,
+        EMPTY_NON_SECRET_NAMES
+      )
       registry.recordResolved('TOKEN', secret)
       const unsafeSchema = {
         type: 'object',
@@ -950,7 +971,7 @@ describe('runCopilotLifecycle', () => {
   )
 
   it('omits malformed and oversized optional Copilot response schemas', async () => {
-    const registry = new ResolvedSecretTraceRegistry()
+    const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
     for (const [index, schema] of [
       { properties: { field: 'not-a-schema' } },
       { allOf: new Array(100_001) },
@@ -987,9 +1008,11 @@ describe('runCopilotLifecycle', () => {
   ])(
     'preserves validated canonical schema controls when an active secret has value %s',
     async (secret, schema) => {
-      const registry = new ResolvedSecretTraceRegistry([
-        { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
-      ])
+      const registry = new ResolvedSecretTraceRegistry(
+        [{ name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' }],
+        undefined,
+        EMPTY_NON_SECRET_NAMES
+      )
       registry.recordResolved('TOKEN', secret)
       let capturedRequestBody = ''
       mockRunStreamLoop.mockImplementationOnce(async (_url: string, request: RequestInit) => {
@@ -1051,9 +1074,11 @@ describe('runCopilotLifecycle', () => {
   )
 
   it('forwards safe canonical schema controls byte-for-byte to Copilot', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'TOKEN', plaintext: 'unrelated-secret', encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'TOKEN', plaintext: 'unrelated-secret', encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     const schema = {
       type: ['object', 'null'],
       nullable: true,
@@ -1083,7 +1108,7 @@ describe('runCopilotLifecycle', () => {
   })
 
   it('fails before the initial Go request when model projection is incomplete', async () => {
-    const registry = new ResolvedSecretTraceRegistry()
+    const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
     registry.markIncomplete()
 
     const result = await runCopilotLifecycle(
@@ -1527,9 +1552,11 @@ describe('runCopilotLifecycle', () => {
   })
 
   it('fails closed instead of sending a secret-bearing tool name on resume', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'TOKEN', plaintext: 'unsafe-tool', encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'TOKEN', plaintext: 'unsafe-tool', encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('TOKEN', 'unsafe-tool')
     mockRunStreamLoop.mockImplementationOnce(
       async (

@@ -1,5 +1,11 @@
 import { db } from '@sim/db'
-import { credential, credentialMember, permissions, workspace } from '@sim/db/schema'
+import {
+  credential,
+  type credentialEnvVisibilityEnum,
+  credentialMember,
+  permissions,
+  workspace,
+} from '@sim/db/schema'
 import { permissionSatisfies } from '@sim/platform-authz/workspace'
 import { chunkArray } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
@@ -100,11 +106,20 @@ export async function getCredentialCreationWorkspaceContext(params: {
   }
 }
 
+/** Disclosure policy for an env credential. Mirrors `credentialEnvVisibilityEnum`. */
+export type EnvVisibility = (typeof credentialEnvVisibilityEnum.enumValues)[number]
+
 export interface WorkspaceEnvKeyAdminAccess {
   /** Keys for which the caller is an active credential admin. */
   adminKeys: Set<string>
   /** Keys that already have an `env_workspace` credential (regardless of role). */
   knownKeys: Set<string>
+  /**
+   * Keys marked non-secret. Feeds the read/mask path only — write
+   * authorization is identical for secrets and variables, so callers gating
+   * writes must not consult this.
+   */
+  variableKeys: Set<string>
 }
 
 export interface PersonalEnvKeyRawAccess {
@@ -181,11 +196,14 @@ export async function getWorkspaceEnvKeyAdminAccess(params: {
 }): Promise<WorkspaceEnvKeyAdminAccess> {
   const { workspaceId, envKeys, userId } = params
   const keys = Array.from(new Set(envKeys.filter(Boolean)))
-  if (keys.length === 0) return { adminKeys: new Set(), knownKeys: new Set() }
+  if (keys.length === 0) {
+    return { adminKeys: new Set(), knownKeys: new Set(), variableKeys: new Set() }
+  }
 
   const rows = await db
     .select({
       envKey: credential.envKey,
+      envVisibility: credential.envVisibility,
       role: credentialMember.role,
       status: credentialMember.status,
     })
@@ -204,18 +222,21 @@ export async function getWorkspaceEnvKeyAdminAccess(params: {
 
   const knownKeys = new Set<string>()
   const adminKeys = new Set<string>()
+  const variableKeys = new Set<string>()
   for (const row of rows) {
     if (!row.envKey) continue
     knownKeys.add(row.envKey)
     if (row.role === 'admin' && row.status === 'active') adminKeys.add(row.envKey)
+    if (row.envVisibility === 'variable') variableKeys.add(row.envKey)
   }
-  return { adminKeys, knownKeys }
+  return { adminKeys, knownKeys, variableKeys }
 }
 
 interface AccessibleEnvCredential {
   type: 'env_workspace' | 'env_personal'
   envKey: string
   envOwnerUserId: string | null
+  envVisibility: EnvVisibility
   updatedAt: Date
 }
 
@@ -385,8 +406,10 @@ export async function createWorkspaceEnvCredentials(params: {
   workspaceId: string
   newKeys: string[]
   actingUserId: string
+  /** Per-key disclosure policy for the new keys. Anything unlisted is a secret. */
+  visibilityByKey?: Record<string, EnvVisibility>
 }): Promise<void> {
-  const { workspaceId, newKeys, actingUserId } = params
+  const { workspaceId, newKeys, actingUserId, visibilityByKey } = params
   const keys = Array.from(new Set(newKeys.filter(Boolean)))
   if (keys.length === 0) return
 
@@ -405,6 +428,7 @@ export async function createWorkspaceEnvCredentials(params: {
         type: 'env_workspace' as const,
         displayName: envKey,
         envKey,
+        envVisibility: visibilityByKey?.[envKey] ?? ('secret' as const),
         createdBy: actingUserId,
         createdAt: now,
         updatedAt: now,
@@ -455,6 +479,79 @@ export async function deleteWorkspaceEnvCredentials(params: {
         inArray(credential.envKey, keys)
       )
     )
+}
+
+/** Thrown when the caller may not change the disclosure policy of a key. */
+export class WorkspaceEnvVisibilityAccessError extends Error {
+  constructor(readonly keys: string[]) {
+    super('You must be an admin of these secrets to change their visibility')
+    this.name = 'WorkspaceEnvVisibilityAccessError'
+  }
+}
+
+/**
+ * The single path that changes an env key's disclosure policy.
+ *
+ * Centralized because flipping `secret -> variable` is a disclosure event that
+ * cannot be undone: by the time the flag is reverted the value has plausibly
+ * reached trace spans, log rows, agent context, and members' browsers. Both
+ * directions therefore take the stricter gate (workspace admin, or credential
+ * admin on that specific key) rather than the workspace `write` that suffices
+ * for editing a value.
+ *
+ * A no-op request is authorized trivially — asking for the visibility a key
+ * already has reveals nothing and must not 403.
+ */
+export async function setWorkspaceEnvVisibility(params: {
+  workspaceId: string
+  updates: Record<string, EnvVisibility>
+  actingUserId: string
+  executor?: DbOrTx
+}): Promise<{ changedKeys: string[] }> {
+  const { workspaceId, updates, actingUserId, executor = db } = params
+  const requestedKeys = Object.keys(updates).filter(Boolean)
+  if (requestedKeys.length === 0) return { changedKeys: [] }
+
+  const existingRows = await executor
+    .select({
+      id: credential.id,
+      envKey: credential.envKey,
+      envVisibility: credential.envVisibility,
+    })
+    .from(credential)
+    .where(
+      and(
+        eq(credential.workspaceId, workspaceId),
+        eq(credential.type, 'env_workspace'),
+        inArray(credential.envKey, requestedKeys)
+      )
+    )
+
+  const changing = existingRows.filter(
+    (row) => row.envKey !== null && updates[row.envKey] !== row.envVisibility
+  )
+  if (changing.length === 0) return { changedKeys: [] }
+
+  const changingKeys = changing.map((row) => row.envKey as string)
+  const [isWorkspaceAdmin, { adminKeys }] = await Promise.all([
+    hasWorkspaceAdminAccess(actingUserId, workspaceId),
+    getWorkspaceEnvKeyAdminAccess({ workspaceId, envKeys: changingKeys, userId: actingUserId }),
+  ])
+
+  const forbidden = isWorkspaceAdmin ? [] : changingKeys.filter((key) => !adminKeys.has(key))
+  if (forbidden.length > 0) {
+    throw new WorkspaceEnvVisibilityAccessError(forbidden)
+  }
+
+  const now = new Date()
+  for (const row of changing) {
+    await executor
+      .update(credential)
+      .set({ envVisibility: updates[row.envKey as string], updatedAt: now })
+      .where(eq(credential.id, row.id))
+  }
+
+  return { changedKeys: changingKeys }
 }
 
 export async function syncPersonalEnvCredentialsForUser(params: {
@@ -571,6 +668,7 @@ export async function getAccessibleEnvCredentials(
       type: credential.type,
       envKey: credential.envKey,
       envOwnerUserId: credential.envOwnerUserId,
+      envVisibility: credential.envVisibility,
       updatedAt: credential.updatedAt,
     })
     .from(credential)
@@ -589,6 +687,14 @@ export async function getAccessibleEnvCredentials(
         or(
           isNotNull(credentialMember.id),
           eq(credential.envOwnerUserId, userId),
+          // Non-secret workspace values are readable by every member, so they
+          // bypass the per-key credential ACL. Workspace membership itself is
+          // still enforced upstream by `checkWorkspaceAccess`; this clause only
+          // relaxes the per-key gate. The `env_workspace` predicate is load
+          // bearing — the schema check constraint keeps `env_personal` rows from
+          // ever being marked `variable`, and this keeps the query honest even
+          // if that constraint were ever relaxed.
+          and(eq(credential.type, 'env_workspace'), eq(credential.envVisibility, 'variable')),
           isWorkspaceAdmin ? eq(credential.type, 'env_workspace') : undefined
         )
       )
@@ -603,6 +709,7 @@ export async function getAccessibleEnvCredentials(
       type: row.type,
       envKey: row.envKey,
       envOwnerUserId: row.envOwnerUserId,
+      envVisibility: row.envVisibility,
       updatedAt: row.updatedAt,
     }))
 }

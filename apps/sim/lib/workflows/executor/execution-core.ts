@@ -510,10 +510,23 @@ async function executeWorkflowCoreImpl(
       personalDecrypted,
       workspaceDecrypted,
       decryptionFailures,
+      workspaceVariableKeys,
     } = env
 
-    // Use encrypted values for logging (don't log decrypted secrets)
-    const variables = EnvVarsSchema.parse({ ...personalEncrypted, ...workspaceEncrypted })
+    const nonSecretNames = new Set(workspaceVariableKeys)
+
+    // Secrets are logged as ciphertext so their plaintext cannot reach the log
+    // row by any downstream path. Keys explicitly marked non-secret are logged
+    // in the clear — being legible in a run's environment is the point of the
+    // flag, and this is the one place that decision is applied.
+    const variables = EnvVarsSchema.parse(
+      Object.fromEntries(
+        Object.entries({ ...personalEncrypted, ...workspaceEncrypted }).map(([key, encrypted]) => [
+          key,
+          nonSecretNames.has(key) ? (workspaceDecrypted[key] ?? encrypted) : encrypted,
+        ])
+      )
+    )
 
     // Use already-decrypted values for execution (no redundant decryption)
     const decryptedEnvVars: Record<string, string> = { ...personalDecrypted, ...workspaceDecrypted }
@@ -532,6 +545,7 @@ async function executeWorkflowCoreImpl(
       personalDecrypted,
       workspaceDecrypted,
       decryptionFailures,
+      nonSecretNames,
       restoredProvenance: restoreTrusted ? restoredState?.resolvedSecretTraceProvenance : undefined,
       restoredCheckpointVersion: restoredState?.resolvedSecretTraceCheckpointVersion,
       restoreTrusted,

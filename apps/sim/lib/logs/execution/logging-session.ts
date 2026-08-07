@@ -44,6 +44,7 @@ import type { SerializableExecutionState } from '@/executor/execution/types'
 import type { BlockLog } from '@/executor/types'
 import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
 import {
+  EMPTY_NON_SECRET_NAMES,
   isResolvedSecretTraceProvenanceV1,
   RESOLVED_SECRET_TRACE_CHECKPOINT_VERSION,
   type ResolvedSecretTraceProvenanceV1,
@@ -296,15 +297,16 @@ export class LoggingSession {
   private async createDisplayProjectionRegistry(
     provenance?: unknown
   ): Promise<ResolvedSecretTraceRegistry | undefined> {
-    if (provenance === undefined) return new ResolvedSecretTraceRegistry()
+    if (provenance === undefined)
+      return new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
 
     if (!isResolvedSecretTraceProvenanceV1(provenance)) {
-      const incomplete = new ResolvedSecretTraceRegistry()
+      const incomplete = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
       incomplete.markIncomplete()
       return incomplete
     }
 
-    const registry = new ResolvedSecretTraceRegistry([], provenance.scope)
+    const registry = new ResolvedSecretTraceRegistry([], provenance.scope, EMPTY_NON_SECRET_NAMES)
     await registry.importProvenance(provenance, { trusted: true })
     return registry
   }
@@ -482,7 +484,8 @@ export class LoggingSession {
   ): Promise<TraceSpan | undefined> {
     const registry = sourceSpan.displayResolvedSecretTraceProvenance
       ? await this.createDisplayProjectionRegistry(sourceSpan.displayResolvedSecretTraceProvenance)
-      : (inheritedRegistry ?? new ResolvedSecretTraceRegistry())
+      : (inheritedRegistry ??
+        new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES))
     if (registry) registryBySpanId.set(sourceSpan.id, registry)
 
     const { children, ...spanWithoutChildren } = sourceSpan
@@ -765,7 +768,8 @@ export class LoggingSession {
       const scopeUserId = userId ?? this.actorUserId
       this.resolvedSecretTraceRegistry = new ResolvedSecretTraceRegistry(
         [],
-        scopeUserId ? { userId: scopeUserId, workspaceId } : undefined
+        scopeUserId ? { userId: scopeUserId, workspaceId } : undefined,
+        EMPTY_NON_SECRET_NAMES
       )
       if (skipLogCreation) this.resolvedSecretTraceRegistry.markIncomplete()
     }

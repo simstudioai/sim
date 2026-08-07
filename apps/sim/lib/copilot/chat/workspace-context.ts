@@ -78,6 +78,14 @@ export interface WorkspaceMdData {
     role?: string | null
   }>
   envVariables: string[]
+  /**
+   * Subset of {@link envVariables} explicitly marked non-secret. Rendered as a
+   * marker rather than a separate section: env vars are secret or non-secret,
+   * not a third kind of thing, and a `## Workspace Variables` heading would
+   * collide with workflow variables (`<variable.NAME>`) in the agent's model.
+   * Values live in `environment/variables.json` under `nonSecretValues`.
+   */
+  nonSecretEnvVariables: string[]
   customTools?: Array<{ id: string; name: string }>
   customBlocks?: Array<{ type: string; name: string; description?: string }>
   mcpServers?: Array<{ id: string; name: string; url?: string | null; enabled: boolean }>
@@ -261,8 +269,16 @@ export function buildWorkspaceMd(data: WorkspaceMdData): string {
   }
 
   if (data.envVariables.length > 0) {
-    const lines = [...data.envVariables].sort(stableCompare).map((v) => `- ${v}`)
-    sections.push(`## Environment Variables (${data.envVariables.length})\n${lines.join('\n')}`)
+    const nonSecret = new Set(data.nonSecretEnvVariables)
+    const lines = [...data.envVariables]
+      .sort(stableCompare)
+      .map((v) => (nonSecret.has(v) ? `- ${v} (non-secret)` : `- ${v}`))
+    const note = nonSecret.size
+      ? '\nValues for the names marked non-secret are in environment/variables.json under nonSecretValues; every other name is a secret whose value you cannot read.'
+      : ''
+    sections.push(
+      `## Environment Variables (${data.envVariables.length})${note}\n${lines.join('\n')}`
+    )
   }
 
   if (data.customTools && data.customTools.length > 0) {
@@ -513,6 +529,15 @@ async function buildWorkspaceMdData(
       envVariables: [...new Set(envCredentials.map((credential) => credential.envKey))].sort(
         stableCompare
       ),
+      // Derived from the same credential rows, so this costs no extra query and
+      // no decryption — only the names are needed here.
+      nonSecretEnvVariables: [
+        ...new Set(
+          envCredentials
+            .filter((credential) => credential.envVisibility === 'variable')
+            .map((credential) => credential.envKey)
+        ),
+      ].sort(stableCompare),
       customTools: customTools.map((t) => ({ id: t.id, name: t.title })),
       customBlocks: customBlockSummaries,
       mcpServers: mcpServerRows,
@@ -557,6 +582,13 @@ export async function generateWorkspaceContext(
   return buildWorkspaceMd({
     ...data,
     envVariables: filterSecretNamesByMountPolicy(data.envVariables, options?.secretMountPolicy),
+    // Filtered by the same policy so a restricted mount list cannot be widened
+    // just because a key is non-secret, and so a name can never be marked
+    // non-secret in the inventory while being absent from the list above.
+    nonSecretEnvVariables: filterSecretNamesByMountPolicy(
+      data.nonSecretEnvVariables,
+      options?.secretMountPolicy
+    ),
   })
 }
 

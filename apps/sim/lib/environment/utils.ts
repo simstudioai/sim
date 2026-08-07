@@ -9,6 +9,7 @@ import { LRUCache } from 'lru-cache'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import {
   createWorkspaceEnvCredentials,
+  type EnvVisibility,
   getAccessibleEnvCredentials,
   getWorkspaceEnvKeyAdminAccess,
   syncPersonalEnvCredentialsForUser,
@@ -51,6 +52,16 @@ export interface EnvironmentResolutionSnapshot {
   personalOwners: Record<string, string>
   conflicts: string[]
   decryptionFailures: string[]
+  /**
+   * Workspace keys whose values are non-secret: readable by any member, kept
+   * verbatim in traces and logs, and exposed to the agent with their value.
+   *
+   * This is the single source every resolved-secret registry construction site
+   * derives its exemption set from, so it must only ever contain keys that are
+   * actually present in `workspaceEncrypted` — a stale credential row without a
+   * stored value must not exempt anything.
+   */
+  workspaceVariableKeys: string[]
 }
 
 interface EffectiveEnvironmentCacheEntry {
@@ -79,6 +90,7 @@ function cloneEnvironmentResolutionSnapshot(
     personalOwners: { ...snapshot.personalOwners },
     conflicts: [...snapshot.conflicts],
     decryptionFailures: [...snapshot.decryptionFailures],
+    workspaceVariableKeys: [...snapshot.workspaceVariableKeys],
   }
 }
 
@@ -262,6 +274,13 @@ export async function getPersonalAndWorkspaceEnv(
 
   const conflicts = Object.keys(personalEncrypted).filter((k) => k in workspaceEncrypted)
 
+  // Intersected with the values actually stored: a credential row that outlived
+  // its jsonb entry must never exempt a key from secret redaction.
+  const workspaceVariableKeys = accessibleEnvCredentials
+    .filter((row) => row.type === 'env_workspace' && row.envVisibility === 'variable')
+    .map((row) => row.envKey)
+    .filter((envKey) => envKey in workspaceEncrypted)
+
   if (decryptionFailures.length > 0) {
     logger.warn('Some environment variables failed to decrypt', {
       userId,
@@ -279,6 +298,7 @@ export async function getPersonalAndWorkspaceEnv(
     personalOwners,
     conflicts,
     decryptionFailures,
+    workspaceVariableKeys,
   }
 }
 
@@ -361,7 +381,8 @@ export async function upsertPersonalEnvVars(
 export async function upsertWorkspaceEnvVars(
   workspaceId: string,
   newVars: Record<string, string>,
-  actingUserId: string
+  actingUserId: string,
+  options?: { visibilityByKey?: Record<string, EnvVisibility> }
 ): Promise<string[]> {
   const updatedKeys = Object.keys(newVars)
   if (updatedKeys.length === 0) return []
@@ -445,7 +466,12 @@ export async function upsertWorkspaceEnvVars(
   // secret present in the jsonb map without a credential row is NOT new, and
   // minting an ACL for it would make the caller its secret-admin.
   const newKeys = updatedKeys.filter((key) => !(key in existingEncrypted))
-  await createWorkspaceEnvCredentials({ workspaceId, newKeys, actingUserId })
+  await createWorkspaceEnvCredentials({
+    workspaceId,
+    newKeys,
+    actingUserId,
+    visibilityByKey: options?.visibilityByKey,
+  })
 
   recordAudit({
     workspaceId,

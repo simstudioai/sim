@@ -35,7 +35,10 @@ import {
   maybeWriteReadCsvToTable,
 } from '@/lib/copilot/request/tools/tables'
 import type { ExecutionContext } from '@/lib/copilot/request/types'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  EMPTY_NON_SECRET_NAMES,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 
 const tableLogger = vi.mocked(loggerMock.createLogger).mock.results[
   vi
@@ -76,7 +79,11 @@ function buildContext(overrides: Partial<ExecutionContext> = {}): ExecutionConte
     workflowId: 'wf-1',
     workspaceId: 'workspace-1',
     userPermission: 'write',
-    resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
+    resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(
+      [],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    ),
     ...overrides,
   }
 }
@@ -148,18 +155,22 @@ describe('maybeWriteOutputToTable', () => {
   })
 
   it('projects activated secrets before persistence without rewriting sibling literals', async () => {
-    const parentRegistry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'OUTPUT_SECRET',
-        plaintext: 'secret-value',
-        encryptedValue: 'encrypted-output-secret',
-      },
-      {
-        name: 'UNRELATED',
-        plaintext: 'true',
-        encryptedValue: 'encrypted-unrelated',
-      },
-    ])
+    const parentRegistry = new ResolvedSecretTraceRegistry(
+      [
+        {
+          name: 'OUTPUT_SECRET',
+          plaintext: 'secret-value',
+          encryptedValue: 'encrypted-output-secret',
+        },
+        {
+          name: 'UNRELATED',
+          plaintext: 'true',
+          encryptedValue: 'encrypted-unrelated',
+        },
+      ],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     parentRegistry.recordResolved('UNRELATED', 'true')
     const toolRegistry = parentRegistry.forkForToolInput({ code: 'return {{OUTPUT_SECRET}}' })
     toolRegistry.recordResolved('OUTPUT_SECRET', 'secret-value')
@@ -191,13 +202,13 @@ describe('maybeWriteOutputToTable', () => {
 
     const laterRead = projectToolResultForCopilot(
       { success: true, output: { data: { rows: persistedRows } } },
-      new ResolvedSecretTraceRegistry()
+      new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
     )
     expect(laterRead.output).toEqual({ data: { rows: persistedRows } })
   })
 
   it('does not write when table persistence provenance is incomplete', async () => {
-    const registry = new ResolvedSecretTraceRegistry()
+    const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
     registry.markIncomplete()
 
     const result = await maybeWriteOutputToTable(
@@ -271,9 +282,11 @@ describe('maybeWriteOutputToTable', () => {
   })
 
   it('keeps raw errors for terminal projection but projects application logs and OTel events', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'SECRET', plaintext: 'secret-value', encryptedValue: 'encrypted-secret-value' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'SECRET', plaintext: 'secret-value', encryptedValue: 'encrypted-secret-value' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('SECRET', 'secret-value')
     mockReplaceTableRows.mockRejectedValue(new Error('Duplicate value "secret-value"'))
 
@@ -344,10 +357,14 @@ describe('maybeWriteReadCsvToTable', () => {
   })
 
   it('projects active secret literals into string-compatible CSV columns', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'NUMBER', plaintext: '123', encryptedValue: 'encrypted-number' },
-      { name: 'BOOLEAN', plaintext: 'true', encryptedValue: 'encrypted-boolean' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        { name: 'NUMBER', plaintext: '123', encryptedValue: 'encrypted-number' },
+        { name: 'BOOLEAN', plaintext: 'true', encryptedValue: 'encrypted-boolean' },
+      ],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('NUMBER', '123')
     registry.recordResolved('BOOLEAN', 'true')
 
@@ -374,10 +391,14 @@ describe('maybeWriteReadCsvToTable', () => {
   })
 
   it('rejects active secret literals in number and boolean columns before mutation', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'NUMBER', plaintext: '123', encryptedValue: 'encrypted-number' },
-      { name: 'BOOLEAN', plaintext: 'true', encryptedValue: 'encrypted-boolean' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        { name: 'NUMBER', plaintext: '123', encryptedValue: 'encrypted-number' },
+        { name: 'BOOLEAN', plaintext: 'true', encryptedValue: 'encrypted-boolean' },
+      ],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('NUMBER', '123')
     registry.recordResolved('BOOLEAN', 'true')
 
@@ -399,7 +420,7 @@ describe('maybeWriteReadCsvToTable', () => {
   })
 
   it('does not import CSV rows when persistence provenance is incomplete', async () => {
-    const registry = new ResolvedSecretTraceRegistry()
+    const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
     registry.markIncomplete()
 
     const result = await maybeWriteReadCsvToTable(
@@ -462,9 +483,11 @@ describe('maybeWriteReadCsvToTable', () => {
   })
 
   it('projects active secret literals in CSV-import log and OTel errors', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'SECRET', plaintext: 'secret-value', encryptedValue: 'encrypted-secret-value' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'SECRET', plaintext: 'secret-value', encryptedValue: 'encrypted-secret-value' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('SECRET', 'secret-value')
     mockReplaceTableRows.mockRejectedValue(new Error('Duplicate value "secret-value"'))
 

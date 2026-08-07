@@ -4,7 +4,10 @@
 import { describe, expect, it } from 'vitest'
 import { PRIVATE_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
 import { selectTableRowSecretProvenance } from '@/lib/table/secret-provenance-selection'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  EMPTY_NON_SECRET_NAMES,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 import { prepareToolRequest } from '@/tools/request-transport'
 import { tableBatchInsertRowsTool } from '@/tools/table/batch_insert_rows'
 
@@ -38,10 +41,14 @@ describe('selectTableRowSecretProvenance', () => {
         rows: [{ email: 'user@example.com', status: 'queued', processed_at: undefined }],
         _context: { workspaceId: 'workspace-1' },
       },
-      new ResolvedSecretTraceRegistry([], {
-        userId: 'user-1',
-        workspaceId: 'workspace-1',
-      })
+      new ResolvedSecretTraceRegistry(
+        [],
+        {
+          userId: 'user-1',
+          workspaceId: 'workspace-1',
+        },
+        EMPTY_NON_SECRET_NAMES
+      )
     )
     const body = JSON.parse(request.body ?? '') as TableWriteRequestBody
     const wireSelectionKeys = body.rows.flatMap((row, rowIndex) =>

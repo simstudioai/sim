@@ -56,6 +56,7 @@ describe('GET /api/workspaces/[id]/environment', () => {
       personalDecrypted: { PERSONAL: 'personal-secret', SHARED_PERSONAL: 'shared-secret' },
       personalOwners: { PERSONAL: 'u-1', SHARED_PERSONAL: 'owner-2' },
       conflicts: [],
+      workspaceVariableKeys: [],
     })
     mockGetPersonalEnvKeyRawAccess.mockResolvedValue({
       ownedKeys: new Set(['PERSONAL']),
@@ -78,6 +79,7 @@ describe('GET /api/workspaces/[id]/environment', () => {
     mockGetWorkspaceEnvKeyAdminAccess.mockResolvedValue({
       adminKeys: new Set<string>(),
       knownKeys: new Set(['OPENAI_API_KEY', 'DATABASE_URL']),
+      variableKeys: new Set<string>(),
     })
 
     const { status, body } = await callGet()
@@ -88,11 +90,49 @@ describe('GET /api/workspaces/[id]/environment', () => {
     expect(body.data.workspace.DATABASE_URL).toBe('')
   })
 
+  it('reveals a non-secret value to a read-only member while still masking secrets', async () => {
+    mockGetUserEntityPermissions.mockResolvedValue('read')
+    mockGetWorkspaceEnvKeyAdminAccess.mockResolvedValue({
+      adminKeys: new Set<string>(),
+      knownKeys: new Set(['OPENAI_API_KEY', 'DATABASE_URL']),
+      variableKeys: new Set(['DATABASE_URL']),
+    })
+
+    const { status, body } = await callGet()
+
+    expect(status).toBe(200)
+    // Both halves asserted together: a test that only checked the variable would
+    // still pass if the exemption accidentally widened to every key.
+    expect(body.data.workspace.DATABASE_URL).toBe('postgres://secret')
+    expect(body.data.workspace.OPENAI_API_KEY).toBe('')
+    expect(body.data.visibility).toEqual({
+      OPENAI_API_KEY: 'secret',
+      DATABASE_URL: 'variable',
+    })
+  })
+
+  it('reports every key as a secret when nothing is marked non-secret', async () => {
+    mockGetUserEntityPermissions.mockResolvedValue('read')
+    mockGetWorkspaceEnvKeyAdminAccess.mockResolvedValue({
+      adminKeys: new Set<string>(),
+      knownKeys: new Set(['OPENAI_API_KEY', 'DATABASE_URL']),
+      variableKeys: new Set<string>(),
+    })
+
+    const { body } = await callGet()
+
+    expect(body.data.visibility).toEqual({
+      OPENAI_API_KEY: 'secret',
+      DATABASE_URL: 'secret',
+    })
+  })
+
   it('reveals only the workspace values the caller is a credential admin of', async () => {
     mockGetUserEntityPermissions.mockResolvedValue('write')
     mockGetWorkspaceEnvKeyAdminAccess.mockResolvedValue({
       adminKeys: new Set(['OPENAI_API_KEY']),
       knownKeys: new Set(['OPENAI_API_KEY', 'DATABASE_URL']),
+      variableKeys: new Set<string>(),
     })
 
     const { body } = await callGet()
@@ -106,6 +146,7 @@ describe('GET /api/workspaces/[id]/environment', () => {
     mockGetWorkspaceEnvKeyAdminAccess.mockResolvedValue({
       adminKeys: new Set<string>(),
       knownKeys: new Set<string>(),
+      variableKeys: new Set<string>(),
     })
 
     const { body } = await callGet()
@@ -119,6 +160,7 @@ describe('GET /api/workspaces/[id]/environment', () => {
     mockGetWorkspaceEnvKeyAdminAccess.mockResolvedValue({
       adminKeys: new Set<string>(),
       knownKeys: new Set<string>(),
+      variableKeys: new Set<string>(),
     })
 
     const { body } = await callGet()
@@ -132,6 +174,7 @@ describe('GET /api/workspaces/[id]/environment', () => {
     mockGetWorkspaceEnvKeyAdminAccess.mockResolvedValue({
       adminKeys: new Set<string>(),
       knownKeys: new Set(['OPENAI_API_KEY', 'DATABASE_URL']),
+      variableKeys: new Set<string>(),
     })
 
     const { body } = await callGet()
@@ -144,6 +187,7 @@ describe('GET /api/workspaces/[id]/environment', () => {
     mockGetWorkspaceEnvKeyAdminAccess.mockResolvedValue({
       adminKeys: new Set<string>(),
       knownKeys: new Set(['OPENAI_API_KEY', 'DATABASE_URL']),
+      variableKeys: new Set<string>(),
     })
     mockGetPersonalEnvKeyRawAccess.mockResolvedValue({
       ownedKeys: new Set(['PERSONAL']),

@@ -5,7 +5,10 @@
 import { loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/execution/constants'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  EMPTY_NON_SECRET_NAMES,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 
 const { getToolEntry, isKnownTool, isSimExecuted, isClientExecuted } = vi.hoisted(() => ({
   getToolEntry: vi.fn(),
@@ -91,9 +94,11 @@ describe('copilot tool executor fallback', () => {
 
   it('projects resolved secrets before logging registered handler failures', async () => {
     const secret = 'mounted-secret-value'
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'API_KEY', plaintext: secret, encryptedValue: 'encrypted-secret' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'API_KEY', plaintext: secret, encryptedValue: 'encrypted-secret' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('API_KEY', secret)
     isKnownTool.mockReturnValue(true)
     isSimExecuted.mockReturnValue(true)

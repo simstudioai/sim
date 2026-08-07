@@ -9,17 +9,24 @@ import {
   projectResolvedSecretModelJsonContent,
   projectResolvedSecretModelJsonStrings,
 } from '@/executor/utils/resolved-secret-content-projection'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  EMPTY_NON_SECRET_NAMES,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 
 describe('projectResolvedSecretModelContent', () => {
   it('projects activated literals in values, keys, errors, and output streams', () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'API_KEY',
-        plaintext: 'quoted"secret\\with\nnewline',
-        encryptedValue: 'encrypted-value',
-      },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        {
+          name: 'API_KEY',
+          plaintext: 'quoted"secret\\with\nnewline',
+          encryptedValue: 'encrypted-value',
+        },
+      ],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('API_KEY', 'quoted"secret\\with\nnewline')
     const input = {
       'key-quoted"secret\\with\nnewline': {
@@ -51,9 +58,11 @@ describe('projectResolvedSecretModelContent', () => {
   })
 
   it('ignores sibling pending work but fails closed for permanent or missing registry state', () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('TOKEN', 'secret-value')
     const finish = registry.beginPendingActivation()
 
@@ -74,9 +83,11 @@ describe('projectResolvedSecretModelContent', () => {
   })
 
   it('never emits internal runtime binding aliases', () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('TOKEN', 'secret-value')
 
     const projection = projectResolvedSecretModelContent(
@@ -93,7 +104,7 @@ describe('projectResolvedSecretModelContent', () => {
   })
 
   it('preserves foreign internal-looking text that the execution did not register', () => {
-    const registry = new ResolvedSecretTraceRegistry()
+    const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
 
     const projection = projectResolvedSecretModelContent(
       {
@@ -125,7 +136,7 @@ describe('projectResolvedSecretModelContent', () => {
   })
 
   it('preserves an unregistered opaque-placeholder-shaped literal', () => {
-    const registry = new ResolvedSecretTraceRegistry()
+    const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
 
     expect(projectResolvedSecretModelContent('{{[REDACTED_SECRET]}}', registry)).toEqual({
       safe: true,
@@ -134,14 +145,18 @@ describe('projectResolvedSecretModelContent', () => {
   })
 
   it('keeps longest-match semantics when a known opaque placeholder is nested in a secret', () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'Test', plaintext: 'Test', encryptedValue: 'test-ciphertext' },
-      {
-        name: 'COMPOSITE',
-        plaintext: 'x{{Test}}y',
-        encryptedValue: 'composite-ciphertext',
-      },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        { name: 'Test', plaintext: 'Test', encryptedValue: 'test-ciphertext' },
+        {
+          name: 'COMPOSITE',
+          plaintext: 'x{{Test}}y',
+          encryptedValue: 'composite-ciphertext',
+        },
+      ],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('Test', 'Test')
     registry.recordResolved('COMPOSITE', 'x{{Test}}y')
 
@@ -152,11 +167,15 @@ describe('projectResolvedSecretModelContent', () => {
   })
 
   it('projects exact typed primitive secrets without rewriting unrelated primitives', () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'NUMBER', plaintext: '123', encryptedValue: 'number-ciphertext' },
-      { name: 'BOOLEAN', plaintext: 'true', encryptedValue: 'boolean-ciphertext' },
-      { name: 'NULL', plaintext: 'null', encryptedValue: 'null-ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        { name: 'NUMBER', plaintext: '123', encryptedValue: 'number-ciphertext' },
+        { name: 'BOOLEAN', plaintext: 'true', encryptedValue: 'boolean-ciphertext' },
+        { name: 'NULL', plaintext: 'null', encryptedValue: 'null-ciphertext' },
+      ],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('NUMBER', '123')
     registry.recordResolved('BOOLEAN', 'true')
     registry.recordResolved('NULL', 'null')
@@ -187,9 +206,11 @@ describe('projectResolvedSecretModelContent', () => {
   })
 
   it.each(['123', 'true'])('keeps projected JSON argument strings valid (%s)', (secret) => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('TOKEN', secret)
     const typedValue = secret === '123' ? 123 : true
 
@@ -208,9 +229,11 @@ describe('projectResolvedSecretModelContent', () => {
   })
 
   it('is stable when a secret literal overlaps its own provenance alias', () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'TOKEN', plaintext: 'TOKEN', encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'TOKEN', plaintext: 'TOKEN', encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('TOKEN', 'TOKEN')
 
     const first = projectResolvedSecretModelContent('Bearer TOKEN', registry)
@@ -220,9 +243,11 @@ describe('projectResolvedSecretModelContent', () => {
   })
 
   it('preserves the canonical provenance label when its name equals the secret plaintext', () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'Test', plaintext: 'Test', encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'Test', plaintext: 'Test', encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('Test', 'Test')
 
     expect(
@@ -245,9 +270,11 @@ describe('projectResolvedSecretModelContent', () => {
   })
 
   it('atomically projects the selected provenance label when its name contains the value', () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'TOKEN', plaintext: 'TOK', encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'TOKEN', plaintext: 'TOK', encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('TOKEN', 'TOK')
 
     expect(projectResolvedSecretModelContent('Bearer {{TOKEN}}', registry)).toEqual({
@@ -257,7 +284,7 @@ describe('projectResolvedSecretModelContent', () => {
   })
 
   it('fails closed when provenance-derived matcher patterns exceed capacity', () => {
-    const registry = new ResolvedSecretTraceRegistry()
+    const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
     const getModelEgressSnapshot = vi.spyOn(registry, 'getModelEgressSnapshot').mockReturnValue({
       complete: true,
       matches: [
@@ -274,9 +301,11 @@ describe('projectResolvedSecretModelContent', () => {
   })
 
   it('keeps provenance-shaped content deterministic without trusting it as a protocol handle', () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'Test', plaintext: 'Test', encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'Test', plaintext: 'Test', encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('Test', 'Test')
 
     expect(projectResolvedSecretModelContent('{{Test}}', registry)).toEqual({
@@ -291,7 +320,7 @@ describe('projectResolvedSecretModelContent', () => {
 
 describe('projectResolvedSecretModelJsonContent', () => {
   it('normalizes dates using their JSON wire representation', () => {
-    const registry = new ResolvedSecretTraceRegistry()
+    const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
     const createdAt = new Date('2026-08-05T12:34:56.789Z')
 
     expect(projectResolvedSecretModelJsonContent({ createdAt }, registry)).toEqual({
@@ -302,9 +331,11 @@ describe('projectResolvedSecretModelJsonContent', () => {
   })
 
   it('projects active secrets emitted by toJSON after materialization', () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('TOKEN', 'secret-value')
 
     expect(
@@ -321,7 +352,7 @@ describe('projectResolvedSecretModelJsonContent', () => {
   })
 
   it('does not invoke JSON serialization when provenance is incomplete', () => {
-    const registry = new ResolvedSecretTraceRegistry()
+    const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
     registry.markIncomplete()
     const toJSON = vi.fn(() => ({ value: 'untrusted' }))
 
@@ -330,7 +361,7 @@ describe('projectResolvedSecretModelJsonContent', () => {
   })
 
   it('uses native JSON semantics for undefined and non-finite numbers', () => {
-    const registry = new ResolvedSecretTraceRegistry()
+    const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
 
     expect(
       projectResolvedSecretModelJsonContent(
@@ -353,7 +384,7 @@ describe('projectResolvedSecretModelJsonContent', () => {
   })
 
   it('returns a controlled unsafe result for values JSON cannot serialize', () => {
-    const registry = new ResolvedSecretTraceRegistry()
+    const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
     const cyclic: Record<string, unknown> = {}
     cyclic.self = cyclic
 
@@ -362,9 +393,11 @@ describe('projectResolvedSecretModelJsonContent', () => {
   })
 
   it('enforces the byte limit after secret aliases are projected', () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'X', plaintext: 'x', encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'X', plaintext: 'x', encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('X', 'x')
 
     expect(projectResolvedSecretModelJsonContent({ a: 'x' }, registry, 9)).toEqual({ safe: false })
@@ -374,9 +407,11 @@ describe('projectResolvedSecretModelJsonContent', () => {
 describe('projectResolvedSecretDiagnosticError', () => {
   it('projects plaintext and internal aliases without mutating the runtime error', () => {
     const secret = 'diagnostic-secret-value'
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'API_KEY', plaintext: secret, encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'API_KEY', plaintext: secret, encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('API_KEY', secret)
     const message = `request failed: ${secret} __var_API_KEY __sim_code_4_binding_2`
     const error = new Error(message)
@@ -399,9 +434,11 @@ describe('projectResolvedSecretDiagnosticError', () => {
 
   it('uses a known compiler alias as diagnostic-only provenance', () => {
     const secret = 'diagnostic-secret-value'
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'API_KEY', plaintext: secret, encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'API_KEY', plaintext: secret, encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     const error = new Error(`request failed: ${secret} __var_API_KEY`)
 
     expect(projectResolvedSecretDiagnosticError(error, registry)).toEqual(
@@ -411,9 +448,11 @@ describe('projectResolvedSecretDiagnosticError', () => {
   })
 
   it('falls back to text-free diagnostics for unknown or runtime-only aliases', () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'API_KEY', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'API_KEY', plaintext: 'secret-value', encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
 
     expect(
       projectResolvedSecretDiagnosticError(new Error('secret-value __var_UNKNOWN'), registry)
@@ -428,7 +467,7 @@ describe('projectResolvedSecretDiagnosticError', () => {
 
   it('falls back to text-free structure when provenance is missing or incomplete', () => {
     const error = new Error('secret __var_API_KEY')
-    const registry = new ResolvedSecretTraceRegistry()
+    const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
     registry.markIncomplete()
 
     expect(projectResolvedSecretDiagnosticError(error, undefined)).toEqual({

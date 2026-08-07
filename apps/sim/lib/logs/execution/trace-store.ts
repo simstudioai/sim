@@ -6,6 +6,7 @@ import { materializeLargeValueRef, storeLargeValue } from '@/lib/execution/paylo
 import { projectTraceSpansForSecrets } from '@/lib/logs/execution/trace-secret-projection'
 import type { TraceSpan } from '@/lib/logs/types'
 import {
+  EMPTY_NON_SECRET_NAMES,
   isResolvedSecretTraceProvenanceV1,
   ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
@@ -274,7 +275,7 @@ export async function projectExecutionDataForDisplay(
   let registry: ResolvedSecretTraceRegistry | undefined
 
   if (isResolvedSecretTraceProvenanceV1(provenance)) {
-    registry = new ResolvedSecretTraceRegistry([], provenance.scope)
+    registry = new ResolvedSecretTraceRegistry([], provenance.scope, EMPTY_NON_SECRET_NAMES)
     await registry.importProvenance(provenance, { trusted: true })
   }
 
@@ -298,8 +299,8 @@ export async function projectExecutionDataForDisplay(
 
     const exactProvenance = executionState[provenanceKey]
     const exactRegistry = isResolvedSecretTraceProvenanceV1(exactProvenance)
-      ? new ResolvedSecretTraceRegistry([], exactProvenance.scope)
-      : new ResolvedSecretTraceRegistry()
+      ? new ResolvedSecretTraceRegistry([], exactProvenance.scope, EMPTY_NON_SECRET_NAMES)
+      : new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
     if (isResolvedSecretTraceProvenanceV1(exactProvenance)) {
       await exactRegistry.importProvenance(exactProvenance, { trusted: true })
     } else {

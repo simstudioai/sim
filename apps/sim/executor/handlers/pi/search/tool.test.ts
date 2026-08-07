@@ -17,10 +17,17 @@ import {
   PARALLEL_EMPTY_RESULTS_ERROR,
 } from '@/executor/handlers/pi/search/tool'
 import type { ExecutionContext } from '@/executor/types'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  EMPTY_NON_SECRET_NAMES,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 
 function executionContext(
-  registry: ResolvedSecretTraceRegistry | undefined = new ResolvedSecretTraceRegistry()
+  registry: ResolvedSecretTraceRegistry | undefined = new ResolvedSecretTraceRegistry(
+    [],
+    undefined,
+    EMPTY_NON_SECRET_NAMES
+  )
 ): ExecutionContext {
   return {
     executionId: 'exec-1',
@@ -114,9 +121,11 @@ describe('buildPiSearchToolSpec', () => {
 
   it('projects named provenance before normalizing and serializing provider output', async () => {
     const secret = 'quoted"\\secret\nnext-line'
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'SEARCH_QUERY', plaintext: secret, encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'SEARCH_QUERY', plaintext: secret, encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('SEARCH_QUERY', secret)
     const mergeSpy = vi.spyOn(registry, 'mergeToolCallRegistry')
     const context = executionContext(registry)
@@ -150,9 +159,11 @@ describe('buildPiSearchToolSpec', () => {
   })
 
   it('preserves an unrelated low-entropy result absent from this search call inputs', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'LOW_ENTROPY', plaintext: 'Test', encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'LOW_ENTROPY', plaintext: 'Test', encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('LOW_ENTROPY', 'Test')
     mockExecuteTool.mockResolvedValue({
       success: true,
@@ -177,7 +188,7 @@ describe('buildPiSearchToolSpec', () => {
   })
 
   it('projects anonymous provenance learned by the isolated search call', async () => {
-    const registry = new ResolvedSecretTraceRegistry()
+    const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
     mockExecuteTool.mockImplementation(async (_toolId, _params, options) => {
       vi.spyOn(options.resolvedSecretTraceRegistry, 'getModelEgressSnapshot').mockReturnValue({
         complete: true,
@@ -207,7 +218,7 @@ describe('buildPiSearchToolSpec', () => {
     [
       'incomplete',
       (() => {
-        const registry = new ResolvedSecretTraceRegistry()
+        const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
         registry.markIncomplete()
         return registry
       })(),
@@ -224,7 +235,7 @@ describe('buildPiSearchToolSpec', () => {
   })
 
   it('does not merge an incomplete search call registry or return its output', async () => {
-    const registry = new ResolvedSecretTraceRegistry()
+    const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
     const mergeSpy = vi.spyOn(registry, 'mergeToolCallRegistry')
     mockExecuteTool.mockImplementation(async (_toolId, _params, options) => {
       options.resolvedSecretTraceRegistry.markIncomplete()

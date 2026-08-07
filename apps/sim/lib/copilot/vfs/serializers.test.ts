@@ -15,6 +15,7 @@ import {
   serializeBlockSchema,
   serializeCredentials,
   serializeDeployments,
+  serializeEnvironmentVariables,
   serializeFileMeta,
   serializeIntegrationSchema,
   serializeKBMeta,
@@ -526,5 +527,28 @@ describe('serializeCredentials — type distinguishes reconnect flow', () => {
       serializeCredentials([{ providerId: 'OPENAI_API_KEY', scope: 'workspace', createdAt: now }])
     )
     expect(json[0].type).toBeUndefined()
+  })
+})
+
+describe('serializeEnvironmentVariables', () => {
+  it('emits secret names only, and values solely for non-secret keys', () => {
+    const json = JSON.parse(
+      serializeEnvironmentVariables(['MY_OPENAI_KEY'], ['STRIPE_KEY', 'SUPPORT_EMAIL'], {
+        SUPPORT_EMAIL: 'help@acme.com',
+      })
+    )
+
+    expect(json.personal).toEqual(['MY_OPENAI_KEY'])
+    expect(json.workspace).toEqual(['STRIPE_KEY', 'SUPPORT_EMAIL'])
+    expect(json.nonSecretValues).toEqual({ SUPPORT_EMAIL: 'help@acme.com' })
+    // The rule the agent prompt states: absence from nonSecretValues means secret.
+    expect(json.nonSecretValues.STRIPE_KEY).toBeUndefined()
+    expect(json.nonSecretValues.MY_OPENAI_KEY).toBeUndefined()
+  })
+
+  it('defaults to an empty non-secret map so every name reads as a secret', () => {
+    const json = JSON.parse(serializeEnvironmentVariables([], ['STRIPE_KEY']))
+
+    expect(json.nonSecretValues).toEqual({})
   })
 })

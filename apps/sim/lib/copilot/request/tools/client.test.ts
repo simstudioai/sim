@@ -41,7 +41,10 @@ import {
 } from '@/lib/copilot/request/tools/client'
 import { sealClientToolContext } from '@/lib/copilot/request/tools/client-completion-seal.server'
 import { TOOL_RESULT_UNAVAILABLE_ERROR } from '@/lib/copilot/request/tools/resolved-secret-result'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  EMPTY_NON_SECRET_NAMES,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 
 const TRACE_SCOPE = { userId: 'user-1', workspaceId: 'workspace-1' }
 
@@ -54,7 +57,8 @@ function createParentRegistry(): ResolvedSecretTraceRegistry {
         encryptedValue: 'encrypted-parent-secret',
       },
     ],
-    TRACE_SCOPE
+    TRACE_SCOPE,
+    EMPTY_NON_SECRET_NAMES
   )
   registry.recordResolved('PARENT_SECRET', 'parent-secret-value')
   return registry
@@ -69,7 +73,8 @@ function createClientRegistry(): ResolvedSecretTraceRegistry {
         encryptedValue: 'encrypted-secret',
       },
     ],
-    TRACE_SCOPE
+    TRACE_SCOPE,
+    EMPTY_NON_SECRET_NAMES
   )
   registry.recordResolved('SECRET', 'resolved-secret')
   return registry
@@ -338,7 +343,7 @@ describe('workflow client tool completion', () => {
   })
 
   it('imports and projects a secret activated only inside the child workflow', async () => {
-    const registry = new ResolvedSecretTraceRegistry([], TRACE_SCOPE)
+    const registry = new ResolvedSecretTraceRegistry([], TRACE_SCOPE, EMPTY_NON_SECRET_NAMES)
     waitForToolConfirmation.mockResolvedValue({
       status: 'success',
       data: { workflowId: 'workflow-1', executionId: 'execution-1' },
@@ -380,7 +385,7 @@ describe('workflow client tool completion', () => {
   })
 
   it('discards imported child provenance when workflow-result projection fails', async () => {
-    const registry = new ResolvedSecretTraceRegistry([], TRACE_SCOPE)
+    const registry = new ResolvedSecretTraceRegistry([], TRACE_SCOPE, EMPTY_NON_SECRET_NAMES)
     const cyclicOutput: Record<string, unknown> = { value: 'child-secret-value' }
     cyclicOutput.self = cyclicOutput
     waitForToolConfirmation.mockResolvedValue({
@@ -424,7 +429,7 @@ describe('workflow client tool completion', () => {
   })
 
   it('corrects the client terminal status from the bound execution log', async () => {
-    const registry = new ResolvedSecretTraceRegistry([], TRACE_SCOPE)
+    const registry = new ResolvedSecretTraceRegistry([], TRACE_SCOPE, EMPTY_NON_SECRET_NAMES)
     waitForToolConfirmation.mockResolvedValue({
       status: 'success',
       data: { workflowId: 'workflow-1', executionId: 'execution-1' },
@@ -664,7 +669,8 @@ describe('generic client tool completion', () => {
           encryptedValue: 'encrypted-low-entropy-secret',
         },
       ],
-      TRACE_SCOPE
+      TRACE_SCOPE,
+      EMPTY_NON_SECRET_NAMES
     )
     registry.recordResolved('LOW_ENTROPY_SECRET', 'true')
     const sealedContext = await sealClientToolContext({
@@ -860,7 +866,7 @@ describe('generic client tool completion', () => {
 
   it('fails structurally when a restarted execution uses a new registry instance', async () => {
     const sourceRegistry = createClientRegistry()
-    const resumedRegistry = new ResolvedSecretTraceRegistry([], TRACE_SCOPE)
+    const resumedRegistry = new ResolvedSecretTraceRegistry([], TRACE_SCOPE, EMPTY_NON_SECRET_NAMES)
     const sealedContext = await sealClientToolContext({
       toolCallId: 'tool-1',
       runId: 'run-1',
@@ -905,7 +911,7 @@ describe('generic client tool completion', () => {
   })
 
   it('fails structurally for a legacy raw confirmation without sealed provenance', async () => {
-    const registry = new ResolvedSecretTraceRegistry([], TRACE_SCOPE)
+    const registry = new ResolvedSecretTraceRegistry([], TRACE_SCOPE, EMPTY_NON_SECRET_NAMES)
     waitForToolConfirmation.mockResolvedValue({
       status: 'error',
       message: 'raw error secret',

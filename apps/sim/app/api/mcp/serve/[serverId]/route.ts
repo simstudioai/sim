@@ -72,7 +72,10 @@ import {
 import { getMeaningfulWorkflowDescription } from '@/lib/mcp/workflow-tool-schema'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  EMPTY_NON_SECRET_NAMES,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('WorkflowMcpServeAPI')
 const MAX_MCP_SERVE_BODY_BYTES = 10 * 1024 * 1024
@@ -286,7 +289,7 @@ async function projectWorkflowMcpModelContent(
   privateProvenance: unknown,
   scope: { userId: string; workspaceId: string }
 ): Promise<unknown> {
-  const registry = new ResolvedSecretTraceRegistry([], scope)
+  const registry = new ResolvedSecretTraceRegistry([], scope, EMPTY_NON_SECRET_NAMES)
   const imported = await registry.importCrossingProvenance(privateProvenance, value, {
     trusted: true,
   })

@@ -54,7 +54,10 @@ import {
   type QueuedWorkflowGroupCellPayload,
   type WorkflowGroupCellPayload,
 } from '@/lib/table/workflow-columns'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  EMPTY_NON_SECRET_NAMES,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 
 export type { WorkflowGroupCellPayload }
 
@@ -576,7 +579,11 @@ async function runWorkflowAndWriteTerminal(
             ],
             { userId: enrichmentBillingAttribution.actorUserId, workspaceId }
           )
-          const enrichmentRegistry = new ResolvedSecretTraceRegistry([], inputProvenance.scope)
+          const enrichmentRegistry = new ResolvedSecretTraceRegistry(
+            [],
+            inputProvenance.scope,
+            EMPTY_NON_SECRET_NAMES
+          )
           await enrichmentRegistry.importCrossingProvenance(inputProvenance, enrichInputs, {
             trusted: true,
           })
@@ -961,7 +968,11 @@ async function runWorkflowAndWriteTerminal(
           ],
           { userId: workflowRecord.userId, workspaceId }
         )
-        const inputRegistry = new ResolvedSecretTraceRegistry([], rowInputProvenance.scope)
+        const inputRegistry = new ResolvedSecretTraceRegistry(
+          [],
+          rowInputProvenance.scope,
+          EMPTY_NON_SECRET_NAMES
+        )
         await inputRegistry.importCrossingProvenance(rowInputProvenance, input, { trusted: true })
 
         progressWriter = createWorkflowCellProgressWriter({

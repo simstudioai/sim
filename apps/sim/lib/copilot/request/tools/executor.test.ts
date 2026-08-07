@@ -82,7 +82,10 @@ import {
   toolWatchdogTimeoutMs,
 } from '@/lib/copilot/request/tools/executor'
 import type { ExecutionContext, ToolCallState } from '@/lib/copilot/request/types'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  EMPTY_NON_SECRET_NAMES,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 
 function buildStreamingContext(toolCall: ToolCallState) {
   return createStreamingContext({
@@ -160,9 +163,11 @@ describe('buildToolExecutionContext', () => {
   })
 
   it('isolates one tool from a sibling secret activation and merges settled provenance', () => {
-    const parentRegistry = new ResolvedSecretTraceRegistry([
-      { name: 'TOKEN', plaintext: 'secret', encryptedValue: 'encrypted-secret' },
-    ])
+    const parentRegistry = new ResolvedSecretTraceRegistry(
+      [{ name: 'TOKEN', plaintext: 'secret', encryptedValue: 'encrypted-secret' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     const completeSiblingActivation = parentRegistry.beginPendingActivation()
     const executionContext: ExecutionContext = {
       userId: 'user-1',
@@ -193,9 +198,11 @@ describe('executeToolAndReport provenance isolation', () => {
   })
 
   it('merges a complete child only after its projected result is safe', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     executeTool.mockImplementationOnce(
       async (
         _toolName: string,
@@ -226,9 +233,11 @@ describe('executeToolAndReport provenance isolation', () => {
   })
 
   it('structurally omits an incomplete result without poisoning the parent turn', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     executeTool.mockImplementationOnce(
       async (
         _toolName: string,
@@ -259,9 +268,11 @@ describe('executeToolAndReport provenance isolation', () => {
   })
 
   it('structurally fails an incomplete thrown error without poisoning the parent turn', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     executeTool.mockImplementationOnce(
       async (
         _toolName: string,
@@ -288,9 +299,11 @@ describe('executeToolAndReport provenance isolation', () => {
   })
 
   it('discards an incomplete child when execution is aborted before result delivery', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     const abortController = new AbortController()
     executeTool.mockImplementationOnce(
       async (

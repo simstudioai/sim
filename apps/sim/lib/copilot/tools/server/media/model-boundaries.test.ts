@@ -46,7 +46,10 @@ import type { ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
 import { generateImageServerTool } from '@/lib/copilot/tools/server/image/generate-image'
 import { generateAudioServerTool } from '@/lib/copilot/tools/server/media/generate-audio'
 import { generateVideoServerTool } from '@/lib/copilot/tools/server/media/generate-video'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  EMPTY_NON_SECRET_NAMES,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 
 const file = {
   id: 'file-1',
@@ -66,7 +69,9 @@ function contextWithSecrets(
   entries: Array<{ name: string; plaintext: string }>
 ): ServerToolContext {
   const registry = new ResolvedSecretTraceRegistry(
-    entries.map((entry) => ({ ...entry, encryptedValue: `encrypted-${entry.name}` }))
+    entries.map((entry) => ({ ...entry, encryptedValue: `encrypted-${entry.name}` })),
+    undefined,
+    EMPTY_NON_SECRET_NAMES
   )
   for (const entry of entries) registry.recordResolved(entry.name, entry.plaintext)
   return {

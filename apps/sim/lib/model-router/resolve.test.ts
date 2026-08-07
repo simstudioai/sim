@@ -53,14 +53,21 @@ import {
   resolveAutoModel,
 } from '@/lib/model-router/resolve'
 import type { ExecutionContext } from '@/executor/types'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  EMPTY_NON_SECRET_NAMES,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 
 const ctx = {
   userId: 'user-1',
   workspaceId: 'ws-1',
   workflowId: 'wf-1',
   executionId: 'exec-1',
-  resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
+  resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(
+    [],
+    undefined,
+    EMPTY_NON_SECRET_NAMES
+  ),
 } as unknown as ExecutionContext
 
 /** Distinct-by-default signals so the module-level decision cache never collides across tests. */
@@ -166,18 +173,22 @@ describe('resolveAutoModel', () => {
   })
 
   it('projects active secrets from model-visible signals without changing routing controls', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'NUMBER_SECRET',
-        plaintext: '123',
-        encryptedValue: 'encrypted-number-secret',
-      },
-      {
-        name: 'BOOLEAN_SECRET',
-        plaintext: 'true',
-        encryptedValue: 'encrypted-boolean-secret',
-      },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        {
+          name: 'NUMBER_SECRET',
+          plaintext: '123',
+          encryptedValue: 'encrypted-number-secret',
+        },
+        {
+          name: 'BOOLEAN_SECRET',
+          plaintext: 'true',
+          encryptedValue: 'encrypted-boolean-secret',
+        },
+      ],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('NUMBER_SECRET', '123')
     registry.recordResolved('BOOLEAN_SECRET', 'true')
     mockFetchGo.mockResolvedValue(routerResponse({ choice: '1' }))
@@ -209,13 +220,17 @@ describe('resolveAutoModel', () => {
   })
 
   it('does not infer provenance from dormant catalog values in routing signals', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'DORMANT_SECRET',
-        plaintext: 'ordinary-tool-name',
-        encryptedValue: 'encrypted-dormant-secret',
-      },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        {
+          name: 'DORMANT_SECRET',
+          plaintext: 'ordinary-tool-name',
+          encryptedValue: 'encrypted-dormant-secret',
+        },
+      ],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     mockFetchGo.mockResolvedValue(routerResponse({ choice: '1' }))
 
     await resolveAutoModel({
@@ -230,7 +245,7 @@ describe('resolveAutoModel', () => {
   })
 
   it('falls back without calling mothership when signal provenance is incomplete', async () => {
-    const registry = new ResolvedSecretTraceRegistry()
+    const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
     registry.markIncomplete()
 
     const result = await resolveAutoModel({

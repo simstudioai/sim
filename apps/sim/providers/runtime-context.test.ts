@@ -11,7 +11,10 @@ vi.mock('@/tools', () => ({
   executeTool: mockExecuteTool,
 }))
 
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  EMPTY_NON_SECRET_NAMES,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 import {
   type ExecuteProviderToolOptions,
   executeProviderTool as executeProviderToolWithInput,
@@ -40,9 +43,11 @@ describe('provider runtime context', () => {
   })
 
   it('projects a provider-bound filename while preserving its inferred extension', () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'FILE_NAME', plaintext: 'report.pdf', encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'FILE_NAME', plaintext: 'report.pdf', encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('FILE_NAME', 'report.pdf')
 
     const projected = runWithProviderRuntimeContext({ resolvedSecretTraceRegistry: registry }, () =>
@@ -54,8 +59,8 @@ describe('provider runtime context', () => {
   })
 
   it('isolates concurrent tool executions without adding registry data to params', async () => {
-    const registryA = new ResolvedSecretTraceRegistry()
-    const registryB = new ResolvedSecretTraceRegistry()
+    const registryA = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
+    const registryB = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
 
     await Promise.all([
       runWithProviderRuntimeContext({ resolvedSecretTraceRegistry: registryA }, async () => {
@@ -83,7 +88,7 @@ describe('provider runtime context', () => {
   })
 
   it('preserves runtime context in a stream consumed after the provider call returns', async () => {
-    const registry = new ResolvedSecretTraceRegistry()
+    const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
     const stream = runWithProviderRuntimeContext(
       { resolvedSecretTraceRegistry: registry },
       () =>
@@ -105,9 +110,11 @@ describe('provider runtime context', () => {
   })
 
   it('does not treat an arbitrary tool-result collision as secret provenance', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     const rawResult = {
       success: true,
       output: { direct: 'secret-value', quoted: 'line\n"secret-value"', alias: '__var_TOKEN' },
@@ -129,11 +136,15 @@ describe('provider runtime context', () => {
   })
 
   it('does not seed provenance from ambient execution context', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'TEXT', plaintext: 'Test', encryptedValue: 'encrypted-text' },
-      { name: 'BOOLEAN', plaintext: 'true', encryptedValue: 'encrypted-boolean' },
-      { name: 'NUMBER', plaintext: '123', encryptedValue: 'encrypted-number' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        { name: 'TEXT', plaintext: 'Test', encryptedValue: 'encrypted-text' },
+        { name: 'BOOLEAN', plaintext: 'true', encryptedValue: 'encrypted-boolean' },
+        { name: 'NUMBER', plaintext: '123', encryptedValue: 'encrypted-number' },
+      ],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('TEXT', 'Test')
     registry.recordResolved('BOOLEAN', 'true')
     registry.recordResolved('NUMBER', '123')
@@ -174,9 +185,11 @@ describe('provider runtime context', () => {
   })
 
   it('does not treat a static tool parameter name as secret-bearing input', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'PARAM_NAME', plaintext: 'prompt', encryptedValue: 'encrypted-param-name' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'PARAM_NAME', plaintext: 'prompt', encryptedValue: 'encrypted-param-name' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('PARAM_NAME', 'prompt')
     const rawResult = { success: true, output: { value: 'prompt' } }
     mockExecuteTool.mockResolvedValueOnce(rawResult)
@@ -191,9 +204,11 @@ describe('provider runtime context', () => {
   })
 
   it('projects a secret inherited through the exact current tool input', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('TOKEN', 'secret-value')
     const rawResult = {
       success: true,
@@ -227,7 +242,7 @@ describe('provider runtime context', () => {
   })
 
   it('serializes dates for provider continuations while preserving the raw tool response', async () => {
-    const registry = new ResolvedSecretTraceRegistry()
+    const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
     const createdAt = new Date('2026-08-05T12:34:56.789Z')
     const rawResult = {
       success: true,
@@ -256,7 +271,7 @@ describe('provider runtime context', () => {
   ])(
     'preserves safe primitive %s tool output for provider continuations',
     async (_, output, expected) => {
-      const registry = new ResolvedSecretTraceRegistry()
+      const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
       mockExecuteTool.mockResolvedValueOnce({ success: true, output })
 
       const result = await runWithProviderRuntimeContext(
@@ -269,9 +284,11 @@ describe('provider runtime context', () => {
   )
 
   it('projects a primitive secret-bearing tool output for provider continuations', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     mockExecuteTool.mockImplementationOnce(async (_toolId, _params, options) => {
       options.resolvedSecretTraceRegistry?.recordResolved('TOKEN', 'secret-value')
       return { success: true, output: 'secret-value' }
@@ -288,9 +305,11 @@ describe('provider runtime context', () => {
   it.each(['123', 'true'])(
     'leaves non-model resource metadata untouched while projecting content (%s)',
     async (secret) => {
-      const registry = new ResolvedSecretTraceRegistry([
-        { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
-      ])
+      const registry = new ResolvedSecretTraceRegistry(
+        [{ name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' }],
+        undefined,
+        EMPTY_NON_SECRET_NAMES
+      )
       mockExecuteTool.mockImplementationOnce(async (_toolId, _params, options) => {
         options.resolvedSecretTraceRegistry?.recordResolved('TOKEN', secret)
         return {
@@ -331,9 +350,11 @@ describe('provider runtime context', () => {
   )
 
   it('does not project resource metadata that is not serialized into the model continuation', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     mockExecuteTool.mockImplementationOnce(async (_toolId, _params, options) => {
       options.resolvedSecretTraceRegistry?.recordResolved('TOKEN', 'secret-value')
       return {
@@ -378,10 +399,18 @@ describe('provider runtime context', () => {
   })
 
   it('projects and merges a completed tool while a parallel sibling activation remains pending', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'COMPLETED', plaintext: 'completed-secret', encryptedValue: 'completed-ciphertext' },
-      { name: 'SIBLING', plaintext: 'sibling-secret', encryptedValue: 'sibling-ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        {
+          name: 'COMPLETED',
+          plaintext: 'completed-secret',
+          encryptedValue: 'completed-ciphertext',
+        },
+        { name: 'SIBLING', plaintext: 'sibling-secret', encryptedValue: 'sibling-ciphertext' },
+      ],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     let releaseSibling: (() => void) | undefined
     const siblingGate = new Promise<void>((resolve) => {
       releaseSibling = resolve
@@ -415,9 +444,11 @@ describe('provider runtime context', () => {
   })
 
   it('omits an incomplete model result and marks parent provenance incomplete', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     mockExecuteTool.mockImplementationOnce(async (_toolId, _params, options) => {
       options.resolvedSecretTraceRegistry?.markIncomplete()
       return { success: true, output: { value: 'secret-value' } }
@@ -434,9 +465,11 @@ describe('provider runtime context', () => {
   })
 
   it('structurally omits an incomplete failed model result and marks provenance incomplete', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     mockExecuteTool.mockImplementationOnce(async (_toolId, _params, options) => {
       options.resolvedSecretTraceRegistry?.markIncomplete()
       return {
@@ -457,9 +490,11 @@ describe('provider runtime context', () => {
   })
 
   it('retains child provenance for raw traces when model projection fails', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     mockExecuteTool.mockImplementationOnce(async (_toolId, _params, options) => {
       const toolCallRegistry = options.resolvedSecretTraceRegistry
       if (!toolCallRegistry) throw new Error('Missing tool-call registry')
@@ -483,9 +518,11 @@ describe('provider runtime context', () => {
   })
 
   it('keeps a raw thrown error separate from the omitted model error', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     mockExecuteTool.mockImplementationOnce(async (_toolId, _params, options) => {
       options.resolvedSecretTraceRegistry?.markIncomplete()
       throw new Error('secret-value')
@@ -507,9 +544,11 @@ describe('provider runtime context', () => {
   })
 
   it('fails closed for an incomplete registry', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.markIncomplete()
     mockExecuteTool.mockResolvedValueOnce({
       success: true,
@@ -533,9 +572,11 @@ describe('provider runtime context', () => {
   })
 
   it('clears an inherited workflow context for an explicitly context-free provider call', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     const rawResult = { success: true, output: { value: 'secret-value' } }
     mockExecuteTool.mockResolvedValueOnce(rawResult)
 
@@ -549,9 +590,11 @@ describe('provider runtime context', () => {
   })
 
   it('preserves raw abort semantics without creating a model continuation', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     mockExecuteTool.mockImplementationOnce(async (_toolId, _params, options) => {
       options.resolvedSecretTraceRegistry?.recordResolved('TOKEN', 'secret-value')
       throw new DOMException('secret-value', 'AbortError')

@@ -69,6 +69,14 @@ export interface ExportResolvedSecretTraceProvenanceForValueOptions {
   anonymous?: boolean
 }
 
+/**
+ * The exempt set for a registry that has no non-secret values.
+ *
+ * Named rather than inlined as `new Set()` so a call site that genuinely has
+ * nothing to exempt reads as a decision, not an omission.
+ */
+export const EMPTY_NON_SECRET_NAMES: ReadonlySet<string> = new Set<string>()
+
 export interface CreateResolvedSecretTraceRegistryOptions {
   personalEncrypted: Record<string, string>
   workspaceEncrypted: Record<string, string>
@@ -80,6 +88,23 @@ export interface CreateResolvedSecretTraceRegistryOptions {
   restoreTrusted?: boolean
   requireRestoredProvenance?: boolean
   scope?: ResolvedSecretTraceScopeV1
+  /**
+   * Env names explicitly marked non-secret, which are exempt from redaction:
+   * kept out of the catalog so they can never activate, and short-circuited in
+   * {@link ResolvedSecretTraceRegistry.recordResolved} so resolving one does not
+   * poison the registry.
+   *
+   * Required — never optional with an empty default. A missing exempt set makes
+   * a variable behave as a secret (over-redaction, safe); a *wrong* one makes a
+   * secret behave as a variable (silent disclosure). Forcing every construction
+   * site to name its source turns the dangerous direction into a decision
+   * someone had to write down, and a newly added site into a compile error.
+   *
+   * Derived locally from the workspace's stored visibility on each side of every
+   * boundary — deliberately never carried in provenance, so a peer cannot assert
+   * that one of your secrets is non-secret.
+   */
+  nonSecretNames: ReadonlySet<string>
 }
 
 function compareStrings(left: string, right: string): number {
@@ -242,6 +267,10 @@ function buildEffectiveCatalogEntry(
   name: string,
   encryptedValue: string
 ): ResolvedSecretTraceCatalogEntry | undefined {
+  // Non-secret values never enter the catalog, so they can never be activated,
+  // never enter provenance, and never reach the projection matcher. Covers both
+  // catalog loops, since every entry is built here.
+  if (options.nonSecretNames.has(name)) return undefined
   const plaintext = hasOwn(options.workspaceDecrypted, name)
     ? options.workspaceDecrypted[name]
     : options.personalDecrypted[name]
@@ -437,13 +466,23 @@ export class ResolvedSecretTraceRegistry {
   private pendingActivations = 0
   private modelEgressRevision = 0
   private readonly scope?: ResolvedSecretTraceScopeV1
+  private readonly nonSecretNames: ReadonlySet<string>
   private readonly completeProvenanceEnvelopeBytes: number
 
+  /**
+   * Every parameter is required by design. `nonSecretNames` in particular has no
+   * default: see {@link CreateResolvedSecretTraceRegistryOptions.nonSecretNames}
+   * for why a silently-empty exempt set is the failure mode worth a compile
+   * error. Pass {@link EMPTY_NON_SECRET_NAMES} when there is genuinely nothing
+   * to exempt.
+   */
   constructor(
-    catalogEntries: Iterable<ResolvedSecretTraceCatalogEntry> = [],
-    scope?: ResolvedSecretTraceScopeV1
+    catalogEntries: Iterable<ResolvedSecretTraceCatalogEntry>,
+    scope: ResolvedSecretTraceScopeV1 | undefined,
+    nonSecretNames: ReadonlySet<string>
   ) {
     this.scope = scope ? cloneProvenanceScope(scope) : undefined
+    this.nonSecretNames = nonSecretNames
     this.completeProvenanceEnvelopeBytes = serializedProvenanceEnvelopeByteSize(true, this.scope)
     if (this.completeProvenanceEnvelopeBytes > MAX_SERIALIZED_PROVENANCE_BYTES) {
       this.markIncomplete()
@@ -468,7 +507,14 @@ export class ResolvedSecretTraceRegistry {
    * available to later calls in the run.
    */
   forkForToolCall(): ResolvedSecretTraceRegistry {
-    const fork = new ResolvedSecretTraceRegistry(this.catalog.values(), this.scope)
+    // A fork is the same execution under a narrower lens, so it inherits the
+    // exempt set: without it, a `{{VARIABLE}}` resolved inside a tool call would
+    // miss the catalog and poison the fork.
+    const fork = new ResolvedSecretTraceRegistry(
+      this.catalog.values(),
+      this.scope,
+      this.nonSecretNames
+    )
     for (const entry of this.activeEntries.values()) {
       fork.addActiveEntry({ ...entry })
     }
@@ -492,7 +538,14 @@ export class ResolvedSecretTraceRegistry {
    * but nested object keys remain user-controlled input.
    */
   forkForToolInputValues(values: Iterable<unknown>): ResolvedSecretTraceRegistry {
-    const fork = new ResolvedSecretTraceRegistry(this.catalog.values(), this.scope)
+    // A fork is the same execution under a narrower lens, so it inherits the
+    // exempt set: without it, a `{{VARIABLE}}` resolved inside a tool call would
+    // miss the catalog and poison the fork.
+    const fork = new ResolvedSecretTraceRegistry(
+      this.catalog.values(),
+      this.scope,
+      this.nonSecretNames
+    )
     if (!this.complete) {
       fork.markIncomplete()
       return fork
@@ -564,6 +617,17 @@ export class ResolvedSecretTraceRegistry {
   /** Activates a configured secret only when the resolved runtime value matches its catalog value. */
   recordResolved(name: string, resolvedValue: string): boolean {
     if (resolvedValue.length === 0) return false
+
+    // Checked BEFORE the catalog lookup, and this ordering is load bearing.
+    // Resolvers call `recordResolved` for every `{{NAME}}` they substitute and
+    // cannot tell a variable from a secret, so a known non-secret name would
+    // otherwise fall through to the `markIncomplete()` below — which is
+    // permanent, and would collapse the whole run's traces to structure-only and
+    // omit every subsequent copilot tool result. Checking first also keeps a
+    // variable whose decryption failed (and so is absent from the catalog for a
+    // second reason) off that same poison path.
+    if (this.nonSecretNames.has(name)) return false
+
     const catalogEntry = this.catalog.get(name)
     if (!catalogEntry || catalogEntry.plaintext !== resolvedValue) {
       this.markIncomplete()
@@ -623,7 +687,14 @@ export class ResolvedSecretTraceRegistry {
       return false
     }
 
-    const sourceRegistry = new ResolvedSecretTraceRegistry([], provenance.scope)
+    // Deliberately EMPTY, not `this.nonSecretNames`: this throwaway decrypts and
+    // narrows provenance asserted by a *foreign* scope, whose values must not be
+    // exempted by this workspace's visibility settings.
+    const sourceRegistry = new ResolvedSecretTraceRegistry(
+      [],
+      provenance.scope,
+      EMPTY_NON_SECRET_NAMES
+    )
     const sourceImported = await sourceRegistry.importProvenance(provenance, { trusted: true })
     const filteredProvenance = sourceRegistry.exportProvenanceForValue(value)
     const filteredImported = await this.importProvenance(filteredProvenance, { trusted: true })
@@ -1121,7 +1192,8 @@ export async function createResolvedSecretTraceRegistry(
   const failedNames = new Set(options.decryptionFailures ?? [])
   const registry = new ResolvedSecretTraceRegistry(
     iterateEffectiveCatalogEntries(options, failedNames),
-    options.scope
+    options.scope,
+    options.nonSecretNames
   )
 
   if (options.restoredProvenance !== undefined) {
@@ -1139,11 +1211,16 @@ export async function createResolvedSecretTraceRegistry(
   return registry
 }
 
-/** Creates a scoped fail-closed registry when trusted catalog provenance is unavailable. */
+/**
+ * Creates a scoped fail-closed registry when trusted catalog provenance is unavailable.
+ *
+ * Takes no exempt set: the registry is permanently incomplete, so every consumer
+ * already redacts maximally and no exemption could change the outcome.
+ */
 export function createIncompleteResolvedSecretTraceRegistry(
   scope?: ResolvedSecretTraceScopeV1
 ): ResolvedSecretTraceRegistry {
-  const registry = new ResolvedSecretTraceRegistry([], scope)
+  const registry = new ResolvedSecretTraceRegistry([], scope, EMPTY_NON_SECRET_NAMES)
   registry.markIncomplete()
   return registry
 }

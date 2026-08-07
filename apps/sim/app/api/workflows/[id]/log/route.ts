@@ -18,7 +18,10 @@ import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 import type { ExecutionResult } from '@/executor/types'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  EMPTY_NON_SECRET_NAMES,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('WorkflowLogAPI')
 
@@ -122,10 +125,14 @@ export const POST = withRouteHandler(
         const isChatExecution = result.metadata?.source === 'chat'
         const triggerType = isChatExecution ? 'chat' : 'manual'
         const loggingSession = new LoggingSession(id, executionId, triggerType, requestId)
-        const resolvedSecretTraceRegistry = new ResolvedSecretTraceRegistry([], {
-          userId: actorUserId,
-          workspaceId: existingLog.workspaceId,
-        })
+        const resolvedSecretTraceRegistry = new ResolvedSecretTraceRegistry(
+          [],
+          {
+            userId: actorUserId,
+            workspaceId: existingLog.workspaceId,
+          },
+          EMPTY_NON_SECRET_NAMES
+        )
         const trustedExecutionData = await materializeExecutionData(
           existingLog.executionData as Record<string, unknown>,
           {

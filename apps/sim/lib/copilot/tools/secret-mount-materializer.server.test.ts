@@ -109,6 +109,9 @@ describe('materializeCopilotCodeSecrets', () => {
       catalogEntries: [
         { name: 'API_KEY', plaintext: 'plain:personal-cipher', encryptedValue: 'personal-cipher' },
       ],
+      // A personal secret is never non-secret: the schema check constraint
+      // restricts `variable` to `env_workspace` rows.
+      nonSecretNames: [],
     })
   })
 

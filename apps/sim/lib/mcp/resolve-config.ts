@@ -75,6 +75,7 @@ export async function resolveMcpConfigEnvVars(
       personalDecrypted: env.personalDecrypted,
       workspaceDecrypted: env.workspaceDecrypted,
       decryptionFailures: env.decryptionFailures,
+      nonSecretNames: new Set(env.workspaceVariableKeys),
       scope,
     })
   } catch (error) {

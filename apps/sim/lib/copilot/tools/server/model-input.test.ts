@@ -17,7 +17,10 @@ import {
   assertOpaqueWorkspaceFileModelSafe,
   projectServerToolModelInput,
 } from '@/lib/copilot/tools/server/model-input'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  EMPTY_NON_SECRET_NAMES,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 
 const file = {
   id: 'file-1',
@@ -40,10 +43,14 @@ describe('server tool model-input boundary', () => {
   })
 
   it('projects only active text secrets to their canonical aliases', () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'PROMPT', plaintext: 'private prompt', encryptedValue: 'encrypted-prompt' },
-      { name: 'LYRICS', plaintext: 'private lyrics', encryptedValue: 'encrypted-lyrics' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        { name: 'PROMPT', plaintext: 'private prompt', encryptedValue: 'encrypted-prompt' },
+        { name: 'LYRICS', plaintext: 'private lyrics', encryptedValue: 'encrypted-lyrics' },
+      ],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('PROMPT', 'private prompt')
     registry.recordResolved('LYRICS', 'private lyrics')
 
@@ -60,7 +67,7 @@ describe('server tool model-input boundary', () => {
       'could not be projected safely'
     )
 
-    const registry = new ResolvedSecretTraceRegistry()
+    const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
     registry.markIncomplete()
     expect(() =>
       projectServerToolModelInput(
@@ -71,7 +78,7 @@ describe('server tool model-input boundary', () => {
   })
 
   it('binds opaque checks to the exact workspace file before allowing model egress', async () => {
-    const registry = new ResolvedSecretTraceRegistry()
+    const registry = new ResolvedSecretTraceRegistry([], undefined, EMPTY_NON_SECRET_NAMES)
 
     await expect(
       assertOpaqueWorkspaceFileModelSafe({

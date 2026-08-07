@@ -11,7 +11,10 @@ import type { EdgeManager } from '@/executor/execution/edge-manager'
 import type { BlockStateController } from '@/executor/execution/types'
 import { LoopOrchestrator } from '@/executor/orchestrators/loop'
 import type { ExecutionContext } from '@/executor/types'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  EMPTY_NON_SECRET_NAMES,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 
 const { mockExecuteInIsolatedVM, mockUploadFile } = vi.hoisted(() => ({
   mockExecuteInIsolatedVM: vi.fn(),
@@ -220,13 +223,17 @@ describe('LoopOrchestrator', () => {
     }
     const orchestrator = new LoopOrchestrator(dag, createState(), resolver as any)
     const ctx = createContext()
-    const registry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'FOREACH_SECRET',
-        plaintext: resolvedSecret,
-        encryptedValue: 'encrypted-foreach-secret',
-      },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        {
+          name: 'FOREACH_SECRET',
+          plaintext: resolvedSecret,
+          encryptedValue: 'encrypted-foreach-secret',
+        },
+      ],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     ctx.resolvedSecretTraceRegistry = registry
 
     await expect(orchestrator.initializeLoopScope(ctx, loopId)).rejects.toThrow(
@@ -383,13 +390,17 @@ describe('LoopOrchestrator', () => {
       condition: '<condition.output>',
     } as Record<string, unknown>
     const ctx = createContext(scope)
-    const registry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'CONDITION_SECRET',
-        plaintext: resolvedSecret,
-        encryptedValue: 'encrypted-condition-secret',
-      },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        {
+          name: 'CONDITION_SECRET',
+          plaintext: resolvedSecret,
+          encryptedValue: 'encrypted-condition-secret',
+        },
+      ],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('CONDITION_SECRET', resolvedSecret)
     ctx.resolvedSecretTraceRegistry = registry
 

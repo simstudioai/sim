@@ -36,7 +36,10 @@ import { env } from '@/lib/core/config/env'
 import { RESOLVED_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
 import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-input-provenance'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  EMPTY_NON_SECRET_NAMES,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 
 describe('knowledge document model-input provenance', () => {
   beforeEach(() => {
@@ -57,9 +60,11 @@ describe('knowledge document model-input provenance', () => {
   })
 
   it('parses tracked workspace-file bytes locally without treating parsing as model egress', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'TOKEN', plaintext: 'tracked-secret', encryptedValue: 'encrypted-token' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'TOKEN', plaintext: 'tracked-secret', encryptedValue: 'encrypted-token' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('TOKEN', 'tracked-secret')
     mockDownloadFileFromUrl.mockResolvedValue(
       Buffer.from('Locally parsed content containing tracked-secret.')

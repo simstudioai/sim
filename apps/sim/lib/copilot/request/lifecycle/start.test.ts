@@ -11,7 +11,10 @@ import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
 } from '@/lib/copilot/generated/mothership-stream-v1'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  EMPTY_NON_SECRET_NAMES,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 
 const {
   runCopilotLifecycle,
@@ -332,9 +335,11 @@ describe('createSSEStream terminal error handling', () => {
       contentBlocks: [],
       toolCalls: [],
     })
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' }],
+      undefined,
+      EMPTY_NON_SECRET_NAMES
+    )
     registry.recordResolved('TOKEN', 'secret-value')
 
     const stream = createSSEStream({

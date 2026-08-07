@@ -106,7 +106,10 @@ vi.mock('@/lib/execution/remote-sandbox/workspace-sandboxes', () => ({
 import { projectToolResultForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
 import { executeFunctionExecute } from '@/lib/copilot/tools/handlers/function-execute'
 import { executeRunCode } from '@/lib/copilot/tools/handlers/run-code'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  EMPTY_NON_SECRET_NAMES,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 
 const table = {
   id: 'tbl_1',
@@ -172,7 +175,8 @@ describe('executeFunctionExecute trace-secret provenance', () => {
           encryptedValue: 'encrypted-secret-value',
         },
       ],
-      { userId: 'u1', workspaceId: 'ws_1' }
+      { userId: 'u1', workspaceId: 'ws_1' },
+      EMPTY_NON_SECRET_NAMES
     )
     const runtimeResult = await executeFunctionExecute(
       {
@@ -348,10 +352,14 @@ describe('executeFunctionExecute trace-secret provenance', () => {
     })
     const runtimeResult = { success: true, output: { result: 'secret-value' } }
     mockExecuteTool.mockResolvedValue(runtimeResult)
-    const resolvedSecretTraceRegistry = new ResolvedSecretTraceRegistry([], {
-      userId: 'u1',
-      workspaceId: 'ws_1',
-    })
+    const resolvedSecretTraceRegistry = new ResolvedSecretTraceRegistry(
+      [],
+      {
+        userId: 'u1',
+        workspaceId: 'ws_1',
+      },
+      EMPTY_NON_SECRET_NAMES
+    )
     vi.spyOn(resolvedSecretTraceRegistry, 'importProvenance').mockRejectedValueOnce(
       new Error('provenance import failed')
     )
@@ -385,7 +393,8 @@ describe('executeFunctionExecute trace-secret provenance', () => {
           encryptedValue: 'encrypted-secret-value',
         },
       ],
-      { userId: 'u1', workspaceId: 'ws_1' }
+      { userId: 'u1', workspaceId: 'ws_1' },
+      EMPTY_NON_SECRET_NAMES
     )
     mockExecuteTool.mockImplementationOnce(async (_toolId, _params, options) => {
       expect(resolvedSecretTraceRegistry.isComplete()).toBe(false)
@@ -460,7 +469,8 @@ describe('executeFunctionExecute trace-secret provenance', () => {
           encryptedValue: 'encrypted-secret-value',
         },
       ],
-      { userId: 'u1', workspaceId: 'ws_1' }
+      { userId: 'u1', workspaceId: 'ws_1' },
+      EMPTY_NON_SECRET_NAMES
     )
 
     await expect(
@@ -492,7 +502,8 @@ describe('executeFunctionExecute trace-secret provenance', () => {
           encryptedValue: 'encrypted-secret-value',
         },
       ],
-      { userId: 'u1', workspaceId: 'ws_1' }
+      { userId: 'u1', workspaceId: 'ws_1' },
+      EMPTY_NON_SECRET_NAMES
     )
 
     await expect(
@@ -787,10 +798,14 @@ describe('executeFunctionExecute file mounts', () => {
           { trusted: true }
         ) ?? false
     )
-    const parentRegistry = new ResolvedSecretTraceRegistry([], {
-      userId: 'u1',
-      workspaceId: 'ws_1',
-    })
+    const parentRegistry = new ResolvedSecretTraceRegistry(
+      [],
+      {
+        userId: 'u1',
+        workspaceId: 'ws_1',
+      },
+      EMPTY_NON_SECRET_NAMES
+    )
     mockExecuteTool.mockResolvedValue({
       success: true,
       output: { result: 'secret-value' },
@@ -836,10 +851,14 @@ describe('executeFunctionExecute file mounts', () => {
           { trusted: true }
         ) ?? false
     )
-    const parentRegistry = new ResolvedSecretTraceRegistry([], {
-      userId: 'u1',
-      workspaceId: 'ws_1',
-    })
+    const parentRegistry = new ResolvedSecretTraceRegistry(
+      [],
+      {
+        userId: 'u1',
+        workspaceId: 'ws_1',
+      },
+      EMPTY_NON_SECRET_NAMES
+    )
     mockExecuteTool.mockResolvedValue({ success: true, output: { result: 'ordinary' } })
 
     const result = await executeFunctionExecute(
