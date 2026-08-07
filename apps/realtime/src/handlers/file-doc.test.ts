@@ -461,6 +461,63 @@ describe('setupWorkspaceFileDocHandlers', () => {
       }
     })
 
+    it('does not re-project edits the durable file already has', async () => {
+      mockFetchFileDocSeed.mockResolvedValue(seedResult('# From server'))
+      mockFetchFileDocPersist.mockResolvedValue({ status: 'persisted', version: 9 })
+      const { io } = createIo()
+      const { handlers, socket } = setup('socket-1', io)
+      await joinAndEdit(handlers)
+
+      await handlers[FILE_DOC_EVENTS.FLUSH]({ fileId: 'file-1' })
+      await handlers[FILE_DOC_EVENTS.FLUSH]({ fileId: 'file-1' })
+      await handlers[FILE_DOC_EVENTS.FLUSH]({ fileId: 'file-1' })
+
+      // `edited` never clears, so without an edit-sequence check each repeat would mint another blob
+      // version. Only the first has anything to write; the rest are honest no-ops.
+      expect(mockFetchFileDocPersist).toHaveBeenCalledTimes(1)
+      expect(flushAcks(socket)).toEqual([
+        { fileId: 'file-1', status: 'persisted', version: 9 },
+        { fileId: 'file-1', status: 'unchanged' },
+        { fileId: 'file-1', status: 'unchanged' },
+      ])
+    })
+
+    it('writes again once a new edit lands after a flush', async () => {
+      mockFetchFileDocSeed.mockResolvedValue(seedResult('# From server'))
+      mockFetchFileDocPersist.mockResolvedValue({ status: 'persisted', version: 9 })
+      const { io } = createIo()
+      const { handlers } = setup('socket-1', io)
+      await joinAndEdit(handlers)
+      await handlers[FILE_DOC_EVENTS.FLUSH]({ fileId: 'file-1' })
+
+      const more = new Y.Doc()
+      more.getText(FILE_DOC_FIELD).insert(0, 'and more typing')
+      handlers[FILE_DOC_EVENTS.MESSAGE](
+        frame(FILE_DOC_MESSAGE_TYPE.SYNC, (e) =>
+          syncProtocol.writeUpdate(e, Y.encodeStateAsUpdate(more))
+        )
+      )
+      await flushMicrotasks()
+      await handlers[FILE_DOC_EVENTS.FLUSH]({ fileId: 'file-1' })
+
+      // The dedup must bound redundant writes without ever swallowing real edits.
+      expect(mockFetchFileDocPersist).toHaveBeenCalledTimes(2)
+    })
+
+    it('leaves the edits pending when a persist did not land', async () => {
+      mockFetchFileDocSeed.mockResolvedValue(seedResult('# From server'))
+      mockFetchFileDocPersist.mockResolvedValue({ status: 'conflict' })
+      const { io } = createIo()
+      const { handlers } = setup('socket-1', io)
+      await joinAndEdit(handlers)
+
+      await handlers[FILE_DOC_EVENTS.FLUSH]({ fileId: 'file-1' })
+      await handlers[FILE_DOC_EVENTS.FLUSH]({ fileId: 'file-1' })
+
+      // A conflict wrote nothing, so the second attempt must NOT be deduped away as already-durable.
+      expect(mockFetchFileDocPersist).toHaveBeenCalledTimes(2)
+    })
+
     it('refuses a flush for a file this socket never joined', async () => {
       mockFetchFileDocSeed.mockResolvedValue(seedResult('# From server'))
       const { io } = createIo()

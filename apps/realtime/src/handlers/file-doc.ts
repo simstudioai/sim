@@ -148,6 +148,19 @@ interface FileDocRoom {
    * is last to leave — even one that only tailed the edits.
    */
   edited: boolean
+  /**
+   * Monotonic count of edits applied here. Paired with {@link FileDocRoom.persistedEditSeq} to answer
+   * "is there anything new to write?" — `edited` alone only answers "was this doc EVER edited", which
+   * stays true forever and would let a client force an unbounded run of redundant blob versions by
+   * repeatedly asking for a flush.
+   */
+  editSeq: number
+  /**
+   * The {@link FileDocRoom.editSeq} value the last successful persist projected. Equal to `editSeq`
+   * means the durable file already reflects every edit this room has seen. Captured BEFORE the
+   * projection and stored only on success, so an edit arriving mid-persist is never marked durable.
+   */
+  persistedEditSeq: number
   /** Whether this room has observed its doc become seeded — so a post-seed update counts as an edit but
    * the seed transition itself does not. See the `doc.on('update')` edit-tracking below. */
   seededObserved: boolean
@@ -308,6 +321,12 @@ async function flushPersist(
   // Never project a doc no user actually edited back over the file (see {@link FileDocRoom.edited}).
   // Nothing to write is not a failure — the durable content is already current.
   if (!room.edited || !room.workspaceId || !room.lastEditorUserId) return { status: 'unchanged' }
+  // Nor re-project edits the durable file already has. `edited` never clears, so without this a
+  // caller that can ask for a flush could force an unbounded run of identical blob versions — each
+  // one a fresh upload plus a delete of the old key. Captured here, before any await, so an edit
+  // landing mid-persist is compared against the value this projection actually covers.
+  const projectedEditSeq = room.editSeq
+  if (projectedEditSeq === room.persistedEditSeq) return { status: 'unchanged' }
   const store = getFileDocStore()
   const workspaceId = room.workspaceId
   const userId = room.lastEditorUserId
@@ -395,6 +414,9 @@ async function flushPersist(
     }
     if (result.status === 'persisted') {
       room.syncedVersion = Math.max(room.syncedVersion ?? 0, result.version)
+      // Only the edits this projection actually carried. An edit that arrived while the write was in
+      // flight keeps `editSeq` ahead, so the next flush still has something to do.
+      room.persistedEditSeq = Math.max(room.persistedEditSeq, projectedEditSeq)
       void store.setSyncedVersion(name, result.version)
       return { status: 'persisted', version: result.version }
     }
@@ -771,6 +793,8 @@ function getOrCreateRoom(io: Server, ref: RoomRef): FileDocRoom {
     workspaceId: null,
     lastEditorUserId: null,
     edited: false,
+    editSeq: 0,
+    persistedEditSeq: 0,
     seededObserved: false,
     persistTimer: null,
     persistDeadline: null,
@@ -837,8 +861,10 @@ function getOrCreateRoom(io: Server, ref: RoomRef): FileDocRoom {
       originSocketId(origin) ||
       origin === REDIS_SNAPSHOT_ORIGIN ||
       (seededBefore && origin === REDIS_ORIGIN)
-    )
+    ) {
       room.edited = true
+      room.editSeq++
+    }
     // Debounce a persist for LOCAL user edits only (peers debounce their own).
     if (originSocketId(origin)) schedulePersist(name, room)
   })
