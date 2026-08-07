@@ -572,9 +572,16 @@ export async function authorizeWorkspaceEnvVisibilityChange(params: {
 /**
  * Applies changes already authorized by
  * {@link authorizeWorkspaceEnvVisibilityChange}. Performs no permission check of
- * its own — never call it with unauthorized input.
+ * its own.
+ *
+ * Deliberately NOT exported. An authorization decision carried across unrelated
+ * awaits goes stale — the caller's credential-admin or workspace-admin access
+ * can be revoked in between, and applying by credential ID would then disclose a
+ * secret to someone who has just lost the right to disclose it. Keeping this
+ * private forces every caller through {@link setWorkspaceEnvVisibility}, which
+ * decides and writes adjacently.
  */
-export async function applyWorkspaceEnvVisibilityChange(params: {
+async function applyWorkspaceEnvVisibilityChange(params: {
   changes: AuthorizedVisibilityChange[]
   executor?: DbOrTx
 }): Promise<{ changedKeys: string[] }> {
@@ -601,8 +608,14 @@ export async function applyWorkspaceEnvVisibilityChange(params: {
  * admin on that specific key) rather than the workspace `write` that suffices
  * for editing a value.
  *
- * Authorizes then applies. Callers that must authorize BEFORE unrelated writes
- * should use the two halves directly.
+ * Authorizes and applies adjacently, so the decision cannot go stale between the
+ * two. Callers that also need to fail fast before unrelated writes can call
+ * {@link authorizeWorkspaceEnvVisibilityChange} as a pre-flight and discard its
+ * result — this function still re-decides authoritatively at write time.
+ *
+ * Pass `executor` to run the UPDATE inside a surrounding transaction. The
+ * permission reads intentionally go through `db`, not that transaction, so they
+ * observe the latest committed membership instead of the transaction's snapshot.
  */
 export async function setWorkspaceEnvVisibility(params: {
   workspaceId: string

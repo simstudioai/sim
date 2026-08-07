@@ -10,7 +10,7 @@ const {
   mockGetUserEntityPermissions,
   mockGetWorkspaceEnvKeyAdminAccess,
   mockAuthorizeVisibility,
-  mockApplyVisibility,
+  mockSetVisibility,
   mockCreateWorkspaceEnvCredentials,
   MockVisibilityAccessError,
 } = vi.hoisted(() => ({
@@ -19,7 +19,7 @@ const {
   mockGetUserEntityPermissions: vi.fn(),
   mockGetWorkspaceEnvKeyAdminAccess: vi.fn(),
   mockAuthorizeVisibility: vi.fn(),
-  mockApplyVisibility: vi.fn(),
+  mockSetVisibility: vi.fn(),
   mockCreateWorkspaceEnvCredentials: vi.fn(),
   // Declared inside vi.hoisted: `vi.mock` factories hoist above module-scope
   // class declarations, so a plain `class` here is in its TDZ when the factory
@@ -47,7 +47,7 @@ vi.mock('@/lib/credentials/environment', () => ({
   createWorkspaceEnvCredentials: mockCreateWorkspaceEnvCredentials,
   deleteWorkspaceEnvCredentials: vi.fn(),
   authorizeWorkspaceEnvVisibilityChange: mockAuthorizeVisibility,
-  applyWorkspaceEnvVisibilityChange: mockApplyVisibility,
+  setWorkspaceEnvVisibility: mockSetVisibility,
   WorkspaceEnvVisibilityAccessError: MockVisibilityAccessError,
 }))
 
@@ -234,7 +234,7 @@ describe('PUT /api/workspaces/[id]/environment — visibility ordering', () => {
       knownKeys: new Set<string>(),
       variableKeys: new Set<string>(),
     })
-    mockApplyVisibility.mockResolvedValue({ changedKeys: [] })
+    mockSetVisibility.mockResolvedValue({ changedKeys: [] })
   })
 
   async function callPut(body: unknown) {
@@ -260,14 +260,14 @@ describe('PUT /api/workspaces/[id]/environment — visibility ordering', () => {
     expect(status).toBe(403)
     // The whole point: authorization ran before any write reached the database.
     expect(mockCreateWorkspaceEnvCredentials).not.toHaveBeenCalled()
-    expect(mockApplyVisibility).not.toHaveBeenCalled()
+    expect(mockSetVisibility).not.toHaveBeenCalled()
   })
 
-  it('authorizes before applying on the success path', async () => {
+  it('re-decides authorization at write time rather than reusing the pre-flight', async () => {
     mockAuthorizeVisibility.mockResolvedValue([
       { credentialId: 'c-1', envKey: 'SUPPORT_EMAIL', next: 'variable' },
     ])
-    mockApplyVisibility.mockResolvedValue({ changedKeys: ['SUPPORT_EMAIL'] })
+    mockSetVisibility.mockResolvedValue({ changedKeys: ['SUPPORT_EMAIL'] })
 
     const { status } = await callPut({
       variables: {},
@@ -276,10 +276,36 @@ describe('PUT /api/workspaces/[id]/environment — visibility ordering', () => {
 
     expect(status).toBe(200)
     expect(mockAuthorizeVisibility).toHaveBeenCalled()
-    expect(mockApplyVisibility).toHaveBeenCalledWith(
+    // The pre-flight's resolved credential IDs are deliberately NOT carried into
+    // the write: the request the setter receives is the raw visibility map, so
+    // access is re-checked against current membership next to the UPDATE.
+    expect(mockSetVisibility).toHaveBeenCalledWith(
       expect.objectContaining({
-        changes: [{ credentialId: 'c-1', envKey: 'SUPPORT_EMAIL', next: 'variable' }],
+        workspaceId: WORKSPACE_ID,
+        actingUserId: 'u-1',
+        updates: { SUPPORT_EMAIL: 'variable' },
       })
     )
+  })
+
+  /**
+   * The stale-authorization window. The pre-flight above passes, then the
+   * caller's credential-admin access is revoked while the value writes run. The
+   * write-time decision must still refuse — reusing the pre-flight result here
+   * would let a former admin disclose a secret after losing the right to.
+   */
+  it('returns 403 when access is revoked between the pre-flight and the write', async () => {
+    mockAuthorizeVisibility.mockResolvedValue([
+      { credentialId: 'c-1', envKey: 'STRIPE_KEY', next: 'variable' },
+    ])
+    mockSetVisibility.mockRejectedValue(new MockVisibilityAccessError(['STRIPE_KEY']))
+
+    const { status, body } = await callPut({
+      variables: {},
+      visibility: { STRIPE_KEY: 'variable' },
+    })
+
+    expect(status).toBe(403)
+    expect(body.error).toContain('admin')
   })
 })

@@ -16,14 +16,13 @@ import { encryptSecret } from '@/lib/core/security/encryption'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
-  type AuthorizedVisibilityChange,
-  applyWorkspaceEnvVisibilityChange,
   authorizeWorkspaceEnvVisibilityChange,
   createWorkspaceEnvCredentials,
   deleteWorkspaceEnvCredentials,
   type EnvVisibility,
   getPersonalEnvKeyRawAccess,
   getWorkspaceEnvKeyAdminAccess,
+  setWorkspaceEnvVisibility,
   WorkspaceEnvVisibilityAccessError,
 } from '@/lib/credentials/environment'
 import {
@@ -251,14 +250,15 @@ export const PUT = withRouteHandler(
         )
       }
 
-      // Authorized BEFORE any write. Running this after the value upsert let a
-      // request that mixes an allowed new key with an unauthorized flip commit
-      // the key and its credential rows and THEN return 403 — a rejected call
-      // that changed workspace state and skipped its audit record.
-      let authorizedVisibilityChanges: AuthorizedVisibilityChange[] = []
+      // Pre-flight, BEFORE any write. Running the check after the value upsert
+      // let a request that mixes an allowed new key with an unauthorized flip
+      // commit the key and its credential rows and THEN return 403 — a rejected
+      // call that changed workspace state and skipped its audit record. The
+      // decision is deliberately discarded: it is re-made adjacent to the UPDATE
+      // below, so this pass only guarantees a denied request attempts no writes.
       if (visibility) {
         try {
-          authorizedVisibilityChanges = await authorizeWorkspaceEnvVisibilityChange({
+          await authorizeWorkspaceEnvVisibilityChange({
             workspaceId,
             updates: visibility,
             actingUserId: userId,
@@ -327,12 +327,40 @@ export const PUT = withRouteHandler(
         visibilityByKey: visibility,
       })
 
-      // Already authorized above; this only writes. Brand-new keys took their
-      // policy from `visibilityByKey` on create, so the authorized set only
-      // ever contains pre-existing keys.
-      const { changedKeys: flippedKeys } = await applyWorkspaceEnvVisibilityChange({
-        changes: authorizedVisibilityChanges,
-      })
+      // Re-authorized here rather than reusing the pre-flight decision above.
+      // That decision was made before the value writes and the credential
+      // inserts, so acting on it would let an admin whose access was revoked in
+      // the meantime still disclose a secret. The check runs adjacent to the
+      // UPDATE inside one transaction, and reads permissions through `db` (not
+      // `tx`) so it observes the latest committed membership rather than this
+      // transaction's snapshot. Brand-new keys took their policy from
+      // `visibilityByKey` on create, so only pre-existing keys can appear here.
+      let flippedKeys: string[] = []
+      if (visibility) {
+        try {
+          flippedKeys = (
+            await db.transaction((tx) =>
+              setWorkspaceEnvVisibility({
+                workspaceId,
+                updates: visibility,
+                actingUserId: userId,
+                executor: tx,
+              })
+            )
+          ).changedKeys
+        } catch (error) {
+          if (error instanceof WorkspaceEnvVisibilityAccessError) {
+            logger.warn(`[${requestId}] Workspace env visibility change denied at apply`, {
+              workspaceId,
+              userId,
+              keys: error.keys,
+              reason: 'access-revoked-mid-request',
+            })
+            return NextResponse.json({ error: error.message }, { status: 403 })
+          }
+          throw error
+        }
+      }
       if (flippedKeys.length > 0) invalidateEffectiveDecryptedEnvCache({ workspaceId })
 
       recordAudit({
