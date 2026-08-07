@@ -13,6 +13,7 @@ import { CopilotFiles, isUsingCloudStorage } from '@/lib/uploads'
 import type { StorageContext } from '@/lib/uploads/config'
 import { parseWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
+import { resolveServableImageBytes } from '@/lib/uploads/server/image-derivative'
 import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
 import { verifyFileAccess } from '@/app/api/files/authorization'
 import {
@@ -25,20 +26,43 @@ import {
 
 const logger = createLogger('FilesServeAPI')
 
+interface ServeOptions {
+  /** `raw=1` — bypass all resolution and serve the stored source as-is. */
+  raw: boolean
+  /** `preview=1` — the caller renders these bytes rather than saving them. */
+  preview: boolean
+  /** `v=<updatedAt>` — the URL addresses content-immutable bytes. */
+  versioned: boolean
+}
+
 /**
- * Resolves the bytes + content type to serve for a stored file via the shared
- * {@link resolveServableDocBytes} (generated docs → compiled artifact). `raw=1`
- * bypasses resolution and serves the stored source as-is.
+ * Resolves the bytes + content type to serve for a stored file.
+ *
+ * Document compilation is unconditional: a generated `.docx`/`.xlsx`/`.pptx` is
+ * stored as source, so the compiled artifact *is* the file, and every download
+ * routes through here. An image derivative is the opposite — the stored bytes are
+ * the file — so it is served only when the caller asked to preview, never when it
+ * asked to download.
  */
-async function compileDocumentIfNeeded(
-  buffer: Buffer,
-  filename: string,
-  workspaceId: string | undefined,
-  raw: boolean,
-  ownerKey: string | undefined,
+async function resolveServableBytes(params: {
+  buffer: Buffer
+  filename: string
+  storageKey: string
+  workspaceId: string | undefined
+  options: ServeOptions
+  ownerKey: string | undefined
   signal: AbortSignal | undefined
-): Promise<{ buffer: Buffer; contentType: string }> {
-  if (raw) return { buffer, contentType: getContentType(filename) }
+}): Promise<{ buffer: Buffer; contentType: string }> {
+  const { buffer, filename, storageKey, workspaceId, options, ownerKey, signal } = params
+  if (options.raw) return { buffer, contentType: getContentType(filename) }
+
+  if (options.preview) {
+    // Images resolve independently of the document path: a HEIF has no compiled-source
+    // concept, so it never reaches the doc branch.
+    const image = await resolveServableImageBytes(buffer, storageKey)
+    if (image) return image
+  }
+
   return resolveServableDocBytes({
     rawBuffer: buffer,
     fileName: filename,
@@ -117,10 +141,14 @@ export const GET = withRouteHandler(
 
       const query = fileServeQuerySchema.parse({
         raw: request.nextUrl.searchParams.get('raw'),
+        preview: request.nextUrl.searchParams.get('preview'),
         v: request.nextUrl.searchParams.get('v'),
       })
-      const raw = query.raw === '1'
-      const versioned = query.v != null
+      const options: ServeOptions = {
+        raw: query.raw === '1',
+        preview: query.preview === '1',
+        versioned: query.v != null,
+      }
 
       const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
 
@@ -135,10 +163,10 @@ export const GET = withRouteHandler(
       const userId = authResult.userId
 
       if (isUsingCloudStorage()) {
-        return await handleCloudProxy(cloudKey, userId, raw, versioned, request.signal)
+        return await handleCloudProxy(cloudKey, userId, options, request.signal)
       }
 
-      return await handleLocalFile(cloudKey, userId, raw, versioned, request.signal)
+      return await handleLocalFile(cloudKey, userId, options, request.signal)
     } catch (error) {
       // An in-progress/incomplete doc source fails to compile — this is expected
       // mid-generation, not a server fault. Return 409 (not 500) so it isn't an
@@ -165,8 +193,7 @@ export const GET = withRouteHandler(
 async function handleLocalFile(
   filename: string,
   userId: string,
-  raw: boolean,
-  versioned: boolean,
+  options: ServeOptions,
   signal: AbortSignal | undefined
 ): Promise<NextResponse> {
   const ownerKey = `user:${userId}`
@@ -198,14 +225,15 @@ async function handleLocalFile(
     const segment = filename.split('/').pop() || filename
     const displayName = stripStorageKeyPrefix(segment)
     const workspaceId = getWorkspaceIdForCompile(filename)
-    const { buffer: fileBuffer, contentType } = await compileDocumentIfNeeded(
-      rawBuffer,
-      displayName,
+    const { buffer: fileBuffer, contentType } = await resolveServableBytes({
+      buffer: rawBuffer,
+      filename: displayName,
+      storageKey: filename,
       workspaceId,
-      raw,
+      options,
       ownerKey,
-      signal
-    )
+      signal,
+    })
 
     logger.info('Local file served', { userId, filename, size: fileBuffer.length })
 
@@ -213,7 +241,7 @@ async function handleLocalFile(
       buffer: fileBuffer,
       contentType,
       filename: displayName,
-      cacheControl: resolveServeCacheControl(versioned, contextParam),
+      cacheControl: resolveServeCacheControl(options.versioned, contextParam),
     })
   } catch (error) {
     logger.error('Error reading local file:', error)
@@ -224,9 +252,8 @@ async function handleLocalFile(
 async function handleCloudProxy(
   cloudKey: string,
   userId: string,
-  raw = false,
-  versioned = false,
-  signal: AbortSignal | undefined = undefined
+  options: ServeOptions,
+  signal: AbortSignal | undefined
 ): Promise<NextResponse> {
   const ownerKey = `user:${userId}`
   try {
@@ -260,14 +287,15 @@ async function handleCloudProxy(
     const segment = cloudKey.split('/').pop() || 'download'
     const displayName = stripStorageKeyPrefix(segment)
     const workspaceId = getWorkspaceIdForCompile(cloudKey)
-    const { buffer: fileBuffer, contentType } = await compileDocumentIfNeeded(
-      rawBuffer,
-      displayName,
+    const { buffer: fileBuffer, contentType } = await resolveServableBytes({
+      buffer: rawBuffer,
+      filename: displayName,
+      storageKey: cloudKey,
       workspaceId,
-      raw,
+      options,
       ownerKey,
-      signal
-    )
+      signal,
+    })
 
     logger.info('Cloud file served', {
       userId,
@@ -280,7 +308,7 @@ async function handleCloudProxy(
       buffer: fileBuffer,
       contentType,
       filename: displayName,
-      cacheControl: resolveServeCacheControl(versioned, context),
+      cacheControl: resolveServeCacheControl(options.versioned, context),
     })
   } catch (error) {
     logger.error('Error downloading from cloud storage:', error)

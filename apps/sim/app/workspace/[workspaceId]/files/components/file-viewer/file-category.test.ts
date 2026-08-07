@@ -227,13 +227,15 @@ describe('resolveFileCategory — formats accepted on upload must be previewable
     ['image.bmp', 'image/bmp'],
     ['image.avif', 'image/avif'],
     ['favicon.ico', 'image/x-icon'],
+    ['photo.heic', 'image/heic'],
+    ['photo.heif', 'image/heif'],
   ])('%s previews as an image', (filename, mimeType) => {
     expect(resolveFileCategory(mimeType, filename)).toBe('image-previewable')
     expect(resolveFileCategory('application/octet-stream', filename)).toBe('image-previewable')
   })
 
-  it.each(['image.tiff', 'photo.heic'])(
-    '%s stays unsupported — no browser renders it in an <img>',
+  it.each(['image.tiff', 'scan.tif'])(
+    '%s stays unsupported — nothing decodes it on either side',
     (filename) => {
       expect(resolveFileCategory(null, filename)).toBe('unsupported')
     }
