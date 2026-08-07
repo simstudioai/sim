@@ -418,7 +418,7 @@ function MappingEntry({ controller, group, entry }: MappingEntryProps) {
         ) : null}
         {entry.candidatesTruncated ? (
           <p className='text-[var(--text-muted)] text-small'>
-            More options than shown — search by name.
+            Too many targets to list them all — search covers only the ones shown.
           </p>
         ) : null}
       </div>
