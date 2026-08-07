@@ -97,21 +97,22 @@ describe('resolveApiCorsPolicy', () => {
     )
     expect(policy.origin).toBe('*')
     expect(policy.credentials).toBe(false)
-    expect(policy.headers).toContain('X-Execution-Id')
+    expect(policy.headers).toContain('X-Run-Id')
     expect(policy.headers).toContain('X-Sim-Stream-Protocol')
+    expect(policy.headers).not.toContain('X-Execution-Id')
     // Async is body-selected on v2 — the mode header is deliberately absent.
     expect(policy.headers).not.toContain('X-Execution-Mode')
   })
 
-  it('does not match the v2 execute rule for nested or executions paths', () => {
+  it('does not match the v2 execute rule for nested or runs paths', () => {
     const nested = resolveApiCorsPolicy(
       makeRequest('/api/v2/workflows/workflow-123/execute/extra', 'https://other.example')
     )
     expect(nested.origin).toBe('https://app.sim.test')
-    const executions = resolveApiCorsPolicy(
-      makeRequest('/api/v2/workflows/workflow-123/executions/e-1', 'https://other.example')
+    const runs = resolveApiCorsPolicy(
+      makeRequest('/api/v2/workflows/workflow-123/runs/run-1', 'https://other.example')
     )
-    expect(executions.origin).toBe('https://app.sim.test')
+    expect(runs.origin).toBe('https://app.sim.test')
   })
 
   it('does not match the workflow execute rule for nested paths', () => {

@@ -34,10 +34,10 @@ function buildWorkflowApiEndpoint(baseUrl: string, workflowId: string): string {
   return `${baseUrl}/api/v2/workflows/${workflowId}/execute`
 }
 
-function buildWorkflowExecutionStatusEndpoint(
+function buildWorkflowRunStatusEndpoint(
   baseUrl: string,
   apiEndpoint: string,
-  executionId: string
+  runId: string
 ): string {
   if (
     !apiEndpoint.startsWith(`${baseUrl}/api/v2/workflows/`) ||
@@ -45,7 +45,7 @@ function buildWorkflowExecutionStatusEndpoint(
   ) {
     throw new Error(`Invalid workflow execution endpoint: ${apiEndpoint}`)
   }
-  return `${apiEndpoint.slice(0, -'/execute'.length)}/executions/${executionId}`
+  return `${apiEndpoint.slice(0, -'/execute'.length)}/runs/${runId}`
 }
 
 function buildWorkflowApiConfig(baseUrl: string, apiEndpoint: string) {
@@ -73,11 +73,7 @@ function buildWorkflowApiConfig(baseUrl: string, apiEndpoint: string) {
         transport: 'json',
         stream: false,
         body: { async: true, input: { key: 'value' } },
-        executionStatusEndpointTemplate: buildWorkflowExecutionStatusEndpoint(
-          baseUrl,
-          apiEndpoint,
-          '{executionId}'
-        ),
+        runStatusEndpointTemplate: buildWorkflowRunStatusEndpoint(baseUrl, apiEndpoint, '{runId}'),
       },
     },
   }
@@ -97,7 +93,7 @@ function buildWorkflowApiExamples(baseUrl: string, apiEndpoint: string) {
   -H "Content-Type: application/json" \\
   -H "X-API-Key: YOUR_API_KEY" \\
   -d '{"async":true,"input":{"key":"value"}}'`,
-    poll: `curl "${buildWorkflowExecutionStatusEndpoint(baseUrl, apiEndpoint, 'EXECUTION_ID')}" \\
+    poll: `curl "${buildWorkflowRunStatusEndpoint(baseUrl, apiEndpoint, 'RUN_ID')}" \\
   -H "X-API-Key: YOUR_API_KEY"`,
   }
 }

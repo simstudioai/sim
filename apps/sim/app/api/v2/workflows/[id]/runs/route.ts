@@ -2,9 +2,9 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { NextRequest } from 'next/server'
 import {
-  type V2WorkflowExecutionListItem,
-  v2ListWorkflowExecutionsContract,
-  v2WorkflowExecutionListStatusValueSchema,
+  type V2WorkflowRunListItem,
+  v2ListWorkflowRunsContract,
+  v2WorkflowRunListStatusValueSchema,
 } from '@/lib/api/contracts/v2/workflows'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -20,19 +20,19 @@ import {
 } from '@/app/api/v2/lib/response'
 import { resolveV2WorkflowAccess } from '@/app/api/v2/workflows/lib/access'
 
-const logger = createLogger('V2WorkflowExecutionsAPI')
+const logger = createLogger('V2WorkflowRunsAPI')
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-/** List the durable executions belonging to one workflow. */
+/** List the durable runs belonging to one workflow. */
 export const GET = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const { id: workflowId } = await context.params
     const access = await resolveV2WorkflowAccess(request, workflowId, 'read')
     if (!access.ok) return access.response
 
-    const parsed = await parseRequest(v2ListWorkflowExecutionsContract, request, context, {
+    const parsed = await parseRequest(v2ListWorkflowRunsContract, request, context, {
       validationErrorResponse: v2ValidationError,
     })
     if (!parsed.success) return parsed.response
@@ -68,10 +68,10 @@ export const GET = withRouteHandler(
         order,
       })
 
-      const data: V2WorkflowExecutionListItem[] = result.data.map((row) => ({
-        executionId: row.executionId,
+      const data: V2WorkflowRunListItem[] = result.data.map((row) => ({
+        runId: row.executionId,
         workflowId: row.workflowId ?? workflowId,
-        status: v2WorkflowExecutionListStatusValueSchema.parse(row.status),
+        status: v2WorkflowRunListStatusValueSchema.parse(row.status),
         trigger: row.trigger,
         startedAt: row.startedAt.toISOString(),
         endedAt: row.endedAt?.toISOString() ?? null,
@@ -88,7 +88,7 @@ export const GET = withRouteHandler(
 
       return v2CursorList(data, nextCursor)
     } catch (error) {
-      logger.error('Failed to list workflow executions', {
+      logger.error('Failed to list workflow runs', {
         workflowId,
         error: getErrorMessage(error, 'Unknown error'),
       })

@@ -50,7 +50,7 @@ class WorkflowStatus:
 class AsyncExecutionResult:
     """Result of an async workflow execution."""
     success: bool
-    execution_id: str
+    run_id: str
     status_url: str
     message: str = ""
     async_execution: bool = True
@@ -160,7 +160,7 @@ class SimStudioClient:
     ) -> Union[WorkflowExecutionResult, AsyncExecutionResult]:
         """
         Execute a workflow with optional input data.
-        If async_execution is True, returns immediately with an execution ID.
+        If async_execution is True, returns immediately with a run ID.
 
         File objects in input will be automatically detected and converted to base64.
 
@@ -259,11 +259,11 @@ class SimStudioClient:
             result_data = result['data']
 
             if response.status_code == 202:
-                if 'executionId' not in result_data or 'statusUrl' not in result_data:
+                if 'runId' not in result_data or 'statusUrl' not in result_data:
                     raise SimStudioError('Invalid v2 async execution response', 'EXECUTION_ERROR')
                 return AsyncExecutionResult(
                     success=True,
-                    execution_id=result_data['executionId'],
+                    run_id=result_data['runId'],
                     status_url=result_data['statusUrl'],
                     message='Workflow execution queued',
                     async_execution=True
@@ -276,7 +276,7 @@ class SimStudioClient:
                 error=execution_error.get('message') if execution_error else None,
                 metadata={
                     'duration': result_data.get('durationMs'),
-                    'executionId': result_data['executionId']
+                    'runId': result_data['runId']
                 },
                 total_duration=result_data.get('durationMs')
             )
@@ -435,30 +435,30 @@ class SimStudioClient:
         except requests.RequestException as e:
             raise SimStudioError(f'Failed to get job status: {str(e)}', 'STATUS_ERROR')
 
-    def get_workflow_execution(
+    def get_workflow_run(
         self,
         workflow_id: str,
-        execution_id: str,
+        run_id: str,
         *,
         include_output: Optional[bool] = None,
         selected_outputs: Optional[list] = None
     ) -> Dict[str, Any]:
         """
-        Get a workflow execution's current status and optional outputs from the v2 API.
+        Get a workflow run's current status and optional outputs from the v2 API.
 
         Args:
             workflow_id: The workflow ID
-            execution_id: The execution ID returned from async execution
+            run_id: The run ID returned from async execution
             include_output: Include the final output for completed executions
             selected_outputs: Block output selectors to include
 
         Returns:
-            Dictionary containing the execution status
+            Dictionary containing the run status
 
         Raises:
             SimStudioError: If getting the status fails
         """
-        url = f"{self.base_url}/api/v2/workflows/{workflow_id}/executions/{execution_id}"
+        url = f"{self.base_url}/api/v2/workflows/{workflow_id}/runs/{run_id}"
         params = {}
         if include_output is not None:
             params['includeOutput'] = str(include_output).lower()
@@ -484,11 +484,11 @@ class SimStudioClient:
 
             result = response.json()
             if 'data' not in result:
-                raise SimStudioError('Invalid v2 workflow execution response', 'STATUS_ERROR')
+                raise SimStudioError('Invalid v2 workflow run response', 'STATUS_ERROR')
             return result['data']
 
         except requests.RequestException as e:
-            raise SimStudioError(f'Failed to get workflow execution: {str(e)}', 'STATUS_ERROR')
+            raise SimStudioError(f'Failed to get workflow run: {str(e)}', 'STATUS_ERROR')
 
     def execute_with_retry(
         self,

@@ -280,7 +280,7 @@ The `version` field is part of the external API contract. Treat the reference as
 
 ### Asynchronous
 
-For long-running workflows, async mode returns an execution ID immediately so you don't need to hold the connection open. Set `"async": true` in the v2 request body. The API returns HTTP 202 with an execution ID and v2 status URL. Poll that execution resource until the run completes.
+For long-running workflows, async mode returns a run ID immediately so you don't need to hold the connection open. Set `"async": true` in the v2 request body. The API returns HTTP 202 with a run ID and v2 status URL. Poll that run resource until it completes.
 
 To stop an individual async request sooner than the workspace policy, set `executionTimeoutSeconds`
 to an integer from `1` to `604800` (seven days) in the v2 request body. The effective limit is the
@@ -300,15 +300,15 @@ curl -X POST https://sim.ai/api/v2/workflows/{workflow-id}/execute \
 ```json
 {
   "data": {
-    "executionId": "c7a92e15-3f4b-4d8c-a1e6-9b0d5f2c8e74",
-    "statusUrl": "https://sim.ai/api/v2/workflows/{workflow-id}/executions/c7a92e15-3f4b-4d8c-a1e6-9b0d5f2c8e74"
+    "runId": "c7a92e15-3f4b-4d8c-a1e6-9b0d5f2c8e74",
+    "statusUrl": "https://sim.ai/api/v2/workflows/{workflow-id}/runs/c7a92e15-3f4b-4d8c-a1e6-9b0d5f2c8e74"
   }
 }
 ```
   </Tab>
   <Tab value="Check Status">
 ```bash
-curl "https://sim.ai/api/v2/workflows/{workflow-id}/executions/{executionId}?includeOutput=true" \
+curl "https://sim.ai/api/v2/workflows/{workflow-id}/runs/{runId}?includeOutput=true" \
   -H "x-api-key: $SIM_API_KEY"
 ```
 
@@ -316,7 +316,7 @@ curl "https://sim.ai/api/v2/workflows/{workflow-id}/executions/{executionId}?inc
 ```json
 {
   "data": {
-    "executionId": "c7a92e15-3f4b-4d8c-a1e6-9b0d5f2c8e74",
+    "runId": "c7a92e15-3f4b-4d8c-a1e6-9b0d5f2c8e74",
     "workflowId": "{workflow-id}",
     "status": "running",
     "startedAt": "2025-09-10T12:00:01.000Z",
@@ -331,7 +331,7 @@ curl "https://sim.ai/api/v2/workflows/{workflow-id}/executions/{executionId}?inc
 ```json
 {
   "data": {
-    "executionId": "c7a92e15-3f4b-4d8c-a1e6-9b0d5f2c8e74",
+    "runId": "c7a92e15-3f4b-4d8c-a1e6-9b0d5f2c8e74",
     "workflowId": "{workflow-id}",
     "status": "completed",
     "startedAt": "2025-09-10T12:00:01.000Z",

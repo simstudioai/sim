@@ -1110,7 +1110,7 @@
       "post": {
         "operationId": "executeWorkflowV2",
         "summary": "Execute a workflow",
-        "description": "Executes a deployed workflow. Auth: `X-API-Key`, or no key at all for workflows deployed with public API access (sync/stream only). Modes are body-selected — there are no mode headers on v2: `\"async\": true` queues the run and returns a 202 receipt whose `statusUrl` is the executions resource; `\"stream\": true` returns Server-Sent Events (no `{data}` envelope on frames; `includeThinking`/`includeToolCalls` additionally require the `X-Sim-Stream-Protocol: agent-events-v1` header). Sync runs return the execution resource: a failed run is HTTP 200 with `status: \"failed\"` and the structured error (the sync timeout is `status:\"failed\"` + `error.code:\"TIMEOUT\"`). A Response block's declared payload stays inside `output` — workflow authors never control response status or headers. Optional `X-Execution-Id` request header (keyed callers only) makes the run idempotent; a reused id returns 409. Rate limiting uses the workflow execution buckets (async runs debit the larger async bucket) and 429s carry `Retry-After`; execute responses do not carry `X-RateLimit-*` headers.",
+        "description": "Executes a deployed workflow. Auth: `X-API-Key`, or no key at all for workflows deployed with public API access (sync/stream only). Modes are body-selected — there are no mode headers on v2: `\"async\": true` queues the run and returns a 202 receipt whose `statusUrl` is the runs resource; `\"stream\": true` returns Server-Sent Events (no `{data}` envelope on frames; `includeThinking`/`includeToolCalls` additionally require the `X-Sim-Stream-Protocol: agent-events-v1` header). Sync runs return the run resource: a failed run is HTTP 200 with `status: \"failed\"` and the structured error (the sync timeout is `status:\"failed\"` + `error.code:\"TIMEOUT\"`). A Response block's declared payload stays inside `output` — workflow authors never control response status or headers. Optional `X-Run-Id` request header (keyed callers only) supplies the run ID; a reused ID returns 409. Rate limiting uses the workflow run buckets (async runs debit the larger async bucket) and 429s carry `Retry-After`; execute responses do not carry `X-RateLimit-*` headers.",
         "tags": ["Workflows"],
         "security": [
           {
@@ -1120,6 +1120,18 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/WorkflowId"
+          },
+          {
+            "name": "X-Run-Id",
+            "in": "header",
+            "required": false,
+            "description": "Caller-supplied run ID for keyed callers. The value becomes the run resource ID and cannot be reused.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9._:-]+$"
+            }
           }
         ],
         "requestBody": {
@@ -1140,6 +1152,12 @@
                     "type": "boolean",
                     "default": false,
                     "description": "Queue the run; poll the returned statusUrl. Not combinable with stream/output options; requires an API key."
+                  },
+                  "executionTimeoutSeconds": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 604800,
+                    "description": "Server-side timeout for an async run, in seconds. Valid only when async is true."
                   },
                   "stream": {
                     "type": "boolean",
@@ -1212,7 +1230,15 @@
         },
         "responses": {
           "200": {
-            "description": "The execution resource. Served with `Cache-Control: private, no-store` and the `X-Execution-Id` header.",
+            "description": "The run resource. Served with `Cache-Control: private, no-store` and the `X-Run-Id` header.",
+            "headers": {
+              "X-Run-Id": {
+                "description": "The run ID assigned to this workflow run.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -1220,13 +1246,13 @@
                   "required": ["data"],
                   "properties": {
                     "data": {
-                      "$ref": "#/components/schemas/ExecutionResource"
+                      "$ref": "#/components/schemas/RunResource"
                     }
                   }
                 },
                 "example": {
                   "data": {
-                    "executionId": "8f14e45f-ceea-467f-a",
+                    "runId": "8f14e45f-ceea-467f-a",
                     "workflowId": "wf_123",
                     "status": "completed",
                     "output": {
@@ -1243,7 +1269,7 @@
                     "summary": "Completed run",
                     "value": {
                       "data": {
-                        "executionId": "exec_1",
+                        "runId": "run_1",
                         "workflowId": "wf_123",
                         "status": "completed",
                         "output": {
@@ -1258,7 +1284,7 @@
                     "summary": "Failed run (still HTTP 200)",
                     "value": {
                       "data": {
-                        "executionId": "exec_2",
+                        "runId": "run_2",
                         "workflowId": "wf_123",
                         "status": "failed",
                         "output": {
@@ -1281,6 +1307,14 @@
           },
           "202": {
             "description": "Queued (async). Poll `statusUrl` until `status` is terminal.",
+            "headers": {
+              "X-Run-Id": {
+                "description": "The run ID assigned to the queued workflow run.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -1289,9 +1323,9 @@
                   "properties": {
                     "data": {
                       "type": "object",
-                      "required": ["executionId", "statusUrl"],
+                      "required": ["runId", "statusUrl"],
                       "properties": {
-                        "executionId": {
+                        "runId": {
                           "type": "string"
                         },
                         "statusUrl": {
@@ -1303,8 +1337,8 @@
                 },
                 "example": {
                   "data": {
-                    "executionId": "exec_1",
-                    "statusUrl": "https://www.sim.ai/api/v2/workflows/wf_123/executions/exec_1"
+                    "runId": "run_1",
+                    "statusUrl": "https://www.sim.ai/api/v2/workflows/wf_123/runs/run_1"
                   }
                 }
               }
@@ -1323,7 +1357,15 @@
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "description": "The `X-Execution-Id` was already used.",
+            "description": "The `X-Run-Id` was already used.",
+            "headers": {
+              "X-Run-Id": {
+                "description": "The conflicting caller-supplied run ID.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -1354,11 +1396,11 @@
         }
       }
     },
-    "/api/v2/workflows/{id}/executions": {
+    "/api/v2/workflows/{id}/runs": {
       "get": {
-        "operationId": "listWorkflowExecutionsV2",
-        "summary": "List workflow executions",
-        "description": "List the durable executions belonging to one workflow. Freshly queued runs are available through their execution status URL but do not enter this history until durable execution logging begins. This lifecycle collection is intentionally lightweight; fetch one execution for output and pause detail, or fetch `/api/v2/logs/{executionId}` for diagnostic trace data.",
+        "operationId": "listWorkflowRunsV2",
+        "summary": "List workflow runs",
+        "description": "List the durable runs belonging to one workflow. Freshly queued runs are available through their run status URL but do not enter this history until durable logging begins. This lifecycle collection is intentionally lightweight; fetch one run for output and pause detail, or fetch `/api/v2/logs/{runId}` for diagnostic trace data.",
         "tags": ["Workflows"],
         "security": [
           {
@@ -1438,7 +1480,7 @@
         ],
         "responses": {
           "200": {
-            "description": "A page of workflow executions.",
+            "description": "A page of workflow runs.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1448,7 +1490,7 @@
                     "data": {
                       "type": "array",
                       "items": {
-                        "$ref": "#/components/schemas/WorkflowExecutionListItem"
+                        "$ref": "#/components/schemas/WorkflowRunListItem"
                       }
                     },
                     "nextCursor": {
@@ -1459,7 +1501,7 @@
                 "example": {
                   "data": [
                     {
-                      "executionId": "exec_1",
+                      "runId": "run_1",
                       "workflowId": "wf_123",
                       "status": "completed",
                       "trigger": "api",
@@ -1497,10 +1539,10 @@
         }
       }
     },
-    "/api/v2/workflows/{id}/executions/{executionId}": {
+    "/api/v2/workflows/{id}/runs/{runId}": {
       "get": {
-        "operationId": "getWorkflowExecutionV2",
-        "summary": "Get execution status",
+        "operationId": "getWorkflowRunV2",
+        "summary": "Get run status",
         "description": "The single status URL for sync and async runs. Freshly queued async runs report `queued` (backfilled from the job queue before the durable record exists), then `running`, then a terminal status. Failed runs carry the structured error. `includeOutput=true` adds the final output on completed runs; `selectedOutputs` extracts specific block outputs.",
         "tags": ["Workflows"],
         "security": [
@@ -1513,7 +1555,7 @@
             "$ref": "#/components/parameters/WorkflowId"
           },
           {
-            "name": "executionId",
+            "name": "runId",
             "in": "path",
             "required": true,
             "schema": {
@@ -1541,7 +1583,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The execution status resource.",
+            "description": "The run status resource.",
             "headers": {
               "X-RateLimit-Limit": {
                 "$ref": "#/components/headers/RateLimitLimit"
@@ -1562,7 +1604,7 @@
                     "data": {
                       "type": "object",
                       "required": [
-                        "executionId",
+                        "runId",
                         "workflowId",
                         "status",
                         "trigger",
@@ -1576,7 +1618,7 @@
                         "blockOutputs"
                       ],
                       "properties": {
-                        "executionId": {
+                        "runId": {
                           "type": "string"
                         },
                         "workflowId": {
@@ -1615,7 +1657,6 @@
                             "pauseKind",
                             "blockedOnBlockId",
                             "automaticResumeWaitingReason",
-                            "pausedExecutionId",
                             "pausePointCount",
                             "resumedCount"
                           ],
@@ -1629,7 +1670,6 @@
                             },
                             "blockedOnBlockId": { "type": ["string", "null"] },
                             "automaticResumeWaitingReason": { "type": ["string", "null"] },
-                            "pausedExecutionId": { "type": "string" },
                             "pausePointCount": { "type": "number" },
                             "resumedCount": { "type": "number" }
                           }
@@ -1664,7 +1704,7 @@
                 },
                 "example": {
                   "data": {
-                    "executionId": "exec_1",
+                    "runId": "run_1",
                     "workflowId": "wf_123",
                     "status": "completed",
                     "trigger": "api",
@@ -1704,11 +1744,11 @@
         }
       }
     },
-    "/api/v2/workflows/{id}/executions/{executionId}/resume": {
+    "/api/v2/workflows/{id}/runs/{runId}/resume": {
       "post": {
-        "operationId": "resumeWorkflowExecutionV2",
-        "summary": "Resume a workflow execution",
-        "description": "Resumes one human-in-the-loop pause context on the parent execution. Responses are always JSON and the resumed attempt receives a new execution ID. Sync attempts return the execution resource. Async, serialized, and inherited stream-mode attempts return a 202 receipt whose `statusUrl` is the v2 execution resource.",
+        "operationId": "resumeWorkflowRunV2",
+        "summary": "Resume a workflow run",
+        "description": "Resumes one human-in-the-loop pause context on the parent run. Responses are always JSON and the resumed attempt receives a new run ID. Sync attempts return the run resource. Async, serialized, and inherited stream-mode attempts return a 202 receipt whose `statusUrl` is the v2 run resource.",
         "tags": ["Workflows"],
         "security": [
           {
@@ -1720,10 +1760,10 @@
             "$ref": "#/components/parameters/WorkflowId"
           },
           {
-            "name": "executionId",
+            "name": "runId",
             "in": "path",
             "required": true,
-            "description": "The execution ID of the paused parent run.",
+            "description": "The run ID of the paused parent run.",
             "schema": {
               "type": "string",
               "minLength": 1
@@ -1762,7 +1802,7 @@
         },
         "responses": {
           "200": {
-            "description": "The completed, failed, paused, or cancelled resume execution resource.",
+            "description": "The completed, failed, paused, or cancelled resumed run resource.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1770,13 +1810,13 @@
                   "required": ["data"],
                   "properties": {
                     "data": {
-                      "$ref": "#/components/schemas/ExecutionResource"
+                      "$ref": "#/components/schemas/RunResource"
                     }
                   }
                 },
                 "example": {
                   "data": {
-                    "executionId": "resume_exec_1",
+                    "runId": "resume_exec_1",
                     "workflowId": "wf_123",
                     "status": "completed",
                     "output": {
@@ -1790,7 +1830,7 @@
             }
           },
           "202": {
-            "description": "The resume is queued. Poll `statusUrl` using the returned resume execution ID.",
+            "description": "The resume is queued. Poll `statusUrl` using the returned run ID.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1799,9 +1839,9 @@
                   "properties": {
                     "data": {
                       "type": "object",
-                      "required": ["executionId", "statusUrl"],
+                      "required": ["runId", "statusUrl"],
                       "properties": {
-                        "executionId": {
+                        "runId": {
                           "type": "string"
                         },
                         "statusUrl": {
@@ -1817,8 +1857,8 @@
                 },
                 "example": {
                   "data": {
-                    "executionId": "resume_exec_1",
-                    "statusUrl": "https://www.sim.ai/api/v2/workflows/wf_123/executions/resume_exec_1"
+                    "runId": "resume_exec_1",
+                    "statusUrl": "https://www.sim.ai/api/v2/workflows/wf_123/runs/resume_exec_1"
                   }
                 }
               }
@@ -1871,11 +1911,11 @@
         }
       }
     },
-    "/api/v2/workflows/{id}/executions/{executionId}/cancel": {
+    "/api/v2/workflows/{id}/runs/{runId}/cancel": {
       "post": {
-        "operationId": "cancelExecutionV2",
-        "summary": "Cancel an execution",
-        "description": "Cancels a running or paused execution. `reason` explains how the cancellation was recorded.",
+        "operationId": "cancelRunV2",
+        "summary": "Cancel a run",
+        "description": "Cancels a running or paused run. `reason` explains how the cancellation was recorded.",
         "tags": ["Workflows"],
         "security": [
           {
@@ -1887,7 +1927,7 @@
             "$ref": "#/components/parameters/WorkflowId"
           },
           {
-            "name": "executionId",
+            "name": "runId",
             "in": "path",
             "required": true,
             "schema": {
@@ -1920,7 +1960,7 @@
                       "type": "object",
                       "required": [
                         "success",
-                        "executionId",
+                        "runId",
                         "redisAvailable",
                         "durablyRecorded",
                         "locallyAborted",
@@ -1930,7 +1970,7 @@
                         "success": {
                           "type": "boolean"
                         },
-                        "executionId": {
+                        "runId": {
                           "type": "string"
                         },
                         "redisAvailable": {
@@ -1961,7 +2001,7 @@
                 "example": {
                   "data": {
                     "success": true,
-                    "executionId": "exec_1",
+                    "runId": "run_1",
                     "redisAvailable": true,
                     "durablyRecorded": true,
                     "locallyAborted": false,
@@ -2857,7 +2897,7 @@
       "ExecutionError": {
         "type": "object",
         "required": ["message", "code"],
-        "description": "Structured execution error. Route on `code` (append-only enum) instead of matching message text. Block fields identify the failing block when attributable — with the executionId they form the reproducible handle to hand a shared workflow's provider.",
+        "description": "Structured run error. Route on `code` (append-only enum) instead of matching message text. Block fields identify the failing block when attributable — with the runId they form the reproducible handle to hand a shared workflow's provider.",
         "properties": {
           "message": {
             "type": "string"
@@ -2885,10 +2925,10 @@
           }
         }
       },
-      "WorkflowExecutionListItem": {
+      "WorkflowRunListItem": {
         "type": "object",
         "required": [
-          "executionId",
+          "runId",
           "workflowId",
           "status",
           "trigger",
@@ -2898,7 +2938,7 @@
           "cost"
         ],
         "properties": {
-          "executionId": {
+          "runId": {
             "type": "string"
           },
           "workflowId": {
@@ -2933,12 +2973,12 @@
           }
         }
       },
-      "ExecutionResource": {
+      "RunResource": {
         "type": "object",
-        "required": ["executionId", "workflowId", "status", "output", "error"],
-        "description": "The execution result resource. An executionId always means 200/202 with data; only pre-execution failures use the error envelope. In-band run failures are status 'failed' with the structured error — never an HTTP error status.",
+        "required": ["runId", "workflowId", "status", "output", "error"],
+        "description": "The run result resource. A runId always means 200/202 with data; only pre-run failures use the error envelope. In-band run failures are status 'failed' with the structured error — never an HTTP error status.",
         "properties": {
-          "executionId": {
+          "runId": {
             "type": "string"
           },
           "workflowId": {
