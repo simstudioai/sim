@@ -1,16 +1,27 @@
 import { db } from '@sim/db'
 import {
+  type StoredWorkspaceFileSecretProvenanceEntry,
   type WorkspaceFileSecretProvenanceEntry,
   workspaceFileSecretProvenance,
   workspaceFiles,
 } from '@sim/db/schema'
 import { and, eq, gte, inArray, isNull, lt, or } from 'drizzle-orm'
+import { encryptSecret } from '@/lib/core/security/encryption'
 import type { DbTransaction } from '@/lib/db/types'
-import { importDurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
-import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  importDurableSecretProvenance,
+  isPrivateSecretProvenanceScopeCompatible,
+} from '@/lib/execution/durable-secret-provenance'
+import type {
+  ResolvedSecretTraceProvenanceV1,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 
 const MAX_WORKSPACE_FILE_SECRET_PROVENANCE_ENTRIES = 10_000
 const MAX_WORKSPACE_FILE_SECRET_PROVENANCE_BYTES = 8 * 1024 * 1024
+const ANONYMOUS_WORKSPACE_FILE_SECRET_STORAGE_NAME = 'MOUNTED_FILE_SECRET'
+const LEGACY_ANONYMOUS_WORKSPACE_FILE_SECRET_STORAGE_NAME =
+  ':SIM_INTERNAL_ANONYMOUS_SECRET_PROVENANCE_V1:'
 export const MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE =
   'File cannot be sent to a model because its secret provenance is unavailable'
 const MAX_MODEL_ATTACHMENT_PROVENANCE_LOOKUPS = 1_000
@@ -28,6 +39,15 @@ export const EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE = Object.freeze({
 export type WorkspaceFileSecretProvenancePolicy =
   | { mode: 'replace'; provenance: WorkspaceFileSecretProvenance }
   | { mode: 'preserve' }
+
+export type WorkspaceFileSecretProvenanceWriteDecision =
+  | { safe: true; provenance: WorkspaceFileSecretProvenance }
+  | { safe: false }
+
+export interface WorkspaceFileSecretProvenanceRepresentation {
+  sourceProvenance: ResolvedSecretTraceProvenanceV1
+  persistedValue: string
+}
 
 interface WorkspaceFileAttachmentIdentity {
   id?: unknown
@@ -57,6 +77,7 @@ interface WorkspaceFileSecretProvenanceMetadataIdentity {
 export interface WorkspaceFileSecretProvenanceEnvelope<T> {
   value: T
   file?: WorkspaceFileSecretProvenanceIdentity
+  view?: 'complete' | 'derived'
 }
 
 interface ModelSafeWorkspaceFileRow {
@@ -90,6 +111,30 @@ function compareStrings(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0
 }
 
+function exactEntryByteSize(entry: WorkspaceFileSecretProvenanceEntry): number {
+  return (
+    Buffer.byteLength(entry.sourceUserId, 'utf8') +
+    Buffer.byteLength(entry.sourceWorkspaceId ?? '', 'utf8') +
+    Buffer.byteLength(entry.name ?? '', 'utf8') +
+    Buffer.byteLength(entry.encryptedValue, 'utf8')
+  )
+}
+
+function isAnonymousStoredEntry(entry: StoredWorkspaceFileSecretProvenanceEntry): boolean {
+  return (
+    entry.anonymous === true || entry.name === LEGACY_ANONYMOUS_WORKSPACE_FILE_SECRET_STORAGE_NAME
+  )
+}
+
+function storedEntryLogicalByteSize(entry: StoredWorkspaceFileSecretProvenanceEntry): number {
+  return exactEntryByteSize({
+    encryptedValue: entry.encryptedValue,
+    sourceUserId: entry.sourceUserId,
+    ...(isAnonymousStoredEntry(entry) ? {} : { name: entry.name }),
+    ...(entry.sourceWorkspaceId ? { sourceWorkspaceId: entry.sourceWorkspaceId } : {}),
+  })
+}
+
 function normalizeExactEntries(
   entries: readonly WorkspaceFileSecretProvenanceEntry[]
 ): WorkspaceFileSecretProvenanceEntry[] {
@@ -100,23 +145,23 @@ function normalizeExactEntries(
   const normalized = new Map<string, WorkspaceFileSecretProvenanceEntry>()
   let bytes = 0
   for (const entry of entries) {
-    if (!entry.name || !entry.encryptedValue || !entry.sourceUserId) {
+    if (
+      !entry.encryptedValue ||
+      !entry.sourceUserId ||
+      (entry.name !== undefined && entry.name.length === 0)
+    ) {
       throw new Error('Workspace file secret provenance contains an invalid entry')
     }
-    const key = `${entry.sourceUserId}\u0000${entry.sourceWorkspaceId ?? ''}\u0000${entry.name}\u0000${entry.encryptedValue}`
+    const key = `${entry.sourceUserId}\u0000${entry.sourceWorkspaceId ?? ''}\u0000${entry.name ?? ''}\u0000${entry.encryptedValue}`
     if (normalized.has(key)) continue
-    bytes +=
-      Buffer.byteLength(entry.sourceUserId, 'utf8') +
-      Buffer.byteLength(entry.sourceWorkspaceId ?? '', 'utf8') +
-      Buffer.byteLength(entry.name, 'utf8') +
-      Buffer.byteLength(entry.encryptedValue, 'utf8')
+    bytes += exactEntryByteSize(entry)
     if (bytes > MAX_WORKSPACE_FILE_SECRET_PROVENANCE_BYTES) {
       throw new Error('Workspace file secret provenance exceeds its size limit')
     }
     normalized.set(key, {
-      name: entry.name,
       encryptedValue: entry.encryptedValue,
       sourceUserId: entry.sourceUserId,
+      ...(entry.name ? { name: entry.name } : {}),
       ...(entry.sourceWorkspaceId ? { sourceWorkspaceId: entry.sourceWorkspaceId } : {}),
     })
   }
@@ -125,12 +170,147 @@ function normalizeExactEntries(
     (left, right) =>
       compareStrings(left.sourceUserId, right.sourceUserId) ||
       compareStrings(left.sourceWorkspaceId ?? '', right.sourceWorkspaceId ?? '') ||
-      compareStrings(left.name, right.name) ||
+      compareStrings(left.name ?? '', right.name ?? '') ||
       compareStrings(left.encryptedValue, right.encryptedValue)
   )
 }
 
-function isValidStoredEntries(value: unknown): value is WorkspaceFileSecretProvenanceEntry[] {
+function serializeExactEntriesForStorage(
+  entries: readonly WorkspaceFileSecretProvenanceEntry[]
+): StoredWorkspaceFileSecretProvenanceEntry[] {
+  return normalizeExactEntries(entries).map(
+    (entry): StoredWorkspaceFileSecretProvenanceEntry =>
+      entry.name
+        ? { ...entry, name: entry.name }
+        : {
+            ...entry,
+            name: ANONYMOUS_WORKSPACE_FILE_SECRET_STORAGE_NAME,
+            anonymous: true,
+          }
+  )
+}
+
+function deserializeExactEntriesFromStorage(
+  entries: readonly StoredWorkspaceFileSecretProvenanceEntry[]
+): WorkspaceFileSecretProvenanceEntry[] {
+  return entries.map((entry) => ({
+    encryptedValue: entry.encryptedValue,
+    sourceUserId: entry.sourceUserId,
+    ...(isAnonymousStoredEntry(entry) ? {} : { name: entry.name }),
+    ...(entry.sourceWorkspaceId ? { sourceWorkspaceId: entry.sourceWorkspaceId } : {}),
+  }))
+}
+
+/** Captures committed provenance for the exact bytes produced inside one workspace execution. */
+export async function createWorkspaceFileSecretProvenanceFromRegistry(
+  registry: ResolvedSecretTraceRegistry | undefined,
+  persistedValue: unknown,
+  destinationScope: { userId: string; workspaceId: string },
+  sourceValue: unknown = persistedValue,
+  representations: readonly WorkspaceFileSecretProvenanceRepresentation[] = [],
+  representationsComplete = true
+): Promise<WorkspaceFileSecretProvenanceWriteDecision> {
+  if (!registry) return { safe: true, provenance: { status: 'unknown' } }
+  const sourceProvenance = registry.exportCommittedProvenanceForValue(sourceValue)
+  const persistedProvenance = Object.is(sourceValue, persistedValue)
+    ? sourceProvenance
+    : registry.exportCommittedProvenanceForValue(persistedValue)
+  if (!sourceProvenance.complete || !persistedProvenance.complete) return { safe: false }
+  if (
+    (sourceProvenance.entries.length > 0 &&
+      !isPrivateSecretProvenanceScopeCompatible(sourceProvenance.scope, destinationScope)) ||
+    (persistedProvenance.entries.length > 0 &&
+      !isPrivateSecretProvenanceScopeCompatible(persistedProvenance.scope, destinationScope))
+  ) {
+    return { safe: false }
+  }
+  if (!representationsComplete) {
+    return { safe: false }
+  }
+
+  const provenanceEntryKey = (entry: { name?: string; encryptedValue: string }): string =>
+    `${entry.name ?? ''}\u0000${entry.encryptedValue}`
+  const sourceEntryKeys = new Set(sourceProvenance.entries.map(provenanceEntryKey))
+  const persistedEntryKeys = new Set(persistedProvenance.entries.map(provenanceEntryKey))
+  const representedSourceEntryKeys = new Set(persistedEntryKeys)
+  const derivedRepresentations = new Map<string, { name?: string; persistedValue: string }>()
+  for (const representation of representations) {
+    if (!representation.sourceProvenance.complete) return { safe: false }
+    if (
+      representation.sourceProvenance.entries.length > 0 &&
+      !isPrivateSecretProvenanceScopeCompatible(
+        representation.sourceProvenance.scope,
+        destinationScope
+      )
+    ) {
+      return { safe: false }
+    }
+    for (const entry of representation.sourceProvenance.entries) {
+      const sourceEntryKey = provenanceEntryKey(entry)
+      if (!sourceEntryKeys.has(sourceEntryKey)) return { safe: false }
+      representedSourceEntryKeys.add(sourceEntryKey)
+      if (persistedEntryKeys.has(sourceEntryKey)) continue
+      if (representation.persistedValue.length === 0) {
+        return { safe: false }
+      }
+      derivedRepresentations.set(`${entry.name ?? ''}\u0000${representation.persistedValue}`, {
+        ...(entry.name ? { name: entry.name } : {}),
+        persistedValue: representation.persistedValue,
+      })
+    }
+  }
+  if (
+    sourceProvenance.entries.some(
+      (entry) => !representedSourceEntryKeys.has(provenanceEntryKey(entry))
+    )
+  ) {
+    return { safe: false }
+  }
+  if (persistedProvenance.entries.length === 0 && derivedRepresentations.size === 0) {
+    return { safe: true, provenance: EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE }
+  }
+  const sourceScope = sourceProvenance.scope
+  if (!sourceScope) return { safe: false }
+
+  const entries: WorkspaceFileSecretProvenanceEntry[] = []
+  for (const entry of sourceProvenance.entries) {
+    entries.push({
+      encryptedValue: entry.encryptedValue,
+      sourceUserId: sourceScope.userId,
+      ...(entry.name ? { name: entry.name } : {}),
+      ...(sourceScope.workspaceId ? { sourceWorkspaceId: sourceScope.workspaceId } : {}),
+    })
+  }
+  if (entries.length + derivedRepresentations.size > MAX_WORKSPACE_FILE_SECRET_PROVENANCE_ENTRIES) {
+    return { safe: false }
+  }
+  try {
+    for (const representation of derivedRepresentations.values()) {
+      const { encrypted } = await encryptSecret(representation.persistedValue)
+      entries.push({
+        encryptedValue: encrypted,
+        sourceUserId: sourceScope.userId,
+        ...(representation.name ? { name: representation.name } : {}),
+        ...(sourceScope.workspaceId ? { sourceWorkspaceId: sourceScope.workspaceId } : {}),
+      })
+    }
+  } catch {
+    return { safe: false }
+  }
+  try {
+    return {
+      safe: true,
+      provenance: {
+        status: 'exact',
+        entries: normalizeExactEntries(entries),
+      },
+    }
+  } catch {
+    return { safe: false }
+  }
+}
+
+function isValidStoredEntries(value: unknown): value is StoredWorkspaceFileSecretProvenanceEntry[] {
   if (!Array.isArray(value) || value.length > MAX_WORKSPACE_FILE_SECRET_PROVENANCE_ENTRIES) {
     return false
   }
@@ -142,6 +322,12 @@ function isValidStoredEntries(value: unknown): value is WorkspaceFileSecretProve
       Array.isArray(entry) ||
       typeof (entry as Record<string, unknown>).name !== 'string' ||
       !(entry as Record<string, unknown>).name ||
+      ((entry as Record<string, unknown>).anonymous !== undefined &&
+        (entry as Record<string, unknown>).anonymous !== true) ||
+      ((entry as Record<string, unknown>).anonymous === true &&
+        (entry as Record<string, unknown>).name !== ANONYMOUS_WORKSPACE_FILE_SECRET_STORAGE_NAME &&
+        (entry as Record<string, unknown>).name !==
+          LEGACY_ANONYMOUS_WORKSPACE_FILE_SECRET_STORAGE_NAME) ||
       typeof (entry as Record<string, unknown>).encryptedValue !== 'string' ||
       !(entry as Record<string, unknown>).encryptedValue ||
       typeof (entry as Record<string, unknown>).sourceUserId !== 'string' ||
@@ -151,12 +337,7 @@ function isValidStoredEntries(value: unknown): value is WorkspaceFileSecretProve
     ) {
       return false
     }
-    const record = entry as WorkspaceFileSecretProvenanceEntry
-    bytes +=
-      Buffer.byteLength(record.sourceUserId, 'utf8') +
-      Buffer.byteLength(record.sourceWorkspaceId ?? '', 'utf8') +
-      Buffer.byteLength(record.name, 'utf8') +
-      Buffer.byteLength(record.encryptedValue, 'utf8')
+    bytes += storedEntryLogicalByteSize(entry as StoredWorkspaceFileSecretProvenanceEntry)
     if (bytes > MAX_WORKSPACE_FILE_SECRET_PROVENANCE_BYTES) return false
   }
   return true
@@ -197,7 +378,7 @@ export async function replaceWorkspaceFileSecretProvenanceInTx(
   provenance: WorkspaceFileSecretProvenance
 ): Promise<void> {
   if (provenance.status === 'exact') {
-    const entries = normalizeExactEntries(provenance.entries)
+    const entries = serializeExactEntriesForStorage(provenance.entries)
     await tx
       .insert(workspaceFileSecretProvenance)
       .values({ fileId, contentUpdatedAt, status: 'exact', entries, updatedAt: new Date() })
@@ -226,7 +407,8 @@ export async function initializeWorkspaceFileSecretProvenanceInTx(
   contentUpdatedAt: Date,
   provenance: WorkspaceFileSecretProvenance
 ): Promise<void> {
-  const entries = provenance.status === 'exact' ? normalizeExactEntries(provenance.entries) : []
+  const entries =
+    provenance.status === 'exact' ? serializeExactEntriesForStorage(provenance.entries) : []
   await tx
     .insert(workspaceFileSecretProvenance)
     .values({
@@ -365,7 +547,7 @@ export async function copyWorkspaceFileSecretProvenanceInTx(
   }
   await replaceWorkspaceFileSecretProvenanceInTx(tx, targetFileId, target.contentUpdatedAt, {
     status: 'exact',
-    entries: source.entries,
+    entries: deserializeExactEntriesFromStorage(source.entries),
   })
 }
 
@@ -442,7 +624,7 @@ export async function getBoundWorkspaceFileSecretProvenance(
   ) {
     return { status: 'unknown' }
   }
-  return { status: 'exact', entries: row.entries }
+  return { status: 'exact', entries: deserializeExactEntriesFromStorage(row.entries) }
 }
 
 /** Batch-loads classifications already bound to exact, authorized file metadata snapshots. */
@@ -496,7 +678,10 @@ export async function getBoundWorkspaceFileSecretProvenanceByMetadata(
         result.set(row.id, { status: 'unknown' })
         continue
       }
-      result.set(row.id, { status: 'exact', entries: row.entries })
+      result.set(row.id, {
+        status: 'exact',
+        entries: deserializeExactEntriesFromStorage(row.entries),
+      })
     }
   }
   for (const id of ids) {
@@ -506,22 +691,31 @@ export async function getBoundWorkspaceFileSecretProvenanceByMetadata(
 }
 
 /**
- * Activates only stored secret values that occur in this exact model-visible result. Opaque
- * attachments cannot be semantically scanned, so any nonempty or unknown provenance rejects them.
+ * Authorizes one model-facing view of an exact workspace-file version. Complete text views import
+ * the entire sidecar so representation-changing consumers (for example CSV parsing) retain the
+ * original secret lineage. Derived and opaque views cannot preserve that lineage and fail closed.
  */
-export async function importWorkspaceFileSecretProvenanceForValue(args: {
+export async function importWorkspaceFileSecretProvenanceForModelView(args: {
   workspaceId: string
   identity: WorkspaceFileSecretProvenanceIdentity
-  value: unknown
   registry?: ResolvedSecretTraceRegistry
-  opaqueAttachment?: boolean
+  view: 'complete' | 'derived' | 'opaque'
 }): Promise<boolean> {
   const provenance = await getBoundWorkspaceFileSecretProvenance(args.workspaceId, args.identity)
   if (provenance.status === 'unknown') return false
   if (provenance.entries.length === 0) return true
-  if (args.opaqueAttachment || !args.registry) return false
+  if (args.view !== 'complete' || !args.registry) return false
 
-  return importDurableSecretProvenance(args.registry, provenance, args.value)
+  return importDurableSecretProvenance(args.registry, provenance)
+}
+
+/** Allows opaque bytes to leave private storage only when their exact sidecar is provably empty. */
+export async function isOpaqueWorkspaceFileEgressSafe(
+  workspaceId: string,
+  identity: WorkspaceFileSecretProvenanceIdentity
+): Promise<boolean> {
+  const provenance = await getBoundWorkspaceFileSecretProvenance(workspaceId, identity)
+  return provenance.status === 'exact' && provenance.entries.length === 0
 }
 
 /**

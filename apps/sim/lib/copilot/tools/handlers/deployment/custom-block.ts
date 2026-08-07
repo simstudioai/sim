@@ -10,6 +10,7 @@ import {
   fetchWorkspaceFileBuffer,
   listWorkspaceFiles,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { isOpaqueWorkspaceFileEgressSafe } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { uploadFile } from '@/lib/uploads/core/storage-service'
 import { isImageFileType } from '@/lib/uploads/utils/file-utils'
 import {
@@ -67,6 +68,17 @@ async function resolveIconUrl(
   }
   if (record.size > MAX_ICON_BYTES) {
     throw new CustomBlockValidationError('Icon file must be 5MB or smaller')
+  }
+  if (
+    !(await isOpaqueWorkspaceFileEgressSafe(workspaceId, {
+      fileId: record.id,
+      key: record.key,
+      context: record.storageContext ?? 'workspace',
+    }))
+  ) {
+    throw new CustomBlockValidationError(
+      'Icon file cannot be published because its secret provenance is unavailable'
+    )
   }
 
   const buffer = await fetchWorkspaceFileBuffer(record)

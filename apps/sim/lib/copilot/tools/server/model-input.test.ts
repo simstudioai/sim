@@ -3,12 +3,12 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockImportWorkspaceFileSecretProvenanceForValue } = vi.hoisted(() => ({
-  mockImportWorkspaceFileSecretProvenanceForValue: vi.fn(),
+const { mockIsOpaqueWorkspaceFileEgressSafe } = vi.hoisted(() => ({
+  mockIsOpaqueWorkspaceFileEgressSafe: vi.fn(),
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  importWorkspaceFileSecretProvenanceForValue: mockImportWorkspaceFileSecretProvenanceForValue,
+  isOpaqueWorkspaceFileEgressSafe: mockIsOpaqueWorkspaceFileEgressSafe,
   MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE:
     'File cannot be sent to a model because its secret provenance is unavailable',
 }))
@@ -36,7 +36,7 @@ const file = {
 describe('server tool model-input boundary', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockImportWorkspaceFileSecretProvenanceForValue.mockResolvedValue(true)
+    mockIsOpaqueWorkspaceFileEgressSafe.mockResolvedValue(true)
   })
 
   it('projects only active text secrets to their canonical aliases', () => {
@@ -71,30 +71,21 @@ describe('server tool model-input boundary', () => {
   })
 
   it('binds opaque checks to the exact workspace file before allowing model egress', async () => {
-    const registry = new ResolvedSecretTraceRegistry()
-
     await expect(
       assertOpaqueWorkspaceFileModelSafe({
         workspaceId: 'workspace-1',
         file,
-        context: { userId: 'user-1', resolvedSecretTraceRegistry: registry },
       })
     ).resolves.toBeUndefined()
-    expect(mockImportWorkspaceFileSecretProvenanceForValue).toHaveBeenCalledWith({
-      workspaceId: 'workspace-1',
-      identity: {
-        fileId: 'file-1',
-        key: 'workspace/workspace-1/reference.png',
-        context: 'workspace',
-      },
-      value: { key: 'workspace/workspace-1/reference.png' },
-      registry,
-      opaqueAttachment: true,
+    expect(mockIsOpaqueWorkspaceFileEgressSafe).toHaveBeenCalledWith('workspace-1', {
+      fileId: 'file-1',
+      key: 'workspace/workspace-1/reference.png',
+      context: 'workspace',
     })
   })
 
   it('rejects tainted or unavailable opaque provenance', async () => {
-    mockImportWorkspaceFileSecretProvenanceForValue.mockResolvedValue(false)
+    mockIsOpaqueWorkspaceFileEgressSafe.mockResolvedValue(false)
 
     await expect(
       assertOpaqueWorkspaceFileModelSafe({ workspaceId: 'workspace-1', file })

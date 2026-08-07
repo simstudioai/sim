@@ -1,29 +1,63 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it, vi } from 'vitest'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const {
+  executeInSandboxMock,
+  executeShellInSandboxMock,
+  fetchWorkspaceFileBufferMock,
+  getWorkspaceFileMock,
+  isOpaqueWorkspaceFileEgressSafeMock,
+  loadCompiledDocMock,
+  storeCompiledDocMock,
+} = vi.hoisted(() => ({
+  executeInSandboxMock: vi.fn(),
+  executeShellInSandboxMock: vi.fn(),
+  fetchWorkspaceFileBufferMock: vi.fn(),
+  getWorkspaceFileMock: vi.fn(),
+  isOpaqueWorkspaceFileEgressSafeMock: vi.fn(),
+  loadCompiledDocMock: vi.fn(),
+  storeCompiledDocMock: vi.fn(),
+}))
 
 vi.mock('@/lib/execution/remote-sandbox', () => ({
-  executeInSandbox: vi.fn(),
-  executeShellInSandbox: vi.fn(),
+  executeInSandbox: executeInSandboxMock,
+  executeShellInSandbox: executeShellInSandboxMock,
 }))
 vi.mock('@/lib/execution/languages', () => ({
   CodeLanguage: { javascript: 'javascript', python: 'python' },
 }))
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  getWorkspaceFile: vi.fn(),
-  fetchWorkspaceFileBuffer: vi.fn(),
+  getWorkspaceFile: getWorkspaceFileMock,
+  fetchWorkspaceFileBuffer: fetchWorkspaceFileBufferMock,
+}))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
+  isOpaqueWorkspaceFileEgressSafe: isOpaqueWorkspaceFileEgressSafeMock,
 }))
 vi.mock('./doc-compiled-store', () => ({
-  loadCompiledDoc: vi.fn(),
-  storeCompiledDoc: vi.fn(),
+  loadCompiledDoc: loadCompiledDocMock,
+  storeCompiledDoc: storeCompiledDocMock,
 }))
 
-import { collectReferencedFileIds } from './doc-compile'
+import { collectReferencedFileIds, compileDoc } from './doc-compile'
 
 const ID = '550e8400-e29b-41d4-a716-446655440000'
 
+function referencedFileSource(count: number): string {
+  return Array.from({ length: count }, (_, index) => `getFileBase64('file-${index}')`).join('\n')
+}
+
+afterAll(resetEnvFlagsMock)
+
 describe('collectReferencedFileIds', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    setEnvFlags({ isDocSandboxEnabled: true })
+    isOpaqueWorkspaceFileEgressSafeMock.mockResolvedValue(true)
+  })
+
   it('captures the id from getFileBase64(...) with single or double quotes', () => {
     expect(collectReferencedFileIds(`await getFileBase64('${ID}')`)).toEqual(new Set([ID]))
     expect(collectReferencedFileIds(`getFileBase64("abc_def-1")`)).toEqual(new Set(['abc_def-1']))
@@ -71,5 +105,117 @@ describe('collectReferencedFileIds', () => {
 
   it('returns an empty set when there are no image references', () => {
     expect(collectReferencedFileIds(`slide.addText('hello', { x: 1, y: 1 })`)).toEqual(new Set())
+  })
+
+  it('retains all references at the remote staging limit', () => {
+    const ids = collectReferencedFileIds(referencedFileSource(20))
+
+    expect(ids.size).toBe(20)
+    expect(ids.has('file-19')).toBe(true)
+  })
+
+  it('stops collecting at the one-over-limit sentinel', () => {
+    const ids = collectReferencedFileIds(referencedFileSource(100))
+
+    expect(ids.size).toBe(21)
+    expect(ids.has('file-20')).toBe(true)
+    expect(ids.has('file-21')).toBe(false)
+  })
+
+  it('rejects remote compilation at 21 references before resolving file metadata', async () => {
+    await expect(
+      compileDoc({
+        source: referencedFileSource(21),
+        fileName: 'report.pdf',
+        workspaceId: 'workspace-1',
+      })
+    ).rejects.toThrow('More than 20 referenced input files; maximum is 20')
+    expect(getWorkspaceFileMock).not.toHaveBeenCalled()
+    expect(executeInSandboxMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects a referenced file before staging bytes when opaque egress is unsafe', async () => {
+    getWorkspaceFileMock.mockResolvedValue({
+      id: ID,
+      workspaceId: 'workspace-1',
+      name: 'reference.png',
+      key: `workspace/workspace-1/${ID}-reference.png`,
+      path: '/api/files/serve/reference.png',
+      size: 10,
+      type: 'image/png',
+      uploadedBy: 'user-1',
+      uploadedAt: new Date('2026-08-05T00:00:00.000Z'),
+      updatedAt: new Date('2026-08-05T00:00:00.000Z'),
+      storageContext: 'workspace',
+    })
+    isOpaqueWorkspaceFileEgressSafeMock.mockResolvedValue(false)
+
+    await expect(
+      compileDoc({
+        source: `image = await getFileBase64('${ID}')`,
+        fileName: 'report.pdf',
+        workspaceId: 'workspace-1',
+      })
+    ).rejects.toThrow('secret provenance is unavailable')
+
+    expect(isOpaqueWorkspaceFileEgressSafeMock).toHaveBeenCalledWith('workspace-1', {
+      fileId: ID,
+      key: `workspace/workspace-1/${ID}-reference.png`,
+      context: 'workspace',
+    })
+    expect(fetchWorkspaceFileBufferMock).not.toHaveBeenCalled()
+    expect(loadCompiledDocMock).not.toHaveBeenCalled()
+    expect(executeInSandboxMock).not.toHaveBeenCalled()
+    expect(storeCompiledDocMock).not.toHaveBeenCalled()
+  })
+
+  it('binds cached artifacts to the current referenced-file content version', async () => {
+    const contentUpdatedAt = new Date('2026-08-05T01:00:00.000Z')
+    getWorkspaceFileMock.mockResolvedValue({
+      id: ID,
+      workspaceId: 'workspace-1',
+      name: 'reference.png',
+      key: `workspace/workspace-1/${ID}-reference.png`,
+      path: '/api/files/serve/reference.png',
+      size: 10,
+      type: 'image/png',
+      uploadedBy: 'user-1',
+      uploadedAt: new Date('2026-08-05T00:00:00.000Z'),
+      updatedAt: contentUpdatedAt,
+      contentUpdatedAt,
+      storageContext: 'workspace',
+    })
+    loadCompiledDocMock.mockResolvedValue(Buffer.from('%PDF-cached'))
+
+    await expect(
+      compileDoc({
+        source: `image = await getFileBase64('${ID}')`,
+        fileName: 'report.pdf',
+        workspaceId: 'workspace-1',
+      })
+    ).resolves.toEqual({
+      buffer: Buffer.from('%PDF-cached'),
+      contentType: 'application/pdf',
+    })
+
+    expect(loadCompiledDocMock).toHaveBeenCalledWith(
+      'workspace-1',
+      `image = await getFileBase64('${ID}')`,
+      'pdf',
+      JSON.stringify({
+        version: 1,
+        inputs: [
+          {
+            fileId: ID,
+            key: `workspace/workspace-1/${ID}-reference.png`,
+            context: 'workspace',
+            contentVersion: contentUpdatedAt.toISOString(),
+            size: 10,
+          },
+        ],
+      })
+    )
+    expect(fetchWorkspaceFileBufferMock).not.toHaveBeenCalled()
+    expect(executeInSandboxMock).not.toHaveBeenCalled()
   })
 })

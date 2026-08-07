@@ -9,13 +9,24 @@ import { withCopilotSpan } from '@/lib/copilot/request/otel'
 import { denyOutputWriteWithoutWritePermission } from '@/lib/copilot/request/tools/permissions'
 import {
   projectToolErrorMessageForCopilot,
-  projectToolOutputForPersistence,
+  TOOL_OUTPUT_PERSISTENCE_UNAVAILABLE_ERROR,
 } from '@/lib/copilot/request/tools/resolved-secret-result'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { decodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
 import { writeWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
+import {
+  createWorkspaceFileSecretProvenanceFromRegistry,
+  type WorkspaceFileSecretProvenanceRepresentation,
+} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import type { ResolvedSecretMatcher } from '@/executor/utils/resolved-secret-matcher'
+import {
+  createResolvedSecretMatcher,
+  scanResolvedSecretString,
+} from '@/executor/utils/resolved-secret-matcher'
+import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('CopilotToolResultFiles')
+const MAX_OUTPUT_FILE_PROVENANCE_REPRESENTATIONS = 10_000
 
 export const OUTPUT_PATH_TOOLS: Set<string> = new Set([FunctionExecute.id, UserTable.id])
 
@@ -99,21 +110,7 @@ export function escapeCsvValue(value: unknown): string {
 }
 
 export function convertRowsToCsv(rows: Record<string, unknown>[]): string {
-  if (rows.length === 0) return ''
-
-  const headerSet = new Set<string>()
-  for (const row of rows) {
-    for (const key of Object.keys(row)) {
-      headerSet.add(key)
-    }
-  }
-  const headers = [...headerSet]
-
-  const lines = [headers.map(escapeCsvValue).join(',')]
-  for (const row of rows) {
-    lines.push(headers.map((h) => escapeCsvValue(row[h])).join(','))
-  }
-  return lines.join('\n')
+  return convertRowsToCsvWithProvenance(rows).content
 }
 
 export function normalizeOutputWorkspaceFileName(outputPath: string): string {
@@ -131,19 +128,149 @@ export function resolveOutputFormat(fileName: string, explicit?: string): Output
   return EXT_TO_FORMAT[ext] ?? 'json'
 }
 
-export function serializeOutputForFile(output: unknown, format: OutputFormat): string {
+interface SerializedOutputFile {
+  content: string
+  provenanceValue: unknown
+  provenanceRepresentations?: readonly WorkspaceFileSecretProvenanceRepresentation[]
+  provenanceRepresentationsComplete?: boolean
+}
+
+function convertRowsToCsvWithProvenance(
+  rows: Record<string, unknown>[],
+  registry?: ResolvedSecretTraceRegistry
+): {
+  content: string
+  representations: readonly WorkspaceFileSecretProvenanceRepresentation[]
+  representationSourceValues: readonly string[]
+  representationsComplete: boolean
+} {
+  if (rows.length === 0) {
+    return {
+      content: '',
+      representations: [],
+      representationSourceValues: [],
+      representationsComplete: true,
+    }
+  }
+
+  const headerSet = new Set<string>()
+  for (const row of rows) {
+    for (const key of Object.keys(row)) {
+      headerSet.add(key)
+    }
+  }
+  const headers = [...headerSet]
+  const representations = new Map<
+    string,
+    {
+      representation: WorkspaceFileSecretProvenanceRepresentation
+      sourceValue: string
+    }
+  >()
+  let representationsComplete = true
+  let csvQuoteTransformMatcher: ResolvedSecretMatcher | undefined
+  if (registry) {
+    try {
+      const scanLiterals = new Set<string>()
+      for (const { plaintext } of registry.getActiveMatches()) {
+        const jsonEncoded = JSON.stringify(plaintext).slice(1, -1)
+        if (plaintext.includes('"')) scanLiterals.add(plaintext)
+        if (jsonEncoded.includes('"')) scanLiterals.add(jsonEncoded)
+      }
+      csvQuoteTransformMatcher = createResolvedSecretMatcher(
+        [...scanLiterals].map((plaintext) => ({ plaintext, replacement: '' }))
+      )
+    } catch {
+      representationsComplete = false
+    }
+  }
+  const serializeCell = (sourceValue: unknown): string => {
+    const persistedValue = escapeCsvValue(sourceValue)
+    const serializedSource =
+      sourceValue === null || sourceValue === undefined
+        ? ''
+        : typeof sourceValue === 'object'
+          ? JSON.stringify(sourceValue)
+          : String(sourceValue)
+    if (
+      registry &&
+      csvQuoteTransformMatcher &&
+      representationsComplete &&
+      serializedSource.includes('"')
+    ) {
+      try {
+        scanResolvedSecretString(serializedSource, csvQuoteTransformMatcher, (scanLiteral) => {
+          if (!representationsComplete) return
+          const transformedLiteral = scanLiteral.replace(/"/g, '""')
+          const sourceProvenance = registry.exportCommittedProvenanceForValue(scanLiteral)
+          if (!sourceProvenance.complete) {
+            representationsComplete = false
+            return
+          }
+          if (sourceProvenance.entries.length === 0) return
+          const representationKey = `${transformedLiteral}\u0000${sourceProvenance.entries
+            .map((entry) => `${entry.name ?? ''}\u0000${entry.encryptedValue}`)
+            .join('\u0001')}`
+          if (representations.has(representationKey)) return
+          if (representations.size >= MAX_OUTPUT_FILE_PROVENANCE_REPRESENTATIONS) {
+            representationsComplete = false
+            return
+          }
+          representations.set(representationKey, {
+            representation: { sourceProvenance, persistedValue: transformedLiteral },
+            sourceValue: scanLiteral,
+          })
+        })
+      } catch {
+        representationsComplete = false
+      }
+    }
+    return persistedValue
+  }
+
+  const lines = [headers.map(serializeCell).join(',')]
+  for (const row of rows) {
+    lines.push(headers.map((header) => serializeCell(row[header])).join(','))
+  }
+  return {
+    content: lines.join('\n'),
+    representations: [...representations.values()].map(({ representation }) => representation),
+    representationSourceValues: [...representations.values()].map(({ sourceValue }) => sourceValue),
+    representationsComplete,
+  }
+}
+
+function prepareOutputForFile(
+  output: unknown,
+  format: OutputFormat,
+  registry?: ResolvedSecretTraceRegistry
+): SerializedOutputFile {
   const unwrapped = unwrapFunctionExecuteOutput(output)
 
-  if (typeof unwrapped === 'string') return unwrapped
+  if (typeof unwrapped === 'string') {
+    return { content: unwrapped, provenanceValue: unwrapped }
+  }
 
   if (format === 'csv') {
     const rows = extractTabularData(unwrapped)
     if (rows && rows.length > 0) {
-      return convertRowsToCsv(rows)
+      const { content, representations, representationSourceValues, representationsComplete } =
+        convertRowsToCsvWithProvenance(rows, registry)
+      return {
+        content,
+        provenanceValue: [content, ...representationSourceValues],
+        provenanceRepresentations: representations,
+        provenanceRepresentationsComplete: representationsComplete,
+      }
     }
   }
 
-  return JSON.stringify(unwrapped, null, 2)
+  const content = JSON.stringify(unwrapped, null, 2)
+  return { content, provenanceValue: content }
+}
+
+export function serializeOutputForFile(output: unknown, format: OutputFormat): string {
+  return prepareOutputForFile(output, format).content
 }
 
 export interface OutputFileDeclaration {
@@ -213,7 +340,6 @@ export async function maybeWriteOutputToFile(
 
   const outputFiles = getOutputFileDeclarations(params).filter((file) => !file.sandboxPath)
   if (outputFiles.length === 0) return result
-
   // The tool declared workspace file outputs; passing the successful result
   // through without writing them would be a silent no-op the model reads as
   // "file written", so fail loudly instead — but keep the computed output so
@@ -230,6 +356,7 @@ export async function maybeWriteOutputToFile(
       output: result.output,
     }
   }
+  const { userId, workspaceId } = context
 
   const outputObject =
     result.output && typeof result.output === 'object' && !Array.isArray(result.output)
@@ -252,13 +379,7 @@ export async function maybeWriteOutputToFile(
   const denied = denyOutputWriteWithoutWritePermission(context)
   if (denied) return denied
 
-  const persistedOutput = projectToolOutputForPersistence(
-    unwrapFunctionExecuteOutput(result.output),
-    context.resolvedSecretTraceRegistry
-  )
-  if (!persistedOutput.safe) {
-    return { success: false, error: persistedOutput.error }
-  }
+  const registry = context.resolvedSecretTraceRegistry
 
   // Only span the actual write path (where we upload to storage). Fast
   // no-op returns above don't need a span — they'd just pad the trace
@@ -267,27 +388,74 @@ export async function maybeWriteOutputToFile(
     TraceSpan.CopilotToolsWriteOutputFile,
     {
       [TraceAttr.ToolName]: toolName,
-      [TraceAttr.WorkspaceId]: context.workspaceId,
+      [TraceAttr.WorkspaceId]: workspaceId,
     },
     async (span) => {
       try {
-        const writtenFiles = []
+        const preparedByFormat = new Map<
+          OutputFormat,
+          Promise<{
+            buffer: Buffer
+            secretProvenanceDecision: Awaited<
+              ReturnType<typeof createWorkspaceFileSecretProvenanceFromRegistry>
+            >
+          }>
+        >()
+        const preparedFiles = []
         for (const outputFile of outputFiles) {
           const fileName = normalizeOutputWorkspaceFileName(
             outputFile.formatPath ?? outputFile.path
           )
           const format = resolveOutputFormat(fileName, outputFile.format)
-          const content = serializeOutputForFile(persistedOutput.value, format)
           const contentType = outputFile.mimeType || FORMAT_TO_CONTENT_TYPE[format]
-          const buffer = Buffer.from(content, 'utf-8')
+          let prepared = preparedByFormat.get(format)
+          if (!prepared) {
+            prepared = (async () => {
+              const {
+                content,
+                provenanceValue,
+                provenanceRepresentations,
+                provenanceRepresentationsComplete,
+              } = prepareOutputForFile(result.output, format, registry)
+              return {
+                buffer: Buffer.from(content, 'utf-8'),
+                secretProvenanceDecision: await createWorkspaceFileSecretProvenanceFromRegistry(
+                  registry,
+                  content,
+                  { userId, workspaceId },
+                  provenanceValue,
+                  provenanceRepresentations,
+                  provenanceRepresentationsComplete
+                ),
+              }
+            })()
+            preparedByFormat.set(format, prepared)
+          }
+          const { buffer, secretProvenanceDecision } = await prepared
+          preparedFiles.push({ outputFile, format, contentType, buffer, secretProvenanceDecision })
+        }
+        if (preparedFiles.some(({ secretProvenanceDecision }) => !secretProvenanceDecision.safe)) {
+          return { success: false, error: TOOL_OUTPUT_PERSISTENCE_UNAVAILABLE_ERROR }
+        }
 
+        const writtenFiles = []
+        for (const {
+          outputFile,
+          format,
+          contentType,
+          buffer,
+          secretProvenanceDecision,
+        } of preparedFiles) {
           if (context.abortSignal?.aborted) {
             throw new Error('Request aborted before tool mutation could be applied')
           }
+          if (!secretProvenanceDecision.safe) {
+            return { success: false, error: TOOL_OUTPUT_PERSISTENCE_UNAVAILABLE_ERROR }
+          }
 
           const written = await writeWorkspaceFileByPath({
-            workspaceId: context.workspaceId!,
-            userId: context.userId!,
+            workspaceId,
+            userId,
             target: {
               path: outputFile.path,
               mode: outputFile.mode ?? 'create',
@@ -295,6 +463,7 @@ export async function maybeWriteOutputToFile(
             },
             buffer,
             inferredMimeType: contentType,
+            secretProvenance: secretProvenanceDecision.provenance,
           })
           writtenFiles.push({
             ...written,

@@ -248,6 +248,42 @@ describe('ResolvedSecretTraceRegistry', () => {
     }
   })
 
+  it('keeps a named anonymous secret distinct from anonymous provenance', async () => {
+    mockDecryptSecret.mockResolvedValueOnce({ decrypted: 'same-secret' })
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'anonymous', plaintext: 'same-secret', encryptedValue: 'shared-ciphertext' }],
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+    registry.recordResolved('anonymous', 'same-secret')
+    await registry.importProvenance(
+      {
+        version: 1,
+        complete: true,
+        entries: [{ encryptedValue: 'shared-ciphertext' }],
+        scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+      },
+      { trusted: true, anonymous: true }
+    )
+
+    expect(registry.exportCommittedProvenanceForValue('same-secret')).toEqual({
+      version: 1,
+      complete: true,
+      entries: [
+        { encryptedValue: 'shared-ciphertext' },
+        { name: 'anonymous', encryptedValue: 'shared-ciphertext' },
+      ],
+      scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+    })
+    const snapshot = registry.getModelEgressSnapshot()
+    expect(snapshot.complete).toBe(true)
+    if (snapshot.complete) {
+      expect(snapshot.matches).toContainEqual({
+        plaintext: 'same-secret',
+        replacement: ANONYMOUS_SECRET_TRACE_REPLACEMENT,
+      })
+    }
+  })
+
   it('projects committed provenance while temporary activations are pending', () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'API_KEY', plaintext: 'secret-value', encryptedValue: 'encrypted-value' },
@@ -699,6 +735,102 @@ describe('ResolvedSecretTraceRegistry', () => {
       complete: true,
       entries: [{ name: 'PRESENT', encryptedValue: 'present-ciphertext' }],
     })
+  })
+
+  it('exports active provenance for a registered legacy runtime alias', () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'API-KEY', plaintext: 'secret-value', encryptedValue: 'present-ciphertext' },
+    ])
+    registry.recordResolved('API-KEY', 'secret-value')
+
+    expect(registry.exportCommittedProvenanceForValue('prefix __var_API_KEY suffix')).toEqual({
+      version: 1,
+      complete: true,
+      entries: [{ name: 'API-KEY', encryptedValue: 'present-ciphertext' }],
+    })
+  })
+
+  it('ignores repeated unrelated runtime aliases without exhausting the scan budget', () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'API_KEY', plaintext: 'secret-value', encryptedValue: 'present-ciphertext' },
+    ])
+    registry.recordResolved('API_KEY', 'secret-value')
+
+    expect(
+      registry.exportCommittedProvenanceForValue(`${'__var_Z '.repeat(1_000_001)}__var_API_KEY`)
+    ).toEqual({
+      version: 1,
+      complete: true,
+      entries: [{ name: 'API_KEY', encryptedValue: 'present-ciphertext' }],
+    })
+  })
+
+  it('matches legacy runtime aliases as complete tokens instead of prefixes', () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'A', plaintext: 'secret-a', encryptedValue: 'ciphertext-a' },
+      { name: 'API_KEY', plaintext: 'secret-api', encryptedValue: 'ciphertext-api' },
+    ])
+    registry.recordResolved('A', 'secret-a')
+    registry.recordResolved('API_KEY', 'secret-api')
+
+    expect(registry.exportCommittedProvenanceForValue('__var_API_KEY')).toEqual({
+      version: 1,
+      complete: true,
+      entries: [{ name: 'API_KEY', encryptedValue: 'ciphertext-api' }],
+    })
+  })
+
+  it('conservatively retains every secret mapped to a colliding runtime alias', () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'API-KEY', plaintext: 'first-secret', encryptedValue: 'first-ciphertext' },
+      { name: 'API_KEY', plaintext: 'second-secret', encryptedValue: 'second-ciphertext' },
+    ])
+    registry.recordResolved('API-KEY', 'first-secret')
+    registry.recordResolved('API_KEY', 'second-secret')
+
+    expect(registry.exportCommittedProvenanceForValue('__var_API_KEY')).toEqual({
+      version: 1,
+      complete: true,
+      entries: [
+        { name: 'API-KEY', encryptedValue: 'first-ciphertext' },
+        { name: 'API_KEY', encryptedValue: 'second-ciphertext' },
+      ],
+    })
+  })
+
+  it('retains an alias-specific entry when multiple names share one plaintext', () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'FIRST', plaintext: 'shared-secret', encryptedValue: 'first-ciphertext' },
+      { name: 'SECOND', plaintext: 'shared-secret', encryptedValue: 'second-ciphertext' },
+    ])
+    registry.recordResolved('FIRST', 'shared-secret')
+    registry.recordResolved('SECOND', 'shared-secret')
+
+    expect(registry.exportCommittedProvenanceForValue('__var_SECOND')).toEqual({
+      version: 1,
+      complete: true,
+      entries: [{ name: 'SECOND', encryptedValue: 'second-ciphertext' }],
+    })
+  })
+
+  it('conservatively retains every active secret that shares a raw plaintext literal', () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'FIRST', plaintext: 'true', encryptedValue: 'first-ciphertext' },
+      { name: 'SECOND', plaintext: 'true', encryptedValue: 'second-ciphertext' },
+    ])
+    registry.recordResolved('FIRST', 'true')
+    registry.recordResolved('SECOND', 'true')
+
+    const expected = {
+      version: 1 as const,
+      complete: true,
+      entries: [
+        { name: 'FIRST', encryptedValue: 'first-ciphertext' },
+        { name: 'SECOND', encryptedValue: 'second-ciphertext' },
+      ],
+    }
+    expect(registry.exportCommittedProvenanceForValue('true')).toEqual(expected)
+    expect(registry.exportCommittedProvenanceForValue(true)).toEqual(expected)
   })
 
   it('exports active numeric, boolean, and null literals crossing a value boundary', () => {

@@ -8,7 +8,7 @@ const {
   mockGenerateContent,
   mockGenerateFalAudio,
   mockGenerateFalVideo,
-  mockImportWorkspaceFileSecretProvenanceForValue,
+  mockIsOpaqueWorkspaceFileEgressSafe,
   mockResolveWorkspaceFileReference,
   mockWriteWorkspaceFileByPath,
 } = vi.hoisted(() => ({
@@ -16,7 +16,7 @@ const {
   mockGenerateContent: vi.fn(),
   mockGenerateFalAudio: vi.fn(),
   mockGenerateFalVideo: vi.fn(),
-  mockImportWorkspaceFileSecretProvenanceForValue: vi.fn(),
+  mockIsOpaqueWorkspaceFileEgressSafe: vi.fn(),
   mockResolveWorkspaceFileReference: vi.fn(),
   mockWriteWorkspaceFileByPath: vi.fn(),
 }))
@@ -37,7 +37,7 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   resolveWorkspaceFileReference: mockResolveWorkspaceFileReference,
 }))
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  importWorkspaceFileSecretProvenanceForValue: mockImportWorkspaceFileSecretProvenanceForValue,
+  isOpaqueWorkspaceFileEgressSafe: mockIsOpaqueWorkspaceFileEgressSafe,
   MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE:
     'File cannot be sent to a model because its secret provenance is unavailable',
 }))
@@ -79,7 +79,7 @@ function contextWithSecrets(
 describe('Mothership media model boundaries', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockImportWorkspaceFileSecretProvenanceForValue.mockResolvedValue(true)
+    mockIsOpaqueWorkspaceFileEgressSafe.mockResolvedValue(true)
     mockResolveWorkspaceFileReference.mockResolvedValue(file)
     mockFetchWorkspaceFileBuffer.mockResolvedValue(Buffer.from('opaque-media'))
     mockWriteWorkspaceFileByPath.mockResolvedValue({
@@ -187,7 +187,7 @@ describe('Mothership media model boundaries', () => {
   ])(
     'rejects unsafe %s references before fetching bytes or calling a model',
     async (_name, run) => {
-      mockImportWorkspaceFileSecretProvenanceForValue.mockResolvedValue(false)
+      mockIsOpaqueWorkspaceFileEgressSafe.mockResolvedValue(false)
 
       await expect(run()).resolves.toEqual(
         expect.objectContaining({

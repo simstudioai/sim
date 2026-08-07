@@ -1,6 +1,7 @@
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
 import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
+import { MAX_INLINE_MATERIALIZATION_BYTES } from '@/lib/execution/payloads/limits'
 import {
   createResolvedSecretMatcher,
   OPAQUE_RESOLVED_SECRET_REPLACEMENT,
@@ -17,8 +18,9 @@ const MAX_SERIALIZED_PROVENANCE_BYTES = 8 * 1024 * 1024
 const MAX_TRACE_CATALOG_ENTRIES = MAX_PROVENANCE_ENTRIES
 const MAX_TRACE_CATALOG_BYTES = 8 * 1024 * 1024
 const MAX_PROVENANCE_FILTER_NODES = 50_000
-const MAX_PROVENANCE_FILTER_CHARACTERS = 16 * 1024 * 1024
+const MAX_PROVENANCE_FILTER_CHARACTERS = MAX_INLINE_MATERIALIZATION_BYTES
 const MAX_PROVENANCE_FILTER_MATCH_EVENTS = 1_000_000
+const LEGACY_RUNTIME_ALIAS_PATTERN = /__var_[A-Za-z0-9_]+/g
 const ERROR_CONTENT_PROPERTY_NAMES = ['name', 'message', 'stack', 'cause', 'errors'] as const
 const PROVENANCE_PROPERTY_NAMES = new Set(['version', 'complete', 'entries', 'scope'])
 const PROVENANCE_ENTRY_PROPERTY_NAMES = new Set(['encryptedValue', 'name'])
@@ -60,6 +62,17 @@ interface ActiveSecretEntry extends ResolvedSecretTraceCatalogEntry {
   anonymous: boolean
 }
 
+interface PreparedProvenanceFilter {
+  candidatesByScanLiteral: ReadonlyMap<string, readonly ActiveSecretEntry[]>
+  candidatesByAlias: ReadonlyMap<string, readonly ActiveSecretEntry[]>
+  candidateEntryKeys: ReadonlySet<string>
+  matcher?: ResolvedSecretMatcher
+}
+
+type PreparedProvenanceFilterResult =
+  | { complete: true; filter: PreparedProvenanceFilter }
+  | { complete: false }
+
 export interface ImportResolvedSecretTraceProvenanceOptions {
   trusted: boolean
   anonymous?: boolean
@@ -93,6 +106,16 @@ function cloneProvenanceScope(scope: ResolvedSecretTraceScopeV1): ResolvedSecret
     userId: scope.userId,
     ...(scope.workspaceId ? { workspaceId: scope.workspaceId } : {}),
   }
+}
+
+function createLegacyRuntimeAlias(name: string): string {
+  return `__var_${name.replace(/[^a-zA-Z0-9_]/g, '_')}`
+}
+
+function activeEntryKey(entry: ActiveSecretEntry): string {
+  return entry.anonymous
+    ? `anonymous\u0000${entry.encryptedValue}`
+    : `named\u0000${entry.name}\u0000${entry.encryptedValue}`
 }
 
 function serializedJsonStringByteSize(value: string): number {
@@ -436,6 +459,10 @@ export class ResolvedSecretTraceRegistry {
   private complete = true
   private pendingActivations = 0
   private modelEgressRevision = 0
+  private activeProvenanceFilterCache?: {
+    revision: number
+    result: PreparedProvenanceFilterResult
+  }
   private readonly scope?: ResolvedSecretTraceScopeV1
   private readonly completeProvenanceEnvelopeBytes: number
 
@@ -534,7 +561,7 @@ export class ResolvedSecretTraceRegistry {
     const requestedAliases = new Set(aliases)
     const entriesByAlias = new Map<string, ResolvedSecretTraceCatalogEntry[]>()
     for (const entry of this.catalog.values()) {
-      const alias = `__var_${entry.name.replace(/[^a-zA-Z0-9_]/g, '_')}`
+      const alias = createLegacyRuntimeAlias(entry.name)
       const entries = entriesByAlias.get(alias) ?? []
       entries.push(entry)
       entriesByAlias.set(alias, entries)
@@ -659,7 +686,7 @@ export class ResolvedSecretTraceRegistry {
       .map(
         (entry): ActiveSecretEntry => ({
           ...entry,
-          plaintext: `__var_${entry.name.replace(/[^a-zA-Z0-9_]/g, '_')}`,
+          plaintext: createLegacyRuntimeAlias(entry.name),
         })
       )
     const matches = this.withJsonStringEncodedMatches(
@@ -812,7 +839,11 @@ export class ResolvedSecretTraceRegistry {
   ): ResolvedSecretTraceProvenanceV1 {
     if (!this.isComplete()) return { version: 1, complete: false, entries: [] }
 
-    return this.exportProvenanceForValueFromEntries(value, this.activeEntries.values(), options)
+    return this.exportProvenanceForValueWithPreparedFilter(
+      value,
+      this.getPreparedActiveProvenanceFilter(),
+      options
+    )
   }
 
   /**
@@ -826,7 +857,11 @@ export class ResolvedSecretTraceRegistry {
   ): ResolvedSecretTraceProvenanceV1 {
     if (!this.complete) return { version: 1, complete: false, entries: [] }
 
-    return this.exportProvenanceForValueFromEntries(value, this.activeEntries.values(), options)
+    return this.exportProvenanceForValueWithPreparedFilter(
+      value,
+      this.getPreparedActiveProvenanceFilter(),
+      options
+    )
   }
 
   /**
@@ -864,7 +899,27 @@ export class ResolvedSecretTraceRegistry {
     candidateEntries: Iterable<ActiveSecretEntry>,
     options: ExportResolvedSecretTraceProvenanceForValueOptions
   ): ResolvedSecretTraceProvenanceV1 {
-    const candidatesByPlaintext = new Map<string, ActiveSecretEntry>()
+    return this.exportProvenanceForValuesWithPreparedFilter(
+      values,
+      this.prepareProvenanceFilter(candidateEntries),
+      options
+    )
+  }
+
+  private getPreparedActiveProvenanceFilter(): PreparedProvenanceFilterResult {
+    if (this.activeProvenanceFilterCache?.revision === this.modelEgressRevision) {
+      return this.activeProvenanceFilterCache.result
+    }
+
+    const result = this.prepareProvenanceFilter(this.activeEntries.values())
+    this.activeProvenanceFilterCache = { revision: this.modelEgressRevision, result }
+    return result
+  }
+
+  private prepareProvenanceFilter(
+    candidateEntries: Iterable<ActiveSecretEntry>
+  ): PreparedProvenanceFilterResult {
+    const candidatesByPlaintext = new Map<string, ActiveSecretEntry[]>()
     const sortedCandidateEntries = [...candidateEntries].sort(
       (left, right) =>
         compareStrings(left.name, right.name) ||
@@ -872,33 +927,80 @@ export class ResolvedSecretTraceRegistry {
     )
     for (const entry of sortedCandidateEntries) {
       if (entry.plaintext.length === 0) continue
-      const existing = candidatesByPlaintext.get(entry.plaintext)
-      if (!existing || (!existing.anonymous && entry.anonymous)) {
-        candidatesByPlaintext.set(entry.plaintext, entry)
+      const candidates = candidatesByPlaintext.get(entry.plaintext) ?? []
+      const entryKey = activeEntryKey(entry)
+      if (!candidates.some((candidate) => activeEntryKey(candidate) === entryKey)) {
+        candidates.push(entry)
+        candidatesByPlaintext.set(entry.plaintext, candidates)
       }
     }
 
     const candidatesByScanLiteral = new Map<string, ActiveSecretEntry[]>()
+    const candidateEntryKeys = new Set<string>()
     const addScanLiteral = (literal: string, entry: ActiveSecretEntry): void => {
       if (literal.length === 0) return
       const candidates = candidatesByScanLiteral.get(literal) ?? []
-      if (!candidates.some((candidate) => candidate.plaintext === entry.plaintext)) {
+      const entryKey = activeEntryKey(entry)
+      if (!candidates.some((candidate) => activeEntryKey(candidate) === entryKey)) {
         candidates.push(entry)
         candidatesByScanLiteral.set(literal, candidates)
       }
+      candidateEntryKeys.add(entryKey)
     }
-    for (const entry of candidatesByPlaintext.values()) {
-      addScanLiteral(entry.plaintext, entry)
-      addScanLiteral(JSON.stringify(entry.plaintext).slice(1, -1), entry)
+    for (const candidates of candidatesByPlaintext.values()) {
+      for (const entry of candidates) {
+        addScanLiteral(entry.plaintext, entry)
+        addScanLiteral(JSON.stringify(entry.plaintext).slice(1, -1), entry)
+      }
     }
 
-    const matchedEntries = new Map<string, ActiveSecretEntry>()
+    const candidatesByAlias = new Map<string, ActiveSecretEntry[]>()
+    for (const entry of sortedCandidateEntries) {
+      if (!entry.name) continue
+      const alias = createLegacyRuntimeAlias(entry.name)
+      const candidates = candidatesByAlias.get(alias) ?? []
+      const entryKey = activeEntryKey(entry)
+      if (!candidates.some((candidate) => activeEntryKey(candidate) === entryKey)) {
+        candidates.push(entry)
+        candidatesByAlias.set(alias, candidates)
+      }
+      candidateEntryKeys.add(entryKey)
+    }
+
     let matcher: ResolvedSecretMatcher | undefined
     try {
       matcher = createResolvedSecretMatcher(
         [...candidatesByScanLiteral.keys()].map((plaintext) => ({ plaintext, replacement: '' }))
       )
     } catch {
+      return { complete: false }
+    }
+
+    return {
+      complete: true,
+      filter: {
+        candidatesByScanLiteral,
+        candidatesByAlias,
+        candidateEntryKeys,
+        ...(matcher ? { matcher } : {}),
+      },
+    }
+  }
+
+  private exportProvenanceForValueWithPreparedFilter(
+    value: unknown,
+    prepared: PreparedProvenanceFilterResult,
+    options: ExportResolvedSecretTraceProvenanceForValueOptions
+  ): ResolvedSecretTraceProvenanceV1 {
+    return this.exportProvenanceForValuesWithPreparedFilter([value], prepared, options)
+  }
+
+  private exportProvenanceForValuesWithPreparedFilter(
+    values: Iterable<unknown>,
+    prepared: PreparedProvenanceFilterResult,
+    options: ExportResolvedSecretTraceProvenanceForValueOptions
+  ): ResolvedSecretTraceProvenanceV1 {
+    if (!prepared.complete) {
       return {
         version: 1,
         complete: false,
@@ -906,6 +1008,10 @@ export class ResolvedSecretTraceRegistry {
         ...(this.scope ? { scope: cloneProvenanceScope(this.scope) } : {}),
       }
     }
+
+    const { candidatesByScanLiteral, candidatesByAlias, candidateEntryKeys, matcher } =
+      prepared.filter
+    const matchedEntries = new Map<string, ActiveSecretEntry>()
     const pendingValues: unknown[] = []
     try {
       for (const value of values) {
@@ -933,23 +1039,36 @@ export class ResolvedSecretTraceRegistry {
     let matchEvents = 0
     let enumeratedProperties = 0
     let scanComplete = true
+    const matchedAliases = new Set<string>()
 
     const scanString = (candidate: string): boolean => {
       scannedCharacters += candidate.length
       if (scannedCharacters > MAX_PROVENANCE_FILTER_CHARACTERS) return false
 
-      if (!matcher) return true
       try {
-        matchEvents += scanResolvedSecretString(
-          candidate,
-          matcher,
-          (scanLiteral) => {
-            for (const entry of candidatesByScanLiteral.get(scanLiteral) ?? []) {
-              matchedEntries.set(entry.plaintext, entry)
-            }
-          },
-          MAX_PROVENANCE_FILTER_MATCH_EVENTS - matchEvents
-        )
+        if (matcher) {
+          matchEvents += scanResolvedSecretString(
+            candidate,
+            matcher,
+            (scanLiteral) => {
+              for (const entry of candidatesByScanLiteral.get(scanLiteral) ?? []) {
+                matchedEntries.set(activeEntryKey(entry), entry)
+              }
+            },
+            MAX_PROVENANCE_FILTER_MATCH_EVENTS - matchEvents
+          )
+        }
+        for (const match of candidate.matchAll(LEGACY_RUNTIME_ALIAS_PATTERN)) {
+          const alias = match[0]
+          const candidates = candidatesByAlias.get(alias)
+          if (!candidates || matchedAliases.has(alias)) continue
+          matchedAliases.add(alias)
+          matchEvents++
+          if (matchEvents > MAX_PROVENANCE_FILTER_MATCH_EVENTS) return false
+          for (const entry of candidates) {
+            matchedEntries.set(activeEntryKey(entry), entry)
+          }
+        }
       } catch {
         return false
       }
@@ -960,7 +1079,7 @@ export class ResolvedSecretTraceRegistry {
       if (scannedNodes + pendingValues.length >= MAX_PROVENANCE_FILTER_NODES) return false
       scannedNodes++
       if (!scanString(key)) return false
-      if (matchedEntries.size >= candidatesByPlaintext.size) return true
+      if (matchedEntries.size >= candidateEntryKeys.size) return true
 
       if ('value' in descriptor) {
         if (scannedNodes + pendingValues.length >= MAX_PROVENANCE_FILTER_NODES) return false
@@ -971,7 +1090,7 @@ export class ResolvedSecretTraceRegistry {
       return true
     }
 
-    while (pendingValues.length > 0 && matchedEntries.size < candidatesByPlaintext.size) {
+    while (pendingValues.length > 0 && matchedEntries.size < candidateEntryKeys.size) {
       const current = pendingValues.pop()
       scannedNodes++
       if (scannedNodes > MAX_PROVENANCE_FILTER_NODES) {
@@ -1007,9 +1126,9 @@ export class ResolvedSecretTraceRegistry {
             scanComplete = false
             break
           }
-          if (matchedEntries.size >= candidatesByPlaintext.size) break
+          if (matchedEntries.size >= candidateEntryKeys.size) break
         }
-        if (!scanComplete || matchedEntries.size >= candidatesByPlaintext.size) break
+        if (!scanComplete || matchedEntries.size >= candidateEntryKeys.size) break
 
         for (const key in current as Record<string, unknown>) {
           enumeratedProperties++
@@ -1024,7 +1143,7 @@ export class ResolvedSecretTraceRegistry {
             scanComplete = false
             break
           }
-          if (matchedEntries.size >= candidatesByPlaintext.size) break
+          if (matchedEntries.size >= candidateEntryKeys.size) break
         }
         if (!scanComplete) break
       } catch {
@@ -1046,7 +1165,7 @@ export class ResolvedSecretTraceRegistry {
   }
 
   private addActiveEntry(entry: ActiveSecretEntry): void {
-    const key = `${entry.anonymous ? 'anonymous' : entry.name}\u0000${entry.encryptedValue}`
+    const key = activeEntryKey(entry)
     const existing = this.activeEntries.get(key)
     if (existing) {
       if (

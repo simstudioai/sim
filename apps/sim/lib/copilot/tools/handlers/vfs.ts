@@ -9,7 +9,7 @@ import type { GrepCountEntry, GrepMatch } from '@/lib/copilot/vfs/operations'
 import { WorkspaceFileGrepError } from '@/lib/copilot/vfs/operations'
 import { encodeVfsSegment } from '@/lib/copilot/vfs/path-utils'
 import {
-  importWorkspaceFileSecretProvenanceForValue,
+  importWorkspaceFileSecretProvenanceForModelView,
   type WorkspaceFileSecretProvenanceIdentity,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { withBlockVisibility } from '@/blocks/visibility/server-context'
@@ -97,15 +97,15 @@ function hasModelAttachment(result: unknown): boolean {
 async function canReturnWorkspaceFileValue(
   file: WorkspaceFileSecretProvenanceIdentity | undefined,
   value: unknown,
-  context: ExecutionContext
+  context: ExecutionContext,
+  view: 'complete' | 'derived'
 ): Promise<boolean> {
   if (!file || !context.workspaceId) return true
-  return importWorkspaceFileSecretProvenanceForValue({
+  return importWorkspaceFileSecretProvenanceForModelView({
     workspaceId: context.workspaceId,
     identity: file,
-    value,
     registry: context.resolvedSecretTraceRegistry,
-    opaqueAttachment: hasModelAttachment(value),
+    view: hasModelAttachment(value) ? 'opaque' : view,
   })
 }
 
@@ -187,7 +187,7 @@ export async function executeVfsGrep(
         ? Object.keys(result).length
         : 0
     const output = { [key]: result }
-    if (!(await canReturnWorkspaceFileValue(provenanceFile, output, context))) {
+    if (!(await canReturnWorkspaceFileValue(provenanceFile, output, context, 'derived'))) {
       return {
         success: false,
         error:
@@ -341,7 +341,18 @@ export async function executeVfsRead(
           }
         }
         const windowedUpload = applyWindow(uploadResult)
-        if (!(await canReturnWorkspaceFileValue(uploadEnvelope?.file, windowedUpload, context))) {
+        const provenanceView =
+          offset === undefined && limit === undefined
+            ? (uploadEnvelope?.view ?? 'derived')
+            : 'derived'
+        if (
+          !(await canReturnWorkspaceFileValue(
+            uploadEnvelope?.file,
+            windowedUpload,
+            context,
+            provenanceView
+          ))
+        ) {
           return {
             success: false,
             error:
@@ -396,7 +407,16 @@ export async function executeVfsRead(
         }
       }
       const windowedFileContent = applyWindow(fileContent)
-      if (!(await canReturnWorkspaceFileValue(fileEnvelope?.file, windowedFileContent, context))) {
+      const provenanceView =
+        offset === undefined && limit === undefined ? (fileEnvelope?.view ?? 'derived') : 'derived'
+      if (
+        !(await canReturnWorkspaceFileValue(
+          fileEnvelope?.file,
+          windowedFileContent,
+          context,
+          provenanceView
+        ))
+      ) {
         return {
           success: false,
           error:

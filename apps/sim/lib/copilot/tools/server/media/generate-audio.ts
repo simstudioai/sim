@@ -98,7 +98,7 @@ export const generateAudioServerTool: BaseServerTool<GenerateAudioArgs, Generate
         if (!sample) {
           return { success: false, message: `Voice sample not found: ${samplePath}` }
         }
-        await assertOpaqueWorkspaceFileModelSafe({ workspaceId, file: sample, context })
+        await assertOpaqueWorkspaceFileModelSafe({ workspaceId, file: sample })
         const sampleBuffer = await fetchWorkspaceFileBuffer(sample)
         const sampleMime = sample.type || 'audio/mpeg'
         voiceSampleDataUri = `data:${sampleMime};base64,${sampleBuffer.toString('base64')}`

@@ -13,6 +13,7 @@ import {
   fetchWorkspaceFileBuffer,
   getWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { isOpaqueWorkspaceFileEgressSafe } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { getContentType } from '@/app/api/files/utils'
 import type { SandboxTaskId } from '@/sandbox-tasks/registry'
 import { loadCompiledDoc, storeCompiledDoc } from './doc-compiled-store'
@@ -123,32 +124,56 @@ const MAX_STAGED_INPUTS = 20
 const MAX_STAGED_FILE_BYTES = 25 * 1024 * 1024
 const MAX_STAGED_TOTAL_BYTES = 50 * 1024 * 1024
 
+interface ResolvedReferencedImage {
+  fileId: string
+  record: NonNullable<Awaited<ReturnType<typeof getWorkspaceFile>>>
+}
+
+interface ReferencedImageResolution {
+  images: ResolvedReferencedImage[]
+  referenceCount: number
+  artifactIdentity?: string
+  legacyArtifactEligible: boolean
+}
+
 /**
  * Collects the workspace file ids a doc source references — from the injected
  * image-helper call sites and the legacy `/home/user/inputs/<id>` path. Matching
  * is scoped to the helper calls (not bare id-like strings in slide text), and the
  * caller skips any id that does not resolve to a real file, so over-matching is
- * harmless.
+ * harmless. Retention stops at one over the remote staging limit: callers need
+ * only distinguish no references, an admissible set, and an oversized set.
  */
 export function collectReferencedFileIds(source: string): Set<string> {
   const ids = new Set<string>()
   for (const re of [INPUT_PATH_RE, FILE_HELPER_RE]) {
     for (const match of source.matchAll(re)) {
-      if (match[1]) ids.add(match[1])
+      if (match[1]) {
+        ids.add(match[1])
+        if (ids.size > MAX_STAGED_INPUTS) return ids
+      }
     }
   }
   return ids
 }
 
-async function stageReferencedImages(source: string, workspaceId: string): Promise<SandboxFile[]> {
-  const ids = collectReferencedFileIds(source)
+async function resolveReferencedImages(
+  source: string,
+  workspaceId: string,
+  ids = collectReferencedFileIds(source)
+): Promise<ReferencedImageResolution> {
   if (ids.size > MAX_STAGED_INPUTS) {
     throw new Error(
-      `Too many referenced input files (${ids.size}); max ${MAX_STAGED_INPUTS}. Reference fewer files.`
+      `More than ${MAX_STAGED_INPUTS} referenced input files; maximum is ${MAX_STAGED_INPUTS}. Reference fewer files.`
     )
   }
-  const files: SandboxFile[] = []
-  let totalBytes = 0
+  if (ids.size === 0) {
+    return { images: [], referenceCount: 0, legacyArtifactEligible: false }
+  }
+
+  const images: ResolvedReferencedImage[] = []
+  const identity: Array<Record<string, unknown>> = []
+  let legacyArtifactEligible = true
   for (const fileId of ids) {
     let record: Awaited<ReturnType<typeof getWorkspaceFile>>
     try {
@@ -159,9 +184,57 @@ async function stageReferencedImages(source: string, workspaceId: string): Promi
         fileId,
         error: getErrorMessage(err),
       })
+      identity.push({ fileId, state: 'unavailable' })
+      legacyArtifactEligible = false
       continue
     }
-    if (!record) continue
+    if (!record) {
+      identity.push({ fileId, state: 'missing' })
+      legacyArtifactEligible = false
+      continue
+    }
+    identity.push({
+      fileId,
+      key: record.key,
+      context: record.storageContext ?? 'workspace',
+      contentVersion: (record.contentUpdatedAt ?? record.updatedAt).toISOString(),
+      size: record.size,
+    })
+    if (
+      !(await isOpaqueWorkspaceFileEgressSafe(workspaceId, {
+        fileId: record.id,
+        key: record.key,
+        context: record.storageContext ?? 'workspace',
+      }))
+    ) {
+      throw new DocCompileUserError(
+        `Referenced file cannot be staged because its secret provenance is unavailable: ${fileId}`
+      )
+    }
+    images.push({ fileId, record })
+  }
+
+  return {
+    images,
+    referenceCount: ids.size,
+    artifactIdentity: JSON.stringify({ version: 1, inputs: identity }),
+    legacyArtifactEligible,
+  }
+}
+
+async function stageReferencedImages(
+  resolution: ReferencedImageResolution,
+  workspaceId: string
+): Promise<SandboxFile[]> {
+  if (resolution.referenceCount > MAX_STAGED_INPUTS) {
+    throw new Error(
+      `More than ${MAX_STAGED_INPUTS} referenced input files; maximum is ${MAX_STAGED_INPUTS}. Reference fewer files.`
+    )
+  }
+
+  const files: SandboxFile[] = []
+  let totalBytes = 0
+  for (const { fileId, record } of resolution.images) {
     if (typeof record.size === 'number' && record.size > MAX_STAGED_FILE_BYTES) {
       logger.warn('Skipping oversized referenced image for doc compile', {
         workspaceId,
@@ -177,7 +250,7 @@ async function stageReferencedImages(source: string, workspaceId: string): Promi
     }
     let buffer: Buffer
     try {
-      buffer = await fetchWorkspaceFileBuffer(record)
+      buffer = await fetchWorkspaceFileBuffer(record, { maxBytes: MAX_STAGED_FILE_BYTES })
     } catch (err) {
       logger.warn('Failed to stage referenced image for doc compile', {
         workspaceId,
@@ -241,6 +314,8 @@ interface CompileArgs {
   source: string
   fileName: string
   workspaceId: string
+  ownerKey?: string
+  signal?: AbortSignal
 }
 
 /**
@@ -251,9 +326,10 @@ interface CompileArgs {
  */
 async function compileDocViaE2BPython(
   { source, workspaceId }: CompileArgs,
-  fmt: E2BDocFormat
+  fmt: E2BDocFormat,
+  referencedImages: ReferencedImageResolution
 ): Promise<Buffer> {
-  const sandboxFiles = await stageReferencedImages(source, workspaceId)
+  const sandboxFiles = await stageReferencedImages(referencedImages, workspaceId)
   const outputSandboxPath = `/home/user/output.${fmt.ext}`
 
   // openpyxl writes formula strings but no cached values, so a web viewer (SheetJS)
@@ -332,9 +408,10 @@ fs.writeFileSync('/home/user/output.docx', __buf);
  */
 async function compileDocViaE2BNode(
   { source, fileName, workspaceId }: CompileArgs,
-  ext: 'pptx' | 'docx'
+  ext: 'pptx' | 'docx',
+  referencedImages: ReferencedImageResolution
 ): Promise<Buffer> {
-  const sandboxFiles = await stageReferencedImages(source, workspaceId)
+  const sandboxFiles = await stageReferencedImages(referencedImages, workspaceId)
   const outputSandboxPath = `/home/user/output.${ext}`
   const preamble = ext === 'pptx' ? PPTX_NODE_PREAMBLE : DOCX_NODE_PREAMBLE
   const finalize = ext === 'pptx' ? PPTX_NODE_FINALIZE : DOCX_NODE_FINALIZE
@@ -385,11 +462,73 @@ ${finalize}
   )
 }
 
+async function buildCompiledDoc(
+  args: CompileArgs,
+  fmt: E2BDocFormat,
+  referencedImages: ReferencedImageResolution
+): Promise<{ buffer: Buffer; contentType: string }> {
+  const { source, fileName, workspaceId } = args
+  const buffer =
+    fmt.engine === 'node'
+      ? await compileDocViaE2BNode(
+          { source, fileName, workspaceId },
+          fmt.ext as 'pptx' | 'docx',
+          referencedImages
+        )
+      : await compileDocViaE2BPython({ source, fileName, workspaceId }, fmt, referencedImages)
+  await storeCompiledDoc(
+    workspaceId,
+    source,
+    fmt.ext,
+    fmt.contentType,
+    buffer,
+    referencedImages.artifactIdentity
+  )
+  return { buffer, contentType: fmt.contentType }
+}
+
+interface CompilableFormat {
+  magic: Buffer
+  taskId: SandboxTaskId
+  contentType: string
+}
+
+const ZIP_MAGIC = Buffer.from([0x50, 0x4b, 0x03, 0x04])
+const PDF_MAGIC = Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d])
+
+const COMPILABLE_FORMATS: Record<string, CompilableFormat> = {
+  '.pptx': { magic: ZIP_MAGIC, taskId: 'pptx-generate', contentType: PPTX_MIME },
+  '.docx': { magic: ZIP_MAGIC, taskId: 'docx-generate', contentType: DOCX_MIME },
+  '.pdf': { magic: PDF_MAGIC, taskId: 'pdf-generate', contentType: PDF_MIME },
+}
+
+async function compileDocInLegacySandbox(
+  args: CompileArgs,
+  fmt: E2BDocFormat
+): Promise<{ buffer: Buffer; contentType: string }> {
+  const format = COMPILABLE_FORMATS[`.${fmt.ext}`]
+  if (!format) {
+    throw new DocCompileUserError('Document is still being generated')
+  }
+
+  const cacheKey = sha256Hex(`.${fmt.ext}${args.source}${args.workspaceId}`)
+  const cached = compiledDocCache.get(cacheKey)
+  if (cached) return { buffer: cached, contentType: fmt.contentType }
+
+  const buffer = await runSandboxTask(
+    format.taskId,
+    { code: args.source, workspaceId: args.workspaceId },
+    { ownerKey: args.ownerKey, signal: args.signal }
+  )
+  compiledCacheSet(cacheKey, buffer)
+  return { buffer, contentType: fmt.contentType }
+}
+
 /**
- * Returns the compiled binary for a doc, building it once (via the right engine —
- * Node for pptx/docx, Python for pdf/xlsx) if the source-hash artifact is not
- * already in S3. Used by read paths (serve, render, compiled-check) so E2B runs
- * at most once per distinct source.
+ * Returns the compiled binary for a document. The remote backend reuses and publishes a
+ * dependency-bound artifact after statically staging its inputs. The isolated-VM backend preserves
+ * its live-broker semantics and keeps only a small process-local cache; it cannot publish a durable
+ * artifact until broker calls can report the exact file versions they accessed.
  */
 export async function compileDoc(
   args: CompileArgs
@@ -397,47 +536,66 @@ export async function compileDoc(
   const { source, fileName, workspaceId } = args
   const fmt = await getE2BDocFormat(fileName)
   if (!fmt) throw new Error(`Unsupported document format: ${fileName}`)
+  if (!isDocSandboxEnabled) return compileDocInLegacySandbox(args, fmt)
 
-  const existing = await loadCompiledDoc(workspaceId, source, fmt.ext)
+  const referencedFileIds = collectReferencedFileIds(source)
+  const referencedImages = await resolveReferencedImages(source, workspaceId, referencedFileIds)
+
+  const existing = await loadCompiledDoc(
+    workspaceId,
+    source,
+    fmt.ext,
+    referencedImages.artifactIdentity
+  )
   if (existing) return { buffer: existing, contentType: fmt.contentType }
-
-  const buffer =
-    fmt.engine === 'node'
-      ? await compileDocViaE2BNode({ source, fileName, workspaceId }, fmt.ext as 'pptx' | 'docx')
-      : await compileDocViaE2BPython({ source, fileName, workspaceId }, fmt)
-  await storeCompiledDoc(workspaceId, source, fmt.ext, fmt.contentType, buffer)
-  return { buffer, contentType: fmt.contentType }
+  return buildCompiledDoc(args, fmt, referencedImages)
 }
 
 /**
- * Loads a compiled doc artifact by extension when present, without compiling.
- * Used by the serve route, which has the source + ext but no file record — a hit
- * means the file is a generated doc whose binary is already built.
+ * Loads a dependency-bound compiled artifact. Public shares may also read the pre-cutover
+ * source-keyed artifact after every current reference passes the opaque-egress check. That narrow
+ * fallback preserves an already-public document until an authenticated read or edit publishes the
+ * dependency-bound replacement; it never executes source or admits a currently tracked secret.
  */
 export async function loadCompiledDocByExt(
   workspaceId: string,
   source: string,
-  ext: string
+  ext: string,
+  options: { allowLegacyReferencedArtifact?: boolean } = {}
 ): Promise<{ buffer: Buffer; contentType: string } | null> {
   const fmt = await getE2BDocFormat(`x.${ext}`)
   if (!fmt) return null
-  const buffer = await loadCompiledDoc(workspaceId, source, fmt.ext)
-  return buffer ? { buffer, contentType: fmt.contentType } : null
+  const referencedFileIds = collectReferencedFileIds(source)
+  if (referencedFileIds.size > MAX_STAGED_INPUTS) return null
+  const referencedImages = await resolveReferencedImages(source, workspaceId, referencedFileIds)
+  const buffer = await loadCompiledDoc(
+    workspaceId,
+    source,
+    fmt.ext,
+    referencedImages.artifactIdentity
+  )
+  if (buffer) return { buffer, contentType: fmt.contentType }
+  if (
+    referencedImages.artifactIdentity &&
+    referencedImages.legacyArtifactEligible &&
+    options.allowLegacyReferencedArtifact
+  ) {
+    const legacyBuffer = await loadCompiledDoc(workspaceId, source, fmt.ext)
+    if (legacyBuffer) return { buffer: legacyBuffer, contentType: fmt.contentType }
+  }
+  return null
 }
-
-const ZIP_MAGIC = Buffer.from([0x50, 0x4b, 0x03, 0x04])
-const PDF_MAGIC = Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d]) // %PDF-
 
 function bufferStartsWith(buffer: Buffer, magic: Buffer): boolean {
   return buffer.length >= magic.length && buffer.subarray(0, magic.length).equals(magic)
 }
 
 /**
- * How a read-only consumer (e.g. the public share route) should serve a stored doc
- * WITHOUT compiling:
+ * How a read-only consumer (e.g. the public share route) should serve a stored doc:
  * - `passthrough` — serve the raw stored bytes as-is (a non-doc file, or an uploaded
  *   binary that already carries its format magic).
- * - `artifact` — serve this prebuilt content-addressed compiled binary.
+ * - `artifact` — serve a dependency-bound compiled binary, or a pre-cutover public artifact whose
+ *   current references all pass the opaque-egress check.
  * - `unavailable` — a generated doc stored as source whose compiled artifact does
  *   not exist yet; the raw bytes are source, so serving them under the file's binary
  *   content type would be corrupt. The caller should signal "not ready" instead.
@@ -456,20 +614,18 @@ export async function resolveServableDoc(
   if (!fmt) return { kind: 'passthrough' }
   const magic = fmt.ext === 'pdf' ? PDF_MAGIC : ZIP_MAGIC
   if (bufferStartsWith(storedBytes, magic)) return { kind: 'passthrough' }
-  const artifact = await loadCompiledDocByExt(workspaceId, storedBytes.toString('utf-8'), fmt.ext)
-  return artifact ? { kind: 'artifact', ...artifact } : { kind: 'unavailable' }
-}
-
-interface CompilableFormat {
-  magic: Buffer
-  taskId: SandboxTaskId
-  contentType: string
-}
-
-const COMPILABLE_FORMATS: Record<string, CompilableFormat> = {
-  '.pptx': { magic: ZIP_MAGIC, taskId: 'pptx-generate', contentType: PPTX_MIME },
-  '.docx': { magic: ZIP_MAGIC, taskId: 'docx-generate', contentType: DOCX_MIME },
-  '.pdf': { magic: PDF_MAGIC, taskId: 'pdf-generate', contentType: PDF_MIME },
+  try {
+    const artifact = await loadCompiledDocByExt(
+      workspaceId,
+      storedBytes.toString('utf-8'),
+      fmt.ext,
+      { allowLegacyReferencedArtifact: true }
+    )
+    return artifact ? { kind: 'artifact', ...artifact } : { kind: 'unavailable' }
+  } catch (error) {
+    if (error instanceof DocCompileUserError) return { kind: 'unavailable' }
+    throw error
+  }
 }
 
 const MAX_COMPILED_DOC_CACHE = 10
@@ -532,13 +688,12 @@ export async function resolveServableDocBytes(args: {
   const source = rawBuffer.toString('utf-8')
 
   if (workspaceId) {
+    if (!isDocSandboxEnabled || collectReferencedFileIds(source).size > 0) {
+      return compileDoc({ source, fileName, workspaceId, ownerKey, signal })
+    }
     const stored = await loadCompiledDocByExt(workspaceId, source, extNoDot)
-    if (stored) {
-      return { buffer: stored.buffer, contentType: stored.contentType }
-    }
-    if (isDocSandboxEnabled && (await getE2BDocFormat(fileName))) {
-      throw new DocCompileUserError('Document is still being generated')
-    }
+    if (stored) return stored
+    throw new DocCompileUserError('Document is still being generated')
   }
 
   // Reaches here only for xlsx, which has no isolated-vm fallback. Returning these

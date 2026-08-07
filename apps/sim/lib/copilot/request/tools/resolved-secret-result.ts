@@ -3,7 +3,6 @@ import type { MothershipResource } from '@/lib/copilot/resources/types'
 import type { ToolExecutionResult } from '@/lib/copilot/tool-executor/types'
 import {
   isResolvedSecretModelContentUnchanged,
-  projectResolvedSecretModelContent,
   projectResolvedSecretModelControlMessage,
   projectResolvedSecretModelJsonContent,
 } from '@/executor/utils/resolved-secret-content-projection'
@@ -87,26 +86,6 @@ function omittedResult(
 export type CopilotToolResultProjection =
   | { safe: true; result: ToolExecutionResult }
   | { safe: false; result: ToolExecutionResult }
-
-export type CopilotPersistedOutputProjection =
-  | { safe: true; value: unknown }
-  | { safe: false; error: string }
-
-/**
- * Projects only the exact value a Copilot tool is about to persist. The isolated per-tool registry
- * makes this causal: values activated by this tool become canonical `{{NAME}}` aliases, while a
- * public low-entropy value cannot be rewritten merely because an earlier sibling activated the
- * same bytes. Persisting the alias makes later reads safe without a second provenance store.
- */
-export function projectToolOutputForPersistence(
-  value: unknown,
-  registry: ResolvedSecretTraceRegistry | undefined
-): CopilotPersistedOutputProjection {
-  const projection = projectResolvedSecretModelContent(value, registry)
-  return projection.safe
-    ? { safe: true, value: projection.value }
-    : { safe: false, error: TOOL_OUTPUT_PERSISTENCE_UNAVAILABLE_ERROR }
-}
 
 /**
  * Projects terminal tool content and reports whether the complete content was safe to cross.

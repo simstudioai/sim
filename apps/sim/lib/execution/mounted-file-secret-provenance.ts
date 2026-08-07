@@ -42,7 +42,7 @@ export async function createMountedFileSecretProvenanceScanner(
     for (const entry of provenance.entries) {
       const { decrypted: plaintext } = await decryptSecret(entry.encryptedValue)
       if (!plaintext) continue
-      const fileEntry = {
+      const fileEntry: WorkspaceFileSecretProvenanceEntry = {
         name: entry.name || ANONYMOUS_MOUNTED_FILE_SECRET_NAME,
         encryptedValue: entry.encryptedValue,
         sourceUserId: provenance.scope.userId,
@@ -55,7 +55,7 @@ export async function createMountedFileSecretProvenanceScanner(
           entriesByScanLiteral.get(scanLiteral) ??
           new Map<string, WorkspaceFileSecretProvenanceEntry>()
         entries.set(
-          `${fileEntry.sourceUserId}\u0000${fileEntry.sourceWorkspaceId ?? ''}\u0000${fileEntry.name}\u0000${fileEntry.encryptedValue}`,
+          `${fileEntry.sourceUserId}\u0000${fileEntry.sourceWorkspaceId ?? ''}\u0000${fileEntry.name ?? ''}\u0000${fileEntry.encryptedValue}`,
           fileEntry
         )
         entriesByScanLiteral.set(scanLiteral, entries)
@@ -92,7 +92,7 @@ export async function createMountedFileSecretProvenanceScanner(
           (scanLiteral) => {
             for (const entry of entriesByScanLiteral.get(scanLiteral)?.values() ?? []) {
               matched.set(
-                `${entry.sourceUserId}\u0000${entry.sourceWorkspaceId ?? ''}\u0000${entry.name}\u0000${entry.encryptedValue}`,
+                `${entry.sourceUserId}\u0000${entry.sourceWorkspaceId ?? ''}\u0000${entry.name ?? ''}\u0000${entry.encryptedValue}`,
                 entry
               )
             }
@@ -109,7 +109,7 @@ export async function createMountedFileSecretProvenanceScanner(
           (left, right) =>
             compareStrings(left.sourceUserId, right.sourceUserId) ||
             compareStrings(left.sourceWorkspaceId ?? '', right.sourceWorkspaceId ?? '') ||
-            compareStrings(left.name, right.name) ||
+            compareStrings(left.name ?? '', right.name ?? '') ||
             compareStrings(left.encryptedValue, right.encryptedValue)
         ),
       }

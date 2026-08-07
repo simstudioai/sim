@@ -48,7 +48,11 @@ import {
 } from '@/lib/copilot/tools/server/workflow/edit-workflow/lint'
 import { UNRESOLVABLE_AT_LINT_NOTE } from '@/lib/copilot/tools/server/workflow/edit-workflow/validation'
 import { extractDocumentStyle } from '@/lib/copilot/vfs/document-style'
-import { type FileReadResult, readFileRecord } from '@/lib/copilot/vfs/file-reader'
+import {
+  type FileReadResult,
+  isReadableFileType,
+  readFileRecord,
+} from '@/lib/copilot/vfs/file-reader'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
 import type { GrepMatch, GrepOptions, ReadResult } from '@/lib/copilot/vfs/operations'
 import * as ops from '@/lib/copilot/vfs/operations'
@@ -158,10 +162,12 @@ const MAX_COMPILED_ATTACHMENT_BYTES = 5 * 1024 * 1024
 
 function bindWorkspaceFileResult<T>(
   record: WorkspaceFileRecord,
-  value: T
+  value: T,
+  view: 'complete' | 'derived' = 'derived'
 ): WorkspaceFileSecretProvenanceEnvelope<T> {
   return {
     value,
+    view,
     file: {
       fileId: record.id,
       key: record.key,
@@ -1080,7 +1086,7 @@ export class WorkspaceVFS {
           totalLines: 1,
         }
       }
-      if (isDocSandboxEnabled && (await getE2BDocFormat(record.name))) {
+      if (await getE2BDocFormat(record.name)) {
         bin = (
           await compileDoc({ source: code, fileName: record.name, workspaceId: this._workspaceId })
         ).buffer
@@ -1139,9 +1145,9 @@ export class WorkspaceVFS {
         record = await this.resolveWorkspaceFileForDynamicRead(path, 'compiled')
         if (!record) return null
         const ext = record.name.split('.').pop()?.toLowerCase() ?? ''
-        const e2bFmt = isDocSandboxEnabled ? await getE2BDocFormat(record.name) : null
+        const docFmt = await getE2BDocFormat(record.name)
         const taskId = BINARY_DOC_TASKS[ext]
-        if (!e2bFmt && !taskId) return null
+        if (!docFmt && !taskId) return null
 
         // Only PDF can be attached as a model-readable `document` block —
         // Bedrock/Anthropic document blocks accept application/pdf ONLY. Attaching
@@ -1180,7 +1186,7 @@ export class WorkspaceVFS {
             totalLines: 1,
           })
         }
-        const compiled = e2bFmt
+        const compiled = docFmt
           ? (
               await compileDoc({
                 source: code,
@@ -1444,7 +1450,13 @@ export class WorkspaceVFS {
       const record = findWorkspaceFileRecord(files, fileReference)
       if (!record) return null
       const result = await readFileRecord(record)
-      return result ? bindWorkspaceFileResult(record, result) : null
+      return result
+        ? bindWorkspaceFileResult(
+            record,
+            result,
+            isReadableFileType(record.type) ? 'complete' : 'derived'
+          )
+        : null
     } catch (err) {
       logger.warn('Failed to list workspace files for readFileContent', {
         workspaceId: this._workspaceId,
