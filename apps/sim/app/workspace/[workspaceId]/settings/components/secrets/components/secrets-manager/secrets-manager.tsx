@@ -898,30 +898,47 @@ export function SecretsManager() {
    * each section can take its own slice. Derived once rather than filtered twice
    * so the two sections cannot disagree about which kind a key is.
    */
+  /**
+   * The carried rename visibility, narrowed to keys the server has no opinion
+   * about — the single source both the render and the save payload read.
+   *
+   * The narrowing is the safety property, not an optimization. A rename-back,
+   * or a rename onto a key that already exists, leaves an entry for a key that
+   * still has a credential; sending that in the save payload would flip a real
+   * key's disclosure. Since the PUT now applies visibility to existing keys,
+   * that could revert a confirmed convert-to-secret on the next unrelated value
+   * save, or turn an existing secret into a variable with no confirm dialog at
+   * all. Restricted to keys the server does not know, the carried value can
+   * only ever describe the new name it was created for.
+   */
+  const carriedRenameVisibility = useMemo(() => {
+    const serverVisibility = workspaceEnvData?.visibility ?? {}
+    const carried: Record<string, EnvVisibility> = {}
+    for (const [key, visibility] of Object.entries(renamedKeyVisibility)) {
+      if (!(key in serverVisibility)) carried[key] = visibility
+    }
+    return carried
+  }, [renamedKeyVisibility, workspaceEnvData?.visibility])
+
   const workspaceEntriesForRender = useMemo(() => {
     const entries = searchTerm.trim() ? filteredWorkspaceEntries : Object.entries(workspaceVars)
     const visibilityMap = workspaceEnvData?.visibility ?? {}
     return entries.map(([key, value]) => ({
       key,
       value,
-      // Server state wins wherever it exists; the carried rename only fills the
-      // gap where it doesn't. That ordering is the whole contract: a renamed key
-      // has no server visibility yet, so without the fallback it would default
-      // to `secret` and bounce into Workspace secrets, bullet-masking a value
-      // the member can plainly read. But letting the carried value WIN would
-      // shadow the server after a rename-back or a rename onto an existing key,
-      // so a later confirmed convert-to-secret would apply server-side and the
-      // row would still render as non-secret. Under this ordering a stale entry
-      // is inert, rather than needing to be cleared on every path that could
-      // invalidate it.
-      visibility: visibilityMap[key] ?? renamedKeyVisibility[key] ?? ('secret' as EnvVisibility),
+      // A renamed key has no server visibility yet, so without the carried
+      // fallback it would default to `secret` and bounce into Workspace
+      // secrets, bullet-masking a value the member can plainly read. The
+      // carried map is already narrowed to keys the server does not know, so
+      // the two can never disagree about a key that exists.
+      visibility: visibilityMap[key] ?? carriedRenameVisibility[key] ?? ('secret' as EnvVisibility),
     }))
   }, [
     searchTerm,
     filteredWorkspaceEntries,
     workspaceVars,
     workspaceEnvData?.visibility,
-    renamedKeyVisibility,
+    carriedRenameVisibility,
   ])
 
   /**
@@ -1004,12 +1021,13 @@ export function SecretsManager() {
         mergedWorkspaceVars[row.key] = row.value
       }
     }
-    // Names drafted in the Variables section. Only NEW keys can take a
-    // visibility here — the server never flips an existing key through this
-    // path (that needs the confirmed disclosure flow), which is why
-    // `duplicateDraftKeys` blocks saving a name that already exists as a secret
-    // rather than letting it save and silently stay secret.
-    const draftVariableVisibility: Record<string, EnvVisibility> = { ...renamedKeyVisibility }
+    // Names drafted in the Variables section, plus any carried across a rename.
+    // Both only ever describe keys the server does not already know: the PUT
+    // does apply visibility to existing keys, so an entry for an existing key
+    // would flip its disclosure with no confirm dialog. `duplicateDraftKeys`
+    // blocks a draft name that already exists, and `carriedRenameVisibility` is
+    // narrowed to unknown keys for the same reason.
+    const draftVariableVisibility: Record<string, EnvVisibility> = { ...carriedRenameVisibility }
     for (const row of newWorkspaceVariableRows) {
       if (row.key && row.value) {
         mergedWorkspaceVars[row.key] = row.value
