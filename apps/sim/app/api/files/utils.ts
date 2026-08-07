@@ -306,7 +306,11 @@ export async function createByteRangeResponse(options: ByteServeOptions): Promis
   const headers: Record<string, string> = {
     'Content-Type': contentType,
     'Content-Disposition': `${disposition}; ${encodeFilenameForHeader(options.filename)}`,
-    'Cache-Control': options.cacheControl || 'public, max-age=31536000',
+    // Same default as createFileResponse, and for the same reason: a byte-served object
+    // reaches here only after access verification, so an unspecified policy must never
+    // let a shared cache/CDN store it and re-serve it cross-user. Public assets pass an
+    // explicit `cacheControl`.
+    'Cache-Control': options.cacheControl || 'private, no-cache',
     'X-Content-Type-Options': 'nosniff',
     'Accept-Ranges': 'bytes',
   }

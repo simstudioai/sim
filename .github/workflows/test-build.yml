@@ -142,6 +142,11 @@ jobs:
       - name: Type-check all workspaces
         run: bunx turbo run type-check
 
+      # cloud-review-tools.test.ts runs the real helper on the runner, which shells
+      # out to rg. Blacksmith's image ships it, GitHub's doesn't.
+      - name: Install ripgrep
+        run: command -v rg || (sudo apt-get update && sudo apt-get install -y ripgrep)
+
       # Runs the setup CLI's Bun tests plus each workspace's Vitest suite,
       # without `--coverage`. See the Codecov note below.
       - name: Run tests
