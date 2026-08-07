@@ -904,9 +904,19 @@ export function SecretsManager() {
     return entries.map(([key, value]) => ({
       key,
       value,
-      visibility: visibilityMap[key] ?? ('secret' as EnvVisibility),
+      // A pending rename is checked FIRST: the new name has no server-side
+      // visibility yet, so falling straight through to `visibilityMap` would
+      // default it to `secret` — bouncing the row into Workspace secrets and
+      // bullet-masking a value the member can plainly read, until save lands.
+      visibility: renamedKeyVisibility[key] ?? visibilityMap[key] ?? ('secret' as EnvVisibility),
     }))
-  }, [searchTerm, filteredWorkspaceEntries, workspaceVars, workspaceEnvData?.visibility])
+  }, [
+    searchTerm,
+    filteredWorkspaceEntries,
+    workspaceVars,
+    workspaceEnvData?.visibility,
+    renamedKeyVisibility,
+  ])
 
   /**
    * Renders one workspace section. Both sections share the row component and
