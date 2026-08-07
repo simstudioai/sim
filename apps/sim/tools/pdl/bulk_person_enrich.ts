@@ -2,9 +2,9 @@ import type {
   PdlBulkPersonEnrichParams,
   PdlBulkPersonEnrichResponse,
   PdlBulkPersonResultItem,
-} from '@/tools/peopledatalabs/types'
-import { PDL_CREDIT_USD, PEOPLEDATALABS_API_KEY_PREFIX } from '@/tools/peopledatalabs/types'
-import { countBulkMatched, projectPerson } from '@/tools/peopledatalabs/utils'
+} from '@/tools/pdl/types'
+import { PDL_CREDIT_USD, PEOPLEDATALABS_API_KEY_PREFIX } from '@/tools/pdl/types'
+import { countBulkMatched, projectPerson } from '@/tools/pdl/utils'
 import type { OutputProperty, ToolConfig } from '@/tools/types'
 
 const BULK_PERSON_RESULT_PROPERTIES = {

@@ -32,7 +32,7 @@ Resolve IP addresses, hashed emails, and LinkedIn profiles into person-level ide
 
 ## Actions
 
-### `rb2b_credit_check`
+### RB2B Credit Check
 
 Check the number of API credits remaining on your RB2B account.
 
@@ -48,7 +48,7 @@ Check the number of API credits remaining on your RB2B account.
 | --------- | ---- | ----------- |
 | `credits_remaining` | number | Number of API credits remaining on the account |
 
-### `rb2b_ip_to_hem`
+### RB2B IP to HEM
 
 Convert an IP address (and optional user agent) into hashed email addresses (HEM) with accuracy scores.
 
@@ -70,7 +70,7 @@ Convert an IP address (and optional user agent) into hashed email addresses (HEM
 |   ↳ `sha256` | string | SHA-256 hash of the matched email \(only when include_sha256 is true\) |
 |   ↳ `score` | number | Match accuracy score \(0 = probabilistic, 1 = deterministic\) |
 
-### `rb2b_ip_to_maid`
+### RB2B IP to MAID
 
 Resolve an IP address (and optional user agent) into mobile advertising identifiers (MAIDs) observed over the last 60 days.
 
@@ -90,7 +90,7 @@ Resolve an IP address (and optional user agent) into mobile advertising identifi
 |   ↳ `device_id` | string | The mobile advertising identifier |
 |   ↳ `device_type` | string | The identifier type \(e.g. AAID, IDFA\) |
 
-### `rb2b_ip_to_company`
+### RB2B IP to Company
 
 Identify the company domains associated with an IP address, ranked by confidence.
 
@@ -109,7 +109,7 @@ Identify the company domains associated with an IP address, ranked by confidence
 |   ↳ `domain` | string | Company domain associated with the IP |
 |   ↳ `percentage` | string | Confidence percentage for the match |
 
-### `rb2b_hem_to_business_profile`
+### RB2B Email/HEM to Business Profile
 
 Return a full business profile (name, title, company, industry, seniority and more) for an email address or MD5-hashed email.
 
@@ -143,7 +143,7 @@ Return a full business profile (name, title, company, industry, seniority and mo
 | `company_revenue_range` | string | Company revenue range band |
 | `md5` | string | MD5 hash of the resolved email |
 
-### `rb2b_hem_to_best_linkedin`
+### RB2B Email/HEM to Best LinkedIn URL
 
 Return the most recently active LinkedIn profile URL for an email address or MD5-hashed email.
 
@@ -160,7 +160,7 @@ Return the most recently active LinkedIn profile URL for an email address or MD5
 | --------- | ---- | ----------- |
 | `linkedin_url` | string | Best LinkedIn profile URL for the email |
 
-### `rb2b_hem_to_linkedin`
+### RB2B Email/HEM to LinkedIn Slug
 
 Return the LinkedIn slug (the profile identifier portion of the URL) for an email address or MD5-hashed email.
 
@@ -177,7 +177,7 @@ Return the LinkedIn slug (the profile identifier portion of the URL) for an emai
 | --------- | ---- | ----------- |
 | `linkedin_slug` | string | LinkedIn slug for the email |
 
-### `rb2b_hem_to_maid`
+### RB2B Email/HEM to MAID
 
 Return up to five mobile advertising identifiers (MAIDs) associated with an email address or MD5-hashed email.
 
@@ -196,7 +196,7 @@ Return up to five mobile advertising identifiers (MAIDs) associated with an emai
 |   ↳ `device_id` | string | The mobile advertising identifier |
 |   ↳ `device_type` | string | The identifier type \(e.g. AAID, IDFA\) |
 
-### `rb2b_email_to_activity`
+### RB2B Email to Last Active Date
 
 Return the last known active date for an email address.
 
@@ -218,7 +218,7 @@ Return the last known active date for an email address.
 | `credits_charged` | number | Credits charged for this request |
 | `credits_exhausted` | boolean | Whether the account is out of credits |
 
-### `rb2b_linkedin_to_business_profile`
+### RB2B LinkedIn to Business Profile
 
 Return a full business profile (name, title, company, emails and more) for a LinkedIn profile.
 
@@ -251,7 +251,7 @@ Return a full business profile (name, title, company, emails and more) for a Lin
 |   ↳ `website_url` | string | Company website URL |
 |   ↳ `linkedin_url` | string | Company LinkedIn URL |
 
-### `rb2b_linkedin_to_best_personal_email`
+### RB2B LinkedIn to Best Personal Email
 
 Return the personal email with the most recent known network activity for a LinkedIn profile.
 
@@ -268,7 +268,7 @@ Return the personal email with the most recent known network activity for a Link
 | --------- | ---- | ----------- |
 | `email` | string | Best personal email for the LinkedIn profile |
 
-### `rb2b_linkedin_to_personal_email`
+### RB2B LinkedIn to Personal Email
 
 Return the personal email addresses associated with a LinkedIn profile.
 
@@ -285,7 +285,7 @@ Return the personal email addresses associated with a LinkedIn profile.
 | --------- | ---- | ----------- |
 | `emails` | array | Personal email addresses for the LinkedIn profile |
 
-### `rb2b_linkedin_to_hashed_emails`
+### RB2B LinkedIn to Hashed Emails
 
 Return the business and personal hashed emails (MD5 and SHA-256) associated with a LinkedIn profile.
 
@@ -306,7 +306,7 @@ Return the business and personal hashed emails (MD5 and SHA-256) associated with
 | `personal_md5_array` | array | MD5 hashes of personal emails |
 | `personal_sha256_array` | array | SHA-256 hashes of personal emails |
 
-### `rb2b_linkedin_to_mobile_phone`
+### RB2B LinkedIn to Mobile Phone
 
 Return the mobile phone number with the most recent known network activity for a LinkedIn profile.
 
@@ -323,7 +323,7 @@ Return the mobile phone number with the most recent known network activity for a
 | --------- | ---- | ----------- |
 | `mobile_phone` | string | Mobile phone number for the LinkedIn profile |
 
-### `rb2b_linkedin_slug_search`
+### RB2B LinkedIn Slug Search
 
 Find a LinkedIn profile URL from a first name, last name, and company domain.
 

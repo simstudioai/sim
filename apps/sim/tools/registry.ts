@@ -2799,7 +2799,7 @@ import {
   pdlPersonEnrichTool,
   pdlPersonIdentifyTool,
   pdlPersonSearchTool,
-} from '@/tools/peopledatalabs'
+} from '@/tools/pdl'
 import { perplexityChatTool, perplexitySearchTool } from '@/tools/perplexity'
 import {
   personaApproveInquiryTool,

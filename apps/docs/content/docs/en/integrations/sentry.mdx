@@ -45,7 +45,7 @@ Integrate Sentry into the workflow. Monitor issues, manage projects, track event
 
 ## Actions
 
-### `sentry_issues_list`
+### List Issues
 
 List issues from Sentry for a specific organization and optionally a specific project. Returns issue details including status, error counts, and last seen timestamps.
 
@@ -110,7 +110,7 @@ List issues from Sentry for a specific organization and optionally a specific pr
 |   ↳ `nextCursor` | string | Cursor for the next page of results \(if available\) |
 |   ↳ `hasMore` | boolean | Whether there are more results available |
 
-### `sentry_issues_get`
+### Get Issue
 
 Retrieve detailed information about a specific Sentry issue by its ID. Returns complete issue details including metadata, tags, and statistics.
 
@@ -166,7 +166,7 @@ Retrieve detailed information about a specific Sentry issue by its ID. Returns c
 |   ↳ `lastSeen` | string | When the issue was last seen \(ISO timestamp\) |
 |   ↳ `stats` | object | Statistical information about the issue |
 
-### `sentry_issues_update`
+### Update Issue
 
 Update a Sentry issue by changing its status, assignment, bookmark state, or other properties. Returns the updated issue details.
 
@@ -203,7 +203,7 @@ Update a Sentry issue by changing its status, assignment, bookmark state, or oth
 |   ↳ `isPublic` | boolean | Whether the issue is publicly visible |
 |   ↳ `permalink` | string | Direct link to the issue in Sentry |
 
-### `sentry_projects_list`
+### List Projects
 
 List all projects in a Sentry organization. Returns project details including name, platform, teams, and configuration.
 
@@ -243,7 +243,7 @@ List all projects in a Sentry organization. Returns project details including na
 |   ↳ `nextCursor` | string | Cursor for the next page of results \(if available\) |
 |   ↳ `hasMore` | boolean | Whether there are more results available |
 
-### `sentry_projects_get`
+### Get Project
 
 Retrieve detailed information about a specific Sentry project by its slug. Returns complete project details including teams, features, and configuration.
 
@@ -294,7 +294,7 @@ Retrieve detailed information about a specific Sentry project by its slug. Retur
 |   ↳ `hasReplays` | boolean | Whether the project has session replays enabled |
 |   ↳ `hasSessions` | boolean | Whether the project has sessions enabled |
 
-### `sentry_projects_create`
+### Create Project
 
 Create a new Sentry project in an organization. Requires a team to associate the project with. Returns the created project details.
 
@@ -341,7 +341,7 @@ Create a new Sentry project in an organization. Requires a team to associate the
 |   ↳ `color` | string | Project color code |
 |   ↳ `isPublic` | boolean | Whether the project is public |
 
-### `sentry_projects_update`
+### Update Project
 
 Update a Sentry project by changing its name, slug, platform, or other settings. Returns the updated project details.
 
@@ -378,7 +378,7 @@ Update a Sentry project by changing its name, slug, platform, or other settings.
 |     ↳ `name` | string | Team name |
 |     ↳ `slug` | string | Team slug |
 
-### `sentry_events_list`
+### List Events
 
 List events from a Sentry project. Can be filtered by issue ID, query, or time period. Returns event details including context, tags, and user information.
 
@@ -439,7 +439,7 @@ List events from a Sentry project. Can be filtered by issue ID, query, or time p
 |   ↳ `nextCursor` | string | Cursor for the next page of results \(if available\) |
 |   ↳ `hasMore` | boolean | Whether there are more results available |
 
-### `sentry_events_get`
+### Get Event
 
 Retrieve detailed information about a specific Sentry event by its ID. Returns complete event details including stack traces, breadcrumbs, context, and user information.
 
@@ -493,7 +493,7 @@ Retrieve detailed information about a specific Sentry event by its ID. Returns c
 |     ↳ `name` | string | SDK name |
 |     ↳ `version` | string | SDK version |
 
-### `sentry_releases_list`
+### List Releases
 
 List releases for a Sentry organization or project. Returns release details including version, commits, deploy information, and associated projects.
 
@@ -557,7 +557,7 @@ List releases for a Sentry organization or project. Returns release details incl
 |   ↳ `nextCursor` | string | Cursor for the next page of results \(if available\) |
 |   ↳ `hasMore` | boolean | Whether there are more results available |
 
-### `sentry_releases_create`
+### Create Release
 
 Create a new release in Sentry. A release is a version of your code deployed to an environment. Can include commit information and associated projects. Returns the created release details.
 
@@ -620,7 +620,7 @@ Create a new release in Sentry. A release is a version of your code deployed to 
 |       ↳ `raw` | string | Raw version string |
 |     ↳ `package` | string | Package name |
 
-### `sentry_releases_deploy`
+### Create Deploy
 
 Create a deploy record for a Sentry release in a specific environment. Deploys track when and where releases are deployed. Returns the created deploy details.
 
@@ -649,7 +649,7 @@ Create a deploy record for a Sentry release in a specific environment. Deploys t
 |   ↳ `dateStarted` | string | When the deploy started \(ISO timestamp\) |
 |   ↳ `dateFinished` | string | When the deploy finished \(ISO timestamp\) |
 
-### `sentry_teams_list`
+### List Teams
 
 List all teams in a Sentry organization. Useful for discovering the team slug required when creating a project. Returns team details including slug, name, member count, and associated projects.
 

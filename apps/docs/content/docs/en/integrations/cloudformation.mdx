@@ -35,7 +35,7 @@ Integrate AWS CloudFormation into workflows. Create, update, and delete stacks, 
 
 ## Actions
 
-### `cloudformation_describe_stacks`
+### CloudFormation Describe Stacks
 
 List and describe CloudFormation stacks
 
@@ -54,7 +54,7 @@ List and describe CloudFormation stacks
 | --------- | ---- | ----------- |
 | `stacks` | array | List of CloudFormation stacks with status, outputs, and tags |
 
-### `cloudformation_create_stack`
+### CloudFormation Create Stack
 
 Create a new CloudFormation stack from a template
 
@@ -79,7 +79,7 @@ Create a new CloudFormation stack from a template
 | --------- | ---- | ----------- |
 | `stackId` | string | The unique ID of the created stack |
 
-### `cloudformation_update_stack`
+### CloudFormation Update Stack
 
 Update an existing CloudFormation stack with a new or previous template
 
@@ -103,7 +103,7 @@ Update an existing CloudFormation stack with a new or previous template
 | --------- | ---- | ----------- |
 | `stackId` | string | The unique ID of the updated stack |
 
-### `cloudformation_delete_stack`
+### CloudFormation Delete Stack
 
 Delete a CloudFormation stack and its resources
 
@@ -123,7 +123,7 @@ Delete a CloudFormation stack and its resources
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
-### `cloudformation_cancel_update_stack`
+### CloudFormation Cancel Update Stack
 
 Cancel an in-progress stack update and roll back to the last known stable state
 
@@ -142,7 +142,7 @@ Cancel an in-progress stack update and roll back to the last known stable state
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
-### `cloudformation_create_change_set`
+### CloudFormation Create Change Set
 
 Preview the changes a stack create or update would make before applying them
 
@@ -169,7 +169,7 @@ Preview the changes a stack create or update would make before applying them
 | `changeSetId` | string | The unique ID of the created change set |
 | `stackId` | string | The unique ID of the target stack |
 
-### `cloudformation_describe_change_set`
+### CloudFormation Describe Change Set
 
 View the resource changes a change set would make and its execution status
 
@@ -199,7 +199,7 @@ View the resource changes a change set would make and its execution status
 | `capabilities` | array | Capabilities required to execute the change set |
 | `changes` | array | List of resource changes \(action, logical/physical resource ID, resource type, replacement\) |
 
-### `cloudformation_execute_change_set`
+### CloudFormation Execute Change Set
 
 Apply a previously created and reviewed change set to its stack
 
@@ -219,7 +219,7 @@ Apply a previously created and reviewed change set to its stack
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
-### `cloudformation_list_stack_resources`
+### CloudFormation List Stack Resources
 
 List all resources in a CloudFormation stack
 
@@ -238,7 +238,7 @@ List all resources in a CloudFormation stack
 | --------- | ---- | ----------- |
 | `resources` | array | List of stack resources with type, status, and drift information |
 
-### `cloudformation_detect_stack_drift`
+### CloudFormation Detect Stack Drift
 
 Initiate drift detection on a CloudFormation stack
 
@@ -257,7 +257,7 @@ Initiate drift detection on a CloudFormation stack
 | --------- | ---- | ----------- |
 | `stackDriftDetectionId` | string | ID to use with Describe Stack Drift Detection Status to check results |
 
-### `cloudformation_describe_stack_drift_detection_status`
+### CloudFormation Describe Stack Drift Detection Status
 
 Check the status of a stack drift detection operation
 
@@ -282,7 +282,7 @@ Check the status of a stack drift detection operation
 | `driftedStackResourceCount` | number | Number of resources that have drifted |
 | `timestamp` | number | Timestamp of the detection |
 
-### `cloudformation_describe_stack_events`
+### CloudFormation Describe Stack Events
 
 Get the event history for a CloudFormation stack
 
@@ -302,7 +302,7 @@ Get the event history for a CloudFormation stack
 | --------- | ---- | ----------- |
 | `events` | array | List of stack events with resource status and timestamps |
 
-### `cloudformation_get_template`
+### CloudFormation Get Template
 
 Retrieve the template body for a CloudFormation stack
 
@@ -323,7 +323,7 @@ Retrieve the template body for a CloudFormation stack
 | `templateBody` | string | The template body as a JSON or YAML string |
 | `stagesAvailable` | array | Available template stages |
 
-### `cloudformation_get_template_summary`
+### CloudFormation Get Template Summary
 
 Get a summary of a template or deployed stack: resource types, required capabilities, and parameters, without full validation
 
@@ -349,7 +349,7 @@ Get a summary of a template or deployed stack: resource types, required capabili
 | `version` | string | Template format version |
 | `declaredTransforms` | array | Transforms used in the template \(e.g., AWS::Serverless-2016-10-31\) |
 
-### `cloudformation_validate_template`
+### CloudFormation Validate Template
 
 Validate a CloudFormation template for syntax and structural correctness
 

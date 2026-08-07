@@ -33,7 +33,7 @@ Integrate LeadMagic to find verified work emails by name or company, validate em
 
 ## Actions
 
-### `leadmagic_validate_email`
+### LeadMagic Validate Email
 
 Verify an email address for deliverability. Charges 0.25 credits for definitive SMTP results (valid/invalid); unknown and RFC-invalid results are free.
 
@@ -61,7 +61,7 @@ Verify an email address for deliverability. Charges 0.25 credits for definitive 
 | `company_industry` | string | Industry of the company |
 | `company_size` | string | Company size range |
 
-### `leadmagic_find_email`
+### LeadMagic Find Email
 
 Find someone's verified work email from their name and company domain. Charges 1 credit when a valid email is found; free when no result.
 
@@ -93,7 +93,7 @@ Find someone's verified work email from their name and company domain. Charges 1
 | `company_size` | string | Company size range |
 | `company_profile_url` | string | Company LinkedIn/B2B profile URL |
 
-### `leadmagic_find_mobile`
+### LeadMagic Find Mobile
 
 Find a person's direct mobile number from their LinkedIn profile URL or email. Charges 5 credits when a number is found; free when no result.
 
@@ -116,7 +116,7 @@ Find a person's direct mobile number from their LinkedIn profile URL or email. C
 | `credits_consumed` | number | Credits charged \(5 when mobile found\) |
 | `message` | string | Status message from the API |
 
-### `leadmagic_profile_search`
+### LeadMagic Profile Search
 
 Enrich a LinkedIn profile with work history, education, skills, and contact data. Charges 1 credit per successful enrichment; free when profile not found.
 
@@ -152,7 +152,7 @@ Enrich a LinkedIn profile with work history, education, skills, and contact data
 | `credits_consumed` | number | Credits charged \(1 when profile found\) |
 | `message` | string | Human-readable status message |
 
-### `leadmagic_profile_to_email`
+### LeadMagic Profile to Email
 
 Extract a verified work email from a LinkedIn profile URL. Charges 5 credits when an email is found; free when no result.
 
@@ -172,7 +172,7 @@ Extract a verified work email from a LinkedIn profile URL. Charges 5 credits whe
 | `credits_consumed` | number | Credits charged \(5 when email found\) |
 | `message` | string | Human-readable status message |
 
-### `leadmagic_email_to_profile`
+### LeadMagic Email to Profile
 
 Retrieve a LinkedIn profile URL from a work or personal email address. Charges 10 credits when a profile is found; free when no result.
 
@@ -192,7 +192,7 @@ Retrieve a LinkedIn profile URL from a work or personal email address. Charges 1
 | `credits_consumed` | number | Credits charged \(10 when profile found\) |
 | `message` | string | Human-readable status message |
 
-### `leadmagic_company_search`
+### LeadMagic Company Search
 
 Enrich company data including firmographics, headcount, funding, and social profiles by domain, LinkedIn URL, or name. Charges 1 credit when a company is found; free when no result.
 
@@ -229,7 +229,7 @@ Enrich company data including firmographics, headcount, funding, and social prof
 | `credits_consumed` | number | Credits charged \(1 when company found\) |
 | `message` | string | Human-readable status message |
 
-### `leadmagic_role_finder`
+### LeadMagic Role Finder
 
 Find the person holding a specific job role at a company. Charges 2 credits when a matching person is found; free when no result.
 
@@ -256,7 +256,7 @@ Find the person holding a specific job role at a company. Charges 2 credits when
 | `credits_consumed` | number | Credits charged \(2 when person found\) |
 | `message` | string | Human-readable status message |
 
-### `leadmagic_get_credits`
+### LeadMagic Get Credits
 
 Retrieve the current credit balance for the authenticated LeadMagic account. This endpoint is free and consumes no credits.
 

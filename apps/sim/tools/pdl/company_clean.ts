@@ -1,9 +1,6 @@
-import type { PdlCleanCompanyParams, PdlCleanCompanyResponse } from '@/tools/peopledatalabs/types'
-import {
-  PDL_COMPANY_OUTPUT_PROPERTIES,
-  PEOPLEDATALABS_API_KEY_PREFIX,
-} from '@/tools/peopledatalabs/types'
-import { projectCompany } from '@/tools/peopledatalabs/utils'
+import type { PdlCleanCompanyParams, PdlCleanCompanyResponse } from '@/tools/pdl/types'
+import { PDL_COMPANY_OUTPUT_PROPERTIES, PEOPLEDATALABS_API_KEY_PREFIX } from '@/tools/pdl/types'
+import { projectCompany } from '@/tools/pdl/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const cleanCompanyTool: ToolConfig<PdlCleanCompanyParams, PdlCleanCompanyResponse> = {

@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { spawnSync } from 'node:child_process'
+import { hasPython3, PYTHON_SKIP_REASON } from '@sim/testing/environment'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   analyzeCodePlaceholders,
@@ -580,7 +581,8 @@ describe('code placeholder compiler', () => {
     )
   })
 
-  it('distinguishes Python lambda identifiers, match guards, and soft keywords from names', async () => {
+  it('distinguishes Python lambda identifiers, match guards, and soft keywords from names', async (ctx) => {
+    if (!hasPython3()) ctx.skip(PYTHON_SKIP_REASON)
     const compiled = await compileCodePlaceholders({
       code: [
         'lambda_value = "prefix-"',
@@ -688,7 +690,8 @@ describe('code placeholder compiler', () => {
     expect(executePython(compiled.code, compiled.bindings)).toBe('  7\n')
   })
 
-  it('supports quoted and embedded strings inside Python f-string expressions', async () => {
+  it('supports quoted and embedded strings inside Python f-string expressions', async (ctx) => {
+    if (!hasPython3()) ctx.skip(PYTHON_SKIP_REASON)
     const value = 'quote"\\\n{{OTHER}}'
     const compiled = await compileCodePlaceholders({
       code: [
@@ -734,7 +737,8 @@ describe('code placeholder compiler', () => {
     }
   })
 
-  it('ignores Python f-string comments and does not group adjacent strings across dedents', async () => {
+  it('ignores Python f-string comments and does not group adjacent strings across dedents', async (ctx) => {
+    if (!hasPython3()) ctx.skip(PYTHON_SKIP_REASON)
     const code = [
       'def build():',
       '    value = "{{KEY}}"',

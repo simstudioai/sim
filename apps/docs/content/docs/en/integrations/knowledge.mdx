@@ -31,7 +31,7 @@ Integrate Knowledge into the workflow. Perform full CRUD operations on documents
 
 ## Actions
 
-### `knowledge_search`
+### Knowledge Search
 
 Search for similar content in a knowledge base using vector similarity
 
@@ -66,7 +66,7 @@ Search for similar content in a knowledge base using vector similarity
 | `totalResults` | number | Total number of results found |
 | `cost` | object | Cost information for the search operation |
 
-### `knowledge_upload_chunk`
+### Knowledge Upload Chunk
 
 Upload a new chunk to a document in a knowledge base
 
@@ -96,7 +96,7 @@ Upload a new chunk to a document in a knowledge base
 | `documentName` | string | Name of the document the chunk was added to |
 | `cost` | object | Cost information for the upload operation |
 
-### `knowledge_create_document`
+### Knowledge Create Document
 
 Create a new document in a knowledge base
 
@@ -124,7 +124,7 @@ Create a new document in a knowledge base
 | `message` | string | Success or error message describing the operation result |
 | `documentId` | string | ID of the created document |
 
-### `knowledge_upsert_document`
+### Knowledge Upsert Document
 
 Create or update a document in a knowledge base. If a document with the given ID or filename already exists, it will be replaced with the new content.
 
@@ -155,7 +155,7 @@ Create or update a document in a knowledge base. If a document with the given ID
 | `message` | string | Success or error message describing the operation result |
 | `documentId` | string | ID of the upserted document |
 
-### `knowledge_list_tags`
+### Knowledge List Tags
 
 List all tag definitions for a knowledge base
 
@@ -179,7 +179,7 @@ List all tag definitions for a knowledge base
 |   ↳ `updatedAt` | string | Last update timestamp |
 | `totalTags` | number | Total number of tag definitions |
 
-### `knowledge_list_documents`
+### Knowledge List Documents
 
 List documents in a knowledge base with optional filtering, search, and pagination
 
@@ -216,7 +216,7 @@ List documents in a knowledge base with optional filtering, search, and paginati
 | `limit` | number | Page size used |
 | `offset` | number | Offset used for pagination |
 
-### `knowledge_get_document`
+### Knowledge Get Document
 
 Get full details of a single document including tags, connector metadata, and processing status
 
@@ -248,7 +248,7 @@ Get full details of a single document including tags, connector metadata, and pr
 | `externalId` | string | External ID from the source system |
 | `tags` | object | Tag values keyed by tag slot \(tag1-7, number1-5, date1-2, boolean1-3\) |
 
-### `knowledge_delete_document`
+### Knowledge Delete Document
 
 Delete a document from a knowledge base
 
@@ -266,7 +266,7 @@ Delete a document from a knowledge base
 | `documentId` | string | ID of the deleted document |
 | `message` | string | Confirmation message |
 
-### `knowledge_list_chunks`
+### Knowledge List Chunks
 
 List chunks for a document in a knowledge base with optional filtering and pagination
 
@@ -300,7 +300,7 @@ List chunks for a document in a knowledge base with optional filtering and pagin
 | `limit` | number | Page size used |
 | `offset` | number | Offset used for pagination |
 
-### `knowledge_update_chunk`
+### Knowledge Update Chunk
 
 Update the content or enabled status of a chunk in a knowledge base
 
@@ -327,7 +327,7 @@ Update the content or enabled status of a chunk in a knowledge base
 | `enabled` | boolean | Whether the chunk is enabled |
 | `updatedAt` | string | Last update timestamp |
 
-### `knowledge_delete_chunk`
+### Knowledge Delete Chunk
 
 Delete a chunk from a document in a knowledge base
 
@@ -347,7 +347,7 @@ Delete a chunk from a document in a knowledge base
 | `documentId` | string | ID of the parent document |
 | `message` | string | Confirmation message |
 
-### `knowledge_list_connectors`
+### Knowledge List Connectors
 
 List all connectors for a knowledge base, showing sync status, type, and document counts
 
@@ -376,7 +376,7 @@ List all connectors for a knowledge base, showing sync status, type, and documen
 |   ↳ `updatedAt` | string | Last update timestamp |
 | `totalConnectors` | number | Total number of connectors |
 
-### `knowledge_get_connector`
+### Knowledge Get Connector
 
 Get detailed connector information including recent sync logs for monitoring sync health
 
@@ -414,7 +414,7 @@ Get detailed connector information including recent sync logs for monitoring syn
 |   ↳ `docsUnchanged` | number | Documents unchanged |
 |   ↳ `errorMessage` | string | Error message if sync failed |
 
-### `knowledge_trigger_sync`
+### Knowledge Trigger Sync
 
 Trigger a manual sync for a knowledge base connector
 

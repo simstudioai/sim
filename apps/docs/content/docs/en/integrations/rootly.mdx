@@ -44,7 +44,7 @@ Integrate Rootly incident management into workflows. Create and manage incidents
 
 ## Actions
 
-### `rootly_create_incident`
+### Rootly Create Incident
 
 Create a new incident in Rootly with optional severity, services, and teams.
 
@@ -90,7 +90,7 @@ Create a new incident in Rootly with optional severity, services, and teams.
 |   ↳ `resolvedAt` | string | Resolution date |
 |   ↳ `closedAt` | string | Closed date |
 
-### `rootly_get_incident`
+### Rootly Get Incident
 
 Retrieve a single incident by ID from Rootly.
 
@@ -125,7 +125,7 @@ Retrieve a single incident by ID from Rootly.
 |   ↳ `resolvedAt` | string | Resolution date |
 |   ↳ `closedAt` | string | Closed date |
 
-### `rootly_update_incident`
+### Rootly Update Incident
 
 Update an existing incident in Rootly (status, severity, summary, etc.).
 
@@ -175,7 +175,7 @@ Update an existing incident in Rootly (status, severity, summary, etc.).
 |   ↳ `resolvedAt` | string | Resolution date |
 |   ↳ `closedAt` | string | Closed date |
 
-### `rootly_list_incidents`
+### Rootly List Incidents
 
 List incidents from Rootly with optional filtering by status, severity, and more.
 
@@ -219,7 +219,7 @@ List incidents from Rootly with optional filtering by status, severity, and more
 |   ↳ `closedAt` | string | Closed date |
 | `totalCount` | number | Total number of incidents returned |
 
-### `rootly_create_alert`
+### Rootly Create Alert
 
 Create a new alert in Rootly for on-call notification and routing.
 
@@ -258,7 +258,7 @@ Create a new alert in Rootly for on-call notification and routing.
 |   ↳ `startedAt` | string | Start date |
 |   ↳ `endedAt` | string | End date |
 
-### `rootly_list_alerts`
+### Rootly List Alerts
 
 List alerts from Rootly with optional filtering by status, source, and services.
 
@@ -295,7 +295,7 @@ List alerts from Rootly with optional filtering by status, source, and services.
 |   ↳ `endedAt` | string | End date |
 | `totalCount` | number | Total number of alerts returned |
 
-### `rootly_add_incident_event`
+### Rootly Add Incident Event
 
 Add a timeline event to an existing incident in Rootly.
 
@@ -319,7 +319,7 @@ Add a timeline event to an existing incident in Rootly.
 | `createdAt` | string | Creation date |
 | `updatedAt` | string | Last update date |
 
-### `rootly_list_services`
+### Rootly List Services
 
 List services from Rootly with optional search filtering.
 
@@ -346,7 +346,7 @@ List services from Rootly with optional search filtering.
 |   ↳ `updatedAt` | string | Last update date |
 | `totalCount` | number | Total number of services returned |
 
-### `rootly_list_severities`
+### Rootly List Severities
 
 List severity levels configured in Rootly.
 
@@ -375,7 +375,7 @@ List severity levels configured in Rootly.
 |   ↳ `updatedAt` | string | Last update date |
 | `totalCount` | number | Total number of severities returned |
 
-### `rootly_list_teams`
+### Rootly List Teams
 
 List teams (groups) configured in Rootly.
 
@@ -402,7 +402,7 @@ List teams (groups) configured in Rootly.
 |   ↳ `updatedAt` | string | Last update date |
 | `totalCount` | number | Total number of teams returned |
 
-### `rootly_list_environments`
+### Rootly List Environments
 
 List environments configured in Rootly.
 
@@ -429,7 +429,7 @@ List environments configured in Rootly.
 |   ↳ `updatedAt` | string | Last update date |
 | `totalCount` | number | Total number of environments returned |
 
-### `rootly_list_incident_types`
+### Rootly List Incident Types
 
 List incident types configured in Rootly.
 
@@ -456,7 +456,7 @@ List incident types configured in Rootly.
 |   ↳ `updatedAt` | string | Last update date |
 | `totalCount` | number | Total number of incident types returned |
 
-### `rootly_list_functionalities`
+### Rootly List Functionalities
 
 List functionalities configured in Rootly.
 
@@ -483,7 +483,7 @@ List functionalities configured in Rootly.
 |   ↳ `updatedAt` | string | Last update date |
 | `totalCount` | number | Total number of functionalities returned |
 
-### `rootly_list_retrospectives`
+### Rootly List Retrospectives
 
 List incident retrospectives (post-mortems) from Rootly.
 
@@ -513,7 +513,7 @@ List incident retrospectives (post-mortems) from Rootly.
 |   ↳ `updatedAt` | string | Last update date |
 | `totalCount` | number | Total number of retrospectives returned |
 
-### `rootly_delete_incident`
+### Rootly Delete Incident
 
 Delete an incident by ID from Rootly.
 
@@ -531,7 +531,7 @@ Delete an incident by ID from Rootly.
 | `success` | boolean | Whether the deletion succeeded |
 | `message` | string | Result message |
 
-### `rootly_get_alert`
+### Rootly Get Alert
 
 Retrieve a single alert by ID from Rootly.
 
@@ -561,7 +561,7 @@ Retrieve a single alert by ID from Rootly.
 |   ↳ `startedAt` | string | Start date |
 |   ↳ `endedAt` | string | End date |
 
-### `rootly_update_alert`
+### Rootly Update Alert
 
 Update an existing alert in Rootly.
 
@@ -600,7 +600,7 @@ Update an existing alert in Rootly.
 |   ↳ `startedAt` | string | Start date |
 |   ↳ `endedAt` | string | End date |
 
-### `rootly_acknowledge_alert`
+### Rootly Acknowledge Alert
 
 Acknowledge an alert in Rootly.
 
@@ -630,7 +630,7 @@ Acknowledge an alert in Rootly.
 |   ↳ `startedAt` | string | Start date |
 |   ↳ `endedAt` | string | End date |
 
-### `rootly_resolve_alert`
+### Rootly Resolve Alert
 
 Resolve an alert in Rootly.
 
@@ -662,7 +662,7 @@ Resolve an alert in Rootly.
 |   ↳ `startedAt` | string | Start date |
 |   ↳ `endedAt` | string | End date |
 
-### `rootly_create_action_item`
+### Rootly Create Action Item
 
 Create a new action item for an incident in Rootly.
 
@@ -695,7 +695,7 @@ Create a new action item for an incident in Rootly.
 |   ↳ `createdAt` | string | Creation date |
 |   ↳ `updatedAt` | string | Last update date |
 
-### `rootly_list_action_items`
+### Rootly List Action Items
 
 List action items for an incident in Rootly.
 
@@ -724,7 +724,7 @@ List action items for an incident in Rootly.
 |   ↳ `updatedAt` | string | Last update date |
 | `totalCount` | number | Total number of action items returned |
 
-### `rootly_list_users`
+### Rootly List Users
 
 List users from Rootly with optional search and email filtering.
 
@@ -753,7 +753,7 @@ List users from Rootly with optional search and email filtering.
 |   ↳ `updatedAt` | string | Last update date |
 | `totalCount` | number | Total number of users returned |
 
-### `rootly_list_on_calls`
+### Rootly List On-Calls
 
 List current on-call entries from Rootly with optional filtering.
 
@@ -782,7 +782,7 @@ List current on-call entries from Rootly with optional filtering.
 |   ↳ `endTime` | string | On-call end time |
 | `totalCount` | number | Total number of on-call entries returned |
 
-### `rootly_list_schedules`
+### Rootly List Schedules
 
 List on-call schedules from Rootly with optional search filtering.
 
@@ -808,7 +808,7 @@ List on-call schedules from Rootly with optional search filtering.
 |   ↳ `updatedAt` | string | Last update date |
 | `totalCount` | number | Total number of schedules returned |
 
-### `rootly_list_escalation_policies`
+### Rootly List Escalation Policies
 
 List escalation policies from Rootly with optional search filtering.
 
@@ -836,7 +836,7 @@ List escalation policies from Rootly with optional search filtering.
 |   ↳ `updatedAt` | string | Last update date |
 | `totalCount` | number | Total number of escalation policies returned |
 
-### `rootly_list_causes`
+### Rootly List Causes
 
 List causes from Rootly with optional search filtering.
 
@@ -863,7 +863,7 @@ List causes from Rootly with optional search filtering.
 |   ↳ `updatedAt` | string | Last update date |
 | `totalCount` | number | Total number of causes returned |
 
-### `rootly_list_playbooks`
+### Rootly List Playbooks
 
 List playbooks from Rootly with pagination support.
 
@@ -888,7 +888,7 @@ List playbooks from Rootly with pagination support.
 |   ↳ `updatedAt` | string | Last update date |
 | `totalCount` | number | Total number of playbooks returned |
 
-### `rootly_mitigate_incident`
+### Rootly Mitigate Incident
 
 Transition a Rootly incident to the mitigated state.
 
@@ -924,7 +924,7 @@ Transition a Rootly incident to the mitigated state.
 |   ↳ `resolvedAt` | string | Resolution date |
 |   ↳ `closedAt` | string | Closed date |
 
-### `rootly_resolve_incident`
+### Rootly Resolve Incident
 
 Transition a Rootly incident to the resolved state.
 
@@ -960,7 +960,7 @@ Transition a Rootly incident to the resolved state.
 |   ↳ `resolvedAt` | string | Resolution date |
 |   ↳ `closedAt` | string | Closed date |
 
-### `rootly_assign_incident_role`
+### Rootly Assign Incident Role
 
 Assign an incident role (e.g. commander) to a user on a Rootly incident.
 
@@ -997,7 +997,7 @@ Assign an incident role (e.g. commander) to a user on a Rootly incident.
 |   ↳ `resolvedAt` | string | Resolution date |
 |   ↳ `closedAt` | string | Closed date |
 
-### `rootly_unassign_incident_role`
+### Rootly Unassign Incident Role
 
 Remove an incident role assignment from a user on a Rootly incident.
 
@@ -1034,7 +1034,7 @@ Remove an incident role assignment from a user on a Rootly incident.
 |   ↳ `resolvedAt` | string | Resolution date |
 |   ↳ `closedAt` | string | Closed date |
 
-### `rootly_add_subscribers`
+### Rootly Add Subscribers
 
 Subscribe users to a Rootly incident so they receive updates.
 
@@ -1070,7 +1070,7 @@ Subscribe users to a Rootly incident so they receive updates.
 |   ↳ `resolvedAt` | string | Resolution date |
 |   ↳ `closedAt` | string | Closed date |
 
-### `rootly_remove_subscribers`
+### Rootly Remove Subscribers
 
 Unsubscribe users from a Rootly incident.
 
@@ -1106,7 +1106,7 @@ Unsubscribe users from a Rootly incident.
 |   ↳ `resolvedAt` | string | Resolution date |
 |   ↳ `closedAt` | string | Closed date |
 
-### `rootly_create_status_page_event`
+### Rootly Create Status Page Event
 
 Post a public status page update for a Rootly incident.
 
@@ -1137,7 +1137,7 @@ Post a public status page update for a Rootly incident.
 |   ↳ `createdAt` | string | Creation date |
 |   ↳ `updatedAt` | string | Last update date |
 
-### `rootly_update_action_item`
+### Rootly Update Action Item
 
 Update a Rootly incident action item (status, priority, assignee, etc.).
 
@@ -1170,7 +1170,7 @@ Update a Rootly incident action item (status, priority, assignee, etc.).
 |   ↳ `createdAt` | string | Creation date |
 |   ↳ `updatedAt` | string | Last update date |
 
-### `rootly_delete_action_item`
+### Rootly Delete Action Item
 
 Delete a Rootly incident action item.
 
@@ -1188,7 +1188,7 @@ Delete a Rootly incident action item.
 | `success` | boolean | Whether the action item was deleted |
 | `message` | string | Result message |
 
-### `rootly_snooze_alert`
+### Rootly Snooze Alert
 
 Snooze a Rootly alert for a set number of minutes.
 
@@ -1219,7 +1219,7 @@ Snooze a Rootly alert for a set number of minutes.
 |   ↳ `startedAt` | string | Start date |
 |   ↳ `endedAt` | string | End date |
 
-### `rootly_escalate_alert`
+### Rootly Escalate Alert
 
 Escalate a Rootly alert, optionally to a specific escalation policy or level.
 
@@ -1251,7 +1251,7 @@ Escalate a Rootly alert, optionally to a specific escalation policy or level.
 |   ↳ `startedAt` | string | Start date |
 |   ↳ `endedAt` | string | End date |
 
-### `rootly_list_incident_events`
+### Rootly List Incident Events
 
 List the timeline events for a Rootly incident.
 
@@ -1277,7 +1277,7 @@ List the timeline events for a Rootly incident.
 |   ↳ `updatedAt` | string | Last update date |
 | `totalCount` | number | Total number of events returned |
 
-### `rootly_run_workflow`
+### Rootly Run Workflow
 
 Trigger a Rootly automation workflow, optionally scoped to an incident or alert.
 
@@ -1309,7 +1309,7 @@ Trigger a Rootly automation workflow, optionally scoped to an incident or alert.
 |   ↳ `failedAt` | string | When the run failed |
 |   ↳ `canceledAt` | string | When the run was canceled |
 
-### `rootly_list_incident_roles`
+### Rootly List Incident Roles
 
 List incident roles configured in Rootly (e.g. commander, scribe).
 

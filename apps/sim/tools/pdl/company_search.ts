@@ -1,10 +1,10 @@
-import type { PdlCompanySearchParams, PdlCompanySearchResponse } from '@/tools/peopledatalabs/types'
+import type { PdlCompanySearchParams, PdlCompanySearchResponse } from '@/tools/pdl/types'
 import {
   PDL_COMPANY_OUTPUT_PROPERTIES,
   PDL_CREDIT_USD,
   PEOPLEDATALABS_API_KEY_PREFIX,
-} from '@/tools/peopledatalabs/types'
-import { projectCompany } from '@/tools/peopledatalabs/utils'
+} from '@/tools/pdl/types'
+import { projectCompany } from '@/tools/pdl/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const companySearchTool: ToolConfig<PdlCompanySearchParams, PdlCompanySearchResponse> = {

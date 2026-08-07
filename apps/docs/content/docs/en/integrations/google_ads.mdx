@@ -25,7 +25,7 @@ Connect to Google Ads to list accessible accounts, list campaigns, view ad group
 
 ## Actions
 
-### `google_ads_list_customers`
+### List Google Ads Customers
 
 List all Google Ads customer accounts accessible by the authenticated user
 
@@ -42,7 +42,7 @@ List all Google Ads customer accounts accessible by the authenticated user
 | `customerIds` | array | List of accessible customer IDs |
 | `totalCount` | number | Total number of accessible customer accounts |
 
-### `google_ads_search`
+### Google Ads Search (GAQL)
 
 Run a custom Google Ads Query Language (GAQL) query
 
@@ -64,7 +64,7 @@ Run a custom Google Ads Query Language (GAQL) query
 | `totalResultsCount` | number | Total number of matching results |
 | `nextPageToken` | string | Token for the next page of results |
 
-### `google_ads_list_campaigns`
+### List Google Ads Campaigns
 
 List campaigns in a Google Ads account with optional status filtering
 
@@ -92,7 +92,7 @@ List campaigns in a Google Ads account with optional status filtering
 |   ↳ `budgetAmountMicros` | string | Daily budget in micros \(divide by 1,000,000 for currency value\) |
 | `totalCount` | number | Total number of campaigns returned |
 
-### `google_ads_campaign_performance`
+### Google Ads Campaign Performance
 
 Get performance metrics for Google Ads campaigns over a date range
 
@@ -124,7 +124,7 @@ Get performance metrics for Google Ads campaigns over a date range
 |   ↳ `date` | string | Date for this row \(YYYY-MM-DD\) |
 | `totalCount` | number | Total number of result rows |
 
-### `google_ads_list_ad_groups`
+### List Google Ads Ad Groups
 
 List ad groups in a Google Ads campaign
 
@@ -152,7 +152,7 @@ List ad groups in a Google Ads campaign
 |   ↳ `campaignName` | string | Parent campaign name |
 | `totalCount` | number | Total number of ad groups returned |
 
-### `google_ads_ad_performance`
+### Google Ads Ad Performance
 
 Get performance metrics for individual ads over a date range
 

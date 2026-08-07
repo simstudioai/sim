@@ -10,7 +10,7 @@ export const devinListSessionAttachmentsTool: ToolConfig<
   DevinListSessionAttachmentsResponse
 > = {
   id: 'devin_list_session_attachments',
-  name: 'list_session_attachments',
+  name: 'Devin List Session Attachments',
   description: 'List the files uploaded to or produced by a Devin session.',
   version: '1.0.0',
 

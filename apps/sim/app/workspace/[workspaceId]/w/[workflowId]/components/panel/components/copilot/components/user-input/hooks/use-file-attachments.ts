@@ -5,11 +5,38 @@ import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { getMothershipAttachmentPreviewUrl } from '@/lib/copilot/chat/attachment-preview'
 import { uploadViaApiFallback } from '@/lib/uploads/client/api-fallback'
 import { DirectUploadError, runUploadStrategy } from '@/lib/uploads/client/direct-upload'
 import { resolveFileType } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('useFileAttachments')
+
+/**
+ * Image formats no browser decodes in an `<img>`. A blob URL of these bytes renders
+ * broken, so their preview has to come from the serve route, which substitutes a
+ * JPEG derivative once the file is uploaded.
+ *
+ * Matched as prefixes so the `-sequence` variants Safari reports for Live Photos and
+ * burst captures are covered too. The server decides for real by sniffing the
+ * container — see `isHevcHeifContainer` in `@/lib/uploads/server/heic`; keep the two
+ * in step when adding a format.
+ */
+const SERVER_RENDERED_IMAGE_PREFIXES = ['image/heic', 'image/heif'] as const
+
+/** Whether the browser can decode these bytes itself, making a blob URL worth creating. */
+function rendersFromBlobUrl(mediaType: string): boolean {
+  if (SERVER_RENDERED_IMAGE_PREFIXES.some((prefix) => mediaType.startsWith(prefix))) return false
+  return mediaType.startsWith('image/') || mediaType.startsWith('video/')
+}
+
+/**
+ * Revokes a preview URL only when it is one we minted. A preview can also be a serve
+ * URL, which owns no object-URL handle.
+ */
+function revokePreviewUrl(previewUrl?: string): void {
+  if (previewUrl?.startsWith('blob:')) URL.revokeObjectURL(previewUrl)
+}
 
 /**
  * File size units for formatting
@@ -69,15 +96,21 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   /**
+   * Mirrors the current attachments so the unmount cleanup below can reach them. The
+   * cleanup runs once, so reading state directly would close over the empty first
+   * render and revoke nothing.
+   */
+  const attachedFilesRef = useRef<AttachedFile[]>(attachedFiles)
+  useEffect(() => {
+    attachedFilesRef.current = attachedFiles
+  }, [attachedFiles])
+
+  /**
    * Cleanup preview URLs on unmount
    */
   useEffect(() => {
     return () => {
-      attachedFiles.forEach((f) => {
-        if (f.previewUrl) {
-          URL.revokeObjectURL(f.previewUrl)
-        }
-      })
+      attachedFilesRef.current.forEach((f) => revokePreviewUrl(f.previewUrl))
     }
   }, [])
 
@@ -125,18 +158,20 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
       const files = Array.from(fileList)
       if (files.length === 0) return
 
-      const placeholders: AttachedFile[] = files.map((file) => ({
-        id: generateId(),
-        name: file.name,
-        size: file.size,
-        type: resolveFileType(file),
-        path: '',
-        uploading: true,
-        previewUrl:
-          file.type.startsWith('image/') || file.type.startsWith('video/')
-            ? URL.createObjectURL(file)
-            : undefined,
-      }))
+      const placeholders: AttachedFile[] = files.map((file) => {
+        /** Resolved once: browsers report `application/octet-stream` (or nothing) for
+         *  plenty of files, and both the chip and the preview decision key off it. */
+        const type = resolveFileType(file)
+        return {
+          id: generateId(),
+          name: file.name,
+          size: file.size,
+          type,
+          path: '',
+          uploading: true,
+          previewUrl: rendersFromBlobUrl(type) ? URL.createObjectURL(file) : undefined,
+        }
+      })
 
       setAttachedFiles((prev) => [...prev, ...placeholders])
 
@@ -171,7 +206,21 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
             setAttachedFiles((prev) =>
               prev.map((f) =>
                 f.id === placeholder.id
-                  ? { ...f, path: result.path, key: result.key, uploading: false }
+                  ? {
+                      ...f,
+                      path: result.path,
+                      key: result.key,
+                      uploading: false,
+                      /** A format the browser cannot decode has no local preview; the
+                       *  stored bytes now have a renderable derivative. Anything already
+                       *  previewing keeps its blob URL. */
+                      previewUrl:
+                        f.previewUrl ??
+                        getMothershipAttachmentPreviewUrl({
+                          key: result.key,
+                          media_type: f.type,
+                        }),
+                    }
                   : f
               )
             )
@@ -180,7 +229,7 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
             toast.error(`Couldn't upload "${file.name}"`, {
               description: toError(error).message,
             })
-            if (placeholder.previewUrl) URL.revokeObjectURL(placeholder.previewUrl)
+            revokePreviewUrl(placeholder.previewUrl)
             setAttachedFiles((prev) => prev.filter((f) => f.id !== placeholder.id))
           }
         })
@@ -220,16 +269,10 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
    * Removes a file from attachments
    * @param fileId - ID of the file to remove
    */
-  const removeFile = useCallback(
-    (fileId: string) => {
-      const file = attachedFiles.find((f) => f.id === fileId)
-      if (file?.previewUrl) {
-        URL.revokeObjectURL(file.previewUrl)
-      }
-      setAttachedFiles((prev) => prev.filter((f) => f.id !== fileId))
-    },
-    [attachedFiles]
-  )
+  const removeFile = useCallback((fileId: string) => {
+    revokePreviewUrl(attachedFilesRef.current.find((f) => f.id === fileId)?.previewUrl)
+    setAttachedFiles((prev) => prev.filter((f) => f.id !== fileId))
+  }, [])
 
   /**
    * Opens file in new tab (for preview)
@@ -303,25 +346,18 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
    * Clears all attached files and cleanup preview URLs
    */
   const clearAttachedFiles = useCallback(() => {
-    attachedFiles.forEach((f) => {
-      if (f.previewUrl) {
-        URL.revokeObjectURL(f.previewUrl)
-      }
-    })
+    attachedFilesRef.current.forEach((f) => revokePreviewUrl(f.previewUrl))
     setAttachedFiles([])
-  }, [attachedFiles])
+  }, [])
 
   /**
-   * Replaces the current attached files with a given set.
-   * Cleans up preview URLs from the prior set before replacing.
+   * Replaces the current attached files with a given set, revoking the prior set's
+   * preview URLs first. Revoked outside the updater, which must stay pure — React
+   * double-invokes updaters in StrictMode and may replay them.
    */
   const restoreAttachedFiles = useCallback((files: AttachedFile[]) => {
-    setAttachedFiles((prev) => {
-      prev.forEach((f) => {
-        if (f.previewUrl) URL.revokeObjectURL(f.previewUrl)
-      })
-      return files
-    })
+    attachedFilesRef.current.forEach((f) => revokePreviewUrl(f.previewUrl))
+    setAttachedFiles(files)
   }, [])
 
   return {

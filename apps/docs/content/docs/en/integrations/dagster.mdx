@@ -32,7 +32,7 @@ Connect to a Dagster instance to launch job runs, monitor run status, list avail
 
 ## Actions
 
-### `dagster_launch_run`
+### Dagster Launch Run
 
 Launch a job run on a Dagster instance.
 
@@ -54,7 +54,7 @@ Launch a job run on a Dagster instance.
 | --------- | ---- | ----------- |
 | `runId` | string | The globally unique ID of the launched run |
 
-### `dagster_get_run`
+### Dagster Get Run
 
 Get the status and details of a Dagster run by its ID.
 
@@ -85,7 +85,7 @@ Get the status and details of a Dagster run by its ID.
 | `runConfigYaml` | string | Run configuration as YAML |
 | `tags` | json | Run tags as array of \{key, value\} objects |
 
-### `dagster_get_run_logs`
+### Dagster Get Run Logs
 
 Fetch execution event logs for a Dagster run.
 
@@ -113,7 +113,7 @@ Fetch execution event logs for a Dagster run.
 | `cursor` | string | Cursor for fetching the next page of log events |
 | `hasMore` | boolean | Whether more log events are available beyond this page |
 
-### `dagster_list_runs`
+### Dagster List Runs
 
 List Dagster runs with optional filters by job name, status, and creation-time range, plus cursor pagination.
 
@@ -144,7 +144,7 @@ List Dagster runs with optional filters by job name, status, and creation-time r
 | `cursor` | string | Run ID of the last returned run — pass as cursor to fetch the next page |
 | `hasMore` | boolean | Whether more runs are likely available beyond this page |
 
-### `dagster_list_jobs`
+### Dagster List Jobs
 
 List all jobs across repositories in a Dagster instance.
 
@@ -163,7 +163,7 @@ List all jobs across repositories in a Dagster instance.
 |   ↳ `name` | string | Job name |
 |   ↳ `repositoryName` | string | Repository name |
 
-### `dagster_reexecute_run`
+### Dagster Reexecute Run
 
 Reexecute an existing Dagster run, optionally resuming only from failed steps.
 
@@ -182,7 +182,7 @@ Reexecute an existing Dagster run, optionally resuming only from failed steps.
 | --------- | ---- | ----------- |
 | `runId` | string | The ID of the newly launched reexecution run |
 
-### `dagster_terminate_run`
+### Dagster Terminate Run
 
 Terminate an in-progress Dagster run.
 
@@ -202,7 +202,7 @@ Terminate an in-progress Dagster run.
 | `runId` | string | The ID of the terminated run |
 | `message` | string | Error or status message if termination failed |
 
-### `dagster_delete_run`
+### Dagster Delete Run
 
 Permanently delete a Dagster run record.
 
@@ -220,7 +220,7 @@ Permanently delete a Dagster run record.
 | --------- | ---- | ----------- |
 | `runId` | string | The ID of the deleted run |
 
-### `dagster_list_schedules`
+### Dagster List Schedules
 
 List all schedules in a Dagster repository, optionally filtered by status.
 
@@ -247,7 +247,7 @@ List all schedules in a Dagster repository, optionally filtered by status.
 |   ↳ `description` | string | Human-readable schedule description |
 |   ↳ `executionTimezone` | string | Timezone for cron evaluation |
 
-### `dagster_start_schedule`
+### Dagster Start Schedule
 
 Enable (start) a schedule in a Dagster repository.
 
@@ -268,7 +268,7 @@ Enable (start) a schedule in a Dagster repository.
 | `id` | string | Instigator state ID of the schedule |
 | `status` | string | Updated schedule status \(RUNNING or STOPPED\) |
 
-### `dagster_stop_schedule`
+### Dagster Stop Schedule
 
 Disable (stop) a running schedule in Dagster.
 
@@ -287,7 +287,7 @@ Disable (stop) a running schedule in Dagster.
 | `id` | string | Instigator state ID of the schedule |
 | `status` | string | Updated schedule status \(RUNNING or STOPPED\) |
 
-### `dagster_list_sensors`
+### Dagster List Sensors
 
 List all sensors in a Dagster repository, optionally filtered by status.
 
@@ -312,7 +312,7 @@ List all sensors in a Dagster repository, optionally filtered by status.
 |   ↳ `id` | string | Instigator state ID — use this to start or stop the sensor |
 |   ↳ `description` | string | Human-readable sensor description |
 
-### `dagster_start_sensor`
+### Dagster Start Sensor
 
 Enable (start) a sensor in a Dagster repository.
 
@@ -333,7 +333,7 @@ Enable (start) a sensor in a Dagster repository.
 | `id` | string | Instigator state ID of the sensor |
 | `status` | string | Updated sensor status \(RUNNING or STOPPED\) |
 
-### `dagster_stop_sensor`
+### Dagster Stop Sensor
 
 Disable (stop) a running sensor in Dagster.
 
@@ -352,7 +352,7 @@ Disable (stop) a running sensor in Dagster.
 | `id` | string | Instigator state ID of the sensor |
 | `status` | string | Updated sensor status \(RUNNING or STOPPED\) |
 
-### `dagster_list_assets`
+### Dagster List Assets
 
 List assets tracked by a Dagster instance, optionally filtered by key prefix.
 
@@ -376,7 +376,7 @@ List assets tracked by a Dagster instance, optionally filtered by key prefix.
 | `cursor` | string | Cursor to pass on the next call to fetch more assets |
 | `hasMore` | boolean | Whether more assets are likely available beyond this page |
 
-### `dagster_get_asset`
+### Dagster Get Asset
 
 Get an asset definition and its latest materialization by asset key.
 
@@ -405,7 +405,7 @@ Get an asset definition and its latest materialization by asset key.
 |   ↳ `partition` | string | Partition key, if partitioned |
 |   ↳ `stepKey` | string | Step key that emitted it |
 
-### `dagster_materialize_assets`
+### Dagster Materialize Assets
 
 Materialize selected assets by launching their asset job with an asset selection.
 
@@ -427,7 +427,7 @@ Materialize selected assets by launching their asset job with an asset selection
 | --------- | ---- | ----------- |
 | `runId` | string | The globally unique ID of the launched materialization run |
 
-### `dagster_report_asset_materialization`
+### Dagster Report Asset Materialization
 
 Report an external (runless) materialization or observation for an asset.
 
@@ -449,7 +449,7 @@ Report an external (runless) materialization or observation for an asset.
 | `success` | boolean | Whether the event was reported successfully |
 | `assetKey` | string | Slash-joined asset key the event was reported against |
 
-### `dagster_wipe_asset`
+### Dagster Wipe Asset
 
 DESTRUCTIVE: permanently wipes ALL materialization history (every partition) for an asset. This cannot be undone.
 

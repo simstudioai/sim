@@ -38,7 +38,7 @@ Integrate Okta identity management into your workflow. List, create, update, act
 
 ## Actions
 
-### `okta_list_users`
+### List Users from Okta
 
 List all users in your Okta organization with optional search and filtering
 
@@ -74,7 +74,7 @@ List all users in your Okta organization with optional search and filtering
 | `count` | number | Number of users returned |
 | `success` | boolean | Operation success status |
 
-### `okta_get_user`
+### Get User from Okta
 
 Get a specific user by ID or login from your Okta organization
 
@@ -115,7 +115,7 @@ Get a specific user by ID or login from your Okta organization
 | `passwordChanged` | string | Password change timestamp |
 | `success` | boolean | Operation success status |
 
-### `okta_create_user`
+### Create User in Okta
 
 Create a new user in your Okta organization
 
@@ -149,7 +149,7 @@ Create a new user in your Okta organization
 | `lastUpdated` | string | Last update timestamp |
 | `success` | boolean | Operation success status |
 
-### `okta_update_user`
+### Update User in Okta
 
 Update a user profile in your Okta organization
 
@@ -182,7 +182,7 @@ Update a user profile in your Okta organization
 | `lastUpdated` | string | Last update timestamp |
 | `success` | boolean | Operation success status |
 
-### `okta_activate_user`
+### Activate User in Okta
 
 Activate a user in your Okta organization. Can only be performed on users with STAGED or DEPROVISIONED status. Optionally sends an activation email.
 
@@ -205,7 +205,7 @@ Activate a user in your Okta organization. Can only be performed on users with S
 | `activationToken` | string | Activation token \(only returned when sendEmail is false\) |
 | `success` | boolean | Operation success status |
 
-### `okta_deactivate_user`
+### Deactivate User in Okta
 
 Deactivate a user in your Okta organization. This transitions the user to DEPROVISIONED status.
 
@@ -226,7 +226,7 @@ Deactivate a user in your Okta organization. This transitions the user to DEPROV
 | `deactivated` | boolean | Whether the user was deactivated |
 | `success` | boolean | Operation success status |
 
-### `okta_suspend_user`
+### Suspend User in Okta
 
 Suspend a user in your Okta organization. Only users with ACTIVE status can be suspended. Suspended users cannot log in but retain group and app assignments.
 
@@ -246,7 +246,7 @@ Suspend a user in your Okta organization. Only users with ACTIVE status can be s
 | `suspended` | boolean | Whether the user was suspended |
 | `success` | boolean | Operation success status |
 
-### `okta_unsuspend_user`
+### Unsuspend User in Okta
 
 Unsuspend a previously suspended user in your Okta organization. Returns the user to ACTIVE status.
 
@@ -266,7 +266,7 @@ Unsuspend a previously suspended user in your Okta organization. Returns the use
 | `unsuspended` | boolean | Whether the user was unsuspended |
 | `success` | boolean | Operation success status |
 
-### `okta_reset_password`
+### Reset Password in Okta
 
 Generate a one-time token to reset a user password. Can email the reset link to the user or return it directly. Transitions the user to RECOVERY status.
 
@@ -287,7 +287,7 @@ Generate a one-time token to reset a user password. Can email the reset link to 
 | `resetPasswordUrl` | string | Password reset URL \(only returned when sendEmail is false\) |
 | `success` | boolean | Operation success status |
 
-### `okta_delete_user`
+### Delete User from Okta
 
 Permanently delete a user from your Okta organization. Can only be performed on DEPROVISIONED users. If the user is active, this will first deactivate them and a second call is needed to delete.
 
@@ -308,7 +308,7 @@ Permanently delete a user from your Okta organization. Can only be performed on 
 | `deleted` | boolean | Whether the user was deleted |
 | `success` | boolean | Operation success status |
 
-### `okta_list_groups`
+### List Groups from Okta
 
 List all groups in your Okta organization with optional search and filtering
 
@@ -337,7 +337,7 @@ List all groups in your Okta organization with optional search and filtering
 | `count` | number | Number of groups returned |
 | `success` | boolean | Operation success status |
 
-### `okta_get_group`
+### Get Group from Okta
 
 Get a specific group by ID from your Okta organization
 
@@ -362,7 +362,7 @@ Get a specific group by ID from your Okta organization
 | `lastMembershipUpdated` | string | Last membership change timestamp |
 | `success` | boolean | Operation success status |
 
-### `okta_create_group`
+### Create Group in Okta
 
 Create a new group in your Okta organization
 
@@ -388,7 +388,7 @@ Create a new group in your Okta organization
 | `lastMembershipUpdated` | string | Last membership change timestamp |
 | `success` | boolean | Operation success status |
 
-### `okta_update_group`
+### Update Group in Okta
 
 Update a group profile in your Okta organization. Only groups of OKTA_GROUP type can be updated. All profile properties must be specified (full replacement).
 
@@ -415,7 +415,7 @@ Update a group profile in your Okta organization. Only groups of OKTA_GROUP type
 | `lastMembershipUpdated` | string | Last membership change timestamp |
 | `success` | boolean | Operation success status |
 
-### `okta_delete_group`
+### Delete Group from Okta
 
 Delete a group from your Okta organization. Groups of OKTA_GROUP or APP_GROUP type can be removed.
 
@@ -435,7 +435,7 @@ Delete a group from your Okta organization. Groups of OKTA_GROUP or APP_GROUP ty
 | `deleted` | boolean | Whether the group was deleted |
 | `success` | boolean | Operation success status |
 
-### `okta_add_user_to_group`
+### Add User to Group in Okta
 
 Add a user to a group in your Okta organization
 
@@ -457,7 +457,7 @@ Add a user to a group in your Okta organization
 | `added` | boolean | Whether the user was added |
 | `success` | boolean | Operation success status |
 
-### `okta_remove_user_from_group`
+### Remove User from Group in Okta
 
 Remove a user from a group in your Okta organization
 
@@ -479,7 +479,7 @@ Remove a user from a group in your Okta organization
 | `removed` | boolean | Whether the user was removed |
 | `success` | boolean | Operation success status |
 
-### `okta_list_group_members`
+### List Group Members from Okta
 
 List all members of a specific group in your Okta organization
 

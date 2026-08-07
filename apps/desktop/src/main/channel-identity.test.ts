@@ -1,4 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+vi.mock('electron', () => import('@/test/electron-mock'))
+
 import { APP_NAME_FOR_CHANNEL, channelForOrigin, DEFAULT_ORIGIN } from '@/main/config'
 import { classifyNavigation } from '@/main/navigation'
 import { DEV, identityForOrigin, LOCAL, PROD, STAGING } from '../../scripts/channels'
