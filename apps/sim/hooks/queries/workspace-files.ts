@@ -587,18 +587,24 @@ interface RenameFileParams {
   workspaceId: string
   fileId: string
   name: string
+  /**
+   * Set only when the rename is a type change, in which case `name` already carries the matching
+   * extension. Patched into the cache alongside the name so the viewer swaps editors immediately
+   * rather than waiting for the invalidation to land.
+   */
+  contentType?: string
 }
 
 export function useRenameWorkspaceFile() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ workspaceId, fileId, name }: RenameFileParams) =>
+    mutationFn: async ({ workspaceId, fileId, name, contentType }: RenameFileParams) =>
       requestJson(renameWorkspaceFileContract, {
         params: { id: workspaceId, fileId },
-        body: { name },
+        body: contentType ? { name, contentType } : { name },
       }),
-    onMutate: async ({ workspaceId, fileId, name }) => {
+    onMutate: async ({ workspaceId, fileId, name, contentType }) => {
       await queryClient.cancelQueries({ queryKey: workspaceFilesKeys.workspaceLists(workspaceId) })
       const previous = queryClient.getQueryData<WorkspaceFileRecord[]>(
         workspaceFilesKeys.list(workspaceId, 'active')
@@ -606,7 +612,9 @@ export function useRenameWorkspaceFile() {
       if (previous) {
         queryClient.setQueryData<WorkspaceFileRecord[]>(
           workspaceFilesKeys.list(workspaceId, 'active'),
-          previous.map((f) => (f.id === fileId ? { ...f, name } : f))
+          previous.map((f) =>
+            f.id === fileId ? { ...f, name, ...(contentType ? { type: contentType } : {}) } : f
+          )
         )
       }
       return { previous }

@@ -301,6 +301,11 @@ export interface PostHogEventMap {
     workspace_id: string
   }
 
+  file_type_changed: {
+    workspace_id: string
+    content_type: string
+  }
+
   file_moved: {
     workspace_id: string
     file_count: number

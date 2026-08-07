@@ -71,6 +71,11 @@ export interface PerformRenameWorkspaceFileParams {
   fileId: string
   name: string
   userId: string
+  /**
+   * Present only when the caller is changing the file's type, in which case `name` already carries
+   * the matching extension — the contract enforces that pairing before this is reached.
+   */
+  contentType?: string
 }
 
 export interface PerformRenameWorkspaceFileResult {
@@ -284,12 +289,12 @@ export async function performMoveWorkspaceFileItems(
 export async function performRenameWorkspaceFile(
   params: PerformRenameWorkspaceFileParams
 ): Promise<PerformRenameWorkspaceFileResult> {
-  const { workspaceId, fileId, name, userId } = params
+  const { workspaceId, fileId, name, userId, contentType } = params
 
   try {
-    const file = await renameWorkspaceFile(workspaceId, fileId, name)
+    const file = await renameWorkspaceFile(workspaceId, fileId, name, { contentType })
 
-    logger.info('Renamed workspace file', { workspaceId, fileId, name: file.name })
+    logger.info('Renamed workspace file', { workspaceId, fileId, name: file.name, contentType })
 
     recordAudit({
       workspaceId,
@@ -298,7 +303,9 @@ export async function performRenameWorkspaceFile(
       resourceType: AuditResourceType.FILE,
       resourceId: fileId,
       resourceName: file.name,
-      description: `Renamed file to "${file.name}"`,
+      description: contentType
+        ? `Changed file type to "${file.type}" and renamed to "${file.name}"`
+        : `Renamed file to "${file.name}"`,
     })
 
     await notifyWorkspaceFilesChanged(workspaceId)

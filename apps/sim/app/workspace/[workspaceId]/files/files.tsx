@@ -18,7 +18,7 @@ import {
   toast,
   Upload,
 } from '@sim/emcn'
-import { Download, Send } from '@sim/emcn/icons'
+import { Download, FileText, Send } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { useParams, useRouter } from 'next/navigation'
@@ -39,6 +39,12 @@ import {
   resolveEffectiveMimeType,
 } from '@/lib/uploads/utils/file-utils'
 import {
+  findTextFileTypeById,
+  resolveTextFileType,
+  SELECTABLE_TEXT_FILE_TYPES,
+  withFileTypeExtension,
+} from '@/lib/uploads/utils/text-file-types'
+import {
   isSupportedExtension,
   SUPPORTED_AUDIO_EXTENSIONS,
   SUPPORTED_CODE_EXTENSIONS,
@@ -48,6 +54,7 @@ import {
 } from '@/lib/uploads/utils/validation'
 import type {
   BreadcrumbItem,
+  DropdownRadioGroup,
   FilterTag,
   ResourceAction,
   ResourceColumn,
@@ -98,7 +105,7 @@ import {
   DEFAULT_UNTITLED_NAME,
   deriveMarkdownFileName,
   isUntitledName,
-  uniqueMarkdownName,
+  uniqueFileName,
 } from '@/app/workspace/[workspaceId]/files/untitled-title'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
@@ -166,6 +173,11 @@ const COLUMNS: ResourceColumn[] = [
   { id: 'updated', header: 'Last Updated' },
 ]
 
+/**
+ * Labels for the binary formats. The text formats are labelled by the selectable-type registry
+ * instead, so the Type column and the header's type picker can never disagree about what a file is
+ * called.
+ */
 const MIME_TYPE_LABELS: Record<string, string> = {
   'application/pdf': 'PDF',
   'application/msword': 'Word',
@@ -174,13 +186,24 @@ const MIME_TYPE_LABELS: Record<string, string> = {
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'Excel',
   'application/vnd.ms-powerpoint': 'PowerPoint',
   'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'PowerPoint',
-  'application/json': 'JSON',
-  'application/x-yaml': 'YAML',
-  'text/csv': 'CSV',
-  'text/plain': 'Text',
-  'text/html': 'HTML',
-  'text/markdown': 'Markdown',
 }
+
+/** Hoisted: derived from a frozen registry, so there is nothing to rebuild per render. */
+const TEXT_FILE_TYPE_MENU_GROUPS: DropdownRadioGroup[] = [
+  {
+    items: SELECTABLE_TEXT_FILE_TYPES.filter((type) => type.group === 'document').map((type) => ({
+      id: type.id,
+      label: type.label,
+    })),
+  },
+  {
+    submenuLabel: 'Code',
+    items: SELECTABLE_TEXT_FILE_TYPES.filter((type) => type.group === 'code').map((type) => ({
+      id: type.id,
+      label: type.label,
+    })),
+  },
+]
 
 const EMPTY_WORKSPACE_FILES: WorkspaceFileRecord[] = []
 const EMPTY_WORKSPACE_FILE_FOLDERS: WorkspaceFileFolderApi[] = []
@@ -197,6 +220,9 @@ const hasExternalFiles = (dataTransfer: DataTransfer): boolean =>
   dataTransfer.types.includes('Files')
 
 function formatFileType(storedType: string | null, filename: string): string {
+  const textType = resolveTextFileType(storedType, filename)
+  if (textType) return textType.label
+
   const mimeType = resolveEffectiveMimeType(storedType, filename)
 
   if (MIME_TYPE_LABELS[mimeType]) {
@@ -393,11 +419,17 @@ export function Files() {
    * While a file is still untitled, name it after the leading heading the user types in its editor. The
    * editor reports the heading text (debounced); here we re-check the file is still untitled, derive a
    * unique `.md` name among its folder siblings, and rename. A no-op once the file has a real name.
+   *
+   * The markdown check is what keeps this from retyping a file behind the user's back:
+   * `deriveMarkdownFileName` always appends `.md`, so an untitled file of another type would be
+   * silently converted. Only the rich markdown editor reports headings today, so the guard is
+   * belt-and-braces — but it keeps the invariant local instead of three files away.
    */
   const handleDeriveTitleFromHeading = useCallback(
     (headingText: string) => {
       const currentFile = selectedFileRef.current
       if (!currentFile || !isUntitledName(currentFile.name)) return
+      if (!isMarkdownFile(currentFile)) return
       const derived = deriveMarkdownFileName(headingText)
       if (!derived) return
       const siblingNames = new Set(
@@ -408,7 +440,7 @@ export function Files() {
           )
           .map((f) => f.name)
       )
-      const name = uniqueMarkdownName(derived, siblingNames)
+      const name = uniqueFileName(derived, siblingNames)
       if (name === currentFile.name) return
       renameFile
         .mutateAsync({ workspaceId, fileId: currentFile.id, name })
@@ -1154,6 +1186,49 @@ export function Files() {
     if (file) headerRename.startRename(file.id, file.name)
   }, [headerRename.startRename])
 
+  /**
+   * Retypes the open file: swaps its extension for the chosen type's and stores that type's MIME in
+   * the same write, leaving the bytes untouched.
+   *
+   * Unsaved edits are flushed first rather than blocked. `showUnsavedChangesAlert` exists for
+   * navigating away, where discarding is a real choice; here the user stays on the file and expects
+   * their text to survive — and the markdown editor unmounts the moment the file stops being
+   * markdown, taking its pending debounce with it. Awaiting the save also orders the content write
+   * ahead of the metadata write, so the two cannot race.
+   */
+  const handleChangeFileType = useCallback(
+    async (typeId: string) => {
+      const file = selectedFileRef.current
+      if (!file) return
+
+      const type = findTextFileTypeById(typeId)
+      if (!type) return
+
+      const nextName = withFileTypeExtension(file.name, type)
+      if (type.mimeType === file.type && nextName === file.name) return
+
+      if (isDirtyRef.current) await saveRef.current?.()
+
+      const siblingNames = new Set(
+        filesRef.current
+          .filter((f) => (f.folderId ?? null) === (file.folderId ?? null) && f.id !== file.id)
+          .map((f) => f.name)
+      )
+
+      try {
+        await renameFile.mutateAsync({
+          workspaceId,
+          fileId: file.id,
+          name: uniqueFileName(nextName, siblingNames),
+          contentType: type.mimeType,
+        })
+      } catch (err) {
+        logger.error('Failed to change file type:', err)
+      }
+    },
+    [workspaceId]
+  )
+
   const handleDownloadSelected = useCallback(() => {
     const file = selectedFileRef.current
     if (file) handleDownload(file)
@@ -1268,6 +1343,21 @@ export function Files() {
           ...(canEdit
             ? [
                 { label: 'Rename', icon: Pencil, onClick: handleStartHeaderRename },
+                /**
+                 * Offered only for files the in-app editor already opens. Retyping is a metadata
+                 * edit, not a conversion, so a PDF or an image has nothing it could be changed to.
+                 */
+                ...(isTextEditable(selectedFile)
+                  ? [
+                      {
+                        label: 'Type',
+                        icon: FileText,
+                        groups: TEXT_FILE_TYPE_MENU_GROUPS,
+                        value: resolveTextFileType(selectedFile.type, selectedFile.name)?.id,
+                        onValueChange: handleChangeFileType,
+                      },
+                    ]
+                  : []),
                 { label: 'Share', icon: Send, onClick: handleShareSelected },
                 { label: 'Delete', icon: Trash, onClick: handleDeleteSelected },
               ]
@@ -1284,6 +1374,7 @@ export function Files() {
     headerRename.editingId,
     headerRename.editValue,
     handleStartHeaderRename,
+    handleChangeFileType,
     handleDownloadSelected,
     handleShareSelected,
     handleDeleteSelected,
@@ -1316,7 +1407,7 @@ export function Files() {
       const existingNames = new Set(
         filesRef.current.filter((f) => (f.folderId ?? null) === currentFolderId).map((f) => f.name)
       )
-      const name = uniqueMarkdownName(DEFAULT_UNTITLED_NAME, existingNames)
+      const name = uniqueFileName(DEFAULT_UNTITLED_NAME, existingNames)
 
       const mimeType = getMimeTypeFromExtension('md')
       const blob = new Blob([''], { type: mimeType })

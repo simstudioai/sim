@@ -1523,12 +1523,20 @@ export async function updateWorkspaceFileContent(
 }
 
 /**
- * Rename a workspace file (updates the display name in the database)
+ * Rename a workspace file (updates the display name in the database), and optionally retype it in
+ * the same write.
+ *
+ * A retype is always accompanied by a rename — the extension carries the type — so both land in one
+ * row update, behind one conflict check, and there is never a moment where the name and the stored
+ * `contentType` disagree. `contentUpdatedAt` is deliberately left alone: it is the collaborative
+ * persist's optimistic-concurrency token, and advancing it on a metadata write would invalidate an
+ * in-flight editor save.
  */
 export async function renameWorkspaceFile(
   workspaceId: string,
   fileId: string,
-  newName: string
+  newName: string,
+  options?: { contentType?: string }
 ): Promise<WorkspaceFileRecord> {
   logger.info(`Renaming workspace file: ${fileId} to "${newName}" in workspace ${workspaceId}`)
 
@@ -1540,20 +1548,31 @@ export async function renameWorkspaceFile(
     throw new Error('File not found')
   }
 
-  if (fileRecord.name === normalizedName) {
+  const nextContentType =
+    options?.contentType && options.contentType !== fileRecord.type
+      ? options.contentType
+      : undefined
+
+  if (fileRecord.name === normalizedName && !nextContentType) {
     return fileRecord
   }
 
-  const exists = await fileExistsInWorkspace(workspaceId, normalizedName, fileRecord.folderId)
-  if (exists) {
-    throw new FileConflictError(normalizedName)
+  if (fileRecord.name !== normalizedName) {
+    const exists = await fileExistsInWorkspace(workspaceId, normalizedName, fileRecord.folderId)
+    if (exists) {
+      throw new FileConflictError(normalizedName)
+    }
   }
 
   let updated: { id: string }[]
   try {
     updated = await db
       .update(workspaceFiles)
-      .set({ originalName: normalizedName, updatedAt: new Date() })
+      .set({
+        originalName: normalizedName,
+        ...(nextContentType ? { contentType: nextContentType } : {}),
+        updatedAt: new Date(),
+      })
       .where(
         and(
           eq(workspaceFiles.id, fileId),
@@ -1578,6 +1597,7 @@ export async function renameWorkspaceFile(
   return {
     ...fileRecord,
     name: normalizedName,
+    ...(nextContentType ? { type: nextContentType } : {}),
   }
 }
 

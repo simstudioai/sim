@@ -3,15 +3,15 @@ import {
   DEFAULT_UNTITLED_NAME,
   deriveMarkdownFileName,
   isUntitledName,
-  uniqueMarkdownName,
+  uniqueFileName,
 } from './untitled-title'
 
 describe('untitled format single-source-of-truth', () => {
-  // Guards against DEFAULT_UNTITLED_NAME / uniqueMarkdownName drifting from the isUntitledName regex:
+  // Guards against DEFAULT_UNTITLED_NAME / uniqueFileName drifting from the isUntitledName regex:
   // the default name and its deduped siblings must always read back as "untitled".
   it('recognizes the default name and its deduped siblings as untitled', () => {
     expect(isUntitledName(DEFAULT_UNTITLED_NAME)).toBe(true)
-    const second = uniqueMarkdownName(DEFAULT_UNTITLED_NAME, new Set([DEFAULT_UNTITLED_NAME]))
+    const second = uniqueFileName(DEFAULT_UNTITLED_NAME, new Set([DEFAULT_UNTITLED_NAME]))
     expect(second).toBe('untitled (1).md')
     expect(isUntitledName(second)).toBe(true)
   })
@@ -22,9 +22,11 @@ describe('isUntitledName', () => {
     ['untitled.md', true],
     ['untitled (1).md', true],
     ['untitled (23).md', true],
+    ['untitled.txt', true],
+    ['untitled (2).json', true],
     ['Untitled.md', false],
-    ['untitled.txt', false],
     ['untitled', false],
+    ['untitled.', false],
     ['my notes.md', false],
     ['untitled draft.md', false],
     ['untitled ().md', false],
@@ -64,14 +66,26 @@ describe('deriveMarkdownFileName', () => {
   })
 })
 
-describe('uniqueMarkdownName', () => {
+describe('uniqueFileName', () => {
   it('returns the name unchanged when free', () => {
-    expect(uniqueMarkdownName('notes.md', new Set())).toBe('notes.md')
+    expect(uniqueFileName('notes.md', new Set())).toBe('notes.md')
   })
   it('appends an incrementing suffix before the extension when taken', () => {
-    expect(uniqueMarkdownName('notes.md', new Set(['notes.md']))).toBe('notes (1).md')
-    expect(uniqueMarkdownName('notes.md', new Set(['notes.md', 'notes (1).md']))).toBe(
-      'notes (2).md'
+    expect(uniqueFileName('notes.md', new Set(['notes.md']))).toBe('notes (1).md')
+    expect(uniqueFileName('notes.md', new Set(['notes.md', 'notes (1).md']))).toBe('notes (2).md')
+  })
+  it('suffixes before the last extension only', () => {
+    expect(uniqueFileName('report.final.csv', new Set(['report.final.csv']))).toBe(
+      'report.final (1).csv'
     )
+  })
+  it('suffixes at the end when there is no extension', () => {
+    expect(uniqueFileName('notes', new Set(['notes']))).toBe('notes (1)')
+  })
+  it('treats a leading dot as part of the name, not an extension', () => {
+    expect(uniqueFileName('.gitignore', new Set(['.gitignore']))).toBe('.gitignore (1)')
+  })
+  it('suffixes a non-markdown extension in place', () => {
+    expect(uniqueFileName('data.json', new Set(['data.json']))).toBe('data (1).json')
   })
 })

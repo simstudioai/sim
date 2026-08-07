@@ -111,3 +111,4 @@ __pycache__/
 # `apps/sim/lib/uploads/` — 61 files of tracked source — and silently ignore
 # anything added there later.
 /uploads
+.gstack/

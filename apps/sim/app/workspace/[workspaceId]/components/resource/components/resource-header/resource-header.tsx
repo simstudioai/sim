@@ -20,6 +20,11 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
   FloatingTooltip,
   POPOVER_ANIMATION_CLASSES,
@@ -44,6 +49,77 @@ export interface DropdownOption {
   disabled?: boolean
 }
 
+export interface DropdownRadioItem {
+  /** Selection value, matched against {@link DropdownSubmenuOption.value}. */
+  id: string
+  label: string
+}
+
+export interface DropdownRadioGroup {
+  /**
+   * Nests the group behind a submenu of its own when set. Use it to keep a long tail of options
+   * (a language list, say) off the top level without losing them.
+   */
+  submenuLabel?: string
+  items: DropdownRadioItem[]
+}
+
+/**
+ * A dropdown entry that opens a submenu of mutually exclusive choices rather than firing an action.
+ * Distinguished from {@link DropdownOption} by `groups`, so the two can share one list.
+ */
+export interface DropdownSubmenuOption {
+  label: string
+  icon?: React.ElementType
+  groups: DropdownRadioGroup[]
+  /** The currently selected `id`, or undefined when the value is not one of the offered choices. */
+  value?: string
+  onValueChange: (id: string) => void
+  disabled?: boolean
+}
+
+export type DropdownMenuOption = DropdownOption | DropdownSubmenuOption
+
+function isSubmenuOption(option: DropdownMenuOption): option is DropdownSubmenuOption {
+  return 'groups' in option
+}
+
+interface DropdownRadioGroupContentProps {
+  group: DropdownRadioGroup
+  value?: string
+  onValueChange: (id: string) => void
+}
+
+/**
+ * One radio group inside a {@link DropdownSubmenuOption}, nested behind its own submenu when the
+ * group carries a `submenuLabel`. Every group is handed the same `value`; only the one that owns it
+ * renders a selected indicator, which is what lets the selection read correctly across groups.
+ */
+function DropdownRadioGroupContent({
+  group,
+  value,
+  onValueChange,
+}: DropdownRadioGroupContentProps) {
+  const items = (
+    <DropdownMenuRadioGroup value={value} onValueChange={onValueChange}>
+      {group.items.map((item) => (
+        <DropdownMenuRadioItem key={item.id} value={item.id}>
+          {item.label}
+        </DropdownMenuRadioItem>
+      ))}
+    </DropdownMenuRadioGroup>
+  )
+
+  if (!group.submenuLabel) return items
+
+  return (
+    <DropdownMenuSub>
+      <DropdownMenuSubTrigger>{group.submenuLabel}</DropdownMenuSubTrigger>
+      <DropdownMenuSubContent>{items}</DropdownMenuSubContent>
+    </DropdownMenuSub>
+  )
+}
+
 export interface BreadcrumbEditing {
   isEditing: boolean
   value: string
@@ -63,7 +139,7 @@ export interface BreadcrumbItem {
   label: string
   icon?: React.ElementType
   onClick?: () => void
-  dropdownItems?: DropdownOption[]
+  dropdownItems?: DropdownMenuOption[]
   editing?: BreadcrumbEditing
   /**
    * Marks a non-navigable trailing crumb (e.g. "New Chunk", "Loading...") so the
@@ -266,7 +342,7 @@ interface BreadcrumbSegmentProps {
   icon?: React.ElementType
   label: string
   onClick?: () => void
-  dropdownItems?: DropdownOption[]
+  dropdownItems?: DropdownMenuOption[]
   editing?: BreadcrumbEditing
   className?: string
 }
@@ -327,6 +403,26 @@ const BreadcrumbSegment = memo(function BreadcrumbSegment({
           <DropdownMenuContent align='start'>
             {dropdownItems.map((item) => {
               const ItemIcon = item.icon
+              if (isSubmenuOption(item)) {
+                return (
+                  <DropdownMenuSub key={item.label}>
+                    <DropdownMenuSubTrigger disabled={item.disabled}>
+                      {ItemIcon && <ItemIcon className='size-[14px]' />}
+                      {item.label}
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent>
+                      {item.groups.map((group) => (
+                        <DropdownRadioGroupContent
+                          key={group.submenuLabel ?? 'default'}
+                          group={group}
+                          value={item.value}
+                          onValueChange={item.onValueChange}
+                        />
+                      ))}
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                )
+              }
               return (
                 <DropdownMenuItem key={item.label} onClick={item.onClick} disabled={item.disabled}>
                   {ItemIcon && <ItemIcon className='size-[14px]' />}

@@ -312,6 +312,7 @@ const EXTENSION_TO_MIME: Record<string, string> = {
   xls: 'application/vnd.ms-excel',
   ppt: 'application/vnd.ms-powerpoint',
   md: 'text/markdown',
+  mmd: 'text/x-mermaid',
   yaml: 'application/x-yaml',
   yml: 'application/x-yaml',
   rtf: 'application/rtf',
@@ -554,6 +555,7 @@ const MIME_TO_EXTENSION: Record<string, string> = {
   'application/vnd.ms-excel': 'xls',
   'application/vnd.ms-powerpoint': 'ppt',
   'text/markdown': 'md',
+  'text/x-mermaid': 'mmd',
   'application/rtf': 'rtf',
 
   // Audio
