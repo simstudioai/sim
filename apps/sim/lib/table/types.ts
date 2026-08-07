@@ -370,7 +370,10 @@ export interface TableExportJobPayload {
 /** Durable import descriptor stored on the existing `table_jobs` row. */
 export interface TableImportJobPayload {
   kind: 'table_import'
+  /** Attribution actor used for created tables, rows, and telemetry. */
   userId: string
+  /** API/session principal allowed to inspect and cancel the import. */
+  ownerUserId?: string
   source: unknown
   target: unknown
   options: {

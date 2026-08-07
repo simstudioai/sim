@@ -17,13 +17,23 @@ import {
   recordRateLimitSnapshot,
 } from '@/lib/api/server/rate-limit-context'
 
-const { mockAuthenticateV1Request, mockGetSubscription, mockCheckRateLimit, mockGetRateLimit } =
-  vi.hoisted(() => ({
-    mockAuthenticateV1Request: vi.fn(),
-    mockGetSubscription: vi.fn(),
-    mockCheckRateLimit: vi.fn(),
-    mockGetRateLimit: vi.fn(),
-  }))
+const {
+  mockAuthenticateV1Request,
+  mockGetSubscription,
+  mockCheckRateLimit,
+  mockGetRateLimit,
+  mockResolveSystemBillingAttribution,
+  mockToUsageLimitSubscription,
+  mockGetUserEntityPermissions,
+} = vi.hoisted(() => ({
+  mockAuthenticateV1Request: vi.fn(),
+  mockGetSubscription: vi.fn(),
+  mockCheckRateLimit: vi.fn(),
+  mockGetRateLimit: vi.fn(),
+  mockResolveSystemBillingAttribution: vi.fn(),
+  mockToUsageLimitSubscription: vi.fn(),
+  mockGetUserEntityPermissions: vi.fn(),
+}))
 
 vi.mock('@/app/api/v1/auth', () => ({
   authenticateV1Request: mockAuthenticateV1Request,
@@ -31,6 +41,15 @@ vi.mock('@/app/api/v1/auth', () => ({
 
 vi.mock('@/lib/billing/core/subscription', () => ({
   getHighestPrioritySubscription: mockGetSubscription,
+}))
+
+vi.mock('@/lib/billing/core/billing-attribution', () => ({
+  resolveSystemBillingAttribution: mockResolveSystemBillingAttribution,
+  toUsageLimitSubscription: mockToUsageLimitSubscription,
+}))
+
+vi.mock('@/lib/workspaces/permissions/utils', () => ({
+  getUserEntityPermissions: mockGetUserEntityPermissions,
 }))
 
 vi.mock('@/lib/core/rate-limiter', () => ({
@@ -52,6 +71,10 @@ const TEAM_BUCKET = { maxTokens: 400, refillRate: 200, refillIntervalMs: 60_000 
 
 function request() {
   return createMockRequest('GET', undefined, {}, 'http://localhost:3000/api/v1/workflows')
+}
+
+function v2Request() {
+  return createMockRequest('GET', undefined, {}, 'http://localhost:3000/api/v2/workflows')
 }
 
 describe('checkRateLimit', () => {
@@ -105,6 +128,114 @@ describe('checkRateLimit', () => {
 
     expect(result.allowed).toBe(false)
     expect(result.limit).toBe(0)
+  })
+})
+
+describe('v2 attribution', () => {
+  const BILLING_ATTRIBUTION = {
+    actorUserId: 'billing-actor',
+    workspaceId: 'workspace-1',
+    organizationId: 'organization-1',
+    billedAccountUserId: 'billing-actor',
+    billingEntity: { type: 'organization', id: 'organization-1' },
+    billingPeriod: {
+      start: '2026-07-01T00:00:00.000Z',
+      end: '2026-08-01T00:00:00.000Z',
+    },
+    payerSubscription: null,
+  }
+  const WORKSPACE_SUBSCRIPTION = { plan: 'team', referenceId: 'organization-1' }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetRateLimit.mockReturnValue(TEAM_BUCKET)
+    mockCheckRateLimit.mockResolvedValue({
+      allowed: true,
+      remaining: 399,
+      resetAt: new Date('2026-07-28T18:28:48.354Z'),
+    })
+    mockGetUserEntityPermissions.mockResolvedValue('read')
+    mockResolveSystemBillingAttribution.mockResolvedValue(BILLING_ATTRIBUTION)
+    mockToUsageLimitSubscription.mockReturnValue(WORKSPACE_SUBSCRIPTION)
+  })
+
+  it('keeps a personal key owner as both principal and actor', async () => {
+    mockAuthenticateV1Request.mockResolvedValue({
+      authenticated: true,
+      userId: 'person-1',
+      keyId: 'key-personal',
+      keyType: 'personal',
+    })
+    const personalSubscription = { plan: 'pro', referenceId: 'person-1' }
+    mockGetSubscription.mockResolvedValue(personalSubscription)
+
+    const result = await checkRateLimit(v2Request(), 'workflows')
+
+    expect(result).toMatchObject({
+      userId: 'person-1',
+      principalUserId: 'person-1',
+      keyId: 'key-personal',
+      keyType: 'personal',
+    })
+    expect(mockCheckRateLimit).toHaveBeenCalledWith(
+      'person-1',
+      personalSubscription,
+      'api-endpoint',
+      false
+    )
+    expect(mockResolveSystemBillingAttribution).not.toHaveBeenCalled()
+  })
+
+  it('uses the exact workspace billing actor and payer without reading the creator subscription', async () => {
+    mockAuthenticateV1Request.mockResolvedValue({
+      authenticated: true,
+      userId: 'key-creator',
+      keyId: 'key-workspace',
+      keyType: 'workspace',
+      workspaceId: 'workspace-1',
+    })
+
+    const result = await checkRateLimit(v2Request(), 'workflows')
+
+    expect(mockGetUserEntityPermissions).toHaveBeenCalledWith(
+      'key-creator',
+      'workspace',
+      'workspace-1'
+    )
+    expect(mockGetSubscription).not.toHaveBeenCalled()
+    expect(mockResolveSystemBillingAttribution).toHaveBeenCalledWith('workspace-1')
+    expect(mockCheckRateLimit).toHaveBeenCalledWith(
+      'billing-actor',
+      WORKSPACE_SUBSCRIPTION,
+      'api-endpoint',
+      false
+    )
+    expect(result).toMatchObject({
+      userId: 'billing-actor',
+      principalUserId: 'key-creator',
+      keyId: 'key-workspace',
+      workspaceId: 'workspace-1',
+      keyType: 'workspace',
+      billingAttribution: BILLING_ATTRIBUTION,
+      v2WorkspaceKeyAuthorized: true,
+    })
+  })
+
+  it('rejects a workspace key after its creator loses workspace membership', async () => {
+    mockAuthenticateV1Request.mockResolvedValue({
+      authenticated: true,
+      userId: 'former-member',
+      keyId: 'key-workspace',
+      keyType: 'workspace',
+      workspaceId: 'workspace-1',
+    })
+    mockGetUserEntityPermissions.mockResolvedValue(null)
+
+    const result = await checkRateLimit(v2Request(), 'workflows')
+
+    expect(result).toMatchObject({ allowed: false, limit: 0, error: 'Invalid API key' })
+    expect(mockResolveSystemBillingAttribution).not.toHaveBeenCalled()
+    expect(mockCheckRateLimit).not.toHaveBeenCalled()
   })
 })
 

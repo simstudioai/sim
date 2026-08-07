@@ -14,6 +14,7 @@ import {
   setPersonalSecret,
   setWorkspaceSecret,
 } from '@/lib/credentials/secret-values'
+import type { WorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 import { withPublicApiRouteHandler } from '@/app/api/public-api-route-handler'
 import { resolveWorkspaceAccess } from '@/app/api/v1/middleware'
@@ -56,7 +57,7 @@ async function getSecretMetadata(params: {
   name: string
   scope: V2SecretScope
   userId: string
-  workspaceAccess: Awaited<ReturnType<typeof checkWorkspaceAccess>>
+  workspaceAccess: Pick<WorkspaceAccess, 'canAdmin'>
 }): Promise<V2Secret> {
   const { workspaceId, name, scope, userId, workspaceAccess } = params
   const rows = await listVisibleWorkspaceCredentials({
@@ -88,8 +89,14 @@ export const PUT = withPublicApiRouteHandler({
     const { workspaceId, scope, value } = input.body
     const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'read')
     if (access) return v2WorkspaceAccessError(access)
+    const isWorkspaceKey = rateLimit.keyType === 'workspace'
+    if (isWorkspaceKey && scope === 'personal') {
+      return v2Error('PERSONAL_KEY_REQUIRED', 'Personal secrets require a personal API key')
+    }
 
-    const workspaceAccess = await checkWorkspaceAccess(workspaceId, userId)
+    const workspaceAccess = isWorkspaceKey
+      ? { canWrite: true, canAdmin: true }
+      : await checkWorkspaceAccess(workspaceId, userId)
     if (scope === 'workspace') {
       const permissionError = await workspaceSecretAccessError({
         workspaceId,
@@ -132,8 +139,14 @@ export const DELETE = withPublicApiRouteHandler({
     const { workspaceId, scope } = input.query
     const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'read')
     if (access) return v2WorkspaceAccessError(access)
+    const isWorkspaceKey = rateLimit.keyType === 'workspace'
+    if (isWorkspaceKey && scope === 'personal') {
+      return v2Error('PERSONAL_KEY_REQUIRED', 'Personal secrets require a personal API key')
+    }
 
-    const workspaceAccess = await checkWorkspaceAccess(workspaceId, userId)
+    const workspaceAccess = isWorkspaceKey
+      ? { canWrite: true, canAdmin: true }
+      : await checkWorkspaceAccess(workspaceId, userId)
     if (scope === 'workspace') {
       const permissionError = await workspaceSecretAccessError({
         workspaceId,

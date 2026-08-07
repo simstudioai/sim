@@ -1,3 +1,4 @@
+import { getRequestContext, runWithRequestContext } from '@sim/logger'
 import type { NextRequest, NextResponse } from 'next/server'
 import type { AnyApiRouteContract } from '@/lib/api/contracts'
 import { type ParsedRequest, type ParseRequestOptions, parseRequest } from '@/lib/api/server'
@@ -55,20 +56,35 @@ export function withPublicApiRouteHandler<C extends AnyApiRouteContract>({
         throw new Error('Allowed public API request is missing a user ID')
       }
       const userId = rateLimit.userId
-      const gate = await v2ApiGateError(userId)
+      const organizationId = rateLimit.billingAttribution?.organizationId ?? undefined
+      const gate = organizationId
+        ? await v2ApiGateError(userId, organizationId)
+        : await v2ApiGateError(userId)
       if (gate) return gate
 
-      const parsed = await parseRequest(contract, request, context ?? {}, {
-        validationErrorResponse: v2ValidationError,
-        ...parseOptions,
-      })
-      if (!parsed.success) return parsed.response
+      const invokeHandler = async () => {
+        const parsed = await parseRequest(contract, request, context ?? {}, {
+          validationErrorResponse: v2ValidationError,
+          ...parseOptions,
+        })
+        if (!parsed.success) return parsed.response
 
-      return handler({
-        request,
-        input: parsed.data,
-        auth: { requestId, userId, rateLimit },
-      })
+        return handler({
+          request,
+          input: parsed.data,
+          auth: { requestId, userId, rateLimit },
+        })
+      }
+
+      if (rateLimit.keyId && rateLimit.keyType) {
+        const requestContext = getRequestContext()
+        if (!requestContext) throw new Error('V2 API request is missing its request context')
+        return runWithRequestContext(
+          { ...requestContext, apiKeyId: rateLimit.keyId, apiKeyType: rateLimit.keyType },
+          invokeHandler
+        )
+      }
+      return invokeHandler()
     },
     {
       unhandledErrorResponse: () => v2Error('INTERNAL_ERROR', 'Internal server error'),

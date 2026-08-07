@@ -4,6 +4,11 @@ import { type NextRequest, NextResponse } from 'next/server'
 import type { ZodError } from 'zod'
 import { getValidationErrorMessage, isZodError, validationErrorResponse } from '@/lib/api/server'
 import { buildRateLimitHeaders, recordRateLimitSnapshot } from '@/lib/api/server/rate-limit-context'
+import {
+  type BillingAttributionSnapshot,
+  resolveSystemBillingAttribution,
+  toUsageLimitSubscription,
+} from '@/lib/billing/core/billing-attribution'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import type { SubscriptionPlan } from '@/lib/core/rate-limiter'
 import { getRateLimit, RateLimiter } from '@/lib/core/rate-limiter'
@@ -83,8 +88,15 @@ export interface RateLimitResult {
   limit: number
   retryAfterMs?: number
   userId?: string
+  /** The API-key owner. Differs from `userId` for an admitted v2 workspace key. */
+  principalUserId?: string
+  keyId?: string
   workspaceId?: string
   keyType?: 'personal' | 'workspace'
+  /** Frozen exact workspace payer decision for v2 workspace-key requests. */
+  billingAttribution?: BillingAttributionSnapshot
+  /** Set only after v2 verifies the key creator still belongs to its bound workspace. */
+  v2WorkspaceKeyAuthorized?: true
   error?: string
 }
 
@@ -92,6 +104,71 @@ export interface AuthorizedRequest {
   requestId: string
   userId: string
   rateLimit: RateLimitResult
+}
+
+export type V2ApiKeyIdentity =
+  | {
+      authenticated: true
+      keyType: 'personal'
+      keyId: string
+      principalUserId: string
+      actorUserId: string
+    }
+  | {
+      authenticated: true
+      keyType: 'workspace'
+      keyId: string
+      workspaceId: string
+      principalUserId: string
+      actorUserId: string
+      billingAttribution: BillingAttributionSnapshot
+    }
+
+export type V2ApiKeyIdentityResult = V2ApiKeyIdentity | { authenticated: false; error?: string }
+
+/**
+ * Resolves the v2 principal/actor split without consulting a rate-limit bucket.
+ * Execution endpoints use this directly because their sync/async buckets are
+ * applied by execution preprocessing rather than the public endpoint bucket.
+ */
+export async function authenticateV2ApiKey(request: NextRequest): Promise<V2ApiKeyIdentityResult> {
+  const auth = await authenticateV1Request(request)
+  if (!auth.authenticated) return { authenticated: false, error: auth.error }
+  if (!auth.userId || !auth.keyId || !auth.keyType) {
+    throw new Error('Authenticated v2 API request is missing key identity')
+  }
+
+  if (auth.keyType === 'personal') {
+    return {
+      authenticated: true,
+      keyType: 'personal',
+      keyId: auth.keyId,
+      principalUserId: auth.userId,
+      actorUserId: auth.userId,
+    }
+  }
+  if (!auth.workspaceId) {
+    throw new Error('Authenticated workspace API key is missing its workspace ID')
+  }
+
+  const creatorPermission = await getUserEntityPermissions(
+    auth.userId,
+    'workspace',
+    auth.workspaceId
+  )
+  if (creatorPermission === null) {
+    return { authenticated: false, error: 'Invalid API key' }
+  }
+  const billingAttribution = await resolveSystemBillingAttribution(auth.workspaceId)
+  return {
+    authenticated: true,
+    keyType: 'workspace',
+    keyId: auth.keyId,
+    workspaceId: auth.workspaceId,
+    principalUserId: auth.userId,
+    actorUserId: billingAttribution.actorUserId,
+    billingAttribution,
+  }
 }
 
 export function requireRateLimitUserId(rateLimit: RateLimitResult): string {
@@ -108,6 +185,10 @@ export async function checkRateLimit(
   request: NextRequest,
   endpoint: ApiEndpoint = 'logs'
 ): Promise<RateLimitResult> {
+  if (request.nextUrl.pathname.startsWith('/api/v2/')) {
+    return checkV2RateLimit(request, endpoint)
+  }
+
   try {
     const auth = await authenticateV1Request(request)
     if (!auth.authenticated) {
@@ -164,7 +245,7 @@ export async function checkRateLimit(
       limit: config.maxTokens,
       retryAfterMs: result.retryAfterMs,
       userId,
-      workspaceId: auth.workspaceId,
+      workspaceId: auth.keyType === 'workspace' ? auth.workspaceId : undefined,
       keyType: auth.keyType,
     }
   } catch (error) {
@@ -176,6 +257,86 @@ export async function checkRateLimit(
       resetAt: new Date(Date.now() + 60000),
       error: 'Rate limit check failed',
     }
+  }
+}
+
+/**
+ * Authenticates and rate-limits v2 without inheriting the key creator's payer.
+ *
+ * Personal keys keep their owner as both principal and actor. Workspace keys
+ * remain valid only while their creator belongs to the bound workspace, then
+ * use that workspace's billed account as the actor and its exact frozen payer
+ * subscription for the API rate-limit bucket.
+ */
+export async function checkV2RateLimit(
+  request: NextRequest,
+  endpoint: ApiEndpoint
+): Promise<RateLimitResult> {
+  const auth = await authenticateV2ApiKey(request)
+  if (!auth.authenticated) {
+    return {
+      allowed: false,
+      remaining: 0,
+      limit: 0,
+      resetAt: new Date(),
+      error: auth.error,
+    }
+  }
+  const principalUserId = auth.principalUserId
+  const actorUserId = auth.actorUserId
+  let subscription: { plan: string; referenceId: string } | null
+  let billingAttribution: BillingAttributionSnapshot | undefined
+  let v2WorkspaceKeyAuthorized: true | undefined
+
+  if (auth.keyType === 'workspace') {
+    billingAttribution = auth.billingAttribution
+    subscription = toUsageLimitSubscription(billingAttribution)
+    v2WorkspaceKeyAuthorized = true
+  } else {
+    subscription = await getHighestPrioritySubscription(principalUserId, {
+      onError: 'throw',
+    })
+  }
+
+  const result = await rateLimiter.checkRateLimitWithSubscription(
+    actorUserId,
+    subscription,
+    'api-endpoint',
+    false
+  )
+  if (!result.allowed) {
+    logger.warn(`Rate limit exceeded for v2 actor ${actorUserId}`, {
+      endpoint,
+      principalUserId,
+      keyId: auth.keyId,
+      keyType: auth.keyType,
+      workspaceId: auth.keyType === 'workspace' ? auth.workspaceId : undefined,
+      remaining: result.remaining,
+      resetAt: result.resetAt,
+    })
+  }
+
+  const plan = (subscription?.plan || 'free') as SubscriptionPlan
+  const config = getRateLimit(plan, 'api-endpoint')
+  recordRateLimitSnapshot(request, {
+    limit: config.maxTokens,
+    remaining: result.remaining,
+    resetAt: result.resetAt,
+  })
+
+  return {
+    allowed: result.allowed,
+    remaining: result.remaining,
+    resetAt: result.resetAt,
+    limit: config.maxTokens,
+    retryAfterMs: result.retryAfterMs,
+    userId: actorUserId,
+    principalUserId,
+    keyId: auth.keyId,
+    workspaceId: auth.keyType === 'workspace' ? auth.workspaceId : undefined,
+    keyType: auth.keyType,
+    billingAttribution,
+    v2WorkspaceKeyAuthorized,
   }
 }
 
@@ -284,6 +445,10 @@ export async function resolveWorkspaceAccess(
 ): Promise<WorkspaceAccessError | null> {
   const scopeError = await resolveWorkspaceScope(rateLimit, workspaceId)
   if (scopeError) return scopeError
+
+  if (rateLimit.keyType === 'workspace' && rateLimit.v2WorkspaceKeyAuthorized) {
+    return null
+  }
 
   const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
   if (!permissionSatisfies(permission, level)) {

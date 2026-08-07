@@ -7,9 +7,9 @@ import type {
 import { v2KnowledgeDocumentUploadMetadataSchema } from '@/lib/api/contracts/v2/knowledge'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import {
+  assertBillingAttributionSnapshot,
   checkAttributedUsageLimits,
   resolveBillingAttribution,
-  resolveSystemBillingAttribution,
 } from '@/lib/billing/core/billing-attribution'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { performUploadKnowledgeDocument } from '@/lib/knowledge/orchestration'
@@ -52,16 +52,28 @@ export async function resolveKnowledgeDocumentUploadAccess(params: {
  * admission there would strand uploaded parts and fail idempotent completion retries.
  */
 export async function resolveKnowledgeDocumentUploadAttribution(params: {
-  workspaceId: string
-  userId: string
-  rateLimit: RateLimitResult
+  workspaceId?: string
+  userId?: string
+  rateLimit?: RateLimitResult
+  session?: UploadSessionRecord
 }): Promise<BillingAttributionSnapshot> {
-  return params.rateLimit.keyType === 'workspace'
-    ? resolveSystemBillingAttribution(params.workspaceId)
-    : resolveBillingAttribution({
-        actorUserId: params.userId,
-        workspaceId: params.workspaceId,
-      })
+  if (params.session) {
+    return assertBillingAttributionSnapshot(params.session.metadata.billingAttribution)
+  }
+  if (!params.workspaceId || !params.userId || !params.rateLimit) {
+    throw new Error('Knowledge document upload attribution is missing request context')
+  }
+  if (params.rateLimit.keyType === 'workspace') {
+    const attribution = params.rateLimit.billingAttribution
+    if (!attribution || attribution.workspaceId !== params.workspaceId) {
+      throw new Error('Workspace API request is missing its billing attribution')
+    }
+    return attribution
+  }
+  return resolveBillingAttribution({
+    actorUserId: params.userId,
+    workspaceId: params.workspaceId,
+  })
 }
 
 /** Admission check for a new upload session. Enforced only at session creation. */
@@ -180,8 +192,9 @@ export function knowledgeDocumentFileUrl(session: UploadSessionRecord): string {
 }
 
 function knowledgeDocumentInputFor(session: UploadSessionRecord) {
+  const { billingAttribution: _billingAttribution, ...publicMetadata } = session.metadata
   const { processingOptions: _processingOptions, ...documentTags } =
-    v2KnowledgeDocumentUploadMetadataSchema.parse(session.metadata)
+    v2KnowledgeDocumentUploadMetadataSchema.parse(publicMetadata)
   return {
     filename: session.fileName,
     fileUrl: knowledgeDocumentFileUrl(session),
@@ -236,7 +249,8 @@ export async function finalizeKnowledgeDocumentUpload(params: {
   actorEmail?: string | null
 }): Promise<{ value: CreatedKnowledgeDocument; completedFileId: string }> {
   const { claimed, knowledgeBaseId, workspaceId, requestId } = params
-  const { processingOptions } = v2KnowledgeDocumentUploadMetadataSchema.parse(claimed.metadata)
+  const { billingAttribution: _billingAttribution, ...publicMetadata } = claimed.metadata
+  const { processingOptions } = v2KnowledgeDocumentUploadMetadataSchema.parse(publicMetadata)
   const document = knowledgeDocumentInputFor(claimed)
 
   const bound = await findBoundKnowledgeDocument({

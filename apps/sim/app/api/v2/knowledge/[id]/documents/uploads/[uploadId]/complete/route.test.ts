@@ -166,9 +166,7 @@ describe('POST knowledge-document multipart completion', () => {
     await resolveAttribution()
 
     expect(mockResolveKnowledgeDocumentUploadAttribution).toHaveBeenCalledWith({
-      workspaceId: WORKSPACE_ID,
-      userId: 'user-1',
-      rateLimit: RATE_LIMIT,
+      session: SESSION,
     })
   })
 

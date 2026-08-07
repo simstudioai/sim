@@ -111,6 +111,7 @@ describe('POST /api/v2/knowledge/[id]/documents/uploads', () => {
       metadata: {
         tag1: 'product',
         processingOptions: { recipe: 'default', lang: 'en' },
+        billingAttribution: { actorUserId: 'user-1' },
       },
       localOrigin: 'http://localhost:3000',
     })

@@ -21,6 +21,11 @@ export const POST = withPublicApiRouteHandler({
     try {
       const scopeError = await resolveWorkspaceScope(rateLimit, input.body.workspaceId)
       if (scopeError) return v2WorkspaceAccessError(scopeError)
+      const importAttribution = {
+        ownerUserId: rateLimit.principalUserId ?? userId,
+        actorUserId: userId,
+        useOwnerTimezone: rateLimit.keyType !== 'workspace',
+      }
       let created: Awaited<ReturnType<typeof createTableImportResource>>
       if (input.body.target.type === 'new') {
         const resolution = await resolveFolderPathIdentity({
@@ -33,10 +38,17 @@ export const POST = withPublicApiRouteHandler({
           input.body,
           userId,
           request.nextUrl.origin,
-          resolution.folderId
+          resolution.folderId,
+          importAttribution
         )
       } else {
-        created = await createTableImportResource(input.body, userId, request.nextUrl.origin)
+        created = await createTableImportResource(
+          input.body,
+          userId,
+          request.nextUrl.origin,
+          undefined,
+          importAttribution
+        )
       }
       return v2Data(toV2CreateTableImport(created), { rateLimit, status: 201 })
     } catch (error) {

@@ -10,6 +10,7 @@ import {
   v2ExecuteWorkflowContract,
 } from '@/lib/api/contracts/v2/workflows'
 import { parseRequest } from '@/lib/api/server'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { tryAdmit } from '@/lib/core/admission/gate'
 import { ADMISSION_ERROR_DESCRIPTOR } from '@/lib/core/admission/transient-failure'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -26,7 +27,7 @@ import {
   hasAgentStreamPolicy,
 } from '@/lib/workflows/streaming/agent-stream-protocol'
 import { getWorkspaceBillingSettings } from '@/lib/workspaces/utils'
-import { authenticateV1Request } from '@/app/api/v1/auth'
+import { authenticateV2ApiKey } from '@/app/api/v1/middleware'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import { type V2ErrorCode, v2Data, v2Error, v2ValidationError } from '@/app/api/v2/lib/response'
 import {
@@ -100,15 +101,21 @@ export const POST = withRouteHandler(
     const { id: workflowId } = await context.params
 
     let userId: string
+    let principalUserId: string
     let isPublicApiAccess = false
     let apiKeyType: 'personal' | 'workspace' | undefined
     let apiKeyWorkspaceId: string | undefined
+    let billingAttribution: BillingAttributionSnapshot | undefined
 
-    const auth = await authenticateV1Request(req)
-    if (auth.authenticated && auth.userId) {
-      userId = auth.userId
+    const auth = await authenticateV2ApiKey(req)
+    if (auth.authenticated) {
+      userId = auth.actorUserId
+      principalUserId = auth.principalUserId
       apiKeyType = auth.keyType
-      apiKeyWorkspaceId = auth.workspaceId
+      if (auth.keyType === 'workspace') {
+        apiKeyWorkspaceId = auth.workspaceId
+        billingAttribution = auth.billingAttribution
+      }
     } else {
       if (req.headers.has('x-api-key')) {
         return v2Error('UNAUTHORIZED', auth.error || 'Unauthorized')
@@ -136,10 +143,14 @@ export const POST = withRouteHandler(
         throw err
       }
       userId = wf.userId
+      principalUserId = wf.userId
       isPublicApiAccess = true
     }
 
-    const gate = await v2ApiGateError(userId)
+    const organizationId = billingAttribution?.organizationId ?? undefined
+    const gate = organizationId
+      ? await v2ApiGateError(userId, organizationId)
+      : await v2ApiGateError(userId)
     if (gate) return gate
 
     const ticket = tryAdmit()
@@ -204,19 +215,28 @@ export const POST = withRouteHandler(
         requestedExecutionId = runIdHeader
       }
 
-      const workflowAuthorization = await authorizeWorkflowByWorkspacePermission({
-        workflowId,
-        userId,
-        action: 'read',
-      })
-      // Mask authorization failures as 404 so cross-workspace existence never leaks.
-      if (!workflowAuthorization.allowed || !workflowAuthorization.workflow) {
-        return v2Error('NOT_FOUND', 'Workflow not found')
-      }
-      const workflowRecord = workflowAuthorization.workflow
-
-      if (apiKeyType === 'workspace' && workflowRecord.workspaceId !== apiKeyWorkspaceId) {
-        return v2Error('NOT_FOUND', 'Workflow not found')
+      let workflowRecord: typeof workflowTable.$inferSelect
+      if (apiKeyType === 'workspace') {
+        const [record] = await db
+          .select()
+          .from(workflowTable)
+          .where(eq(workflowTable.id, workflowId))
+          .limit(1)
+        if (!record || record.workspaceId !== apiKeyWorkspaceId) {
+          return v2Error('NOT_FOUND', 'Workflow not found')
+        }
+        workflowRecord = record
+      } else {
+        const workflowAuthorization = await authorizeWorkflowByWorkspacePermission({
+          workflowId,
+          userId: principalUserId,
+          action: 'read',
+        })
+        // Mask authorization failures as 404 so cross-workspace existence never leaks.
+        if (!workflowAuthorization.allowed || !workflowAuthorization.workflow) {
+          return v2Error('NOT_FOUND', 'Workflow not found')
+        }
+        workflowRecord = workflowAuthorization.workflow
       }
       if (apiKeyType === 'personal' && workflowRecord.workspaceId) {
         const settings = await getWorkspaceBillingSettings(workflowRecord.workspaceId)
@@ -234,6 +254,7 @@ export const POST = withRouteHandler(
         executionId: requestedExecutionId,
         useAuthenticatedUserAsActor: apiKeyType === 'personal',
         workflowRecord,
+        upstreamBillingAttribution: billingAttribution,
         includeFileBase64: body.includeFileBase64,
         base64MaxBytes: body.base64MaxBytes,
         selectedOutputs: body.selectedOutputs,

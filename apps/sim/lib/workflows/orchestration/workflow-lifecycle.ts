@@ -17,7 +17,10 @@ import { deduplicateWorkflowName } from '@/lib/workflows/utils'
 const logger = createLogger('WorkflowLifecycle')
 
 export interface PerformCreateWorkflowParams {
+  /** User persisted as the workflow owner. */
   userId: string
+  /** Actor used for audit attribution when it differs from the owner. */
+  actorUserId?: string
   workspaceId: string
   name: string
   id?: string
@@ -250,7 +253,7 @@ export async function performCreateWorkflow(
 
     recordAudit({
       workspaceId: params.workspaceId,
-      actorId: params.userId,
+      actorId: params.actorUserId ?? params.userId,
       action: AuditAction.WORKFLOW_CREATED,
       resourceType: AuditResourceType.WORKFLOW,
       resourceId: workflowId,

@@ -65,7 +65,8 @@ export const POST = withPublicApiRouteHandler({
       name,
       description,
       workflow: input.body.workflow,
-      userId,
+      userId: rateLimit.principalUserId ?? userId,
+      actorUserId: userId,
       requestId,
     })
 

@@ -106,7 +106,12 @@ describe('POST /api/v2/tables/imports', () => {
       requestBody,
       'user-1',
       'http://localhost:3000',
-      null
+      null,
+      {
+        actorUserId: 'user-1',
+        ownerUserId: 'user-1',
+        useOwnerTimezone: false,
+      }
     )
     expect(mockToV2CreateTableImport).toHaveBeenCalledWith(created)
     expect(await response.json()).toEqual({ data: responseData })
@@ -141,7 +146,49 @@ describe('POST /api/v2/tables/imports', () => {
     expect(mockCreateTableImportResource).toHaveBeenCalledWith(
       requestBody,
       'user-1',
-      'http://localhost:3000'
+      'http://localhost:3000',
+      undefined,
+      {
+        actorUserId: 'user-1',
+        ownerUserId: 'user-1',
+        useOwnerTimezone: false,
+      }
+    )
+  })
+
+  it('keeps the key creator as upload owner while attributing the import to the payer', async () => {
+    mockCheckRateLimit.mockResolvedValue({
+      ...RATE_LIMIT,
+      userId: 'payer-1',
+      principalUserId: 'creator-1',
+    })
+    const requestBody = {
+      workspaceId: WORKSPACE_ID,
+      source: { type: 'upload', name: 'data.csv', contentType: 'text/csv', size: 128 },
+      target: { type: 'existing', tableId: 'table-1', mode: 'append' },
+    }
+    mockCreateTableImportResource.mockResolvedValue({ record: { id: 'import-1' }, upload: null })
+    mockToV2CreateTableImport.mockReturnValue({})
+
+    const response = await POST(
+      new NextRequest('http://localhost:3000/api/v2/tables/imports', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody),
+      })
+    )
+
+    expect(response.status).toBe(201)
+    expect(mockCreateTableImportResource).toHaveBeenCalledWith(
+      requestBody,
+      'payer-1',
+      'http://localhost:3000',
+      undefined,
+      {
+        actorUserId: 'payer-1',
+        ownerUserId: 'creator-1',
+        useOwnerTimezone: false,
+      }
     )
   })
 })

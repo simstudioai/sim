@@ -9,6 +9,7 @@ const logger = createLogger('V1Auth')
 export interface AuthResult {
   authenticated: boolean
   userId?: string
+  keyId?: string
   workspaceId?: string
   keyType?: 'personal' | 'workspace'
   error?: string
@@ -19,6 +20,7 @@ export async function authenticateV1Request(request: NextRequest): Promise<AuthR
     return {
       authenticated: true,
       userId: ANONYMOUS_USER_ID,
+      keyId: 'auth-disabled',
       keyType: 'personal',
     }
   }
@@ -36,7 +38,9 @@ export async function authenticateV1Request(request: NextRequest): Promise<AuthR
     const result = await authenticateApiKeyFromHeader(apiKey)
 
     if (!result.success) {
-      logger.warn('Invalid API key attempted', { keyPrefix: apiKey.slice(0, 8) })
+      logger.warn('Invalid API key attempted', {
+        keyPrefix: apiKey.slice(0, 8),
+      })
       return {
         authenticated: false,
         error: result.error || 'Invalid API key',
@@ -48,6 +52,7 @@ export async function authenticateV1Request(request: NextRequest): Promise<AuthR
     return {
       authenticated: true,
       userId: result.userId!,
+      keyId: result.keyId!,
       workspaceId: result.workspaceId,
       keyType: result.keyType,
     }

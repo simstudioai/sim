@@ -241,6 +241,8 @@ export class Logger {
           requestId: reqCtx.requestId,
           method: reqCtx.method,
           path: reqCtx.path,
+          apiKeyId: reqCtx.apiKeyId,
+          apiKeyType: reqCtx.apiKeyType,
           ...this.metadata,
         }
       : this.metadata

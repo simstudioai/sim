@@ -23,10 +23,11 @@ export const POST = withPublicApiRouteHandler({
       const { workspaceId } = input.query
       const scopeError = await resolveWorkspaceScope(rateLimit, workspaceId)
       if (scopeError) return v2WorkspaceAccessError(scopeError)
+      const ownerUserId = rateLimit.principalUserId ?? userId
       const upload = await getOwnedTableImportUpload({
         importId: input.params.importId,
         workspaceId,
-        userId,
+        userId: ownerUserId,
         uploadToken: input.headers['upload-token'],
       })
       const existing = await findOwnedTableImport({

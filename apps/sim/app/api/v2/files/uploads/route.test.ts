@@ -138,7 +138,7 @@ describe('POST /api/v2/files/uploads', () => {
       fileName: 'file.csv',
       contentType: 'text/csv',
       fileSize: 10,
-      metadata: { folderId: null },
+      metadata: { folderId: null, actorUserId: 'user-1' },
       localOrigin: 'http://localhost:3000',
     })
   })
@@ -206,7 +206,9 @@ describe('POST /api/v2/files/uploads', () => {
       expect.any(Object)
     )
     expect(mockCreateUploadSession).toHaveBeenCalledWith(
-      expect.objectContaining({ metadata: { folderId: 'folder-reports' } })
+      expect.objectContaining({
+        metadata: { folderId: 'folder-reports', actorUserId: 'user-1' },
+      })
     )
   })
 })

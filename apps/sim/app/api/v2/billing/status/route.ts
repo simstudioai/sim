@@ -32,10 +32,16 @@ export const GET = withPublicApiRouteHandler({
 
     let data: V2BillingStatusData
     if (workspaceFilter.workspaceId) {
-      const attribution = await resolveBillingAttribution({
-        actorUserId: userId,
-        workspaceId: workspaceFilter.workspaceId,
-      })
+      const attribution =
+        rateLimit.keyType === 'workspace'
+          ? rateLimit.billingAttribution
+          : await resolveBillingAttribution({
+              actorUserId: userId,
+              workspaceId: workspaceFilter.workspaceId,
+            })
+      if (!attribution || attribution.workspaceId !== workspaceFilter.workspaceId) {
+        throw new Error('Workspace API request is missing its billing attribution')
+      }
       const [usage, block] = await Promise.all([
         checkUsageStatus(attribution.billedAccountUserId, toUsageLimitSubscription(attribution)),
         checkAttributedBillingBlocks(attribution),

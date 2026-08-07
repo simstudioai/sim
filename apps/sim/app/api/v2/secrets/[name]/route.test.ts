@@ -150,6 +150,7 @@ describe('PUT /api/v2/secrets/[name]', () => {
   })
 
   it('updates an existing workspace secret only for a secret admin', async () => {
+    mockCheckRateLimit.mockResolvedValue({ ...RATE_LIMIT_OK, keyType: 'personal' })
     mockGetWorkspaceEnvKeyAdminAccess.mockResolvedValue({
       adminKeys: new Set<string>(),
       knownKeys: new Set(['STRIPE_API_KEY']),
@@ -170,6 +171,7 @@ describe('PUT /api/v2/secrets/[name]', () => {
   })
 
   it('sets only the caller-owned personal secret catalog', async () => {
+    mockCheckRateLimit.mockResolvedValue({ ...RATE_LIMIT_OK, keyType: 'personal' })
     const res = await callSet('personal')
 
     expect(res.status).toBe(201)
@@ -194,6 +196,14 @@ describe('PUT /api/v2/secrets/[name]', () => {
 
     expect(res.status).toBe(400)
     expect(mockSetWorkspaceSecret).not.toHaveBeenCalled()
+  })
+
+  it('requires a personal key for personal secrets', async () => {
+    const res = await callSet('personal')
+
+    expect(res.status).toBe(403)
+    expect((await res.json()).error.code).toBe('PERSONAL_KEY_REQUIRED')
+    expect(mockSetPersonalSecret).not.toHaveBeenCalled()
   })
 })
 
@@ -221,6 +231,7 @@ describe('DELETE /api/v2/secrets/[name]', () => {
   })
 
   it('returns 404 when the scoped secret does not exist', async () => {
+    mockCheckRateLimit.mockResolvedValue({ ...RATE_LIMIT_OK, keyType: 'personal' })
     mockDeletePersonalSecret.mockResolvedValue(false)
 
     const res = await callDelete('personal')

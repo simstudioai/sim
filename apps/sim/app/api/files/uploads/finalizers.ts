@@ -127,7 +127,7 @@ export async function finalizeWorkspaceFileUpload(params: {
   const metadata = session.metadata as { folderId?: string | null }
   const registered = await registerUploadedWorkspaceFile({
     workspaceId,
-    userId: session.userId,
+    userId: actor.id,
     key: session.storageKey,
     originalName: session.fileName,
     contentType: session.contentType,

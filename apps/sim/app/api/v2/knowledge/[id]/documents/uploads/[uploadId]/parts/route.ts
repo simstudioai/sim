@@ -28,7 +28,7 @@ export const POST = withPublicApiRouteHandler({
         knowledgeBaseId,
         uploadId,
         workspaceId,
-        userId,
+        userId: rateLimit.principalUserId ?? userId,
         uploadToken: input.headers['upload-token'],
       })
       const parts = await createUploadPartUrls({

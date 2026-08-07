@@ -10,6 +10,10 @@ import {
 } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const { mockGetRequestContext } = vi.hoisted(() => ({
+  mockGetRequestContext: vi.fn(),
+}))
+
 vi.mock('@sim/db', () => ({
   ...dbChainMock,
   auditLog: { id: 'id', workspaceId: 'workspace_id' },
@@ -22,6 +26,7 @@ vi.mock('drizzle-orm', () => ({
   sql: vi.fn(),
 }))
 vi.mock('@sim/logger', () => ({
+  getRequestContext: mockGetRequestContext,
   createLogger: () => ({
     info: vi.fn(),
     warn: vi.fn(),
@@ -74,6 +79,7 @@ describe('AuditResourceType', () => {
 describe('recordAudit', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockGetRequestContext.mockReturnValue(undefined)
     resetDbChainMock()
     requestUtilsMockFns.mockGetClientIp.mockImplementation(
       (request: { headers: { get(name: string): string | null } }) =>
@@ -223,6 +229,36 @@ describe('recordAudit', () => {
     expect(dbChainMockFns.values).toHaveBeenCalledWith(
       expect.objectContaining({
         metadata: { provider: 'github', workflowId: 'wf-1' },
+      })
+    )
+  })
+
+  it('adds API key identity from the request context to metadata', async () => {
+    mockGetRequestContext.mockReturnValue({
+      requestId: 'request-1',
+      apiKeyId: 'key-1',
+      apiKeyType: 'workspace',
+    })
+
+    recordAudit({
+      workspaceId: 'ws-1',
+      actorId: 'payer-1',
+      actorName: 'Workspace Payer',
+      action: AuditAction.WORKFLOW_CREATED,
+      resourceType: AuditResourceType.WORKFLOW,
+      metadata: { source: 'api', apiKeyId: 'untrusted-value' },
+    })
+
+    await flush()
+
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: 'payer-1',
+        metadata: {
+          source: 'api',
+          apiKeyId: 'key-1',
+          apiKeyType: 'workspace',
+        },
       })
     )
   })

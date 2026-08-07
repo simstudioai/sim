@@ -96,7 +96,7 @@ describe('GET /api/v2/secrets', () => {
     })
     expect(JSON.stringify(body)).not.toContain('value')
     expect(mockListVisibleWorkspaceCredentials).toHaveBeenCalledWith(
-      expect.objectContaining({ types: ['env_workspace', 'env_personal'] })
+      expect.objectContaining({ types: ['env_workspace'] })
     )
   })
 
@@ -114,6 +114,14 @@ describe('GET /api/v2/secrets', () => {
     const res = await callList(`workspaceId=${WORKSPACE_ID}`)
 
     expect((await res.json()).data).toEqual([])
+  })
+
+  it('requires a personal key when personal scope is explicit', async () => {
+    const res = await callList(`workspaceId=${WORKSPACE_ID}&scope=personal`)
+
+    expect(res.status).toBe(403)
+    expect((await res.json()).error.code).toBe('PERSONAL_KEY_REQUIRED')
+    expect(mockListVisibleWorkspaceCredentials).not.toHaveBeenCalled()
   })
 
   it('maps scope and sort filters to the credential catalog', async () => {

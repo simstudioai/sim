@@ -431,4 +431,23 @@ describe('POST /api/v2/workflows', () => {
       })
     )
   })
+
+  it('keeps the key creator as owner while recording the workspace payer as actor', async () => {
+    mockCheckRateLimit.mockResolvedValue({
+      ...RATE_LIMIT_OK,
+      userId: 'payer-1',
+      principalUserId: 'creator-1',
+    })
+
+    const res = await callPost(VALID_BODY)
+
+    expect(res.status).toBe(201)
+    expect(mockPerformCreateWorkflow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'creator-1',
+        actorUserId: 'payer-1',
+        workspaceId: 'workspace-1',
+      })
+    )
+  })
 })

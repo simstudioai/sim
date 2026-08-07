@@ -29,7 +29,7 @@ export const DELETE = withPublicApiRouteHandler({
         knowledgeBaseId,
         uploadId,
         workspaceId,
-        userId,
+        userId: rateLimit.principalUserId ?? userId,
         uploadToken: input.headers['upload-token'],
       })
       const aborted = await abortKnowledgeDocumentUpload(session, knowledgeBaseId)

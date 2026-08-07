@@ -18,7 +18,7 @@ import {
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockAuthenticateV1Request,
+  mockAuthenticateV2ApiKey,
   mockClaimExecutionId,
   mockEnqueue,
   mockExecuteWorkflowCore,
@@ -29,7 +29,7 @@ const {
   mockReleaseExecutionSlot,
   mockValidatePublicApiAllowed,
 } = vi.hoisted(() => ({
-  mockAuthenticateV1Request: vi.fn(),
+  mockAuthenticateV2ApiKey: vi.fn(),
   mockClaimExecutionId: vi.fn(),
   mockEnqueue: vi.fn().mockResolvedValue('workflow-execution:execution-123'),
   mockExecuteWorkflowCore: vi.fn(),
@@ -41,8 +41,8 @@ const {
   mockValidatePublicApiAllowed: vi.fn(),
 }))
 
-vi.mock('@/app/api/v1/auth', () => ({
-  authenticateV1Request: mockAuthenticateV1Request,
+vi.mock('@/app/api/v1/middleware', () => ({
+  authenticateV2ApiKey: mockAuthenticateV2ApiKey,
 }))
 
 vi.mock('@/lib/billing/calculations/usage-reservation', () => ({
@@ -178,12 +178,14 @@ describe('POST /api/v2/workflows/[id]/execute', () => {
     resetDbChainMock()
     setEnv({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
     mockGenerateId.mockReturnValue('execution-123')
-    mockAuthenticateV1Request.mockResolvedValue({
+    mockAuthenticateV2ApiKey.mockResolvedValue({
       authenticated: true,
-      userId: 'key-user-1',
-      keyType: 'workspace',
-      workspaceId: 'workspace-1',
+      actorUserId: 'key-user-1',
+      principalUserId: 'key-user-1',
+      keyId: 'key-personal',
+      keyType: 'personal',
     })
+    mockGetWorkspaceBillingSettings.mockResolvedValue({ allowPersonalApiKeys: true })
     mockAuthorize.mockResolvedValue({ allowed: true, workflow: workflowRecord })
     mockClaimExecutionId.mockImplementation(async (executionId: string) => ({
       key: `workflow-execution-id:${executionId}`,
@@ -300,11 +302,14 @@ describe('POST /api/v2/workflows/[id]/execute', () => {
   })
 
   it('masks a workspace-key/workflow mismatch as 404', async () => {
-    mockAuthenticateV1Request.mockResolvedValue({
+    mockAuthenticateV2ApiKey.mockResolvedValue({
       authenticated: true,
-      userId: 'key-user-1',
+      actorUserId: 'actor-1',
+      principalUserId: 'key-user-1',
+      keyId: 'key-workspace',
       keyType: 'workspace',
       workspaceId: 'other-workspace',
+      billingAttribution: { ...billingAttribution, workspaceId: 'other-workspace' },
     })
 
     const res = await callExecute({ input: {} })
@@ -313,10 +318,38 @@ describe('POST /api/v2/workflows/[id]/execute', () => {
     expect((await res.json()).error.code).toBe('NOT_FOUND')
   })
 
-  it('rejects personal keys when the workspace disallows them', async () => {
-    mockAuthenticateV1Request.mockResolvedValue({
+  it('executes a bound workspace workflow as its frozen billing actor and payer', async () => {
+    mockAuthenticateV2ApiKey.mockResolvedValue({
       authenticated: true,
-      userId: 'key-user-1',
+      actorUserId: 'actor-1',
+      principalUserId: 'key-user-1',
+      keyId: 'key-workspace',
+      keyType: 'workspace',
+      workspaceId: 'workspace-1',
+      billingAttribution,
+    })
+    dbChainMockFns.limit.mockResolvedValue([workflowRecord])
+
+    const res = await callExecute({ input: { hello: 'workspace' } })
+
+    expect(res.status).toBe(200)
+    expect(mockAuthorize).not.toHaveBeenCalled()
+    expect(mockPreprocessExecution).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'actor-1',
+        useAuthenticatedUserAsActor: false,
+        workflowRecord,
+        billingAttribution,
+      })
+    )
+  })
+
+  it('rejects personal keys when the workspace disallows them', async () => {
+    mockAuthenticateV2ApiKey.mockResolvedValue({
+      authenticated: true,
+      actorUserId: 'key-user-1',
+      principalUserId: 'key-user-1',
+      keyId: 'key-personal',
       keyType: 'personal',
     })
     mockGetWorkspaceBillingSettings.mockResolvedValue({ allowPersonalApiKeys: false })
@@ -371,7 +404,7 @@ describe('POST /api/v2/workflows/[id]/execute', () => {
   })
 
   it('runs the anonymous public path sync but refuses async', async () => {
-    mockAuthenticateV1Request.mockResolvedValue({ authenticated: false, error: 'API key required' })
+    mockAuthenticateV2ApiKey.mockResolvedValue({ authenticated: false, error: 'API key required' })
     dbChainMockFns.limit.mockResolvedValueOnce([
       { isPublicApi: true, isDeployed: true, userId: 'owner-1', workspaceId: 'workspace-1' },
     ])
@@ -379,7 +412,7 @@ describe('POST /api/v2/workflows/[id]/execute', () => {
     const okRes = await callExecute({ input: {} })
     expect(okRes.status).toBe(200)
 
-    mockAuthenticateV1Request.mockResolvedValue({ authenticated: false, error: 'API key required' })
+    mockAuthenticateV2ApiKey.mockResolvedValue({ authenticated: false, error: 'API key required' })
     dbChainMockFns.limit.mockResolvedValueOnce([
       { isPublicApi: true, isDeployed: true, userId: 'owner-1', workspaceId: 'workspace-1' },
     ])
@@ -388,7 +421,7 @@ describe('POST /api/v2/workflows/[id]/execute', () => {
   })
 
   it('401s non-public workflows without a key', async () => {
-    mockAuthenticateV1Request.mockResolvedValue({ authenticated: false, error: 'API key required' })
+    mockAuthenticateV2ApiKey.mockResolvedValue({ authenticated: false, error: 'API key required' })
     dbChainMockFns.limit.mockResolvedValueOnce([
       { isPublicApi: false, isDeployed: true, userId: 'owner-1', workspaceId: 'workspace-1' },
     ])

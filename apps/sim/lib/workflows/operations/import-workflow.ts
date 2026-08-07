@@ -54,7 +54,10 @@ export interface ImportWorkflowParams {
   description?: string
   /** Export envelope, bare state, or a JSON string of either. */
   workflow: string | Record<string, unknown>
+  /** User persisted as the imported workflow owner. */
   userId: string
+  /** Actor used for audit attribution when it differs from the owner. */
+  actorUserId?: string
   requestId: string
 }
 
@@ -271,6 +274,7 @@ export async function importWorkflowIntoWorkspace(
     folderId,
     deduplicate: true,
     userId,
+    actorUserId: params.actorUserId,
     requestId,
   })
 

@@ -1,5 +1,5 @@
 import { auditLog, db, user } from '@sim/db'
-import { createLogger } from '@sim/logger'
+import { createLogger, getRequestContext } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import type { AuditActionType, AuditResourceTypeValue } from './types'
@@ -77,6 +77,7 @@ function buildAuditRow(
   params: AuditLogParams,
   actor: { actorId: string | null; actorName?: string | null; actorEmail?: string | null }
 ) {
+  const requestContext = getRequestContext()
   return {
     id: generateShortId(),
     workspaceId: params.workspaceId || null,
@@ -88,7 +89,11 @@ function buildAuditRow(
     actorEmail: actor.actorEmail ?? undefined,
     resourceName: params.resourceName,
     description: params.description,
-    metadata: params.metadata ?? {},
+    metadata: {
+      ...(params.metadata ?? {}),
+      ...(requestContext?.apiKeyId ? { apiKeyId: requestContext.apiKeyId } : {}),
+      ...(requestContext?.apiKeyType ? { apiKeyType: requestContext.apiKeyType } : {}),
+    },
     ipAddress: params.request ? getClientIp(params.request) : undefined,
     userAgent: params.request?.headers.get('user-agent') ?? undefined,
   }

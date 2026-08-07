@@ -21,7 +21,15 @@ const {
   mockLoggerError: vi.fn(),
   mockLoggerInfo: vi.fn(),
   requestContextState: {
-    current: undefined as { requestId: string; method?: string; path?: string } | undefined,
+    current: undefined as
+      | {
+          requestId: string
+          method?: string
+          path?: string
+          apiKeyId?: string
+          apiKeyType?: 'personal' | 'workspace'
+        }
+      | undefined,
   },
 }))
 
@@ -35,7 +43,13 @@ vi.mock('@sim/logger', () => ({
   }),
   getRequestContext: () => requestContextState.current,
   runWithRequestContext: async <T>(
-    context: { requestId: string; method?: string; path?: string },
+    context: {
+      requestId: string
+      method?: string
+      path?: string
+      apiKeyId?: string
+      apiKeyType?: 'personal' | 'workspace'
+    },
     callback: () => T | Promise<T>
   ): Promise<T> => {
     requestContextState.current = context
@@ -184,6 +198,36 @@ describe('withPublicApiRouteHandler', () => {
     expect(request.bodyUsed).toBe(false)
     expect(mockGate).toHaveBeenCalledWith('user-1')
     expect(mockHandler).not.toHaveBeenCalled()
+  })
+
+  it('uses the workspace organization gate and exposes key identity in request context', async () => {
+    const contextSeenByHandler: Array<typeof requestContextState.current> = []
+    mockHandler.mockImplementationOnce(() => {
+      contextSeenByHandler.push(requestContextState.current)
+    })
+    mockCheckRateLimit.mockImplementation(async (request: NextRequest) => {
+      const workspaceRateLimit = {
+        ...RATE_LIMIT,
+        userId: 'payer-1',
+        keyId: 'key-1',
+        keyType: 'workspace' as const,
+        billingAttribution: { organizationId: 'org-1' },
+      }
+      recordRateLimitSnapshot(request, workspaceRateLimit)
+      return workspaceRateLimit
+    })
+
+    const response = await GET(listRequest())
+
+    expect(response.status).toBe(200)
+    expect(mockGate).toHaveBeenCalledWith('payer-1', 'org-1')
+    expect(contextSeenByHandler).toEqual([
+      expect.objectContaining({
+        requestId: 'outer-request-id',
+        apiKeyId: 'key-1',
+        apiKeyType: 'workspace',
+      }),
+    ])
   })
 
   it('fails fast when an allowed rate-limit result has no user ID', async () => {

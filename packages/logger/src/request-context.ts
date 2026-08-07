@@ -2,6 +2,8 @@ export interface RequestContext {
   requestId: string
   method?: string
   path?: string
+  apiKeyId?: string
+  apiKeyType?: 'personal' | 'workspace'
 }
 
 /**

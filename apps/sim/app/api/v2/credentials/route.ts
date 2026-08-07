@@ -24,7 +24,10 @@ export const GET = withPublicApiRouteHandler({
      * rows and shared-type admin access decide what this caller sees, so the
      * workspace permission is re-read here for the `canAdmin` bit.
      */
-    const workspaceAccess = await checkWorkspaceAccess(workspaceId, userId)
+    const workspaceAccess =
+      rateLimit.keyType === 'workspace'
+        ? { canAdmin: true }
+        : await checkWorkspaceAccess(workspaceId, userId)
     const credentials = await listVisibleWorkspaceCredentials({
       workspaceId,
       userId,

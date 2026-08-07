@@ -22,16 +22,20 @@ export const POST = withPublicApiRouteHandler({
       const session = await getOwnedUploadSession({
         uploadId,
         workspaceId,
-        userId,
+        userId: rateLimit.principalUserId ?? userId,
         purpose: 'workspace_file',
         uploadToken: input.headers['upload-token'],
       })
+      const actorUserId = session.metadata.actorUserId
+      if (typeof actorUserId !== 'string') {
+        throw new Error('Workspace file upload is missing its attribution actor')
+      }
       const result = await completeUploadSession({
         session,
         finalize: async (claimed) => {
           const finalized = await finalizeWorkspaceFileUpload({
             session: claimed,
-            actor: { id: userId },
+            actor: { id: actorUserId },
             request,
             source: 'api',
           })

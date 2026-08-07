@@ -60,11 +60,25 @@ interface CreateTableImportResult {
   upload: CreatedUploadSession | null
 }
 
+interface TableImportAttribution {
+  /** API/session principal that owns the continuation resource. */
+  ownerUserId: string
+  /** Actor attributed to the imported table and rows. */
+  actorUserId: string
+  /** Personal/session calls may inherit the owner's preference; shared keys may not. */
+  useOwnerTimezone: boolean
+}
+
 export async function createTableImportResource(
   body: V2CreateTableImportBody,
   userId: string,
   localOrigin: string,
-  resolvedFolderId?: string | null
+  resolvedFolderId?: string | null,
+  attribution: TableImportAttribution = {
+    ownerUserId: userId,
+    actorUserId: userId,
+    useOwnerTimezone: true,
+  }
 ): Promise<CreateTableImportResult> {
   await assertWorkspaceWrite(userId, body.workspaceId)
   await validateTarget(body.workspaceId, body.target, resolvedFolderId)
@@ -79,12 +93,17 @@ export async function createTableImportResource(
     const upload = await createUploadSession({
       id: importId,
       workspaceId: body.workspaceId,
-      userId,
+      userId: attribution.ownerUserId,
       purpose: 'table_import',
       fileName: body.source.name,
       contentType: body.source.contentType,
       fileSize: body.source.size,
-      metadata: { tableImport: body, tableImportFolderId: resolvedFolderId ?? null },
+      metadata: {
+        tableImport: body,
+        tableImportFolderId: resolvedFolderId ?? null,
+        tableImportActorUserId: attribution.actorUserId,
+        tableImportUseOwnerTimezone: attribution.useOwnerTimezone,
+      },
       localOrigin,
     })
     return { record: resourceFromUpload(upload, body), upload }
@@ -96,7 +115,9 @@ export async function createTableImportResource(
     record: await startTableImport({
       id: importId,
       workspaceId: body.workspaceId,
-      userId,
+      ownerUserId: attribution.ownerUserId,
+      actorUserId: attribution.actorUserId,
+      useOwnerTimezone: attribution.useOwnerTimezone,
       source: body.source,
       target: body.target,
       folderId: resolvedFolderId,
@@ -130,10 +151,17 @@ export async function startUploadedTableImport(
     folderId = storedFolderId
   }
   await validateTarget(workspaceId, body.target, folderId)
+  const actorUserId = upload.metadata.tableImportActorUserId
+  const useOwnerTimezone = upload.metadata.tableImportUseOwnerTimezone
+  if (typeof actorUserId !== 'string' || typeof useOwnerTimezone !== 'boolean') {
+    throw new Error('Table import upload is missing its attribution metadata')
+  }
   return startTableImport({
     id: upload.id,
     workspaceId,
-    userId: upload.userId,
+    ownerUserId: upload.userId,
+    actorUserId,
+    useOwnerTimezone,
     source: body.source,
     target: body.target,
     folderId,
@@ -201,11 +229,12 @@ export async function findOwnedTableImport(params: {
     .limit(1)
   if (!job) return null
   const payload = parseImportJobPayload(job.payload)
-  if (payload.userId !== params.userId) return null
+  const ownerUserId = payload.ownerUserId ?? payload.userId
+  if (ownerUserId !== params.userId) return null
   return {
     id: job.id,
     workspaceId: job.workspaceId,
-    userId: payload.userId,
+    userId: ownerUserId,
     source: v2TableImportSourceSchema.parse(payload.source),
     target: v2TableImportTargetSchema.parse(payload.target),
     options: payload.options,
@@ -261,7 +290,9 @@ export function toV2CreateTableImport(result: CreateTableImportResult): V2Create
 interface StartTableImportParams {
   id: string
   workspaceId: string
-  userId: string
+  ownerUserId: string
+  actorUserId: string
+  useOwnerTimezone: boolean
   source: V2TableImportSource
   target: V2TableImportTarget
   folderId?: string | null
@@ -276,7 +307,8 @@ async function startTableImport(params: StartTableImportParams): Promise<TableIm
   const requestId = generateRequestId()
   const jobPayload: TableImportJobPayload = {
     kind: 'table_import',
-    userId: params.userId,
+    userId: params.actorUserId,
+    ownerUserId: params.ownerUserId,
     source: params.source,
     target: params.target,
     options: params.options,
@@ -292,7 +324,7 @@ async function startTableImport(params: StartTableImportParams): Promise<TableIm
           schema: { columns: [{ name: 'column_1', type: 'string' }] },
           workspaceId: params.workspaceId,
           folderId: params.folderId ?? null,
-          userId: params.userId,
+          userId: params.actorUserId,
           maxTables: limits.maxTables,
           jobStatus: 'running',
           jobType: 'import',
@@ -314,7 +346,7 @@ async function startTableImport(params: StartTableImportParams): Promise<TableIm
       importId: params.id,
       tableId,
       workspaceId: params.workspaceId,
-      userId: params.userId,
+      userId: params.actorUserId,
       fileKey: params.fileKey,
       fileName: params.fileName,
       delimiter: params.fileName.toLowerCase().endsWith('.tsv') ? '\t' : ',',
@@ -323,7 +355,11 @@ async function startTableImport(params: StartTableImportParams): Promise<TableIm
       createColumns: params.options.createColumns,
       deleteSourceFile: params.deleteSourceFile,
       storageContext: params.storageContext,
-      timezone: params.options.timezone ?? (await getUserSettings(params.userId)).timezone ?? 'UTC',
+      timezone:
+        params.options.timezone ??
+        (params.useOwnerTimezone
+          ? ((await getUserSettings(params.ownerUserId)).timezone ?? 'UTC')
+          : 'UTC'),
     }
 
     if (isTriggerDevEnabled) {
@@ -342,7 +378,7 @@ async function startTableImport(params: StartTableImportParams): Promise<TableIm
     return getOwnedTableImport({
       importId: params.id,
       workspaceId: params.workspaceId,
-      userId: params.userId,
+      userId: params.ownerUserId,
     })
   } catch (error) {
     const message = getErrorMessage(error, 'Failed to dispatch table import')
@@ -403,6 +439,7 @@ function parseImportJobPayload(payload: unknown): TableImportJobPayload {
   if (
     candidate.kind !== 'table_import' ||
     typeof candidate.userId !== 'string' ||
+    (candidate.ownerUserId !== undefined && typeof candidate.ownerUserId !== 'string') ||
     !candidate.options ||
     typeof candidate.options !== 'object'
   ) {

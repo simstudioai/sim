@@ -7,7 +7,6 @@ import {
 import {
   checkAttributedUsageLimits,
   resolveBillingAttribution,
-  resolveSystemBillingAttribution,
 } from '@/lib/billing/core/billing-attribution'
 import {
   isPayloadSizeLimitError,
@@ -151,8 +150,11 @@ export const POST = withPublicApiRouteHandler({
        */
       const billingAttribution =
         rateLimit.keyType === 'workspace'
-          ? await resolveSystemBillingAttribution(workspaceId)
+          ? rateLimit.billingAttribution
           : await resolveBillingAttribution({ actorUserId: userId, workspaceId })
+      if (!billingAttribution || billingAttribution.workspaceId !== workspaceId) {
+        throw new Error('Workspace API request is missing its billing attribution')
+      }
       const usage = await checkAttributedUsageLimits(billingAttribution)
       if (usage.isExceeded) {
         return v2Error(

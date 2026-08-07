@@ -109,8 +109,10 @@ export const POST = withPublicApiRouteHandler({
       if (!resolution.found) return v2Error('NOT_FOUND', 'Folder not found')
 
       await assertFolderMutable(resolution.folderId)
+      const ownerUserId = rateLimit.principalUserId ?? userId
       const result = await performCreateWorkflow({
-        userId,
+        userId: ownerUserId,
+        actorUserId: userId,
         workspaceId,
         name,
         description,

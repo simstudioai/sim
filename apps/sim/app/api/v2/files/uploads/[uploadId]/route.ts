@@ -21,7 +21,7 @@ export const DELETE = withPublicApiRouteHandler({
       const session = await getOwnedUploadSession({
         uploadId,
         workspaceId,
-        userId,
+        userId: rateLimit.principalUserId ?? userId,
         purpose: 'workspace_file',
         uploadToken: input.headers['upload-token'],
       })

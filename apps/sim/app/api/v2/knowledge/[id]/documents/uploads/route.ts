@@ -40,12 +40,12 @@ export const POST = withPublicApiRouteHandler({
 
       const session = await createKnowledgeDocumentUploadSession({
         workspaceId,
-        userId,
+        userId: rateLimit.principalUserId ?? userId,
         knowledgeBaseId,
         fileName: name,
         contentType,
         fileSize: size,
-        metadata,
+        metadata: { ...metadata, billingAttribution: billing },
         localOrigin: request.nextUrl.origin,
       })
       return v2Data(

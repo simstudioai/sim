@@ -16,6 +16,7 @@ import type { RateLimitResult, WorkspaceAccessError } from '@/app/api/v1/middlew
 export type V2ErrorCode =
   | 'BAD_REQUEST'
   | 'UNAUTHORIZED'
+  | 'PERSONAL_KEY_REQUIRED'
   | 'FORBIDDEN'
   | 'NOT_FOUND'
   | 'CONFLICT'
@@ -31,6 +32,7 @@ export type V2ErrorCode =
 const STATUS_BY_CODE: Record<V2ErrorCode, number> = {
   BAD_REQUEST: 400,
   UNAUTHORIZED: 401,
+  PERSONAL_KEY_REQUIRED: 403,
   USAGE_LIMIT_EXCEEDED: 402,
   FORBIDDEN: 403,
   NOT_FOUND: 404,

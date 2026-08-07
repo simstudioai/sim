@@ -31,7 +31,7 @@ export const POST = withPublicApiRouteHandler({
         knowledgeBaseId,
         uploadId,
         workspaceId,
-        userId,
+        userId: rateLimit.principalUserId ?? userId,
         uploadToken: input.headers['upload-token'],
       })
       const result = await completeUploadSession({
@@ -44,7 +44,7 @@ export const POST = withPublicApiRouteHandler({
             workspaceId,
             userId,
             resolveAttribution: () =>
-              resolveKnowledgeDocumentUploadAttribution({ workspaceId, userId, rateLimit }),
+              resolveKnowledgeDocumentUploadAttribution({ session: claimed }),
             source: 'api',
             requestId,
             request,

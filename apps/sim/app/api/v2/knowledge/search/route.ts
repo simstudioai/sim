@@ -6,7 +6,6 @@ import { isZodError } from '@/lib/api/server'
 import {
   checkAttributedUsageLimits,
   resolveBillingAttribution,
-  resolveSystemBillingAttribution,
 } from '@/lib/billing/core/billing-attribution'
 import { ALL_TAG_SLOTS } from '@/lib/knowledge/constants'
 import { recordSearchEmbeddingUsage } from '@/lib/knowledge/embeddings'
@@ -51,9 +50,16 @@ export const POST = withPublicApiRouteHandler({
       const hasBillableQuery = Boolean(query?.trim())
       const billingAttribution = hasBillableQuery
         ? rateLimit.keyType === 'workspace'
-          ? await resolveSystemBillingAttribution(workspaceId)
+          ? rateLimit.billingAttribution
           : await resolveBillingAttribution({ actorUserId: userId, workspaceId })
         : undefined
+      if (
+        rateLimit.keyType === 'workspace' &&
+        hasBillableQuery &&
+        (!billingAttribution || billingAttribution.workspaceId !== workspaceId)
+      ) {
+        throw new Error('Workspace API request is missing its billing attribution')
+      }
       const billingActorUserId = billingAttribution?.actorUserId ?? userId
       if (billingAttribution) {
         const usage = await checkAttributedUsageLimits(billingAttribution)

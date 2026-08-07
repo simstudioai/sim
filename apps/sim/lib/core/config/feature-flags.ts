@@ -108,9 +108,9 @@ const FEATURE_FLAGS = {
     description:
       'Gate the whole /api/v2 HTTP surface (workflows incl. execute/executions, tables, logs, ' +
       'knowledge, files, audit-logs, billing). One check per request, immediately after auth: ' +
-      'when off, every v2 route returns 404 as if the surface does not exist. The gate is keyed ' +
-      'on userId only — it never reads workspace/org membership, so an ungated caller learns ' +
-      'nothing beyond "no such route". Off-AppConfig falls back to V2_API.',
+      'when off, every v2 route returns 404 as if the surface does not exist. Personal keys use ' +
+      'their user id; workspace keys use their server-bound workspace billing actor and exact ' +
+      'organization after key admission. Off-AppConfig falls back to V2_API.',
     fallback: 'V2_API',
   },
   'tables-v2-api': {

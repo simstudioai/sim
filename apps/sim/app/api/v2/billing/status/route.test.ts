@@ -168,4 +168,34 @@ describe('GET /api/v2/billing/status', () => {
     expect(response.status).toBe(403)
     expect(mockCheckUsageStatus).not.toHaveBeenCalled()
   })
+
+  it('reuses the admitted workspace key payer snapshot for billing status', async () => {
+    const billingAttribution = {
+      actorUserId: 'payer-1',
+      workspaceId: 'ws-1',
+      organizationId: 'org-1',
+      billedAccountUserId: 'payer-1',
+      billingEntity: { type: 'organization', id: 'org-1' },
+      billingPeriod: {
+        start: '2026-07-01T00:00:00.000Z',
+        end: '2026-08-01T00:00:00.000Z',
+      },
+      payerSubscription: null,
+    }
+    mockCheckRateLimit.mockResolvedValue({
+      ...RATE_LIMIT_OK,
+      userId: 'payer-1',
+      principalUserId: 'creator-1',
+      keyType: 'workspace',
+      workspaceId: 'ws-1',
+      billingAttribution,
+    })
+
+    const response = await callStatus('?workspaceId=ws-1')
+
+    expect(response.status).toBe(200)
+    expect(mockResolveBillingAttribution).not.toHaveBeenCalled()
+    expect(mockToUsageLimitSubscription).toHaveBeenCalledWith(billingAttribution)
+    expect(mockCheckAttributedBillingBlocks).toHaveBeenCalledWith(billingAttribution)
+  })
 })

@@ -27,12 +27,12 @@ export const POST = withPublicApiRouteHandler({
       if (!resolution.found) return v2Error('NOT_FOUND', 'Folder not found')
       const session = await createUploadSession({
         workspaceId,
-        userId,
+        userId: rateLimit.principalUserId ?? userId,
         purpose: 'workspace_file',
         fileName: name,
         contentType,
         fileSize: size,
-        metadata: { folderId: resolution.folderId },
+        metadata: { folderId: resolution.folderId, actorUserId: userId },
         localOrigin: request.nextUrl.origin,
       })
       return v2Data(

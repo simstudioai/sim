@@ -1,19 +1,22 @@
 /**
  * @vitest-environment node
  */
-import { createMockRequest, workflowAuthzMockFns } from '@sim/testing'
+import {
+  createMockRequest,
+  dbChainMockFns,
+  resetDbChainMock,
+  workflowAuthzMockFns,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockAuthenticateV1Request, mockGetWorkflowExecutionStatus, mockCancel } = vi.hoisted(
-  () => ({
-    mockAuthenticateV1Request: vi.fn(),
-    mockGetWorkflowExecutionStatus: vi.fn(),
-    mockCancel: vi.fn(),
-  })
-)
+const { mockAuthenticateV2ApiKey, mockGetWorkflowExecutionStatus, mockCancel } = vi.hoisted(() => ({
+  mockAuthenticateV2ApiKey: vi.fn(),
+  mockGetWorkflowExecutionStatus: vi.fn(),
+  mockCancel: vi.fn(),
+}))
 
-vi.mock('@/app/api/v1/auth', () => ({
-  authenticateV1Request: mockAuthenticateV1Request,
+vi.mock('@/app/api/v1/middleware', () => ({
+  authenticateV2ApiKey: mockAuthenticateV2ApiKey,
 }))
 
 vi.mock('@/lib/workspaces/utils', () => ({
@@ -56,11 +59,13 @@ function callStatus(query = '') {
 describe('v2 runs status + cancel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockAuthenticateV1Request.mockResolvedValue({
+    resetDbChainMock()
+    mockAuthenticateV2ApiKey.mockResolvedValue({
       authenticated: true,
-      userId: 'key-user-1',
-      keyType: 'workspace',
-      workspaceId: 'workspace-1',
+      actorUserId: 'key-user-1',
+      principalUserId: 'key-user-1',
+      keyId: 'key-1',
+      keyType: 'personal',
     })
     mockAuthorize.mockResolvedValue({ allowed: true, workflow: workflowRecord })
   })
@@ -159,12 +164,16 @@ describe('v2 runs status + cancel', () => {
   })
 
   it('masks cross-workspace access as 404', async () => {
-    mockAuthenticateV1Request.mockResolvedValue({
+    mockAuthenticateV2ApiKey.mockResolvedValue({
       authenticated: true,
-      userId: 'key-user-1',
+      actorUserId: 'payer-1',
+      principalUserId: 'key-user-1',
+      keyId: 'key-1',
       keyType: 'workspace',
       workspaceId: 'other-workspace',
+      billingAttribution: { organizationId: null },
     })
+    dbChainMockFns.limit.mockResolvedValue([workflowRecord])
 
     const res = await callStatus()
 
@@ -200,7 +209,7 @@ describe('v2 runs status + cancel', () => {
   })
 
   it('401s without an API key (no session/anonymous path on runs)', async () => {
-    mockAuthenticateV1Request.mockResolvedValue({ authenticated: false, error: 'API key required' })
+    mockAuthenticateV2ApiKey.mockResolvedValue({ authenticated: false, error: 'API key required' })
 
     const res = await callStatus()
 

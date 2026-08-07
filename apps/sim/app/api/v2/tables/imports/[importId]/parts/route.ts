@@ -20,7 +20,7 @@ export const POST = withPublicApiRouteHandler({
       const session = await getOwnedTableImportUpload({
         importId: input.params.importId,
         workspaceId,
-        userId,
+        userId: rateLimit.principalUserId ?? userId,
         uploadToken: input.headers['upload-token'],
       })
       const parts = await createUploadPartUrls({

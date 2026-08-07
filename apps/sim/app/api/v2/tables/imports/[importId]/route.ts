@@ -26,7 +26,7 @@ export const GET = withPublicApiRouteHandler({
       const record = await getOwnedTableImport({
         importId: input.params.importId,
         workspaceId: input.query.workspaceId,
-        userId,
+        userId: rateLimit.principalUserId ?? userId,
       })
       return v2Data(await toV2TableImport(record), { rateLimit })
     } catch (error) {
@@ -45,18 +45,19 @@ export const DELETE = withPublicApiRouteHandler({
       const scopeError = await resolveWorkspaceScope(rateLimit, input.query.workspaceId)
       if (scopeError) return v2WorkspaceAccessError(scopeError)
       const uploadToken = input.headers['upload-token']
+      const ownerUserId = rateLimit.principalUserId ?? userId
       const record = uploadToken
         ? await abortTableImportUpload({
             importId: input.params.importId,
             workspaceId: input.query.workspaceId,
-            userId,
+            userId: ownerUserId,
             uploadToken,
           })
         : await cancelTableImportResource(
             await getOwnedTableImport({
               importId: input.params.importId,
               workspaceId: input.query.workspaceId,
-              userId,
+              userId: ownerUserId,
             })
           )
       return v2Data(toV2TableImport(record), { rateLimit })
