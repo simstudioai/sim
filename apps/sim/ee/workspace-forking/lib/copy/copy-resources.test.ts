@@ -8,6 +8,11 @@ import {
   storageServiceMockFns,
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { hashDurableSecretProvenanceValue } from '@/lib/execution/durable-secret-provenance'
+import {
+  bindKnowledgeDocumentFieldSecretProvenance,
+  createKnowledgeDocumentSourceValue,
+} from '@/lib/knowledge/secret-provenance'
 
 const {
   mockIncrementStorageUsageInTx,
@@ -57,6 +62,34 @@ const sourceDoc = {
   filename: 'report.pdf',
   fileSize: 321,
   mimeType: 'application/pdf',
+}
+
+function queueMappedDocumentCopy(
+  source: Record<string, unknown> = sourceDoc,
+  provenanceRow: Record<string, unknown> = source
+): void {
+  dbChainMockFns.limit
+    .mockResolvedValueOnce([])
+    .mockResolvedValueOnce([source])
+    .mockResolvedValueOnce([provenanceRow])
+    .mockResolvedValueOnce([])
+}
+
+function mappedDocumentPlan(): ForkContentPlan {
+  return basePlan({
+    documents: [
+      {
+        sourceDocId: 'doc-1',
+        childDocId: 'child-doc-1',
+        childKnowledgeBaseId: 'existing-target-kb',
+        storageKey: 'kb/source-key',
+        fileUrl: '/api/files/serve/kb%2Fsource-key',
+        fileSize: 321,
+        filename: 'report.pdf',
+        mimeType: 'application/pdf',
+      },
+    ],
+  })
 }
 
 describe('copyForkResourceContent', () => {
@@ -421,21 +454,10 @@ describe('copyForkResourceContent', () => {
   })
 
   it('U-docs: fills a document copied into an existing target KB (blob re-key + placeholder update)', async () => {
+    queueMappedDocumentCopy()
+
     const result = await copyForkResourceContent({
-      contentPlan: basePlan({
-        documents: [
-          {
-            sourceDocId: 'doc-1',
-            childDocId: 'child-doc-1',
-            childKnowledgeBaseId: 'existing-target-kb',
-            storageKey: 'kb/source-key',
-            fileUrl: '/api/files/serve/kb%2Fsource-key',
-            fileSize: 321,
-            filename: 'report.pdf',
-            mimeType: 'application/pdf',
-          },
-        ],
-      }),
+      contentPlan: mappedDocumentPlan(),
       requestId: 'test',
     })
 
@@ -444,29 +466,130 @@ describe('copyForkResourceContent', () => {
     // The blob is re-keyed and the pre-created placeholder row's blob fields are updated.
     expect(storageServiceMockFns.mockUploadFile).toHaveBeenCalledTimes(1)
     expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ secretProvenanceVersion: null })
+    )
+    expect(dbChainMockFns.values).not.toHaveBeenCalledWith(
+      expect.objectContaining({ documentId: 'child-doc-1' })
+    )
+  })
+
+  it('U-docs: rebinds tracked document provenance through the shared document copier', async () => {
+    const source = {
+      ...sourceDoc,
+      ...createKnowledgeDocumentSourceValue(sourceDoc),
+      secretProvenanceVersion: 1,
+    }
+    const sourceValue = createKnowledgeDocumentSourceValue(source)
+    const provenance = bindKnowledgeDocumentFieldSecretProvenance(
+      {
+        status: 'exact',
+        entries: [{ name: 'DOCUMENT_NAME', encryptedValue: 'encrypted-name' }],
+      },
+      'filename',
+      source.filename
+    )
+    queueMappedDocumentCopy(source, {
+      ...source,
+      provenanceSourceHash: hashDurableSecretProvenanceValue(sourceValue),
+      status: 'exact',
+      entries: provenance.status === 'exact' ? provenance.entries : [],
+    })
+
+    const result = await copyForkResourceContent({
+      contentPlan: mappedDocumentPlan(),
+      requestId: 'test',
+    })
+
+    expect(result).toEqual({ copied: 1, failed: 0, failures: [] })
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ secretProvenanceVersion: 1 })
+    )
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        documentId: 'child-doc-1',
+        status: 'exact',
+        entries: [
+          expect.objectContaining({
+            name: 'DOCUMENT_NAME',
+            encryptedValue: 'encrypted-name',
+            sourceValueHash: expect.any(String),
+          }),
+        ],
+      })
+    )
+  })
+
+  it('U-docs: keeps exact-empty provenance tracked instead of turning it into legacy state', async () => {
+    const source = {
+      ...sourceDoc,
+      ...createKnowledgeDocumentSourceValue(sourceDoc),
+      secretProvenanceVersion: 1,
+    }
+    const sourceValue = createKnowledgeDocumentSourceValue(source)
+    queueMappedDocumentCopy(source, {
+      ...source,
+      provenanceSourceHash: hashDurableSecretProvenanceValue(sourceValue),
+      status: 'exact',
+      entries: [],
+    })
+
+    const result = await copyForkResourceContent({
+      contentPlan: mappedDocumentPlan(),
+      requestId: 'test',
+    })
+
+    expect(result).toEqual({ copied: 1, failed: 0, failures: [] })
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        documentId: 'child-doc-1',
+        status: 'exact',
+        entries: [],
+      })
+    )
+  })
+
+  it('U-docs: preserves tracked unknown provenance instead of laundering it as legacy', async () => {
+    const source = {
+      ...sourceDoc,
+      ...createKnowledgeDocumentSourceValue(sourceDoc),
+      secretProvenanceVersion: 1,
+    }
+    queueMappedDocumentCopy(source, {
+      ...source,
+      provenanceSourceHash: null,
+      status: null,
+      entries: null,
+    })
+
+    const result = await copyForkResourceContent({
+      contentPlan: mappedDocumentPlan(),
+      requestId: 'test',
+    })
+
+    expect(result).toEqual({ copied: 1, failed: 0, failures: [] })
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ secretProvenanceVersion: 1 })
+    )
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        documentId: 'child-doc-1',
+        status: 'unknown',
+        entries: [],
+      })
+    )
   })
 
   it('U-docs: a failed document fill is reported as a knowledge-document failure (for cleanup)', async () => {
+    queueMappedDocumentCopy()
+
     // The placeholder blob update throws; the doc fails on its own without touching its KB.
     dbChainMockFns.set.mockImplementationOnce(() => {
       throw new Error('update failed')
     })
 
     const result = await copyForkResourceContent({
-      contentPlan: basePlan({
-        documents: [
-          {
-            sourceDocId: 'doc-1',
-            childDocId: 'child-doc-1',
-            childKnowledgeBaseId: 'existing-target-kb',
-            storageKey: 'kb/source-key',
-            fileUrl: '/api/files/serve/kb%2Fsource-key',
-            fileSize: 321,
-            filename: 'report.pdf',
-            mimeType: 'application/pdf',
-          },
-        ],
-      }),
+      contentPlan: mappedDocumentPlan(),
       requestId: 'test',
     })
 
@@ -476,23 +599,11 @@ describe('copyForkResourceContent', () => {
   })
 
   it('U-docs: refuses to charge when the target knowledge base moved workspaces', async () => {
+    queueMappedDocumentCopy()
     dbChainMockFns.for.mockResolvedValueOnce([{ workspaceId: 'other-workspace' }])
 
     const result = await copyForkResourceContent({
-      contentPlan: basePlan({
-        documents: [
-          {
-            sourceDocId: 'doc-1',
-            childDocId: 'child-doc-1',
-            childKnowledgeBaseId: 'existing-target-kb',
-            storageKey: 'kb/source-key',
-            fileUrl: '/api/files/serve/kb%2Fsource-key',
-            fileSize: 321,
-            filename: 'report.pdf',
-            mimeType: 'application/pdf',
-          },
-        ],
-      }),
+      contentPlan: mappedDocumentPlan(),
       requestId: 'test',
     })
 

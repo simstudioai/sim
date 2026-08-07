@@ -198,7 +198,10 @@ export interface ForkContentDocumentEntry {
   sourceDocId: string
   childDocId: string
   childKnowledgeBaseId: string
-  /** Source blob fields captured at placeholder time, for the post-commit blob re-key. */
+  /**
+   * Source blob fields retained in the serialized payload for rolling-deploy and queued-job
+   * compatibility. Current workers re-read the live source row before copying it.
+   */
   storageKey: string | null
   fileUrl: string
   fileSize: number
@@ -1077,43 +1080,29 @@ export async function copyForkResourceContent(params: {
         copiedResources += 1
         continue
       }
+      const [source] = await db
+        .select()
+        .from(document)
+        .where(
+          and(
+            eq(document.id, docEntry.sourceDocId),
+            isNull(document.deletedAt),
+            isNull(document.archivedAt)
+          )
+        )
+        .limit(1)
+      if (!source) {
+        throw new Error(`Source document ${docEntry.sourceDocId} is missing`)
+      }
       const resolvedBillingContext = await getBillingContext()
-      const blob = await copyKbDocumentBlob(
-        {
-          storageKey: docEntry.storageKey,
-          filename: docEntry.filename,
-          mimeType: docEntry.mimeType,
-        },
+      await copyKbDocument({
+        source,
+        childDocumentId: docEntry.childDocId,
+        childKnowledgeBaseId: docEntry.childKnowledgeBaseId,
         childWorkspaceId,
         userId,
-        docEntry.childDocId
-      )
-      try {
-        await copyDocumentEmbeddings(
-          docEntry.sourceDocId,
-          docEntry.childDocId,
-          docEntry.childKnowledgeBaseId
-        )
-        await finalizeKbDocument({
-          childDocumentId: docEntry.childDocId,
-          childKnowledgeBaseId: docEntry.childKnowledgeBaseId,
-          billingContext: resolvedBillingContext,
-          bytes: blob ? docEntry.fileSize : 0,
-          values: {
-            knowledgeBaseId: docEntry.childKnowledgeBaseId,
-            connectorId: null,
-            storageKey: blob?.storageKey ?? null,
-            fileUrl: blob?.fileUrl ?? docEntry.fileUrl,
-            fileSize: docEntry.fileSize,
-            archivedAt: null,
-            deletedAt: null,
-            uploadedBy: userId,
-          },
-        })
-      } catch (error) {
-        if (blob) await cleanupCopiedKbBlob(blob.storageKey)
-        throw error
-      }
+        billingContext: resolvedBillingContext,
+      })
       copiedResources += 1
     } catch (error) {
       failedResources += 1
