@@ -18,7 +18,7 @@
  * Usage: `bun run scripts/check-import-specifiers.ts [--verbose]`
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs'
-import { dirname, join, relative, resolve } from 'node:path'
+import { dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
@@ -46,11 +46,16 @@ const REQUIRE_RE = /\brequire\s*\(\s*['"]([^'"]+)['"]\s*\)/g
  */
 const SUBPATH_REQUIRED = new Set(['@sim/utils'])
 
+/** Repo-relative path, always `/`-separated — `relative()` yields `\` on Windows. */
+function repoPath(absolute: string): string {
+  return relative(ROOT, absolute).replaceAll('\\', '/')
+}
+
 /** Only source a bundler compiles — see the "Deliberately NOT checked" note above. */
 function isCompiledSource(full: string, name: string): boolean {
   if (!/\.(ts|tsx)$/.test(name) || name.endsWith('.d.ts')) return false
   if (/\.(test|spec)\.tsx?$/.test(name)) return false
-  const rel = relative(ROOT, full)
+  const rel = repoPath(full)
   return !rel.startsWith('apps/sim/scripts/') && !rel.startsWith('apps/realtime/scripts/')
 }
 
@@ -78,7 +83,7 @@ function walk(dir: string, acc: string[] = []): string[] {
  * would otherwise make every specifier in the repo look generated.
  */
 function isGeneratedPath(absolute: string): boolean {
-  const rel = relative(ROOT, absolute)
+  const rel = repoPath(absolute)
   if (rel.startsWith('..')) return true
   return rel.split('/').some((segment) => segment.startsWith('.') || SKIP_DIRS.has(segment))
 }
@@ -160,7 +165,7 @@ for (const group of ['apps', 'packages']) {
 workspaces.sort((a, b) => b.dir.length - a.dir.length)
 
 function workspaceFor(file: string): Workspace | undefined {
-  return workspaces.find((w) => file.startsWith(`${w.dir}/`))
+  return workspaces.find((w) => file.startsWith(w.dir + sep))
 }
 
 /** Matched a tsconfig path, but every target is generated — distinct from missing (`null`). */
@@ -328,7 +333,7 @@ for (const file of files) {
         checked++
         if (!outcome.ok) {
           violations.push({
-            file: relative(ROOT, file),
+            file: repoPath(file),
             line: lineAt(at),
             specifier: spec,
             kind: 'unresolved',
@@ -340,7 +345,7 @@ for (const file of files) {
         const subs = packageExports(spec)
         const example = subs ? [...subs.keys()].find((k) => k !== '.') : undefined
         violations.push({
-          file: relative(ROOT, file),
+          file: repoPath(file),
           line: lineAt(at),
           specifier: spec,
           kind: 'bare-barrel',
