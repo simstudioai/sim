@@ -1,41 +1,21 @@
-#!/usr/bin/env bun
 /**
- * Resolves every first-party import specifier the way Turbopack does, and fails on any
- * that does not land on a real file.
+ * Resolves every first-party import specifier the way Turbopack does, failing on any that
+ * does not land on a real file.
  *
- * This exists because `next build` runs webpack and `next dev` runs Turbopack, and the
- * two do not resolve the same set of specifiers. Anything webpack accepts and Turbopack
- * rejects builds green in CI and 500s on every developer's machine — CI cannot see it,
- * because CI never runs the Turbopack graph.
+ * `next build` runs webpack and `next dev` runs Turbopack, and they do not resolve the same
+ * specifiers. webpack rewrites `./errors.js` -> `./errors.ts` via `resolve.extensionAlias`;
+ * Turbopack has no equivalent (vercel/next.js#82945). So that shape builds green in CI and
+ * 500s on every developer's machine — CI never runs the Turbopack graph.
  *
- * The concrete instance: `packages/utils/src/index.ts` addressed its siblings as
- * `./errors.js` while the files are `./errors.ts`. webpack rewrites that through
- * `resolve.extensionAlias`; Turbopack has no equivalent (vercel/next.js#82945). Every
- * route reaching the `@sim/utils` barrel died with
- * `Module not found: Can't resolve './errors.js'`, and the PR that introduced it passed
- * CI clean.
+ * Running real resolution rather than matching that one mistake covers the whole
+ * "Module not found" class: bad extensions, typo'd paths, stale importers of moved files,
+ * dead `@/` aliases, and `@sim/*` subpaths a package does not export.
  *
- * Rather than pattern-match that one mistake, this walks the real resolution algorithm
- * with the extensionAlias fallback deliberately absent. That generalises to the whole
- * "Module not found" class: `.js` specifiers, typo'd paths, files moved or deleted with
- * a stale importer left behind, `@/` aliases pointing nowhere, and `@sim/*` subpaths the
- * target package does not actually export.
+ * Skipped: bare npm specifiers (node_modules' business, and flaky on install state),
+ * type-only imports (erased before resolution), and tests plus `apps/*&#47;scripts/**`,
+ * which run under vitest and bun — both of which do resolve `.js` -> `.ts`.
  *
- * It also keeps one convention rule that resolution cannot express: `@sim/utils` must be
- * imported by subpath. `@sim/utils/helpers` is one module; the bare barrel is twelve, and
- * pulling the barrel is what dragged the broken specifiers above into a route graph.
- *
- * Deliberately NOT checked:
- *   - bare npm specifiers — that is node_modules' business, and `bun install` state makes
- *     it flaky in a way that would train people to ignore this check
- *   - type-only imports — erased before any bundler resolves them
- *   - test files and `apps/*&#47;scripts/**` — vitest and `bun run` resolve `.js` -> `.ts`
- *     themselves, so their specifiers are correct in context; flagging them is noise, and
- *     a check that cries wolf is a check someone deletes
- *
- * Usage:
- *   bun run scripts/check-import-specifiers.ts
- *   bun run scripts/check-import-specifiers.ts --verbose
+ * Usage: `bun run scripts/check-import-specifiers.ts [--verbose]`
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
@@ -47,9 +27,8 @@ const SCAN_DIRS = ['apps/sim', 'apps/realtime', 'apps/docs', 'packages']
 const SKIP_DIRS = new Set(['node_modules', '.next', 'dist', 'build', '.turbo'])
 
 /**
- * Extensions a bundler probes for an extensionless specifier. `.js` is present because a
- * real `foo.js` next to the importer resolves fine — what does NOT happen is `./foo.js`
- * falling back to `foo.ts`, and that asymmetry is the entire bug this guard exists for.
+ * `.js` is listed because a real `foo.js` resolves fine. What does not happen is `./foo.js`
+ * falling back to `foo.ts` — that asymmetry is the bug this guard exists for.
  */
 const EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.json']
 
@@ -58,19 +37,12 @@ const SPECIFIER_RE =
   /(?:^|\n)\s*(?:import|export)\s+(?!type\s)(?:[\s\S]*?from\s*)?['"]([^'"]+)['"]/g
 /** `import(...)` — resolved at call time, but the path still has to exist. */
 const DYNAMIC_RE = /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g
-/**
- * `require('@/...')` — this repo uses lazy requires deliberately to break import cycles
- * (`tools/params.ts` reaches `@/blocks` that way, `blocks/blocks/agent.ts` reaches
- * `@/blocks/registry`). Those edges resolve exactly like static ones, so a bad specifier
- * in one fails identically and must be checked.
- */
+/** Lazy `require()` is used here to break import cycles; those edges resolve like static ones. */
 const REQUIRE_RE = /\brequire\s*\(\s*['"]([^'"]+)['"]\s*\)/g
 
 /**
- * Packages that must be imported by subpath. Opt-in rather than opt-out: `@sim/emcn` and
- * `@sim/desktop-bridge` are barrel-first by design, and flagging their 33 call sites would
- * bury the one rule that matters. `@sim/utils` is subpath-only by documented convention
- * (CLAUDE.md, "Common Utilities") and is the package whose barrel took routes down.
+ * Subpath-only packages. Opt-in: `@sim/emcn` and `@sim/desktop-bridge` are barrel-first by
+ * design, so flagging them would bury the one rule that matters.
  */
 const SUBPATH_REQUIRED = new Set(['@sim/utils'])
 
@@ -99,18 +71,11 @@ function walk(dir: string, acc: string[] = []): string[] {
 }
 
 /**
- * True when a path lands in output the scanner itself refuses to read as source:
- * `node_modules`, a build directory, or any dot-directory.
+ * Build output the scanner will not read as source, so it cannot assert on its presence
+ * either — `apps/docs/.source` is generated by fumadocs-mdx and absent from a fresh checkout.
  *
- * These are generated and gitignored, produced by a build step that has not necessarily run
- * yet — `apps/docs/.source` is emitted by fumadocs-mdx, so `@/.source/server` resolves on a
- * machine that has built the docs and is absent from a fresh CI checkout. Asserting on them
- * makes the verdict depend on build order rather than on the source, which is exactly the
- * kind of flake that gets a CI gate switched off.
- *
- * Only the repo-relative portion is inspected. The absolute path can itself sit under a
- * dot-directory — a git worktree lives in `.claude/worktrees/…` — which would otherwise make
- * every specifier in the repo look generated.
+ * Only the repo-relative portion is inspected: a git worktree lives under `.claude/`, which
+ * would otherwise make every specifier in the repo look generated.
  */
 function isGeneratedPath(absolute: string): boolean {
   const rel = relative(ROOT, absolute)
@@ -140,24 +105,17 @@ function probe(base: string): string | null {
 }
 
 /**
- * `paths` from the workspace that owns a file, resolved to absolute prefixes.
- *
- * Per-workspace, not global: `@/*` is `apps/sim/*` inside apps/sim but `apps/realtime/src/*`
- * inside apps/realtime, and apps/sim additionally maps `@sim/db/*` straight at the package
- * directory — which legitimately bypasses that package's `exports` map. Resolving with one
- * hardcoded alias reported ~30 false positives against apps/realtime alone.
+ * `paths` from the workspace owning a file. Per-workspace, not global: `@/*` differs between
+ * apps/sim and apps/realtime, and apps/sim maps `@sim/db/*` straight at the package directory,
+ * bypassing its `exports` map.
  */
 interface PathRule {
   prefix: string
   suffix: string
   wildcard: boolean
   /**
-   * Absolute targets; `*` is retained verbatim and substituted at match time.
-   *
-   * Substituted with `replaceAll`, not `replace`: Node's own `exports` resolver uses a
-   * global regex, so a target carrying more than one `*` gets every occurrence filled.
-   * Replacing only the first would leave a literal `*` in the path and report a valid
-   * subpath as missing.
+   * Absolute targets, `*` substituted at match time with `replaceAll` — Node's `exports`
+   * resolver uses a global regex, so a target with two wildcards fills both.
    */
   targets: string[]
 }
@@ -205,10 +163,7 @@ function workspaceFor(file: string): Workspace | undefined {
   return workspaces.find((w) => file.startsWith(`${w.dir}/`))
 }
 
-/**
- * Sentinel for "a tsconfig path matched, but every candidate target is generated output".
- * Distinct from `null` (matched and genuinely missing) and `undefined` (no pattern matched).
- */
+/** Matched a tsconfig path, but every target is generated — distinct from missing (`null`). */
 const GENERATED = Symbol('generated')
 
 /** Resolve through the owning workspace's tsconfig `paths`. */
@@ -332,10 +287,9 @@ const violations: Violation[] = []
 let checked = 0
 
 /**
- * Blank out comments while preserving every byte offset, so reported line numbers stay
- * exact. TSDoc routinely contains example imports — `packages/db/triggers.ts` documents
- * `import { ensureRowCountTriggers } from '@sim/db/triggers'`, a subpath the package
- * deliberately does not export — and scanning raw source reports those as broken.
+ * Blank comments in place, preserving byte offsets so line numbers stay exact. TSDoc carries
+ * example imports that are not real edges — `packages/db/triggers.ts` documents a subpath the
+ * package deliberately does not export.
  */
 function blankComments(src: string): string {
   return src
@@ -367,12 +321,7 @@ for (const file of files) {
     let m = pattern.exec(src)
     while (m !== null) {
       const spec = m[1]
-      /**
-       * Anchor to the specifier, not to `m.index`. SPECIFIER_RE opens with `(?:^|\n)`, so
-       * `m.index` is the newline ENDING the previous line — reporting it put every violation
-       * one line early. The specifier's own offset is exact, and for a multi-line import it
-       * points at the `from '...'` line, which is where the reader needs to look anyway.
-       */
+      // `m.index` is the newline ending the previous line; the specifier's offset is exact.
       const at = m.index + m[0].lastIndexOf(spec)
       const outcome = resolveSpecifier(spec, file)
       if (outcome) {
