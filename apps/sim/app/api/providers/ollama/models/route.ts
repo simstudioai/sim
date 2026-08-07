@@ -37,26 +37,46 @@ export const GET = withRouteHandler(async (_request: NextRequest) => {
     return NextResponse.json({ models: [] })
   }
 
-  try {
-    logger.info('Fetching Ollama models', {
-      host: OLLAMA_HOST,
-    })
+  logger.info('Fetching Ollama models', {
+    host: OLLAMA_HOST,
+  })
 
-    const response = await fetch(`${OLLAMA_HOST}/api/tags`, {
+  let response: Response
+  try {
+    response = await fetch(`${OLLAMA_HOST}/api/tags`, {
       headers: {
         'Content-Type': 'application/json',
       },
       next: { revalidate: 60 },
     })
+  } catch (error) {
+    /**
+     * Ollama is optional, so a deployment that does not run one refuses the
+     * connection on every poll. That is an expected state rather than a failure of
+     * this route — the same condition its siblings report when `VLLM_BASE_URL` or
+     * `LITELLM_BASE_URL` is absent — and the response is the same empty list a
+     * blacklisted provider returns.
+     *
+     * Scoped to the connection itself: a server that answers but answers wrongly is
+     * a real fault and is reported as one below.
+     */
+    logger.info('Ollama service is not reachable, returning empty models', {
+      error: getErrorMessage(error, 'Unknown error'),
+      host: OLLAMA_HOST,
+    })
 
-    if (!response.ok) {
-      logger.warn('Ollama service is not available', {
-        status: response.status,
-        statusText: response.statusText,
-      })
-      return NextResponse.json({ models: [] })
-    }
+    return NextResponse.json({ models: [] })
+  }
 
+  if (!response.ok) {
+    logger.warn('Ollama service is not available', {
+      status: response.status,
+      statusText: response.statusText,
+    })
+    return NextResponse.json({ models: [] })
+  }
+
+  try {
     const data = ollamaUpstreamResponseSchema.parse(await response.json())
     const allModels = data.models.map((model) => model.name)
     const models = filterBlacklistedModels(allModels)
@@ -69,14 +89,8 @@ export const GET = withRouteHandler(async (_request: NextRequest) => {
 
     return NextResponse.json(providerModelsResponseSchema.parse({ models }))
   } catch (error) {
-    /**
-     * Ollama is optional, so a deployment that does not run one refuses the
-     * connection on every poll. That is an expected state rather than a failure of
-     * this route — the same condition its siblings report when `VLLM_BASE_URL` or
-     * `LITELLM_BASE_URL` is absent — and the response is the same empty list a
-     * blacklisted provider returns.
-     */
-    logger.info('Ollama service is not reachable, returning empty models', {
+    /** Something is listening and returned 2xx, but not an Ollama tag listing. */
+    logger.error('Ollama returned a response this route cannot read', {
       error: getErrorMessage(error, 'Unknown error'),
       host: OLLAMA_HOST,
     })
