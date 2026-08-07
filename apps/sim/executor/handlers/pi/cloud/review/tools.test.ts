@@ -19,7 +19,7 @@ import {
   CLOUD_REVIEW_TOOL_NAMES,
   createCloudReviewTools,
   installCloudReviewTools,
-} from '@/executor/handlers/pi/cloud-review-tools'
+} from '@/executor/handlers/pi/cloud/review/tools'
 
 const BASE_SHA = 'b'.repeat(40)
 const HEAD_SHA = 'a'.repeat(40)

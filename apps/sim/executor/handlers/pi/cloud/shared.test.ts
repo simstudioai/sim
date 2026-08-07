@@ -12,7 +12,7 @@ import {
   FINALIZE_TIMEOUT_MS,
   MIN_PI_TIMEOUT_MS,
   resolvePiTimeoutMs,
-} from '@/executor/handlers/pi/cloud-shared'
+} from '@/executor/handlers/pi/cloud/shared'
 
 describe('resolvePiTimeoutMs', () => {
   it('reserves every command budget that brackets the agent turn', () => {

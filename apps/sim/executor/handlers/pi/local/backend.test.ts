@@ -50,26 +50,26 @@ const mockModelRuntime = {
   removeRuntimeApiKey: mockRemoveRuntimeApiKey,
 }
 
-vi.mock('@/executor/handlers/pi/context', () => ({
+vi.mock('@/executor/handlers/pi/core/context', () => ({
   buildPiPrompt: ({ task }: { task: string }) => task,
 }))
-vi.mock('@/executor/handlers/pi/keys', () => ({ mapThinkingLevel: () => 'medium' }))
+vi.mock('@/executor/handlers/pi/core/keys', () => ({ mapThinkingLevel: () => 'medium' }))
 // `toPiTool` stays real: the scrubbing boundary it applies to tool results is what these tests
 // assert, and a stub would make them pass while the boundary was gone.
-vi.mock('@/executor/handlers/pi/pi-sdk', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/executor/handlers/pi/pi-sdk')>()),
+vi.mock('@/executor/handlers/pi/core/pi-sdk', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/executor/handlers/pi/core/pi-sdk')>()),
   loadPiSdk: () => Promise.resolve(mockSdk),
   createPiModelRuntime: mockCreatePiModelRuntime,
   resolvePiSdkModel: () => ({ id: 'claude', provider: 'anthropic' }),
 }))
-vi.mock('@/executor/handlers/pi/ssh-tools', () => ({
+vi.mock('@/executor/handlers/pi/local/ssh-tools', () => ({
   openSshSession: mockOpenSshSession,
   buildSshToolSpecs: mockBuildSshToolSpecs,
   captureRepoChanges: mockCaptureRepoChanges,
 }))
 
-import type { PiLocalRunParams } from '@/executor/handlers/pi/backend'
-import { runLocalPi } from '@/executor/handlers/pi/local-backend'
+import type { PiLocalRunParams } from '@/executor/handlers/pi/core/backend'
+import { runLocalPi } from '@/executor/handlers/pi/local/backend'
 
 function baseParams(): PiLocalRunParams {
   return {

@@ -7,7 +7,7 @@ import {
   MAX_ROUND_REPLY_LENGTH,
   MAX_THREADS_PER_ROUND,
   parseBabysitRound,
-} from '@/executor/handlers/pi/babysit-round'
+} from '@/executor/handlers/pi/cloud/babysit/round'
 
 const allowed = new Set(['thread-1', 'thread-2'])
 

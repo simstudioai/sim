@@ -1,5 +1,5 @@
 import { getErrorMessage } from '@sim/utils/errors'
-import type { PiEvent } from '@/executor/handlers/pi/events'
+import type { PiEvent } from '@/executor/handlers/pi/core/events'
 
 /** Redacts exact secret values and their URL-encoded forms from surfaced text. */
 export function scrubPiSecrets(text: string, secrets: readonly string[]): string {

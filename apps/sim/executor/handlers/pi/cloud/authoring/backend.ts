@@ -28,14 +28,13 @@ import {
   resolvePiRunLifetimeMs,
   resolvePiSandboxLifetimeMs,
 } from '@/lib/execution/remote-sandbox/pi-lifetime'
-import { runBabysitPi } from '@/executor/handlers/pi/babysit-backend'
-import type {
-  PiBackendRun,
-  PiCloudBranchRunParams,
-  PiCloudRunParams,
-  PiRunContext,
-  PiRunResult,
-} from '@/executor/handlers/pi/backend'
+import { runBabysitPi } from '@/executor/handlers/pi/cloud/babysit/backend'
+import {
+  type BranchPullRequest,
+  fetchOpenPrForBranch,
+  findOpenPrForBranch,
+  setPullRequestDraftState,
+} from '@/executor/handlers/pi/cloud/github-pr'
 import {
   buildPiScript,
   CLONE_TIMEOUT_MS,
@@ -54,26 +53,27 @@ import {
   raceAbort,
   resolvePiTimeoutMs,
   scrubGitSecrets,
-} from '@/executor/handlers/pi/cloud-shared'
-import { buildPiPrompt } from '@/executor/handlers/pi/context'
+} from '@/executor/handlers/pi/cloud/shared'
+import type {
+  PiBackendRun,
+  PiCloudBranchRunParams,
+  PiCloudRunParams,
+  PiRunContext,
+  PiRunResult,
+} from '@/executor/handlers/pi/core/backend'
+import { buildPiPrompt } from '@/executor/handlers/pi/core/context'
 import {
   applyPiEvent,
   createPiTotals,
   type PiRunTotals,
   parseJsonLine,
-} from '@/executor/handlers/pi/events'
-import {
-  type BranchPullRequest,
-  fetchOpenPrForBranch,
-  findOpenPrForBranch,
-  setPullRequestDraftState,
-} from '@/executor/handlers/pi/github-pr'
-import { mapThinkingLevel, providerApiKeyEnvVar } from '@/executor/handlers/pi/keys'
+} from '@/executor/handlers/pi/core/events'
+import { mapThinkingLevel, providerApiKeyEnvVar } from '@/executor/handlers/pi/core/keys'
 import {
   createScrubbedPiError,
   scrubPiEvent,
   scrubPiSecrets,
-} from '@/executor/handlers/pi/redaction'
+} from '@/executor/handlers/pi/core/redaction'
 import {
   PI_SEARCH_API_KEY_ENV_VAR,
   PI_SEARCH_EXTENSION_PATH,

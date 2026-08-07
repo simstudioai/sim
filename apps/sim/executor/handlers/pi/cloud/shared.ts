@@ -7,7 +7,7 @@
 
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { resolvePiSandboxLifetimeMs } from '@/lib/execution/remote-sandbox/pi-lifetime'
-import { scrubPiSecrets } from '@/executor/handlers/pi/redaction'
+import { scrubPiSecrets } from '@/executor/handlers/pi/core/redaction'
 
 export const REPO_DIR = '/workspace/repo'
 export const PROMPT_PATH = '/workspace/pi-prompt.txt'

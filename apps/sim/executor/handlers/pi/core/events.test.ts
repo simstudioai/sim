@@ -8,7 +8,7 @@ import {
   normalizePiEvent,
   parseJsonLine,
   streamTextForEvent,
-} from '@/executor/handlers/pi/events'
+} from '@/executor/handlers/pi/core/events'
 
 describe('normalizePiEvent', () => {
   it('maps a text_delta message_update to a text event', () => {

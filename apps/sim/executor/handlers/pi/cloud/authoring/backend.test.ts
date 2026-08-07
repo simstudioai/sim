@@ -30,19 +30,19 @@ vi.mock('@/lib/execution/remote-sandbox/pi-lifetime', () => ({
   // lifetime is the ceiling because there is nothing shorter to narrow to.
   resolvePiRunLifetimeMs: () => 40 * 60 * 1000,
 }))
-vi.mock('@/executor/handlers/pi/babysit-backend', () => ({
+vi.mock('@/executor/handlers/pi/cloud/babysit/backend', () => ({
   runBabysitPi: mockRunBabysit,
 }))
 vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
-vi.mock('@/executor/handlers/pi/keys', () => ({
+vi.mock('@/executor/handlers/pi/core/keys', () => ({
   providerApiKeyEnvVar: mockProviderEnvVar,
   mapThinkingLevel: () => 'medium',
 }))
-vi.mock('@/executor/handlers/pi/context', () => ({ buildPiPrompt: () => 'PROMPT' }))
+vi.mock('@/executor/handlers/pi/core/context', () => ({ buildPiPrompt: () => 'PROMPT' }))
 
 import { createTimeoutAbortController } from '@/lib/core/execution-limits'
-import type { PiCloudBranchRunParams, PiCloudRunParams } from '@/executor/handlers/pi/backend'
-import { runCloudBranchPi, runCloudPi } from '@/executor/handlers/pi/cloud-backend'
+import { runCloudBranchPi, runCloudPi } from '@/executor/handlers/pi/cloud/authoring/backend'
+import type { PiCloudBranchRunParams, PiCloudRunParams } from '@/executor/handlers/pi/core/backend'
 
 function baseParams(overrides: Partial<PiCloudRunParams> = {}): PiCloudRunParams {
   return {

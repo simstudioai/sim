@@ -14,6 +14,8 @@ import {
   ToolNotAllowedError,
 } from '@/ee/access-control/utils/permission-check'
 import { BlockType } from '@/executor/constants'
+import { runCloudBranchPi, runCloudPi } from '@/executor/handlers/pi/cloud/authoring/backend'
+import { runCloudReviewPi } from '@/executor/handlers/pi/cloud/review/backend'
 import type {
   PiBackendRun,
   PiCloudBranchRunParams,
@@ -24,26 +26,24 @@ import type {
   PiRunParams,
   PiRunResult,
   PiSearchConfig,
-} from '@/executor/handlers/pi/backend'
-import { runCloudBranchPi, runCloudPi } from '@/executor/handlers/pi/cloud-backend'
-import { runCloudReviewPi } from '@/executor/handlers/pi/cloud-review-backend'
+} from '@/executor/handlers/pi/core/backend'
 import {
   appendPiMemory,
   loadPiMemory,
   type PiMemoryConfig,
   resolvePiSkills,
-} from '@/executor/handlers/pi/context'
-import { streamTextForEvent } from '@/executor/handlers/pi/events'
+} from '@/executor/handlers/pi/core/context'
+import { streamTextForEvent } from '@/executor/handlers/pi/core/events'
 import {
   computePiCost,
   PI_SEARCH_PROVIDERS,
   parsePiSearchProvider,
   resolvePiModelKey,
   resolvePiSearchKey,
-} from '@/executor/handlers/pi/keys'
-import { runLocalPi } from '@/executor/handlers/pi/local-backend'
+} from '@/executor/handlers/pi/core/keys'
+import { runLocalPi } from '@/executor/handlers/pi/local/backend'
+import { buildSimToolSpecs } from '@/executor/handlers/pi/local/sim-tools'
 import { buildPiSearchToolSpec } from '@/executor/handlers/pi/search/tool'
-import { buildSimToolSpecs } from '@/executor/handlers/pi/sim-tools'
 import type {
   BlockHandler,
   ExecutionContext,

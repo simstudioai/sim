@@ -33,7 +33,7 @@ import {
   providerApiKeyEnvVar,
   resolvePiModelKey,
   resolvePiSearchKey,
-} from '@/executor/handlers/pi/keys'
+} from '@/executor/handlers/pi/core/keys'
 
 beforeAll(() => {
   envFlagsMockFns.getCostMultiplier.mockReturnValue(2)

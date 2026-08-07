@@ -1,6 +1,6 @@
 import { type Static, type TSchema, Type } from 'typebox'
 import { Check, Errors } from 'typebox/schema'
-import { scrubPiSecrets } from '@/executor/handlers/pi/redaction'
+import { scrubPiSecrets } from '@/executor/handlers/pi/core/redaction'
 
 /** Sandbox path used for the single-use, agent-authored round decision file. */
 export const BABYSIT_ROUND_PATH = '/workspace/sim-babysit-round.json'

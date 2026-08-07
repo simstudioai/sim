@@ -13,7 +13,7 @@ vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
 vi.mock('@/tools/utils', () => ({ getTool: vi.fn() }))
 vi.mock('@/tools/utils.server', () => ({ getToolAsync: vi.fn() }))
 
-import { buildSimToolSpecs } from '@/executor/handlers/pi/sim-tools'
+import { buildSimToolSpecs } from '@/executor/handlers/pi/local/sim-tools'
 import type { ExecutionContext } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { ToolSchemaEnrichmentError } from '@/tools/params'

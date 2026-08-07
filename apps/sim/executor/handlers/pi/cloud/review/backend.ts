@@ -12,42 +12,42 @@ import { createLogger } from '@sim/logger'
 import { truncate } from '@sim/utils/string'
 import { withPiSandbox } from '@/lib/execution/remote-sandbox'
 import { resolvePiRunLifetimeMs } from '@/lib/execution/remote-sandbox/pi-lifetime'
-import type { PiBackendRun, PiCloudReviewRunParams } from '@/executor/handlers/pi/backend'
+import {
+  fetchOpenPrSnapshot,
+  MAX_REVIEW_BODY_LENGTH,
+  type PullRequestSnapshot,
+  validateRepositoryCoordinates,
+} from '@/executor/handlers/pi/cloud/github-pr'
 import {
   CLOUD_REVIEW_TOOL_NAMES,
   createCloudReviewTools,
   installCloudReviewTools,
   preflightCloudReviewCheckout,
-} from '@/executor/handlers/pi/cloud-review-tools'
+} from '@/executor/handlers/pi/cloud/review/tools'
 import {
   CLONE_TIMEOUT_MS,
   extractMarkerValues,
   REPO_DIR,
   raceAbort,
   scrubGitSecrets,
-} from '@/executor/handlers/pi/cloud-shared'
-import { buildPiPrompt } from '@/executor/handlers/pi/context'
-import { applyPiEvent, createPiTotals, normalizePiEvent } from '@/executor/handlers/pi/events'
-import {
-  fetchOpenPrSnapshot,
-  MAX_REVIEW_BODY_LENGTH,
-  type PullRequestSnapshot,
-  validateRepositoryCoordinates,
-} from '@/executor/handlers/pi/github-pr'
-import { mapThinkingLevel } from '@/executor/handlers/pi/keys'
+} from '@/executor/handlers/pi/cloud/shared'
+import type { PiBackendRun, PiCloudReviewRunParams } from '@/executor/handlers/pi/core/backend'
+import { buildPiPrompt } from '@/executor/handlers/pi/core/context'
+import { applyPiEvent, createPiTotals, normalizePiEvent } from '@/executor/handlers/pi/core/events'
+import { mapThinkingLevel } from '@/executor/handlers/pi/core/keys'
 import {
   createPiModelRuntime,
   createSealedPiResourceLoader,
   loadPiSdk,
   resolvePiSdkModel,
   toPiTool,
-} from '@/executor/handlers/pi/pi-sdk'
+} from '@/executor/handlers/pi/core/pi-sdk'
 import {
   createScrubbedPiError,
   getScrubbedPiErrorMessage,
   scrubPiEvent,
   scrubPiSecrets,
-} from '@/executor/handlers/pi/redaction'
+} from '@/executor/handlers/pi/core/redaction'
 import {
   PI_SEARCH_TOOL_NAME,
   PI_SEARCH_UNTRUSTED_SENTENCE,

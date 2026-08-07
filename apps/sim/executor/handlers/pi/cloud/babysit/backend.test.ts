@@ -46,8 +46,9 @@ vi.mock('@/lib/execution/remote-sandbox/pi-lifetime', async (importOriginal) => 
     resolvePiSandboxLifetimeMs: mockResolvePiSandboxLifetime,
   }
 })
-vi.mock('@/executor/handlers/pi/babysit-github', async (importOriginal) => {
-  const original = await importOriginal<typeof import('@/executor/handlers/pi/babysit-github')>()
+vi.mock('@/executor/handlers/pi/cloud/babysit/github', async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import('@/executor/handlers/pi/cloud/babysit/github')>()
   return {
     ...original,
     fetchBabysitSnapshot: mockFetchSnapshot,
@@ -64,10 +65,10 @@ import { createTimeoutAbortController, getMaxExecutionTimeout } from '@/lib/core
 import {
   resolveBabysitExecutionBudgetMs,
   runBabysitPiWithOptions,
-} from '@/executor/handlers/pi/babysit-backend'
-import { BABYSIT_ROUND_PATH } from '@/executor/handlers/pi/babysit-round'
-import type { PiBabysitContinuationParams } from '@/executor/handlers/pi/backend'
-import { DIFF_PATH } from '@/executor/handlers/pi/cloud-shared'
+} from '@/executor/handlers/pi/cloud/babysit/backend'
+import { BABYSIT_ROUND_PATH } from '@/executor/handlers/pi/cloud/babysit/round'
+import { DIFF_PATH } from '@/executor/handlers/pi/cloud/shared'
+import type { PiBabysitContinuationParams } from '@/executor/handlers/pi/core/backend'
 
 afterAll(resetEnvMock)
 

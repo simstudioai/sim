@@ -64,11 +64,11 @@ vi.mock('@/lib/execution/remote-sandbox', () => ({
     fn({ run: mockRun, writeFile: mockWriteFile }),
 }))
 vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
-vi.mock('@/executor/handlers/pi/keys', () => ({ mapThinkingLevel: () => 'medium' }))
-vi.mock('@/executor/handlers/pi/context', () => ({
+vi.mock('@/executor/handlers/pi/core/keys', () => ({ mapThinkingLevel: () => 'medium' }))
+vi.mock('@/executor/handlers/pi/core/context', () => ({
   buildPiPrompt: ({ task, guidance }: { task: string; guidance: string }) => `${guidance}\n${task}`,
 }))
-vi.mock('@/executor/handlers/pi/cloud-review-tools', () => ({
+vi.mock('@/executor/handlers/pi/cloud/review/tools', () => ({
   CLOUD_REVIEW_TOOL_NAMES: [
     'read_repo_file',
     'search_repo',
@@ -83,16 +83,16 @@ vi.mock('@/executor/handlers/pi/cloud-review-tools', () => ({
   createCloudReviewTools: mockCreateTools,
 }))
 // `toPiTool` stays real so the search tool's scrubbing boundary is the one shipped, not a stub.
-vi.mock('@/executor/handlers/pi/pi-sdk', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/executor/handlers/pi/pi-sdk')>()),
+vi.mock('@/executor/handlers/pi/core/pi-sdk', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/executor/handlers/pi/core/pi-sdk')>()),
   loadPiSdk: () => Promise.resolve(mockSdk),
   createPiModelRuntime: mockCreatePiModelRuntime,
   resolvePiSdkModel: () => ({ id: 'claude', provider: 'anthropic' }),
   createSealedPiResourceLoader: mockCreateSealedResourceLoader,
 }))
 
-import type { PiCloudReviewRunParams } from '@/executor/handlers/pi/backend'
-import { runCloudReviewPi } from '@/executor/handlers/pi/cloud-review-backend'
+import { runCloudReviewPi } from '@/executor/handlers/pi/cloud/review/backend'
+import type { PiCloudReviewRunParams } from '@/executor/handlers/pi/core/backend'
 
 /**
  * The mock logger instance the global `@sim/logger` mock handed to the module

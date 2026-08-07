@@ -1,13 +1,13 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { truncate } from '@sim/utils/string'
-import type { BabysitRoundDecision } from '@/executor/handlers/pi/babysit-round'
+import type { BabysitRoundDecision } from '@/executor/handlers/pi/cloud/babysit/round'
 import {
   fetchPrSnapshot,
   type PullRequestCoordinates,
   type PullRequestSnapshot,
   validateRepositoryCoordinates,
-} from '@/executor/handlers/pi/github-pr'
-import { scrubPiSecrets } from '@/executor/handlers/pi/redaction'
+} from '@/executor/handlers/pi/cloud/github-pr'
+import { scrubPiSecrets } from '@/executor/handlers/pi/core/redaction'
 import { executeTool } from '@/tools'
 import {
   isRecord,

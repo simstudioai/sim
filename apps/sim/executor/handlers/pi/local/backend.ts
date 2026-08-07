@@ -18,29 +18,29 @@ import type {
   PiLocalRunParams,
   PiRunContext,
   PiRunResult,
-} from '@/executor/handlers/pi/backend'
-import { buildPiPrompt } from '@/executor/handlers/pi/context'
-import { applyPiEvent, createPiTotals, normalizePiEvent } from '@/executor/handlers/pi/events'
-import { mapThinkingLevel } from '@/executor/handlers/pi/keys'
+} from '@/executor/handlers/pi/core/backend'
+import { buildPiPrompt } from '@/executor/handlers/pi/core/context'
+import { applyPiEvent, createPiTotals, normalizePiEvent } from '@/executor/handlers/pi/core/events'
+import { mapThinkingLevel } from '@/executor/handlers/pi/core/keys'
 import {
   createPiModelRuntime,
   loadPiSdk,
   type PiSdk,
   resolvePiSdkModel,
   toPiTool,
-} from '@/executor/handlers/pi/pi-sdk'
+} from '@/executor/handlers/pi/core/pi-sdk'
 import {
   createScrubbedPiError,
   getScrubbedPiErrorMessage,
   scrubPiEvent,
   scrubPiSecrets,
-} from '@/executor/handlers/pi/redaction'
+} from '@/executor/handlers/pi/core/redaction'
 import {
   buildSshToolSpecs,
   captureRepoChanges,
   openSshSession,
   type PiSshSession,
-} from '@/executor/handlers/pi/ssh-tools'
+} from '@/executor/handlers/pi/local/ssh-tools'
 import { getPiProviderId } from '@/providers/pi-providers'
 
 const logger = createLogger('PiLocalBackend')

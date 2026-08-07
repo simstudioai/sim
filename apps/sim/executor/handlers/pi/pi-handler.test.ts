@@ -39,7 +39,7 @@ const {
   MockToolNotAllowedError: class ToolNotAllowedError extends Error {},
 }))
 
-vi.mock('@/executor/handlers/pi/keys', () => ({
+vi.mock('@/executor/handlers/pi/core/keys', () => ({
   resolvePiModelKey: mockResolveKey,
   computePiCost: () => ({ input: 0, output: 0, total: 0 }),
   parsePiSearchProvider: mockParseSearchProvider,
@@ -56,20 +56,20 @@ vi.mock('@/ee/access-control/utils/permission-check', () => ({
   assertPermissionsAllowed: mockAssertPermissionsAllowed,
   ToolNotAllowedError: MockToolNotAllowedError,
 }))
-vi.mock('@/executor/handlers/pi/context', () => ({
+vi.mock('@/executor/handlers/pi/core/context', () => ({
   resolvePiSkills: mockResolveSkills,
   loadPiMemory: mockLoadMemory,
   appendPiMemory: mockAppendMemory,
 }))
-vi.mock('@/executor/handlers/pi/sim-tools', () => ({
+vi.mock('@/executor/handlers/pi/local/sim-tools', () => ({
   buildSimToolSpecs: vi.fn().mockResolvedValue([]),
 }))
-vi.mock('@/executor/handlers/pi/local-backend', () => ({ runLocalPi: mockRunLocal }))
-vi.mock('@/executor/handlers/pi/cloud-backend', () => ({
+vi.mock('@/executor/handlers/pi/local/backend', () => ({ runLocalPi: mockRunLocal }))
+vi.mock('@/executor/handlers/pi/cloud/authoring/backend', () => ({
   runCloudPi: mockRunCloud,
   runCloudBranchPi: mockRunCloudBranch,
 }))
-vi.mock('@/executor/handlers/pi/cloud-review-backend', () => ({
+vi.mock('@/executor/handlers/pi/cloud/review/backend', () => ({
   runCloudReviewPi: mockRunCloudReview,
 }))
 vi.mock('@/providers/pi-providers', () => ({
