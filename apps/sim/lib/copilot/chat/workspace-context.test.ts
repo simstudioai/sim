@@ -125,7 +125,10 @@ describe('buildWorkspaceMd - connected integrations / credentials', () => {
     expect(md).toContain('## Environment Variables (2)')
     expect(md).toContain('- OPENAI_API_KEY')
     expect(md).toContain('- STRIPE_SECRET_KEY')
-    expect(buildVfsSnapshot(data).envVars).toEqual(['OPENAI_API_KEY', 'STRIPE_SECRET_KEY'])
+    expect(buildVfsSnapshot(data).envVars).toEqual([
+      { name: 'OPENAI_API_KEY' },
+      { name: 'STRIPE_SECRET_KEY' },
+    ])
   })
 
   it('shows values for non-secret env vars and only names for secrets', () => {
@@ -141,8 +144,10 @@ describe('buildWorkspaceMd - connected integrations / credentials', () => {
     expect(md).toContain('- OPENAI_API_KEY\n')
     expect(md).not.toContain('OPENAI_API_KEY =')
 
-    // Carried as a struct kind so Go can diff a VALUE change, not just a name.
-    expect(buildVfsSnapshot(data).nonSecretEnvVars).toEqual([
+    // One kind carries both: a secret is name-only, a non-secret adds its value
+    // so Go can diff a VALUE change and not just a name.
+    expect(buildVfsSnapshot(data).envVars).toEqual([
+      { name: 'OPENAI_API_KEY' },
       { name: 'SUPPORT_EMAIL', value: 'help@acme.com' },
     ])
   })
@@ -151,7 +156,8 @@ describe('buildWorkspaceMd - connected integrations / credentials', () => {
     const data = baseData({ envVariables: ['OPENAI_API_KEY'] })
 
     expect(buildWorkspaceMd(data)).not.toContain('non-secret')
-    expect(buildVfsSnapshot(data).nonSecretEnvVars).toEqual([])
+    // Every name still ships; none carries a value.
+    expect(buildVfsSnapshot(data).envVars).toEqual([{ name: 'OPENAI_API_KEY' }])
   })
 })
 

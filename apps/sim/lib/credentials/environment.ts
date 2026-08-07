@@ -503,15 +503,33 @@ export class WorkspaceEnvVisibilityAccessError extends Error {
  * A no-op request is authorized trivially — asking for the visibility a key
  * already has reveals nothing and must not 403.
  */
-export async function setWorkspaceEnvVisibility(params: {
+export interface AuthorizedVisibilityChange {
+  credentialId: string
+  envKey: string
+  next: EnvVisibility
+}
+
+/**
+ * Resolves and AUTHORIZES a visibility change without writing anything.
+ *
+ * Split from the apply step so a caller can fail a denied request before it
+ * commits anything else. The route mixes value writes and visibility changes in
+ * one request; running the check afterwards let an allowed new key (and its
+ * credential rows) persist while the request still returned 403, leaving state
+ * changed by a rejected call and skipping the audit record for it.
+ *
+ * A no-op request authorizes trivially — asking for the visibility a key
+ * already has reveals nothing and must not 403.
+ */
+export async function authorizeWorkspaceEnvVisibilityChange(params: {
   workspaceId: string
   updates: Record<string, EnvVisibility>
   actingUserId: string
   executor?: DbOrTx
-}): Promise<{ changedKeys: string[] }> {
+}): Promise<AuthorizedVisibilityChange[]> {
   const { workspaceId, updates, actingUserId, executor = db } = params
   const requestedKeys = Object.keys(updates).filter(Boolean)
-  if (requestedKeys.length === 0) return { changedKeys: [] }
+  if (requestedKeys.length === 0) return []
 
   const existingRows = await executor
     .select({
@@ -531,7 +549,7 @@ export async function setWorkspaceEnvVisibility(params: {
   const changing = existingRows.filter(
     (row) => row.envKey !== null && updates[row.envKey] !== row.envVisibility
   )
-  if (changing.length === 0) return { changedKeys: [] }
+  if (changing.length === 0) return []
 
   const changingKeys = changing.map((row) => row.envKey as string)
   const [isWorkspaceAdmin, { adminKeys }] = await Promise.all([
@@ -544,15 +562,56 @@ export async function setWorkspaceEnvVisibility(params: {
     throw new WorkspaceEnvVisibilityAccessError(forbidden)
   }
 
+  return changing.map((row) => ({
+    credentialId: row.id,
+    envKey: row.envKey as string,
+    next: updates[row.envKey as string],
+  }))
+}
+
+/**
+ * Applies changes already authorized by
+ * {@link authorizeWorkspaceEnvVisibilityChange}. Performs no permission check of
+ * its own — never call it with unauthorized input.
+ */
+export async function applyWorkspaceEnvVisibilityChange(params: {
+  changes: AuthorizedVisibilityChange[]
+  executor?: DbOrTx
+}): Promise<{ changedKeys: string[] }> {
+  const { changes, executor = db } = params
+  if (changes.length === 0) return { changedKeys: [] }
+
   const now = new Date()
-  for (const row of changing) {
+  for (const change of changes) {
     await executor
       .update(credential)
-      .set({ envVisibility: updates[row.envKey as string], updatedAt: now })
-      .where(eq(credential.id, row.id))
+      .set({ envVisibility: change.next, updatedAt: now })
+      .where(eq(credential.id, change.credentialId))
   }
+  return { changedKeys: changes.map((change) => change.envKey) }
+}
 
-  return { changedKeys: changingKeys }
+/**
+ * The single path that changes an env key's disclosure policy.
+ *
+ * Centralized because flipping `secret -> variable` is a disclosure event that
+ * cannot be undone: by the time the flag is reverted the value has plausibly
+ * reached trace spans, log rows, agent context, and members' browsers. Both
+ * directions therefore take the stricter gate (workspace admin, or credential
+ * admin on that specific key) rather than the workspace `write` that suffices
+ * for editing a value.
+ *
+ * Authorizes then applies. Callers that must authorize BEFORE unrelated writes
+ * should use the two halves directly.
+ */
+export async function setWorkspaceEnvVisibility(params: {
+  workspaceId: string
+  updates: Record<string, EnvVisibility>
+  actingUserId: string
+  executor?: DbOrTx
+}): Promise<{ changedKeys: string[] }> {
+  const changes = await authorizeWorkspaceEnvVisibilityChange(params)
+  return applyWorkspaceEnvVisibilityChange({ changes, executor: params.executor })
 }
 
 export async function syncPersonalEnvCredentialsForUser(params: {

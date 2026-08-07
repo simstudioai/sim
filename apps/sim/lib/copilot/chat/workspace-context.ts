@@ -703,14 +703,17 @@ export function buildVfsSnapshot(data: WorkspaceMdData): VfsSnapshotV1 {
       ...(c.displayName ? { displayName: c.displayName } : {}),
       ...(c.role ? { role: c.role } : {}),
     })),
-    envVars: data.envVariables,
-    // Carries values, unlike `envVars`. That is the point: a non-secret value
-    // edit changes no NAME, so a name-only kind would emit no delta and leave
-    // the model answering from a stale baseline.
-    nonSecretEnvVars: (data.nonSecretEnvVariables ?? []).map((v) => ({
-      name: v.name,
-      value: v.value,
-    })),
+    // One kind for both. A secret carries its name and nothing else; a
+    // non-secret also carries its value, which is what lets the differ report a
+    // value edit — the name alone does not change, so a names-only shape would
+    // emit no delta and leave the model answering from a stale baseline.
+    envVars: (() => {
+      const values = new Map((data.nonSecretEnvVariables ?? []).map((v) => [v.name, v.value]))
+      return data.envVariables.map((name) => {
+        const value = values.get(name)
+        return value === undefined ? { name } : { name, value }
+      })
+    })(),
     customTools: (data.customTools ?? []).map((t) => ({ id: t.id, name: t.name })),
     customBlocks: (data.customBlocks ?? []).map((b) => ({
       type: b.type,

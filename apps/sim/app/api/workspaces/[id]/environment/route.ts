@@ -16,12 +16,14 @@ import { encryptSecret } from '@/lib/core/security/encryption'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
+  type AuthorizedVisibilityChange,
+  applyWorkspaceEnvVisibilityChange,
+  authorizeWorkspaceEnvVisibilityChange,
   createWorkspaceEnvCredentials,
   deleteWorkspaceEnvCredentials,
   type EnvVisibility,
   getPersonalEnvKeyRawAccess,
   getWorkspaceEnvKeyAdminAccess,
-  setWorkspaceEnvVisibility,
   WorkspaceEnvVisibilityAccessError,
 } from '@/lib/credentials/environment'
 import {
@@ -249,6 +251,31 @@ export const PUT = withRouteHandler(
         )
       }
 
+      // Authorized BEFORE any write. Running this after the value upsert let a
+      // request that mixes an allowed new key with an unauthorized flip commit
+      // the key and its credential rows and THEN return 403 — a rejected call
+      // that changed workspace state and skipped its audit record.
+      let authorizedVisibilityChanges: AuthorizedVisibilityChange[] = []
+      if (visibility) {
+        try {
+          authorizedVisibilityChanges = await authorizeWorkspaceEnvVisibilityChange({
+            workspaceId,
+            updates: visibility,
+            actingUserId: userId,
+          })
+        } catch (error) {
+          if (error instanceof WorkspaceEnvVisibilityAccessError) {
+            logger.warn(`[${requestId}] Workspace env visibility change denied`, {
+              workspaceId,
+              userId,
+              keys: error.keys,
+            })
+            return NextResponse.json({ error: error.message }, { status: 403 })
+          }
+          throw error
+        }
+      }
+
       const encryptedIncoming = await Promise.all(
         Object.entries(variables).map(async ([key, value]) => {
           const { encrypted } = await encryptSecret(value)
@@ -300,34 +327,13 @@ export const PUT = withRouteHandler(
         visibilityByKey: visibility,
       })
 
-      // Flips are applied after the credential rows exist so a create-as-variable
-      // in the same request lands on a row rather than silently no-opping. Only
-      // pre-existing keys can flip; brand-new ones got their policy above.
-      let flippedKeys: string[] = []
-      if (visibility) {
-        const existingKeyUpdates = Object.fromEntries(
-          Object.entries(visibility).filter(([key]) => !newKeys.includes(key))
-        )
-        try {
-          const { changedKeys } = await setWorkspaceEnvVisibility({
-            workspaceId,
-            updates: existingKeyUpdates,
-            actingUserId: userId,
-          })
-          flippedKeys = changedKeys
-        } catch (error) {
-          if (error instanceof WorkspaceEnvVisibilityAccessError) {
-            logger.warn(`[${requestId}] Workspace env visibility change denied`, {
-              workspaceId,
-              userId,
-              keys: error.keys,
-            })
-            return NextResponse.json({ error: error.message }, { status: 403 })
-          }
-          throw error
-        }
-        if (flippedKeys.length > 0) invalidateEffectiveDecryptedEnvCache({ workspaceId })
-      }
+      // Already authorized above; this only writes. Brand-new keys took their
+      // policy from `visibilityByKey` on create, so the authorized set only
+      // ever contains pre-existing keys.
+      const { changedKeys: flippedKeys } = await applyWorkspaceEnvVisibilityChange({
+        changes: authorizedVisibilityChanges,
+      })
+      if (flippedKeys.length > 0) invalidateEffectiveDecryptedEnvCache({ workspaceId })
 
       recordAudit({
         workspaceId,

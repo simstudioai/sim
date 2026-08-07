@@ -33,6 +33,20 @@ const WORKSPACE_ENV_DENIAL_MESSAGES: Record<WorkspaceEnvDenialReason, string> = 
   'write-access-required': 'Write access is required to add new secrets',
 }
 
+/**
+ * Thrown when a caller asks to change the disclosure policy of an EXISTING key
+ * through the value-upsert path, which cannot apply it. Loud rather than a
+ * silent no-op: a caller told the change succeeded would never retry it.
+ */
+export class WorkspaceEnvVisibilityUnsupportedError extends Error {
+  constructor(readonly keys: string[]) {
+    super(
+      `Changing visibility of an existing environment variable is not supported here (${keys.join(', ')}); change it in workspace settings`
+    )
+    this.name = 'WorkspaceEnvVisibilityUnsupportedError'
+  }
+}
+
 /** Thrown when the acting user may not write one of the requested env keys. */
 export class WorkspaceEnvAccessError extends Error {
   constructor(
@@ -475,6 +489,34 @@ export async function upsertWorkspaceEnvVars(
     actingUserId,
     visibilityByKey: options?.visibilityByKey,
   })
+
+  // `visibilityByKey` only reaches credential CREATION, so a requested policy on
+  // a key that already exists would be silently dropped while the call still
+  // reported success — including a `variable -> secret` remediation, the case
+  // where a false success is most harmful. Flipping an existing key needs the
+  // stricter disclosure gate this path does not perform, so surface the mismatch
+  // rather than pretending it applied.
+  if (options?.visibilityByKey) {
+    const existingKeys = updatedKeys.filter((key) => !newKeys.includes(key))
+    const requested = Object.fromEntries(
+      existingKeys
+        .filter((key) => options.visibilityByKey?.[key])
+        .map((key) => [key, options.visibilityByKey?.[key] as EnvVisibility])
+    )
+    if (Object.keys(requested).length > 0) {
+      const { variableKeys } = await getWorkspaceEnvKeyAdminAccess({
+        workspaceId,
+        envKeys: Object.keys(requested),
+        userId: actingUserId,
+      })
+      const unapplied = Object.entries(requested)
+        .filter(([key, next]) => (variableKeys.has(key) ? 'variable' : 'secret') !== next)
+        .map(([key]) => key)
+      if (unapplied.length > 0) {
+        throw new WorkspaceEnvVisibilityUnsupportedError(unapplied)
+      }
+    }
+  }
 
   recordAudit({
     workspaceId,

@@ -7,13 +7,12 @@
 export interface VfsSnapshotV1 {
   customBlocks?: VfsSnapshotV1CustomBlock[]
   customTools?: VfsSnapshotV1NamedResource[]
-  envVars?: string[]
+  envVars?: VfsSnapshotV1EnvVar[]
   files?: VfsSnapshotV1File[]
   integrations?: VfsSnapshotV1Integration[]
   knowledgeBases?: VfsSnapshotV1KnowledgeBase[]
   mcpServers?: VfsSnapshotV1McpServer[]
   members?: VfsSnapshotV1Member[]
-  nonSecretEnvVars?: VfsSnapshotV1NonSecretEnvVar[]
   sandboxes?: VfsSnapshotV1Sandbox[]
   skills?: VfsSnapshotV1Skill[]
   tables?: VfsSnapshotV1Table[]
@@ -36,6 +35,14 @@ export interface VfsSnapshotV1CustomBlock {
 export interface VfsSnapshotV1NamedResource {
   id: string
   name: string
+}
+/**
+ * This interface was referenced by `VfsSnapshotV1`'s JSON-Schema
+ * via the `definition` "VfsSnapshotV1EnvVar".
+ */
+export interface VfsSnapshotV1EnvVar {
+  name: string
+  value?: string
 }
 /**
  * This interface was referenced by `VfsSnapshotV1`'s JSON-Schema
@@ -87,14 +94,6 @@ export interface VfsSnapshotV1Member {
   email: string
   name?: string
   permissionType?: string
-}
-/**
- * This interface was referenced by `VfsSnapshotV1`'s JSON-Schema
- * via the `definition` "VfsSnapshotV1NonSecretEnvVar".
- */
-export interface VfsSnapshotV1NonSecretEnvVar {
-  name: string
-  value?: string
 }
 /**
  * This interface was referenced by `VfsSnapshotV1`'s JSON-Schema
