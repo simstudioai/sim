@@ -294,6 +294,9 @@ beforeEach(() => {
   mockGetSessionCommand.mockResolvedValue({ exitCode: 0 })
 })
 
+/** Headroom for the note `tailStreamedSandboxOutput` prepends when it truncates. */
+const TRUNCATION_NOTE_ALLOWANCE_BYTES = 256
+
 describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
   beforeEach(() => useProvider(provider))
 
@@ -408,9 +411,40 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
     // ...but only the tail is retained. Reaching exitCode 0 at all is the point: before the
     // exemption this threw `sandbox_output_limit_exceeded` and killed the sandbox mid-run.
     expect(result.stdout).toContain('TAIL_MARKER')
+    // The tail plus its truncation note, NOT a multiple of it. A looser bound here passes on both
+    // providers even when one returns twice as much as the other, which is the divergence this
+    // pair exists to prevent.
     expect(Buffer.byteLength(result.stdout)).toBeLessThanOrEqual(
-      MAX_SANDBOX_STREAMED_OUTPUT_TAIL_BYTES * 2
+      MAX_SANDBOX_STREAMED_OUTPUT_TAIL_BYTES + TRUNCATION_NOTE_ALLOWANCE_BYTES
     )
+  })
+
+  it('cuts the retained tail identically when a stream ends between one and two tails', async () => {
+    // The Daytona appender only collapses once the accumulator passes twice the tail, so a stream
+    // finishing inside that band is the case where the two providers can disagree.
+    const midBand = 'y'.repeat(Math.floor(MAX_SANDBOX_STREAMED_OUTPUT_TAIL_BYTES * 1.5))
+    if (provider === 'e2b') {
+      mockE2BCommandsRun.mockImplementationOnce(async (_cmd, options) => {
+        options.onStdout?.(midBand)
+        return { stdout: midBand, stderr: '', exitCode: 0 }
+      })
+    } else {
+      mockGetSessionCommandLogs.mockImplementationOnce(
+        async (_sessionId: string, _commandId: string, onStdout: (chunk: string) => void) => {
+          onStdout(midBand)
+        }
+      )
+      mockGetSessionCommand.mockResolvedValue({ exitCode: 0 })
+    }
+
+    const result = await withPiSandbox({}, (runner) =>
+      runner.run('pi run', { timeoutMs: 1000, onStdout: () => {} })
+    )
+
+    expect(Buffer.byteLength(result.stdout)).toBeLessThanOrEqual(
+      MAX_SANDBOX_STREAMED_OUTPUT_TAIL_BYTES + TRUNCATION_NOTE_ALLOWANCE_BYTES
+    )
+    expect(Buffer.byteLength(result.stdout)).toBeLessThan(Buffer.byteLength(midBand))
   })
 
   it('still bounds a stream the caller does not consume', async () => {

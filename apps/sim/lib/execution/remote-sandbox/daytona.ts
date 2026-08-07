@@ -20,6 +20,7 @@ import {
   SandboxOutputFileError,
   SandboxOutputLimitError,
   SandboxProcessOutputBudget,
+  tailStreamedSandboxOutput,
 } from '@/lib/execution/remote-sandbox/output-limits'
 import type {
   CreateSandboxOptions,
@@ -252,6 +253,13 @@ class DaytonaSandboxHandle implements SandboxHandle {
     // stdout but not stderr still has stderr fully bounded. The failover must not change behavior.
     const retainStdout = options.onStdout === undefined
     const retainStderr = options.onStderr === undefined
+    // The appender keeps the accumulator under twice the tail so it is not re-cut on every chunk,
+    // which leaves it anywhere in that band when the stream ends. E2B tails the value it returns,
+    // so the final cut has to happen here too or a stream finishing between one and two tails comes
+    // back longer on Daytona than on E2B — a failover divergence, which is what this adapter pair
+    // must never have.
+    const finalStdout = () => (retainStdout ? stdout : tailStreamedSandboxOutput(stdout))
+    const finalStderr = () => (retainStderr ? stderr : tailStreamedSandboxOutput(stderr))
     try {
       await this.sandbox.process.createSession(sessionId)
       sessionCreated = true
@@ -366,8 +374,8 @@ class DaytonaSandboxHandle implements SandboxHandle {
       if (outcome === 'output-limit' || outputBudget.error) throw outputBudget.error
       if (outcome === 'timeout') {
         return {
-          stdout,
-          stderr: stderr || `Command timed out after ${options.timeoutMs}ms`,
+          stdout: finalStdout(),
+          stderr: finalStderr() || `Command timed out after ${options.timeoutMs}ms`,
           exitCode: 124,
           timedOut: true,
         }
@@ -376,12 +384,17 @@ class DaytonaSandboxHandle implements SandboxHandle {
         if (outputBudget.error) throw outputBudget.error
         const timedOut = isDaytonaExecutionTimeout(streamError)
         if (!timedOut) throw streamError
-        return { stdout, stderr: stderr || getErrorMessage(streamError), exitCode: 124, timedOut }
+        return {
+          stdout: finalStdout(),
+          stderr: finalStderr() || getErrorMessage(streamError),
+          exitCode: 124,
+          timedOut,
+        }
       }
 
       const finished = await this.sandbox.process.getSessionCommand(sessionId, commandId)
       const exitCode = finished.exitCode ?? 0
-      return { stdout, stderr, exitCode }
+      return { stdout: finalStdout(), stderr: finalStderr(), exitCode }
     } catch (error) {
       if (isSandboxOutputLimitError(error)) {
         void this.kill().catch(() => {})
@@ -393,10 +406,15 @@ class DaytonaSandboxHandle implements SandboxHandle {
           : new DOMException('Execution cancelled', 'AbortError')
       }
       if (isDaytonaExecutionTimeout(error)) {
-        return { stdout, stderr: stderr || getErrorMessage(error), exitCode: 124, timedOut: true }
+        return {
+          stdout: finalStdout(),
+          stderr: finalStderr() || getErrorMessage(error),
+          exitCode: 124,
+          timedOut: true,
+        }
       }
       if (operation === 'code') throw error
-      return { stdout, stderr: stderr || getErrorMessage(error), exitCode: 1 }
+      return { stdout: finalStdout(), stderr: finalStderr() || getErrorMessage(error), exitCode: 1 }
     } finally {
       if (sessionCreated) {
         try {
