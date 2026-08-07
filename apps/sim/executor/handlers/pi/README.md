@@ -8,8 +8,8 @@ Implements the PI block executor. Each sub-mode delegates to a dedicated backend
 pi/
 ├── pi-handler.ts          # Single dispatcher — reads the block's mode and routes to the correct backend
 ├── core/                  # Shared contracts and infrastructure
-│   ├── backend.ts         # Base backend interface and shared execution logic
-│   ├── context.ts         # Request context type passed to every backend
+│   ├── backend.ts         # Backend contracts — all run-params types, PiRunContext, PiRunResult, and PiBackendRun
+│   ├── context.ts         # Skills-resolution and memory helpers (resolvePiSkills, loadPiMemory, buildPiPrompt, appendPiMemory)
 │   ├── events.ts          # Streaming event helpers
 │   ├── keys.ts            # API-key resolution utilities
 │   ├── pi-sdk.ts          # Thin wrapper around the PI SDK client
@@ -39,4 +39,4 @@ pi/
 
 ## Dispatch flow
 
-`pi-handler.ts` is the sole entry point registered in the executor. It inspects the block's `mode` field and calls the matching backend's `run()` method. All backends receive a typed `PiContext` (from `core/context.ts`) and stream incremental events back through `core/events.ts`.
+`pi-handler.ts` is the sole entry point registered in the executor. It inspects the block's `mode` field and calls the matching backend's `run()` method. All backends receive a typed `PiRunContext` (from `core/backend.ts`) and stream incremental events back through `core/events.ts`.
