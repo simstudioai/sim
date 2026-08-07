@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Sim API v2 — Workspace Resources",
-    "description": "The v2 Workspace Resources API covers the resources a workspace is provisioned with: MCP servers, skills, custom tools, folders, and credentials.\n\n## Conventions\n\nAll endpoints live under the `/api/v2` base path and share a single set of conventions:\n\n- **Authentication** — Send your Sim API key in the `X-API-Key` header on every request. Keys are scoped to a workspace (or are personal keys that target a workspace); `workspaceId` is always required so the request can be tenant-scoped and rate-limited.\n- **Single-resource and mutation responses** return `{ \"data\": ... }`.\n- **List responses** use an opaque-cursor envelope: `{ \"data\": [ ... ], \"nextCursor\": string | null }`. Pass the returned `nextCursor` back as the `cursor` query parameter to fetch the next page. When `nextCursor` is `null` there are no more results. Cursors are opaque — do not parse or construct them.\n- **Errors** use a single envelope: `{ \"error\": { \"code\": string, \"message\": string, \"details\"?: unknown } }`. The HTTP status code and the stable `code` field move together (for example `404` ⇄ `NOT_FOUND`).\n- **Rate limiting** — Every response carries the current limiter state in the `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset` headers. A throttled request returns `429` with a `Retry-After` header.\n- **Secrets are write-only** — Fields that carry secret material (MCP request headers, credential values) are accepted on write and never returned on read. Reads expose only whether a secret is configured, and for headers their names.",
+    "description": "The v2 Workspace Resources API covers the resources a workspace is provisioned with: MCP servers, skills, custom tools, folders, credentials, and secrets.\n\n## Conventions\n\nAll endpoints live under the `/api/v2` base path and share a single set of conventions:\n\n- **Authentication** — Send your Sim API key in the `X-API-Key` header on every request. Keys are scoped to a workspace (or are personal keys that target a workspace); `workspaceId` is always required so the request can be tenant-scoped and rate-limited.\n- **Single-resource and mutation responses** return `{ \"data\": ... }`.\n- **List responses** use an opaque-cursor envelope: `{ \"data\": [ ... ], \"nextCursor\": string | null }`. Pass the returned `nextCursor` back as the `cursor` query parameter to fetch the next page. When `nextCursor` is `null` there are no more results. Cursors are opaque — do not parse or construct them.\n- **Errors** use a single envelope: `{ \"error\": { \"code\": string, \"message\": string, \"details\"?: unknown } }`. The HTTP status code and the stable `code` field move together (for example `404` ⇄ `NOT_FOUND`).\n- **Rate limiting** — Every response carries the current limiter state in the `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset` headers. A throttled request returns `429` with a `Retry-After` header.\n- **Secrets are write-only** — Secret values and MCP request-header values are accepted on write and never returned. Secret reads expose metadata only.",
     "version": "2.0.0",
     "contact": {
       "name": "Sim Support",
@@ -35,7 +35,11 @@
     },
     {
       "name": "Credentials",
-      "description": "Provision the secrets and connected accounts a workspace's agents authenticate with (v2 API)."
+      "description": "List OAuth and service-account connections available to a workspace (v2 API)."
+    },
+    {
+      "name": "Secrets",
+      "description": "Set and manage write-only workspace and personal secret values (v2 API)."
     }
   ],
   "security": [
@@ -1537,7 +1541,7 @@
       "get": {
         "operationId": "listCredentials",
         "summary": "List Credentials",
-        "description": "List the credentials you can see in a workspace. Visibility is per credential: an explicit membership grant, plus — for workspace admins — every shared credential, plus your own personal environment credentials.\n\n**Secret material is never returned.** A read tells you a secret is configured (`hasServiceAccountKey`) and nothing more. The workspace's credential set is small and bounded, so the full visible set is returned as a single page and `nextCursor` is always `null`.",
+        "description": "List the OAuth and service-account connections visible to the caller in a workspace. Environment secrets are a separate resource under `/api/v2/secrets`. Credential creation, update, deletion, and single-resource reads are intentionally not exposed yet.\n\nSecret material is never returned. `hasServiceAccountKey` reports only whether a service-account payload is configured. The workspace credential set is small and bounded, so `nextCursor` is always `null`.",
         "tags": ["Credentials"],
         "x-codeSamples": [
           {
@@ -1554,10 +1558,10 @@
             "name": "type",
             "in": "query",
             "required": false,
-            "description": "Only return credentials of this kind.",
+            "description": "Only return connections of this kind.",
             "schema": {
               "type": "string",
-              "enum": ["oauth", "env_workspace", "env_personal", "service_account"]
+              "enum": ["oauth", "service_account"]
             }
           },
           {
@@ -1575,7 +1579,7 @@
             "name": "search",
             "in": "query",
             "required": false,
-            "description": "Case-insensitive substring match against the credential `displayName`. Matches nothing else — not ids, descriptions, or content. `%` and `_` are matched literally. Must be non-empty; omit the parameter instead of sending a blank one.",
+            "description": "Case-insensitive substring match against `displayName`.",
             "schema": {
               "type": "string",
               "minLength": 1,
@@ -1607,7 +1611,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Credentials visible to the caller in the workspace.",
+            "description": "OAuth and service-account credentials visible to the caller.",
             "headers": {
               "X-RateLimit-Limit": {
                 "$ref": "#/components/headers/RateLimitLimit"
@@ -1627,7 +1631,6 @@
                   "properties": {
                     "data": {
                       "type": "array",
-                      "description": "The credentials visible to the caller.",
                       "items": {
                         "$ref": "#/components/schemas/Credential"
                       }
@@ -1646,7 +1649,6 @@
                       "description": null,
                       "providerId": "zoom-service-account",
                       "accountId": null,
-                      "envKey": null,
                       "hasServiceAccountKey": true,
                       "role": "admin",
                       "createdAt": "2025-06-01T09:14:00.000Z",
@@ -1674,54 +1676,72 @@
             "$ref": "#/components/responses/InternalError"
           }
         }
-      },
-      "post": {
-        "operationId": "createCredential",
-        "summary": "Create Credential",
-        "description": "Create a workspace credential. Requires `write` permission on the workspace; the creator becomes an admin of the credential.\n\n`oauth` credentials **cannot** be created here — they are minted by the interactive OAuth connect flow and bound to an account you authorized in a browser. The creatable types are:\n\n- `env_workspace` — a secret stored under `envKey`, available to everyone in the workspace.\n- `env_personal` — the same, scoped to you.\n- `service_account` — a provider secret (`serviceAccountJson`, `apiToken` + `domain`, `clientId` + `clientSecret` + `orgId`, …). The secret is verified against the provider before it is stored.\n\nEvery secret field is write-only and is never returned. Creation is idempotent on the credential's source (the account, the env key, or the provider + name), so re-issuing the same create returns the existing credential rather than a duplicate.",
-        "tags": ["Credentials"],
+      }
+    },
+    "/api/v2/secrets": {
+      "get": {
+        "operationId": "listSecrets",
+        "summary": "List Secrets",
+        "description": "List workspace and caller-owned personal secret metadata. Only names, scope, role, and timestamps are returned. Secret values are never read or returned by this API.",
+        "tags": ["Secrets"],
         "x-codeSamples": [
           {
             "label": "cURL",
             "lang": "bash",
-            "source": "curl -X POST \\\n  \"https://www.sim.ai/api/v2/credentials\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"workspaceId\": \"YOUR_WORKSPACE_ID\",\n    \"type\": \"env_workspace\",\n    \"envKey\": \"STRIPE_API_KEY\"\n  }'"
+            "source": "curl \\\n  \"https://www.sim.ai/api/v2/secrets?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
           }
         ],
-        "requestBody": {
-          "required": true,
-          "description": "The credential to create.",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateCredentialBody"
-              },
-              "examples": {
-                "workspaceEnvVar": {
-                  "summary": "A workspace-wide environment secret",
-                  "value": {
-                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-                    "type": "env_workspace",
-                    "envKey": "STRIPE_API_KEY"
-                  }
-                },
-                "clientCredentialServiceAccount": {
-                  "summary": "A client-credentials service account",
-                  "value": {
-                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-                    "type": "service_account",
-                    "providerId": "zoom-service-account",
-                    "clientId": "YOUR_CLIENT_ID",
-                    "clientSecret": "YOUR_CLIENT_SECRET",
-                    "orgId": "YOUR_ACCOUNT_ID"
-                  }
-                }
-              }
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkspaceIdQuery"
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": false,
+            "description": "`workspace` for a shared workspace secret or `personal` for the caller-owned catalog.",
+            "schema": {
+              "type": "string",
+              "enum": ["workspace", "personal"]
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Case-insensitive substring match against the secret name.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "description": "Field to sort by.",
+            "schema": {
+              "type": "string",
+              "enum": ["name", "createdAt", "updatedAt"],
+              "default": "name"
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "description": "Sort direction.",
+            "schema": {
+              "type": "string",
+              "enum": ["asc", "desc"],
+              "default": "asc"
             }
           }
-        },
+        ],
         "responses": {
-          "201": {
-            "description": "The credential exists with this source. Returned whether it was inserted now or already present.",
+          "200": {
+            "description": "Secret metadata visible to the caller.",
             "headers": {
               "X-RateLimit-Limit": {
                 "$ref": "#/components/headers/RateLimitLimit"
@@ -1736,24 +1756,31 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CredentialData"
-                },
-                "example": {
-                  "data": {
-                    "credential": {
-                      "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
-                      "type": "env_workspace",
-                      "displayName": "STRIPE_API_KEY",
-                      "description": null,
-                      "providerId": null,
-                      "accountId": null,
-                      "envKey": "STRIPE_API_KEY",
-                      "hasServiceAccountKey": false,
-                      "role": "admin",
-                      "createdAt": "2025-06-20T14:02:11.000Z",
-                      "updatedAt": "2025-06-20T14:02:11.000Z"
+                  "type": "object",
+                  "required": ["data", "nextCursor"],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Secret"
+                      }
+                    },
+                    "nextCursor": {
+                      "$ref": "#/components/schemas/NextCursor"
                     }
                   }
+                },
+                "example": {
+                  "data": [
+                    {
+                      "name": "STRIPE_API_KEY",
+                      "scope": "workspace",
+                      "role": "admin",
+                      "createdAt": "2025-06-01T09:14:00.000Z",
+                      "updatedAt": "2025-06-20T14:02:11.000Z"
+                    }
+                  ],
+                  "nextCursor": null
                 }
               }
             }
@@ -1767,45 +1794,62 @@
           "403": {
             "$ref": "#/components/responses/Forbidden"
           },
-          "409": {
-            "$ref": "#/components/responses/Conflict"
-          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
-          },
-          "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
           }
         }
       }
     },
-    "/api/v2/credentials/{id}": {
-      "get": {
-        "operationId": "getCredential",
-        "summary": "Get Credential",
-        "description": "Fetch a single credential. Secret material is never returned — `hasServiceAccountKey` tells you whether one is stored.\n\nA credential you have no grant on answers `404`, not `403`, so its existence is never disclosed to someone who cannot use it.",
-        "tags": ["Credentials"],
+    "/api/v2/secrets/{name}": {
+      "put": {
+        "operationId": "setSecret",
+        "summary": "Set Secret",
+        "description": "Create or replace a workspace or caller-owned personal secret. The value is encrypted at rest and is never included in the response. Updating an existing workspace secret requires credential-admin access to that secret; creating one requires workspace write access.",
+        "tags": ["Secrets"],
         "x-codeSamples": [
           {
             "label": "cURL",
             "lang": "bash",
-            "source": "curl \\\n  \"https://www.sim.ai/api/v2/credentials/7c9e6679-7425-40de-944b-e07fc1f90ae7?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+            "source": "curl -X PUT \\\n  \"https://www.sim.ai/api/v2/secrets/STRIPE_API_KEY\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"workspaceId\":\"YOUR_WORKSPACE_ID\",\"scope\":\"workspace\",\"value\":\"YOUR_SECRET_VALUE\"}'"
           }
         ],
         "parameters": [
           {
-            "$ref": "#/components/parameters/CredentialId"
-          },
-          {
-            "$ref": "#/components/parameters/WorkspaceIdQuery"
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "description": "Secret name. Letters, numbers, and underscores only.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "pattern": "^[A-Za-z0-9_]+$",
+              "example": "STRIPE_API_KEY"
+            }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "description": "The secret value and its scope. `value` is write-only.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetSecretBody"
+              },
+              "example": {
+                "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                "scope": "workspace",
+                "value": "YOUR_SECRET_VALUE"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "The credential.",
+            "description": "The existing secret value was replaced.",
             "headers": {
               "X-RateLimit-Limit": {
                 "$ref": "#/components/headers/RateLimitLimit"
@@ -1820,19 +1864,13 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CredentialData"
+                  "$ref": "#/components/schemas/SecretData"
                 },
                 "example": {
                   "data": {
-                    "credential": {
-                      "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
-                      "type": "service_account",
-                      "displayName": "Zoom account acct_123",
-                      "description": null,
-                      "providerId": "zoom-service-account",
-                      "accountId": null,
-                      "envKey": null,
-                      "hasServiceAccountKey": true,
+                    "secret": {
+                      "name": "STRIPE_API_KEY",
+                      "scope": "workspace",
                       "role": "admin",
                       "createdAt": "2025-06-01T09:14:00.000Z",
                       "updatedAt": "2025-06-20T14:02:11.000Z"
@@ -1842,73 +1880,8 @@
               }
             }
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          },
-          "429": {
-            "$ref": "#/components/responses/RateLimited"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalError"
-          }
-        }
-      },
-      "patch": {
-        "operationId": "updateCredential",
-        "summary": "Update Credential",
-        "description": "Rename a credential, change its description, or rotate its stored secret. Requires credential admin — access to the workspace plus admin rights on the credential itself. Workspace `write` is not required: credentials are gated per credential, not per workspace.\n\nSending a secret field rotates that secret in place: it is re-verified against the provider and re-encrypted, and the display name is preserved. Secrets are never returned in the response. If the provider cannot be reached to verify the new secret, the request returns `503`.\n\nA credential you cannot see answers `404` rather than `403`, so its existence is never disclosed.",
-        "tags": ["Credentials"],
-        "x-codeSamples": [
-          {
-            "label": "cURL",
-            "lang": "bash",
-            "source": "curl -X PATCH \\\n  \"https://www.sim.ai/api/v2/credentials/7c9e6679-7425-40de-944b-e07fc1f90ae7\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"workspaceId\": \"YOUR_WORKSPACE_ID\",\n    \"displayName\": \"Zoom (production)\"\n  }'"
-          }
-        ],
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/CredentialId"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "description": "The fields to change. At least one field besides `workspaceId` is required.",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateCredentialBody"
-              },
-              "examples": {
-                "rename": {
-                  "summary": "Rename a credential",
-                  "value": {
-                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-                    "displayName": "Zoom (production)"
-                  }
-                },
-                "rotateSecret": {
-                  "summary": "Rotate an API token",
-                  "value": {
-                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-                    "apiToken": "YOUR_NEW_TOKEN"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "The updated credential.",
+          "201": {
+            "description": "The secret was created.",
             "headers": {
               "X-RateLimit-Limit": {
                 "$ref": "#/components/headers/RateLimitLimit"
@@ -1923,24 +1896,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CredentialData"
-                },
-                "example": {
-                  "data": {
-                    "credential": {
-                      "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
-                      "type": "service_account",
-                      "displayName": "Zoom (production)",
-                      "description": null,
-                      "providerId": "zoom-service-account",
-                      "accountId": null,
-                      "envKey": null,
-                      "hasServiceAccountKey": true,
-                      "role": "admin",
-                      "createdAt": "2025-06-01T09:14:00.000Z",
-                      "updatedAt": "2025-06-21T08:30:00.000Z"
-                    }
-                  }
+                  "$ref": "#/components/schemas/SecretData"
                 }
               }
             }
@@ -1954,46 +1910,57 @@
           "403": {
             "$ref": "#/components/responses/Forbidden"
           },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          },
-          "409": {
-            "$ref": "#/components/responses/Conflict"
-          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
-          },
-          "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
           }
         }
       },
       "delete": {
-        "operationId": "deleteCredential",
-        "summary": "Delete Credential",
-        "description": "Delete a credential. Requires credential admin — access to the workspace plus admin rights on the credential itself; workspace `write` is not required. Blocks and workflows configured against it stop authenticating, and any environment variable it backed is removed.\n\nA credential you cannot see answers `404` rather than `403`.",
-        "tags": ["Credentials"],
+        "operationId": "deleteSecret",
+        "summary": "Delete Secret",
+        "description": "Delete a workspace or caller-owned personal secret. The stored value is never read or returned. Deleting an existing workspace secret requires credential-admin access to that secret.",
+        "tags": ["Secrets"],
         "x-codeSamples": [
           {
             "label": "cURL",
             "lang": "bash",
-            "source": "curl -X DELETE \\\n  \"https://www.sim.ai/api/v2/credentials/7c9e6679-7425-40de-944b-e07fc1f90ae7?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+            "source": "curl -X DELETE \\\n  \"https://www.sim.ai/api/v2/secrets/STRIPE_API_KEY?workspaceId=YOUR_WORKSPACE_ID&scope=workspace\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
           }
         ],
         "parameters": [
           {
-            "$ref": "#/components/parameters/CredentialId"
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "description": "Secret name. Letters, numbers, and underscores only.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "pattern": "^[A-Za-z0-9_]+$",
+              "example": "STRIPE_API_KEY"
+            }
           },
           {
             "$ref": "#/components/parameters/WorkspaceIdQuery"
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "description": "`workspace` for a shared workspace secret or `personal` for the caller-owned catalog.",
+            "schema": {
+              "type": "string",
+              "enum": ["workspace", "personal"]
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "The credential was deleted.",
+            "description": "The secret was deleted.",
             "headers": {
               "X-RateLimit-Limit": {
                 "$ref": "#/components/headers/RateLimitLimit"
@@ -2008,11 +1975,12 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DeleteAcknowledgement"
+                  "$ref": "#/components/schemas/SecretDeleteData"
                 },
                 "example": {
                   "data": {
-                    "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+                    "name": "STRIPE_API_KEY",
+                    "scope": "workspace",
                     "deleted": true
                   }
                 }
@@ -2131,17 +2099,6 @@
         "in": "path",
         "required": true,
         "description": "The unique identifier of the folder.",
-        "schema": {
-          "type": "string",
-          "minLength": 1,
-          "example": "7c9e6679-7425-40de-944b-e07fc1f90ae7"
-        }
-      },
-      "CredentialId": {
-        "name": "id",
-        "in": "path",
-        "required": true,
-        "description": "The unique identifier of the credential.",
         "schema": {
           "type": "string",
           "minLength": 1,
@@ -2928,7 +2885,7 @@
       },
       "Credential": {
         "type": "object",
-        "description": "A stored credential. Secret material is write-only and never appears here.",
+        "description": "An OAuth or service-account connection. Secret material is never returned.",
         "required": [
           "id",
           "type",
@@ -2936,7 +2893,6 @@
           "description",
           "providerId",
           "accountId",
-          "envKey",
           "hasServiceAccountKey",
           "role",
           "createdAt",
@@ -2949,36 +2905,30 @@
           },
           "type": {
             "type": "string",
-            "enum": ["oauth", "env_workspace", "env_personal", "service_account"],
-            "description": "What kind of credential this is."
+            "enum": ["oauth", "service_account"],
+            "description": "The authenticated connection type."
           },
           "displayName": {
-            "type": "string",
-            "description": "Display name."
+            "type": "string"
           },
           "description": {
             "type": ["string", "null"]
           },
           "providerId": {
             "type": ["string", "null"],
-            "description": "The integration this credential authenticates against, when it has one."
+            "description": "The integration this credential authenticates against."
           },
           "accountId": {
             "type": ["string", "null"],
-            "description": "The linked OAuth account, for `oauth` credentials."
-          },
-          "envKey": {
-            "type": ["string", "null"],
-            "description": "The environment-variable name, for `env_workspace` / `env_personal` credentials."
+            "description": "The linked OAuth account for OAuth credentials."
           },
           "hasServiceAccountKey": {
             "type": "boolean",
-            "description": "Whether a service-account secret is stored. The secret itself is never returned."
+            "description": "Whether a service-account payload is stored. Its contents are never returned."
           },
           "role": {
             "type": "string",
-            "enum": ["admin", "member"],
-            "description": "The caller's role on this credential. Only admins can update or delete it."
+            "enum": ["admin", "member"]
           },
           "createdAt": {
             "type": "string",
@@ -2990,172 +2940,95 @@
           }
         }
       },
-      "CredentialData": {
+      "Secret": {
+        "type": "object",
+        "description": "Secret metadata. The encrypted value is never returned.",
+        "required": ["name", "scope", "role", "createdAt", "updatedAt"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "pattern": "^[A-Za-z0-9_]+$"
+          },
+          "scope": {
+            "type": "string",
+            "enum": ["workspace", "personal"]
+          },
+          "role": {
+            "type": "string",
+            "enum": ["admin", "member"]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "SetSecretBody": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["workspaceId", "scope", "value"],
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "scope": {
+            "type": "string",
+            "enum": ["workspace", "personal"]
+          },
+          "value": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 65536,
+            "writeOnly": true,
+            "description": "The new secret value. It is never returned."
+          }
+        }
+      },
+      "SecretData": {
         "type": "object",
         "required": ["data"],
         "properties": {
           "data": {
             "type": "object",
-            "required": ["credential"],
+            "required": ["secret"],
             "properties": {
-              "credential": {
-                "$ref": "#/components/schemas/Credential"
+              "secret": {
+                "$ref": "#/components/schemas/Secret"
               }
             }
           }
         }
       },
-      "CreateCredentialBody": {
+      "SecretDeleteData": {
         "type": "object",
-        "description": "A new credential. Every secret field is write-only and is never returned.",
-        "additionalProperties": false,
-        "required": ["workspaceId", "type"],
+        "required": ["data"],
         "properties": {
-          "workspaceId": {
-            "type": "string",
-            "minLength": 1,
-            "description": "The workspace to create the credential in."
-          },
-          "type": {
-            "type": "string",
-            "enum": ["env_workspace", "env_personal", "service_account"],
-            "description": "`oauth` is not creatable here — use the interactive OAuth connect flow."
-          },
-          "displayName": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 255,
-            "description": "Display name. Derived from the env key or the verified provider account when omitted."
-          },
-          "description": {
-            "type": "string",
-            "maxLength": 500
-          },
-          "providerId": {
-            "type": "string",
-            "minLength": 1,
-            "description": "Required for `service_account` — the integration the secret belongs to."
-          },
-          "envKey": {
-            "type": "string",
-            "minLength": 1,
-            "description": "Required for env credentials. Letters, numbers, and underscores only; `{{NAME}}` is accepted and unwrapped."
-          },
-          "serviceAccountJson": {
-            "type": "string",
-            "minLength": 1,
-            "description": "Write-only. Google-style service-account JSON key."
-          },
-          "signingSecret": {
-            "type": "string",
-            "minLength": 1,
-            "description": "Write-only. Slack custom-bot signing secret."
-          },
-          "botToken": {
-            "type": "string",
-            "minLength": 1,
-            "description": "Write-only. Slack custom-bot token."
-          },
-          "apiToken": {
-            "type": "string",
-            "minLength": 1,
-            "description": "Write-only. Atlassian API token."
-          },
-          "domain": {
-            "type": "string",
-            "minLength": 1,
-            "description": "Atlassian site domain, paired with `apiToken`."
-          },
-          "clientId": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 512
-          },
-          "clientSecret": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 1024,
-            "description": "Write-only. Client-credentials secret."
-          },
-          "orgId": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 255
-          },
-          "dataCenter": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 32,
-            "description": "Optional provider region selector, such as a Zoho Desk data center."
-          }
-        }
-      },
-      "UpdateCredentialBody": {
-        "type": "object",
-        "description": "Fields to change on an existing credential. At least one field besides `workspaceId` is required. Sending a secret field rotates that secret in place; secrets are never returned.",
-        "additionalProperties": false,
-        "required": ["workspaceId"],
-        "properties": {
-          "workspaceId": {
-            "type": "string",
-            "minLength": 1,
-            "description": "The workspace that owns the credential."
-          },
-          "displayName": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 255
-          },
-          "description": {
-            "type": ["string", "null"],
-            "maxLength": 500,
-            "description": "Pass null to clear the description."
-          },
-          "serviceAccountJson": {
-            "type": "string",
-            "minLength": 1,
-            "description": "Write-only. Replaces the stored service-account JSON key."
-          },
-          "signingSecret": {
-            "type": "string",
-            "minLength": 1,
-            "description": "Write-only."
-          },
-          "botToken": {
-            "type": "string",
-            "minLength": 1,
-            "description": "Write-only."
-          },
-          "apiToken": {
-            "type": "string",
-            "minLength": 1,
-            "description": "Write-only."
-          },
-          "domain": {
-            "type": "string",
-            "minLength": 1
-          },
-          "clientId": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 512
-          },
-          "clientSecret": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 1024,
-            "description": "Write-only."
-          },
-          "orgId": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 255
-          },
-          "dataCenter": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 32,
-            "description": "Optional provider region selector, such as a Zoho Desk data center."
+          "data": {
+            "type": "object",
+            "required": ["name", "scope", "deleted"],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255,
+                "pattern": "^[A-Za-z0-9_]+$"
+              },
+              "scope": {
+                "type": "string",
+                "enum": ["workspace", "personal"]
+              },
+              "deleted": {
+                "type": "boolean",
+                "enum": [true]
+              }
+            }
           }
         }
       }

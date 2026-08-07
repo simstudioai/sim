@@ -66,7 +66,8 @@ export type ApiEndpoint =
   | 'custom-tools'
   | 'custom-tool-detail'
   | 'credentials'
-  | 'credential-detail'
+  | 'secrets'
+  | 'secret-detail'
 
 export interface RateLimitResult {
   allowed: boolean
