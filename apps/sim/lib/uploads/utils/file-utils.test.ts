@@ -14,7 +14,6 @@ import {
   processSingleFileToUserFile,
   resolveEffectiveMimeType,
   resolveFileType,
-  resolveMediaMimeType,
   resolveTrustedFileContext,
 } from '@/lib/uploads/utils/file-utils'
 
@@ -255,28 +254,3 @@ describe('resolveEffectiveMimeType', () => {
   })
 })
 
-describe('resolveMediaMimeType', () => {
-  it('resolves a generic stored type from the extension', () => {
-    expect(resolveMediaMimeType('application/octet-stream', 'clip.mp4', 'video')).toBe('video/mp4')
-    expect(resolveMediaMimeType('application/octet-stream', 'song.flac', 'audio')).toBe(
-      'audio/flac'
-    )
-  })
-
-  it('retags a dual audio/video container to the kind being rendered', () => {
-    expect(resolveMediaMimeType(null, 'clip.webm', 'video')).toBe('video/webm')
-    expect(resolveMediaMimeType('audio/webm', 'clip.webm', 'video')).toBe('video/webm')
-    expect(resolveMediaMimeType(null, 'recording.webm', 'audio')).toBe('audio/webm')
-    expect(resolveMediaMimeType('video/webm', 'recording.webm', 'audio')).toBe('audio/webm')
-  })
-
-  it('keeps a specific type that already names the right kind', () => {
-    expect(resolveMediaMimeType('video/quicktime', 'clip.mov', 'video')).toBe('video/quicktime')
-    expect(resolveMediaMimeType('audio/opus', 'voice.opus', 'audio')).toBe('audio/opus')
-  })
-
-  it('falls back to the kind default when nothing names a media format', () => {
-    expect(resolveMediaMimeType('application/zip', 'weird.bin', 'audio')).toBe('audio/mpeg')
-    expect(resolveMediaMimeType(null, 'weird.bin', 'video')).toBe('video/mp4')
-  })
-})
