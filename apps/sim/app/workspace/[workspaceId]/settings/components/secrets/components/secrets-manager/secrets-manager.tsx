@@ -904,11 +904,17 @@ export function SecretsManager() {
     return entries.map(([key, value]) => ({
       key,
       value,
-      // A pending rename is checked FIRST: the new name has no server-side
-      // visibility yet, so falling straight through to `visibilityMap` would
-      // default it to `secret` — bouncing the row into Workspace secrets and
-      // bullet-masking a value the member can plainly read, until save lands.
-      visibility: renamedKeyVisibility[key] ?? visibilityMap[key] ?? ('secret' as EnvVisibility),
+      // Server state wins wherever it exists; the carried rename only fills the
+      // gap where it doesn't. That ordering is the whole contract: a renamed key
+      // has no server visibility yet, so without the fallback it would default
+      // to `secret` and bounce into Workspace secrets, bullet-masking a value
+      // the member can plainly read. But letting the carried value WIN would
+      // shadow the server after a rename-back or a rename onto an existing key,
+      // so a later confirmed convert-to-secret would apply server-side and the
+      // row would still render as non-secret. Under this ordering a stale entry
+      // is inert, rather than needing to be cleared on every path that could
+      // invalidate it.
+      visibility: visibilityMap[key] ?? renamedKeyVisibility[key] ?? ('secret' as EnvVisibility),
     }))
   }, [
     searchTerm,
