@@ -308,6 +308,45 @@ export interface SmartleadUpsertWebhookResponse extends ToolResponse {
   output: SmartleadSavedWebhook
 }
 
+/** Deliberately omits `password` and `imap_password`, which Smartlead returns. */
+export interface SmartleadEmailAccount {
+  id: number | null
+  from_name: string | null
+  from_email: string | null
+  username: string | null
+  type: string | null
+  smtp_host: string | null
+  smtp_port: number | null
+  smtp_port_type: string | null
+  imap_host: string | null
+  imap_port: number | null
+  imap_port_type: string | null
+  is_smtp_success: boolean | null
+  is_imap_success: boolean | null
+  smtp_failure_error: string | null
+  imap_failure_error: string | null
+  message_per_day: number | null
+  daily_sent_count: number | null
+  campaign_count: number | null
+  signature: string | null
+  custom_tracking_domain: string | null
+  bcc_email: string | null
+  different_reply_to_address: string | null
+  client_id: number | null
+  is_suspended: boolean | null
+  warmup_status: string | null
+  tags: unknown[]
+  created_at: string | null
+  updated_at: string | null
+}
+
+export interface SmartleadEmailAccountsResponse extends ToolResponse {
+  output: {
+    accounts: SmartleadEmailAccount[]
+    count: number
+  }
+}
+
 export interface SmartleadLeadList {
   id: number | null
   list_name: string | null
@@ -430,3 +469,4 @@ export type SmartleadResponse =
   | SmartleadWebhookSummaryResponse
   | SmartleadLeadListsResponse
   | SmartleadLeadListResponse
+  | SmartleadEmailAccountsResponse

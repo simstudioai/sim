@@ -1,7 +1,8 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
-import type { SmartleadBaseParams, SmartleadOpaqueListResponse } from '@/tools/smartlead/types'
+import type { SmartleadBaseParams, SmartleadEmailAccountsResponse } from '@/tools/smartlead/types'
 import {
-  opaqueListOutputs,
+  emailAccountsOutputs,
+  mapEmailAccount,
   smartleadArray,
   smartleadBaseParamFields,
   smartleadHeaders,
@@ -17,7 +18,7 @@ interface ListEmailAccountsParams extends SmartleadBaseParams {
 
 export const listEmailAccountsTool: ToolConfig<
   ListEmailAccountsParams,
-  SmartleadOpaqueListResponse
+  SmartleadEmailAccountsResponse
 > = {
   id: 'smartlead_list_email_accounts',
   name: 'Smartlead List Email Accounts',
@@ -57,12 +58,13 @@ export const listEmailAccountsTool: ToolConfig<
     headers: smartleadHeaders,
   },
   transformResponse: async (response) => {
-    const items = await smartleadArray(response, 'email accounts')
+    const rows = await smartleadArray(response, 'email accounts')
+    const accounts = rows.map(mapEmailAccount)
 
     return {
       success: true,
-      output: { items, count: items.length },
+      output: { accounts, count: accounts.length },
     }
   },
-  outputs: opaqueListOutputs,
+  outputs: emailAccountsOutputs,
 }

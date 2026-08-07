@@ -1,10 +1,11 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import type {
   SmartleadCampaignIdParams,
-  SmartleadOpaqueListResponse,
+  SmartleadEmailAccountsResponse,
 } from '@/tools/smartlead/types'
 import {
-  opaqueListOutputs,
+  emailAccountsOutputs,
+  mapEmailAccount,
   pathSegment,
   smartleadArray,
   smartleadBaseParamFields,
@@ -16,7 +17,7 @@ import type { ToolConfig } from '@/tools/types'
 
 export const listCampaignEmailAccountsTool: ToolConfig<
   SmartleadCampaignIdParams,
-  SmartleadOpaqueListResponse
+  SmartleadEmailAccountsResponse
 > = {
   id: 'smartlead_list_campaign_email_accounts',
   name: 'Smartlead List Campaign Email Accounts',
@@ -34,12 +35,13 @@ export const listCampaignEmailAccountsTool: ToolConfig<
     headers: smartleadHeaders,
   },
   transformResponse: async (response) => {
-    const items = await smartleadArray(response, 'campaign email accounts')
+    const rows = await smartleadArray(response, 'campaign email accounts')
+    const accounts = rows.map(mapEmailAccount)
 
     return {
       success: true,
-      output: { items, count: items.length },
+      output: { accounts, count: accounts.length },
     }
   },
-  outputs: opaqueListOutputs,
+  outputs: emailAccountsOutputs,
 }

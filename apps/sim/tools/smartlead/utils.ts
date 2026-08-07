@@ -6,6 +6,7 @@ import type {
   SmartleadCampaignAnalyticsByDate,
   SmartleadCampaignLead,
   SmartleadCampaignLeadStats,
+  SmartleadEmailAccount,
   SmartleadLead,
   SmartleadLeadCampaignData,
   SmartleadLeadCategory,
@@ -450,6 +451,50 @@ export function isOk(record: Record<string, unknown>): boolean {
   return record.ok === true
 }
 
+/**
+ * Selects the email-account fields explicitly rather than passing the record
+ * through. Smartlead returns the mailbox credentials on these endpoints —
+ * `password` in plaintext on the by-id and campaign routes, base64-encoded on the
+ * list route, plus `imap_password` — and a passthrough would surface them in
+ * workflow output, logs, and model context.
+ */
+export function mapEmailAccount(value: unknown): SmartleadEmailAccount {
+  const record = toRecord(value)
+
+  return {
+    id: toNullableNumber(record.id),
+    from_name: toStringOrNull(record.from_name),
+    from_email: toStringOrNull(record.from_email),
+    username: toStringOrNull(record.username),
+    type: toStringOrNull(record.type),
+    smtp_host: toStringOrNull(record.smtp_host),
+    smtp_port: toNullableNumber(record.smtp_port),
+    smtp_port_type: toStringOrNull(record.smtp_port_type),
+    imap_host: toStringOrNull(record.imap_host),
+    imap_port: toNullableNumber(record.imap_port),
+    imap_port_type: toStringOrNull(record.imap_port_type),
+    is_smtp_success: toNullableBoolean(record.is_smtp_success),
+    is_imap_success: toNullableBoolean(record.is_imap_success),
+    smtp_failure_error: toStringOrNull(record.smtp_failure_error),
+    imap_failure_error: toStringOrNull(record.imap_failure_error),
+    message_per_day: toNullableNumber(record.message_per_day),
+    daily_sent_count: toNullableNumber(record.daily_sent_count),
+    campaign_count: toNullableNumber(record.campaign_count),
+    signature: toStringOrNull(record.signature),
+    custom_tracking_domain: toStringOrNull(record.custom_tracking_domain),
+    bcc_email: toStringOrNull(record.bcc_email),
+    different_reply_to_address: toStringOrNull(record.different_reply_to_address),
+    client_id: toNullableNumber(record.client_id),
+    is_suspended: toNullableBoolean(record.is_suspended),
+    warmup_status: isRecordLike(record.warmup_details)
+      ? toStringOrNull(record.warmup_details.status)
+      : null,
+    tags: toArray(record.tags),
+    created_at: toStringOrNull(record.created_at),
+    updated_at: toStringOrNull(record.updated_at),
+  }
+}
+
 export function mapLeadList(value: unknown): SmartleadLeadList {
   const record = toRecord(value)
 
@@ -865,6 +910,51 @@ export const listWebhooksOutputs = {
 } satisfies NonNullable<ToolConfig['outputs']>
 
 export const upsertWebhookOutputs = webhookProperties satisfies NonNullable<ToolConfig['outputs']>
+
+const emailAccountProperties = {
+  id: { type: 'number', description: 'Email account ID, used to attach it to a campaign' },
+  from_name: { type: 'string', description: 'Sender display name', optional: true },
+  from_email: { type: 'string', description: 'Sender email address' },
+  username: { type: 'string', description: 'Mailbox username', optional: true },
+  type: { type: 'string', description: 'Account type (GMAIL, OUTLOOK, SMTP)', optional: true },
+  smtp_host: { type: 'string', description: 'SMTP host', optional: true },
+  smtp_port: { type: 'number', description: 'SMTP port', optional: true },
+  smtp_port_type: { type: 'string', description: 'SMTP encryption type', optional: true },
+  imap_host: { type: 'string', description: 'IMAP host', optional: true },
+  imap_port: { type: 'number', description: 'IMAP port', optional: true },
+  imap_port_type: { type: 'string', description: 'IMAP encryption type', optional: true },
+  is_smtp_success: { type: 'boolean', description: 'Whether SMTP verification succeeded' },
+  is_imap_success: { type: 'boolean', description: 'Whether IMAP verification succeeded' },
+  smtp_failure_error: { type: 'string', description: 'Last SMTP error', optional: true },
+  imap_failure_error: { type: 'string', description: 'Last IMAP error', optional: true },
+  message_per_day: { type: 'number', description: 'Daily sending cap', optional: true },
+  daily_sent_count: { type: 'number', description: 'Messages sent today', optional: true },
+  campaign_count: { type: 'number', description: 'Campaigns using this account', optional: true },
+  signature: { type: 'string', description: 'Email signature HTML', optional: true },
+  custom_tracking_domain: { type: 'string', description: 'Custom tracking domain', optional: true },
+  bcc_email: { type: 'string', description: 'BCC address', optional: true },
+  different_reply_to_address: { type: 'string', description: 'Reply-to address', optional: true },
+  client_id: { type: 'number', description: 'Owning client ID', optional: true },
+  is_suspended: {
+    type: 'boolean',
+    description: 'Whether the account is suspended',
+    optional: true,
+  },
+  warmup_status: { type: 'string', description: 'Warmup status', optional: true },
+  tags: { type: 'array', description: 'Tags applied to the account' },
+  created_at: { type: 'string', description: 'Creation timestamp', optional: true },
+  updated_at: { type: 'string', description: 'Last update timestamp', optional: true },
+} satisfies Record<string, OutputProperty>
+
+/** Credentials are intentionally absent — see `mapEmailAccount`. */
+export const emailAccountsOutputs = {
+  accounts: {
+    type: 'array',
+    description: 'Email accounts, excluding their stored mailbox credentials',
+    items: { type: 'object', properties: emailAccountProperties },
+  },
+  count: { type: 'number', description: 'Number of accounts returned' },
+} satisfies NonNullable<ToolConfig['outputs']>
 
 export const duplicateCampaignOutputs = {
   success: { type: 'boolean', description: 'Whether Smartlead duplicated the campaign' },
