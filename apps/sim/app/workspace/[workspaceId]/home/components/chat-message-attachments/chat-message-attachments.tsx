@@ -6,7 +6,7 @@ function FileAttachmentPill(props: { mediaType: string; filename: string }) {
   const Icon = getDocumentIcon(props.mediaType, props.filename)
   return (
     <div className='flex max-w-[140px] items-center gap-[5px] rounded-lg bg-[var(--surface-5)] px-[6px] py-[3px]'>
-      <Icon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+      <Icon className='size-[14px] shrink-0 text-[var(--text-icon)]' />
       <span className='truncate text-[var(--text-body)] text-xs'>{props.filename}</span>
     </div>
   )
