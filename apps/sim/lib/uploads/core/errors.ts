@@ -1,4 +1,11 @@
-const NOT_FOUND_LABELS = new Set(['NotFound', 'NoSuchKey', 'BlobNotFound'])
+const OBJECT_NOT_FOUND_LABELS = new Set(['NotFound', 'NoSuchKey', 'BlobNotFound'])
+
+/**
+ * A missing bucket or container is a misconfiguration, not an absent object, and
+ * it also answers 404. Without this it would read as "no metadata" and every file
+ * read would fail closed with no error to alert on.
+ */
+const CONTAINER_NOT_FOUND_LABELS = new Set(['NoSuchBucket', 'ContainerNotFound'])
 
 /**
  * True when a storage provider reports that an object simply does not exist.
@@ -23,12 +30,14 @@ export function isObjectNotFoundError(error: unknown): boolean {
   }
 
   /**
-   * `name` and `code` are checked independently: Azure raises a `RestError` whose
-   * `name` says nothing useful and whose `code` carries the reason, while the AWS
-   * SDK puts the reason in `name`.
+   * `name` and `code` are both consulted: Azure raises a `RestError` whose `name`
+   * carries the class and whose `code` carries the reason, while the AWS SDK puts
+   * the reason in `name`.
    */
-  if (typeof name === 'string' && NOT_FOUND_LABELS.has(name)) return true
-  if (typeof code === 'string' && NOT_FOUND_LABELS.has(code)) return true
+  const labels = [name, code].filter((value): value is string => typeof value === 'string')
+
+  if (labels.some((label) => CONTAINER_NOT_FOUND_LABELS.has(label))) return false
+  if (labels.some((label) => OBJECT_NOT_FOUND_LABELS.has(label))) return true
 
   return code === 404 || statusCode === 404 || $metadata?.httpStatusCode === 404
 }

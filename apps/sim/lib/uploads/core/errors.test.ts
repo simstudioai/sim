@@ -30,6 +30,19 @@ describe('isObjectNotFoundError', () => {
     expect(isObjectNotFoundError({ name: 'Error', code: 'NoSuchKey' })).toBe(true)
   })
 
+  it('does not read a missing bucket or container as an absent object', () => {
+    /**
+     * These answer 404 too. Reading them as absence would turn a total storage
+     * misconfiguration into silent fail-closed reads with nothing to alert on.
+     */
+    expect(
+      isObjectNotFoundError({ name: 'NoSuchBucket', $metadata: { httpStatusCode: 404 } })
+    ).toBe(false)
+    expect(
+      isObjectNotFoundError({ name: 'RestError', code: 'ContainerNotFound', statusCode: 404 })
+    ).toBe(false)
+  })
+
   it('matches on status alone when the provider sends no label', () => {
     expect(isObjectNotFoundError({ $metadata: { httpStatusCode: 404 } })).toBe(true)
     expect(isObjectNotFoundError({ statusCode: 404 })).toBe(true)
