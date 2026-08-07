@@ -18,7 +18,7 @@ import type { AttachedFile } from '@/app/workspace/[workspaceId]/w/[workflowId]/
  * hover steps further away in the direction each theme reads as "raised".
  */
 const CHIP_SURFACE =
-  'relative cursor-pointer rounded-[10px] border border-[var(--border)] bg-[var(--surface-5)] transition-colors hover-hover:bg-[var(--surface-active)] dark:hover-hover:bg-[var(--surface-6)]'
+  'relative cursor-pointer rounded-lg border border-[var(--border)] bg-[var(--surface-5)] transition-colors hover-hover:bg-[var(--surface-active)] dark:hover-hover:bg-[var(--surface-6)]'
 
 /** Height lives on the wrapper so both shapes are the same size by construction. */
 const CHIP_HEIGHT = 'h-[48px]'
@@ -113,7 +113,7 @@ const AttachedFileChip = React.memo(function AttachedFileChip({
                 {/* Steps again on hover: the chip's own hover fill closes to within
                     7/255 of this badge in light mode, which would erase it during the
                     one interaction where it is being looked at. */}
-                <span className='flex size-[32px] shrink-0 items-center justify-center rounded-[8px] bg-[var(--surface-6)] text-[var(--text-icon)] transition-colors group-hover:bg-[var(--surface-7)] dark:bg-[var(--surface-3)] dark:group-hover:bg-[var(--surface-3)]'>
+                <span className='flex size-[32px] shrink-0 items-center justify-center rounded-md bg-[var(--surface-6)] text-[var(--text-icon)] transition-colors group-hover:bg-[var(--surface-7)] dark:bg-[var(--surface-3)] dark:group-hover:bg-[var(--surface-3)]'>
                   <Icon className='size-[16px]' />
                 </span>
                 <span className='flex min-w-0 flex-col items-start'>
@@ -147,10 +147,11 @@ const AttachedFileChip = React.memo(function AttachedFileChip({
               onRemoveFile(file.id)
             }}
             aria-label={`Remove ${file.name}`}
-            // Sits inside the chip's top-right corner. A fixed dark scrim rather than a
-            // surface token: it overlays arbitrary photo content on the thumbnail shape,
-            // where no theme token can guarantee contrast.
-            className='absolute top-[2px] right-[2px] flex size-[16px] items-center justify-center rounded-full bg-black/60 text-white opacity-0 transition-opacity group-hover:opacity-100'
+            // Opaque, not a translucent scrim: a semi-transparent fill composites with
+            // whatever sits under it, so the same badge reads differently over a light
+            // card than over a photo. An opaque surface plus a border keeps the glyph
+            // contrast fixed and gives the badge an edge against any thumbnail.
+            className='absolute top-[2px] right-[2px] flex size-[16px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-1)] text-[var(--text-body)] opacity-0 transition-opacity group-hover:opacity-100'
           >
             <X className='size-[9px]' />
           </button>
