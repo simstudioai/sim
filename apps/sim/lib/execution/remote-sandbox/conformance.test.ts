@@ -379,7 +379,7 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
     // while producing no oversized result — the caller parses every chunk and keeps none of it.
     const oversized = 'x'.repeat(MAX_SANDBOX_PROCESS_OUTPUT_BYTES + 1024)
     if (provider === 'e2b') {
-      mockE2BCommandsRun.mockImplementationOnce(async (_cmd: string, options: any) => {
+      mockE2BCommandsRun.mockImplementationOnce(async (_cmd, options) => {
         options.onStdout(`${oversized}TAIL_MARKER`)
         return { stdout: `${oversized}TAIL_MARKER`, stderr: '', exitCode: 0 }
       })
@@ -416,7 +416,7 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
   it('still bounds a stream the caller does not consume', async () => {
     const oversized = 'x'.repeat(MAX_SANDBOX_PROCESS_OUTPUT_BYTES + 1)
     if (provider === 'e2b') {
-      mockE2BCommandsRun.mockImplementationOnce(async (_cmd: string, options: any) => {
+      mockE2BCommandsRun.mockImplementationOnce(async (_cmd, options) => {
         options.onStderr(oversized)
       })
     } else {
