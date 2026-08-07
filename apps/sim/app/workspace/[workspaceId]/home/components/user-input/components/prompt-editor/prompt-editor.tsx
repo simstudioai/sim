@@ -103,18 +103,17 @@ export function PromptEditor({
   }, [value, autosize])
 
   /**
-   * Re-measure when the editor's width changes. The textarea carries an inline
-   * pixel height, so a width change (window resize, sidebar or side-panel
-   * toggle, chat column reflow) rewraps the text taller while the box stays at
-   * its old height. The mirror overlay paints the full text regardless, so the
-   * spilled lines render over the scroller with no textarea beneath them —
-   * visible, scrollable text that swallows clicks instead of placing the caret.
+   * The textarea carries an inline pixel height, so a width change (window
+   * resize, sidebar toggle, chat column reflow) rewraps the text taller while
+   * the box stays at its old height. The mirror overlay paints the full text
+   * regardless, so the spilled lines render over the scroller with no textarea
+   * beneath them — visible, scrollable text that swallows clicks instead of
+   * placing the caret.
    *
-   * Only width is compared: `autosize` writes the textarea's height, which grows
-   * the scroller until its cap and re-notifies this observer, so reacting to
-   * height would feed itself. The first delivery is measured like any other —
-   * the width can change between the mount-time measure and `observe()`, and
-   * re-measuring an unchanged width only writes the same height back.
+   * Only width is compared: `autosize` writes the textarea's height, which
+   * re-notifies this observer, so reacting to height would feed itself. The
+   * first delivery is measured like any other — the width can change between
+   * the mount-time measure and `observe()`.
    */
   useEffect(() => {
     const scroller = scrollerRef.current
