@@ -54,7 +54,15 @@ const AttachedFileChip = React.memo(function AttachedFileChip({
 
   return (
     <Tooltip.Root>
-      <div className={cn('group relative', isMedia ? 'flex-shrink-0' : 'min-w-0')}>
+      {/* The width cap lives here, not on the button: this wrapper anchors the remove
+          badge, and sizing it to the button's uncapped max-content width would strand
+          the badge far to the right of a long filename. */}
+      <div
+        className={cn(
+          'group relative',
+          isMedia ? 'flex-shrink-0' : 'min-w-0 max-w-[min(220px,100%)]'
+        )}
+      >
         <Tooltip.Trigger asChild>
           <button
             type='button'
@@ -62,9 +70,9 @@ const AttachedFileChip = React.memo(function AttachedFileChip({
               CHIP_SURFACE,
               isMedia
                 ? 'w-[48px] overflow-hidden'
-                : // Capped at 220px but never wider than the composer, so a long filename
-                  // truncates on a narrow viewport instead of overflowing the shell.
-                  'flex max-w-[min(220px,100%)] items-center gap-2 py-2 pr-3 pl-2'
+                : // Fills the capped wrapper, so the filename truncates rather than
+                  // widening the card past the badge it is anchored to.
+                  'flex w-full items-center gap-2 py-2 pr-3 pl-2'
             )}
             onClick={() => onFileClick(file)}
           >
