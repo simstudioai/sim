@@ -128,6 +128,22 @@ describe('WorkflowBlockBorder mount', () => {
     )
   })
 
+  it('keeps a subflow Start drag anchored to the start source, not the container exit', () => {
+    /* The Start pill's cursor swell mints the branch-cursor form of its handle
+       id. The plain cursor id normalizes by block type — for a container that
+       is the loop/parallel END source — so a swell drag from Start would
+       otherwise persist as an edge leaving the container. */
+    expect(
+      normalizeCursorSourceHandleId(getCursorBranchSourceHandleId('loop-start-source'), 'loop')
+    ).toBe('loop-start-source')
+    expect(
+      normalizeCursorSourceHandleId(
+        getCursorBranchSourceHandleId('parallel-start-source'),
+        'parallel'
+      )
+    ).toBe('parallel-start-source')
+  })
+
   it('uses the grabbed edge only for the transient preview direction', () => {
     expect(getCursorSourceHandlePosition('top')).toBe('top')
     expect(getCursorSourceHandlePosition('bottom')).toBe('bottom')

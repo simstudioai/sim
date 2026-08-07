@@ -12,6 +12,7 @@ import { BLOCK_DIMENSIONS, HANDLE_POSITIONS } from '../dimensions'
 import { OverflowSpan } from '../lib/overflow-span'
 import type { DiffStatus } from '../types'
 import {
+  getCursorBranchSourceHandleId,
   getCursorSourceHandleId,
   getCursorSourceHandlePosition,
 } from '../workflow-block/source-handle'
@@ -158,6 +159,83 @@ export function SubflowStartView({
   isHighlighted = false,
 }: SubflowStartViewProps) {
   const startHandleId = kind === 'loop' ? 'loop-start-source' : 'parallel-start-source'
+  /*
+   * The swell's temporary handle carries the branch-cursor form of the start
+   * id. The plain cursor id normalizes by block type — for a container that is
+   * `loop-end-source`/`parallel-end-source`, the container's exit — so a drag
+   * begun on the Start pill would persist as an edge leaving the container.
+   * The branch form passes the start id through normalization verbatim.
+   */
+  const cursorHandleId = getCursorBranchSourceHandleId(startHandleId)
+  const reactFlowStore = useReactFlowStoreApi()
+  const updateNodeInternals = useUpdateNodeInternals()
+  const cursorSourceHandleRef = useRef<HTMLDivElement>(null)
+  const cursorSourceHandleKeyRef = useRef<string | null>(null)
+  const [cursorSourceHandle, setCursorSourceHandle] = useState<WorkflowBorderCursorHandle | null>(
+    null
+  )
+
+  const getConnectionNodeId = useCallback(
+    () => reactFlowStore.getState().connectionNodeId,
+    [reactFlowStore]
+  )
+
+  const onCursorHandleChange = useCallback((nextHandle: WorkflowBorderCursorHandle | null) => {
+    if (!nextHandle) {
+      if (cursorSourceHandleKeyRef.current === null) return
+      cursorSourceHandleKeyRef.current = null
+      setCursorSourceHandle(null)
+      return
+    }
+
+    const handleElement = cursorSourceHandleRef.current
+    if (handleElement) {
+      handleElement.style.left = `${nextHandle.x}px`
+      handleElement.style.top = `${nextHandle.y}px`
+    }
+
+    if (cursorSourceHandleKeyRef.current !== nextHandle.edgeSide) {
+      cursorSourceHandleKeyRef.current = nextHandle.edgeSide
+      setCursorSourceHandle(nextHandle)
+    }
+  }, [])
+
+  /** Aligns React Flow's cached handle origin before a cursor-swell drag begins. */
+  const syncCursorSourceHandleBounds = useCallback(() => {
+    const handleElement = cursorSourceHandleRef.current
+    const nodeElement = handleElement?.closest<HTMLDivElement>('.react-flow__node') ?? null
+    if (!handleElement || !nodeElement) return
+
+    const state = reactFlowStore.getState()
+    const sourceBounds = state.nodeInternals.get(parentId)?.[internalsSymbol]?.handleBounds?.source
+    const handleId = handleElement.dataset.handleid
+    const handlePosition = handleElement.dataset.handlepos as Position | undefined
+    const zoom = state.transform[2]
+    if (!sourceBounds || !handleId || !handlePosition || zoom <= 0) return
+
+    const nodeBounds = nodeElement.getBoundingClientRect()
+    const handleBounds = handleElement.getBoundingClientRect()
+    const [originX, originY] = state.nodeOrigin
+    const nextBounds = {
+      id: handleId,
+      position: handlePosition,
+      x: (handleBounds.left - nodeBounds.left - nodeBounds.width * originX) / zoom,
+      y: (handleBounds.top - nodeBounds.top - nodeBounds.height * originY) / zoom,
+      width: handleElement.offsetWidth,
+      height: handleElement.offsetHeight,
+    }
+    const currentBounds = sourceBounds.find((bounds) => bounds.id === handleId)
+    if (currentBounds) {
+      Object.assign(currentBounds, nextBounds)
+      return
+    }
+    sourceBounds.push(nextBounds)
+  }, [parentId, reactFlowStore])
+
+  useLayoutEffect(() => {
+    updateNodeInternals(parentId)
+  }, [cursorSourceHandle?.edgeSide, parentId, updateNodeInternals])
+
   const ports = useMemo<WorkflowBorderPort[]>(
     () => [
       {
@@ -182,9 +260,11 @@ export function SubflowStartView({
     >
       <WorkflowBlockBorder
         nodeId={parentId}
+        getConnectionNodeId={getConnectionNodeId}
         ports={ports}
         cursorSwellEnabled={!isPreview}
         cursorSwellSides={START_CURSOR_SIDES}
+        onCursorHandleChange={!isPreview ? onCursorHandleChange : undefined}
         radius={START_CORNER_RADIUS_PX}
         hasRing={false}
         ringStyles=''
@@ -204,6 +284,31 @@ export function SubflowStartView({
         }}
         data-parent-id={parentId}
       />
+      {cursorSourceHandle && !isPreview && (
+        <Handle
+          ref={cursorSourceHandleRef}
+          type='source'
+          position={getCursorSourceHandlePosition(cursorSourceHandle.edgeSide)}
+          id={cursorHandleId}
+          className='!z-50 !cursor-crosshair !rounded-none !border-none !bg-transparent !opacity-0'
+          style={{
+            right: 'auto',
+            bottom: 'auto',
+            left: cursorSourceHandle.x,
+            top: cursorSourceHandle.y,
+            transform: 'translate(-50%, -50%)',
+            pointerEvents: 'auto',
+            ...getCursorHandleSize(cursorSourceHandle.edgeSide),
+          }}
+          data-nodeid={parentId}
+          data-handleid={cursorHandleId}
+          data-workflow-cursor-edge={cursorSourceHandle.edgeSide}
+          data-workflow-cursor-source-side={cursorSourceHandle.side}
+          isConnectableStart={true}
+          isConnectableEnd={false}
+          onPointerDownCapture={syncCursorSourceHandleBounds}
+        />
+      )}
     </div>
   )
 }
