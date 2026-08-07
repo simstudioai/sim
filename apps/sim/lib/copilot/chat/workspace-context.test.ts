@@ -127,6 +127,32 @@ describe('buildWorkspaceMd - connected integrations / credentials', () => {
     expect(md).toContain('- STRIPE_SECRET_KEY')
     expect(buildVfsSnapshot(data).envVars).toEqual(['OPENAI_API_KEY', 'STRIPE_SECRET_KEY'])
   })
+
+  it('shows values for non-secret env vars and only names for secrets', () => {
+    const data = baseData({
+      envVariables: ['OPENAI_API_KEY', 'SUPPORT_EMAIL'],
+      nonSecretEnvVariables: [{ name: 'SUPPORT_EMAIL', value: 'help@acme.com' }],
+    })
+
+    const md = buildWorkspaceMd(data)
+    expect(md).toContain('- SUPPORT_EMAIL = help@acme.com')
+    // Both halves in one assertion set: a secret must stay a bare name even
+    // when a sibling key in the same section is non-secret.
+    expect(md).toContain('- OPENAI_API_KEY\n')
+    expect(md).not.toContain('OPENAI_API_KEY =')
+
+    // Carried as a struct kind so Go can diff a VALUE change, not just a name.
+    expect(buildVfsSnapshot(data).nonSecretEnvVars).toEqual([
+      { name: 'SUPPORT_EMAIL', value: 'help@acme.com' },
+    ])
+  })
+
+  it('renders every name bare and omits the kind when nothing is non-secret', () => {
+    const data = baseData({ envVariables: ['OPENAI_API_KEY'] })
+
+    expect(buildWorkspaceMd(data)).not.toContain('non-secret')
+    expect(buildVfsSnapshot(data).nonSecretEnvVars).toEqual([])
+  })
 })
 
 describe('buildWorkspaceMd - Sim sandbox entitlement projection', () => {

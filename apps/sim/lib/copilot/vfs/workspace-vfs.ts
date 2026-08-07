@@ -2483,10 +2483,13 @@ export class WorkspaceVFS {
           role: c.role,
         })),
         envVariables: envKeys,
-        // Already narrowed to mount-policy-visible names by the filter above.
-        nonSecretEnvVariables: visibleEnvCredentials
-          .filter((credential) => credential.envVisibility === 'variable')
-          .map((credential) => credential.envKey),
+        // Reuses the same map written to environment/variables.json above, so
+        // the inventory and the VFS file can never disagree about which names
+        // are non-secret or what their values are.
+        nonSecretEnvVariables: Object.entries(nonSecretValues).map(([name, value]) => ({
+          name,
+          value,
+        })),
       }
     } catch (err) {
       logger.warn('Failed to materialize environment data', {

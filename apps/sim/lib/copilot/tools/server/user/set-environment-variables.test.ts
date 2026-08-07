@@ -51,7 +51,15 @@ describe('setEnvironmentVariablesServerTool', () => {
     )
 
     expect(ensureWorkspaceAccessMock).toHaveBeenCalledWith('ws-1', 'user-1', 'write')
-    expect(upsertWorkspaceEnvVarsMock).toHaveBeenCalledWith('ws-1', { API_KEY: 'secret' }, 'user-1')
+    // The visibility map is asserted, not ignored: an unspecified `kind` must
+    // resolve to 'secret', so a future default flip fails here rather than
+    // silently publishing values.
+    expect(upsertWorkspaceEnvVarsMock).toHaveBeenCalledWith(
+      'ws-1',
+      { API_KEY: 'secret' },
+      'user-1',
+      { visibilityByKey: { API_KEY: 'secret' } }
+    )
     expect(upsertPersonalEnvVarsMock).not.toHaveBeenCalled()
     expect(result.scope).toBe('workspace')
     expect(result.workspaceId).toBe('ws-1')
@@ -89,7 +97,8 @@ describe('setEnvironmentVariablesServerTool', () => {
     expect(upsertWorkspaceEnvVarsMock).toHaveBeenCalledWith(
       'ws-default',
       { API_KEY: 'secret' },
-      'user-1'
+      'user-1',
+      { visibilityByKey: { API_KEY: 'secret' } }
     )
   })
 })

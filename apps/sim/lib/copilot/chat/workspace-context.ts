@@ -22,6 +22,7 @@ import {
   getAccessibleEnvCredentials,
   getAccessibleOAuthCredentials,
 } from '@/lib/credentials/environment'
+import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { listWorkspaceSandboxes } from '@/lib/execution/remote-sandbox/workspace-sandboxes'
 import { listWorkspaceFiles } from '@/lib/uploads/contexts/workspace'
 import { listCustomBlockSummariesForWorkspace } from '@/lib/workflows/custom-blocks/operations'
@@ -79,13 +80,19 @@ export interface WorkspaceMdData {
   }>
   envVariables: string[]
   /**
-   * Subset of {@link envVariables} explicitly marked non-secret. Rendered as a
-   * marker rather than a separate section: env vars are secret or non-secret,
-   * not a third kind of thing, and a `## Workspace Variables` heading would
-   * collide with workflow variables (`<variable.NAME>`) in the agent's model.
-   * Values live in `environment/variables.json` under `nonSecretValues`.
+   * Subset of {@link envVariables} explicitly marked non-secret, with values.
+   *
+   * Rendered inside the Environment Variables section rather than under its own
+   * heading: env vars are secret or non-secret, not a third kind of thing, and a
+   * separate `## Workspace Variables` heading would collide with workflow
+   * variables (`<variable.NAME>`) in the agent's model.
+   *
+   * Optional like the other late-added collections here: an absent list reads
+   * as "no non-secret vars", which fails toward showing less, not more. (The
+   * exempt set handed to the resolved-secret registry is required for the
+   * opposite reason — there, omission would fail toward disclosure.)
    */
-  nonSecretEnvVariables: string[]
+  nonSecretEnvVariables?: Array<{ name: string; value: string }>
   customTools?: Array<{ id: string; name: string }>
   customBlocks?: Array<{ type: string; name: string; description?: string }>
   mcpServers?: Array<{ id: string; name: string; url?: string | null; enabled: boolean }>
@@ -109,6 +116,24 @@ export interface WorkspaceMdData {
  */
 function stableCompare(a: string, b: string): number {
   return a.localeCompare(b, 'en')
+}
+
+/**
+ * Narrows non-secret env vars to those a mount policy already exposes.
+ * `filterSecretNamesByMountPolicy` takes bare names, so this maps through it and
+ * keeps the paired values rather than duplicating the policy logic.
+ */
+function filterNonSecretEnvVarsByMountPolicy(
+  entries: Array<{ name: string; value: string }>,
+  policy?: SecretMountPolicy
+): Array<{ name: string; value: string }> {
+  const visible = new Set(
+    filterSecretNamesByMountPolicy(
+      entries.map((entry) => entry.name),
+      policy
+    )
+  )
+  return entries.filter((entry) => visible.has(entry.name))
 }
 
 /** Stable order by display name, tie-broken by id, for inventory listings. */
@@ -269,12 +294,14 @@ export function buildWorkspaceMd(data: WorkspaceMdData): string {
   }
 
   if (data.envVariables.length > 0) {
-    const nonSecret = new Set(data.nonSecretEnvVariables)
+    const nonSecretValues = new Map(
+      (data.nonSecretEnvVariables ?? []).map((v) => [v.name, v.value])
+    )
     const lines = [...data.envVariables]
       .sort(stableCompare)
-      .map((v) => (nonSecret.has(v) ? `- ${v} (non-secret)` : `- ${v}`))
-    const note = nonSecret.size
-      ? '\nValues for the names marked non-secret are in environment/variables.json under nonSecretValues; every other name is a secret whose value you cannot read.'
+      .map((v) => (nonSecretValues.has(v) ? `- ${v} = ${nonSecretValues.get(v)}` : `- ${v}`))
+    const note = nonSecretValues.size
+      ? '\nNames shown with a value are non-secret: you may read and quote those values. Every other name is a secret — reference it as {{NAME}} and never print its value.'
       : ''
     sections.push(
       `## Environment Variables (${data.envVariables.length})${note}\n${lines.join('\n')}`
@@ -372,6 +399,7 @@ async function buildWorkspaceMdData(
       mcpServerRows,
       skillRows,
       customBlockSummaries,
+      envSnapshot,
       sandboxResult,
     ] = await Promise.all([
       getUsersWithPermissions(workspaceId),
@@ -446,6 +474,11 @@ async function buildWorkspaceMdData(
       listSkillsForUser({ workspaceId, userId, includeBuiltins: false, workspaceAccess }),
 
       listCustomBlockSummariesForWorkspace(workspaceId),
+
+      // Values for non-secret env vars. Behind the 2s effective-environment LRU,
+      // so this usually shares the decrypt the VFS materialization already did
+      // for the same turn.
+      getPersonalAndWorkspaceEnv(userId, workspaceId, { workspaceAccess }),
 
       hasWorkspaceSandboxAccess(workspaceId).then(async (entitled) => ({
         entitled,
@@ -529,15 +562,22 @@ async function buildWorkspaceMdData(
       envVariables: [...new Set(envCredentials.map((credential) => credential.envKey))].sort(
         stableCompare
       ),
-      // Derived from the same credential rows, so this costs no extra query and
-      // no decryption — only the names are needed here.
+      // Names come from the credential rows (the visibility source of truth);
+      // values from the decrypted snapshot. A name whose value is missing is
+      // dropped rather than emitted empty, so a decryption failure cannot look
+      // like a variable that is legitimately blank.
       nonSecretEnvVariables: [
         ...new Set(
           envCredentials
             .filter((credential) => credential.envVisibility === 'variable')
             .map((credential) => credential.envKey)
         ),
-      ].sort(stableCompare),
+      ]
+        .sort(stableCompare)
+        .flatMap((name) => {
+          const value = envSnapshot.workspaceDecrypted[name]
+          return value === undefined ? [] : [{ name, value }]
+        }),
       customTools: customTools.map((t) => ({ id: t.id, name: t.title })),
       customBlocks: customBlockSummaries,
       mcpServers: mcpServerRows,
@@ -583,10 +623,10 @@ export async function generateWorkspaceContext(
     ...data,
     envVariables: filterSecretNamesByMountPolicy(data.envVariables, options?.secretMountPolicy),
     // Filtered by the same policy so a restricted mount list cannot be widened
-    // just because a key is non-secret, and so a name can never be marked
-    // non-secret in the inventory while being absent from the list above.
-    nonSecretEnvVariables: filterSecretNamesByMountPolicy(
-      data.nonSecretEnvVariables,
+    // just because a key is non-secret, and so a name can never be shown with a
+    // value in the inventory while being absent from the list above.
+    nonSecretEnvVariables: filterNonSecretEnvVarsByMountPolicy(
+      data.nonSecretEnvVariables ?? [],
       options?.secretMountPolicy
     ),
   })
@@ -664,6 +704,13 @@ export function buildVfsSnapshot(data: WorkspaceMdData): VfsSnapshotV1 {
       ...(c.role ? { role: c.role } : {}),
     })),
     envVars: data.envVariables,
+    // Carries values, unlike `envVars`. That is the point: a non-secret value
+    // edit changes no NAME, so a name-only kind would emit no delta and leave
+    // the model answering from a stale baseline.
+    nonSecretEnvVars: (data.nonSecretEnvVariables ?? []).map((v) => ({
+      name: v.name,
+      value: v.value,
+    })),
     customTools: (data.customTools ?? []).map((t) => ({ id: t.id, name: t.name })),
     customBlocks: (data.customBlocks ?? []).map((b) => ({
       type: b.type,

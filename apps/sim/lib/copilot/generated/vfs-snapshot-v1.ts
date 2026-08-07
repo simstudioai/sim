@@ -10,10 +10,10 @@ export interface VfsSnapshotV1 {
   envVars?: string[]
   files?: VfsSnapshotV1File[]
   integrations?: VfsSnapshotV1Integration[]
-  jobs?: VfsSnapshotV1Job[]
   knowledgeBases?: VfsSnapshotV1KnowledgeBase[]
   mcpServers?: VfsSnapshotV1McpServer[]
   members?: VfsSnapshotV1Member[]
+  nonSecretEnvVars?: VfsSnapshotV1NonSecretEnvVar[]
   sandboxes?: VfsSnapshotV1Sandbox[]
   skills?: VfsSnapshotV1Skill[]
   tables?: VfsSnapshotV1Table[]
@@ -61,19 +61,6 @@ export interface VfsSnapshotV1Integration {
 }
 /**
  * This interface was referenced by `VfsSnapshotV1`'s JSON-Schema
- * via the `definition` "VfsSnapshotV1Job".
- */
-export interface VfsSnapshotV1Job {
-  cronExpression?: string
-  id: string
-  lifecycle?: string
-  prompt?: string
-  sourceTaskName?: string
-  status?: string
-  title?: string
-}
-/**
- * This interface was referenced by `VfsSnapshotV1`'s JSON-Schema
  * via the `definition` "VfsSnapshotV1KnowledgeBase".
  */
 export interface VfsSnapshotV1KnowledgeBase {
@@ -100,6 +87,14 @@ export interface VfsSnapshotV1Member {
   email: string
   name?: string
   permissionType?: string
+}
+/**
+ * This interface was referenced by `VfsSnapshotV1`'s JSON-Schema
+ * via the `definition` "VfsSnapshotV1NonSecretEnvVar".
+ */
+export interface VfsSnapshotV1NonSecretEnvVar {
+  name: string
+  value?: string
 }
 /**
  * This interface was referenced by `VfsSnapshotV1`'s JSON-Schema
