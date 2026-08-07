@@ -39,6 +39,10 @@
     "./setup": {
       "types": "./src/setup/vitest.setup.ts",
       "default": "./src/setup/vitest.setup.ts"
+    },
+    "./environment": {
+      "types": "./src/environment/index.ts",
+      "default": "./src/environment/index.ts"
     }
   },
   "scripts": {

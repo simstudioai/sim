@@ -4,16 +4,14 @@ import { listTablesContract } from '@/lib/api/contracts/tables'
 import type { TableDefinition } from '@/lib/table'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { tableKeys } from '@/hooks/queries/utils/table-keys'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { readActiveWorkflowContext, readBlockValues } from '@/triggers/editor-state'
 import type { TriggerConfig } from '@/triggers/types'
 
 async function fetchTableColumns(blockId: string): Promise<Array<{ label: string; id: string }>> {
-  const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
-  const workspaceId = useWorkflowRegistry.getState().hydration.workspaceId
+  const { activeWorkflowId, workspaceId } = await readActiveWorkflowContext()
   if (!activeWorkflowId || !workspaceId) return []
 
-  const blockValues = useSubBlockStore.getState().workflowValues[activeWorkflowId]?.[blockId]
+  const blockValues = await readBlockValues(blockId)
   const tableId = (blockValues?.tableSelector as string) || (blockValues?.manualTableId as string)
   if (!tableId) return []
 

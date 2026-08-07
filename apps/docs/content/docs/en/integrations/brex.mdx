@@ -34,7 +34,7 @@ Integrates Brex into the workflow. List and update expenses, upload and match re
 
 ## Actions
 
-### `brex_list_expenses`
+### Brex List Expenses
 
 List expenses in the Brex account with optional filters for user, status, payment status, and purchase date range
 
@@ -96,7 +96,7 @@ List expenses in the Brex account with optional filters for user, status, paymen
 |   ↳ `dashboard_url` | string | Link to the expense in the Brex dashboard |
 | `nextCursor` | string | Cursor for fetching the next page of results |
 
-### `brex_get_expense`
+### Brex Get Expense
 
 Get a single Brex expense by its ID, including merchant, user, and receipt details
 
@@ -159,7 +159,7 @@ Get a single Brex expense by its ID, including merchant, user, and receipt detai
 |   ↳ `download_uris` | array | Pre-signed receipt download URLs |
 | `dashboardUrl` | string | Link to the expense in the Brex dashboard |
 
-### `brex_update_expense`
+### Brex Update Expense
 
 Update the memo of a Brex card expense
 
@@ -191,7 +191,7 @@ Update the memo of a Brex card expense
 | `purchasedAt` | string | Purchase timestamp \(ISO 8601\) |
 | `updatedAt` | string | Last update timestamp \(ISO 8601\) |
 
-### `brex_upload_receipt`
+### Brex Upload Receipt
 
 Upload a receipt file and attach it to a specific Brex card expense
 
@@ -212,7 +212,7 @@ Upload a receipt file and attach it to a specific Brex card expense
 | `receiptName` | string | Name the receipt was uploaded with |
 | `expenseId` | string | ID of the expense the receipt was attached to |
 
-### `brex_match_receipt`
+### Brex Match Receipt
 
 Upload a receipt file and let Brex automatically match it with existing expenses
 
@@ -232,7 +232,7 @@ Upload a receipt file and let Brex automatically match it with existing expenses
 | `receiptName` | string | Name the receipt was uploaded with |
 | `expenseId` | string | Always null for receipt match \(Brex matches the receipt asynchronously\) |
 
-### `brex_list_card_transactions`
+### Brex List Card Transactions
 
 List settled card transactions for all Brex card accounts
 
@@ -267,7 +267,7 @@ List settled card transactions for all Brex card accounts
 |   ↳ `expense_id` | string | Associated expense ID |
 | `nextCursor` | string | Cursor for fetching the next page of results |
 
-### `brex_list_cash_transactions`
+### Brex List Cash Transactions
 
 List transactions for a Brex cash account
 
@@ -297,7 +297,7 @@ List transactions for a Brex cash account
 |   ↳ `transfer_id` | string | Associated transfer ID |
 | `nextCursor` | string | Cursor for fetching the next page of results |
 
-### `brex_list_card_accounts`
+### Brex List Card Accounts
 
 List all Brex card accounts with balances and limits
 
@@ -325,7 +325,7 @@ List all Brex card accounts with balances and limits
 |     ↳ `currency` | string | ISO 4217 currency code \(e.g., USD\) |
 |   ↳ `current_statement_period` | json | Current statement period \(start_date, end_date\) |
 
-### `brex_list_cash_accounts`
+### Brex List Cash Accounts
 
 List all Brex cash accounts with balances and account details
 
@@ -356,7 +356,7 @@ List all Brex cash accounts with balances and account details
 |   ↳ `primary` | boolean | Whether this is the primary cash account |
 | `nextCursor` | string | Cursor for fetching the next page of results |
 
-### `brex_get_cash_account`
+### Brex Get Cash Account
 
 Get a Brex cash account by ID, or the primary cash account when no ID is provided
 
@@ -384,7 +384,7 @@ Get a Brex cash account by ID, or the primary cash account when no ID is provide
 | `routingNumber` | string | Bank routing number |
 | `primary` | boolean | Whether this is the primary cash account |
 
-### `brex_list_card_statements`
+### Brex List Card Statements
 
 List finalized statements for the primary Brex card account
 
@@ -411,7 +411,7 @@ List finalized statements for the primary Brex card account
 |   ↳ `period` | json | Statement period \(start_date, end_date\) |
 | `nextCursor` | string | Cursor for fetching the next page of results |
 
-### `brex_list_cash_statements`
+### Brex List Cash Statements
 
 List finalized statements for a Brex cash account
 
@@ -439,7 +439,7 @@ List finalized statements for a Brex cash account
 |   ↳ `period` | json | Statement period \(start_date, end_date\) |
 | `nextCursor` | string | Cursor for fetching the next page of results |
 
-### `brex_list_users`
+### Brex List Users
 
 List users in the Brex account, optionally filtered by email
 
@@ -468,7 +468,7 @@ List users in the Brex account, optionally filtered by email
 |   ↳ `title_id` | string | Title ID |
 | `nextCursor` | string | Cursor for fetching the next page of results |
 
-### `brex_get_user`
+### Brex Get User
 
 Get a Brex user by their ID
 
@@ -493,7 +493,7 @@ Get a Brex user by their ID
 | `locationId` | string | Location ID |
 | `titleId` | string | Title ID |
 
-### `brex_get_current_user`
+### Brex Get Current User
 
 Get the Brex user associated with the API token
 
@@ -517,7 +517,7 @@ Get the Brex user associated with the API token
 | `locationId` | string | Location ID |
 | `titleId` | string | Title ID |
 
-### `brex_list_departments`
+### Brex List Departments
 
 List departments in the Brex account, optionally filtered by name
 
@@ -540,7 +540,7 @@ List departments in the Brex account, optionally filtered by name
 |   ↳ `description` | string | Department description |
 | `nextCursor` | string | Cursor for fetching the next page of results |
 
-### `brex_list_locations`
+### Brex List Locations
 
 List locations in the Brex account, optionally filtered by name
 
@@ -563,7 +563,7 @@ List locations in the Brex account, optionally filtered by name
 |   ↳ `description` | string | Location description |
 | `nextCursor` | string | Cursor for fetching the next page of results |
 
-### `brex_list_titles`
+### Brex List Titles
 
 List job titles in the Brex account, optionally filtered by name
 
@@ -585,7 +585,7 @@ List job titles in the Brex account, optionally filtered by name
 |   ↳ `name` | string | Title name |
 | `nextCursor` | string | Cursor for fetching the next page of results |
 
-### `brex_list_cards`
+### Brex List Cards
 
 List cards in the Brex account, optionally filtered by card owner
 
@@ -616,7 +616,7 @@ List cards in the Brex account, optionally filtered by card owner
 |   ↳ `budget_id` | string | Associated budget ID |
 | `nextCursor` | string | Cursor for fetching the next page of results |
 
-### `brex_get_company`
+### Brex Get Company
 
 Get the Brex company associated with the API token
 
@@ -635,7 +635,7 @@ Get the Brex company associated with the API token
 | `mailingAddress` | json | Company mailing address \(line1, line2, city, state, country, postal_code\) |
 | `accountType` | string | Brex account type \(BREX_CLASSIC or BREX_EMPOWER\) |
 
-### `brex_list_budgets`
+### Brex List Budgets
 
 List budgets in the Brex account
 
@@ -668,7 +668,7 @@ List budgets in the Brex account
 |   ↳ `limit_type` | string | Budget limit type |
 | `nextCursor` | string | Cursor for fetching the next page of results |
 
-### `brex_get_budget`
+### Brex Get Budget
 
 Get a Brex budget by its ID
 
@@ -698,7 +698,7 @@ Get a Brex budget by its ID
 | `spendBudgetStatus` | string | Budget status \(ACTIVE, ARCHIVED, DELETED\) |
 | `limitType` | string | Budget limit type \(HARD or SOFT\) |
 
-### `brex_create_budget`
+### Brex Create Budget
 
 Create a new budget in the Brex account
 
@@ -736,7 +736,7 @@ Create a new budget in the Brex account
 | `spendBudgetStatus` | string | Status of the created budget |
 | `limitType` | string | Budget limit type |
 
-### `brex_archive_budget`
+### Brex Archive Budget
 
 Archive a Brex budget, making any spend limits beneath it unusable for future expenses and removing it from the UI
 
@@ -754,7 +754,7 @@ Archive a Brex budget, making any spend limits beneath it unusable for future ex
 | `budgetId` | string | ID of the archived budget |
 | `spendBudgetStatus` | string | Status of the budget after archiving |
 
-### `brex_list_spend_limits`
+### Brex List Spend Limits
 
 List spend limits in the Brex account, optionally filtered by member user
 
@@ -798,7 +798,7 @@ List spend limits in the Brex account, optionally filtered by member user
 |   ↳ `authorization_settings` | json | Authorization settings \(base limit, authorization type, rollover refresh\) |
 | `nextCursor` | string | Cursor for fetching the next page of results |
 
-### `brex_get_spend_limit`
+### Brex Get Spend Limit
 
 Get a Brex spend limit by its ID
 
@@ -838,7 +838,7 @@ Get a Brex spend limit by its ID
 |     ↳ `currency` | string | ISO 4217 currency code \(e.g., USD\) |
 | `authorizationSettings` | json | Authorization settings \(base limit, authorization type, rollover refresh\) |
 
-### `brex_create_spend_limit`
+### Brex Create Spend Limit
 
 Create a new spend limit (hard-authorization card program) in the Brex account
 
@@ -898,7 +898,7 @@ Create a new spend limit (hard-authorization card program) in the Brex account
 |     ↳ `currency` | string | ISO 4217 currency code \(e.g., USD\) |
 | `authorizationSettings` | json | Authorization settings \(base limit, authorization type, rollover refresh\) |
 
-### `brex_list_vendors`
+### Brex List Vendors
 
 List vendors in the Brex account, optionally filtered by name
 
@@ -923,7 +923,7 @@ List vendors in the Brex account, optionally filtered by name
 |   ↳ `payment_accounts` | array | Payment accounts associated with the vendor |
 | `nextCursor` | string | Cursor for fetching the next page of results |
 
-### `brex_get_vendor`
+### Brex Get Vendor
 
 Get a Brex vendor by its ID
 
@@ -944,7 +944,7 @@ Get a Brex vendor by its ID
 | `phone` | string | Vendor phone number |
 | `paymentAccounts` | array | Payment accounts associated with the vendor |
 
-### `brex_create_vendor`
+### Brex Create Vendor
 
 Create a new vendor in the Brex account
 
@@ -967,7 +967,7 @@ Create a new vendor in the Brex account
 | `phone` | string | Vendor phone number |
 | `paymentAccounts` | array | Payment accounts associated with the vendor |
 
-### `brex_update_vendor`
+### Brex Update Vendor
 
 Update an existing vendor in the Brex account
 
@@ -991,7 +991,7 @@ Update an existing vendor in the Brex account
 | `phone` | string | Vendor phone number |
 | `paymentAccounts` | array | Payment accounts associated with the vendor |
 
-### `brex_list_transfers`
+### Brex List Transfers
 
 List money transfers in the Brex account
 
@@ -1027,7 +1027,7 @@ List money transfers in the Brex account
 |   ↳ `is_ppro_enabled` | boolean | Whether Principal Protection \(PPRO\) is enabled |
 | `nextCursor` | string | Cursor for fetching the next page of results |
 
-### `brex_get_transfer`
+### Brex Get Transfer
 
 Get a Brex money transfer by its ID
 
@@ -1060,7 +1060,7 @@ Get a Brex money transfer by its ID
 | `externalMemo` | string | External memo |
 | `isPproEnabled` | boolean | Whether Principal Protection \(PPRO\) is enabled |
 
-### `brex_create_transfer`
+### Brex Create Transfer
 
 Create a money transfer from a Brex cash account to a vendor
 

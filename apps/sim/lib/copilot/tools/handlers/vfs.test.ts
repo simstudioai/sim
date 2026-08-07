@@ -292,6 +292,50 @@ describe('vfs handlers oversize policy', () => {
     )
   })
 
+  it('windows against the real line count when a read under-reports totalLines', async () => {
+    const vfs = makeVfs()
+    vfs.readFileContentWithProvenance.mockResolvedValue({
+      // `/extract` synthesizes a whole extracted document but reports totalLines: 1.
+      value: { content: 'page one\npage two\npage three', totalLines: 1 },
+      file: { fileId: 'file-1', key: 'workspace/key-1', context: 'workspace' },
+    })
+    getOrMaterializeVFS.mockResolvedValue(vfs)
+
+    const result = await executeVfsRead(
+      { path: 'files/report.pdf/extract', offset: 1, limit: 2 },
+      GREP_CTX
+    )
+
+    expect(result.success).toBe(true)
+    expect(result.output).toEqual({ content: 'page two\npage three', totalLines: 1 })
+  })
+
+  it('leaves an attachment read unwindowed so its label is never blanked', async () => {
+    const vfs = makeVfs()
+    const imageResult = {
+      content: 'Image: photo.jpeg (157.0KB, image/jpeg, resized for vision)',
+      totalLines: 1,
+      attachment: {
+        type: 'image',
+        name: 'photo.jpeg',
+        source: { type: 'base64', media_type: 'image/jpeg', data: 'AAAA' },
+      },
+    }
+    vfs.readFileContentWithProvenance.mockResolvedValue({
+      value: imageResult,
+      file: { fileId: 'file-1', key: 'workspace/key-1', context: 'workspace' },
+    })
+    getOrMaterializeVFS.mockResolvedValue(vfs)
+
+    const result = await executeVfsRead(
+      { path: 'files/photo.jpeg/content', offset: 1, limit: 100 },
+      GREP_CTX
+    )
+
+    expect(result.success).toBe(true)
+    expect(result.output).toEqual(imageResult)
+  })
+
   it('rejects only the file read when durable provenance cannot be verified', async () => {
     const vfs = makeVfs()
     vfs.readFileContentWithProvenance.mockResolvedValue({

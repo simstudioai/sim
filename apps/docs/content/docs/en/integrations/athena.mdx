@@ -44,7 +44,7 @@ Integrate AWS Athena into workflows. Execute SQL queries against data in S3, che
 
 ## Actions
 
-### `athena_start_query`
+### Athena Start Query
 
 Start an SQL query execution in AWS Athena
 
@@ -67,7 +67,7 @@ Start an SQL query execution in AWS Athena
 | --------- | ---- | ----------- |
 | `queryExecutionId` | string | Unique ID of the started query execution |
 
-### `athena_get_query_execution`
+### Athena Get Query Execution
 
 Get the status and details of an Athena query execution
 
@@ -101,7 +101,7 @@ Get the status and details of an Athena query execution
 | `totalExecutionTimeInMillis` | number | Total execution time in milliseconds |
 | `outputLocation` | string | S3 location of query results |
 
-### `athena_get_query_results`
+### Athena Get Query Results
 
 Retrieve the results of a completed Athena query execution
 
@@ -125,7 +125,7 @@ Retrieve the results of a completed Athena query execution
 | `nextToken` | string | Pagination token for next page of results |
 | `updateCount` | number | Number of rows affected \(for INSERT/UPDATE statements\) |
 
-### `athena_stop_query`
+### Athena Stop Query
 
 Stop a running Athena query execution
 
@@ -144,7 +144,7 @@ Stop a running Athena query execution
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the query was successfully stopped |
 
-### `athena_list_query_executions`
+### Athena List Query Executions
 
 List recent Athena query execution IDs
 
@@ -166,7 +166,7 @@ List recent Athena query execution IDs
 | `queryExecutionIds` | array | List of query execution IDs |
 | `nextToken` | string | Pagination token for next page |
 
-### `athena_batch_get_query_execution`
+### Athena Batch Get Query Executions
 
 Get the status and details of up to 50 Athena query executions in one call
 
@@ -205,7 +205,7 @@ Get the status and details of up to 50 Athena query executions in one call
 |   ↳ `errorCode` | string | Error code |
 |   ↳ `errorMessage` | string | Error message |
 
-### `athena_create_named_query`
+### Athena Create Named Query
 
 Create a saved/named query in AWS Athena
 
@@ -228,7 +228,7 @@ Create a saved/named query in AWS Athena
 | --------- | ---- | ----------- |
 | `namedQueryId` | string | ID of the created named query |
 
-### `athena_get_named_query`
+### Athena Get Named Query
 
 Get details of a saved/named query in AWS Athena
 
@@ -252,7 +252,7 @@ Get details of a saved/named query in AWS Athena
 | `queryString` | string | SQL query string |
 | `workGroup` | string | Workgroup name |
 
-### `athena_list_named_queries`
+### Athena List Named Queries
 
 List saved/named query IDs in AWS Athena
 
@@ -274,7 +274,7 @@ List saved/named query IDs in AWS Athena
 | `namedQueryIds` | array | List of named query IDs |
 | `nextToken` | string | Pagination token for next page |
 
-### `athena_delete_named_query`
+### Athena Delete Named Query
 
 Delete a saved/named query in AWS Athena
 
@@ -293,7 +293,7 @@ Delete a saved/named query in AWS Athena
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the named query was successfully deleted |
 
-### `athena_list_databases`
+### Athena List Databases
 
 List the databases available in an Athena data catalog
 
@@ -318,7 +318,7 @@ List the databases available in an Athena data catalog
 |   ↳ `description` | string | Database description |
 | `nextToken` | string | Pagination token for next page |
 
-### `athena_list_table_metadata`
+### Athena List Table Metadata
 
 List tables and their column/partition metadata for an Athena database
 

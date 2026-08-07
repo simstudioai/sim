@@ -116,11 +116,17 @@ export const getPublicFileContract = defineRouteContract({
   },
 })
 
+const publicFileContentQuerySchema = z.object({
+  /** `1` => rendering, not downloading — a HEIC may be substituted with a JPEG derivative. */
+  preview: z.string().nullish(),
+})
+
 /** Binary stream of the shared file's bytes. Authorized solely by an active token. */
 export const getPublicFileContentContract = defineRouteContract({
   method: 'GET',
   path: '/api/files/public/[token]/content',
   params: publicFileTokenParamsSchema,
+  query: publicFileContentQuerySchema,
   response: {
     mode: 'binary',
   },

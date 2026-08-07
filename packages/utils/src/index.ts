@@ -1,4 +1,4 @@
-export { getErrorMessage, getPostgresErrorCode, toError } from './errors.js'
+export { getErrorMessage, getPostgresErrorCode, toError } from './errors'
 export {
   formatAbsoluteDate,
   formatCompactTimestamp,
@@ -9,18 +9,18 @@ export {
   formatTime,
   formatTimeWithSeconds,
   getTimezoneAbbreviation,
-} from './formatting.js'
-export { chunkArray, noop, sleep } from './helpers.js'
-export { generateId, generateShortId, isValidUuid } from './id.js'
-export type { EmbedInfo } from './media-embed.js'
-export { getEmbedInfo } from './media-embed.js'
+} from './formatting'
+export { chunkArray, noop, sleep } from './helpers'
+export { generateId, generateShortId, isValidUuid } from './id'
+export type { EmbedInfo } from './media-embed'
+export { getEmbedInfo } from './media-embed'
 export {
   filterUndefined,
   isPlainRecord,
   isRecordLike,
   omit,
   sortObjectKeysDeep,
-} from './object.js'
+} from './object'
 export {
   generateRandomBytes,
   generateRandomHex,
@@ -29,14 +29,14 @@ export {
   randomFloat,
   randomInt,
   randomItem,
-} from './random.js'
-export type { BackoffOptions } from './retry.js'
-export { backoffWithJitter, parseRetryAfter } from './retry.js'
-export { normalizeSSODomain } from './sso-domain.js'
+} from './random'
+export type { BackoffOptions } from './retry'
+export { backoffWithJitter, parseRetryAfter } from './retry'
+export { normalizeSSODomain } from './sso-domain'
 export {
   isValidEmailSyntax,
   normalizeEmail,
   sanitizeForJsonb,
   sanitizeValueForJsonb,
   truncate,
-} from './string.js'
+} from './string'

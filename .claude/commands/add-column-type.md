@@ -14,7 +14,7 @@ This was not always true: adding `currency` originally took ~40 edits across 32 
 Do **not** hunt for places to edit. Add your type to the `ColumnType` union first and let `tsc` produce the list:
 
 ```bash
-cd apps/sim && bunx tsc --noEmit -p tsconfig.json
+cd apps/sim && bun run type-check
 ```
 
 You will get two errors, naming `column-types/registry.ts` and `column-types/registry.server.ts`. Register in both.
@@ -152,7 +152,7 @@ Registering the *type* is compiler-enforced. Registering its *metadata* is not, 
 
 ## Final Validation (Required)
 
-1. **`cd apps/sim && bunx tsc --noEmit -p tsconfig.json`** — must be clean. If any file *outside* `column-types/` errors, that file has a hardcoded type list; fix it to read the registry.
+1. **`cd apps/sim && bun run type-check`** — must be clean. If any file *outside* `column-types/` errors, that file has a hardcoded type list; fix it to read the registry.
 2. **Grep for leaks** — `grep -rnE "(===|!==) '{id}'|case '{id}':" apps/sim --include='*.ts' --include='*.tsx' | grep -v column-types/`. (All three forms: a plain `!==` and a `case` are how half of `currency`'s real branches are written.) Hits are expected; judge each. A hit is fine when it mounts a specific React component or encodes a genuinely one-off behavior (`json`'s mono textarea, `date`'s timezone-aware parsing). A hit is a **leak** when it restates something the registry could answer — an icon, a label, a colour, an operator set, a cast, a coercion. Leaks get a registry field, not a new branch.
 3. **Run the suite** — `bunx vitest run lib/table 'app/workspace/[workspaceId]/tables' lib/api app/api/table app/api/v1 lib/copilot/tools/server/table`. Existing tests must pass **unchanged**; needing to edit one means you changed behavior for the other types.
 4. **`bun run lint:check`, `bun run check:api-validation`, `bun run check:client-boundary`** from the repo root.

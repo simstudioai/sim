@@ -14,13 +14,18 @@ import { MothershipStreamV1ToolOutcome } from '@/lib/copilot/generated/mothershi
 import {
   RunBlock,
   RunFromBlock,
+  RunWorkflow,
   RunWorkflowUntilBlock,
 } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   CompletionReportError,
   reportClientToolCompletion as reportCompletion,
 } from '@/lib/copilot/tools/client/completion'
-import { getWorkflowToolCompletionMessage } from '@/lib/copilot/tools/workflow-tools'
+import {
+  type AsyncWorkflowDeploymentError,
+  getAsyncWorkflowDeploymentError,
+  getWorkflowToolCompletionMessage,
+} from '@/lib/copilot/tools/workflow-tools'
 import { executeWorkflowWithFullLogging } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
 import {
   isExecutionStreamHttpError,
@@ -45,6 +50,7 @@ const PENDING_COMPLETION_STORAGE_PREFIX = 'sim:copilot:run-tool-completion:'
 interface PendingCompletionReport {
   status: AsyncConfirmationStatus
   executionId?: string
+  clearExecutionPointerAfterReport?: boolean
 }
 
 function resolveWorkflowInput(params: Record<string, unknown>): unknown {
@@ -61,6 +67,123 @@ function resolveTriggerBlockId(params: Record<string, unknown>): string | undefi
   return typeof params.triggerBlockId === 'string' && params.triggerBlockId.length > 0
     ? params.triggerBlockId
     : undefined
+}
+
+async function enqueueAsyncWorkflowRun(
+  toolCallId: string,
+  workflowId: string,
+  params: Record<string, unknown>,
+  workflowInput: unknown,
+  triggerBlockId: string | undefined
+): Promise<void> {
+  const requestedExecutionId = generateId()
+  const inputFromExecutionId =
+    typeof params.inputFromExecutionId === 'string' && params.inputFromExecutionId.length > 0
+      ? params.inputFromExecutionId
+      : undefined
+
+  logger.info('[RunTool] Queueing asynchronous workflow execution', {
+    toolCallId,
+    workflowId,
+    executionId: requestedExecutionId,
+    hasInput: workflowInput !== undefined,
+    triggerBlockId,
+  })
+
+  let responseExecutionId = requestedExecutionId
+  let acceptanceIsAmbiguous = false
+  let deploymentError: AsyncWorkflowDeploymentError | undefined
+  try {
+    // boundary-raw-fetch: this execution endpoint switches to a JSON 202 response via X-Execution-Mode
+    const response = await fetch(`/api/workflows/${workflowId}/execute`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Execution-Mode': 'async',
+      },
+      body: JSON.stringify({
+        input: workflowInput,
+        executionId: requestedExecutionId,
+        triggerType: 'copilot',
+        isClientSession: true,
+        copilotToolCallId: toolCallId,
+        ...(triggerBlockId ? { triggerBlockId } : {}),
+        ...(workflowInput === undefined && inputFromExecutionId ? { inputFromExecutionId } : {}),
+      }),
+    })
+    const responseBody: unknown = await response.json().catch(() => undefined)
+    deploymentError = getAsyncWorkflowDeploymentError(responseBody)
+    responseExecutionId =
+      isPlainRecord(responseBody) && typeof responseBody.executionId === 'string'
+        ? responseBody.executionId
+        : requestedExecutionId
+    acceptanceIsAmbiguous =
+      isPlainRecord(responseBody) && responseBody.code === 'ASYNC_ENQUEUE_AMBIGUOUS'
+
+    if (!response.ok && !acceptanceIsAmbiguous) {
+      const responseError =
+        deploymentError?.message ??
+        (isPlainRecord(responseBody) && typeof responseBody.error === 'string'
+          ? responseBody.error
+          : `Async workflow queue request failed with status ${response.status}`)
+      throw new Error(responseError)
+    }
+  } catch (error) {
+    const message = toError(error).message
+    logger.error('[RunTool] Failed to queue asynchronous workflow execution', {
+      toolCallId,
+      workflowId,
+      error: message,
+    })
+    await reportCompletion(toolCallId, MothershipStreamV1ToolOutcome.error, message, {
+      success: false,
+      workflowId,
+      ...(deploymentError ? { code: deploymentError.code } : {}),
+    })
+    return
+  }
+
+  const pendingCompletion: PendingCompletionReport = {
+    status: ASYNC_TOOL_CONFIRMATION_STATUS.background,
+    executionId: responseExecutionId,
+    clearExecutionPointerAfterReport: true,
+  }
+  await saveExecutionPointer({
+    workflowId,
+    executionId: responseExecutionId,
+    lastEventId: 0,
+  })
+  savePendingCompletionReport(toolCallId, pendingCompletion)
+
+  try {
+    await reportCompletion(
+      toolCallId,
+      pendingCompletion.status,
+      getWorkflowToolCompletionMessage(pendingCompletion.status),
+      undefined,
+      pendingCompletion.executionId
+    )
+    clearPendingCompletionReport(toolCallId)
+    await clearExecutionPointer(workflowId)
+  } catch (error) {
+    logger.error(
+      '[RunTool] Async workflow was queued but background status could not be reported',
+      {
+        toolCallId,
+        workflowId,
+        executionId: responseExecutionId,
+        error: toError(error).message,
+      }
+    )
+    return
+  }
+
+  logger.info('[RunTool] Asynchronous workflow execution queued', {
+    toolCallId,
+    workflowId,
+    executionId: responseExecutionId,
+    acceptanceIsAmbiguous,
+  })
 }
 
 function pendingCompletionStorageKey(toolCallId: string): string {
@@ -155,6 +278,9 @@ export async function bindRunToolToExecution(
         pendingCompletion.executionId ?? pointer.executionId
       )
       clearPendingCompletionReport(toolCallId)
+      if (pendingCompletion.clearExecutionPointerAfterReport) {
+        await clearExecutionPointer(workflowId)
+      }
     } catch (error) {
       logger.warn('[RunTool] Failed to report recovered terminal completion', {
         workflowId,
@@ -326,6 +452,23 @@ async function doExecuteRunTool(
   const workflowInput = resolveWorkflowInput(params)
   const triggerBlockId = resolveTriggerBlockId(params)
   const useDraftState = params.useDeployedState !== true
+
+  if (toolName === RunWorkflow.id && params.async === true) {
+    try {
+      await enqueueAsyncWorkflowRun(
+        toolCallId,
+        targetWorkflowId,
+        params,
+        workflowInput,
+        triggerBlockId
+      )
+    } finally {
+      if (activeRunToolByWorkflowId.get(targetWorkflowId) === toolCallId) {
+        activeRunToolByWorkflowId.delete(targetWorkflowId)
+      }
+    }
+    return
+  }
 
   const stopAfterBlockId = (() => {
     if (toolName === RunWorkflowUntilBlock.id) return params.stopAfterBlockId as string | undefined

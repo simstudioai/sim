@@ -35,7 +35,7 @@ Integrate Pinecone into the workflow. Generate embeddings, upsert and update tex
 
 ## Actions
 
-### `pinecone_generate_embeddings`
+### Pinecone Generate Embeddings
 
 Generate embeddings from text using Pinecone's hosted models
 
@@ -56,7 +56,7 @@ Generate embeddings from text using Pinecone's hosted models
 | `vector_type` | string | Type of vector generated \(dense/sparse\) |
 | `usage` | object | Usage statistics for embeddings generation |
 
-### `pinecone_upsert_text`
+### Pinecone Upsert Text
 
 Insert or update text records in a Pinecone index
 
@@ -75,7 +75,7 @@ Insert or update text records in a Pinecone index
 | --------- | ---- | ----------- |
 | `statusText` | string | Status of the upsert operation |
 
-### `pinecone_update_vector`
+### Pinecone Update Vector
 
 Update the values, sparse values, or metadata of a vector in a Pinecone namespace
 
@@ -97,7 +97,7 @@ Update the values, sparse values, or metadata of a vector in a Pinecone namespac
 | --------- | ---- | ----------- |
 | `statusText` | string | Status of the update operation |
 
-### `pinecone_delete_vectors`
+### Pinecone Delete Vectors
 
 Delete vectors from a Pinecone namespace by IDs, by metadata filter, or delete all
 
@@ -118,7 +118,7 @@ Delete vectors from a Pinecone namespace by IDs, by metadata filter, or delete a
 | --------- | ---- | ----------- |
 | `statusText` | string | Status of the delete operation |
 
-### `pinecone_search_text`
+### Pinecone Search Text
 
 Search for similar text in a Pinecone index
 
@@ -148,7 +148,7 @@ Search for similar text in a Pinecone index
 |   ↳ `read_units` | number | Read units consumed |
 |   ↳ `rerank_units` | number | Rerank units used |
 
-### `pinecone_search_vector`
+### Pinecone Search Vector
 
 Search for similar vectors in a Pinecone index
 
@@ -172,7 +172,7 @@ Search for similar vectors in a Pinecone index
 | `matches` | array | Vector search results with ID, score, values, and metadata |
 | `namespace` | string | Namespace where the search was performed |
 
-### `pinecone_fetch`
+### Pinecone Fetch
 
 Fetch vectors by ID from a Pinecone index
 
@@ -200,7 +200,7 @@ Fetch vectors by ID from a Pinecone index
 | `usage` | object | Usage statistics including total read units |
 |   ↳ `total_tokens` | number | Read units consumed |
 
-### `pinecone_list_vector_ids`
+### Pinecone List Vector IDs
 
 List vector IDs in a Pinecone namespace by prefix (serverless indexes only)
 
@@ -226,7 +226,7 @@ List vector IDs in a Pinecone namespace by prefix (serverless indexes only)
 | `usage` | object | Usage statistics including read units |
 |   ↳ `total_tokens` | number | Read units consumed |
 
-### `pinecone_describe_index_stats`
+### Pinecone Describe Index Stats
 
 Get statistics about a Pinecone index, including per-namespace vector counts
 
@@ -247,7 +247,7 @@ Get statistics about a Pinecone index, including per-namespace vector counts
 | `indexFullness` | number | Fullness of the index \(pod-based indexes only\) |
 | `totalVectorCount` | number | Total number of vectors across all namespaces |
 
-### `pinecone_list_indexes`
+### Pinecone List Indexes
 
 List all Pinecone indexes in the project
 
@@ -272,7 +272,7 @@ List all Pinecone indexes in the project
 |   ↳ `spec` | object | Index spec \(serverless or pod configuration\) |
 |   ↳ `status` | object | Index status with ready and state |
 
-### `pinecone_describe_index`
+### Pinecone Describe Index
 
 Get the configuration and status of a Pinecone index by name
 

@@ -34,7 +34,7 @@ Integrate Google Drive into the workflow. Can create, upload, download, copy, mo
 
 ## Actions
 
-### `google_drive_list`
+### List Google Drive Files
 
 List files and folders in Google Drive with complete metadata
 
@@ -107,7 +107,7 @@ List files and folders in Google Drive with complete metadata
 |   ↳ `linkShareMetadata` | json | Link share metadata |
 | `nextPageToken` | string | Token for fetching the next page of results |
 
-### `google_drive_get_file`
+### Get Google Drive File
 
 Get metadata for a specific file in Google Drive by its ID
 
@@ -146,7 +146,7 @@ Get metadata for a specific file in Google Drive by its ID
 |   ↳ `md5Checksum` | string | MD5 hash |
 |   ↳ `version` | string | Version number |
 
-### `google_drive_get_content`
+### Get Content from Google Drive
 
 Get content from a file in Google Drive with complete metadata (exports Google Workspace files automatically)
 
@@ -218,7 +218,7 @@ Get content from a file in Google Drive with complete metadata (exports Google W
 |   ↳ `linkShareMetadata` | json | Link share metadata |
 |   ↳ `revisions` | json | File revision history \(first 100 revisions only\) |
 
-### `google_drive_create_folder`
+### Create Folder in Google Drive
 
 Create a new folder in Google Drive with complete metadata returned
 
@@ -273,7 +273,7 @@ Create a new folder in Google Drive with complete metadata returned
 |   ↳ `contentRestrictions` | json | Content restrictions |
 |   ↳ `linkShareMetadata` | json | Link share metadata |
 
-### `google_drive_upload`
+### Upload to Google Drive
 
 Upload a file to Google Drive with complete metadata returned
 
@@ -346,7 +346,7 @@ Upload a file to Google Drive with complete metadata returned
 |   ↳ `contentRestrictions` | json | Content restrictions |
 |   ↳ `linkShareMetadata` | json | Link share metadata |
 
-### `google_drive_download`
+### Download File from Google Drive
 
 Download a file from Google Drive with complete metadata (exports Google Workspace files automatically)
 
@@ -419,7 +419,7 @@ Download a file from Google Drive with complete metadata (exports Google Workspa
 |   ↳ `linkShareMetadata` | json | Link share metadata |
 |   ↳ `revisions` | json | File revision history \(first 100 revisions only\) |
 
-### `google_drive_copy`
+### Copy Google Drive File
 
 Create a copy of a file in Google Drive
 
@@ -447,7 +447,7 @@ Create a copy of a file in Google Drive
 |   ↳ `owners` | json | List of file owners |
 |   ↳ `size` | string | File size in bytes |
 
-### `google_drive_move`
+### Move Google Drive File
 
 Move a file or folder to a different folder in Google Drive
 
@@ -475,7 +475,7 @@ Move a file or folder to a different folder in Google Drive
 |   ↳ `owners` | json | List of file owners |
 |   ↳ `size` | string | File size in bytes |
 
-### `google_drive_search`
+### Search Google Drive Files
 
 Search for files in Google Drive using advanced query syntax (e.g., fullText contains, mimeType, modifiedTime, etc.)
 
@@ -520,7 +520,7 @@ Search for files in Google Drive using advanced query syntax (e.g., fullText con
 |   ↳ `version` | string | Version number |
 | `nextPageToken` | string | Token for fetching the next page of results |
 
-### `google_drive_update`
+### Update Google Drive File
 
 Update file metadata in Google Drive (rename, move, star, add description)
 
@@ -550,7 +550,7 @@ Update file metadata in Google Drive (rename, move, star, add description)
 |   ↳ `parents` | json | Parent folder IDs |
 |   ↳ `modifiedTime` | string | Last modification time |
 
-### `google_drive_trash`
+### Trash Google Drive File
 
 Move a file to the trash in Google Drive (can be restored later)
 
@@ -573,7 +573,7 @@ Move a file to the trash in Google Drive (can be restored later)
 |   ↳ `trashedTime` | string | When file was trashed |
 |   ↳ `webViewLink` | string | URL to view in browser |
 
-### `google_drive_untrash`
+### Restore Google Drive File
 
 Restore a file from the trash in Google Drive
 
@@ -596,7 +596,7 @@ Restore a file from the trash in Google Drive
 |   ↳ `webViewLink` | string | URL to view in browser |
 |   ↳ `parents` | json | Parent folder IDs |
 
-### `google_drive_delete`
+### Delete Google Drive File
 
 Permanently delete a file from Google Drive (bypasses trash)
 
@@ -613,7 +613,7 @@ Permanently delete a file from Google Drive (bypasses trash)
 | `deleted` | boolean | Whether the file was successfully deleted |
 | `fileId` | string | The ID of the deleted file |
 
-### `google_drive_share`
+### Share Google Drive File
 
 Share a file with a user, group, domain, or make it public
 
@@ -645,7 +645,7 @@ Share a file with a user, group, domain, or make it public
 |   ↳ `expirationTime` | string | Expiration time |
 |   ↳ `deleted` | boolean | Whether grantee is deleted |
 
-### `google_drive_unshare`
+### Unshare Google Drive File
 
 Remove a permission from a file (revoke access)
 
@@ -664,7 +664,7 @@ Remove a permission from a file (revoke access)
 | `fileId` | string | The ID of the file |
 | `permissionId` | string | The ID of the removed permission |
 
-### `google_drive_list_permissions`
+### List Google Drive Permissions
 
 List all permissions (who has access) for a file in Google Drive
 
@@ -694,7 +694,7 @@ List all permissions (who has access) for a file in Google Drive
 |   ↳ `permissionDetails` | json | Details about inherited permissions |
 | `nextPageToken` | string | Token for fetching the next page of permissions |
 
-### `google_drive_export`
+### Export Google Drive File
 
 Export a Google Workspace file (Docs, Sheets, Slides, Drawings) to a chosen format such as PDF, DOCX, XLSX, or CSV
 
@@ -713,7 +713,7 @@ Export a Google Workspace file (Docs, Sheets, Slides, Drawings) to a chosen form
 | `file` | file | Exported file stored in execution files |
 | `exportedMimeType` | string | The MIME type the file was exported to |
 
-### `google_drive_list_revisions`
+### List Google Drive Revisions
 
 List the revision history of a file in Google Drive
 
@@ -743,7 +743,7 @@ List the revision history of a file in Google Drive
 |   ↳ `exportLinks` | json | Export format links for the revision |
 | `nextPageToken` | string | Token for fetching the next page of revisions |
 
-### `google_drive_get_revision`
+### Get Google Drive Revision
 
 Get metadata for a specific revision of a file in Google Drive
 
@@ -771,7 +771,7 @@ Get metadata for a specific revision of a file in Google Drive
 |   ↳ `size` | string | Size of the revision in bytes |
 |   ↳ `exportLinks` | json | Export format links for the revision |
 
-### `google_drive_list_comments`
+### List Google Drive Comments
 
 List comments on a file in Google Drive
 
@@ -803,7 +803,7 @@ List comments on a file in Google Drive
 |   ↳ `replies` | json | Threaded replies to the comment |
 | `nextPageToken` | string | Token for fetching the next page of comments |
 
-### `google_drive_create_comment`
+### Create Google Drive Comment
 
 Add a comment to a file in Google Drive
 
@@ -832,7 +832,7 @@ Add a comment to a file in Google Drive
 |   ↳ `quotedFileContent` | json | The file content the comment quotes |
 |   ↳ `replies` | json | Threaded replies to the comment |
 
-### `google_drive_delete_comment`
+### Delete Google Drive Comment
 
 Delete a comment from a file in Google Drive
 
@@ -851,7 +851,7 @@ Delete a comment from a file in Google Drive
 | `fileId` | string | The ID of the file |
 | `commentId` | string | The ID of the deleted comment |
 
-### `google_drive_get_about`
+### Get Google Drive Info
 
 Get information about the user and their Google Drive (storage quota, capabilities)
 

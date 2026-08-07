@@ -32,7 +32,7 @@ Integrate Typeform into the workflow. Can retrieve responses, download files, an
 
 ## Actions
 
-### `typeform_responses`
+### Typeform Responses
 
 Retrieve form responses from Typeform
 
@@ -57,7 +57,7 @@ Retrieve form responses from Typeform
 | `page_count` | number | Total number of pages available |
 | `items` | array | Array of response objects with response_id, submitted_at, answers, and metadata |
 
-### `typeform_files`
+### Typeform Files
 
 Download files uploaded in Typeform responses
 
@@ -81,7 +81,7 @@ Download files uploaded in Typeform responses
 | `contentType` | string | MIME type of the uploaded file |
 | `filename` | string | Original filename of the uploaded file |
 
-### `typeform_insights`
+### Typeform Insights
 
 Retrieve insights and analytics for Typeform forms
 
@@ -119,7 +119,7 @@ Retrieve insights and analytics for Typeform forms
 |     ↳ `total_visits` | number | Total number of visits |
 |     ↳ `unique_visits` | number | Total number of unique visits |
 
-### `typeform_list_forms`
+### Typeform List Forms
 
 Retrieve a list of all forms in your Typeform account
 
@@ -141,7 +141,7 @@ Retrieve a list of all forms in your Typeform account
 | `page_count` | number | Total number of pages available |
 | `items` | array | Array of form objects with id, title, created_at, last_updated_at, settings, theme, and _links |
 
-### `typeform_get_form`
+### Typeform Get Form
 
 Retrieve complete details and structure of a specific form
 
@@ -170,7 +170,7 @@ Retrieve complete details and structure of a specific form
 | `published_at` | string | Form publication timestamp \(ISO 8601 format\) |
 | `_links` | object | Related resource links including public form URL |
 
-### `typeform_create_form`
+### Typeform Create Form
 
 Create a new form with fields and settings
 
@@ -201,7 +201,7 @@ Create a new form with fields and settings
 | `thankyou_screens` | array | Array of thank you screens |
 | `_links` | object | Related resource links including public form URL |
 
-### `typeform_update_form`
+### Typeform Update Form
 
 Update an existing form using JSON Patch operations
 
@@ -219,7 +219,7 @@ Update an existing form using JSON Patch operations
 | --------- | ---- | ----------- |
 | `message` | string | Success confirmation message |
 
-### `typeform_delete_form`
+### Typeform Delete Form
 
 Permanently delete a form and all its responses
 

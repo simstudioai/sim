@@ -380,30 +380,106 @@ const EXTENSION_TO_MIME: Record<string, string> = {
   mkv: 'video/x-matroska',
 }
 
+const GENERIC_MIME_TYPE = 'application/octet-stream'
+
+/**
+ * Containers that hold either audio or video, mapped to the kind this app presents them as.
+ * A filename cannot say which a `.webm` is, and the viewer already routes it to the video
+ * player, so everything user-facing has to agree — otherwise one file reads "Audio" in the
+ * Type column and opens in a `<video>`.
+ *
+ * Deliberately not folded into {@link EXTENSION_TO_MIME}: the speech-to-text and ElevenLabs
+ * routes read that table directly to label an upload, and a `video/*` label there sends a
+ * `.webm` down an ffmpeg extraction path it does not need. Callers that know which element
+ * they are rendering retag from here — see {@link resolveMediaMimeType}.
+ */
+const DUAL_CONTAINER_MIME: Record<string, string> = { webm: 'video/webm' }
+
+/** Every MIME type that identifies no format, including the legacy `binary/` spelling. */
+const GENERIC_MIME_TYPES = new Set([GENERIC_MIME_TYPE, 'binary/octet-stream'])
+
+/** Whether a declared MIME type names an actual format, rather than "some bytes". */
+function identifiesFormat(declared: string | undefined): declared is string {
+  return declared !== undefined && declared !== '' && !GENERIC_MIME_TYPES.has(declared)
+}
+
 /**
  * Get MIME type from file extension (fallback if not provided)
  */
 export function getMimeTypeFromExtension(extension: string): string {
-  return EXTENSION_TO_MIME[extension.toLowerCase()] || 'application/octet-stream'
+  return EXTENSION_TO_MIME[extension.toLowerCase()] || GENERIC_MIME_TYPE
+}
+
+/**
+ * The MIME type that best identifies `filename`, preferring `declaredType` — by a browser
+ * at upload time or by storage at read time — and falling back to the extension when what
+ * was declared identifies no format.
+ *
+ * A declared `application/octet-stream` is not an error: browsers report it for plenty of
+ * real formats, and the presigned PUT handshake requires persisting it verbatim (see
+ * {@link getFileContentType}). A stored type therefore has to be resolved here before it
+ * can drive rendering — a truthiness check (`file.type || fallback`) passes the generic
+ * type straight through, and a `Blob` or media element handed that renders nothing.
+ */
+export function resolveEffectiveMimeType(
+  declaredType: string | null | undefined,
+  filename: string
+): string {
+  const declared = declaredType?.trim()
+  if (identifiesFormat(declared)) return declared
+
+  const extension = getFileExtension(filename)
+  return DUAL_CONTAINER_MIME[extension] ?? getMimeTypeFromExtension(extension)
+}
+
+const MEDIA_FALLBACK_MIME = { audio: 'audio/mpeg', video: 'video/mp4' } as const
+
+/**
+ * The MIME type to hand an `<audio>`/`<video>` element, given which of the two the caller
+ * is rendering.
+ *
+ * Beyond {@link resolveEffectiveMimeType} this settles an ambiguity a filename alone cannot:
+ * `.webm` and `.ogg` are both audio and video containers, so a resolved `audio/webm` would
+ * make a `<video>` element drop the picture. The caller has already chosen the element, so
+ * the container subtype is kept and retagged to that kind — the choice belongs here, where
+ * the kind is known, and not in the extension table, which several non-viewer callers share.
+ *
+ * A type naming no media format falls back to the kind's default: passed through, it would
+ * leave the element unable to determine the format, rendering nothing.
+ */
+export function resolveMediaMimeType(
+  declaredType: string | null | undefined,
+  filename: string,
+  kind: 'audio' | 'video'
+): string {
+  const resolved = resolveEffectiveMimeType(declaredType, filename)
+  const [type, subtype] = resolved.split('/')
+  if (type === kind) return resolved
+  if (type === 'audio' || type === 'video') return `${kind}/${subtype}`
+  return MEDIA_FALLBACK_MIME[kind]
 }
 
 /**
  * Resolve a reliable MIME type from a file, falling back to the extension map
- * when the browser reports an empty type. By default treats
- * `application/octet-stream` as "unknown" and falls back to the extension —
- * pass `{ preserveOctetStream: true }` for direct PUT uploads where the
+ * when the browser reports an empty or generic type. Pass
+ * `{ preserveOctetStream: true }` for direct PUT uploads where the
  * browser-supplied content-type must match the presigned handshake exactly.
+ *
+ * This is the type that gets *persisted*, so it resolves through
+ * {@link EXTENSION_TO_MIME} alone and deliberately skips {@link DUAL_CONTAINER_MIME}.
+ * Storing `video/webm` here would put a `video/*` type on the record that the
+ * speech-to-text route reads as `file.type`, sending the upload down the ffmpeg
+ * extraction path — the same failure keeping the dual-container default out of the
+ * extension table avoids. Presentation resolves separately, in
+ * {@link resolveEffectiveMimeType}.
  */
 export function resolveFileType(
   file: { type: string; name: string },
   options?: { preserveOctetStream?: boolean }
 ): string {
   const browserType = file.type?.trim()
-  if (browserType) {
-    if (options?.preserveOctetStream || browserType !== 'application/octet-stream') {
-      return browserType
-    }
-  }
+  if (browserType && options?.preserveOctetStream) return browserType
+  if (identifiesFormat(browserType)) return browserType
   return getMimeTypeFromExtension(getFileExtension(file.name))
 }
 

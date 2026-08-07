@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { WebflowIcon } from '@/components/icons'
 import { requestJson } from '@/lib/api/client/request'
 import { webflowSitesSelectorContract } from '@/lib/api/contracts/selectors/webflow'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { readSubBlockValue } from '@/triggers/editor-state'
 import type { TriggerConfig } from '../types'
 
 const logger = createLogger('webflow-form-submission-trigger')
@@ -45,7 +45,7 @@ export const webflowFormSubmissionTrigger: TriggerConfig = {
         value: 'webflow_form_submission',
       },
       fetchOptions: async (blockId: string) => {
-        const credentialId = useSubBlockStore.getState().getValue(blockId, 'triggerCredentials') as
+        const credentialId = (await readSubBlockValue(blockId, 'triggerCredentials')) as
           | string
           | null
         if (!credentialId) {
@@ -65,7 +65,7 @@ export const webflowFormSubmissionTrigger: TriggerConfig = {
         }
       },
       fetchOptionById: async (blockId: string, optionId: string) => {
-        const credentialId = useSubBlockStore.getState().getValue(blockId, 'triggerCredentials') as
+        const credentialId = (await readSubBlockValue(blockId, 'triggerCredentials')) as
           | string
           | null
         if (!credentialId) return null

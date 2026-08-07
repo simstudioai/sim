@@ -33,7 +33,7 @@ Connect to Attio to manage CRM records (people, companies, custom objects), note
 
 ## Actions
 
-### `attio_list_records`
+### Attio List Records
 
 Query and list records for a given object type (e.g. people, companies)
 
@@ -61,7 +61,7 @@ Query and list records for a given object type (e.g. people, companies)
 |   ↳ `values` | json | The record attribute values |
 | `count` | number | Number of records returned |
 
-### `attio_get_record`
+### Attio Get Record
 
 Get a single record by ID from Attio
 
@@ -87,7 +87,7 @@ Get a single record by ID from Attio
 | `recordId` | string | The record ID |
 | `webUrl` | string | URL to view the record in Attio |
 
-### `attio_create_record`
+### Attio Create Record
 
 Create a new record in Attio for a given object type
 
@@ -113,7 +113,7 @@ Create a new record in Attio for a given object type
 | `recordId` | string | The ID of the created record |
 | `webUrl` | string | URL to view the record in Attio |
 
-### `attio_update_record`
+### Attio Update Record
 
 Update an existing record in Attio (appends multiselect values)
 
@@ -140,7 +140,7 @@ Update an existing record in Attio (appends multiselect values)
 | `recordId` | string | The ID of the updated record |
 | `webUrl` | string | URL to view the record in Attio |
 
-### `attio_delete_record`
+### Attio Delete Record
 
 Delete a record from Attio
 
@@ -157,7 +157,7 @@ Delete a record from Attio
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the record was deleted |
 
-### `attio_search_records`
+### Attio Search Records
 
 Fuzzy search for records across object types in Attio
 
@@ -181,7 +181,7 @@ Fuzzy search for records across object types in Attio
 |   ↳ `recordImage` | string | Image URL for the record |
 | `count` | number | Number of results returned |
 
-### `attio_assert_record`
+### Attio Assert Record
 
 Upsert a record in Attio — creates it if no match is found, updates it if a match exists
 
@@ -208,7 +208,7 @@ Upsert a record in Attio — creates it if no match is found, updates it if a ma
 | `recordId` | string | The record ID |
 | `webUrl` | string | URL to view the record in Attio |
 
-### `attio_list_notes`
+### Attio List Notes
 
 List notes in Attio, optionally filtered by parent record
 
@@ -244,7 +244,7 @@ List notes in Attio, optionally filtered by parent record
 |   ↳ `createdAt` | string | When the note was created |
 | `count` | number | Number of notes returned |
 
-### `attio_get_note`
+### Attio Get Note
 
 Get a single note by ID from Attio
 
@@ -275,7 +275,7 @@ Get a single note by ID from Attio
 |   ↳ `id` | string | The actor ID |
 | `createdAt` | string | When the note was created |
 
-### `attio_create_note`
+### Attio Create Note
 
 Create a note on a record in Attio
 
@@ -312,7 +312,7 @@ Create a note on a record in Attio
 |   ↳ `id` | string | The actor ID |
 | `createdAt` | string | When the note was created |
 
-### `attio_delete_note`
+### Attio Delete Note
 
 Delete a note from Attio
 
@@ -328,7 +328,7 @@ Delete a note from Attio
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the note was deleted |
 
-### `attio_list_tasks`
+### Attio List Tasks
 
 List tasks in Attio, optionally filtered by record, assignee, or completion status
 
@@ -366,7 +366,7 @@ List tasks in Attio, optionally filtered by record, assignee, or completion stat
 |   ↳ `createdAt` | string | When the task was created |
 | `count` | number | Number of tasks returned |
 
-### `attio_get_task`
+### Attio Get Task
 
 Get a single task by ID from Attio
 
@@ -396,7 +396,7 @@ Get a single task by ID from Attio
 |   ↳ `id` | string | The actor ID |
 | `createdAt` | string | When the task was created |
 
-### `attio_create_task`
+### Attio Create Task
 
 Create a task in Attio
 
@@ -430,7 +430,7 @@ Create a task in Attio
 |   ↳ `id` | string | The actor ID |
 | `createdAt` | string | When the task was created |
 
-### `attio_update_task`
+### Attio Update Task
 
 Update a task in Attio (deadline, completion status, linked records, assignees)
 
@@ -464,7 +464,7 @@ Update a task in Attio (deadline, completion status, linked records, assignees)
 |   ↳ `id` | string | The actor ID |
 | `createdAt` | string | When the task was created |
 
-### `attio_delete_task`
+### Attio Delete Task
 
 Delete a task from Attio
 
@@ -480,7 +480,7 @@ Delete a task from Attio
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the task was deleted |
 
-### `attio_list_objects`
+### Attio List Objects
 
 List all objects (system and custom) in the Attio workspace
 
@@ -501,7 +501,7 @@ List all objects (system and custom) in the Attio workspace
 |   ↳ `createdAt` | string | When the object was created |
 | `count` | number | Number of objects returned |
 
-### `attio_get_object`
+### Attio Get Object
 
 Get a single object by ID or slug
 
@@ -521,7 +521,7 @@ Get a single object by ID or slug
 | `pluralNoun` | string | Plural display name |
 | `createdAt` | string | When the object was created |
 
-### `attio_create_object`
+### Attio Create Object
 
 Create a custom object in Attio
 
@@ -543,7 +543,7 @@ Create a custom object in Attio
 | `pluralNoun` | string | Plural display name |
 | `createdAt` | string | When the object was created |
 
-### `attio_update_object`
+### Attio Update Object
 
 Update a custom object in Attio
 
@@ -566,7 +566,7 @@ Update a custom object in Attio
 | `pluralNoun` | string | Plural display name |
 | `createdAt` | string | When the object was created |
 
-### `attio_list_lists`
+### Attio List Lists
 
 List all lists in the Attio workspace
 
@@ -592,7 +592,7 @@ List all lists in the Attio workspace
 |   ↳ `createdAt` | string | When the list was created |
 | `count` | number | Number of lists returned |
 
-### `attio_get_list`
+### Attio Get List
 
 Get a single list by ID or slug
 
@@ -617,7 +617,7 @@ Get a single list by ID or slug
 |   ↳ `id` | string | The actor ID |
 | `createdAt` | string | When the list was created |
 
-### `attio_create_list`
+### Attio Create List
 
 Create a new list in Attio
 
@@ -646,7 +646,7 @@ Create a new list in Attio
 |   ↳ `id` | string | The actor ID |
 | `createdAt` | string | When the list was created |
 
-### `attio_update_list`
+### Attio Update List
 
 Update a list in Attio
 
@@ -675,7 +675,7 @@ Update a list in Attio
 |   ↳ `id` | string | The actor ID |
 | `createdAt` | string | When the list was created |
 
-### `attio_query_list_entries`
+### Attio Query List Entries
 
 Query entries in an Attio list with optional filter, sort, and pagination
 
@@ -702,7 +702,7 @@ Query entries in an Attio list with optional filter, sort, and pagination
 |   ↳ `entryValues` | json | The entry attribute values \(dynamic per list\) |
 | `count` | number | Number of entries returned |
 
-### `attio_get_list_entry`
+### Attio Get List Entry
 
 Get a single list entry by ID
 
@@ -724,7 +724,7 @@ Get a single list entry by ID
 | `createdAt` | string | When the entry was created |
 | `entryValues` | json | The entry attribute values \(dynamic per list\) |
 
-### `attio_create_list_entry`
+### Attio Create List Entry
 
 Add a record to an Attio list as a new entry
 
@@ -748,7 +748,7 @@ Add a record to an Attio list as a new entry
 | `createdAt` | string | When the entry was created |
 | `entryValues` | json | The entry attribute values \(dynamic per list\) |
 
-### `attio_update_list_entry`
+### Attio Update List Entry
 
 Update entry attribute values on an Attio list entry (appends multiselect values)
 
@@ -771,7 +771,7 @@ Update entry attribute values on an Attio list entry (appends multiselect values
 | `createdAt` | string | When the entry was created |
 | `entryValues` | json | The entry attribute values \(dynamic per list\) |
 
-### `attio_delete_list_entry`
+### Attio Delete List Entry
 
 Remove an entry from an Attio list
 
@@ -788,7 +788,7 @@ Remove an entry from an Attio list
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the entry was deleted |
 
-### `attio_list_members`
+### Attio List Members
 
 List all workspace members in Attio
 
@@ -811,7 +811,7 @@ List all workspace members in Attio
 |   ↳ `createdAt` | string | When the member was added |
 | `count` | number | Number of members returned |
 
-### `attio_get_member`
+### Attio Get Member
 
 Get a single workspace member by ID
 
@@ -833,7 +833,7 @@ Get a single workspace member by ID
 | `accessLevel` | string | Access level \(admin, member, suspended\) |
 | `createdAt` | string | When the member was added |
 
-### `attio_create_comment`
+### Attio Create Comment
 
 Create a comment on a list entry in Attio
 
@@ -874,7 +874,7 @@ Create a comment on a list entry in Attio
 |   ↳ `id` | string | The actor ID |
 | `createdAt` | string | When the comment was created |
 
-### `attio_get_comment`
+### Attio Get Comment
 
 Get a single comment by ID from Attio
 
@@ -906,7 +906,7 @@ Get a single comment by ID from Attio
 |   ↳ `id` | string | The actor ID |
 | `createdAt` | string | When the comment was created |
 
-### `attio_delete_comment`
+### Attio Delete Comment
 
 Delete a comment in Attio (if head of thread, deletes entire thread)
 
@@ -922,7 +922,7 @@ Delete a comment in Attio (if head of thread, deletes entire thread)
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the comment was deleted |
 
-### `attio_list_threads`
+### Attio List Threads
 
 List comment threads in Attio, optionally filtered by record or list entry
 
@@ -953,7 +953,7 @@ List comment threads in Attio, optionally filtered by record or list entry
 |   ↳ `createdAt` | string | When the thread was created |
 | `count` | number | Number of threads returned |
 
-### `attio_get_thread`
+### Attio Get Thread
 
 Get a single comment thread by ID from Attio
 
@@ -973,7 +973,7 @@ Get a single comment thread by ID from Attio
 |   ↳ `id` | string | The actor ID |
 | `createdAt` | string | When the thread was created |
 
-### `attio_list_webhooks`
+### Attio List Webhooks
 
 List all webhooks in the Attio workspace
 
@@ -998,7 +998,7 @@ List all webhooks in the Attio workspace
 |   ↳ `createdAt` | string | When the webhook was created |
 | `count` | number | Number of webhooks returned |
 
-### `attio_get_webhook`
+### Attio Get Webhook
 
 Get a single webhook by ID from Attio
 
@@ -1020,7 +1020,7 @@ Get a single webhook by ID from Attio
 | `status` | string | Webhook status \(active, degraded, inactive\) |
 | `createdAt` | string | When the webhook was created |
 
-### `attio_create_webhook`
+### Attio Create Webhook
 
 Create a webhook in Attio to receive event notifications
 
@@ -1044,7 +1044,7 @@ Create a webhook in Attio to receive event notifications
 | `createdAt` | string | When the webhook was created |
 | `secret` | string | The webhook signing secret \(only returned on creation\) |
 
-### `attio_update_webhook`
+### Attio Update Webhook
 
 Update a webhook in Attio (target URL and/or subscriptions)
 
@@ -1068,7 +1068,7 @@ Update a webhook in Attio (target URL and/or subscriptions)
 | `status` | string | Webhook status \(active, degraded, inactive\) |
 | `createdAt` | string | When the webhook was created |
 
-### `attio_delete_webhook`
+### Attio Delete Webhook
 
 Delete a webhook from Attio
 
@@ -1084,7 +1084,7 @@ Delete a webhook from Attio
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the webhook was deleted |
 
-### `attio_list_attributes`
+### Attio List Attributes
 
 List the attributes (schema fields) defined on an Attio object or list
 
@@ -1121,7 +1121,7 @@ List the attributes (schema fields) defined on an Attio object or list
 |   ↳ `createdAt` | string | When the attribute was created |
 | `count` | number | Number of attributes returned |
 
-### `attio_get_attribute`
+### Attio Get Attribute
 
 Get a single attribute (schema field) on an Attio object or list
 
@@ -1154,7 +1154,7 @@ Get a single attribute (schema field) on an Attio object or list
 | `config` | json | Type-dependent attribute configuration |
 | `createdAt` | string | When the attribute was created |
 
-### `attio_create_attribute`
+### Attio Create Attribute
 
 Create a new attribute (schema field) on an Attio object or list
 
@@ -1194,7 +1194,7 @@ Create a new attribute (schema field) on an Attio object or list
 | `config` | json | Type-dependent attribute configuration |
 | `createdAt` | string | When the attribute was created |
 
-### `attio_update_attribute`
+### Attio Update Attribute
 
 Update an attribute (schema field) on an Attio object or list
 

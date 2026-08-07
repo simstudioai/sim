@@ -32,7 +32,7 @@ Integrate Context.dev into the workflow. Scrape pages to markdown or HTML, captu
 
 ## Actions
 
-### `context_dev_scrape_markdown`
+### Context.dev Scrape Markdown
 
 Scrape any URL and return clean, LLM-ready markdown content.
 
@@ -57,7 +57,7 @@ Scrape any URL and return clean, LLM-ready markdown content.
 | `markdown` | string | Page content as clean markdown |
 | `url` | string | The scraped URL |
 
-### `context_dev_scrape_html`
+### Context.dev Scrape HTML
 
 Scrape any URL and return the raw HTML content of the page.
 
@@ -81,7 +81,7 @@ Scrape any URL and return the raw HTML content of the page.
 | `url` | string | The scraped URL |
 | `type` | string | Detected content type \(html, xml, json, text, csv, markdown, svg, pdf, doc, docx\) |
 
-### `context_dev_scrape_images`
+### Context.dev Scrape Images
 
 Discover every image asset on a page, with optional dimension and type enrichment.
 
@@ -111,7 +111,7 @@ Discover every image asset on a page, with optional dimension and type enrichmen
 |   ↳ `enrichment` | json | Optional enrichment \(width, height, mimetype, url, type\) when requested |
 | `url` | string | The scraped URL |
 
-### `context_dev_screenshot`
+### Context.dev Screenshot
 
 Capture a screenshot of any web page and store it as a downloadable image file.
 
@@ -140,7 +140,7 @@ Capture a screenshot of any web page and store it as a downloadable image file.
 | `width` | number | Screenshot width in pixels |
 | `height` | number | Screenshot height in pixels |
 
-### `context_dev_crawl`
+### Context.dev Crawl
 
 Crawl an entire website and return each discovered page as clean markdown.
 
@@ -171,7 +171,7 @@ Crawl an entire website and return each discovered page as clean markdown.
 |   ↳ `metadata` | json | Page metadata \(url, title, crawlDepth, statusCode\) |
 | `metadata` | object | Crawl summary \(numUrls, maxCrawlDepth, numSucceeded, numFailed, numSkipped\) |
 
-### `context_dev_map`
+### Context.dev Map
 
 Build a sitemap of a domain and return every discovered page URL.
 
@@ -193,7 +193,7 @@ Build a sitemap of a domain and return every discovered page URL.
 | `urls` | array | All page URLs discovered from the sitemap |
 | `meta` | object | Sitemap discovery stats \(sitemapsDiscovered, sitemapsFetched, sitemapsSkipped, errors\) |
 
-### `context_dev_search`
+### Context.dev Search
 
 Search the web with natural language and optionally scrape results to markdown.
 
@@ -224,7 +224,7 @@ Search the web with natural language and optionally scrape results to markdown.
 |   ↳ `markdown` | json | Scraped markdown for the result \(when markdown scraping is enabled\) |
 | `query` | string | The query that was searched |
 
-### `context_dev_extract`
+### Context.dev Extract
 
 Crawl a website and extract structured data matching a provided JSON schema.
 
@@ -254,7 +254,7 @@ Crawl a website and extract structured data matching a provided JSON schema.
 | `data` | json | Structured data matching the requested schema |
 | `metadata` | object | Crawl summary \(numUrls, maxCrawlDepth, numSucceeded, numFailed, numSkipped\) |
 
-### `context_dev_extract_product`
+### Context.dev Extract Product
 
 Detect and extract structured product details from a single product page URL.
 
@@ -289,7 +289,7 @@ Detect and extract structured product details from a single product page URL.
 |   ↳ `images` | json | Product image URLs |
 |   ↳ `sku` | string | Product SKU |
 
-### `context_dev_extract_products`
+### Context.dev Extract Products
 
 Extract the product catalog from a brand's website by domain (beta).
 
@@ -323,7 +323,7 @@ Extract the product catalog from a brand's website by domain (beta).
 |   ↳ `images` | json | Product image URLs |
 |   ↳ `sku` | string | Product SKU |
 
-### `context_dev_scrape_fonts`
+### Context.dev Scrape Fonts
 
 Extract the font families, usage stats, and font files used by a domain.
 
@@ -352,7 +352,7 @@ Extract the font families, usage stats, and font files used by a domain.
 |   ↳ `percent_elements` | number | Percent of elements using the font |
 | `fontLinks` | json | Font family download links keyed by font name \(type, files, category\) |
 
-### `context_dev_scrape_styleguide`
+### Context.dev Scrape Styleguide
 
 Extract a domain's design system: colors, typography, spacing, shadows, and UI components.
 
@@ -373,7 +373,7 @@ Extract a domain's design system: colors, typography, spacing, shadows, and UI c
 | `domain` | string | The domain that was analyzed |
 | `styleguide` | json | Design system: mode, colors, typography, elementSpacing, shadows, fontLinks, components |
 
-### `context_dev_classify_naics`
+### Context.dev Classify NAICS
 
 Classify a brand into NAICS industry codes from its domain or company name.
 
@@ -399,7 +399,7 @@ Classify a brand into NAICS industry codes from its domain or company name.
 |   ↳ `name` | string | Industry name |
 |   ↳ `confidence` | string | Match confidence \(high, medium, low\) |
 
-### `context_dev_classify_sic`
+### Context.dev Classify SIC
 
 Classify a brand into SIC industry codes from its domain or company name.
 
@@ -430,7 +430,7 @@ Classify a brand into SIC industry codes from its domain or company name.
 |   ↳ `majorGroupName` | string | Major group name \(original_sic only\) |
 |   ↳ `office` | string | SEC office \(latest_sec only\) |
 
-### `context_dev_get_brand`
+### Context.dev Get Brand
 
 Retrieve brand data for a domain: logos, colors, backdrops, socials, address, and industry.
 
@@ -468,7 +468,7 @@ Retrieve brand data for a domain: logos, colors, backdrops, socials, address, an
 |   ↳ `links` | json | Key brand links \(careers, privacy, terms, blog, pricing, contact\) |
 |   ↳ `primary_language` | string | Primary language of the brand site |
 
-### `context_dev_get_brand_by_name`
+### Context.dev Get Brand by Name
 
 Retrieve brand data by company name: logos, colors, socials, address, and industry.
 
@@ -507,7 +507,7 @@ Retrieve brand data by company name: logos, colors, socials, address, and indust
 |   ↳ `links` | json | Key brand links \(careers, privacy, terms, blog, pricing, contact\) |
 |   ↳ `primary_language` | string | Primary language of the brand site |
 
-### `context_dev_get_brand_by_email`
+### Context.dev Get Brand by Email
 
 Retrieve brand data from a work email address. Free/disposable emails are rejected (422).
 
@@ -545,7 +545,7 @@ Retrieve brand data from a work email address. Free/disposable emails are reject
 |   ↳ `links` | json | Key brand links \(careers, privacy, terms, blog, pricing, contact\) |
 |   ↳ `primary_language` | string | Primary language of the brand site |
 
-### `context_dev_get_brand_by_ticker`
+### Context.dev Get Brand by Ticker
 
 Retrieve brand data for a public company by its stock ticker symbol.
 
@@ -584,7 +584,7 @@ Retrieve brand data for a public company by its stock ticker symbol.
 |   ↳ `links` | json | Key brand links \(careers, privacy, terms, blog, pricing, contact\) |
 |   ↳ `primary_language` | string | Primary language of the brand site |
 
-### `context_dev_identify_transaction`
+### Context.dev Identify Transaction
 
 Identify the brand behind a raw bank/card transaction descriptor and return its brand data.
 

@@ -41,7 +41,7 @@ Integrate Daytona into your workflow to run AI-generated code in secure, isolate
 
 ## Actions
 
-### `daytona_create_sandbox`
+### Daytona Create Sandbox
 
 Create a new Daytona sandbox for running AI-generated code in isolation
 
@@ -70,7 +70,7 @@ Create a new Daytona sandbox for running AI-generated code in isolation
 | --------- | ---- | ----------- |
 | `sandbox` | json | The created sandbox |
 
-### `daytona_list_sandboxes`
+### Daytona List Sandboxes
 
 List Daytona sandboxes in the organization
 
@@ -91,7 +91,7 @@ List Daytona sandboxes in the organization
 | `sandboxes` | array | Sandboxes in the organization |
 | `nextCursor` | string | Cursor for the next page of results |
 
-### `daytona_get_sandbox`
+### Daytona Get Sandbox
 
 Get details of a Daytona sandbox
 
@@ -108,7 +108,7 @@ Get details of a Daytona sandbox
 | --------- | ---- | ----------- |
 | `sandbox` | json | The sandbox details |
 
-### `daytona_start_sandbox`
+### Daytona Start Sandbox
 
 Start a stopped Daytona sandbox
 
@@ -125,7 +125,7 @@ Start a stopped Daytona sandbox
 | --------- | ---- | ----------- |
 | `sandbox` | json | The started sandbox |
 
-### `daytona_stop_sandbox`
+### Daytona Stop Sandbox
 
 Stop a running Daytona sandbox
 
@@ -142,7 +142,7 @@ Stop a running Daytona sandbox
 | --------- | ---- | ----------- |
 | `sandbox` | json | The stopped sandbox |
 
-### `daytona_delete_sandbox`
+### Daytona Delete Sandbox
 
 Delete a Daytona sandbox
 
@@ -159,7 +159,7 @@ Delete a Daytona sandbox
 | --------- | ---- | ----------- |
 | `sandbox` | json | The deleted sandbox |
 
-### `daytona_execute_command`
+### Daytona Execute Command
 
 Execute a shell command inside a Daytona sandbox
 
@@ -181,7 +181,7 @@ Execute a shell command inside a Daytona sandbox
 | `exitCode` | number | Exit code of the command \(-1 if missing from the response\) |
 | `result` | string | Combined stdout/stderr output of the command |
 
-### `daytona_run_code`
+### Daytona Run Code
 
 Run Python, JavaScript, or TypeScript code inside a Daytona sandbox
 
@@ -204,7 +204,7 @@ Run Python, JavaScript, or TypeScript code inside a Daytona sandbox
 | `result` | string | Combined stdout/stderr output of the code run |
 | `artifacts` | json | Artifacts produced by the run \(e.g., matplotlib charts\) |
 
-### `daytona_upload_file`
+### Daytona Upload File
 
 Upload a file to a Daytona sandbox
 
@@ -227,7 +227,7 @@ Upload a file to a Daytona sandbox
 | `name` | string | Name of the uploaded file |
 | `size` | number | Size of the uploaded file in bytes |
 
-### `daytona_download_file`
+### Daytona Download File
 
 Download a file from a Daytona sandbox
 
@@ -248,7 +248,7 @@ Download a file from a Daytona sandbox
 | `mimeType` | string | MIME type of the downloaded file |
 | `size` | number | Size of the downloaded file in bytes |
 
-### `daytona_list_files`
+### Daytona List Files
 
 List files in a directory of a Daytona sandbox
 
@@ -274,7 +274,7 @@ List files in a directory of a Daytona sandbox
 |   ↳ `group` | string | Owning group |
 |   ↳ `modifiedAt` | string | Last modification timestamp |
 
-### `daytona_git_clone`
+### Daytona Git Clone
 
 Clone a Git repository into a Daytona sandbox
 

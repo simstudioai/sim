@@ -59,7 +59,7 @@ Integrate Telegram into the workflow. Send, edit, forward, copy, pin, and delete
 
 ## Actions
 
-### `telegram_message`
+### Telegram Send Message
 
 Send messages to Telegram channels or users through the Telegram Bot API. Enables direct communication and notifications with message tracking and chat confirmation.
 
@@ -91,7 +91,7 @@ Send messages to Telegram channels or users through the Telegram Bot API. Enable
 |   ↳ `date` | number | Unix timestamp when message was sent |
 |   ↳ `text` | string | Text content of the sent message |
 
-### `telegram_delete_message`
+### Telegram Delete Message
 
 Delete messages in Telegram channels or chats through the Telegram Bot API. Requires the message ID of the message to delete.
 
@@ -112,7 +112,7 @@ Delete messages in Telegram channels or chats through the Telegram Bot API. Requ
 |   ↳ `ok` | boolean | API response success status |
 |   ↳ `deleted` | boolean | Whether the message was successfully deleted |
 
-### `telegram_send_photo`
+### Telegram Send Photo
 
 Send photos to Telegram channels or users through the Telegram Bot API.
 
@@ -151,7 +151,7 @@ Send photos to Telegram channels or users through the Telegram Bot API.
 |     ↳ `width` | number | Photo width in pixels |
 |     ↳ `height` | number | Photo height in pixels |
 
-### `telegram_send_video`
+### Telegram Send Video
 
 Send videos to Telegram channels or users through the Telegram Bot API.
 
@@ -223,7 +223,7 @@ Send videos to Telegram channels or users through the Telegram Bot API.
 |     ↳ `file_unique_id` | string | Unique document file identifier |
 |     ↳ `file_size` | number | Size of document file in bytes |
 
-### `telegram_send_audio`
+### Telegram Send Audio
 
 Send audio files to Telegram channels or users through the Telegram Bot API.
 
@@ -265,7 +265,7 @@ Send audio files to Telegram channels or users through the Telegram Bot API.
 |     ↳ `file_unique_id` | string | Unique identifier across different bots for this file |
 |     ↳ `file_size` | number | Size of the audio file in bytes |
 
-### `telegram_send_animation`
+### Telegram Send Animation
 
 Send animations (GIFs) to Telegram channels or users through the Telegram Bot API.
 
@@ -337,7 +337,7 @@ Send animations (GIFs) to Telegram channels or users through the Telegram Bot AP
 |     ↳ `file_unique_id` | string | Unique document file identifier |
 |     ↳ `file_size` | number | Size of document file in bytes |
 
-### `telegram_send_document`
+### Telegram Send Document
 
 Send documents (PDF, ZIP, DOC, etc.) to Telegram channels or users through the Telegram Bot API.
 
@@ -376,7 +376,7 @@ Send documents (PDF, ZIP, DOC, etc.) to Telegram channels or users through the T
 |     ↳ `file_unique_id` | string | Unique document file identifier |
 |     ↳ `file_size` | number | Size of document file in bytes |
 
-### `telegram_edit_message_text`
+### Telegram Edit Message Text
 
 Edit the text of an existing message in a Telegram chat or channel through the Telegram Bot API.
 
@@ -399,7 +399,7 @@ Edit the text of an existing message in a Telegram chat or channel through the T
 |   ↳ `date` | number | Unix timestamp when message was sent |
 |   ↳ `text` | string | Text content of the edited message |
 
-### `telegram_forward_message`
+### Telegram Forward Message
 
 Forward a message from one Telegram chat to another through the Telegram Bot API.
 
@@ -422,7 +422,7 @@ Forward a message from one Telegram chat to another through the Telegram Bot API
 |   ↳ `date` | number | Unix timestamp when message was sent |
 |   ↳ `text` | string | Text content of the forwarded message |
 
-### `telegram_copy_message`
+### Telegram Copy Message
 
 Copy a message to another Telegram chat without a forward header through the Telegram Bot API.
 
@@ -444,7 +444,7 @@ Copy a message to another Telegram chat without a forward header through the Tel
 | `data` | object | Copied message identifier |
 |   ↳ `message_id` | number | Identifier of the new copied message |
 
-### `telegram_send_location`
+### Telegram Send Location
 
 Send a point on the map to a Telegram chat through the Telegram Bot API.
 
@@ -466,7 +466,7 @@ Send a point on the map to a Telegram chat through the Telegram Bot API.
 |   ↳ `message_id` | number | Unique Telegram message identifier |
 |   ↳ `date` | number | Unix timestamp when message was sent |
 
-### `telegram_send_contact`
+### Telegram Send Contact
 
 Send a phone contact to a Telegram chat through the Telegram Bot API.
 
@@ -490,7 +490,7 @@ Send a phone contact to a Telegram chat through the Telegram Bot API.
 |   ↳ `message_id` | number | Unique Telegram message identifier |
 |   ↳ `date` | number | Unix timestamp when message was sent |
 
-### `telegram_send_poll`
+### Telegram Send Poll
 
 Send a native poll to a Telegram chat through the Telegram Bot API.
 
@@ -514,7 +514,7 @@ Send a native poll to a Telegram chat through the Telegram Bot API.
 |   ↳ `message_id` | number | Unique Telegram message identifier |
 |   ↳ `date` | number | Unix timestamp when message was sent |
 
-### `telegram_pin_message`
+### Telegram Pin Message
 
 Pin a message in a Telegram chat through the Telegram Bot API.
 
@@ -536,7 +536,7 @@ Pin a message in a Telegram chat through the Telegram Bot API.
 |   ↳ `ok` | boolean | API response success status |
 |   ↳ `result` | boolean | Whether the message was pinned |
 
-### `telegram_unpin_message`
+### Telegram Unpin Message
 
 Unpin a pinned message in a Telegram chat through the Telegram Bot API. Unpins the most recent pinned message when no message ID is given.
 
@@ -557,7 +557,7 @@ Unpin a pinned message in a Telegram chat through the Telegram Bot API. Unpins t
 |   ↳ `ok` | boolean | API response success status |
 |   ↳ `result` | boolean | Whether the message was unpinned |
 
-### `telegram_set_message_reaction`
+### Telegram Set Message Reaction
 
 Set or remove an emoji reaction on a message in a Telegram chat through the Telegram Bot API.
 
@@ -580,7 +580,7 @@ Set or remove an emoji reaction on a message in a Telegram chat through the Tele
 |   ↳ `ok` | boolean | API response success status |
 |   ↳ `result` | boolean | Whether the reaction was set |
 
-### `telegram_send_chat_action`
+### Telegram Send Chat Action
 
 Show a status action such as a typing indicator in a Telegram chat through the Telegram Bot API.
 
@@ -601,7 +601,7 @@ Show a status action such as a typing indicator in a Telegram chat through the T
 |   ↳ `ok` | boolean | API response success status |
 |   ↳ `result` | boolean | Whether the action was broadcast |
 
-### `telegram_get_chat`
+### Telegram Get Chat
 
 Get up-to-date information about a Telegram chat through the Telegram Bot API.
 
@@ -629,7 +629,7 @@ Get up-to-date information about a Telegram chat through the Telegram Bot API.
 |   ↳ `invite_link` | string | Primary invite link for the chat |
 |   ↳ `linked_chat_id` | number | Linked discussion or channel chat ID |
 
-### `telegram_get_chat_member`
+### Telegram Get Chat Member
 
 Get information about a member of a Telegram chat through the Telegram Bot API.
 
