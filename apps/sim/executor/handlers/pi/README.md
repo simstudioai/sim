@@ -32,3 +32,5 @@ Implements the PI block executor. Each sub-mode delegates to a dedicated backend
 ## Dispatch flow
 
 `pi-handler.ts` is the sole entry point registered in the executor. It inspects the block's `mode` field and calls the matching backend's `run()` method. All backends receive a typed `PiRunContext` (from `core/backend.ts`) and stream incremental events back through `core/events.ts`.
+
+<!-- memory-probe: Path | Responsibility -->
