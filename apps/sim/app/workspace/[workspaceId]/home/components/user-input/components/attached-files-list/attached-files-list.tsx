@@ -8,12 +8,17 @@ import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import type { AttachedFile } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 
 /**
- * Chrome shared by both chip shapes, borrowed from the chip family's filled field so a
- * hand-rolled card still reads as part of the system. Both shapes stand 48px tall, so a
- * row mixing thumbnails and documents sits on one baseline.
+ * Chrome shared by both chip shapes. Both stand 48px tall so a row mixing thumbnails
+ * and documents sits on one baseline.
+ *
+ * Deliberately NOT `chipFilledFillTokens` (`--surface-5` / `dark:--surface-4`): that
+ * pair assumes a page background, but this chip sits inside the composer, which is
+ * already `--surface-4` in dark mode — reusing it would make the chip invisible against
+ * its own container. `--surface-5` steps away from the composer in both themes, and
+ * hover steps further away in the direction each theme reads as "raised".
  */
 const CHIP_SURFACE =
-  'relative h-[48px] cursor-pointer rounded-[10px] border border-[var(--border)] bg-[var(--surface-5)] transition-colors dark:bg-[var(--surface-4)] hover-hover:bg-[var(--surface-active)]'
+  'relative h-[48px] cursor-pointer rounded-[10px] border border-[var(--border)] bg-[var(--surface-5)] transition-colors hover-hover:bg-[var(--surface-active)] dark:hover-hover:bg-[var(--surface-6)]'
 
 interface AttachedFilesListProps {
   attachedFiles: AttachedFile[]
@@ -49,7 +54,7 @@ const AttachedFileChip = React.memo(function AttachedFileChip({
 
   return (
     <Tooltip.Root>
-      <div className='group relative flex-shrink-0'>
+      <div className={cn('group relative', isMedia ? 'flex-shrink-0' : 'min-w-0')}>
         <Tooltip.Trigger asChild>
           <button
             type='button'
@@ -57,7 +62,9 @@ const AttachedFileChip = React.memo(function AttachedFileChip({
               CHIP_SURFACE,
               isMedia
                 ? 'w-[48px] overflow-hidden'
-                : 'flex max-w-[220px] items-center gap-2 py-2 pr-3 pl-2'
+                : // Capped at 220px but never wider than the composer, so a long filename
+                  // truncates on a narrow viewport instead of overflowing the shell.
+                  'flex max-w-[min(220px,100%)] items-center gap-2 py-2 pr-3 pl-2'
             )}
             onClick={() => onFileClick(file)}
           >
@@ -120,7 +127,10 @@ const AttachedFileChip = React.memo(function AttachedFileChip({
               onRemoveFile(file.id)
             }}
             aria-label={`Remove ${file.name}`}
-            className='-top-[5px] -right-[5px] absolute flex size-[16px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-6)] text-[var(--text-icon)] opacity-0 transition-opacity group-hover:opacity-100 dark:bg-[var(--surface-3)]'
+            // Overhangs the chip by 5px, which the composer's `py-2` absorbs. `--surface-6`
+            // (not the chip's own fill) because this badge sits on the composer shell —
+            // white in light mode, `--surface-4` in dark — and must read against both.
+            className='-top-[5px] -right-[5px] absolute flex size-[16px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-6)] text-[var(--text-icon)] opacity-0 transition-opacity group-hover:opacity-100'
           >
             <X className='size-[9px]' />
           </button>
