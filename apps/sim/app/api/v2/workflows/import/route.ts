@@ -1,23 +1,16 @@
 import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
-import type { NextRequest } from 'next/server'
 import { v2ImportWorkflowContract } from '@/lib/api/contracts/v2/workflows'
-import { parseRequest } from '@/lib/api/server'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   importWorkflowIntoWorkspace,
   MAX_IMPORT_BODY_BYTES,
 } from '@/lib/workflows/operations/import-workflow'
-import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
+import { withPublicApiRouteHandler } from '@/app/api/public-api-route-handler'
+import { resolveWorkspaceAccess } from '@/app/api/v1/middleware'
 import { folderPathForId, resolveFolderPathIdentity } from '@/app/api/v2/lib/folders'
-import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
   type V2ErrorCode,
   v2Data,
   v2Error,
-  v2RateLimitError,
-  v2ValidationError,
   v2WorkspaceAccessError,
 } from '@/app/api/v2/lib/response'
 
@@ -42,30 +35,14 @@ const ERROR_CODE_BY_STATUS: Record<number, V2ErrorCode> = {
  * {@link importWorkflowIntoWorkspace} pipeline does the heavy lifting; this
  * route authenticates and renders the v2 envelope.
  */
-export const POST = withRouteHandler(async (request: NextRequest) => {
-  const requestId = generateId().slice(0, 8)
-
-  try {
-    const rateLimit = await checkRateLimit(request, 'workflow-import')
-    if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
-
-    const userId = rateLimit.userId!
-
-    const gate = await v2ApiGateError(userId)
-    if (gate) return gate
-
-    const parsed = await parseRequest(
-      v2ImportWorkflowContract,
-      request,
-      {},
-      {
-        maxBodyBytes: MAX_IMPORT_BODY_BYTES,
-        validationErrorResponse: v2ValidationError,
-      }
-    )
-    if (!parsed.success) return parsed.response
-
-    const { workspaceId, folderPath, name, description } = parsed.data.body
+export const POST = withPublicApiRouteHandler({
+  contract: v2ImportWorkflowContract,
+  rateLimitEndpoint: 'workflow-import',
+  parseOptions: {
+    maxBodyBytes: MAX_IMPORT_BODY_BYTES,
+  },
+  handler: async ({ input, auth: { requestId, userId, rateLimit } }) => {
+    const { workspaceId, folderPath, name, description } = input.body
 
     logger.info(`[${requestId}] Importing workflow into workspace ${workspaceId}`, {
       userId,
@@ -87,7 +64,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       folderId: resolution.folderId ?? undefined,
       name,
       description,
-      workflow: parsed.data.body.workflow,
+      workflow: input.body.workflow,
       userId,
       requestId,
     })
@@ -111,10 +88,5 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       },
       { rateLimit, status: 201 }
     )
-  } catch (error) {
-    logger.error(`[${requestId}] Workflow import error`, {
-      error: getErrorMessage(error, 'Unknown error'),
-    })
-    return v2Error('INTERNAL_ERROR', 'Internal server error')
-  }
+  },
 })

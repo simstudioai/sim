@@ -1,25 +1,19 @@
-import { createLogger } from '@sim/logger'
 import { assertFolderMutable, FolderLockedError } from '@sim/platform-authz/workflow'
-import { getErrorMessage } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
-import type { NextRequest } from 'next/server'
 import {
   type V2WorkflowListItem,
   v2CreateWorkflowContract,
   v2ListWorkflowsContract,
 } from '@/lib/api/contracts/v2/workflows'
-import { parseRequest } from '@/lib/api/server'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
 import { performCreateWorkflow } from '@/lib/workflows/orchestration'
 import { InvalidWorkflowListCursorError, listWorkspaceWorkflows } from '@/lib/workflows/queries'
-import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
+import { withPublicApiRouteHandler } from '@/app/api/public-api-route-handler'
+import { resolveWorkspaceAccess } from '@/app/api/v1/middleware'
 import {
   folderPathForId,
   resolveFolderPathId,
   resolveFolderPathIdentity,
 } from '@/app/api/v2/lib/folders'
-import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
   cursorSortKey,
   decodeSortedCursor,
@@ -29,39 +23,17 @@ import {
   v2Data,
   v2Error,
   v2ErrorForOrchestration,
-  v2RateLimitError,
-  v2ValidationError,
   v2WorkspaceAccessError,
 } from '@/app/api/v2/lib/response'
-
-const logger = createLogger('V2WorkflowsAPI')
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-export const GET = withRouteHandler(async (request: NextRequest) => {
-  const requestId = generateId().slice(0, 8)
-
-  try {
-    const rateLimit = await checkRateLimit(request, 'workflows')
-    if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
-
-    const userId = rateLimit.userId!
-
-    const gate = await v2ApiGateError(userId)
-    if (gate) return gate
-
-    const parsed = await parseRequest(
-      v2ListWorkflowsContract,
-      request,
-      {},
-      {
-        validationErrorResponse: v2ValidationError,
-      }
-    )
-    if (!parsed.success) return parsed.response
-
-    const params = parsed.data.query
+export const GET = withPublicApiRouteHandler({
+  contract: v2ListWorkflowsContract,
+  rateLimitEndpoint: 'workflows',
+  handler: async ({ input, auth: { userId, rateLimit } }) => {
+    const params = input.query
 
     const access = await resolveWorkspaceAccess(rateLimit, userId, params.workspaceId, 'read')
     if (access) return v2WorkspaceAccessError(access)
@@ -115,83 +87,64 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     }))
 
     return v2CursorList(formatted, nextCursor, { rateLimit })
-  } catch (error) {
-    logger.error(`[${requestId}] Workflows fetch error`, {
-      error: getErrorMessage(error, 'Unknown error'),
-    })
-    return v2Error('INTERNAL_ERROR', 'Internal server error')
-  }
+  },
 })
 
 /** POST /api/v2/workflows — Create an empty workflow in a workspace. */
-export const POST = withRouteHandler(async (request: NextRequest) => {
-  const requestId = generateId().slice(0, 8)
+export const POST = withPublicApiRouteHandler({
+  contract: v2CreateWorkflowContract,
+  rateLimitEndpoint: 'workflows',
+  handler: async ({ input, auth: { requestId, userId, rateLimit } }) => {
+    try {
+      const { workspaceId, name, description, folderPath } = input.body
 
-  try {
-    const rateLimit = await checkRateLimit(request, 'workflows')
-    if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
+      const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
+      if (access) return v2WorkspaceAccessError(access)
 
-    const userId = rateLimit.userId!
+      const resolution = await resolveFolderPathIdentity({
+        workspaceId,
+        resourceType: 'workflow',
+        path: folderPath ?? '/',
+      })
+      if (!resolution.found) return v2Error('NOT_FOUND', 'Folder not found')
 
-    const gate = await v2ApiGateError(userId)
-    if (gate) return gate
+      await assertFolderMutable(resolution.folderId)
+      const result = await performCreateWorkflow({
+        userId,
+        workspaceId,
+        name,
+        description,
+        folderId: resolution.folderId,
+        requestId,
+      })
 
-    const parsed = await parseRequest(
-      v2CreateWorkflowContract,
-      request,
-      {},
-      { validationErrorResponse: v2ValidationError }
-    )
-    if (!parsed.success) return parsed.response
+      if (!result.success || !result.workflow) {
+        return v2ErrorForOrchestration(
+          result.errorCode,
+          result.error ?? 'Failed to create workflow'
+        )
+      }
 
-    const { workspaceId, name, description, folderPath } = parsed.data.body
+      const created = result.workflow
+      const item: V2WorkflowListItem = {
+        id: created.id,
+        name: created.name,
+        description: created.description ?? null,
+        folderPath: folderPathForId(resolution.index, created.folderId),
+        workspaceId: created.workspaceId,
+        isDeployed: false,
+        deployedAt: null,
+        runCount: 0,
+        lastRunAt: null,
+        createdAt: created.createdAt.toISOString(),
+        updatedAt: created.updatedAt.toISOString(),
+      }
 
-    const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
-    if (access) return v2WorkspaceAccessError(access)
+      return v2Data(item, { rateLimit, status: 201 })
+    } catch (error) {
+      if (error instanceof FolderLockedError) return v2Error('LOCKED', error.message)
 
-    const resolution = await resolveFolderPathIdentity({
-      workspaceId,
-      resourceType: 'workflow',
-      path: folderPath ?? '/',
-    })
-    if (!resolution.found) return v2Error('NOT_FOUND', 'Folder not found')
-
-    await assertFolderMutable(resolution.folderId)
-    const result = await performCreateWorkflow({
-      userId,
-      workspaceId,
-      name,
-      description,
-      folderId: resolution.folderId,
-      requestId,
-    })
-
-    if (!result.success || !result.workflow) {
-      return v2ErrorForOrchestration(result.errorCode, result.error ?? 'Failed to create workflow')
+      throw error
     }
-
-    const created = result.workflow
-    const item: V2WorkflowListItem = {
-      id: created.id,
-      name: created.name,
-      description: created.description ?? null,
-      folderPath: folderPathForId(resolution.index, created.folderId),
-      workspaceId: created.workspaceId,
-      isDeployed: false,
-      deployedAt: null,
-      runCount: 0,
-      lastRunAt: null,
-      createdAt: created.createdAt.toISOString(),
-      updatedAt: created.updatedAt.toISOString(),
-    }
-
-    return v2Data(item, { rateLimit, status: 201 })
-  } catch (error) {
-    if (error instanceof FolderLockedError) return v2Error('LOCKED', error.message)
-
-    logger.error(`[${requestId}] Workflow create error`, {
-      error: getErrorMessage(error, 'Unknown error'),
-    })
-    return v2Error('INTERNAL_ERROR', 'Internal server error')
-  }
+  },
 })

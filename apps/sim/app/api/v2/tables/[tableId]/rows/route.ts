@@ -1,6 +1,4 @@
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import type { NextRequest, NextResponse } from 'next/server'
+import type { NextResponse } from 'next/server'
 import type { V1BatchInsertTableRowsBody } from '@/lib/api/contracts/v1/tables'
 import {
   v2CreateTableRowsContract,
@@ -8,9 +6,7 @@ import {
   v2ListTableRowsContract,
   v2UpdateRowsByFilterContract,
 } from '@/lib/api/contracts/v2/tables'
-import { isZodError, parseRequest } from '@/lib/api/server'
-import { generateRequestId } from '@/lib/core/utils/request'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { isZodError } from '@/lib/api/server'
 import type { RowData, TableSchema } from '@/lib/table'
 import {
   batchInsertRows,
@@ -27,20 +23,15 @@ import {
 import { namedRowMapper } from '@/lib/table/cell-format'
 import { TableQueryValidationError } from '@/lib/table/errors'
 import { queryRows } from '@/lib/table/rows/service'
+import { withPublicApiRouteHandler } from '@/app/api/public-api-route-handler'
 import { checkAccess } from '@/app/api/table/utils'
-import {
-  checkRateLimit,
-  type RateLimitResult,
-  resolveWorkspaceScope,
-} from '@/app/api/v1/middleware'
-import { v2ApiGateError } from '@/app/api/v2/lib/gate'
+import { type RateLimitResult, resolveWorkspaceScope } from '@/app/api/v1/middleware'
 import {
   decodeCursor,
   encodeCursor,
   v2CursorList,
   v2Data,
   v2Error,
-  v2RateLimitError,
   v2ValidationError,
   v2WorkspaceAccessError,
 } from '@/app/api/v2/lib/response'
@@ -52,14 +43,8 @@ import {
   v2TableAccessError,
 } from '@/app/api/v2/tables/utils'
 
-const logger = createLogger('V2TableRowsAPI')
-
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
-
-interface TableRowsRouteParams {
-  params: Promise<{ tableId: string }>
-}
 
 /**
  * Inserts a validated batch of rows. Authorizes against the table's own
@@ -111,10 +96,7 @@ async function handleBatchInsert(
     const response = v2RowWriteError(error)
     if (response) return response
 
-    logger.error(`[${requestId}] Error batch inserting rows`, {
-      error: getErrorMessage(error, 'Unknown error'),
-    })
-    return v2Error('INTERNAL_ERROR', 'Internal server error')
+    throw error
   }
 }
 
@@ -122,107 +104,80 @@ async function handleBatchInsert(
  * GET /api/v2/tables/[tableId]/rows — Plain cursor page over the default row
  * order. Filtered/sorted reads go through `POST /query`.
  */
-export const GET = withRouteHandler(async (request: NextRequest, context: TableRowsRouteParams) => {
-  const requestId = generateRequestId()
+export const GET = withPublicApiRouteHandler({
+  contract: v2ListTableRowsContract,
+  rateLimitEndpoint: 'table-rows',
+  handler: async ({ input, auth: { requestId, userId, rateLimit } }) => {
+    try {
+      const { tableId } = input.params
+      const validated = input.query
 
-  try {
-    const rateLimit = await checkRateLimit(request, 'table-rows')
-    if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
+      const scopeError = await resolveWorkspaceScope(rateLimit, validated.workspaceId)
+      if (scopeError) return v2WorkspaceAccessError(scopeError)
 
-    const userId = rateLimit.userId!
+      const accessResult = await checkAccess(tableId, userId, 'read')
+      // Mask not-authorized and not-found alike so cross-workspace existence never leaks.
+      if (!accessResult.ok) return v2Error('NOT_FOUND', 'Table not found')
 
-    const gate = await v2ApiGateError(userId)
-    if (gate) return gate
+      const { table } = accessResult
+      if (validated.workspaceId !== table.workspaceId) {
+        return v2Error('NOT_FOUND', 'Table not found')
+      }
 
-    const parsed = await parseRequest(v2ListTableRowsContract, request, context, {
-      validationErrorResponse: v2ValidationError,
-    })
-    if (!parsed.success) return parsed.response
+      const toNamedRow = namedRowMapper((table.schema as TableSchema).columns)
 
-    const { tableId } = parsed.data.params
-    const validated = parsed.data.query
+      // Cursor-uniform v2 pagination: the opaque cursor encodes the underlying
+      // offset (upgradeable to keyset later without an interface change). Total row
+      // count is intentionally omitted here — it's available as `rowCount` on the table.
+      const offset = validated.cursor
+        ? (decodeCursor<{ offset: number }>(validated.cursor)?.offset ?? 0)
+        : 0
 
-    const scopeError = await resolveWorkspaceScope(rateLimit, validated.workspaceId)
-    if (scopeError) return v2WorkspaceAccessError(scopeError)
+      const result = await queryRows(
+        table,
+        {
+          limit: validated.limit,
+          offset,
+          includeTotal: true,
+          withExecutions: false,
+        },
+        requestId
+      )
 
-    const accessResult = await checkAccess(tableId, userId, 'read')
-    // Mask not-authorized and not-found alike so cross-workspace existence never leaks.
-    if (!accessResult.ok) return v2Error('NOT_FOUND', 'Table not found')
+      const total = result.totalCount ?? 0
+      const hasMore = offset + result.rowCount < total
+      const nextCursor = hasMore ? encodeCursor({ offset: offset + validated.limit }) : null
 
-    const { table } = accessResult
-    if (validated.workspaceId !== table.workspaceId) {
-      return v2Error('NOT_FOUND', 'Table not found')
+      return v2CursorList(
+        result.rows.map((r) => toApiRow(r, toNamedRow)),
+        nextCursor,
+        { rateLimit }
+      )
+    } catch (error) {
+      if (isZodError(error)) return v2ValidationError(error)
+      if (error instanceof TableQueryValidationError) return v2Error('BAD_REQUEST', error.message)
+
+      throw error
     }
-
-    const toNamedRow = namedRowMapper((table.schema as TableSchema).columns)
-
-    // Cursor-uniform v2 pagination: the opaque cursor encodes the underlying
-    // offset (upgradeable to keyset later without an interface change). Total row
-    // count is intentionally omitted here — it's available as `rowCount` on the table.
-    const offset = validated.cursor
-      ? (decodeCursor<{ offset: number }>(validated.cursor)?.offset ?? 0)
-      : 0
-
-    const result = await queryRows(
-      table,
-      {
-        limit: validated.limit,
-        offset,
-        includeTotal: true,
-        withExecutions: false,
-      },
-      requestId
-    )
-
-    const total = result.totalCount ?? 0
-    const hasMore = offset + result.rowCount < total
-    const nextCursor = hasMore ? encodeCursor({ offset: offset + validated.limit }) : null
-
-    return v2CursorList(
-      result.rows.map((r) => toApiRow(r, toNamedRow)),
-      nextCursor,
-      { rateLimit }
-    )
-  } catch (error) {
-    if (isZodError(error)) return v2ValidationError(error)
-    if (error instanceof TableQueryValidationError) return v2Error('BAD_REQUEST', error.message)
-
-    logger.error(`[${requestId}] Error querying rows`, {
-      error: getErrorMessage(error, 'Unknown error'),
-    })
-    return v2Error('INTERNAL_ERROR', 'Internal server error')
-  }
+  },
 })
 
 /** POST /api/v2/tables/[tableId]/rows — Insert row(s). Supports single or batch. */
-export const POST = withRouteHandler(
-  async (request: NextRequest, context: TableRowsRouteParams) => {
-    const requestId = generateRequestId()
-
+export const POST = withPublicApiRouteHandler({
+  contract: v2CreateTableRowsContract,
+  rateLimitEndpoint: 'table-rows',
+  handler: async ({ input, auth: { requestId, userId, rateLimit } }) => {
     try {
-      const rateLimit = await checkRateLimit(request, 'table-rows')
-      if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
+      const { tableId } = input.params
 
-      const userId = rateLimit.userId!
-
-      const gate = await v2ApiGateError(userId)
-      if (gate) return gate
-
-      const parsed = await parseRequest(v2CreateTableRowsContract, request, context, {
-        validationErrorResponse: v2ValidationError,
-      })
-      if (!parsed.success) return parsed.response
-
-      const { tableId } = parsed.data.params
-
-      if ('rows' in parsed.data.body) {
-        const batchValidated = parsed.data.body
+      if ('rows' in input.body) {
+        const batchValidated = input.body
         const scopeError = await resolveWorkspaceScope(rateLimit, batchValidated.workspaceId)
         if (scopeError) return v2WorkspaceAccessError(scopeError)
         return handleBatchInsert(requestId, tableId, batchValidated, userId, rateLimit)
       }
 
-      const validated = parsed.data.body
+      const validated = input.body
       const scopeError = await resolveWorkspaceScope(rateLimit, validated.workspaceId)
       if (scopeError) return v2WorkspaceAccessError(scopeError)
 
@@ -258,106 +213,76 @@ export const POST = withRouteHandler(
       const response = v2RowWriteError(error)
       if (response) return response
 
-      logger.error(`[${requestId}] Error inserting row`, {
-        error: getErrorMessage(error, 'Unknown error'),
-      })
-      return v2Error('INTERNAL_ERROR', 'Internal server error')
+      throw error
     }
-  }
-)
+  },
+})
 
 /** PUT /api/v2/tables/[tableId]/rows — Bulk update rows by predicate filter. */
-export const PUT = withRouteHandler(async (request: NextRequest, context: TableRowsRouteParams) => {
-  const requestId = generateRequestId()
+export const PUT = withPublicApiRouteHandler({
+  contract: v2UpdateRowsByFilterContract,
+  rateLimitEndpoint: 'table-rows',
+  handler: async ({ input, auth: { requestId, userId, rateLimit } }) => {
+    try {
+      const { tableId } = input.params
+      const validated = input.body
 
-  try {
-    const rateLimit = await checkRateLimit(request, 'table-rows')
-    if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
+      const scopeError = await resolveWorkspaceScope(rateLimit, validated.workspaceId)
+      if (scopeError) return v2WorkspaceAccessError(scopeError)
 
-    const userId = rateLimit.userId!
+      const accessResult = await checkAccess(tableId, userId, 'write')
+      if (!accessResult.ok) return v2TableAccessError(accessResult)
 
-    const gate = await v2ApiGateError(userId)
-    if (gate) return gate
+      const { table } = accessResult
+      if (validated.workspaceId !== table.workspaceId) {
+        return v2Error('NOT_FOUND', 'Table not found')
+      }
 
-    const parsed = await parseRequest(v2UpdateRowsByFilterContract, request, context, {
-      validationErrorResponse: v2ValidationError,
-    })
-    if (!parsed.success) return parsed.response
+      const idByName = buildIdByName(table.schema as TableSchema)
+      const patchData = rowDataNameToId(validated.data as RowData, idByName)
 
-    const { tableId } = parsed.data.params
-    const validated = parsed.data.body
+      const sizeValidation = validateRowSize(patchData)
+      if (!sizeValidation.valid) {
+        return v2Error('BAD_REQUEST', 'Invalid row data', { details: sizeValidation.errors })
+      }
 
-    const scopeError = await resolveWorkspaceScope(rateLimit, validated.workspaceId)
-    if (scopeError) return v2WorkspaceAccessError(scopeError)
+      const result = await updateRowsByFilter(
+        table,
+        {
+          filter: v2BulkPredicateToFilter(validated.filter, table.schema as TableSchema),
+          data: patchData,
+          limit: validated.limit,
+          actorUserId: userId,
+        },
+        requestId
+      )
 
-    const accessResult = await checkAccess(tableId, userId, 'write')
-    if (!accessResult.ok) return v2TableAccessError(accessResult)
+      // v2 always returns `updatedRowIds` ([] when nothing matched); v1 dropped it
+      // on the zero-match branch.
+      return v2Data(
+        { updatedCount: result.affectedCount, updatedRowIds: result.affectedRowIds },
+        { rateLimit }
+      )
+    } catch (error) {
+      if (isZodError(error)) return v2ValidationError(error)
+      if (error instanceof TableQueryValidationError) return v2Error('BAD_REQUEST', error.message)
 
-    const { table } = accessResult
-    if (validated.workspaceId !== table.workspaceId) {
-      return v2Error('NOT_FOUND', 'Table not found')
+      const response = v2RowWriteError(error)
+      if (response) return response
+
+      throw error
     }
-
-    const idByName = buildIdByName(table.schema as TableSchema)
-    const patchData = rowDataNameToId(validated.data as RowData, idByName)
-
-    const sizeValidation = validateRowSize(patchData)
-    if (!sizeValidation.valid) {
-      return v2Error('BAD_REQUEST', 'Invalid row data', { details: sizeValidation.errors })
-    }
-
-    const result = await updateRowsByFilter(
-      table,
-      {
-        filter: v2BulkPredicateToFilter(validated.filter, table.schema as TableSchema),
-        data: patchData,
-        limit: validated.limit,
-        actorUserId: userId,
-      },
-      requestId
-    )
-
-    // v2 always returns `updatedRowIds` ([] when nothing matched); v1 dropped it
-    // on the zero-match branch.
-    return v2Data(
-      { updatedCount: result.affectedCount, updatedRowIds: result.affectedRowIds },
-      { rateLimit }
-    )
-  } catch (error) {
-    if (isZodError(error)) return v2ValidationError(error)
-    if (error instanceof TableQueryValidationError) return v2Error('BAD_REQUEST', error.message)
-
-    const response = v2RowWriteError(error)
-    if (response) return response
-
-    logger.error(`[${requestId}] Error updating rows by filter`, {
-      error: getErrorMessage(error, 'Unknown error'),
-    })
-    return v2Error('INTERNAL_ERROR', 'Internal server error')
-  }
+  },
 })
 
 /** DELETE /api/v2/tables/[tableId]/rows — Delete rows by predicate filter or IDs. */
-export const DELETE = withRouteHandler(
-  async (request: NextRequest, context: TableRowsRouteParams) => {
-    const requestId = generateRequestId()
-
+export const DELETE = withPublicApiRouteHandler({
+  contract: v2DeleteTableRowsContract,
+  rateLimitEndpoint: 'table-rows',
+  handler: async ({ input, auth: { requestId, userId, rateLimit } }) => {
     try {
-      const rateLimit = await checkRateLimit(request, 'table-rows')
-      if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
-
-      const userId = rateLimit.userId!
-
-      const gate = await v2ApiGateError(userId)
-      if (gate) return gate
-
-      const parsed = await parseRequest(v2DeleteTableRowsContract, request, context, {
-        validationErrorResponse: v2ValidationError,
-      })
-      if (!parsed.success) return parsed.response
-
-      const { tableId } = parsed.data.params
-      const validated = parsed.data.body
+      const { tableId } = input.params
+      const validated = input.body
 
       const scopeError = await resolveWorkspaceScope(rateLimit, validated.workspaceId)
       if (scopeError) return v2WorkspaceAccessError(scopeError)
@@ -411,10 +336,7 @@ export const DELETE = withRouteHandler(
       const response = v2RowWriteError(error)
       if (response) return response
 
-      logger.error(`[${requestId}] Error deleting rows`, {
-        error: getErrorMessage(error, 'Unknown error'),
-      })
-      return v2Error('INTERNAL_ERROR', 'Internal server error')
+      throw error
     }
-  }
-)
+  },
+})

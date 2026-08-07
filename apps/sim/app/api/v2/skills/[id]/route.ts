@@ -1,28 +1,14 @@
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import type { NextRequest } from 'next/server'
 import {
   v2DeleteSkillContract,
   v2GetSkillContract,
   v2UpdateSkillContract,
 } from '@/lib/api/contracts/v2/skills'
-import { parseRequest } from '@/lib/api/server'
-import { generateRequestId } from '@/lib/core/utils/request'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { performDeleteSkill, performUpdateSkill } from '@/lib/skills/orchestration'
 import { getSkillById } from '@/lib/workflows/skills/operations'
-import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
-import { v2ApiGateError } from '@/app/api/v2/lib/gate'
-import {
-  v2Data,
-  v2Error,
-  v2RateLimitError,
-  v2ValidationError,
-  v2WorkspaceAccessError,
-} from '@/app/api/v2/lib/response'
+import { withPublicApiRouteHandler } from '@/app/api/public-api-route-handler'
+import { resolveWorkspaceAccess } from '@/app/api/v1/middleware'
+import { v2Data, v2Error, v2WorkspaceAccessError } from '@/app/api/v2/lib/response'
 import { toV2Skill, v2SkillOrchestrationError } from '@/app/api/v2/skills/utils'
-
-const logger = createLogger('V2SkillDetailAPI')
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -32,25 +18,12 @@ interface RouteContext {
 }
 
 /** GET /api/v2/skills/[id] — Fetch a single skill, including its body. */
-export const GET = withRouteHandler(async (request: NextRequest, context: RouteContext) => {
-  const requestId = generateRequestId()
-
-  try {
-    const rateLimit = await checkRateLimit(request, 'skill-detail')
-    if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
-
-    const userId = rateLimit.userId!
-
-    const gate = await v2ApiGateError(userId)
-    if (gate) return gate
-
-    const parsed = await parseRequest(v2GetSkillContract, request, context, {
-      validationErrorResponse: v2ValidationError,
-    })
-    if (!parsed.success) return parsed.response
-
-    const { id } = parsed.data.params
-    const { workspaceId } = parsed.data.query
+export const GET = withPublicApiRouteHandler({
+  contract: v2GetSkillContract,
+  rateLimitEndpoint: 'skill-detail',
+  handler: async ({ input, auth: { userId, rateLimit } }) => {
+    const { id } = input.params
+    const { workspaceId } = input.query
 
     const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'read')
     if (access) return v2WorkspaceAccessError(access)
@@ -59,34 +32,16 @@ export const GET = withRouteHandler(async (request: NextRequest, context: RouteC
     if (!skill) return v2Error('NOT_FOUND', 'Skill not found')
 
     return v2Data({ skill: toV2Skill(skill) }, { rateLimit })
-  } catch (error) {
-    logger.error(`[${requestId}] Error fetching skill`, {
-      error: getErrorMessage(error, 'Unknown error'),
-    })
-    return v2Error('INTERNAL_ERROR', 'Internal server error')
-  }
+  },
 })
 
 /** PATCH /api/v2/skills/[id] — Update a skill. Omitted fields keep their values. */
-export const PATCH = withRouteHandler(async (request: NextRequest, context: RouteContext) => {
-  const requestId = generateRequestId()
-
-  try {
-    const rateLimit = await checkRateLimit(request, 'skill-detail')
-    if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
-
-    const userId = rateLimit.userId!
-
-    const gate = await v2ApiGateError(userId)
-    if (gate) return gate
-
-    const parsed = await parseRequest(v2UpdateSkillContract, request, context, {
-      validationErrorResponse: v2ValidationError,
-    })
-    if (!parsed.success) return parsed.response
-
-    const { id } = parsed.data.params
-    const { workspaceId, name, description, content } = parsed.data.body
+export const PATCH = withPublicApiRouteHandler({
+  contract: v2UpdateSkillContract,
+  rateLimitEndpoint: 'skill-detail',
+  handler: async ({ request, input, auth: { userId, rateLimit } }) => {
+    const { id } = input.params
+    const { workspaceId, name, description, content } = input.body
 
     /**
      * Editing an existing skill is gated per skill, not per workspace: an
@@ -114,34 +69,16 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Rout
     }
 
     return v2Data({ skill: toV2Skill(result.skill) }, { rateLimit })
-  } catch (error) {
-    logger.error(`[${requestId}] Error updating skill`, {
-      error: getErrorMessage(error, 'Unknown error'),
-    })
-    return v2Error('INTERNAL_ERROR', 'Internal server error')
-  }
+  },
 })
 
 /** DELETE /api/v2/skills/[id] — Delete a skill. */
-export const DELETE = withRouteHandler(async (request: NextRequest, context: RouteContext) => {
-  const requestId = generateRequestId()
-
-  try {
-    const rateLimit = await checkRateLimit(request, 'skill-detail')
-    if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
-
-    const userId = rateLimit.userId!
-
-    const gate = await v2ApiGateError(userId)
-    if (gate) return gate
-
-    const parsed = await parseRequest(v2DeleteSkillContract, request, context, {
-      validationErrorResponse: v2ValidationError,
-    })
-    if (!parsed.success) return parsed.response
-
-    const { id } = parsed.data.params
-    const { workspaceId } = parsed.data.query
+export const DELETE = withPublicApiRouteHandler({
+  contract: v2DeleteSkillContract,
+  rateLimitEndpoint: 'skill-detail',
+  handler: async ({ request, input, auth: { userId, rateLimit } }) => {
+    const { id } = input.params
+    const { workspaceId } = input.query
 
     // Gated per skill by `performDeleteSkill`, same as PATCH above.
     const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'read')
@@ -160,10 +97,5 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Rou
     }
 
     return v2Data({ id, deleted: true as const }, { rateLimit })
-  } catch (error) {
-    logger.error(`[${requestId}] Error deleting skill`, {
-      error: getErrorMessage(error, 'Unknown error'),
-    })
-    return v2Error('INTERNAL_ERROR', 'Internal server error')
-  }
+  },
 })

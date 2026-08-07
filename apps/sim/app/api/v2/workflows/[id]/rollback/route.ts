@@ -1,18 +1,13 @@
 import { createLogger } from '@sim/logger'
 import { assertWorkflowMutable, WorkflowLockedError } from '@sim/platform-authz/workflow'
-import { getErrorMessage } from '@sim/utils/errors'
-import type { NextRequest } from 'next/server'
 import { v1RollbackWorkflowBodySchema } from '@/lib/api/contracts/v1/workflows'
 import { v2RollbackWorkflowContract } from '@/lib/api/contracts/v2/workflows'
-import { parseOptionalJsonBody, parseRequest } from '@/lib/api/server'
-import { generateRequestId } from '@/lib/core/utils/request'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { parseOptionalJsonBody } from '@/lib/api/server'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { performActivateVersion } from '@/lib/workflows/orchestration'
 import { findPreviousDeploymentVersion } from '@/lib/workflows/persistence/utils'
-import { checkRateLimit } from '@/app/api/v1/middleware'
-import { v2ApiGateError } from '@/app/api/v2/lib/gate'
-import { v2Data, v2Error, v2RateLimitError, v2ValidationError } from '@/app/api/v2/lib/response'
+import { withPublicApiRouteHandler } from '@/app/api/public-api-route-handler'
+import { v2Data, v2Error, v2ValidationError } from '@/app/api/v2/lib/response'
 import { resolveV2WorkflowTarget } from '@/app/api/v2/workflows/utils'
 
 const logger = createLogger('V2WorkflowRollbackAPI')
@@ -21,25 +16,12 @@ export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 export const maxDuration = 120
 
-export const POST = withRouteHandler(
-  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
-    const requestId = generateRequestId()
-
+export const POST = withPublicApiRouteHandler({
+  contract: v2RollbackWorkflowContract,
+  rateLimitEndpoint: 'workflow-rollback',
+  handler: async ({ request, input, auth: { requestId, userId, rateLimit } }) => {
     try {
-      const rateLimit = await checkRateLimit(request, 'workflow-rollback')
-      if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
-
-      const userId = rateLimit.userId!
-
-      const gate = await v2ApiGateError(userId)
-      if (gate) return gate
-
-      const parsed = await parseRequest(v2RollbackWorkflowContract, request, context, {
-        validationErrorResponse: v2ValidationError,
-      })
-      if (!parsed.success) return parsed.response
-
-      const { id } = parsed.data.params
+      const { id } = input.params
 
       const rawBody = await parseOptionalJsonBody(request)
       if (!rawBody.success) {
@@ -116,10 +98,7 @@ export const POST = withRouteHandler(
       if (error instanceof WorkflowLockedError) {
         return v2Error('LOCKED', error.message)
       }
-      logger.error(`[${requestId}] Workflow rollback error`, {
-        error: getErrorMessage(error, 'Unknown error'),
-      })
-      return v2Error('INTERNAL_ERROR', 'Internal server error')
+      throw error
     }
-  }
-)
+  },
+})

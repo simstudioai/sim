@@ -1,9 +1,4 @@
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import type { NextRequest } from 'next/server'
 import { v2CompleteTableImportContract } from '@/lib/api/contracts/v2/tables'
-import { parseRequest } from '@/lib/api/server'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   findOwnedTableImport,
   getOwnedTableImportUpload,
@@ -11,44 +6,28 @@ import {
   toV2TableImport,
 } from '@/lib/table/orchestration/import-resource'
 import { completeUploadSession } from '@/lib/uploads/upload-session/service'
-import { checkRateLimit, resolveWorkspaceScope } from '@/app/api/v1/middleware'
-import { v2ApiGateError } from '@/app/api/v2/lib/gate'
+import { withPublicApiRouteHandler } from '@/app/api/public-api-route-handler'
+import { resolveWorkspaceScope } from '@/app/api/v1/middleware'
 import {
   v2CaughtOrchestrationError,
   v2Data,
-  v2Error,
-  v2RateLimitError,
-  v2ValidationError,
   v2WorkspaceAccessError,
 } from '@/app/api/v2/lib/response'
 import { v2TableLockError } from '@/app/api/v2/tables/utils'
 
-const logger = createLogger('V2CompleteTableImportAPI')
-
-interface TableImportRouteParams {
-  params: Promise<{ importId: string }>
-}
-
-export const POST = withRouteHandler(
-  async (request: NextRequest, context: TableImportRouteParams) => {
+export const POST = withPublicApiRouteHandler({
+  contract: v2CompleteTableImportContract,
+  rateLimitEndpoint: 'table-import',
+  handler: async ({ input, auth: { userId, rateLimit } }) => {
     try {
-      const rateLimit = await checkRateLimit(request, 'table-import')
-      if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
-      const userId = rateLimit.userId!
-      const gate = await v2ApiGateError(userId)
-      if (gate) return gate
-      const parsed = await parseRequest(v2CompleteTableImportContract, request, context, {
-        validationErrorResponse: v2ValidationError,
-      })
-      if (!parsed.success) return parsed.response
-      const { workspaceId } = parsed.data.query
+      const { workspaceId } = input.query
       const scopeError = await resolveWorkspaceScope(rateLimit, workspaceId)
       if (scopeError) return v2WorkspaceAccessError(scopeError)
       const upload = await getOwnedTableImportUpload({
-        importId: parsed.data.params.importId,
+        importId: input.params.importId,
         workspaceId,
         userId,
-        uploadToken: parsed.data.headers['upload-token'],
+        uploadToken: input.headers['upload-token'],
       })
       const existing = await findOwnedTableImport({
         importId: upload.id,
@@ -67,8 +46,7 @@ export const POST = withRouteHandler(
       if (lockError) return lockError
       const classified = v2CaughtOrchestrationError(error)
       if (classified) return classified
-      logger.error('Failed to complete table import upload', { error: getErrorMessage(error) })
-      return v2Error('INTERNAL_ERROR', 'Internal server error')
+      throw error
     }
-  }
-)
+  },
+})

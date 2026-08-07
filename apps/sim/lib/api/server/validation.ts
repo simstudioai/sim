@@ -51,6 +51,7 @@ interface RouteContextWithParams {
 export interface ParseRequestOptions {
   validationErrorResponse?: (error: z.ZodError) => NextResponse<unknown>
   invalidJsonResponse?: () => NextResponse<unknown>
+  payloadTooLargeResponse?: () => NextResponse<unknown>
   invalidJson?: 'response' | 'throw'
   /**
    * Maximum number of bytes to read for the JSON body before rejecting with a
@@ -245,9 +246,13 @@ export async function parseRequest<C extends AnyApiRouteContract, TContext>(
   if (shouldReadJsonBody(contract)) {
     const parsedBody = await parseJsonBody(request, options?.invalidJson, options?.maxBodyBytes)
     if (!parsedBody.success) {
-      return options?.invalidJsonResponse && parsedBody.reason === 'invalid_json'
-        ? { success: false, response: options.invalidJsonResponse() }
-        : parsedBody
+      if (options?.invalidJsonResponse && parsedBody.reason === 'invalid_json') {
+        return { success: false, response: options.invalidJsonResponse() }
+      }
+      if (options?.payloadTooLargeResponse && parsedBody.reason === 'too_large') {
+        return { success: false, response: options.payloadTooLargeResponse() }
+      }
+      return parsedBody
     }
     body = parsedBody.data
   }

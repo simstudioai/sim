@@ -1,58 +1,26 @@
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
-import type { NextRequest } from 'next/server'
 import { traceSpansSchema } from '@/lib/api/contracts/logs'
 import {
   type V2LogListItem,
   v2ListLogsContract,
   v2LogStatusSchema,
 } from '@/lib/api/contracts/v2/logs'
-import { parseRequest } from '@/lib/api/server'
 import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
 import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
 import { decodePublicLogCursor, listPublicWorkflowLogs } from '@/lib/logs/public-queries'
-import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
+import { withPublicApiRouteHandler } from '@/app/api/public-api-route-handler'
+import { resolveWorkspaceAccess } from '@/app/api/v1/middleware'
 import { resolveFolderPathId } from '@/app/api/v2/lib/folders'
-import { v2ApiGateError } from '@/app/api/v2/lib/gate'
-import {
-  v2CursorList,
-  v2Error,
-  v2RateLimitError,
-  v2ValidationError,
-  v2WorkspaceAccessError,
-} from '@/app/api/v2/lib/response'
-
-const logger = createLogger('V2LogsAPI')
+import { v2CursorList, v2Error, v2WorkspaceAccessError } from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-export const GET = withRouteHandler(async (request: NextRequest) => {
-  const requestId = generateId().slice(0, 8)
-
-  try {
-    const rateLimit = await checkRateLimit(request, 'logs')
-    if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
-
-    const userId = rateLimit.userId!
-
-    const gate = await v2ApiGateError(userId)
-    if (gate) return gate
-
-    const parsed = await parseRequest(
-      v2ListLogsContract,
-      request,
-      {},
-      {
-        validationErrorResponse: v2ValidationError,
-      }
-    )
-    if (!parsed.success) return parsed.response
-
-    const params = parsed.data.query
+export const GET = withPublicApiRouteHandler({
+  contract: v2ListLogsContract,
+  rateLimitEndpoint: 'logs',
+  handler: async ({ input, auth: { userId, rateLimit } }) => {
+    const params = input.query
 
     const access = await resolveWorkspaceAccess(rateLimit, userId, params.workspaceId, 'read')
     if (access) return v2WorkspaceAccessError(access)
@@ -155,10 +123,5 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       : data.map(buildItem)
 
     return v2CursorList(formattedLogs, nextCursor, { rateLimit })
-  } catch (error) {
-    logger.error(`[${requestId}] Logs fetch error`, {
-      error: getErrorMessage(error, 'Unknown error'),
-    })
-    return v2Error('INTERNAL_ERROR', 'Internal server error')
-  }
+  },
 })
