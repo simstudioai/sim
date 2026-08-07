@@ -66,9 +66,9 @@ export function PublicFileView({
   )
 
   return (
-    <div className='light desktop-title-bar-page flex flex-col bg-[var(--bg)]'>
+    <div className='light desktop-title-bar-page flex h-screen flex-col overflow-hidden bg-[var(--bg)]'>
       <DesktopTitleBarLane />
-      <header className='sticky top-[var(--desktop-title-bar-height)] z-10 flex items-center justify-between gap-4 border-[var(--border)] border-b bg-[var(--bg)] px-4 py-3'>
+      <header className='z-10 flex shrink-0 items-center justify-between gap-4 border-[var(--border)] border-b bg-[var(--bg)] px-4 py-3'>
         <div className='flex min-w-0 items-center gap-3'>
           {!brand.logoUrl && (
             <>
