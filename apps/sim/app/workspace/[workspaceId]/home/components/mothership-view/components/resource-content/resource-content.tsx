@@ -129,8 +129,16 @@ interface ResourceContentProps {
   onBrowserOverlayControllerChange?: (controller: BrowserPanelOverlayController | null) => void
 }
 
-/** The agent owns the file while it is streaming; nothing is edited from here. */
-const STREAMING_FILE_GRANTS: ResourceGrants = { write: false, run: false }
+/**
+ * The agent owns the file while it is streaming; nothing is edited from here.
+ * Settled by construction — this is a literal, not a resolving membership.
+ */
+const STREAMING_FILE_GRANTS: ResourceGrants = {
+  write: false,
+  run: false,
+  manage: false,
+  settled: true,
+}
 
 /**
  * Grace window kept locked after the agent stops streaming into the file, so the lock bridges the

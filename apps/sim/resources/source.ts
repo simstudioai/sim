@@ -3,8 +3,19 @@ import type { ResourceKind, ResourceSeed, ShareableKind } from '@/resources/kind
 /** Why a resource could not be shown. */
 export type UnavailableReason = 'missing' | 'transient'
 
-/** A destination a view may want to link to: itself, or another resource by id. */
-export type ResourceLink = { to: 'self' } | { to: 'resource'; kind: ResourceKind; id: string }
+/**
+ * A destination a view may want to link to: itself, another resource by id, or
+ * the index route its own kind lives under.
+ *
+ * `list` is here rather than in a per-kind module because every kind has one and
+ * every detail surface needs it — a breadcrumb root, and the redirect after the
+ * resource it was showing is deleted. Five call sites hand-built that path
+ * before this member existed.
+ */
+export type ResourceLink =
+  | { to: 'self' }
+  | { to: 'resource'; kind: ResourceKind; id: string }
+  | { to: 'list' }
 
 /** Display noun per kind, used by the copy the base builds. */
 const RESOURCE_NOUN: Record<ResourceKind, string> = {
@@ -78,6 +89,26 @@ export type ResourceSource<K extends ResourceKind = ResourceKind> = K extends Re
   : never
 
 /**
+ * The in-app index route a kind lives under, used by {@link workspaceSource}'s
+ * `hrefFor` for `{ to: 'list' }`. Sibling to {@link resourceHref}, and exhaustive
+ * for the same reason: a kind added without a list route fails to compile here
+ * rather than sending a breadcrumb somewhere that does not exist.
+ */
+function resourceListHref(workspaceId: string, kind: ResourceKind): string {
+  const workspace = `/workspace/${encodeURIComponent(workspaceId)}`
+  switch (kind) {
+    case 'file':
+      return `${workspace}/files`
+    case 'table':
+      return `${workspace}/tables`
+    case 'knowledge':
+      return `${workspace}/knowledge`
+    case 'log':
+      return `${workspace}/logs`
+  }
+}
+
+/**
  * The in-app route for a resource, used by {@link workspaceSource}'s `hrefFor`.
  * The one table — every in-app destination for a resource is spelled here and
  * nowhere else, so a surface cannot drift onto a route that no longer exists.
@@ -124,10 +155,16 @@ export function workspaceSource<K extends ResourceKind>({
           return `Something went wrong loading this ${noun}. Try again.`
       }
     },
-    hrefFor: (link) =>
-      link.to === 'self'
-        ? resourceHref(workspaceId, kind, resourceId)
-        : resourceHref(workspaceId, link.kind, link.id),
+    hrefFor: (link) => {
+      switch (link.to) {
+        case 'self':
+          return resourceHref(workspaceId, kind, resourceId)
+        case 'resource':
+          return resourceHref(workspaceId, link.kind, link.id)
+        case 'list':
+          return resourceListHref(workspaceId, kind)
+      }
+    },
   }
 }
 

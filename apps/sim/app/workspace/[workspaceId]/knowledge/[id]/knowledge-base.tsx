@@ -422,7 +422,8 @@ export function KnowledgeBase({
       {
         onSuccess: () => {
           removeKnowledgeBase(id)
-          router.push(`/workspace/${workspaceId}/knowledge`)
+          const list = source.hrefFor({ to: 'list' })
+          if (list) router.push(list)
         },
       }
     )
@@ -622,7 +623,10 @@ export function KnowledgeBase({
     {
       label: 'Knowledge Base',
       icon: Database,
-      onClick: () => router.push(`/workspace/${workspaceId}/knowledge`),
+      onClick: () => {
+        const list = source.hrefFor({ to: 'list' })
+        if (list) router.push(list)
+      },
     },
     {
       label: knowledgeBaseCrumbLabel,

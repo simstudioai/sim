@@ -15,7 +15,7 @@ Enforced by `bun run check:resources`; strict gate `bun run check:resources:stri
 | Axis | Type | Replaces |
 | --- | --- | --- |
 | `source` | `WorkspaceSource<K> \| ShareSource<K>`, discriminated on `via` | `workspaceId`, `token`, `contentSource`, `isPublic` |
-| `grants` | `{ write: boolean; run: boolean }` | `canEdit`, `canRun`, `canAdmin`, `disableEdit/Insert/Delete` |
+| `grants` | `{ write; run; manage; settled }` | `canEdit`, `canRun`, `canAdmin`, `disableEdit/Insert/Delete` |
 | `host` | `'page' \| 'panel' \| 'public'` | `embedded`, `isEmbedded`, `compact`, `minimal` |
 
 There is no fourth axis. Agent streaming is one optional prop on `FileView` (`streaming?`), because only files stream.
@@ -41,7 +41,7 @@ const source = workspaceSource({ kind: 'file', workspaceId, resourceId: file.id 
 return <FileView source={source} grants={grantsFromPermissions(permissions)} host='panel' />
 ```
 
-Import from the unit barrel (`@/components/resources/file-view`), never a file inside it. Scope-dependent copy lives on `source.unavailableCopy`; links on `source.hrefFor(link)` (which returns `null` in share scope). `hostOwnsUrl(host)` is the one place the "embedded views do not write nuqs keys" rule lives.
+Import from the unit barrel (`@/components/resources/file-view`), never a file inside it. Scope-dependent copy lives on `source.unavailableCopy`; links on `source.hrefFor(link)` — `{ to: 'self' | 'resource' | 'list' }`, returning `null` in share scope. `hostOwnsUrl(host)` is the one place the "embedded views do not write nuqs keys" rule lives.
 
 ## Never
 

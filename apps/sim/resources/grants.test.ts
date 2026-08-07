@@ -21,6 +21,8 @@ describe('grantsFromPermissions', () => {
     expect(grantsFromPermissions({ canRead: false, canEdit: false, canAdmin: false })).toEqual({
       write: false,
       run: false,
+      manage: false,
+      settled: true,
     })
   })
 
@@ -28,6 +30,8 @@ describe('grantsFromPermissions', () => {
     expect(grantsFromPermissions({ canRead: true, canEdit: false, canAdmin: false })).toEqual({
       write: false,
       run: true,
+      manage: false,
+      settled: true,
     })
   })
 
@@ -35,6 +39,8 @@ describe('grantsFromPermissions', () => {
     expect(grantsFromPermissions({ canRead: true, canEdit: true, canAdmin: false })).toEqual({
       write: true,
       run: true,
+      manage: false,
+      settled: true,
     })
   })
 
@@ -42,6 +48,40 @@ describe('grantsFromPermissions', () => {
     for (const permissions of ALL_PERMISSIONS) {
       const grants = grantsFromPermissions(permissions)
       expect(grants.write).toBe(permissions.canEdit)
+    }
+  })
+
+  it('grants manage exactly to an admin', () => {
+    for (const permissions of ALL_PERMISSIONS) {
+      expect(grantsFromPermissions(permissions).manage).toBe(permissions.canAdmin)
+    }
+  })
+
+  /**
+   * The distinction the field exists for. A resolving membership and a genuine
+   * no-access member produce identical capability booleans, so without `settled`
+   * a surface cannot tell "you may not" from "we do not know yet" — and both
+   * disabled-during-load chrome and one-shot latched effects need to.
+   */
+  it('reports an unresolved membership as unsettled, with the same capabilities as a denied one', () => {
+    const loading = grantsFromPermissions({
+      canRead: false,
+      canEdit: false,
+      canAdmin: false,
+      isLoading: true,
+    })
+    const denied = grantsFromPermissions({ canRead: false, canEdit: false, canAdmin: false })
+
+    expect(loading.settled).toBe(false)
+    expect(denied.settled).toBe(true)
+    expect(loading.write).toBe(denied.write)
+    expect(loading.run).toBe(denied.run)
+    expect(loading.manage).toBe(denied.manage)
+  })
+
+  it('treats a caller that tracks no loading state as settled', () => {
+    for (const permissions of ALL_PERMISSIONS) {
+      expect(grantsFromPermissions(permissions).settled).toBe(true)
     }
   })
 
@@ -63,6 +103,18 @@ describe('grantsForShare', () => {
   it('never runs, for any kind', () => {
     for (const kind of RESOURCE_KINDS) {
       expect(grantsForShare(kind).run).toBe(false)
+    }
+  })
+
+  it('never manages, for any kind', () => {
+    for (const kind of RESOURCE_KINDS) {
+      expect(grantsForShare(kind).manage).toBe(false)
+    }
+  })
+
+  it('is always settled — a token resolves capabilities outright', () => {
+    for (const kind of RESOURCE_KINDS) {
+      expect(grantsForShare(kind).settled).toBe(true)
     }
   })
 
