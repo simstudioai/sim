@@ -990,12 +990,6 @@ interface FunctionRouteExecutionContext {
   outputSecretPlaintextsByName: Map<string, string>
   mountedFileSecretProvenanceScanner?: MountedFileSecretProvenanceScanner
   hasMountedSandboxFiles: boolean
-  /**
-   * Whether the serialized runtime payload carried `params` or `contextVariables` into the sandbox.
-   * Those are resolved block outputs and workflow variables — the route has no catalog for them, so
-   * it cannot tell a secret-bearing one from an ordinary value.
-   */
-  hasUnclassifiedRuntimeInputs: boolean
 }
 
 type ResolvedSecretNamesMetadataType =
@@ -1225,15 +1219,9 @@ function activateOutputSecretProvenance(
  * are unclassifiable rather than clean: absence of an envelope is absence of evidence, not evidence
  * the mount carried nothing. Those fail closed here so the classification can never be stronger
  * than what the caller actually attested to.
- *
- * The serialized runtime payload counts too. It carries `params` and `contextVariables` — resolved
- * block outputs and workflow variables — into the sandbox as a private-input file, and the route
- * has no catalog to tell a secret-bearing one from an ordinary value. Only an execution with
- * nothing at all in scope earns an exact-empty binary.
  */
 function hasSecretMaterialInScope(context: FunctionRouteExecutionContext): boolean {
   if (context.outputSecretPlaintextsByName.size > 0) return true
-  if (context.hasUnclassifiedRuntimeInputs) return true
   const scanner = context.mountedFileSecretProvenanceScanner
   return scanner ? scanner.hasSecrets : context.hasMountedSandboxFiles
 }
@@ -2043,12 +2031,6 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       outputSecretPlaintextsByName: new Map(),
       mountedFileSecretProvenanceScanner,
       hasMountedSandboxFiles: (_sandboxFiles?.length ?? 0) > 0,
-      // Values, not keys: `executionParams._context` is explicitly set to undefined just above,
-      // so a key count would read every execution as carrying params. Raised below once the
-      // resolved context variables are known.
-      hasUnclassifiedRuntimeInputs: Object.values(executionParams).some(
-        (value) => value !== undefined
-      ),
     }
     for (const [name, plaintext] of Object.entries(envVars)) {
       if (!plaintext) continue
@@ -2091,11 +2073,6 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     const contextVariables: Record<string, unknown> = {
       ...codeResolution.contextVariables,
       ...preResolvedContextVariables,
-    }
-    // Resolved block outputs and workflow variables ride into the sandbox inside the runtime
-    // payload, so an output file can carry them even with nothing mounted and no env secret.
-    if (Object.keys(contextVariables).length > 0) {
-      routeContext.hasUnclassifiedRuntimeInputs = true
     }
     const compilation = await compileCodePlaceholders({
       code: codeResolution.resolvedCode,
