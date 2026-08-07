@@ -117,20 +117,9 @@ jobs:
       - name: Lint code
         run: bun run lint:check
 
-      # These 21 audits are independent read-only passes over the tree, so running
-      # them as 21 sequential steps spent the whole time waiting on single-threaded
-      # file walks (~28s serial, ~5s at 13-way locally). scripts/run-audits.ts owns
-      # the list; it buffers each audit's output and replays only the failures, so a
-      # red run still names the audit and shows why. Audits that need a git base ref
-      # or write files stay as their own steps below.
-      #
-      # Notable members: the desktop IPC audit complements the bridge audit by
-      # deriving every fact from the source both sides execute, so it has no
-      # snapshot blind spot; the import-specifier audit catches specifiers that only
-      # webpack (which this job uses) resolves and that break every dev server on
-      # Turbopack; and the native-typecheck audit catches a bare `tsc` falling back
-      # to the ~10x slower JavaScript TypeScript 6 compiler, which otherwise still
-      # passes and just burns minutes.
+      # Every zero-argument `check:*` script, run concurrently. The list is derived in
+      # scripts/run-audits.ts, which also writes the per-audit timing table to the job
+      # summary and annotates failures. Audits needing a base ref stay separate below.
       - name: Repo audits
         run: bun run check:audits
 

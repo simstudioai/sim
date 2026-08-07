@@ -1,39 +1,37 @@
 #!/usr/bin/env bun
 /**
- * Runs the independent repo audits concurrently.
+ * Runs the repo's independent audits concurrently.
  *
  * Each audit is a self-contained read-only pass over the tree, so running them as 20-odd
  * sequential CI steps spent most of its wall clock waiting on single-threaded file walks.
- * Only audits that need no extra arguments, working directory, or git base ref belong here —
- * the ones that diff against a base ref (block registry, migration safety) or write files
- * (drizzle generate) stay as their own steps.
  *
- * Output is buffered per audit and replayed only for failures, so a green run stays quiet
- * and a red one still shows exactly which audit failed and why.
+ * The list is derived from the `check:*` scripts in package.json rather than restated here,
+ * so a new audit is picked up by default and has to be opted *out* deliberately. The previous
+ * hand-maintained list had already drifted: `check:cron-parity` existed, passed, and ran
+ * nowhere. Audits that need a git base ref or write files stay excluded and keep their own
+ * workflow step.
  */
-const AUDITS = [
-  'check:boundaries',
-  'check:api-validation:strict',
-  'check:desktop-bridge',
-  'check:desktop-ipc',
-  'check:utils',
-  'check:zustand-v5',
-  'check:react-query',
-  'check:client-boundary',
-  'check:bare-icons',
-  'check:icon-paths',
-  'check:realtime-prune',
-  'check:tool-registry-boundary',
-  'check:tool-request-boundary',
-  'check:trigger-block-cycle',
-  'check:import-specifiers',
-  'check:sql-date-binding',
-  'check:native-typecheck',
+import path from 'node:path'
+
+/** `check:*` scripts this runner deliberately does not own, and why. */
+const EXCLUDED: Record<string, string> = {
+  'check:audits': 'this runner',
+  'check:migrations': 'needs a git base ref argument',
+  'check:api-validation': 'superseded by the :strict variant, which this runner does run',
+}
+
+/**
+ * Generated-artifact checks that live outside the `check:*` namespace. Listed explicitly
+ * because the `*:check` namespace also holds checks that need a sibling repo or network.
+ */
+const EXTRA_AUDITS = [
   'tool-metadata:check',
   'integration-catalog:check',
   'skills:check',
   'agent-stream-docs:check',
 ] as const
+
+const ROOT = path.resolve(import.meta.dir, '..')
 
 interface AuditResult {
   script: string
@@ -42,11 +40,26 @@ interface AuditResult {
   output: string
 }
 
-const CONCURRENCY = Math.max(2, navigator.hardwareConcurrency - 1)
+async function auditScripts(): Promise<string[]> {
+  const manifest = await Bun.file(path.join(ROOT, 'package.json')).json()
+  const scripts = manifest.scripts as Record<string, string>
+  const derived = Object.keys(scripts).filter(
+    (name) => name.startsWith('check:') && !(name in EXCLUDED)
+  )
+  return [...derived, ...EXTRA_AUDITS]
+}
 
-async function runAudit(script: string): Promise<AuditResult> {
+/**
+ * Runs one audit, capturing its output.
+ *
+ * Spawns the script directly rather than `bun run <name>`, which would start a bun process
+ * only to have it read package.json and start a second one.
+ */
+async function runAudit(script: string, command: string): Promise<AuditResult> {
   const startedAt = performance.now()
-  const proc = Bun.spawn(['bun', 'run', script], {
+  const argv = command.replace(/^bun run /, '').split(/\s+/)
+  const proc = Bun.spawn([process.execPath, ...argv], {
+    cwd: ROOT,
     stdout: 'pipe',
     stderr: 'pipe',
     env: { ...process.env, FORCE_COLOR: '0' },
@@ -64,33 +77,63 @@ async function runAudit(script: string): Promise<AuditResult> {
   }
 }
 
-const queue = [...AUDITS]
+const manifest = await Bun.file(path.join(ROOT, 'package.json')).json()
+const commands = manifest.scripts as Record<string, string>
+const queue = await auditScripts()
+const total = queue.length
+// The coordinator only awaits, so it does not need a core reserved for it.
+const workers = Math.min(Math.max(2, navigator.hardwareConcurrency), total)
 const results: AuditResult[] = []
 
 async function worker(): Promise<void> {
-  for (let script = queue.shift(); script; script = queue.shift()) {
-    const result = await runAudit(script)
+  let script: string | undefined
+  while ((script = queue.shift())) {
+    const result = await runAudit(script, commands[script])
     results.push(result)
     console.log(`${result.ok ? '✓' : '✗'} ${result.script} (${Math.round(result.durationMs)}ms)`)
   }
 }
 
 const startedAt = performance.now()
-await Promise.all(Array.from({ length: Math.min(CONCURRENCY, AUDITS.length) }, worker))
+await Promise.all(Array.from({ length: workers }, worker))
 const wallMs = performance.now() - startedAt
-
-const failures = results.filter((result) => !result.ok)
-const serialMs = results.reduce((total, result) => total + result.durationMs, 0)
+const serialMs = results.reduce((sum, result) => sum + result.durationMs, 0)
 
 console.log(
-  `\n${results.length} audits in ${(wallMs / 1000).toFixed(1)}s wall (${(serialMs / 1000).toFixed(1)}s serial, ${CONCURRENCY}-way)`
+  `\n${total} audits in ${(wallMs / 1000).toFixed(1)}s wall (${(serialMs / 1000).toFixed(1)}s serial, ${workers}-way)`
 )
 
+/**
+ * Restores what the per-step workflow gave up: collapsible per-audit output and inline
+ * failure annotations in the GitHub UI, plus a timing table the separate steps never had.
+ */
+if (process.env.GITHUB_ACTIONS) {
+  const summary = [
+    '| Audit | Result | Duration |',
+    '| --- | --- | --- |',
+    ...[...results]
+      .sort((a, b) => b.durationMs - a.durationMs)
+      .map((r) => `| \`${r.script}\` | ${r.ok ? '✓' : '✗'} | ${Math.round(r.durationMs)}ms |`),
+    '',
+    `${total} audits in ${(wallMs / 1000).toFixed(1)}s wall (${(serialMs / 1000).toFixed(1)}s serial, ${workers}-way)`,
+  ].join('\n')
+  if (process.env.GITHUB_STEP_SUMMARY) {
+    await Bun.write(process.env.GITHUB_STEP_SUMMARY, `${summary}\n`)
+  }
+}
+
+const failures = results.filter((result) => !result.ok)
 if (failures.length > 0) {
   for (const failure of failures) {
-    console.error(`\n${'─'.repeat(72)}\n✗ ${failure.script}\n${'─'.repeat(72)}`)
-    console.error(failure.output || '(no output)')
+    if (process.env.GITHUB_ACTIONS) {
+      console.error(`::group::✗ ${failure.script}`)
+      console.error(failure.output || '(no output)')
+      console.error('::endgroup::')
+      console.error(`::error title=${failure.script}::audit failed — see the group above`)
+    } else {
+      console.error(`\n${'─'.repeat(72)}\n✗ ${failure.script}\n${'─'.repeat(72)}`)
+      console.error(failure.output || '(no output)')
+    }
   }
-  console.error(`\n${failures.length} audit(s) failed: ${failures.map((f) => f.script).join(', ')}`)
   process.exit(1)
 }

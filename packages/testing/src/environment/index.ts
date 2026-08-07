@@ -1,75 +1,63 @@
 /**
- * Detects external command-line tools that a handful of tests shell out to.
+ * Detects external command-line tools that a few suites shell out to.
  *
- * A few suites deliberately execute the real thing rather than a mock — the cloud-review
- * helper's path and read-size bounds, and the code-placeholder compiler's generated Python.
- * That is the point of those tests, but it makes them depend on tools the repo does not
- * vendor, and the failure mode is a raw `SyntaxError` or `ENOENT` from a subprocess with
- * nothing tying it back to a missing tool.
- *
- * Locally these report `false` and print one actionable line, so the affected tests skip.
- * Under `CI` they throw instead: a missing tool there means the gate silently stopped
- * covering a security boundary, which is strictly worse than a red build.
+ * Those suites deliberately execute the real thing rather than a mock, so they depend on tools
+ * the repo does not vendor. Locally a missing tool skips them with a reason; under `CI` it
+ * throws, because a silently-skipped security boundary is worse than a red build.
  */
 import { spawnSync } from 'node:child_process'
 
-/**
- * Python 3.12 is the floor, set by PEP 701 f-strings rather than by `match` statements.
- *
- * The compiler suite generates `match` (3.10) but also f-strings that reuse the outer quote
- * and embed `#`. On 3.11 those raise `f-string: unmatched '('` and `f-string expression part
- * cannot include '#'` — exactly the raw SyntaxError this guard exists to prevent — so a 3.10
- * floor would have let two of the three guarded tests through and failed anyway.
- */
-export const MIN_PYTHON: readonly [number, number] = [3, 12]
+/** PEP 701 f-strings set this floor, not the `match` statements (3.10) the suite also generates. */
+const MIN_PYTHON: readonly [number, number] = [3, 12]
 
-/** Reasons to pass to vitest's `ctx.skip(...)` so the report says why, not just that. */
-export const PYTHON_SKIP_REASON = 'needs python3 >= 3.12 (PEP 701 f-strings); macOS ships 3.9'
+/** Reasons for vitest's `ctx.skip(...)`, so the report says why and not just that. */
+export const PYTHON_SKIP_REASON = `needs python3 >= ${MIN_PYTHON.join('.')} (PEP 701 f-strings); macOS ships 3.9`
 export const RIPGREP_SKIP_REASON = 'needs ripgrep (`rg`) on PATH'
 
-const warned = new Set<string>()
-
-function unavailable(tool: string, hint: string): false {
-  if (process.env.CI) {
-    throw new Error(
-      `${tool} is required to run this suite and was not found. CI must never skip these tests — they cover behavior that is only observable by running the real tool. ${hint}`
-    )
+/**
+ * Wraps a probe so it runs at most once per process, warns at most once, and always throws
+ * under CI — memoizing the throw would turn every call after the first into a silent skip.
+ */
+function toolGuard(label: string, detect: () => { ok: boolean; hint: string }): () => boolean {
+  let result: { ok: boolean; hint: string } | undefined
+  let warned = false
+  return () => {
+    result ??= detect()
+    if (result.ok) return true
+    if (process.env.CI) {
+      throw new Error(
+        `${label} is required to run this suite and was not found. CI must never skip these tests — they cover behavior that is only observable by running the real tool. ${result.hint}`
+      )
+    }
+    if (!warned) {
+      warned = true
+      console.warn(`[@sim/testing] Skipping tests that require ${label}. ${result.hint}`)
+    }
+    return false
   }
-  if (!warned.has(tool)) {
-    warned.add(tool)
-    console.warn(`[@sim/testing] Skipping tests that require ${tool}. ${hint}`)
-  }
-  return false
-}
-
-/** Parses `python3 --version`, returning null when the interpreter is missing or unreadable. */
-export function detectPython3(): { major: number; minor: number } | null {
-  const result = spawnSync('python3', ['--version'], { encoding: 'utf8' })
-  const match = /Python (\d+)\.(\d+)/.exec(`${result.stdout ?? ''}${result.stderr ?? ''}`)
-  if (!match) return null
-  return { major: Number(match[1]), minor: Number(match[2]) }
 }
 
 /**
  * True when `python3` resolves to at least {@link MIN_PYTHON}.
  *
- * macOS ships 3.9 as the system `python3` and Homebrew's newer builds are not linked as
- * `python3`, so this is false on a stock Mac even when a modern Python is installed.
+ * False on a stock Mac: macOS ships 3.9 as the system `python3`, and Homebrew's newer builds
+ * are not linked under that name.
  */
-export function hasPython3(): boolean {
-  const version = detectPython3()
+export const hasPython3 = toolGuard(`python3 >= ${MIN_PYTHON.join('.')}`, () => {
+  const probe = spawnSync('python3', ['--version'], { encoding: 'utf8' })
+  const match = /Python (\d+)\.(\d+)/.exec(`${probe.stdout ?? ''}${probe.stderr ?? ''}`)
+  const found = match ? { major: Number(match[1]), minor: Number(match[2]) } : null
   const [minMajor, minMinor] = MIN_PYTHON
-  const label = `python3 >= ${minMajor}.${minMinor}`
-  const hint = `Found ${version ? `${version.major}.${version.minor}` : 'no python3 on PATH'}. Install a newer Python (e.g. \`brew install python@3.13\`) and put it on PATH ahead of /usr/bin.`
-  if (!version) return unavailable(label, hint)
-  if (version.major > minMajor) return true
-  if (version.major === minMajor && version.minor >= minMinor) return true
-  return unavailable(label, hint)
-}
+  return {
+    ok: Boolean(
+      found && (found.major > minMajor || (found.major === minMajor && found.minor >= minMinor))
+    ),
+    hint: `Found ${found ? `${found.major}.${found.minor}` : 'no python3 on PATH'}. Install a newer Python (e.g. \`brew install python@3.13\`) and put it on PATH ahead of /usr/bin.`,
+  }
+})
 
 /** True when `rg` is an executable on PATH. */
-export function hasRipgrep(): boolean {
-  const result = spawnSync('rg', ['--version'], { encoding: 'utf8' })
-  if (result.status === 0) return true
-  return unavailable('ripgrep (`rg`)', 'Install it with `brew install ripgrep`.')
-}
+export const hasRipgrep = toolGuard('ripgrep (`rg`)', () => ({
+  ok: spawnSync('rg', ['--version'], { encoding: 'utf8' }).status === 0,
+  hint: 'Install it with `brew install ripgrep`.',
+}))

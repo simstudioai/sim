@@ -31,21 +31,14 @@
 import { spawnSync } from 'node:child_process'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
-import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { formatGeneratedSource } from './format-generated-source'
+import { localBin } from './local-bin'
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(SCRIPT_DIR, '..')
-
-/** The native TypeScript 7 compiler entry point, resolved once. */
-const TSC_ENTRY = join(
-  dirname(createRequire(import.meta.url).resolve('typescript/package.json')),
-  'bin',
-  'tsc'
-)
 const BRIDGE_SOURCE_PATH = resolve(ROOT, 'packages/desktop-bridge/src/index.ts')
 const PROTOCOL_SOURCE_PATH = resolve(ROOT, 'packages/browser-protocol/src/index.ts')
 const TERMINAL_PROTOCOL_SOURCE_PATH = resolve(ROOT, 'packages/terminal-protocol/src/index.ts')
@@ -181,12 +174,7 @@ function checkCompatibility(): { compatible: boolean; output: string } {
   try {
     writeFileSync(join(dir, 'compat.ts'), compatSource)
     writeFileSync(join(dir, 'tsconfig.json'), JSON.stringify(tsconfig, null, 2))
-    // Spawned as a resolved module path rather than via `bunx`. `bunx` re-resolves the
-    // package on every call against the shared install cache, which on CI is a network-backed
-    // sticky-disk mount — cheap when this audit runs alone, but it serialized behind the
-    // other audits once they started running concurrently and took this step from 1s to 39s,
-    // making it the entire wall clock of the batch.
-    const result = spawnSync(process.execPath, [TSC_ENTRY, '-p', dir, '--pretty', 'false'], {
+    const result = spawnSync(localBin('tsc'), ['-p', dir, '--pretty', 'false'], {
       cwd: ROOT,
       encoding: 'utf8',
     })
