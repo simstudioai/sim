@@ -1,53 +1,20 @@
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import type { NextRequest } from 'next/server'
 import { v2CreateSkillContract, v2ListSkillsContract } from '@/lib/api/contracts/v2/skills'
-import { parseRequest } from '@/lib/api/server'
-import { generateRequestId } from '@/lib/core/utils/request'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { performCreateSkill } from '@/lib/skills/orchestration'
 import { listSkills } from '@/lib/workflows/skills/operations'
-import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
-import { v2ApiGateError } from '@/app/api/v2/lib/gate'
-import {
-  v2CursorList,
-  v2Data,
-  v2Error,
-  v2RateLimitError,
-  v2ValidationError,
-  v2WorkspaceAccessError,
-} from '@/app/api/v2/lib/response'
+import { withPublicApiRouteHandler } from '@/app/api/public-api-route-handler'
+import { resolveWorkspaceAccess } from '@/app/api/v1/middleware'
+import { v2CursorList, v2Data, v2WorkspaceAccessError } from '@/app/api/v2/lib/response'
 import { toV2Skill, toV2SkillSummary, v2SkillOrchestrationError } from '@/app/api/v2/skills/utils'
-
-const logger = createLogger('V2SkillsAPI')
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 /** GET /api/v2/skills — List skills in a workspace, built-ins included. */
-export const GET = withRouteHandler(async (request: NextRequest) => {
-  const requestId = generateRequestId()
-
-  try {
-    const rateLimit = await checkRateLimit(request, 'skills')
-    if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
-
-    const userId = rateLimit.userId!
-
-    const gate = await v2ApiGateError(userId)
-    if (gate) return gate
-
-    const parsed = await parseRequest(
-      v2ListSkillsContract,
-      request,
-      {},
-      {
-        validationErrorResponse: v2ValidationError,
-      }
-    )
-    if (!parsed.success) return parsed.response
-
-    const { workspaceId, search, sortBy, sortOrder } = parsed.data.query
+export const GET = withPublicApiRouteHandler({
+  contract: v2ListSkillsContract,
+  rateLimitEndpoint: 'skills',
+  handler: async ({ input, auth: { userId, rateLimit } }) => {
+    const { workspaceId, search, sortBy, sortOrder } = input.query
 
     const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'read')
     if (access) return v2WorkspaceAccessError(access)
@@ -56,38 +23,15 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     // The per-workspace skill set is small and bounded → a single full page.
     return v2CursorList(skills.map(toV2SkillSummary), null, { rateLimit })
-  } catch (error) {
-    logger.error(`[${requestId}] Error listing skills`, {
-      error: getErrorMessage(error, 'Unknown error'),
-    })
-    return v2Error('INTERNAL_ERROR', 'Internal server error')
-  }
+  },
 })
 
 /** POST /api/v2/skills — Create a skill. */
-export const POST = withRouteHandler(async (request: NextRequest) => {
-  const requestId = generateRequestId()
-
-  try {
-    const rateLimit = await checkRateLimit(request, 'skills')
-    if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
-
-    const userId = rateLimit.userId!
-
-    const gate = await v2ApiGateError(userId)
-    if (gate) return gate
-
-    const parsed = await parseRequest(
-      v2CreateSkillContract,
-      request,
-      {},
-      {
-        validationErrorResponse: v2ValidationError,
-      }
-    )
-    if (!parsed.success) return parsed.response
-
-    const { workspaceId, name, description, content } = parsed.data.body
+export const POST = withPublicApiRouteHandler({
+  contract: v2CreateSkillContract,
+  rateLimitEndpoint: 'skills',
+  handler: async ({ request, input, auth: { userId, rateLimit } }) => {
+    const { workspaceId, name, description, content } = input.body
 
     const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
     if (access) return v2WorkspaceAccessError(access)
@@ -107,10 +51,5 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     return v2Data({ skill: toV2Skill(result.skill) }, { rateLimit, status: 201 })
-  } catch (error) {
-    logger.error(`[${requestId}] Error creating skill`, {
-      error: getErrorMessage(error, 'Unknown error'),
-    })
-    return v2Error('INTERNAL_ERROR', 'Internal server error')
-  }
+  },
 })

@@ -1,24 +1,19 @@
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { type NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import {
   type V2KnowledgeDocumentSummary,
   v2ListKnowledgeDocumentsContract,
   v2UploadKnowledgeDocumentContract,
 } from '@/lib/api/contracts/v2/knowledge'
-import { parseRequest } from '@/lib/api/server'
 import {
   checkAttributedUsageLimits,
   resolveBillingAttribution,
   resolveSystemBillingAttribution,
 } from '@/lib/billing/core/billing-attribution'
-import { generateRequestId } from '@/lib/core/utils/request'
 import {
   isPayloadSizeLimitError,
   readFileToBufferWithLimit,
   readFormDataWithLimit,
 } from '@/lib/core/utils/stream-limits'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getDocuments } from '@/lib/knowledge/documents/service'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
 import { performUploadKnowledgeDocument } from '@/lib/knowledge/orchestration'
@@ -26,9 +21,9 @@ import type { KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
 import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace'
 import { MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { validateFileType } from '@/lib/uploads/utils/validation'
+import { withPublicApiRouteHandler } from '@/app/api/public-api-route-handler'
 import { resolveKnowledgeBase, serializeDate } from '@/app/api/v1/knowledge/utils'
-import { checkRateLimit, type RateLimitResult } from '@/app/api/v1/middleware'
-import { v2ApiGateError } from '@/app/api/v2/lib/gate'
+import type { RateLimitResult } from '@/app/api/v1/middleware'
 import {
   decodeCursor,
   encodeCursor,
@@ -36,21 +31,13 @@ import {
   v2Data,
   v2Error,
   v2ErrorForOrchestration,
-  v2RateLimitError,
-  v2ValidationError,
 } from '@/app/api/v2/lib/response'
-
-const logger = createLogger('V2KnowledgeDocumentsAPI')
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 const MAX_FILE_SIZE = MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE
 const MAX_MULTIPART_OVERHEAD_BYTES = 1024 * 1024
-
-interface DocumentsRouteParams {
-  params: Promise<{ id: string }>
-}
 
 /**
  * Resolves a knowledge base via the shared v1 ownership invariant
@@ -74,26 +61,12 @@ async function resolveKnowledgeBaseScoped(
 }
 
 /** GET /api/v2/knowledge/[id]/documents — List documents in a knowledge base. */
-export const GET = withRouteHandler(async (request: NextRequest, context: DocumentsRouteParams) => {
-  const requestId = generateRequestId()
-
-  try {
-    const rateLimit = await checkRateLimit(request, 'knowledge-detail')
-    if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
-
-    const userId = rateLimit.userId!
-
-    const gate = await v2ApiGateError(userId)
-    if (gate) return gate
-
-    const parsed = await parseRequest(v2ListKnowledgeDocumentsContract, request, context, {
-      validationErrorResponse: v2ValidationError,
-    })
-    if (!parsed.success) return parsed.response
-
-    const { workspaceId, limit, cursor, search, enabledFilter, sortBy, sortOrder } =
-      parsed.data.query
-    const { id: knowledgeBaseId } = parsed.data.params
+export const GET = withPublicApiRouteHandler({
+  contract: v2ListKnowledgeDocumentsContract,
+  rateLimitEndpoint: 'knowledge-detail',
+  handler: async ({ input, auth: { requestId, userId, rateLimit } }) => {
+    const { workspaceId, limit, cursor, search, enabledFilter, sortBy, sortOrder } = input.query
+    const { id: knowledgeBaseId } = input.params
 
     const result = await resolveKnowledgeBaseScoped(
       knowledgeBaseId,
@@ -144,12 +117,7 @@ export const GET = withRouteHandler(async (request: NextRequest, context: Docume
       ? encodeCursor({ offset: offset + limit })
       : null
     return v2CursorList(documents, nextCursor, { rateLimit })
-  } catch (error) {
-    logger.error(`[${requestId}] Error listing documents`, {
-      error: getErrorMessage(error, 'Unknown error'),
-    })
-    return v2Error('INTERNAL_ERROR', 'Internal server error')
-  }
+  },
 })
 
 /**
@@ -160,26 +128,13 @@ export const GET = withRouteHandler(async (request: NextRequest, context: Docume
  * unauthorized caller never streams a file into memory. Order: rate limit →
  * KB ownership (write) → usage gate → buffered multipart read.
  */
-export const POST = withRouteHandler(
-  async (request: NextRequest, context: DocumentsRouteParams) => {
-    const requestId = generateRequestId()
-
+export const POST = withPublicApiRouteHandler({
+  contract: v2UploadKnowledgeDocumentContract,
+  rateLimitEndpoint: 'knowledge-detail',
+  handler: async ({ request, input, auth: { requestId, userId, rateLimit } }) => {
     try {
-      const rateLimit = await checkRateLimit(request, 'knowledge-detail')
-      if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
-
-      const userId = rateLimit.userId!
-
-      const gate = await v2ApiGateError(userId)
-      if (gate) return gate
-
-      const parsed = await parseRequest(v2UploadKnowledgeDocumentContract, request, context, {
-        validationErrorResponse: v2ValidationError,
-      })
-      if (!parsed.success) return parsed.response
-
-      const { id: knowledgeBaseId } = parsed.data.params
-      const { workspaceId } = parsed.data.query
+      const { id: knowledgeBaseId } = input.params
+      const { workspaceId } = input.query
 
       const result = await resolveKnowledgeBaseScoped(
         knowledgeBaseId,
@@ -292,10 +247,7 @@ export const POST = withRouteHandler(
         return v2Error('PAYLOAD_TOO_LARGE', error.message)
       }
 
-      logger.error(`[${requestId}] Error uploading document`, {
-        error: getErrorMessage(error, 'Unknown error'),
-      })
-      return v2Error('INTERNAL_ERROR', 'Internal server error')
+      throw error
     }
-  }
-)
+  },
+})

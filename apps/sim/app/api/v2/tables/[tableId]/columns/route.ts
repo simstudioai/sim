@@ -1,174 +1,121 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import type { NextRequest } from 'next/server'
 import {
   v2AddTableColumnContract,
   v2DeleteTableColumnContract,
   v2UpdateTableColumnContract,
 } from '@/lib/api/contracts/v2/tables'
-import { isZodError, parseRequest } from '@/lib/api/server'
-import { generateRequestId } from '@/lib/core/utils/request'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { isZodError } from '@/lib/api/server'
 import { addTableColumn, deleteColumn } from '@/lib/table'
 import { performUpdateTableColumn } from '@/lib/table/orchestration'
+import { withPublicApiRouteHandler } from '@/app/api/public-api-route-handler'
 import { checkAccess, normalizeColumn } from '@/app/api/table/utils'
-import { checkRateLimit, resolveWorkspaceScope } from '@/app/api/v1/middleware'
-import { v2ApiGateError } from '@/app/api/v2/lib/gate'
+import { resolveWorkspaceScope } from '@/app/api/v1/middleware'
 import {
   v2CaughtOrchestrationError,
   v2Data,
   v2Error,
-  v2RateLimitError,
   v2ValidationError,
   v2WorkspaceAccessError,
 } from '@/app/api/v2/lib/response'
 import { v2TableAccessError, v2TableOrchestrationError } from '@/app/api/v2/tables/utils'
 
-const logger = createLogger('V2TableColumnsAPI')
-
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-interface ColumnsRouteParams {
-  params: Promise<{ tableId: string }>
-}
-
 /** POST /api/v2/tables/[tableId]/columns — Add a column to the table schema. */
-export const POST = withRouteHandler(async (request: NextRequest, context: ColumnsRouteParams) => {
-  const requestId = generateRequestId()
+export const POST = withPublicApiRouteHandler({
+  contract: v2AddTableColumnContract,
+  rateLimitEndpoint: 'table-columns',
+  handler: async ({ request, input, auth: { requestId, userId, rateLimit } }) => {
+    try {
+      const { tableId } = input.params
+      const validated = input.body
 
-  try {
-    const rateLimit = await checkRateLimit(request, 'table-columns')
-    if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
+      const scopeError = await resolveWorkspaceScope(rateLimit, validated.workspaceId)
+      if (scopeError) return v2WorkspaceAccessError(scopeError)
 
-    const userId = rateLimit.userId!
+      const result = await checkAccess(tableId, userId, 'write')
+      if (!result.ok) return v2TableAccessError(result)
 
-    const gate = await v2ApiGateError(userId)
-    if (gate) return gate
+      const { table } = result
+      if (table.workspaceId !== validated.workspaceId) {
+        return v2Error('NOT_FOUND', 'Table not found')
+      }
 
-    const parsed = await parseRequest(v2AddTableColumnContract, request, context, {
-      validationErrorResponse: v2ValidationError,
-    })
-    if (!parsed.success) return parsed.response
+      const updatedTable = await addTableColumn(tableId, validated.column, requestId)
 
-    const { tableId } = parsed.data.params
-    const validated = parsed.data.body
+      recordAudit({
+        workspaceId: validated.workspaceId,
+        actorId: userId,
+        action: AuditAction.TABLE_UPDATED,
+        resourceType: AuditResourceType.TABLE,
+        resourceId: tableId,
+        resourceName: table.name,
+        description: `Added column "${validated.column.name}" to table "${table.name}"`,
+        metadata: { column: validated.column },
+        request,
+      })
 
-    const scopeError = await resolveWorkspaceScope(rateLimit, validated.workspaceId)
-    if (scopeError) return v2WorkspaceAccessError(scopeError)
+      return v2Data({ columns: updatedTable.schema.columns.map(normalizeColumn) }, { rateLimit })
+    } catch (error) {
+      if (isZodError(error)) return v2ValidationError(error)
 
-    const result = await checkAccess(tableId, userId, 'write')
-    if (!result.ok) return v2TableAccessError(result)
+      const classified = v2CaughtOrchestrationError(error)
+      if (classified) return classified
 
-    const { table } = result
-    if (table.workspaceId !== validated.workspaceId) {
-      return v2Error('NOT_FOUND', 'Table not found')
+      throw error
     }
-
-    const updatedTable = await addTableColumn(tableId, validated.column, requestId)
-
-    recordAudit({
-      workspaceId: validated.workspaceId,
-      actorId: userId,
-      action: AuditAction.TABLE_UPDATED,
-      resourceType: AuditResourceType.TABLE,
-      resourceId: tableId,
-      resourceName: table.name,
-      description: `Added column "${validated.column.name}" to table "${table.name}"`,
-      metadata: { column: validated.column },
-      request,
-    })
-
-    return v2Data({ columns: updatedTable.schema.columns.map(normalizeColumn) }, { rateLimit })
-  } catch (error) {
-    if (isZodError(error)) return v2ValidationError(error)
-
-    const classified = v2CaughtOrchestrationError(error)
-    if (classified) return classified
-
-    logger.error(`[${requestId}] Error adding column to table`, {
-      error: getErrorMessage(error, 'Unknown error'),
-    })
-    return v2Error('INTERNAL_ERROR', 'Internal server error')
-  }
+  },
 })
 
 /** PATCH /api/v2/tables/[tableId]/columns — Update a column (rename, type change, constraints). */
-export const PATCH = withRouteHandler(async (request: NextRequest, context: ColumnsRouteParams) => {
-  const requestId = generateRequestId()
+export const PATCH = withPublicApiRouteHandler({
+  contract: v2UpdateTableColumnContract,
+  rateLimitEndpoint: 'table-columns',
+  handler: async ({ request, input, auth: { requestId, userId, rateLimit } }) => {
+    try {
+      const { tableId } = input.params
+      const validated = input.body
 
-  try {
-    const rateLimit = await checkRateLimit(request, 'table-columns')
-    if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
+      const scopeError = await resolveWorkspaceScope(rateLimit, validated.workspaceId)
+      if (scopeError) return v2WorkspaceAccessError(scopeError)
 
-    const userId = rateLimit.userId!
+      const result = await checkAccess(tableId, userId, 'write')
+      if (!result.ok) return v2TableAccessError(result)
 
-    const gate = await v2ApiGateError(userId)
-    if (gate) return gate
+      const { table } = result
+      if (table.workspaceId !== validated.workspaceId) {
+        return v2Error('NOT_FOUND', 'Table not found')
+      }
 
-    const parsed = await parseRequest(v2UpdateTableColumnContract, request, context, {
-      validationErrorResponse: v2ValidationError,
-    })
-    if (!parsed.success) return parsed.response
+      const outcome = await performUpdateTableColumn({
+        table,
+        columnName: validated.columnName,
+        userId,
+        updates: validated.updates,
+        requestId,
+        request,
+      })
+      if (!outcome.success || !outcome.table) {
+        return v2TableOrchestrationError(outcome, 'Failed to update column')
+      }
 
-    const { tableId } = parsed.data.params
-    const validated = parsed.data.body
-
-    const scopeError = await resolveWorkspaceScope(rateLimit, validated.workspaceId)
-    if (scopeError) return v2WorkspaceAccessError(scopeError)
-
-    const result = await checkAccess(tableId, userId, 'write')
-    if (!result.ok) return v2TableAccessError(result)
-
-    const { table } = result
-    if (table.workspaceId !== validated.workspaceId) {
-      return v2Error('NOT_FOUND', 'Table not found')
+      return v2Data({ columns: outcome.table.schema.columns.map(normalizeColumn) }, { rateLimit })
+    } catch (error) {
+      if (isZodError(error)) return v2ValidationError(error)
+      throw error
     }
-
-    const outcome = await performUpdateTableColumn({
-      table,
-      columnName: validated.columnName,
-      userId,
-      updates: validated.updates,
-      requestId,
-      request,
-    })
-    if (!outcome.success || !outcome.table) {
-      return v2TableOrchestrationError(outcome, 'Failed to update column')
-    }
-
-    return v2Data({ columns: outcome.table.schema.columns.map(normalizeColumn) }, { rateLimit })
-  } catch (error) {
-    if (isZodError(error)) return v2ValidationError(error)
-    logger.error(`[${requestId}] Error updating column in table`, {
-      error: getErrorMessage(error, 'Unknown error'),
-    })
-    return v2Error('INTERNAL_ERROR', 'Internal server error')
-  }
+  },
 })
 
 /** DELETE /api/v2/tables/[tableId]/columns — Delete a column from the table schema. */
-export const DELETE = withRouteHandler(
-  async (request: NextRequest, context: ColumnsRouteParams) => {
-    const requestId = generateRequestId()
-
+export const DELETE = withPublicApiRouteHandler({
+  contract: v2DeleteTableColumnContract,
+  rateLimitEndpoint: 'table-columns',
+  handler: async ({ request, input, auth: { requestId, userId, rateLimit } }) => {
     try {
-      const rateLimit = await checkRateLimit(request, 'table-columns')
-      if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
-
-      const userId = rateLimit.userId!
-
-      const gate = await v2ApiGateError(userId)
-      if (gate) return gate
-
-      const parsed = await parseRequest(v2DeleteTableColumnContract, request, context, {
-        validationErrorResponse: v2ValidationError,
-      })
-      if (!parsed.success) return parsed.response
-
-      const { tableId } = parsed.data.params
-      const validated = parsed.data.body
+      const { tableId } = input.params
+      const validated = input.body
 
       const scopeError = await resolveWorkspaceScope(rateLimit, validated.workspaceId)
       if (scopeError) return v2WorkspaceAccessError(scopeError)
@@ -205,10 +152,7 @@ export const DELETE = withRouteHandler(
       const classified = v2CaughtOrchestrationError(error)
       if (classified) return classified
 
-      logger.error(`[${requestId}] Error deleting column from table`, {
-        error: getErrorMessage(error, 'Unknown error'),
-      })
-      return v2Error('INTERNAL_ERROR', 'Internal server error')
+      throw error
     }
-  }
-)
+  },
+})

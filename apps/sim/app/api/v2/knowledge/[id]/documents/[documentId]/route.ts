@@ -1,36 +1,19 @@
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { type NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import {
   type V2KnowledgeDocument,
   v2DeleteKnowledgeDocumentContract,
   v2GetKnowledgeDocumentContract,
 } from '@/lib/api/contracts/v2/knowledge'
-import { parseRequest } from '@/lib/api/server'
-import { generateRequestId } from '@/lib/core/utils/request'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getKnowledgeDocument } from '@/lib/knowledge/documents/service'
 import { performDeleteKnowledgeDocument } from '@/lib/knowledge/orchestration'
 import type { KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
+import { withPublicApiRouteHandler } from '@/app/api/public-api-route-handler'
 import { resolveKnowledgeBase, serializeDate } from '@/app/api/v1/knowledge/utils'
-import { checkRateLimit, type RateLimitResult } from '@/app/api/v1/middleware'
-import { v2ApiGateError } from '@/app/api/v2/lib/gate'
-import {
-  v2Data,
-  v2Error,
-  v2ErrorForOrchestration,
-  v2RateLimitError,
-  v2ValidationError,
-} from '@/app/api/v2/lib/response'
-
-const logger = createLogger('V2KnowledgeDocumentDetailAPI')
+import type { RateLimitResult } from '@/app/api/v1/middleware'
+import { v2Data, v2Error, v2ErrorForOrchestration } from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
-
-interface DocumentDetailRouteParams {
-  params: Promise<{ id: string; documentId: string }>
-}
 
 /**
  * Resolves a knowledge base via the shared v1 ownership invariant
@@ -54,123 +37,83 @@ async function resolveKnowledgeBaseScoped(
 }
 
 /** GET /api/v2/knowledge/[id]/documents/[documentId] — Get document details. */
-export const GET = withRouteHandler(
-  async (request: NextRequest, context: DocumentDetailRouteParams) => {
-    const requestId = generateRequestId()
+export const GET = withPublicApiRouteHandler({
+  contract: v2GetKnowledgeDocumentContract,
+  rateLimitEndpoint: 'knowledge-detail',
+  handler: async ({ input, auth: { userId, rateLimit } }) => {
+    const { id: knowledgeBaseId, documentId } = input.params
 
-    try {
-      const rateLimit = await checkRateLimit(request, 'knowledge-detail')
-      if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
+    const result = await resolveKnowledgeBaseScoped(
+      knowledgeBaseId,
+      input.query.workspaceId,
+      userId,
+      rateLimit,
+      'read'
+    )
+    if (result instanceof NextResponse) return result
 
-      const userId = rateLimit.userId!
+    const doc = await getKnowledgeDocument(knowledgeBaseId, documentId)
+    if (!doc) return v2Error('NOT_FOUND', 'Document not found')
 
-      const gate = await v2ApiGateError(userId)
-      if (gate) return gate
-
-      const parsed = await parseRequest(v2GetKnowledgeDocumentContract, request, context, {
-        validationErrorResponse: v2ValidationError,
-      })
-      if (!parsed.success) return parsed.response
-
-      const { id: knowledgeBaseId, documentId } = parsed.data.params
-
-      const result = await resolveKnowledgeBaseScoped(
-        knowledgeBaseId,
-        parsed.data.query.workspaceId,
-        userId,
-        rateLimit,
-        'read'
-      )
-      if (result instanceof NextResponse) return result
-
-      const doc = await getKnowledgeDocument(knowledgeBaseId, documentId)
-      if (!doc) return v2Error('NOT_FOUND', 'Document not found')
-
-      const documentDetail: V2KnowledgeDocument = {
-        id: doc.id,
-        knowledgeBaseId: doc.knowledgeBaseId,
-        filename: doc.filename,
-        fileSize: doc.fileSize,
-        mimeType: doc.mimeType,
-        processingStatus: doc.processingStatus as V2KnowledgeDocument['processingStatus'],
-        processingError: doc.processingError,
-        processingStartedAt: serializeDate(doc.processingStartedAt),
-        processingCompletedAt: serializeDate(doc.processingCompletedAt),
-        chunkCount: doc.chunkCount,
-        tokenCount: doc.tokenCount,
-        characterCount: doc.characterCount,
-        enabled: doc.enabled,
-        connectorId: doc.connectorId,
-        connectorType: doc.connectorType ?? null,
-        sourceUrl: doc.sourceUrl,
-        createdAt: serializeDate(doc.uploadedAt),
-      }
-
-      return v2Data({ document: documentDetail }, { rateLimit })
-    } catch (error) {
-      logger.error(`[${requestId}] Error getting document`, {
-        error: getErrorMessage(error, 'Unknown error'),
-      })
-      return v2Error('INTERNAL_ERROR', 'Internal server error')
+    const documentDetail: V2KnowledgeDocument = {
+      id: doc.id,
+      knowledgeBaseId: doc.knowledgeBaseId,
+      filename: doc.filename,
+      fileSize: doc.fileSize,
+      mimeType: doc.mimeType,
+      processingStatus: doc.processingStatus as V2KnowledgeDocument['processingStatus'],
+      processingError: doc.processingError,
+      processingStartedAt: serializeDate(doc.processingStartedAt),
+      processingCompletedAt: serializeDate(doc.processingCompletedAt),
+      chunkCount: doc.chunkCount,
+      tokenCount: doc.tokenCount,
+      characterCount: doc.characterCount,
+      enabled: doc.enabled,
+      connectorId: doc.connectorId,
+      connectorType: doc.connectorType ?? null,
+      sourceUrl: doc.sourceUrl,
+      createdAt: serializeDate(doc.uploadedAt),
     }
-  }
-)
+
+    return v2Data({ document: documentDetail }, { rateLimit })
+  },
+})
 
 /** DELETE /api/v2/knowledge/[id]/documents/[documentId] — Delete a document. */
-export const DELETE = withRouteHandler(
-  async (request: NextRequest, context: DocumentDetailRouteParams) => {
-    const requestId = generateRequestId()
+export const DELETE = withPublicApiRouteHandler({
+  contract: v2DeleteKnowledgeDocumentContract,
+  rateLimitEndpoint: 'knowledge-detail',
+  handler: async ({ request, input, auth: { requestId, userId, rateLimit } }) => {
+    const { id: knowledgeBaseId, documentId } = input.params
 
-    try {
-      const rateLimit = await checkRateLimit(request, 'knowledge-detail')
-      if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
+    const result = await resolveKnowledgeBaseScoped(
+      knowledgeBaseId,
+      input.query.workspaceId,
+      userId,
+      rateLimit,
+      'write'
+    )
+    if (result instanceof NextResponse) return result
 
-      const userId = rateLimit.userId!
+    const doc = await getKnowledgeDocument(knowledgeBaseId, documentId)
+    if (!doc) return v2Error('NOT_FOUND', 'Document not found')
 
-      const gate = await v2ApiGateError(userId)
-      if (gate) return gate
-
-      const parsed = await parseRequest(v2DeleteKnowledgeDocumentContract, request, context, {
-        validationErrorResponse: v2ValidationError,
-      })
-      if (!parsed.success) return parsed.response
-
-      const { id: knowledgeBaseId, documentId } = parsed.data.params
-
-      const result = await resolveKnowledgeBaseScoped(
-        knowledgeBaseId,
-        parsed.data.query.workspaceId,
-        userId,
-        rateLimit,
-        'write'
-      )
-      if (result instanceof NextResponse) return result
-
-      const doc = await getKnowledgeDocument(knowledgeBaseId, documentId)
-      if (!doc) return v2Error('NOT_FOUND', 'Document not found')
-
-      const outcome = await performDeleteKnowledgeDocument({
-        knowledgeBase: {
-          id: knowledgeBaseId,
-          name: result.kb.name,
-          workspaceId: parsed.data.query.workspaceId,
-        },
-        document: { id: documentId, filename: doc.filename },
-        userId,
-        source: 'api',
-        requestId,
-        request,
-      })
-      if (!outcome.success) {
-        return v2ErrorForOrchestration(outcome.errorCode, outcome.error)
-      }
-
-      return v2Data({ id: documentId, deleted: true as const }, { rateLimit })
-    } catch (error) {
-      logger.error(`[${requestId}] Error deleting document`, {
-        error: getErrorMessage(error, 'Unknown error'),
-      })
-      return v2Error('INTERNAL_ERROR', 'Internal server error')
+    const outcome = await performDeleteKnowledgeDocument({
+      knowledgeBase: {
+        id: knowledgeBaseId,
+        name: result.kb.name,
+        workspaceId: input.query.workspaceId,
+      },
+      document: { id: documentId, filename: doc.filename },
+      userId,
+      source: 'api',
+      requestId,
+      request,
+    })
+    if (!outcome.success) {
+      return v2ErrorForOrchestration(outcome.errorCode, outcome.error)
     }
-  }
-)
+
+    return v2Data({ id: documentId, deleted: true as const }, { rateLimit })
+  },
+})

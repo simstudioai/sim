@@ -1,94 +1,68 @@
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import type { NextRequest } from 'next/server'
 import { v2UpsertTableRowContract } from '@/lib/api/contracts/v2/tables'
-import { isZodError, parseRequest } from '@/lib/api/server'
-import { generateRequestId } from '@/lib/core/utils/request'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { isZodError } from '@/lib/api/server'
 import type { RowData, TableSchema } from '@/lib/table'
 import { buildIdByName, rowDataNameToId, upsertRow } from '@/lib/table'
 import { namedRowMapper } from '@/lib/table/cell-format'
+import { withPublicApiRouteHandler } from '@/app/api/public-api-route-handler'
 import { checkAccess } from '@/app/api/table/utils'
-import { checkRateLimit, resolveWorkspaceScope } from '@/app/api/v1/middleware'
-import { v2ApiGateError } from '@/app/api/v2/lib/gate'
+import { resolveWorkspaceScope } from '@/app/api/v1/middleware'
 import {
   v2CaughtOrchestrationError,
   v2Data,
   v2Error,
-  v2RateLimitError,
   v2ValidationError,
   v2WorkspaceAccessError,
 } from '@/app/api/v2/lib/response'
 import { toApiRow, v2TableAccessError } from '@/app/api/v2/tables/utils'
 
-const logger = createLogger('V2TableUpsertAPI')
-
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-interface UpsertRouteParams {
-  params: Promise<{ tableId: string }>
-}
-
 /** POST /api/v2/tables/[tableId]/rows/upsert — Insert or update a row based on unique columns. */
-export const POST = withRouteHandler(async (request: NextRequest, context: UpsertRouteParams) => {
-  const requestId = generateRequestId()
+export const POST = withPublicApiRouteHandler({
+  contract: v2UpsertTableRowContract,
+  rateLimitEndpoint: 'table-rows',
+  handler: async ({ input, auth: { requestId, userId, rateLimit } }) => {
+    try {
+      const { tableId } = input.params
+      const validated = input.body
 
-  try {
-    const rateLimit = await checkRateLimit(request, 'table-rows')
-    if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
+      const scopeError = await resolveWorkspaceScope(rateLimit, validated.workspaceId)
+      if (scopeError) return v2WorkspaceAccessError(scopeError)
 
-    const userId = rateLimit.userId!
+      const result = await checkAccess(tableId, userId, 'write')
+      if (!result.ok) return v2TableAccessError(result)
 
-    const gate = await v2ApiGateError(userId)
-    if (gate) return gate
+      const { table } = result
+      if (table.workspaceId !== validated.workspaceId) {
+        return v2Error('NOT_FOUND', 'Table not found')
+      }
 
-    const parsed = await parseRequest(v2UpsertTableRowContract, request, context, {
-      validationErrorResponse: v2ValidationError,
-    })
-    if (!parsed.success) return parsed.response
+      const idByName = buildIdByName(table.schema as TableSchema)
+      const toNamedRow = namedRowMapper((table.schema as TableSchema).columns)
+      const upsertResult = await upsertRow(
+        {
+          tableId,
+          workspaceId: validated.workspaceId,
+          data: rowDataNameToId(validated.data as RowData, idByName),
+          userId,
+          conflictTarget: validated.conflictTarget,
+        },
+        table,
+        requestId
+      )
 
-    const { tableId } = parsed.data.params
-    const validated = parsed.data.body
+      return v2Data(
+        { row: toApiRow(upsertResult.row, toNamedRow), operation: upsertResult.operation },
+        { rateLimit }
+      )
+    } catch (error) {
+      if (isZodError(error)) return v2ValidationError(error)
 
-    const scopeError = await resolveWorkspaceScope(rateLimit, validated.workspaceId)
-    if (scopeError) return v2WorkspaceAccessError(scopeError)
+      const classified = v2CaughtOrchestrationError(error)
+      if (classified) return classified
 
-    const result = await checkAccess(tableId, userId, 'write')
-    if (!result.ok) return v2TableAccessError(result)
-
-    const { table } = result
-    if (table.workspaceId !== validated.workspaceId) {
-      return v2Error('NOT_FOUND', 'Table not found')
+      throw error
     }
-
-    const idByName = buildIdByName(table.schema as TableSchema)
-    const toNamedRow = namedRowMapper((table.schema as TableSchema).columns)
-    const upsertResult = await upsertRow(
-      {
-        tableId,
-        workspaceId: validated.workspaceId,
-        data: rowDataNameToId(validated.data as RowData, idByName),
-        userId,
-        conflictTarget: validated.conflictTarget,
-      },
-      table,
-      requestId
-    )
-
-    return v2Data(
-      { row: toApiRow(upsertResult.row, toNamedRow), operation: upsertResult.operation },
-      { rateLimit }
-    )
-  } catch (error) {
-    if (isZodError(error)) return v2ValidationError(error)
-
-    const classified = v2CaughtOrchestrationError(error)
-    if (classified) return classified
-
-    logger.error(`[${requestId}] Error upserting row`, {
-      error: getErrorMessage(error, 'Unknown error'),
-    })
-    return v2Error('INTERNAL_ERROR', 'Internal server error')
-  }
+  },
 })

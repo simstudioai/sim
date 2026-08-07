@@ -1,50 +1,20 @@
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import type { NextRequest } from 'next/server'
 import { v2ListBillingLogsContract } from '@/lib/api/contracts/v2/billing'
-import { parseRequest } from '@/lib/api/server'
 import { getUsageCreditsByLogId, getUserUsageLogs } from '@/lib/billing/core/usage-log'
 import { toBillingUsageLogSource, toInternalUsageLogSources } from '@/lib/billing/usage-sources'
-import { generateRequestId } from '@/lib/core/utils/request'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { withPublicApiRouteHandler } from '@/app/api/public-api-route-handler'
 import { resolveDateRange } from '@/app/api/users/me/usage-logs/shared'
-import { checkRateLimit } from '@/app/api/v1/middleware'
 import { v2BillingWorkspaceFilter } from '@/app/api/v2/billing/utils'
-import { v2ApiGateError } from '@/app/api/v2/lib/gate'
-import {
-  v2CursorList,
-  v2Error,
-  v2RateLimitError,
-  v2ValidationError,
-} from '@/app/api/v2/lib/response'
-
-const logger = createLogger('V2BillingLogsAPI')
+import { v2CursorList } from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 /** Cursor-paged, credit-denominated billing ledger. */
-export const GET = withRouteHandler(async (request: NextRequest) => {
-  const requestId = generateRequestId()
-
-  try {
-    const rateLimit = await checkRateLimit(request, 'billing-usage')
-    if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
-
-    const userId = rateLimit.userId!
-    const gate = await v2ApiGateError(userId)
-    if (gate) return gate
-
-    const parsed = await parseRequest(
-      v2ListBillingLogsContract,
-      request,
-      {},
-      {
-        validationErrorResponse: v2ValidationError,
-      }
-    )
-    if (!parsed.success) return parsed.response
-    const { source, workspaceId, period, startDate, endDate, limit, cursor } = parsed.data.query
+export const GET = withPublicApiRouteHandler({
+  contract: v2ListBillingLogsContract,
+  rateLimitEndpoint: 'billing-usage',
+  handler: async ({ input, auth: { userId, rateLimit } }) => {
+    const { source, workspaceId, period, startDate, endDate, limit, cursor } = input.query
 
     const workspaceFilter = await v2BillingWorkspaceFilter(rateLimit, workspaceId)
     if (!workspaceFilter.ok) return workspaceFilter.response
@@ -77,10 +47,5 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       result.pagination.hasMore ? (result.pagination.nextCursor ?? null) : null,
       { rateLimit }
     )
-  } catch (error) {
-    logger.error(`[${requestId}] Error listing billing logs`, {
-      error: getErrorMessage(error, 'Unknown error'),
-    })
-    return v2Error('INTERNAL_ERROR', 'Internal server error')
-  }
+  },
 })

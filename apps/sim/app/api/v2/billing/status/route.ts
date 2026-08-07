@@ -1,11 +1,7 @@
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import type { NextRequest } from 'next/server'
 import {
   type V2BillingStatusData,
   v2GetBillingStatusContract,
 } from '@/lib/api/contracts/v2/billing'
-import { parseRequest } from '@/lib/api/server'
 import {
   checkBillingBlocked,
   checkBillingEntityBlocked,
@@ -19,41 +15,19 @@ import {
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { deriveBillingContext } from '@/lib/billing/core/usage-log'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
-import { generateRequestId } from '@/lib/core/utils/request'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { checkRateLimit } from '@/app/api/v1/middleware'
+import { withPublicApiRouteHandler } from '@/app/api/public-api-route-handler'
 import { v2BillingWorkspaceFilter } from '@/app/api/v2/billing/utils'
-import { v2ApiGateError } from '@/app/api/v2/lib/gate'
-import { v2Data, v2Error, v2RateLimitError, v2ValidationError } from '@/app/api/v2/lib/response'
-
-const logger = createLogger('V2BillingStatusAPI')
+import { v2Data } from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 /** Current billing standing; ledger events are exposed separately by `/billing/logs`. */
-export const GET = withRouteHandler(async (request: NextRequest) => {
-  const requestId = generateRequestId()
-
-  try {
-    const rateLimit = await checkRateLimit(request, 'billing-usage')
-    if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
-
-    const userId = rateLimit.userId!
-    const gate = await v2ApiGateError(userId)
-    if (gate) return gate
-
-    const parsed = await parseRequest(
-      v2GetBillingStatusContract,
-      request,
-      {},
-      {
-        validationErrorResponse: v2ValidationError,
-      }
-    )
-    if (!parsed.success) return parsed.response
-
-    const workspaceFilter = await v2BillingWorkspaceFilter(rateLimit, parsed.data.query.workspaceId)
+export const GET = withPublicApiRouteHandler({
+  contract: v2GetBillingStatusContract,
+  rateLimitEndpoint: 'billing-usage',
+  handler: async ({ input, auth: { userId, rateLimit } }) => {
+    const workspaceFilter = await v2BillingWorkspaceFilter(rateLimit, input.query.workspaceId)
     if (!workspaceFilter.ok) return workspaceFilter.response
 
     let data: V2BillingStatusData
@@ -109,10 +83,5 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     }
 
     return v2Data(data, { rateLimit })
-  } catch (error) {
-    logger.error(`[${requestId}] Error building billing status`, {
-      error: getErrorMessage(error, 'Unknown error'),
-    })
-    return v2Error('INTERNAL_ERROR', 'Internal server error')
-  }
+  },
 })

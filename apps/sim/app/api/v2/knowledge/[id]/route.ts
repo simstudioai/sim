@@ -1,40 +1,23 @@
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { type NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import {
   v2DeleteKnowledgeBaseContract,
   v2GetKnowledgeBaseContract,
   v2UpdateKnowledgeBaseContract,
 } from '@/lib/api/contracts/v2/knowledge'
-import { parseRequest } from '@/lib/api/server'
-import { generateRequestId } from '@/lib/core/utils/request'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
 import {
   performDeleteKnowledgeBase,
   performUpdateKnowledgeBase,
 } from '@/lib/knowledge/orchestration'
 import type { KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
+import { withPublicApiRouteHandler } from '@/app/api/public-api-route-handler'
 import { formatKnowledgeBase, resolveKnowledgeBase } from '@/app/api/v1/knowledge/utils'
-import { checkRateLimit, type RateLimitResult } from '@/app/api/v1/middleware'
+import type { RateLimitResult } from '@/app/api/v1/middleware'
 import { folderPathForId, resolveFolderPathIdentity } from '@/app/api/v2/lib/folders'
-import { v2ApiGateError } from '@/app/api/v2/lib/gate'
-import {
-  v2Data,
-  v2Error,
-  v2ErrorForOrchestration,
-  v2RateLimitError,
-  v2ValidationError,
-} from '@/app/api/v2/lib/response'
-
-const logger = createLogger('V2KnowledgeDetailAPI')
+import { v2Data, v2Error, v2ErrorForOrchestration } from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
-
-interface KnowledgeRouteParams {
-  params: Promise<{ id: string }>
-}
 
 /**
  * Resolves a knowledge base via the shared v1 ownership invariant
@@ -60,37 +43,21 @@ async function resolveKnowledgeBaseScoped(
 }
 
 /** GET /api/v2/knowledge/[id] — Get knowledge base details. */
-export const GET = withRouteHandler(async (request: NextRequest, context: KnowledgeRouteParams) => {
-  const requestId = generateRequestId()
-
-  try {
-    const rateLimit = await checkRateLimit(request, 'knowledge-detail')
-    if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
-
-    const userId = rateLimit.userId!
-
-    const gate = await v2ApiGateError(userId)
-    if (gate) return gate
-
-    const parsed = await parseRequest(v2GetKnowledgeBaseContract, request, context, {
-      validationErrorResponse: v2ValidationError,
-    })
-    if (!parsed.success) return parsed.response
-
-    const { id } = parsed.data.params
+export const GET = withPublicApiRouteHandler({
+  contract: v2GetKnowledgeBaseContract,
+  rateLimitEndpoint: 'knowledge-detail',
+  handler: async ({ input, auth: { userId, rateLimit } }) => {
+    const { id } = input.params
     const result = await resolveKnowledgeBaseScoped(
       id,
-      parsed.data.query.workspaceId,
+      input.query.workspaceId,
       userId,
       rateLimit,
       'read'
     )
     if (result instanceof NextResponse) return result
 
-    const folderIndex = await loadActiveFolderPathIndex(
-      parsed.data.query.workspaceId,
-      'knowledge_base'
-    )
+    const folderIndex = await loadActiveFolderPathIndex(input.query.workspaceId, 'knowledge_base')
 
     return v2Data(
       {
@@ -101,34 +68,16 @@ export const GET = withRouteHandler(async (request: NextRequest, context: Knowle
       },
       { rateLimit }
     )
-  } catch (error) {
-    logger.error(`[${requestId}] Error getting knowledge base`, {
-      error: getErrorMessage(error, 'Unknown error'),
-    })
-    return v2Error('INTERNAL_ERROR', 'Internal server error')
-  }
+  },
 })
 
 /** PUT /api/v2/knowledge/[id] — Update a knowledge base. */
-export const PUT = withRouteHandler(async (request: NextRequest, context: KnowledgeRouteParams) => {
-  const requestId = generateRequestId()
-
-  try {
-    const rateLimit = await checkRateLimit(request, 'knowledge-detail')
-    if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
-
-    const userId = rateLimit.userId!
-
-    const gate = await v2ApiGateError(userId)
-    if (gate) return gate
-
-    const parsed = await parseRequest(v2UpdateKnowledgeBaseContract, request, context, {
-      validationErrorResponse: v2ValidationError,
-    })
-    if (!parsed.success) return parsed.response
-
-    const { id } = parsed.data.params
-    const { workspaceId, name, description, chunkingConfig, folderPath } = parsed.data.body
+export const PUT = withPublicApiRouteHandler({
+  contract: v2UpdateKnowledgeBaseContract,
+  rateLimitEndpoint: 'knowledge-detail',
+  handler: async ({ request, input, auth: { requestId, userId, rateLimit } }) => {
+    const { id } = input.params
+    const { workspaceId, name, description, chunkingConfig, folderPath } = input.body
 
     const result = await resolveKnowledgeBaseScoped(id, workspaceId, userId, rateLimit, 'write')
     if (result instanceof NextResponse) return result
@@ -168,60 +117,35 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: Knowle
       },
       { rateLimit }
     )
-  } catch (error) {
-    logger.error(`[${requestId}] Error updating knowledge base`, {
-      error: getErrorMessage(error, 'Unknown error'),
-    })
-    return v2Error('INTERNAL_ERROR', 'Internal server error')
-  }
+  },
 })
 
 /** DELETE /api/v2/knowledge/[id] — Delete a knowledge base. */
-export const DELETE = withRouteHandler(
-  async (request: NextRequest, context: KnowledgeRouteParams) => {
-    const requestId = generateRequestId()
+export const DELETE = withPublicApiRouteHandler({
+  contract: v2DeleteKnowledgeBaseContract,
+  rateLimitEndpoint: 'knowledge-detail',
+  handler: async ({ request, input, auth: { requestId, userId, rateLimit } }) => {
+    const { id } = input.params
+    const result = await resolveKnowledgeBaseScoped(
+      id,
+      input.query.workspaceId,
+      userId,
+      rateLimit,
+      'write'
+    )
+    if (result instanceof NextResponse) return result
 
-    try {
-      const rateLimit = await checkRateLimit(request, 'knowledge-detail')
-      if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
-
-      const userId = rateLimit.userId!
-
-      const gate = await v2ApiGateError(userId)
-      if (gate) return gate
-
-      const parsed = await parseRequest(v2DeleteKnowledgeBaseContract, request, context, {
-        validationErrorResponse: v2ValidationError,
-      })
-      if (!parsed.success) return parsed.response
-
-      const { id } = parsed.data.params
-      const result = await resolveKnowledgeBaseScoped(
-        id,
-        parsed.data.query.workspaceId,
-        userId,
-        rateLimit,
-        'write'
-      )
-      if (result instanceof NextResponse) return result
-
-      const outcome = await performDeleteKnowledgeBase({
-        knowledgeBase: { id, name: result.kb.name, workspaceId: parsed.data.query.workspaceId },
-        userId,
-        source: 'api',
-        requestId,
-        request,
-      })
-      if (!outcome.success) {
-        return v2ErrorForOrchestration(outcome.errorCode, outcome.error)
-      }
-
-      return v2Data({ id, deleted: true as const }, { rateLimit })
-    } catch (error) {
-      logger.error(`[${requestId}] Error deleting knowledge base`, {
-        error: getErrorMessage(error, 'Unknown error'),
-      })
-      return v2Error('INTERNAL_ERROR', 'Internal server error')
+    const outcome = await performDeleteKnowledgeBase({
+      knowledgeBase: { id, name: result.kb.name, workspaceId: input.query.workspaceId },
+      userId,
+      source: 'api',
+      requestId,
+      request,
+    })
+    if (!outcome.success) {
+      return v2ErrorForOrchestration(outcome.errorCode, outcome.error)
     }
-  }
-)
+
+    return v2Data({ id, deleted: true as const }, { rateLimit })
+  },
+})
