@@ -230,14 +230,6 @@ export function Admin() {
     impersonatingUserId,
   ])
 
-  /** Confirms the send on the menu item itself, since nothing about the user row changes. */
-  const resetPasswordLabel = (userId: string) => {
-    if (sendPasswordReset.variables?.userId !== userId) return 'Reset password'
-    if (sendPasswordReset.isPending) return 'Sending...'
-    if (sendPasswordReset.isSuccess) return 'Reset sent'
-    return 'Reset password'
-  }
-
   const renderUserRow = (u: AdminUser) => (
     <div key={u.id} className='flex items-center gap-3 px-3 py-2 text-small'>
       <span className='w-[170px] truncate text-[var(--text-primary)]'>{u.name || '—'}</span>
@@ -267,7 +259,7 @@ export function Admin() {
               label={`Actions for ${u.email}`}
               actions={[
                 {
-                  label: resetPasswordLabel(u.id),
+                  label: 'Reset password',
                   onSelect: () => {
                     setProvisionWarning(null)
                     sendPasswordReset.reset()
@@ -437,6 +429,15 @@ export function Admin() {
           {provisionWarning && (
             <p className='text-[var(--text-error)] text-small'>{provisionWarning}</p>
           )}
+
+          {sendPasswordReset.variables &&
+            (sendPasswordReset.isPending || sendPasswordReset.isSuccess) && (
+              <p className='text-[var(--text-secondary)] text-small'>
+                {sendPasswordReset.isPending
+                  ? `Sending a password reset email to ${sendPasswordReset.variables.email}...`
+                  : `Password reset email sent to ${sendPasswordReset.variables.email}.`}
+              </p>
+            )}
 
           {searchQuery.length > 0 && usersData ? (
             <>
