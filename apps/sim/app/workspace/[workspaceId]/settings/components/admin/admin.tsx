@@ -56,10 +56,9 @@ const USER_TABLE_HEADER = (
 )
 
 /**
- * The row action awaiting confirmation in {@link ChipConfirmModal}. Carries the
- * id plus, for a role change, the role the admin chose to apply — never the
- * whole user row. A refetch while the modal is open therefore refreshes the
- * name it shows without ever redirecting the action the admin committed to.
+ * The row action awaiting confirmation. Holds ids, never the user row, so a
+ * refetch while the modal is open refreshes the name it shows without
+ * redirecting the action the admin committed to.
  */
 type PendingUserAction =
   | { type: 'ban'; userId: string }
@@ -211,7 +210,6 @@ export function Admin() {
     )
   }
 
-  /** Rows with an action in flight, whose remaining actions stay disabled. */
   const pendingUserIds = new Set<string>()
   for (const mutation of [setUserRole, banUser, unbanUser, impersonateUser, sendPasswordReset]) {
     if (mutation.isPending && mutation.variables?.userId)
@@ -233,6 +231,7 @@ export function Admin() {
         {u.id !== session?.user?.id && (
           <>
             <Chip
+              aria-label={`Impersonate ${u.email}`}
               onClick={() => handleImpersonate(u.id, u.email)}
               disabled={pendingUserIds.has(u.id)}
             >
@@ -249,6 +248,13 @@ export function Admin() {
                       { userId: u.id, email: u.email },
                       {
                         onSuccess: () => toast.success(`Password reset email sent to ${u.email}`),
+                        onError: (error) =>
+                          toast.error(
+                            getErrorMessage(
+                              error,
+                              `Could not send a password reset email to ${u.email}`
+                            )
+                          ),
                       }
                     )
                   },
@@ -399,13 +405,10 @@ export function Admin() {
             </p>
           )}
 
-          {(unbanUser.error ||
-            impersonateUser.error ||
-            sendPasswordReset.error ||
-            impersonationGuardError) && (
+          {(unbanUser.error || impersonateUser.error || impersonationGuardError) && (
             <p className='text-[var(--text-error)] text-small'>
               {impersonationGuardError ||
-                (unbanUser.error || impersonateUser.error || sendPasswordReset.error)?.message ||
+                (unbanUser.error || impersonateUser.error)?.message ||
                 'Action failed. Please try again.'}
             </p>
           )}
@@ -524,14 +527,12 @@ export function Admin() {
           ' ',
           isDemotion
             ? { text: 'revokes their platform admin access.', error: true }
-            : {
-                text: 'grants full platform admin access, including impersonating any user.',
-                error: true,
-              },
+            : 'grants full platform admin access, including impersonating any user.',
         ]}
         confirm={{
           label: isDemotion ? 'Demote' : 'Promote',
           onClick: handleConfirmRoleChange,
+          variant: isDemotion ? 'destructive' : 'primary',
           pending: setUserRole.isPending,
           pendingLabel: isDemotion ? 'Demoting...' : 'Promoting...',
         }}
