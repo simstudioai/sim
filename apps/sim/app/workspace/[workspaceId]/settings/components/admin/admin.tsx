@@ -410,6 +410,12 @@ export function Admin() {
             <p className='text-[var(--text-error)] text-small'>{provisionWarning}</p>
           )}
 
+          {sendPasswordReset.isPending && sendPasswordReset.variables && (
+            <p className='text-[var(--text-secondary)] text-small'>
+              Sending a password reset email to {sendPasswordReset.variables.email}...
+            </p>
+          )}
+
           {searchQuery.length > 0 && usersData ? (
             <>
               <div className='flex flex-col gap-0.5'>
