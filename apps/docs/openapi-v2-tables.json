@@ -4766,6 +4766,11 @@
           "data": {
             "$ref": "#/components/schemas/RowData"
           },
+          "__privateSecretProvenance": {
+            "type": "object",
+            "writeOnly": true,
+            "description": "Opaque Sim-managed encrypted provenance metadata. External callers should omit this field."
+          },
           "afterRowId": {
             "type": "string",
             "minLength": 1,
@@ -4787,6 +4792,11 @@
             "type": "string",
             "minLength": 1,
             "description": "The workspace that owns the table."
+          },
+          "__privateSecretProvenance": {
+            "type": "object",
+            "writeOnly": true,
+            "description": "Opaque Sim-managed encrypted provenance metadata. External callers should omit this field."
           },
           "rows": {
             "type": "array",
@@ -4825,6 +4835,11 @@
           },
           "data": {
             "$ref": "#/components/schemas/RowData"
+          },
+          "__privateSecretProvenance": {
+            "type": "object",
+            "writeOnly": true,
+            "description": "Opaque Sim-managed encrypted provenance metadata. External callers should omit this field."
           },
           "limit": {
             "type": "integer",
@@ -4906,6 +4921,11 @@
           },
           "data": {
             "$ref": "#/components/schemas/RowData"
+          },
+          "__privateSecretProvenance": {
+            "type": "object",
+            "writeOnly": true,
+            "description": "Opaque Sim-managed encrypted provenance metadata. External callers should omit this field."
           }
         }
       },
@@ -4921,6 +4941,11 @@
           },
           "data": {
             "$ref": "#/components/schemas/RowData"
+          },
+          "__privateSecretProvenance": {
+            "type": "object",
+            "writeOnly": true,
+            "description": "Opaque Sim-managed encrypted provenance metadata. External callers should omit this field."
           },
           "conflictTarget": {
             "type": "string",

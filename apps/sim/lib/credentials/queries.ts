@@ -1,7 +1,6 @@
 import { db } from '@sim/db'
 import { credential, credentialMember } from '@sim/db/schema'
 import { and, type Column, eq, inArray, isNotNull, or } from 'drizzle-orm'
-import type { WorkspaceCredentialType } from '@/lib/api/contracts/credentials'
 import type { V2CredentialSortBy } from '@/lib/api/contracts/v2/credentials'
 import type { V2SortOrder } from '@/lib/api/contracts/v2/shared'
 import { listOrderBy, searchFilter } from '@/lib/api/list-query'
@@ -54,7 +53,7 @@ export async function listVisibleWorkspaceCredentials(params: {
   workspaceId: string
   userId: string
   workspaceAccess: Pick<WorkspaceAccess, 'canAdmin'>
-  type?: WorkspaceCredentialType
+  types?: CredentialRow['type'][]
   providerId?: string
   /** Case-insensitive substring match on the credential display name. */
   search?: string
@@ -65,7 +64,7 @@ export async function listVisibleWorkspaceCredentials(params: {
     workspaceId,
     userId,
     workspaceAccess,
-    type,
+    types,
     providerId,
     search,
     sortBy = 'createdAt',
@@ -73,7 +72,7 @@ export async function listVisibleWorkspaceCredentials(params: {
   } = params
 
   const whereClauses = [eq(credential.workspaceId, workspaceId)]
-  if (type) whereClauses.push(eq(credential.type, type))
+  if (types?.length) whereClauses.push(inArray(credential.type, types))
   if (providerId) whereClauses.push(eq(credential.providerId, providerId))
 
   const isWorkspaceAdmin = workspaceAccess.canAdmin

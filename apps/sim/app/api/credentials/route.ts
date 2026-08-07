@@ -219,7 +219,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       workspaceId,
       userId: session.user.id,
       workspaceAccess,
-      type,
+      types: type ? [type] : undefined,
       providerId,
     })
     const credentials = visible.map(({ hasServiceAccountKey: _hasKey, ...rest }) => rest)
