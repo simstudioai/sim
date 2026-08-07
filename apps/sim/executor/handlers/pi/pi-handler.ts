@@ -510,6 +510,7 @@ export class PiBlockHandler implements BlockHandler {
           try {
             const result = await backend(params, {
               onEvent: (event) => {
+                if (params.mode === 'cloud_plan') return
                 const text = streamTextForEvent(event)
                 if (text) controller.enqueue(encoder.encode(text))
               },
@@ -518,6 +519,9 @@ export class PiBlockHandler implements BlockHandler {
             if (result.totals.errorMessage) {
               controller.error(new Error(result.totals.errorMessage))
               return
+            }
+            if (params.mode === 'cloud_plan' && result.totals.finalText) {
+              controller.enqueue(encoder.encode(result.totals.finalText))
             }
             Object.assign(
               output,

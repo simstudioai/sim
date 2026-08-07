@@ -931,4 +931,41 @@ describe('PiBlockHandler', () => {
     expect(text).toContain('streamed')
     expect(result.execution.output.content).toBe('streamed')
   })
+
+  it('streams only the canonical final document for Plan mode', async () => {
+    mockRunCloudPlan.mockImplementation(async (_params, runCtx) => {
+      runCtx.onEvent({ type: 'text', text: 'Inspecting files...' })
+      runCtx.onEvent({ type: 'final', text: '# Final Plan\n\n1. Make the change.' })
+      return {
+        totals: {
+          finalText: '# Final Plan\n\n1. Make the change.',
+          inputTokens: 0,
+          outputTokens: 0,
+          toolCalls: [],
+        },
+      }
+    })
+
+    const result = (await handler.execute(ctx({ stream: true, selectedOutputs: ['blk'] }), block, {
+      mode: 'cloud_plan',
+      task: 'plan it',
+      model: 'claude',
+      owner: 'o',
+      repo: 'r',
+      githubToken: 'ghp',
+    })) as StreamingExecution
+
+    const reader = result.stream.getReader()
+    const decoder = new TextDecoder()
+    let text = ''
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      text += decoder.decode(value)
+    }
+
+    expect(text).toBe('# Final Plan\n\n1. Make the change.')
+    expect(text).not.toContain('Inspecting files...')
+    expect(result.execution.output.content).toBe('# Final Plan\n\n1. Make the change.')
+  })
 })
