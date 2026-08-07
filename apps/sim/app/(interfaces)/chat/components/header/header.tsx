@@ -35,6 +35,7 @@ export function ChatHeader({ chatConfig }: ChatHeaderProps) {
   return (
     <Navbar
       logoOnly
+      brandInNewTab
       name={title}
       meta={buildSharedByLabel(chatConfig?.sharedByName ?? null)}
       hideBrand={Boolean(brand.logoUrl)}

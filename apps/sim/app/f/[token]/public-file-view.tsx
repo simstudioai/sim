@@ -64,6 +64,7 @@ export function PublicFileView({
       <DesktopTitleBarLane />
       <Navbar
         logoOnly
+        brandInNewTab
         name={name}
         meta={buildSharedByLabel(ownerName)}
         hideBrand={Boolean(brand.logoUrl)}

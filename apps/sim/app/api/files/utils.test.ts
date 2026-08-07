@@ -490,6 +490,28 @@ describe('media disposition', () => {
     })
     expect(response.headers.get('Content-Disposition')).toContain('attachment')
   })
+
+  /**
+   * Resolving unknown extensions through the canonical MIME table — which is what
+   * makes byte-range serving work — promoted these from "unknown bytes" to
+   * `text/plain`, which is on the inline allowlist. They downloaded before the
+   * media work and must keep downloading after it.
+   */
+  it.each(['app.env', 'server.log', 'nginx.conf', 'settings.ini', 'tool.cfg'])(
+    'keeps %s downloading rather than rendering it in the tab',
+    (filename) => {
+      const response = createFileResponse({
+        buffer: Buffer.from('SECRET=1'),
+        contentType: getContentType(filename),
+        filename,
+      })
+      expect(response.headers.get('Content-Disposition')).toContain('attachment')
+    }
+  )
+
+  it('still resolves those extensions to a real MIME type', () => {
+    expect(getContentType('server.log')).toBe('text/plain')
+  })
 })
 
 describe('createByteRangeResponse', () => {

@@ -94,6 +94,22 @@ export function byteRangeLength(range: ByteRange): number {
  * execute. Everything else keeps the buffered path, which is what the
  * generated-document swap and the download audit are written against.
  */
+/**
+ * Whether a request opens a new read of the object rather than continuing one.
+ *
+ * A media element issues many ranged requests for a single playback — the opening
+ * fetch, then one per seek — and only the first is a distinct access. Anything
+ * charged or recorded per access (the audit trail, the aggregate per-share rate
+ * ceiling) has to agree on which request that is, or a viewer scrubbing a shared
+ * video writes a row per drag, or spends the whole share's minute budget.
+ *
+ * The opening fetch is either unranged or starts at byte 0; every continuation
+ * starts further in.
+ */
+export function isReadStart(rangeHeader: string | null | undefined): boolean {
+  return !rangeHeader || rangeHeader.trim().startsWith('bytes=0-')
+}
+
 export function isMediaContentType(contentType: string | null | undefined): boolean {
   if (!contentType) return false
   const normalized = contentType.toLowerCase()

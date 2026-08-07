@@ -94,7 +94,15 @@ export function NavbarShell({ children }: NavbarShellProps) {
   return (
     <NavbarFrostContext value={frost}>
       <div ref={sentinelRef} aria-hidden='true' className='-mb-px h-px' />
-      <header className='sticky top-0 z-50'>
+      {/*
+        Sticks below the macOS traffic-light lane, not to the viewport. Every shell
+        that mounts this navbar wears `.desktop-title-bar-page`, which reserves the
+        lane with `padding-top` — but sticky positions against the scroll port, so a
+        plain `top-0` slides the bar under the traffic lights the moment the page
+        scrolls. The variable is `0px` everywhere except the desktop app, so this is
+        `top: 0` on the web.
+      */}
+      <header className='sticky top-[var(--desktop-title-bar-height)] z-50'>
         <div
           aria-hidden='true'
           className={cn(

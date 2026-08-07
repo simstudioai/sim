@@ -12,7 +12,7 @@ import { enforcePerIpRateLimit, enforcePerShareRateLimit } from '@/lib/public-sh
 import { resolveActiveShareByToken } from '@/lib/public-shares/share-manager'
 import { downloadFile, downloadFileStream, headObject } from '@/lib/uploads/core/storage-service'
 import { resolveServableImageBytes } from '@/lib/uploads/server/image-derivative'
-import { isMediaContentType } from '@/lib/uploads/utils/byte-range'
+import { isMediaContentType, isReadStart } from '@/lib/uploads/utils/byte-range'
 import {
   createByteRangeResponse,
   createErrorResponse,
@@ -74,9 +74,16 @@ export const GET = withRouteHandler(
        * bucket above, and after the auth gate so a caller holding the token but
        * failing the gate cannot drain the ceiling for everyone else. Both apply,
        * and this runs before any S3 egress is spent.
+       *
+       * A seek within an in-progress playback is charged nothing: the ceiling is
+       * shared by every visitor to the link, so counting each of a player's range
+       * requests would let one person scrubbing a video 429 everyone else. Same
+       * rule as the audit row below, from the same predicate.
        */
-      const shareLimited = await enforcePerShareRateLimit('content', resolved.share.id)
-      if (shareLimited) return shareLimited
+      if (isReadStart(request.headers.get('range'))) {
+        const shareLimited = await enforcePerShareRateLimit('content', resolved.share.id)
+        if (shareLimited) return shareLimited
+      }
 
       const { file } = resolved
 
@@ -104,7 +111,7 @@ export const GET = withRouteHandler(
          * starting at byte 0) is recorded, so the trail still shows every access
          * without a row for each scrub.
          */
-        if (!rangeHeader || rangeHeader.startsWith('bytes=0-')) {
+        if (isReadStart(rangeHeader)) {
           recordAudit({
             workspaceId: file.workspaceId ?? null,
             actorId: null,

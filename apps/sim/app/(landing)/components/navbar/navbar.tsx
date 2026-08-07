@@ -92,6 +92,16 @@ interface NavbarProps {
    * Download chip) — the minimal surfaces' equivalent of the marketing CTAs.
    */
   actions?: ReactNode
+  /**
+   * Open the wordmark's home link in a new tab.
+   *
+   * For surfaces that host something the viewer would lose by navigating away —
+   * a deployed chat's in-progress conversation, a shared file's scroll position
+   * and unsaved viewer state. On those the wordmark is a credit, not navigation,
+   * so it must not take the tab with it. Everywhere else it is ordinary
+   * same-tab navigation.
+   */
+  brandInNewTab?: boolean
 }
 
 export function Navbar({
@@ -102,6 +112,7 @@ export function Navbar({
   meta,
   hideBrand = false,
   actions,
+  brandInNewTab = false,
 }: NavbarProps) {
   /**
    * A named resource navbar (shared file / interface / chat) drops the centered
@@ -130,6 +141,7 @@ export function Navbar({
             aria-label='Sim home'
             itemProp='url'
             prefetch={false}
+            {...(brandInNewTab ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
             className='flex h-[30px] items-center'
           >
             <span itemProp='name' className='sr-only'>

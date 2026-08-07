@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import {
   byteRangeLength,
   contentRangeHeader,
+  isReadStart,
   parseByteRange,
   unsatisfiableContentRangeHeader,
 } from '@/lib/uploads/utils/byte-range'
@@ -104,5 +105,32 @@ describe('header builders', () => {
   it('counts an inclusive interval', () => {
     expect(byteRangeLength({ start: 0, end: 0 })).toBe(1)
     expect(byteRangeLength({ start: 0, end: 499 })).toBe(500)
+  })
+})
+
+describe('isReadStart', () => {
+  it('treats an unranged request as opening a read', () => {
+    expect(isReadStart(null)).toBe(true)
+    expect(isReadStart(undefined)).toBe(true)
+    expect(isReadStart('')).toBe(true)
+  })
+
+  it('treats a range anchored at byte 0 as opening a read', () => {
+    expect(isReadStart('bytes=0-')).toBe(true)
+    expect(isReadStart('bytes=0-1023')).toBe(true)
+    expect(isReadStart('  bytes=0-  ')).toBe(true)
+  })
+
+  /**
+   * The audit trail records one row per playback and the aggregate per-share
+   * ceiling charges one token per playback, both off this predicate. A seek is a
+   * continuation of a read already accounted for — counting it would write a row
+   * per drag, and let one viewer scrubbing a shared video spend the whole link's
+   * minute budget on everyone else's behalf.
+   */
+  it('treats a seek into the object as a continuation', () => {
+    expect(isReadStart('bytes=1024-')).toBe(false)
+    expect(isReadStart('bytes=500-999')).toBe(false)
+    expect(isReadStart('bytes=-512')).toBe(false)
   })
 })

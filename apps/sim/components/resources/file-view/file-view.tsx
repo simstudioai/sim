@@ -475,6 +475,19 @@ const MediaPreview = memo(function MediaPreview({
     ? fileContentUrl(source, file.key, { version: file.updatedAt.getTime() })
     : null
 
+  /**
+   * Clear a previous failure when the bytes change. Adjusted during render rather
+   * than in an effect so the error state never paints for a frame over content
+   * that has already been replaced. The parent keys this on `file.id`, which is
+   * stable across content edits, so without this a single transient decode error
+   * would wedge the player until the viewer opened a different file.
+   */
+  const [prevSrc, setPrevSrc] = useState(src)
+  if (prevSrc !== src) {
+    setPrevSrc(src)
+    setFailed(false)
+  }
+
   if (!src || failed) {
     return <PreviewError label={kind} error={`This ${kind} could not be played.`} />
   }

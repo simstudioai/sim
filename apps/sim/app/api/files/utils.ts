@@ -202,7 +202,30 @@ const SAFE_INLINE_TYPES = new Set([
   'application/json',
 ])
 
-const FORCE_ATTACHMENT_EXTENSIONS = new Set(['html', 'htm', 'js', 'css', 'xml'])
+/**
+ * Served as an opaque download regardless of what their bytes look like.
+ *
+ * `html`/`htm`/`js`/`css`/`xml` because rendering them inline is an execution
+ * vector. The config-file group is here for a different reason: resolving an
+ * extension through the canonical MIME table (rather than defaulting everything
+ * unknown to `application/octet-stream`) is what makes byte-range serving work,
+ * but it also promoted these five from "unknown bytes" to `text/plain`, which is
+ * on the inline allowlist. A shared `.env` that used to download would otherwise
+ * start rendering in the tab. Nothing about the media work needs that, so the
+ * previous behaviour is kept explicitly.
+ */
+const FORCE_ATTACHMENT_EXTENSIONS = new Set([
+  'html',
+  'htm',
+  'js',
+  'css',
+  'xml',
+  'cfg',
+  'conf',
+  'env',
+  'ini',
+  'log',
+])
 
 function getSecureFileHeaders(filename: string, originalContentType: string) {
   const extension = filename.split('.').pop()?.toLowerCase() || ''

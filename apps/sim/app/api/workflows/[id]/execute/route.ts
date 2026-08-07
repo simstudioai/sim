@@ -1450,14 +1450,21 @@ async function handleExecutePost(
        * same way the deployed chat route does, so the start block receives the
        * `UserFile[]` it normalizes; anything else it silently drops.
        *
-       * Already-uploaded files carry a storage `key` and no `data`, so a
+       * Already-uploaded files carry a storage `key` and no inline payload, so a
        * re-submitted payload passes through untouched.
+       *
+       * `dataUrl` is the preferred inline field and `data` the legacy one — the
+       * same precedence `processChatFiles` itself applies. Testing only `data`
+       * would skip the upload for every current client and drop its attachments
+       * silently, which is the failure this pass exists to prevent.
        */
       if (triggerType === 'chat') {
         const chatFiles = (processedInput as { files?: unknown } | null | undefined)?.files
         const pending =
           Array.isArray(chatFiles) &&
-          chatFiles.some((file) => file && typeof file === 'object' && 'data' in file)
+          chatFiles.some(
+            (file) => file && typeof file === 'object' && ('dataUrl' in file || 'data' in file)
+          )
         if (pending) {
           const uploaded = await ChatFiles.processChatFiles(
             chatFiles as Parameters<typeof ChatFiles.processChatFiles>[0],
