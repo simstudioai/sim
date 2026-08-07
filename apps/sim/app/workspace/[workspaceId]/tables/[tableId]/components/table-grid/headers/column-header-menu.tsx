@@ -8,6 +8,7 @@ import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { COL_WIDTH, SELECTION_TINT_BG } from '../constants'
 import type { ColumnSourceInfo, DisplayColumn } from '../types'
 import { ColumnTypeIcon } from './column-type-icon'
+import { HeaderLabel } from './header-label'
 import { ColumnOptionsMenu } from './workflow-group-meta-cell'
 
 interface ColumnHeaderMenuProps {
@@ -296,9 +297,10 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
             blockIconInfo={sourceInfo?.blockIconInfo}
             blockMissing={blockMissing}
           />
-          <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap text-[var(--text-primary)] text-small'>
-            {column.workflowGroupId ? column.headerLabel : column.name}
-          </span>
+          <HeaderLabel
+            label={column.workflowGroupId ? column.headerLabel : column.name}
+            className='ml-1.5 text-[var(--text-primary)] text-small'
+          />
         </div>
       ) : (
         <div className='flex h-full w-full min-w-0 items-center'>
@@ -314,9 +316,10 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
               blockIconInfo={sourceInfo?.blockIconInfo}
               blockMissing={blockMissing}
             />
-            <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap text-[var(--text-primary)] text-small'>
-              {column.workflowGroupId ? column.headerLabel : column.name}
-            </span>
+            <HeaderLabel
+              label={column.workflowGroupId ? column.headerLabel : column.name}
+              className='ml-1.5 text-[var(--text-primary)] text-small'
+            />
           </button>
           <button
             type='button'
