@@ -17,10 +17,17 @@ vi.mock('@/lib/auth/auth-client', () => ({
 import { scalingRatioOver4x } from '@/app/workspace/[workspaceId]/home/components/message-content/components/scaling-test-helpers'
 import type {
   ContentSegment,
+  CredentialItemData,
   IndexOfCache,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/special-tags'
 import {
+  credentialTagHasVisibleCard,
+  formatCredentialSubmissionMessage,
   memoizedIndexOf,
+  parseCredentialSubmissionMessage,
+  parseCredentialSubmissionProgress,
+  parseCredentialTagBody,
+  parseLastCredentialTag,
   parseQuestionTagBody,
   parseSpecialTags,
   SPECIAL_TAG_NAMES,
@@ -34,6 +41,88 @@ import {
 function renderedText(segments: ContentSegment[]): string {
   return segments.map((segment) => ('content' in segment ? segment.content : '')).join('')
 }
+
+describe('parseCredentialTagBody', () => {
+  const secret: CredentialItemData = { type: 'secret_input', name: 'OPENAI_API_KEY' }
+  const oauth: CredentialItemData = {
+    type: 'link',
+    provider: 'google-email',
+    value: 'https://sim.test/api/auth/oauth2/authorize?providerId=google-email',
+  }
+
+  it('normalizes a singleton credential object to one row', () => {
+    expect(parseCredentialTagBody(JSON.stringify(secret))).toEqual([secret])
+  })
+
+  it('preserves a mixed credential-input batch in one tag', () => {
+    expect(parseCredentialTagBody(JSON.stringify([secret, oauth]))).toEqual([secret, oauth])
+  })
+
+  it('rejects empty arrays and batches containing an invalid row', () => {
+    expect(parseCredentialTagBody('[]')).toBeNull()
+    expect(parseCredentialTagBody(JSON.stringify([secret, { type: 'link' }]))).toBeNull()
+  })
+
+  it('formats and strictly pairs the safe continuation without secret values', () => {
+    const data = [oauth, secret]
+    const message = formatCredentialSubmissionMessage(data)
+
+    expect(message).toBe(
+      'Credential setup submitted — {"integrations":[{"name":"google-email","status":"connected"}],"secrets":[{"name":"OPENAI_API_KEY","status":"saved"}]}'
+    )
+    expect(parseCredentialSubmissionMessage(data, message)).toBe(true)
+    expect(parseCredentialSubmissionProgress(data, message)).toEqual({
+      integrations: [{ name: 'google-email', status: 'connected' }],
+      secrets: [{ name: 'OPENAI_API_KEY', status: 'saved' }],
+    })
+    expect(parseCredentialSubmissionMessage(data, `${message}!`)).toBe(false)
+  })
+
+  it('reports skipped rows without leaking secret values', () => {
+    const data = [oauth, secret]
+    const message = formatCredentialSubmissionMessage(data, {
+      connectedIntegrationIndexes: new Set(),
+      savedSecretIndexes: new Set(),
+    })
+
+    expect(message).toBe(
+      'Credential setup submitted — {"integrations":[{"name":"google-email","status":"skipped"}],"secrets":[{"name":"OPENAI_API_KEY","status":"skipped"}]}'
+    )
+    expect(parseCredentialSubmissionMessage(data, message)).toBe(true)
+  })
+
+  it('still pairs legacy completed setup messages after reload', () => {
+    expect(
+      parseCredentialSubmissionMessage(
+        [oauth, secret],
+        'Credential setup complete — integrations: google-email; secrets: OPENAI_API_KEY'
+      )
+    ).toBe(true)
+  })
+
+  it('extracts the last complete credential batch for transcript pairing', () => {
+    const content = `First <credential>${JSON.stringify(secret)}</credential> then <credential>${JSON.stringify([oauth, secret])}</credential>`
+    expect(parseLastCredentialTag(content)).toEqual([oauth, secret])
+  })
+
+  it('only reserves message actions when a credential card is visible to this member', () => {
+    const workspaceSecret: CredentialItemData = {
+      type: 'secret_input',
+      name: 'WORKSPACE_KEY',
+      scope: 'workspace',
+    }
+    const personalSecret: CredentialItemData = {
+      type: 'secret_input',
+      name: 'PERSONAL_KEY',
+      scope: 'personal',
+    }
+
+    expect(credentialTagHasVisibleCard([workspaceSecret], false)).toBe(false)
+    expect(credentialTagHasVisibleCard([personalSecret], false)).toBe(true)
+    expect(credentialTagHasVisibleCard([oauth], false)).toBe(false)
+    expect(credentialTagHasVisibleCard([oauth], true)).toBe(true)
+  })
+})
 
 /**
  * What the reader can actually see. Mirrors chat-content.tsx: adjacent text
@@ -821,7 +910,7 @@ describe('service_account credential tag', () => {
     expect(credential).toBeDefined()
     expect(credential).toMatchObject({
       type: 'credential',
-      data: { type: 'service_account', provider: 'slack' },
+      data: [{ type: 'service_account', provider: 'slack' }],
     })
   })
 
@@ -830,7 +919,7 @@ describe('service_account credential tag', () => {
     const { segments } = parseSpecialTags(`<credential>${body}</credential>`, false)
 
     const credential = segments.find((segment) => segment.type === 'credential')
-    expect((credential as { data: { value?: string } }).data.value).toBeUndefined()
+    expect((credential as { data: Array<{ value?: string }> }).data[0].value).toBeUndefined()
   })
 
   it('suppresses the tag while it is still streaming', () => {
@@ -876,7 +965,7 @@ describe('service_account tag validation', () => {
     const credential = segments.find((segment) => segment.type === 'credential')
     expect(credential).toMatchObject({
       type: 'credential',
-      data: { type: 'service_account', provider: 'notion', credentialId: 'cred_abc123' },
+      data: [{ type: 'service_account', provider: 'notion', credentialId: 'cred_abc123' }],
     })
   })
 
