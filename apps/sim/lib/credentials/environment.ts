@@ -13,6 +13,7 @@ import { and, eq, inArray, isNotNull, isNull, notInArray, or, sql } from 'drizzl
 import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/billing-identity-lock'
 import type { DbOrTx } from '@/lib/db/types'
 import {
+  checkWorkspaceAccess,
   getEffectiveWorkspacePermission,
   hasWorkspaceAdminAccess,
 } from '@/lib/workspaces/permissions/utils'
@@ -658,10 +659,28 @@ export async function syncPersonalEnvCredentialsForUser(params: {
 export async function getAccessibleEnvCredentials(
   workspaceId: string,
   userId: string,
-  options?: { isWorkspaceAdmin?: boolean }
+  options?: { isWorkspaceAdmin?: boolean; hasWorkspaceAccess?: boolean }
 ): Promise<AccessibleEnvCredential[]> {
-  const isWorkspaceAdmin =
-    options?.isWorkspaceAdmin ?? (await hasWorkspaceAdminAccess(userId, workspaceId))
+  // `hasWorkspaceAccess` gates the non-secret bypass below and must never be
+  // assumed. Without it the bypass hands a workspace's non-secret keys to ANY
+  // caller, including a user with no membership in that workspace — the other
+  // three clauses are all scoped to the user, and this one is not. Callers do
+  // check access upstream today, but this function's contract is "credentials
+  // this user may access", so it enforces that itself rather than trusting
+  // every future caller to remember. Verified against live Postgres by
+  // `apps/sim/scripts/verify-env-acl.ts`.
+  //
+  // Resolved from one `checkWorkspaceAccess` unless the caller supplied both
+  // facts; an admin trivially has access. A caller without access still sees
+  // their own personal credentials via the `envOwnerUserId` clause — only the
+  // bypass is withheld.
+  const resolvedAccess =
+    options?.isWorkspaceAdmin !== undefined && options?.hasWorkspaceAccess !== undefined
+      ? undefined
+      : await checkWorkspaceAccess(workspaceId, userId)
+  const isWorkspaceAdmin = options?.isWorkspaceAdmin ?? resolvedAccess?.canAdmin ?? false
+  const hasWorkspaceAccess =
+    options?.hasWorkspaceAccess ?? (isWorkspaceAdmin || (resolvedAccess?.hasAccess ?? false))
 
   const rows = await db
     .select({
@@ -687,14 +706,18 @@ export async function getAccessibleEnvCredentials(
         or(
           isNotNull(credentialMember.id),
           eq(credential.envOwnerUserId, userId),
-          // Non-secret workspace values are readable by every member, so they
-          // bypass the per-key credential ACL. Workspace membership itself is
-          // still enforced upstream by `checkWorkspaceAccess`; this clause only
-          // relaxes the per-key gate. The `env_workspace` predicate is load
-          // bearing — the schema check constraint keeps `env_personal` rows from
-          // ever being marked `variable`, and this keeps the query honest even
-          // if that constraint were ever relaxed.
-          and(eq(credential.type, 'env_workspace'), eq(credential.envVisibility, 'variable')),
+          // Non-secret workspace values are readable by every MEMBER, so they
+          // bypass the per-key credential ACL — but only for a caller who
+          // actually has workspace access. Unlike the clauses above it, this
+          // one is not scoped to the user, so dropping the membership gate
+          // would return these keys to anyone who names the workspace.
+          //
+          // The `env_workspace` predicate is redundant with the schema's
+          // `credential_env_visibility_scope_check` and kept anyway, so the
+          // query stays correct on its own if that constraint is ever relaxed.
+          hasWorkspaceAccess
+            ? and(eq(credential.type, 'env_workspace'), eq(credential.envVisibility, 'variable'))
+            : undefined,
           isWorkspaceAdmin ? eq(credential.type, 'env_workspace') : undefined
         )
       )

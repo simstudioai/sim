@@ -172,7 +172,10 @@ export async function getPersonalAndWorkspaceEnv(
           .limit(1)
       : Promise.resolve([] as any[]),
     workspaceId
-      ? getAccessibleEnvCredentials(workspaceId, userId, { isWorkspaceAdmin: workspaceCanAdmin })
+      ? getAccessibleEnvCredentials(workspaceId, userId, {
+          isWorkspaceAdmin: workspaceCanAdmin,
+          hasWorkspaceAccess: true,
+        })
       : Promise.resolve([]),
   ])
 
