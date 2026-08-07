@@ -255,7 +255,9 @@ export class DocsChunker {
       .replace(/\r/g, '\n')
       .replace(/^import\s+.*$/gm, '')
       .replace(/^export\s+.*$/gm, '')
-      .replace(/<FAQ\s+items=\{\[([\s\S]*?)\]\}\s*\/>/g, (_m, items: string) => extractFaqProse(items))
+      .replace(/<FAQ\s+items=\{\[([\s\S]*?)\]\}\s*\/>/g, (_m, items: string) =>
+        extractFaqProse(items)
+      )
       .replace(/<\/?[a-zA-Z][^>]*>/g, ' ')
       .replace(/\{\/\*[\s\S]*?\*\/\}/g, ' ')
       .replace(/\{[^{}]*\}/g, ' ')
