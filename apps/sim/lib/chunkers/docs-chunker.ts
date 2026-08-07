@@ -22,12 +22,19 @@ interface Frontmatter {
 const logger = createLogger('DocsChunker')
 
 /**
- * One `{ question: "...", answer: "..." }` FAQ item. Quoted strings are
- * consumed escape-aware, so braces or quotes inside an answer never end a
- * match early.
+ * One `{ question: "...", answer: "..." }` FAQ item, in either quote style and
+ * with an optional trailing comma (`session-policies.mdx` uses single-quoted
+ * multiline items). Each captured value keeps its surrounding quotes — the
+ * quoted strings are consumed escape-aware per style, so quotes of the other
+ * style, braces, or escapes inside an answer never end a match early.
  */
 const FAQ_ITEM_PATTERN =
-  /\{\s*question:\s*"((?:[^"\\]|\\.)*)"\s*,\s*answer:\s*"((?:[^"\\]|\\.)*)"\s*\}/g
+  /\{\s*question:\s*("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')\s*,\s*answer:\s*("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')\s*,?\s*\}/g
+
+/** Strip a captured value's surrounding quotes (either style), then unescape. */
+function unquoteJsxString(value: string): string {
+  return unescapeJsxString(value.slice(1, -1))
+}
 
 function unescapeJsxString(value: string): string {
   return value.replace(/\\(.)/g, (_, char: string) =>
@@ -47,7 +54,7 @@ function unescapeJsxString(value: string): string {
 function extractFaqProse(items: string): string {
   const lines: string[] = []
   for (const match of items.matchAll(FAQ_ITEM_PATTERN)) {
-    lines.push(unescapeJsxString(match[1]), unescapeJsxString(match[2]))
+    lines.push(unquoteJsxString(match[1]), unquoteJsxString(match[2]))
   }
   if (lines.length === 0) return ' '
   return `\n${lines.join('\n').replace(/[<>{}]/g, '')}\n`

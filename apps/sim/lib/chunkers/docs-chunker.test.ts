@@ -74,6 +74,32 @@ describe('cleanContent FAQ extraction', () => {
     expect(cleaned).toContain('Yes, on enterprise plans.')
   })
 
+  it('extracts single-quoted multiline items with trailing commas (session-policies shape)', () => {
+    const cleaned = cleanContent(
+      [
+        '<FAQ',
+        '  items={[',
+        '    {',
+        "      question: 'Do session policies apply to SSO sign-ins?',",
+        '      answer:',
+        "        'Yes. Sessions created through SSO follow the same limits.',",
+        '    },',
+        '    {',
+        '      question: \'Does "Sign out all members" affect API keys?\',',
+        "      answer: 'No. API keys are unaffected.',",
+        '    },',
+        '  ]}',
+        '/>',
+      ].join('\n')
+    )
+
+    expect(cleaned).toContain('Do session policies apply to SSO sign-ins?')
+    expect(cleaned).toContain('Yes. Sessions created through SSO follow the same limits.')
+    expect(cleaned).toContain('Does "Sign out all members" affect API keys?')
+    expect(cleaned).toContain('No. API keys are unaffected.')
+    expect(cleaned).not.toContain('items=')
+  })
+
   it('unescapes escaped quotes in extracted strings', () => {
     const cleaned = cleanContent(
       '<FAQ items={[ { question: "What does \\"draft\\" mean?", answer: "An unsaved workflow." } ]} />'
