@@ -3,6 +3,7 @@ import {
   credential,
   type credentialEnvVisibilityEnum,
   credentialMember,
+  member,
   permissions,
   workspace,
 } from '@sim/db/schema'
@@ -197,14 +198,20 @@ export async function getWorkspaceEnvKeyAdminAccess(params: {
   workspaceId: string
   envKeys: string[]
   userId: string
+  /**
+   * Runs the read on the caller's transaction. Disclosure authorization passes
+   * one so this read happens on the same connection that holds its revocation
+   * locks, rather than on a pooled connection alongside them.
+   */
+  executor?: DbOrTx
 }): Promise<WorkspaceEnvKeyAdminAccess> {
-  const { workspaceId, envKeys, userId } = params
+  const { workspaceId, envKeys, userId, executor = db } = params
   const keys = Array.from(new Set(envKeys.filter(Boolean)))
   if (keys.length === 0) {
     return { adminKeys: new Set(), knownKeys: new Set(), variableKeys: new Set() }
   }
 
-  const rows = await db
+  const rows = await executor
     .select({
       envKey: credential.envKey,
       envVisibility: credential.envVisibility,
@@ -563,17 +570,33 @@ async function authorizeWorkspaceEnvVisibilityChange(params: {
 
   const changingKeys = changing.map((row) => row.envKey as string)
 
-  // Share-lock the rows that grant this caller the right to disclose, BEFORE
-  // reading them. A concurrent revocation must either commit before the lock —
-  // in which case the reads below observe it and deny — or block until this
-  // transaction ends. Without the locks the permission read and the UPDATE are
-  // two independent statements, and a revocation landing between them leaves a
-  // former admin able to flip a secret to a workspace-visible variable.
-  //
-  // `executor` is the caller's transaction, which is what makes the locks span
-  // the UPDATE. Called without one, each statement is its own implicit
-  // transaction and the locks release immediately — harmless, but it is why
-  // `setWorkspaceEnvVisibility` is the only supported entry point.
+  const [workspaceRow] = await executor
+    .select({ organizationId: workspace.organizationId })
+    .from(workspace)
+    .where(eq(workspace.id, workspaceId))
+    .limit(1)
+  const organizationId = workspaceRow?.organizationId ?? null
+
+  /**
+   * Share-lock every row that can grant this caller the right to disclose,
+   * BEFORE reading any of them, so a concurrent revocation either commits
+   * first — and the reads below observe it and deny — or blocks until this
+   * transaction ends. Since the UPDATE is in the same transaction, that leaves
+   * no window between deciding and disclosing.
+   *
+   * All three grants must be covered or the weakest one decides:
+   *   - the explicit workspace `permissions` row,
+   *   - the `member` row, because org admin INHERITS workspace admin
+   *     (`resolveEffectiveWorkspacePermission`) — locking only `permissions`
+   *     leaves an org-admin revocation free to race,
+   *   - the `credential_member` rows for the credentials being changed, which
+   *     is the per-key grant (and whose `status` flip is also a revocation).
+   *
+   * `executor` must be the caller's transaction for any of this to hold.
+   * Called without one, each statement is its own implicit transaction and the
+   * locks release immediately — which is why both this and the apply half are
+   * unexported and `setWorkspaceEnvVisibility` is the only entry point.
+   */
   await executor
     .select({ id: permissions.id })
     .from(permissions)
@@ -585,6 +608,13 @@ async function authorizeWorkspaceEnvVisibilityChange(params: {
       )
     )
     .for('share')
+  if (organizationId) {
+    await executor
+      .select({ id: member.id })
+      .from(member)
+      .where(and(eq(member.userId, actingUserId), eq(member.organizationId, organizationId)))
+      .for('share')
+  }
   await executor
     .select({ id: credentialMember.id })
     .from(credentialMember)
@@ -599,10 +629,21 @@ async function authorizeWorkspaceEnvVisibilityChange(params: {
     )
     .for('share')
 
-  const [isWorkspaceAdmin, { adminKeys }] = await Promise.all([
-    hasWorkspaceAdminAccess(actingUserId, workspaceId),
-    getWorkspaceEnvKeyAdminAccess({ workspaceId, envKeys: changingKeys, userId: actingUserId }),
-  ])
+  // Both reads go through `executor` — the same connection holding the locks
+  // above. Sequential rather than Promise.all: a transaction handle is one
+  // connection, so concurrent statements on it serialize anyway.
+  const permission = await getEffectiveWorkspacePermission(
+    actingUserId,
+    { id: workspaceId, organizationId },
+    executor
+  )
+  const isWorkspaceAdmin = permissionSatisfies(permission, 'admin')
+  const { adminKeys } = await getWorkspaceEnvKeyAdminAccess({
+    workspaceId,
+    envKeys: changingKeys,
+    userId: actingUserId,
+    executor,
+  })
 
   const forbidden = isWorkspaceAdmin ? [] : changingKeys.filter((key) => !adminKeys.has(key))
   if (forbidden.length > 0) {
