@@ -81,7 +81,7 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: FileRo
       )
     }
 
-    return v2Data(toV2File(result.file), { rateLimit })
+    return v2Data(await toV2File(result.file), { rateLimit })
   } catch (error) {
     logger.error('Error updating file content', { error: getErrorMessage(error, 'Unknown error') })
     return v2Error('INTERNAL_ERROR', 'Internal server error')

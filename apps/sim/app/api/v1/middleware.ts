@@ -68,6 +68,8 @@ export type ApiEndpoint =
   | 'credentials'
   | 'secrets'
   | 'secret-detail'
+  | 'workspaces'
+  | 'workspace-members'
 
 export interface RateLimitResult {
   allowed: boolean

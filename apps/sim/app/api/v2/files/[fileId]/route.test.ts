@@ -14,6 +14,7 @@ const {
   mockFetchWorkspaceFileBuffer,
   mockPerformRename,
   mockPerformDelete,
+  mockGetUserEmailsByIds,
 } = vi.hoisted(() => ({
   mockCheckRateLimit: vi.fn(),
   mockResolveWorkspaceAccess: vi.fn(),
@@ -21,6 +22,12 @@ const {
   mockFetchWorkspaceFileBuffer: vi.fn(),
   mockPerformRename: vi.fn(),
   mockPerformDelete: vi.fn(),
+  mockGetUserEmailsByIds: vi.fn(),
+}))
+
+vi.mock('@/lib/users/queries', () => ({
+  getUserEmailsByIds: mockGetUserEmailsByIds,
+  requireResolvedUserEmail: (emails: Map<string, string>, userId: string) => emails.get(userId)!,
 }))
 
 vi.mock('@/app/api/v1/middleware', () => ({
@@ -107,6 +114,7 @@ describe('GET /api/v2/files/[fileId]', () => {
     mockResolveWorkspaceAccess.mockResolvedValue(null)
     mockGetWorkspaceFile.mockResolvedValue(buildRecord())
     mockFetchWorkspaceFileBuffer.mockResolvedValue(Buffer.from('id,name\n'))
+    mockGetUserEmailsByIds.mockResolvedValue(new Map([['user-1', 'ada@example.com']]))
   })
 
   it('returns 404 when the v2 API surface flag is off', async () => {
@@ -218,7 +226,7 @@ describe('PATCH /api/v2/files/[fileId]', () => {
       type: 'text/csv',
       key: 'workspace/ws/1-x-data.csv',
       folderPath: '/',
-      uploadedBy: 'user-1',
+      uploadedByEmail: 'ada@example.com',
       uploadedAt: '2024-01-01T00:00:00.000Z',
       updatedAt: '2024-01-02T00:00:00.000Z',
     })

@@ -4,13 +4,22 @@
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCheckRateLimit, mockResolveWorkspaceAccess, mockPerformUpdateContent } = vi.hoisted(
-  () => ({
-    mockCheckRateLimit: vi.fn(),
-    mockResolveWorkspaceAccess: vi.fn(),
-    mockPerformUpdateContent: vi.fn(),
-  })
-)
+const {
+  mockCheckRateLimit,
+  mockResolveWorkspaceAccess,
+  mockPerformUpdateContent,
+  mockGetUserEmailsByIds,
+} = vi.hoisted(() => ({
+  mockCheckRateLimit: vi.fn(),
+  mockResolveWorkspaceAccess: vi.fn(),
+  mockPerformUpdateContent: vi.fn(),
+  mockGetUserEmailsByIds: vi.fn(),
+}))
+
+vi.mock('@/lib/users/queries', () => ({
+  getUserEmailsByIds: mockGetUserEmailsByIds,
+  requireResolvedUserEmail: (emails: Map<string, string>, userId: string) => emails.get(userId)!,
+}))
 
 vi.mock('@/app/api/v1/middleware', () => ({
   checkRateLimit: mockCheckRateLimit,
@@ -82,6 +91,7 @@ describe('PUT /api/v2/files/[fileId]/content', () => {
     mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
     mockResolveWorkspaceAccess.mockResolvedValue(null)
     mockPerformUpdateContent.mockResolvedValue({ success: true, file: RECORD })
+    mockGetUserEmailsByIds.mockResolvedValue(new Map([['user-1', 'ada@example.com']]))
   })
 
   it('returns 404 when the v2 API surface flag is off', async () => {
@@ -177,7 +187,7 @@ describe('PUT /api/v2/files/[fileId]/content', () => {
       type: 'text/csv',
       key: 'workspace/ws/1-x-data.csv',
       folderPath: '/',
-      uploadedBy: 'user-1',
+      uploadedByEmail: 'ada@example.com',
       uploadedAt: '2024-01-01T00:00:00.000Z',
       updatedAt: '2024-01-03T00:00:00.000Z',
     })

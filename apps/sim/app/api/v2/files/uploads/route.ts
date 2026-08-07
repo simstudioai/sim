@@ -58,7 +58,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     })
     return v2Data(
       {
-        session: toV2FileUpload(session, null),
+        session: await toV2FileUpload(session, null),
         uploadToken: session.uploadToken,
         transfer: session.transfer,
       },

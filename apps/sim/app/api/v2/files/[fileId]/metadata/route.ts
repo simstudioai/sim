@@ -50,7 +50,7 @@ export const GET = withRouteHandler(
       const file = await getWorkspaceFile(workspaceId, fileId, { throwOnError: true })
       if (!file) return v2Error('NOT_FOUND', 'File not found')
 
-      return v2Data(toV2File(file), { rateLimit })
+      return v2Data(await toV2File(file), { rateLimit })
     } catch (error) {
       logger.error('Error fetching file metadata', {
         error: getErrorMessage(error, 'Unknown error'),

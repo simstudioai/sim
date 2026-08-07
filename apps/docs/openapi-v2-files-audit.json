@@ -836,12 +836,13 @@
             }
           },
           {
-            "name": "actorId",
+            "name": "actorEmail",
             "in": "query",
             "required": false,
-            "description": "Filter by the user who performed the action. Must be a member of your organization, otherwise the request returns 400.",
+            "description": "Filter by the email snapshot recorded for the actor who performed the action.",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "format": "email"
             }
           },
           {
@@ -914,7 +915,6 @@
                     {
                       "id": "audit_2c3d4e5f6g",
                       "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-                      "actorId": "user_abc123",
                       "actorName": "Jane Smith",
                       "actorEmail": "jane@example.com",
                       "action": "file.uploaded",
@@ -935,7 +935,7 @@
             }
           },
           "400": {
-            "description": "The request was malformed: an invalid query parameter, an `actorId` that is not a member of your organization, or a `workspaceId` that does not belong to your organization.",
+            "description": "The request was malformed: an invalid query parameter or a `workspaceId` that does not belong to your organization.",
             "content": {
               "application/json": {
                 "schema": {
@@ -944,7 +944,7 @@
                 "example": {
                   "error": {
                     "code": "BAD_REQUEST",
-                    "message": "actorId is not a member of your organization"
+                    "message": "Invalid query parameter"
                   }
                 }
               }
@@ -1026,7 +1026,6 @@
                   "data": {
                     "id": "audit_2c3d4e5f6g",
                     "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-                    "actorId": "user_abc123",
                     "actorName": "Jane Smith",
                     "actorEmail": "jane@example.com",
                     "action": "file.uploaded",
@@ -2019,7 +2018,7 @@
           "key",
           "folderPath",
           "folderPath",
-          "uploadedBy",
+          "uploadedByEmail",
           "uploadedAt",
           "updatedAt"
         ],
@@ -2050,10 +2049,11 @@
             "description": "Storage key for the file.",
             "example": "workspace/a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64/1709571234-xyz-data.csv"
           },
-          "uploadedBy": {
+          "uploadedByEmail": {
             "type": "string",
-            "description": "User ID of the uploader.",
-            "example": "user_abc123"
+            "format": "email",
+            "description": "Current email address of the uploader.",
+            "example": "jane@example.com"
           },
           "uploadedAt": {
             "type": "string",
@@ -2097,7 +2097,6 @@
         "required": [
           "id",
           "workspaceId",
-          "actorId",
           "actorName",
           "actorEmail",
           "action",
@@ -2118,11 +2117,6 @@
             "description": "The workspace where the action occurred, or null for organization-level actions.",
             "example": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64"
           },
-          "actorId": {
-            "type": ["string", "null"],
-            "description": "The user ID of the person who performed the action, or null when not attributable.",
-            "example": "user_abc123"
-          },
           "actorName": {
             "type": ["string", "null"],
             "description": "Display name of the person who performed the action.",
@@ -2130,6 +2124,7 @@
           },
           "actorEmail": {
             "type": ["string", "null"],
+            "format": "email",
             "description": "Email address of the person who performed the action.",
             "example": "jane@example.com"
           },

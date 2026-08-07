@@ -17,7 +17,7 @@ import {
   performCreateWorkspaceFile,
 } from '@/lib/workspace-files/orchestration'
 import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
-import { toV2File } from '@/app/api/v2/files/utils'
+import { toV2File, toV2Files } from '@/app/api/v2/files/utils'
 import { resolveFolderPathId } from '@/app/api/v2/lib/folders'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
@@ -93,7 +93,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       after: decoded.status === 'ok' ? decoded.keys : undefined,
     })
 
-    const items: V2File[] = files.map(toV2File)
+    const items: V2File[] = await toV2Files(files)
     const nextCursor = nextKeys ? encodeSortedCursor(sort, nextKeys) : null
 
     return v2CursorList(items, nextCursor, { rateLimit })
@@ -154,7 +154,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    return v2Data(toV2File(result.file), { rateLimit, status: 201 })
+    return v2Data(await toV2File(result.file), { rateLimit, status: 201 })
   } catch (error) {
     logger.error('Error creating file', { error: getErrorMessage(error, 'Unknown error') })
     return v2Error('INTERNAL_ERROR', 'Internal server error')

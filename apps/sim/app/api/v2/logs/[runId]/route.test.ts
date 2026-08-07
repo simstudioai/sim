@@ -66,6 +66,7 @@ const LOG_ROW = {
   workflowDescription: 'Handles support requests',
   workflowFolderId: null,
   workflowUserId: 'user-1',
+  workflowOwnerEmail: 'ada@example.com',
   workflowWorkspaceId: 'workspace-1',
   workflowCreatedAt: new Date('2023-12-01T00:00:00Z'),
   workflowUpdatedAt: new Date('2023-12-02T00:00:00Z'),
@@ -114,6 +115,8 @@ describe('GET /api/v2/logs/[runId]', () => {
     expect(body.data.traceSpans).toEqual(traceSpans)
     expect(body.data.finalOutput).toEqual({ answer: 'done' })
     expect(body.data.workflowState).toEqual({ blocks: {}, edges: [] })
+    expect(body.data.workflow.ownerEmail).toBe('ada@example.com')
+    expect(body.data.workflow).not.toHaveProperty('userId')
   })
 
   it('returns empty diagnostic collections when the execution produced none', async () => {

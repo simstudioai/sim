@@ -14,6 +14,8 @@ const {
   mockListTableViews,
   mockCreateTableView,
   mockGateError,
+  mockGetUserEmailsByIds,
+  mockGetRequiredUserEmail,
   TableViewValidationError,
 } = vi.hoisted(() => ({
   mockCheckRateLimit: vi.fn(),
@@ -22,6 +24,8 @@ const {
   mockListTableViews: vi.fn(),
   mockCreateTableView: vi.fn(),
   mockGateError: vi.fn(),
+  mockGetUserEmailsByIds: vi.fn(),
+  mockGetRequiredUserEmail: vi.fn(),
   TableViewValidationError: class TableViewValidationError extends Error {},
 }))
 
@@ -45,6 +49,12 @@ vi.mock('@/lib/table', () => ({
 
 vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: mockGateError }))
 
+vi.mock('@/lib/users/queries', () => ({
+  getUserEmailsByIds: mockGetUserEmailsByIds,
+  getRequiredUserEmail: mockGetRequiredUserEmail,
+  requireResolvedUserEmail: (emails: Map<string, string>, userId: string) => emails.get(userId)!,
+}))
+
 import { GET, POST } from '@/app/api/v2/tables/[tableId]/views/route'
 
 const COLUMNS = [{ id: 'col-1', name: 'status', type: 'string' }]
@@ -60,7 +70,12 @@ const VIEW = {
   updatedAt: new Date('2026-01-02T00:00:00Z'),
 }
 const API_VIEW = {
-  ...VIEW,
+  id: VIEW.id,
+  tableId: VIEW.tableId,
+  name: VIEW.name,
+  config: VIEW.config,
+  isDefault: VIEW.isDefault,
+  createdByEmail: 'ada@example.com',
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-02T00:00:00.000Z',
 }
@@ -98,6 +113,8 @@ beforeEach(() => {
   mockResolveWorkspaceScope.mockResolvedValue(null)
   mockCheckAccess.mockResolvedValue({ ok: true, table: TABLE })
   mockGateError.mockResolvedValue(null)
+  mockGetUserEmailsByIds.mockResolvedValue(new Map([['user-1', 'ada@example.com']]))
+  mockGetRequiredUserEmail.mockResolvedValue('ada@example.com')
 })
 
 describe('GET /api/v2/tables/[tableId]/views', () => {
