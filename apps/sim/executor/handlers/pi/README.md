@@ -4,38 +4,30 @@ Implements the PI block executor. Each sub-mode delegates to a dedicated backend
 
 ## Folder layout
 
-```
-pi/
-├── pi-handler.ts          # Single dispatcher — reads the block's mode and routes to the correct backend
-├── core/                  # Shared contracts and infrastructure
-│   ├── backend.ts         # Backend contracts — all run-params types, PiRunContext, PiRunResult, and PiBackendRun
-│   ├── context.ts         # Skills-resolution and memory helpers (resolvePiSkills, loadPiMemory, buildPiPrompt, appendPiMemory)
-│   ├── events.ts          # Streaming event helpers
-│   ├── keys.ts            # API-key resolution utilities
-│   ├── pi-sdk.ts          # Thin wrapper around the PI SDK client
-│   └── redaction.ts       # Secret redaction for logs and responses
-├── cloud/                 # Cloud mode — GitHub-hosted sandboxes
-│   ├── shared.ts          # Shared GitHub and sandbox utilities (repo helpers, polling, etc.)
-│   ├── github-pr.ts       # Low-level GitHub PR API wrappers
-│   ├── authoring/         # Create PR and Update PR implementation
-│   │   └── backend.ts
-│   ├── review/            # Review Code implementation
-│   │   ├── backend.ts
-│   │   ├── tools.ts       # Tool definitions injected into the review agent
-│   │   └── tools-script.ts
-│   └── babysit/           # PR review / check continuation (babysit mode)
-│       ├── backend.ts
-│       ├── github.ts      # GitHub status/check polling helpers
-│       └── round.ts       # Single babysit iteration logic
-├── local/                 # Local Dev mode — SSH-connected local machine
-│   ├── backend.ts
-│   ├── sim-tools.ts       # Sim-side tool implementations
-│   └── ssh-tools.ts       # SSH tool implementations
-└── search/                # Shared search support used across modes
-    ├── tool.ts            # Search tool definition
-    ├── normalize.ts       # Result normalisation
-    └── extension-source.ts # Extension-based source adapter
-```
+| Path | Responsibility |
+| --- | --- |
+| `pi-handler.ts` | Single dispatcher — reads the block's mode and routes to the correct backend |
+| `core/backend.ts` | Backend contracts — all run-params types, `PiRunContext`, `PiRunResult`, and `PiBackendRun` |
+| `core/context.ts` | Skills-resolution and memory helpers (`resolvePiSkills`, `loadPiMemory`, `buildPiPrompt`, `appendPiMemory`) |
+| `core/events.ts` | Streaming event helpers |
+| `core/keys.ts` | API-key resolution utilities |
+| `core/pi-sdk.ts` | Thin wrapper around the PI SDK client |
+| `core/redaction.ts` | Secret redaction for logs and responses |
+| `cloud/shared.ts` | Shared GitHub and sandbox utilities (repo helpers, polling, etc.) |
+| `cloud/github-pr.ts` | Low-level GitHub PR API wrappers |
+| `cloud/authoring/backend.ts` | Create PR and Update PR implementation |
+| `cloud/review/backend.ts` | Review Code implementation |
+| `cloud/review/tools.ts` | Tool definitions injected into the review agent |
+| `cloud/review/tools-script.ts` | Script loaded by the review tools |
+| `cloud/babysit/backend.ts` | PR review / check continuation (babysit mode) |
+| `cloud/babysit/github.ts` | GitHub status/check polling helpers |
+| `cloud/babysit/round.ts` | Single babysit iteration logic |
+| `local/backend.ts` | Local Dev mode — SSH-connected local machine |
+| `local/sim-tools.ts` | Sim-side tool implementations |
+| `local/ssh-tools.ts` | SSH tool implementations |
+| `search/tool.ts` | Search tool definition |
+| `search/normalize.ts` | Result normalisation |
+| `search/extension-source.ts` | Extension-based source adapter |
 
 ## Dispatch flow
 
