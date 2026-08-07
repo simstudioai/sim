@@ -1238,7 +1238,15 @@ export function Files() {
       if (type.mimeType === file.type && nextName === file.name) return
 
       if (isDirtyRef.current) await saveRef.current?.()
-      await flushFileDocRef(fileDocFlushRef)
+      const flushed = await flushFileDocRef(fileDocFlushRef)
+      if (flushed.status !== 'persisted') {
+        // Not an error — `unchanged` means there was nothing to write, and `skipped` means the write
+        // did not land in time. The retype proceeds either way; this is the breadcrumb for a stale
+        // first paint, which is otherwise indistinguishable from a rendering bug.
+        logger.info('Changing file type without a confirmed durable flush', {
+          status: flushed.status,
+        })
+      }
 
       const siblingNames = new Set(
         filesRef.current

@@ -1304,6 +1304,12 @@ export function setupWorkspaceFileDocHandlers(
       room.persistDeadline = null
 
       const outcome = await flushPersist(name, room, 'requested')
+      // The caller's next step depends on this outcome, and `unchanged`/`skipped` are both silent
+      // no-writes — worth a line so a stale read after a retype can be traced without a repro.
+      logger.info(`Requested flush for file ${fileId}: ${outcome.status}`, {
+        edited: room.edited,
+        hasWorkspace: Boolean(room.workspaceId),
+      })
       ack(outcome.status, outcome.status === 'persisted' ? outcome.version : undefined)
     } catch (error) {
       logger.error('Error flushing file-doc room:', error)

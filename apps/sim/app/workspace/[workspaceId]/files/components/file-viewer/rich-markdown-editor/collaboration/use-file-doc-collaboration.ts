@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { FILE_DOC_EVENTS, type FileDocPresence } from '@sim/realtime-protocol/file-doc'
 import { Awareness } from 'y-protocols/awareness'
 import * as Y from 'yjs'
@@ -110,10 +110,25 @@ export function useFileDocCollaboration({
     }
   }, [enabled, socket, fileId])
 
-  // Publish this document's flush so the file-detail header can force durability before it reads the
-  // file's stored bytes back (changing the file's type unmounts this editor and swaps in one that
-  // reads them). Cleared with the provider, so it can never outlive the socket it wraps.
-  useReportFileDocFlush(useMemo(() => (provider ? () => provider.flush() : null), [provider]))
+  /**
+   * Publish this document's flush so the file-detail header can force durability before it reads the
+   * file's stored bytes back (changing the file's type unmounts this editor and swaps in one that
+   * reads them).
+   *
+   * The published function is STABLE and resolves the provider at call time through a ref. Binding it
+   * to the provider's identity instead looked equivalent and was not: the provider is torn down and
+   * rebuilt on every socket change, so each churn republished — and any churn ending on `null` left
+   * the header with nothing to call, silently degrading the retype back to a stale read. A stable
+   * identity publishes once and always sees the live provider.
+   */
+  const providerRef = useRef<FileDocProvider | null>(null)
+  providerRef.current = provider
+  useReportFileDocFlush(
+    useCallback(
+      () => providerRef.current?.flush() ?? Promise.resolve({ fileId, status: 'skipped' as const }),
+      [fileId]
+    )
+  )
 
   const reportOthers = useReportFileDocOthers()
   const reportOthersRef = useRef(reportOthers)
