@@ -31,14 +31,17 @@ export interface WorkspaceMembership {
  * Credential-admin status is derived from workspace role at access time, so
  * members are seeded only for use access (the owner plus permission holders).
  */
-async function getWorkspaceMembership(workspaceId: string): Promise<WorkspaceMembership> {
+async function getWorkspaceMembership(
+  workspaceId: string,
+  executor: DbOrTx = db
+): Promise<WorkspaceMembership> {
   const [workspaceRows, permissionRows] = await Promise.all([
-    db
+    executor
       .select({ ownerId: workspace.ownerId })
       .from(workspace)
       .where(eq(workspace.id, workspaceId))
       .limit(1),
-    db
+    executor
       .select({ userId: permissions.userId })
       .from(permissions)
       .where(and(eq(permissions.entityType, 'workspace'), eq(permissions.entityId, workspaceId))),
@@ -409,18 +412,25 @@ export async function createWorkspaceEnvCredentials(params: {
   actingUserId: string
   /** Per-key disclosure policy for the new keys. Anything unlisted is a secret. */
   visibilityByKey?: Record<string, EnvVisibility>
+  /**
+   * Runs the inserts inside a caller-supplied transaction so they roll back with
+   * the rest of the request. The env PUT mixes these credential rows with a jsonb
+   * value upsert and a visibility change, and a denial in any of them must leave
+   * none of the others committed.
+   */
+  executor?: DbOrTx
 }): Promise<void> {
-  const { workspaceId, newKeys, actingUserId, visibilityByKey } = params
+  const { workspaceId, newKeys, actingUserId, visibilityByKey, executor = db } = params
   const keys = Array.from(new Set(newKeys.filter(Boolean)))
   if (keys.length === 0) return
 
-  const { ownerId, memberUserIds } = await getWorkspaceMembership(workspaceId)
+  const { ownerId, memberUserIds } = await getWorkspaceMembership(workspaceId, executor)
 
   if (!ownerId) return
 
   const now = new Date()
 
-  const inserted = await db
+  const inserted = await executor
     .insert(credential)
     .values(
       keys.map((envKey) => ({
@@ -456,7 +466,7 @@ export async function createWorkspaceEnvCredentials(params: {
     }))
   )
 
-  await db.insert(credentialMember).values(membershipValues).onConflictDoNothing()
+  await executor.insert(credentialMember).values(membershipValues).onConflictDoNothing()
 }
 
 /**
@@ -521,7 +531,7 @@ export interface AuthorizedVisibilityChange {
  * A no-op request authorizes trivially — asking for the visibility a key
  * already has reveals nothing and must not 403.
  */
-export async function authorizeWorkspaceEnvVisibilityChange(params: {
+async function authorizeWorkspaceEnvVisibilityChange(params: {
   workspaceId: string
   updates: Record<string, EnvVisibility>
   actingUserId: string
@@ -552,6 +562,43 @@ export async function authorizeWorkspaceEnvVisibilityChange(params: {
   if (changing.length === 0) return []
 
   const changingKeys = changing.map((row) => row.envKey as string)
+
+  // Share-lock the rows that grant this caller the right to disclose, BEFORE
+  // reading them. A concurrent revocation must either commit before the lock —
+  // in which case the reads below observe it and deny — or block until this
+  // transaction ends. Without the locks the permission read and the UPDATE are
+  // two independent statements, and a revocation landing between them leaves a
+  // former admin able to flip a secret to a workspace-visible variable.
+  //
+  // `executor` is the caller's transaction, which is what makes the locks span
+  // the UPDATE. Called without one, each statement is its own implicit
+  // transaction and the locks release immediately — harmless, but it is why
+  // `setWorkspaceEnvVisibility` is the only supported entry point.
+  await executor
+    .select({ id: permissions.id })
+    .from(permissions)
+    .where(
+      and(
+        eq(permissions.userId, actingUserId),
+        eq(permissions.entityType, 'workspace'),
+        eq(permissions.entityId, workspaceId)
+      )
+    )
+    .for('share')
+  await executor
+    .select({ id: credentialMember.id })
+    .from(credentialMember)
+    .where(
+      and(
+        eq(credentialMember.userId, actingUserId),
+        inArray(
+          credentialMember.credentialId,
+          changing.map((row) => row.id)
+        )
+      )
+    )
+    .for('share')
+
   const [isWorkspaceAdmin, { adminKeys }] = await Promise.all([
     hasWorkspaceAdminAccess(actingUserId, workspaceId),
     getWorkspaceEnvKeyAdminAccess({ workspaceId, envKeys: changingKeys, userId: actingUserId }),
@@ -608,14 +655,12 @@ async function applyWorkspaceEnvVisibilityChange(params: {
  * admin on that specific key) rather than the workspace `write` that suffices
  * for editing a value.
  *
- * Authorizes and applies adjacently, so the decision cannot go stale between the
- * two. Callers that also need to fail fast before unrelated writes can call
- * {@link authorizeWorkspaceEnvVisibilityChange} as a pre-flight and discard its
- * result — this function still re-decides authoritatively at write time.
+ * Authorizes and applies adjacently, in that order, with no caller able to hold
+ * the decision in between — both halves are unexported for exactly that reason.
  *
- * Pass `executor` to run the UPDATE inside a surrounding transaction. The
- * permission reads intentionally go through `db`, not that transaction, so they
- * observe the latest committed membership instead of the transaction's snapshot.
+ * Pass `executor` to run inside the caller's transaction. That is what lets the
+ * authorization's share-locks span the UPDATE, and what lets a denial roll back
+ * the caller's other writes rather than stranding them.
  */
 export async function setWorkspaceEnvVisibility(params: {
   workspaceId: string

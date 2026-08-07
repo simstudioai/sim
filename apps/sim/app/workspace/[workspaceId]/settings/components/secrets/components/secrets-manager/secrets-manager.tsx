@@ -427,6 +427,15 @@ export function SecretsManager() {
   const [showUnsavedChanges, setShowUnsavedChanges] = useState(false)
   const [workspaceVars, setWorkspaceVars] = useState<Record<string, string>>({})
   const [renamingKey, setRenamingKey] = useState<string | null>(null)
+  /**
+   * Visibility carried across a rename. A rename saves as delete-old +
+   * create-new, and only the new name reaches the server — so without this the
+   * recreated key defaults to `secret`, silently revoking every member's read
+   * access and bouncing the row into the Secrets section.
+   */
+  const [renamedKeyVisibility, setRenamedKeyVisibility] = useState<Record<string, EnvVisibility>>(
+    {}
+  )
   const [pendingKeyValue, setPendingKeyValue] = useState<string>('')
   const [pendingVisibilityChange, setPendingVisibilityChange] = useState<{
     envKey: string
@@ -500,13 +509,19 @@ export function SecretsManager() {
     return mapped.filter(({ row }) => row.key.toLowerCase().includes(term))
   }, [newWorkspaceRows, searchTerm])
 
+  /**
+   * Every name that will exist at workspace scope after save — saved keys plus
+   * BOTH sections' drafts. Personal-vs-workspace conflict detection reads this,
+   * so omitting the variable drafts let a clashing name save from the Variables
+   * section that the Secrets section would have blocked.
+   */
   const allWorkspaceKeys = useMemo(() => {
     const keys = new Set(Object.keys(workspaceVars))
-    for (const row of newWorkspaceRows) {
+    for (const row of [...newWorkspaceRows, ...newWorkspaceVariableRows]) {
       if (row.key) keys.add(row.key)
     }
     return keys
-  }, [workspaceVars, newWorkspaceRows])
+  }, [workspaceVars, newWorkspaceRows, newWorkspaceVariableRows])
 
   const hasChanges = useMemo(() => {
     const initialVars = initialVarsRef.current.filter((v) => v.key || v.value)
@@ -745,6 +760,14 @@ export function SecretsManager() {
       next[newKey] = currentValue
       return next
     })
+    const previousVisibility =
+      renamedKeyVisibility[currentKey] ?? workspaceEnvData?.visibility?.[currentKey] ?? 'secret'
+    setRenamedKeyVisibility((prev) => {
+      const next = { ...prev }
+      delete next[currentKey]
+      if (previousVisibility === 'variable') next[newKey] = 'variable'
+      return next
+    })
   }
 
   const handleWorkspaceValueChange = (key: string, value: string) => {
@@ -864,6 +887,7 @@ export function SecretsManager() {
     setWorkspaceVars({ ...initialWorkspaceVarsRef.current })
     setNewWorkspaceRows([createEmptyEnvVar()])
     setNewWorkspaceVariableRows([createEmptyEnvVar()])
+    setRenamedKeyVisibility({})
     setShowUnsavedChanges(false)
   }
 
@@ -969,7 +993,7 @@ export function SecretsManager() {
     // path (that needs the confirmed disclosure flow), which is why
     // `duplicateDraftKeys` blocks saving a name that already exists as a secret
     // rather than letting it save and silently stay secret.
-    const draftVariableVisibility: Record<string, EnvVisibility> = {}
+    const draftVariableVisibility: Record<string, EnvVisibility> = { ...renamedKeyVisibility }
     for (const row of newWorkspaceVariableRows) {
       if (row.key && row.value) {
         mergedWorkspaceVars[row.key] = row.value
@@ -1054,6 +1078,9 @@ export function SecretsManager() {
       // still drafted.
       setNewWorkspaceRows([createEmptyEnvVar()])
       setNewWorkspaceVariableRows([createEmptyEnvVar()])
+      // Carried visibility is consumed by the save it belonged to; the refetched
+      // server state is authoritative from here.
+      setRenamedKeyVisibility({})
       if (mutations.length > 0) {
         toast.success('Secrets saved')
       }

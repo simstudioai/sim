@@ -395,6 +395,50 @@ export async function upsertPersonalEnvVars(
 /**
  * Encrypts and upserts workspace environment variables, merging with existing.
  */
+/**
+ * Rejects a requested disclosure policy that this path cannot apply.
+ *
+ * `visibilityByKey` only reaches credential CREATION, so a policy requested for
+ * a key that already exists would be silently dropped while the call still
+ * reported success — including a `variable -> secret` remediation, the case
+ * where a false success is most harmful. Flipping an existing key needs the
+ * stricter disclosure gate this path does not perform, so surface the mismatch
+ * rather than pretend it applied.
+ *
+ * `existingKeys` is the stored ciphertext map read under the caller's advisory
+ * lock: a key present there is not created by this call, so its policy is
+ * whatever it already had. Callers must invoke this BEFORE writing anything.
+ */
+async function assertRequestedVisibilityApplies(params: {
+  workspaceId: string
+  actingUserId: string
+  updatedKeys: string[]
+  existingKeys: Record<string, string>
+  visibilityByKey?: Record<string, EnvVisibility>
+}): Promise<void> {
+  const { workspaceId, actingUserId, updatedKeys, existingKeys, visibilityByKey } = params
+  if (!visibilityByKey) return
+
+  const requested = Object.fromEntries(
+    updatedKeys
+      .filter((key) => key in existingKeys && visibilityByKey[key])
+      .map((key) => [key, visibilityByKey[key] as EnvVisibility])
+  )
+  if (Object.keys(requested).length === 0) return
+
+  const { variableKeys } = await getWorkspaceEnvKeyAdminAccess({
+    workspaceId,
+    envKeys: Object.keys(requested),
+    userId: actingUserId,
+  })
+  const unapplied = Object.entries(requested)
+    .filter(([key, next]) => (variableKeys.has(key) ? 'variable' : 'secret') !== next)
+    .map(([key]) => key)
+  if (unapplied.length > 0) {
+    throw new WorkspaceEnvVisibilityUnsupportedError(unapplied)
+  }
+}
+
 export async function upsertWorkspaceEnvVars(
   workspaceId: string,
   newVars: Record<string, string>,
@@ -461,6 +505,20 @@ export async function upsertWorkspaceEnvVars(
     const existing = (existingRow?.variables as Record<string, string>) || {}
     const merged = { ...existing, ...newlyEncrypted }
 
+    // Rejected BEFORE the write, inside the same transaction that reads
+    // `existing` — which is what makes "already exists" exact rather than a
+    // guess taken outside the lock. Validating after the upsert (and after
+    // createWorkspaceEnvCredentials) meant a rejected call still changed
+    // workspace values and could mint credential rows, then threw and skipped
+    // its audit record.
+    await assertRequestedVisibilityApplies({
+      workspaceId,
+      actingUserId,
+      updatedKeys,
+      existingKeys: existing,
+      visibilityByKey: options?.visibilityByKey,
+    })
+
     await tx
       .insert(workspaceEnvironment)
       .values({
@@ -489,34 +547,6 @@ export async function upsertWorkspaceEnvVars(
     actingUserId,
     visibilityByKey: options?.visibilityByKey,
   })
-
-  // `visibilityByKey` only reaches credential CREATION, so a requested policy on
-  // a key that already exists would be silently dropped while the call still
-  // reported success — including a `variable -> secret` remediation, the case
-  // where a false success is most harmful. Flipping an existing key needs the
-  // stricter disclosure gate this path does not perform, so surface the mismatch
-  // rather than pretending it applied.
-  if (options?.visibilityByKey) {
-    const existingKeys = updatedKeys.filter((key) => !newKeys.includes(key))
-    const requested = Object.fromEntries(
-      existingKeys
-        .filter((key) => options.visibilityByKey?.[key])
-        .map((key) => [key, options.visibilityByKey?.[key] as EnvVisibility])
-    )
-    if (Object.keys(requested).length > 0) {
-      const { variableKeys } = await getWorkspaceEnvKeyAdminAccess({
-        workspaceId,
-        envKeys: Object.keys(requested),
-        userId: actingUserId,
-      })
-      const unapplied = Object.entries(requested)
-        .filter(([key, next]) => (variableKeys.has(key) ? 'variable' : 'secret') !== next)
-        .map(([key]) => key)
-      if (unapplied.length > 0) {
-        throw new WorkspaceEnvVisibilityUnsupportedError(unapplied)
-      }
-    }
-  }
 
   recordAudit({
     workspaceId,

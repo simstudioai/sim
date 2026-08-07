@@ -16,7 +16,6 @@ import { encryptSecret } from '@/lib/core/security/encryption'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
-  authorizeWorkspaceEnvVisibilityChange,
   createWorkspaceEnvCredentials,
   deleteWorkspaceEnvCredentials,
   type EnvVisibility,
@@ -250,32 +249,6 @@ export const PUT = withRouteHandler(
         )
       }
 
-      // Pre-flight, BEFORE any write. Running the check after the value upsert
-      // let a request that mixes an allowed new key with an unauthorized flip
-      // commit the key and its credential rows and THEN return 403 — a rejected
-      // call that changed workspace state and skipped its audit record. The
-      // decision is deliberately discarded: it is re-made adjacent to the UPDATE
-      // below, so this pass only guarantees a denied request attempts no writes.
-      if (visibility) {
-        try {
-          await authorizeWorkspaceEnvVisibilityChange({
-            workspaceId,
-            updates: visibility,
-            actingUserId: userId,
-          })
-        } catch (error) {
-          if (error instanceof WorkspaceEnvVisibilityAccessError) {
-            logger.warn(`[${requestId}] Workspace env visibility change denied`, {
-              workspaceId,
-              userId,
-              keys: error.keys,
-            })
-            return NextResponse.json({ error: error.message }, { status: 403 })
-          }
-          throw error
-        }
-      }
-
       const encryptedIncoming = await Promise.all(
         Object.entries(variables).map(async ([key, value]) => {
           const { encrypted } = await encryptSecret(value)
@@ -283,85 +256,97 @@ export const PUT = withRouteHandler(
         })
       ).then((entries) => Object.fromEntries(entries))
 
-      const { existingEncrypted, merged } = await db.transaction(async (tx) => {
-        await tx.execute(
-          sql`SELECT set_config('lock_timeout', ${`${WORKSPACE_ENV_LOCK_TIMEOUT_MS}ms`}, true)`
-        )
-        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${workspaceId}, 0))`)
+      /**
+       * One transaction for authorization AND every write it guards.
+       *
+       * The value upsert, the credential rows, and the visibility flip used to
+       * be three separate commits with the disclosure check somewhere among
+       * them, so a request that was ultimately rejected could still leave the
+       * first writes committed and skip its audit record. Ordering the check
+       * earlier only moved which writes were stranded. With all of it in one
+       * transaction there is no ordering to get wrong: a denial throws and
+       * every write in the request rolls back together.
+       *
+       * `setWorkspaceEnvVisibility` runs LAST, after the writes it must not be
+       * separated from, and share-locks the rows granting the caller's access
+       * before reading them — so a revocation committing mid-request either is
+       * observed and denies, or waits for this transaction.
+       */
+      let flippedKeys: string[] = []
+      let existingEncrypted: Record<string, string>
+      let merged: Record<string, string>
+      try {
+        ;({ existingEncrypted, merged } = await db.transaction(async (tx) => {
+          await tx.execute(
+            sql`SELECT set_config('lock_timeout', ${`${WORKSPACE_ENV_LOCK_TIMEOUT_MS}ms`}, true)`
+          )
+          await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${workspaceId}, 0))`)
 
-        const [existingRow] = await tx
-          .select()
-          .from(workspaceEnvironment)
-          .where(eq(workspaceEnvironment.workspaceId, workspaceId))
-          .limit(1)
+          const [existingRow] = await tx
+            .select()
+            .from(workspaceEnvironment)
+            .where(eq(workspaceEnvironment.workspaceId, workspaceId))
+            .limit(1)
 
-        const existing = ((existingRow?.variables as Record<string, string>) ?? {}) as Record<
-          string,
-          string
-        >
-        const mergedVars = { ...existing, ...encryptedIncoming }
+          const existing = ((existingRow?.variables as Record<string, string>) ?? {}) as Record<
+            string,
+            string
+          >
+          const mergedVars = { ...existing, ...encryptedIncoming }
 
-        await tx
-          .insert(workspaceEnvironment)
-          .values({
-            id: generateId(),
+          if (Object.keys(encryptedIncoming).length > 0) {
+            await tx
+              .insert(workspaceEnvironment)
+              .values({
+                id: generateId(),
+                workspaceId,
+                variables: mergedVars,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              })
+              .onConflictDoUpdate({
+                target: [workspaceEnvironment.workspaceId],
+                set: { variables: mergedVars, updatedAt: new Date() },
+              })
+          }
+
+          // Derived from the stored map, not the credential rows: a legacy key
+          // present in jsonb without a credential row is NOT new, and minting an
+          // ACL for it would make the caller its secret-admin.
+          await createWorkspaceEnvCredentials({
             workspaceId,
-            variables: mergedVars,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          })
-          .onConflictDoUpdate({
-            target: [workspaceEnvironment.workspaceId],
-            set: { variables: mergedVars, updatedAt: new Date() },
+            newKeys: Object.keys(variables).filter((k) => !(k in existing)),
+            actingUserId: userId,
+            visibilityByKey: visibility,
+            executor: tx,
           })
 
-        return { existingEncrypted: existing, merged: mergedVars }
-      })
+          if (visibility) {
+            const applied = await setWorkspaceEnvVisibility({
+              workspaceId,
+              updates: visibility,
+              actingUserId: userId,
+              executor: tx,
+            })
+            flippedKeys = applied.changedKeys
+          }
+
+          return { existingEncrypted: existing, merged: mergedVars }
+        }))
+      } catch (error) {
+        if (error instanceof WorkspaceEnvVisibilityAccessError) {
+          logger.warn(`[${requestId}] Workspace env visibility change denied`, {
+            workspaceId,
+            userId,
+            keys: error.keys,
+          })
+          // Nothing to undo: the denial rolled the whole transaction back.
+          return NextResponse.json({ error: error.message }, { status: 403 })
+        }
+        throw error
+      }
 
       invalidateEffectiveDecryptedEnvCache({ workspaceId })
-      const newKeys = Object.keys(variables).filter((k) => !(k in existingEncrypted))
-      await createWorkspaceEnvCredentials({
-        workspaceId,
-        newKeys,
-        actingUserId: userId,
-        visibilityByKey: visibility,
-      })
-
-      // Re-authorized here rather than reusing the pre-flight decision above.
-      // That decision was made before the value writes and the credential
-      // inserts, so acting on it would let an admin whose access was revoked in
-      // the meantime still disclose a secret. The check runs adjacent to the
-      // UPDATE inside one transaction, and reads permissions through `db` (not
-      // `tx`) so it observes the latest committed membership rather than this
-      // transaction's snapshot. Brand-new keys took their policy from
-      // `visibilityByKey` on create, so only pre-existing keys can appear here.
-      let flippedKeys: string[] = []
-      if (visibility) {
-        try {
-          flippedKeys = (
-            await db.transaction((tx) =>
-              setWorkspaceEnvVisibility({
-                workspaceId,
-                updates: visibility,
-                actingUserId: userId,
-                executor: tx,
-              })
-            )
-          ).changedKeys
-        } catch (error) {
-          if (error instanceof WorkspaceEnvVisibilityAccessError) {
-            logger.warn(`[${requestId}] Workspace env visibility change denied at apply`, {
-              workspaceId,
-              userId,
-              keys: error.keys,
-              reason: 'access-revoked-mid-request',
-            })
-            return NextResponse.json({ error: error.message }, { status: 403 })
-          }
-          throw error
-        }
-      }
-      if (flippedKeys.length > 0) invalidateEffectiveDecryptedEnvCache({ workspaceId })
 
       recordAudit({
         workspaceId,

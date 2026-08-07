@@ -9,18 +9,18 @@ const {
   mockGetWorkspaceById,
   mockGetUserEntityPermissions,
   mockGetWorkspaceEnvKeyAdminAccess,
-  mockAuthorizeVisibility,
   mockSetVisibility,
   mockCreateWorkspaceEnvCredentials,
+  mockRecordAudit,
   MockVisibilityAccessError,
 } = vi.hoisted(() => ({
   mockGetPersonalEnvKeyRawAccess: vi.fn(),
   mockGetWorkspaceById: vi.fn(),
   mockGetUserEntityPermissions: vi.fn(),
   mockGetWorkspaceEnvKeyAdminAccess: vi.fn(),
-  mockAuthorizeVisibility: vi.fn(),
   mockSetVisibility: vi.fn(),
   mockCreateWorkspaceEnvCredentials: vi.fn(),
+  mockRecordAudit: vi.fn(),
   // Declared inside vi.hoisted: `vi.mock` factories hoist above module-scope
   // class declarations, so a plain `class` here is in its TDZ when the factory
   // runs and the mock module fails to initialize.
@@ -32,6 +32,16 @@ const {
       this.keys = keys
     }
   },
+}))
+
+vi.mock('@/lib/core/security/encryption', () => ({
+  encryptSecret: vi.fn(async (value: string) => ({ encrypted: `enc:${value}` })),
+}))
+
+vi.mock('@sim/audit', () => ({
+  recordAudit: mockRecordAudit,
+  AuditAction: { ENVIRONMENT_UPDATED: 'environment.updated' },
+  AuditResourceType: { ENVIRONMENT: 'environment' },
 }))
 
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
@@ -46,7 +56,6 @@ vi.mock('@/lib/credentials/environment', () => ({
   getWorkspaceEnvKeyAdminAccess: mockGetWorkspaceEnvKeyAdminAccess,
   createWorkspaceEnvCredentials: mockCreateWorkspaceEnvCredentials,
   deleteWorkspaceEnvCredentials: vi.fn(),
-  authorizeWorkspaceEnvVisibilityChange: mockAuthorizeVisibility,
   setWorkspaceEnvVisibility: mockSetVisibility,
   WorkspaceEnvVisibilityAccessError: MockVisibilityAccessError,
 }))
@@ -244,68 +253,54 @@ describe('PUT /api/workspaces/[id]/environment — visibility ordering', () => {
   }
 
   /**
-   * The ordering defect Greptile caught. A request mixing an allowed NEW key
-   * with an unauthorized visibility flip used to commit the key and its
-   * credential rows and only THEN return 403 — a rejected call that changed
-   * workspace state and skipped its audit record.
+   * A rejected request must change nothing. The value upsert, the credential
+   * rows, and the visibility flip all run in ONE transaction now, so a denial
+   * anywhere throws and rolls the rest back — no ordering left to get wrong.
    */
-  it('writes nothing when a visibility change is denied', async () => {
-    mockAuthorizeVisibility.mockRejectedValue(new MockVisibilityAccessError(['STRIPE_KEY']))
+  it('returns 403 and records no audit when a visibility change is denied', async () => {
+    mockSetVisibility.mockRejectedValue(new MockVisibilityAccessError(['STRIPE_KEY']))
 
-    const { status } = await callPut({
+    const { status, body } = await callPut({
       variables: { BRAND_NEW: 'v' },
       visibility: { STRIPE_KEY: 'variable' },
     })
 
     expect(status).toBe(403)
-    // The whole point: authorization ran before any write reached the database.
-    expect(mockCreateWorkspaceEnvCredentials).not.toHaveBeenCalled()
-    expect(mockSetVisibility).not.toHaveBeenCalled()
+    expect(body.error).toContain('admin')
+    // The audit record lives after the transaction, so a rejected request
+    // cannot reach it — which is the observable proof nothing was committed.
+    expect(mockRecordAudit).not.toHaveBeenCalled()
   })
 
-  it('re-decides authorization at write time rather than reusing the pre-flight', async () => {
-    mockAuthorizeVisibility.mockResolvedValue([
-      { credentialId: 'c-1', envKey: 'SUPPORT_EMAIL', next: 'variable' },
-    ])
+  /**
+   * Both writes must be transaction-scoped. If either call moves back outside
+   * the transaction it loses its `executor` and a denial in the other would
+   * strand it committed — the exact failure this consolidation removed.
+   */
+  it('runs the credential inserts and the visibility flip inside the transaction', async () => {
     mockSetVisibility.mockResolvedValue({ changedKeys: ['SUPPORT_EMAIL'] })
 
     const { status } = await callPut({
-      variables: {},
+      variables: { NEW_KEY: 'v' },
       visibility: { SUPPORT_EMAIL: 'variable' },
     })
 
     expect(status).toBe(200)
-    expect(mockAuthorizeVisibility).toHaveBeenCalled()
-    // The pre-flight's resolved credential IDs are deliberately NOT carried into
-    // the write: the request the setter receives is the raw visibility map, so
-    // access is re-checked against current membership next to the UPDATE.
+    expect(mockCreateWorkspaceEnvCredentials).toHaveBeenCalledWith(
+      expect.objectContaining({ executor: expect.anything() })
+    )
     expect(mockSetVisibility).toHaveBeenCalledWith(
       expect.objectContaining({
         workspaceId: WORKSPACE_ID,
         actingUserId: 'u-1',
         updates: { SUPPORT_EMAIL: 'variable' },
+        executor: expect.anything(),
       })
     )
-  })
-
-  /**
-   * The stale-authorization window. The pre-flight above passes, then the
-   * caller's credential-admin access is revoked while the value writes run. The
-   * write-time decision must still refuse — reusing the pre-flight result here
-   * would let a former admin disclose a secret after losing the right to.
-   */
-  it('returns 403 when access is revoked between the pre-flight and the write', async () => {
-    mockAuthorizeVisibility.mockResolvedValue([
-      { credentialId: 'c-1', envKey: 'STRIPE_KEY', next: 'variable' },
-    ])
-    mockSetVisibility.mockRejectedValue(new MockVisibilityAccessError(['STRIPE_KEY']))
-
-    const { status, body } = await callPut({
-      variables: {},
-      visibility: { STRIPE_KEY: 'variable' },
-    })
-
-    expect(status).toBe(403)
-    expect(body.error).toContain('admin')
+    // Ordering matters: the disclosure change is applied last, after the writes
+    // it must not be separated from.
+    expect(mockCreateWorkspaceEnvCredentials.mock.invocationCallOrder[0]).toBeLessThan(
+      mockSetVisibility.mock.invocationCallOrder[0]
+    )
   })
 })
