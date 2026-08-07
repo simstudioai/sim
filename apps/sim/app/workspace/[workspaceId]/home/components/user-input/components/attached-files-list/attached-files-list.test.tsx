@@ -4,8 +4,8 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { AttachedFilesList } from '@/app/workspace/[workspaceId]/home/components/user-input/components/attached-files-list/attached-files-list'
 import type { AttachedFile } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
-import { AttachedFilesList } from './attached-files-list'
 
 function file(overrides: Partial<AttachedFile>): AttachedFile {
   return {
