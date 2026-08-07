@@ -43,6 +43,7 @@
 
 export * from './assertions'
 export * from './builders'
+export * from './environment'
 export * from './factories'
 export * from './mocks'
 export * from './types'
