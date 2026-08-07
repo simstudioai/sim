@@ -257,6 +257,10 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
       },
       workflowIdMap,
       referencedDocumentIds: Array.from(referencedDocumentIds),
+      documentMappingContext: {
+        edgeChildWorkspaceId: childWorkspaceId,
+        sourceIsParent: true,
+      },
     })
     forkedResourceNames = resourceResult.names
 

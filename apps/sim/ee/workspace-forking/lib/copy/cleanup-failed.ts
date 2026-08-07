@@ -77,12 +77,9 @@ function clearFailedSubBlockReferences(
  * is the count of failed resources whose references were cleared.
  *
  * Storage accounting: this cleanup never decrements storage usage because it never removes
- * anything that was counted. Copied file blobs are the only counted copies (incremented in
- * `executeForkFileBlobCopies` only after the blob lands), and a failed file's blob never
- * landed - its metadata row is intentionally left re-uploadable, and nothing was charged. The
- * dropped table/KB/document placeholders are DB rows the upload path never counts, and any KB
- * blobs copied before their KB failed are left in storage (rows only are dropped here) but
- * uncounted - mirroring the KB upload path, which never counts KB blobs.
+ * anything that remains counted. A failed file copy is not charged and leaves its metadata row
+ * re-uploadable. A failed KB copy reverses its usage and retires its active file-ownership rows
+ * before reaching this cleanup; deterministic blobs remain available for a safe retry.
  */
 export async function clearFailedForkResourceReferences(params: {
   childWorkspaceId: string
@@ -304,6 +301,9 @@ export function rewriteDeploymentVersionState(
  * no-op. After a version is rewritten its cached deployed state is evicted so execute/serve rebuilds
  * from the cleaned snapshot. Bounded work (no long transaction): per-version short UPDATEs, versions
  * keyset-paginated, and a per-workflow failure is logged without aborting the other workflows.
+ * After every workflow has been attempted, any failures are reported to the caller so it can keep
+ * the failed resource placeholders in place rather than deleting rows a deployed version may still
+ * reference.
  */
 export async function clearFailedReferencesInDeploymentVersions(
   workflowIds: ReadonlySet<string>,
@@ -312,6 +312,7 @@ export async function clearFailedReferencesInDeploymentVersions(
 ): Promise<void> {
   if (workflowIds.size === 0) return
   const resolve = buildFailedResolver(failedByKind)
+  const failures: unknown[] = []
 
   for (const workflowId of workflowIds) {
     try {
@@ -355,10 +356,18 @@ export async function clearFailedReferencesInDeploymentVersions(
         afterVersion = versions[versions.length - 1].version
       }
     } catch (error) {
+      failures.push(error)
       logger.error(`[${requestId}] Failed to clear references in deployment versions`, {
         workflowId,
         error: getErrorMessage(error),
       })
     }
+  }
+
+  if (failures.length > 0) {
+    throw new AggregateError(
+      failures,
+      `Failed to clear deployment-version references for ${failures.length} workflow(s)`
+    )
   }
 }

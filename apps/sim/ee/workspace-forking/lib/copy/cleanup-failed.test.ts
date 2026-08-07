@@ -269,6 +269,31 @@ describe('cleanup-failed', () => {
       expect(updates()).toHaveLength(0)
       expect(mockInvalidateDeployedStateCache).not.toHaveBeenCalled()
     })
+
+    it('attempts every workflow, then reports a workflow-scoped cleanup failure', async () => {
+      queueTableRows(workflowDeploymentVersion, [
+        { id: 'dv-failed', version: 5, state: versionState('failed-kb') },
+      ])
+      queueTableRows(workflowDeploymentVersion, [
+        { id: 'dv-cleaned', version: 5, state: versionState('failed-kb') },
+      ])
+      dbChainMockFns.set.mockImplementationOnce(() => {
+        throw new Error('first workflow update failed')
+      })
+
+      await expect(
+        clearFailedReferencesInDeploymentVersions(
+          new Set(['wf-failed', 'wf-cleaned']),
+          failedByKind(),
+          'test'
+        )
+      ).rejects.toThrow('Failed to clear deployment-version references for 1 workflow(s)')
+
+      // The second workflow is still processed after the first workflow's update fails.
+      expect(dbChainMockFns.update).toHaveBeenCalledTimes(2)
+      expect(mockInvalidateDeployedStateCache).toHaveBeenCalledTimes(1)
+      expect(mockInvalidateDeployedStateCache).toHaveBeenCalledWith('dv-cleaned')
+    })
   })
 
   describe('clearFailedForkResourceReferences', () => {
@@ -374,6 +399,27 @@ describe('cleanup-failed', () => {
       // The count must NOT overstate: nothing was cleared and the flag marks cleanup incomplete.
       expect(cleaned).toEqual({ cleared: 0, clearingFailed: true })
       // The drop is skipped, so the placeholder row survives (no delete issued).
+      expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+    })
+
+    it('keeps placeholders when a deployed-version cleanup fails after draft cleanup succeeds', async () => {
+      queueTableRows(workflow, [{ id: 'wf-1' }])
+      queueTableRows(workflowBlocks, [draftBlockRow('other-kb')])
+      queueTableRows(workflowDeploymentVersion, [
+        { id: 'dv-failed', version: 5, state: versionState('failed-kb') },
+      ])
+      dbChainMockFns.set.mockImplementationOnce(() => {
+        throw new Error('deployment update failed')
+      })
+
+      const cleaned = await clearFailedForkResourceReferences({
+        childWorkspaceId: 'child-ws',
+        failures: [{ kind: 'knowledge-base', childId: 'failed-kb', documentChildIds: [] }],
+        deployedTargetWorkflowIds: ['wf-deployed'],
+        requestId: 'test',
+      })
+
+      expect(cleaned).toEqual({ cleared: 0, clearingFailed: true })
       expect(dbChainMockFns.delete).not.toHaveBeenCalled()
     })
   })
