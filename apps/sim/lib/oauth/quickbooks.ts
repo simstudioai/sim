@@ -122,6 +122,17 @@ export async function revokeQuickBooksToken(token: string): Promise<void> {
     throw new Error('QuickBooks token revocation request failed')
   }
 
+  // Intuit returns 400 when the grant is already invalid (for example, after a
+  // user disconnects it in QuickBooks). There is no remaining remote access to
+  // revoke in that case, so local cleanup can safely continue.
+  if (response.status === 400) {
+    await readResponseTextWithLimit(response, {
+      maxBytes: QUICKBOOKS_MAX_REVOCATION_ERROR_BYTES,
+      label: 'QuickBooks token revocation response',
+    }).catch(() => {})
+    return
+  }
+
   if (!response.ok) {
     await readResponseTextWithLimit(response, {
       maxBytes: QUICKBOOKS_MAX_REVOCATION_ERROR_BYTES,

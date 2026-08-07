@@ -66,13 +66,21 @@ describe('revokeQuickBooksToken', () => {
     await expect(result).rejects.not.toThrow('sensitive-refresh-token')
   })
 
-  it('sanitizes non-success responses', async () => {
+  it('allows local cleanup when Intuit reports an already-invalid grant', async () => {
     mockFetch.mockResolvedValueOnce(
       new Response('sensitive-refresh-token quickbooks-client-secret', { status: 400 })
     )
 
+    await expect(revokeQuickBooksToken('sensitive-refresh-token')).resolves.toBeUndefined()
+  })
+
+  it('sanitizes non-terminal non-success responses', async () => {
+    mockFetch.mockResolvedValueOnce(
+      new Response('sensitive-refresh-token quickbooks-client-secret', { status: 503 })
+    )
+
     const result = revokeQuickBooksToken('sensitive-refresh-token')
-    await expect(result).rejects.toThrow('QuickBooks token revocation failed with HTTP 400')
+    await expect(result).rejects.toThrow('QuickBooks token revocation failed with HTTP 503')
     await expect(result).rejects.not.toThrow('sensitive-refresh-token')
     await expect(result).rejects.not.toThrow('quickbooks-client-secret')
   })
