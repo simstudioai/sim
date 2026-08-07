@@ -13,11 +13,18 @@
  */
 import { spawnSync } from 'node:child_process'
 
-/** Python 3.10 is the floor: the compiler suite generates `match` statements. */
-export const MIN_PYTHON: readonly [number, number] = [3, 10]
+/**
+ * Python 3.12 is the floor, set by PEP 701 f-strings rather than by `match` statements.
+ *
+ * The compiler suite generates `match` (3.10) but also f-strings that reuse the outer quote
+ * and embed `#`. On 3.11 those raise `f-string: unmatched '('` and `f-string expression part
+ * cannot include '#'` — exactly the raw SyntaxError this guard exists to prevent — so a 3.10
+ * floor would have let two of the three guarded tests through and failed anyway.
+ */
+export const MIN_PYTHON: readonly [number, number] = [3, 12]
 
 /** Reasons to pass to vitest's `ctx.skip(...)` so the report says why, not just that. */
-export const PYTHON_SKIP_REASON = 'needs python3 >= 3.10; macOS ships 3.9'
+export const PYTHON_SKIP_REASON = 'needs python3 >= 3.12 (PEP 701 f-strings); macOS ships 3.9'
 export const RIPGREP_SKIP_REASON = 'needs ripgrep (`rg`) on PATH'
 
 const warned = new Set<string>()
