@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Badge,
   Button,
@@ -13,6 +13,7 @@ import {
   Label,
   Search,
   Switch,
+  toast,
 } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryStates } from 'nuqs'
@@ -54,8 +55,15 @@ const USER_TABLE_HEADER = (
   </div>
 )
 
-/** The row action awaiting confirmation in {@link ChipConfirmModal}. */
-type PendingUserAction = { type: 'ban'; user: AdminUser } | { type: 'role'; user: AdminUser }
+/**
+ * The row action awaiting confirmation in {@link ChipConfirmModal}. Holds only
+ * the id so the modal reads the live row — a background refetch while it is
+ * open must not leave the confirm acting on a stale role.
+ */
+interface PendingUserAction {
+  type: 'ban' | 'role'
+  userId: string
+}
 
 const MOTHERSHIP_ENV_OPTIONS: { value: MothershipEnvironment; label: string }[] = [
   { value: 'default', label: 'Default' },
@@ -171,7 +179,12 @@ export function Admin() {
     )
   }
 
-  const isDemotion = pendingAction?.user.role === 'admin'
+  const pendingUser = pendingAction
+    ? (usersData?.users.find((u) => u.id === pendingAction.userId) ??
+      recentUsers?.find((u) => u.id === pendingAction.userId) ??
+      null)
+    : null
+  const isDemotion = pendingUser?.role === 'admin'
 
   const closePendingAction = () => {
     setPendingAction(null)
@@ -181,10 +194,9 @@ export function Admin() {
   const handleConfirmBan = () => {
     if (pendingAction?.type !== 'ban') return
     const trimmedReason = banReason.trim()
-    banUser.reset()
     banUser.mutate(
       {
-        userId: pendingAction.user.id,
+        userId: pendingAction.userId,
         ...(trimmedReason ? { banReason: trimmedReason } : {}),
       },
       { onSuccess: closePendingAction }
@@ -192,44 +204,20 @@ export function Admin() {
   }
 
   const handleConfirmRoleChange = () => {
-    if (pendingAction?.type !== 'role') return
-    setUserRole.reset()
+    if (pendingAction?.type !== 'role' || !pendingUser) return
     setUserRole.mutate(
-      {
-        userId: pendingAction.user.id,
-        role: pendingAction.user.role === 'admin' ? 'user' : 'admin',
-      },
+      { userId: pendingUser.id, role: isDemotion ? 'user' : 'admin' },
       { onSuccess: closePendingAction }
     )
   }
 
-  const pendingUserIds = useMemo(() => {
-    const ids = new Set<string>()
-    if (setUserRole.isPending && (setUserRole.variables as { userId?: string })?.userId)
-      ids.add((setUserRole.variables as { userId: string }).userId)
-    if (banUser.isPending && (banUser.variables as { userId?: string })?.userId)
-      ids.add((banUser.variables as { userId: string }).userId)
-    if (unbanUser.isPending && (unbanUser.variables as { userId?: string })?.userId)
-      ids.add((unbanUser.variables as { userId: string }).userId)
-    if (impersonateUser.isPending && (impersonateUser.variables as { userId?: string })?.userId)
-      ids.add((impersonateUser.variables as { userId: string }).userId)
-    if (sendPasswordReset.isPending && sendPasswordReset.variables?.userId)
-      ids.add(sendPasswordReset.variables.userId)
-    if (impersonatingUserId) ids.add(impersonatingUserId)
-    return ids
-  }, [
-    setUserRole.isPending,
-    setUserRole.variables,
-    banUser.isPending,
-    banUser.variables,
-    unbanUser.isPending,
-    unbanUser.variables,
-    impersonateUser.isPending,
-    impersonateUser.variables,
-    sendPasswordReset.isPending,
-    sendPasswordReset.variables,
-    impersonatingUserId,
-  ])
+  /** Rows with an action in flight, whose remaining actions stay disabled. */
+  const pendingUserIds = new Set<string>()
+  for (const mutation of [setUserRole, banUser, unbanUser, impersonateUser, sendPasswordReset]) {
+    if (mutation.isPending && mutation.variables?.userId)
+      pendingUserIds.add(mutation.variables.userId)
+  }
+  if (impersonatingUserId) pendingUserIds.add(impersonatingUserId)
 
   const renderUserRow = (u: AdminUser) => (
     <div key={u.id} className='flex items-center gap-3 px-3 py-2 text-small'>
@@ -244,27 +232,25 @@ export function Admin() {
       <span className='flex w-[150px] items-center justify-end gap-1'>
         {u.id !== session?.user?.id && (
           <>
-            <Button
-              variant='active'
-              className='h-[28px] px-2 text-caption'
+            <Chip
               onClick={() => handleImpersonate(u.id, u.email)}
               disabled={pendingUserIds.has(u.id)}
             >
-              {impersonatingUserId === u.id ||
-              (impersonateUser.isPending &&
-                (impersonateUser.variables as { userId?: string } | undefined)?.userId === u.id)
-                ? 'Switching...'
-                : 'Impersonate'}
-            </Button>
+              {impersonatingUserId === u.id ? 'Switching...' : 'Impersonate'}
+            </Chip>
             <RowActionsMenu
-              label={`Actions for ${u.email}`}
+              label={`${u.email} actions`}
               actions={[
                 {
                   label: 'Reset password',
                   onSelect: () => {
                     setProvisionWarning(null)
-                    sendPasswordReset.reset()
-                    sendPasswordReset.mutate({ userId: u.id, email: u.email })
+                    sendPasswordReset.mutate(
+                      { userId: u.id, email: u.email },
+                      {
+                        onSuccess: () => toast.success(`Password reset email sent to ${u.email}`),
+                      }
+                    )
                   },
                   disabled: pendingUserIds.has(u.id),
                 },
@@ -272,17 +258,14 @@ export function Admin() {
                   label: u.role === 'admin' ? 'Demote' : 'Promote',
                   onSelect: () => {
                     setUserRole.reset()
-                    setPendingAction({ type: 'role', user: u })
+                    setPendingAction({ type: 'role', userId: u.id })
                   },
                   disabled: pendingUserIds.has(u.id),
                 },
                 u.banned
                   ? {
                       label: 'Unban',
-                      onSelect: () => {
-                        unbanUser.reset()
-                        unbanUser.mutate({ userId: u.id })
-                      },
+                      onSelect: () => unbanUser.mutate({ userId: u.id }),
                       disabled: pendingUserIds.has(u.id),
                     }
                   : {
@@ -290,7 +273,7 @@ export function Admin() {
                       onSelect: () => {
                         banUser.reset()
                         setBanReason('')
-                        setPendingAction({ type: 'ban', user: u })
+                        setPendingAction({ type: 'ban', userId: u.id })
                       },
                       destructive: true,
                       disabled: pendingUserIds.has(u.id),
@@ -412,21 +395,13 @@ export function Admin() {
             </p>
           )}
 
-          {(setUserRole.error ||
-            banUser.error ||
-            unbanUser.error ||
+          {(unbanUser.error ||
             impersonateUser.error ||
             sendPasswordReset.error ||
             impersonationGuardError) && (
             <p className='text-[var(--text-error)] text-small'>
               {impersonationGuardError ||
-                (
-                  setUserRole.error ||
-                  banUser.error ||
-                  unbanUser.error ||
-                  impersonateUser.error ||
-                  sendPasswordReset.error
-                )?.message ||
+                (unbanUser.error || impersonateUser.error || sendPasswordReset.error)?.message ||
                 'Action failed. Please try again.'}
             </p>
           )}
@@ -434,15 +409,6 @@ export function Admin() {
           {provisionWarning && (
             <p className='text-[var(--text-error)] text-small'>{provisionWarning}</p>
           )}
-
-          {sendPasswordReset.variables &&
-            (sendPasswordReset.isPending || sendPasswordReset.isSuccess) && (
-              <p className='text-[var(--text-secondary)] text-small'>
-                {sendPasswordReset.isPending
-                  ? `Sending a password reset email to ${sendPasswordReset.variables.email}...`
-                  : `Password reset email sent to ${sendPasswordReset.variables.email}.`}
-              </p>
-            )}
 
           {searchQuery.length > 0 && usersData ? (
             <>
@@ -509,7 +475,7 @@ export function Admin() {
         title='Ban user'
         text={[
           'Banning ',
-          { text: pendingAction?.user.email ?? 'this user', bold: true },
+          { text: pendingUser?.email ?? 'this user', bold: true },
           ' ',
           {
             text: 'signs them out everywhere and blocks them from signing back in.',
@@ -544,7 +510,7 @@ export function Admin() {
         title={isDemotion ? 'Demote user' : 'Promote user'}
         text={[
           isDemotion ? 'Demoting ' : 'Promoting ',
-          { text: pendingAction?.user.email ?? 'this user', bold: true },
+          { text: pendingUser?.email ?? 'this user', bold: true },
           ' ',
           isDemotion
             ? { text: 'revokes their platform admin access.', error: true }
