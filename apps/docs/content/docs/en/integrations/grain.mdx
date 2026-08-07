@@ -39,7 +39,7 @@ Integrate Grain into your workflow. Access meeting recordings, transcripts, high
 
 ## Actions
 
-### `grain_list_recordings`
+### Grain List Recordings
 
 List recordings from Grain with optional filters and pagination
 
@@ -79,7 +79,7 @@ List recordings from Grain with optional filters and pagination
 |   ↳ `meeting_type` | object | Meeting type info |
 | `cursor` | string | Cursor for next page \(null if no more\) |
 
-### `grain_get_recording`
+### Grain Get Recording
 
 Get details of a single recording by ID
 
@@ -119,7 +119,7 @@ Get details of a single recording by ID
 | `calendar_event` | object | Calendar event data \(if included\) |
 | `hubspot` | object | HubSpot associations \(if included\) |
 
-### `grain_get_transcript`
+### Grain Get Transcript
 
 Get the full transcript of a recording
 
@@ -141,7 +141,7 @@ Get the full transcript of a recording
 |   ↳ `end` | number | End timestamp in ms |
 |   ↳ `text` | string | Transcript text |
 
-### `grain_list_teams`
+### Grain List Teams
 
 List all teams in the workspace
 
@@ -159,7 +159,7 @@ List all teams in the workspace
 |   ↳ `id` | string | Team UUID |
 |   ↳ `name` | string | Team name |
 
-### `grain_list_meeting_types`
+### Grain List Meeting Types
 
 List all meeting types in the workspace
 
@@ -178,7 +178,7 @@ List all meeting types in the workspace
 |   ↳ `name` | string | Meeting type name |
 |   ↳ `scope` | string | internal or external |
 
-### `grain_create_hook`
+### Grain Create Webhook
 
 Create a webhook for a specific Grain event type (v2 API)
 
@@ -202,7 +202,7 @@ Create a webhook for a specific Grain event type (v2 API)
 | `include` | json | Include object the hook was created with |
 | `inserted_at` | string | ISO8601 creation timestamp |
 
-### `grain_list_hooks`
+### Grain List Webhooks
 
 List webhooks for the account (v2 API)
 
@@ -226,7 +226,7 @@ List webhooks for the account (v2 API)
 |   ↳ `include` | object | Include object the hook was created with |
 |   ↳ `inserted_at` | string | Creation timestamp |
 
-### `grain_delete_hook`
+### Grain Delete Webhook
 
 Delete a webhook by ID (v2 API)
 

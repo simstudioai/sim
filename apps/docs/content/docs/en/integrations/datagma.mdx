@@ -33,7 +33,7 @@ Integrate Datagma to find verified work emails from a name and company, enrich p
 
 ## Actions
 
-### `datagma_find_email`
+### Datagma Find Email
 
 Find a verified work email from a person's full name and company. Uses 1 credit when a verified email is found.
 
@@ -59,7 +59,7 @@ Find a verified work email from a person's full name and company. Uses 1 credit 
 | `smtpCheck` | boolean | Whether SMTP validation succeeded |
 | `catchAll` | boolean | Whether the domain is catch-all |
 
-### `datagma_enrich_person`
+### Datagma Enrich Person
 
 Enrich a person's profile using their email, LinkedIn URL, or full name and company. Returns job title, company, location, and social data. Uses 2 credits per match; add 30 credits when a phone number is found.
 
@@ -96,7 +96,7 @@ Enrich a person's profile using their email, LinkedIn URL, or full name and comp
 | `phone` | string | Mobile phone number |
 | `personConfidenceScore` | number | Confidence score for the person match \(0–1\) |
 
-### `datagma_enrich_company`
+### Datagma Enrich Company
 
 Enrich a company profile using a domain, company name, or SIREN number (France). Returns size, industry, revenue, and description. Uses 2 credits per match.
 
@@ -123,7 +123,7 @@ Enrich a company profile using a domain, company name, or SIREN number (France).
 | `revenueRange` | string | Estimated annual revenue range |
 | `headquarters` | string | Headquarters location |
 
-### `datagma_find_phone`
+### Datagma Find Phone
 
 Find a mobile phone number from a person's LinkedIn URL. Optionally supply an email to improve match accuracy. Uses 30 credits when a number is found.
 
@@ -144,7 +144,7 @@ Find a mobile phone number from a person's LinkedIn URL. Optionally supply an em
 | `countryCode` | string | Country code prefix \(e.g., +1\) |
 | `isWhatsapp` | boolean | Whether the number is linked to WhatsApp |
 
-### `datagma_get_credits`
+### Datagma Get Credits
 
 Check remaining credit balance on a Datagma account. Free — no credits consumed.
 

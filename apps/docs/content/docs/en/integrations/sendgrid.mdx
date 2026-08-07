@@ -42,7 +42,7 @@ Integrate SendGrid into your workflow. Send transactional emails, manage marketi
 
 ## Actions
 
-### `sendgrid_send_mail`
+### SendGrid Send Mail
 
 Send an email using SendGrid API
 
@@ -75,7 +75,7 @@ Send an email using SendGrid API
 | `to` | string | Recipient email address |
 | `subject` | string | Email subject |
 
-### `sendgrid_add_contact`
+### SendGrid Add Contact
 
 Add a new contact to SendGrid
 
@@ -100,7 +100,7 @@ Add a new contact to SendGrid
 | `lastName` | string | Contact last name |
 | `message` | string | Status message |
 
-### `sendgrid_get_contact`
+### SendGrid Get Contact
 
 Get a specific contact by ID from SendGrid
 
@@ -124,7 +124,7 @@ Get a specific contact by ID from SendGrid
 | `listIds` | json | Array of list IDs the contact belongs to |
 | `customFields` | json | Custom field values |
 
-### `sendgrid_search_contacts`
+### SendGrid Search Contacts
 
 Search for contacts in SendGrid using a query
 
@@ -142,7 +142,7 @@ Search for contacts in SendGrid using a query
 | `contacts` | json | Array of matching contacts |
 | `contactCount` | number | Total number of contacts found |
 
-### `sendgrid_delete_contacts`
+### SendGrid Delete Contacts
 
 Delete one or more contacts from SendGrid
 
@@ -159,7 +159,7 @@ Delete one or more contacts from SendGrid
 | --------- | ---- | ----------- |
 | `jobId` | string | Job ID for the deletion request |
 
-### `sendgrid_create_list`
+### SendGrid Create List
 
 Create a new contact list in SendGrid
 
@@ -178,7 +178,7 @@ Create a new contact list in SendGrid
 | `name` | string | List name |
 | `contactCount` | number | Number of contacts in the list |
 
-### `sendgrid_get_list`
+### SendGrid Get List
 
 Get a specific list by ID from SendGrid
 
@@ -197,7 +197,7 @@ Get a specific list by ID from SendGrid
 | `name` | string | List name |
 | `contactCount` | number | Number of contacts in the list |
 
-### `sendgrid_list_all_lists`
+### SendGrid List All Lists
 
 Get all contact lists from SendGrid
 
@@ -216,7 +216,7 @@ Get all contact lists from SendGrid
 | `lists` | json | Array of lists |
 | `nextPageToken` | string | Token to pass as pageToken to fetch the next page, if more results exist |
 
-### `sendgrid_delete_list`
+### SendGrid Delete List
 
 Delete a contact list from SendGrid
 
@@ -233,7 +233,7 @@ Delete a contact list from SendGrid
 | --------- | ---- | ----------- |
 | `message` | string | Success message |
 
-### `sendgrid_add_contacts_to_list`
+### SendGrid Add Contacts to List
 
 Add or update contacts and assign them to a list in SendGrid (uses PUT /v3/marketing/contacts)
 
@@ -252,7 +252,7 @@ Add or update contacts and assign them to a list in SendGrid (uses PUT /v3/marke
 | `jobId` | string | Job ID for tracking the async operation |
 | `message` | string | Status message |
 
-### `sendgrid_remove_contacts_from_list`
+### SendGrid Remove Contacts from List
 
 Remove contacts from a specific list in SendGrid
 
@@ -270,7 +270,7 @@ Remove contacts from a specific list in SendGrid
 | --------- | ---- | ----------- |
 | `jobId` | string | Job ID for the request |
 
-### `sendgrid_create_template`
+### SendGrid Create Template
 
 Create a new email template in SendGrid
 
@@ -292,7 +292,7 @@ Create a new email template in SendGrid
 | `updatedAt` | string | Last update timestamp |
 | `versions` | json | Array of template versions |
 
-### `sendgrid_get_template`
+### SendGrid Get Template
 
 Get a specific template by ID from SendGrid
 
@@ -313,7 +313,7 @@ Get a specific template by ID from SendGrid
 | `updatedAt` | string | Last update timestamp |
 | `versions` | json | Array of template versions |
 
-### `sendgrid_list_templates`
+### SendGrid List Templates
 
 Get all email templates from SendGrid
 
@@ -335,7 +335,7 @@ Get all email templates from SendGrid
 | `templates` | json | Array of templates |
 | `nextPageToken` | string | Token to pass as pageToken to fetch the next page, if more results exist |
 
-### `sendgrid_delete_template`
+### SendGrid Delete Template
 
 Delete an email template from SendGrid
 
@@ -377,7 +377,7 @@ Delete an email template from SendGrid
 | `htmlContent` | string | HTML content |
 | `plainContent` | string | Plain text content |
 
-### `sendgrid_create_template_version`
+### SendGrid Create Template Version
 
 Create a new version of an email template in SendGrid
 

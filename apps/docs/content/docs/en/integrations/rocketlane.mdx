@@ -18,7 +18,7 @@ Integrate Rocketlane into your workflow. Rocketlane is a professional-services a
 
 ## Actions
 
-### `rocketlane_create_project`
+### Rocketlane Create Project
 
 Create a new Rocketlane project with a customer, owner, dates, team members, templates, financials, and custom fields
 
@@ -168,7 +168,7 @@ Create a new Rocketlane project with a customer, owner, dates, team members, tem
 |   ↳ `customersJoined` | number | Number of customers who joined the project |
 |   ↳ `externalReferenceId` | string | Identifier linking the project to an external system |
 
-### `rocketlane_get_project`
+### Rocketlane Get Project
 
 Retrieve a Rocketlane project by its unique identifier
 
@@ -288,7 +288,7 @@ Retrieve a Rocketlane project by its unique identifier
 |   ↳ `customersJoined` | number | Number of customers who joined the project |
 |   ↳ `externalReferenceId` | string | Identifier linking the project to an external system |
 
-### `rocketlane_list_projects`
+### Rocketlane List Projects
 
 List Rocketlane projects with optional filters, sorting, and token-based pagination
 
@@ -431,7 +431,7 @@ List Rocketlane projects with optional filters, sorting, and token-based paginat
 |   ↳ `totalRecordCount` | number | Total number of records matching the request |
 |   ↳ `nextPageToken` | string | Token for fetching the next page \(valid for 15 minutes\) |
 
-### `rocketlane_update_project`
+### Rocketlane Update Project
 
 Update a Rocketlane project by ID, including name, dates, visibility, owner, status, and custom fields
 
@@ -564,7 +564,7 @@ Update a Rocketlane project by ID, including name, dates, visibility, owner, sta
 |   ↳ `customersJoined` | number | Number of customers who joined the project |
 |   ↳ `externalReferenceId` | string | Identifier linking the project to an external system |
 
-### `rocketlane_archive_project`
+### Rocketlane Archive Project
 
 Archive a Rocketlane project by ID, making it dormant while preserving its details and history
 
@@ -582,7 +582,7 @@ Archive a Rocketlane project by ID, making it dormant while preserving its detai
 | `archived` | boolean | Whether the project was archived |
 | `projectId` | number | Unique identifier of the archived project |
 
-### `rocketlane_delete_project`
+### Rocketlane Delete Project
 
 Permanently delete a Rocketlane project by ID (irreversible; only Admins, Super Users, and Project Owners can delete)
 
@@ -600,7 +600,7 @@ Permanently delete a Rocketlane project by ID (irreversible; only Admins, Super 
 | `deleted` | boolean | Whether the project was deleted |
 | `projectId` | number | Unique identifier of the deleted project |
 
-### `rocketlane_add_project_members`
+### Rocketlane Add Project Members
 
 Add team members and customer stakeholders to a Rocketlane project
 
@@ -722,7 +722,7 @@ Add team members and customer stakeholders to a Rocketlane project
 |   ↳ `customersJoined` | number | Number of customers who joined the project |
 |   ↳ `externalReferenceId` | string | Identifier linking the project to an external system |
 
-### `rocketlane_remove_project_members`
+### Rocketlane Remove Project Members
 
 Remove team members from a Rocketlane project
 
@@ -842,7 +842,7 @@ Remove team members from a Rocketlane project
 |   ↳ `customersJoined` | number | Number of customers who joined the project |
 |   ↳ `externalReferenceId` | string | Identifier linking the project to an external system |
 
-### `rocketlane_import_template`
+### Rocketlane Import Template
 
 Import a project template into an existing Rocketlane project
 
@@ -963,7 +963,7 @@ Import a project template into an existing Rocketlane project
 |   ↳ `customersJoined` | number | Number of customers who joined the project |
 |   ↳ `externalReferenceId` | string | Identifier linking the project to an external system |
 
-### `rocketlane_list_placeholders`
+### Rocketlane List Placeholders
 
 List the placeholders of a Rocketlane project
 
@@ -996,7 +996,7 @@ List the placeholders of a Rocketlane project
 |   ↳ `totalRecordCount` | number | Total number of records matching the request |
 |   ↳ `nextPageToken` | string | Token for fetching the next page \(valid for 15 minutes\) |
 
-### `rocketlane_assign_placeholders`
+### Rocketlane Assign Placeholders
 
 Assign a placeholder in a Rocketlane project to a user
 
@@ -1132,7 +1132,7 @@ Assign a placeholder in a Rocketlane project to a user
 |   ↳ `hourlyBillRate` | number | Latest hourly bill rate for the placeholder |
 |   ↳ `billRateCurrency` | string | Currency for the bill rate |
 
-### `rocketlane_unassign_placeholders`
+### Rocketlane Unassign Placeholders
 
 Unassign a placeholder from its user in a Rocketlane project
 
@@ -1266,7 +1266,7 @@ Unassign a placeholder from its user in a Rocketlane project
 |   ↳ `hourlyBillRate` | number | Latest hourly bill rate for the placeholder |
 |   ↳ `billRateCurrency` | string | Currency for the bill rate |
 
-### `rocketlane_create_task`
+### Rocketlane Create Task
 
 Create a new task in a Rocketlane project
 
@@ -1363,7 +1363,7 @@ Create a new task in a Rocketlane project
 |   ↳ `csatEnabled` | boolean | Whether a CSAT survey is sent on completion \(milestone tasks\) |
 |   ↳ `private` | boolean | Whether the task is private |
 
-### `rocketlane_get_task`
+### Rocketlane Get Task
 
 Retrieve detailed information about a Rocketlane task by its unique identifier
 
@@ -1442,7 +1442,7 @@ Retrieve detailed information about a Rocketlane task by its unique identifier
 |   ↳ `csatEnabled` | boolean | Whether a CSAT survey is sent on completion \(milestone tasks\) |
 |   ↳ `private` | boolean | Whether the task is private |
 
-### `rocketlane_list_tasks`
+### Rocketlane List Tasks
 
 Retrieve all Rocketlane tasks with optional filters, sorting, and pagination
 
@@ -1541,7 +1541,7 @@ Retrieve all Rocketlane tasks with optional filters, sorting, and pagination
 |   ↳ `totalRecordCount` | number | Total number of records matching the request |
 |   ↳ `nextPageToken` | string | Token for fetching the next page \(valid for 15 minutes\) |
 
-### `rocketlane_update_task`
+### Rocketlane Update Task
 
 Update the properties of an existing Rocketlane task by its unique identifier
 
@@ -1632,7 +1632,7 @@ Update the properties of an existing Rocketlane task by its unique identifier
 |   ↳ `csatEnabled` | boolean | Whether a CSAT survey is sent on completion \(milestone tasks\) |
 |   ↳ `private` | boolean | Whether the task is private |
 
-### `rocketlane_delete_task`
+### Rocketlane Delete Task
 
 Permanently delete a Rocketlane task by its unique identifier
 
@@ -1650,7 +1650,7 @@ Permanently delete a Rocketlane task by its unique identifier
 | `deleted` | boolean | Whether the task was deleted |
 | `taskId` | number | ID of the deleted task |
 
-### `rocketlane_move_task_to_phase`
+### Rocketlane Move Task To Phase
 
 Move a Rocketlane task to a given phase, associating the task with that phase
 
@@ -1728,7 +1728,7 @@ Move a Rocketlane task to a given phase, associating the task with that phase
 |   ↳ `csatEnabled` | boolean | Whether a CSAT survey is sent on completion \(milestone tasks\) |
 |   ↳ `private` | boolean | Whether the task is private |
 
-### `rocketlane_add_task_assignees`
+### Rocketlane Add Task Assignees
 
 Add members as assignees to a Rocketlane task
 
@@ -1807,7 +1807,7 @@ Add members as assignees to a Rocketlane task
 |   ↳ `csatEnabled` | boolean | Whether a CSAT survey is sent on completion \(milestone tasks\) |
 |   ↳ `private` | boolean | Whether the task is private |
 
-### `rocketlane_remove_task_assignees`
+### Rocketlane Remove Task Assignees
 
 Remove assignees from a Rocketlane task
 
@@ -1886,7 +1886,7 @@ Remove assignees from a Rocketlane task
 |   ↳ `csatEnabled` | boolean | Whether a CSAT survey is sent on completion \(milestone tasks\) |
 |   ↳ `private` | boolean | Whether the task is private |
 
-### `rocketlane_add_task_followers`
+### Rocketlane Add Task Followers
 
 Add members as followers to a Rocketlane task
 
@@ -1965,7 +1965,7 @@ Add members as followers to a Rocketlane task
 |   ↳ `csatEnabled` | boolean | Whether a CSAT survey is sent on completion \(milestone tasks\) |
 |   ↳ `private` | boolean | Whether the task is private |
 
-### `rocketlane_remove_task_followers`
+### Rocketlane Remove Task Followers
 
 Remove followers from a Rocketlane task
 
@@ -2044,7 +2044,7 @@ Remove followers from a Rocketlane task
 |   ↳ `csatEnabled` | boolean | Whether a CSAT survey is sent on completion \(milestone tasks\) |
 |   ↳ `private` | boolean | Whether the task is private |
 
-### `rocketlane_add_task_dependencies`
+### Rocketlane Add Task Dependencies
 
 Add finish-to-start dependencies between a Rocketlane task and other tasks
 
@@ -2122,7 +2122,7 @@ Add finish-to-start dependencies between a Rocketlane task and other tasks
 |   ↳ `csatEnabled` | boolean | Whether a CSAT survey is sent on completion \(milestone tasks\) |
 |   ↳ `private` | boolean | Whether the task is private |
 
-### `rocketlane_remove_task_dependencies`
+### Rocketlane Remove Task Dependencies
 
 Remove dependencies from a Rocketlane task
 
@@ -2200,7 +2200,7 @@ Remove dependencies from a Rocketlane task
 |   ↳ `csatEnabled` | boolean | Whether a CSAT survey is sent on completion \(milestone tasks\) |
 |   ↳ `private` | boolean | Whether the task is private |
 
-### `rocketlane_create_phase`
+### Rocketlane Create Phase
 
 Create a new phase in a Rocketlane project
 
@@ -2249,7 +2249,7 @@ Create a new phase in a Rocketlane project
 |     ↳ `label` | string | Display label of the status |
 |   ↳ `private` | boolean | Whether the phase is private |
 
-### `rocketlane_get_phase`
+### Rocketlane Get Phase
 
 Retrieve a single Rocketlane phase by ID
 
@@ -2293,7 +2293,7 @@ Retrieve a single Rocketlane phase by ID
 |     ↳ `label` | string | Display label of the status |
 |   ↳ `private` | boolean | Whether the phase is private |
 
-### `rocketlane_list_phases`
+### Rocketlane List Phases
 
 List phases of a Rocketlane project, with optional filters, sorting, and pagination
 
@@ -2348,7 +2348,7 @@ List phases of a Rocketlane project, with optional filters, sorting, and paginat
 |   ↳ `totalRecordCount` | number | Total number of records matching the request |
 |   ↳ `nextPageToken` | string | Token for fetching the next page \(valid for 15 minutes\) |
 
-### `rocketlane_update_phase`
+### Rocketlane Update Phase
 
 Update the name, dates, status, or privacy of an existing Rocketlane phase
 
@@ -2397,7 +2397,7 @@ Update the name, dates, status, or privacy of an existing Rocketlane phase
 |     ↳ `label` | string | Display label of the status |
 |   ↳ `private` | boolean | Whether the phase is private |
 
-### `rocketlane_delete_phase`
+### Rocketlane Delete Phase
 
 Permanently delete a Rocketlane phase by ID
 
@@ -2415,7 +2415,7 @@ Permanently delete a Rocketlane phase by ID
 | `deleted` | boolean | Whether the phase was deleted |
 | `phaseId` | number | ID of the deleted phase |
 
-### `rocketlane_create_field`
+### Rocketlane Create Field
 
 Create a custom field in your Rocketlane account, with options for SINGLE_CHOICE and MULTIPLE_CHOICE field types
 
@@ -2465,7 +2465,7 @@ Create a custom field in your Rocketlane account, with options for SINGLE_CHOICE
 |   ↳ `enabled` | boolean | Whether the field is enabled |
 |   ↳ `private` | boolean | Whether the field is private |
 
-### `rocketlane_get_field`
+### Rocketlane Get Field
 
 Retrieve a single Rocketlane field by ID
 
@@ -2508,7 +2508,7 @@ Retrieve a single Rocketlane field by ID
 |   ↳ `enabled` | boolean | Whether the field is enabled |
 |   ↳ `private` | boolean | Whether the field is private |
 
-### `rocketlane_list_fields`
+### Rocketlane List Fields
 
 List fields in your Rocketlane account, with optional filters, sorting, and pagination
 
@@ -2564,7 +2564,7 @@ List fields in your Rocketlane account, with optional filters, sorting, and pagi
 |   ↳ `totalRecordCount` | number | Total number of records matching the request |
 |   ↳ `nextPageToken` | string | Token for fetching the next page \(valid for 15 minutes\) |
 
-### `rocketlane_update_field`
+### Rocketlane Update Field
 
 Update the label, description, enabled state, or privacy of an existing Rocketlane field
 
@@ -2611,7 +2611,7 @@ Update the label, description, enabled state, or privacy of an existing Rocketla
 |   ↳ `enabled` | boolean | Whether the field is enabled |
 |   ↳ `private` | boolean | Whether the field is private |
 
-### `rocketlane_delete_field`
+### Rocketlane Delete Field
 
 Permanently delete a Rocketlane field by ID
 
@@ -2629,7 +2629,7 @@ Permanently delete a Rocketlane field by ID
 | `deleted` | boolean | Whether the field was deleted |
 | `fieldId` | number | ID of the deleted field |
 
-### `rocketlane_add_field_option`
+### Rocketlane Add Field Option
 
 Add a new option to an existing SINGLE_CHOICE or MULTIPLE_CHOICE Rocketlane field
 
@@ -2651,7 +2651,7 @@ Add a new option to an existing SINGLE_CHOICE or MULTIPLE_CHOICE Rocketlane fiel
 |   ↳ `optionLabel` | string | Display label of the option |
 |   ↳ `optionColor` | string | Color of the option \(RED, YELLOW, GREEN, TEAL, CYAN, BLUE, PURPLE, MAGENTA, GRAY, COOL_GRAY\) |
 
-### `rocketlane_update_field_option`
+### Rocketlane Update Field Option
 
 Update the label or color of an existing option on a SINGLE_CHOICE or MULTIPLE_CHOICE Rocketlane field
 
@@ -2674,7 +2674,7 @@ Update the label or color of an existing option on a SINGLE_CHOICE or MULTIPLE_C
 |   ↳ `optionLabel` | string | Display label of the option |
 |   ↳ `optionColor` | string | Color of the option \(RED, YELLOW, GREEN, TEAL, CYAN, BLUE, PURPLE, MAGENTA, GRAY, COOL_GRAY\) |
 
-### `rocketlane_create_time_entry`
+### Rocketlane Create Time Entry
 
 Create a time entry in Rocketlane against an adhoc activity, task, project phase, or project
 
@@ -2766,7 +2766,7 @@ Create a time entry in Rocketlane against an adhoc activity, task, project phase
 |     ↳ `fieldValue` | json | Value of the field |
 |     ↳ `fieldValueLabel` | string | String representation of the field value |
 
-### `rocketlane_get_time_entry`
+### Rocketlane Get Time Entry
 
 Get a single Rocketlane time entry by ID
 
@@ -2848,7 +2848,7 @@ Get a single Rocketlane time entry by ID
 |     ↳ `fieldValue` | json | Value of the field |
 |     ↳ `fieldValueLabel` | string | String representation of the field value |
 
-### `rocketlane_list_time_entries`
+### Rocketlane List Time Entries
 
 List Rocketlane time entries with optional filters, sorting, and cursor-based pagination
 
@@ -2963,7 +2963,7 @@ List Rocketlane time entries with optional filters, sorting, and cursor-based pa
 |   ↳ `totalRecordCount` | number | Total number of records matching the request |
 |   ↳ `nextPageToken` | string | Token for fetching the next page \(valid for 15 minutes\) |
 
-### `rocketlane_search_time_entries`
+### Rocketlane Search Time Entries
 
 Search Rocketlane time entries with filters, sorting, and pagination (deprecated by Rocketlane in favor of listing time entries with filters)
 
@@ -3068,7 +3068,7 @@ Search Rocketlane time entries with filters, sorting, and pagination (deprecated
 |   ↳ `totalRecordCount` | number | Total number of records matching the request |
 |   ↳ `nextPageToken` | string | Token for fetching the next page \(valid for 15 minutes\) |
 
-### `rocketlane_update_time_entry`
+### Rocketlane Update Time Entry
 
 Update a Rocketlane time entry by ID. The activityName, notes, billable, and minutes properties can be updated
 
@@ -3156,7 +3156,7 @@ Update a Rocketlane time entry by ID. The activityName, notes, billable, and min
 |     ↳ `fieldValue` | json | Value of the field |
 |     ↳ `fieldValueLabel` | string | String representation of the field value |
 
-### `rocketlane_delete_time_entry`
+### Rocketlane Delete Time Entry
 
 Permanently delete a Rocketlane time entry by ID
 
@@ -3174,7 +3174,7 @@ Permanently delete a Rocketlane time entry by ID
 | `deleted` | boolean | Whether the time entry was deleted |
 | `timeEntryId` | number | ID of the deleted time entry |
 
-### `rocketlane_list_time_entry_categories`
+### Rocketlane List Time Entry Categories
 
 List the time entry categories configured in Rocketlane
 
@@ -3199,7 +3199,7 @@ List the time entry categories configured in Rocketlane
 |   ↳ `totalRecordCount` | number | Total number of records matching the request |
 |   ↳ `nextPageToken` | string | Token for fetching the next page \(valid for 15 minutes\) |
 
-### `rocketlane_create_time_off`
+### Rocketlane Create Time-Off
 
 Create a time-off for a team member in Rocketlane. Holidays and weekends within the date range are automatically excluded from the duration.
 
@@ -3249,7 +3249,7 @@ Create a time-off for a team member in Rocketlane. Holidays and weekends within 
 |     ↳ `lastName` | string | Last name of the user |
 |     ↳ `emailId` | string | Email address of the user |
 
-### `rocketlane_get_time_off`
+### Rocketlane Get Time-Off
 
 Retrieve a Rocketlane time-off by its ID
 
@@ -3290,7 +3290,7 @@ Retrieve a Rocketlane time-off by its ID
 |     ↳ `lastName` | string | Last name of the user |
 |     ↳ `emailId` | string | Email address of the user |
 
-### `rocketlane_list_time_offs`
+### Rocketlane List Time-Offs
 
 List time-offs in Rocketlane with optional date, type, and user filters, sorting, and pagination
 
@@ -3359,7 +3359,7 @@ List time-offs in Rocketlane with optional date, type, and user filters, sorting
 |   ↳ `totalRecordCount` | number | Total number of records matching the request |
 |   ↳ `nextPageToken` | string | Token for fetching the next page \(valid for 15 minutes\) |
 
-### `rocketlane_delete_time_off`
+### Rocketlane Delete Time-Off
 
 Permanently delete a Rocketlane time-off by its ID
 
@@ -3377,7 +3377,7 @@ Permanently delete a Rocketlane time-off by its ID
 | `deleted` | boolean | Whether the time-off was deleted |
 | `timeOffId` | number | ID of the deleted time-off |
 
-### `rocketlane_get_user`
+### Rocketlane Get User
 
 Retrieve a Rocketlane user by their ID
 
@@ -3433,7 +3433,7 @@ Retrieve a Rocketlane user by their ID
 |     ↳ `lastName` | string | Last name of the user |
 |     ↳ `emailId` | string | Email address of the user |
 
-### `rocketlane_list_users`
+### Rocketlane List Users
 
 List users in your Rocketlane account, with optional filters, sorting, and pagination
 
@@ -3533,7 +3533,7 @@ List users in your Rocketlane account, with optional filters, sorting, and pagin
 |   ↳ `totalRecordCount` | number | Total number of records matching the request |
 |   ↳ `nextPageToken` | string | Token for fetching the next page \(valid for 15 minutes\) |
 
-### `rocketlane_create_space`
+### Rocketlane Create Space
 
 Create a new space in a Rocketlane project
 
@@ -3570,7 +3570,7 @@ Create a new space in a Rocketlane project
 |     ↳ `emailId` | string | Email address of the user |
 |   ↳ `private` | boolean | Whether the space is private or shared |
 
-### `rocketlane_get_space`
+### Rocketlane Get Space
 
 Retrieve a Rocketlane space by its ID
 
@@ -3605,7 +3605,7 @@ Retrieve a Rocketlane space by its ID
 |     ↳ `emailId` | string | Email address of the user |
 |   ↳ `private` | boolean | Whether the space is private or shared |
 
-### `rocketlane_list_spaces`
+### Rocketlane List Spaces
 
 List spaces in a Rocketlane project, with optional filters, sorting, and pagination
 
@@ -3663,7 +3663,7 @@ List spaces in a Rocketlane project, with optional filters, sorting, and paginat
 |   ↳ `totalRecordCount` | number | Total number of records matching the request |
 |   ↳ `nextPageToken` | string | Token for fetching the next page \(valid for 15 minutes\) |
 
-### `rocketlane_update_space`
+### Rocketlane Update Space
 
 Update a Rocketlane space by its ID
 
@@ -3699,7 +3699,7 @@ Update a Rocketlane space by its ID
 |     ↳ `emailId` | string | Email address of the user |
 |   ↳ `private` | boolean | Whether the space is private or shared |
 
-### `rocketlane_delete_space`
+### Rocketlane Delete Space
 
 Permanently delete a Rocketlane space by its ID
 
@@ -3717,7 +3717,7 @@ Permanently delete a Rocketlane space by its ID
 | `deleted` | boolean | Whether the space was deleted |
 | `spaceId` | number | ID of the deleted space |
 
-### `rocketlane_create_space_document`
+### Rocketlane Create Space Document
 
 Create a new space document in a Rocketlane space
 
@@ -3761,7 +3761,7 @@ Create a new space document in a Rocketlane space
 |     ↳ `emailId` | string | Email address of the user |
 |   ↳ `private` | boolean | Whether the space document is private or shared |
 
-### `rocketlane_get_space_document`
+### Rocketlane Get Space Document
 
 Retrieve a Rocketlane space document by its ID
 
@@ -3801,7 +3801,7 @@ Retrieve a Rocketlane space document by its ID
 |     ↳ `emailId` | string | Email address of the user |
 |   ↳ `private` | boolean | Whether the space document is private or shared |
 
-### `rocketlane_list_space_documents`
+### Rocketlane List Space Documents
 
 List space documents in a Rocketlane project, with optional filters, sorting, and pagination
 
@@ -3865,7 +3865,7 @@ List space documents in a Rocketlane project, with optional filters, sorting, an
 |   ↳ `totalRecordCount` | number | Total number of records matching the request |
 |   ↳ `nextPageToken` | string | Token for fetching the next page \(valid for 15 minutes\) |
 
-### `rocketlane_update_space_document`
+### Rocketlane Update Space Document
 
 Update a Rocketlane space document by its ID
 
@@ -3907,7 +3907,7 @@ Update a Rocketlane space document by its ID
 |     ↳ `emailId` | string | Email address of the user |
 |   ↳ `private` | boolean | Whether the space document is private or shared |
 
-### `rocketlane_delete_space_document`
+### Rocketlane Delete Space Document
 
 Permanently delete a Rocketlane space document by its ID
 
@@ -3925,7 +3925,7 @@ Permanently delete a Rocketlane space document by its ID
 | `deleted` | boolean | Whether the space document was deleted |
 | `spaceDocumentId` | number | ID of the deleted space document |
 
-### `rocketlane_list_resource_allocations`
+### Rocketlane List Resource Allocations
 
 List resource allocations in Rocketlane within a date range, with optional member, project, and placeholder filters, sorting, and pagination
 
@@ -3996,7 +3996,7 @@ List resource allocations in Rocketlane within a date range, with optional membe
 |   ↳ `totalRecordCount` | number | Total number of records matching the request |
 |   ↳ `nextPageToken` | string | Token for fetching the next page \(valid for 15 minutes\) |
 
-### `rocketlane_get_invoice`
+### Rocketlane Get Invoice
 
 Retrieve a Rocketlane invoice by its ID
 
@@ -4059,7 +4059,7 @@ Retrieve a Rocketlane invoice by its ID
 |     ↳ `thumbLocation` | string | Thumbnail URL of the attachment |
 |     ↳ `visibility` | boolean | Visibility of the attachment |
 
-### `rocketlane_list_invoices`
+### Rocketlane List Invoices
 
 Search invoices in Rocketlane with date, amount, company, invoice-number, and status filters, sorting, and pagination
 
@@ -4175,7 +4175,7 @@ Search invoices in Rocketlane with date, amount, company, invoice-number, and st
 |   ↳ `totalRecordCount` | number | Total number of records matching the request |
 |   ↳ `nextPageToken` | string | Token for fetching the next page \(valid for 15 minutes\) |
 
-### `rocketlane_get_invoice_line_items`
+### Rocketlane Get Invoice Line Items
 
 List line items of a Rocketlane invoice
 
@@ -4217,7 +4217,7 @@ List line items of a Rocketlane invoice
 |   ↳ `totalRecordCount` | number | Total number of records matching the request |
 |   ↳ `nextPageToken` | string | Token for fetching the next page \(valid for 15 minutes\) |
 
-### `rocketlane_get_invoice_payments`
+### Rocketlane Get Invoice Payments
 
 List payments recorded against a Rocketlane invoice
 

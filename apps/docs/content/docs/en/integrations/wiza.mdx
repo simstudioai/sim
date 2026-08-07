@@ -70,7 +70,7 @@ Integrates Wiza into the workflow. Search prospects, enrich companies, reveal ve
 
 ## Actions
 
-### `wiza_prospect_search`
+### Wiza Prospect Search
 
 Search Wiza's database of prospects using person, company, and financial filters
 
@@ -106,7 +106,7 @@ Search Wiza's database of prospects using person, company, and financial filters
 | `total` | number | Total number of matching prospects |
 | `profiles` | array | Sample profiles matching the filter criteria |
 
-### `wiza_company_enrichment`
+### Wiza Company Enrichment
 
 Enrich a company by name, domain, LinkedIn ID, or LinkedIn slug with detailed firmographic data
 
@@ -151,7 +151,7 @@ Enrich a company by name, domain, LinkedIn ID, or LinkedIn slug with detailed fi
 | `company_country` | string | Country |
 | `credits` | json | Credits deducted for this enrichment \(api_credits: \{ total, company_credits \}\) |
 
-### `wiza_individual_reveal`
+### Wiza Individual Reveal
 
 Reveal a contact via LinkedIn URL, name + company/domain, or email. Starts the reveal and polls until it resolves. Uses 2 credits per valid email and 5 credits per phone, charged only on success.
 
@@ -209,7 +209,7 @@ Reveal a contact via LinkedIn URL, name + company/domain, or email. Starts the r
 | `company_description` | string | Company description |
 | `credits` | json | Credits consumed by the reveal |
 
-### `wiza_get_credits`
+### Wiza Get Credits
 
 Retrieve the remaining credits on your Wiza account
 

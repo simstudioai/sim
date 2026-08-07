@@ -33,7 +33,7 @@ Integrate Greenhouse into the workflow. List and retrieve candidates, jobs, appl
 
 ## Actions
 
-### `greenhouse_list_candidates`
+### Greenhouse List Candidates
 
 Lists candidates from Greenhouse with optional filtering by date, job, or email
 
@@ -74,7 +74,7 @@ Lists candidates from Greenhouse with optional filtering by date, job, or email
 |   ↳ `last_activity` | string | Last activity timestamp \(ISO 8601\) |
 | `count` | number | Number of candidates returned |
 
-### `greenhouse_get_candidate`
+### Greenhouse Get Candidate
 
 Retrieves a specific candidate by ID with full details including contact info, education, and employment history
 
@@ -147,7 +147,7 @@ Retrieves a specific candidate by ID with full details including contact info, e
 |   ↳ `end_date` | string | End date \(ISO 8601\) |
 | `custom_fields` | object | Custom field values |
 
-### `greenhouse_list_jobs`
+### Greenhouse List Jobs
 
 Lists jobs from Greenhouse with optional filtering by status, department, or office
 
@@ -187,7 +187,7 @@ Lists jobs from Greenhouse with optional filtering by status, department, or off
 |   ↳ `updated_at` | string | Last updated timestamp \(ISO 8601\) |
 | `count` | number | Number of jobs returned |
 
-### `greenhouse_get_job`
+### Greenhouse Get Job
 
 Retrieves a specific job by ID with full details including hiring team, openings, and custom fields
 
@@ -239,7 +239,7 @@ Retrieves a specific job by ID with full details including hiring team, openings
 |     ↳ `name` | string | Close reason name |
 | `custom_fields` | object | Custom field values |
 
-### `greenhouse_list_applications`
+### Greenhouse List Applications
 
 Lists applications from Greenhouse with optional filtering by job, status, or date
 
@@ -276,7 +276,7 @@ Lists applications from Greenhouse with optional filtering by job, status, or da
 |   ↳ `last_activity_at` | string | Last activity date \(ISO 8601\) |
 | `count` | number | Number of applications returned |
 
-### `greenhouse_get_application`
+### Greenhouse Get Application
 
 Retrieves a specific application by ID with full details including source, stage, answers, and attachments
 
@@ -344,7 +344,7 @@ Retrieves a specific application by ID with full details including source, stage
 |   ↳ `created_at` | string | Upload timestamp |
 | `custom_fields` | object | Custom field values |
 
-### `greenhouse_list_users`
+### Greenhouse List Users
 
 Lists Greenhouse users (recruiters, hiring managers, admins) with optional filtering
 
@@ -380,7 +380,7 @@ Lists Greenhouse users (recruiters, hiring managers, admins) with optional filte
 |   ↳ `updated_at` | string | Last updated timestamp \(ISO 8601\) |
 | `count` | number | Number of users returned |
 
-### `greenhouse_get_user`
+### Greenhouse Get User
 
 Retrieves a specific Greenhouse user by ID
 
@@ -408,7 +408,7 @@ Retrieves a specific Greenhouse user by ID
 | `created_at` | string | Creation timestamp \(ISO 8601\) |
 | `updated_at` | string | Last updated timestamp \(ISO 8601\) |
 
-### `greenhouse_list_departments`
+### Greenhouse List Departments
 
 Lists all departments configured in Greenhouse
 
@@ -432,7 +432,7 @@ Lists all departments configured in Greenhouse
 |   ↳ `external_id` | string | External system ID |
 | `count` | number | Number of departments returned |
 
-### `greenhouse_list_offices`
+### Greenhouse List Offices
 
 Lists all offices configured in Greenhouse
 
@@ -459,7 +459,7 @@ Lists all offices configured in Greenhouse
 |   ↳ `external_id` | string | External system ID |
 | `count` | number | Number of offices returned |
 
-### `greenhouse_list_job_stages`
+### Greenhouse List Job Stages
 
 Lists all interview stages for a specific job in Greenhouse
 

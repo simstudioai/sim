@@ -29,7 +29,7 @@ Deploy, undeploy, and roll back workflows in the current workspace. Promote a pr
 
 ## Actions
 
-### `deployments_deploy`
+### Deploy Workflow
 
 Deploy a workflow’s current draft state, creating a new deployment version and making it live for API execution. Requires admin permission on the workflow’s workspace.
 
@@ -51,7 +51,7 @@ Deploy a workflow’s current draft state, creating a new deployment version and
 | `version` | number | The deployment version that is now active |
 | `warnings` | array | Non-fatal warnings \(e.g. trigger or schedule sync still in progress\) |
 
-### `deployments_undeploy`
+### Undeploy Workflow
 
 Take a deployed workflow offline. API execution stops and schedules, webhooks, and other deployment side effects are removed. Requires admin permission on the workflow’s workspace.
 
@@ -70,7 +70,7 @@ Take a deployed workflow offline. API execution stops and schedules, webhooks, a
 | `deployedAt` | string | Always null after an undeploy |
 | `warnings` | array | Non-fatal warnings \(e.g. trigger or schedule cleanup still in progress\) |
 
-### `deployments_promote`
+### Promote Version to Live
 
 Make a specific deployment version the live one without creating a new version — the same operation as Promote to live in the deploy modal. Useful for rolling back to a known-good version. Also works on an undeployed workflow: it re-deploys the workflow live at that version. Requires admin permission on the workflow’s workspace.
 
@@ -91,7 +91,7 @@ Make a specific deployment version the live one without creating a new version �
 | `version` | number | The deployment version that is now live |
 | `warnings` | array | Non-fatal warnings \(e.g. trigger or schedule sync still in progress\) |
 
-### `deployments_list_versions`
+### List Deployment Versions
 
 List every deployment version of a workflow, newest first, including which version is currently live.
 
@@ -108,7 +108,7 @@ List every deployment version of a workflow, newest first, including which versi
 | `workflowId` | string | ID of the workflow |
 | `versions` | array | Deployment versions, newest first \(id, version, name, description, isActive, createdAt, createdBy, deployedByName\) |
 
-### `deployments_get_version`
+### Get Deployment Version
 
 Fetch a single deployment version of a workflow, including its metadata and the full workflow state snapshot that was deployed.
 

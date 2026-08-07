@@ -33,7 +33,7 @@ Integrate Resend into your workflow. Send emails, retrieve email status, manage 
 
 ## Actions
 
-### `resend_send`
+### Send Email
 
 Send an email using your own Resend API key and from address
 
@@ -63,7 +63,7 @@ Send an email using your own Resend API key and from address
 | `subject` | string | Email subject |
 | `body` | string | Email body content |
 
-### `resend_get_email`
+### Get Email
 
 Retrieve details of a previously sent email by its ID
 
@@ -94,7 +94,7 @@ Retrieve details of a previously sent email by its ID
 |   ↳ `name` | string | Tag name |
 |   ↳ `value` | string | Tag value |
 
-### `resend_cancel_email`
+### Cancel Email
 
 Cancel a scheduled email before it is sent
 
@@ -111,7 +111,7 @@ Cancel a scheduled email before it is sent
 | --------- | ---- | ----------- |
 | `id` | string | Canceled email ID |
 
-### `resend_create_contact`
+### Create Contact
 
 Create a new contact in Resend
 
@@ -131,7 +131,7 @@ Create a new contact in Resend
 | --------- | ---- | ----------- |
 | `id` | string | Created contact ID |
 
-### `resend_list_contacts`
+### List Contacts
 
 List all contacts in Resend
 
@@ -154,7 +154,7 @@ List all contacts in Resend
 |   ↳ `unsubscribed` | boolean | Whether the contact is unsubscribed |
 | `hasMore` | boolean | Whether there are more contacts to retrieve |
 
-### `resend_get_contact`
+### Get Contact
 
 Retrieve details of a contact by ID or email
 
@@ -176,7 +176,7 @@ Retrieve details of a contact by ID or email
 | `createdAt` | string | Contact creation timestamp |
 | `unsubscribed` | boolean | Whether the contact is unsubscribed |
 
-### `resend_update_contact`
+### Update Contact
 
 Update an existing contact in Resend
 
@@ -196,7 +196,7 @@ Update an existing contact in Resend
 | --------- | ---- | ----------- |
 | `id` | string | Updated contact ID |
 
-### `resend_delete_contact`
+### Delete Contact
 
 Delete a contact from Resend by ID or email
 
@@ -214,7 +214,7 @@ Delete a contact from Resend by ID or email
 | `id` | string | Deleted contact ID |
 | `deleted` | boolean | Whether the contact was successfully deleted |
 
-### `resend_create_audience`
+### Create Audience
 
 Create a new audience in Resend
 
@@ -232,7 +232,7 @@ Create a new audience in Resend
 | `id` | string | Created audience ID |
 | `name` | string | Audience name |
 
-### `resend_get_audience`
+### Get Audience
 
 Retrieve details of an audience by ID
 
@@ -251,7 +251,7 @@ Retrieve details of an audience by ID
 | `name` | string | Audience name |
 | `createdAt` | string | Audience creation timestamp |
 
-### `resend_list_audiences`
+### List Audiences
 
 List all audiences in Resend
 
@@ -271,7 +271,7 @@ List all audiences in Resend
 |   ↳ `created_at` | string | Audience creation timestamp |
 | `hasMore` | boolean | Whether there are more audiences to retrieve |
 
-### `resend_delete_audience`
+### Delete Audience
 
 Delete an audience from Resend by ID
 
@@ -289,7 +289,7 @@ Delete an audience from Resend by ID
 | `id` | string | Deleted audience ID |
 | `deleted` | boolean | Whether the audience was successfully deleted |
 
-### `resend_create_broadcast`
+### Create Broadcast
 
 Create a broadcast email for an audience in Resend
 
@@ -313,7 +313,7 @@ Create a broadcast email for an audience in Resend
 | --------- | ---- | ----------- |
 | `id` | string | Created broadcast ID |
 
-### `resend_send_broadcast`
+### Send Broadcast
 
 Send a broadcast immediately or schedule it for later
 
@@ -331,7 +331,7 @@ Send a broadcast immediately or schedule it for later
 | --------- | ---- | ----------- |
 | `id` | string | Broadcast ID |
 
-### `resend_get_broadcast`
+### Get Broadcast
 
 Retrieve details of a broadcast by ID
 
@@ -359,7 +359,7 @@ Retrieve details of a broadcast by ID
 | `scheduledAt` | string | Scheduled send timestamp |
 | `sentAt` | string | Timestamp the broadcast was sent |
 
-### `resend_list_domains`
+### List Domains
 
 List all verified domains in your Resend account
 
@@ -599,7 +599,7 @@ Trigger workflow when an email is sent
 
 ### Resend Webhook (All Events)
 
-Trigger on Resend webhook events we subscribe to (email lifecycle, contacts, domains—see Resend docs). Flattened email fields may be null for non-email events; use <code>data</code> for the full payload.
+Trigger on Resend webhook events we subscribe to (email lifecycle, contacts, domains—see Resend docs). Flattened email fields may be null for non-email events; use &lt;code&gt;data&lt;/code&gt; for the full payload.
 
 #### Configuration
 

@@ -32,7 +32,7 @@ Integrate ServiceNow into your workflow. Create, read, update, and delete record
 
 ## Actions
 
-### `servicenow_create_record`
+### Create ServiceNow Record
 
 Create a new record in a ServiceNow table
 
@@ -53,7 +53,7 @@ Create a new record in a ServiceNow table
 | `record` | json | Created ServiceNow record with sys_id and other fields |
 | `metadata` | json | Operation metadata |
 
-### `servicenow_read_record`
+### Read ServiceNow Records
 
 Read records from a ServiceNow table
 
@@ -80,7 +80,7 @@ Read records from a ServiceNow table
 | `records` | array | Array of ServiceNow records |
 | `metadata` | json | Operation metadata |
 
-### `servicenow_update_record`
+### Update ServiceNow Record
 
 Update an existing record in a ServiceNow table
 
@@ -102,7 +102,7 @@ Update an existing record in a ServiceNow table
 | `record` | json | Updated ServiceNow record |
 | `metadata` | json | Operation metadata |
 
-### `servicenow_delete_record`
+### Delete ServiceNow Record
 
 Delete a record from a ServiceNow table
 
@@ -123,7 +123,7 @@ Delete a record from a ServiceNow table
 | `success` | boolean | Whether the deletion was successful |
 | `metadata` | json | Operation metadata |
 
-### `servicenow_aggregate`
+### Aggregate ServiceNow Records
 
 Compute aggregate statistics (count, sum, average, min, max, group by) over a ServiceNow table
 
@@ -153,7 +153,7 @@ Compute aggregate statistics (count, sum, average, min, max, group by) over a Se
 | `count` | number | Total matching record count \(only present for ungrouped count queries\) |
 | `metadata` | json | Operation metadata \(grouped, groupCount\) |
 
-### `servicenow_list_attachments`
+### List ServiceNow Attachments
 
 List the attachments on a ServiceNow record
 
@@ -180,7 +180,7 @@ List the attachments on a ServiceNow record
 |   ↳ `download_link` | string | Direct download URL for the file |
 | `metadata` | json | Operation metadata \(recordCount\) |
 
-### `servicenow_download_attachment`
+### Download ServiceNow Attachment
 
 Download an attachment file from ServiceNow by its sys_id
 
@@ -200,7 +200,7 @@ Download an attachment file from ServiceNow by its sys_id
 | `file` | file | Downloaded attachment stored in execution files |
 | `content` | string | Base64 encoded file content |
 
-### `servicenow_upload_attachment`
+### Upload ServiceNow Attachment
 
 Attach a file to a ServiceNow record
 

@@ -37,7 +37,7 @@ Integrate Azure Active Directory into your workflows. List, create, update, and 
 
 ## Actions
 
-### `microsoft_ad_list_users`
+### List Azure AD Users
 
 List users in Azure AD (Microsoft Entra ID)
 
@@ -58,7 +58,7 @@ List users in Azure AD (Microsoft Entra ID)
 | `userCount` | number | Number of users returned |
 | `nextLink` | string | Continuation URL for the next page of results, or null if there are no more |
 
-### `microsoft_ad_get_user`
+### Get Azure AD User
 
 Get a user by ID or user principal name from Azure AD
 
@@ -85,7 +85,7 @@ Get a user by ID or user principal name from Azure AD
 |   ↳ `mobilePhone` | string | Mobile phone number |
 |   ↳ `accountEnabled` | boolean | Whether the account is enabled |
 
-### `microsoft_ad_create_user`
+### Create Azure AD User
 
 Create a new user in Azure AD (Microsoft Entra ID)
 
@@ -122,7 +122,7 @@ Create a new user in Azure AD (Microsoft Entra ID)
 |   ↳ `mobilePhone` | string | Mobile phone number |
 |   ↳ `accountEnabled` | boolean | Whether the account is enabled |
 
-### `microsoft_ad_update_user`
+### Update Azure AD User
 
 Update user properties in Azure AD (Microsoft Entra ID)
 
@@ -147,7 +147,7 @@ Update user properties in Azure AD (Microsoft Entra ID)
 | `updated` | boolean | Whether the update was successful |
 | `userId` | string | ID of the updated user |
 
-### `microsoft_ad_delete_user`
+### Delete Azure AD User
 
 Delete a user from Azure AD (Microsoft Entra ID). The user is moved to a temporary container and can be restored within 30 days.
 
@@ -164,7 +164,7 @@ Delete a user from Azure AD (Microsoft Entra ID). The user is moved to a tempora
 | `deleted` | boolean | Whether the deletion was successful |
 | `userId` | string | ID of the deleted user |
 
-### `microsoft_ad_list_groups`
+### List Azure AD Groups
 
 List groups in Azure AD (Microsoft Entra ID)
 
@@ -185,7 +185,7 @@ List groups in Azure AD (Microsoft Entra ID)
 | `groupCount` | number | Number of groups returned |
 | `nextLink` | string | Continuation URL for the next page of results, or null if there are no more |
 
-### `microsoft_ad_get_group`
+### Get Azure AD Group
 
 Get a group by ID from Azure AD (Microsoft Entra ID)
 
@@ -211,7 +211,7 @@ Get a group by ID from Azure AD (Microsoft Entra ID)
 |   ↳ `visibility` | string | Group visibility |
 |   ↳ `createdDateTime` | string | Creation date |
 
-### `microsoft_ad_create_group`
+### Create Azure AD Group
 
 Create a new group in Azure AD (Microsoft Entra ID)
 
@@ -243,7 +243,7 @@ Create a new group in Azure AD (Microsoft Entra ID)
 |   ↳ `visibility` | string | Group visibility |
 |   ↳ `createdDateTime` | string | Creation date |
 
-### `microsoft_ad_update_group`
+### Update Azure AD Group
 
 Update group properties in Azure AD (Microsoft Entra ID)
 
@@ -264,7 +264,7 @@ Update group properties in Azure AD (Microsoft Entra ID)
 | `updated` | boolean | Whether the update was successful |
 | `groupId` | string | ID of the updated group |
 
-### `microsoft_ad_delete_group`
+### Delete Azure AD Group
 
 Delete a group from Azure AD (Microsoft Entra ID). Microsoft 365 and security groups can be restored within 30 days.
 
@@ -281,7 +281,7 @@ Delete a group from Azure AD (Microsoft Entra ID). Microsoft 365 and security gr
 | `deleted` | boolean | Whether the deletion was successful |
 | `groupId` | string | ID of the deleted group |
 
-### `microsoft_ad_list_group_members`
+### List Azure AD Group Members
 
 List members of a group in Azure AD (Microsoft Entra ID)
 
@@ -301,7 +301,7 @@ List members of a group in Azure AD (Microsoft Entra ID)
 | `memberCount` | number | Number of members returned |
 | `nextLink` | string | Continuation URL for the next page of results, or null if there are no more |
 
-### `microsoft_ad_add_group_member`
+### Add Azure AD Group Member
 
 Add a member to a group in Azure AD (Microsoft Entra ID)
 
@@ -320,7 +320,7 @@ Add a member to a group in Azure AD (Microsoft Entra ID)
 | `groupId` | string | Group ID |
 | `memberId` | string | Member ID that was added |
 
-### `microsoft_ad_remove_group_member`
+### Remove Azure AD Group Member
 
 Remove a member from a group in Azure AD (Microsoft Entra ID)
 

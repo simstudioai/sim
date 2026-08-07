@@ -33,7 +33,7 @@ Integrate Ahrefs SEO tools into your workflow. Analyze domain ratings, backlinks
 
 ## Actions
 
-### `ahrefs_domain_rating`
+### Ahrefs Domain Rating
 
 Get the Domain Rating (DR) and Ahrefs Rank for a target domain. Domain Rating shows the strength of a website's backlink profile on a scale from 0 to 100.
 
@@ -52,7 +52,7 @@ Get the Domain Rating (DR) and Ahrefs Rank for a target domain. Domain Rating sh
 | `domainRating` | number | Domain Rating score \(0-100\) |
 | `ahrefsRank` | number | Ahrefs Rank - global ranking based on backlink profile strength |
 
-### `ahrefs_metrics`
+### Ahrefs Metrics
 
 Get a one-call organic and paid search overview for a target domain or URL: organic traffic, organic keywords, paid traffic, paid keywords, and estimated traffic cost.
 
@@ -80,7 +80,7 @@ Get a one-call organic and paid search overview for a target domain or URL: orga
 |   ↳ `paidPages` | number | Number of pages receiving paid traffic |
 |   ↳ `paidCost` | number | Estimated monthly paid search spend \(USD\) |
 
-### `ahrefs_backlinks`
+### Ahrefs Backlinks
 
 Get a list of backlinks pointing to a target domain or URL. Returns details about each backlink including source URL, anchor text, and domain rating.
 
@@ -107,7 +107,7 @@ Get a list of backlinks pointing to a target domain or URL. Returns details abou
 |   ↳ `firstSeen` | string | When the backlink was first discovered |
 |   ↳ `lastVisited` | string | When the backlink was last checked |
 
-### `ahrefs_backlinks_stats`
+### Ahrefs Backlinks Stats
 
 Get backlink and referring domain totals for a target domain or URL, both currently live and across all time.
 
@@ -130,7 +130,7 @@ Get backlink and referring domain totals for a target domain or URL, both curren
 |   ↳ `allTimeBacklinks` | number | Total backlinks ever discovered, including lost ones |
 |   ↳ `allTimeReferringDomains` | number | Total referring domains ever discovered, including lost ones |
 
-### `ahrefs_referring_domains`
+### Ahrefs Referring Domains
 
 Get a list of domains that link to a target domain or URL. Returns unique referring domains with their domain rating, backlink counts, and discovery dates.
 
@@ -156,7 +156,7 @@ Get a list of domains that link to a target domain or URL. Returns unique referr
 |   ↳ `firstSeen` | string | When the domain was first seen linking |
 |   ↳ `lastVisited` | string | When the domain was last seen linking \(null if never re-crawled\) |
 
-### `ahrefs_broken_backlinks`
+### Ahrefs Broken Backlinks
 
 Get a list of broken backlinks pointing to a target domain or URL. Useful for identifying link reclamation opportunities.
 
@@ -180,7 +180,7 @@ Get a list of broken backlinks pointing to a target domain or URL. Useful for id
 |   ↳ `anchor` | string | The anchor text of the link |
 |   ↳ `domainRatingSource` | number | Domain Rating of the linking domain |
 
-### `ahrefs_organic_keywords`
+### Ahrefs Organic Keywords
 
 Get organic keywords that a target domain or URL ranks for in Google search results. Returns keyword details including search volume, ranking position, and estimated traffic.
 
@@ -207,7 +207,7 @@ Get organic keywords that a target domain or URL ranks for in Google search resu
 |   ↳ `traffic` | number | Estimated monthly organic traffic |
 |   ↳ `keywordDifficulty` | number | Keyword difficulty score \(0-100\) |
 
-### `ahrefs_organic_competitors`
+### Ahrefs Organic Competitors
 
 Get domains that compete with a target domain or URL for the same organic keywords, ranked by keyword overlap.
 
@@ -234,7 +234,7 @@ Get domains that compete with a target domain or URL for the same organic keywor
 |   ↳ `competitorKeywords` | number | Number of keywords the competitor ranks for |
 |   ↳ `traffic` | number | Estimated monthly organic traffic for the competitor |
 
-### `ahrefs_top_pages`
+### Ahrefs Top Pages
 
 Get the top pages of a target domain sorted by organic traffic. Returns page URLs with their traffic, keyword counts, and estimated traffic value.
 
@@ -260,7 +260,7 @@ Get the top pages of a target domain sorted by organic traffic. Returns page URL
 |   ↳ `topKeyword` | string | The top keyword driving traffic to this page |
 |   ↳ `value` | number | Estimated traffic value in USD |
 
-### `ahrefs_keyword_overview`
+### Ahrefs Keyword Overview
 
 Get detailed metrics for a keyword including search volume, keyword difficulty, CPC, clicks, and traffic potential.
 
@@ -293,7 +293,7 @@ Get detailed metrics for a keyword including search volume, keyword difficulty, 
 |     ↳ `branded` | boolean | Query references a specific brand |
 |     ↳ `local` | boolean | Query seeks local results |
 
-### `ahrefs_paid_pages`
+### Ahrefs Paid Pages
 
 Get a target domain's pages that receive paid search traffic, sorted by estimated paid traffic. Returns page URLs with their paid traffic, keyword counts, and estimated spend.
 
@@ -320,7 +320,7 @@ Get a target domain's pages that receive paid search traffic, sorted by estimate
 |   ↳ `value` | number | Estimated monthly paid traffic cost in USD |
 |   ↳ `adsCount` | number | Number of unique ads shown for this page |
 
-### `ahrefs_anchors`
+### Ahrefs Anchors
 
 Get the anchor text distribution for a target domain or URL's backlinks, showing how many links and referring domains use each anchor text.
 
@@ -346,7 +346,7 @@ Get the anchor text distribution for a target domain or URL's backlinks, showing
 |   ↳ `firstSeen` | string | When a link with this anchor was first found |
 |   ↳ `lastSeen` | string | When a backlink with this anchor was last seen \(null if still live\) |
 
-### `ahrefs_related_terms`
+### Ahrefs Related Terms
 
 Get keyword ideas related to a seed keyword: terms the same top-ranking pages also rank for ("also rank for") or also discuss ("also talk about"), with volume, difficulty, and CPC.
 
@@ -375,7 +375,7 @@ Get keyword ideas related to a seed keyword: terms the same top-ranking pages al
 |   ↳ `intents` | object | Search intent flags \(informational, navigational, commercial, transactional, branded, local\) |
 |   ↳ `serpFeatures` | array | SERP features present in the results |
 
-### `ahrefs_domain_rating_history`
+### Ahrefs Domain Rating History
 
 Get the historical Domain Rating (DR) trend for a target domain or URL over a date range, grouped daily, weekly, or monthly.
 
@@ -397,7 +397,7 @@ Get the historical Domain Rating (DR) trend for a target domain or URL over a da
 |   ↳ `date` | string | The date of the measurement |
 |   ↳ `domainRating` | number | Domain Rating score \(0-100\) on this date |
 
-### `ahrefs_metrics_history`
+### Ahrefs Metrics History
 
 Get the historical organic and paid traffic trend for a target domain or URL over a date range: organic traffic/cost and paid traffic/cost at each point in time.
 
@@ -425,7 +425,7 @@ Get the historical organic and paid traffic trend for a target domain or URL ove
 |   ↳ `paidTraffic` | number | Estimated monthly paid search visits |
 |   ↳ `paidCost` | number | Estimated monthly paid search spend \(USD\) |
 
-### `ahrefs_refdomains_history`
+### Ahrefs Referring Domains History
 
 Get the historical referring domains trend for a target domain or URL over a date range, grouped daily, weekly, or monthly.
 
@@ -448,7 +448,7 @@ Get the historical referring domains trend for a target domain or URL over a dat
 |   ↳ `date` | string | The date of the data point |
 |   ↳ `referringDomains` | number | Total number of unique domains linking to the target on this date |
 
-### `ahrefs_keywords_history`
+### Ahrefs Keywords History
 
 Get the historical organic keyword ranking distribution for a target domain or URL over a date range: how many keywords rank in each position bucket at each point in time.
 
@@ -476,7 +476,7 @@ Get the historical organic keyword ranking distribution for a target domain or U
 |   ↳ `top21To50` | number | Keywords ranking in positions 21-50 |
 |   ↳ `top51Plus` | number | Keywords ranking in position 51 and beyond |
 
-### `ahrefs_batch_analysis`
+### Ahrefs Batch Analysis
 
 Get bulk SEO metrics (Domain Rating, backlinks, referring domains, organic traffic, and more) for multiple domains or URLs in a single request. Useful for comparing many competitors at once.
 
@@ -507,7 +507,7 @@ Get bulk SEO metrics (Domain Rating, backlinks, referring domains, organic traff
 |   ↳ `paidTraffic` | number | Estimated monthly paid search traffic |
 |   ↳ `error` | string | Error message if this target could not be analyzed |
 
-### `ahrefs_site_audit_page_explorer`
+### Ahrefs Site Audit Page Explorer
 
 Get crawled pages from an Ahrefs Site Audit project with health and SEO metrics: HTTP status, title, link counts, backlinks, indexability, and traffic. Optionally filter to pages affected by a specific issue.
 
@@ -536,7 +536,7 @@ Get crawled pages from an Ahrefs Site Audit project with health and SEO metrics:
 |   ↳ `compliant` | boolean | Whether the page is indexable \(200 status, no canonical/noindex\) |
 |   ↳ `traffic` | number | Estimated monthly organic traffic to the page |
 
-### `ahrefs_rank_tracker_overview`
+### Ahrefs Rank Tracker Overview
 
 Get ranking overview metrics for the keywords tracked in an Ahrefs Rank Tracker project: position, search volume, keyword difficulty, and estimated traffic. This endpoint is free and does not consume API units.
 
@@ -566,7 +566,7 @@ Get ranking overview metrics for the keywords tracked in an Ahrefs Rank Tracker 
 |   ↳ `serpFeatures` | array | SERP features present in the results |
 |   ↳ `bestPositionKind` | string | Type of the top position \(organic, paid, or SERP feature\) |
 
-### `ahrefs_rank_tracker_serp_overview`
+### Ahrefs Rank Tracker SERP Overview
 
 Get the full SERP (search engine results page) for a keyword tracked in an Ahrefs Rank Tracker project, including every ranking URL with its position, title, and authority metrics. This endpoint is free and does not consume API units.
 
@@ -603,7 +603,7 @@ Get the full SERP (search engine results page) for a keyword tracked in an Ahref
 |   ↳ `topKeywordVolume` | number | Monthly search volume for the top keyword |
 |   ↳ `updateDate` | string | Date the SERP was last checked |
 
-### `ahrefs_rank_tracker_competitors_overview`
+### Ahrefs Rank Tracker Competitors Overview
 
 Get competitor rankings for the keywords tracked in an Ahrefs Rank Tracker project: each tracked keyword's volume and difficulty alongside every competitor's position, traffic, and traffic value. This endpoint is free and does not consume API units.
 
@@ -635,7 +635,7 @@ Get competitor rankings for the keywords tracked in an Ahrefs Rank Tracker proje
 |     ↳ `traffic` | number | Estimated traffic to the competitor |
 |     ↳ `value` | number | Estimated traffic value \(USD\) |
 
-### `ahrefs_rank_tracker_competitors_stats`
+### Ahrefs Rank Tracker Competitors Stats
 
 Get aggregate competitor stats for an Ahrefs Rank Tracker project: each competitor's traffic, traffic value, average position, and share of voice across all tracked keywords. This endpoint is free and does not consume API units.
 
