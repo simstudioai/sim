@@ -27,11 +27,11 @@ import {
 } from '@sim/emcn/icons'
 import type { RunLimit, RunMode } from '@/lib/api/contracts/tables'
 import type { WorkflowGroupType } from '@/lib/table'
+import { HeaderLabel } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/headers/header-label'
 import { getEnrichment } from '@/enrichments/registry'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { SELECTION_TINT_BG } from '../constants'
 import type { DisplayColumn } from '../types'
-import { HeaderLabel } from './header-label'
 
 /** Fixed row-cap presets for the "Run N empty rows" shortcuts. Shared by the
  *  group-header options menu and the inline quick-run dropdown so the two

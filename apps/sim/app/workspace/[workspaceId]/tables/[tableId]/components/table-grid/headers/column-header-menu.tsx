@@ -4,11 +4,11 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { cn } from '@sim/emcn'
 import { ChevronDown } from '@sim/emcn/icons'
 import type { WorkflowGroup } from '@/lib/table'
+import { HeaderLabel } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/headers/header-label'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { COL_WIDTH, SELECTION_TINT_BG } from '../constants'
 import type { ColumnSourceInfo, DisplayColumn } from '../types'
 import { ColumnTypeIcon } from './column-type-icon'
-import { HeaderLabel } from './header-label'
 import { ColumnOptionsMenu } from './workflow-group-meta-cell'
 
 interface ColumnHeaderMenuProps {
