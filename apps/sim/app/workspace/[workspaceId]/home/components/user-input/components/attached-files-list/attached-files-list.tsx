@@ -85,8 +85,10 @@ const AttachedFileChip = React.memo(function AttachedFileChip({
           </>
         ) : (
           <>
-            {/* Hover steps too: --surface-active is within 7/255 of --surface-6 in light mode. */}
-            <span className='flex size-[32px] shrink-0 items-center justify-center rounded-md bg-[var(--surface-6)] text-[var(--text-icon)] transition-colors hover-hover:group-hover:bg-[var(--surface-7)] dark:bg-[var(--surface-3)]'>
+            {/* Fill is constant — the chip's own hover is the only hover affordance. It
+                sits a step below `--surface-6` in light mode so the chip's hover fill
+                (`--surface-active`) cannot close on it. */}
+            <span className='flex size-[32px] shrink-0 items-center justify-center rounded-md bg-[var(--surface-7)] text-[var(--text-icon)] dark:bg-[var(--surface-3)]'>
               <Icon className='size-[16px]' />
             </span>
             <span className='flex min-w-0 flex-col items-start'>
