@@ -65,3 +65,10 @@ const filtered = filterUndefined(obj)
 
 ## Package Manager
 Use `bun` and `bunx`, not `npm` and `npx`.
+
+## Type-checking
+`tsc` must resolve to the native (Go) TypeScript 7 compiler. Do not remove the `@typescript/native` alias from the root `devDependencies` — nothing imports it, and deleting it looks harmless.
+
+`apps/sim` needs `@typescript/typescript6` for its runtime TypeScript API, and that package depends on `@typescript/old` — an alias of `typescript@6` — which declares its own `tsc` bin. Package managers pick bin winners by lexical sort rather than dependency depth, so `@typescript/old` beats `typescript` and `node_modules/.bin/tsc` silently becomes the JavaScript TypeScript 6 compiler: identical diagnostics, ~10x slower (83s vs 8s on `apps/sim`). The `@typescript/native` alias exists only to sort ahead of `@typescript/old`.
+
+`bun run check:native-typecheck` fails the build if a bare `tsc` stops reporting 7.x — which is also what a newly added package that sorts ahead of `@typescript/native` and ships a `tsc` bin would look like. See [microsoft/typescript-go#4567](https://github.com/microsoft/typescript-go/issues/4567).
