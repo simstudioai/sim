@@ -5,6 +5,7 @@ import { ChipTextarea, chipFieldSurfaceClass, cn } from '@sim/emcn'
 import type { JSONContent } from '@tiptap/core'
 import { EditorContent, useEditor } from '@tiptap/react'
 import { createMarkdownEditorExtensions } from './editor-extensions'
+import { extractImageFiles } from './image-paste'
 import {
   applyFrontmatter,
   postProcessSerializedMarkdown,
@@ -53,6 +54,16 @@ interface RichMarkdownFieldProps {
   workspaceId?: string
   /** Force the `@` tag-insertion menu off even with a workspace set (existing tags still render). */
   disableTagging?: boolean
+  /**
+   * Uploads a pasted or dropped image and returns its hosted URL, or null on
+   * failure. Providing this enables image paste/drop; without it, file drops
+   * are swallowed so the browser cannot navigate to the dropped file. The
+   * expected implementation is the workspace-file pipeline — the same
+   * presigned-S3 upload and `/api/workspaces/{id}/files/inline` URL shape the
+   * file editor persists — so every embedded image stays behind workspace
+   * auth and inside the existing storage lifecycle.
+   */
+  uploadImage?: (file: File) => Promise<{ url: string; alt: string } | null>
   /**
    * Intercepts a plain-text paste before the editor handles it. Return `true` to consume the paste
    * (e.g. a full document the host destructures elsewhere); `false` to fall through to normal
@@ -104,6 +115,7 @@ function LoadedRichMarkdownField({
   workspaceId,
   disableTagging,
   onPasteText,
+  uploadImage,
   surface = 'field',
   proseClassName,
   editorClassName,
@@ -125,7 +137,44 @@ function LoadedRichMarkdownField({
   onChangeRef.current = onChange
   const onPasteTextRef = useRef(onPasteText)
   onPasteTextRef.current = onPasteText
+  const uploadImageRef = useRef(uploadImage)
+  uploadImageRef.current = uploadImage
   const autoFocusAtRef = useRef(autoFocusAt)
+  const editorInstanceRef = useRef<ReturnType<typeof useEditor>>(null)
+
+  /**
+   * Sequential upload-then-insert, mirroring the file editor's own image flow:
+   * each image inserts at the evolving position so a multi-image paste lands in
+   * order, and a failed upload skips its insert without aborting the rest. The
+   * upload mutation owns user feedback.
+   */
+  const insertImagesRef = useRef<(images: File[], at: number) => Promise<void>>(() =>
+    Promise.resolve()
+  )
+  insertImagesRef.current = async (images, at) => {
+    const upload = uploadImageRef.current
+    const owner = editorInstanceRef.current
+    if (!upload || !owner) return
+    let position = at
+    for (const image of images) {
+      const result = await upload(image).catch(() => null)
+      /* Bail if the editor unmounted (note closed) while the upload ran. */
+      if (!result || editorInstanceRef.current !== owner || owner.isDestroyed) continue
+      const safePosition = Math.min(position, owner.state.doc.content.size)
+      try {
+        owner
+          .chain()
+          .insertContentAt(safePosition, {
+            type: 'image',
+            attrs: { src: result.url, alt: result.alt },
+          })
+          .run()
+        position = owner.state.selection.to
+      } catch {
+        position = owner.state.doc.content.size
+      }
+    }
+  }
 
   /**
    * The original value verbatim, plus its canonical serialization. The editor only ever emits canonical
@@ -161,7 +210,13 @@ function LoadedRichMarkdownField({
         // Claim ⌘K so the bubble-menu link editor wins over the global search palette.
         'data-owned-shortcuts': 'Mod+K',
       },
-      handlePaste: (_view, event) => {
+      handlePaste: (view, event) => {
+        const images = uploadImageRef.current ? extractImageFiles(event.clipboardData) : []
+        if (images.length > 0) {
+          event.preventDefault()
+          void insertImagesRef.current(images, view.state.selection.from)
+          return true
+        }
         const handler = onPasteTextRef.current
         if (!handler) return false
         const text = event.clipboardData?.getData('text/plain')
@@ -172,9 +227,14 @@ function LoadedRichMarkdownField({
        * The field has no image upload; swallow any file drop so the browser doesn't navigate to the
        * dropped file and tear down the modal. Internal text drags carry no files and fall through.
        */
-      handleDrop: (_view, event) => {
+      handleDrop: (view, event) => {
         if (event.dataTransfer?.files.length) {
           event.preventDefault()
+          const images = uploadImageRef.current ? extractImageFiles(event.dataTransfer) : []
+          if (images.length > 0) {
+            const dropPos = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos
+            void insertImagesRef.current(images, dropPos ?? view.state.selection.from)
+          }
           return true
         }
         return false
@@ -183,6 +243,7 @@ function LoadedRichMarkdownField({
     /* Resolved after creation, not via `autofocus`: mapping a point to a
        document position needs the editor's DOM laid out. */
     onCreate: ({ editor }) => {
+      editorInstanceRef.current = editor
       const point = autoFocusAtRef.current
       if (!point) return
       const resolved = editor.view.posAtCoords({ left: point.clientX, top: point.clientY })

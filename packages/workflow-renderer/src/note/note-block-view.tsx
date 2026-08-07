@@ -1,4 +1,5 @@
 import {
+  type ComponentProps,
   memo,
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
@@ -101,6 +102,13 @@ const NOTE_COMPONENTS = {
     </ol>
   ),
   li: ({ children }: { children?: ReactNode }) => <li className='break-words'>{children}</li>,
+  img: ({ src, alt }: ComponentProps<'img'>) => (
+    <img
+      src={typeof src === 'string' ? src : undefined}
+      alt={alt ?? ''}
+      className='my-2 block max-w-full rounded-md'
+    />
+  ),
   inlineCode: ({ children }: { children?: ReactNode }) => (
     <code className='whitespace-normal rounded bg-black/10 px-1 py-0.5 font-mono text-current text-xs'>
       {children}
