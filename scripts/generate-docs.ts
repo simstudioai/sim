@@ -157,7 +157,6 @@ if (!fs.existsSync(DOCS_OUTPUT_PATH)) {
   fs.mkdirSync(DOCS_OUTPUT_PATH, { recursive: true })
 }
 
-// Ensure docs components directory exists
 const docsComponentsDir = path.dirname(DOCS_ICONS_PATH)
 if (!fs.existsSync(docsComponentsDir)) {
   fs.mkdirSync(docsComponentsDir, { recursive: true })
@@ -732,7 +731,6 @@ async function buildToolDescriptionMap(): Promise<ToolMaps> {
  * 'api-key' if it uses a plain API key field, or 'none' otherwise.
  */
 function extractAuthType(blockContent: string): 'oauth' | 'api-key' | 'none' {
-  // Prefer the authoritative `authMode` declaration when present.
   if (/authMode\s*:\s*AuthMode\.OAuth\b/.test(blockContent)) return 'oauth'
   if (/authMode\s*:\s*AuthMode\.(?:ApiKey|BotToken)\b/.test(blockContent)) return 'api-key'
   // Fall back to credential subBlock heuristics for blocks without authMode.
@@ -994,7 +992,6 @@ async function writeIntegrationsJson(iconMapping: Record<string, IconRef>): Prom
         }
         const integrationType = config.integrationType as IntegrationType
 
-        // Deduplicate by stripped base type
         const baseType = stripVersionSuffix(blockType)
         if (seenBaseTypes.has(baseType)) continue
         seenBaseTypes.add(baseType)
@@ -1160,7 +1157,6 @@ function extractAllBlockConfigs(fileContent: string): BlockConfig[] {
         continue
       }
 
-      // Pass fileContent to enable spread inheritance resolution
       const config = extractBlockConfigFromContent(blockContent, blockName, fileContent)
       if (config) {
         // For V2 blocks that don't have an explicit icon, use the primary icon from the file
@@ -1194,7 +1190,6 @@ function extractBlockConfigFromContent(
   fileContent?: string
 ): BlockConfig | null {
   try {
-    // Check for spread inheritance
     const spreadBase = extractSpreadBase(blockContent)
     let baseConfig: BlockConfig | null = null
 
@@ -1255,7 +1250,6 @@ function extractBlockConfigFromContent(
         /access\s*:\s*\(\s*\w+Block\.tools\?\.access\s*\|\|\s*\[\]\s*\)\.map\s*\(\s*\(\s*\w+\s*\)\s*=>\s*`\$\{\s*\w+\s*\}_v(\d+)`\s*\)/
       )
       if (mapMatch) {
-        // V2 block - append the version suffix to base tools
         const versionSuffix = `_v${mapMatch[1]}`
         finalToolsAccess = baseConfig.tools.access.map((tool) => `${tool}${versionSuffix}`)
       }
@@ -1615,13 +1609,11 @@ function resolveConstReference(
   toolPrefix: string,
   depth = 0
 ): Record<string, any> | null {
-  // Prevent infinite recursion
   if (depth > 10) {
     console.warn(`Max recursion depth reached resolving const: ${constName}`)
     return null
   }
 
-  // Check cache first
   const cacheKey = `${toolPrefix}:${constName}`
   if (constResolutionCache.has(cacheKey)) {
     return constResolutionCache.get(cacheKey)!
@@ -1670,7 +1662,6 @@ function resolveConstReference(
   // Otherwise, this is a properties object - use parseConstProperties
   const properties = parseConstProperties(constContent, toolPrefix, typesContent, depth + 1)
 
-  // Cache the result
   constResolutionCache.set(cacheKey, properties)
 
   return properties
@@ -1702,7 +1693,6 @@ function parseConstProperties(
 
     const resolvedConst = resolveConstFromTypesContent(constName, typesContent, toolPrefix, depth)
     if (resolvedConst && typeof resolvedConst === 'object') {
-      // Spread all properties from the resolved const
       Object.assign(properties, resolvedConst)
     }
   }
@@ -1728,7 +1718,6 @@ function parseConstProperties(
     // For 'properties' or 'type', check if it's an output field definition vs a keyword
     // Output field definitions have 'type:' inside (e.g., { type: 'string', description: '...' })
     if ((propName === 'properties' || propName === 'type') && !constRef) {
-      // Peek at what's inside the braces
       const startPos = match.index + match[0].length - 1
       const endPos = findMatchingClose(content, startPos)
       if (endPos !== -1) {
@@ -1752,7 +1741,6 @@ function parseConstProperties(
         properties[propName] = resolvedConst
       }
     } else {
-      // This property has inline definition
       const startPos = match.index + match[0].length - 1
       const endPos = findMatchingClose(content, startPos)
 
@@ -1780,7 +1768,6 @@ function resolveConstFromTypesContent(
 ): Record<string, any> | null {
   if (depth > 10) return null
 
-  // Check cache
   const cacheKey = `${toolPrefix}:${constName}`
   if (constResolutionCache.has(cacheKey)) {
     return constResolutionCache.get(cacheKey)!
@@ -1806,7 +1793,6 @@ function resolveConstFromTypesContent(
   // Check if this const defines a complete output field (has type property)
   const typeMatch = constContent.match(/^\s*type\s*:\s*['"]([^'"]+)['"]/)
   if (typeMatch) {
-    // This is a complete output definition (like ATTENDEES_OUTPUT)
     const result = parseConstFieldContent(constContent, toolPrefix, typesContent, depth)
     if (result) {
       constResolutionCache.set(cacheKey, result)
@@ -1814,7 +1800,6 @@ function resolveConstFromTypesContent(
     return result
   }
 
-  // This is a properties object (like ATTENDEE_OUTPUT_PROPERTIES)
   const properties = parseConstProperties(constContent, toolPrefix, typesContent, depth + 1)
   constResolutionCache.set(cacheKey, properties)
   return properties
@@ -1858,9 +1843,7 @@ function parseConstFieldContent(
     description: description || '',
   }
 
-  // Check for properties - either inline or const reference
   if (fieldType === 'object' || fieldType === 'json') {
-    // Check for const reference first
     const propsConstMatch = fieldContent.match(/properties\s*:\s*([A-Z][A-Z_0-9]+)/)
     if (propsConstMatch) {
       const resolvedProps = resolveConstFromTypesContent(
@@ -1873,7 +1856,6 @@ function parseConstFieldContent(
         result.properties = resolvedProps
       }
     } else {
-      // Check for inline properties
       const propertiesStart = fieldContent.search(/properties\s*:\s*\{/)
       if (propertiesStart !== -1) {
         const braceStart = fieldContent.indexOf('{', propertiesStart)
@@ -1892,7 +1874,6 @@ function parseConstFieldContent(
     }
   }
 
-  // Check for items (arrays)
   const itemsConstMatch = fieldContent.match(/items\s*:\s*([A-Z][A-Z_0-9]+)/)
   if (itemsConstMatch) {
     const resolvedItems = resolveConstFromTypesContent(
@@ -2319,7 +2300,6 @@ function parseToolOutputsField(outputsContent: string, toolPrefix?: string): Rec
   // First, handle top-level const references
   // Patterns: "data: BOOKING_DATA_OUTPUT_PROPERTIES" or "pagination: PAGINATION_OUTPUT"
   if (toolPrefix) {
-    // Pattern 1: Direct const reference
     const constRefRegex = /(\w+)\s*:\s*([A-Z][A-Z_0-9]+)\s*(?:,|$)/g
     let constMatch
     while ((constMatch = constRefRegex.exec(outputsContent)) !== null) {
@@ -2379,7 +2359,6 @@ function parseToolOutputsField(outputsContent: string, toolPrefix?: string): Rec
 
       const resolvedConst = resolveConstReference(constName, toolPrefix)
       if (resolvedConst && typeof resolvedConst === 'object') {
-        // Spread all properties from the resolved const
         Object.assign(outputs, resolvedConst)
       }
     }
@@ -2481,7 +2460,6 @@ function parseFieldContent(fieldContent: string, toolPrefix?: string): any {
     if (resolvedConst && typeof resolvedConst === 'object') {
       // Start with the resolved const and override with inline properties
       const result: any = { ...resolvedConst }
-      // Override description if provided inline
       if (description) {
         result.description = description
       }
@@ -2520,7 +2498,6 @@ function parseFieldContent(fieldContent: string, toolPrefix?: string): any {
         result.properties = resolvedProps
       }
     } else {
-      // Check for inline properties
       const propertiesRegex = /properties\s*:\s*{/
       const propertiesStart = fieldContent.search(propertiesRegex)
 
@@ -2685,7 +2662,6 @@ function parsePropertiesContent(
 
       const resolvedConst = resolveConstReference(constName, toolPrefix)
       if (resolvedConst && typeof resolvedConst === 'object') {
-        // Spread all properties from the resolved const
         Object.assign(properties, resolvedConst)
       }
     }
@@ -2798,7 +2774,6 @@ async function getToolInfo(toolName: string): Promise<{
         priority: 'fallback',
       })
     } else {
-      // Non-versioned tool: try the direct file
       possibleLocations.push({
         path: path.join(rootDir, `apps/sim/tools/${toolPrefix}/${toolSuffix}.ts`),
         priority: 'exact',
@@ -2814,7 +2789,6 @@ async function getToolInfo(toolName: string): Promise<{
       priority: 'fallback',
     })
 
-    // Fall back to index.ts
     possibleLocations.push({
       path: path.join(rootDir, `apps/sim/tools/${toolPrefix}/index.ts`),
       priority: 'fallback',
@@ -2970,7 +2944,6 @@ async function generateBlockDoc(blockPath: string) {
       return
     }
 
-    // Process each block config
     for (const blockConfig of blockConfigs) {
       if (!blockConfig.type) {
         continue
@@ -3339,7 +3312,6 @@ function resolveConstVariable(
 ): Record<string, any> {
   if (depth > 8) return {}
 
-  // Match `const varName = {` (with optional type annotation)
   const varRegex = new RegExp(`(?<![.\\w])const\\s+${varName}\\s*(?::[^=]+)?=\\s*\\{`)
 
   for (const content of [primaryContent, utilsContent]) {
@@ -3621,7 +3593,6 @@ function buildTriggersSection(triggers: TriggerFullInfo[]): string {
   for (let i = 0; i < triggers.length; i++) {
     const trigger = triggers[i]
 
-    // Configuration table
     let configSection = ''
     if (trigger.configFields.length > 0) {
       configSection = '#### Configuration\n\n'
@@ -3635,7 +3606,6 @@ function buildTriggersSection(triggers: TriggerFullInfo[]): string {
       configSection += '\n'
     }
 
-    // Output table
     let outputSection = ''
     if (Object.keys(trigger.outputs).length > 0) {
       outputSection = '#### Output\n\n'
@@ -3830,15 +3800,12 @@ async function generateAllTriggerDocs(): Promise<void> {
 
 async function generateAllBlockDocs() {
   try {
-    // Copy icons from sim app to docs app
     copyIconsFile()
 
-    // Generate icon mappings from block definitions
     const docsIconMapping = await generateIconMapping({ includeHidden: true })
     const visibleIconMapping = await generateIconMapping({ includeHidden: false })
     writeIconMapping(docsIconMapping)
 
-    // Generate landing integrations page data (JSON + icon mapping)
     await writeIntegrationsJson(visibleIconMapping)
     writeIntegrationsIconMapping(visibleIconMapping)
 
