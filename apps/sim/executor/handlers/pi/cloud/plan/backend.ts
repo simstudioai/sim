@@ -106,6 +106,9 @@ export const runCloudPlanPi: PiBackendRun<PiCloudPlanRunParams> = async (params,
         const event = scrubPiEvent(raw, secrets)
         if (!event) return
         applyPiEvent(totals, event)
+        if (event.type === 'final' && event.text) {
+          totals.finalText = event.text
+        }
         context.onEvent(event)
       }
       const handleChunk = (chunk: string) => {

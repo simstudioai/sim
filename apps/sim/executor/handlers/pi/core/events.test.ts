@@ -103,6 +103,32 @@ describe('normalizePiEvent', () => {
     })
   })
 
+  it('uses only text blocks from the last assistant message as final text', () => {
+    expect(
+      normalizePiEvent({
+        type: 'agent_end',
+        messages: [
+          {
+            role: 'assistant',
+            stopReason: 'stop',
+            content: [{ type: 'text', text: 'Earlier narration' }],
+          },
+          { role: 'toolResult', content: [{ type: 'text', text: 'Tool output' }] },
+          {
+            role: 'assistant',
+            stopReason: 'stop',
+            content: [
+              { type: 'thinking', thinking: 'Hidden reasoning' },
+              { type: 'text', text: '# Plan' },
+              { type: 'toolCall', name: 'read' },
+              { type: 'text', text: 'Do it' },
+            ],
+          },
+        ],
+      })
+    ).toEqual({ type: 'final', text: '# Plan\nDo it' })
+  })
+
   it('returns other for unknown types and null for non-objects', () => {
     expect(normalizePiEvent({ type: 'queue_update' })).toEqual({ type: 'other' })
     expect(normalizePiEvent('nope')).toBeNull()

@@ -22,6 +22,8 @@ export function scrubPiEvent(event: PiEvent | null, secrets: readonly string[]):
     case 'text':
     case 'thinking':
       return { ...event, text: scrubPiSecrets(event.text, secrets) }
+    case 'final':
+      return event.text ? { ...event, text: scrubPiSecrets(event.text, secrets) } : event
     case 'tool_start':
     case 'tool_end':
       return { ...event, toolName: scrubPiSecrets(event.toolName, secrets) }

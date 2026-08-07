@@ -620,7 +620,8 @@ export const PiBlock: BlockConfig<PiResponse> = {
   inputs: {
     mode: {
       type: 'string',
-      description: 'Execution mode: Plan, Create PR, Update PR, Review Code, or Local Dev',
+      description:
+        'Execution mode: Plan (cloud_plan), Create PR (cloud), Update PR (cloud_branch), Review Code (cloud_review), or Local Dev (local)',
     },
     task: { type: 'string', description: 'Instruction for the coding agent' },
     model: { type: 'string', description: 'AI model to use' },

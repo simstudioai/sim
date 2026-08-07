@@ -102,6 +102,12 @@ describe('Pi cloud authoring surface', () => {
     ])
   })
 
+  it('documents each mode label with its serialized ID', () => {
+    expect(PiBlock.inputs.mode.description).toBe(
+      'Execution mode: Plan (cloud_plan), Create PR (cloud), Update PR (cloud_branch), Review Code (cloud_review), or Local Dev (local)'
+    )
+  })
+
   it.each(['cloud', 'cloud_branch'])(
     'declares Babysit controls and outputs for %s',
     (authoringMode) => {

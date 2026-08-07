@@ -129,6 +129,53 @@ describe('runCloudPlanPi', () => {
     expect(mockRun.mock.calls[0][1].envs.BASE_BRANCH).toBe('')
   })
 
+  it('returns only the final assistant response while preserving live progress events', async () => {
+    mockRun.mockImplementation(
+      (command: string, options: { onStdout?: (chunk: string) => void }) => {
+        if (command.includes('git clone')) {
+          return Promise.resolve({ stdout: '', stderr: '', exitCode: 0 })
+        }
+        options.onStdout?.(
+          `${[
+            JSON.stringify({
+              type: 'message_update',
+              assistantMessageEvent: { type: 'text_delta', delta: 'Inspecting files...' },
+            }),
+            JSON.stringify({
+              type: 'agent_end',
+              messages: [
+                {
+                  role: 'assistant',
+                  stopReason: 'stop',
+                  content: [{ type: 'text', text: 'Inspecting files...' }],
+                },
+                {
+                  role: 'assistant',
+                  stopReason: 'stop',
+                  content: [
+                    { type: 'thinking', thinking: 'Hidden reasoning' },
+                    { type: 'text', text: '# Final Plan\n\n1. Make the change.' },
+                  ],
+                },
+              ],
+            }),
+          ].join('\n')}\n`
+        )
+        return Promise.resolve({ stdout: '', stderr: '', exitCode: 0 })
+      }
+    )
+    const onEvent = vi.fn()
+
+    const result = await runCloudPlanPi(params(), { onEvent })
+
+    expect(onEvent).toHaveBeenCalledWith({ type: 'text', text: 'Inspecting files...' })
+    expect(onEvent).toHaveBeenCalledWith({
+      type: 'final',
+      text: '# Final Plan\n\n1. Make the change.',
+    })
+    expect(result.totals.finalText).toBe('# Final Plan\n\n1. Make the change.')
+  })
+
   it('loads only the Sim search extension and scopes its key to the Pi command', async () => {
     await runCloudPlanPi(params({ search: { provider: 'exa', apiKey: 'exa-secret' } }), {
       onEvent: vi.fn(),

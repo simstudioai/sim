@@ -367,8 +367,6 @@ describe('PiBlockHandler', () => {
     expect(output).toMatchObject({
       content: '# Plan\nDo it',
       model: 'claude',
-      changedFiles: [],
-      diff: '',
       tokens: { input: 3, output: 4, total: 7 },
       cost: { input: 0, output: 0, total: 0 },
       providerTiming: {
@@ -379,6 +377,8 @@ describe('PiBlockHandler', () => {
     })
     expect(output).not.toHaveProperty('prUrl')
     expect(output).not.toHaveProperty('branch')
+    expect(output).not.toHaveProperty('changedFiles')
+    expect(output).not.toHaveProperty('diff')
   })
 
   it('routes cloud_review mode and surfaces review output', async () => {

@@ -32,6 +32,10 @@ describe('Pi secret redaction', () => {
       type: 'error',
       message: 'failed ***',
     })
+    expect(scrubPiEvent({ type: 'final', text: 'plan sk-hosted' }, ['sk-hosted'])).toEqual({
+      type: 'final',
+      text: 'plan ***',
+    })
   })
 
   it('creates sanitized errors without retaining the raw cause', () => {

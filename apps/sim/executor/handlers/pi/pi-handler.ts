@@ -439,6 +439,7 @@ export class PiBlockHandler implements BlockHandler {
 
   private buildOutput(
     result: PiRunResult,
+    mode: PiRunParams['mode'],
     model: string,
     isBYOK: boolean,
     startTime: number,
@@ -449,8 +450,12 @@ export class PiBlockHandler implements BlockHandler {
     return {
       content: totals.finalText,
       model,
-      changedFiles: result.changedFiles ?? [],
-      diff: result.diff ?? '',
+      ...(mode === 'cloud_plan'
+        ? {}
+        : {
+            changedFiles: result.changedFiles ?? [],
+            diff: result.diff ?? '',
+          }),
       ...(result.prUrl ? { prUrl: result.prUrl } : {}),
       ...(result.branch ? { branch: result.branch } : {}),
       ...(result.reviewUrl ? { reviewUrl: result.reviewUrl } : {}),
@@ -516,7 +521,14 @@ export class PiBlockHandler implements BlockHandler {
             }
             Object.assign(
               output,
-              this.buildOutput(result, params.model, params.isBYOK, startTime, startTimeISO)
+              this.buildOutput(
+                result,
+                params.mode,
+                params.model,
+                params.isBYOK,
+                startTime,
+                startTimeISO
+              )
             )
             if (memoryConfig) {
               await appendPiMemory(
@@ -558,6 +570,13 @@ export class PiBlockHandler implements BlockHandler {
         result.memoryText ?? result.totals.finalText
       )
     }
-    return this.buildOutput(result, params.model, params.isBYOK, startTime, startTimeISO)
+    return this.buildOutput(
+      result,
+      params.mode,
+      params.model,
+      params.isBYOK,
+      startTime,
+      startTimeISO
+    )
   }
 }
