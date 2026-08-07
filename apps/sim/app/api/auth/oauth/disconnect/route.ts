@@ -2,6 +2,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { account, credential } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq, inArray, like, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { disconnectOAuthContract } from '@/lib/api/contracts/oauth-connections'
@@ -10,6 +11,7 @@ import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { deleteCredential } from '@/lib/credentials/deletion'
+import { revokeQuickBooksToken } from '@/lib/oauth/quickbooks'
 import { captureServerEvent } from '@/lib/posthog/server'
 
 export const dynamic = 'force-dynamic'
@@ -64,11 +66,44 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             or(eq(account.providerId, provider), like(account.providerId, `${provider}-%`))
           )
 
-    const targetAccounts = await db.select({ id: account.id }).from(account).where(accountFilter)
+    const targetAccounts = await db
+      .select({
+        id: account.id,
+        providerId: account.providerId,
+        accessToken: account.accessToken,
+        refreshToken: account.refreshToken,
+      })
+      .from(account)
+      .where(accountFilter)
 
     const targetAccountIds = targetAccounts.map((a) => a.id)
 
     if (targetAccountIds.length > 0) {
+      for (const targetAccount of targetAccounts) {
+        if (targetAccount.providerId !== 'quickbooks') continue
+
+        const token = targetAccount.refreshToken?.trim() || targetAccount.accessToken?.trim()
+        if (!token) {
+          logger.warn(`[${requestId}] QuickBooks account has no token to revoke`, {
+            accountId: targetAccount.id,
+          })
+          continue
+        }
+
+        try {
+          await revokeQuickBooksToken(token)
+        } catch (error) {
+          logger.error(`[${requestId}] Failed to revoke QuickBooks access`, {
+            accountId: targetAccount.id,
+            error: getErrorMessage(error, 'Unknown revocation error'),
+          })
+          return NextResponse.json(
+            { error: 'Unable to revoke QuickBooks access. Please try again.' },
+            { status: 502 }
+          )
+        }
+      }
+
       const credentialsToDelete = await db
         .select({
           id: credential.id,

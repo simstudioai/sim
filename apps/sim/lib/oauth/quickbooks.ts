@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { generateId } from '@sim/utils/id'
+import { env } from '@/lib/core/config/env'
 import {
   readResponseJsonWithLimit,
   readResponseTextWithLimit,
@@ -13,6 +14,8 @@ import {
 } from '@/tools/quickbooks/client'
 
 const QUICKBOOKS_ACCOUNT_PREFIX = 'quickbooks:'
+const QUICKBOOKS_REVOCATION_URL = 'https://developer.api.intuit.com/v2/oauth2/tokens/revoke'
+const QUICKBOOKS_MAX_REVOCATION_ERROR_BYTES = 64 * 1024
 const UUID_SUFFIX_PATTERN =
   /-([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i
 const quickBooksCallbackRealmStorage = new AsyncLocalStorage<string>()
@@ -88,6 +91,44 @@ export function parseQuickBooksAccountId(accountId: string): QuickBooksAccountId
 
   const subject = normalizeSubject(subjectWithUuid.slice(0, -uuidMatch[0].length))
   return { realmId, subject }
+}
+
+/** Revokes an Intuit OAuth grant using the latest available refresh or access token. */
+export async function revokeQuickBooksToken(token: string): Promise<void> {
+  const normalizedToken = token.trim()
+  if (!normalizedToken) {
+    throw new Error('QuickBooks token revocation requires a token')
+  }
+
+  const clientId = env.QUICKBOOKS_CLIENT_ID?.trim()
+  const clientSecret = env.QUICKBOOKS_CLIENT_SECRET?.trim()
+  if (!clientId || !clientSecret) {
+    throw new Error('QuickBooks OAuth client credentials are not configured')
+  }
+
+  let response: Response
+  try {
+    response = await fetch(QUICKBOOKS_REVOCATION_URL, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ token: normalizedToken }),
+      signal: AbortSignal.timeout(QUICKBOOKS_OAUTH_REQUEST_TIMEOUT_MS),
+    })
+  } catch {
+    throw new Error('QuickBooks token revocation request failed')
+  }
+
+  if (!response.ok) {
+    await readResponseTextWithLimit(response, {
+      maxBytes: QUICKBOOKS_MAX_REVOCATION_ERROR_BYTES,
+      label: 'QuickBooks token revocation error response',
+    }).catch(() => {})
+    throw new Error(`QuickBooks token revocation failed with HTTP ${response.status}`)
+  }
 }
 
 export async function fetchQuickBooksConnectionProfile(
