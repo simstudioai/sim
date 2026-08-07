@@ -98,6 +98,26 @@ function walk(dir: string, acc: string[] = []): string[] {
   return acc
 }
 
+/**
+ * True when a path lands in output the scanner itself refuses to read as source:
+ * `node_modules`, a build directory, or any dot-directory.
+ *
+ * These are generated and gitignored, produced by a build step that has not necessarily run
+ * yet — `apps/docs/.source` is emitted by fumadocs-mdx, so `@/.source/server` resolves on a
+ * machine that has built the docs and is absent from a fresh CI checkout. Asserting on them
+ * makes the verdict depend on build order rather than on the source, which is exactly the
+ * kind of flake that gets a CI gate switched off.
+ *
+ * Only the repo-relative portion is inspected. The absolute path can itself sit under a
+ * dot-directory — a git worktree lives in `.claude/worktrees/…` — which would otherwise make
+ * every specifier in the repo look generated.
+ */
+function isGeneratedPath(absolute: string): boolean {
+  const rel = relative(ROOT, absolute)
+  if (rel.startsWith('..')) return true
+  return rel.split('/').some((segment) => segment.startsWith('.') || SKIP_DIRS.has(segment))
+}
+
 function isFile(p: string): boolean {
   try {
     return statSync(p).isFile()
@@ -185,14 +205,24 @@ function workspaceFor(file: string): Workspace | undefined {
   return workspaces.find((w) => file.startsWith(`${w.dir}/`))
 }
 
-/** Resolve through the owning workspace's tsconfig `paths`, or null if no pattern matches. */
-function resolveViaPaths(spec: string, importer: string): string | null | undefined {
+/**
+ * Sentinel for "a tsconfig path matched, but every candidate target is generated output".
+ * Distinct from `null` (matched and genuinely missing) and `undefined` (no pattern matched).
+ */
+const GENERATED = Symbol('generated')
+
+/** Resolve through the owning workspace's tsconfig `paths`. */
+function resolveViaPaths(
+  spec: string,
+  importer: string
+): string | null | undefined | typeof GENERATED {
   const ws = workspaceFor(importer)
   if (!ws) return undefined
   for (const { prefix, suffix, wildcard, targets } of ws.paths) {
     if (!spec.startsWith(prefix)) continue
     if (!wildcard) {
       if (spec !== prefix) continue
+      if (targets.every(isGeneratedPath)) return GENERATED
       for (const t of targets) {
         const hit = probe(t)
         if (hit) return hit
@@ -201,8 +231,10 @@ function resolveViaPaths(spec: string, importer: string): string | null | undefi
     }
     if (suffix && !spec.endsWith(suffix)) continue
     const middle = spec.slice(prefix.length, suffix ? spec.length - suffix.length : undefined)
-    for (const t of targets) {
-      const hit = probe(t.replaceAll('*', middle))
+    const filled = targets.map((t) => t.replaceAll('*', middle))
+    if (filled.every(isGeneratedPath)) return GENERATED
+    for (const t of filled) {
+      const hit = probe(t)
       if (hit) return hit
     }
     return null
@@ -236,13 +268,14 @@ type Outcome = { ok: true } | { ok: false; reason: string }
 
 function resolveSpecifier(spec: string, importer: string): Outcome | null {
   if (spec.startsWith('.')) {
-    return probe(resolve(dirname(importer), spec))
-      ? { ok: true }
-      : { ok: false, reason: 'no file at that path' }
+    const base = resolve(dirname(importer), spec)
+    if (isGeneratedPath(base)) return null
+    return probe(base) ? { ok: true } : { ok: false, reason: 'no file at that path' }
   }
 
   // tsconfig `paths` first — it legitimately overrides a package's exports map.
   const viaPaths = resolveViaPaths(spec, importer)
+  if (viaPaths === GENERATED) return null
   if (viaPaths) return { ok: true }
   if (viaPaths === null) {
     return {
@@ -262,6 +295,7 @@ function resolveSpecifier(spec: string, importer: string): Outcome | null {
 
     const exact = exports.get(key)
     if (exact) {
+      if (isGeneratedPath(exact)) return null
       return probe(exact) ? { ok: true } : { ok: false, reason: `${key} points at a missing file` }
     }
 
@@ -273,7 +307,9 @@ function resolveSpecifier(spec: string, importer: string): Outcome | null {
       const tail = pattern.slice(star + 1)
       if (!key.startsWith(head) || !key.endsWith(tail)) continue
       const middle = key.slice(head.length, key.length - tail.length)
-      if (probe(target.replaceAll('*', middle))) return { ok: true }
+      const filled = target.replaceAll('*', middle)
+      if (isGeneratedPath(filled)) return null
+      if (probe(filled)) return { ok: true }
       return { ok: false, reason: `${pkg}'s '${pattern}' export has no file for '${key}'` }
     }
 
