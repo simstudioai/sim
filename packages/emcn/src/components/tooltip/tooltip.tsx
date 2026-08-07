@@ -267,16 +267,22 @@ export function isTextClipped(element: HTMLElement): boolean {
 
 /**
  * Whether a tooltip trigger is still visibly rendered. `checkVisibility` (where available) catches
- * `display: none` and an inherited `visibility: hidden` anywhere up the tree; the fallback for
- * engines without it (Safari < 17.4, jsdom) reads the element's computed `visibility`, which still
- * inherits from hidden ancestors.
+ * `display: none` and an inherited `visibility: hidden` anywhere up the tree. The fallback for
+ * engines without it (Safari < 17.4, jsdom) reads the element's computed `visibility` — which
+ * inherits from hidden ancestors — and then walks the ancestor chain for `display: none`, which
+ * does not inherit. Computed styles, not layout (`getClientRects`/`offsetParent`), on purpose:
+ * jsdom does no layout, so a layout-based check would misread every trigger as hidden in tests.
  */
 function isVisiblyRendered(element: HTMLElement): boolean {
   if (!element.isConnected) return false
   if (typeof element.checkVisibility === 'function') {
     return element.checkVisibility({ checkVisibilityCSS: true, visibilityProperty: true })
   }
-  return getComputedStyle(element).visibility !== 'hidden'
+  if (getComputedStyle(element).visibility === 'hidden') return false
+  for (let node: HTMLElement | null = element; node; node = node.parentElement) {
+    if (getComputedStyle(node).display === 'none') return false
+  }
+  return true
 }
 
 /** Clamps `value` to the inclusive `[min, max]` range. */

@@ -91,6 +91,27 @@ describe('floating tooltip trigger visibility watcher', () => {
     expect(tooltipElement()).toBeNull()
   })
 
+  it('dismisses the tooltip when the trigger is display: none without a pointer event', () => {
+    mountTooltip()
+    hover(trigger())
+    expect(tooltipElement()).not.toBeNull()
+
+    trigger().style.display = 'none'
+    runWatcherTick()
+    expect(tooltipElement()).toBeNull()
+  })
+
+  it('dismisses the tooltip when an ancestor becomes display: none', () => {
+    mountTooltip()
+    hover(trigger())
+    expect(tooltipElement()).not.toBeNull()
+
+    if (!container) throw new Error('Container did not mount')
+    container.style.display = 'none'
+    runWatcherTick()
+    expect(tooltipElement()).toBeNull()
+  })
+
   it('dismisses the tooltip when the trigger unmounts from under a static pointer', () => {
     mountTooltip()
     hover(trigger())
