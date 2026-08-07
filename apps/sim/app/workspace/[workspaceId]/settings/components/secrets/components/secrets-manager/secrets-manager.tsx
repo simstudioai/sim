@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { ChipConfirmModal, ChipInput, cn, toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
@@ -467,7 +468,7 @@ export function SecretsManager() {
       )
     } catch (error) {
       logger.error('Failed to change secret visibility', { error })
-      toast.error(error instanceof Error ? error.message : 'Failed to change visibility')
+      toast.error(getErrorMessage(error, 'Failed to change visibility'))
     }
   }, [pendingVisibilityChange, workspaceId, upsertWorkspaceMutation])
 
