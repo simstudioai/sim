@@ -15,10 +15,12 @@ import {
 } from '@/ee/access-control/utils/permission-check'
 import { BlockType } from '@/executor/constants'
 import { runCloudBranchPi, runCloudPi } from '@/executor/handlers/pi/cloud/authoring/backend'
+import { runCloudPlanPi } from '@/executor/handlers/pi/cloud/plan/backend'
 import { runCloudReviewPi } from '@/executor/handlers/pi/cloud/review/backend'
 import type {
   PiBackendRun,
   PiCloudBranchRunParams,
+  PiCloudPlanRunParams,
   PiCloudReviewRunParams,
   PiCloudRunParams,
   PiLocalRunParams,
@@ -104,6 +106,7 @@ function parsePiMode(value: unknown): PiRunParams['mode'] {
   if (
     value === 'cloud' ||
     value === 'cloud_branch' ||
+    value === 'cloud_plan' ||
     value === 'cloud_review' ||
     value === 'local'
   ) {
@@ -279,8 +282,21 @@ export class PiBlockHandler implements BlockHandler {
     const repo = asOptString(inputs.repo)
     const githubToken = asRawString(inputs.githubToken)
     if (!owner || !repo || !githubToken) {
-      const label = mode === 'cloud_branch' ? 'Update PR' : 'Create PR'
+      const label =
+        mode === 'cloud_branch' ? 'Update PR' : mode === 'cloud_plan' ? 'Plan' : 'Create PR'
       throw new Error(`${label} requires repository owner, name, and a GitHub token`)
+    }
+
+    if (mode === 'cloud_plan') {
+      const params: PiCloudPlanRunParams = {
+        ...contextualBase,
+        mode: 'cloud_plan',
+        owner,
+        repo,
+        githubToken,
+        baseBranch: asOptString(inputs.baseBranch),
+      }
+      return this.runPi(ctx, block, runCloudPlanPi, params, memoryConfig)
     }
     // A `switch` subblock reaches a handler as the string 'true' when its value came
     // through a variable reference, an API trigger payload, or a legacy serialized
@@ -366,8 +382,8 @@ export class PiBlockHandler implements BlockHandler {
    *
    * The host-side tool is built here rather than in a backend because it needs the
    * {@link ExecutionContext}, which backends never receive — they see only `{ onEvent, signal }`.
-   * Cloud authoring gets no host tool: it registers a sandbox extension instead, so a spec built
-   * here could never execute.
+   * Sandbox modes get no host tool: they register a sandbox extension instead, so a spec built here
+   * could never execute.
    */
   private async resolveSearch(
     ctx: ExecutionContext,
@@ -406,7 +422,7 @@ export class PiBlockHandler implements BlockHandler {
     })
 
     const credentials = { provider, apiKey }
-    return mode === 'cloud' || mode === 'cloud_branch'
+    return mode === 'cloud' || mode === 'cloud_branch' || mode === 'cloud_plan'
       ? credentials
       : { ...credentials, tool: buildPiSearchToolSpec(ctx, credentials, mode) }
   }
