@@ -2,13 +2,25 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { closeProblemTool } from '@/tools/dynatrace/close_problem'
 import { getAuditLogsTool } from '@/tools/dynatrace/get_audit_logs'
 import { getEntityTool } from '@/tools/dynatrace/get_entity'
 import { getMetricTool } from '@/tools/dynatrace/get_metric'
 import { getProblemTool } from '@/tools/dynatrace/get_problem'
+import { getSloTool } from '@/tools/dynatrace/get_slo'
 import { ingestEventTool } from '@/tools/dynatrace/ingest_event'
 import { ingestLogsTool } from '@/tools/dynatrace/ingest_logs'
+import { ingestMetricsTool } from '@/tools/dynatrace/ingest_metrics'
+import { listEntitiesTool } from '@/tools/dynatrace/list_entities'
+import { listEntityTypesTool } from '@/tools/dynatrace/list_entity_types'
+import { listEventsTool } from '@/tools/dynatrace/list_events'
+import { listMetricsTool } from '@/tools/dynatrace/list_metrics'
+import { listProblemCommentsTool } from '@/tools/dynatrace/list_problem_comments'
 import { listProblemsTool } from '@/tools/dynatrace/list_problems'
+import { listSecurityProblemsTool } from '@/tools/dynatrace/list_security_problems'
+import { listSlosTool } from '@/tools/dynatrace/list_slos'
+import { queryMetricsTool } from '@/tools/dynatrace/query_metrics'
+import { searchLogsTool } from '@/tools/dynatrace/search_logs'
 import { buildDynatraceUrl, dynatraceHeaders } from '@/tools/dynatrace/utils'
 import { ErrorExtractorId, extractErrorMessageWithId } from '@/tools/error-extractors'
 
@@ -244,6 +256,160 @@ describe('response mapping', () => {
   it('reads a 204 log ingestion as fully accepted despite the empty body', async () => {
     const result = await ingestLogsTool.transformResponse!(new Response(null, { status: 204 }))
     expect(result.output).toEqual({ accepted: true, statusCode: 204, details: null })
+  })
+
+  /**
+   * A wrong top-level key does not throw — it yields an empty list and looks like
+   * "no results". Each payload below is shaped exactly like the documented schema,
+   * so an incorrect key fails loudly here instead of silently in production.
+   */
+  it('reads the documented top-level key of every list response', async () => {
+    const cases: Array<{
+      name: string
+      tool: { transformResponse?: (r: Response) => Promise<{ output: Record<string, never> }> }
+      payload: Record<string, unknown>
+      read: (out: Record<string, never>) => unknown
+    }> = [
+      {
+        name: 'GET /slo -> slo',
+        tool: listSlosTool,
+        payload: { totalCount: 1, slo: [{ id: 'SLO-1', name: 'Checkout', status: 'WARNING' }] },
+        read: (o) => o.slos,
+      },
+      {
+        name: 'GET /metrics/query -> result',
+        tool: queryMetricsTool,
+        payload: {
+          resolution: '1h',
+          result: [
+            {
+              metricId: 'builtin:host.cpu.usage',
+              data: [{ dimensions: ['HOST-1'], timestamps: [1], values: [42.5] }],
+            },
+          ],
+        },
+        read: (o) => o.result,
+      },
+      {
+        name: 'GET /metrics -> metrics',
+        tool: listMetricsTool,
+        payload: { totalCount: 1, metrics: [{ metricId: 'builtin:host.cpu.usage' }] },
+        read: (o) => o.metrics,
+      },
+      {
+        name: 'GET /entities -> entities',
+        tool: listEntitiesTool,
+        payload: { totalCount: 1, entities: [{ entityId: 'HOST-1', type: 'HOST' }] },
+        read: (o) => o.entities,
+      },
+      {
+        name: 'GET /entityTypes -> types',
+        tool: listEntityTypesTool,
+        payload: { totalCount: 1, types: [{ type: 'HOST', displayName: 'Host' }] },
+        read: (o) => o.types,
+      },
+      {
+        name: 'GET /events -> events',
+        tool: listEventsTool,
+        payload: { totalCount: 1, events: [{ eventId: 'E-1', eventType: 'CUSTOM_DEPLOYMENT' }] },
+        read: (o) => o.events,
+      },
+      {
+        name: 'GET /securityProblems -> securityProblems',
+        tool: listSecurityProblemsTool,
+        payload: {
+          totalCount: 1,
+          securityProblems: [{ securityProblemId: 'S-1', status: 'OPEN' }],
+        },
+        read: (o) => o.securityProblems,
+      },
+      {
+        name: 'GET /logs/search -> results',
+        tool: searchLogsTool,
+        payload: { sliceSize: 1, results: [{ timestamp: 1, status: 'ERROR', content: 'boom' }] },
+        read: (o) => o.results,
+      },
+      {
+        name: 'GET /problems/{id}/comments -> comments',
+        tool: listProblemCommentsTool,
+        payload: { totalCount: 1, comments: [{ id: 'C-1', content: 'looking into it' }] },
+        read: (o) => o.comments,
+      },
+      {
+        name: 'GET /auditlogs -> auditLogs',
+        tool: getAuditLogsTool,
+        payload: { totalCount: 1, auditLogs: [{ logId: 'L-1' }] },
+        read: (o) => o.auditLogs,
+      },
+    ]
+
+    for (const { name, tool, payload, read } of cases) {
+      const out = (
+        await tool.transformResponse!(new Response(JSON.stringify(payload), { status: 200 }))
+      ).output
+      expect(read(out), `${name} produced an empty list`).toHaveLength(1)
+    }
+  })
+
+  it('reads the documented scalar keys of the ingest and single-entity responses', async () => {
+    const metrics = (
+      await ingestMetricsTool.transformResponse!(
+        new Response(JSON.stringify({ linesOk: 7, linesInvalid: 1, error: { code: 400 } }), {
+          status: 202,
+        })
+      )
+    ).output
+    expect(metrics.linesOk).toBe(7)
+    expect(metrics.linesInvalid).toBe(1)
+    expect(metrics.ingestError).toEqual({ code: 400 })
+
+    const event = (
+      await ingestEventTool.transformResponse!(
+        new Response(
+          JSON.stringify({
+            reportCount: 1,
+            eventIngestResults: [{ correlationId: 'c-1', status: 'OK' }],
+          }),
+          { status: 201 }
+        )
+      )
+    ).output
+    expect(event.reportCount).toBe(1)
+    expect(event.eventIngestResults).toEqual([{ correlationId: 'c-1', status: 'OK' }])
+
+    // Single-entity endpoints return the object at the document root, not nested.
+    const slo = (
+      await getSloTool.transformResponse!(
+        new Response(JSON.stringify({ id: 'SLO-1', name: 'Checkout', evaluatedPercentage: 99.5 }), {
+          status: 200,
+        })
+      )
+    ).output
+    expect(slo.slo.id).toBe('SLO-1')
+    expect(slo.slo.evaluatedPercentage).toBe(99.5)
+
+    const entity = (
+      await getEntityTool.transformResponse!(
+        new Response(JSON.stringify({ entityId: 'HOST-1', displayName: 'web-01' }), { status: 200 })
+      )
+    ).output
+    expect(entity.entity.entityId).toBe('HOST-1')
+
+    const closed = (
+      await closeProblemTool.transformResponse!(
+        new Response(
+          JSON.stringify({
+            problemId: 'P-1',
+            closeTimestamp: 123,
+            closing: true,
+            comment: { id: 'C-1', content: 'fixed' },
+          }),
+          { status: 200 }
+        )
+      )
+    ).output
+    expect(closed.problemId).toBe('P-1')
+    expect(closed.comment?.content).toBe('fixed')
   })
 
   it('surfaces a 200 partial-success log ingestion body', async () => {

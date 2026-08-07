@@ -10,6 +10,52 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#FFFFFF"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[Dynatrace](https://www.dynatrace.com/) is an observability platform that monitors applications, infrastructure, and user experience from a single agent. Its Davis AI correlates signals across the stack into **problems** — a single incident with a root cause, an impact assessment, and the affected entities attached — instead of a stream of disconnected alerts.
+
+**What you can reach from Sim**
+
+- **Problems** — list and inspect Davis problems, read their root cause and affected entities, close them, and add comments.
+- **Metrics** — query time series with a metric selector, discover which metrics exist, read a metric's descriptor, and push your own data points.
+- **Entities** — list and inspect monitored hosts, services, applications, and Kubernetes workloads, and enumerate the entity types available for building selectors.
+- **Events** — read deployments, availability changes, and annotations, and ingest your own.
+- **Logs** — search log records and ingest new ones.
+- **SLOs** — read service-level objectives with their attainment, error budget, and burn rate.
+- **Application Security** — list and inspect vulnerabilities with risk assessment and remediation guidance.
+- **Audit log** — read who changed which configuration, and when.
+
+**Setup**
+
+You need two values: your **environment URL** and an **access token**.
+
+The environment URL is the base address of your Dynatrace environment, without the API path:
+
+| Deployment | Environment URL |
+| --- | --- |
+| SaaS | `https://abc12345.live.dynatrace.com` |
+| Managed / environment ActiveGate | `https://your-activegate:9999/e/abc12345` |
+
+Create the token under **Access tokens** in Dynatrace, and grant only the scopes for the operations you plan to call. Each action's `apiToken` description names the scope it needs — `problems.read`, `metrics.read`, `entities.read`, `events.read`, `logs.read`, `slo.read`, `securityProblems.read`, `auditLogs.read` for reads, and `problems.write`, `metrics.ingest`, `events.ingest`, `logs.ingest` for writes.
+
+**Selectors**
+
+Most read operations are scoped by a selector rather than by fixed filter fields. Criteria are comma-separated, and every criterion matched must hold:
+
+```
+entitySelector:         type("HOST"),tag("env:prod")
+problemSelector:        status("open"),severityLevel("AVAILABILITY")
+metricSelector:         builtin:host.cpu.usage:splitBy("dt.entity.host"):avg:names
+securityProblemSelector: status("OPEN"),riskLevel("CRITICAL")
+```
+
+Every selector field in the block has a wand — describe what you want in plain language and Sim writes the selector for you.
+
+**Pagination**
+
+List operations return a `nextPageKey` (a `nextSliceKey` for log search). Feed it back into the next call to read the following page. Dynatrace encodes the original filters into the cursor, so Sim sends the cursor alone and ignores the other filters on that call — which is what the API requires.
+{/* MANUAL-CONTENT-END */}
+
+
 ## Usage Instructions
 
 Integrate Dynatrace into workflows. Investigate and close Davis problems, query metrics and monitored entities, search and ingest logs, push deployment events, track SLO burn rates, review Application Security vulnerabilities, and read the audit log.
