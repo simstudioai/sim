@@ -417,11 +417,11 @@ export function Editor() {
                     handleCancelRename()
                   }
                 }}
-                className='min-w-0 flex-1 truncate bg-transparent pr-2 font-medium text-[var(--text-primary)] text-sm outline-none'
+                className='min-w-0 flex-1 truncate bg-transparent pr-2 text-[var(--text-primary)] text-sm outline-none'
               />
             ) : (
               <h2
-                className='min-w-0 flex-1 cursor-pointer select-none text-ellipsis whitespace-nowrap pr-2 font-medium text-[var(--text-primary)] text-sm [overflow-clip-margin:3px] [overflow:clip]'
+                className='min-w-0 flex-1 cursor-pointer select-none text-ellipsis whitespace-nowrap pr-2 text-[var(--text-primary)] text-sm [overflow-clip-margin:3px] [overflow:clip]'
                 title={title}
                 onDoubleClick={handleStartRename}
                 onMouseDown={(e) => {
@@ -556,7 +556,7 @@ export function Editor() {
                 {isWorkflowBlock && childWorkflowId && (
                   <>
                     <div className='subblock-content flex flex-col gap-[9.5px]'>
-                      <div className='pl-0.5 font-medium text-[var(--text-primary)] text-small leading-none'>
+                      <div className='pl-0.5 text-[var(--text-primary)] text-small leading-none'>
                         Workflow Preview
                       </div>
                       <div className='relative h-[160px] overflow-hidden rounded-sm border border-[var(--border)]'>
@@ -688,7 +688,7 @@ export function Editor() {
                         <button
                           type='button'
                           onClick={handleToggleAdvancedMode}
-                          className='flex items-center gap-1.5 whitespace-nowrap font-medium text-[var(--text-secondary)] text-small hover-hover:text-[var(--text-primary)]'
+                          className='flex items-center gap-1.5 whitespace-nowrap text-[var(--text-secondary)] text-small hover-hover:text-[var(--text-primary)]'
                         >
                           {displayAdvancedOptions
                             ? 'Hide additional fields'
@@ -703,7 +703,7 @@ export function Editor() {
                     {hasAdvancedOnlyFields && !canEditBlock && displayAdvancedOptions && (
                       <div className='flex items-center gap-2.5 px-0.5 pt-3.5 pb-3'>
                         <DashedDividerLine className='flex-1' />
-                        <span className='whitespace-nowrap font-medium text-[var(--text-secondary)] text-small'>
+                        <span className='whitespace-nowrap text-[var(--text-secondary)] text-small'>
                           Additional fields
                         </span>
                         <DashedDividerLine className='flex-1' />
@@ -792,9 +792,7 @@ export function Editor() {
                       (!isConnectionsAtMinHeight ? ' rotate-180' : '')
                     }
                   />
-                  <div className='font-medium text-[var(--text-primary)] text-small'>
-                    Connections
-                  </div>
+                  <div className='text-[var(--text-primary)] text-small'>Connections</div>
                 </div>
 
                 {/* Connections Content - Always visible */}

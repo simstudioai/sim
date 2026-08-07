@@ -162,6 +162,20 @@ jobs:
       - name: Tool registry client-boundary audit
         run: bun run check:tool-registry-boundary
 
+      - name: Tool request transport boundary audit
+        run: bun run check:tool-request-boundary
+
+      - name: Trigger/block initialization cycle audit
+        run: bun run check:trigger-block-cycle
+
+      # This job builds with webpack; devs run Turbopack. A specifier only webpack
+      # resolves passes here and breaks every dev server.
+      - name: Import specifier hygiene audit
+        run: bun run check:import-specifiers
+
+      - name: SQL Date binding audit
+        run: bun run check:sql-date-binding
+
       - name: Verify generated tool metadata is in sync
         run: bun run tool-metadata:check
 

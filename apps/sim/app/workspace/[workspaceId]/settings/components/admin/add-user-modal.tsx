@@ -18,10 +18,23 @@ const EMAIL_STATUS_OPTIONS = [
   { value: 'unverified', label: 'Unverified' },
 ] as const
 
+const PASSWORD_MODE_OPTIONS = [
+  { value: 'set', label: 'Set a password' },
+  { value: 'email', label: 'Email a reset link' },
+] as const
+
+type PasswordMode = (typeof PASSWORD_MODE_OPTIONS)[number]['value']
+
 interface AddUserModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onCreated: (user: AdminUser) => void
+  /**
+   * The account was created. `resetEmailError` is set when its provisioning
+   * reset email could not be sent — the account still exists, so the host is
+   * expected to surface the user (and report this) rather than treat it as a
+   * failed create.
+   */
+  onCreated: (user: AdminUser, resetEmailError?: string) => void
 }
 
 export function AddUserModal({ open, onOpenChange, onCreated }: AddUserModalProps) {
@@ -30,9 +43,11 @@ export function AddUserModal({ open, onOpenChange, onCreated }: AddUserModalProp
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
+  const [passwordMode, setPasswordMode] = useState<PasswordMode>('set')
   const [password, setPassword] = useState('')
   const [emailVerified, setEmailVerified] = useState(true)
 
+  const setsPassword = passwordMode === 'set'
   const normalizedName = name.trim()
   const normalizedEmail = email.trim().toLowerCase()
   const nameError = name.length > 0 && !normalizedName ? 'Name is required' : undefined
@@ -46,12 +61,13 @@ export function AddUserModal({ open, onOpenChange, onCreated }: AddUserModalProp
   const canSubmit =
     normalizedName.length > 0 &&
     isValidEmailSyntax(normalizedEmail) &&
-    password.length >= 8 &&
+    (!setsPassword || password.length >= 8) &&
     !isSubmissionPending
 
   const reset = () => {
     setName('')
     setEmail('')
+    setPasswordMode('set')
     setPassword('')
     setEmailVerified(true)
     addUser.reset()
@@ -72,14 +88,14 @@ export function AddUserModal({ open, onOpenChange, onCreated }: AddUserModalProp
       {
         name: normalizedName,
         email: normalizedEmail,
-        password,
         emailVerified,
+        ...(setsPassword ? { password } : {}),
       },
       {
-        onSuccess: (user) => {
+        onSuccess: ({ user, resetEmailError }) => {
           reset()
           onOpenChange(false)
-          onCreated(user)
+          onCreated(user, resetEmailError)
         },
         onSettled: () => {
           submissionInFlightRef.current = false
@@ -131,21 +147,38 @@ export function AddUserModal({ open, onOpenChange, onCreated }: AddUserModalProp
           required
         />
         <ChipModalField
-          type='input'
-          inputType='password'
-          title='Password'
-          value={password}
+          type='dropdown'
+          title='Credentials'
+          value={passwordMode}
           onChange={(value) => {
-            setPassword(value)
+            setPasswordMode(value as PasswordMode)
             addUser.reset()
           }}
-          error={passwordError}
-          hint='Better Auth creates a credential account with this password.'
-          placeholder='At least 8 characters'
-          autoComplete='new-password'
+          options={PASSWORD_MODE_OPTIONS}
+          align='start'
+          hint={
+            setsPassword ? undefined : 'They pick their own password from the emailed reset link.'
+          }
           disabled={isSubmissionPending}
           required
         />
+        {setsPassword && (
+          <ChipModalField
+            type='input'
+            inputType='password'
+            title='Password'
+            value={password}
+            onChange={(value) => {
+              setPassword(value)
+              addUser.reset()
+            }}
+            error={passwordError}
+            placeholder='At least 8 characters'
+            autoComplete='new-password'
+            disabled={isSubmissionPending}
+            required
+          />
+        )}
         <ChipModalField
           type='dropdown'
           title='Email status'

@@ -108,6 +108,7 @@ vi.mock('@/blocks/utils', () => ({
 
 import { PiBlockHandler, parsePiReviewMentions } from '@/executor/handlers/pi/pi-handler'
 import type { ExecutionContext, StreamingExecution } from '@/executor/types'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { SerializedBlock } from '@/serializer/types'
 
 const block = { id: 'blk', metadata: { id: 'pi' } } as unknown as SerializedBlock
@@ -117,6 +118,7 @@ function ctx(overrides: Partial<ExecutionContext> = {}): ExecutionContext {
     workflowId: 'wf',
     workspaceId: 'ws',
     userId: 'user',
+    resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
     ...overrides,
   } as ExecutionContext
 }
@@ -183,6 +185,43 @@ describe('PiBlockHandler', () => {
 
   it('throws when the task is missing', async () => {
     await expect(handler.execute(ctx(), block, { mode: 'local', task: '' })).rejects.toThrow(/Task/)
+  })
+
+  it('projects activated task secrets at the final Pi input boundary', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'API_KEY', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
+    ])
+    registry.recordResolved('API_KEY', 'secret-value')
+
+    await handler.execute(
+      ctx({ resolvedSecretTraceRegistry: registry }),
+      block,
+      localInputs({ task: 'Use secret-value without changing the rest.' })
+    )
+
+    expect(mockRunLocal.mock.calls[0][0].task).toBe('Use {{API_KEY}} without changing the rest.')
+  })
+
+  it.each([
+    ['missing', undefined],
+    [
+      'incomplete',
+      (() => {
+        const registry = new ResolvedSecretTraceRegistry()
+        registry.markIncomplete()
+        return registry
+      })(),
+    ],
+  ])('fails closed when task provenance is %s', async (_label, registry) => {
+    await expect(
+      handler.execute(
+        ctx({ resolvedSecretTraceRegistry: registry }),
+        block,
+        localInputs({ task: 'ordinary task' })
+      )
+    ).rejects.toThrow('Pi input could not be safely projected')
+    expect(mockResolveKey).not.toHaveBeenCalled()
+    expect(mockRunLocal).not.toHaveBeenCalled()
   })
 
   it('throws on an invalid mode', async () => {

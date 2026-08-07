@@ -25,10 +25,12 @@ import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definit
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useRunningActionSweep } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/action-bar/use-running-action-sweep'
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
-import { validateTriggerPaste } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
-import { areRunFromBlockDependenciesSatisfied } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
+import {
+  getRunFromBlockDependencyState,
+  validateTriggerPaste,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
-import { useExecutionStore } from '@/stores/execution'
+import { useLastExecutionSnapshot } from '@/stores/execution'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -179,7 +181,7 @@ export const ActionBar = memo(
       )
 
     const { activeWorkflowId } = useWorkflowRegistry()
-    const getLastExecutionSnapshot = useExecutionStore((s) => s.getLastExecutionSnapshot)
+    const snapshot = useLastExecutionSnapshot(activeWorkflowId)
     const userPermissions = useUserPermissionsContext()
     const edges = useWorkflowStore((state) => state.edges)
 
@@ -188,12 +190,7 @@ export const ActionBar = memo(
     const isNoteBlock = blockType === 'note'
     const isInsideSubflow = parentId && (parentType === 'loop' || parentType === 'parallel')
 
-    const snapshot = activeWorkflowId ? getLastExecutionSnapshot(activeWorkflowId) : null
-    const dependenciesSatisfied = areRunFromBlockDependenciesSatisfied(
-      blockId,
-      edges,
-      snapshot?.executedBlocks
-    )
+    const { dependenciesSatisfied } = getRunFromBlockDependencyState(blockId, edges, snapshot)
     const canRunFromBlock =
       dependenciesSatisfied && !isNoteBlock && !isInsideSubflow && !isWorkflowRunning
     /*

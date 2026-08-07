@@ -475,7 +475,7 @@ const FolderContentsInner: React.FC<FolderContentsProps> = ({
             }
           }}
         >
-          <span className='flex-1 truncate font-medium'>{currentNestedTag.display}</span>
+          <span className='flex-1 truncate'>{currentNestedTag.display}</span>
         </PopoverItem>
       )}
 
@@ -845,7 +845,7 @@ const BlockRootTagItem: React.FC<{
       }}
     >
       <TagIcon icon={tagIcon} color={blockColor} />
-      <span className='flex-1 truncate font-medium'>{blockName}</span>
+      <span className='flex-1 truncate'>{blockName}</span>
     </PopoverItem>
   )
 }

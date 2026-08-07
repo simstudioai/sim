@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-02",
+  "updatedAt": "2026-08-06",
   "integrations": [
     {
       "type": "onepassword",
@@ -5715,14 +5715,14 @@
       "tags": ["sales-engagement", "email-marketing", "automation"]
     },
     {
-      "type": "openai",
+      "type": "embeddings",
       "slug": "embeddings",
       "name": "Embeddings",
-      "description": "Generate Open AI embeddings",
-      "longDescription": "Integrate Embeddings into the workflow. Can generate embeddings from text.",
-      "bgColor": "#000000",
-      "iconName": "OpenAIIcon",
-      "docsUrl": "https://docs.sim.ai/integrations/openai",
+      "description": "Generate embeddings",
+      "longDescription": "Turn text into embedding vectors for semantic search, clustering, and similarity. Supports OpenAI, Google Gemini, Cohere, and Mistral embedding models.",
+      "bgColor": "#7B4DFF",
+      "iconName": "EmbeddingsIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/embeddings",
       "operations": [],
       "operationCount": 0,
       "triggers": [],

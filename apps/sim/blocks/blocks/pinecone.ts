@@ -641,7 +641,7 @@ export const PineconeBlockMeta = {
       modules: ['scheduled', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['engineering', 'sync'],
-      alsoIntegrations: ['openai'],
+      alsoIntegrations: ['embeddings'],
     },
     {
       icon: PineconeIcon,
@@ -651,7 +651,7 @@ export const PineconeBlockMeta = {
       modules: ['agent', 'workflows'],
       category: 'productivity',
       tags: ['research', 'enterprise'],
-      alsoIntegrations: ['openai'],
+      alsoIntegrations: ['embeddings'],
     },
     {
       icon: PineconeIcon,
@@ -671,7 +671,7 @@ export const PineconeBlockMeta = {
       modules: ['tables', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['engineering', 'analysis'],
-      alsoIntegrations: ['openai'],
+      alsoIntegrations: ['embeddings'],
     },
     {
       icon: PineconeIcon,
@@ -690,7 +690,7 @@ export const PineconeBlockMeta = {
       modules: ['agent', 'workflows'],
       category: 'support',
       tags: ['support', 'automation'],
-      alsoIntegrations: ['openai'],
+      alsoIntegrations: ['embeddings'],
     },
     {
       icon: PineconeIcon,
@@ -700,7 +700,7 @@ export const PineconeBlockMeta = {
       modules: ['agent', 'workflows'],
       category: 'support',
       tags: ['support', 'vector-search', 'automation'],
-      alsoIntegrations: ['openai', 'zendesk'],
+      alsoIntegrations: ['embeddings', 'zendesk'],
     },
   ],
   skills: [

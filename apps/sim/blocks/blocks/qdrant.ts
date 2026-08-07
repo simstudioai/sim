@@ -276,7 +276,7 @@ export const QdrantBlockMeta = {
       modules: ['files', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['engineering', 'sync'],
-      alsoIntegrations: ['google_drive', 'openai'],
+      alsoIntegrations: ['google_drive', 'embeddings'],
     },
     {
       icon: QdrantIcon,
@@ -332,7 +332,7 @@ export const QdrantBlockMeta = {
       modules: ['agent', 'workflows'],
       category: 'support',
       tags: ['support', 'vector-search', 'automation'],
-      alsoIntegrations: ['openai', 'zendesk'],
+      alsoIntegrations: ['embeddings', 'zendesk'],
     },
   ],
   skills: [

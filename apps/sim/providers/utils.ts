@@ -53,6 +53,7 @@ import {
 import type { ProviderId, ProviderToolConfig } from '@/providers/types'
 import { useProvidersStore } from '@/stores/providers/store'
 import { mergeToolParameters } from '@/tools/merge-params'
+import type { WorkflowToolExecutionContext } from '@/tools/types'
 
 const logger = createLogger('ProviderUtils')
 
@@ -486,15 +487,16 @@ export function extractAndParseJSON(content: string): any {
 
 /**
  * Resolves canonical pair ids (e.g. `tableId`, `knowledgeBaseId`) from a tool's
- * raw params, filling them in from their basic/advanced selector subblock source
- * values when the canonical key isn't already present.
+ * raw params, preferring the active basic/advanced selector subblock source over
+ * a previously resolved canonical value.
  *
  * Selector subblocks persist their value under the subblock id (e.g.
  * `tableSelector`), not the canonical id, so any lookup that keys off the
  * canonical id — like the unique-tool-id suffix below — must resolve it first.
  * Mode selection mirrors {@link transformBlockTool}'s execution-time
  * `paramsTransform` so the resolved id matches the params the tool actually runs
- * with.
+ * with. When the active selector has no value, the original canonical value is
+ * preserved for direct-id callers and nested tools in advanced mode.
  *
  * @returns The params with canonical resource ids resolved (non-destructive)
  */
@@ -506,8 +508,6 @@ function resolveCanonicalResourceParams(
   if (canonicalGroups.length === 0) return params
   const resolved = { ...params }
   for (const group of canonicalGroups) {
-    const existing = resolved[group.canonicalId]
-    if (existing !== undefined && existing !== null && existing !== '') continue
     // Route through the canonical SOT: an explicit scoped override wins, else the value heuristic -
     // no `?? 'basic'` (which ignored an advanced-only value when basic was empty).
     const explicitMode = scopedCanonicalModes?.[group.canonicalId]
@@ -629,6 +629,7 @@ export async function transformBlockTool(
     getTool: (toolId: string) => any
     getToolAsync?: (toolId: string) => Promise<any>
     canonicalModes?: Record<string, 'basic' | 'advanced'>
+    enrichmentContext?: WorkflowToolExecutionContext
     /**
      * Server-only resolver for a custom (deploy-as-block) tool's binding (bound
      * workflow + input schema), org-scoped to the consumer. Injected as a dependency
@@ -646,8 +647,15 @@ export async function transformBlockTool(
     toolIndex?: number
   }
 ): Promise<ProviderToolConfig | null> {
-  const { selectedOperation, getAllBlocks, getTool, getToolAsync, canonicalModes, toolIndex } =
-    options
+  const {
+    selectedOperation,
+    getAllBlocks,
+    getTool,
+    getToolAsync,
+    canonicalModes,
+    enrichmentContext,
+    toolIndex,
+  } = options
   const scopedCanonicalModes = scopeCanonicalModesForTool(canonicalModes, toolIndex, block.type)
 
   const blockDef = getAllBlocks().find((b: any) => b.type === block.type)
@@ -755,12 +763,6 @@ export async function transformBlockTool(
 
   const userProvidedParams = block.params || {}
 
-  const {
-    schema: llmSchema,
-    enrichedDescription,
-    modelBlockedParams,
-  } = await createLLMToolSchema(toolConfig, userProvidedParams)
-
   const canonicalGroups: CanonicalGroup[] = blockDef?.subBlocks
     ? Object.values(buildCanonicalIndex(blockDef.subBlocks).groupsById).filter(isCanonicalPair)
     : []
@@ -770,6 +772,12 @@ export async function transformBlockTool(
     canonicalGroups,
     scopedCanonicalModes
   )
+
+  const {
+    schema: llmSchema,
+    enrichedDescription,
+    modelBlockedParams,
+  } = await createLLMToolSchema(toolConfig, resolvedResourceParams, enrichmentContext)
 
   let uniqueToolId = toolConfig.id
   let toolName = toolConfig.name
@@ -796,7 +804,7 @@ export async function transformBlockTool(
     // the executor's paramsTransform parses it later, but this runs before that.
     const mounted = readMountedSecretNames(resolvedResourceParams.mountedSecrets)
     toolDescription = mounted.length
-      ? `${toolDescription}\n\nWorkspace secrets available to this code: ${mounted.join(', ')}. Reference one as {{NAME}} or environmentVariables['NAME']. No other secrets are readable.`
+      ? `${toolDescription}\n\nWorkspace secret names available to this code: ${mounted.join(', ')}. Reference one with the exact {{NAME}} syntax. Its value is bound only while the code executes and is not included in the model request. No other secrets are readable.`
       : `${toolDescription}\n\nThis code has no access to workspace secrets.`
   } else if (toolId.startsWith('knowledge_') && resolvedResourceParams.knowledgeBaseId) {
     uniqueToolId = `${toolConfig.id}_${resolvedResourceParams.knowledgeBaseId}`

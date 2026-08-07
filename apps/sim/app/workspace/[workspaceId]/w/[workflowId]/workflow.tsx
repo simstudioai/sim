@@ -75,6 +75,7 @@ import {
   getDescendantBlockIds,
   getEdgeSelectionContextId,
   getNodeSelectionContextId,
+  getRunFromBlockDependencyState,
   getWorkflowLockToggleIds,
   isBlockProtected,
   isEdgeProtected,
@@ -85,7 +86,6 @@ import {
   shouldHighlightContainerDropTarget,
   validateTriggerPaste,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
-import { areRunFromBlockDependenciesSatisfied } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
 import {
   defaultEdgeOptions,
   edgeTypes,
@@ -113,7 +113,11 @@ import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useOAuthReturnForWorkflow } from '@/hooks/use-oauth-return'
 import { useCanvasModeStore } from '@/stores/canvas-mode'
 import { useChatStore } from '@/stores/chat/store'
-import { defaultWorkflowExecutionState, useExecutionStore } from '@/stores/execution'
+import {
+  defaultWorkflowExecutionState,
+  useExecutionStore,
+  useLastExecutionSnapshot,
+} from '@/stores/execution'
 import { useSearchModalStore } from '@/stores/modals/search/store'
 import type { PendingConnect } from '@/stores/modals/search/types'
 import { usePanelEditorStore } from '@/stores/panel'
@@ -909,7 +913,7 @@ const WorkflowContent = React.memo(
         }
       })
     )
-    const getLastExecutionSnapshot = useExecutionStore((s) => s.getLastExecutionSnapshot)
+    const lastExecutionSnapshot = useLastExecutionSnapshot(workflowIdParam)
 
     const [dragStartParentId, setDragStartParentId] = useState<string | null>(null)
 
@@ -1442,11 +1446,10 @@ const WorkflowContent = React.memo(
         return { canRun: false, reason: undefined }
       }
       const block = contextMenuBlocks[0]
-      const snapshot = getLastExecutionSnapshot(workflowIdParam)
-      const dependenciesSatisfied = areRunFromBlockDependenciesSatisfied(
+      const { dependenciesSatisfied } = getRunFromBlockDependencyState(
         block.id,
         edges,
-        snapshot?.executedBlocks
+        lastExecutionSnapshot
       )
       const isNoteBlock = block.type === 'note'
       const isInsideSubflow =
@@ -1458,7 +1461,7 @@ const WorkflowContent = React.memo(
       if (isExecuting) return { canRun: false, reason: undefined }
 
       return { canRun: true, reason: undefined }
-    }, [contextMenuBlocks, edges, workflowIdParam, getLastExecutionSnapshot, isExecuting])
+    }, [contextMenuBlocks, edges, lastExecutionSnapshot, isExecuting])
 
     const handleContextAddBlock = useCallback(() => {
       useSearchModalStore.getState().open()

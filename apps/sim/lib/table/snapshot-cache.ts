@@ -95,6 +95,7 @@ async function materialize(table: TableDefinition, key: string): Promise<number>
     key,
     context: SNAPSHOT_STORAGE_CONTEXT,
     contentType: SNAPSHOT_CONTENT_TYPE,
+    completionPolicy: 'reuse-existing',
   })
 
   try {

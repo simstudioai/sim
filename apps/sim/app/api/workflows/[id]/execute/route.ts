@@ -11,6 +11,7 @@ import {
   executeWorkflowHeadersSchema,
   executionIdSchema,
   WORKFLOW_EXECUTION_ID_HEADER,
+  WORKFLOW_EXECUTION_TIMEOUT_SECONDS_HEADER,
 } from '@/lib/api/contracts/workflows'
 import { AuthType, checkHybridAuth, hasExternalApiCredentials } from '@/lib/auth/hybrid'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
@@ -26,14 +27,21 @@ import {
   getRunSegment,
   releaseWorkflowToolExecutionClaim,
 } from '@/lib/copilot/async-runs/repository'
-import { isWorkflowToolName, resolveWorkflowToolTargetId } from '@/lib/copilot/tools/workflow-tools'
+import { COPILOT_WORKFLOW_EXECUTION_CONFLICT_CODE } from '@/lib/copilot/constants'
+import {
+  ASYNC_WORKFLOW_DEPLOYMENT_ERRORS,
+  isWorkflowToolName,
+  resolveWorkflowToolTargetId,
+} from '@/lib/copilot/tools/workflow-tools'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
 import { getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
 import { isAsyncJobEnqueueError } from '@/lib/core/async-jobs/types'
 import {
   createTimeoutAbortController,
   getTimeoutErrorMessage,
+  isTimeoutAbortReason,
   isTimeoutError,
+  toTriggerMaxDurationSeconds,
 } from '@/lib/core/execution-limits'
 import { isCrossSiteSessionRequest } from '@/lib/core/security/same-origin'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -59,6 +67,10 @@ import {
   setExecutionMeta,
   type TerminalExecutionStreamStatus,
 } from '@/lib/execution/event-buffer'
+import {
+  INTERNAL_EXECUTION_DEADLINE_HEADER,
+  parseExecutionDeadlineHeader,
+} from '@/lib/execution/execution-deadline-header'
 import { processInputFileFields } from '@/lib/execution/files'
 import {
   registerManualExecutionAborter,
@@ -66,8 +78,13 @@ import {
 } from '@/lib/execution/manual-cancellation'
 import { containsLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import { compactBlockLogs, compactExecutionPayload } from '@/lib/execution/payloads/serializer'
-import { type PreprocessExecutionSuccess, preprocessExecution } from '@/lib/execution/preprocessing'
 import {
+  type PreprocessExecutionSuccess,
+  preprocessExecution,
+  WORKFLOW_NOT_DEPLOYED_CODE,
+} from '@/lib/execution/preprocessing'
+import {
+  PRIVATE_SECRET_PROVENANCE_FIELD,
   PRIVATE_TOOL_METADATA_RESPONSE_HEADER,
   RESOLVED_SECRET_PROVENANCE_FIELD,
   RESOLVED_SECRET_PROVENANCE_METADATA_V1,
@@ -97,6 +114,10 @@ import {
   hasDurableExecutionOwner,
   releaseExecutionIdClaim,
 } from '@/lib/workflows/executor/execution-id-claim'
+import {
+  INVALID_WORKFLOW_INPUT_PROVENANCE_ERROR,
+  resolveWorkflowInputSecretProvenance,
+} from '@/lib/workflows/executor/input-secret-provenance'
 import { handlePostExecutionPauseState } from '@/lib/workflows/executor/pause-persistence'
 import {
   loadDeployedWorkflowState,
@@ -120,6 +141,7 @@ import {
 } from '@/lib/workflows/streaming/streaming'
 import { createHttpResponseFromBlock, workflowHasResponseBlock } from '@/lib/workflows/utils'
 import { getWorkspaceBillingSettings } from '@/lib/workspaces/utils'
+import { checkNeedsRedeployment } from '@/app/api/workflows/utils'
 import { executeWorkflowJob, type WorkflowExecutionPayload } from '@/background/workflow-execution'
 import { withCustomBlockOverlay } from '@/blocks/custom/server-overlay'
 import {
@@ -142,6 +164,7 @@ import type {
   StreamingExecution,
 } from '@/executor/types'
 import { getExecutionErrorStatus, hasExecutionResult } from '@/executor/utils/errors'
+import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
 import { Serializer } from '@/serializer'
 import { CORE_TRIGGER_TYPES, type CoreTriggerType } from '@/stores/logs/filters/types'
 
@@ -269,6 +292,13 @@ function clientCancelledResponse(): NextResponse {
   return NextResponse.json({ success: false, error: 'Client cancelled request' }, { status: 499 })
 }
 
+function executionTimedOutResponse(timeoutMs?: number): NextResponse {
+  return NextResponse.json(
+    { success: false, error: getTimeoutErrorMessage(null, timeoutMs) },
+    { status: 408 }
+  )
+}
+
 function payloadTooLargeResponse(message = 'Workflow execution response exceeds maximum size') {
   return NextResponse.json(
     { success: false, error: message, code: 'workflow_response_too_large' },
@@ -359,8 +389,12 @@ type AsyncExecutionParams = {
   workspaceId: string
   input: any
   triggerType: CoreTriggerType
+  triggerBlockId?: string
   executionId: string
+  copilotToolCallId?: string
   callChain?: string[]
+  executionTimeoutMs: number
+  trustedInitialResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
 }
 
 interface AsyncExecutionResult {
@@ -413,8 +447,12 @@ async function handleAsyncExecution(params: AsyncExecutionParams): Promise<Async
     workspaceId,
     input,
     triggerType,
+    triggerBlockId,
     executionId,
+    copilotToolCallId,
     callChain,
+    executionTimeoutMs,
+    trustedInitialResolvedSecretTraceProvenance,
   } = params
   const asyncLogger = logger.withMetadata({
     requestId,
@@ -429,6 +467,7 @@ async function handleAsyncExecution(params: AsyncExecutionParams): Promise<Async
     requestId,
     source: 'workflow' as const,
     workflowId,
+    ...(copilotToolCallId ? { copilotToolCallId } : {}),
     triggerType,
   }
 
@@ -439,12 +478,30 @@ async function handleAsyncExecution(params: AsyncExecutionParams): Promise<Async
     workspaceId,
     input,
     triggerType,
+    triggerBlockId,
     executionId,
     requestId,
     correlation,
     callChain,
     executionMode: 'async',
     admissionCompleted: true,
+    executionTimeoutMs,
+    trustedInitialResolvedSecretTraceProvenance,
+  }
+
+  if (copilotToolCallId && (await checkNeedsRedeployment(workflowId))) {
+    const deploymentError = ASYNC_WORKFLOW_DEPLOYMENT_ERRORS.stale
+    await releaseExecutionSlot(executionId)
+    return {
+      response: NextResponse.json(
+        {
+          error: deploymentError.message,
+          code: deploymentError.code,
+        },
+        { status: 409 }
+      ),
+      retainExecutionClaim: false,
+    }
   }
 
   let jobQueue: Awaited<ReturnType<typeof getJobQueue>>
@@ -462,9 +519,17 @@ async function handleAsyncExecution(params: AsyncExecutionParams): Promise<Async
   }
 
   const deterministicJobId = `${WORKFLOW_EXECUTION_JOB_ID_PREFIX}${executionId}`
+  const executeInline = shouldExecuteInline()
   const enqueueOptions = {
     jobId: deterministicJobId,
     metadata: { workflowId, workspaceId, userId, correlation },
+    maxDurationSeconds: toTriggerMaxDurationSeconds(executionTimeoutMs),
+    ...(executeInline
+      ? {
+          runner: (_queuedPayload: unknown, signal: AbortSignal) =>
+            executeWorkflowJob(payload, signal),
+        }
+      : {}),
   }
   let jobId: string | undefined
   let enqueueError: unknown
@@ -526,39 +591,6 @@ async function handleAsyncExecution(params: AsyncExecutionParams): Promise<Async
   }
 
   asyncLogger.info('Queued async workflow execution', { jobId })
-
-  if (shouldExecuteInline()) {
-    void (async () => {
-      let workerOwnsReservation = false
-      try {
-        await jobQueue.startJob(jobId)
-        workerOwnsReservation = true
-        const output = await executeWorkflowJob(payload)
-        await jobQueue.completeJob(jobId, output)
-      } catch (error) {
-        const errorMessage = toError(error).message
-        asyncLogger.error('Async workflow execution failed', {
-          jobId,
-          error: errorMessage,
-        })
-        /**
-         * Before worker ownership transfers, no LoggingSession exists to
-         * release the route's reservation.
-         */
-        if (!workerOwnsReservation) {
-          await releaseExecutionSlot(executionId)
-        }
-        try {
-          await jobQueue.markJobFailed(jobId, errorMessage)
-        } catch (markFailedError) {
-          asyncLogger.error('Failed to mark job as failed', {
-            jobId,
-            error: toError(markFailedError).message,
-          })
-        }
-      }
-    })()
-  }
 
   return {
     response: NextResponse.json(
@@ -640,6 +672,28 @@ async function handleExecutePost(
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
+    const executionModeHeader = req.headers.get('X-Execution-Mode')
+    const isAsyncMode = executionModeHeader === 'async'
+    const trustedDeadlineHeader =
+      auth.success && auth.authType === AuthType.INTERNAL_JWT && !isAsyncMode
+        ? req.headers.get(INTERNAL_EXECUTION_DEADLINE_HEADER)
+        : null
+    const inheritedExecutionDeadlineAt =
+      trustedDeadlineHeader === null ? undefined : parseExecutionDeadlineHeader(req.headers)
+    if (trustedDeadlineHeader !== null && inheritedExecutionDeadlineAt === undefined) {
+      return NextResponse.json(
+        { error: 'Invalid internal execution deadline header' },
+        { status: 400 }
+      )
+    }
+    const hasInheritedDeadlineExpired = () =>
+      inheritedExecutionDeadlineAt !== undefined && Date.now() >= inheritedExecutionDeadlineAt
+    const requestAbortResponse = () =>
+      hasInheritedDeadlineExpired() ? executionTimedOutResponse() : clientCancelledResponse()
+    if (hasInheritedDeadlineExpired()) {
+      return executionTimedOutResponse()
+    }
+
     const isMcpBridgeRequest =
       auth.authType === AuthType.INTERNAL_JWT && req.headers.get(MCP_TOOL_BRIDGE_HEADER) === 'true'
     const includePrivateTraceProvenance =
@@ -704,7 +758,7 @@ async function handleExecutePost(
         )
       }
       if (req.signal.aborted) {
-        return clientCancelledResponse()
+        return requestAbortResponse()
       }
       reqLogger.warn('Failed to parse request body', { error: toError(error).message })
       return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 })
@@ -727,14 +781,22 @@ async function handleExecutePost(
 
     const headerValidation = executeWorkflowHeadersSchema.safeParse({
       [WORKFLOW_EXECUTION_ID_HEADER]: req.headers.get(WORKFLOW_EXECUTION_ID_HEADER) ?? undefined,
+      [WORKFLOW_EXECUTION_TIMEOUT_SECONDS_HEADER]:
+        req.headers.get(WORKFLOW_EXECUTION_TIMEOUT_SECONDS_HEADER) ?? undefined,
     })
     if (!headerValidation.success) {
-      reqLogger.warn('Invalid execution ID header', {
+      const invalidExecutionId = headerValidation.error.issues.some(
+        (issue) => issue.path[0] === WORKFLOW_EXECUTION_ID_HEADER
+      )
+      const errorMessage = invalidExecutionId
+        ? 'Invalid execution ID header'
+        : 'Invalid execution timeout header'
+      reqLogger.warn(errorMessage, {
         issues: headerValidation.error.issues,
       })
       return NextResponse.json(
         {
-          error: 'Invalid execution ID header',
+          error: errorMessage,
           details: headerValidation.error.issues.map((issue) => ({
             path: issue.path.join('.'),
             message: issue.message,
@@ -773,8 +835,13 @@ async function handleExecutePost(
     const triggerBlockId = parsedTriggerBlockId ?? startBlockId
     const streamHeader = req.headers.get('X-Stream-Response') === 'true'
     const enableSSE = streamHeader || streamParam === true
-    const executionModeHeader = req.headers.get('X-Execution-Mode')
-    const isAsyncMode = executionModeHeader === 'async'
+    const requestedTimeoutSeconds = headerValidation.data[WORKFLOW_EXECUTION_TIMEOUT_SECONDS_HEADER]
+    if (requestedTimeoutSeconds !== undefined && !isAsyncMode) {
+      return NextResponse.json(
+        { error: `${WORKFLOW_EXECUTION_TIMEOUT_SECONDS_HEADER} is supported only for async runs` },
+        { status: 400 }
+      )
+    }
     if (admittedDeploymentVersionId && !isMcpBridgeRequest) {
       return NextResponse.json(
         { error: 'deploymentVersionId is reserved for internal MCP execution' },
@@ -829,8 +896,7 @@ async function handleExecutePost(
       (auth.authType !== AuthType.SESSION ||
         !isClientSession ||
         triggerType !== 'copilot' ||
-        !enableSSE ||
-        isAsyncMode)
+        (!isAsyncMode && !enableSSE))
     ) {
       return NextResponse.json(
         { error: 'Copilot tool execution binding is invalid for this request' },
@@ -955,6 +1021,7 @@ async function handleExecutePost(
               copilotToolCallId: _copilotToolCallId,
               workflowId: _workflowId, // Also exclude workflowId used for internal JWT auth
               parentWorkspaceId: _parentWorkspaceId,
+              [PRIVATE_SECRET_PROVENANCE_FIELD]: _privateSecretProvenance,
               ...rest
             } = body
             return Object.keys(rest).length > 0 ? rest : validatedInput
@@ -968,13 +1035,15 @@ async function handleExecutePost(
     // Public API callers always execute the deployed state, never the draft.
     const shouldUseDraftState = isPublicApiAccess
       ? false
-      : (useDraftState ?? auth.authType === AuthType.SESSION)
+      : isAsyncMode
+        ? false
+        : (useDraftState ?? auth.authType === AuthType.SESSION)
     const requiresWriteExecutionAccess = Boolean(
       useDraftState || workflowStateOverride || rawRunFromBlock
     )
 
     if (req.signal.aborted) {
-      return clientCancelledResponse()
+      return requestAbortResponse()
     }
 
     if (
@@ -982,7 +1051,6 @@ async function handleExecutePost(
       (body.useDraftState !== undefined ||
         body.workflowStateOverride !== undefined ||
         body.runFromBlock !== undefined ||
-        body.triggerBlockId !== undefined ||
         body.stopAfterBlockId !== undefined ||
         body.selectedOutputs?.length ||
         body.includeFileBase64 !== undefined ||
@@ -1036,6 +1104,10 @@ async function handleExecutePost(
     }
 
     const workflowWorkspaceId = workflowAuthorization.workflow?.workspaceId
+    if (!workflowWorkspaceId) {
+      reqLogger.error('Workflow authorization succeeded without a workspace')
+      return NextResponse.json({ error: 'Invalid workflow execution context' }, { status: 500 })
+    }
     if (auth.authType === AuthType.API_KEY) {
       if (auth.apiKeyType === 'workspace' && auth.workspaceId !== workflowWorkspaceId) {
         return NextResponse.json(
@@ -1104,6 +1176,18 @@ async function handleExecutePost(
       input = sourceExecution.input
     }
 
+    const inputProvenanceResolution = await resolveWorkflowInputSecretProvenance({
+      headers: req.headers,
+      payload: body,
+      input,
+      isInternalJwt: auth.authType === AuthType.INTERNAL_JWT,
+      workspaceId: workflowWorkspaceId,
+    })
+    if (!inputProvenanceResolution.success) {
+      return NextResponse.json({ error: INVALID_WORKFLOW_INPUT_PROVENANCE_ERROR }, { status: 400 })
+    }
+    const trustedInitialResolvedSecretTraceProvenance = inputProvenanceResolution.provenance
+
     const upstreamBillingAttribution =
       auth.authType === AuthType.INTERNAL_JWT && workflowAuthorization.workflow?.workspaceId
         ? requireBillingAttributionHeader(req.headers, {
@@ -1113,7 +1197,7 @@ async function handleExecutePost(
         : undefined
 
     if (req.signal.aborted) {
-      return clientCancelledResponse()
+      return requestAbortResponse()
     }
 
     try {
@@ -1160,8 +1244,15 @@ async function handleExecutePost(
     if (copilotToolCallId) {
       const boundToolCall = await claimWorkflowToolExecution(copilotToolCallId, executionId)
       if (!boundToolCall) {
+        reqLogger.warn('Rejected duplicate Copilot workflow execution', {
+          copilotToolCallId,
+          attemptedExecutionId: executionId,
+        })
         return NextResponse.json(
-          { error: 'Copilot workflow tool is already bound to another execution' },
+          {
+            error: 'Copilot workflow tool is already bound to another execution',
+            code: COPILOT_WORKFLOW_EXECUTION_CONFLICT_CODE,
+          },
           { status: 409 }
         )
       }
@@ -1197,10 +1288,23 @@ async function handleExecutePost(
       useAuthenticatedUserAsActor,
       workflowRecord: workflowAuthorization.workflow ?? undefined,
       billingAttribution: upstreamBillingAttribution,
+      executionType: isAsyncMode ? 'async' : 'sync',
+      requestedTimeoutSeconds,
+      ...(inheritedExecutionDeadlineAt !== undefined
+        ? { executionDeadlineAt: inheritedExecutionDeadlineAt }
+        : {}),
     })
 
     if (!preprocessResult.success) {
       const preprocessError = preprocessResult.error
+      if (isAsyncMode && copilotToolCallId && preprocessError.code === WORKFLOW_NOT_DEPLOYED_CODE) {
+        const deploymentError = ASYNC_WORKFLOW_DEPLOYMENT_ERRORS.missing
+        await releaseExecutionSlot(executionId)
+        return NextResponse.json(
+          { error: deploymentError.message, code: deploymentError.code },
+          { status: preprocessError.statusCode }
+        )
+      }
       return NextResponse.json(
         { error: preprocessError.message },
         { status: preprocessError.statusCode }
@@ -1210,9 +1314,13 @@ async function handleExecutePost(
     // Preprocessing reserved an admission slot (released when the LoggingSession
     // finalizes). Any path that exits before execution starts must release it
     // here, or the slot leaks until its TTL and wrongly throttles later runs.
+    if (hasInheritedDeadlineExpired()) {
+      await releaseExecutionSlot(executionId)
+      return executionTimedOutResponse()
+    }
     if (req.signal.aborted) {
       await releaseExecutionSlot(executionId)
-      return clientCancelledResponse()
+      return requestAbortResponse()
     }
 
     let validatedContext: ValidatedPreprocessContext
@@ -1233,6 +1341,11 @@ async function handleExecutePost(
 
     reqLogger.info('Preprocessing passed')
 
+    const getEffectiveSyncTimeoutMs = () =>
+      inheritedExecutionDeadlineAt === undefined
+        ? preprocessResult.executionTimeout.sync
+        : Math.max(1, inheritedExecutionDeadlineAt - Date.now())
+
     if (isAsyncMode) {
       const asyncResult = await handleAsyncExecution({
         requestId,
@@ -1242,8 +1355,12 @@ async function handleExecutePost(
         workspaceId,
         input,
         triggerType: loggingTriggerType,
+        triggerBlockId,
         executionId,
+        copilotToolCallId,
         callChain,
+        executionTimeoutMs: preprocessResult.executionTimeout.async,
+        trustedInitialResolvedSecretTraceProvenance,
       })
       executionIdClaimCommitted = asyncResult.retainExecutionClaim
       return asyncResult.response
@@ -1262,7 +1379,7 @@ async function handleExecutePost(
     try {
       if (req.signal.aborted) {
         await releaseExecutionSlot(executionId)
-        return clientCancelledResponse()
+        return requestAbortResponse()
       }
       const workflowData = shouldUseDraftState
         ? await loadWorkflowFromNormalizedTables(workflowId)
@@ -1276,7 +1393,7 @@ async function handleExecutePost(
 
       if (req.signal.aborted) {
         await releaseExecutionSlot(executionId)
-        return clientCancelledResponse()
+        return requestAbortResponse()
       }
 
       if (workflowData) {
@@ -1390,9 +1507,13 @@ async function handleExecutePost(
 
       const executionVariables = cachedWorkflowData?.variables ?? workflow.variables ?? {}
 
-      const timeoutController = createTimeoutAbortController(
-        preprocessResult.executionTimeout?.sync
-      )
+      const timeoutController = createTimeoutAbortController(getEffectiveSyncTimeoutMs())
+      const didExecutionTimeOut = (error?: unknown) =>
+        timeoutController.isTimedOut() ||
+        hasInheritedDeadlineExpired() ||
+        isTimeoutAbortReason(timeoutController.signal.reason) ||
+        isTimeoutAbortReason(req.signal.reason) ||
+        isTimeoutError(error)
       const requestAbort = bindRequestAbort(req.signal, timeoutController)
       const shouldRejectLargeInlineOutput = isMcpBridgeRequest
       const workflowResponseCompaction = {
@@ -1421,6 +1542,7 @@ async function handleExecutePost(
           stopAfterBlockId,
           runFromBlock: resolvedRunFromBlock,
           abortSignal: timeoutController.signal,
+          trustedInitialResolvedSecretTraceProvenance,
         })
 
         await handlePostExecutionPauseState({ result, workflowId, executionId, loggingSession })
@@ -1428,18 +1550,14 @@ async function handleExecutePost(
         if (
           result.status === 'cancelled' &&
           requestAbort.isRequestAborted() &&
-          !timeoutController.isTimedOut()
+          !didExecutionTimeOut()
         ) {
           reqLogger.info('Non-SSE execution cancelled by client disconnect')
           await loggingSession.markAsFailed('Client cancelled request')
           return clientCancelledResponse()
         }
 
-        if (
-          result.status === 'cancelled' &&
-          timeoutController.isTimedOut() &&
-          timeoutController.timeoutMs
-        ) {
+        if (result.status === 'cancelled' && didExecutionTimeOut() && timeoutController.timeoutMs) {
           const timeoutErrorMessage = getTimeoutErrorMessage(null, timeoutController.timeoutMs)
           reqLogger.info('Non-SSE execution timed out', {
             timeoutMs: timeoutController.timeoutMs,
@@ -1539,9 +1657,12 @@ async function handleExecutePost(
           result
         )
       } catch (error: unknown) {
-        const errorMessage = getErrorMessage(error, 'Unknown error')
+        const executionTimedOut = didExecutionTimeOut(error)
+        const errorMessage = executionTimedOut
+          ? getTimeoutErrorMessage(error, timeoutController.timeoutMs)
+          : getErrorMessage(error, 'Unknown error')
 
-        if (requestAbort.isRequestAborted() && !timeoutController.isTimedOut()) {
+        if (requestAbort.isRequestAborted() && !executionTimedOut) {
           reqLogger.info('Non-SSE execution aborted after client disconnect')
           return clientCancelledResponse()
         }
@@ -1553,10 +1674,13 @@ async function handleExecutePost(
           return payloadTooLargeResponse()
         }
 
-        reqLogger.error(`Non-SSE execution failed: ${errorMessage}`)
+        reqLogger.error(
+          'Non-SSE execution failed',
+          loggingSession.projectDiagnosticError(error, { isTimeout: executionTimedOut })
+        )
 
         const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
-        const status = getExecutionErrorStatus(error)
+        const status = executionTimedOut ? 408 : getExecutionErrorStatus(error)
         let compactErrorOutput: NormalizedBlockOutput | undefined
         if (executionResult && Object.hasOwn(executionResult, 'output')) {
           try {
@@ -1579,7 +1703,9 @@ async function handleExecutePost(
           {
             success: false,
             output: compactErrorOutput,
-            error: executionResult?.error || errorMessage || 'Execution failed',
+            error: executionTimedOut
+              ? errorMessage
+              : executionResult?.error || errorMessage || 'Execution failed',
             metadata: executionResult?.metadata
               ? {
                   duration: executionResult.metadata.duration,
@@ -1654,7 +1780,7 @@ async function handleExecutePost(
           workflowTriggerType: triggerType === 'chat' ? 'chat' : 'api',
           includeFileBase64,
           base64MaxBytes,
-          timeoutMs: preprocessResult.executionTimeout?.sync,
+          timeoutMs: getEffectiveSyncTimeoutMs(),
           includeThinking: requestedIncludeThinking,
           includeToolCalls: requestedIncludeToolCalls,
         },
@@ -1694,6 +1820,7 @@ async function handleExecutePost(
               includeThinking: requestedIncludeThinking,
               includeToolCalls: requestedIncludeToolCalls,
               agentEvents,
+              trustedInitialResolvedSecretTraceProvenance,
             },
             executionId
           ),
@@ -1711,7 +1838,13 @@ async function handleExecutePost(
     }
 
     const encoder = new TextEncoder()
-    const timeoutController = createTimeoutAbortController(preprocessResult.executionTimeout?.sync)
+    const timeoutController = createTimeoutAbortController(getEffectiveSyncTimeoutMs())
+    const didExecutionTimeOut = (error?: unknown) =>
+      timeoutController.isTimedOut() ||
+      hasInheritedDeadlineExpired() ||
+      isTimeoutAbortReason(timeoutController.signal.reason) ||
+      isTimeoutAbortReason(req.signal.reason) ||
+      isTimeoutError(error)
     let isStreamClosed = false
     let isManualAbortRegistered = false
 
@@ -1773,11 +1906,13 @@ async function handleExecutePost(
               // events still reach the active client and the UI doesn't hang on "running".
               // Marking a terminal event delivered-live as published lets finalization close
               // the stream cleanly instead of aborting it with controller.error().
-              reqLogger.warn('Event buffer write failed; delivering event over live stream only', {
-                eventType: event.type,
-                terminal: Boolean(terminalStatus),
-                error: toError(e).message,
-              })
+              reqLogger.warn(
+                'Event buffer write failed; delivering event over live stream only',
+                loggingSession.projectDiagnosticError(e, {
+                  eventType: event.type,
+                  terminal: Boolean(terminalStatus),
+                })
+              )
               terminalBufferWriteFailed = Boolean(terminalStatus)
               terminalEventPublished ||= Boolean(terminalStatus)
             }
@@ -1885,11 +2020,14 @@ async function handleExecutePost(
             }
             const callbackError = compactCallbackData.output?.error
             const hasError = typeof callbackError === 'string' && callbackError.length > 0
-            const display = await loggingSession.projectDisplayContent({
-              input: compactCallbackData.input,
-              output: compactCallbackData.output,
-              ...(hasError ? { error: callbackError } : {}),
-            })
+            const display = await loggingSession.projectDisplayContent(
+              {
+                input: compactCallbackData.input,
+                output: compactCallbackData.output,
+                ...(hasError ? { error: callbackError } : {}),
+              },
+              callbackData.displayResolvedSecretTraceProvenance
+            )
             const childWorkflowData = childWorkflowContext
               ? {
                   childWorkflowBlockId: childWorkflowContext.parentBlockId,
@@ -1999,7 +2137,12 @@ async function handleExecutePost(
               workflowId,
               sendEvent,
               forwardAnswerText: answerTextFromSink,
-              projectDisplay: (field, value) => loggingSession.projectLiveDisplayText(field, value),
+              projectDisplay: (field, value) =>
+                loggingSession.projectLiveDisplayText(
+                  field,
+                  value,
+                  streamingExec.displayResolvedSecretTraceProvenance
+                ),
             })
 
             const reader = streamingExec.stream.getReader()
@@ -2021,7 +2164,11 @@ async function handleExecutePost(
                 if (answerTextFromSink) continue
 
                 const chunk = decoder.decode(value, { stream: true })
-                const display = await loggingSession.projectLiveDisplayText('chunk', chunk)
+                const display = await loggingSession.projectLiveDisplayText(
+                  'chunk',
+                  chunk,
+                  streamingExec.displayResolvedSecretTraceProvenance
+                )
                 await sendEvent({
                   type: 'stream:chunk',
                   timestamp: new Date().toISOString(),
@@ -2042,7 +2189,10 @@ async function handleExecutePost(
               }
             } catch (error) {
               if (!timeoutController.signal.aborted && !isStreamClosed) {
-                reqLogger.error('Error streaming block content:', error)
+                reqLogger.error(
+                  'Error streaming block content',
+                  loggingSession.projectDiagnosticError(error, { blockId })
+                )
               }
             } finally {
               unsubscribe()
@@ -2136,6 +2286,7 @@ async function handleExecutePost(
             base64MaxBytes,
             stopAfterBlockId,
             runFromBlock: resolvedRunFromBlock,
+            trustedInitialResolvedSecretTraceProvenance,
           })
 
           await awaitBoundCopilotPostExecution()
@@ -2160,7 +2311,7 @@ async function handleExecutePost(
           })
 
           if (result.status === 'cancelled') {
-            if (timeoutController.isTimedOut() && timeoutController.timeoutMs) {
+            if (didExecutionTimeOut() && timeoutController.timeoutMs) {
               const timeoutErrorMessage = getTimeoutErrorMessage(null, timeoutController.timeoutMs)
               reqLogger.info('Workflow execution timed out', {
                 timeoutMs: timeoutController.timeoutMs,
@@ -2279,12 +2430,15 @@ async function handleExecutePost(
           }
         } catch (error: unknown) {
           await awaitBoundCopilotPostExecution()
-          const isTimeout = isTimeoutError(error) || timeoutController.isTimedOut()
+          const isTimeout = didExecutionTimeOut(error)
           const errorMessage = isTimeout
             ? getTimeoutErrorMessage(error, timeoutController.timeoutMs)
             : getErrorMessage(error, 'Unknown error')
 
-          reqLogger.error(`SSE execution failed: ${errorMessage}`, { isTimeout })
+          reqLogger.error(
+            'SSE execution failed',
+            loggingSession.projectDiagnosticError(error, { isTimeout })
+          )
 
           const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
           let compactErrorLogs: BlockLog[] | undefined
@@ -2302,9 +2456,10 @@ async function handleExecutePost(
                 )
               : undefined
           } catch (compactionError) {
-            reqLogger.warn('Failed to compact SSE error logs, omitting oversized error details', {
-              error: toError(compactionError).message,
-            })
+            reqLogger.warn(
+              'Failed to compact SSE error logs, omitting oversized error details',
+              loggingSession.projectDiagnosticError(compactionError)
+            )
           }
 
           finalMetaStatus = 'error'
@@ -2350,18 +2505,19 @@ async function handleExecutePost(
             }
           } else if (terminalEventPublished) {
             await eventWriter.close().catch((closeError) => {
-              reqLogger.warn('Failed to close execution event writer after terminal publish', {
-                executionId,
-                error: getErrorMessage(closeError),
-              })
+              reqLogger.warn(
+                'Failed to close execution event writer after terminal publish',
+                loggingSession.projectDiagnosticError(closeError, { executionId })
+              )
             })
           } else {
             try {
               await eventWriter.close()
             } catch (closeError) {
-              reqLogger.warn('Failed to close event writer', {
-                error: toError(closeError).message,
-              })
+              reqLogger.warn(
+                'Failed to close event writer',
+                loggingSession.projectDiagnosticError(closeError, { executionId })
+              )
             }
           }
           timeoutController.cleanup()

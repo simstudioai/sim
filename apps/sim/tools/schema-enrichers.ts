@@ -1,33 +1,57 @@
 import { createLogger } from '@sim/logger'
+import { isRecordLike } from '@sim/utils/object'
+import { isColumnType } from '@/lib/table/column-types'
 import { enrichTableToolDescription, enrichTableToolParameters } from '@/lib/table/llm/enrichment'
 import type { TableSummary } from '@/lib/table/types'
+import type { WorkflowToolExecutionContext } from '@/tools/types'
 
 const logger = createLogger('SchemaEnrichers')
 
-async function fetchTableSchema(tableId: string): Promise<TableSummary | null> {
-  try {
-    const { buildAuthHeaders, buildAPIUrl } = await import('@/executor/utils/http')
-
-    const headers = await buildAuthHeaders()
-    const url = buildAPIUrl(`/api/table/${tableId}/schema`)
-
-    const response = await fetch(url.toString(), { headers })
-    if (!response.ok) {
-      logger.warn(`Failed to fetch table schema for ${tableId}: ${response.status}`)
-      return null
-    }
-
-    const result = await response.json()
-    const data = result.data || result
-
-    return {
-      name: data.name || 'Table',
-      columns: data.columns || [],
-    }
-  } catch (error) {
-    logger.error('Failed to fetch table schema:', error)
-    return null
+async function fetchTableSchema(
+  tableId: string,
+  context: WorkflowToolExecutionContext
+): Promise<TableSummary> {
+  if (!context.workspaceId) {
+    throw new Error(`Workspace ID is required to enrich table tool schema for ${tableId}`)
   }
+  if (!context.userId) {
+    throw new Error(`User ID is required to enrich table tool schema for ${tableId}`)
+  }
+
+  const { buildAuthHeaders, buildAPIUrl, extractAPIErrorMessage } = await import(
+    '@/executor/utils/http'
+  )
+
+  const headers = await buildAuthHeaders(context.userId)
+  const url = buildAPIUrl(`/api/table/${tableId}`, { workspaceId: context.workspaceId })
+  const response = await fetch(url.toString(), { headers })
+
+  if (!response.ok) {
+    const message = await extractAPIErrorMessage(response)
+    throw new Error(`Failed to fetch table schema for ${tableId}: ${message}`)
+  }
+
+  const result: unknown = await response.json()
+  if (!isRecordLike(result) || !isRecordLike(result.data) || !isRecordLike(result.data.table)) {
+    throw new Error(`Invalid table response while enriching schema for ${tableId}`)
+  }
+
+  const table = result.data.table
+  if (typeof table.name !== 'string' || !isRecordLike(table.schema)) {
+    throw new Error(`Invalid table metadata while enriching schema for ${tableId}`)
+  }
+  if (!Array.isArray(table.schema.columns)) {
+    throw new Error(`Invalid table columns while enriching schema for ${tableId}`)
+  }
+
+  const columns = table.schema.columns.map((column, index) => {
+    if (!isRecordLike(column) || typeof column.name !== 'string' || !isColumnType(column.type)) {
+      throw new Error(`Invalid table column ${index} while enriching schema for ${tableId}`)
+    }
+    return { name: column.name, type: column.type }
+  })
+
+  return { name: table.name, columns }
 }
 
 export async function enrichTableToolSchema(
@@ -38,7 +62,8 @@ export async function enrichTableToolSchema(
     properties: Record<string, unknown>
     required: string[]
   },
-  originalDescription: string
+  originalDescription: string,
+  context: WorkflowToolExecutionContext
 ): Promise<{
   description: string
   parameters: {
@@ -46,12 +71,8 @@ export async function enrichTableToolSchema(
     properties: Record<string, unknown>
     required: string[]
   }
-} | null> {
-  const tableSchema = await fetchTableSchema(tableId)
-
-  if (!tableSchema) {
-    return null
-  }
+}> {
+  const tableSchema = await fetchTableSchema(tableId, context)
 
   const enrichedDescription = enrichTableToolDescription(originalDescription, tableSchema, toolId)
   const enrichedParams = enrichTableToolParameters(

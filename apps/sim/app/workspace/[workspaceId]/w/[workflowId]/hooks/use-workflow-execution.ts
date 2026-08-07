@@ -15,7 +15,11 @@ import {
   toolCallKey,
 } from '@/components/agent-stream/tool-call-lifecycle'
 import { requestJson } from '@/lib/api/client/request'
-import { cancelWorkflowExecutionContract, workflowLogContract } from '@/lib/api/contracts/workflows'
+import {
+  cancelWorkflowExecutionContract,
+  workflowLogContract,
+  workflowStateSchema,
+} from '@/lib/api/contracts/workflows'
 import type { SecretSafeBlockLog } from '@/lib/logs/execution/display-types'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { processStreamingBlockLogs } from '@/lib/tokenization'
@@ -37,6 +41,7 @@ import {
   TriggerUtils,
 } from '@/lib/workflows/triggers/triggers'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
+import { getRunFromBlockDependencyState } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/run-from-block'
 import {
   type UploadedWorkflowAttachment,
   uploadWorkflowAttachments,
@@ -44,7 +49,6 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-attachment-upload'
 import {
   addHttpErrorConsoleEntry,
-  areRunFromBlockDependenciesSatisfied,
   type BlockEventHandlerConfig,
   createBlockEventHandlers,
   reconcileFinalBlockLogs,
@@ -110,7 +114,7 @@ function getExecutionDisplayError(data: unknown): {
   hasDisplayProjection: boolean
 } {
   if (!data || typeof data !== 'object' || !Object.hasOwn(data, 'display')) {
-    return { hasDisplayProjection: false }
+    return { hasDisplayProjection: true }
   }
   const display = (data as { display?: { error?: unknown } }).display
   return {
@@ -461,6 +465,8 @@ export function useWorkflowExecution() {
   const [executionResult, setExecutionResult] = useState<ExecutionResult | null>(null)
   const [reconnectAttemptNonce, setReconnectAttemptNonce] = useState(0)
   const executionStream = useExecutionStream()
+  const { execute: executeWorkflowStream, executeFromBlock: executeWorkflowFromBlockStream } =
+    executionStream
   const currentChatExecutionIdRef = useRef<string | null>(null)
   const runFromBlockOwnerRef = useRef<string | null>(null)
   const lastSeenEventIdRef = useRef<number>(0)
@@ -1686,9 +1692,10 @@ export function useWorkflowExecution() {
     }
 
     let notificationMessage = WORKFLOW_EXECUTION_FAILURE_MESSAGE
-    if (isRecord(error) && isRecord(error.request) && sanitizeMessage(error.request.url)) {
-      notificationMessage += `: Request to ${(error.request.url as string).trim()} failed`
-      if ('status' in error && typeof error.status === 'number') {
+    const requestError = isRecord(error) && isRecord(error.request) ? error.request : undefined
+    if (requestError && sanitizeMessage(requestError.url)) {
+      notificationMessage += `: Request to ${(requestError.url as string).trim()} failed`
+      if (isRecord(error) && typeof error.status === 'number') {
         notificationMessage += ` (Status: ${error.status})`
       }
     } else if (sanitizeMessage(errorResult.error)) {
@@ -1915,20 +1922,15 @@ export function useWorkflowExecution() {
   const handleRunFromBlock = useCallback(
     async (blockId: string, workflowId: string) => {
       const snapshot = getLastExecutionSnapshot(workflowId)
-      const workflowEdges = useWorkflowStore.getState().edges
-      const isTriggerBlock = !workflowEdges.some((edge) => edge.target === blockId)
+      const latestWorkflowState = useWorkflowStore.getState().getWorkflowState()
+      const workflowEdges = latestWorkflowState.edges
+      const { isEntryBlock: isTriggerBlock, dependenciesSatisfied } =
+        getRunFromBlockDependencyState(blockId, workflowEdges, snapshot ?? undefined)
 
-      // Non-trigger blocks need a snapshot to exist (so upstream outputs are available)
       if (!snapshot && !isTriggerBlock) {
         logger.error('No execution snapshot available for run-from-block', { workflowId, blockId })
         return
       }
-
-      const dependenciesSatisfied = areRunFromBlockDependenciesSatisfied(
-        blockId,
-        workflowEdges,
-        snapshot?.executedBlocks
-      )
 
       if (!dependenciesSatisfied) {
         logger.error('Upstream dependencies not satisfied for run-from-block', {
@@ -1953,12 +1955,25 @@ export function useWorkflowExecution() {
         : snapshot || emptySnapshot
       const sourceExecutionId = isTriggerBlock ? undefined : effectiveSnapshot.sourceExecutionId
 
+      const mergedStates = mergeSubblockState(latestWorkflowState.blocks, workflowId)
+      const executableStates = Object.entries(mergedStates).reduce(
+        (states, [id, block]) => {
+          if (block?.type && block.enabled !== false) states[id] = block
+          return states
+        },
+        {} as typeof mergedStates
+      )
+      const workflowStateOverride = workflowStateSchema.parse({
+        blocks: executableStates,
+        edges: workflowEdges,
+        loops: latestWorkflowState.loops,
+        parallels: latestWorkflowState.parallels,
+      })
+
       // Extract mock payload for trigger blocks
       let workflowInput: any
       if (isTriggerBlock) {
-        const workflowBlocks = useWorkflowStore.getState().blocks
-        const mergedStates = mergeSubblockState(workflowBlocks, workflowId)
-        const candidates = resolveStartCandidates(mergedStates, { execution: 'manual' })
+        const candidates = resolveStartCandidates(executableStates, { execution: 'manual' })
         const candidate = candidates.find((c) => c.blockId === blockId)
 
         if (candidate) {
@@ -1976,7 +1991,7 @@ export function useWorkflowExecution() {
           }
         } else {
           // Fallback: block is trigger by position but not classified as start candidate
-          const block = mergedStates[blockId]
+          const block = executableStates[blockId]
           if (block) {
             const blockConfig = getBlock(block.type)
             const hasTriggers = blockConfig?.triggers?.available?.length
@@ -2015,6 +2030,18 @@ export function useWorkflowExecution() {
         setActiveBlocks(workflowId, new Set())
         return true
       }
+      let preExecutionErrorHandled = false
+      const handlePreExecutionError = (error: string) => {
+        if (preExecutionErrorHandled || runFromBlockOwnerRef.current !== runOwnerId) return
+        preExecutionErrorHandled = true
+        handleExecutionErrorConsole({
+          workflowId,
+          error,
+          hasDisplayProjection: true,
+          durationMs: 0,
+          blockLogs: accumulatedBlockLogs,
+        })
+      }
 
       let preserveExecutionForRecovery = false
       try {
@@ -2030,11 +2057,21 @@ export function useWorkflowExecution() {
           includeStartConsoleEntry: true,
         })
 
-        await executionStream.executeFromBlock({
+        const executeBlock = isTriggerBlock ? executeWorkflowStream : executeWorkflowFromBlockStream
+        await executeBlock({
           workflowId,
           startBlockId: blockId,
-          sourceSnapshot: effectiveSnapshot,
-          ...(sourceExecutionId ? { sourceExecutionId } : {}),
+          useDraftState: true,
+          isClientSession: true,
+          workflowStateOverride,
+          ...(isTriggerBlock
+            ? {
+                triggerType: 'manual',
+              }
+            : {
+                sourceSnapshot: effectiveSnapshot,
+                ...(sourceExecutionId ? { sourceExecutionId } : {}),
+              }),
           input: workflowInput,
           onExecutionId: (id) => {
             if (runFromBlockOwnerRef.current !== runOwnerId) return
@@ -2124,6 +2161,10 @@ export function useWorkflowExecution() {
             },
 
             onExecutionError: (data) => {
+              if (!executionIdRef.current) {
+                handlePreExecutionError(data.error)
+                return
+              }
               if (!isCurrentRunFromBlockExecution()) return
               agentStreamChrome.settleAll('error')
               const executionId = executionIdRef.current
@@ -2179,6 +2220,9 @@ export function useWorkflowExecution() {
           setReconnectAttemptNonce((nonce) => nonce + 1)
         } else if ((error as Error).name !== 'AbortError') {
           logger.error('Run-from-block failed:', error)
+          if (!executionIdRef.current) {
+            handlePreExecutionError(getErrorMessage(error, 'Run-from-block request failed'))
+          }
         }
       } finally {
         if (preserveExecutionForRecovery) {
@@ -2191,9 +2235,6 @@ export function useWorkflowExecution() {
             setCurrentExecutionId(workflowId, null)
             setIsExecuting(workflowId, false)
             setActiveBlocks(workflowId, new Set())
-            if (runFromBlockOwnerRef.current === runOwnerId) {
-              runFromBlockOwnerRef.current = null
-            }
           } else if (
             !executionIdRef.current &&
             currentId === null &&
@@ -2204,6 +2245,8 @@ export function useWorkflowExecution() {
               setIsExecuting(workflowId, false)
               setActiveBlocks(workflowId, new Set())
             }
+          }
+          if (runFromBlockOwnerRef.current === runOwnerId) {
             runFromBlockOwnerRef.current = null
           }
         }
@@ -2225,7 +2268,8 @@ export function useWorkflowExecution() {
       buildBlockEventHandlers,
       handleExecutionErrorConsole,
       handleExecutionCancelledConsole,
-      executionStream,
+      executeWorkflowStream,
+      executeWorkflowFromBlockStream,
     ]
   )
 

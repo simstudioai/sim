@@ -11,6 +11,7 @@ import {
   createOrUpdateTagDefinitionsBulk,
   deleteAllTagDefinitions,
   getDocumentTagDefinitions,
+  KnowledgeTagProvenanceConflictError,
 } from '@/lib/knowledge/tags/service'
 import type { BulkTagDefinitionsData } from '@/lib/knowledge/tags/types'
 import { checkDocumentAccess, checkDocumentWriteAccess } from '@/app/api/knowledge/utils'
@@ -198,6 +199,9 @@ export const DELETE = withRouteHandler(
         data: { deleted: deletedCount },
       })
     } catch (error) {
+      if (error instanceof KnowledgeTagProvenanceConflictError) {
+        return NextResponse.json({ error: error.message }, { status: 409 })
+      }
       logger.error(`[${requestId}] Error with tag definitions operation`, error)
       return NextResponse.json({ error: 'Failed to process tag definitions' }, { status: 500 })
     }

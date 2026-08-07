@@ -9,11 +9,12 @@ import {
   requireBillingAttributionHeader,
   resolveBillingAttribution,
 } from '@/lib/billing/core/billing-attribution'
-import { getExecutionTimeout } from '@/lib/core/execution-limits'
+import { capExecutionTimeoutMs, getExecutionTimeout } from '@/lib/core/execution-limits'
 import type { SubscriptionPlan } from '@/lib/core/rate-limiter/types'
 import { readResponseToBufferWithLimit } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { SIM_VIA_HEADER } from '@/lib/execution/call-chain'
+import { parseRemainingExecutionDeadlineMs } from '@/lib/execution/execution-deadline-header'
 import {
   PRIVATE_TOOL_METADATA_RESPONSE_HEADER,
   RESOLVED_SECRET_PROVENANCE_FIELD,
@@ -260,10 +261,24 @@ export const POST = withRouteHandler(
                   workspaceId,
                 })
               : await resolveBillingAttribution({ actorUserId: userId, workspaceId })
-          const executionTimeout = getExecutionTimeout(
-            billingAttribution.payerSubscription?.plan as SubscriptionPlan | undefined,
-            'sync'
-          )
+          const remainingWorkflowDeadlineMs =
+            authType === AuthType.INTERNAL_JWT
+              ? parseRemainingExecutionDeadlineMs(request.headers)
+              : undefined
+          const executionTimeout =
+            remainingWorkflowDeadlineMs === undefined
+              ? getExecutionTimeout(
+                  billingAttribution.payerSubscription?.plan as SubscriptionPlan | undefined,
+                  'sync'
+                )
+              : capExecutionTimeoutMs(
+                  getExecutionTimeout(
+                    billingAttribution.payerSubscription?.plan as SubscriptionPlan | undefined,
+                    'async',
+                    billingAttribution.payerSubscription?.enterpriseWorkflowExecutionTimeoutSeconds
+                  ),
+                  remainingWorkflowDeadlineMs
+                )
 
           const simViaHeader = request.headers.get(SIM_VIA_HEADER)
           const extraHeaders: Record<string, string> = {}

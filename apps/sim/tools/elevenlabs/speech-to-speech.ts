@@ -1,3 +1,4 @@
+import { selectElevenLabsAudioModelInput } from '@/tools/elevenlabs/model-input'
 import type {
   ElevenLabsAudioResponse,
   ElevenLabsSpeechToSpeechParams,
@@ -47,6 +48,10 @@ export const elevenLabsSpeechToSpeechTool: ToolConfig<
   },
 
   request: {
+    modelInput: {
+      mode: 'private-provenance',
+      select: selectElevenLabsAudioModelInput,
+    },
     url: '/api/tools/elevenlabs/audio',
     method: 'POST',
     headers: () => ({

@@ -1,3 +1,4 @@
+import { selectModelBoundFileInput } from '@/lib/uploads/utils/model-input'
 import type { QuiverSvgResponse, QuiverTextToSvgParams } from '@/tools/quiver/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -71,6 +72,15 @@ export const quiverTextToSvgTool: ToolConfig<QuiverTextToSvgParams, QuiverSvgRes
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({
+        prompt: params.prompt,
+        instructions: params.instructions,
+      }),
+      privateProvenance: (params) =>
+        selectModelBoundFileInput(params.references, { parseSerializedFile: true }),
+    },
     url: '/api/tools/quiver/text-to-svg',
     method: 'POST',
     headers: () => ({ 'Content-Type': 'application/json' }),

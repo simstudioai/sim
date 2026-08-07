@@ -19,6 +19,7 @@ import {
   uploadWorkspaceFile,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import {
   performDeleteWorkspaceFileItems,
   performRenameWorkspaceFile,
@@ -361,7 +362,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             fileBuffer,
             fileName,
             contentType,
-            { folderId }
+            { folderId, secretProvenance: EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE }
           )
           logger.info('Workspace file created via copilot', {
             fileId: result.id,

@@ -23,12 +23,12 @@ const {
   mockGetDocumentTagDefinitions,
   mockExecuteKnowledgeSearch,
   mockGenerateSearchEmbedding,
-  mockGetDocumentMetadataByIds,
+  mockImportKnowledgeSearchResultSecretProvenance,
 } = vi.hoisted(() => ({
   mockGetDocumentTagDefinitions: vi.fn(),
   mockExecuteKnowledgeSearch: vi.fn(),
   mockGenerateSearchEmbedding: vi.fn(),
-  mockGetDocumentMetadataByIds: vi.fn(),
+  mockImportKnowledgeSearchResultSecretProvenance: vi.fn(),
 }))
 
 const mockCheckKnowledgeBaseAccess = knowledgeApiUtilsMockFns.mockCheckKnowledgeBaseAccess
@@ -67,10 +67,13 @@ vi.mock('@/lib/knowledge/tags/service', () => ({
   getDocumentTagDefinitions: mockGetDocumentTagDefinitions,
 }))
 
+vi.mock('@/lib/knowledge/secret-provenance', () => ({
+  importKnowledgeSearchResultSecretProvenance: mockImportKnowledgeSearchResultSecretProvenance,
+}))
+
 vi.mock('./utils', () => ({
   executeKnowledgeSearch: mockExecuteKnowledgeSearch,
   generateSearchEmbedding: mockGenerateSearchEmbedding,
-  getDocumentMetadataByIds: mockGetDocumentMetadataByIds,
   APIError: class APIError extends Error {
     public status: number
     constructor(message: string, status: number) {
@@ -81,6 +84,11 @@ vi.mock('./utils', () => ({
   },
 }))
 
+import { PRIVATE_MODEL_INPUT_PROVENANCE_HEADER } from '@/lib/execution/model-input-provenance'
+import {
+  RESOLVED_SECRET_PROVENANCE_FIELD,
+  RESOLVED_SECRET_PROVENANCE_METADATA_V1,
+} from '@/lib/execution/private-tool-metadata'
 import { estimateTokenCount } from '@/lib/tokenization/estimators'
 import { POST } from '@/app/api/knowledge/search/route'
 import { calculateCost } from '@/providers/utils'
@@ -118,9 +126,20 @@ describe('Knowledge Search API Route', () => {
     mockGenerateSearchEmbedding
       .mockClear()
       .mockResolvedValue({ embedding: [0.1, 0.2, 0.3, 0.4, 0.5], isBYOK: false })
-    mockGetDocumentMetadataByIds.mockClear().mockResolvedValue({
-      doc1: { filename: 'Document 1', sourceUrl: null },
-      doc2: { filename: 'Document 2', sourceUrl: null },
+    mockImportKnowledgeSearchResultSecretProvenance.mockClear().mockResolvedValue({
+      imported: true,
+      documentMetadata: {
+        doc1: {
+          filename: 'Document 1',
+          sourceUrl: null,
+          provenance: { status: 'known', entries: [] },
+        },
+        doc2: {
+          filename: 'Document 2',
+          sourceUrl: null,
+          provenance: { status: 'known', entries: [] },
+        },
+      },
     })
     mockGetDocumentTagDefinitions.mockClear()
     hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockClear().mockResolvedValue({
@@ -392,8 +411,15 @@ describe('Knowledge Search API Route', () => {
 
       const req = createMockRequest(
         'POST',
-        { ...validSearchData, skipUsageBilling: true },
-        { 'x-sim-billing-attribution': attribution }
+        {
+          ...validSearchData,
+          skipUsageBilling: true,
+          [RESOLVED_SECRET_PROVENANCE_FIELD]: { version: 1, complete: true, entries: [] },
+        },
+        {
+          'x-sim-billing-attribution': attribution,
+          [PRIVATE_MODEL_INPUT_PROVENANCE_HEADER]: RESOLVED_SECRET_PROVENANCE_METADATA_V1,
+        }
       )
       const response = await POST(req)
 
@@ -1063,10 +1089,14 @@ describe('Knowledge Search API Route', () => {
       ])
 
       mockGenerateSearchEmbedding.mockResolvedValue({ embedding: [0.1, 0.2, 0.3], isBYOK: false })
-      mockGetDocumentMetadataByIds.mockResolvedValue({
-        'doc-active': {
-          filename: 'Active Document.pdf',
-          sourceUrl: 'https://example.atlassian.net/wiki/spaces/DOCS/pages/12345',
+      mockImportKnowledgeSearchResultSecretProvenance.mockResolvedValue({
+        imported: true,
+        documentMetadata: {
+          'doc-active': {
+            filename: 'Active Document.pdf',
+            sourceUrl: 'https://example.atlassian.net/wiki/spaces/DOCS/pages/12345',
+            provenance: { status: 'known', entries: [] },
+          },
         },
       })
 
@@ -1131,8 +1161,16 @@ describe('Knowledge Search API Route', () => {
         },
       ])
 
-      mockGetDocumentMetadataByIds.mockResolvedValue({
-        'doc-active-tagged': { filename: 'Active Tagged Document.pdf', sourceUrl: null },
+      mockImportKnowledgeSearchResultSecretProvenance.mockResolvedValue({
+        imported: true,
+        documentMetadata: {
+          'doc-active-tagged': {
+            filename: 'Active Tagged Document.pdf',
+            sourceUrl: null,
+            tag1: 'api',
+            provenance: { status: 'known', entries: [] },
+          },
+        },
       })
 
       const mockTagDefs = {
@@ -1197,8 +1235,16 @@ describe('Knowledge Search API Route', () => {
       ])
 
       mockGenerateSearchEmbedding.mockResolvedValue({ embedding: [0.1, 0.2, 0.3], isBYOK: false })
-      mockGetDocumentMetadataByIds.mockResolvedValue({
-        'doc-active-combined': { filename: 'Active Combined Search.pdf', sourceUrl: null },
+      mockImportKnowledgeSearchResultSecretProvenance.mockResolvedValue({
+        imported: true,
+        documentMetadata: {
+          'doc-active-combined': {
+            filename: 'Active Combined Search.pdf',
+            sourceUrl: null,
+            tag1: 'guide',
+            provenance: { status: 'known', entries: [] },
+          },
+        },
       })
 
       const mockTagDefs = {

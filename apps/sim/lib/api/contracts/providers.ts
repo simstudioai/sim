@@ -1,5 +1,7 @@
 import { z } from 'zod'
+import { resolvedSecretTraceProvenanceSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { RESOLVED_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
 
 export const openRouterModelInfoSchema = z.object({
   id: z.string(),
@@ -211,6 +213,7 @@ export const providerApiRequestBodySchema = z
     blockNameMapping: z.record(z.string(), z.string()).optional(),
     reasoningEffort: z.string().optional(),
     verbosity: z.string().optional(),
+    [RESOLVED_SECRET_PROVENANCE_FIELD]: resolvedSecretTraceProvenanceSchema.optional(),
   })
   .passthrough()
 export type ProviderApiRequestBody = z.input<typeof providerApiRequestBodySchema>

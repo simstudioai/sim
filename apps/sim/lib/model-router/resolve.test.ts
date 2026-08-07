@@ -22,6 +22,8 @@ vi.mock('@/lib/core/config/env-flags', () => ({
 
 vi.mock('@/lib/core/config/env', () => ({
   env: { COPILOT_API_KEY: 'test-copilot-key' },
+  envBoolean: () => undefined,
+  getEnv: () => undefined,
 }))
 
 vi.mock('@/lib/copilot/request/go/fetch', () => ({
@@ -51,12 +53,14 @@ import {
   resolveAutoModel,
 } from '@/lib/model-router/resolve'
 import type { ExecutionContext } from '@/executor/types'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const ctx = {
   userId: 'user-1',
   workspaceId: 'ws-1',
   workflowId: 'wf-1',
   executionId: 'exec-1',
+  resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
 } as unknown as ExecutionContext
 
 /** Distinct-by-default signals so the module-level decision cache never collides across tests. */
@@ -159,6 +163,91 @@ describe('resolveAutoModel', () => {
     for (const model of ['glm', 'kimi', 'gemini', 'gpt-5.6-sol', 'sonnet']) {
       expect(JSON.stringify(body)).not.toContain(model)
     }
+  })
+
+  it('projects active secrets from model-visible signals without changing routing controls', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      {
+        name: 'NUMBER_SECRET',
+        plaintext: '123',
+        encryptedValue: 'encrypted-number-secret',
+      },
+      {
+        name: 'BOOLEAN_SECRET',
+        plaintext: 'true',
+        encryptedValue: 'encrypted-boolean-secret',
+      },
+    ])
+    registry.recordResolved('NUMBER_SECRET', '123')
+    registry.recordResolved('BOOLEAN_SECRET', 'true')
+    mockFetchGo.mockResolvedValue(routerResponse({ choice: '1' }))
+
+    await resolveAutoModel({
+      ctx: { ...ctx, resolvedSecretTraceRegistry: registry },
+      blockId: 'b1',
+      signals: makeSignals({
+        systemPrompt: 'System 123 true',
+        lastMessage: 'Message 123 true',
+        messageCount: 123,
+        toolNames: ['123', 'true'],
+        hasResponseFormat: true,
+        approxInputTokens: 123,
+      }),
+      fallbackModel: 'claude-sonnet-5',
+    })
+
+    const body = JSON.parse(mockFetchGo.mock.calls[0][1].body as string)
+    expect(body.signals).toEqual({
+      systemPrompt: 'System {{NUMBER_SECRET}} {{BOOLEAN_SECRET}}',
+      lastMessage: 'Message {{NUMBER_SECRET}} {{BOOLEAN_SECRET}}',
+      messageCount: 123,
+      toolNames: ['{{NUMBER_SECRET}}', '{{BOOLEAN_SECRET}}'],
+      hasMedia: false,
+      hasResponseFormat: true,
+      approxInputTokens: 123,
+    })
+  })
+
+  it('does not infer provenance from dormant catalog values in routing signals', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      {
+        name: 'DORMANT_SECRET',
+        plaintext: 'ordinary-tool-name',
+        encryptedValue: 'encrypted-dormant-secret',
+      },
+    ])
+    mockFetchGo.mockResolvedValue(routerResponse({ choice: '1' }))
+
+    await resolveAutoModel({
+      ctx: { ...ctx, resolvedSecretTraceRegistry: registry },
+      blockId: 'b1',
+      signals: makeSignals({ toolNames: ['ordinary-tool-name'] }),
+      fallbackModel: 'claude-sonnet-5',
+    })
+
+    const body = JSON.parse(mockFetchGo.mock.calls[0][1].body as string)
+    expect(body.signals.toolNames).toEqual(['ordinary-tool-name'])
+  })
+
+  it('falls back without calling mothership when signal provenance is incomplete', async () => {
+    const registry = new ResolvedSecretTraceRegistry()
+    registry.markIncomplete()
+
+    const result = await resolveAutoModel({
+      ctx: { ...ctx, resolvedSecretTraceRegistry: registry },
+      blockId: 'b1',
+      signals: makeSignals(),
+      fallbackModel: 'claude-sonnet-5',
+    })
+
+    expect(result).toEqual({
+      model: 'claude-sonnet-5',
+      tier: null,
+      decidedBy: 'fallback',
+      billableRoutingCost: 0,
+    })
+    expect(mockGetMothershipBaseURL).not.toHaveBeenCalled()
+    expect(mockFetchGo).not.toHaveBeenCalled()
   })
 
   it('never crosses media kinds when walking down from a denied tier', async () => {

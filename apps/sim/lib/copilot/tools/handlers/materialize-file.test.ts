@@ -5,22 +5,28 @@ import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
+  mockAllocateUniqueWorkspaceFileName,
   mockCheckStorageQuotaForBillingContext,
   mockDecompress,
   mockFetchBuffer,
   mockFindFolder,
   mockFindUpload,
+  mockGetBoundWorkspaceFileSecretProvenance,
+  mockGetWorkspaceFile,
   mockHasCloudStorage,
   mockHeadObject,
   mockIncrementStorageUsageForBillingContextInTx,
   mockMaybeNotifyStorageLimitForBillingContext,
   mockResolveStorageBillingContext,
 } = vi.hoisted(() => ({
+  mockAllocateUniqueWorkspaceFileName: vi.fn(),
   mockCheckStorageQuotaForBillingContext: vi.fn(),
   mockDecompress: vi.fn(),
   mockFetchBuffer: vi.fn(),
   mockFindFolder: vi.fn(),
   mockFindUpload: vi.fn(),
+  mockGetBoundWorkspaceFileSecretProvenance: vi.fn(),
+  mockGetWorkspaceFile: vi.fn(),
   mockHasCloudStorage: vi.fn(),
   mockHeadObject: vi.fn(),
   mockIncrementStorageUsageForBillingContextInTx: vi.fn(),
@@ -41,7 +47,13 @@ vi.mock('@/lib/uploads', () => ({
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
+  allocateUniqueWorkspaceFileName: mockAllocateUniqueWorkspaceFileName,
   fetchWorkspaceFileBuffer: mockFetchBuffer,
+  getWorkspaceFile: mockGetWorkspaceFile,
+}))
+
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
+  getBoundWorkspaceFileSecretProvenance: mockGetBoundWorkspaceFileSecretProvenance,
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-folder-manager', () => ({
@@ -76,7 +88,9 @@ vi.mock('@/lib/billing/storage', () => ({
 }))
 
 vi.mock('@/lib/copilot/vfs/path-utils', () => ({
-  canonicalWorkspaceFilePath: vi.fn(() => 'files/report.txt'),
+  canonicalWorkspaceFilePath: vi.fn(
+    ({ name }: { name: string }) => `files/${encodeURIComponent(name)}`
+  ),
   encodeVfsPathSegments: (segments: string[]) =>
     segments.map((s) => encodeURIComponent(s)).join('/'),
 }))
@@ -237,6 +251,8 @@ describe('executeMaterializeFile - save storage transition', () => {
     vi.clearAllMocks()
     resetDbChainMock()
     mockFindUpload.mockResolvedValue(mothershipRow)
+    mockAllocateUniqueWorkspaceFileName.mockResolvedValue('report.txt')
+    mockGetWorkspaceFile.mockResolvedValue({ id: 'file-1', name: 'report.txt' })
     mockHeadObject.mockResolvedValue({ size: 250, contentType: 'text/plain' })
     mockHasCloudStorage.mockReturnValue(true)
     mockResolveStorageBillingContext.mockResolvedValue(STORAGE_CONTEXT)
@@ -278,6 +294,11 @@ describe('executeMaterializeFile - save storage transition', () => {
     expect(result.success).toBe(true)
     expect(mockHeadObject).toHaveBeenCalledWith('mothership/file-1', 'mothership')
     expect(mockCheckStorageQuotaForBillingContext).toHaveBeenCalledWith(STORAGE_CONTEXT, 250)
+    expect(mockAllocateUniqueWorkspaceFileName).toHaveBeenCalledWith(
+      context.workspaceId,
+      'report.txt',
+      null
+    )
     expect(dbChainMockFns.set).toHaveBeenCalledWith(
       expect.objectContaining({ context: 'workspace', chatId: null, size: 250 })
     )
@@ -287,8 +308,129 @@ describe('executeMaterializeFile - save storage transition', () => {
     )
   })
 
+  it('materializes with an available root-level copy name', async () => {
+    mockFindUpload.mockResolvedValueOnce({
+      ...mothershipRow,
+      originalName: 'image.png',
+      displayName: 'image.png',
+    })
+    mockAllocateUniqueWorkspaceFileName.mockResolvedValueOnce('image (1).png')
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      { id: 'file-1', originalName: 'image (1).png' },
+    ])
+
+    const result = await executeMaterializeFile(
+      { fileNames: ['image.png'], operation: 'save' },
+      context
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockAllocateUniqueWorkspaceFileName).toHaveBeenCalledWith(
+      context.workspaceId,
+      'image.png',
+      null
+    )
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        context: 'workspace',
+        originalName: 'image (1).png',
+        displayName: 'image (1).png',
+      })
+    )
+    expect(result.output).toEqual({ succeeded: ['image (1).png'], failed: [] })
+    expect(result.resources).toEqual([{ type: 'file', id: 'file-1', title: 'image (1).png' }])
+  })
+
+  it('reallocates and retries when a concurrent root-level write claims the name', async () => {
+    const nameCollision = Object.assign(new Error('duplicate workspace file name'), {
+      code: '23505',
+      constraint_name: 'workspace_files_workspace_folder_name_active_unique',
+    })
+    mockFindUpload.mockResolvedValueOnce({
+      ...mothershipRow,
+      originalName: 'image.png',
+      displayName: 'image.png',
+    })
+    mockAllocateUniqueWorkspaceFileName
+      .mockResolvedValueOnce('image (1).png')
+      .mockResolvedValueOnce('image (2).png')
+    dbChainMockFns.returning
+      .mockRejectedValueOnce(nameCollision)
+      .mockResolvedValueOnce([{ id: 'file-1', originalName: 'image (2).png' }])
+
+    const result = await executeMaterializeFile(
+      { fileNames: ['image.png'], operation: 'save' },
+      context
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockAllocateUniqueWorkspaceFileName).toHaveBeenCalledTimes(2)
+    expect(mockAllocateUniqueWorkspaceFileName).toHaveBeenNthCalledWith(
+      1,
+      context.workspaceId,
+      'image.png',
+      null
+    )
+    expect(mockAllocateUniqueWorkspaceFileName).toHaveBeenNthCalledWith(
+      2,
+      context.workspaceId,
+      'image.png',
+      null
+    )
+    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(2)
+    expect(dbChainMockFns.set).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ originalName: 'image (1).png' })
+    )
+    expect(dbChainMockFns.set).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ originalName: 'image (2).png' })
+    )
+    expect(mockIncrementStorageUsageForBillingContextInTx).toHaveBeenCalledTimes(1)
+    expect(result.output).toEqual({ succeeded: ['image (2).png'], failed: [] })
+    expect(result.resources).toEqual([{ type: 'file', id: 'file-1', title: 'image (2).png' }])
+  })
+
+  it('stops after the bounded number of root-level name collisions', async () => {
+    const nameCollision = Object.assign(new Error('duplicate workspace file name'), {
+      code: '23505',
+      constraint_name: 'workspace_files_workspace_folder_name_active_unique',
+    })
+    dbChainMockFns.returning.mockRejectedValue(nameCollision)
+
+    const result = await executeMaterializeFile(
+      { fileNames: ['report.txt'], operation: 'save' },
+      context
+    )
+
+    expect(result.success).toBe(false)
+    expect(mockAllocateUniqueWorkspaceFileName).toHaveBeenCalledTimes(8)
+    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(8)
+    expect(mockIncrementStorageUsageForBillingContextInTx).not.toHaveBeenCalled()
+    expect(mockMaybeNotifyStorageLimitForBillingContext).not.toHaveBeenCalled()
+  })
+
+  it('does not retry unique violations from a different constraint', async () => {
+    const keyCollision = Object.assign(new Error('duplicate workspace file key'), {
+      code: '23505',
+      constraint_name: 'workspace_files_key_active_unique',
+    })
+    dbChainMockFns.returning.mockRejectedValueOnce(keyCollision)
+
+    const result = await executeMaterializeFile(
+      { fileNames: ['report.txt'], operation: 'save' },
+      context
+    )
+
+    expect(result.success).toBe(false)
+    expect(mockAllocateUniqueWorkspaceFileName).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(1)
+    expect(mockIncrementStorageUsageForBillingContextInTx).not.toHaveBeenCalled()
+  })
+
   it('treats a lost conditional transition as a replay no-op', async () => {
     dbChainMockFns.returning.mockResolvedValueOnce([])
+    mockGetWorkspaceFile.mockResolvedValueOnce({ id: 'file-1', name: 'report (1).txt' })
 
     const result = await executeMaterializeFile(
       { fileNames: ['report.txt'], operation: 'save' },
@@ -296,6 +438,37 @@ describe('executeMaterializeFile - save storage transition', () => {
     )
 
     expect(result.success).toBe(true)
+    expect(mockGetWorkspaceFile).toHaveBeenCalledWith(context.workspaceId, 'file-1', {
+      throwOnError: true,
+    })
+    expect(result.output).toEqual({ succeeded: ['report (1).txt'], failed: [] })
+    expect(result.resources).toEqual([{ type: 'file', id: 'file-1', title: 'report (1).txt' }])
+    expect(mockIncrementStorageUsageForBillingContextInTx).not.toHaveBeenCalled()
+    expect(mockMaybeNotifyStorageLimitForBillingContext).not.toHaveBeenCalled()
+  })
+
+  it('fails a replay when the materialized workspace file no longer exists', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+    mockGetWorkspaceFile.mockResolvedValueOnce(null)
+
+    const result = await executeMaterializeFile(
+      { fileNames: ['report.txt'], operation: 'save' },
+      context
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.output).toEqual({
+      succeeded: [],
+      failed: [
+        {
+          fileName: 'report.txt',
+          error: 'Upload no longer available: "report.txt".',
+        },
+      ],
+    })
+    expect(mockGetWorkspaceFile).toHaveBeenCalledWith(context.workspaceId, 'file-1', {
+      throwOnError: true,
+    })
     expect(mockIncrementStorageUsageForBillingContextInTx).not.toHaveBeenCalled()
     expect(mockMaybeNotifyStorageLimitForBillingContext).not.toHaveBeenCalled()
   })
@@ -357,6 +530,10 @@ describe('executeMaterializeFile - extract operation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockFindFolder.mockResolvedValue(null)
+    mockGetBoundWorkspaceFileSecretProvenance.mockResolvedValue({
+      status: 'exact',
+      entries: [],
+    })
   })
 
   function zipRow(overrides: Record<string, unknown> = {}) {
@@ -404,6 +581,7 @@ describe('executeMaterializeFile - extract operation', () => {
         userId: 'user-1',
         rootFolderSegments: ['bundle'],
         skipNoiseEntries: true,
+        secretProvenance: { status: 'exact', entries: [] },
       })
     )
     expect(result.output).toMatchObject({ succeeded: ['bundle.zip'], failed: [] })

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { requiredFieldSchema } from '@/lib/api/contracts/primitives'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
 import { cleanedWorkflowStateSchema } from '@/lib/api/contracts/workflows'
 import {
@@ -102,7 +103,8 @@ export const addCopilotChatResourceBodySchema = z.object({
   chatId: z.string(),
   resource: z.object({
     type: copilotResourceTypeSchema,
-    id: z.string(),
+    // Matches the bound the chat-send path enforces.
+    id: requiredFieldSchema('resource.id cannot be empty'),
     title: z.string(),
   }),
 })

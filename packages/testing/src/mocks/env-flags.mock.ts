@@ -31,6 +31,7 @@ export interface EnvFlagsMockState {
   isAccessControlEnabled: boolean
   isOrganizationsEnabled: boolean
   isInboxEnabled: boolean
+  isSandboxDeploymentEntitled: boolean
   isSandboxesEnabled: boolean
   isWhitelabelingEnabled: boolean
   isAuditLogsEnabled: boolean
@@ -39,6 +40,7 @@ export interface EnvFlagsMockState {
   isSessionPoliciesEnabled: boolean
   isForkingEnabled: boolean
   isRemoteSandboxEnabled: boolean
+  isMothershipSandboxEnabled: boolean
   isDocSandboxEnabled: boolean
   isOllamaConfigured: boolean
   isAzureConfigured: boolean
@@ -80,7 +82,8 @@ const defaultEnvFlagsState: EnvFlagsMockState = {
   // `true` so upgrades do not remove a feature. See
   // ENTERPRISE_FEATURE_LEGACY_DEFAULTS.
   isInboxEnabled: true,
-  isSandboxesEnabled: true,
+  isSandboxDeploymentEntitled: false,
+  isSandboxesEnabled: false,
   isWhitelabelingEnabled: true,
   isSessionPoliciesEnabled: true,
   isAuditLogsEnabled: false,
@@ -88,6 +91,7 @@ const defaultEnvFlagsState: EnvFlagsMockState = {
   isDataDrainsEnabled: false,
   isForkingEnabled: false,
   isRemoteSandboxEnabled: false,
+  isMothershipSandboxEnabled: false,
   isDocSandboxEnabled: false,
   isOllamaConfigured: false,
   isAzureConfigured: false,

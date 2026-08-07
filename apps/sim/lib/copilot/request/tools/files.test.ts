@@ -27,7 +27,9 @@ import {
   serializeOutputForFile,
   unwrapFunctionExecuteOutput,
 } from '@/lib/copilot/request/tools/files'
+import { projectToolResultForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
 import type { ExecutionContext } from '@/lib/copilot/request/types'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 describe('unwrapFunctionExecuteOutput', () => {
   it('unwraps the function_execute envelope { result, stdout }', () => {
@@ -112,6 +114,7 @@ describe('maybeWriteOutputToFile', () => {
       workflowId: 'wf-1',
       workspaceId: 'workspace-1',
       userPermission: 'write',
+      resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
       ...overrides,
     }
   }
@@ -161,6 +164,69 @@ describe('maybeWriteOutputToFile', () => {
 
     expect(result.success).toBe(true)
     expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledTimes(1)
+  })
+
+  it('persists canonical aliases and leaves unrelated low-entropy public values unchanged', async () => {
+    const parentRegistry = new ResolvedSecretTraceRegistry([
+      {
+        name: 'OUTPUT_SECRET',
+        plaintext: 'secret-value',
+        encryptedValue: 'encrypted-output-secret',
+      },
+      {
+        name: 'UNRELATED',
+        plaintext: 'true',
+        encryptedValue: 'encrypted-unrelated',
+      },
+    ])
+    parentRegistry.recordResolved('UNRELATED', 'true')
+    const toolRegistry = parentRegistry.forkForToolInput({ code: 'return {{OUTPUT_SECRET}}' })
+    toolRegistry.recordResolved('OUTPUT_SECRET', 'secret-value')
+    const runtimeOutput = {
+      result: { token: 'secret-value', publicLabel: 'true', enabled: true },
+      stdout: '',
+    }
+
+    const result = await maybeWriteOutputToFile(
+      FunctionExecute.id,
+      { outputs: { files: [{ path: 'files/report.json', mode: 'overwrite' }] } },
+      { success: true, output: runtimeOutput },
+      buildContext({ resolvedSecretTraceRegistry: toolRegistry })
+    )
+
+    expect(result.success).toBe(true)
+    const persisted = mockWriteWorkspaceFileByPath.mock.calls[0][0].buffer.toString('utf8')
+    expect(JSON.parse(persisted)).toEqual({
+      token: '{{OUTPUT_SECRET}}',
+      publicLabel: 'true',
+      enabled: true,
+    })
+    expect(runtimeOutput.result.token).toBe('secret-value')
+
+    const laterRead = projectToolResultForCopilot(
+      { success: true, output: { content: persisted } },
+      new ResolvedSecretTraceRegistry()
+    )
+    expect(JSON.parse((laterRead.output as { content: string }).content)).toEqual({
+      token: '{{OUTPUT_SECRET}}',
+      publicLabel: 'true',
+      enabled: true,
+    })
+  })
+
+  it('does not write when exact persistence provenance is unavailable', async () => {
+    const result = await maybeWriteOutputToFile(
+      FunctionExecute.id,
+      { outputs: { files: [{ path: 'files/report.json', mode: 'overwrite' }] } },
+      { success: true, output: { result: { token: 'unknown' }, stdout: '' } },
+      buildContext({ resolvedSecretTraceRegistry: undefined })
+    )
+
+    expect(result).toEqual({
+      success: false,
+      error: 'Tool output could not be persisted safely because secret provenance was unavailable.',
+    })
+    expect(mockWriteWorkspaceFileByPath).not.toHaveBeenCalled()
   })
 
   it('fails loudly instead of silently skipping declared outputs when workspace context is missing', async () => {

@@ -105,7 +105,6 @@ export function SearchModal({
   const atomicBrowserOcclusion = supportsAtomicBrowserPanelOcclusion()
   const nativeSurfaceReady = useNativeSurfaceOcclusionReady(open, 'modal')
   const visuallyOpen = open && nativeSurfaceReady
-  const focusReady = atomicBrowserOcclusion ? visuallyOpen : open
   const [retainNativeSurfaceOcclusion, setRetainNativeSurfaceOcclusion] = useState(open)
   const nativeSurfaceOcclusionActive =
     open || (atomicBrowserOcclusion && retainNativeSurfaceOcclusion)
@@ -326,8 +325,12 @@ export function SearchModal({
     if (open) setSearch('')
   }
 
+  /**
+   * Focus only once the dialog is actually visible: `.focus()` is a no-op while
+   * the surface still carries `invisible`, and nothing re-focuses afterwards.
+   */
   useEffect(() => {
-    if (!focusReady || !inputRef.current) return
+    if (!visuallyOpen || !inputRef.current) return
     const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
       window.HTMLInputElement.prototype,
       'value'
@@ -337,7 +340,7 @@ export function SearchModal({
       inputRef.current.dispatchEvent(new Event('input', { bubbles: true }))
     }
     inputRef.current.focus()
-  }, [focusReady])
+  }, [visuallyOpen])
 
   const deferredSearch = useDeferredValue(search)
   const deferredSearchRef = useRef(deferredSearch)

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { selectPreferredModelBoundFileInput } from '@/lib/uploads/utils/model-input'
 import type {
   TextractParserInput,
   TextractParserOutput,
@@ -8,6 +9,27 @@ import type {
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('TextractParserTool')
+
+type TextractQuery = NonNullable<TextractParserInput['queries']>[number]
+
+function selectTextractQueryText(
+  params: Pick<TextractParserInput, 'featureTypes' | 'queries'>
+): string[] | undefined {
+  if (!params.featureTypes?.includes('QUERIES') || !params.queries) return undefined
+  return params.queries.map((query) => query.Text)
+}
+
+function rebuildTextractQueries(original: TextractQuery[], projected: unknown): TextractQuery[] {
+  if (
+    !Array.isArray(projected) ||
+    projected.length !== original.length ||
+    !projected.every((text) => typeof text === 'string')
+  ) {
+    throw new Error('Projected Textract queries do not match the original queries')
+  }
+
+  return original.map((query, index) => ({ ...query, Text: projected[index] }))
+}
 
 export const textractParserTool: ToolConfig<TextractParserInput, TextractParserOutput> = {
   id: 'textract_parser',
@@ -87,6 +109,30 @@ export const textractParserTool: ToolConfig<TextractParserInput, TextractParserO
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => {
+        const queries = selectTextractQueryText(params)
+        return queries === undefined ? {} : { queries }
+      },
+      applyProjected: (selectedParams, projectedSelection) => {
+        if (selectedParams.queries === undefined) return {}
+        return {
+          queries: rebuildTextractQueries(selectedParams.queries, projectedSelection.queries),
+        }
+      },
+      privateProvenance: (params) => {
+        const processingMode = params.processingMode || 'sync'
+        if (processingMode === 'async') {
+          return typeof params.s3Uri === 'string' ? params.s3Uri.trim() : params.s3Uri
+        }
+        return selectPreferredModelBoundFileInput({
+          file: params.file && typeof params.file === 'object' ? params.file : params.fileUpload,
+          filePath: params.filePath,
+          prefer: 'path',
+        })
+      },
+    },
     url: '/api/tools/textract/parse',
     method: 'POST',
     headers: () => {

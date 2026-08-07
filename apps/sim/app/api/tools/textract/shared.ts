@@ -8,8 +8,16 @@ import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
+import {
+  isModelSafeWorkspaceFileKey,
+  MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
+} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import type { RawFileInput } from '@/lib/uploads/utils/file-utils'
-import { isInternalFileUrl, processSingleFileToUserFile } from '@/lib/uploads/utils/file-utils'
+import {
+  extractStorageKey,
+  isInternalFileUrl,
+  processSingleFileToUserFile,
+} from '@/lib/uploads/utils/file-utils'
 import {
   downloadServableFileFromStorage,
   resolveInternalFileUrl,
@@ -136,6 +144,18 @@ export async function resolveDocumentInput(
 
     const denied = await assertToolFileAccess(userFile.key, userId, requestId, logger)
     if (denied) return { ok: false, response: denied }
+    if (!(await isModelSafeWorkspaceFileKey(userFile.key))) {
+      return {
+        ok: false,
+        response: NextResponse.json(
+          {
+            success: false,
+            error: MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
+          },
+          { status: 400 }
+        ),
+      }
+    }
 
     const { buffer, contentType } = await downloadServableFileFromStorage(
       userFile,
@@ -172,6 +192,18 @@ export async function resolveDocumentInput(
         }
       }
       fileUrl = resolution.fileUrl || fileUrl
+      if (!(await isModelSafeWorkspaceFileKey(extractStorageKey(input.filePath)))) {
+        return {
+          ok: false,
+          response: NextResponse.json(
+            {
+              success: false,
+              error: MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
+            },
+            { status: 400 }
+          ),
+        }
+      }
     } else if (fileUrl.startsWith('/')) {
       logger.warn(`[${requestId}] Invalid internal path`, {
         userId,

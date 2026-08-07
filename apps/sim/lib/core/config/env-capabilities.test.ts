@@ -63,6 +63,8 @@ const READY_EMAIL_VALUES = {
 } as const
 
 const EMAIL_PROVIDER_ORDER = ['resend', 'ses', 'smtp', 'azure', 'gmail'] as const
+const E2B_FUNCTION_TEMPLATE_ID = 'sim-function:00000000-0000-4000-8000-000000000001'
+const DAYTONA_FUNCTION_SNAPSHOT_ID = '00000000-0000-4000-8000-000000000002'
 
 function storageValues({
   azure,
@@ -532,11 +534,13 @@ describe('env capabilities', () => {
       expect(() => requireCapability(SANDBOX_CAPABILITY, {})).toThrow(/E2B_API_KEY/)
     })
 
-    it('requires E2B credentials when E2B is selected', () => {
+    it('requires E2B credentials and an immutable Function base when E2B is selected', () => {
       expect(
         requireCapability(SANDBOX_CAPABILITY, {
           E2B_ENABLED: 'true',
           E2B_API_KEY: 'e2b-key',
+          E2B_FUNCTION_TEMPLATE_ID,
+          E2B_FUNCTION_TEMPLATE_GENERATION: '1',
         }).providerId
       ).toBe('e2b')
       expect(() =>
@@ -544,14 +548,32 @@ describe('env capabilities', () => {
           SANDBOX_PROVIDER: 'e2b',
           E2B_ENABLED: 'false',
         })
-      ).toThrow(/E2B_API_KEY.*E2B_ENABLED/)
+      ).toThrow(/E2B_API_KEY/)
       expect(() =>
         requireCapability(SANDBOX_CAPABILITY, {
           SANDBOX_PROVIDER: 'e2b',
           E2B_ENABLED: 'false',
           E2B_API_KEY: 'e2b-key',
+          E2B_FUNCTION_TEMPLATE_ID,
+          E2B_FUNCTION_TEMPLATE_GENERATION: '1',
         })
       ).toThrow(/E2B_ENABLED must be enabled/)
+      expect(() =>
+        requireCapability(SANDBOX_CAPABILITY, {
+          E2B_ENABLED: 'true',
+          E2B_API_KEY: 'e2b-key',
+          E2B_FUNCTION_TEMPLATE_ID: 'sim-function:latest',
+          E2B_FUNCTION_TEMPLATE_GENERATION: '1',
+        })
+      ).toThrow(/immutable E2B build reference/)
+      expect(() =>
+        requireCapability(SANDBOX_CAPABILITY, {
+          E2B_ENABLED: 'true',
+          E2B_API_KEY: 'e2b-key',
+          E2B_FUNCTION_TEMPLATE_ID,
+          E2B_FUNCTION_TEMPLATE_GENERATION: '0',
+        })
+      ).toThrow(/positive safe integer release generation/)
       const disabled = inspectCapability(SANDBOX_CAPABILITY, {
         SANDBOX_PROVIDER: 'e2b',
         E2B_ENABLED: 'false',
@@ -563,12 +585,12 @@ describe('env capabilities', () => {
       })
     })
 
-    it('requires Daytona credentials and a pinned shell snapshot', () => {
+    it('requires Daytona credentials and an immutable Function snapshot', () => {
       expect(
         requireCapability(SANDBOX_CAPABILITY, {
           SANDBOX_PROVIDER: 'daytona',
           DAYTONA_API_KEY: 'daytona-key',
-          DAYTONA_SHELL_SNAPSHOT_ID: 'mothership-shell:v1',
+          DAYTONA_FUNCTION_SNAPSHOT_ID,
         }).providerId
       ).toBe('daytona')
       expect(() =>
@@ -576,16 +598,14 @@ describe('env capabilities', () => {
           SANDBOX_PROVIDER: 'daytona',
           DAYTONA_API_KEY: 'daytona-key',
         })
-      ).toThrow(/DAYTONA_SHELL_SNAPSHOT_ID/)
-      for (const snapshot of ['mothership-shell', 'mothership-shell:latest']) {
-        expect(() =>
-          requireCapability(SANDBOX_CAPABILITY, {
-            SANDBOX_PROVIDER: 'daytona',
-            DAYTONA_API_KEY: 'daytona-key',
-            DAYTONA_SHELL_SNAPSHOT_ID: snapshot,
-          })
-        ).toThrow(/explicit, non-floating name:tag/)
-      }
+      ).toThrow(/DAYTONA_FUNCTION_SNAPSHOT_ID/)
+      expect(() =>
+        requireCapability(SANDBOX_CAPABILITY, {
+          SANDBOX_PROVIDER: 'daytona',
+          DAYTONA_API_KEY: 'daytona-key',
+          DAYTONA_FUNCTION_SNAPSHOT_ID: 'mothership-shell:v1',
+        })
+      ).toThrow(/immutable Daytona snapshot ID/)
     })
 
     it('reports an unknown sandbox selector without throwing during inspection', () => {
@@ -682,7 +702,10 @@ describe('env capabilities', () => {
     it('tracks setup-owned options as deployment configuration', () => {
       expect(DEPLOYMENT_CONFIGURATION_KEYS).toEqual(
         expect.arrayContaining([
-          'DAYTONA_SHELL_SNAPSHOT_ID',
+          'DAYTONA_FUNCTION_SNAPSHOT_ID',
+          'E2B_FUNCTION_TEMPLATE_ID',
+          'E2B_FUNCTION_TEMPLATE_GENERATION',
+          'NEXT_PUBLIC_SANDBOXES_ENABLED',
           'S3_FORCE_PATH_STYLE',
           'STORAGE_PROVIDER',
           'OCR_PROVIDER',

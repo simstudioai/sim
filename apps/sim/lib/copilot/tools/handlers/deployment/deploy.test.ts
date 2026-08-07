@@ -92,7 +92,7 @@ describe('deployment handlers', () => {
     })
   })
 
-  it('uses the tool-call identity for deployment idempotency', async () => {
+  it('uses the execution and deployment intent for semantic retry idempotency', async () => {
     mockPerformFullDeploy.mockResolvedValue({
       success: true,
       activeDeployment: null,
@@ -116,9 +116,78 @@ describe('deployment handlers', () => {
 
     expect(mockPerformFullDeploy).toHaveBeenCalledWith(
       expect.objectContaining({
-        idempotencyKey: 'copilot:execution-1:tool-call:call-1',
+        idempotencyKey: 'copilot:execution-1:operation:deploy_api',
       })
     )
+  })
+
+  it('does not report an admitted deployment as successful before its version is active', async () => {
+    mockPerformFullDeploy.mockResolvedValue({
+      success: true,
+      version: 12,
+      deploymentVersionId: 'version-12',
+      activeDeployment: { deploymentVersionId: 'version-11', version: 11 },
+      latestDeploymentAttempt: { status: 'preparing', isCurrent: true },
+    })
+
+    const result = await executeRedeploy(
+      {
+        workflowId: 'workflow-1',
+        versionName: 'Safe redeploy',
+        versionDescription: 'Redeploy the latest workflow changes',
+      },
+      {
+        userId: 'user-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        toolCallId: 'call-1',
+      }
+    )
+
+    expect(result).toMatchObject({
+      success: false,
+      error: expect.stringContaining('not active'),
+    })
+    expect(mockPerformFullDeploy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        idempotencyKey: 'copilot:execution-1:operation:deploy_api',
+      })
+    )
+  })
+
+  it('reports success only when the version admitted by this call is active', async () => {
+    mockPerformFullDeploy.mockResolvedValue({
+      success: true,
+      version: 12,
+      deploymentVersionId: 'version-12',
+      activeDeployment: { deploymentVersionId: 'version-12', version: 12 },
+      latestDeploymentAttempt: { status: 'active', isCurrent: true },
+    })
+
+    const result = await executeDeployApi(
+      {
+        workflowId: 'workflow-1',
+        action: 'deploy',
+        versionName: 'Safe deploy',
+        versionDescription: 'Deploy the latest workflow changes',
+      },
+      {
+        userId: 'user-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        toolCallId: 'call-1',
+      }
+    )
+
+    expect(result).toMatchObject({
+      success: true,
+      output: {
+        workflowId: 'workflow-1',
+        isDeployed: true,
+        version: 12,
+        lifecycleStatus: 'active',
+      },
+    })
   })
 
   it('rejects a replay whose active deployment attempt became historical', async () => {

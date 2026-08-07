@@ -4,15 +4,25 @@ import { createLogger, runWithRequestContext } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
-import { task } from '@trigger.dev/sdk'
+import { task, timeout } from '@trigger.dev/sdk'
 import { eq } from 'drizzle-orm'
-import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
+import {
+  refreshExecutionSlotExpiry,
+  releaseExecutionSlot,
+} from '@/lib/billing/calculations/usage-reservation'
 import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
 } from '@/lib/billing/core/billing-attribution'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
-import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core/execution-limits'
+import {
+  capExecutionTimeoutMs,
+  createTimeoutAbortController,
+  getAsyncExecutionTimeoutForBillingAttribution,
+  getExecutionDeadlineAt,
+  getTimeoutErrorMessage,
+  RESERVATION_TTL_BUFFER_MS,
+} from '@/lib/core/execution-limits'
 import { IdempotencyService, webhookIdempotency } from '@/lib/core/idempotency'
 import {
   type EnvironmentResolutionSnapshot,
@@ -175,6 +185,10 @@ async function processTriggerFileOutputs(
     executionId: string
     requestId: string
     userId?: string
+    projectDiagnosticError: (
+      error: unknown,
+      details?: Record<string, unknown>
+    ) => Record<string, unknown>
   },
   path = ''
 ): Promise<unknown> {
@@ -211,7 +225,10 @@ async function processTriggerFileOutputs(
         )
         processed[key] = processedFile
       } catch (error) {
-        logger.error(`[${context.requestId}] Error processing ${currentPath}:`, error)
+        logger.error(
+          `[${context.requestId}] Error processing ${currentPath}`,
+          context.projectDiagnosticError(error, { path: currentPath })
+        )
         processed[key] = value
       }
     } else if (
@@ -262,14 +279,20 @@ export type WebhookExecutionPayload = {
   webhookReceivedAt?: number
   /** Epoch ms of the originating provider interaction (e.g. Slack x-slack-request-timestamp). */
   triggerTimestampMs?: number
+  /** Trusted attempt budget resolved before the webhook enters the queue. */
+  executionTimeoutMs?: number
 }
 
-export async function executeWebhookJob(payload: WebhookExecutionPayload) {
+export async function executeWebhookJob(
+  payload: WebhookExecutionPayload,
+  externalAbortSignal?: AbortSignal
+) {
   const correlation = buildWebhookCorrelation(payload)
   const executionId = correlation.executionId
   const requestId = correlation.requestId
+  let payloadBillingAttribution: BillingAttributionSnapshot
   try {
-    const payloadBillingAttribution = assertBillingAttributionSnapshot(payload.billingAttribution)
+    payloadBillingAttribution = assertBillingAttributionSnapshot(payload.billingAttribution)
     if (
       payloadBillingAttribution.actorUserId !== payload.userId ||
       payloadBillingAttribution.workspaceId !== payload.workspaceId
@@ -280,44 +303,79 @@ export async function executeWebhookJob(payload: WebhookExecutionPayload) {
     await releaseExecutionSlot(executionId)
     throw error
   }
+  const timeoutController = createTimeoutAbortController(
+    capExecutionTimeoutMs(
+      getAsyncExecutionTimeoutForBillingAttribution(payloadBillingAttribution),
+      payload.executionTimeoutMs
+    ),
+    externalAbortSignal
+  )
 
-  return runWithRequestContext({ requestId }, async () => {
-    logger.info(`[${requestId}] Starting webhook execution`, {
-      webhookId: payload.webhookId,
-      workflowId: payload.workflowId,
-      provider: payload.provider,
-      userId: payload.userId,
-      executionId,
-    })
-
-    const idempotencyKey = IdempotencyService.createWebhookIdempotencyKey(
-      payload.webhookId,
-      payload.headers,
-      payload.body,
-      payload.provider
-    )
-
-    let operationStarted = false
-    const runOperation = async () => {
-      operationStarted = true
-      return await executeWebhookJobInternal(payload, correlation)
+  try {
+    const executionDeadlineAt = getExecutionDeadlineAt(timeoutController.signal)?.getTime()
+    const admissionCompleted =
+      executionDeadlineAt === undefined
+        ? true
+        : await refreshExecutionSlotExpiry(
+            executionId,
+            executionDeadlineAt + RESERVATION_TTL_BUFFER_MS
+          )
+    if (!admissionCompleted) {
+      logger.warn('Queued webhook reservation expired; repeating usage admission', {
+        workflowId: payload.workflowId,
+        executionId,
+      })
     }
 
-    try {
-      const result = await webhookIdempotency.executeWithIdempotency(
-        payload.provider,
-        idempotencyKey,
-        runOperation
+    return await runWithRequestContext({ requestId }, async () => {
+      logger.info(`[${requestId}] Starting webhook execution`, {
+        webhookId: payload.webhookId,
+        workflowId: payload.workflowId,
+        provider: payload.provider,
+        userId: payload.userId,
+        executionId,
+      })
+
+      const idempotencyKey = IdempotencyService.createWebhookIdempotencyKey(
+        payload.webhookId,
+        payload.headers,
+        payload.body,
+        payload.provider
       )
-      if (!operationStarted) {
-        await releaseExecutionSlot(executionId)
+
+      let operationStarted = false
+      const runOperation = async () => {
+        operationStarted = true
+        return await executeWebhookJobInternal(
+          payload,
+          correlation,
+          timeoutController,
+          admissionCompleted
+        )
       }
-      return result
-    } catch (error) {
-      await releaseExecutionSlot(executionId)
-      throw error
-    }
-  })
+
+      try {
+        const result = await webhookIdempotency.executeWithIdempotency(
+          payload.provider,
+          idempotencyKey,
+          runOperation,
+          undefined,
+          executionDeadlineAt === undefined
+            ? undefined
+            : { inProgressExpiresAt: executionDeadlineAt + RESERVATION_TTL_BUFFER_MS }
+        )
+        if (!operationStarted) {
+          await releaseExecutionSlot(executionId)
+        }
+        return result
+      } catch (error) {
+        await releaseExecutionSlot(executionId)
+        throw error
+      }
+    })
+  } finally {
+    timeoutController.cleanup()
+  }
 }
 
 export async function resolveWebhookExecutionProviderConfig<
@@ -411,7 +469,9 @@ async function handleExecutionResult(
 
 async function executeWebhookJobInternal(
   payload: WebhookExecutionPayload,
-  correlation: AsyncExecutionCorrelation
+  correlation: AsyncExecutionCorrelation,
+  timeoutController: ReturnType<typeof createTimeoutAbortController>,
+  admissionCompleted: boolean
 ) {
   const { executionId, requestId } = correlation
   const loggingSession = new LoggingSession(
@@ -420,6 +480,7 @@ async function executeWebhookJobInternal(
     payload.provider,
     requestId
   )
+  loggingSession.setExecutionDeadlineAt(getExecutionDeadlineAt(timeoutController.signal))
 
   const preprocessResult = await preprocessExecution({
     workflowId: payload.workflowId,
@@ -430,17 +491,19 @@ async function executeWebhookJobInternal(
     triggerData: { correlation },
     checkRateLimit: false,
     checkDeployment: false,
-    skipUsageLimits: true,
+    skipUsageLimits: admissionCompleted,
     workspaceId: payload.workspaceId,
     loggingSession,
     billingAttribution: payload.billingAttribution,
+    executionType: 'async',
+    executionDeadlineAt: getExecutionDeadlineAt(timeoutController.signal)?.getTime(),
   })
 
   if (!preprocessResult.success) {
     throw new Error(preprocessResult.error?.message || 'Preprocessing failed in background job')
   }
 
-  const { actorUserId, billingAttribution, workflowRecord, executionTimeout } = preprocessResult
+  const { actorUserId, billingAttribution, workflowRecord } = preprocessResult
   if (!workflowRecord) {
     throw new Error(`Workflow ${payload.workflowId} not found during preprocessing`)
   }
@@ -472,8 +535,6 @@ async function executeWebhookJobInternal(
   }
 
   const workflowVariables = (workflowRecord.variables as Record<string, unknown>) || {}
-  const asyncTimeout = executionTimeout?.async ?? 120_000
-  const timeoutController = createTimeoutAbortController(asyncTimeout)
 
   let deploymentVersionId: string | undefined
 
@@ -540,9 +601,10 @@ async function executeWebhookJobInternal(
               scope: secretScope,
             })
           } catch (error) {
-            logger.warn(`[${requestId}] Failed to build webhook trace secret catalog`, {
-              error: toError(error).message,
-            })
+            logger.warn(
+              `[${requestId}] Failed to build webhook trace secret catalog`,
+              loggingSession.projectDiagnosticError(error)
+            )
             resolvedSecretTraceRegistry = createIncompleteResolvedSecretTraceRegistry(secretScope)
           }
           loggingSession.setResolvedSecretTraceRegistry(resolvedSecretTraceRegistry)
@@ -637,12 +699,17 @@ async function executeWebhookJobInternal(
               executionId,
               requestId,
               userId: payload.userId,
+              projectDiagnosticError: (error, details) =>
+                loggingSession.projectDiagnosticError(error, details),
             })
             safeAssign(input, processedInput as Record<string, unknown>)
           }
         }
       } catch (error) {
-        logger.error(`[${requestId}] Error processing trigger file outputs:`, error)
+        logger.error(
+          `[${requestId}] Error processing trigger file outputs`,
+          loggingSession.projectDiagnosticError(error)
+        )
       }
     }
 
@@ -659,7 +726,10 @@ async function executeWebhookJobInternal(
           userId: payload.userId,
         })
       } catch (error) {
-        logger.error(`[${requestId}] Error processing provider-specific files:`, error)
+        logger.error(
+          `[${requestId}] Error processing provider-specific files`,
+          loggingSession.projectDiagnosticError(error)
+        )
       }
     }
 
@@ -722,7 +792,8 @@ async function executeWebhookJobInternal(
       snapshot,
       callbacks: {},
       loggingSession,
-      trustedInitialResolvedSecretTraceProvenance: resolvedSecretTraceRegistry.exportProvenance(),
+      trustedInitialResolvedSecretTraceProvenance:
+        resolvedSecretTraceRegistry.exportProvenanceForValue(triggerInput),
       includeFileBase64: false,
       base64MaxBytes: undefined,
       abortSignal: timeoutController.signal,
@@ -754,12 +825,13 @@ async function executeWebhookJobInternal(
     const errorMessage = toError(error).message
     const errorStack = error instanceof Error ? error.stack : undefined
 
-    logger.error(`[${requestId}] Webhook execution failed`, {
-      error: errorMessage,
-      stack: errorStack,
-      workflowId: payload.workflowId,
-      provider: payload.provider,
-    })
+    logger.error(
+      `[${requestId}] Webhook execution failed`,
+      loggingSession.projectDiagnosticError(error, {
+        workflowId: payload.workflowId,
+        provider: payload.provider,
+      })
+    )
 
     // The finalized flag is set inside a fire-and-forget post-execution promise; await it so the
     // signal is reliable and the failure is fully persisted before we decide fault vs error.
@@ -814,17 +886,19 @@ async function executeWebhookJobInternal(
         executionState: executionResult.executionState,
       })
     } catch (loggingError) {
-      logger.error(`[${requestId}] Failed to complete logging session`, loggingError)
+      logger.error(
+        `[${requestId}] Failed to complete logging session`,
+        loggingSession.projectDiagnosticError(loggingError)
+      )
     }
 
     throw error
-  } finally {
-    timeoutController.cleanup()
   }
 }
 
 export const webhookExecution = task({
   id: 'webhook-execution',
+  maxDuration: timeout.None,
   machine: 'medium-1x',
   retry: {
     maxAttempts: 1,
@@ -832,5 +906,6 @@ export const webhookExecution = task({
   queue: {
     concurrencyLimit: WEBHOOK_EXECUTION_CONCURRENCY_LIMIT,
   },
-  run: async (payload: WebhookExecutionPayload) => executeWebhookJob(payload),
+  run: async (payload: WebhookExecutionPayload, { signal }: { signal: AbortSignal }) =>
+    executeWebhookJob(payload, signal),
 })

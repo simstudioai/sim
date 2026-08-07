@@ -2412,6 +2412,36 @@ export function ImageIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function EmbeddingsIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      width='26'
+      height='26'
+      viewBox='0 0 26 26'
+      fill='none'
+      xmlns='http://www.w3.org/2000/svg'
+      stroke='currentColor'
+      strokeWidth='2'
+      strokeLinecap='round'
+      strokeLinejoin='round'
+    >
+      {/* Rays sit below the nodes in weight, but not so far below that they
+          wash out to loose dots at the 14px search-row size. */}
+      <path
+        d='M13 13L5.5 6.5M13 13L21 7M13 13L6.5 20M13 13L21 19'
+        strokeWidth='1.6'
+        opacity='0.9'
+      />
+      <circle cx='13' cy='13' r='3.1' fill='currentColor' stroke='none' />
+      <circle cx='5.5' cy='6.5' r='1.9' fill='currentColor' stroke='none' />
+      <circle cx='21' cy='7' r='1.9' fill='currentColor' stroke='none' />
+      <circle cx='6.5' cy='20' r='1.9' fill='currentColor' stroke='none' />
+      <circle cx='21' cy='19' r='1.9' fill='currentColor' stroke='none' />
+    </svg>
+  )
+}
+
 export function TypeformIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg

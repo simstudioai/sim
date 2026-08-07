@@ -161,7 +161,15 @@ function convertToCompatibleError(errorInfo, userCode) {
  * Execute code in isolated-vm
  */
 async function executeCode(request, executionId) {
-  const { code, params, envVars, contextVariables, timeoutMs, requestId } = request
+  const {
+    code,
+    params,
+    envVars,
+    contextVariables,
+    runtimeBindingSource = '',
+    timeoutMs,
+    requestId,
+  } = request
   const stdoutChunks = []
   let stdoutLength = 0
   let stdoutTruncated = false
@@ -191,6 +199,7 @@ async function executeCode(request, executionId) {
 
   let context = null
   let bootstrapScript = null
+  let runtimeBindingsScript = null
   let userScript = null
   let logCallback = null
   let errorCallback = null
@@ -415,6 +424,14 @@ async function executeCode(request, executionId) {
     bootstrapScript = await isolate.compileScript(bootstrap)
     await bootstrapScript.run(context)
 
+    if (typeof runtimeBindingSource !== 'string') {
+      throw new Error('Invalid function runtime binding source')
+    }
+    if (runtimeBindingSource) {
+      runtimeBindingsScript = await isolate.compileScript(runtimeBindingSource)
+      await runtimeBindingsScript.run(context)
+    }
+
     const wrappedCode = `
       (async () => {
         try {
@@ -499,6 +516,7 @@ async function executeCode(request, executionId) {
           result: null,
           stdout,
           error: { message: 'Execution cancelled', name: 'AbortError' },
+          termination: 'cancelled',
         }
       }
 
@@ -510,6 +528,7 @@ async function executeCode(request, executionId) {
             message: `Execution timed out after ${timeoutMs}ms`,
             name: 'TimeoutError',
           },
+          termination: 'timeout',
         }
       }
 
@@ -533,6 +552,7 @@ async function executeCode(request, executionId) {
   } finally {
     const releaseables = [
       userScript,
+      runtimeBindingsScript,
       bootstrapScript,
       ...externalCopies,
       fetchCallback,
@@ -1064,6 +1084,7 @@ async function executeTask(request, executionId) {
           result: null,
           stdout,
           error: { message: 'Execution cancelled', name: 'AbortError' },
+          termination: 'cancelled',
           timings,
         }
       }
@@ -1075,6 +1096,7 @@ async function executeTask(request, executionId) {
             message: `Execution timed out after ${timeoutMs}ms`,
             name: 'TimeoutError',
           },
+          termination: 'timeout',
           timings,
         }
       }

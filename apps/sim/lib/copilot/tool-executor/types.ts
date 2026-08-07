@@ -15,6 +15,8 @@ export interface ToolExecutionContext {
   toolCallId?: string
   billingAttribution?: BillingAttributionSnapshot
   copilotToolExecution?: boolean
+  /** Server-owned base image selected from the fixed Go route for this turn. */
+  sandboxProfile?: 'mothership'
   requestMode?: string
   currentAgentId?: string
   /**

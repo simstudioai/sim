@@ -170,6 +170,7 @@ describe('sse-handlers tool lifecycle', () => {
       runId: 'run-1',
       userId: 'user-1',
       registry: execContext.resolvedSecretTraceRegistry,
+      toolInput: {},
     })
   })
 
@@ -483,13 +484,16 @@ describe('sse-handlers tool lifecycle', () => {
     registry.recordResolved('SECRET', 'secret-value')
     execContext.resolvedSecretTraceRegistry = registry
     execContext.chatId = 'chat-1'
-    executeTool.mockResolvedValueOnce({
-      success: true,
-      output: {
-        result: 'secret-value',
-        stdout: 'prefix secret-value',
-      },
-      resources: [{ type: 'file', id: 'file-1', title: 'secret-value.txt' }],
+    executeTool.mockImplementationOnce(async (_name, _params, toolContext) => {
+      toolContext.resolvedSecretTraceRegistry?.recordResolved('SECRET', 'secret-value')
+      return {
+        success: true,
+        output: {
+          result: 'secret-value',
+          stdout: 'prefix secret-value',
+        },
+        resources: [{ type: 'file', id: 'file-1', title: 'secret-value.txt' }],
+      }
     })
     const onEvent = vi.fn()
 
@@ -594,6 +598,48 @@ describe('sse-handlers tool lifecycle', () => {
     )
     expect(context.toolCalls.get('tool-background')?.status).toBe(
       MothershipStreamV1ToolOutcome.skipped
+    )
+  })
+
+  it('settles an explicitly async workflow launch as successful', async () => {
+    waitForWorkflowToolCompletion.mockResolvedValueOnce({
+      status: 'background',
+      data: { workflowId: 'workflow-1', executionId: 'execution-1' },
+    })
+    const onEvent = vi.fn()
+
+    await sseHandlers.tool(
+      {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: 'tool-async-workflow',
+          toolName: 'run_workflow',
+          arguments: { workflowId: 'workflow-1', async: true },
+          executor: MothershipStreamV1ToolExecutor.client,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.call,
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { onEvent, interactive: true, timeout: 1000 }
+    )
+
+    await Promise.allSettled(context.pendingToolPromises.values())
+
+    expect(context.toolCalls.get('tool-async-workflow')?.status).toBe(
+      MothershipStreamV1ToolOutcome.success
+    )
+    expect(onEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: MothershipStreamV1EventType.tool,
+        payload: expect.objectContaining({
+          toolCallId: 'tool-async-workflow',
+          phase: MothershipStreamV1ToolPhase.result,
+          status: MothershipStreamV1ToolOutcome.success,
+          success: true,
+        }),
+      })
     )
   })
 

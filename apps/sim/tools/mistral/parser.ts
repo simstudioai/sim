@@ -2,6 +2,10 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateRandomString } from '@sim/utils/random'
 import { isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
+import {
+  selectModelBoundFileInput,
+  selectPreferredModelBoundFileInput,
+} from '@/lib/uploads/utils/model-input'
 import type {
   MistralParserInput,
   MistralParserOutput,
@@ -120,6 +124,16 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
   },
 
   request: {
+    modelInput: {
+      mode: 'private-provenance',
+      select: (params) =>
+        selectPreferredModelBoundFileInput({
+          file: params.file && typeof params.file === 'object' ? params.file : params.fileUpload,
+          filePath: params.filePath,
+          prefer: 'path',
+          includeInlineBase64: true,
+        }),
+    },
     url: '/api/tools/mistral/parse',
     method: 'POST',
     headers: (params) => {
@@ -549,6 +563,13 @@ export const mistralParserV3Tool: ToolConfig<MistralParserV2Input, MistralParser
     apiKey: mistralParserTool.params.apiKey,
   },
   request: {
+    modelInput: {
+      mode: 'private-provenance',
+      select: (params) =>
+        selectModelBoundFileInput(params.file, {
+          includeInlineBase64: true,
+        }),
+    },
     url: '/api/tools/mistral/parse',
     method: 'POST',
     headers: (params) => {

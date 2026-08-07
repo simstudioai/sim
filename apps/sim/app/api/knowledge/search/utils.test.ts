@@ -15,6 +15,8 @@ import {
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { env } from '@/lib/core/config/env'
 import * as documentsUtilsModule from '@/lib/knowledge/documents/utils'
+import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-input-provenance'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 /**
  * Spy on the real documents/utils namespace instead of vi.mock: the shared
@@ -790,6 +792,38 @@ describe('Knowledge Search Utils', () => {
 
       // Clean up
       Object.keys(env).forEach((key) => delete (env as any)[key])
+    })
+
+    it('projects verified provenance only in the model-bound embedding payload', async () => {
+      Object.keys(env).forEach((key) => delete (env as any)[key])
+      Object.assign(env, { OPENAI_API_KEY: 'test-openai-key' })
+      mockNextFetchResponse({
+        json: {
+          data: [{ embedding: [0.1, 0.2, 0.3] }],
+          usage: { prompt_tokens: 1, total_tokens: 1 },
+        },
+      })
+
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'encrypted-token' },
+      ])
+      registry.recordResolved('TOKEN', 'secret-value')
+
+      await runWithKnowledgeModelInputProvenance(registry, () =>
+        generateSearchEmbedding('prefix secret-value suffix', 'text-embedding-3-small')
+      )
+
+      expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+        'https://api.openai.com/v1/embeddings',
+        expect.objectContaining({
+          body: JSON.stringify({
+            input: ['prefix {{TOKEN}} suffix'],
+            model: 'text-embedding-3-small',
+            encoding_format: 'float',
+            dimensions: 1536,
+          }),
+        })
+      )
     })
   })
 

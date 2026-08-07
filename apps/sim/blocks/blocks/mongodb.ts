@@ -1025,7 +1025,7 @@ export const MongoDBBlockMeta = {
       modules: ['scheduled', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['engineering', 'sync'],
-      alsoIntegrations: ['pinecone', 'openai'],
+      alsoIntegrations: ['pinecone', 'embeddings'],
     },
     {
       icon: MongoDBIcon,

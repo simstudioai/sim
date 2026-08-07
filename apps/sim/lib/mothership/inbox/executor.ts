@@ -216,10 +216,14 @@ export async function executeInboxTask(taskId: string): Promise<void> {
 
     const workspaceAccess = await checkWorkspaceAccess(ws.id, userId)
     const userPermission = workspaceAccess.permission
+    const secretMountPolicy = normalizeSecretMountPolicy({
+      secretScope: ws.inboxSecretScope,
+      mountedSecrets: ws.inboxMountedSecrets,
+    })
     const [attachmentResult, workspaceContext, integrationTools, billingAttribution, entitlements] =
       await Promise.all([
         fetchAttachments(),
-        generateWorkspaceContext(ws.id, userId, { workspaceAccess }),
+        generateWorkspaceContext(ws.id, userId, { workspaceAccess, secretMountPolicy }),
         buildIntegrationToolSchemas(userId, undefined, undefined, ws.id),
         resolveBillingAttribution({ actorUserId: userId, workspaceId: ws.id }),
         computeWorkspaceEntitlements(ws.id, userId),
@@ -258,10 +262,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       billingAttribution,
       ...(userPermission ? { userPermission } : {}),
       secretActorUserId: actor.secretActorUserId,
-      secretMountPolicy: normalizeSecretMountPolicy({
-        secretScope: ws.inboxSecretScope,
-        mountedSecrets: ws.inboxMountedSecrets,
-      }),
+      secretMountPolicy,
     })
 
     const cleanContent = stripThinkingTags(result.content || '')

@@ -232,6 +232,7 @@ export async function prePersistClientExecutableToolCall(
         runId: context.runId,
         userId: execContext.userId,
         registry: execContext.resolvedSecretTraceRegistry,
+        toolInput: data.arguments,
       })
     } catch (error) {
       execContext.resolvedSecretTraceRegistry.markIncomplete()
@@ -770,8 +771,15 @@ async function dispatchToolExecution(
         if (completion) {
           span.setAttribute(TraceAttr.ToolOutcome, completion.status)
         }
-        handleClientCompletion(toolCall, toolCallId, completion)
-        await emitSyntheticToolResult(toolCallId, toolCall.name, completion, options)
+        const backgroundIsSuccess = toolName === 'run_workflow' && args?.async === true
+        handleClientCompletion(toolCall, toolCallId, completion, backgroundIsSuccess)
+        await emitSyntheticToolResult(
+          toolCallId,
+          toolCall.name,
+          completion,
+          options,
+          backgroundIsSuccess
+        )
         return (
           completion ?? {
             status: MothershipStreamV1ToolOutcome.error,

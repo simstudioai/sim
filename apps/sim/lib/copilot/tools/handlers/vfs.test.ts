@@ -9,19 +9,45 @@ const { getOrMaterializeVFS } = vi.hoisted(() => ({
   getOrMaterializeVFS: vi.fn(),
 }))
 
-const { readChatUpload, listChatUploads, grepChatUpload } = vi.hoisted(() => ({
-  readChatUpload: vi.fn(),
-  listChatUploads: vi.fn(),
-  grepChatUpload: vi.fn(),
+const { importWorkspaceFileSecretProvenanceForValue } = vi.hoisted(() => ({
+  importWorkspaceFileSecretProvenanceForValue: vi.fn().mockResolvedValue(true),
 }))
+
+const {
+  readChatUpload,
+  readChatUploadWithProvenance,
+  listChatUploads,
+  grepChatUpload,
+  grepChatUploadWithProvenance,
+} = vi.hoisted(() => {
+  const readChatUpload = vi.fn()
+  const grepChatUpload = vi.fn()
+  return {
+    readChatUpload,
+    readChatUploadWithProvenance: vi.fn(async (...args: unknown[]) => {
+      const value = await readChatUpload(...args)
+      return value ? { value } : null
+    }),
+    listChatUploads: vi.fn(),
+    grepChatUpload,
+    grepChatUploadWithProvenance: vi.fn(async (...args: unknown[]) => ({
+      value: await grepChatUpload(...args),
+    })),
+  }
+})
 
 vi.mock('@/lib/copilot/vfs', () => ({
   getOrMaterializeVFS,
 }))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
+  importWorkspaceFileSecretProvenanceForValue,
+}))
 vi.mock('./upload-file-reader', () => ({
   readChatUpload,
+  readChatUploadWithProvenance,
   listChatUploads,
   grepChatUpload,
+  grepChatUploadWithProvenance,
 }))
 
 import { WorkspaceFileGrepError } from '@/lib/copilot/vfs/operations'
@@ -30,12 +56,21 @@ import { executeVfsGlob, executeVfsGrep, executeVfsRead } from './vfs'
 const OVERSIZED_INLINE_CONTENT = 'x'.repeat(TOOL_RESULT_MAX_INLINE_CHARS + 1)
 
 function makeVfs() {
+  const grepFile = vi.fn()
+  const readFileContent = vi.fn()
   return {
     grep: vi.fn(),
-    grepFile: vi.fn(),
+    grepFile,
+    grepFileWithProvenance: vi.fn(async (...args: unknown[]) => ({
+      value: await grepFile(...args),
+    })),
     glob: vi.fn().mockReturnValue([]),
     read: vi.fn(),
-    readFileContent: vi.fn(),
+    readFileContent,
+    readFileContentWithProvenance: vi.fn(async (...args: unknown[]) => {
+      const value = await readFileContent(...args)
+      return value ? { value } : null
+    }),
     suggestSimilar: vi.fn().mockReturnValue([]),
   }
 }
@@ -46,6 +81,7 @@ const GREP_CTX_CHAT = { ...GREP_CTX, chatId: 'chat-1' }
 describe('vfs handlers oversize policy', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    importWorkspaceFileSecretProvenanceForValue.mockResolvedValue(true)
   })
 
   it('fails oversized grep results with narrowing guidance', async () => {
@@ -178,6 +214,26 @@ describe('vfs handlers oversize policy', () => {
     expect(vfs.read).toHaveBeenCalledWith('files/report.csv', undefined, undefined)
   })
 
+  it('materializes VFS reads with the request secret policy', async () => {
+    const vfs = makeVfs()
+    vfs.read.mockReturnValue({ content: '{}', totalLines: 1 })
+    getOrMaterializeVFS.mockResolvedValue(vfs)
+    const secretMountPolicy = {
+      secretScope: 'selected' as const,
+      mountedSecrets: ['VISIBLE_KEY'],
+    }
+
+    const result = await executeVfsRead(
+      { path: 'environment/variables.json' },
+      { ...GREP_CTX, secretMountPolicy }
+    )
+
+    expect(result.success).toBe(true)
+    expect(getOrMaterializeVFS).toHaveBeenCalledWith('ws-1', 'user-1', {
+      secretMountPolicy,
+    })
+  })
+
   it('uses dynamic file reads for canonical style paths', async () => {
     const vfs = makeVfs()
     vfs.readFileContent.mockResolvedValue({
@@ -213,11 +269,93 @@ describe('vfs handlers oversize policy', () => {
     expect(vfs.readFileContent).toHaveBeenCalledWith('files/reports/brief.pdf/compiled')
     expect(vfs.read).not.toHaveBeenCalled()
   })
+
+  it('filters durable provenance against only the final windowed read result', async () => {
+    const vfs = makeVfs()
+    vfs.readFileContentWithProvenance.mockResolvedValue({
+      value: { content: 'hidden-secret\nvisible line', totalLines: 2 },
+      file: { fileId: 'file-1', key: 'workspace/key-1', context: 'workspace' },
+    })
+    getOrMaterializeVFS.mockResolvedValue(vfs)
+
+    const result = await executeVfsRead(
+      { path: 'files/report.txt/content', offset: 1, limit: 1 },
+      GREP_CTX
+    )
+
+    expect(result.success).toBe(true)
+    expect(importWorkspaceFileSecretProvenanceForValue).toHaveBeenCalledWith(
+      expect.objectContaining({
+        identity: { fileId: 'file-1', key: 'workspace/key-1', context: 'workspace' },
+        value: { content: 'visible line', totalLines: 2 },
+      })
+    )
+  })
+
+  it('windows against the real line count when a read under-reports totalLines', async () => {
+    const vfs = makeVfs()
+    vfs.readFileContentWithProvenance.mockResolvedValue({
+      // `/extract` synthesizes a whole extracted document but reports totalLines: 1.
+      value: { content: 'page one\npage two\npage three', totalLines: 1 },
+      file: { fileId: 'file-1', key: 'workspace/key-1', context: 'workspace' },
+    })
+    getOrMaterializeVFS.mockResolvedValue(vfs)
+
+    const result = await executeVfsRead(
+      { path: 'files/report.pdf/extract', offset: 1, limit: 2 },
+      GREP_CTX
+    )
+
+    expect(result.success).toBe(true)
+    expect(result.output).toEqual({ content: 'page two\npage three', totalLines: 1 })
+  })
+
+  it('leaves an attachment read unwindowed so its label is never blanked', async () => {
+    const vfs = makeVfs()
+    const imageResult = {
+      content: 'Image: photo.jpeg (157.0KB, image/jpeg, resized for vision)',
+      totalLines: 1,
+      attachment: {
+        type: 'image',
+        name: 'photo.jpeg',
+        source: { type: 'base64', media_type: 'image/jpeg', data: 'AAAA' },
+      },
+    }
+    vfs.readFileContentWithProvenance.mockResolvedValue({
+      value: imageResult,
+      file: { fileId: 'file-1', key: 'workspace/key-1', context: 'workspace' },
+    })
+    getOrMaterializeVFS.mockResolvedValue(vfs)
+
+    const result = await executeVfsRead(
+      { path: 'files/photo.jpeg/content', offset: 1, limit: 100 },
+      GREP_CTX
+    )
+
+    expect(result.success).toBe(true)
+    expect(result.output).toEqual(imageResult)
+  })
+
+  it('rejects only the file read when durable provenance cannot be verified', async () => {
+    const vfs = makeVfs()
+    vfs.readFileContentWithProvenance.mockResolvedValue({
+      value: { content: 'content', totalLines: 1 },
+      file: { fileId: 'file-1', key: 'workspace/key-1', context: 'workspace' },
+    })
+    getOrMaterializeVFS.mockResolvedValue(vfs)
+    importWorkspaceFileSecretProvenanceForValue.mockResolvedValueOnce(false)
+
+    const result = await executeVfsRead({ path: 'files/report.txt/content' }, GREP_CTX)
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('cannot be shared safely')
+  })
 })
 
 describe('vfs grep workspace-file routing', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    importWorkspaceFileSecretProvenanceForValue.mockResolvedValue(true)
   })
 
   it('routes a single workspace file leaf to grepFile (content search)', async () => {
@@ -291,11 +429,35 @@ describe('vfs grep workspace-file routing', () => {
     expect(result.success).toBe(false)
     expect(result.error).toContain('single workspace file')
   })
+
+  it('filters durable provenance against the final grep projection', async () => {
+    const vfs = makeVfs()
+    vfs.grepFileWithProvenance.mockResolvedValue({
+      value: [{ path: 'files/report.csv', line: 2, content: 'visible hit' }],
+      file: { fileId: 'file-1', key: 'workspace/key-1', context: 'workspace' },
+    })
+    getOrMaterializeVFS.mockResolvedValue(vfs)
+
+    const result = await executeVfsGrep(
+      { pattern: 'visible', path: 'files/report.csv', output_mode: 'content' },
+      GREP_CTX
+    )
+
+    expect(result.success).toBe(true)
+    expect(importWorkspaceFileSecretProvenanceForValue).toHaveBeenCalledWith(
+      expect.objectContaining({
+        value: {
+          matches: [{ path: 'files/report.csv', line: 2, content: 'visible hit' }],
+        },
+      })
+    )
+  })
 })
 
 describe('vfs uploads are opt-in (like recently-deleted/)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    importWorkspaceFileSecretProvenanceForValue.mockResolvedValue(true)
   })
 
   it('does not search uploads for an unscoped grep', async () => {

@@ -132,7 +132,7 @@ export function InputMapping({
     return (
       <div className='flex h-32 items-center justify-center rounded-sm border border-[var(--border-1)] border-dashed bg-[var(--surface-3)] dark:bg-[var(--code-bg)]'>
         <div className='text-center'>
-          <p className='font-medium text-[var(--text-secondary)] text-sm'>No workflow selected</p>
+          <p className='text-[var(--text-secondary)] text-sm'>No workflow selected</p>
           <p className='mt-1 text-[var(--text-muted)] text-xs'>
             Select a workflow above to configure inputs
           </p>
@@ -274,7 +274,9 @@ function InputMappingField({
             placeholder='Enter value or reference'
             disabled={disabled}
             autoComplete='off'
-            className={cn('allow-scroll w-full overflow-auto text-transparent caret-foreground')}
+            className={cn(
+              'allow-scroll w-full overflow-auto text-transparent caret-foreground [letter-spacing:inherit]'
+            )}
             style={{ overflowX: 'auto' }}
           />
           <div
@@ -282,7 +284,7 @@ function InputMappingField({
               if (el) overlayRefs.current.set(fieldId, el)
             }}
             className={cn(
-              'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 font-medium font-sans text-sm',
+              'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 font-sans text-sm',
               !disabled && 'pointer-events-none'
             )}
             style={{ overflowX: 'auto' }}
