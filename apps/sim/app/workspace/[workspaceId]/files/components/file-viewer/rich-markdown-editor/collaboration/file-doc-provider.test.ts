@@ -5,6 +5,7 @@ import {
   FILE_DOC_EVENTS,
   FILE_DOC_MESSAGE_TYPE,
   FILE_DOC_SEED,
+  FILE_DOC_TIMEOUTS,
 } from '@sim/realtime-protocol/file-doc'
 import * as encoding from 'lib0/encoding'
 import type { Socket } from 'socket.io-client'
@@ -427,5 +428,84 @@ describe('FileDocProvider', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+describe('FileDocProvider.flush', () => {
+  it('emits FLUSH and resolves with the server outcome', async () => {
+    const { provider, emit, fire } = createProvider()
+
+    const pending = provider.flush()
+    expect(emit).toHaveBeenCalledWith(FILE_DOC_EVENTS.FLUSH, { fileId: 'file-1' })
+
+    fire(FILE_DOC_EVENTS.FLUSH_COMPLETE, { fileId: 'file-1', status: 'persisted', version: 42 })
+    await expect(pending).resolves.toEqual({
+      fileId: 'file-1',
+      status: 'persisted',
+      version: 42,
+    })
+    provider.destroy()
+  })
+
+  it('ignores an ack for a different file', async () => {
+    vi.useFakeTimers()
+    try {
+      const { provider, fire } = createProvider()
+      const pending = provider.flush()
+
+      fire(FILE_DOC_EVENTS.FLUSH_COMPLETE, {
+        fileId: 'other-file',
+        status: 'persisted',
+        version: 1,
+      })
+      await vi.advanceTimersByTimeAsync(FILE_DOC_TIMEOUTS.flushRequestMs)
+
+      // The foreign ack must not settle this waiter — only the timeout does.
+      await expect(pending).resolves.toEqual({ fileId: 'file-1', status: 'skipped' })
+      provider.destroy()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('resolves skipped when the ack never arrives', async () => {
+    vi.useFakeTimers()
+    try {
+      const { provider } = createProvider()
+      const pending = provider.flush()
+      await vi.advanceTimersByTimeAsync(FILE_DOC_TIMEOUTS.flushRequestMs)
+      await expect(pending).resolves.toEqual({ fileId: 'file-1', status: 'skipped' })
+      provider.destroy()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('settles a pending flush on destroy rather than stranding it', async () => {
+    const { provider } = createProvider()
+    const pending = provider.flush()
+    provider.destroy()
+    await expect(pending).resolves.toEqual({ fileId: 'file-1', status: 'skipped' })
+  })
+
+  it('settles every concurrent waiter from one ack', async () => {
+    const { provider, fire } = createProvider()
+    const first = provider.flush()
+    const second = provider.flush()
+
+    fire(FILE_DOC_EVENTS.FLUSH_COMPLETE, { fileId: 'file-1', status: 'unchanged' })
+
+    await expect(first).resolves.toMatchObject({ status: 'unchanged' })
+    await expect(second).resolves.toMatchObject({ status: 'unchanged' })
+    provider.destroy()
+  })
+
+  it('resolves skipped without emitting once destroyed', async () => {
+    const { provider, emit } = createProvider()
+    provider.destroy()
+    emit.mockClear()
+
+    await expect(provider.flush()).resolves.toEqual({ fileId: 'file-1', status: 'skipped' })
+    expect(emit).not.toHaveBeenCalled()
   })
 })

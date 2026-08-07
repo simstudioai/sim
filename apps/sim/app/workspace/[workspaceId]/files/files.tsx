@@ -90,7 +90,11 @@ import {
   isTextEditable,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { FileDocAvatars } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/file-doc-avatars'
-import { FileDocRoomProvider } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/file-doc-room-context'
+import {
+  type FileDocFlush,
+  FileDocRoomProvider,
+  flushFileDocRef,
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/file-doc-room-context'
 import { FilesListContextMenu } from '@/app/workspace/[workspaceId]/files/components/files-list-context-menu'
 import { ShareModal } from '@/app/workspace/[workspaceId]/files/components/share-modal'
 import { useWorkspaceFilesRoom } from '@/app/workspace/[workspaceId]/files/hooks/use-workspace-files-room'
@@ -249,6 +253,12 @@ function formatFileType(storedType: string | null, filename: string): string {
 export function Files() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const saveRef = useRef<(() => Promise<void>) | null>(null)
+  /**
+   * The open collaborative document's flush, published by the editor through
+   * {@link FileDocRoomProvider}. Owned here rather than read via context because this component
+   * renders that provider, so its handlers sit above it.
+   */
+  const fileDocFlushRef = useRef<FileDocFlush | null>(null)
   const discardRef = useRef<(() => void) | null>(null)
 
   const params = useParams()
@@ -1202,6 +1212,19 @@ export function Files() {
    * their text to survive — and the markdown editor unmounts the moment the file stops being
    * markdown, taking its pending debounce with it. Awaiting the save also orders the content write
    * ahead of the metadata write, so the two cannot race.
+   *
+   * Two different durability owners have to be settled, and only one of them is the client's:
+   *
+   * - An editor that owns its own durability autosaves, so flushing its pending debounce is enough.
+   *   `isDirty` is meaningful there.
+   * - A COLLABORATIVE markdown document's durability belongs to the relay — the client's save path
+   *   is disabled outright and `isDirty` is pinned false — so the just-typed text is only in the
+   *   live doc. Without asking the relay to project it, the incoming editor reads the bytes from
+   *   before the edits. Hence the flush.
+   *
+   * Both are best-effort and neither blocks the retype: a flush that cannot confirm durability still
+   * lets the rename proceed, because the alternative is refusing an action the user asked for over a
+   * display concern. The bytes are safe either way.
    */
   const handleChangeFileType = useCallback(
     async (typeId: string) => {
@@ -1215,6 +1238,7 @@ export function Files() {
       if (type.mimeType === file.type && nextName === file.name) return
 
       if (isDirtyRef.current) await saveRef.current?.()
+      await flushFileDocRef(fileDocFlushRef)
 
       const siblingNames = new Set(
         filesRef.current
@@ -2153,7 +2177,7 @@ export function Files() {
         {/* The room provider scopes "who's in this file" presence to the open document: the
             editor (inside FileViewer) publishes the server-authenticated roster and the
             header's FileDocAvatars reads it — both must be descendants. */}
-        <FileDocRoomProvider>
+        <FileDocRoomProvider flushRef={fileDocFlushRef}>
           <Resource>
             <Resource.Header
               icon={FilesIcon}

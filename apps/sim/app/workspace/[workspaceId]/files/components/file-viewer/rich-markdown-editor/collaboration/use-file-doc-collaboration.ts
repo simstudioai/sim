@@ -7,7 +7,7 @@ import * as Y from 'yjs'
 import { getUserColor } from '@/lib/workspaces/colors'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { FileDocProvider } from './file-doc-provider'
-import { useReportFileDocOthers } from './file-doc-room-context'
+import { useReportFileDocFlush, useReportFileDocOthers } from './file-doc-room-context'
 
 /** The live collaboration binding the editor wires into TipTap's Collaboration
  * (the {@link Y.Doc}) and CollaborationCaret (the awareness). */
@@ -109,6 +109,11 @@ export function useFileDocCollaboration({
       setProvider(null)
     }
   }, [enabled, socket, fileId])
+
+  // Publish this document's flush so the file-detail header can force durability before it reads the
+  // file's stored bytes back (changing the file's type unmounts this editor and swaps in one that
+  // reads them). Cleared with the provider, so it can never outlive the socket it wraps.
+  useReportFileDocFlush(useMemo(() => (provider ? () => provider.flush() : null), [provider]))
 
   const reportOthers = useReportFileDocOthers()
   const reportOthersRef = useRef(reportOthers)

@@ -31,6 +31,8 @@ import {
   FILE_DOC_SEED,
   FILE_DOC_TIMEOUTS,
   type FileDocPresenceUser,
+  type FlushFileDocPayload,
+  type FlushFileDocResult,
   type JoinFileDocPayload,
   type LeaveFileDocPayload,
   toFileDocBytes,
@@ -260,27 +262,52 @@ function schedulePersist(name: string, room: FileDocRoom): void {
   room.persistTimer = setTimeout(() => {
     room.persistTimer = null
     room.persistDeadline = null
-    void flushPersist(name, room, false)
+    void flushPersist(name, room, 'debounced')
   }, delay)
 }
 
 /**
- * Project the live doc to markdown and write it durably via the app. `final` (last collaborator
- * leaving) always writes; a debounced mid-edit flush first claims a best-effort cross-task dedup WINDOW
- * (a TTL key that just expires, so at most ~one persist per window cluster-wide) so concurrent tasks
- * editing the same file don't each write a redundant blob version. Best-effort: never throws (a failure
+ * Why a flush is running. Only `debounced` is subject to the cross-task dedup window: the other two
+ * have a waiter that would mistake a deduped no-op for a completed write.
+ *
+ * - `debounced` — the mid-edit timer fired. Coalescable, nobody is waiting.
+ * - `final` — last collaborator leaving, or shutdown. Last chance before teardown.
+ * - `requested` — a client asked for it and is waiting on the outcome ({@link FILE_DOC_EVENTS.FLUSH}).
+ */
+type FlushMode = 'debounced' | 'final' | 'requested'
+
+/** What a {@link flushPersist} call actually did. Mirrors {@link FlushFileDocResult}'s status. */
+type FlushPersistOutcome =
+  | { status: 'persisted'; version: number }
+  | { status: 'unchanged' }
+  | { status: 'skipped' }
+
+/**
+ * Project the live doc to markdown and write it durably via the app. A `debounced` mid-edit flush
+ * first claims a best-effort cross-task dedup WINDOW (a TTL key that just expires, so at most ~one
+ * persist per window cluster-wide) so concurrent tasks editing the same file don't each write a
+ * redundant blob version; `final` and `requested` always write. Best-effort: never throws (a failure
  * is retried on the next debounce; the stream holds the state meanwhile).
+ *
+ * Returns what actually happened so a `requested` flush can be acked truthfully — several paths here
+ * complete having written nothing, and a caller that treats "returned" as "persisted" would ship
+ * exactly the staleness the flush exists to prevent.
  *
  * Persists the AUTHORITATIVE shared state (the stream), not this task's local doc: a copilot merge — or
  * a peer's edit — published by another task may not be integrated into `room.doc` yet (and the stream
  * holds content even when THIS task's doc was never locally seeded), so a last-disconnect flush can't
  * clobber the durable file with a lagging projection. The local doc is captured SYNCHRONOUSLY as a
- * fallback before any await, so a `void flushPersist(name, room, true)` fired immediately before the
+ * fallback before any await, so a `void flushPersist(name, room, 'final')` fired immediately before the
  * caller destroys `room.doc` never encodes a destroyed doc, and the disabled path stays authoritative.
  */
-async function flushPersist(name: string, room: FileDocRoom, final: boolean): Promise<void> {
+async function flushPersist(
+  name: string,
+  room: FileDocRoom,
+  mode: FlushMode
+): Promise<FlushPersistOutcome> {
   // Never project a doc no user actually edited back over the file (see {@link FileDocRoom.edited}).
-  if (!room.edited || !room.workspaceId || !room.lastEditorUserId) return
+  // Nothing to write is not a failure — the durable content is already current.
+  if (!room.edited || !room.workspaceId || !room.lastEditorUserId) return { status: 'unchanged' }
   const store = getFileDocStore()
   const workspaceId = room.workspaceId
   const userId = room.lastEditorUserId
@@ -327,18 +354,24 @@ async function flushPersist(name: string, room: FileDocRoom, final: boolean): Pr
   }
 
   try {
-    if (!final && !(await store.tryClaimPersistWindow(name, FILE_DOC_TIMEOUTS.persistRequestMs)))
-      return
+    // Only a debounced flush may be coalesced away. A `requested` flush has a client waiting on the
+    // outcome, so losing the claim must not report back as a completed write.
+    if (
+      mode === 'debounced' &&
+      !(await store.tryClaimPersistWindow(name, FILE_DOC_TIMEOUTS.persistRequestMs))
+    )
+      return { status: 'skipped' }
 
     // The If-Match token: the durable content version the live doc is synced to.
     let ifMatch = await currentVersion()
-    // FINAL flush = last chance before teardown: if the version read momentarily fails (Redis blip) for a
-    // peer-seeded/tail-only task that never cached it, retry briefly rather than defer and strand the
-    // edits in the TTL'd stream (the version is cluster-wide + heartbeat-refreshed). Bounded — a genuinely
-    // unset version never appears, and the flush must not stall teardown.
+    // A flush with no second chance (last-leave teardown) or with a waiter (`requested`): if the version
+    // read momentarily fails (Redis blip) for a peer-seeded/tail-only task that never cached it, retry
+    // briefly rather than defer and strand the edits in the TTL'd stream (the version is cluster-wide +
+    // heartbeat-refreshed). Bounded — a genuinely unset version never appears, the flush must not stall
+    // teardown, and 2x100ms stays far inside the client's flush budget.
     for (
       let i = 0;
-      ifMatch === undefined && final && store.enabled && i < FINAL_VERSION_RETRIES;
+      ifMatch === undefined && mode !== 'debounced' && store.enabled && i < FINAL_VERSION_RETRIES;
       i++
     ) {
       await sleep(FINAL_VERSION_RETRY_MS)
@@ -349,19 +382,21 @@ async function flushPersist(name: string, room: FileDocRoom, final: boolean): Pr
     // still at the version the live doc synced from, so a projection can never silently clobber an
     // out-of-band edit. A single attempt — on conflict we STOP rather than retry (see below).
     const docState = await captureState()
-    if (!docState) return // nothing seeded/authoritative to persist yet
+    // Nothing seeded/authoritative to persist yet.
+    if (!docState) return { status: 'skipped' }
     const result = await fetchFileDocPersist(workspaceId, room.fileId, userId, docState, ifMatch)
-    if (result.status === 'missing') return // the file was deleted; nothing to write
+    // The file was deleted; nothing to write.
+    if (result.status === 'missing') return { status: 'skipped' }
     if (result.status === 'deferred') {
       // No version token available (momentarily — a Redis blip on a peer-seeded task). Leave the edits in
       // the stream; a later persist writes them once the version is re-established.
       logger.warn(`Persist deferred for file ${room.fileId} (no synced version available yet)`)
-      return
+      return { status: 'skipped' }
     }
     if (result.status === 'persisted') {
       room.syncedVersion = Math.max(room.syncedVersion ?? 0, result.version)
       void store.setSyncedVersion(name, result.version)
-      return
+      return { status: 'persisted', version: result.version }
     }
     // status === 'conflict': the durable file advanced out-of-band since our If-Match token. We do NOT
     // re-persist against the current stream: an external write commits durable BEFORE its chokepoint merge
@@ -375,8 +410,10 @@ async function flushPersist(name: string, room: FileDocRoom, final: boolean): Pr
     logger.warn(
       `Persist conflict for file ${room.fileId}; durable content advanced out-of-band, left authoritative`
     )
+    return { status: 'skipped' }
   } catch (error) {
     logger.warn(`Persist failed for file ${room.fileId}`, { error: getErrorMessage(error) })
+    return { status: 'skipped' }
   }
 }
 
@@ -446,7 +483,7 @@ function destroyRoomIfIdle(name: string) {
   }
   // Final durable flush BEFORE teardown — `flushPersist` encodes the doc synchronously (before the
   // destroy below) and awaits the write in the background. Best-effort; never throws.
-  void flushPersist(name, room, true)
+  void flushPersist(name, room, 'final')
   getFileDocStore().detachRoom(name)
   room.awareness.destroy()
   room.doc.destroy()
@@ -461,9 +498,9 @@ function destroyRoomIfIdle(name: string) {
  * process is exiting); only their durable state is secured.
  */
 export async function flushAllFileDocRooms(): Promise<void> {
-  const flushes: Promise<void>[] = []
+  const flushes: Promise<unknown>[] = []
   for (const [name, room] of fileDocRooms) {
-    if (room.edited) flushes.push(flushPersist(name, room, true))
+    if (room.edited) flushes.push(flushPersist(name, room, 'final'))
   }
   await Promise.all(flushes)
 }
@@ -1230,6 +1267,51 @@ export function setupWorkspaceFileDocHandlers(
   })
 
   socket.on(FILE_DOC_EVENTS.MESSAGE, (data: unknown) => handleMessage(socket, io, data))
+
+  /**
+   * Persist the live document now, ahead of the debounce, and report what happened.
+   *
+   * The membership check is the authorization: `socketToRoomName` is only populated by a join that
+   * already passed the room's permission middleware, and the payload's file must match the room this
+   * socket actually holds — so a socket cannot force a write to a document it never joined.
+   *
+   * The pending debounce is cancelled first. Leaving it armed would fire a second, redundant blob
+   * version moments after this one for content that is already durable.
+   */
+  socket.on(FILE_DOC_EVENTS.FLUSH, async (payload?: FlushFileDocPayload) => {
+    const fileId = payload?.fileId
+    if (!fileId) return
+    const ack = (status: FlushFileDocResult['status'], version?: number) => {
+      socket.emit(FILE_DOC_EVENTS.FLUSH_COMPLETE, {
+        fileId,
+        status,
+        ...(version !== undefined ? { version } : {}),
+      } satisfies FlushFileDocResult)
+    }
+
+    try {
+      const name = socketToRoomName.get(socket.id)
+      // Not in a room, or in a different file's room: nothing of this client's is unpersisted here.
+      // Acked as `unchanged` rather than left silent so the caller's wait always resolves.
+      if (!name || roomName(fileDocRoom(fileId)) !== name) return ack('unchanged')
+      const room = fileDocRooms.get(name)
+      if (!room) return ack('unchanged')
+
+      if (room.persistTimer) {
+        clearTimeout(room.persistTimer)
+        room.persistTimer = null
+      }
+      room.persistDeadline = null
+
+      const outcome = await flushPersist(name, room, 'requested')
+      ack(outcome.status, outcome.status === 'persisted' ? outcome.version : undefined)
+    } catch (error) {
+      logger.error('Error flushing file-doc room:', error)
+      // `flushPersist` never throws, so reaching here means the room lookup did. The write did not
+      // happen, and the caller must not read the ack as durable.
+      ack('skipped')
+    }
+  })
 
   socket.on(FILE_DOC_EVENTS.LEAVE, (payload?: LeaveFileDocPayload) => {
     try {

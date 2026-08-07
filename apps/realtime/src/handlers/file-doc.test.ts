@@ -368,6 +368,120 @@ describe('setupWorkspaceFileDocHandlers', () => {
     expect(mockFetchFileDocPersist).toHaveBeenCalled()
   })
 
+  describe('FLUSH', () => {
+    /** Joins, seeds, and lands one real user edit so the room is `edited` and worth persisting. */
+    async function joinAndEdit(handlers: Record<string, Handler>) {
+      await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+      await flushMicrotasks()
+      const edit = new Y.Doc()
+      edit.getText(FILE_DOC_FIELD).insert(0, 'user typed this')
+      handlers[FILE_DOC_EVENTS.MESSAGE](
+        frame(FILE_DOC_MESSAGE_TYPE.SYNC, (e) =>
+          syncProtocol.writeUpdate(e, Y.encodeStateAsUpdate(edit))
+        )
+      )
+      await flushMicrotasks()
+    }
+
+    function flushAcks(socket: { emit: ReturnType<typeof vi.fn> }) {
+      return socket.emit.mock.calls
+        .filter((call: unknown[]) => call[0] === FILE_DOC_EVENTS.FLUSH_COMPLETE)
+        .map((call: unknown[]) => call[1])
+    }
+
+    it('persists immediately and acks with the resulting version', async () => {
+      mockFetchFileDocSeed.mockResolvedValue(seedResult('# From server'))
+      mockFetchFileDocPersist.mockResolvedValue({ status: 'persisted', version: 77 })
+      const { io } = createIo()
+      const { handlers, socket } = setup('socket-1', io)
+      await joinAndEdit(handlers)
+
+      await handlers[FILE_DOC_EVENTS.FLUSH]({ fileId: 'file-1' })
+
+      expect(mockFetchFileDocPersist).toHaveBeenCalled()
+      expect(flushAcks(socket)).toEqual([{ fileId: 'file-1', status: 'persisted', version: 77 }])
+    })
+
+    it('acks unchanged — never persisted — for a doc nobody edited', async () => {
+      mockFetchFileDocSeed.mockResolvedValue(seedResult('# From server'))
+      const { io } = createIo()
+      const { handlers, socket } = setup('socket-1', io)
+      await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+      await flushMicrotasks()
+
+      await handlers[FILE_DOC_EVENTS.FLUSH]({ fileId: 'file-1' })
+
+      // Projecting an unedited seed back over the file is the clobber the `edited` gate exists to
+      // prevent, so a flush must not force one.
+      expect(mockFetchFileDocPersist).not.toHaveBeenCalled()
+      expect(flushAcks(socket)).toEqual([{ fileId: 'file-1', status: 'unchanged' }])
+    })
+
+    it('acks skipped — not persisted — when the durable file advanced out-of-band', async () => {
+      mockFetchFileDocSeed.mockResolvedValue(seedResult('# From server'))
+      mockFetchFileDocPersist.mockResolvedValue({ status: 'conflict' })
+      const { io } = createIo()
+      const { handlers, socket } = setup('socket-1', io)
+      await joinAndEdit(handlers)
+
+      await handlers[FILE_DOC_EVENTS.FLUSH]({ fileId: 'file-1' })
+
+      // The caller must be able to tell this from a real write: the durable bytes are NOT current.
+      expect(flushAcks(socket)).toEqual([{ fileId: 'file-1', status: 'skipped' }])
+    })
+
+    it('acks skipped when the persist request fails', async () => {
+      mockFetchFileDocSeed.mockResolvedValue(seedResult('# From server'))
+      mockFetchFileDocPersist.mockRejectedValue(new Error('app unreachable'))
+      const { io } = createIo()
+      const { handlers, socket } = setup('socket-1', io)
+      await joinAndEdit(handlers)
+
+      await handlers[FILE_DOC_EVENTS.FLUSH]({ fileId: 'file-1' })
+
+      expect(flushAcks(socket)).toEqual([{ fileId: 'file-1', status: 'skipped' }])
+    })
+
+    it('cancels the pending debounce so no redundant second write follows', async () => {
+      mockFetchFileDocSeed.mockResolvedValue(seedResult('# From server'))
+      mockFetchFileDocPersist.mockResolvedValue({ status: 'persisted', version: 5 })
+      vi.useFakeTimers()
+      try {
+        const { io } = createIo()
+        const { handlers } = setup('socket-1', io)
+        await joinAndEdit(handlers)
+        // The edit armed the debounce; the flush must disarm it.
+        await handlers[FILE_DOC_EVENTS.FLUSH]({ fileId: 'file-1' })
+        expect(mockFetchFileDocPersist).toHaveBeenCalledTimes(1)
+
+        await vi.advanceTimersByTimeAsync(30_000)
+        expect(mockFetchFileDocPersist).toHaveBeenCalledTimes(1)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('refuses a flush for a file this socket never joined', async () => {
+      mockFetchFileDocSeed.mockResolvedValue(seedResult('# From server'))
+      const { io } = createIo()
+      const { handlers, socket } = setup('socket-1', io)
+      await joinAndEdit(handlers)
+
+      await handlers[FILE_DOC_EVENTS.FLUSH]({ fileId: 'someone-elses-file' })
+
+      // Membership IS the authorization here — a socket must not force a write to another document.
+      expect(mockFetchFileDocPersist).not.toHaveBeenCalled()
+      expect(flushAcks(socket)).toEqual([{ fileId: 'someone-elses-file', status: 'unchanged' }])
+    })
+
+    it('ignores a payload with no fileId', async () => {
+      const { io } = createIo()
+      const { handlers, socket } = setup('socket-1', io)
+      await handlers[FILE_DOC_EVENTS.FLUSH]({})
+      expect(flushAcks(socket)).toEqual([])
+    })
+  })
+
   it('drops document frames and evicts once the editor loses write access mid-session', async () => {
     // The join-time check is not a standing right: a collaborator downgraded to `read`
     // (or removed) must stop landing durable edits on the socket they already hold.

@@ -7,6 +7,7 @@ import {
   FILE_DOC_MESSAGE_TYPE,
   FILE_DOC_SEED,
   FILE_DOC_TIMEOUTS,
+  type FlushFileDocResult,
   type JoinFileDocError,
   type JoinFileDocSuccess,
   toFileDocBytes,
@@ -107,6 +108,8 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
   joinError: JoinFileDocError | null = null
 
   private disposed = false
+  /** Resolvers for in-flight {@link flush} calls, so a single ack settles every concurrent waiter. */
+  private pendingFlushes = new Set<(result: FlushFileDocResult) => void>()
   /** Set on a non-retryable join rejection (e.g. lost write access) so the
    * provider stops attempting to (re)join until the owner tears it down. */
   private fatal = false
@@ -136,6 +139,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     socket.on(FILE_DOC_EVENTS.MESSAGE, this.handleMessage)
     socket.on(FILE_DOC_EVENTS.JOIN_SUCCESS, this.handleJoinSuccess)
     socket.on(FILE_DOC_EVENTS.JOIN_ERROR, this.handleJoinError)
+    socket.on(FILE_DOC_EVENTS.FLUSH_COMPLETE, this.handleFlushComplete)
     socket.on(ROOM_ACCESS_REVOKED_EVENT, this.handleAccessRevoked)
     socket.on('connect', this.handleConnect)
     doc.on('update', this.handleDocUpdate)
@@ -220,6 +224,49 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     if (data.fileId !== this.fileId) return
     this.sendSyncStep1()
     this.sendLocalAwareness()
+  }
+
+  private handleFlushComplete = (data: FlushFileDocResult) => {
+    if (data.fileId !== this.fileId) return
+    this.settleFlushes(data)
+  }
+
+  private settleFlushes(result: FlushFileDocResult) {
+    if (this.pendingFlushes.size === 0) return
+    const waiters = [...this.pendingFlushes]
+    this.pendingFlushes.clear()
+    for (const resolve of waiters) resolve(result)
+  }
+
+  /**
+   * Ask the server to project this document to durable markdown NOW and wait for the outcome.
+   *
+   * For a caller that is about to read the file's durable content back — changing the file's type
+   * swaps the editor, so this one unmounts and a plain-text editor fetches the stored bytes. Without
+   * this the read races the relay's 5s persist debounce and returns the pre-edit content.
+   *
+   * Always resolves, never rejects: the wait is bounded by {@link FILE_DOC_TIMEOUTS.flushRequestMs}
+   * and a lapsed wait resolves `skipped`. Callers must branch on `status` — `unchanged` and `skipped`
+   * both mean "the durable bytes may not include the latest edits", and only `persisted` guarantees
+   * they do. A timed-out flush is not cancelled server-side; it completes, just unobserved.
+   */
+  flush(): Promise<FlushFileDocResult> {
+    if (this.disposed || this.fatal) {
+      return Promise.resolve({ fileId: this.fileId, status: 'skipped' })
+    }
+    return new Promise<FlushFileDocResult>((resolve) => {
+      const settle = (result: FlushFileDocResult) => {
+        clearTimeout(timer)
+        this.pendingFlushes.delete(settle)
+        resolve(result)
+      }
+      const timer = setTimeout(
+        () => settle({ fileId: this.fileId, status: 'skipped' }),
+        FILE_DOC_TIMEOUTS.flushRequestMs
+      )
+      this.pendingFlushes.add(settle)
+      this.socket.emit(FILE_DOC_EVENTS.FLUSH, { fileId: this.fileId })
+    })
   }
 
   /**
@@ -389,9 +436,13 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     if (releaseRoomMembership(this.socket, this.fileId)) {
       this.socket.emit(FILE_DOC_EVENTS.LEAVE, { fileId: this.fileId })
     }
+    // Settle any waiter before the listener goes away, or a `flush()` awaited across a teardown would
+    // hang until its own timeout. `skipped` because this provider can no longer observe the outcome.
+    this.settleFlushes({ fileId: this.fileId, status: 'skipped' })
     this.socket.off(FILE_DOC_EVENTS.MESSAGE, this.handleMessage)
     this.socket.off(FILE_DOC_EVENTS.JOIN_SUCCESS, this.handleJoinSuccess)
     this.socket.off(FILE_DOC_EVENTS.JOIN_ERROR, this.handleJoinError)
+    this.socket.off(FILE_DOC_EVENTS.FLUSH_COMPLETE, this.handleFlushComplete)
     this.socket.off(ROOM_ACCESS_REVOKED_EVENT, this.handleAccessRevoked)
     this.socket.off('connect', this.handleConnect)
     this.doc.off('update', this.handleDocUpdate)

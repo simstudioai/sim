@@ -23,6 +23,15 @@ export const FILE_DOC_EVENTS = {
   JOIN_ERROR: 'join-file-doc-error',
   /** Client → server: leave the session ({@link LeaveFileDocPayload}). */
   LEAVE: 'leave-file-doc',
+  /**
+   * Client → server: project the live document to durable markdown NOW, ahead of the debounce
+   * ({@link FlushFileDocPayload}). For a client that is about to stop being a collaborator on this
+   * file while STAYING on the page — changing the file's type swaps the editor, so the markdown
+   * editor unmounts — and needs the durable content to be current before it reads it back.
+   */
+  FLUSH: 'flush-file-doc',
+  /** Server → client: the outcome of a {@link FILE_DOC_EVENTS.FLUSH} ({@link FlushFileDocResult}). */
+  FLUSH_COMPLETE: 'flush-file-doc-complete',
   /** Both directions: a framed Yjs message (binary), tagged by {@link FILE_DOC_MESSAGE_TYPE}. */
   MESSAGE: 'file-doc-message',
   /**
@@ -102,10 +111,16 @@ export const FILE_DOC_SEED = {
  * The seed request gets more headroom than the merge because it reads a (possibly cold) blob before
  * converting; the merge is a pure in-memory conversion the caller fully supplies.
  *
- * `persistRequestMs` (relay → app `/persist`) stands alone — no client waits on it (the relay flushes
- * the live doc to durable markdown debounced during editing and on the last collaborator leaving), so
- * it forms no ordering invariant. It gets seed-level headroom because, like the seed, it crosses a
- * durable blob write (Yjs → markdown → storage), not just an in-memory conversion.
+ * `persistRequestMs` (relay → app `/persist`) forms no ordering invariant with the others: the relay
+ * flushes the live doc to durable markdown debounced during editing and on the last collaborator
+ * leaving, and neither path has a waiter. It gets seed-level headroom because, like the seed, it
+ * crosses a durable blob write (Yjs → markdown → storage), not just an in-memory conversion.
+ *
+ * A {@link FILE_DOC_EVENTS.FLUSH} is the one path a client DOES wait on. It is bounded separately by
+ * {@link FILE_DOC_TIMEOUTS.flushRequestMs} rather than by `persistRequestMs`, because the budget that
+ * keeps a background write from being abandoned is far longer than a user will wait on an
+ * interaction. The two are independent by design: a flush that outruns its client budget still
+ * completes server-side and its result is simply no longer awaited.
  */
 export const FILE_DOC_TIMEOUTS = {
   seedRequestMs: 8_000,
@@ -113,6 +128,9 @@ export const FILE_DOC_TIMEOUTS = {
   applyEditMs: 6_000,
   readinessDeadlineMs: 12_000,
   persistRequestMs: 8_000,
+  /** How long a client waits for {@link FILE_DOC_EVENTS.FLUSH_COMPLETE} before giving up and
+   * continuing without it. Sized for an interaction, not for the write it triggers. */
+  flushRequestMs: 2_000,
 } as const
 
 /** Client → server join request. `fileId` is the `workspace_files.id`. */
@@ -142,6 +160,35 @@ export interface JoinFileDocError {
 /** Client → server leave request. */
 export interface LeaveFileDocPayload {
   fileId: string
+}
+
+/** Client → server request to persist the live document immediately. */
+export interface FlushFileDocPayload {
+  fileId: string
+}
+
+/**
+ * Server → client outcome of a {@link FILE_DOC_EVENTS.FLUSH}.
+ *
+ * `version` is present ONLY on `persisted`, and is the new durable content version
+ * (`content_updated_at` epoch ms). A caller that needs to know the durable content actually moved
+ * must check the status — several outcomes complete normally having written nothing:
+ *
+ * - `persisted` — projected and written; `version` advanced.
+ * - `unchanged` — nobody edited the document this session, so there is nothing to project. The
+ *   durable content is already current.
+ * - `skipped` — a write was attempted or considered and did not land: an out-of-band edit won the
+ *   optimistic-concurrency check, the synced version was momentarily unresolvable, the file was
+ *   deleted, or the request failed. The edits remain in the relay's stream and a later flush
+ *   (debounced, or on last leave) writes them.
+ *
+ * `skipped` is deliberately NOT an error: the caller's own next step is usually still safe, it just
+ * cannot assume the durable bytes are current.
+ */
+export interface FlushFileDocResult {
+  fileId: string
+  status: 'persisted' | 'unchanged' | 'skipped'
+  version?: number
 }
 
 /** One collaborator session in a {@link FileDocPresence} roster — server-authenticated identity.
