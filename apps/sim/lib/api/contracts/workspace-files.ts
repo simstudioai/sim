@@ -57,6 +57,12 @@ export const renameWorkspaceFileBodySchema = z.object({
   name: workspaceFileNameSchema,
 })
 
+export const renameWorkspaceFileErrorSchema = z.union([
+  z.object({ error: z.string() }),
+  z.object({ error: z.string(), details: z.array(z.unknown()) }),
+  z.object({ success: z.literal(false), error: z.string() }),
+])
+
 export const updateWorkspaceFileContentBodySchema = z
   .object({
     content: z.string().max(70_000_000, 'Content is too large'),
@@ -183,6 +189,7 @@ export const renameWorkspaceFileContract = defineRouteContract({
       file: workspaceFileRecordSchema,
     }),
   },
+  error: renameWorkspaceFileErrorSchema,
 })
 
 export const updateWorkspaceFileDimensionsContract = defineRouteContract({

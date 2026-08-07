@@ -5,7 +5,7 @@
 
 import { randomBytes } from 'crypto'
 import { db } from '@sim/db'
-import { workspaceFiles } from '@sim/db/schema'
+import { workspace, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import {
   describeError,
@@ -133,6 +133,14 @@ export interface UploadedWorkspaceFileRecord extends WorkspaceFileRecord {
   folderId: string | null
   folderPath: string | null
   deletedAt: Date | null
+}
+
+export interface ActiveWorkspaceFileContext {
+  fileId: string
+  workspaceId: string
+  workspaceOrganizationId: string | null
+  allowPersonalApiKeys: boolean
+  billedAccountUserId: string
 }
 
 interface ListWorkspaceFilesOptions {
@@ -1340,6 +1348,36 @@ export async function resolveWorkspaceFileReference(
 }
 
 /**
+ * Load the canonical authorization context for an active workspace file by resource ID.
+ * Database failures propagate so callers never confuse unavailable state with a missing file.
+ */
+export async function loadActiveWorkspaceFileContext(
+  fileId: string
+): Promise<ActiveWorkspaceFileContext | null> {
+  const [context] = await db
+    .select({
+      fileId: workspaceFiles.id,
+      workspaceId: workspace.id,
+      workspaceOrganizationId: workspace.organizationId,
+      allowPersonalApiKeys: workspace.allowPersonalApiKeys,
+      billedAccountUserId: workspace.billedAccountUserId,
+    })
+    .from(workspaceFiles)
+    .innerJoin(workspace, eq(workspaceFiles.workspaceId, workspace.id))
+    .where(
+      and(
+        eq(workspaceFiles.id, fileId),
+        eq(workspaceFiles.context, 'workspace'),
+        isNull(workspaceFiles.deletedAt),
+        isNull(workspace.archivedAt)
+      )
+    )
+    .limit(1)
+
+  return context ?? null
+}
+
+/**
  * Get a specific workspace file.
  *
  * By default a DB error is logged and swallowed to `null` — for most callers "couldn't load it"
@@ -1732,7 +1770,7 @@ export async function renameWorkspaceFile(
   const trimmedName = newName.trim()
   const normalizedName = normalizeWorkspaceFileItemName(trimmedName, 'File')
 
-  const fileRecord = await getWorkspaceFile(workspaceId, fileId)
+  const fileRecord = await getWorkspaceFile(workspaceId, fileId, { throwOnError: true })
   if (!fileRecord) {
     throw new OrchestrationError('not_found', 'File not found')
   }

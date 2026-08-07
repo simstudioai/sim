@@ -15,6 +15,9 @@ const {
   mockPerformRename,
   mockPerformDelete,
   mockGetUserEmailsByIds,
+  mockAuthenticateV2ApiKey,
+  mockCheckRateLimitDirect,
+  mockCheckRateLimitDirectOrThrow,
 } = vi.hoisted(() => ({
   mockCheckRateLimit: vi.fn(),
   mockResolveWorkspaceAccess: vi.fn(),
@@ -23,6 +26,9 @@ const {
   mockPerformRename: vi.fn(),
   mockPerformDelete: vi.fn(),
   mockGetUserEmailsByIds: vi.fn(),
+  mockAuthenticateV2ApiKey: vi.fn(),
+  mockCheckRateLimitDirect: vi.fn(),
+  mockCheckRateLimitDirectOrThrow: vi.fn(),
 }))
 
 vi.mock('@/lib/users/queries', () => ({
@@ -45,8 +51,27 @@ vi.mock('@/lib/uploads/contexts/workspace', () => ({
 }))
 
 vi.mock('@/lib/workspace-files/orchestration', () => ({
-  performRenameWorkspaceFile: mockPerformRename,
   performDeleteWorkspaceFileItems: mockPerformDelete,
+}))
+
+vi.mock('@/lib/workspace-files/application/rename-workspace-file', () => ({
+  renameWorkspaceFile: {
+    operation: { id: 'files.rename', minimumRole: 'write', workspaceApiKey: 'allow' },
+    execute: mockPerformRename,
+  },
+}))
+
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
+  authenticateV2ApiKey: mockAuthenticateV2ApiKey,
+  V2ApiKeyUnauthenticatedError: class V2ApiKeyUnauthenticatedError extends Error {},
+}))
+
+vi.mock('@/lib/core/rate-limiter', () => ({
+  getRateLimit: () => ({ maxTokens: 100, refillRate: 50, refillIntervalMs: 60_000 }),
+  RateLimiter: class RateLimiter {
+    checkRateLimitDirect = mockCheckRateLimitDirect
+    checkRateLimitDirectOrThrow = mockCheckRateLimitDirectOrThrow
+  },
 }))
 
 import { DELETE, GET, PATCH } from '@/app/api/v2/files/[fileId]/route'
@@ -69,6 +94,14 @@ const RATE_LIMIT_DENIED = {
   remaining: 0,
   resetAt: new Date('2024-01-01T01:00:00Z'),
   retryAfterMs: 1000,
+}
+
+const V2_AUTH = {
+  principal: { kind: 'personal_api_key' as const, userId: 'user-1', keyId: 'key-1' },
+  rolloutUserId: 'user-1',
+  rateLimitSubjectIds: ['api-key:key-1', 'user:user-1'] as const,
+  rateLimitSubscription: null,
+  keyType: 'personal' as const,
 }
 
 function buildRecord(overrides: Record<string, unknown> = {}) {
@@ -165,11 +198,19 @@ describe('PATCH /api/v2/files/[fileId]', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
-    mockResolveWorkspaceAccess.mockResolvedValue(null)
-    mockPerformRename.mockResolvedValue({
-      success: true,
-      file: buildRecord({ name: 'renamed.csv' }),
+    mockAuthenticateV2ApiKey.mockResolvedValue(V2_AUTH)
+    mockCheckRateLimitDirect.mockResolvedValue({
+      allowed: true,
+      remaining: 599,
+      resetAt: new Date('2024-01-01T01:00:00Z'),
     })
+    mockCheckRateLimitDirectOrThrow.mockResolvedValue({
+      allowed: true,
+      remaining: 99,
+      resetAt: new Date('2024-01-01T01:00:00Z'),
+    })
+    mockResolveWorkspaceAccess.mockResolvedValue(null)
+    mockPerformRename.mockResolvedValue({ file: buildRecord({ name: 'renamed.csv' }) })
   })
 
   it('returns 404 when the v2 API surface flag is off', async () => {
@@ -196,19 +237,23 @@ describe('PATCH /api/v2/files/[fileId]', () => {
     expect(mockPerformRename).not.toHaveBeenCalled()
   })
 
-  it('surfaces an access-denied failure in the v2 error envelope', async () => {
-    mockResolveWorkspaceAccess.mockResolvedValue({
-      status: 403,
-      code: 'FORBIDDEN',
-      message: 'Access denied',
-    })
+  it('conceals an access-denied canonical file as not found', async () => {
+    const { OrchestrationError } = await import('@/lib/core/orchestration/types')
+    mockPerformRename.mockRejectedValue(
+      new OrchestrationError('forbidden', 'Insufficient workspace permissions')
+    )
     const res = await callRename({ workspaceId: WS, name: 'renamed.csv' })
-    expect(res.status).toBe(403)
-    expect(mockPerformRename).not.toHaveBeenCalled()
+    expect(res.status).toBe(404)
+    expect((await res.json()).error.code).toBe('NOT_FOUND')
   })
 
   it('returns the rate-limit response when denied', async () => {
-    mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_DENIED)
+    mockCheckRateLimitDirectOrThrow.mockResolvedValueOnce({
+      allowed: false,
+      remaining: 0,
+      resetAt: new Date('2024-01-01T01:00:00Z'),
+      retryAfterMs: 1000,
+    })
     const res = await callRename({ workspaceId: WS, name: 'renamed.csv' })
     expect(res.status).toBe(429)
     expect((await res.json()).error.code).toBe('RATE_LIMITED')
@@ -231,19 +276,33 @@ describe('PATCH /api/v2/files/[fileId]', () => {
       updatedAt: '2024-01-02T00:00:00.000Z',
     })
     expect(mockPerformRename).toHaveBeenCalledWith({
-      workspaceId: WS,
-      fileId: FILE_ID,
-      name: 'renamed.csv',
-      userId: 'user-1',
+      principal: V2_AUTH.principal,
+      input: {
+        fileId: FILE_ID,
+        assertedWorkspaceId: WS,
+        name: 'renamed.csv',
+      },
+      request: expect.anything(),
     })
+    expect(mockCheckRateLimitDirectOrThrow).toHaveBeenCalledTimes(2)
+    expect(mockCheckRateLimitDirectOrThrow).toHaveBeenCalledWith(
+      'v2:files.rename:api-key:key-1',
+      expect.anything()
+    )
+    expect(mockCheckRateLimitDirectOrThrow).toHaveBeenCalledWith(
+      'v2:files.rename:user:user-1',
+      expect.anything()
+    )
   })
 
-  it('maps a conflict errorCode to 409 through the shared mapper', async () => {
-    mockPerformRename.mockResolvedValue({
-      success: false,
-      error: 'A file named "renamed.csv" already exists in this workspace',
-      errorCode: 'conflict',
-    })
+  it('maps a typed conflict to 409 through the shared mapper', async () => {
+    const { OrchestrationError } = await import('@/lib/core/orchestration/types')
+    mockPerformRename.mockRejectedValue(
+      new OrchestrationError(
+        'conflict',
+        'A file named "renamed.csv" already exists in this workspace'
+      )
+    )
 
     const res = await callRename({ workspaceId: WS, name: 'renamed.csv' })
     const body = await res.json()
@@ -254,11 +313,7 @@ describe('PATCH /api/v2/files/[fileId]', () => {
   })
 
   it('hides an unclassified failure behind a generic 500', async () => {
-    mockPerformRename.mockResolvedValue({
-      success: false,
-      error: 'update "workspace_files" set ... failed',
-      errorCode: 'internal',
-    })
+    mockPerformRename.mockRejectedValue(new Error('update "workspace_files" set ... failed'))
 
     const res = await callRename({ workspaceId: WS, name: 'renamed.csv' })
     const body = await res.json()

@@ -1,5 +1,8 @@
 import { createLogger } from '@sim/logger'
-import { ensureWorkspaceAccess } from '@/lib/copilot/tools/handlers/access'
+import {
+  createCopilotFilePrincipal,
+  messageForCopilotFileError,
+} from '@/lib/copilot/auth/file-delegation'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
@@ -9,7 +12,7 @@ import {
   getWorkspaceFile,
   resolveWorkspaceFileReference,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { performRenameWorkspaceFile } from '@/lib/workspace-files/orchestration'
+import { renameWorkspaceFile } from '@/lib/workspace-files/application/rename-workspace-file'
 import { validateFlatWorkspaceFileName } from './workspace-file'
 
 const logger = createLogger('RenameFileServerTool')
@@ -45,8 +48,6 @@ export const renameFileServerTool: BaseServerTool<RenameFileArgs, RenameFileResu
     if (!workspaceId) {
       return { success: false, message: 'Workspace ID is required' }
     }
-    await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
-
     const nested = params.args
     const path = params.path || (nested?.path as string) || ''
     const legacyFileId = params.fileId || (nested?.fileId as string) || ''
@@ -67,14 +68,13 @@ export const renameFileServerTool: BaseServerTool<RenameFileArgs, RenameFileResu
     const fileId = existingFile.id
 
     assertServerToolNotAborted(context)
-    const result = await performRenameWorkspaceFile({
-      workspaceId,
-      fileId,
-      name: newName,
-      userId: context.userId,
-    })
-    if (!result.success) {
-      return { success: false, message: result.error || 'Failed to rename file' }
+    try {
+      await renameWorkspaceFile.execute({
+        principal: createCopilotFilePrincipal(context, workspaceId, fileId),
+        input: { fileId, assertedWorkspaceId: workspaceId, name: newName },
+      })
+    } catch (error) {
+      return { success: false, message: messageForCopilotFileError(error) }
     }
 
     logger.info('File renamed via rename_file', {

@@ -3,6 +3,10 @@ import { createLogger } from '@sim/logger'
 import { assertFolderMutable, assertWorkflowMutable } from '@sim/platform-authz/workflow'
 import { toError } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
+import {
+  createCopilotFilePrincipal,
+  messageForCopilotFileError,
+} from '@/lib/copilot/auth/file-delegation'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import {
   ensureWorkflowAccess,
@@ -38,6 +42,7 @@ import {
 import { performDeleteWorkflow, performUpdateWorkflow } from '@/lib/workflows/orchestration'
 import { duplicateWorkflow } from '@/lib/workflows/persistence/duplicate'
 import { listFolders, verifyFolderWorkspace } from '@/lib/workflows/utils'
+import { renameWorkspaceFile } from '@/lib/workspace-files/application/rename-workspace-file'
 import {
   performDeleteWorkspaceFileItems,
   performMoveRenameWorkspaceFile,
@@ -411,6 +416,31 @@ async function mutateWorkspaceFiles(
       assertMutationNotAborted(context)
       const targetName = dest.dirMode ? ref.file.name : (dest.leafName as string)
       const targetFolderId = await dest.ensureFolderId()
+      if (targetFolderId === ref.file.folderId) {
+        try {
+          const result = await renameWorkspaceFile.execute({
+            principal: createCopilotFilePrincipal(context, workspaceId, ref.file.id),
+            input: {
+              fileId: ref.file.id,
+              assertedWorkspaceId: workspaceId,
+              name: targetName,
+            },
+          })
+          outcomes.push({
+            from: ref.source,
+            to: `files/${encodeVfsPathSegments([...dest.folderSegments, result.file.name])}`,
+            kind: 'file',
+            id: ref.file.id,
+          })
+        } catch (error) {
+          outcomes.push({
+            from: ref.source,
+            kind: 'file',
+            error: messageForCopilotFileError(error),
+          })
+        }
+        continue
+      }
       const result = await performMoveRenameWorkspaceFile({
         workspaceId,
         userId: context.userId,

@@ -215,6 +215,37 @@ describe('RateLimiter', () => {
       expect(result.remaining).toBe(1)
     })
 
+    it('should propagate storage errors for declarative API operation buckets', async () => {
+      const failure = new Error('Storage error')
+      mockAdapter.consumeTokens.mockRejectedValue(failure)
+
+      await expect(
+        rateLimiter.checkRateLimitWithSubscriptionOrThrow(
+          testUserId,
+          freeSubscription,
+          'api-endpoint',
+          false
+        )
+      ).rejects.toBe(failure)
+    })
+
+    it('should consume an explicit namespaced subject without rewriting its key', async () => {
+      const config = RATE_LIMITS.free.apiEndpoint
+      mockAdapter.consumeTokens.mockResolvedValue({
+        allowed: true,
+        tokensRemaining: config.maxTokens - 1,
+        resetAt: new Date(Date.now() + 60_000),
+      })
+
+      await rateLimiter.checkRateLimitDirectOrThrow('v2:files.rename:api-key:key-1', config)
+
+      expect(mockAdapter.consumeTokens).toHaveBeenCalledWith(
+        'v2:files.rename:api-key:key-1',
+        1,
+        config
+      )
+    })
+
     it('should work for all non-manual trigger types', async () => {
       const triggerTypes = ['api', 'webhook', 'schedule', 'chat'] as const
       const mockResult: ConsumeResult = {

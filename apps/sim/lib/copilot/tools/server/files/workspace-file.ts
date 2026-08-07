@@ -1,6 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { truncate } from '@sim/utils/string'
+import {
+  createCopilotFilePrincipal,
+  messageForCopilotFileError,
+} from '@/lib/copilot/auth/file-delegation'
 import { WorkspaceFile } from '@/lib/copilot/generated/tool-catalog-v1'
 import { ensureWorkspaceAccess } from '@/lib/copilot/tools/handlers/access'
 import {
@@ -20,10 +24,8 @@ import {
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
-import {
-  performDeleteWorkspaceFileItems,
-  performRenameWorkspaceFile,
-} from '@/lib/workspace-files/orchestration'
+import { renameWorkspaceFile } from '@/lib/workspace-files/application/rename-workspace-file'
+import { performDeleteWorkspaceFileItems } from '@/lib/workspace-files/orchestration'
 import type { SandboxTaskId } from '@/sandbox-tasks/registry'
 import {
   compileDoc,
@@ -312,7 +314,9 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
     }
 
     try {
-      await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
+      if (operation !== 'rename') {
+        await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
+      }
 
       switch (operation) {
         case 'create': {
@@ -470,14 +474,17 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
 
           const oldName = fileRecord.name
           assertServerToolNotAborted(context)
-          const result = await performRenameWorkspaceFile({
-            workspaceId,
-            fileId: target.fileId,
-            name: normalized.newName,
-            userId: context.userId,
-          })
-          if (!result.success) {
-            return { success: false, message: result.error || 'Failed to rename file' }
+          try {
+            await renameWorkspaceFile.execute({
+              principal: createCopilotFilePrincipal(context, workspaceId, target.fileId),
+              input: {
+                fileId: target.fileId,
+                assertedWorkspaceId: workspaceId,
+                name: normalized.newName,
+              },
+            })
+          } catch (error) {
+            return { success: false, message: messageForCopilotFileError(error) }
           }
 
           logger.info('Workspace file renamed via copilot', {

@@ -11,6 +11,7 @@ import {
   v2CursorListResponse,
   v2DataResponse,
   v2DeleteFolderQuerySchema,
+  v2ErrorResponseSchema,
   v2FolderPathInputSchema,
   v2FolderPathSchema,
   v2FolderSchema,
@@ -428,6 +429,7 @@ export const v2RenameFileContract = defineRouteContract({
     mode: 'json',
     schema: v2DataResponse(v2FileSchema),
   },
+  error: v2ErrorResponseSchema,
 })
 
 export const v2DeleteFileContract = defineRouteContract({

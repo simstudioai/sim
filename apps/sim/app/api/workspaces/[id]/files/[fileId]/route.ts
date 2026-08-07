@@ -5,15 +5,20 @@ import {
   renameWorkspaceFileContract,
   workspaceFileParamsSchema,
 } from '@/lib/api/contracts/workspace-files'
-import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
+import { getValidationErrorMessage } from '@/lib/api/server'
+import {
+  defineInternalJsonRoute,
+  internalFileErrorPolicy,
+  internalRateLimits,
+  internalSessionAuth,
+} from '@/lib/api/server/routes'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
-import {
-  performDeleteWorkspaceFileItems,
-  performRenameWorkspaceFile,
-} from '@/lib/workspace-files/orchestration'
+import { fileOperations } from '@/lib/workspace-files/application/operations'
+import { renameWorkspaceFile } from '@/lib/workspace-files/application/rename-workspace-file'
+import { performDeleteWorkspaceFileItems } from '@/lib/workspace-files/orchestration'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 export const dynamic = 'force-dynamic'
@@ -24,70 +29,28 @@ const logger = createLogger('WorkspaceFileAPI')
  * PATCH /api/workspaces/[id]/files/[fileId]
  * Rename a workspace file (requires write permission)
  */
-export const PATCH = withRouteHandler(
-  async (request: NextRequest, context: { params: Promise<{ id: string; fileId: string }> }) => {
-    const requestId = generateRequestId()
-
-    try {
-      const session = await getSession()
-      if (!session?.user?.id) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-
-      const parsed = await parseRequest(renameWorkspaceFileContract, request, context)
-      if (!parsed.success) return parsed.response
-      const { id: workspaceId, fileId } = parsed.data.params
-      const { name } = parsed.data.body
-
-      const userPermission = await getUserEntityPermissions(
-        session.user.id,
-        'workspace',
-        workspaceId
-      )
-      if (userPermission !== 'admin' && userPermission !== 'write') {
-        logger.warn(
-          `[${requestId}] User ${session.user.id} lacks write permission for workspace ${workspaceId}`
-        )
-        return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
-      }
-
-      const result = await performRenameWorkspaceFile({
-        workspaceId,
-        fileId,
-        name,
-        userId: session.user.id,
-      })
-      if (!result.success || !result.file) {
-        return NextResponse.json(
-          { success: false, error: result.error },
-          { status: result.errorCode === 'conflict' ? 409 : 500 }
-        )
-      }
-
-      logger.info(`[${requestId}] Renamed workspace file: ${fileId} to "${result.file.name}"`)
-
-      captureServerEvent(
-        session.user.id,
-        'file_renamed',
-        { workspace_id: workspaceId },
-        { groups: { workspace: workspaceId } }
-      )
-      return NextResponse.json({
-        success: true,
-        file: result.file,
-      })
-    } catch (error) {
-      logger.error(`[${requestId}] Error renaming workspace file:`, error)
-      return NextResponse.json(
-        {
-          success: false,
-          error: getErrorMessage(error, 'Failed to rename file'),
-        },
-        { status: 500 }
-      )
-    }
-  }
-)
+export const PATCH = defineInternalJsonRoute({
+  contract: renameWorkspaceFileContract,
+  auth: internalSessionAuth,
+  operation: fileOperations.rename,
+  rateLimit: internalRateLimits.none({ reason: 'Preserve existing internal rename behavior' }),
+  errorPolicy: internalFileErrorPolicy,
+  mapInput: ({ params, body }) => ({
+    fileId: params.fileId,
+    assertedWorkspaceId: params.id,
+    name: body.name,
+  }),
+  useCase: renameWorkspaceFile,
+  onSuccess: ({ principal, result }) => {
+    captureServerEvent(
+      principal.userId,
+      'file_renamed',
+      { workspace_id: result.file.workspaceId },
+      { groups: { workspace: result.file.workspaceId } }
+    )
+  },
+  present: ({ file }) => ({ success: true, file: { ...file, folderId: file.folderId ?? null } }),
+})
 
 /**
  * DELETE /api/workspaces/[id]/files/[fileId]

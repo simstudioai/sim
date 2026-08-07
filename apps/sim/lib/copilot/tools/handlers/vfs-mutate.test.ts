@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   getWorkspaceFileByName: vi.fn(),
   findWorkspaceFileFolderIdByPath: vi.fn(),
   ensureWorkspaceFileFolderPath: vi.fn(),
+  renameWorkspaceFile: vi.fn(),
   performMoveRenameWorkspaceFile: vi.fn(),
   performUpdateWorkspaceFileFolder: vi.fn(),
   performCreateFolder: vi.fn(),
@@ -55,6 +56,19 @@ vi.mock('@/lib/workspace-files/orchestration', () => ({
   performUpdateWorkspaceFileFolder: mocks.performUpdateWorkspaceFileFolder,
 }))
 
+vi.mock('@/lib/workspace-files/application/rename-workspace-file', () => ({
+  renameWorkspaceFile: {
+    operation: { id: 'files.rename', minimumRole: 'write', workspaceApiKey: 'allow' },
+    execute: mocks.renameWorkspaceFile,
+  },
+}))
+
+vi.mock('@/lib/folders/orchestration', () => ({
+  createFolder: mocks.performCreateFolder,
+  deleteFolder: vi.fn(),
+  updateFolder: mocks.performUpdateFolder,
+}))
+
 vi.mock('@/lib/workflows/orchestration', () => ({
   performCreateFolder: mocks.performCreateFolder,
   performUpdateFolder: mocks.performUpdateFolder,
@@ -87,7 +101,12 @@ vi.mock('@/app/api/knowledge/utils', () => ({
 import type { ExecutionContext } from '@/lib/copilot/request/types'
 import { executeVfsCp, executeVfsMkdir, executeVfsMv } from './vfs-mutate'
 
-const context = { userId: 'user-1', workspaceId: 'ws-1' } as ExecutionContext
+const context = {
+  userId: 'user-1',
+  workspaceId: 'ws-1',
+  toolCallId: 'tool-call-1',
+  copilotToolExecution: true,
+} as ExecutionContext
 
 describe('vfs mv/cp', () => {
   beforeEach(() => {
@@ -102,6 +121,9 @@ describe('vfs mv/cp', () => {
     mocks.getWorkspaceFileByName.mockResolvedValue(null)
     mocks.findWorkspaceFileFolderIdByPath.mockResolvedValue(null)
     mocks.ensureWorkspaceFileFolderPath.mockResolvedValue('ensured-folder')
+    mocks.renameWorkspaceFile.mockResolvedValue({
+      file: { id: 'file-1', name: 'renamed.md' },
+    })
   })
 
   afterAll(() => {
@@ -155,6 +177,42 @@ describe('vfs mv/cp', () => {
   })
 
   describe('files', () => {
+    it('routes a same-folder rename through the delegated file use case', async () => {
+      mocks.getWorkspaceFileByName.mockResolvedValue({
+        id: 'file-1',
+        name: 'draft.md',
+        folderId: null,
+      })
+      mocks.renameWorkspaceFile.mockResolvedValue({
+        file: { id: 'file-1', name: 'final.md' },
+      })
+
+      const result = await executeVfsMv(
+        { sources: ['files/draft.md'], destination: 'files/final.md' },
+        context
+      )
+
+      expect(mocks.renameWorkspaceFile).toHaveBeenCalledWith({
+        principal: expect.objectContaining({
+          kind: 'delegated',
+          subjectUserId: 'user-1',
+          workspaceId: 'ws-1',
+          delegationId: 'copilot-tool:tool-call-1',
+          resourceScope: expect.objectContaining({ fileId: 'file-1' }),
+        }),
+        input: {
+          fileId: 'file-1',
+          assertedWorkspaceId: 'ws-1',
+          name: 'final.md',
+        },
+      })
+      expect(mocks.performMoveRenameWorkspaceFile).not.toHaveBeenCalled()
+      expect(result).toMatchObject({
+        success: true,
+        output: { results: [{ to: 'files/final.md', id: 'file-1' }] },
+      })
+    })
+
     it('moves and renames a file in one call, auto-creating destination folders', async () => {
       mocks.getWorkspaceFileByName.mockResolvedValue({ id: 'file-1', name: 'draft.md' })
       mocks.performMoveRenameWorkspaceFile.mockResolvedValue({
@@ -398,6 +456,7 @@ describe('vfs mv/cp', () => {
       const result = await executeVfsMkdir({ paths: ['workflows/Archive'] }, context)
 
       expect(mocks.performCreateFolder).toHaveBeenCalledWith({
+        resourceType: 'workflow',
         workspaceId: 'ws-1',
         userId: 'user-1',
         name: 'Archive',

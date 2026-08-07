@@ -4,12 +4,17 @@ import {
   v2DownloadFileContract,
   v2RenameFileContract,
 } from '@/lib/api/contracts/v2/files'
+import {
+  defineV2JsonRoute,
+  v2ApiKeyAuth,
+  v2FileErrorPolicies,
+  v2RateLimits,
+} from '@/lib/api/server/routes'
 import { messageForOrchestrationError } from '@/lib/core/orchestration/types'
 import { fetchWorkspaceFileBuffer, getWorkspaceFile } from '@/lib/uploads/contexts/workspace'
-import {
-  performDeleteWorkspaceFileItems,
-  performRenameWorkspaceFile,
-} from '@/lib/workspace-files/orchestration'
+import { fileOperations } from '@/lib/workspace-files/application/operations'
+import { renameWorkspaceFile } from '@/lib/workspace-files/application/rename-workspace-file'
+import { performDeleteWorkspaceFileItems } from '@/lib/workspace-files/orchestration'
 import { withPublicApiRouteHandler } from '@/app/api/public-api-route-handler'
 import { resolveWorkspaceAccess } from '@/app/api/v1/middleware'
 import { toV2File } from '@/app/api/v2/files/utils'
@@ -67,27 +72,19 @@ export const GET = withPublicApiRouteHandler({
  * Names that collide within the destination folder are rejected as `CONFLICT` —
  * unlike upload, which auto-suffixes on the internal surface.
  */
-export const PATCH = withPublicApiRouteHandler({
+export const PATCH = defineV2JsonRoute({
   contract: v2RenameFileContract,
-  rateLimitEndpoint: 'file-detail',
-  handler: async ({ input, auth: { userId, rateLimit } }) => {
-    const { fileId } = input.params
-    const { workspaceId, name } = input.body
-
-    const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
-    if (access) return v2WorkspaceAccessError(access)
-
-    const result = await performRenameWorkspaceFile({ workspaceId, fileId, name, userId })
-
-    if (!result.success || !result.file) {
-      return v2ErrorForOrchestration(
-        result.errorCode,
-        messageForOrchestrationError(result, 'Failed to rename file')
-      )
-    }
-
-    return v2Data(await toV2File(result.file), { rateLimit })
-  },
+  auth: v2ApiKeyAuth,
+  operation: fileOperations.rename,
+  rateLimit: v2RateLimits.publicApi,
+  errorPolicy: v2FileErrorPolicies.concealResourceAuthorization,
+  mapInput: ({ params, body }) => ({
+    fileId: params.fileId,
+    assertedWorkspaceId: body.workspaceId,
+    name: body.name,
+  }),
+  useCase: renameWorkspaceFile,
+  present: async ({ file }) => ({ data: await toV2File(file) }),
 })
 
 /**
