@@ -14,6 +14,7 @@ import {
   mapSecurityProblem,
   readJsonBody,
 } from '@/tools/dynatrace/utils'
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { ToolConfig } from '@/tools/types'
 
 export const listSecurityProblemsTool: ToolConfig<
@@ -25,6 +26,7 @@ export const listSecurityProblemsTool: ToolConfig<
   description:
     'List vulnerabilities detected by Dynatrace Application Security, filtered by risk level, status, CVE, or technology.',
   version: '1.0.0',
+  errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 
   params: {
     environmentUrl: {

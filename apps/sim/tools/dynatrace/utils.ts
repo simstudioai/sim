@@ -1,3 +1,4 @@
+import { truncate } from '@sim/utils/string'
 import type {
   DynatraceAuditLog,
   DynatraceComment,
@@ -49,7 +50,30 @@ export function buildDynatraceUrl(
  * keys and transformation operators use (`builtin:host.cpu.usage:avg`).
  */
 export function encodeDynatracePathSegment(value: string): string {
-  return encodeURIComponent(value).replace(/%3A/gi, ':')
+  return encodeURIComponent(value.trim()).replace(/%3A/gi, ':')
+}
+
+/** Encodes an identifier for use in a URL path, tolerating copy-pasted whitespace. */
+export function encodeDynatraceId(value: string): string {
+  return encodeURIComponent(value.trim())
+}
+
+/**
+ * Normalizes a `json` param that may arrive already parsed (from a block input or
+ * an upstream block reference) or as a JSON string (from an LLM tool call or a
+ * long-input field). Returns `undefined` when there is nothing to send, so callers
+ * can omit the field rather than transmit `"undefined"`.
+ */
+export function parseJsonParam(value: unknown): unknown {
+  if (value === undefined || value === null) return undefined
+  if (typeof value !== 'string') return value
+  const trimmed = value.trim()
+  if (!trimmed) return undefined
+  try {
+    return JSON.parse(trimmed)
+  } catch {
+    throw new Error(`Expected valid JSON but received: ${truncate(trimmed, 100)}`)
+  }
 }
 
 /** Builds the Dynatrace authorization headers. */

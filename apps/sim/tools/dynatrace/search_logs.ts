@@ -8,6 +8,7 @@ import {
   mapLogRecord,
   readJsonBody,
 } from '@/tools/dynatrace/utils'
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { ToolConfig } from '@/tools/types'
 
 export const searchLogsTool: ToolConfig<DynatraceSearchLogsParams, DynatraceSearchLogsResponse> = {
@@ -16,6 +17,7 @@ export const searchLogsTool: ToolConfig<DynatraceSearchLogsParams, DynatraceSear
   description:
     'Search log records in Dynatrace by query and timeframe, for troubleshooting and incident analysis.',
   version: '1.0.0',
+  errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 
   params: {
     environmentUrl: {

@@ -3,6 +3,7 @@ import type {
   DynatraceIngestMetricsResponse,
 } from '@/tools/dynatrace/types'
 import { buildDynatraceUrl, dynatraceHeaders, readJsonBody } from '@/tools/dynatrace/utils'
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { ToolConfig } from '@/tools/types'
 
 export const ingestMetricsTool: ToolConfig<
@@ -14,6 +15,7 @@ export const ingestMetricsTool: ToolConfig<
   description:
     'Push custom metric data points into Dynatrace using the metric line protocol, one data point per line.',
   version: '1.0.0',
+  errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 
   params: {
     environmentUrl: {

@@ -1,6 +1,13 @@
 import { sloProperties } from '@/tools/dynatrace/outputs'
 import type { DynatraceGetSloParams, DynatraceGetSloResponse } from '@/tools/dynatrace/types'
-import { buildDynatraceUrl, dynatraceHeaders, mapSlo, readJsonBody } from '@/tools/dynatrace/utils'
+import {
+  buildDynatraceUrl,
+  dynatraceHeaders,
+  encodeDynatraceId,
+  mapSlo,
+  readJsonBody,
+} from '@/tools/dynatrace/utils'
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { ToolConfig } from '@/tools/types'
 
 export const getSloTool: ToolConfig<DynatraceGetSloParams, DynatraceGetSloResponse> = {
@@ -9,6 +16,7 @@ export const getSloTool: ToolConfig<DynatraceGetSloParams, DynatraceGetSloRespon
   description:
     'Get a single service-level objective with its evaluated attainment, error budget, and burn rate.',
   version: '1.0.0',
+  errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 
   params: {
     environmentUrl: {
@@ -54,7 +62,7 @@ export const getSloTool: ToolConfig<DynatraceGetSloParams, DynatraceGetSloRespon
 
   request: {
     url: (params) =>
-      buildDynatraceUrl(params.environmentUrl, `/slo/${encodeURIComponent(params.sloId)}`, {
+      buildDynatraceUrl(params.environmentUrl, `/slo/${encodeDynatraceId(params.sloId)}`, {
         from: params.from,
         to: params.to,
         timeFrame: params.timeFrame,

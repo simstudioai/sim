@@ -9,6 +9,7 @@ import {
   mapAuditLog,
   readJsonBody,
 } from '@/tools/dynatrace/utils'
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { ToolConfig } from '@/tools/types'
 
 export const getAuditLogsTool: ToolConfig<
@@ -20,6 +21,7 @@ export const getAuditLogsTool: ToolConfig<
   description:
     'Read the Dynatrace audit log — who changed which configuration, when, and whether it succeeded.',
   version: '1.0.0',
+  errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 
   params: {
     environmentUrl: {

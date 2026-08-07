@@ -6,9 +6,11 @@ import type {
 import {
   buildDynatraceUrl,
   dynatraceHeaders,
+  encodeDynatraceId,
   mapProblem,
   readJsonBody,
 } from '@/tools/dynatrace/utils'
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { ToolConfig } from '@/tools/types'
 
 export const getProblemTool: ToolConfig<DynatraceGetProblemParams, DynatraceGetProblemResponse> = {
@@ -17,6 +19,7 @@ export const getProblemTool: ToolConfig<DynatraceGetProblemParams, DynatraceGetP
   description:
     'Get the full details of a single Dynatrace problem, including root cause, affected entities, and optionally its evidence and impact analysis.',
   version: '1.0.0',
+  errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 
   params: {
     environmentUrl: {
@@ -49,11 +52,9 @@ export const getProblemTool: ToolConfig<DynatraceGetProblemParams, DynatraceGetP
 
   request: {
     url: (params) =>
-      buildDynatraceUrl(
-        params.environmentUrl,
-        `/problems/${encodeURIComponent(params.problemId)}`,
-        { fields: params.fields }
-      ),
+      buildDynatraceUrl(params.environmentUrl, `/problems/${encodeDynatraceId(params.problemId)}`, {
+        fields: params.fields,
+      }),
     method: 'GET',
     headers: (params) => dynatraceHeaders(params.apiToken),
   },

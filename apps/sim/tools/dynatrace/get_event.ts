@@ -3,9 +3,11 @@ import type { DynatraceGetEventParams, DynatraceGetEventResponse } from '@/tools
 import {
   buildDynatraceUrl,
   dynatraceHeaders,
+  encodeDynatraceId,
   mapEvent,
   readJsonBody,
 } from '@/tools/dynatrace/utils'
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { ToolConfig } from '@/tools/types'
 
 export const getEventTool: ToolConfig<DynatraceGetEventParams, DynatraceGetEventResponse> = {
@@ -13,6 +15,7 @@ export const getEventTool: ToolConfig<DynatraceGetEventParams, DynatraceGetEvent
   name: 'Dynatrace Get Event',
   description: 'Get the full details of a single Dynatrace event.',
   version: '1.0.0',
+  errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 
   params: {
     environmentUrl: {
@@ -38,7 +41,7 @@ export const getEventTool: ToolConfig<DynatraceGetEventParams, DynatraceGetEvent
 
   request: {
     url: (params) =>
-      buildDynatraceUrl(params.environmentUrl, `/events/${encodeURIComponent(params.eventId)}`),
+      buildDynatraceUrl(params.environmentUrl, `/events/${encodeDynatraceId(params.eventId)}`),
     method: 'GET',
     headers: (params) => dynatraceHeaders(params.apiToken),
   },

@@ -260,7 +260,7 @@ Return ONLY the selector string - no explanations, no surrounding quotes.`,
       id: 'metricFields',
       title: 'Additional Fields',
       type: 'short-input',
-      placeholder: '+displayName,+unit,+aggregationTypes',
+      placeholder: '+aggregationTypes,-description',
       mode: 'advanced',
       condition: { field: 'operation', value: 'dynatrace_list_metrics' },
     },
@@ -790,16 +790,6 @@ Return ONLY the selector string - no explanations, no surrounding quotes.`,
         const toNumber = (value: unknown) =>
           value === undefined || value === null || value === '' ? undefined : Number(value)
 
-        const parseJson = (value: unknown) => {
-          if (value === undefined || value === null || value === '') return undefined
-          if (typeof value !== 'string') return value
-          try {
-            return JSON.parse(value)
-          } catch {
-            throw new Error('Value must be valid JSON')
-          }
-        }
-
         const pagination = {
           pageSize: toNumber(params.pageSize),
           nextPageKey: params.nextPageKey || undefined,
@@ -913,7 +903,7 @@ Return ONLY the selector string - no explanations, no surrounding quotes.`,
               startTime: toNumber(params.startTime),
               endTime: toNumber(params.endTime),
               eventTimeout: toNumber(params.eventTimeout),
-              properties: parseJson(params.eventProperties),
+              properties: params.eventProperties || undefined,
             }
 
           case 'dynatrace_search_logs':
@@ -928,7 +918,7 @@ Return ONLY the selector string - no explanations, no surrounding quotes.`,
             }
 
           case 'dynatrace_ingest_logs':
-            return { ...baseParams, logs: parseJson(params.logs) }
+            return { ...baseParams, logs: params.logs }
 
           case 'dynatrace_list_slos':
             return {

@@ -2,7 +2,13 @@ import type {
   DynatraceIngestEventParams,
   DynatraceIngestEventResponse,
 } from '@/tools/dynatrace/types'
-import { buildDynatraceUrl, dynatraceHeaders, readJsonBody } from '@/tools/dynatrace/utils'
+import {
+  buildDynatraceUrl,
+  dynatraceHeaders,
+  parseJsonParam,
+  readJsonBody,
+} from '@/tools/dynatrace/utils'
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { ToolConfig } from '@/tools/types'
 
 export const ingestEventTool: ToolConfig<DynatraceIngestEventParams, DynatraceIngestEventResponse> =
@@ -12,6 +18,7 @@ export const ingestEventTool: ToolConfig<DynatraceIngestEventParams, DynatraceIn
     description:
       'Push an event into Dynatrace — a deployment marker, custom annotation, or custom alert — attached to the entities matched by an entity selector.',
     version: '1.0.0',
+    errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 
     params: {
       environmentUrl: {
@@ -88,7 +95,8 @@ export const ingestEventTool: ToolConfig<DynatraceIngestEventParams, DynatraceIn
         if (params.startTime !== undefined) body.startTime = params.startTime
         if (params.endTime !== undefined) body.endTime = params.endTime
         if (params.eventTimeout !== undefined) body.timeout = params.eventTimeout
-        if (params.properties) body.properties = params.properties
+        const properties = parseJsonParam(params.properties)
+        if (properties) body.properties = properties
         return body
       },
     },

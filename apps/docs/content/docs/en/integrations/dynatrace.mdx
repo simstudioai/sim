@@ -173,7 +173,7 @@ Discover the metrics available in a Dynatrace environment, filtered by metric se
 | `apiToken` | string | Yes | Dynatrace access token \(dt0c01...\) with the metrics.read scope |
 | `metricSelector` | string | No | Metric selector, supporting wildcards \(e.g. builtin:host.cpu.*\) |
 | `text` | string | No | Free-text search across metric display names and descriptions |
-| `fields` | string | No | Comma-separated descriptor properties to include. metricId is always returned \(e.g. +displayName,+unit,+aggregationTypes\) |
+| `fields` | string | No | Comma-separated descriptor properties. Prefix with + to add a non-default property and - to drop a default one; metricId is always returned \(e.g. +aggregationTypes,-description\) |
 | `writtenSince` | string | No | Only metrics written since this point, as UTC milliseconds, ISO 8601, or a relative expression such as now-7d |
 | `writtenSinceMode` | string | No | INCLUDE \(default\) keeps metrics written since Written Since; EXCLUDE keeps the ones not written since then |
 | `metadataSelector` | string | No | Metadata selector, e.g. unit\("Percent"\),tags\("dashboard"\) |

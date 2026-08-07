@@ -10,6 +10,7 @@ import {
   mapWarnings,
   readJsonBody,
 } from '@/tools/dynatrace/utils'
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { ToolConfig } from '@/tools/types'
 
 export const queryMetricsTool: ToolConfig<
@@ -21,6 +22,7 @@ export const queryMetricsTool: ToolConfig<
   description:
     'Read metric data points from Dynatrace using a metric selector, with optional entity and management-zone scoping.',
   version: '1.0.0',
+  errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 
   params: {
     environmentUrl: {

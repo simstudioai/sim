@@ -3,9 +3,11 @@ import type { DynatraceGetEntityParams, DynatraceGetEntityResponse } from '@/too
 import {
   buildDynatraceUrl,
   dynatraceHeaders,
+  encodeDynatraceId,
   mapEntity,
   readJsonBody,
 } from '@/tools/dynatrace/utils'
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { ToolConfig } from '@/tools/types'
 
 export const getEntityTool: ToolConfig<DynatraceGetEntityParams, DynatraceGetEntityResponse> = {
@@ -14,6 +16,7 @@ export const getEntityTool: ToolConfig<DynatraceGetEntityParams, DynatraceGetEnt
   description:
     'Get the properties, tags, management zones, and relationships of a single monitored entity.',
   version: '1.0.0',
+  errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 
   params: {
     environmentUrl: {
@@ -59,7 +62,7 @@ export const getEntityTool: ToolConfig<DynatraceGetEntityParams, DynatraceGetEnt
 
   request: {
     url: (params) =>
-      buildDynatraceUrl(params.environmentUrl, `/entities/${encodeURIComponent(params.entityId)}`, {
+      buildDynatraceUrl(params.environmentUrl, `/entities/${encodeDynatraceId(params.entityId)}`, {
         from: params.from,
         to: params.to,
         fields: params.fields,

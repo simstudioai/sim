@@ -6,9 +6,11 @@ import type {
 import {
   buildDynatraceUrl,
   dynatraceHeaders,
+  encodeDynatraceId,
   mapSecurityProblemDetails,
   readJsonBody,
 } from '@/tools/dynatrace/utils'
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { ToolConfig } from '@/tools/types'
 
 export const getSecurityProblemTool: ToolConfig<
@@ -20,6 +22,7 @@ export const getSecurityProblemTool: ToolConfig<
   description:
     'Get a single vulnerability with its description, remediation guidance, affected entities, and risk assessment.',
   version: '1.0.0',
+  errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 
   params: {
     environmentUrl: {
@@ -67,7 +70,7 @@ export const getSecurityProblemTool: ToolConfig<
     url: (params) =>
       buildDynatraceUrl(
         params.environmentUrl,
-        `/securityProblems/${encodeURIComponent(params.securityProblemId)}`,
+        `/securityProblems/${encodeDynatraceId(params.securityProblemId)}`,
         {
           fields: params.fields,
           managementZoneFilter: params.managementZoneFilter,

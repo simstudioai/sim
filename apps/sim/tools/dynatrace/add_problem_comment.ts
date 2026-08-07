@@ -2,7 +2,8 @@ import type {
   DynatraceAddProblemCommentParams,
   DynatraceAddProblemCommentResponse,
 } from '@/tools/dynatrace/types'
-import { buildDynatraceUrl, dynatraceHeaders } from '@/tools/dynatrace/utils'
+import { buildDynatraceUrl, dynatraceHeaders, encodeDynatraceId } from '@/tools/dynatrace/utils'
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { ToolConfig } from '@/tools/types'
 
 export const addProblemCommentTool: ToolConfig<
@@ -13,6 +14,7 @@ export const addProblemCommentTool: ToolConfig<
   name: 'Dynatrace Add Problem Comment',
   description: 'Add a comment to a Dynatrace problem.',
   version: '1.0.0',
+  errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 
   params: {
     environmentUrl: {
@@ -52,7 +54,7 @@ export const addProblemCommentTool: ToolConfig<
     url: (params) =>
       buildDynatraceUrl(
         params.environmentUrl,
-        `/problems/${encodeURIComponent(params.problemId)}/comments`
+        `/problems/${encodeDynatraceId(params.problemId)}/comments`
       ),
     method: 'POST',
     headers: (params) => dynatraceHeaders(params.apiToken),

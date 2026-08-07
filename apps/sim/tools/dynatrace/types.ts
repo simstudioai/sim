@@ -475,7 +475,8 @@ export interface DynatraceIngestEventParams extends DynatraceBaseParams {
    * the tool transport reserves that param name for the HTTP request timeout.
    */
   eventTimeout?: number
-  properties?: Record<string, string>
+  /** Accepts a parsed object or a JSON string; normalized by `parseJsonParam`. */
+  properties?: Record<string, string> | string
 }
 
 export interface DynatraceIngestEventResponse extends ToolResponse {
@@ -504,7 +505,8 @@ export interface DynatraceSearchLogsResponse extends ToolResponse {
 }
 
 export interface DynatraceIngestLogsParams extends DynatraceBaseParams {
-  logs: Record<string, unknown> | Array<Record<string, unknown>>
+  /** Accepts a parsed object/array or a JSON string; normalized by `parseJsonParam`. */
+  logs: Record<string, unknown> | Array<Record<string, unknown>> | string
 }
 
 export interface DynatraceIngestLogsResponse extends ToolResponse {

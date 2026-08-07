@@ -14,6 +14,7 @@ import {
   mapEntity,
   readJsonBody,
 } from '@/tools/dynatrace/utils'
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { ToolConfig } from '@/tools/types'
 
 export const listEntitiesTool: ToolConfig<
@@ -25,6 +26,7 @@ export const listEntitiesTool: ToolConfig<
   description:
     'List monitored entities — hosts, services, applications, Kubernetes workloads — matching an entity selector.',
   version: '1.0.0',
+  errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 
   params: {
     environmentUrl: {

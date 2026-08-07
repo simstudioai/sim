@@ -12,9 +12,11 @@ import type {
 import {
   buildDynatraceUrl,
   dynatraceHeaders,
+  encodeDynatraceId,
   mapComment,
   readJsonBody,
 } from '@/tools/dynatrace/utils'
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { ToolConfig } from '@/tools/types'
 
 export const listProblemCommentsTool: ToolConfig<
@@ -25,6 +27,7 @@ export const listProblemCommentsTool: ToolConfig<
   name: 'Dynatrace List Problem Comments',
   description: 'List the comments recorded on a Dynatrace problem.',
   version: '1.0.0',
+  errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 
   params: {
     environmentUrl: {
@@ -64,7 +67,7 @@ export const listProblemCommentsTool: ToolConfig<
     url: (params) =>
       buildDynatraceUrl(
         params.environmentUrl,
-        `/problems/${encodeURIComponent(params.problemId)}/comments`,
+        `/problems/${encodeDynatraceId(params.problemId)}/comments`,
         params.nextPageKey ? { nextPageKey: params.nextPageKey } : { pageSize: params.pageSize }
       ),
     method: 'GET',

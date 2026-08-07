@@ -16,6 +16,7 @@ import {
   mapWarnings,
   readJsonBody,
 } from '@/tools/dynatrace/utils'
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { ToolConfig } from '@/tools/types'
 
 export const listEventsTool: ToolConfig<DynatraceListEventsParams, DynatraceListEventsResponse> = {
@@ -24,6 +25,7 @@ export const listEventsTool: ToolConfig<DynatraceListEventsParams, DynatraceList
   description:
     'List events — deployments, availability changes, alerts, custom annotations — in a Dynatrace environment.',
   version: '1.0.0',
+  errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 
   params: {
     environmentUrl: {

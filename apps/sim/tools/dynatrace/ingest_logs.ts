@@ -2,7 +2,13 @@ import type {
   DynatraceIngestLogsParams,
   DynatraceIngestLogsResponse,
 } from '@/tools/dynatrace/types'
-import { buildDynatraceUrl, dynatraceHeaders, readJsonBody } from '@/tools/dynatrace/utils'
+import {
+  buildDynatraceUrl,
+  dynatraceHeaders,
+  parseJsonParam,
+  readJsonBody,
+} from '@/tools/dynatrace/utils'
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { ToolConfig } from '@/tools/types'
 
 export const ingestLogsTool: ToolConfig<DynatraceIngestLogsParams, DynatraceIngestLogsResponse> = {
@@ -11,6 +17,7 @@ export const ingestLogsTool: ToolConfig<DynatraceIngestLogsParams, DynatraceInge
   description:
     'Push log events into Dynatrace. Accepts a single log event object or an array of them.',
   version: '1.0.0',
+  errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 
   params: {
     environmentUrl: {
@@ -39,7 +46,7 @@ export const ingestLogsTool: ToolConfig<DynatraceIngestLogsParams, DynatraceInge
     url: (params) => buildDynatraceUrl(params.environmentUrl, '/logs/ingest'),
     method: 'POST',
     headers: (params) => dynatraceHeaders(params.apiToken),
-    body: (params) => JSON.stringify(params.logs),
+    body: (params) => JSON.stringify(parseJsonParam(params.logs) ?? []),
   },
 
   /** Ingestion answers 204 with no body, or 200 with a partial-success body. */

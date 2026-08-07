@@ -6,9 +6,11 @@ import type {
 import {
   buildDynatraceUrl,
   dynatraceHeaders,
+  encodeDynatraceId,
   mapComment,
   readJsonBody,
 } from '@/tools/dynatrace/utils'
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { ToolConfig } from '@/tools/types'
 
 export const closeProblemTool: ToolConfig<
@@ -19,6 +21,7 @@ export const closeProblemTool: ToolConfig<
   name: 'Dynatrace Close Problem',
   description: 'Close a Dynatrace problem and record the closing comment.',
   version: '1.0.0',
+  errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 
   params: {
     environmentUrl: {
@@ -52,7 +55,7 @@ export const closeProblemTool: ToolConfig<
     url: (params) =>
       buildDynatraceUrl(
         params.environmentUrl,
-        `/problems/${encodeURIComponent(params.problemId)}/close`
+        `/problems/${encodeDynatraceId(params.problemId)}/close`
       ),
     method: 'POST',
     headers: (params) => dynatraceHeaders(params.apiToken),

@@ -15,6 +15,7 @@ import {
   mapWarnings,
   readJsonBody,
 } from '@/tools/dynatrace/utils'
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { ToolConfig } from '@/tools/types'
 
 export const listMetricsTool: ToolConfig<DynatraceListMetricsParams, DynatraceListMetricsResponse> =
@@ -24,6 +25,7 @@ export const listMetricsTool: ToolConfig<DynatraceListMetricsParams, DynatraceLi
     description:
       'Discover the metrics available in a Dynatrace environment, filtered by metric selector, free text, or metadata.',
     version: '1.0.0',
+    errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 
     params: {
       environmentUrl: {
@@ -56,7 +58,7 @@ export const listMetricsTool: ToolConfig<DynatraceListMetricsParams, DynatraceLi
         required: false,
         visibility: 'user-or-llm',
         description:
-          'Comma-separated descriptor properties to include. metricId is always returned (e.g. +displayName,+unit,+aggregationTypes)',
+          'Comma-separated descriptor properties. Prefix with + to add a non-default property and - to drop a default one; metricId is always returned (e.g. +aggregationTypes,-description)',
       },
       writtenSince: {
         type: 'string',
