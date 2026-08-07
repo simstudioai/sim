@@ -44,10 +44,12 @@ const IFRAME_PREVIEWABLE_MIME_TYPES = new Set([
 const IFRAME_PREVIEWABLE_EXTENSIONS = new Set(['pdf'])
 
 /**
- * Image formats every supported browser decodes natively. `.tif`/`.tiff` and
- * `.heic`/`.heif` are accepted uploads but deliberately absent — no browser renders
- * them in an `<img>`, so they stay on the download-only path rather than showing a
- * broken image.
+ * Formats the image viewer can show. Most are decoded by the browser directly;
+ * `.heic`/`.heif` are not — no browser outside Safari renders them — but the serve
+ * route transcodes them to JPEG, so an `<img>` pointed at it works.
+ *
+ * `.tif`/`.tiff` are accepted uploads and deliberately absent: nothing decodes them
+ * on either side, so they stay download-only rather than showing a broken image.
  */
 const IMAGE_PREVIEWABLE_MIME_TYPES = new Set([
   'image/png',
@@ -58,6 +60,8 @@ const IMAGE_PREVIEWABLE_MIME_TYPES = new Set([
   'image/bmp',
   'image/x-icon',
   'image/vnd.microsoft.icon',
+  'image/heic',
+  'image/heif',
 ])
 const IMAGE_PREVIEWABLE_EXTENSIONS = new Set([
   'png',
@@ -68,6 +72,8 @@ const IMAGE_PREVIEWABLE_EXTENSIONS = new Set([
   'avif',
   'bmp',
   'ico',
+  'heic',
+  'heif',
 ])
 
 const AUDIO_PREVIEWABLE_MIME_TYPES = new Set([

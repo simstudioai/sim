@@ -162,6 +162,11 @@ jobs:
       - name: Trigger/block initialization cycle audit
         run: bun run check:trigger-block-cycle
 
+      # This job builds with webpack; devs run Turbopack. A specifier only webpack
+      # resolves passes here and breaks every dev server.
+      - name: Import specifier hygiene audit
+        run: bun run check:import-specifiers
+
       - name: SQL Date binding audit
         run: bun run check:sql-date-binding
 
@@ -186,6 +191,12 @@ jobs:
             BASE_REF="HEAD~1"
           fi
           bun run check:migrations "$BASE_REF"
+
+      # Runs before the type-check itself: if a bare `tsc` has fallen back to the
+      # JavaScript TypeScript 6 compiler that `@typescript/typescript6` drags in
+      # transitively, the type-check below still passes — it just takes ~10x longer.
+      - name: Native type-check audit
+        run: bun run check:native-typecheck
 
       # Every workspace, not just realtime. packages/emcn, packages/utils,
       # apps/desktop and apps/docs had no type check in CI at all; apps/sim's
