@@ -73,6 +73,16 @@ describe('AttachedFilesList', () => {
     expect(wrapper?.className).toMatch(/max-w-/)
   })
 
+  it('reveals the remove control on keyboard focus, not only on hover', () => {
+    render([file({})])
+
+    const remove = container.querySelector('button[aria-label^="Remove"]')
+    // Hidden only where a pointer can reveal it, and focus has to reveal it there too —
+    // otherwise a keyboard user tabs onto a fully transparent control.
+    expect(remove?.className).toContain('hover-hover:opacity-0')
+    expect(remove?.className).toContain('hover-hover:focus-visible:opacity-100')
+  })
+
   it('drops the image and reveals the type icon when the preview fails to decode', () => {
     render([file({ name: 'photo.heic', type: 'image/heic', previewUrl: '/api/files/serve/x' })])
 
