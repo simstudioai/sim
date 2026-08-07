@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-06",
+  "updatedAt": "2026-08-07",
   "integrations": [
     {
       "type": "onepassword",
@@ -17867,7 +17867,7 @@
         },
         {
           "name": "List Lead Activities",
-          "description": "Retrieves recent lead activity across Smartlead campaigns — opens, clicks, replies, and status changes."
+          "description": "Retrieves recent lead activity across all Smartlead campaigns — opens, clicks, replies, and status changes. Smartlead exposes no campaign filter on this endpoint."
         },
         {
           "name": "Get Lead by ID",
@@ -17891,7 +17891,7 @@
         },
         {
           "name": "List Inbox Replies",
-          "description": "Retrieves replies from the Smartlead master inbox, optionally limited to unread replies or a single campaign."
+          "description": "Retrieves replies from the Smartlead master inbox across all campaigns, optionally limited to unread replies. Smartlead exposes no campaign filter on this endpoint."
         },
         {
           "name": "List Lead Lists",

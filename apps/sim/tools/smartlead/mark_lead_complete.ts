@@ -13,6 +13,7 @@ import {
   smartleadHeaders,
   smartleadRecord,
   smartleadUrl,
+  toNullableNumber,
 } from '@/tools/smartlead/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -55,17 +56,17 @@ export const markLeadCompleteTool: ToolConfig<
     const record = await smartleadRecord(response, 'lead completion')
     const status = isRecordLike(record.status) ? record.status : {}
     // `nextSequence` is an object ({ id, delayInDays }) when a step remains, else null.
-    // `delayInDays` arrives as a string and is legitimately "0" for an immediate step.
+    // Both members go through the shared numeric coercion: Smartlead string-encodes
+    // numbers inconsistently, and `delayInDays` is legitimately "0" for an immediate step.
     const next = isRecordLike(status.nextSequence) ? status.nextSequence : null
-    const delay = next === null ? Number.NaN : Number(next.delayInDays)
 
     return {
       success: true,
       output: {
         success: isOk(record),
         is_last_sequence: typeof status.isLastSequence === 'boolean' ? status.isLastSequence : null,
-        next_sequence_id: next && typeof next.id === 'number' ? next.id : null,
-        next_sequence_delay_in_days: Number.isFinite(delay) ? delay : null,
+        next_sequence_id: next === null ? null : toNullableNumber(next.id),
+        next_sequence_delay_in_days: next === null ? null : toNullableNumber(next.delayInDays),
       },
     }
   },

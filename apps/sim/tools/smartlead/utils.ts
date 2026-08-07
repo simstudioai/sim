@@ -572,7 +572,7 @@ function toStringOrNull(value: unknown): string | null {
 }
 
 /** Normalizes Smartlead's string-encoded numbers (`"0"`, `"3499513771"`) to numbers. */
-function toNullableNumber(value: unknown): number | null {
+export function toNullableNumber(value: unknown): number | null {
   if (value === undefined || value === null) return null
   if (typeof value === 'number') return Number.isFinite(value) ? value : null
   if (typeof value === 'string' && value.trim() !== '') {

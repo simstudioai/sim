@@ -6,6 +6,7 @@ import {
   jsonBody,
   pathSegment,
   type SMARTLEAD_STOP_LEAD_SETTINGS,
+  type SMARTLEAD_TRACK_SETTINGS,
   smartleadBaseParamFields,
   smartleadCampaignIdParamField,
   smartleadHeaders,
@@ -15,7 +16,7 @@ import {
 import type { ToolConfig } from '@/tools/types'
 
 interface UpdateCampaignSettingsParams extends SmartleadCampaignIdParams {
-  trackSettings?: string[]
+  trackSettings?: (typeof SMARTLEAD_TRACK_SETTINGS)[number][]
   stopLeadSettings?: (typeof SMARTLEAD_STOP_LEAD_SETTINGS)[number]
   sendAsPlainText?: boolean
   followUpPercentage?: number

@@ -6,6 +6,7 @@ import type {
 import {
   mapSavedWebhook,
   pathSegment,
+  type SMARTLEAD_WEBHOOK_EVENT_TYPES,
   smartleadBaseParamFields,
   smartleadCampaignIdParamField,
   smartleadHeaders,
@@ -18,7 +19,7 @@ import type { ToolConfig } from '@/tools/types'
 interface UpsertCampaignWebhookParams extends SmartleadCampaignIdParams {
   name: string
   webhookUrl: string
-  eventTypes: string[]
+  eventTypes: (typeof SMARTLEAD_WEBHOOK_EVENT_TYPES)[number][]
   categories: string[]
   webhookId?: number
 }

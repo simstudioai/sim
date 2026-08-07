@@ -419,17 +419,6 @@ export const SmartleadBlock: BlockConfig<SmartleadResponse> = {
       condition: { field: 'operation', value: 'list_inbox_replies' },
     },
     {
-      id: 'activityCampaignId',
-      title: 'Campaign ID',
-      type: 'short-input',
-      placeholder: 'Leave empty for all campaigns',
-      condition: {
-        field: 'operation',
-        value: ['list_lead_activities', 'list_inbox_replies'],
-      },
-      mode: 'advanced',
-    },
-    {
       id: 'clientId',
       title: 'Client ID',
       type: 'short-input',
@@ -803,9 +792,7 @@ export const SmartleadBlock: BlockConfig<SmartleadResponse> = {
     config: {
       tool: (params) => `smartlead_${params.operation}`,
       params: (params) => ({
-        // `list_lead_activities` and `list_inbox_replies` scope by campaign through their
-        // own optional field, since they are not campaign-scoped operations.
-        campaignId: toNumberParam(params.campaignId || params.activityCampaignId),
+        campaignId: toNumberParam(params.campaignId),
         leadId: toNumberParam(params.leadId),
         clientId: toNumberParam(params.clientId),
         categoryId: toNumberParam(params.categoryId),
@@ -937,7 +924,6 @@ export const SmartleadBlock: BlockConfig<SmartleadResponse> = {
     leadListId: { type: 'number', description: 'Lead list ID' },
     listName: { type: 'string', description: 'Lead list name' },
     unreadOnly: { type: 'boolean', description: 'Return only unread inbox replies' },
-    activityCampaignId: { type: 'number', description: 'Campaign to scope results to' },
   },
   outputs: {
     campaigns: { type: 'array', description: 'List of campaigns' },
@@ -1026,6 +1012,26 @@ export const SmartleadBlock: BlockConfig<SmartleadResponse> = {
     active_leads_count: { type: 'number', description: 'Active leads in the list' },
     track_settings: { type: 'array', description: 'Disabled tracking settings' },
     scheduler_cron_value: { type: 'json', description: 'Campaign sending schedule' },
+    accounts: {
+      type: 'array',
+      description: 'Sending email accounts, excluding their stored mailbox credentials',
+    },
+    user_id: { type: 'number', description: 'Owning Smartlead user ID' },
+    min_time_btwn_emails: { type: 'number', description: 'Minimum minutes between emails' },
+    max_leads_per_day: { type: 'number', description: 'Maximum new leads per day' },
+    stop_lead_settings: { type: 'string', description: 'Activity that stops a lead sequence' },
+    schedule_start_time: { type: 'string', description: 'Scheduled start time' },
+    enable_ai_esp_matching: { type: 'boolean', description: 'Whether AI ESP matching is enabled' },
+    send_as_plain_text: { type: 'boolean', description: 'Whether emails send as plain text' },
+    follow_up_percentage: { type: 'number', description: 'Follow-up percentage' },
+    unsubscribe_text: { type: 'string', description: 'Unsubscribe text' },
+    parent_campaign_id: { type: 'number', description: 'Parent campaign ID' },
+    client_id: { type: 'number', description: 'Client ID for agency accounts' },
+    client_name: { type: 'string', description: 'Client name' },
+    client_email: { type: 'string', description: 'Client email' },
+    client_company_name: { type: 'string', description: 'Client company name' },
+    tags: { type: 'array', description: 'Tags on the record' },
+    email_campaign_id: { type: 'number', description: 'Campaign the webhook belongs to' },
   },
 }
 
