@@ -5,8 +5,10 @@ import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/work
 import { getErrorMessage } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
-import { v2ExecuteWorkflowContract } from '@/lib/api/contracts/v2/workflows'
-import { executionIdSchema, WORKFLOW_EXECUTION_ID_HEADER } from '@/lib/api/contracts/workflows'
+import {
+  V2_WORKFLOW_RUN_ID_HEADER,
+  v2ExecuteWorkflowContract,
+} from '@/lib/api/contracts/v2/workflows'
 import { parseRequest } from '@/lib/api/server'
 import { tryAdmit } from '@/lib/core/admission/gate'
 import { ADMISSION_ERROR_DESCRIPTOR } from '@/lib/core/admission/transient-failure'
@@ -53,21 +55,23 @@ const FAILURE_CODE_BY_STATUS: Record<number, V2ErrorCode> = {
 
 function serviceFailureResponse(failure: ExecuteWorkflowServiceFailure) {
   const code = FAILURE_CODE_BY_STATUS[failure.statusCode] ?? 'INTERNAL_ERROR'
+  const isRunIdConflict = failure.code === 'EXECUTION_ID_CONFLICT'
+  const detailCode = isRunIdConflict ? 'RUN_ID_CONFLICT' : failure.code
   const headers: Record<string, string> = {}
   if (failure.retryAfterMs !== undefined) {
     headers['Retry-After'] = Math.max(1, Math.ceil(failure.retryAfterMs / 1000)).toString()
   }
   if (failure.executionId) {
-    headers[WORKFLOW_EXECUTION_ID_HEADER] = failure.executionId
+    headers[V2_WORKFLOW_RUN_ID_HEADER] = failure.executionId
   }
-  return v2Error(code, failure.message, {
+  return v2Error(code, isRunIdConflict ? 'Run ID has already been used' : failure.message, {
     status: failure.statusCode,
     headers,
     details:
-      failure.code || failure.executionId
+      detailCode || failure.executionId
         ? {
-            ...(failure.code ? { code: failure.code } : {}),
-            ...(failure.executionId ? { executionId: failure.executionId } : {}),
+            ...(detailCode ? { code: detailCode } : {}),
+            ...(failure.executionId ? { runId: failure.executionId } : {}),
           }
         : undefined,
   })
@@ -80,9 +84,9 @@ function serviceFailureResponse(failure: ExecuteWorkflowServiceFailure) {
  * - Auth: `X-API-Key` (personal/workspace) or the anonymous public-API path for
  *   workflows deployed with `isPublicApi` (actor = owner; sync/stream only).
  * - `async: true` (body flag — v2 has no mode headers) → 202
- *   `{ data: { executionId, statusUrl } }`; poll the v2 executions resource.
+ *   `{ data: { runId, statusUrl } }`; poll the v2 runs resource.
  * - `stream: true` → SSE passthrough (no `{data}` envelope on event frames).
- * - Sync → 200 execution resource with the status enum and structured error;
+ * - Sync → 200 run resource with the status enum and structured error;
  *   an in-band run failure is `status: 'failed'`, never an HTTP error. A
  *   Response block's declared payload stays inside `output` — v2 never lets a
  *   workflow author control response status or headers on this origin.
@@ -193,15 +197,11 @@ export const POST = withRouteHandler(
         )
       }
 
-      /** Idempotent execution ids are a keyed-caller feature; anonymous callers must not probe the claim table. */
+      /** Caller-supplied run IDs are a keyed-caller feature; anonymous callers must not probe the claim table. */
       let requestedExecutionId: string | undefined
-      const executionIdHeader = req.headers.get(WORKFLOW_EXECUTION_ID_HEADER)
-      if (executionIdHeader !== null && !isPublicApiAccess) {
-        const headerValidation = executionIdSchema.safeParse(executionIdHeader)
-        if (!headerValidation.success) {
-          return v2Error('BAD_REQUEST', 'Invalid execution ID header')
-        }
-        requestedExecutionId = headerValidation.data
+      const runIdHeader = parsed.data.headers['x-run-id']
+      if (runIdHeader !== undefined && !isPublicApiAccess) {
+        requestedExecutionId = runIdHeader
       }
 
       const workflowAuthorization = await authorizeWorkflowByWorkspacePermission({
@@ -258,22 +258,22 @@ export const POST = withRouteHandler(
       if ('queued' in result) {
         return v2Data(
           {
-            executionId: result.executionId,
-            statusUrl: `${getBaseUrl()}/api/v2/workflows/${workflowId}/executions/${result.executionId}`,
+            runId: result.executionId,
+            statusUrl: `${getBaseUrl()}/api/v2/workflows/${workflowId}/runs/${result.executionId}`,
           },
-          { status: 202, headers: { [WORKFLOW_EXECUTION_ID_HEADER]: result.executionId } }
+          { status: 202, headers: { [V2_WORKFLOW_RUN_ID_HEADER]: result.executionId } }
         )
       }
 
       if (result.aborted === 'client') {
         return v2Error('CLIENT_CLOSED_REQUEST', 'Client cancelled request', {
-          details: { executionId: result.executionId },
+          details: { runId: result.executionId },
         })
       }
 
       return v2Data(
         {
-          executionId: result.executionId,
+          runId: result.executionId,
           workflowId: result.workflowId,
           status: result.status,
           output: result.output ?? null,
@@ -282,7 +282,7 @@ export const POST = withRouteHandler(
           endedAt: result.endedAt,
           durationMs: result.durationMs,
         },
-        { headers: { [WORKFLOW_EXECUTION_ID_HEADER]: result.executionId } }
+        { headers: { [V2_WORKFLOW_RUN_ID_HEADER]: result.executionId } }
       )
     } catch (error) {
       logger.error(`[${requestId}] v2 execute failed`, {

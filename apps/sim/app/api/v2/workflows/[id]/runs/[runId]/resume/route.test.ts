@@ -22,26 +22,26 @@ vi.mock('@/lib/core/utils/urls', () => ({
 }))
 
 import { v2ResumeWorkflowContract } from '@/lib/api/contracts/v2/workflows'
-import { POST } from '@/app/api/v2/workflows/[id]/executions/[executionId]/resume/route'
+import { POST } from '@/app/api/v2/workflows/[id]/runs/[runId]/resume/route'
 
 const WORKFLOW_ID = 'workflow-1'
-const EXECUTION_ID = 'execution-1'
+const RUN_ID = 'run-1'
 
 function makeRequest(body: string) {
   return {
     request: new NextRequest(
-      `http://localhost/api/v2/workflows/${WORKFLOW_ID}/executions/${EXECUTION_ID}/resume`,
+      `http://localhost/api/v2/workflows/${WORKFLOW_ID}/runs/${RUN_ID}/resume`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-API-Key': 'test-key' },
         body,
       }
     ),
-    context: { params: Promise.resolve({ id: WORKFLOW_ID, executionId: EXECUTION_ID }) },
+    context: { params: Promise.resolve({ id: WORKFLOW_ID, runId: RUN_ID }) },
   }
 }
 
-describe('POST /api/v2/workflows/[id]/executions/[executionId]/resume', () => {
+describe('POST /api/v2/workflows/[id]/runs/[runId]/resume', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockResolveV2WorkflowAccess.mockResolvedValue({
@@ -72,7 +72,7 @@ describe('POST /api/v2/workflows/[id]/executions/[executionId]/resume', () => {
     expect(mockHandleResumeExecution).not.toHaveBeenCalled()
   })
 
-  it('resumes a pause context through the execution-scoped v2 endpoint', async () => {
+  it('resumes a pause context through the run-scoped v2 endpoint', async () => {
     mockHandleResumeExecution.mockResolvedValueOnce(
       NextResponse.json(
         {
@@ -80,8 +80,7 @@ describe('POST /api/v2/workflows/[id]/executions/[executionId]/resume', () => {
           async: true,
           executionId: 'resume-execution-1',
           message: 'Resume execution queued',
-          statusUrl:
-            'https://test.sim.ai/api/v2/workflows/workflow-1/executions/resume-execution-1',
+          statusUrl: 'https://test.sim.ai/api/v2/workflows/workflow-1/runs/resume-execution-1',
         },
         { status: 202 }
       )
@@ -94,18 +93,18 @@ describe('POST /api/v2/workflows/[id]/executions/[executionId]/resume', () => {
     const body = await response.json()
 
     expect(response.status).toBe(202)
-    expect(response.headers.get('X-Execution-Id')).toBe('resume-execution-1')
+    expect(response.headers.get('X-Run-Id')).toBe('resume-execution-1')
     expect(body).toEqual({
       data: {
-        executionId: 'resume-execution-1',
-        statusUrl: 'https://test.sim.ai/api/v2/workflows/workflow-1/executions/resume-execution-1',
+        runId: 'resume-execution-1',
+        statusUrl: 'https://test.sim.ai/api/v2/workflows/workflow-1/runs/resume-execution-1',
       },
     })
     expect(v2ResumeWorkflowContract.response.schema.parse(body)).toEqual(body)
     expect(mockHandleResumeExecution).toHaveBeenCalledWith({
       request,
       workflowId: WORKFLOW_ID,
-      executionId: EXECUTION_ID,
+      executionId: RUN_ID,
       contextId: 'context-1',
       workspaceId: 'workspace-1',
       userId: 'user-1',
@@ -132,14 +131,14 @@ describe('POST /api/v2/workflows/[id]/executions/[executionId]/resume', () => {
     expect(response.status).toBe(202)
     expect(await response.json()).toEqual({
       data: {
-        executionId: 'resume-execution-2',
-        statusUrl: 'https://test.sim.ai/api/v2/workflows/workflow-1/executions/resume-execution-2',
+        runId: 'resume-execution-2',
+        statusUrl: 'https://test.sim.ai/api/v2/workflows/workflow-1/runs/resume-execution-2',
         queuePosition: 2,
       },
     })
   })
 
-  it('wraps synchronous resume results in the canonical v2 execution shape', async () => {
+  it('wraps synchronous resume results in the canonical v2 run shape', async () => {
     mockHandleResumeExecution.mockResolvedValueOnce(
       NextResponse.json({
         success: true,
@@ -161,7 +160,7 @@ describe('POST /api/v2/workflows/[id]/executions/[executionId]/resume', () => {
     expect(response.status).toBe(200)
     expect(body).toEqual({
       data: {
-        executionId: 'resume-execution-3',
+        runId: 'resume-execution-3',
         workflowId: WORKFLOW_ID,
         status: 'completed',
         output: { approved: true },

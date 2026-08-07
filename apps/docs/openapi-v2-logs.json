@@ -79,7 +79,7 @@
           {
             "name": "level",
             "in": "query",
-            "description": "Filter logs by severity level. info for successful executions, error for failed ones.",
+            "description": "Filter logs by severity level. info for successful runs, error for failed ones.",
             "schema": {
               "type": "string",
               "enum": ["info", "error"]
@@ -104,9 +104,9 @@
             }
           },
           {
-            "name": "executionId",
+            "name": "runId",
             "in": "query",
-            "description": "Filter by an exact execution ID. Useful for looking up a specific run.",
+            "description": "Filter by an exact run ID.",
             "schema": {
               "type": "string"
             }
@@ -249,7 +249,7 @@
                 "example": {
                   "data": [
                     {
-                      "executionId": "e4f8d2b6-9a1c-4e3d-8b7f-5c0a2d9e6f13",
+                      "runId": "e4f8d2b6-9a1c-4e3d-8b7f-5c0a2d9e6f13",
                       "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
                       "deploymentVersionId": "dep_2c4e6a8b0d1f",
                       "status": "completed",
@@ -287,26 +287,26 @@
         }
       }
     },
-    "/api/v2/logs/{executionId}": {
+    "/api/v2/logs/{runId}": {
       "get": {
         "operationId": "getLog",
         "summary": "Get Log",
-        "description": "Retrieve the diagnostic representation of an execution by its execution ID, including workflow metadata and state, trace spans, final output, and cost. Logs and executions share the same public identity; no separate log ID is exposed.",
+        "description": "Retrieve the diagnostic representation of a run by its run ID, including workflow metadata and state, trace spans, final output, and cost. Logs and runs share the same public identity; no separate log ID is exposed.",
         "tags": ["Logs"],
         "x-codeSamples": [
           {
             "id": "curl",
             "label": "cURL",
             "lang": "bash",
-            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v2/logs/{executionId}\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v2/logs/{runId}\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
           }
         ],
         "parameters": [
           {
-            "name": "executionId",
+            "name": "runId",
             "in": "path",
             "required": true,
-            "description": "The unique execution identifier shared by the lifecycle and diagnostic resources.",
+            "description": "The unique run identifier shared by the lifecycle and diagnostic resources.",
             "schema": {
               "type": "string",
               "example": "e4f8d2b6-9a1c-4e3d-8b7f-5c0a2d9e6f13"
@@ -340,7 +340,7 @@
                 },
                 "example": {
                   "data": {
-                    "executionId": "e4f8d2b6-9a1c-4e3d-8b7f-5c0a2d9e6f13",
+                    "runId": "e4f8d2b6-9a1c-4e3d-8b7f-5c0a2d9e6f13",
                     "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
                     "deploymentVersionId": "dep_2c4e6a8b0d1f",
                     "status": "completed",
@@ -600,7 +600,7 @@
         "type": "object",
         "description": "Summary of a single workflow execution log entry returned by the list endpoint.",
         "required": [
-          "executionId",
+          "runId",
           "workflowId",
           "deploymentVersionId",
           "status",
@@ -613,7 +613,7 @@
           "files"
         ],
         "properties": {
-          "executionId": {
+          "runId": {
             "type": "string",
             "description": "The sole public identifier for both the execution and its log representation.",
             "example": "e4f8d2b6-9a1c-4e3d-8b7f-5c0a2d9e6f13"
@@ -635,7 +635,7 @@
           },
           "level": {
             "type": "string",
-            "description": "Log severity. info for successful executions, error for failures.",
+            "description": "Log severity. info for successful runs, error for failures.",
             "example": "info"
           },
           "trigger": {
@@ -695,9 +695,9 @@
       },
       "LogDetail": {
         "type": "object",
-        "description": "Diagnostic representation of an execution, addressed by the same execution ID as its lifecycle resource.",
+        "description": "Diagnostic representation of a run, addressed by the same run ID as its lifecycle resource.",
         "required": [
-          "executionId",
+          "runId",
           "workflowId",
           "deploymentVersionId",
           "status",
@@ -715,7 +715,7 @@
           "createdAt"
         ],
         "properties": {
-          "executionId": {
+          "runId": {
             "type": "string",
             "description": "The sole public identifier for both the execution and its log representation.",
             "example": "e4f8d2b6-9a1c-4e3d-8b7f-5c0a2d9e6f13"
@@ -736,7 +736,7 @@
           },
           "level": {
             "type": "string",
-            "description": "Log severity. info for successful executions, error for failures.",
+            "description": "Log severity. info for successful runs, error for failures.",
             "example": "info"
           },
           "trigger": {

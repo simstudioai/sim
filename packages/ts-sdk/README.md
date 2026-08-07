@@ -75,7 +75,7 @@ const result = await client.executeWorkflow('workflow-id', { message: 'Hello' },
   - `timeout` (number): Timeout in milliseconds (default: 30000)
   - `stream` (boolean): Enable streaming responses
   - `selectedOutputs` (string[]): Block outputs to stream (e.g., `["agent1.content"]`)
-  - `async` (boolean): Execute asynchronously and return execution ID
+  - `async` (boolean): Execute asynchronously and return a run ID
   - `executionTimeoutSeconds` (number): Server-side async execution cap from 1 to 604800 seconds. Requires `async: true` and cannot extend the account policy.
 
 **Returns:** `Promise<WorkflowExecutionResult | AsyncExecutionResult>`
@@ -128,29 +128,29 @@ const result = await client.executeWorkflowSync('workflow-id', { data: 'some inp
 
 **Returns:** `Promise<WorkflowExecutionResult>`
 
-##### getWorkflowExecution(workflowId, executionId, options?)
+##### getWorkflowRun(workflowId, runId, options?)
 
-Get the status and optional outputs of a workflow execution. Use the `executionId` returned by async execution.
+Get the status and optional outputs of a workflow run. Use the `runId` returned by async execution.
 
 ```typescript
-const status = await client.getWorkflowExecution('workflow-id', 'execution-id', {
+const status = await client.getWorkflowRun('workflow-id', 'run-id', {
   includeOutput: true,
   selectedOutputs: ['agent.content']
 });
-console.log('Execution status:', status.status);
+console.log('Run status:', status.status);
 ```
 
 **Parameters:**
 - `workflowId` (string): The workflow ID
-- `executionId` (string): The execution ID returned from async execution
+- `runId` (string): The run ID returned from async execution
 - `options.includeOutput` (boolean, optional): Include the final output for completed executions
 - `options.selectedOutputs` (string[], optional): Block output selectors to include
 
-**Returns:** `Promise<WorkflowExecutionStatus>`
+**Returns:** `Promise<WorkflowRunStatus>`
 
 ##### getJobStatus(jobId)
 
-Get the status of a job created through the legacy async execution endpoint. New integrations should use `getWorkflowExecution()` with an execution ID.
+Get the status of a job created through the legacy async execution endpoint. New integrations should use `getWorkflowRun()` with a run ID.
 
 ```typescript
 const status = await client.getJobStatus('legacy-job-id');
@@ -237,7 +237,7 @@ interface WorkflowExecutionResult {
   logs?: any[];
   metadata?: {
     duration?: number;
-    executionId?: string;
+    runId?: string;
     [key: string]: any;
   };
   traceSpans?: any[];
@@ -287,7 +287,7 @@ class SimStudioError extends Error {
 ```typescript
 interface AsyncExecutionResult {
   success: boolean;
-  executionId: string;
+  runId: string;
   statusUrl: string;
   message: string;
   async: true;

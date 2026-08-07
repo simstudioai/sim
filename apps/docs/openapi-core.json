@@ -1240,7 +1240,7 @@
                           "source",
                           "workspaceId",
                           "workflow",
-                          "executionId",
+                          "runId",
                           "creditCost"
                         ],
                         "properties": {
@@ -1287,7 +1287,7 @@
                               }
                             ]
                           },
-                          "executionId": {
+                          "runId": {
                             "type": ["string", "null"]
                           },
                           "creditCost": {
@@ -1311,7 +1311,7 @@
                       "source": "sim-chat",
                       "workspaceId": "ws_1",
                       "workflow": null,
-                      "executionId": null,
+                      "runId": null,
                       "creditCost": 12
                     }
                   ],

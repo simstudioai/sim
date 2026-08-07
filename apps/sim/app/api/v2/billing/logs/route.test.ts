@@ -87,7 +87,7 @@ describe('GET /api/v2/billing/logs', () => {
           source: 'workflow',
           workspaceId: 'ws-1',
           workflow: { id: 'workflow-1', name: 'Support Agent' },
-          executionId: 'execution-1',
+          runId: 'execution-1',
           creditCost: 12,
         },
       ],

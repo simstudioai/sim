@@ -89,7 +89,7 @@ export const v2BillingLogEntrySchema = z.object({
       name: z.string().nullable(),
     })
     .nullable(),
-  executionId: z.string().nullable(),
+  runId: z.string().nullable(),
   creditCost: z.number(),
 })
 export type V2BillingLogEntry = z.output<typeof v2BillingLogEntrySchema>

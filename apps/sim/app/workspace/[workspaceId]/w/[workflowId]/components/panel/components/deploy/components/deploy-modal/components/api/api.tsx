@@ -263,7 +263,7 @@ while (true) {
       throw new Error(`Invalid workflow execution endpoint: ${endpoint}`)
     }
     const baseUrl = endpoint.split(v2WorkflowPrefix)[0]
-    const statusEndpoint = `${endpoint.slice(0, -'/execute'.length)}/executions/EXECUTION_ID_FROM_EXECUTION`
+    const statusEndpoint = `${endpoint.slice(0, -'/execute'.length)}/runs/RUN_ID_FROM_EXECUTION`
     const payload = { ...getPayloadObject(), async: true }
 
     switch (asyncExampleType) {
@@ -315,7 +315,7 @@ console.log(execution);`
   body: JSON.stringify(${JSON.stringify(payload)})
 });
 
-const { data: execution }: { data: { executionId: string; statusUrl: string } } = await response.json();
+const { data: execution }: { data: { runId: string; statusUrl: string } } = await response.json();
 console.log(execution);`
 
           default:

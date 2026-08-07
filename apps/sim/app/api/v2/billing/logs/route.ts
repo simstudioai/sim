@@ -68,7 +68,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       source: toBillingUsageLogSource(log.source),
       workspaceId: log.workspaceId ?? null,
       workflow: log.workflowId ? { id: log.workflowId, name: log.workflowName ?? null } : null,
-      executionId: log.executionId ?? null,
+      runId: log.executionId ?? null,
       creditCost: creditsByLogId[log.id] ?? 0,
     }))
 

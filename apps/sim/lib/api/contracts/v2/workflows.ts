@@ -29,11 +29,32 @@ import {
 } from '@/lib/api/contracts/v2/shared'
 import {
   cancelWorkflowExecutionReasonSchema,
-  workflowExecutionParamsSchema,
   workflowExecutionPausedDetailSchema,
   workflowExecutionStatusQuerySchema,
   workflowIdParamsSchema,
 } from '@/lib/api/contracts/workflows'
+
+export const V2_WORKFLOW_RUN_ID_HEADER = 'X-Run-Id'
+
+export const v2WorkflowRunIdSchema = z
+  .string()
+  .min(1, 'Invalid run ID')
+  .max(128, 'Run ID too long')
+  .regex(
+    /^[A-Za-z0-9._:-]+$/,
+    'Run ID can only contain letters, numbers, dots, underscores, colons, and hyphens'
+  )
+
+export const v2ExecuteWorkflowHeadersSchema = z.object({
+  'x-run-id': v2WorkflowRunIdSchema.optional(),
+})
+export type V2ExecuteWorkflowHeaders = z.input<typeof v2ExecuteWorkflowHeadersSchema>
+
+export const v2WorkflowRunParamsSchema = z.object({
+  id: z.string().min(1, 'Invalid workflow ID'),
+  runId: v2WorkflowRunIdSchema,
+})
+export type V2WorkflowRunParams = z.input<typeof v2WorkflowRunParamsSchema>
 
 /**
  * v2 workflows contracts. Request shapes are reused from v1 (the `[id]` param
@@ -368,7 +389,7 @@ export const v2ExecutionErrorSchema = z.object({
     'OUTPUT_TOO_LARGE',
     'EXECUTION_FAILED',
   ]),
-  /** Failing block, when attributable. Deliberately crosses the workspace boundary for shared/child workflows — the executionId + block context is the reproducible handle a caller hands the workflow provider. */
+  /** Failing block, when attributable. Deliberately crosses the workspace boundary for shared/child workflows — the runId + block context is the reproducible handle a caller hands the workflow provider. */
   blockId: z.string().optional(),
   blockName: z.string().optional(),
   blockType: z.string().optional(),
@@ -403,13 +424,13 @@ export const v2ExecuteWorkflowBodySchema = z
 export type V2ExecuteWorkflowBody = z.input<typeof v2ExecuteWorkflowBodySchema>
 
 /**
- * The execution result resource. In-band run failures are `status: 'failed'`
- * with a structured `error` — never an HTTP error: **an `executionId` means
- * 200/202 + `data`; no `executionId` means the `v2Error` envelope.** The sync
+ * The run result resource. In-band run failures are `status: 'failed'`
+ * with a structured `error` — never an HTTP error: **a `runId` means 200/202 +
+ * `data`; no `runId` means the `v2Error` envelope.** The sync
  * timeout is `status:'failed'` + `error.code:'TIMEOUT'` (v1 returned 408).
  */
 export const v2ExecuteWorkflowDataSchema = z.object({
-  executionId: z.string(),
+  runId: v2WorkflowRunIdSchema,
   workflowId: z.string(),
   status: z.enum(['completed', 'failed', 'paused', 'cancelled']),
   output: z.unknown(),
@@ -420,9 +441,9 @@ export const v2ExecuteWorkflowDataSchema = z.object({
 })
 export type V2ExecuteWorkflowData = z.output<typeof v2ExecuteWorkflowDataSchema>
 
-/** 202 receipt for `async: true` — poll `statusUrl` (the v2 executions resource). */
+/** 202 receipt for `async: true` — poll `statusUrl` (the v2 runs resource). */
 export const v2ExecuteWorkflowQueuedSchema = z.object({
-  executionId: z.string(),
+  runId: v2WorkflowRunIdSchema,
   statusUrl: z.string(),
 })
 export type V2ExecuteWorkflowQueued = z.output<typeof v2ExecuteWorkflowQueuedSchema>
@@ -431,6 +452,7 @@ export const v2ExecuteWorkflowContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/workflows/[id]/execute',
   params: workflowIdParamsSchema,
+  headers: v2ExecuteWorkflowHeadersSchema,
   body: v2ExecuteWorkflowBodySchema,
   response: {
     mode: 'json',
@@ -438,7 +460,7 @@ export const v2ExecuteWorkflowContract = defineRouteContract({
   },
 })
 
-/** Resume input is scoped to one pause context on the parent execution. */
+/** Resume input is scoped to one pause context on the parent run. */
 export const v2ResumeWorkflowBodySchema = z
   .object({
     contextId: z.string().min(1, 'contextId cannot be empty'),
@@ -460,8 +482,8 @@ export type V2ResumeWorkflowResponse = z.output<typeof v2ResumeWorkflowResponseS
 
 export const v2ResumeWorkflowContract = defineRouteContract({
   method: 'POST',
-  path: '/api/v2/workflows/[id]/executions/[executionId]/resume',
-  params: workflowExecutionParamsSchema,
+  path: '/api/v2/workflows/[id]/runs/[runId]/resume',
+  params: v2WorkflowRunParamsSchema,
   body: v2ResumeWorkflowBodySchema,
   response: {
     mode: 'json',
@@ -469,7 +491,7 @@ export const v2ResumeWorkflowContract = defineRouteContract({
   },
 })
 
-export const v2WorkflowExecutionStatusValueSchema = z.enum([
+export const v2WorkflowRunStatusValueSchema = z.enum([
   'queued',
   'pending',
   'running',
@@ -479,7 +501,7 @@ export const v2WorkflowExecutionStatusValueSchema = z.enum([
   'paused',
 ])
 
-export const v2WorkflowExecutionListStatusValueSchema = z.enum([
+export const v2WorkflowRunListStatusValueSchema = z.enum([
   'pending',
   'running',
   'completed',
@@ -488,9 +510,9 @@ export const v2WorkflowExecutionListStatusValueSchema = z.enum([
   'paused',
 ])
 
-export const v2ListWorkflowExecutionsQuerySchema = z
+export const v2ListWorkflowRunsQuerySchema = z
   .object({
-    status: v2WorkflowExecutionListStatusValueSchema.optional(),
+    status: v2WorkflowRunListStatusValueSchema.optional(),
     trigger: z.string().min(1, 'trigger cannot be empty').optional(),
     startDate: z.string().datetime().optional(),
     endDate: z.string().datetime().optional(),
@@ -510,12 +532,12 @@ export const v2ListWorkflowExecutionsQuerySchema = z
     }
   )
 
-export type V2ListWorkflowExecutionsQuery = z.output<typeof v2ListWorkflowExecutionsQuerySchema>
+export type V2ListWorkflowRunsQuery = z.output<typeof v2ListWorkflowRunsQuerySchema>
 
-export const v2WorkflowExecutionListItemSchema = z.object({
-  executionId: z.string(),
+export const v2WorkflowRunListItemSchema = z.object({
+  runId: v2WorkflowRunIdSchema,
   workflowId: z.string(),
-  status: v2WorkflowExecutionListStatusValueSchema,
+  status: v2WorkflowRunListStatusValueSchema,
   trigger: z.string(),
   startedAt: z.string(),
   endedAt: z.string().nullable(),
@@ -523,71 +545,71 @@ export const v2WorkflowExecutionListItemSchema = z.object({
   cost: z.object({ total: z.number() }).nullable(),
 })
 
-export type V2WorkflowExecutionListItem = z.output<typeof v2WorkflowExecutionListItemSchema>
+export type V2WorkflowRunListItem = z.output<typeof v2WorkflowRunListItemSchema>
 
-export const v2ListWorkflowExecutionsContract = defineRouteContract({
+export const v2ListWorkflowRunsContract = defineRouteContract({
   method: 'GET',
-  path: '/api/v2/workflows/[id]/executions',
+  path: '/api/v2/workflows/[id]/runs',
   params: workflowIdParamsSchema,
-  query: v2ListWorkflowExecutionsQuerySchema,
+  query: v2ListWorkflowRunsQuerySchema,
   response: {
     mode: 'json',
-    schema: v2CursorListResponse(v2WorkflowExecutionListItemSchema),
+    schema: v2CursorListResponse(v2WorkflowRunListItemSchema),
   },
 })
 
 /**
- * The polled execution resource. `queued` is backfilled from the async job
+ * The polled run resource. `queued` is backfilled from the async job
  * queue before the worker writes the durable log row — v1's jobs endpoint 404
  * window doesn't exist here. `error` is the same structured object the execute
  * response carries.
  */
-export const v2WorkflowExecutionStatusSchema = z.object({
-  executionId: z.string(),
+export const v2WorkflowRunStatusSchema = z.object({
+  runId: v2WorkflowRunIdSchema,
   workflowId: z.string(),
-  status: v2WorkflowExecutionStatusValueSchema,
+  status: v2WorkflowRunStatusValueSchema,
   trigger: z.string().nullable(),
   startedAt: z.string().nullable(),
   endedAt: z.string().nullable(),
   durationMs: z.number().nullable(),
-  paused: workflowExecutionPausedDetailSchema.nullable(),
+  paused: workflowExecutionPausedDetailSchema.omit({ pausedExecutionId: true }).nullable(),
   cost: z.object({ total: z.number() }).nullable(),
   error: v2ExecutionErrorSchema.nullable(),
   /** Populated only with `includeOutput=true` on completed runs. */
   output: z.unknown().nullable(),
   blockOutputs: z.record(z.string(), z.unknown()).nullable(),
 })
-export type V2WorkflowExecutionStatus = z.output<typeof v2WorkflowExecutionStatusSchema>
+export type V2WorkflowRunStatus = z.output<typeof v2WorkflowRunStatusSchema>
 
-export const v2GetWorkflowExecutionContract = defineRouteContract({
+export const v2GetWorkflowRunContract = defineRouteContract({
   method: 'GET',
-  path: '/api/v2/workflows/[id]/executions/[executionId]',
-  params: workflowExecutionParamsSchema,
+  path: '/api/v2/workflows/[id]/runs/[runId]',
+  params: v2WorkflowRunParamsSchema,
   query: workflowExecutionStatusQuerySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2WorkflowExecutionStatusSchema),
+    schema: v2DataResponse(v2WorkflowRunStatusSchema),
   },
 })
 
-export const v2CancelWorkflowExecutionDataSchema = z.object({
+export const v2CancelWorkflowRunDataSchema = z.object({
   success: z.boolean(),
-  executionId: z.string(),
+  runId: v2WorkflowRunIdSchema,
   redisAvailable: z.boolean(),
   durablyRecorded: z.boolean(),
   locallyAborted: z.boolean(),
   pausedCancelled: z.boolean(),
   reason: cancelWorkflowExecutionReasonSchema.optional(),
 })
-export type V2CancelWorkflowExecutionData = z.output<typeof v2CancelWorkflowExecutionDataSchema>
+export type V2CancelWorkflowRunData = z.output<typeof v2CancelWorkflowRunDataSchema>
 
-export const v2CancelWorkflowExecutionContract = defineRouteContract({
+export const v2CancelWorkflowRunContract = defineRouteContract({
   method: 'POST',
-  path: '/api/v2/workflows/[id]/executions/[executionId]/cancel',
-  params: workflowExecutionParamsSchema,
+  path: '/api/v2/workflows/[id]/runs/[runId]/cancel',
+  params: v2WorkflowRunParamsSchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2CancelWorkflowExecutionDataSchema),
+    schema: v2DataResponse(v2CancelWorkflowRunDataSchema),
   },
 })
 

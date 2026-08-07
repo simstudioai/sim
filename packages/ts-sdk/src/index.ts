@@ -22,7 +22,7 @@ export interface WorkflowExecutionResult {
   logs?: any[]
   metadata?: {
     duration?: number
-    executionId?: string
+    runId?: string
     [key: string]: any
   }
   traceSpans?: any[]
@@ -57,7 +57,7 @@ const MAX_EXECUTION_TIMEOUT_SECONDS = 604_800
 
 export interface AsyncExecutionResult {
   success: boolean
-  executionId: string
+  runId: string
   statusUrl: string
   message: string
   async: true
@@ -77,8 +77,8 @@ export interface WorkflowExecutionError {
   details?: unknown
 }
 
-export interface WorkflowExecutionStatus {
-  executionId: string
+export interface WorkflowRunStatus {
+  runId: string
   workflowId: string
   status: 'queued' | 'pending' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled'
   trigger: string | null
@@ -92,7 +92,7 @@ export interface WorkflowExecutionStatus {
   blockOutputs: Record<string, unknown> | null
 }
 
-export interface GetWorkflowExecutionOptions {
+export interface GetWorkflowRunOptions {
   includeOutput?: boolean
   selectedOutputs?: string[]
 }
@@ -341,7 +341,7 @@ export class SimStudioClient {
 
       const result = (await response.json()) as {
         data?: {
-          executionId: string
+          runId: string
           statusUrl?: string
           status?: 'completed' | 'failed' | 'paused' | 'cancelled'
           output?: unknown
@@ -359,7 +359,7 @@ export class SimStudioClient {
         }
         return {
           success: true,
-          executionId: result.data.executionId,
+          runId: result.data.runId,
           statusUrl: result.data.statusUrl,
           message: 'Workflow execution queued',
           async: true,
@@ -372,7 +372,7 @@ export class SimStudioClient {
         error: result.data.error?.message,
         metadata: {
           duration: result.data.durationMs,
-          executionId: result.data.executionId,
+          runId: result.data.runId,
         },
         totalDuration: result.data.durationMs,
       }
@@ -511,13 +511,13 @@ export class SimStudioClient {
   }
 
   /**
-   * Get a workflow execution's current status and optional outputs from the v2 API.
+   * Get a workflow run's current status and optional outputs from the v2 API.
    */
-  async getWorkflowExecution(
+  async getWorkflowRun(
     workflowId: string,
-    executionId: string,
-    options: GetWorkflowExecutionOptions = {}
-  ): Promise<WorkflowExecutionStatus> {
+    runId: string,
+    options: GetWorkflowRunOptions = {}
+  ): Promise<WorkflowRunStatus> {
     const query = new URLSearchParams()
     if (options.includeOutput !== undefined) {
       query.set('includeOutput', String(options.includeOutput))
@@ -526,7 +526,7 @@ export class SimStudioClient {
       query.set('selectedOutputs', options.selectedOutputs.join(','))
     }
     const queryString = query.toString()
-    const url = `${this.baseUrl}/api/v2/workflows/${workflowId}/executions/${executionId}${queryString ? `?${queryString}` : ''}`
+    const url = `${this.baseUrl}/api/v2/workflows/${workflowId}/runs/${runId}${queryString ? `?${queryString}` : ''}`
 
     try {
       const response = await fetch(url, {
@@ -549,9 +549,9 @@ export class SimStudioClient {
         )
       }
 
-      const result = (await response.json()) as { data?: WorkflowExecutionStatus }
+      const result = (await response.json()) as { data?: WorkflowRunStatus }
       if (!result.data) {
-        throw new SimStudioError('Invalid v2 workflow execution response', 'STATUS_ERROR')
+        throw new SimStudioError('Invalid v2 workflow run response', 'STATUS_ERROR')
       }
       return result.data
     } catch (error: any) {
@@ -559,10 +559,7 @@ export class SimStudioClient {
         throw error
       }
 
-      throw new SimStudioError(
-        describeError(error) || 'Failed to get workflow execution',
-        'STATUS_ERROR'
-      )
+      throw new SimStudioError(describeError(error) || 'Failed to get workflow run', 'STATUS_ERROR')
     }
   }
 

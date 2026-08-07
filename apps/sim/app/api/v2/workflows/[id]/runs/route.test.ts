@@ -13,12 +13,12 @@ vi.mock('@/app/api/v2/workflows/lib/access', () => ({
   resolveV2WorkflowAccess: mockResolveV2WorkflowAccess,
 }))
 
-import { GET } from '@/app/api/v2/workflows/[id]/executions/route'
+import { GET } from '@/app/api/v2/workflows/[id]/runs/route'
 
 const routeContext = () => ({ params: Promise.resolve({ id: 'workflow-1' }) })
 const callGet = (query = '') =>
   GET(
-    new NextRequest(`http://localhost:3000/api/v2/workflows/workflow-1/executions${query}`),
+    new NextRequest(`http://localhost:3000/api/v2/workflows/workflow-1/runs${query}`),
     routeContext()
   )
 
@@ -47,7 +47,7 @@ const EXECUTIONS = [
   },
 ]
 
-describe('GET /api/v2/workflows/[id]/executions', () => {
+describe('GET /api/v2/workflows/[id]/runs', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
@@ -60,7 +60,7 @@ describe('GET /api/v2/workflows/[id]/executions', () => {
     dbChainMockFns.limit.mockResolvedValue(EXECUTIONS)
   })
 
-  it('lists lightweight execution resources in the cursor envelope', async () => {
+  it('lists lightweight run resources in the cursor envelope', async () => {
     const response = await callGet()
     const body = await response.json()
 
@@ -68,7 +68,7 @@ describe('GET /api/v2/workflows/[id]/executions', () => {
     expect(body.nextCursor).toBeNull()
     expect(body.data).toEqual([
       {
-        executionId: 'execution-2',
+        runId: 'execution-2',
         workflowId: 'workflow-1',
         status: 'paused',
         trigger: 'api',
@@ -78,7 +78,7 @@ describe('GET /api/v2/workflows/[id]/executions', () => {
         cost: { total: 0.02 },
       },
       {
-        executionId: 'execution-1',
+        runId: 'execution-1',
         workflowId: 'workflow-1',
         status: 'completed',
         trigger: 'schedule',
