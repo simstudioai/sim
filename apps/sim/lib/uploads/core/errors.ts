@@ -19,30 +19,16 @@ function readLabels(error: unknown): string[] | null {
 }
 
 /**
- * True when a provider names the missing resource as the object itself.
- *
- * The strict form. Use it wherever the caller cannot vouch for what was requested,
- * because an unlabelled 404 is ambiguous: GCS answers a missing object and a
- * missing bucket identically (`code: 404`, `errors[].reason: 'notFound'`), so only
- * the human-readable message separates them. Treating that as absence would let a
- * bucket misconfiguration read as "no metadata" and fail every read closed with
- * nothing left to alert on, so it stays an error here.
- */
-export function hasObjectNotFoundLabel(error: unknown): boolean {
-  const labels = readLabels(error)
-  if (!labels) return false
-  if (labels.some((label) => CONTAINER_NOT_FOUND_LABELS.has(label))) return false
-  return labels.some((label) => OBJECT_NOT_FOUND_LABELS.has(label))
-}
-
-/**
  * True when a storage provider reports that an object does not exist.
  *
- * The lenient form, for a caller that has just performed an object-level operation
- * and can therefore attribute a bare 404 to that object — which is what every
- * provider client here does, and how each spelled this check before it was shared.
- * It additionally accepts a bare 404 (`code`, `statusCode`, or
- * `$metadata.httpStatusCode`), which GCS relies on since it carries no label.
+ * Call this only from code that has just performed an object-level operation, so a
+ * bare 404 can be attributed to that object. A bare 404 is otherwise ambiguous —
+ * GCS answers a missing object and a missing bucket identically (`code: 404`,
+ * `errors[].reason: 'notFound'`), separable only by a human-readable message — and
+ * every caller here is a provider client that knows exactly what it asked for.
+ *
+ * Absence is an expected outcome of a lookup, so callers turn it into an empty
+ * result rather than propagating it.
  *
  * A network failure, a permission denial, or a provider 5xx still propagates.
  */

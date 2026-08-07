@@ -3,14 +3,9 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetFileMetadataByKey, mockSend, mockHeadObjectCommand } = vi.hoisted(() => ({
+const { mockGetFileMetadataByKey, mockHeadS3Object } = vi.hoisted(() => ({
   mockGetFileMetadataByKey: vi.fn(),
-  mockSend: vi.fn(),
-  mockHeadObjectCommand: vi.fn().mockImplementation(class {}),
-}))
-
-vi.mock('@aws-sdk/client-s3', () => ({
-  HeadObjectCommand: mockHeadObjectCommand,
+  mockHeadS3Object: vi.fn(),
 }))
 
 vi.mock('@/lib/uploads/config', () => ({
@@ -21,7 +16,7 @@ vi.mock('@/lib/uploads/config', () => ({
 }))
 
 vi.mock('@/lib/uploads/providers/s3/client', () => ({
-  getS3Client: () => ({ send: mockSend }),
+  headS3Object: mockHeadS3Object,
 }))
 
 vi.mock('@/lib/uploads/server/metadata', () => ({
@@ -30,13 +25,6 @@ vi.mock('@/lib/uploads/server/metadata', () => ({
 
 import { getFileMetadata } from '@/lib/uploads/core/storage-client'
 
-/** The exact error the AWS SDK raises from HeadObject for an absent object. */
-const notFound = Object.assign(new Error('NotFound'), {
-  name: 'NotFound',
-  $fault: 'client',
-  $metadata: { httpStatusCode: 404 },
-})
-
 describe('getFileMetadata', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -44,25 +32,33 @@ describe('getFileMetadata', () => {
   })
 
   it('reports an absent object as no metadata rather than throwing', async () => {
-    mockSend.mockRejectedValue(notFound)
+    /** The provider client owns not-found and reports absence as `null`. */
+    mockHeadS3Object.mockResolvedValue(null)
 
     await expect(getFileMetadata('workspace/ws/superseded-key.md')).resolves.toEqual({})
   })
 
   it('still propagates a genuine storage failure', async () => {
-    const denied = Object.assign(new Error('AccessDenied'), {
-      name: 'AccessDenied',
-      $metadata: { httpStatusCode: 403 },
-    })
-    mockSend.mockRejectedValue(denied)
+    mockHeadS3Object.mockRejectedValue(
+      Object.assign(new Error('AccessDenied'), {
+        name: 'AccessDenied',
+        $metadata: { httpStatusCode: 403 },
+      })
+    )
 
     await expect(getFileMetadata('workspace/ws/key.md')).rejects.toThrow('AccessDenied')
   })
 
   it('returns provider metadata when the object exists', async () => {
-    mockSend.mockResolvedValue({ Metadata: { workspaceid: 'ws-1' } })
+    mockHeadS3Object.mockResolvedValue({ size: 12, metadata: { workspaceid: 'ws-1' } })
 
     await expect(getFileMetadata('workspace/ws/key.md')).resolves.toEqual({ workspaceid: 'ws-1' })
+  })
+
+  it('treats an object carrying no metadata as no metadata', async () => {
+    mockHeadS3Object.mockResolvedValue({ size: 12 })
+
+    await expect(getFileMetadata('workspace/ws/key.md')).resolves.toEqual({})
   })
 
   it('prefers the database record when one exists', async () => {
@@ -77,6 +73,6 @@ describe('getFileMetadata', () => {
     const metadata = await getFileMetadata('workspace/ws/key.md')
 
     expect(metadata.workspaceId).toBe('ws-1')
-    expect(mockSend).not.toHaveBeenCalled()
+    expect(mockHeadS3Object).not.toHaveBeenCalled()
   })
 })
