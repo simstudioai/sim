@@ -34,10 +34,10 @@ export const MIN_PI_TIMEOUT_MS = 60 * 1000
  * reaped the sandbox and surface as an opaque SDK error.
  *
  * The reserve matters as much as the cap. The sandbox clock starts at create,
- * and three commands bracket the agent turn: the clone before it, then the
- * commit and the push after it, the last two sharing
- * {@link FINALIZE_TIMEOUT_MS}. Capping at the bare lifetime would mean the
- * sandbox always died first, taking the agent's finished work with it unpushed.
+ * and authoring has three commands around the agent turn: the clone before it,
+ * then the commit and push after it, the last two sharing
+ * {@link FINALIZE_TIMEOUT_MS}. Plan has no finalize phase and sets that reserve
+ * to zero. Capping at the bare lifetime would mean the sandbox died first.
  *
  * Takes the lifetime as an argument rather than reading the provider ceiling
  * itself, because that ceiling is no longer the only lifetime a run can get: a
@@ -53,10 +53,17 @@ export const MIN_PI_TIMEOUT_MS = 60 * 1000
  * through `ttlMinutes`. Reserving the surrounding commands keeps the agent turn
  * inside the lifetime the selected provider actually received.
  */
-export function resolvePiTimeoutMs(lifetimeMs = resolvePiSandboxLifetimeMs()): number {
+export function resolvePiTimeoutMs(
+  lifetimeMs = resolvePiSandboxLifetimeMs(),
+  options?: { finalizePhases?: number }
+): number {
+  const finalizePhases = options?.finalizePhases ?? 2
   return Math.min(
     getMaxExecutionTimeout(),
-    Math.max(lifetimeMs - CLONE_TIMEOUT_MS - 2 * FINALIZE_TIMEOUT_MS, MIN_PI_TIMEOUT_MS)
+    Math.max(
+      lifetimeMs - CLONE_TIMEOUT_MS - finalizePhases * FINALIZE_TIMEOUT_MS,
+      MIN_PI_TIMEOUT_MS
+    )
   )
 }
 

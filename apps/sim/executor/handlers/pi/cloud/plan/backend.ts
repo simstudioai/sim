@@ -133,7 +133,7 @@ export const runCloudPlanPi: PiBackendRun<PiCloudPlanRunParams> = async (params,
                   }
                 : {}),
             },
-            timeoutMs: resolvePiTimeoutMs(lifetimeMs),
+            timeoutMs: resolvePiTimeoutMs(lifetimeMs, { finalizePhases: 0 }),
             onStdout: handleChunk,
           }
         ),

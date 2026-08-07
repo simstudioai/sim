@@ -105,6 +105,7 @@ describe('runCloudPlanPi', () => {
     expect(piOptions.envs.GITHUB_TOKEN).toBeUndefined()
     expect(piOptions.envs.PI_MODEL).toBe('claude-sonnet-4-6')
     expect(piOptions.envs.PI_THINKING).toBe('high')
+    expect(piOptions.timeoutMs).toBe(30 * 60 * 1000)
 
     expect(mockBuildPrompt).toHaveBeenCalledWith(
       expect.objectContaining({

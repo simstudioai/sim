@@ -40,6 +40,13 @@ describe('resolvePiTimeoutMs', () => {
     expect(resolvePiTimeoutMs(shortLifetime)).toBeLessThanOrEqual(shortLifetime)
   })
 
+  it('does not reserve nonexistent finalize phases for Plan', () => {
+    const timeout = resolvePiTimeoutMs(PI_SANDBOX_MAX_LIFETIME_MS, { finalizePhases: 0 })
+
+    expect(timeout).toBeLessThanOrEqual(PI_SANDBOX_MAX_LIFETIME_MS - CLONE_TIMEOUT_MS)
+    expect(timeout).toBeGreaterThan(resolvePiTimeoutMs(PI_SANDBOX_MAX_LIFETIME_MS))
+  })
+
   it('falls back to the single-turn floor when the reserves exhaust the lifetime', () => {
     // A deadline shorter than the bracketing commands' worst case is legitimate
     // (a free-plan sync run). Those ceilings are pessimistic, so leave a short
