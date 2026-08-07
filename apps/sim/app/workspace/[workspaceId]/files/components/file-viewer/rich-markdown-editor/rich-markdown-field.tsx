@@ -75,6 +75,14 @@ interface RichMarkdownFieldProps {
    * colour. Ignored by `'field'`, which keeps the shared prose styling.
    */
   proseClassName?: string
+  /**
+   * Classes for the contenteditable root itself on a `'bare'` surface. Anything
+   * that must beat a rule targeting that element directly belongs here rather
+   * than in {@link proseClassName} — a global base rule pins `caret-color` on
+   * `[contenteditable="true"]`, and a declaration on the element always beats a
+   * value inherited from an ancestor, however specific that ancestor's is.
+   */
+  editorClassName?: string
 }
 
 /**
@@ -98,6 +106,7 @@ function LoadedRichMarkdownField({
   onPasteText,
   surface = 'field',
   proseClassName,
+  editorClassName,
 }: RichMarkdownFieldProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const isBare = surface === 'bare'
@@ -148,7 +157,7 @@ function LoadedRichMarkdownField({
          * the root classes would recolor the text and shift its metrics the
          * moment editing opens.
          */
-        class: isBare ? '' : 'rich-markdown-prose rich-markdown-field-prose',
+        class: isBare ? (editorClassName ?? '') : 'rich-markdown-prose rich-markdown-field-prose',
         // Claim ⌘K so the bubble-menu link editor wins over the global search palette.
         'data-owned-shortcuts': 'Mod+K',
       },

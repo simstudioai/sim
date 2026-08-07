@@ -163,6 +163,26 @@ const CONNECTION_LINE_STYLE = {
  */
 const CONNECTION_LINE_CONTAINER_STYLE = { zIndex: 1500 }
 
+/**
+ * Edges occupy their own band, above every container and below every card.
+ *
+ * Containers are z-indexed by nesting depth (0, 1, 2, …) and cards start at 21.
+ * An edge used to derive its z from its parent container — `+1`, or 0 with no
+ * parent — which put a root-level edge at exactly the z of a root-level
+ * subflow. Equal z-index falls back to DOM order, and React Flow paints the
+ * nodes layer after the edges layer, so any edge crossing a top-level subflow
+ * was drawn behind its opaque body. Basing the band above the container scale
+ * keeps the deeper-container-wins ordering while removing the collision; the
+ * ceiling holds the band below cards, so a line still passes behind card
+ * chrome as it always has.
+ */
+const EDGE_Z_BASE = 10
+const EDGE_Z_MAX = 20
+
+/** Places an edge in {@link EDGE_Z_BASE}'s band, relative to its container. */
+const getEdgeZIndex = (containerZIndex: number | undefined) =>
+  Math.min(EDGE_Z_BASE + (containerZIndex === undefined ? 0 : containerZIndex + 1), EDGE_Z_MAX)
+
 const getRegularBlockWidth = (type: string) =>
   type === 'note' || type === 'noteBlock'
     ? BLOCK_DIMENSIONS.NOTE_WIDTH
@@ -4465,7 +4485,7 @@ const WorkflowContent = React.memo(
         // bar swell; elevating highlighted edges drew them across their own
         // endpoint's chrome.
         const containerNode = parentLoopId ? nodeMap.get(parentLoopId) : null
-        const baseZIndex = containerNode ? (containerNode.zIndex ?? 0) + 1 : 0
+        const baseZIndex = getEdgeZIndex(containerNode ? (containerNode.zIndex ?? 0) : undefined)
         const isConnectedToSelection =
           selectedNodeIdSet.has(edge.source) || selectedNodeIdSet.has(edge.target)
 
@@ -4502,7 +4522,7 @@ const WorkflowContent = React.memo(
           target: CONNECTION_BLOCK_SELECTOR_NODE_ID,
           targetHandle: 'target',
           type: 'workflowEdge',
-          zIndex: sourceParentNode ? (sourceParentNode.zIndex ?? 0) + 1 : 0,
+          zIndex: getEdgeZIndex(sourceParentNode ? (sourceParentNode.zIndex ?? 0) : undefined),
           focusable: false,
           deletable: false,
           reconnectable: false,
@@ -4626,7 +4646,7 @@ const WorkflowContent = React.memo(
           <div
             ref={canvasContainerRef}
             onPointerDownCapture={handleCanvasPointerDownCapture}
-            className='relative flex-1 overflow-hidden [--connection-line-stroke:var(--workflow-edge)] data-[connection-line=error]:[--connection-line-stroke:var(--text-error)] data-[connection-line=selected]:[--connection-line-stroke:var(--text-secondary)] data-[connection-active=true]:[&_.react-flow__handle.source]:pointer-events-none'
+            className='relative flex-1 overflow-hidden [--connection-line-stroke:var(--text-secondary)] data-[connection-line=error]:[--connection-line-stroke:var(--text-error)] data-[connection-line=selected]:[--connection-line-stroke:var(--text-secondary)] data-[connection-active=true]:[&_.react-flow__handle.source]:pointer-events-none'
           >
             {!isWorkflowReady && (
               <div className='absolute inset-0 z-[5] flex items-center justify-center bg-[var(--bg)]'>
