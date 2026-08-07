@@ -125,6 +125,7 @@ import {
 } from '@/hooks/queries/workspace-file-folders'
 import {
   useDeleteWorkspaceFile,
+  useRefreshWorkspaceFiles,
   useRenameWorkspaceFile,
   useUploadWorkspaceFile,
   useWorkspaceFiles,
@@ -305,6 +306,7 @@ export function Files() {
   const notifyLimit = useLimitUpgradeToast()
   const deleteFile = useDeleteWorkspaceFile()
   const renameFile = useRenameWorkspaceFile()
+  const refreshFiles = useRefreshWorkspaceFiles()
   const createFolder = useCreateWorkspaceFileFolder()
   const updateFolder = useUpdateWorkspaceFileFolder()
   const moveItems = useMoveWorkspaceFileItems()
@@ -1239,8 +1241,13 @@ export function Files() {
 
       if (isDirtyRef.current) await saveRef.current?.()
       const flushed = await flushFileDocRef(fileDocFlushRef)
-      if (flushed.status !== 'persisted') {
-        // Not an error — `unchanged` means there was nothing to write, and `skipped` means the write
+      if (flushed.status === 'persisted') {
+        // The persist minted a new storage key and deleted the previous blob, so the cached record
+        // the viewer renders from now points at a key that 404s. Wait for the refreshed list before
+        // the rename swaps editors, or the newly mounted viewer reads the dead key.
+        await refreshFiles(workspaceId)
+      } else {
+        // Not an error - `unchanged` means there was nothing to write, and `skipped` means the write
         // did not land in time. The retype proceeds either way; this is the breadcrumb for a stale
         // first paint, which is otherwise indistinguishable from a rendering bug.
         logger.info('Changing file type without a confirmed durable flush', {
@@ -1265,7 +1272,7 @@ export function Files() {
         logger.error('Failed to change file type:', err)
       }
     },
-    [workspaceId]
+    [workspaceId, refreshFiles]
   )
 
   const handleDownloadSelected = useCallback(() => {

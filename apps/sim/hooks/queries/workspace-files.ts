@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
@@ -578,6 +578,30 @@ export function useUpdateWorkspaceFileContent() {
       logger.error('Failed to update file content:', error)
     },
   })
+}
+
+/**
+ * Refetch the workspace file list and resolve once the fresh records have landed.
+ *
+ * Every content write mints a new storage key and deletes the previous blob, so a cached record's
+ * `key` is dead the moment one lands. A caller that is about to mount a viewer from that record -
+ * a retype, which swaps editors optimistically - has to wait for the refreshed list, or the new
+ * viewer fetches a key the store has already deleted.
+ */
+export function useRefreshWorkspaceFiles() {
+  const queryClient = useQueryClient()
+
+  return useCallback(
+    (workspaceId: string) =>
+      queryClient.invalidateQueries({
+        queryKey: workspaceFilesKeys.workspaceLists(workspaceId),
+        // `all`, not the default `active`: the caller awaits this to get a usable key back, and an
+        // invalidation that only marks an unobserved list stale resolves immediately with the dead
+        // key still cached - the exact staleness this exists to close.
+        refetchType: 'all',
+      }),
+    [queryClient]
+  )
 }
 
 /**

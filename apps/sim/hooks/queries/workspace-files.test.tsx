@@ -13,6 +13,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  useRefreshWorkspaceFiles,
   useRenameWorkspaceFile,
   useWorkspaceFileContent,
   workspaceFilesKeys,
@@ -243,6 +244,115 @@ describe('useRenameWorkspaceFile optimistic cache patch', () => {
       name: 'untitled.md',
       type: 'text/markdown',
     })
+    unmount()
+  })
+})
+
+/**
+ * A collaborative flush mints a new storage key and deletes the previous blob, so a retype has to
+ * wait for the refreshed list before it swaps editors - the newly mounted viewer reads `key` off
+ * that record, and the pre-flush one 404s.
+ */
+describe('useRefreshWorkspaceFiles', () => {
+  const WS = 'ws-1'
+
+  function renderRefresh(): {
+    refresh: () => (workspaceId: string) => Promise<void>
+    queryClient: QueryClient
+    unmount: () => void
+  } {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+    const container = document.createElement('div')
+    const root: Root = createRoot(container)
+    let result: ((workspaceId: string) => Promise<void>) | null = null
+
+    function Probe() {
+      result = useRefreshWorkspaceFiles()
+      return null
+    }
+
+    act(() => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <Probe />
+        </QueryClientProvider>
+      )
+    })
+
+    return {
+      refresh: () => {
+        if (!result) throw new Error('hook did not render')
+        return result
+      },
+      queryClient,
+      unmount: () => {
+        act(() => root.unmount())
+        queryClient.clear()
+      },
+    }
+  }
+
+  it('resolves only after the refetched list has landed', async () => {
+    const keys = ['workspace/ws-1/old-key', 'workspace/ws-1/new-key']
+    let call = 0
+    const queryFn = vi.fn(async () => {
+      const key = keys[Math.min(call, keys.length - 1)]
+      call += 1
+      await sleep(10)
+      return [{ id: 'file-1', key }]
+    })
+
+    const { refresh, queryClient, unmount } = renderRefresh()
+    const queryKey = workspaceFilesKeys.list(WS, 'active')
+    await act(async () => {
+      await queryClient.fetchQuery({ queryKey, queryFn })
+    })
+    expect(queryClient.getQueryData<{ key: string }[]>(queryKey)?.[0].key).toBe(
+      'workspace/ws-1/old-key'
+    )
+
+    await act(async () => {
+      await refresh()(WS)
+    })
+
+    // The awaited call must have already replaced the dead key, not merely marked it stale.
+    expect(queryClient.getQueryData<{ key: string }[]>(queryKey)?.[0].key).toBe(
+      'workspace/ws-1/new-key'
+    )
+    expect(queryFn).toHaveBeenCalledTimes(2)
+    unmount()
+  })
+
+  it('refetches a cached list that no component is observing', async () => {
+    // `refetchType: 'all'` is load-bearing: the retype awaits this before mounting the next viewer,
+    // and the default `active` would resolve instantly against an unobserved list.
+    const queryFn = vi.fn(async () => [{ id: 'file-1', key: 'k' }])
+    const { refresh, queryClient, unmount } = renderRefresh()
+
+    await act(async () => {
+      await queryClient.fetchQuery({ queryKey: workspaceFilesKeys.list(WS, 'active'), queryFn })
+      await refresh()(WS)
+    })
+
+    expect(queryFn).toHaveBeenCalledTimes(2)
+    unmount()
+  })
+
+  it('leaves another workspace list alone', async () => {
+    const otherQueryFn = vi.fn(async () => [{ id: 'file-2', key: 'k2' }])
+    const { refresh, queryClient, unmount } = renderRefresh()
+
+    await act(async () => {
+      await queryClient.fetchQuery({
+        queryKey: workspaceFilesKeys.list('ws-2', 'active'),
+        queryFn: otherQueryFn,
+      })
+      await refresh()(WS)
+    })
+
+    expect(otherQueryFn).toHaveBeenCalledTimes(1)
     unmount()
   })
 })

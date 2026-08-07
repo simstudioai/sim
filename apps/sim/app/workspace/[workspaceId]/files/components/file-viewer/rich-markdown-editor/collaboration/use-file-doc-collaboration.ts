@@ -5,9 +5,12 @@ import { FILE_DOC_EVENTS, type FileDocPresence } from '@sim/realtime-protocol/fi
 import { Awareness } from 'y-protocols/awareness'
 import * as Y from 'yjs'
 import { getUserColor } from '@/lib/workspaces/colors'
+import { FileDocProvider } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/file-doc-provider'
+import {
+  useReportFileDocFlush,
+  useReportFileDocOthers,
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/file-doc-room-context'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
-import { FileDocProvider } from './file-doc-provider'
-import { useReportFileDocFlush, useReportFileDocOthers } from './file-doc-room-context'
 
 /** The live collaboration binding the editor wires into TipTap's Collaboration
  * (the {@link Y.Doc}) and CollaborationCaret (the awareness). */
