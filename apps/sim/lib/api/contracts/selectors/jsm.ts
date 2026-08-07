@@ -40,7 +40,8 @@ const jsmPaginationField = z
     z
       .number()
       .int('Pagination values must be whole numbers')
-      .min(0, 'Pagination values must be 0 or greater'),
+      .min(0, 'Pagination values must be 0 or greater')
+      .max(2147483647, 'Pagination values must be within the int32 range'),
   ])
   .transform((value) => String(value))
   .optional()

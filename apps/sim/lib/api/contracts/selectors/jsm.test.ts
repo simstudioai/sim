@@ -63,6 +63,9 @@ describe('JSM contract pagination', () => {
     expect(() => jsmCommentsBodySchema.parse({ ...body, limit: 2.5 })).toThrow()
     expect(() => jsmCommentsBodySchema.parse({ ...body, start: -1 })).toThrow()
     expect(() => jsmCommentsBodySchema.parse({ ...body, limit: Number.NaN })).toThrow()
+    expect(() => jsmCommentsBodySchema.parse({ ...body, limit: 2147483648 })).toThrow()
+    expect(jsmCommentsBodySchema.parse({ ...body, limit: 2147483647 }).limit).toBe('2147483647')
+    expect(jsmCommentsBodySchema.parse({ ...body, start: 0 }).start).toBe('0')
   })
 
   /**

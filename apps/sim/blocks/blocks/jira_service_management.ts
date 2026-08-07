@@ -6,7 +6,7 @@ import type { JsmResponse } from '@/tools/jsm/types'
 import { getTrigger } from '@/triggers'
 
 /** Operations that accept Atlassian's `start`/`limit` pagination query params. */
-const PAGINATED_OPERATIONS: string[] = [
+const PAGINATED_OPERATIONS = [
   'get_service_desks',
   'get_request_types',
   'get_requests',
@@ -18,7 +18,7 @@ const PAGINATED_OPERATIONS: string[] = [
   'get_transitions',
   'get_participants',
   'get_approvals',
-]
+] as const
 
 /**
  * Coerce an optional numeric block input into an integer, returning undefined for
@@ -604,7 +604,7 @@ Return ONLY the comment text - no explanations.`,
       type: 'short-input',
       placeholder: 'Pagination start index (default: 0)',
       mode: 'advanced',
-      condition: { field: 'operation', value: PAGINATED_OPERATIONS },
+      condition: { field: 'operation', value: [...PAGINATED_OPERATIONS] },
     },
     {
       id: 'maxResults',
@@ -612,7 +612,7 @@ Return ONLY the comment text - no explanations.`,
       type: 'short-input',
       placeholder: 'Maximum results (default: 50)',
       mode: 'advanced',
-      condition: { field: 'operation', value: PAGINATED_OPERATIONS },
+      condition: { field: 'operation', value: [...PAGINATED_OPERATIONS] },
     },
     {
       id: 'assetSchemaId',

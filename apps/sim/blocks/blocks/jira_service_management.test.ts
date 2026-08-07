@@ -29,7 +29,7 @@ import {
   jsmGetSlaTool,
   jsmGetTransitionsTool,
 } from '@/tools/jsm'
-import type { ToolConfig } from '@/tools/types'
+import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 const DOMAIN = 'example.atlassian.net'
 /** Injected by the executor from the OAuth credential before the tool's `body` runs. */
@@ -37,9 +37,34 @@ const ACCESS_TOKEN = 'token-123'
 
 interface PaginatedCase {
   operation: string
-  tool: ToolConfig<any, any>
+  toolId: string
+  /** The tool's own `request.body`, captured at its concrete param type by `paginatedCase`. */
+  buildBody: (params: Record<string, unknown>) => Record<string, unknown>
   schema: z.ZodType
   extraInputs: Record<string, string>
+}
+
+/**
+ * Captures each tool at its own generic so an incompatible tool/contract pairing is still a type
+ * error at the call site, rather than being erased by a widened `ToolConfig` in the table type.
+ */
+function paginatedCase<P, R extends ToolResponse>(
+  operation: string,
+  tool: ToolConfig<P, R>,
+  schema: z.ZodType,
+  extraInputs: Record<string, string> = {}
+): PaginatedCase {
+  return {
+    operation,
+    toolId: tool.id,
+    buildBody: (params) => {
+      const bodyFn = tool.request.body
+      if (!bodyFn) throw new Error(`${tool.id} is missing request.body`)
+      return bodyFn(params as P) as Record<string, unknown>
+    },
+    schema,
+    extraInputs,
+  }
 }
 
 /**
@@ -49,77 +74,36 @@ interface PaginatedCase {
  * tools declare `start`/`limit` as `type: 'number'` while the contract demanded strings.
  */
 const PAGINATED_CASES: PaginatedCase[] = [
-  {
-    operation: 'get_service_desks',
-    tool: jsmGetServiceDesksTool,
-    schema: jsmServiceDesksBodySchema,
-    extraInputs: {},
-  },
-  {
-    operation: 'get_request_types',
-    tool: jsmGetRequestTypesTool,
-    schema: jsmRequestTypesToolBodySchema,
-    extraInputs: { serviceDeskId: '1' },
-  },
-  {
-    operation: 'get_requests',
-    tool: jsmGetRequestsTool,
-    schema: jsmRequestsBodySchema,
-    extraInputs: {},
-  },
-  {
-    operation: 'get_comments',
-    tool: jsmGetCommentsTool,
-    schema: jsmCommentsBodySchema,
-    extraInputs: { issueIdOrKey: 'SD-123' },
-  },
-  {
-    operation: 'get_customers',
-    tool: jsmGetCustomersTool,
-    schema: jsmCustomersBodySchema,
-    extraInputs: { serviceDeskId: '1' },
-  },
-  {
-    operation: 'get_organizations',
-    tool: jsmGetOrganizationsTool,
-    schema: jsmServiceDeskScopedBodySchema,
-    extraInputs: { serviceDeskId: '1' },
-  },
-  {
-    operation: 'get_queues',
-    tool: jsmGetQueuesTool,
-    schema: jsmQueuesBodySchema,
-    extraInputs: { serviceDeskId: '1' },
-  },
-  {
-    operation: 'get_sla',
-    tool: jsmGetSlaTool,
-    schema: jsmIssuePaginationBodySchema,
-    extraInputs: { issueIdOrKey: 'SD-123' },
-  },
-  {
-    operation: 'get_transitions',
-    tool: jsmGetTransitionsTool,
-    schema: jsmIssuePaginationBodySchema,
-    extraInputs: { issueIdOrKey: 'SD-123' },
-  },
-  {
-    operation: 'get_participants',
-    tool: jsmGetParticipantsTool,
-    schema: jsmParticipantsBodySchema,
-    extraInputs: { issueIdOrKey: 'SD-123' },
-  },
-  {
-    operation: 'get_approvals',
-    tool: jsmGetApprovalsTool,
-    schema: jsmApprovalsBodySchema,
-    extraInputs: { issueIdOrKey: 'SD-123' },
-  },
+  paginatedCase('get_service_desks', jsmGetServiceDesksTool, jsmServiceDesksBodySchema),
+  paginatedCase('get_request_types', jsmGetRequestTypesTool, jsmRequestTypesToolBodySchema, {
+    serviceDeskId: '1',
+  }),
+  paginatedCase('get_requests', jsmGetRequestsTool, jsmRequestsBodySchema),
+  paginatedCase('get_comments', jsmGetCommentsTool, jsmCommentsBodySchema, {
+    issueIdOrKey: 'SD-123',
+  }),
+  paginatedCase('get_customers', jsmGetCustomersTool, jsmCustomersBodySchema, {
+    serviceDeskId: '1',
+  }),
+  paginatedCase('get_organizations', jsmGetOrganizationsTool, jsmServiceDeskScopedBodySchema, {
+    serviceDeskId: '1',
+  }),
+  paginatedCase('get_queues', jsmGetQueuesTool, jsmQueuesBodySchema, { serviceDeskId: '1' }),
+  paginatedCase('get_sla', jsmGetSlaTool, jsmIssuePaginationBodySchema, { issueIdOrKey: 'SD-123' }),
+  paginatedCase('get_transitions', jsmGetTransitionsTool, jsmIssuePaginationBodySchema, {
+    issueIdOrKey: 'SD-123',
+  }),
+  paginatedCase('get_participants', jsmGetParticipantsTool, jsmParticipantsBodySchema, {
+    issueIdOrKey: 'SD-123',
+  }),
+  paginatedCase('get_approvals', jsmGetApprovalsTool, jsmApprovalsBodySchema, {
+    issueIdOrKey: 'SD-123',
+  }),
 ]
 
 /** Run a set of block inputs through `tools.config.params`, then through the tool's request body. */
 function buildRequestBody(
-  { operation, tool, extraInputs }: PaginatedCase,
+  { operation, buildBody, extraInputs }: PaginatedCase,
   pagination: Record<string, string>
 ) {
   const paramsFn = JiraServiceManagementBlock.tools.config?.params
@@ -133,13 +117,7 @@ function buildRequestBody(
     ...pagination,
   })
 
-  const bodyFn = tool.request.body
-  if (!bodyFn) throw new Error(`${tool.id} is missing request.body`)
-
-  return bodyFn({ ...toolParams, accessToken: ACCESS_TOKEN, domain: DOMAIN }) as Record<
-    string,
-    unknown
-  >
+  return buildBody({ ...toolParams, accessToken: ACCESS_TOKEN, domain: DOMAIN })
 }
 
 describe.each(PAGINATED_CASES.map((testCase) => [testCase.operation, testCase] as const))(
@@ -147,8 +125,8 @@ describe.each(PAGINATED_CASES.map((testCase) => [testCase.operation, testCase] a
   (_operation, testCase) => {
     it('resolves to the expected tool', () => {
       const toolFn = JiraServiceManagementBlock.tools.config?.tool
-      expect(toolFn?.({ operation: testCase.operation })).toBe(testCase.tool.id)
-      expect(JiraServiceManagementBlock.tools.access).toContain(testCase.tool.id)
+      expect(toolFn?.({ operation: testCase.operation })).toBe(testCase.toolId)
+      expect(JiraServiceManagementBlock.tools.access).toContain(testCase.toolId)
     })
 
     it('sends a body its route contract accepts when pagination is filled in', () => {
