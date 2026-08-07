@@ -20,6 +20,7 @@ import {
   readNodeStreamToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { S3_CONFIG, S3_KB_CONFIG } from '@/lib/uploads/config'
+import { isObjectNotFoundError } from '@/lib/uploads/core/errors'
 import type {
   S3Config,
   S3MultipartPart,
@@ -260,10 +261,7 @@ export async function headS3Object(
       ...(response.Metadata ? { metadata: response.Metadata } : {}),
     }
   } catch (error) {
-    const code = (error as { name?: string; $metadata?: { httpStatusCode?: number } } | null)?.name
-    const status = (error as { $metadata?: { httpStatusCode?: number } } | null)?.$metadata
-      ?.httpStatusCode
-    if (code === 'NotFound' || code === 'NoSuchKey' || status === 404) {
+    if (isObjectNotFoundError(error)) {
       return null
     }
     throw error
