@@ -36,6 +36,7 @@ import {
   sanitizeStorageMetadata,
 } from '@/lib/uploads/utils/file-utils'
 import { sanitizeFileName } from '@/executor/constants'
+import { isObjectNotFoundError } from '@/lib/uploads/core/errors'
 
 let _s3Client: S3Client | null = null
 
@@ -260,10 +261,7 @@ export async function headS3Object(
       ...(response.Metadata ? { metadata: response.Metadata } : {}),
     }
   } catch (error) {
-    const code = (error as { name?: string; $metadata?: { httpStatusCode?: number } } | null)?.name
-    const status = (error as { $metadata?: { httpStatusCode?: number } } | null)?.$metadata
-      ?.httpStatusCode
-    if (code === 'NotFound' || code === 'NoSuchKey' || status === 404) {
+    if (isObjectNotFoundError(error)) {
       return null
     }
     throw error

@@ -1,4 +1,5 @@
 import { USE_BLOB_STORAGE, USE_GCS_STORAGE, USE_S3_STORAGE } from '@/lib/uploads/config'
+import { isObjectNotFoundError } from '@/lib/uploads/core/errors'
 import type { StorageConfig } from '@/lib/uploads/shared/types'
 
 export type { StorageConfig } from '@/lib/uploads/shared/types'
@@ -27,6 +28,25 @@ export function getServePathPrefix(): string {
  * @returns File metadata object with userId, workspaceId, originalName, uploadedAt, etc.
  */
 export async function getFileMetadata(
+  key: string,
+  customConfig?: StorageConfig
+): Promise<Record<string, string>> {
+  try {
+    return await readProviderMetadata(key, customConfig)
+  } catch (error) {
+    /**
+     * A key that no longer resolves is an ordinary outcome — a workspace file is
+     * rewritten under a new key on every content update, so any reader holding the
+     * previous key finds nothing. Report it the way this function already reports
+     * "nothing known about this key" rather than as a failure, so callers fall
+     * through to their own not-found handling instead of an error path.
+     */
+    if (isObjectNotFoundError(error)) return {}
+    throw error
+  }
+}
+
+async function readProviderMetadata(
   key: string,
   customConfig?: StorageConfig
 ): Promise<Record<string, string>> {

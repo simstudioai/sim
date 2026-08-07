@@ -24,6 +24,7 @@ import {
   sanitizeStorageMetadata,
 } from '@/lib/uploads/utils/file-utils'
 import { sanitizeFileName } from '@/executor/constants'
+import { isObjectNotFoundError } from '@/lib/uploads/core/errors'
 
 const logger = createLogger('GcsClient')
 
@@ -404,7 +405,7 @@ async function getGcsMultipartCompletionId(
     const metadata = await getGcsObjectMetadata(key, customConfig)
     return metadata[GCS_MULTIPART_UPLOAD_ID_METADATA_KEY] ?? null
   } catch (error) {
-    if ((error as { code?: number } | null)?.code === 404) return null
+    if (isObjectNotFoundError(error)) return null
     throw error
   }
 }
