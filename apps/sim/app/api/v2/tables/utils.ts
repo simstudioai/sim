@@ -86,14 +86,14 @@ export function toApiTable(table: TableDefinition, folderPath: string) {
  * Normalized public view shape. Identical to the stored view except that the
  * timestamps are ISO strings, matching every other v2 payload.
  */
-export function toApiView(view: TableView) {
+export function toApiView(view: TableView, createdByEmail: string | null) {
   return {
     id: view.id,
     tableId: view.tableId,
     name: view.name,
     config: view.config,
     isDefault: view.isDefault,
-    createdBy: view.createdBy,
+    createdByEmail,
     createdAt: toIso(view.createdAt),
     updatedAt: toIso(view.updatedAt),
   }

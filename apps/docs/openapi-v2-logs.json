@@ -355,7 +355,7 @@
                       "name": "Customer Support Agent",
                       "description": "Routes incoming support tickets and drafts responses",
                       "folderPath": "/",
-                      "userId": "usr_1a2b3c4d5e",
+                      "ownerEmail": "jane@example.com",
                       "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
                       "createdAt": "2025-01-10T09:00:00.000Z",
                       "updatedAt": "2025-06-18T16:45:00.000Z",
@@ -540,7 +540,7 @@
           "name",
           "description",
           "folderPath",
-          "userId",
+          "ownerEmail",
           "workspaceId",
           "createdAt",
           "updatedAt",
@@ -567,10 +567,11 @@
             "description": "Canonical containing-folder path. `/` is the workspace root.",
             "example": "/Engineering"
           },
-          "userId": {
+          "ownerEmail": {
             "type": ["string", "null"],
-            "description": "The user that owns the workflow. null if the workflow is gone.",
-            "example": "usr_1a2b3c4d5e"
+            "format": "email",
+            "description": "Current email address of the workflow owner. null if the workflow is gone.",
+            "example": "jane@example.com"
           },
           "workspaceId": {
             "type": ["string", "null"],

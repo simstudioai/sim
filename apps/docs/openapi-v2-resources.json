@@ -22,6 +22,10 @@
   ],
   "tags": [
     {
+      "name": "Workspaces",
+      "description": "Read workspace metadata and its effective member roster (v2 API)."
+    },
+    {
       "name": "MCP Servers",
       "description": "Register and manage the Model Context Protocol servers a workspace connects to (v2 API)."
     },
@@ -48,6 +52,193 @@
     }
   ],
   "paths": {
+    "/api/v2/workspaces/{workspaceId}": {
+      "get": {
+        "operationId": "getWorkspace",
+        "summary": "Get Workspace",
+        "description": "Return public metadata for one accessible workspace. Governance identities, billing identities, and internal membership identifiers are intentionally omitted.",
+        "tags": ["Workspaces"],
+        "x-codeSamples": [
+          {
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl \\\n  \"https://www.sim.ai/api/v2/workspaces/YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkspaceIdPath"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Workspace metadata.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Workspace"
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "id": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "name": "Engineering",
+                    "color": "#33C482",
+                    "logoUrl": null,
+                    "mode": "organization",
+                    "memberCount": 14,
+                    "createdAt": "2026-01-15T10:30:00.000Z",
+                    "updatedAt": "2026-06-20T14:02:11.000Z"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/workspaces/{workspaceId}/members": {
+      "get": {
+        "operationId": "listWorkspaceMembers",
+        "summary": "List Workspace Members",
+        "description": "List the workspace's effective members ordered by email. Explicit workspace grants and inherited organization-admin grants are merged. User IDs, membership IDs, role provenance, and billing identities are never returned.",
+        "tags": ["Workspaces"],
+        "x-codeSamples": [
+          {
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl \\\n  \"https://www.sim.ai/api/v2/workspaces/YOUR_WORKSPACE_ID/members?limit=50\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkspaceIdPath"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum members to return per page.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque cursor returned by the previous page. Do not parse or construct it.",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "An email-ordered page of effective workspace members.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data", "nextCursor"],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/WorkspaceMember"
+                      }
+                    },
+                    "nextCursor": {
+                      "$ref": "#/components/schemas/NextCursor"
+                    }
+                  }
+                },
+                "example": {
+                  "data": [
+                    {
+                      "email": "jane@example.com",
+                      "name": "Jane Smith",
+                      "image": null,
+                      "role": "admin",
+                      "isExternal": false,
+                      "joinedAt": "2026-01-15T10:30:00.000Z"
+                    }
+                  ],
+                  "nextCursor": null
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
     "/api/v2/mcp-servers": {
       "get": {
         "operationId": "listMcpServers",
@@ -2050,6 +2241,17 @@
       }
     },
     "parameters": {
+      "WorkspaceIdPath": {
+        "name": "workspaceId",
+        "in": "path",
+        "required": true,
+        "description": "The workspace to retrieve.",
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "example": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64"
+        }
+      },
       "WorkspaceIdQuery": {
         "name": "workspaceId",
         "in": "query",
@@ -2334,6 +2536,80 @@
                 "const": true
               }
             }
+          }
+        }
+      },
+      "Workspace": {
+        "type": "object",
+        "description": "Public workspace metadata. Governance and billing identities are intentionally omitted.",
+        "required": [
+          "id",
+          "name",
+          "color",
+          "logoUrl",
+          "mode",
+          "memberCount",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string"
+          },
+          "logoUrl": {
+            "type": ["string", "null"]
+          },
+          "mode": {
+            "type": "string",
+            "enum": ["personal", "organization", "grandfathered_shared"]
+          },
+          "memberCount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Number of effective members, including inherited organization admins."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "WorkspaceMember": {
+        "type": "object",
+        "description": "An effective workspace member identified publicly by email.",
+        "required": ["email", "name", "image", "role", "isExternal", "joinedAt"],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "name": {
+            "type": "string"
+          },
+          "image": {
+            "type": ["string", "null"]
+          },
+          "role": {
+            "type": "string",
+            "enum": ["admin", "write", "read"]
+          },
+          "isExternal": {
+            "type": "boolean"
+          },
+          "joinedAt": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },

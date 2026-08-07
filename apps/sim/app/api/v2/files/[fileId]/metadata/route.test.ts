@@ -4,10 +4,21 @@
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCheckRateLimit, mockResolveWorkspaceAccess, mockGetWorkspaceFile } = vi.hoisted(() => ({
+const {
+  mockCheckRateLimit,
+  mockResolveWorkspaceAccess,
+  mockGetWorkspaceFile,
+  mockGetUserEmailsByIds,
+} = vi.hoisted(() => ({
   mockCheckRateLimit: vi.fn(),
   mockResolveWorkspaceAccess: vi.fn(),
   mockGetWorkspaceFile: vi.fn(),
+  mockGetUserEmailsByIds: vi.fn(),
+}))
+
+vi.mock('@/lib/users/queries', () => ({
+  getUserEmailsByIds: mockGetUserEmailsByIds,
+  requireResolvedUserEmail: (emails: Map<string, string>, userId: string) => emails.get(userId)!,
 }))
 
 vi.mock('@/app/api/v1/middleware', () => ({
@@ -65,6 +76,7 @@ describe('GET /api/v2/files/[fileId]/metadata', () => {
     mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
     mockResolveWorkspaceAccess.mockResolvedValue(null)
     mockGetWorkspaceFile.mockResolvedValue(buildRecord())
+    mockGetUserEmailsByIds.mockResolvedValue(new Map([['user-1', 'ada@example.com']]))
   })
 
   it('400s when workspaceId is missing', async () => {
@@ -108,7 +120,7 @@ describe('GET /api/v2/files/[fileId]/metadata', () => {
         type: 'text/csv',
         key: 'workspace/ws/1-x-data.csv',
         folderPath: '/',
-        uploadedBy: 'user-1',
+        uploadedByEmail: 'ada@example.com',
         uploadedAt: '2024-01-01T00:00:00.000Z',
         updatedAt: '2024-01-02T00:00:00.000Z',
       },

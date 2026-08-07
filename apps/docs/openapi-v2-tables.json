@@ -1614,7 +1614,7 @@
                         ]
                       },
                       "isDefault": true,
-                      "createdBy": "user_2f8c1a4e6b0d47539ac1e3b5d7f90248",
+                      "createdByEmail": "jane@example.com",
                       "createdAt": "2026-01-15T10:30:00.000Z",
                       "updatedAt": "2026-01-16T09:12:00.000Z"
                     }
@@ -1737,7 +1737,7 @@
                         ]
                       },
                       "isDefault": true,
-                      "createdBy": "user_2f8c1a4e6b0d47539ac1e3b5d7f90248",
+                      "createdByEmail": "jane@example.com",
                       "createdAt": "2026-01-15T10:30:00.000Z",
                       "updatedAt": "2026-01-16T09:12:00.000Z"
                     }
@@ -1836,7 +1836,7 @@
                         ]
                       },
                       "isDefault": true,
-                      "createdBy": "user_2f8c1a4e6b0d47539ac1e3b5d7f90248",
+                      "createdByEmail": "jane@example.com",
                       "createdAt": "2026-01-15T10:30:00.000Z",
                       "updatedAt": "2026-01-16T09:12:00.000Z"
                     }
@@ -1965,7 +1965,7 @@
                         ]
                       },
                       "isDefault": true,
-                      "createdBy": "user_2f8c1a4e6b0d47539ac1e3b5d7f90248",
+                      "createdByEmail": "jane@example.com",
                       "createdAt": "2026-01-15T10:30:00.000Z",
                       "updatedAt": "2026-01-16T09:12:00.000Z"
                     }
@@ -5428,7 +5428,7 @@
           "name",
           "config",
           "isDefault",
-          "createdBy",
+          "createdByEmail",
           "createdAt",
           "updatedAt"
         ],
@@ -5453,9 +5453,10 @@
             "type": "boolean",
             "description": "Whether this view is the table’s default. At most one view per table is."
           },
-          "createdBy": {
+          "createdByEmail": {
             "type": ["string", "null"],
-            "description": "User who saved the view, or null when that user no longer exists."
+            "format": "email",
+            "description": "Current email address of the user who saved the view, or null when that user no longer exists."
           },
           "createdAt": {
             "type": "string",

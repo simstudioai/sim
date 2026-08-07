@@ -6,7 +6,6 @@ describe('formatV2AuditLogEntry', () => {
     const formatted = formatV2AuditLogEntry({
       id: 'audit-1',
       workspaceId: 'workspace-1',
-      actorId: 'user-1',
       actorName: 'Teddy',
       actorEmail: 'teddy@example.com',
       action: 'folder.moved',
@@ -23,6 +22,8 @@ describe('formatV2AuditLogEntry', () => {
     })
 
     expect(formatted.resourceId).toBeNull()
+    expect(formatted).not.toHaveProperty('actorId')
+    expect(formatted.actorEmail).toBe('teddy@example.com')
     expect(formatted.metadata).toEqual({ nested: { path: '/Reports' } })
   })
 })

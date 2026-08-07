@@ -11,6 +11,7 @@ const {
   mockResolveWorkspaceAccess,
   mockV2ApiGateError,
   mockLoadActiveFolderPathIndex,
+  mockGetUserEmailsByIds,
 } = vi.hoisted(() => ({
   mockCheckRateLimit: vi.fn(),
   mockPerformCreateWorkspaceFile: vi.fn(),
@@ -18,6 +19,7 @@ const {
   mockQueryWorkspaceFiles: vi.fn(),
   mockV2ApiGateError: vi.fn().mockResolvedValue(null),
   mockLoadActiveFolderPathIndex: vi.fn(),
+  mockGetUserEmailsByIds: vi.fn(),
 }))
 
 vi.mock('@/app/api/v1/middleware', () => ({
@@ -40,6 +42,11 @@ vi.mock('@/lib/folders/queries', () => ({
 vi.mock('@/lib/workspace-files/orchestration', () => ({
   MAX_WORKSPACE_FILE_INLINE_BODY_BYTES: 70 * 1024 * 1024,
   performCreateWorkspaceFile: mockPerformCreateWorkspaceFile,
+}))
+
+vi.mock('@/lib/users/queries', () => ({
+  getUserEmailsByIds: mockGetUserEmailsByIds,
+  requireResolvedUserEmail: (emails: Map<string, string>, userId: string) => emails.get(userId)!,
 }))
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -111,6 +118,7 @@ describe('GET /api/v2/files', () => {
     mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
     mockResolveWorkspaceAccess.mockResolvedValue(null)
     mockQueryWorkspaceFiles.mockResolvedValue({ files: [buildRecord()], nextKeys: null })
+    mockGetUserEmailsByIds.mockResolvedValue(new Map([['user-1', 'ada@example.com']]))
     mockLoadActiveFolderPathIndex.mockResolvedValue({
       rowById: new Map([['fold_1', { id: 'fold_1', name: 'Reports', parentId: null }]]),
       pathById: new Map([['fold_1', '/Reports']]),
@@ -183,7 +191,7 @@ describe('GET /api/v2/files', () => {
         type: 'text/csv',
         key: 'workspace/ws/1-x-data.csv',
         folderPath: '/Reports/Q1',
-        uploadedBy: 'user-1',
+        uploadedByEmail: 'ada@example.com',
         uploadedAt: '2024-01-01T00:00:00.000Z',
         updatedAt: '2024-01-02T00:00:00.000Z',
       },
@@ -315,6 +323,7 @@ describe('POST /api/v2/files', () => {
       success: true,
       file: buildRecord({ name: 'untitled.md', size: 0, type: 'text/markdown' }),
     })
+    mockGetUserEmailsByIds.mockResolvedValue(new Map([['user-1', 'ada@example.com']]))
   })
 
   it('creates an empty exact-name file with an inferred MIME type', async () => {

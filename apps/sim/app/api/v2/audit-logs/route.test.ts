@@ -91,4 +91,16 @@ describe('GET /api/v2/audit-logs', () => {
     expect(mockResolveEnterpriseAuditAccess).toHaveBeenCalledWith('admin-1', 'org-1')
     expect(mockQueryAuditLogs).toHaveBeenCalled()
   })
+
+  it('filters by the public actor email without requiring a user ID', async () => {
+    const response = await callGet('?organizationId=org-1&actorEmail=ada%40example.com')
+
+    expect(response.status).toBe(200)
+    expect(mockBuildFilterConditions).toHaveBeenCalledWith(
+      expect.objectContaining({ actorEmail: 'ada@example.com' })
+    )
+    expect(mockBuildFilterConditions).toHaveBeenCalledWith(
+      expect.not.objectContaining({ actorId: expect.anything() })
+    )
+  })
 })

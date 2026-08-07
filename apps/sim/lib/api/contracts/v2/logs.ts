@@ -66,7 +66,7 @@ export const v2LogDetailSchema = z.object({
     name: z.string(),
     description: z.string().nullable(),
     folderPath: v2FolderPathSchema.nullable(),
-    userId: z.string().nullable(),
+    ownerEmail: z.email().nullable(),
     workspaceId: z.string().nullable(),
     createdAt: z.string().nullable(),
     updatedAt: z.string().nullable(),

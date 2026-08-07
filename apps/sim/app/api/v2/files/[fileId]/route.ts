@@ -121,7 +121,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: File
       )
     }
 
-    return v2Data(toV2File(result.file), { rateLimit })
+    return v2Data(await toV2File(result.file), { rateLimit })
   } catch (error) {
     logger.error('Error renaming file', { error: getErrorMessage(error, 'Unknown error') })
     return v2Error('INTERNAL_ERROR', 'Internal server error')

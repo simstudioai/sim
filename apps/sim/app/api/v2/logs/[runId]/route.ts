@@ -54,6 +54,9 @@ export const GET = withRouteHandler(
         log.executionData as Record<string, unknown> | null,
         { workspaceId: log.workspaceId, workflowId: log.workflowId, executionId: log.executionId }
       )
+      if (log.workflowUserId && !log.workflowOwnerEmail) {
+        throw new Error(`Unable to resolve workflow owner email for ${log.workflowUserId}`)
+      }
 
       const detail: V2LogDetail = {
         runId: log.executionId,
@@ -73,7 +76,7 @@ export const GET = withRouteHandler(
           folderPath: log.workflowFolderId
             ? (folderIndex.pathById.get(log.workflowFolderId) ?? null)
             : null,
-          userId: log.workflowUserId,
+          ownerEmail: log.workflowOwnerEmail,
           workspaceId: log.workflowWorkspaceId,
           createdAt: log.workflowCreatedAt ? log.workflowCreatedAt.toISOString() : null,
           updatedAt: log.workflowUpdatedAt ? log.workflowUpdatedAt.toISOString() : null,

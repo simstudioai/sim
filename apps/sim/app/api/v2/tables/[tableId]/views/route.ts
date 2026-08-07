@@ -7,6 +7,11 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { TableSchema } from '@/lib/table'
 import { createTableView, listTableViews, TableViewValidationError } from '@/lib/table'
+import {
+  getRequiredUserEmail,
+  getUserEmailsByIds,
+  requireResolvedUserEmail,
+} from '@/lib/users/queries'
 import { checkAccess } from '@/app/api/table/utils'
 import { checkRateLimit, resolveWorkspaceScope } from '@/app/api/v1/middleware'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
@@ -66,7 +71,19 @@ export const GET = withRouteHandler(async (request: NextRequest, context: TableR
 
     const views = await listTableViews(tableId, (result.table.schema as TableSchema).columns)
 
-    return v2CursorList(views.map(toApiView), null, { rateLimit })
+    const emailByUserId = await getUserEmailsByIds(
+      views.flatMap((view) => (view.createdBy ? [view.createdBy] : []))
+    )
+    return v2CursorList(
+      views.map((view) =>
+        toApiView(
+          view,
+          view.createdBy ? requireResolvedUserEmail(emailByUserId, view.createdBy) : null
+        )
+      ),
+      null,
+      { rateLimit }
+    )
   } catch (error) {
     logger.error(`[${requestId}] Error listing table views`, {
       error: getErrorMessage(error, 'Unknown error'),
@@ -115,7 +132,10 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Table
       columns: (result.table.schema as TableSchema).columns,
     })
 
-    return v2Data({ view: toApiView(view) }, { rateLimit, status: 201 })
+    return v2Data(
+      { view: toApiView(view, view.createdBy ? await getRequiredUserEmail(view.createdBy) : null) },
+      { rateLimit, status: 201 }
+    )
   } catch (error) {
     if (error instanceof TableViewValidationError) return v2Error('BAD_REQUEST', error.message)
 
