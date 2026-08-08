@@ -324,7 +324,15 @@ export function LogView({
    * through `tab`/`onTabChange`; an embedded one keeps it local, so the panel
    * stops writing an unnamespaced key into its host's address bar.
    */
-  const urlOwned = hostOwnsUrl(host)
+  /**
+   * URL-owned only when the host actually wired the controlled pair. A host that
+   * owns its URL but passes no `onTabChange` is not deep-linking the tab — it is
+   * embedding this view somewhere unaddressable (the tables page's execution
+   * slideout), and treating it as controlled would leave `activeTab` pinned to
+   * the default with a setter that no-ops. Degrading to local state keeps the
+   * tabs working; dead tabs are strictly worse than a tab that does not persist.
+   */
+  const urlOwned = hostOwnsUrl(host) && onTabChange !== undefined
   const [localTab, setLocalTab] = useState<LogViewTab>('overview')
   const activeTab = urlOwned ? (tab ?? 'overview') : localTab
   const setActiveTab = useCallback(

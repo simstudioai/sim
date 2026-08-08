@@ -1599,7 +1599,6 @@ export function TableView({
         onClose={onCloseSlideout}
         workspaceId={workspaceId}
         grants={grants}
-        host={host}
         showExecutionInternals={showExecutionInternals}
         onNavigate={onNavigate}
       />

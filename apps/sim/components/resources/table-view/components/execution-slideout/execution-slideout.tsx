@@ -6,7 +6,7 @@ import { X } from '@sim/emcn/icons'
 import { LogView } from '@/components/resources/log-view'
 import type { WorkflowLogRow } from '@/lib/api/contracts/logs'
 import { useLogDetailsResize } from '@/hooks/use-log-details-resize'
-import { type ResourceGrants, type ResourceHost, workspaceSource } from '@/resources'
+import { type ResourceGrants, workspaceSource } from '@/resources'
 import { useLogDetailsUIStore } from '@/stores/logs/store'
 import { MAX_LOG_DETAILS_WIDTH_RATIO, MIN_LOG_DETAILS_WIDTH } from '@/stores/logs/utils'
 
@@ -16,7 +16,6 @@ interface ExecutionSlideoutProps {
   onClose: () => void
   workspaceId: string
   grants: ResourceGrants
-  host: ResourceHost
   /**
    * Whether this viewer may see trace internals. Required, not
    * optional-defaulting-to-true: forgetting it must fail to compile rather than
@@ -35,9 +34,13 @@ interface ExecutionSlideoutProps {
  * `useQueryState` and the permission context — four route couplings a table has
  * no use for — and it deep-links its active tab, which meant opening a run from
  * the tables page wrote `?tab` onto the tables URL, and onto the host page's URL
- * from the chat panel. This slideout omits `tab`/`onTabChange` entirely, so the
- * view keeps the tab local, which is correct for a panel that was never
- * addressable.
+ * from the chat panel. This slideout omits `tab`/`onTabChange` entirely and
+ * mounts the log as `host='panel'` — deliberately NOT the host the table itself
+ * is on. A run slid in beside a table is embedded no matter where that table
+ * renders: it has no address of its own on either surface, so its tab must stay
+ * local state. Forwarding the table's host instead made `hostOwnsUrl` true on
+ * the tables page, where the view then read a `tab` prop nobody passes and the
+ * Trace tab became unreachable.
  *
  * Only the chrome is reproduced: the frame, the resize handle, and a close
  * button. The logs page's prev/next and retry controls belong to a list this
@@ -49,7 +52,6 @@ export function ExecutionSlideout({
   onClose,
   workspaceId,
   grants,
-  host,
   showExecutionInternals,
   onNavigate,
 }: ExecutionSlideoutProps) {
@@ -99,7 +101,7 @@ export function ExecutionSlideout({
             <LogView
               source={source}
               grants={grants}
-              host={host}
+              host='panel'
               log={log}
               showExecutionInternals={showExecutionInternals}
               onNavigate={handleNavigate}
