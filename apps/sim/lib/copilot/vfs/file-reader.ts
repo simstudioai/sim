@@ -277,7 +277,10 @@ async function prepareImageForVision(
         span.setAttribute(TraceAttr.CopilotVfsHasAlpha, hasAlpha)
 
         let attempts = 0
-        let decodeFailed = false
+        // Whether any rung got as far as producing an encoded buffer. That, not
+        // "did anything throw", is what separates "cannot be decoded at all" from
+        // "decodes fine, just never small enough".
+        let encodedAny = false
         for (const dimension of IMAGE_RESIZE_DIMENSIONS) {
           for (const quality of IMAGE_QUALITY_STEPS) {
             attempts += 1
@@ -305,6 +308,7 @@ async function prepareImageForVision(
                     mediaType: 'image/jpeg',
                   }
 
+              encodedAny = true
               span.addEvent(TraceEvent.CopilotVfsResizeAttempt, {
                 [TraceAttr.CopilotVfsResizeDimension]: dimension,
                 [TraceAttr.CopilotVfsResizeQuality]: quality,
@@ -347,7 +351,6 @@ async function prepareImageForVision(
               // rungs re-decode the identical source and only change the encoder, so
               // repeating a failed decode there is pure waste. A smaller dimension is
               // worth trying — libvips shrinks JPEG on load, so it decodes less.
-              decodeFailed = true
               logger.warn('Failed image resize attempt for VFS read', {
                 mediaType,
                 dimension,
@@ -367,13 +370,15 @@ async function prepareImageForVision(
         span.setAttributes({
           [TraceAttr.CopilotVfsResized]: false,
           [TraceAttr.CopilotVfsResizeAttempts]: attempts,
-          [TraceAttr.CopilotVfsOutcome]: CopilotVfsOutcome.RejectedTooLargeAfterResize,
+          [TraceAttr.CopilotVfsOutcome]: encodedAny
+            ? CopilotVfsOutcome.RejectedTooLargeAfterResize
+            : 'rejected_resize_failed',
         })
         return {
           ok: false,
-          reason: decodeFailed
-            ? VisionImageRejection.Undecodable
-            : VisionImageRejection.TooLargeAfterResize,
+          reason: encodedAny
+            ? VisionImageRejection.TooLargeAfterResize
+            : VisionImageRejection.Undecodable,
         }
       } catch (err) {
         recordSpanError(span, err)
@@ -448,7 +453,7 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
           if (!prepared.ok) {
             span.setAttribute(TraceAttr.CopilotVfsReadOutcome, CopilotVfsReadOutcome.ImageTooLarge)
             return {
-              content: `[Image unavailable: ${record.name} (${formatFileSize(record.size)}). ${prepared.reason}]`,
+              content: `[Image unavailable: ${record.name} (${formatFileSize(record.size, { includeBytes: true })}). ${prepared.reason}]`,
               totalLines: 1,
             }
           }
