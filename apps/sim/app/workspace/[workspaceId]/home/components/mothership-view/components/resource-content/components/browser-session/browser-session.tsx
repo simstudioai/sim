@@ -963,7 +963,7 @@ export function BrowserSession({
                     )}
                     {suggestion.name ? (
                       <>
-                        <span className='flex-shrink-0 font-medium'>{suggestion.name}</span>
+                        <span className='flex-shrink-0'>{suggestion.name}</span>
                         <span className='truncate text-[var(--text-muted)]'>
                           — {suggestion.hostname}
                         </span>

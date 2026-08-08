@@ -5,13 +5,13 @@ import { instagramPublishVideoContract } from '@/lib/api/contracts/tools/instagr
 import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { resolveInstagramMedia } from '@/app/api/tools/instagram/resolve-media'
 import {
   createMediaContainer,
   publishMediaContainer,
   resolveIgUserId,
+  resolveInstagramMedia,
   waitForContainerReady,
-} from '@/tools/instagram/utils'
+} from '@/app/api/tools/instagram/server-utils'
 
 export const dynamic = 'force-dynamic'
 /** Meta may poll container status once per minute for up to five minutes. */
@@ -56,7 +56,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     let coverUrl: string | undefined
-    if (body.cover != null && body.cover !== '') {
+    if (body.cover != null) {
       const resolvedCover = await resolveInstagramMedia({
         input: body.cover,
         userId: authResult.userId,

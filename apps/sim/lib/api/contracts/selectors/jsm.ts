@@ -25,24 +25,51 @@ const jsmFormIdField = z.string({ error: 'Form ID is required' }).min(1, 'Form I
 
 const jsmIdListSchema = z.union([z.string(), z.array(z.string())]).optional()
 
+/**
+ * JSM pagination values reach this boundary in two shapes: tools declare `start`/`limit` as
+ * `type: 'number'` (so agent tool-calls and the block's `Number.parseInt` both send numbers),
+ * while hand-authored callers send strings. Atlassian takes them as int32 query params, and the
+ * routes stringify them into a `URLSearchParams`, so normalize both shapes to a string here.
+ *
+ * The string branch stays unconstrained so every body the previous `z.string()` schema accepted
+ * still parses; the newly accepted number branch is bounded to the int32 range Atlassian documents.
+ */
+const jsmPaginationField = z
+  .union([
+    z.string(),
+    z
+      .number()
+      .int('Pagination values must be whole numbers')
+      .min(0, 'Pagination values must be 0 or greater')
+      .max(2147483647, 'Pagination values must be within the int32 range'),
+  ])
+  .transform((value) => String(value))
+  .optional()
+
+/** Boolean query flags arrive as booleans from tool params and as `'true'`/`'false'` strings from block dropdowns. */
+const jsmBooleanFlagField = z
+  .union([z.string(), z.boolean()])
+  .transform((value) => String(value))
+  .optional()
+
 export const jsmRequestTypesBodySchema = credentialWorkflowDomainBodySchema.extend({
   serviceDeskId: z.string().min(1),
 })
 
 export const jsmServiceDesksBodySchema = jsmBaseBodySchema.extend({
   expand: z.string().optional(),
-  start: z.string().optional(),
-  limit: z.string().optional(),
+  start: jsmPaginationField,
+  limit: jsmPaginationField,
 })
 
 export const jsmServiceDeskScopedBodySchema = jsmBaseBodySchema.extend({
   serviceDeskId: jsmServiceDeskIdField,
-  start: z.string().optional(),
-  limit: z.string().optional(),
+  start: jsmPaginationField,
+  limit: jsmPaginationField,
 })
 
 export const jsmQueuesBodySchema = jsmServiceDeskScopedBodySchema.extend({
-  includeCount: z.string().optional(),
+  includeCount: jsmBooleanFlagField,
 })
 
 export const jsmRequestTypesToolBodySchema = jsmServiceDeskScopedBodySchema.extend({
@@ -65,8 +92,8 @@ export const jsmRequestsBodySchema = jsmBaseBodySchema.extend({
   requestTypeId: z.string().optional(),
   searchTerm: z.string().optional(),
   expand: z.string().optional(),
-  start: z.string().optional(),
-  limit: z.string().optional(),
+  start: jsmPaginationField,
+  limit: jsmPaginationField,
 })
 
 export const jsmRequestBodySchema = jsmBaseBodySchema.extend({
@@ -94,8 +121,8 @@ export const jsmCommentsBodySchema = jsmBaseBodySchema.extend({
   isPublic: z.boolean().optional(),
   internal: z.boolean().optional(),
   expand: z.string().optional(),
-  start: z.string().optional(),
-  limit: z.string().optional(),
+  start: jsmPaginationField,
+  limit: jsmPaginationField,
 })
 
 export const jsmTransitionBodySchema = jsmBaseBodySchema.extend({
@@ -108,8 +135,8 @@ export const jsmTransitionBodySchema = jsmBaseBodySchema.extend({
 
 export const jsmIssuePaginationBodySchema = jsmBaseBodySchema.extend({
   issueIdOrKey: jsmIssueIdOrKeyField,
-  start: z.string().optional(),
-  limit: z.string().optional(),
+  start: jsmPaginationField,
+  limit: jsmPaginationField,
 })
 
 export const jsmApprovalsBodySchema = jsmBaseBodySchema.extend({
@@ -117,23 +144,23 @@ export const jsmApprovalsBodySchema = jsmBaseBodySchema.extend({
   issueIdOrKey: jsmIssueIdOrKeyField,
   approvalId: z.string().optional(),
   decision: z.string().optional(),
-  start: z.string().optional(),
-  limit: z.string().optional(),
+  start: jsmPaginationField,
+  limit: jsmPaginationField,
 })
 
 export const jsmParticipantsBodySchema = jsmBaseBodySchema.extend({
   action: z.string({ error: 'Action is required' }).min(1, 'Action is required'),
   issueIdOrKey: jsmIssueIdOrKeyField,
   accountIds: z.union([z.string(), z.array(z.string())]).optional(),
-  start: z.string().optional(),
-  limit: z.string().optional(),
+  start: jsmPaginationField,
+  limit: jsmPaginationField,
 })
 
 export const jsmCustomersBodySchema = jsmBaseBodySchema.extend({
   serviceDeskId: jsmServiceDeskIdField,
   query: z.string().optional(),
-  start: z.string().optional(),
-  limit: z.string().optional(),
+  start: jsmPaginationField,
+  limit: jsmPaginationField,
   accountIds: jsmIdListSchema,
   emails: jsmIdListSchema,
 })

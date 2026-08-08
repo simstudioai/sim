@@ -14,10 +14,7 @@ import { getAllBlocks } from '@/blocks/registry'
 import type { ToolInput } from '@/executor/handlers/agent/types'
 import type { PiToolResult, PiToolSpec } from '@/executor/handlers/pi/core/backend'
 import type { ExecutionContext } from '@/executor/types'
-import {
-  projectResolvedSecretModelContent,
-  projectResolvedSecretModelControlMessage,
-} from '@/executor/utils/resolved-secret-content-projection'
+import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { transformBlockTool } from '@/providers/utils'
 import { executeTool } from '@/tools'
@@ -30,12 +27,11 @@ import { getToolAsync } from '@/tools/utils.server'
 const logger = createLogger('PiSimTools')
 const TOOL_RESULT_UNAVAILABLE_MESSAGE =
   'Tool execution settled, but its result could not be returned safely. Do not retry a mutation automatically.'
+const TOOL_EXECUTION_FAILED_MESSAGE = 'Tool execution failed'
 
-function unavailableToolResult(registry: ResolvedSecretTraceRegistry | undefined): PiToolResult {
+function unavailableToolResult(): PiToolResult {
   return {
-    text:
-      projectResolvedSecretModelControlMessage(TOOL_RESULT_UNAVAILABLE_MESSAGE, registry) ??
-      TOOL_RESULT_UNAVAILABLE_MESSAGE,
+    text: TOOL_RESULT_UNAVAILABLE_MESSAGE,
     isError: true,
   }
 }
@@ -49,10 +45,28 @@ function projectToolResult(
   registry: ResolvedSecretTraceRegistry | undefined
 ): PiToolResultProjection {
   try {
+    if (!registry) {
+      if (!result.success) {
+        return {
+          safe: true,
+          result: {
+            text: result.error || TOOL_EXECUTION_FAILED_MESSAGE,
+            isError: true,
+          },
+        }
+      }
+
+      const text =
+        typeof result.output === 'string' ? result.output : JSON.stringify(result.output ?? {})
+      return typeof text === 'string'
+        ? { safe: true, result: { text, isError: false } }
+        : { safe: false, result: unavailableToolResult() }
+    }
+
     if (result.success) {
       const projection = projectResolvedSecretModelContent(result.output, registry)
       if (!projection.safe) {
-        return { safe: false, result: unavailableToolResult(registry) }
+        return { safe: false, result: unavailableToolResult() }
       }
 
       const text =
@@ -61,18 +75,24 @@ function projectToolResult(
           : JSON.stringify(projection.value ?? {})
       return typeof text === 'string'
         ? { safe: true, result: { text, isError: false } }
-        : { safe: false, result: unavailableToolResult(registry) }
+        : { safe: false, result: unavailableToolResult() }
     }
 
-    const projection = projectResolvedSecretModelContent(
-      result.error || 'Tool execution failed',
-      registry
-    )
+    if (!result.error) {
+      return registry.isComplete()
+        ? {
+            safe: true,
+            result: { text: TOOL_EXECUTION_FAILED_MESSAGE, isError: true },
+          }
+        : { safe: false, result: unavailableToolResult() }
+    }
+
+    const projection = projectResolvedSecretModelContent(result.error, registry)
     return projection.safe && typeof projection.value === 'string'
       ? { safe: true, result: { text: projection.value, isError: true } }
-      : { safe: false, result: unavailableToolResult(registry) }
+      : { safe: false, result: unavailableToolResult() }
   } catch {
-    return { safe: false, result: unavailableToolResult(registry) }
+    return { safe: false, result: unavailableToolResult() }
   }
 }
 
@@ -88,7 +108,7 @@ export async function buildSimToolSpecs(
 
   const specs: PiToolSpec[] = []
 
-  for (const tool of inputTools as ToolInput[]) {
+  for (const [toolIndex, tool] of (inputTools as ToolInput[]).entries()) {
     if ((tool.usageControl || 'auto') === 'none') continue
     if (!tool.type || tool.type === 'mcp' || tool.type === 'custom-tool') continue
 
@@ -123,9 +143,30 @@ export async function buildSimToolSpecs(
         execute: async (args) => {
           const params = mergeToolParameters(preseededParams, args as Record<string, unknown>)
           const registry = ctx.resolvedSecretTraceRegistry
-          const toolCallRegistry = registry?.forkForToolInputValues(Object.values(params))
-          if (!registry || !toolCallRegistry?.isComplete()) {
-            return unavailableToolResult(toolCallRegistry)
+          const sourcePath = ['tools', String(toolIndex), 'params'] as const
+          const toolCallRegistry = registry?.forkForInputPaths([sourcePath], {
+            propagated: true,
+          })
+          if (toolCallRegistry && !toolCallRegistry.isComplete()) {
+            return unavailableToolResult()
+          }
+
+          if (toolCallRegistry) {
+            const inputProjection = toolCallRegistry.projectResolvedInputSelection({
+              tools: inputTools,
+            })
+            const projectedTool = inputProjection.complete
+              ? (inputProjection.value.tools as ToolInput[] | undefined)?.[toolIndex]
+              : undefined
+            if (!inputProjection.complete || !projectedTool) {
+              return unavailableToolResult()
+            }
+            const projectedParams = mergeToolParameters(
+              projectedTool.params || {},
+              args as Record<string, unknown>
+            )
+            toolCallRegistry.recordTransformedInputProjection(params, projectedParams)
+            if (!toolCallRegistry.isComplete()) return unavailableToolResult()
           }
 
           try {
@@ -156,8 +197,11 @@ export async function buildSimToolSpecs(
                 resolvedSecretTraceRegistry: toolCallRegistry,
               }
             )
-            const projection = projectToolResult(result, toolCallRegistry)
-            if (projection.safe && toolCallRegistry.isComplete()) {
+            const projection = projectToolResult(
+              result,
+              toolCallRegistry?.forkForPropagatedEntries()
+            )
+            if (projection.safe && registry && toolCallRegistry?.isComplete()) {
               registry.mergeToolCallRegistry(toolCallRegistry)
             }
             return projection.result
@@ -168,9 +212,9 @@ export async function buildSimToolSpecs(
                 output: {},
                 error: getErrorMessage(error, 'Tool execution failed'),
               },
-              toolCallRegistry
+              toolCallRegistry?.forkForPropagatedEntries()
             )
-            if (projection.safe && toolCallRegistry.isComplete()) {
+            if (projection.safe && registry && toolCallRegistry?.isComplete()) {
               registry.mergeToolCallRegistry(toolCallRegistry)
             }
             return projection.result

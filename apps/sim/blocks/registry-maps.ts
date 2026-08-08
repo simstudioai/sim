@@ -60,6 +60,7 @@ import { DSPyBlock, DSPyBlockMeta } from '@/blocks/blocks/dspy'
 import { DubBlock, DubBlockMeta } from '@/blocks/blocks/dub'
 import { DuckDuckGoBlock, DuckDuckGoBlockMeta } from '@/blocks/blocks/duckduckgo'
 import { DynamoDBBlock, DynamoDBBlockMeta } from '@/blocks/blocks/dynamodb'
+import { DynatraceBlock, DynatraceBlockMeta } from '@/blocks/blocks/dynatrace'
 import { ElasticsearchBlock, ElasticsearchBlockMeta } from '@/blocks/blocks/elasticsearch'
 import { ElevenLabsBlock, ElevenLabsBlockMeta } from '@/blocks/blocks/elevenlabs'
 import { EmailBisonBlock, EmailBisonBlockMeta } from '@/blocks/blocks/emailbison'
@@ -204,6 +205,7 @@ import {
 import { MicrosoftPlannerBlock, MicrosoftPlannerBlockMeta } from '@/blocks/blocks/microsoft_planner'
 import { MicrosoftTeamsBlock, MicrosoftTeamsBlockMeta } from '@/blocks/blocks/microsoft_teams'
 import { MillionVerifierBlock, MillionVerifierBlockMeta } from '@/blocks/blocks/millionverifier'
+import { MintlifyBlock, MintlifyBlockMeta } from '@/blocks/blocks/mintlify'
 import {
   MistralParseBlock,
   MistralParseBlockMeta,
@@ -411,6 +413,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   dub: DubBlock,
   duckduckgo: DuckDuckGoBlock,
   dynamodb: DynamoDBBlock,
+  dynatrace: DynatraceBlock,
   elasticsearch: ElasticsearchBlock,
   elevenlabs: ElevenLabsBlock,
   emailbison: EmailBisonBlock,
@@ -529,6 +532,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   microsoft_excel_v2: MicrosoftExcelV2Block,
   microsoft_planner: MicrosoftPlannerBlock,
   microsoft_teams: MicrosoftTeamsBlock,
+  mintlify: MintlifyBlock,
   mistral_parse: MistralParseBlock,
   mistral_parse_v2: MistralParseV2Block,
   mistral_parse_v3: MistralParseV3Block,
@@ -735,6 +739,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   dub: DubBlockMeta,
   duckduckgo: DuckDuckGoBlockMeta,
   dynamodb: DynamoDBBlockMeta,
+  dynatrace: DynatraceBlockMeta,
   elasticsearch: ElasticsearchBlockMeta,
   elevenlabs: ElevenLabsBlockMeta,
   emailbison: EmailBisonBlockMeta,
@@ -830,6 +835,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   microsoft_planner: MicrosoftPlannerBlockMeta,
   microsoft_teams: MicrosoftTeamsBlockMeta,
   millionverifier: MillionVerifierBlockMeta,
+  mintlify: MintlifyBlockMeta,
   mistral_parse: MistralParseBlockMeta,
   monday: MondayBlockMeta,
   mongodb: MongoDBBlockMeta,

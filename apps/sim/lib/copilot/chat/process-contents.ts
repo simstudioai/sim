@@ -383,8 +383,11 @@ async function processSkillFromDb(
     // model re-read the canonical VFS file if it needs to.
     const path = `agent/skills/${encodeVfsSegment(s.name)}.json`
     return { type: 'skill', tag, content: s.content, path }
-  } catch (error) {
-    logger.error('Error processing skill context (db)', { skillId, error })
+  } catch {
+    logger.error('Error processing skill context (db)', {
+      workspaceId,
+      hasSkillId: skillId.length > 0,
+    })
     return null
   }
 }

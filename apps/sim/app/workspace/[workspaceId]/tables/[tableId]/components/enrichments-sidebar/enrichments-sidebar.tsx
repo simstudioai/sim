@@ -72,7 +72,7 @@ function EnrichmentsSidebarBody({
     return (
       <div className='flex h-full flex-col'>
         <div className='flex min-h-[48px] items-center justify-between border-[var(--border)] border-b px-3 py-[8.5px]'>
-          <h2 className='font-medium text-[var(--text-primary)] text-small'>Enrichment</h2>
+          <h2 className='text-[var(--text-primary)] text-small'>Enrichment</h2>
           <Button
             variant='ghost'
             size='sm'
@@ -118,7 +118,7 @@ function EnrichmentsSidebarBody({
   return (
     <div className='flex h-full flex-col'>
       <div className='flex min-h-[48px] items-center justify-between border-[var(--border)] border-b px-3 py-[8.5px]'>
-        <h2 className='font-medium text-[var(--text-primary)] text-small'>Enrichments</h2>
+        <h2 className='text-[var(--text-primary)] text-small'>Enrichments</h2>
         <Button
           variant='ghost'
           size='sm'
@@ -157,7 +157,7 @@ function EnrichmentsSidebarBody({
                   >
                     <Icon className='mt-0.5 size-[14px] flex-none text-[var(--text-icon)]' />
                     <span className='flex min-w-0 flex-col gap-0.5'>
-                      <span className='truncate font-medium text-[var(--text-primary)] text-small'>
+                      <span className='truncate text-[var(--text-primary)] text-small'>
                         {enrichment.name}
                       </span>
                       <span className='whitespace-normal break-words text-[var(--text-tertiary)] text-caption'>

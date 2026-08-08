@@ -220,7 +220,7 @@ export const pinnedItem = pgTable(
     workspaceId: text('workspace_id')
       .notNull()
       .references(() => workspace.id, { onDelete: 'cascade' }),
-    resourceType: text('resource_type').notNull(), // 'workflow' | 'file' | 'knowledge_base' | 'table' | 'folder'
+    resourceType: text('resource_type').notNull(), // 'workflow' | 'file' | 'knowledge_base' | 'table' | 'folder' | 'workspace'
     resourceId: text('resource_id').notNull(),
     pinnedAt: timestamp('pinned_at').notNull().defaultNow(),
   },
@@ -838,11 +838,6 @@ export const jobExecutionLogs = pgTable(
   })
 )
 
-/** Extracts the canonical credential ID persisted in webhook provider configuration. */
-export function webhookCredentialIdExpression(column: AnyPgColumn): SQL<string> {
-  return sql<string>`((${column})::jsonb ->> 'credentialId')`
-}
-
 export const webhook = pgTable(
   'webhook',
   {
@@ -861,15 +856,15 @@ export const webhook = pgTable(
     blockId: text('block_id'),
     /**
      * URL-addressable webhook path. NULL for shared-app providers (e.g. the
-     * native Slack OAuth trigger) whose events arrive on a single shared
+     * native Slack and TikTok triggers) whose events arrive on a single shared
      * endpoint and route by `routingKey` instead of a per-workflow path.
      */
     path: text('path'),
     /**
-     * Tenant routing key for shared-app providers. For `provider='slack_app'`
-     * this is the Slack `team_id`, derived server-side from the connected
-     * credential at deploy time — never user input. Inbound events match on
-     * this after HMAC verification.
+     * Tenant routing key for shared-app providers, such as Slack `team_id` or
+     * TikTok `open_id`, derived server-side from the connected credential at
+     * deploy time — never user input. Inbound events match on this after HMAC
+     * verification.
      */
     routingKey: text('routing_key'),
     provider: text('provider'), // e.g., "whatsapp", "github", etc.
@@ -901,11 +896,6 @@ export const webhook = pgTable(
       providerActiveWorkflowDeploymentIdx: index(
         'idx_webhook_on_provider_is_active_workflow_id_deploym_bdeed5468'
       ).on(table.provider, table.isActive, table.workflowId, table.deploymentVersionId),
-      tiktokCredentialIdIdx: index('webhook_tiktok_credential_id_idx')
-        .on(webhookCredentialIdExpression(table.providerConfig))
-        .where(
-          sql`${table.provider} = 'tiktok' AND ${table.isActive} = true AND ${table.archivedAt} IS NULL`
-        ),
       workflowBlockUpdatedDescIdx: index('idx_webhook_on_workflow_id_block_id_updated_at_desc').on(
         table.workflowId,
         table.blockId,
@@ -1624,6 +1614,15 @@ export const workspace = pgTable(
     forkedFromWorkspaceIdx: index('workspace_forked_from_workspace_id_idx').on(
       table.forkedFromWorkspaceId
     ),
+    /**
+     * Routes an unauthenticated AgentMail delivery to exactly one tenant's
+     * webhook secret. Unique so "one signature check per request" is a storage
+     * invariant rather than something the receiver has to defend against, and
+     * partial because only a small fraction of workspaces enable an inbox.
+     */
+    inboxProviderIdIdx: uniqueIndex('workspace_inbox_provider_id_idx')
+      .on(table.inboxProviderId)
+      .where(sql`${table.inboxProviderId} IS NOT NULL`),
   })
 )
 
@@ -1985,8 +1984,13 @@ export const workspaceFiles = pgTable(
 )
 
 export interface WorkspaceFileSecretProvenanceEntry extends DurableSecretProvenanceEntry {
-  name: string
   sourceUserId: string
+}
+
+export interface StoredWorkspaceFileSecretProvenanceEntry
+  extends WorkspaceFileSecretProvenanceEntry {
+  name: string
+  anonymous?: true
 }
 
 /**
@@ -2005,7 +2009,10 @@ export const workspaceFileSecretProvenance = pgTable(
       .references(() => workspaceFiles.id, { onDelete: 'cascade' }),
     contentUpdatedAt: timestamp('content_updated_at').notNull(),
     status: text('status').notNull(),
-    entries: jsonb('entries').$type<WorkspaceFileSecretProvenanceEntry[]>().notNull().default([]),
+    entries: jsonb('entries')
+      .$type<StoredWorkspaceFileSecretProvenanceEntry[]>()
+      .notNull()
+      .default([]),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({

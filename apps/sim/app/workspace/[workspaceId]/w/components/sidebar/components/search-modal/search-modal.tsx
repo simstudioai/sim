@@ -800,9 +800,6 @@ export function SearchModal({
               {showSection('chats') && (
                 <ChatsGroup items={filteredChats} onSelect={handleChatSelect} />
               )}
-              {showSection('workflows') && (
-                <WorkflowsGroup items={filteredWorkflows} onSelect={handleWorkflowSelect} />
-              )}
               {showSection('tables') && (
                 <TablesGroup items={filteredTables} onSelect={handleTableSelect} />
               )}
@@ -811,6 +808,9 @@ export function SearchModal({
               )}
               {showSection('knowledgeBases') && (
                 <KnowledgeBasesGroup items={filteredKnowledgeBases} onSelect={handleKbSelect} />
+              )}
+              {showSection('workflows') && (
+                <WorkflowsGroup items={filteredWorkflows} onSelect={handleWorkflowSelect} />
               )}
               {showSection('toolOperations') && (
                 <ToolOpsGroup items={filteredToolOps} onSelect={handleToolOperationSelect} />

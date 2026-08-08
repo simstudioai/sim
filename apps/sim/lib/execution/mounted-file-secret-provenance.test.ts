@@ -84,18 +84,23 @@ describe('mounted file output provenance scanner', () => {
     expect(scanner?.hasSecrets).toBe(true)
   })
 
-  it('fails closed when encrypted provenance is incomplete or cannot be decrypted', async () => {
-    await expect(
-      createMountedFileSecretProvenanceScanner({ version: 1, complete: false, entries: [] })
-    ).resolves.toBeUndefined()
+  it('classifies outputs unknown when authenticated mount provenance cannot be inspected', async () => {
+    const incomplete = await createMountedFileSecretProvenanceScanner({
+      version: 1,
+      complete: false,
+      entries: [],
+    })
+    expect(incomplete?.hasSecrets).toBe(true)
+    expect(incomplete?.scan(Buffer.from('raw output'))).toEqual({ status: 'unknown' })
 
     encryptionMockFns.mockDecryptSecret.mockRejectedValueOnce(new Error('decrypt failed'))
-    await expect(
-      createMountedFileSecretProvenanceScanner({
-        version: 1,
-        complete: true,
-        entries: [{ encryptedValue: 'encrypted-a' }],
-      })
-    ).resolves.toBeUndefined()
+    const unavailable = await createMountedFileSecretProvenanceScanner({
+      version: 1,
+      complete: true,
+      entries: [{ encryptedValue: 'encrypted-a' }],
+      scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+    })
+    expect(unavailable?.hasSecrets).toBe(true)
+    expect(unavailable?.scan(Buffer.from('raw output'))).toEqual({ status: 'unknown' })
   })
 })

@@ -5,16 +5,11 @@ import {
   cn,
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuSearchInput,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@sim/emcn'
 import {
-  FOLDERED_RESOURCE_TYPES,
-  ResourceTreeSections,
+  ResourceMenuSections,
   useAvailableResources,
   useResourceTreeSections,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
@@ -305,38 +300,12 @@ export const PlusMenuDropdown = React.memo(
             {/* Always-mounted; swapping this subtree with filtered results makes Radix's
                   menu FocusScope steal focus from the search input back to the content root. */}
             <div hidden={filteredItems !== null}>
-              <ResourceTreeSections
+              <ResourceMenuSections
                 sections={treeSections}
+                groups={visibleResources}
                 onSelect={handleSelect}
                 subContentClassName='max-w-[min(300px,calc(100vw-32px))]'
               />
-              {visibleResources
-                .filter(({ type }) => !FOLDERED_RESOURCE_TYPES.has(type))
-                .map(({ type, items }) => {
-                  if (items.length === 0) return null
-                  const config = getResourceConfig(type)
-                  const Icon = config.icon
-                  return (
-                    <DropdownMenuSub key={type}>
-                      <DropdownMenuSubTrigger>
-                        <Icon className='size-[14px]' />
-                        <span>{config.label}</span>
-                      </DropdownMenuSubTrigger>
-                      <DropdownMenuSubContent className='max-w-[min(300px,calc(100vw-32px))]'>
-                        {items.map((item) => (
-                          <DropdownMenuItem
-                            key={item.id}
-                            onClick={() => {
-                              handleSelect({ type, id: item.id, title: item.name })
-                            }}
-                          >
-                            {config.renderDropdownItem({ item })}
-                          </DropdownMenuItem>
-                        ))}
-                      </DropdownMenuSubContent>
-                    </DropdownMenuSub>
-                  )
-                })}
             </div>
             {/* Plain buttons, not DropdownMenuItem: mount/unmount must not mutate Radix's
                   menu Collection, or FocusScope restores focus to the content root. */}
@@ -356,7 +325,7 @@ export const PlusMenuDropdown = React.memo(
                         handleSelect({ type, id: item.id, title: item.name })
                       }}
                       className={cn(
-                        'relative flex w-full min-w-0 cursor-pointer select-none items-center gap-2 rounded-[5px] px-2 py-1.5 text-left font-medium text-[var(--text-body)] text-caption outline-none transition-colors [&>span]:min-w-0 [&>span]:truncate [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)]',
+                        'relative flex w-full min-w-0 cursor-pointer select-none items-center gap-2 rounded-[5px] px-2 py-1.5 text-left text-[var(--text-body)] text-caption outline-none transition-colors [&>span]:min-w-0 [&>span]:truncate [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)]',
                         isActive && 'bg-[var(--surface-active)]'
                       )}
                     >
@@ -365,7 +334,7 @@ export const PlusMenuDropdown = React.memo(
                   )
                 })
               ) : (
-                <div className='px-2 py-1.5 text-center font-medium text-[var(--text-tertiary)] text-caption'>
+                <div className='px-2 py-1.5 text-center text-[var(--text-tertiary)] text-caption'>
                   No results
                 </div>
               ))}

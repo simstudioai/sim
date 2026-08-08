@@ -63,11 +63,12 @@ export const SEARCH_SECTIONS = [
   'blocks',
   'tools',
   'triggers',
+  // Resource groups follow the sidebar's top-down order.
   'chats',
-  'workflows',
   'tables',
   'files',
   'knowledgeBases',
+  'workflows',
   'toolOperations',
   'workspaces',
   'docs',

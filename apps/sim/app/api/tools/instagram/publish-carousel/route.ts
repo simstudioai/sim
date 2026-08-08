@@ -5,13 +5,13 @@ import { instagramPublishCarouselContract } from '@/lib/api/contracts/tools/inst
 import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { resolveInstagramCarouselMedia } from '@/app/api/tools/instagram/resolve-media'
 import {
   createMediaContainer,
   publishMediaContainer,
   resolveIgUserId,
+  resolveInstagramCarouselMedia,
   waitForContainerReady,
-} from '@/tools/instagram/utils'
+} from '@/app/api/tools/instagram/server-utils'
 
 export const dynamic = 'force-dynamic'
 /**

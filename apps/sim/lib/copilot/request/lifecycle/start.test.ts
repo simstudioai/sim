@@ -325,7 +325,7 @@ describe('createSSEStream terminal error handling', () => {
     expect(lifecycleTraceparent).toMatch(/^00-[0-9a-f]{32}-[0-9a-f]{16}-0[0-9a-f]$/)
   })
 
-  it('projects title input using the execution-context secret registry', async () => {
+  it('does not scan manually authored title input against unrelated active secrets', async () => {
     runCopilotLifecycle.mockResolvedValue({
       success: true,
       content: 'OK',
@@ -362,7 +362,7 @@ describe('createSSEStream terminal error handling', () => {
     await vi.waitFor(() => expect(fetchGo).toHaveBeenCalled())
     const [, request] = fetchGo.mock.calls.at(-1) ?? []
     expect(JSON.parse(request.body)).toEqual(
-      expect.objectContaining({ message: 'hello {{TOKEN}}' })
+      expect.objectContaining({ message: 'hello secret-value' })
     )
   })
 })

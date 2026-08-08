@@ -359,7 +359,7 @@ export function ChatDeploy({
           <div>
             <Label
               htmlFor='title'
-              className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'
+              className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'
             >
               Title
             </Label>
@@ -377,7 +377,7 @@ export function ChatDeploy({
           </div>
 
           <div>
-            <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
+            <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
               Output
             </Label>
             <OutputSelect
@@ -398,7 +398,7 @@ export function ChatDeploy({
 
           <div className='flex items-center justify-between gap-3'>
             <div className='min-w-0'>
-              <Label className='block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
+              <Label className='block pl-0.5 text-[var(--text-primary)] text-small'>
                 Include thinking
               </Label>
             </div>
@@ -412,7 +412,7 @@ export function ChatDeploy({
 
           <div className='flex items-center justify-between gap-3'>
             <div className='min-w-0'>
-              <Label className='block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
+              <Label className='block pl-0.5 text-[var(--text-primary)] text-small'>
                 Include tool calls
               </Label>
             </div>
@@ -442,7 +442,7 @@ export function ChatDeploy({
           <div>
             <Label
               htmlFor='welcomeMessage'
-              className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'
+              className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'
             >
               Welcome message
             </Label>
@@ -585,7 +585,7 @@ function IdentifierInput({
     <div>
       <Label
         htmlFor='chat-url'
-        className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'
+        className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'
       >
         URL
       </Label>
@@ -595,7 +595,7 @@ function IdentifierInput({
           error && 'border-[var(--text-error)]'
         )}
       >
-        <div className='flex items-center whitespace-nowrap bg-[var(--surface-5)] pr-1.5 pl-2 font-medium text-[var(--text-secondary)] text-sm'>
+        <div className='flex items-center whitespace-nowrap bg-[var(--surface-5)] pr-1.5 pl-2 text-[var(--text-secondary)] text-sm'>
           {getDomainPrefix()}
         </div>
         <div className='relative flex-1'>
@@ -726,7 +726,7 @@ function AuthSelector({
   return (
     <div className='space-y-4'>
       <div>
-        <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
+        <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
           Access control
         </Label>
         <ButtonGroup
@@ -744,7 +744,7 @@ function AuthSelector({
 
       {authType === 'password' && (
         <div>
-          <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
+          <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
             Password
           </Label>
           <GeneratedPasswordInput
@@ -772,7 +772,7 @@ function AuthSelector({
 
       {(authType === 'email' || authType === 'sso') && (
         <div>
-          <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
+          <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
             {authType === 'email' ? 'Allowed emails' : 'Allowed SSO emails'}
           </Label>
           <ChipEmailsInput

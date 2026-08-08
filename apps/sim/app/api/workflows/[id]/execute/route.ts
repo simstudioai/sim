@@ -13,6 +13,7 @@ import {
   WORKFLOW_EXECUTION_ID_HEADER,
   WORKFLOW_EXECUTION_TIMEOUT_SECONDS_HEADER,
 } from '@/lib/api/contracts/workflows'
+import { PERSONAL_KEY_DENIED, WORKSPACE_KEY_SCOPE_DENIED } from '@/lib/api-key/policy-messages'
 import { AuthType, checkHybridAuth, hasExternalApiCredentials } from '@/lib/auth/hybrid'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
 import {
@@ -157,12 +158,7 @@ import type {
   IterationContext,
   SerializableExecutionState,
 } from '@/executor/execution/types'
-import type {
-  BlockLog,
-  ExecutionResult,
-  NormalizedBlockOutput,
-  StreamingExecution,
-} from '@/executor/types'
+import type { BlockLog, NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
 import { getExecutionErrorStatus, hasExecutionResult } from '@/executor/utils/errors'
 import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
 import { Serializer } from '@/serializer'
@@ -202,7 +198,7 @@ function createExecutionJsonResponse(
   body: Record<string, unknown>,
   init: ResponseInit | undefined,
   includePrivateProvenance: boolean,
-  result?: ExecutionResult
+  loggingSession?: LoggingSession
 ): NextResponse {
   if (!includePrivateProvenance) {
     return NextResponse.json(body, init)
@@ -213,11 +209,12 @@ function createExecutionJsonResponse(
   return NextResponse.json(
     {
       ...body,
-      [RESOLVED_SECRET_PROVENANCE_FIELD]: result?.executionState?.resolvedSecretTraceProvenance ?? {
-        version: 1,
-        complete: false,
-        entries: [],
-      },
+      [RESOLVED_SECRET_PROVENANCE_FIELD]:
+        loggingSession?.exportResolvedSecretTraceProvenanceForValue(body) ?? {
+          version: 1,
+          complete: false,
+          entries: [],
+        },
     },
     { ...init, headers }
   )
@@ -1110,10 +1107,7 @@ async function handleExecutePost(
     }
     if (auth.authType === AuthType.API_KEY) {
       if (auth.apiKeyType === 'workspace' && auth.workspaceId !== workflowWorkspaceId) {
-        return NextResponse.json(
-          { error: 'API key is not authorized for this workspace' },
-          { status: 403 }
-        )
+        return NextResponse.json({ error: WORKSPACE_KEY_SCOPE_DENIED }, { status: 403 })
       }
 
       if (auth.apiKeyType === 'personal') {
@@ -1121,10 +1115,7 @@ async function handleExecutePost(
           ? await getWorkspaceBillingSettings(workflowWorkspaceId)
           : null
         if (!workspaceSettings?.allowPersonalApiKeys) {
-          return NextResponse.json(
-            { error: 'Personal API keys are not allowed for this workspace' },
-            { status: 403 }
-          )
+          return NextResponse.json({ error: PERSONAL_KEY_DENIED }, { status: 403 })
         }
       }
     }
@@ -1583,7 +1574,7 @@ async function handleExecutePost(
             },
             { status: 408 },
             includePrivateTraceProvenance,
-            result
+            loggingSession
           )
         }
 
@@ -1654,7 +1645,7 @@ async function handleExecutePost(
           filteredResult,
           undefined,
           includePrivateTraceProvenance,
-          result
+          loggingSession
         )
       } catch (error: unknown) {
         const executionTimedOut = didExecutionTimeOut(error)
@@ -1716,7 +1707,7 @@ async function handleExecutePost(
           },
           { status },
           includePrivateTraceProvenance,
-          executionResult
+          loggingSession
         )
       } finally {
         requestAbort.cleanup()

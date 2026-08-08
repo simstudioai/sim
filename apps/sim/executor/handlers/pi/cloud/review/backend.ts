@@ -46,7 +46,6 @@ import {
   createScrubbedPiError,
   getScrubbedPiErrorMessage,
   scrubPiEvent,
-  scrubPiSecrets,
 } from '@/executor/handlers/pi/core/redaction'
 import {
   PI_SEARCH_TOOL_NAME,
@@ -151,16 +150,6 @@ function buildReviewPrompt(
   })
 }
 
-function scrubReviewFindings(findings: ReviewFindings, secrets: readonly string[]): ReviewFindings {
-  return {
-    body: scrubPiSecrets(findings.body, secrets),
-    comments: findings.comments.map((comment) => ({
-      ...comment,
-      body: scrubPiSecrets(comment.body, secrets),
-    })),
-  }
-}
-
 function assertSameSnapshot(
   original: PullRequestSnapshot,
   current: PullRequestSnapshot,
@@ -213,8 +202,8 @@ async function submitReview(
 }
 
 /**
- * Runs Pi as a trusted host-side model client while treating every model, event,
- * review, log, and thrown-error boundary as untrusted output that must be scrubbed.
+ * Runs Pi as a trusted host-side model client. Provider, search, sandbox, and GitHub diagnostics
+ * are redacted if they echo a transport credential; ordinary model and repository content is not.
  */
 export const runCloudReviewPi: PiBackendRun<PiCloudReviewRunParams> = async (params, context) => {
   const searchTool = params.search?.tool
@@ -296,10 +285,7 @@ export const runCloudReviewPi: PiBackendRun<PiCloudReviewRunParams> = async (par
         const customTools = searchTool
           ? [...reviewTools.tools, toPiTool(sdk, searchTool, secrets)]
           : reviewTools.tools
-        const prompt = scrubPiSecrets(
-          buildReviewPrompt(params, snapshot, Boolean(searchTool)),
-          secrets
-        )
+        const prompt = buildReviewPrompt(params, snapshot, Boolean(searchTool))
 
         const piProviderId = getPiProviderId(params.providerId)
         const modelRuntime = await createPiModelRuntime(sdk)
@@ -369,7 +355,7 @@ export const runCloudReviewPi: PiBackendRun<PiCloudReviewRunParams> = async (par
           if (!rawFindings) {
             throw new Error('Pi review agent finished without calling submit_review')
           }
-          const findings = scrubReviewFindings(rawFindings, secrets)
+          const findings = rawFindings
           totals.finalText = findings.body
 
           const latestSnapshot = await fetchOpenPrSnapshot(params, context.signal)

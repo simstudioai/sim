@@ -66,9 +66,9 @@ export function PublicFileView({
   )
 
   return (
-    <div className='light desktop-title-bar-page flex flex-col bg-[var(--bg)]'>
+    <div className='light desktop-title-bar-page flex h-screen flex-col overflow-hidden bg-[var(--bg)]'>
       <DesktopTitleBarLane />
-      <header className='sticky top-[var(--desktop-title-bar-height)] z-10 flex items-center justify-between gap-4 border-[var(--border)] border-b bg-[var(--bg)] px-4 py-3'>
+      <header className='z-10 flex shrink-0 items-center justify-between gap-4 border-[var(--border)] border-b bg-[var(--bg)] px-4 py-3'>
         <div className='flex min-w-0 items-center gap-3'>
           {!brand.logoUrl && (
             <>
@@ -85,7 +85,7 @@ export function PublicFileView({
             </>
           )}
           <div className='flex min-w-0 flex-col'>
-            <span className='truncate font-medium text-[14px] text-[var(--text-body)]'>{name}</span>
+            <span className='truncate text-[14px] text-[var(--text-body)]'>{name}</span>
             {provenance ? (
               <span className='truncate text-[12px] text-[var(--text-muted)]'>{provenance}</span>
             ) : null}

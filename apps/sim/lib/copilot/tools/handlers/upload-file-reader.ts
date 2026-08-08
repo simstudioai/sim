@@ -5,6 +5,7 @@ import { toError } from '@sim/utils/errors'
 import { and, asc, desc, eq, isNull, or } from 'drizzle-orm'
 import {
   type FileReadResult,
+  isReadableFileType,
   MAX_TEXT_READ_BYTES,
   readFileRecord,
 } from '@/lib/copilot/vfs/file-reader'
@@ -206,6 +207,7 @@ export async function readChatUploadWithProvenance(
     return {
       value: result,
       file: { fileId: record.id, key: record.key, context: 'mothership' },
+      view: isReadableFileType(record.type) ? 'complete' : 'derived',
     }
   } catch (err) {
     logger.warn('Failed to read chat upload', {

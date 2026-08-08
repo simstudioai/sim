@@ -230,7 +230,7 @@ describe('knowledge write secret provenance', () => {
     if (!result.success) expect(result.response.status).toBe(400)
   })
 
-  it('rejects an unavailable verified selection before a write can start', () => {
+  it('persists authenticated unavailable selection lineage as unknown', () => {
     const bundle = {
       version: 1 as const,
       complete: true,
@@ -257,7 +257,111 @@ describe('knowledge write secret provenance', () => {
       selectionKeys: ['document-source:0'],
     })
 
-    expect(result.success).toBe(false)
-    if (!result.success) expect(result.response.status).toBe(400)
+    expect(result).toEqual({ success: true, provenances: [{ status: 'unknown' }] })
+  })
+
+  it('persists an authenticated incomplete document bundle as unknown', () => {
+    const payload = {
+      [PRIVATE_SECRET_PROVENANCE_FIELD]: {
+        version: 1 as const,
+        complete: false,
+        selections: [],
+      },
+    }
+
+    const result = resolveKnowledgeDocumentWriteSecretProvenance({
+      request: createRequest(payload),
+      payload,
+      authType: AuthType.INTERNAL_JWT,
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+      documents: [{ documentTagsData: JSON.stringify([{ tagName: 'region', value: 'west' }]) }],
+    })
+
+    expect(result).toEqual({
+      success: true,
+      provenances: [
+        {
+          filename: { status: 'unknown' },
+          content: { status: 'unknown' },
+          tags: [{ tagName: 'region', provenance: { status: 'unknown' } }],
+        },
+      ],
+    })
+  })
+
+  it('keeps persisted tag names raw while retaining tag-value provenance', () => {
+    const documentTagsData = JSON.stringify([{ tagName: 'private-name', value: 'west' }])
+    const payload = {
+      documents: [{ filename: 'doc.md', documentTagsData }],
+      [PRIVATE_SECRET_PROVENANCE_FIELD]: {
+        version: 1 as const,
+        complete: true,
+        selections: [
+          {
+            key: 'document-filename:0',
+            provenance: {
+              version: 1 as const,
+              complete: true,
+              entries: [],
+              scope: PRIVATE_PROVENANCE_SCOPE,
+            },
+          },
+          {
+            key: 'document-content:0',
+            provenance: {
+              version: 1 as const,
+              complete: true,
+              entries: [],
+              scope: PRIVATE_PROVENANCE_SCOPE,
+            },
+          },
+          {
+            key: 'document-tag-value:0:0',
+            provenance: {
+              version: 1 as const,
+              complete: true,
+              entries: [{ name: 'TAG_VALUE', encryptedValue: 'encrypted-tag-value' }],
+              scope: PRIVATE_PROVENANCE_SCOPE,
+            },
+          },
+        ],
+      },
+    }
+
+    const result = resolveKnowledgeDocumentWriteSecretProvenance({
+      request: createRequest(payload),
+      payload,
+      authType: AuthType.INTERNAL_JWT,
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+      documents: [{ documentTagsData }],
+    })
+
+    expect(result).toEqual({
+      success: true,
+      provenances: [
+        {
+          filename: { status: 'exact', entries: [] },
+          content: { status: 'exact', entries: [] },
+          tags: [
+            {
+              tagName: 'private-name',
+              provenance: {
+                status: 'exact',
+                entries: [
+                  {
+                    name: 'TAG_VALUE',
+                    encryptedValue: 'encrypted-tag-value',
+                    sourceUserId: 'user-1',
+                    sourceWorkspaceId: 'workspace-1',
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    })
   })
 })

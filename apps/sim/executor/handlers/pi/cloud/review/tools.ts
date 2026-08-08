@@ -154,7 +154,7 @@ export function createCloudReviewTools(
     if (outputBytes > MAX_TOOL_OUTPUT_BYTES) {
       throw new Error(`Review tool output limit exceeded (${MAX_TOOL_OUTPUT_BYTES} bytes)`)
     }
-    return scrubPiSecrets(result.stdout, secrets)
+    return result.stdout
   }
 
   const readParameters = Type.Object(

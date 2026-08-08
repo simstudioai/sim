@@ -3,8 +3,7 @@ import { docsEmbeddings } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { sql } from 'drizzle-orm'
 import { SearchDocumentation } from '@/lib/copilot/generated/tool-catalog-v1'
-import type { BaseServerTool, ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
-import { projectServerToolModelInput } from '@/lib/copilot/tools/server/model-input'
+import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import { generateSearchEmbedding } from '@/lib/knowledge/embeddings'
 
 interface DocsSearchParams {
@@ -17,7 +16,7 @@ const DEFAULT_DOCS_SIMILARITY_THRESHOLD = 0.3
 
 export const searchDocumentationServerTool: BaseServerTool<DocsSearchParams, any> = {
   name: SearchDocumentation.id,
-  async execute(params: DocsSearchParams, context?: ServerToolContext): Promise<any> {
+  async execute(params: DocsSearchParams): Promise<any> {
     const logger = createLogger('SearchDocumentationServerTool')
     const { query, topK = 10, threshold } = params
     if (!query || typeof query !== 'string') throw new Error('query is required')
@@ -26,7 +25,7 @@ export const searchDocumentationServerTool: BaseServerTool<DocsSearchParams, any
 
     const similarityThreshold = threshold ?? DEFAULT_DOCS_SIMILARITY_THRESHOLD
 
-    const { query: modelQuery } = projectServerToolModelInput({ query }, context)
+    const modelQuery = query
     const { embedding: queryEmbedding } = await generateSearchEmbedding(modelQuery)
     if (!queryEmbedding || queryEmbedding.length === 0) {
       return { results: [], query, totalResults: 0 }

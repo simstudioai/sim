@@ -36,6 +36,31 @@ function makeBlock(overrides: Partial<BlockState> & { type: string }): BlockStat
 }
 
 describe('migrateSubblockIds', () => {
+  it('should preserve Instagram insight metrics after the subblock rename', () => {
+    const input: Record<string, BlockState> = {
+      b1: makeBlock({
+        type: 'instagram',
+        subBlocks: {
+          metrics: {
+            id: 'metrics',
+            type: 'short-input',
+            value: 'reach,views',
+          },
+        },
+      }),
+    }
+
+    const { blocks, migrated } = migrateSubblockIds(input)
+
+    expect(migrated).toBe(true)
+    expect(blocks.b1.subBlocks.insightMetrics).toEqual({
+      id: 'insightMetrics',
+      type: 'short-input',
+      value: 'reach,views',
+    })
+    expect(blocks.b1.subBlocks.metrics).toBeUndefined()
+  })
+
   describe('knowledge block', () => {
     it('should rename knowledgeBaseId to knowledgeBaseSelector', () => {
       const input: Record<string, BlockState> = {

@@ -2,10 +2,14 @@ import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
 import type { MyInvitation } from '@/lib/api/contracts/invitations'
 import { getSession } from '@/lib/auth'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getInvitationJoinPreview, listPendingInvitationsForEmail } from '@/lib/invitations/core'
 
 const logger = createLogger('MyInvitationsAPI')
+
+/** Caps how many pooled connections one request can hold; a list is a handful of rows. */
+const INVITATION_PREVIEW_CONCURRENCY = 4
 
 /**
  * Pending invitations addressed to the session's email — the invitee-facing
@@ -29,24 +33,25 @@ export const GET = withRouteHandler(async () => {
      * Disclosure-only, so a preview failure degrades to `null` (the client
      * shows a generic notice) rather than hiding the invitation.
      *
-     * Sequential on purpose: each preview issues several queries, and this
-     * endpoint is hit whenever the workspace switcher opens. Fanning them out
-     * with `Promise.all` would hold one pooled connection per pending
-     * invitation for the length of the slowest one. The list is a handful of
-     * rows, so the added latency is not worth the pool pressure.
+     * Each preview issues up to three queries of its own, so a serial loop put
+     * every one of them on the critical path of the switcher opening. The mapper
+     * must stay total — `mapWithConcurrency` fails the whole batch on a throw.
      */
-    const previews: Array<Awaited<ReturnType<typeof getInvitationJoinPreview>> | null> = []
-    for (const inv of invitations) {
-      try {
-        previews.push(await getInvitationJoinPreview(session.user.id, inv))
-      } catch (previewError) {
-        logger.warn('Failed to compute join preview for pending invitation', {
-          invitationId: inv.id,
-          error: previewError,
-        })
-        previews.push(null)
+    const previews = await mapWithConcurrency(
+      invitations,
+      INVITATION_PREVIEW_CONCURRENCY,
+      async (inv) => {
+        try {
+          return await getInvitationJoinPreview(session.user.id, inv)
+        } catch (previewError) {
+          logger.warn('Failed to compute join preview for pending invitation', {
+            invitationId: inv.id,
+            error: previewError,
+          })
+          return null
+        }
       }
-    }
+    )
 
     return NextResponse.json({
       invitations: invitations.map(

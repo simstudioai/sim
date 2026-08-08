@@ -115,11 +115,11 @@ describe('POST /api/guardrails/validate', () => {
       },
     })
     mockValidateHallucination.mockResolvedValue({ passed: true, score: 8 })
-    mockImportProvenance.mockResolvedValue(true)
+    mockImportProvenance.mockResolvedValue({ success: true, matched: true })
     mockRegistryIsComplete.mockReturnValue(true)
     mockPrepareCopilotEnvironmentContext.mockResolvedValue({
       resolvedSecretTraceRegistry: {
-        importProvenanceForValue: mockImportProvenance,
+        importProvenanceForValueAtInputPath: mockImportProvenance,
         isComplete: mockRegistryIsComplete,
       },
     })
@@ -242,7 +242,7 @@ describe('POST /api/guardrails/validate', () => {
     )
 
     expect(res.status).toBe(200)
-    expect(mockImportProvenance).toHaveBeenCalledWith(provenance, 'secret value', {
+    expect(mockImportProvenance).toHaveBeenCalledWith(provenance, 'secret value', ['input'], {
       trusted: true,
     })
   })
@@ -371,7 +371,7 @@ describe('POST /api/guardrails/validate', () => {
     )
   })
 
-  it('rejects a headerless internal hallucination check before model execution', async () => {
+  it('preserves a headerless legacy internal hallucination check', async () => {
     hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
       success: true,
       userId: 'user-1',
@@ -388,9 +388,9 @@ describe('POST /api/guardrails/validate', () => {
       })
     )
 
-    expect(res.status).toBe(400)
+    expect(res.status).toBe(200)
     expect(mockImportProvenance).not.toHaveBeenCalled()
-    expect(mockValidateHallucination).not.toHaveBeenCalled()
+    expect(mockValidateHallucination).toHaveBeenCalled()
   })
 
   it('rejects invalid internal billing attribution as a protocol error', async () => {

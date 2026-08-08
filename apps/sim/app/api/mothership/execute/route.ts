@@ -38,7 +38,6 @@ import {
 } from '@/lib/workspaces/permissions/utils'
 import {
   createIncompleteResolvedSecretTraceRegistry,
-  ResolvedSecretTraceProvenanceAccumulator,
   type ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
 import type { ChatContext } from '@/stores/panel'
@@ -60,7 +59,9 @@ function withPrivateProvenance<T extends Record<string, unknown>>(
   return {
     ...payload,
     ...(include && registry
-      ? { [RESOLVED_SECRET_PROVENANCE_FIELD]: registry.exportProvenance() }
+      ? {
+          [RESOLVED_SECRET_PROVENANCE_FIELD]: registry.exportCommittedProvenanceForInputPaths([]),
+        }
       : {}),
   }
 }
@@ -201,14 +202,6 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       activeResolvedSecretTraceRegistry = createIncompleteResolvedSecretTraceRegistry(scope)
     }
     resolvedSecretTraceRegistry = activeResolvedSecretTraceRegistry
-    const mcpDiscoveryProvenance = new ResolvedSecretTraceProvenanceAccumulator({
-      userId,
-      workspaceId,
-    })
-    const recordMcpDiscoveryProvenance = (provenance: unknown): void => {
-      mcpDiscoveryProvenance.record(provenance)
-    }
-
     const effectiveChatId = chatId || generateId()
     messageId = providedMessageId || generateId()
     requestId = providedRequestId || generateId()
@@ -227,39 +220,15 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     const nonMcpAgentMentions = agentMentions?.filter((context) => context.kind !== 'mcp')
     const userPermission = workspaceAccess.permission
     const mothershipToolsPromise = Promise.allSettled([
-      buildSelectedMcpToolSchemas(
-        userId,
-        workspaceId,
-        mcpTools ?? [],
-        recordMcpDiscoveryProvenance
-      ),
-      buildTaggedMcpToolSchemas(
-        userId,
-        workspaceId,
-        taggedMcpServerIds,
-        recordMcpDiscoveryProvenance
-      ),
-    ]).then(async (results) => {
+      buildSelectedMcpToolSchemas(userId, workspaceId, mcpTools ?? []),
+      buildTaggedMcpToolSchemas(userId, workspaceId, taggedMcpServerIds),
+    ]).then((results) => {
       const groups = results.map((result) => {
         if (result.status === 'rejected') throw result.reason
         return result.value
       })
       const byName = new Map(groups.flat().map((tool) => [tool.name, tool]))
-      const tools = [...byName.values()]
-      if (activeResolvedSecretTraceRegistry) {
-        const discoveryRegistry = activeResolvedSecretTraceRegistry.forkForToolInput(tools)
-        const imported = await discoveryRegistry.importProvenanceForValue(
-          mcpDiscoveryProvenance.exportProvenance(),
-          tools,
-          { trusted: true }
-        )
-        if (!imported || !discoveryRegistry.isComplete()) {
-          reqLogger.warn('Omitting MCP tools with unverifiable secret provenance')
-          return []
-        }
-        activeResolvedSecretTraceRegistry.mergeToolCallRegistry(discoveryRegistry)
-      }
-      return tools
+      return [...byName.values()]
     })
     const [workspaceContext, integrationTools, mothershipTools, entitlements, agentContexts] =
       await Promise.all([

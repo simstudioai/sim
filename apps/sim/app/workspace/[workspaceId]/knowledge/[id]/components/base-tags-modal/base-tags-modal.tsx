@@ -17,7 +17,12 @@ import {
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import type { TagUsageData } from '@/lib/api/contracts/knowledge'
-import { SUPPORTED_FIELD_TYPES, TAG_SLOT_CONFIG } from '@/lib/knowledge/constants'
+import {
+  FIELD_TYPE_LABELS,
+  KNOWLEDGE_TAG_DISPLAY_NAME_MAX_LENGTH,
+  SUPPORTED_FIELD_TYPES,
+  TAG_SLOT_CONFIG,
+} from '@/lib/knowledge/constants'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import {
   type TagDefinition,
@@ -30,13 +35,6 @@ import {
 } from '@/hooks/queries/kb/knowledge'
 
 const logger = createLogger('BaseTagsModal')
-
-const FIELD_TYPE_LABELS: Record<string, string> = {
-  text: 'Text',
-  number: 'Number',
-  date: 'Date',
-  boolean: 'Boolean',
-}
 
 interface DocumentListProps {
   documents: Array<{ id: string; name: string; tagValue: string }>
@@ -154,7 +152,9 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
     isCreatingTag && !createTagMutation.isPending && hasTagNameConflict(createTagForm.displayName)
 
   const canSaveTag = () => {
-    return createTagForm.displayName.trim() && !hasTagNameConflict(createTagForm.displayName)
+    return (
+      createTagForm.displayName.trim().length > 0 && !hasTagNameConflict(createTagForm.displayName)
+    )
   }
 
   const getSlotUsageByFieldType = (fieldType: string): { used: number; max: number } => {
@@ -331,6 +331,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
                         setCreateTagForm({ ...createTagForm, displayName: e.target.value })
                       }
                       placeholder='Enter tag name'
+                      maxLength={KNOWLEDGE_TAG_DISPLAY_NAME_MAX_LENGTH}
                       error={Boolean(tagNameConflict)}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && canSaveTag()) {

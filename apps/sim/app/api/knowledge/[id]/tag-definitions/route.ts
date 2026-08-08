@@ -3,17 +3,16 @@ import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createTagDefinitionContract } from '@/lib/api/contracts/knowledge'
 import { parseRequest } from '@/lib/api/server'
-import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { SUPPORTED_FIELD_TYPES } from '@/lib/knowledge/constants'
+import { isValidSlotForFieldType } from '@/lib/knowledge/constants'
 import { createTagDefinition, getTagDefinitions } from '@/lib/knowledge/tags/service'
-import { checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
+import { checkKnowledgeBaseAccess, checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('KnowledgeBaseTagDefinitionsAPI')
 
-// GET /api/knowledge/[id]/tag-definitions - Get all tag definitions for a knowledge base
 export const GET = withRouteHandler(
   async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const requestId = generateId().slice(0, 8)
@@ -23,19 +22,16 @@ export const GET = withRouteHandler(
       logger.info(`[${requestId}] Getting tag definitions for knowledge base ${knowledgeBaseId}`)
 
       const auth = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
-      if (!auth.success) {
+      if (!auth.success || !auth.userId) {
         return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
       }
 
-      // For session auth, verify KB access. Internal JWT is trusted.
-      if (auth.authType === AuthType.SESSION && auth.userId) {
-        const accessCheck = await checkKnowledgeBaseWriteAccess(knowledgeBaseId, auth.userId)
-        if (!accessCheck.hasAccess) {
-          return NextResponse.json(
-            { error: accessCheck.notFound ? 'Not found' : 'Forbidden' },
-            { status: accessCheck.notFound ? 404 : 403 }
-          )
-        }
+      const accessCheck = await checkKnowledgeBaseAccess(knowledgeBaseId, auth.userId)
+      if (!accessCheck.hasAccess) {
+        return NextResponse.json(
+          { error: accessCheck.notFound ? 'Not found' : 'Forbidden' },
+          { status: accessCheck.notFound ? 404 : 403 }
+        )
       }
 
       const tagDefinitions = await getTagDefinitions(knowledgeBaseId)
@@ -55,7 +51,6 @@ export const GET = withRouteHandler(
   }
 )
 
-// POST /api/knowledge/[id]/tag-definitions - Create a new tag definition
 export const POST = withRouteHandler(
   async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateId().slice(0, 8)
@@ -65,28 +60,34 @@ export const POST = withRouteHandler(
       logger.info(`[${requestId}] Creating tag definition for knowledge base ${knowledgeBaseId}`)
 
       const auth = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
-      if (!auth.success) {
+      if (!auth.success || !auth.userId) {
         return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
       }
 
-      // For session auth, verify KB access. Internal JWT is trusted.
-      if (auth.authType === AuthType.SESSION && auth.userId) {
-        const accessCheck = await checkKnowledgeBaseWriteAccess(knowledgeBaseId, auth.userId)
-        if (!accessCheck.hasAccess) {
-          return NextResponse.json(
-            { error: accessCheck.notFound ? 'Not found' : 'Forbidden' },
-            { status: accessCheck.notFound ? 404 : 403 }
-          )
-        }
+      const accessCheck = await checkKnowledgeBaseWriteAccess(knowledgeBaseId, auth.userId)
+      if (!accessCheck.hasAccess) {
+        return NextResponse.json(
+          { error: accessCheck.notFound ? 'Not found' : 'Forbidden' },
+          { status: accessCheck.notFound ? 404 : 403 }
+        )
       }
 
       const parsed = await parseRequest(createTagDefinitionContract, req, context)
       if (!parsed.success) return parsed.response
 
       const validatedData = parsed.data.body
-      if (!(SUPPORTED_FIELD_TYPES as readonly string[]).includes(validatedData.fieldType)) {
+      /**
+       * The contract types `tagSlot` and `fieldType` as plain strings because
+       * tightening them to enums cascades into UI form state types, so the pair is
+       * checked here. Nothing downstream enforces it: the slot column is `text`
+       * (its Drizzle `enum` is types-only) and the service casts before inserting.
+       */
+      if (!isValidSlotForFieldType(validatedData.tagSlot, validatedData.fieldType)) {
         return NextResponse.json(
-          { error: 'Invalid request data', details: 'Invalid field type' },
+          {
+            error: 'Invalid request data',
+            details: `Tag slot "${validatedData.tagSlot}" is not valid for field type "${validatedData.fieldType}"`,
+          },
           { status: 400 }
         )
       }

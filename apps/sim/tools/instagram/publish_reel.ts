@@ -12,8 +12,7 @@ export const instagramPublishReelTool: ToolConfig<
 > = {
   id: 'instagram_publish_reel',
   name: 'Instagram Publish Reel',
-  description:
-    'Create and publish a Reel from an uploaded video file or public HTTPS URL (polls until ready)',
+  description: 'Create and publish a Reel from a Sim video file (polls until ready)',
   version: '1.0.0',
 
   oauth: {
@@ -38,7 +37,7 @@ export const instagramPublishReelTool: ToolConfig<
       type: 'file',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Reel video file or public HTTPS URL',
+      description: 'Reel video uploaded to Sim or referenced from a previous block',
     },
     caption: {
       type: 'string',
@@ -50,7 +49,7 @@ export const instagramPublishReelTool: ToolConfig<
       type: 'file',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Optional JPEG cover image file or public HTTPS URL',
+      description: 'Optional JPEG cover uploaded to Sim or referenced from a previous block',
     },
     shareToFeed: {
       type: 'boolean',

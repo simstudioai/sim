@@ -106,7 +106,7 @@ export interface SerializableExecutionState {
   workflowVariableResolvedSecretTraceProvenance?: Record<string, ResolvedSecretTraceProvenanceV1>
   /** Exact-value provenance for the persisted workflow input. Absence means legacy/untracked. */
   workflowInputResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
-  /** Exact-value provenance for the persisted terminal output. Absence means legacy/untracked. */
+  /** Encrypted candidates for the persisted terminal output. Absence means legacy/untracked. */
   finalOutputResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
   /** Presence distinguishes current checkpoints from legacy states that predate provenance. */
   resolvedSecretTraceCheckpointVersion?: 1
@@ -170,11 +170,11 @@ export interface BlockCompletionCallbackData {
   input?: unknown
   output: NormalizedBlockOutput
   /**
-   * Encrypted provenance filtered to this exact block output. Internal durable
-   * consumers use it when the raw output crosses a storage boundary.
+   * Encrypted candidates active in this block call. Internal durable consumers
+   * filter them against the exact value that crosses a storage boundary.
    */
   resolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
-  /** Internal display-only provenance filtered to this callback's input/output envelope. */
+  /** Internal encrypted candidates filtered against the display envelope during projection. */
   displayResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
   executionTime: number
   startedAt: string

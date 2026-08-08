@@ -527,7 +527,7 @@ export function MCP() {
                     >
                       <div className='flex-1'>
                         <div className='flex h-[16px] items-center gap-1.5'>
-                          <p className='font-medium text-[var(--text-primary)] text-sm leading-none'>
+                          <p className='text-[var(--text-primary)] text-sm leading-none'>
                             {tool.name}
                           </p>
                           {issues.length > 0 && (
@@ -563,7 +563,7 @@ export function MCP() {
 
                     {isExpanded && hasParams && (
                       <div className='border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 py-2'>
-                        <p className='mb-1.5 font-medium text-[var(--text-muted)] text-caption uppercase tracking-wide'>
+                        <p className='mb-1.5 text-[var(--text-muted)] text-caption uppercase tracking-wide'>
                           Parameters
                         </p>
                         <div className='flex flex-col gap-1.5'>
@@ -585,7 +585,7 @@ export function MCP() {
                                   className='rounded-sm border border-[var(--border-1)] bg-[var(--surface-3)] px-2 py-1.5'
                                 >
                                   <div className='flex items-center gap-1.5'>
-                                    <span className='font-medium text-[var(--text-primary)] text-small'>
+                                    <span className='text-[var(--text-primary)] text-small'>
                                       {paramName}
                                     </span>
                                     <Badge variant='outline' size='sm'>

@@ -342,7 +342,6 @@ describe('runBabysitPiWithOptions', () => {
     expect(mockRequestReview).toHaveBeenCalledWith(
       expect.objectContaining({ pullNumber: 7 }),
       ['@review-bot'],
-      expect.any(Array),
       expect.any(AbortSignal)
     )
     expect(mockWithPiSandbox).toHaveBeenCalledTimes(1)
