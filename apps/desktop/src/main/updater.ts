@@ -10,7 +10,8 @@ import type { EventRecorder } from '@/main/observability'
 const logger = createLogger('DesktopUpdater')
 
 const INITIAL_CHECK_DELAY_MS = 10_000
-const CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000
+const PRERELEASE_CHECK_INTERVAL_MS = 5 * 60 * 1000
+const STABLE_CHECK_INTERVAL_MS = 30 * 60 * 1000
 
 export type UpdateChannel = 'latest' | 'beta' | 'alpha'
 
@@ -70,6 +71,13 @@ export function resolveUpdateChannel(version: string): UpdateChannel {
     return 'beta'
   }
   return 'latest'
+}
+
+/** Dev/staging shells poll rapidly; production shells use a quieter cadence. */
+export function updateCheckIntervalMs(version: string): number {
+  return resolveUpdateChannel(version) === 'latest'
+    ? STABLE_CHECK_INTERVAL_MS
+    : PRERELEASE_CHECK_INTERVAL_MS
 }
 
 interface ParsedSemver {
@@ -263,7 +271,8 @@ interface UpdateEngine {
 
 /**
  * Keeps installed shells current against the per-environment update feed:
- * checks on launch and every four hours, and mirrors pipeline state to the
+ * checks on launch, then every five minutes for dev/staging builds or every
+ * thirty minutes for production builds, and mirrors pipeline state to the
  * renderer for the settings update UI and the minimum-shell-version gate.
  *
  * Developer-ID-signed builds use electron-updater (background download,
@@ -528,7 +537,7 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
       }
       const check = () => engine?.check()
       setTimeout(check, INITIAL_CHECK_DELAY_MS)
-      setInterval(check, CHECK_INTERVAL_MS)
+      setInterval(check, updateCheckIntervalMs(currentVersion))
     })
 
   return {

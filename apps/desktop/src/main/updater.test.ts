@@ -25,6 +25,7 @@ import {
   isNewerVersion,
   parseSemver,
   resolveUpdateChannel,
+  updateCheckIntervalMs,
 } from '@/main/updater'
 
 describe('resolveUpdateChannel', () => {
@@ -36,6 +37,17 @@ describe('resolveUpdateChannel', () => {
   it('maps prerelease versions to their channel', () => {
     expect(resolveUpdateChannel('1.2.3-beta.1')).toBe('beta')
     expect(resolveUpdateChannel('1.2.3-alpha.2')).toBe('alpha')
+  })
+})
+
+describe('updateCheckIntervalMs', () => {
+  it('checks dev and staging builds every five minutes', () => {
+    expect(updateCheckIntervalMs('1.2.3-alpha.2')).toBe(5 * 60 * 1000)
+    expect(updateCheckIntervalMs('1.2.3-beta.1')).toBe(5 * 60 * 1000)
+  })
+
+  it('checks production builds every thirty minutes', () => {
+    expect(updateCheckIntervalMs('1.2.3')).toBe(30 * 60 * 1000)
   })
 })
 
@@ -259,6 +271,22 @@ describe('initUpdater state machine', () => {
       await vi.advanceTimersByTimeAsync(0)
       expect(autoUpdaterMock.checkForUpdates).toHaveBeenCalledTimes(1)
     } finally {
+      vi.mocked(app.getVersion).mockReturnValue('1.0.0')
+    }
+  })
+
+  it.each([
+    ['1.0.1-alpha.7', 5 * 60 * 1000],
+    ['1.0.1-beta.7', 5 * 60 * 1000],
+    ['1.0.1', 30 * 60 * 1000],
+  ])('schedules %s update polling every %i milliseconds', async (version, interval) => {
+    vi.mocked(app.getVersion).mockReturnValue(version)
+    const intervalSpy = vi.spyOn(globalThis, 'setInterval')
+    try {
+      await createUpdater({ feedAvailable: true })
+      expect(intervalSpy).toHaveBeenCalledWith(expect.any(Function), interval)
+    } finally {
+      intervalSpy.mockRestore()
       vi.mocked(app.getVersion).mockReturnValue('1.0.0')
     }
   })
