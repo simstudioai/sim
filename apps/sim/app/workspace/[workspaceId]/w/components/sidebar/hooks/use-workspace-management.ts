@@ -117,19 +117,13 @@ export function useWorkspaceManagement({
   const pinnedWorkspaceIdsRef = useRef<Set<string>>(pinnedWorkspaceIds)
   pinnedWorkspaceIdsRef.current = pinnedWorkspaceIds
 
-  /**
-   * Reads the current pins through a ref so the callback identity stays stable for
-   * the memoized switcher, and derives the whole next list here — the settings
-   * endpoint replaces it wholesale, and this hook is the one place that already
-   * owns the set.
-   */
+  /** Reads the current pins through a ref so the callback identity stays stable for the memoized switcher. */
   const toggleWorkspacePin = useCallback(
     (workspaceId: string) => {
-      const current = pinnedWorkspaceIdsRef.current
-      const pinnedWorkspaceIds = current.has(workspaceId)
-        ? [...current].filter((id) => id !== workspaceId)
-        : [...current, workspaceId]
-      toggleWorkspacePinMutate({ pinnedWorkspaceIds })
+      toggleWorkspacePinMutate({
+        workspaceId,
+        pinned: !pinnedWorkspaceIdsRef.current.has(workspaceId),
+      })
     },
     [toggleWorkspacePinMutate]
   )

@@ -1,9 +1,8 @@
 import { db } from '@sim/db'
-import { settings, type workspace as workspaceTable } from '@sim/db/schema'
+import { pinnedItem, settings, type workspace as workspaceTable } from '@sim/db/schema'
 import type { PermissionType } from '@sim/platform-authz/workspace'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import type { PlanCategory } from '@/lib/billing/plan-helpers'
-import { normalizeStringArray } from '@/lib/core/utils/arrays'
 import {
   evaluateWorkspaceInvitePolicy,
   getInvitePlanCategoryForOrganization,
@@ -111,36 +110,33 @@ export async function listWorkspacesForViewer(params: {
 }): Promise<WorkspaceListPayload> {
   const { userId, activeOrganizationId, scope = 'active' } = params
 
-  const [creationPolicy, workspaces, userSettings] = await Promise.all([
+  /**
+   * The viewer's workspace pins are read here rather than through
+   * `GET /api/pinned-items`, which lists the pins *inside* one workspace — the
+   * switcher needs the pins *of* every workspace. Riding along on this payload also
+   * means the sidebar prefetch hydrates them in the same pass, so pinned-first
+   * ordering is correct on first paint instead of re-sorting after hydration.
+   */
+  const [creationPolicy, workspaces, userSettings, workspacePins] = await Promise.all([
     getWorkspaceCreationPolicy({ userId, activeOrganizationId }),
     listAccessibleWorkspaceRowsForUser(userId, scope).then((rows) =>
       buildWorkspacesWithInviteFlags(rows, userId)
     ),
     db
-      .select({
-        lastActiveWorkspaceId: settings.lastActiveWorkspaceId,
-        pinnedWorkspaceIds: settings.pinnedWorkspaceIds,
-      })
+      .select({ lastActiveWorkspaceId: settings.lastActiveWorkspaceId })
       .from(settings)
       .where(eq(settings.userId, userId))
       .limit(1),
+    db
+      .select({ resourceId: pinnedItem.resourceId })
+      .from(pinnedItem)
+      .where(and(eq(pinnedItem.userId, userId), eq(pinnedItem.resourceType, 'workspace'))),
   ])
 
   return {
     workspaces,
     lastActiveWorkspaceId: userSettings[0]?.lastActiveWorkspaceId ?? null,
-    /**
-     * Returned verbatim — deliberately NOT intersected with `workspaces`.
-     *
-     * The client persists pins by replacing the whole list, so it can only send
-     * back what it was given: filtering here would make a pin for a workspace that
-     * is merely archived, or temporarily unreachable, vanish from the payload and
-     * then be erased for good by the user's next unrelated pin. Ids the viewer
-     * cannot currently see are inert instead — every consumer asks
-     * `pinned.has(workspace.id)` about a workspace it is already rendering, so an
-     * unmatched id is never read.
-     */
-    pinnedWorkspaceIds: normalizeStringArray(userSettings[0]?.pinnedWorkspaceIds),
+    pinnedWorkspaceIds: workspacePins.map((row) => row.resourceId),
     creationPolicy,
   }
 }

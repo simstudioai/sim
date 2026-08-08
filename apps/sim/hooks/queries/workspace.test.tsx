@@ -15,6 +15,8 @@ vi.mock('@/lib/api/client/request', () => ({
   requestJson: mockRequestJson,
 }))
 
+import { ApiClientError } from '@/lib/api/client/errors'
+import { createPinnedItemContract, deletePinnedItemContract } from '@/lib/api/contracts'
 import { useToggleWorkspacePin, workspaceKeys } from '@/hooks/queries/workspace'
 
 /** Trees rendered by a test, torn down in afterEach so observers do not leak across tests. */
@@ -62,6 +64,20 @@ async function flush() {
   })
 }
 
+function seedList(queryClient: QueryClient, pinnedWorkspaceIds: string[]) {
+  queryClient.setQueryData(workspaceKeys.list('active'), {
+    workspaces: [],
+    lastActiveWorkspaceId: null,
+    pinnedWorkspaceIds,
+    creationPolicy: null,
+  })
+}
+
+function readPins(queryClient: QueryClient): string[] | undefined {
+  return queryClient.getQueryData<{ pinnedWorkspaceIds: string[] }>(workspaceKeys.list('active'))
+    ?.pinnedWorkspaceIds
+}
+
 afterEach(() => {
   act(() => {
     for (const root of mountedRoots.splice(0)) root.unmount()
@@ -73,96 +89,98 @@ beforeEach(() => {
 })
 
 describe('useToggleWorkspacePin', () => {
-  /**
-   * Each request carries the whole pin list, so overlapping writes that the network
-   * delivers out of order would let the earlier click win. The hook chains them, so
-   * the second request must not be issued until the first has resolved.
-   */
-  it('serializes overlapping writes so the last click is what persists', async () => {
-    const resolvers: Array<() => void> = []
-    mockRequestJson.mockImplementation(
-      () =>
-        new Promise<{ success: true }>((resolve) => {
-          resolvers.push(() => resolve({ success: true }))
-        })
-    )
-
-    const { getResult } = renderHookWithClient(() => useToggleWorkspacePin())
+  it('pins by creating a row addressed to the workspace itself', async () => {
+    mockRequestJson.mockResolvedValue({ pinnedItem: {} })
+    const { getResult, queryClient } = renderHookWithClient(() => useToggleWorkspacePin())
+    seedList(queryClient, [])
 
     act(() => {
-      getResult().mutate({ pinnedWorkspaceIds: ['ws-a'] })
-      getResult().mutate({ pinnedWorkspaceIds: ['ws-a', 'ws-b'] })
+      getResult().mutate({ workspaceId: 'ws-a', pinned: true })
     })
     await flush()
 
-    // Only the first write is on the wire; the second is queued behind it.
-    expect(mockRequestJson).toHaveBeenCalledOnce()
-    expect(mockRequestJson.mock.calls[0][1]).toMatchObject({
-      body: { pinnedWorkspaceIds: ['ws-a'] },
-    })
-
-    act(() => resolvers[0]())
-    await flush()
-
-    expect(mockRequestJson).toHaveBeenCalledTimes(2)
-    expect(mockRequestJson.mock.calls[1][1]).toMatchObject({
-      body: { pinnedWorkspaceIds: ['ws-a', 'ws-b'] },
+    expect(mockRequestJson).toHaveBeenCalledWith(createPinnedItemContract, {
+      body: { workspaceId: 'ws-a', resourceType: 'workspace', resourceId: 'ws-a' },
     })
   })
 
-  /**
-   * Refetching between two queued writes would render the server's pre-second-write
-   * state and visibly bounce the row out of the pinned group and back.
-   */
-  it('reconciles only after the last queued write settles', async () => {
-    const resolvers: Array<() => void> = []
-    mockRequestJson.mockImplementation(
-      () =>
-        new Promise<{ success: true }>((resolve) => {
-          resolvers.push(() => resolve({ success: true }))
-        })
-    )
-
+  it('unpins by deleting that row', async () => {
+    mockRequestJson.mockResolvedValue({ success: true })
     const { getResult, queryClient } = renderHookWithClient(() => useToggleWorkspacePin())
-    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
+    seedList(queryClient, ['ws-a'])
 
     act(() => {
-      getResult().mutate({ pinnedWorkspaceIds: ['ws-a'] })
-      getResult().mutate({ pinnedWorkspaceIds: ['ws-a', 'ws-b'] })
+      getResult().mutate({ workspaceId: 'ws-a', pinned: false })
     })
     await flush()
 
-    act(() => resolvers[0]())
-    await flush()
-
-    // First write settled, second still outstanding — nothing reconciled yet.
-    expect(invalidateSpy).not.toHaveBeenCalled()
-
-    act(() => resolvers[1]())
-    await flush()
-
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: workspaceKeys.lists() })
+    expect(mockRequestJson).toHaveBeenCalledWith(deletePinnedItemContract, {
+      params: { resourceType: 'workspace', resourceId: 'ws-a' },
+    })
+    expect(readPins(queryClient)).toEqual([])
   })
 
-  it('applies the pin optimistically before the request resolves', async () => {
-    mockRequestJson.mockImplementation(() => new Promise<{ success: true }>(() => {}))
-
+  /**
+   * Two rapid toggles write different rows, so neither can overwrite the other and
+   * both survive regardless of the order the requests land in.
+   */
+  it('keeps both pins when two toggles overlap', async () => {
+    const resolvers: Array<() => void> = []
+    mockRequestJson.mockImplementation(
+      () => new Promise((resolve) => resolvers.push(() => resolve({ pinnedItem: {} })))
+    )
     const { getResult, queryClient } = renderHookWithClient(() => useToggleWorkspacePin())
-    queryClient.setQueryData(workspaceKeys.list('active'), {
-      workspaces: [],
-      lastActiveWorkspaceId: null,
-      pinnedWorkspaceIds: [],
-      creationPolicy: null,
-    })
+    seedList(queryClient, [])
 
     act(() => {
-      getResult().mutate({ pinnedWorkspaceIds: ['ws-a'] })
+      getResult().mutate({ workspaceId: 'ws-a', pinned: true })
+      getResult().mutate({ workspaceId: 'ws-b', pinned: true })
     })
     await flush()
 
-    expect(
-      queryClient.getQueryData<{ pinnedWorkspaceIds: string[] }>(workspaceKeys.list('active'))
-        ?.pinnedWorkspaceIds
-    ).toEqual(['ws-a'])
+    expect(readPins(queryClient)).toEqual(['ws-a', 'ws-b'])
+
+    // Resolve out of order — the older request landing last must not undo the newer.
+    act(() => {
+      resolvers[1]()
+      resolvers[0]()
+    })
+    await flush()
+
+    const bodies = mockRequestJson.mock.calls.map((call) => call[1].body.resourceId)
+    expect(bodies).toEqual(['ws-a', 'ws-b'])
+    expect(readPins(queryClient)).toEqual(['ws-a', 'ws-b'])
+  })
+
+  /** Re-pinning an already-pinned workspace is the desired end state, not a failure. */
+  it('treats a 409 from a duplicate pin as success', async () => {
+    mockRequestJson.mockRejectedValue(
+      new ApiClientError({ status: 409, message: 'This item is already pinned', body: {} })
+    )
+    const { getResult, queryClient } = renderHookWithClient(() => useToggleWorkspacePin())
+    seedList(queryClient, [])
+
+    act(() => {
+      getResult().mutate({ workspaceId: 'ws-a', pinned: true })
+    })
+    await flush()
+
+    expect(getResult().isError).toBe(false)
+    expect(readPins(queryClient)).toEqual(['ws-a'])
+  })
+
+  it('rolls the optimistic pin back when the write fails', async () => {
+    mockRequestJson.mockRejectedValue(
+      new ApiClientError({ status: 500, message: 'boom', body: {} })
+    )
+    const { getResult, queryClient } = renderHookWithClient(() => useToggleWorkspacePin())
+    seedList(queryClient, [])
+
+    act(() => {
+      getResult().mutate({ workspaceId: 'ws-a', pinned: true })
+    })
+    await flush()
+
+    expect(readPins(queryClient)).toEqual([])
   })
 })

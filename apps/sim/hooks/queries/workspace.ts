@@ -1,17 +1,17 @@
-import { useRef } from 'react'
 import type { QueryClient } from '@tanstack/react-query'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import type { ContractBodyInput } from '@/lib/api/contracts'
 import {
+  createPinnedItemContract,
   createWorkspaceContract,
+  deletePinnedItemContract,
   deleteWorkspaceContract,
   getWorkspaceContract,
   getWorkspaceMembersContract,
   getWorkspacePermissionsContract,
   listWorkspacesContract,
-  updateUserSettingsContract,
   updateWorkspaceContract,
   type Workspace,
   type WorkspaceCreationPolicy,
@@ -20,6 +20,7 @@ import {
   type WorkspaceQueryScope,
   type WorkspacesResponse,
 } from '@/lib/api/contracts'
+import { pinnedItemKeys } from '@/hooks/queries/utils/pinned-item-keys'
 import {
   normalizeWorkspace,
   normalizeWorkspacesResponse,
@@ -119,62 +120,57 @@ export function usePinnedWorkspaceIds(enabled = true) {
 }
 
 /**
- * Persists the viewer's pinned workspaces.
+ * Pins or unpins a workspace in the switcher.
  *
- * The settings endpoint replaces the list wholesale, so the caller passes the full
- * set it wants rather than a delta. Optimistic because the pin re-sorts the list
- * under the user's cursor, where a round-trip delay reads as a dropped click.
+ * Writes one `pinned_item` row per pin, so a pin is an insert and an unpin is a
+ * delete. Two rapid toggles touch different rows and cannot overwrite each other,
+ * which is why nothing here serializes or debounces. Re-pinning an already-pinned
+ * workspace answers 409 and unpinning an absent pin is a no-op, so a duplicate
+ * click is idempotent rather than an error.
+ *
+ * Optimistic against the workspace list, because that is where the pins are read
+ * and the toggle re-sorts the row under the user's cursor.
  */
 export function useToggleWorkspacePin() {
   const queryClient = useQueryClient()
   const queryKey = workspaceKeys.list('active')
-  /**
-   * Tail of the in-flight write chain, and the count of toggles still outstanding.
-   * A burst of clicks is a burst of independent mutations, and this endpoint takes
-   * the whole list — so both are needed, for the two different ways that races.
-   */
-  const writeChainRef = useRef<Promise<unknown>>(Promise.resolve())
-  const outstandingRef = useRef(0)
 
   return useMutation({
-    /**
-     * Chained rather than fired concurrently: each request carries the complete
-     * list, so if two overlap and the network delivers them out of order the older
-     * one lands last and silently undoes the newer click. Serializing makes the
-     * final stored state the last one the user actually asked for.
-     */
-    mutationFn: ({ pinnedWorkspaceIds }: { pinnedWorkspaceIds: string[] }) => {
-      const send = writeChainRef.current
-        .catch(() => {})
-        .then(() => requestJson(updateUserSettingsContract, { body: { pinnedWorkspaceIds } }))
-      writeChainRef.current = send
-      return send
+    mutationFn: async ({ workspaceId, pinned }: { workspaceId: string; pinned: boolean }) => {
+      if (!pinned) {
+        await requestJson(deletePinnedItemContract, {
+          params: { resourceType: 'workspace', resourceId: workspaceId },
+        })
+        return
+      }
+      try {
+        await requestJson(createPinnedItemContract, {
+          body: { workspaceId, resourceType: 'workspace', resourceId: workspaceId },
+        })
+      } catch (error) {
+        /** Already pinned — the desired state, so not a failure to roll back. */
+        if (error instanceof ApiClientError && error.status === 409) return
+        throw error
+      }
     },
-    onMutate: async ({ pinnedWorkspaceIds }) => {
-      outstandingRef.current += 1
+    onMutate: async ({ workspaceId, pinned }) => {
       await queryClient.cancelQueries({ queryKey })
       const previous = queryClient.getQueryData<WorkspacesResponse>(queryKey)
-      queryClient.setQueryData<WorkspacesResponse>(queryKey, (old) =>
-        old ? { ...old, pinnedWorkspaceIds } : old
-      )
+      queryClient.setQueryData<WorkspacesResponse>(queryKey, (old) => {
+        if (!old) return old
+        const next = pinned
+          ? [...old.pinnedWorkspaceIds.filter((id) => id !== workspaceId), workspaceId]
+          : old.pinnedWorkspaceIds.filter((id) => id !== workspaceId)
+        return { ...old, pinnedWorkspaceIds: next }
+      })
       return { previous }
     },
     onError: (_error, _variables, context) => {
       if (context?.previous) queryClient.setQueryData(queryKey, context.previous)
     },
-    /**
-     * Reconciles only once the last queued write has settled. Refetching while
-     * another is still chained would render the server's pre-that-write state and
-     * visibly bounce the row out of the pinned group and back.
-     *
-     * Reconciling at all is not optional: the settings route answers
-     * `{ success: true }` even when the write throws, so a failed save never
-     * reaches `onError` and the optimistic list would otherwise stay wrong.
-     */
     onSettled: () => {
-      outstandingRef.current -= 1
-      if (outstandingRef.current > 0) return
       queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: pinnedItemKeys.all })
     },
   })
 }

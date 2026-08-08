@@ -114,16 +114,6 @@ export const updateUserSettingsBodySchema = z.object({
   timezone: ianaTimezoneSchema.nullable().optional(),
   /** Mirrors `userSettingsSchema.lastActiveWorkspaceId` so explicit `null` is accepted to clear the active workspace. */
   lastActiveWorkspaceId: z.string().nullable().optional(),
-  /**
-   * Replaces the pinned-workspace list wholesale — the client sends the full set
-   * it wants, so pinning and unpinning are the same write. Write-only: the list is
-   * read back on the `/api/workspaces` payload, alongside the workspaces it orders.
-   * Bounded because it is an unvalidated client-supplied array persisted verbatim.
-   */
-  pinnedWorkspaceIds: z
-    .array(z.string().min(1, 'Workspace ID cannot be empty').max(255, 'Workspace ID is too long'))
-    .max(200, 'Too many pinned workspaces')
-    .optional(),
 })
 
 export const getUserSettingsContract = defineRouteContract({

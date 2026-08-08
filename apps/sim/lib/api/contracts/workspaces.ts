@@ -193,10 +193,10 @@ export const listWorkspacesContract = defineRouteContract({
       workspaces: z.array(workspaceSchema),
       lastActiveWorkspaceId: z.string().nullable(),
       /**
-       * The viewer's pinned workspace ids as stored. May name workspaces absent
-       * from `workspaces` (archived, or access since removed) — clients look pins
-       * up per rendered workspace, so unmatched ids are inert, and preserving them
-       * is what keeps a pin from being dropped by the next wholesale write.
+       * Workspace ids the viewer pinned in the switcher, from `pinned_item`. May
+       * name workspaces absent from `workspaces` (archived, or access since
+       * removed); clients look pins up per rendered workspace, so unmatched ids
+       * are inert and the pin survives if access is restored.
        */
       pinnedWorkspaceIds: z.array(z.string()).default([]),
       creationPolicy: workspaceCreationPolicySchema.nullable(),
