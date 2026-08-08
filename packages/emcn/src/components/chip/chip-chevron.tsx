@@ -1,5 +1,6 @@
 import { ChevronDown } from '../../icons'
 import { cn } from '../../lib/cn'
+import { chipIconSlotClass } from './chip-chrome'
 
 interface ChipChevronDownProps {
   /** Layout-only extras (e.g. `ml-auto` to push the chevron flush right). Never chrome. */
@@ -21,13 +22,7 @@ interface ChipChevronDownProps {
  */
 export function ChipChevronDown({ className }: ChipChevronDownProps) {
   return (
-    <span
-      aria-hidden
-      className={cn(
-        'inline-flex size-[16px] flex-shrink-0 items-center justify-center text-[var(--text-icon)]',
-        className
-      )}
-    >
+    <span aria-hidden className={cn(chipIconSlotClass, 'text-[var(--text-icon)]', className)}>
       <ChevronDown className='size-[14px]' />
     </span>
   )

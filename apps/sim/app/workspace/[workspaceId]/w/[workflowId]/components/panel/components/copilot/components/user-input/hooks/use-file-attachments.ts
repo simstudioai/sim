@@ -159,8 +159,8 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
       if (files.length === 0) return
 
       const placeholders: AttachedFile[] = files.map((file) => {
-        // Resolve once: the browser reports `application/octet-stream` (or nothing) for
-        // plenty of files, and both the chip and the preview decision key off the type.
+        /** Resolved once: browsers report `application/octet-stream` (or nothing) for
+         *  plenty of files, and both the chip and the preview decision key off it. */
         const type = resolveFileType(file)
         return {
           id: generateId(),
@@ -211,10 +211,9 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
                       path: result.path,
                       key: result.key,
                       uploading: false,
-                      // A format the browser cannot decode has no local preview; now that
-                      // the bytes are stored, the serve route can hand back a renderable
-                      // derivative. Anything already previewing keeps its blob URL rather
-                      // than paying a round trip for a thumbnail it can draw locally.
+                      /** A format the browser cannot decode has no local preview; the
+                       *  stored bytes now have a renderable derivative. Anything already
+                       *  previewing keeps its blob URL. */
                       previewUrl:
                         f.previewUrl ??
                         getMothershipAttachmentPreviewUrl({
@@ -352,12 +351,11 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
   }, [])
 
   /**
-   * Replaces the current attached files with a given set.
-   * Cleans up preview URLs from the prior set before replacing.
+   * Replaces the current attached files with a given set, revoking the prior set's
+   * preview URLs first. Revoked outside the updater, which must stay pure — React
+   * double-invokes updaters in StrictMode and may replay them.
    */
   const restoreAttachedFiles = useCallback((files: AttachedFile[]) => {
-    // Revoked outside the updater: React double-invokes updaters in StrictMode and may
-    // replay them, so they have to stay pure.
     attachedFilesRef.current.forEach((f) => revokePreviewUrl(f.previewUrl))
     setAttachedFiles(files)
   }, [])

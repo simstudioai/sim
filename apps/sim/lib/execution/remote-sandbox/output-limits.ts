@@ -10,11 +10,9 @@ export const MAX_SANDBOX_PROCESS_OUTPUT_BYTES = 10 * 1024 * 1024
 /**
  * Diagnostic tail kept from a stream the caller consumed itself.
  *
- * A caller that passes `onStdout`/`onStderr` takes delivery of every chunk as it arrives, so the
- * adapter's accumulated copy is never the result — it is only ever read back to explain a failure.
- * Billing that copy to the retention budget kills runs whose live stream is legitimately long while
- * producing no oversized result: a Pi agent turn emits one JSONL event per step and passes 10 MB on
- * an ordinary session, even though the caller has already parsed every event and keeps none of it.
+ * Providers that can discard callback-delivered output use this tail as their only retained copy.
+ * E2B's SDK always accumulates the full streams internally, so its adapter must still enforce the
+ * process-output budget before applying this diagnostic tail to the returned result.
  */
 export const MAX_SANDBOX_STREAMED_OUTPUT_TAIL_BYTES = 64 * 1024
 

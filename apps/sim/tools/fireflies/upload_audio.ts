@@ -1,4 +1,3 @@
-import { isPlainRecord } from '@sim/utils/object'
 import type {
   FirefliesUploadAudioParams,
   FirefliesUploadAudioResponse,
@@ -70,14 +69,6 @@ export const firefliesUploadAudioTool: ToolConfig<
     modelInput: {
       mode: 'project',
       select: (params) => ({ language: params.language }),
-      privateProvenance: (params) => {
-        if (isPlainRecord(params.audioFile)) {
-          if (params.audioFile.key) return undefined
-          if (params.audioFile.url) return { url: params.audioFile.url }
-          if (params.audioFile.path) return { path: params.audioFile.path }
-        }
-        return params.audioUrl || undefined
-      },
     },
     url: '/api/tools/fireflies/upload-audio',
     method: 'POST',

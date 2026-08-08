@@ -9,25 +9,29 @@ import {
   scrubPiSecrets,
 } from '@/executor/handlers/pi/core/redaction'
 
-describe('Pi secret redaction', () => {
-  it('redacts literal and URL-encoded secret representations', () => {
+describe('Pi credential diagnostic redaction', () => {
+  it('redacts literal and URL-encoded credential representations', () => {
     expect(
       scrubPiSecrets('literal sk-hosted/secret encoded sk-hosted%2Fsecret', ['sk-hosted/secret'])
     ).toBe('literal *** encoded ***')
   })
 
-  it('redacts longer overlapping secrets before their prefixes', () => {
+  it('redacts longer overlapping credentials before their prefixes', () => {
     expect(scrubPiSecrets('ghp_secret and ghp_', ['ghp_', 'ghp_secret'])).toBe('*** and ***')
   })
 
-  it('redacts all string-bearing Pi event variants', () => {
+  it('leaves ordinary low-entropy model content intact and redacts only error events', () => {
+    expect(scrubPiEvent({ type: 'text', text: 'a cat made a change' }, ['a'])).toEqual({
+      type: 'text',
+      text: 'a cat made a change',
+    })
     expect(scrubPiEvent({ type: 'thinking', text: 'saw sk-hosted' }, ['sk-hosted'])).toEqual({
       type: 'thinking',
-      text: 'saw ***',
+      text: 'saw sk-hosted',
     })
     expect(
       scrubPiEvent({ type: 'tool_end', toolName: 'sk-hosted', isError: true }, ['sk-hosted'])
-    ).toEqual({ type: 'tool_end', toolName: '***', isError: true })
+    ).toEqual({ type: 'tool_end', toolName: 'sk-hosted', isError: true })
     expect(scrubPiEvent({ type: 'error', message: 'failed sk-hosted' }, ['sk-hosted'])).toEqual({
       type: 'error',
       message: 'failed ***',

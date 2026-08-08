@@ -378,6 +378,12 @@ Shareable *client* view-state (active tab/panel, filters, search query, paginati
 
 Co-locate a `search-params.ts` per feature exporting the parser map (single source of truth, shared by client `useQueryStates`/`useQueryState` and server `createSearchParamsCache`). Never `import { z }` in client code for params — use nuqs parsers. Full decision framework, conventions, the debounced-input pattern, and the workflow-editor carve-out are in `.claude/rules/sim-url-state.md`.
 
+## List & Menu Ordering
+
+A list orders itself the way the user already reads the same things somewhere else. Resource menus (`+` attach, `@` mention, resource-tab `+`) mirror the **sidebar** top-down; a row or root **context menu** mirrors that surface's **toolbar**, left-to-right becoming top-to-bottom; tab strips mirror their nav. Platform-only entries (desktop Browser, Terminal) trail the shared set.
+
+Encode the order in ONE exported constant and sort by it — never a hand-maintained literal per menu (`RESOURCE_MENU_ORDER` / `byResourceMenuOrder` in `home/components/mothership-view/components/resource-registry`). Render mixed item kinds in a single ordered pass; emitting all submenu-backed families and then all flat ones silently pins every submenu to the top no matter what the constant says. Divergence is allowed only for search ranking, user-controlled ordering, and recency. Full rule in `.claude/rules/sim-list-ordering.md`.
+
 ## Styling
 
 Use Tailwind only, no inline styles. Use `cn()` from `@sim/emcn` for conditional classes.

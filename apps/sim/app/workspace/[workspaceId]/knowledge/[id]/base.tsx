@@ -1145,7 +1145,7 @@ export function KnowledgeBase({
               content: (
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
-                    <span className='font-medium text-[var(--text-secondary)] text-sm'>
+                    <span className='text-[var(--text-secondary)] text-sm'>
                       {format(new Date(doc.uploadedAt), 'MMM d')}
                     </span>
                   </Tooltip.Trigger>
@@ -1168,9 +1168,7 @@ export function KnowledgeBase({
       <div className='flex h-full flex-col items-center justify-center gap-3'>
         <DatabaseX className='size-[32px] text-[var(--text-muted)]' />
         <div className='flex flex-col items-center gap-1'>
-          <h2 className='font-medium text-[20px] text-[var(--text-secondary)]'>
-            Knowledge base not found
-          </h2>
+          <h2 className='text-[20px] text-[var(--text-secondary)]'>Knowledge base not found</h2>
           <p className='text-[var(--text-muted)] text-small'>
             This knowledge base may have been deleted or moved
           </p>

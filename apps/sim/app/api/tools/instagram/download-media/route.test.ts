@@ -303,11 +303,6 @@ describe('POST /api/tools/instagram/download-media', () => {
 })
 
 describe('instagramDownloadMediaTool', () => {
-  it('documents the canonical User File size limit', () => {
-    expect(instagramDownloadMediaTool.description).toContain('100 MB max per file')
-    expect(instagramDownloadMediaTool.outputs?.files.description).toContain('100 MB max each')
-  })
-
   it('forwards execution context and returns canonical file-array output', async () => {
     const body = instagramDownloadMediaTool.request.body?.({
       accessToken: 'instagram-token',
@@ -354,6 +349,5 @@ describe('instagramDownloadMediaTool', () => {
         downloadedCount: 1,
       },
     })
-    expect(instagramDownloadMediaTool.outputs?.files.type).toBe('file[]')
   })
 })

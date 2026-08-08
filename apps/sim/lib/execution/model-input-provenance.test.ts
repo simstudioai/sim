@@ -4,8 +4,14 @@
 import { describe, expect, it } from 'vitest'
 import {
   createModelInputProvenanceRequestMetadata,
+  inspectModelInputProjectionState,
   inspectModelInputProvenanceRequest,
   PRIVATE_MODEL_INPUT_PROVENANCE_HEADER,
+  PRIVATE_MODEL_INPUT_STATE_HEADER,
+  PROJECTED_MODEL_INPUT_PATHS_V1,
+  projectModelSchemaAnnotations,
+  projectResolvedModelInput,
+  selectModelSchemaInputPaths,
   validateOpaqueModelInputProvenance,
 } from '@/lib/execution/model-input-provenance'
 import {
@@ -21,13 +27,11 @@ const ENTRY = {
 }
 
 describe('model input provenance transport', () => {
-  it('exports only committed provenance present in the selected model input', () => {
+  it('exports only committed provenance recorded at the selected input paths', () => {
     const registry = new ResolvedSecretTraceRegistry([ENTRY])
-    registry.recordResolved(ENTRY.name, ENTRY.plaintext)
+    registry.recordResolvedAtInputPath(ENTRY.name, ENTRY.plaintext, ['prompt'])
 
-    const metadata = createModelInputProvenanceRequestMetadata(registry, {
-      prompt: ENTRY.plaintext,
-    })
+    const metadata = createModelInputProvenanceRequestMetadata(registry, [['prompt']])
 
     expect(metadata).toEqual({
       provenance: {
@@ -46,18 +50,119 @@ describe('model input provenance transport', () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'TOKEN', plaintext: secret, encryptedValue: 'encrypted-token' },
     ])
-    registry.recordResolved('TOKEN', secret)
+    registry.recordResolvedAtInputPath('TOKEN', secret, ['messages', '0', 'content'])
 
-    const metadata = createModelInputProvenanceRequestMetadata(
-      registry,
-      JSON.stringify([{ role: 'user', content: secret }])
-    )
+    const metadata = createModelInputProvenanceRequestMetadata(registry, [['messages']])
 
     expect(metadata?.provenance).toEqual({
       version: 1,
       complete: true,
       entries: [{ encryptedValue: 'encrypted-token', name: 'TOKEN' }],
     })
+  })
+
+  it('projects only resolver-recorded leaves without matching equal public text', () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: 'x', encryptedValue: 'encrypted-token' },
+    ])
+    registry.recordResolvedAtInputPath('TOKEN', 'x', ['prompt'])
+    registry.recordResolvedInputProjection(['prompt'], 'x', '{{TOKEN}}')
+
+    const projection = projectResolvedModelInput(
+      registry,
+      { prompt: 'x', publicText: 'Box eSign' },
+      [['prompt']]
+    )
+
+    expect(projection).toMatchObject({
+      complete: true,
+      value: { prompt: '{{TOKEN}}', publicText: 'Box eSign' },
+    })
+  })
+
+  it('keeps equal secret values tied to their exact resolver paths', () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'FIRST', plaintext: 'true', encryptedValue: 'encrypted-first' },
+      { name: 'SECOND', plaintext: 'true', encryptedValue: 'encrypted-second' },
+    ])
+    registry.recordResolvedAtInputPath('FIRST', 'true', ['first'])
+    registry.recordResolvedInputProjection(['first'], 'true', '{{FIRST}}')
+    registry.recordResolvedAtInputPath('SECOND', 'true', ['second'])
+    registry.recordResolvedInputProjection(['second'], 'true', '{{SECOND}}')
+
+    const projection = projectResolvedModelInput(
+      registry,
+      { first: 'true', second: 'true', publicValue: 'true' },
+      [['first'], ['second']]
+    )
+
+    expect(projection).toMatchObject({
+      complete: true,
+      value: { first: '{{FIRST}}', second: '{{SECOND}}', publicValue: 'true' },
+    })
+  })
+
+  it('distinguishes schema annotations from a property whose name is an annotation keyword', () => {
+    const selection = selectModelSchemaInputPaths(
+      {
+        type: 'object',
+        description: 'Model-facing help',
+        properties: {
+          description: {
+            type: 'string',
+            description: 'Property help',
+            enum: ['contract-value'],
+          },
+        },
+      },
+      ['schema']
+    )
+
+    expect(selection.annotationInputPaths).toEqual(
+      expect.arrayContaining([
+        ['schema', 'description'],
+        ['schema', 'properties', 'description', 'description'],
+      ])
+    )
+    expect(selection.semanticInputPaths).toEqual(
+      expect.arrayContaining([
+        ['schema', 'type'],
+        ['schema', 'properties', 'description', 'type'],
+        ['schema', 'properties', 'description', 'enum'],
+      ])
+    )
+    expect(selection.annotationInputPaths).not.toContainEqual([
+      'schema',
+      'properties',
+      'description',
+    ])
+  })
+
+  it('projects schema annotations but rejects changes to semantic values', () => {
+    const raw = {
+      type: 'object',
+      description: 'Private help',
+      properties: {
+        description: { type: 'string', enum: ['private-option'] },
+      },
+    }
+    const annotationOnly = projectModelSchemaAnnotations(raw, {
+      ...raw,
+      description: '{{HELP}}',
+    })
+
+    expect(annotationOnly).toEqual({
+      safe: true,
+      value: { ...raw, description: '{{HELP}}' },
+    })
+    expect(
+      projectModelSchemaAnnotations(raw, {
+        ...raw,
+        properties: {
+          description: { type: 'string', enum: ['{{OPTION}}'] },
+        },
+      })
+    ).toEqual({ safe: false })
   })
 
   it('distinguishes legacy requests from complete and partial private envelopes', () => {
@@ -89,7 +194,21 @@ describe('model input provenance transport', () => {
     ).toEqual({ status: 'invalid' })
   })
 
-  it('preserves external opaque inputs and requires internal callers to send an envelope', () => {
+  it('distinguishes an additive projected-input marker from legacy and invalid states', () => {
+    expect(inspectModelInputProjectionState(new Headers())).toBe('unmarked')
+    expect(
+      inspectModelInputProjectionState(
+        new Headers({ [PRIVATE_MODEL_INPUT_STATE_HEADER]: PROJECTED_MODEL_INPUT_PATHS_V1 })
+      )
+    ).toBe('projected')
+    expect(
+      inspectModelInputProjectionState(
+        new Headers({ [PRIVATE_MODEL_INPUT_STATE_HEADER]: 'unsupported-state' })
+      )
+    ).toBe('invalid')
+  })
+
+  it('preserves headerless legacy opaque inputs for external and internal callers', () => {
     expect(
       validateOpaqueModelInputProvenance({
         headers: new Headers(),
@@ -104,11 +223,7 @@ describe('model input provenance transport', () => {
         payload: {},
         isInternalRequest: true,
       })
-    ).toEqual({
-      success: false,
-      error: 'Model input provenance is unavailable',
-      status: 400,
-    })
+    ).toEqual({ success: true })
 
     expect(
       validateOpaqueModelInputProvenance({
@@ -123,16 +238,7 @@ describe('model input provenance transport', () => {
     ).toEqual({ success: true })
   })
 
-  it('allows only explicitly opted-in internal legacy requests without an envelope', () => {
-    expect(
-      validateOpaqueModelInputProvenance({
-        headers: new Headers(),
-        payload: {},
-        isInternalRequest: true,
-        allowLegacyWithoutEnvelope: true,
-      })
-    ).toEqual({ success: true })
-
+  it('rejects a partial opaque-input envelope', () => {
     expect(
       validateOpaqueModelInputProvenance({
         headers: new Headers(),
@@ -144,7 +250,6 @@ describe('model input provenance transport', () => {
           },
         },
         isInternalRequest: true,
-        allowLegacyWithoutEnvelope: true,
       })
     ).toEqual({ success: false, error: 'Invalid model input provenance', status: 400 })
   })

@@ -1,7 +1,11 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import type { PiEvent } from '@/executor/handlers/pi/core/events'
 
-/** Redacts exact secret values and their URL-encoded forms from surfaced text. */
+/**
+ * Redacts exact credential values and their URL-encoded forms from diagnostics that may echo
+ * transport credentials. Never apply this to model, user, tool, or repository content: matching a
+ * credential value does not prove that the content originated from that credential.
+ */
 export function scrubPiSecrets(text: string, secrets: readonly string[]): string {
   let scrubbed = text
   const representations = new Set(
@@ -15,21 +19,12 @@ export function scrubPiSecrets(text: string, secrets: readonly string[]): string
   return scrubbed
 }
 
-/** Redacts secrets from every string-bearing normalized Pi event. */
+/** Redacts credentials only from provider/SDK error events; ordinary Pi content stays verbatim. */
 export function scrubPiEvent(event: PiEvent | null, secrets: readonly string[]): PiEvent | null {
   if (!event) return event
-  switch (event.type) {
-    case 'text':
-    case 'thinking':
-      return { ...event, text: scrubPiSecrets(event.text, secrets) }
-    case 'tool_start':
-    case 'tool_end':
-      return { ...event, toolName: scrubPiSecrets(event.toolName, secrets) }
-    case 'error':
-      return { ...event, message: scrubPiSecrets(event.message, secrets) }
-    default:
-      return event
-  }
+  return event.type === 'error'
+    ? { ...event, message: scrubPiSecrets(event.message, secrets) }
+    : event
 }
 
 /** Extracts an unknown error message without allowing exact secrets to escape. */

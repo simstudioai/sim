@@ -3,6 +3,10 @@
  */
 import { createMockRequest, hybridAuthMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  PRIVATE_MODEL_INPUT_STATE_HEADER,
+  PROJECTED_MODEL_INPUT_PATHS_V1,
+} from '@/lib/execution/model-input-provenance'
 
 const {
   mockExecuteProviderRequest,
@@ -10,18 +14,18 @@ const {
   mockCheckWorkspaceAccess,
   mockAuthorizeCredentialUse,
   mockPrepareCopilotEnvironmentContext,
-  mockCollectProviderModelInputProvenanceValues,
   mockImportProvenance,
   mockRegistryIsComplete,
+  mockProjectResolvedSecretModelContent,
 } = vi.hoisted(() => ({
   mockExecuteProviderRequest: vi.fn(),
   mockRequireBillingAttributionHeader: vi.fn(),
   mockCheckWorkspaceAccess: vi.fn(),
   mockAuthorizeCredentialUse: vi.fn(),
   mockPrepareCopilotEnvironmentContext: vi.fn(),
-  mockCollectProviderModelInputProvenanceValues: vi.fn(),
   mockImportProvenance: vi.fn(),
   mockRegistryIsComplete: vi.fn(),
+  mockProjectResolvedSecretModelContent: vi.fn(),
 }))
 
 vi.mock('@/providers', () => ({
@@ -45,8 +49,8 @@ vi.mock('@/lib/copilot/environment-context', () => ({
   prepareCopilotEnvironmentContext: mockPrepareCopilotEnvironmentContext,
 }))
 
-vi.mock('@/providers/model-input-provenance', () => ({
-  collectProviderModelInputProvenanceValues: mockCollectProviderModelInputProvenanceValues,
+vi.mock('@/executor/utils/resolved-secret-content-projection', () => ({
+  projectResolvedSecretModelContent: mockProjectResolvedSecretModelContent,
 }))
 
 vi.mock('@/app/api/auth/oauth/utils', () => ({
@@ -89,6 +93,7 @@ function createProviderRequest(
     },
     {
       'x-sim-private-model-input-provenance': 'resolved-secret-provenance-v1',
+      [PRIVATE_MODEL_INPUT_STATE_HEADER]: PROJECTED_MODEL_INPUT_PATHS_V1,
       ...headers,
     }
   )
@@ -109,12 +114,15 @@ describe('POST /api/providers', () => {
       model: 'gpt-4o',
       tokens: { input: 1, output: 1, total: 2 },
     })
-    mockCollectProviderModelInputProvenanceValues.mockReturnValue(['selected-model-input'])
     mockImportProvenance.mockResolvedValue(true)
     mockRegistryIsComplete.mockReturnValue(true)
+    mockProjectResolvedSecretModelContent.mockImplementation((value) => ({
+      safe: true,
+      value,
+    }))
     mockPrepareCopilotEnvironmentContext.mockResolvedValue({
       resolvedSecretTraceRegistry: {
-        importProvenanceForValue: mockImportProvenance,
+        importProvenance: mockImportProvenance,
         isComplete: mockRegistryIsComplete,
       },
     })
@@ -200,9 +208,91 @@ describe('POST /api/providers', () => {
     )
 
     expect(res.status).toBe(200)
-    expect(mockImportProvenance).toHaveBeenCalledWith(provenance, expect.any(Array), {
-      trusted: true,
+    expect(mockImportProvenance).toHaveBeenCalledWith(provenance, { trusted: true })
+  })
+
+  it('projects legacy private prompt provenance on the provider-facing copy', async () => {
+    mockProjectResolvedSecretModelContent.mockReturnValue({
+      safe: true,
+      value: {
+        systemPrompt: 'Use {{TOKEN}} safely',
+        context: '[{"role":"user","content":"{{TOKEN}}"}]',
+      },
     })
+
+    const res = await POST(
+      createMockRequest(
+        'POST',
+        {
+          provider: 'openai',
+          model: 'gpt-4o',
+          workspaceId: 'ws-1',
+          systemPrompt: 'Use secret-value safely',
+          context: '[{"role":"user","content":"secret-value"}]',
+          __resolvedSecretTraceProvenance: { version: 1, complete: true, entries: [] },
+        },
+        { 'x-sim-private-model-input-provenance': 'resolved-secret-provenance-v1' }
+      )
+    )
+
+    expect(res.status).toBe(200)
+    expect(mockExecuteProviderRequest).toHaveBeenCalledWith(
+      'openai',
+      expect.objectContaining({
+        systemPrompt: 'Use {{TOKEN}} safely',
+        context: '[{"role":"user","content":"{{TOKEN}}"}]',
+      }),
+      expect.anything()
+    )
+  })
+
+  it('does not re-project an explicitly projected private request', async () => {
+    mockProjectResolvedSecretModelContent.mockReturnValue({
+      safe: true,
+      value: { systemPrompt: 'Bo{{TOKEN}}', context: undefined },
+    })
+
+    const res = await POST(
+      createProviderRequest({
+        provider: 'openai',
+        model: 'gpt-4o',
+        workspaceId: 'ws-1',
+        systemPrompt: 'Box',
+      })
+    )
+
+    expect(res.status).toBe(200)
+    expect(mockProjectResolvedSecretModelContent).not.toHaveBeenCalled()
+    expect(mockExecuteProviderRequest).toHaveBeenCalledWith(
+      'openai',
+      expect.objectContaining({ systemPrompt: 'Box' }),
+      expect.anything()
+    )
+  })
+
+  it('rejects a projected marker without a private provenance envelope', async () => {
+    const res = await POST(
+      createMockRequest(
+        'POST',
+        { provider: 'openai', model: 'gpt-4o', workspaceId: 'ws-1' },
+        { [PRIVATE_MODEL_INPUT_STATE_HEADER]: PROJECTED_MODEL_INPUT_PATHS_V1 }
+      )
+    )
+
+    expect(res.status).toBe(400)
+    expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
+  })
+
+  it('rejects an unknown private projection marker', async () => {
+    const res = await POST(
+      createProviderRequest(
+        { provider: 'openai', model: 'gpt-4o', workspaceId: 'ws-1' },
+        { [PRIVATE_MODEL_INPUT_STATE_HEADER]: 'unknown-projection' }
+      )
+    )
+
+    expect(res.status).toBe(400)
+    expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
   })
 
   it('rejects a partial private provenance envelope', async () => {
@@ -218,7 +308,7 @@ describe('POST /api/providers', () => {
     expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
   })
 
-  it('rejects an internal request without the private provenance envelope', async () => {
+  it('preserves legacy internal requests without the private provenance envelope', async () => {
     const res = await POST(
       createMockRequest('POST', {
         provider: 'openai',
@@ -227,9 +317,9 @@ describe('POST /api/providers', () => {
       })
     )
 
-    expect(res.status).toBe(400)
+    expect(res.status).toBe(200)
     expect(mockImportProvenance).not.toHaveBeenCalled()
-    expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
+    expect(mockExecuteProviderRequest).toHaveBeenCalled()
   })
 
   it('omits provisional stream output from the execution header', async () => {

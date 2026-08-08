@@ -200,7 +200,7 @@ const HtmlPreview = memo(function HtmlPreview({ content }: { content: string }) 
   }, [])
 
   return (
-    <div ref={containerRef} className='h-full overflow-hidden'>
+    <div ref={containerRef} className='flex min-h-0 flex-1 overflow-hidden'>
       {isRenderable && (
         <iframe
           key={resumeNonce}
@@ -225,7 +225,7 @@ function SvgPreview({ content }: { content: string }) {
   }, [content])
 
   return (
-    <ZoomablePreview className='h-full' contentClassName='h-full w-full'>
+    <ZoomablePreview className='min-h-0 flex-1' contentClassName='h-full w-full'>
       {blobUrl && (
         <img
           src={blobUrl}
@@ -240,7 +240,7 @@ function SvgPreview({ content }: { content: string }) {
 
 function MermaidFilePreview({ content, isStreaming }: { content: string; isStreaming?: boolean }) {
   return (
-    <div className='h-full overflow-auto p-6'>
+    <div className='min-h-0 flex-1 overflow-auto p-6'>
       <MermaidDiagram
         definition={content}
         isStreaming={isStreaming}
@@ -267,14 +267,14 @@ const CsvPreview = memo(function CsvPreview({
 
   if (headers.length === 0) {
     return (
-      <div className='flex h-full items-center justify-center p-6'>
+      <div className='flex min-h-0 flex-1 items-center justify-center p-6'>
         <p className='text-[13px] text-[var(--text-muted)]'>No data to display</p>
       </div>
     )
   }
 
   return (
-    <div className='h-full overflow-auto p-6'>
+    <div className='min-h-0 flex-1 overflow-auto p-6'>
       <DataTable headers={headers} rows={rows} />
     </div>
   )

@@ -1,8 +1,10 @@
-import { selectModelBoundFileInput } from '@/lib/uploads/utils/model-input'
+import {
+  applyProjectedModelVisibleFileNames,
+  selectModelVisibleFileNames,
+} from '@/lib/uploads/utils/model-input'
 import { firecrawlHosting } from '@/tools/firecrawl/hosting'
 import {
   applyFirecrawlFormatModelInput,
-  hasFirecrawlParseModelInput,
   selectFirecrawlFormatModelInput,
 } from '@/tools/firecrawl/model-input'
 import type { ParseParams, ParseResponse } from '@/tools/firecrawl/types'
@@ -95,14 +97,24 @@ export const parseTool: ToolConfig<ParseParams, ParseResponse> = {
   request: {
     modelInput: {
       mode: 'project',
-      select: (params) => ({ formats: selectFirecrawlFormatModelInput(params.formats) }),
+      select: (params) => {
+        const file = selectModelVisibleFileNames(params.file)
+        return {
+          formats: selectFirecrawlFormatModelInput(params.formats),
+          ...(file === undefined ? {} : { file }),
+        }
+      },
       applyProjected: (selectedParams, projectedSelection) => ({
         formats: applyFirecrawlFormatModelInput(selectedParams.formats, projectedSelection.formats),
+        ...(Object.hasOwn(projectedSelection, 'file')
+          ? {
+              file: applyProjectedModelVisibleFileNames(
+                selectedParams.file,
+                projectedSelection.file
+              ),
+            }
+          : {}),
       }),
-      privateProvenance: (params) =>
-        hasFirecrawlParseModelInput(params)
-          ? selectModelBoundFileInput(params.file, { includeName: true })
-          : undefined,
     },
     method: 'POST',
     url: '/api/tools/firecrawl/parse',

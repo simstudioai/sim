@@ -440,6 +440,7 @@ describe('script migration registry', () => {
       '0001_backfill_table_order_keys',
       '0002_backfill_paused_billing_attribution',
       '0003_backfill_workspace_storage_usage',
+      '0004_backfill_fork_kb_file_ownership',
     ])
   })
 })

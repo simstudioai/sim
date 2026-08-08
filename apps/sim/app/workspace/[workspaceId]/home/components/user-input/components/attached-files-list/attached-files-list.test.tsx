@@ -58,13 +58,29 @@ describe('AttachedFilesList', () => {
   })
 
   it('keeps a HEIC on the thumbnail shape while it has no preview yet', () => {
-    // The shape is keyed off the type, not the preview: a HEIC gets its preview only
-    // once the server derivative exists, and switching shape mid-upload would jump the
-    // layout. It must not fall back to the document card.
     render([file({ name: 'photo.heic', type: 'image/heic' })])
 
     expect(container.textContent).not.toContain('photo.heic')
     expect(container.querySelector('img')).toBeNull()
+  })
+
+  it('caps the card wrapper so a long filename cannot strand the remove badge', () => {
+    render([file({ name: '9bacf973-cd64-437b-be12-58be9f2c1a4d-very-long-name.pdf' })])
+
+    // jsdom does no layout, so the cap can only be asserted structurally: it has to sit
+    // on the wrapper the badge is positioned against, not on the button.
+    const wrapper = container.querySelector('button')?.parentElement
+    expect(wrapper?.className).toMatch(/max-w-/)
+  })
+
+  it('keeps the remove control visible rather than gating it on hover', () => {
+    render([file({})])
+
+    // A reveal-on-hover badge is unreachable on touch and invisible while it holds
+    // keyboard focus, so it must not be opacity-gated at all.
+    const remove = container.querySelector('button[aria-label^="Remove"]')
+    expect(remove).not.toBeNull()
+    expect(remove?.className).not.toMatch(/opacity-0/)
   })
 
   it('drops the image and reveals the type icon when the preview fails to decode', () => {

@@ -57,7 +57,7 @@ function WorkspaceStatusCard({
           <CircleAlert className='size-[18px] text-[var(--text-icon)]' aria-hidden />
         </div>
         <div className='space-y-1'>
-          <h1 className='font-medium text-[var(--text-primary)] text-lg'>{title}</h1>
+          <h1 className='text-[var(--text-primary)] text-lg'>{title}</h1>
           <p className='text-[var(--text-muted)] text-sm'>{description}</p>
         </div>
         <div className='flex items-center gap-2'>

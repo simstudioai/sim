@@ -190,29 +190,39 @@ describe('PiBlockHandler', () => {
   it('projects activated task secrets at the final Pi input boundary', async () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'API_KEY', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
+      { name: 'UNUSED', plaintext: 'x', encryptedValue: 'unused-ciphertext' },
     ])
-    registry.recordResolved('API_KEY', 'secret-value')
+    registry.recordResolvedAtInputPath('API_KEY', 'secret-value', ['task'])
+    registry.recordResolvedInputProjection(
+      ['task'],
+      'Use secret-value without changing Box.',
+      'Use {{API_KEY}} without changing Box.'
+    )
+    registry.recordResolved('UNUSED', 'x')
 
     await handler.execute(
       ctx({ resolvedSecretTraceRegistry: registry }),
       block,
-      localInputs({ task: 'Use secret-value without changing the rest.' })
+      localInputs({ task: 'Use secret-value without changing Box.' })
     )
 
-    expect(mockRunLocal.mock.calls[0][0].task).toBe('Use {{API_KEY}} without changing the rest.')
+    expect(mockRunLocal.mock.calls[0][0].task).toBe('Use {{API_KEY}} without changing Box.')
   })
 
-  it.each([
-    ['missing', undefined],
-    [
-      'incomplete',
-      (() => {
-        const registry = new ResolvedSecretTraceRegistry()
-        registry.markIncomplete()
-        return registry
-      })(),
-    ],
-  ])('fails closed when task provenance is %s', async (_label, registry) => {
+  it('preserves legacy task behavior when no provenance registry exists', async () => {
+    await handler.execute(
+      ctx({ resolvedSecretTraceRegistry: undefined }),
+      block,
+      localInputs({ task: 'ordinary task' })
+    )
+
+    expect(mockRunLocal.mock.calls[0][0].task).toBe('ordinary task')
+  })
+
+  it('fails closed when task provenance is incomplete', async () => {
+    const registry = new ResolvedSecretTraceRegistry()
+    registry.markIncomplete()
+
     await expect(
       handler.execute(
         ctx({ resolvedSecretTraceRegistry: registry }),
@@ -682,13 +692,37 @@ describe('PiBlockHandler', () => {
       expect(mockBuildSearchTool).toHaveBeenCalledWith(
         expect.anything(),
         { provider: 'exa', apiKey: 'search-key' },
-        'local'
+        'local',
+        'search-key'
       )
       expect(mockRunLocal.mock.calls[0][0].search).toEqual({
         provider: 'exa',
         apiKey: 'search-key',
         tool: { name: 'web_search' },
       })
+    })
+
+    it('replays search-key normalization on the resolver-recorded projection', async () => {
+      mockParseSearchProvider.mockReturnValue('exa')
+      mockResolveSearchKey.mockImplementation(({ apiKey }: { apiKey?: string }) => apiKey?.trim())
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'SEARCH_KEY', plaintext: ' key\n', encryptedValue: 'ciphertext' },
+      ])
+      registry.recordResolvedAtInputPath('SEARCH_KEY', ' key\n', ['searchApiKey'])
+      registry.recordResolvedInputProjection(['searchApiKey'], ' key\n', '{{SEARCH_KEY}}')
+
+      await handler.execute(
+        ctx({ resolvedSecretTraceRegistry: registry }),
+        block,
+        localInputs({ searchProvider: 'exa', searchApiKey: ' key\n' })
+      )
+
+      expect(mockBuildSearchTool).toHaveBeenCalledWith(
+        expect.anything(),
+        { provider: 'exa', apiKey: 'key' },
+        'local',
+        '{{SEARCH_KEY}}'
+      )
     })
 
     it('builds the host tool for Review Code too', async () => {
@@ -708,7 +742,8 @@ describe('PiBlockHandler', () => {
       expect(mockBuildSearchTool).toHaveBeenCalledWith(
         expect.anything(),
         expect.objectContaining({ provider: 'serper' }),
-        'cloud_review'
+        'cloud_review',
+        'search-key'
       )
       expect(mockRunCloudReview.mock.calls[0][0].search.tool).toEqual({ name: 'web_search' })
     })

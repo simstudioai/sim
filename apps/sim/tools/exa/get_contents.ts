@@ -123,11 +123,6 @@ export const getContentsTool: ToolConfig<ExaGetContentsParams, ExaGetContentsRes
       mode: 'project',
       select: (params) => ({ summaryQuery: params.summaryQuery }),
     },
-    opaqueModelInput: {
-      mode: 'reject-resolved-secrets',
-      select: (params) =>
-        params.summaryQuery || params.summary === true ? params.urls : undefined,
-    },
     url: 'https://api.exa.ai/contents',
     method: 'POST',
     headers: (params) => ({

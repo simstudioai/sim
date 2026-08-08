@@ -15,6 +15,7 @@ import { isExecutionFile } from '@/lib/uploads/contexts/execution/utils'
 import {
   isModelSafeWorkspaceFileKey,
   MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
+  type WorkspaceFileSecretProvenanceIdentity,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import {
   extractStorageKey,
@@ -379,6 +380,7 @@ export async function downloadFileFromStorage(
 export interface ServableFile {
   buffer: Buffer
   contentType: string
+  contributingFiles?: readonly WorkspaceFileSecretProvenanceIdentity[]
 }
 
 /**

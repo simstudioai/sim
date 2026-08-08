@@ -20,6 +20,7 @@ vi.mock('@/lib/api-key/service', () => ({
   updateApiKeyLastUsed: vi.fn(),
 }))
 
+import { WORKSPACE_KEY_SCOPE_DENIED } from '@/lib/api-key/policy-messages'
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
 
 function makeRequest() {
@@ -53,7 +54,7 @@ describe('validateWorkflowAccess (requireDeployment=false)', () => {
     const result = await validateWorkflowAccess(makeRequest(), 'wf-1', false)
 
     expect(result.error).toEqual({
-      message: 'API key is not authorized for this workspace',
+      message: WORKSPACE_KEY_SCOPE_DENIED,
       status: 403,
     })
     expect(workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission).not.toHaveBeenCalled()

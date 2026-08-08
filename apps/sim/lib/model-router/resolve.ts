@@ -7,7 +7,6 @@ import { env } from '@/lib/core/config/env'
 import { getCostMultiplier, isHosted } from '@/lib/core/config/env-flags'
 import { validateModelProvider } from '@/ee/access-control/utils/permission-check'
 import type { ExecutionContext } from '@/executor/types'
-import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import type { ModelCost } from '@/providers/cost-policy'
 import { getProviderFromModel } from '@/providers/utils'
 
@@ -179,36 +178,6 @@ function writeDecisionCache(key: string, tier: AutoTierId): void {
   decisionCache.set(key, { tier, expires: Date.now() + DECISION_CACHE_TTL_MS })
 }
 
-function projectAutoRoutingSignals(
-  signals: AutoRoutingSignals,
-  ctx: ExecutionContext
-): AutoRoutingSignals | null {
-  const projection = projectResolvedSecretModelContent(
-    [signals.systemPrompt, signals.lastMessage, signals.toolNames],
-    ctx.resolvedSecretTraceRegistry
-  )
-  if (!projection.safe || !Array.isArray(projection.value) || projection.value.length !== 3) {
-    return null
-  }
-
-  const [systemPrompt, lastMessage, toolNames] = projection.value
-  if (
-    (systemPrompt !== undefined && typeof systemPrompt !== 'string') ||
-    (lastMessage !== undefined && typeof lastMessage !== 'string') ||
-    !Array.isArray(toolNames) ||
-    !toolNames.every((name) => typeof name === 'string')
-  ) {
-    return null
-  }
-
-  return {
-    ...signals,
-    systemPrompt,
-    lastMessage,
-    toolNames,
-  }
-}
-
 /**
  * Picks the first model of the chosen tier — then of each lower tier for the
  * same media kind — that is actually usable: its provider resolves and is not
@@ -292,7 +261,8 @@ async function callModelRouter(
  * Resolves the sim-auto pseudo-model to a concrete model for one block
  * execution. Never throws and never fails the workflow: any error, timeout,
  * non-hosted deployment, or fully unavailable pool column falls back to
- * `fallbackModel` (the block's standard default).
+ * `fallbackModel` (the block's standard default). Callers must supply the same already-projected
+ * model-facing signals they pass to their provider boundary; this router never rescans them.
  */
 export async function resolveAutoModel(args: {
   ctx: ExecutionContext
@@ -311,22 +281,14 @@ export async function resolveAutoModel(args: {
   if (!isHosted) return fallback
 
   try {
-    const projectedSignals = projectAutoRoutingSignals(signals, ctx)
-    if (!projectedSignals) {
-      logger.warn('sim-auto: routing signals could not be safely projected, using fallback model', {
-        blockId,
-      })
-      return fallback
-    }
-
     // Every execution is classified: a short prompt is not a simple task, and
     // a local size rule can only ever route DOWN, which is the expensive
     // mistake. The cache below replays a prior router decision, never a
     // locally derived one.
-    const key = cacheKey(projectedSignals)
+    const key = cacheKey(signals)
     const cachedTier = readDecisionCache(key)
     if (cachedTier) {
-      const model = await pickModelForTier(projectedSignals.mediaKind, cachedTier, ctx)
+      const model = await pickModelForTier(signals.mediaKind, cachedTier, ctx)
       if (!model) return fallback
       return {
         model,
@@ -336,7 +298,7 @@ export async function resolveAutoModel(args: {
       }
     }
 
-    const response = await callModelRouter(projectedSignals, ctx, blockId)
+    const response = await callModelRouter(signals, ctx, blockId)
     const tier = TIERS.find((t) => t.id === response?.choice)?.id
     if (!tier) {
       logger.warn('sim-auto: router returned no usable choice, using fallback model', {
@@ -347,7 +309,7 @@ export async function resolveAutoModel(args: {
     }
 
     writeDecisionCache(key, tier)
-    const model = await pickModelForTier(projectedSignals.mediaKind, tier, ctx)
+    const model = await pickModelForTier(signals.mediaKind, tier, ctx)
     if (!model) return fallback
 
     const billable = response?.billable === true && (response.usage?.cost ?? 0) > 0

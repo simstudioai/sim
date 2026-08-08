@@ -11,10 +11,9 @@ import {
 
 const allowed = new Set(['thread-1', 'thread-2'])
 
-function parse(value: unknown, options: { commitPushed?: boolean; secrets?: string[] } = {}) {
+function parse(value: unknown, options: { commitPushed?: boolean } = {}) {
   return parseBabysitRound(JSON.stringify(value), {
     allowedThreadIds: allowed,
-    secrets: options.secrets ?? [],
     commitPushed: options.commitPushed ?? true,
   })
 }
@@ -42,7 +41,6 @@ describe('parseBabysitRound', () => {
     expect(() =>
       parseBabysitRound('{', {
         allowedThreadIds: allowed,
-        secrets: [],
         commitPushed: true,
       })
     ).toThrow(/valid JSON/)
@@ -65,23 +63,20 @@ describe('parseBabysitRound', () => {
     ).toThrow(/duplicated/)
   })
 
-  it('scrubs secrets from public replies and summaries', () => {
-    const result = parse(
-      {
-        threads: [
-          {
-            threadId: 'thread-1',
-            classification: 'already_addressed',
-            reply: 'Do not show sk-secret',
-          },
-        ],
-        summary: 'also sk-secret',
-      },
-      { secrets: ['sk-secret'] }
-    )
+  it('preserves public replies and summaries verbatim after trimming', () => {
+    const result = parse({
+      threads: [
+        {
+          threadId: 'thread-1',
+          classification: 'already_addressed',
+          reply: 'Do not rewrite sk-secret',
+        },
+      ],
+      summary: 'also sk-secret',
+    })
 
-    expect(result.threads[0].reply).toBe('Do not show ***')
-    expect(result.summary).toBe('also ***')
+    expect(result.threads[0].reply).toBe('Do not rewrite sk-secret')
+    expect(result.summary).toBe('also sk-secret')
   })
 
   it('leaves fixed-without-commit threads unresolved and records the violation', () => {
@@ -120,7 +115,6 @@ describe('parseBabysitRound', () => {
     expect(() =>
       parseBabysitRound(' '.repeat(MAX_ROUND_FILE_BYTES + 1), {
         allowedThreadIds: allowed,
-        secrets: [],
         commitPushed: true,
       })
     ).toThrow(/exceeds/)

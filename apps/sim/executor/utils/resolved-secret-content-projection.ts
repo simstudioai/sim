@@ -38,6 +38,7 @@ function createResolvedSecretModelMatcher(
 ): ResolvedSecretMatcher | undefined {
   const matcher = createResolvedSecretMatcher(matches, {
     preserveNamedProvenanceLabels: true,
+    mode: 'render',
   })
   if (!matcher) return undefined
 
@@ -74,7 +75,7 @@ function createResolvedSecretModelMatcher(
       })),
       ...opaquePlaceholderMatches,
     ],
-    { preserveNamedProvenanceLabels: true }
+    { preserveNamedProvenanceLabels: true, mode: 'render' }
   )
 }
 
@@ -87,11 +88,6 @@ interface ProjectionState {
   ancestors: WeakSet<object>
   outputBytes: number
   maxBytes: number
-}
-
-interface InternalDiagnosticIdentifierScan {
-  aliases: Set<string>
-  foundInternalIdentifier: boolean
 }
 
 export interface ResolvedSecretContentProjectionOptions {
@@ -192,65 +188,6 @@ function* arrayDataEntries(value: readonly unknown[]): Generator<[number, unknow
     }
     yield [index, descriptor.value]
   }
-}
-
-function collectInternalDiagnosticIdentifiers(
-  value: unknown
-): InternalDiagnosticIdentifierScan | undefined {
-  const result: InternalDiagnosticIdentifierScan = {
-    aliases: new Set<string>(),
-    foundInternalIdentifier: false,
-  }
-  const ancestors = new WeakSet<object>()
-  let nodes = 0
-
-  const scanString = (candidate: string): void => {
-    for (const identifier of candidate.match(INTERNAL_DIAGNOSTIC_IDENTIFIER_PATTERN) ?? []) {
-      result.foundInternalIdentifier = true
-      if (identifier.startsWith('__var_')) result.aliases.add(identifier)
-    }
-  }
-
-  const visit = (candidate: unknown, depth: number): boolean => {
-    nodes += 1
-    if (nodes > MAX_CONTENT_NODES || depth > MAX_CONTENT_DEPTH) return false
-    if (typeof candidate === 'string') {
-      scanString(candidate)
-      return true
-    }
-    if (
-      candidate === null ||
-      candidate === undefined ||
-      typeof candidate === 'number' ||
-      typeof candidate === 'boolean'
-    ) {
-      return true
-    }
-    if (typeof candidate !== 'object') return false
-    if (!Array.isArray(candidate) && !isPlainRecord(candidate)) return false
-    if (ancestors.has(candidate)) return false
-
-    ancestors.add(candidate)
-    try {
-      if (Array.isArray(candidate)) {
-        for (const [, item] of arrayDataEntries(candidate)) {
-          if (!visit(item, depth + 1)) return false
-        }
-        return true
-      }
-      for (const [key, item] of enumerableDataEntries(candidate)) {
-        scanString(key)
-        if (!visit(item, depth + 1)) return false
-      }
-      return true
-    } catch {
-      return false
-    } finally {
-      ancestors.delete(candidate)
-    }
-  }
-
-  return visit(value, 0) ? result : undefined
 }
 
 function sanitizeContent(
@@ -451,29 +388,6 @@ export function getResolvedSecretModelMatcher(
   }
 }
 
-/** Produces a nonempty model control message only when the registry can prove it secret-free. */
-export function projectResolvedSecretModelControlMessage(
-  message: string,
-  registry: ResolvedSecretTraceRegistry | undefined
-): string | undefined {
-  const projection = projectResolvedSecretModelContent(message, registry)
-  if (projection.safe && typeof projection.value === 'string' && projection.value.length > 0) {
-    return projection.value
-  }
-
-  const snapshot = getResolvedSecretModelMatcher(registry)
-  if (!snapshot.complete) return undefined
-  for (let codePoint = 0x21; codePoint <= 0x10ffff; codePoint += 1) {
-    if (codePoint >= 0xd800 && codePoint <= 0xdfff) {
-      codePoint = 0xdfff
-      continue
-    }
-    const candidate = String.fromCodePoint(codePoint)
-    if (!snapshot.matcher || !containsResolvedSecret(candidate, snapshot.matcher)) return candidate
-  }
-  return undefined
-}
-
 /**
  * Projects content that is about to become model-visible using committed active provenance.
  * Trusted runtime boundaries activate exact secret-bearing values before this point; unrelated
@@ -488,6 +402,9 @@ export function projectResolvedSecretModelContent(
 ): ResolvedSecretContentProjection {
   const snapshot = getResolvedSecretModelMatcher(registry)
   if (!snapshot.complete) return { safe: false }
+  if (!snapshot.matcher && options.sanitizeInternalIdentifiers !== true) {
+    return { safe: true, value }
+  }
 
   return projectContent(value, snapshot.matcher, maxBytes, {
     projectPrimitiveLiterals: true,
@@ -506,7 +423,8 @@ export function projectResolvedSecretModelJsonContent(
   maxBytes = MAX_INLINE_MATERIALIZATION_BYTES,
   options: ResolvedSecretContentProjectionOptions = {}
 ): ResolvedSecretContentProjection {
-  if (!getResolvedSecretModelMatcher(registry).complete) return { safe: false }
+  const snapshot = getResolvedSecretModelMatcher(registry)
+  if (!snapshot.complete) return { safe: false }
 
   try {
     const encoded = JSON.stringify(value)
@@ -514,6 +432,9 @@ export function projectResolvedSecretModelJsonContent(
       return { safe: false }
     }
     const normalized: unknown = JSON.parse(encoded)
+    if (!snapshot.matcher && options.sanitizeInternalIdentifiers !== true) {
+      return { safe: true, value: normalized }
+    }
     const projection = projectResolvedSecretModelContent(normalized, registry, maxBytes, options)
     if (!projection.safe) return projection
 
@@ -537,17 +458,7 @@ export function projectResolvedSecretDiagnosticContent(
   registry: ResolvedSecretTraceRegistry | undefined,
   maxBytes = MAX_INLINE_MATERIALIZATION_BYTES
 ): ResolvedSecretContentProjection {
-  const identifiers = collectInternalDiagnosticIdentifiers(value)
-  if (!identifiers) return { safe: false }
-
-  let diagnosticRegistry = registry
-  if (identifiers.foundInternalIdentifier) {
-    if (!registry || identifiers.aliases.size === 0) return { safe: false }
-    diagnosticRegistry = registry.forkForDiagnosticAliases(identifiers.aliases)
-    if (!diagnosticRegistry) return { safe: false }
-  }
-
-  return projectResolvedSecretModelContent(value, diagnosticRegistry, maxBytes, {
+  return projectResolvedSecretModelContent(value, registry, maxBytes, {
     sanitizeInternalIdentifiers: true,
   })
 }
@@ -597,6 +508,7 @@ export function isResolvedSecretModelContentUnchanged(
 ): boolean {
   const snapshot = getResolvedSecretModelMatcher(registry)
   if (!snapshot.complete) return false
+  if (!snapshot.matcher) return true
 
   const projection = projectContent(value, snapshot.matcher, MAX_INLINE_MATERIALIZATION_BYTES, {
     projectPrimitiveLiterals: true,
@@ -616,6 +528,15 @@ export function projectResolvedSecretModelJsonStrings(
 ): ResolvedSecretContentProjection {
   const snapshot = getResolvedSecretModelMatcher(registry)
   if (!snapshot.complete) return { safe: false }
+  if (!snapshot.matcher) {
+    let outputBytes = 0
+    for (const value of values) {
+      if (value === undefined) continue
+      outputBytes += Buffer.byteLength(value, 'utf8')
+      if (outputBytes > maxBytes) return { safe: false }
+    }
+    return { safe: true, value: [...values] }
+  }
 
   const projected: Array<string | undefined> = []
   let outputBytes = 0

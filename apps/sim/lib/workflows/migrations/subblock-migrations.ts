@@ -23,6 +23,9 @@ const logger = createLogger('SubblockMigrations')
  * Format: { blockType: { oldSubblockId: newSubblockId } }
  */
 export const SUBBLOCK_ID_MIGRATIONS: Record<string, Record<string, string>> = {
+  instagram: {
+    metrics: 'insightMetrics',
+  },
   knowledge: {
     knowledgeBaseId: 'knowledgeBaseSelector',
   },

@@ -1,6 +1,5 @@
 import { type Static, type TSchema, Type } from 'typebox'
 import { Check, Errors } from 'typebox/schema'
-import { scrubPiSecrets } from '@/executor/handlers/pi/core/redaction'
 
 /** Sandbox path used for the single-use, agent-authored round decision file. */
 export const BABYSIT_ROUND_PATH = '/workspace/sim-babysit-round.json'
@@ -69,7 +68,6 @@ export function parseBabysitRound(
   raw: string,
   options: {
     allowedThreadIds: ReadonlySet<string>
-    secrets: readonly string[]
     commitPushed: boolean
   }
 ): ParsedBabysitRound {
@@ -102,7 +100,7 @@ export function parseBabysitRound(
     }
     seen.add(threadId)
 
-    const reply = scrubPiSecrets(decision.reply.trim(), options.secrets)
+    const reply = decision.reply.trim()
     if (!reply) throw new Error(`threads[${index}].reply must not be blank`)
     const resolvable = decision.classification !== 'fixed' || options.commitPushed
     if (!resolvable) {
@@ -122,7 +120,7 @@ export function parseBabysitRound(
   const summary = parsed.summary?.trim()
   return {
     threads,
-    ...(summary ? { summary: scrubPiSecrets(summary, options.secrets) } : {}),
+    ...(summary ? { summary } : {}),
     omittedThreadIds,
     contractViolations,
   }

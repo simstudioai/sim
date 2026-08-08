@@ -84,7 +84,7 @@ export async function waitForClientToolCompletion({
   const completion = await waitForToolCompletion(toolCallId, timeoutMs, abortSignal)
   if (!completion) return null
 
-  const toolRegistry = registry?.forkForToolInput(undefined)
+  const toolRegistry = registry?.forkForInputPaths([])
   const genericMessage = getGenericCompletionMessage(completion.status)
   const binding = runId ? { toolCallId, runId, userId } : undefined
   const registryCanImport = toolRegistry !== undefined && !toolRegistry.isPermanentlyIncomplete()
@@ -232,7 +232,7 @@ export async function waitForWorkflowToolCompletion({
   abortSignal,
   registry,
 }: WaitForWorkflowToolCompletionOptions): Promise<AsyncTerminalCompletionSnapshot | null> {
-  const toolRegistry = registry?.forkForToolInput(undefined)
+  const toolRegistry = registry?.forkForInputPaths([])
   const finishPendingActivation = toolRegistry?.beginPendingActivation()
   let completion: AsyncTerminalCompletionSnapshot | null = null
   let trustedExecution: Awaited<ReturnType<typeof getTrustedWorkflowToolExecution>> = null

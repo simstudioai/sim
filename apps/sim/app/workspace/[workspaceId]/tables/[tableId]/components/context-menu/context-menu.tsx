@@ -19,6 +19,13 @@ import {
 } from '@sim/emcn/icons'
 import type { ContextMenuState } from '../../types'
 
+/**
+ * Wider than the menu's 220px default. The row-scoped workflow labels name both
+ * the action and the selected row count ("Run empty or failed cells on 2 rows"),
+ * which does not fit the default width.
+ */
+const CONTENT_WIDTH_CLASS = 'max-w-[320px]'
+
 interface ContextMenuProps {
   contextMenu: ContextMenuState
   onClose: () => void
@@ -150,6 +157,7 @@ export function ContextMenu({
         align='start'
         side='bottom'
         sideOffset={4}
+        className={CONTENT_WIDTH_CLASS}
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
         {onAddToChat && (
@@ -167,13 +175,10 @@ export function ContextMenu({
             Edit cell
           </DropdownMenuItem>
         )}
-        {canViewExecution && onViewExecution && (
-          <DropdownMenuItem onSelect={onViewExecution}>
-            <Eye />
-            View execution
-          </DropdownMenuItem>
-        )}
-        {/* Not gated on `disableEdit`: these write only workflow-output columns,
+        {/* Run, Re-run, Stop, then View execution — the order the action bar
+            presents the same four, so the user reads one sequence in both.
+
+            Not gated on `disableEdit`: these write only workflow-output columns,
             which the update lock exempts, and Stop is a cancel rather than a
             write. Their handlers are already withheld without edit permission. */}
         {hasWorkflowColumns && onRunWorkflows && (
@@ -192,6 +197,12 @@ export function ContextMenu({
           <DropdownMenuItem onSelect={onStopWorkflows}>
             <Square className='size-[14px] text-[var(--text-icon)]' />
             {stopLabel}
+          </DropdownMenuItem>
+        )}
+        {canViewExecution && onViewExecution && (
+          <DropdownMenuItem onSelect={onViewExecution}>
+            <Eye />
+            View execution
           </DropdownMenuItem>
         )}
         <DropdownMenuItem disabled={disableInsert} onSelect={onInsertAbove}>

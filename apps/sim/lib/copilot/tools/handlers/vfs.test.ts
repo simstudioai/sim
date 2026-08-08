@@ -9,8 +9,8 @@ const { getOrMaterializeVFS } = vi.hoisted(() => ({
   getOrMaterializeVFS: vi.fn(),
 }))
 
-const { importWorkspaceFileSecretProvenanceForValue } = vi.hoisted(() => ({
-  importWorkspaceFileSecretProvenanceForValue: vi.fn().mockResolvedValue(true),
+const { importWorkspaceFileSecretProvenanceForModelView } = vi.hoisted(() => ({
+  importWorkspaceFileSecretProvenanceForModelView: vi.fn().mockResolvedValue(true),
 }))
 
 const {
@@ -40,7 +40,7 @@ vi.mock('@/lib/copilot/vfs', () => ({
   getOrMaterializeVFS,
 }))
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  importWorkspaceFileSecretProvenanceForValue,
+  importWorkspaceFileSecretProvenanceForModelView,
 }))
 vi.mock('./upload-file-reader', () => ({
   readChatUpload,
@@ -81,7 +81,7 @@ const GREP_CTX_CHAT = { ...GREP_CTX, chatId: 'chat-1' }
 describe('vfs handlers oversize policy', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    importWorkspaceFileSecretProvenanceForValue.mockResolvedValue(true)
+    importWorkspaceFileSecretProvenanceForModelView.mockResolvedValue(true)
   })
 
   it('fails oversized grep results with narrowing guidance', async () => {
@@ -270,7 +270,7 @@ describe('vfs handlers oversize policy', () => {
     expect(vfs.read).not.toHaveBeenCalled()
   })
 
-  it('filters durable provenance against only the final windowed read result', async () => {
+  it('marks a windowed read as a derived provenance view', async () => {
     const vfs = makeVfs()
     vfs.readFileContentWithProvenance.mockResolvedValue({
       value: { content: 'hidden-secret\nvisible line', totalLines: 2 },
@@ -284,10 +284,10 @@ describe('vfs handlers oversize policy', () => {
     )
 
     expect(result.success).toBe(true)
-    expect(importWorkspaceFileSecretProvenanceForValue).toHaveBeenCalledWith(
+    expect(importWorkspaceFileSecretProvenanceForModelView).toHaveBeenCalledWith(
       expect.objectContaining({
         identity: { fileId: 'file-1', key: 'workspace/key-1', context: 'workspace' },
-        value: { content: 'visible line', totalLines: 2 },
+        view: 'derived',
       })
     )
   })
@@ -336,6 +336,76 @@ describe('vfs handlers oversize policy', () => {
     expect(result.output).toEqual(imageResult)
   })
 
+  it('checks every compiled-document contributor at the opaque model boundary', async () => {
+    const vfs = makeVfs()
+    const contentUpdatedAt = new Date('2026-08-06T00:00:00.000Z')
+    vfs.readFileContentWithProvenance.mockResolvedValue({
+      value: {
+        content: 'Compiled file: report.pdf',
+        totalLines: 1,
+        attachment: {
+          type: 'file',
+          name: 'report.pdf',
+          source: { type: 'base64', media_type: 'application/pdf', data: 'AAAA' },
+        },
+      },
+      file: { fileId: 'source-1', key: 'workspace/source-1', context: 'workspace' },
+      contributingFiles: [
+        {
+          fileId: 'image-1',
+          key: 'workspace/image-1',
+          context: 'workspace',
+          contentUpdatedAt,
+        },
+      ],
+    })
+    getOrMaterializeVFS.mockResolvedValue(vfs)
+    importWorkspaceFileSecretProvenanceForModelView
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(false)
+
+    const result = await executeVfsRead({ path: 'files/report.pdf/compiled' }, GREP_CTX)
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('cannot be shared safely')
+    expect(importWorkspaceFileSecretProvenanceForModelView).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        identity: { fileId: 'source-1', key: 'workspace/source-1', context: 'workspace' },
+        view: 'opaque',
+      })
+    )
+    expect(importWorkspaceFileSecretProvenanceForModelView).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        identity: {
+          fileId: 'image-1',
+          key: 'workspace/image-1',
+          context: 'workspace',
+          contentUpdatedAt,
+        },
+        view: 'opaque',
+      })
+    )
+  })
+
+  it('uses the source-declared view for an unwindowed read', async () => {
+    const vfs = makeVfs()
+    vfs.readFileContentWithProvenance.mockResolvedValue({
+      value: { content: 'complete content', totalLines: 1 },
+      file: { fileId: 'file-1', key: 'workspace/key-1', context: 'workspace' },
+      view: 'complete',
+    })
+    getOrMaterializeVFS.mockResolvedValue(vfs)
+
+    const result = await executeVfsRead({ path: 'files/report.txt/content' }, GREP_CTX)
+
+    expect(result.success).toBe(true)
+    expect(importWorkspaceFileSecretProvenanceForModelView).toHaveBeenCalledWith(
+      expect.objectContaining({ view: 'complete' })
+    )
+  })
+
   it('rejects only the file read when durable provenance cannot be verified', async () => {
     const vfs = makeVfs()
     vfs.readFileContentWithProvenance.mockResolvedValue({
@@ -343,7 +413,7 @@ describe('vfs handlers oversize policy', () => {
       file: { fileId: 'file-1', key: 'workspace/key-1', context: 'workspace' },
     })
     getOrMaterializeVFS.mockResolvedValue(vfs)
-    importWorkspaceFileSecretProvenanceForValue.mockResolvedValueOnce(false)
+    importWorkspaceFileSecretProvenanceForModelView.mockResolvedValueOnce(false)
 
     const result = await executeVfsRead({ path: 'files/report.txt/content' }, GREP_CTX)
 
@@ -355,7 +425,7 @@ describe('vfs handlers oversize policy', () => {
 describe('vfs grep workspace-file routing', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    importWorkspaceFileSecretProvenanceForValue.mockResolvedValue(true)
+    importWorkspaceFileSecretProvenanceForModelView.mockResolvedValue(true)
   })
 
   it('routes a single workspace file leaf to grepFile (content search)', async () => {
@@ -430,7 +500,7 @@ describe('vfs grep workspace-file routing', () => {
     expect(result.error).toContain('single workspace file')
   })
 
-  it('filters durable provenance against the final grep projection', async () => {
+  it('marks content grep as a derived provenance view', async () => {
     const vfs = makeVfs()
     vfs.grepFileWithProvenance.mockResolvedValue({
       value: [{ path: 'files/report.csv', line: 2, content: 'visible hit' }],
@@ -444,12 +514,34 @@ describe('vfs grep workspace-file routing', () => {
     )
 
     expect(result.success).toBe(true)
-    expect(importWorkspaceFileSecretProvenanceForValue).toHaveBeenCalledWith(
+    expect(importWorkspaceFileSecretProvenanceForModelView).toHaveBeenCalledWith(
       expect.objectContaining({
-        value: {
-          matches: [{ path: 'files/report.csv', line: 2, content: 'visible hit' }],
-        },
+        view: 'derived',
       })
+    )
+  })
+
+  it('treats count grep as derived from file content', async () => {
+    importWorkspaceFileSecretProvenanceForModelView.mockResolvedValueOnce(false)
+    const vfs = makeVfs()
+    vfs.grepFileWithProvenance.mockResolvedValue({
+      value: [{ path: 'files/report.csv', count: 1 }],
+      file: { fileId: 'file-1', key: 'workspace/key-1', context: 'workspace' },
+    })
+    getOrMaterializeVFS.mockResolvedValue(vfs)
+
+    const result = await executeVfsGrep(
+      { pattern: 'visible', path: 'files/report.csv', output_mode: 'count' },
+      GREP_CTX
+    )
+
+    expect(result).toEqual({
+      success: false,
+      error:
+        'This file result cannot be shared safely because its secret provenance is unavailable.',
+    })
+    expect(importWorkspaceFileSecretProvenanceForModelView).toHaveBeenCalledWith(
+      expect.objectContaining({ view: 'derived' })
     )
   })
 })
@@ -457,7 +549,7 @@ describe('vfs grep workspace-file routing', () => {
 describe('vfs uploads are opt-in (like recently-deleted/)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    importWorkspaceFileSecretProvenanceForValue.mockResolvedValue(true)
+    importWorkspaceFileSecretProvenanceForModelView.mockResolvedValue(true)
   })
 
   it('does not search uploads for an unscoped grep', async () => {

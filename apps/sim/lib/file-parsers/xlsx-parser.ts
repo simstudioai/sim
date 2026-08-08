@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { truncate } from '@sim/utils/string'
 import * as XLSX from 'xlsx'
 import type { FileParseResult, FileParser } from '@/lib/file-parsers/types'
-import { sanitizeTextForUTF8 } from '@/lib/file-parsers/utils'
+import { sanitizeTextForUTF8, truncationNotice } from '@/lib/file-parsers/utils'
 import { assertOoxmlArchiveWithinLimits } from '@/lib/file-parsers/zip-guard'
 
 const logger = createLogger('XlsxParser')
@@ -155,19 +155,18 @@ export class XlsxParser implements FileParser {
           contentSize += chunkContent.length
         }
 
-        // Add truncation notice if needed
         if (actualRowCount > rowsToProcess) {
-          const notice = `\n[... ${actualRowCount.toLocaleString()} total rows, showing first ${rowsToProcess.toLocaleString()} ...]\n`
-          content += notice
+          content += truncationNotice(
+            `${actualRowCount.toLocaleString()} total rows, showing first ${rowsToProcess.toLocaleString()}`
+          )
           truncated = true
         }
       } else {
         content += '[Empty sheet]\n'
       }
 
-      // Stop processing if content is too large
       if (contentSize > CONFIG.MAX_CONTENT_SIZE) {
-        content += '\n[... Content truncated due to size limits ...]\n'
+        content += truncationNotice('Content truncated due to size limits')
         truncated = true
         break
       }

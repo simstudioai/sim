@@ -5,6 +5,7 @@ import { Chip } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import type { WorkBook } from 'xlsx'
+import { assertOoxmlPreviewWithinLimits } from '@/lib/file-parsers/ooxml-preview-guard'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { DataTable } from './data-table'
 import { PreviewError, PreviewLoadingFrame, resolvePreviewError } from './preview-shared'
@@ -46,6 +47,7 @@ export const XlsxPreview = memo(function XlsxPreview({
     async function parse() {
       try {
         setRenderError(null)
+        await assertOoxmlPreviewWithinLimits(data)
         const XLSX = await import('xlsx')
         const workbook = XLSX.read(new Uint8Array(data), { type: 'array' })
         if (!cancelled) {

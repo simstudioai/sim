@@ -14,9 +14,8 @@
  *
  * Optional web search adds a second sandbox credential, delivered the same way as
  * the model key, plus a runtime-written Pi extension that performs the provider
- * call. Every text this backend surfaces — events, totals, prompt, commit title,
- * PR body, diff, changed files, thrown errors — is scrubbed against all three
- * credentials.
+ * call. Provider, command, and GitHub diagnostics are redacted if they echo a
+ * credential; successful model and repository content remains unchanged.
  */
 
 import { createLogger } from '@sim/logger'
@@ -69,11 +68,7 @@ import {
   parseJsonLine,
 } from '@/executor/handlers/pi/core/events'
 import { mapThinkingLevel, providerApiKeyEnvVar } from '@/executor/handlers/pi/core/keys'
-import {
-  createScrubbedPiError,
-  scrubPiEvent,
-  scrubPiSecrets,
-} from '@/executor/handlers/pi/core/redaction'
+import { createScrubbedPiError, scrubPiEvent } from '@/executor/handlers/pi/core/redaction'
 import {
   PI_SEARCH_API_KEY_ENV_VAR,
   PI_SEARCH_EXTENSION_PATH,
@@ -164,14 +159,10 @@ async function openPullRequest(
   base: string,
   draft: boolean,
   totals: PiRunTotals,
-  secrets: readonly string[],
   signal?: AbortSignal
 ): Promise<OpenedPullRequest> {
-  const title = scrubPiSecrets(defaultTitle(params), secrets)
-  const body = scrubPiSecrets(
-    params.prBody?.trim() || buildPrBody(params.task, totals.finalText),
-    secrets
-  )
+  const title = defaultTitle(params)
+  const body = params.prBody?.trim() || buildPrBody(params.task, totals.finalText)
 
   const result = await executeTool(
     'github_create_pr',
@@ -238,7 +229,6 @@ async function repositoryDefaultBranch(
 async function updatePullRequest(
   params: PiCloudBranchRunParams,
   pullRequest: BranchPullRequest,
-  secrets: readonly string[],
   signal?: AbortSignal
 ): Promise<OpenedPullRequest> {
   const verified = await fetchOpenPrForBranch(
@@ -251,8 +241,8 @@ async function updatePullRequest(
     },
     signal
   )
-  const title = params.prTitle?.trim() ? scrubPiSecrets(params.prTitle.trim(), secrets) : undefined
-  const body = params.prBody?.trim() ? scrubPiSecrets(params.prBody.trim(), secrets) : undefined
+  const title = params.prTitle?.trim() || undefined
+  const body = params.prBody?.trim() || undefined
   const base = params.baseBranch?.trim()
   if (title || body || base) {
     const result = await executeTool(
@@ -295,7 +285,6 @@ async function ensureUpdatePullRequest(
   params: PiCloudBranchRunParams,
   branch: string,
   totals: PiRunTotals,
-  secrets: readonly string[],
   signal?: AbortSignal
 ): Promise<OpenedPullRequest> {
   const currentPullRequest = await findOpenPrForBranch(
@@ -308,11 +297,11 @@ async function ensureUpdatePullRequest(
     signal
   )
   if (currentPullRequest) {
-    return updatePullRequest(params, currentPullRequest, secrets, signal)
+    return updatePullRequest(params, currentPullRequest, signal)
   }
   const base = params.baseBranch?.trim() || (await repositoryDefaultBranch(params, signal))
   const draft = params.babysit ? false : params.prState !== 'ready'
-  return openPullRequest(params, branch, base, draft, totals, secrets, signal)
+  return openPullRequest(params, branch, base, draft, totals, signal)
 }
 
 function mergeChangedFiles(
@@ -403,26 +392,21 @@ async function runCloudAuthoringPi(
     )
   }
 
-  // Every credential that reaches this run, scrubbed from agent-visible and GitHub-visible text.
-  // The guarantee covers the paths the key travels by design; it deliberately does not extend to a
-  // key wired into a branch input, which becomes a git ref and could not be substituted without
-  // failing the checkout outright.
+  // These credentials are transport-only. They redact provider, command, and GitHub diagnostics
+  // that may echo a credential; ordinary model and repository content stays byte-for-byte intact.
   const secrets = [params.apiKey, params.githubToken, params.search?.apiKey ?? '']
 
   const branch =
     params.mode === 'cloud'
       ? params.branchName?.trim() || `pi/${generateShortId(8)}`
       : params.targetBranch
-  const commitMessage = scrubPiSecrets(defaultTitle(params), secrets)
-  const prompt = scrubPiSecrets(
-    buildPiPrompt({
-      skills: params.skills,
-      initialMessages: params.initialMessages,
-      task: params.task,
-      guidance: guidanceFor(params),
-    }),
-    secrets
-  )
+  const commitMessage = defaultTitle(params)
+  const prompt = buildPiPrompt({
+    skills: params.skills,
+    initialMessages: params.initialMessages,
+    task: params.task,
+    guidance: guidanceFor(params),
+  })
   const totals = createPiTotals()
   const thinking = mapThinkingLevel(params.thinkingLevel) ?? 'medium'
   if (params.mode === 'cloud_branch') {
@@ -487,8 +471,8 @@ async function runCloudAuthoringPi(
       }
 
       let buffer = ''
-      // Scrubbed before `applyPiEvent`, not just before `onEvent`: `totals.finalText` accumulates
-      // from text events and becomes both the block output and the PR body.
+      // Provider/SDK error events are redacted before they enter totals or stream callbacks.
+      // Successful text remains verbatim and becomes both the block output and default PR body.
       const handleEvent = (raw: ReturnType<typeof parseJsonLine>) => {
         const event = scrubPiEvent(raw, secrets)
         if (!event) return
@@ -547,9 +531,7 @@ async function runCloudAuthoringPi(
         }),
         context.signal
       )
-      const changedFiles = extractMarkerValues(prepare.stdout, '__CHANGED__=').map((file) =>
-        scrubPiSecrets(file, secrets)
-      )
+      const changedFiles = extractMarkerValues(prepare.stdout, '__CHANGED__=')
       const noChanges = prepare.stdout.includes('__NO_CHANGES__=1')
       const needsPush = prepare.stdout.includes('__NEEDS_PUSH__=1')
       // PREPARE (`set -e`) emits exactly one of the two markers on success. Neither
@@ -562,7 +544,7 @@ async function runCloudAuthoringPi(
 
       let diff: string | undefined
       try {
-        const raw = scrubPiSecrets(await runner.readFile(DIFF_PATH), secrets)
+        const raw = await runner.readFile(DIFF_PATH)
         diff =
           raw.length > MAX_DIFF_BYTES ? `${raw.slice(0, MAX_DIFF_BYTES)}\n[diff truncated]` : raw
       } catch {
@@ -607,7 +589,7 @@ async function runCloudAuthoringPi(
 
       let pullRequest: OpenedPullRequest
       if (params.mode === 'cloud_branch') {
-        pullRequest = await ensureUpdatePullRequest(params, branch, totals, secrets, context.signal)
+        pullRequest = await ensureUpdatePullRequest(params, branch, totals, context.signal)
       } else {
         const base = params.baseBranch?.trim() || detectedBase
         if (!base) {
@@ -621,7 +603,6 @@ async function runCloudAuthoringPi(
           base,
           params.babysit ? false : params.draft,
           totals,
-          secrets,
           context.signal
         )
       }

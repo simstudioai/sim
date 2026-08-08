@@ -131,7 +131,10 @@ interface FileViewerProps {
 
 export function FileViewer(props: FileViewerProps) {
   const { contentSource, workspaceId } = props
-  const imageDimensions = useWorkspaceImageDimensionsAdapter(workspaceId)
+  // A caller-supplied contentSource means the adapter is unused (and its `workspaceId` may be a share token).
+  const imageDimensions = useWorkspaceImageDimensionsAdapter(workspaceId, {
+    enabled: !contentSource,
+  })
   const source = useMemo(
     () => contentSource ?? createWorkspaceFileContentSource(workspaceId, imageDimensions),
     [contentSource, workspaceId, imageDimensions]
@@ -284,11 +287,12 @@ const ReadOnlyTextPreview = memo(function ReadOnlyTextPreview({
 
   const resolvedError = resolvePreviewError((error as Error | null) ?? null, null)
   if (resolvedError) return <PreviewError label='file' error={resolvedError} />
-  if (isLoading || content == null) return <PreviewLoadingFrame className='h-full' tone='surface' />
+  if (isLoading || content == null)
+    return <PreviewLoadingFrame className='min-h-0 flex-1' tone='surface' />
 
   if (resolvePreviewType(file.type, file.name)) {
     return (
-      <div className='h-full min-h-0 w-full overflow-auto'>
+      <div className='flex min-h-0 w-full flex-1 flex-col overflow-auto'>
         <PreviewPanel
           content={content}
           mimeType={file.type}
@@ -302,7 +306,7 @@ const ReadOnlyTextPreview = memo(function ReadOnlyTextPreview({
   }
 
   return (
-    <div className='h-full min-h-0 w-full overflow-auto bg-[var(--surface-1)] p-4'>
+    <div className='min-h-0 w-full flex-1 overflow-auto bg-[var(--surface-1)] p-4'>
       <pre className='whitespace-pre-wrap break-words font-mono text-[13px] text-[var(--text-body)]'>
         {content}
       </pre>
@@ -403,7 +407,7 @@ const MediaPreview = memo(function MediaPreview({
       <div className='flex h-full flex-col items-center justify-center gap-4 bg-[var(--surface-1)] p-8'>
         <div className='flex flex-col items-center gap-2 text-center'>
           <Music className='size-[32px] text-[var(--text-muted)]' />
-          <p className='font-medium text-[14px] text-[var(--text-primary)]'>{file.name}</p>
+          <p className='text-[14px] text-[var(--text-primary)]'>{file.name}</p>
         </div>
         {blobUrl && (
           // biome-ignore lint/a11y/useMediaCaption: audio from workspace files

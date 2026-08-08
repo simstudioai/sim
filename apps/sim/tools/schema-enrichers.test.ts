@@ -21,7 +21,7 @@ vi.mock('@/executor/utils/http', () => ({
   extractAPIErrorMessage: mockExtractAPIErrorMessage,
 }))
 
-import { enrichTableToolSchema } from '@/tools/schema-enrichers'
+import { enrichKBTagsSchema, enrichTableToolSchema } from '@/tools/schema-enrichers'
 
 const ORIGINAL_SCHEMA = {
   type: 'object' as const,
@@ -100,5 +100,43 @@ describe('enrichTableToolSchema', () => {
     await expect(
       enrichTableToolSchema('table-1', 'table_query_rows', ORIGINAL_SCHEMA, 'Query rows', {})
     ).rejects.toThrow('Workspace ID is required to enrich table tool schema for table-1')
+  })
+})
+
+describe('enrichKBTagsSchema', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockBuildAuthHeaders.mockResolvedValue({ Authorization: 'Bearer internal-token' })
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('fetches tag definitions as the acting user so the route can authorize them', async () => {
+    const mockFetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          success: true,
+          data: [{ id: 'td-1', tagSlot: 'tag1', displayName: 'Client', fieldType: 'text' }],
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    )
+    vi.stubGlobal('fetch', mockFetch)
+
+    const result = await enrichKBTagsSchema('kb-1', { userId: 'user-1' })
+
+    expect(mockBuildAuthHeaders).toHaveBeenCalledWith('user-1')
+    expect(result?.properties).toEqual({ Client: { type: 'string', description: 'text tag' } })
+  })
+
+  it('skips enrichment without an acting user rather than issuing an unauthorized request', async () => {
+    const mockFetch = vi.fn()
+    vi.stubGlobal('fetch', mockFetch)
+
+    await expect(enrichKBTagsSchema('kb-1', {})).resolves.toBeNull()
+    expect(mockFetch).not.toHaveBeenCalled()
+    expect(mockBuildAuthHeaders).not.toHaveBeenCalled()
   })
 })

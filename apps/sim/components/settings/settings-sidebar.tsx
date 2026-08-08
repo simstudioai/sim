@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { ChipConfirmModal, chipVariants, cn, Tooltip } from '@sim/emcn'
-import { ChevronDown } from '@sim/emcn/icons'
+import { ChipConfirmModal, chipIconSlotClass, chipVariants, cn, Tooltip } from '@sim/emcn'
+import { ChevronLeft } from '@sim/emcn/icons'
 import { useRouter } from 'next/navigation'
 import {
   SETTINGS_PLANE_CHROME,
@@ -114,9 +114,10 @@ export function SettingsSidebar<Section extends SettingsSection>({
               onClick={() => requestLeave(() => router.push(WORKSPACE_HREF))}
               className={chipVariants({ fullWidth: true })}
             >
-              <div className='flex size-[16px] flex-shrink-0 items-center justify-center text-[var(--text-icon)]'>
-                <ChevronDown className='size-[10px] rotate-90' />
-              </div>
+              {/* The 16px slot every settings row gives its icon, so Back's label starts on their baseline. */}
+              <span aria-hidden className={cn(chipIconSlotClass, 'text-[var(--text-icon)]')}>
+                <ChevronLeft className='size-[14px]' />
+              </span>
               <span className='sidebar-collapse-hide truncate text-[var(--text-body)]'>Back</span>
             </button>
           </SidebarTooltip>

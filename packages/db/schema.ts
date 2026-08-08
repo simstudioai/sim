@@ -220,7 +220,7 @@ export const pinnedItem = pgTable(
     workspaceId: text('workspace_id')
       .notNull()
       .references(() => workspace.id, { onDelete: 'cascade' }),
-    resourceType: text('resource_type').notNull(), // 'workflow' | 'file' | 'knowledge_base' | 'table' | 'folder'
+    resourceType: text('resource_type').notNull(), // 'workflow' | 'file' | 'knowledge_base' | 'table' | 'folder' | 'workspace'
     resourceId: text('resource_id').notNull(),
     pinnedAt: timestamp('pinned_at').notNull().defaultNow(),
   },
@@ -1624,6 +1624,15 @@ export const workspace = pgTable(
     forkedFromWorkspaceIdx: index('workspace_forked_from_workspace_id_idx').on(
       table.forkedFromWorkspaceId
     ),
+    /**
+     * Routes an unauthenticated AgentMail delivery to exactly one tenant's
+     * webhook secret. Unique so "one signature check per request" is a storage
+     * invariant rather than something the receiver has to defend against, and
+     * partial because only a small fraction of workspaces enable an inbox.
+     */
+    inboxProviderIdIdx: uniqueIndex('workspace_inbox_provider_id_idx')
+      .on(table.inboxProviderId)
+      .where(sql`${table.inboxProviderId} IS NOT NULL`),
   })
 )
 
@@ -1985,8 +1994,13 @@ export const workspaceFiles = pgTable(
 )
 
 export interface WorkspaceFileSecretProvenanceEntry extends DurableSecretProvenanceEntry {
-  name: string
   sourceUserId: string
+}
+
+export interface StoredWorkspaceFileSecretProvenanceEntry
+  extends WorkspaceFileSecretProvenanceEntry {
+  name: string
+  anonymous?: true
 }
 
 /**
@@ -2005,7 +2019,10 @@ export const workspaceFileSecretProvenance = pgTable(
       .references(() => workspaceFiles.id, { onDelete: 'cascade' }),
     contentUpdatedAt: timestamp('content_updated_at').notNull(),
     status: text('status').notNull(),
-    entries: jsonb('entries').$type<WorkspaceFileSecretProvenanceEntry[]>().notNull().default([]),
+    entries: jsonb('entries')
+      .$type<StoredWorkspaceFileSecretProvenanceEntry[]>()
+      .notNull()
+      .default([]),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({

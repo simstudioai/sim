@@ -33,11 +33,13 @@ describe('workflowExecutorTool', () => {
         expected: {},
       },
     ])(
-      'selects the same normalized $name used by the request body',
+      'selects the inputMapping root and preserves $name body normalization',
       ({ inputMapping, expected }) => {
         const params = { workflowId: 'test-workflow-id', inputMapping }
 
-        expect(selectProvenance?.(params)).toEqual([{ key: 'input', value: expected }])
+        expect(selectProvenance?.(params)).toEqual([
+          { key: 'input', inputPaths: [['inputMapping']] },
+        ])
         expect(workflowExecutorTool.request.body?.(params)).toMatchObject({ input: expected })
       }
     )
