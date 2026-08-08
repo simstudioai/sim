@@ -4,8 +4,26 @@
 import { QueryClient } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockPrefetchInternalJson } = vi.hoisted(() => ({
+const {
+  mockGetWorkspaceHostContextForViewer,
+  mockListWorkspaceFileFolders,
+  mockListWorkspaceFilesWithShares,
+  mockPrefetchInternalJson,
+} = vi.hoisted(() => ({
+  mockGetWorkspaceHostContextForViewer: vi.fn(),
+  mockListWorkspaceFileFolders: vi.fn(),
+  mockListWorkspaceFilesWithShares: vi.fn(),
   mockPrefetchInternalJson: vi.fn(),
+}))
+
+vi.mock('@/lib/workspaces/host-context', () => ({
+  getWorkspaceHostContextForViewer: mockGetWorkspaceHostContextForViewer,
+}))
+vi.mock('@/lib/workspace-files/queries', () => ({
+  listWorkspaceFilesWithShares: mockListWorkspaceFilesWithShares,
+}))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-folder-manager', () => ({
+  listWorkspaceFileFolders: mockListWorkspaceFileFolders,
 }))
 
 vi.mock('@/app/workspace/[workspaceId]/lib/prefetch-internal-fetch', () => ({
@@ -29,6 +47,7 @@ import { workspaceFileFolderKeys } from '@/hooks/queries/workspace-file-folders'
 import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 
 const WORKSPACE_ID = 'ws-123'
+const USER_ID = 'user-1'
 
 function makeClient() {
   return new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -37,6 +56,9 @@ function makeClient() {
 describe('workspace list prefetches', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockGetWorkspaceHostContextForViewer.mockResolvedValue({ viewer: { permission: 'admin' } })
+    mockListWorkspaceFilesWithShares.mockResolvedValue([])
+    mockListWorkspaceFileFolders.mockResolvedValue([])
   })
 
   describe('prefetchKnowledgeBases', () => {
@@ -73,34 +95,32 @@ describe('workspace list prefetches', () => {
     it('primes both file + folder keys the client hooks read', async () => {
       const files = [{ id: 'f-1' }]
       const folders = [{ id: 'folder-1' }]
-      mockPrefetchInternalJson.mockImplementation(async (path: string) =>
-        path.includes('/folders') ? { folders } : { success: true, files }
-      )
+      mockListWorkspaceFilesWithShares.mockResolvedValue(files)
+      mockListWorkspaceFileFolders.mockResolvedValue(folders)
       const client = makeClient()
 
-      await prefetchFilesBrowser(client, WORKSPACE_ID)
+      await prefetchFilesBrowser(client, WORKSPACE_ID, USER_ID)
 
-      expect(mockPrefetchInternalJson).toHaveBeenCalledWith(
-        `/api/workspaces/${WORKSPACE_ID}/files?scope=active`
-      )
-      expect(mockPrefetchInternalJson).toHaveBeenCalledWith(
-        `/api/workspaces/${WORKSPACE_ID}/files/folders?scope=active`
-      )
+      expect(mockListWorkspaceFilesWithShares).toHaveBeenCalledWith(WORKSPACE_ID, 'active')
+      expect(mockListWorkspaceFileFolders).toHaveBeenCalledWith(WORKSPACE_ID, { scope: 'active' })
       expect(client.getQueryData(workspaceFilesKeys.list(WORKSPACE_ID, 'active'))).toEqual(files)
       expect(client.getQueryData(workspaceFileFolderKeys.list(WORKSPACE_ID, 'active'))).toEqual(
         folders
       )
     })
 
-    it('caches an empty file list when the route reports failure', async () => {
-      mockPrefetchInternalJson.mockImplementation(async (path: string) =>
-        path.includes('/folders') ? { folders: [] } : { success: false, files: [] }
-      )
+    /**
+     * The reads bypass the route that used to authorize them, so a viewer without workspace
+     * access must prime nothing and let the client fetch reach the route for the real 403.
+     */
+    it('caches nothing when the viewer has no workspace access', async () => {
+      mockGetWorkspaceHostContextForViewer.mockResolvedValue(null)
       const client = makeClient()
 
-      await prefetchFilesBrowser(client, WORKSPACE_ID)
+      await prefetchFilesBrowser(client, WORKSPACE_ID, USER_ID)
 
-      expect(client.getQueryData(workspaceFilesKeys.list(WORKSPACE_ID, 'active'))).toEqual([])
+      expect(client.getQueryCache().getAll()).toHaveLength(0)
+      expect(mockListWorkspaceFilesWithShares).not.toHaveBeenCalled()
     })
   })
 
@@ -111,9 +131,21 @@ describe('workspace list prefetches', () => {
      * column. Both must be primed on every foldered page, under the exact client keys.
      */
     const chromeCases = [
-      { name: 'files', run: prefetchFilesBrowser, resourceType: 'file' as const },
-      { name: 'tables', run: prefetchTables, resourceType: 'table' as const },
-      { name: 'knowledge', run: prefetchKnowledgeBases, resourceType: 'knowledge_base' as const },
+      {
+        name: 'files',
+        run: (client: QueryClient) => prefetchFilesBrowser(client, WORKSPACE_ID, USER_ID),
+        resourceType: 'file' as const,
+      },
+      {
+        name: 'tables',
+        run: (client: QueryClient) => prefetchTables(client, WORKSPACE_ID),
+        resourceType: 'table' as const,
+      },
+      {
+        name: 'knowledge',
+        run: (client: QueryClient) => prefetchKnowledgeBases(client, WORKSPACE_ID),
+        resourceType: 'knowledge_base' as const,
+      },
     ]
 
     for (const { name, run, resourceType } of chromeCases) {
@@ -128,7 +160,7 @@ describe('workspace list prefetches', () => {
         })
         const client = makeClient()
 
-        await run(client, WORKSPACE_ID)
+        await run(client)
 
         expect(mockPrefetchInternalJson).toHaveBeenCalledWith(
           `/api/pinned-items?workspaceId=${WORKSPACE_ID}&resourceType=${resourceType}`
@@ -193,23 +225,32 @@ describe('workspace list prefetches', () => {
     it.each([
       [
         'prefetchKnowledgeBases',
-        prefetchKnowledgeBases,
+        (client: QueryClient) => prefetchKnowledgeBases(client, WORKSPACE_ID),
         knowledgeKeys.list(WORKSPACE_ID, 'active'),
       ],
-      ['prefetchTables', prefetchTables, tableKeys.list(WORKSPACE_ID, 'active')],
-      ['prefetchHomeLists', prefetchHomeLists, folderKeys.list(WORKSPACE_ID, 'active')],
+      [
+        'prefetchTables',
+        (client: QueryClient) => prefetchTables(client, WORKSPACE_ID),
+        tableKeys.list(WORKSPACE_ID, 'active'),
+      ],
+      [
+        'prefetchHomeLists',
+        (client: QueryClient) => prefetchHomeLists(client, WORKSPACE_ID),
+        folderKeys.list(WORKSPACE_ID, 'active'),
+      ],
       [
         'prefetchFilesBrowser',
-        prefetchFilesBrowser,
+        (client: QueryClient) => prefetchFilesBrowser(client, WORKSPACE_ID, USER_ID),
         workspaceFilesKeys.list(WORKSPACE_ID, 'active'),
       ],
     ] as const)(
       '%s does not throw when the fetcher rejects (page still renders, client refetches)',
       async (_name, prefetch, queryKey) => {
         mockPrefetchInternalJson.mockRejectedValue(new Error('500'))
+        mockListWorkspaceFilesWithShares.mockRejectedValue(new Error('500'))
         const client = makeClient()
 
-        await expect(prefetch(client, WORKSPACE_ID)).resolves.toBeUndefined()
+        await expect(prefetch(client)).resolves.toBeUndefined()
         expect(client.getQueryData(queryKey)).toBeUndefined()
       }
     )
