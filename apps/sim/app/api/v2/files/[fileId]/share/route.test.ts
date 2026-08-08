@@ -18,8 +18,8 @@ const { mocks, MockV2ApiKeyUnauthenticatedError } = vi.hoisted(() => {
       preauthRate: vi.fn(),
       operationRate: vi.fn(),
       gate: vi.fn(),
-      getShare: vi.fn(),
       updateShare: vi.fn(),
+      unshare: vi.fn(),
     },
     MockV2ApiKeyUnauthenticatedError,
   }
@@ -55,18 +55,18 @@ vi.mock('@/lib/core/utils/request', () => ({
 vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: mocks.gate }))
 
 vi.mock('@/lib/workspace-files/application/share-workspace-file', () => ({
-  getWorkspaceFileShare: {
-    operation: { id: 'files.share.read', minimumRole: 'read', workspaceApiKey: 'allow' },
-    execute: mocks.getShare,
-  },
   updateWorkspaceFileShare: {
     operation: { id: 'files.share.update', minimumRole: 'write', workspaceApiKey: 'allow' },
     execute: mocks.updateShare,
   },
+  unshareWorkspaceFile: {
+    operation: { id: 'files.share.update', minimumRole: 'write', workspaceApiKey: 'allow' },
+    execute: mocks.unshare,
+  },
 }))
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { GET, PUT } from '@/app/api/v2/files/[fileId]/share/route'
+import { DELETE, PUT } from '@/app/api/v2/files/[fileId]/share/route'
 
 const WORKSPACE_ID = 'workspace-1'
 const FILE_ID = 'wf_1'
@@ -98,15 +98,6 @@ const SHARE = {
 }
 const context = { params: Promise.resolve({ fileId: FILE_ID }) }
 
-function callGet(query = `workspaceId=${WORKSPACE_ID}`) {
-  return GET(
-    new NextRequest(`http://localhost:3000/api/v2/files/${FILE_ID}/share?${query}`, {
-      headers: { 'x-api-key': 'key' },
-    }),
-    context
-  )
-}
-
 function callPut(body: unknown) {
   return PUT(
     new NextRequest(`http://localhost:3000/api/v2/files/${FILE_ID}/share`, {
@@ -118,77 +109,15 @@ function callPut(body: unknown) {
   )
 }
 
-describe('GET /api/v2/files/[fileId]/share', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.authenticate.mockResolvedValue(AUTH)
-    mocks.preauthRate.mockResolvedValue(RATE_LIMIT_OK)
-    mocks.operationRate.mockResolvedValue(RATE_LIMIT_OK)
-    mocks.gate.mockResolvedValue(null)
-    mocks.getShare.mockResolvedValue({ share: SHARE })
-  })
-
-  it('authenticates and rate-limits before parsing or executing', async () => {
-    mocks.authenticate.mockRejectedValueOnce(
-      new MockV2ApiKeyUnauthenticatedError('API key required')
-    )
-
-    const response = await callGet()
-
-    expect(response.status).toBe(401)
-    expect(mocks.getShare).not.toHaveBeenCalled()
-    expect(mocks.operationRate).not.toHaveBeenCalled()
-  })
-
-  it('returns 404 when the v2 API surface flag is off', async () => {
-    const { v2Error } = await import('@/app/api/v2/lib/response')
-    mocks.gate.mockResolvedValueOnce(v2Error('NOT_FOUND', 'Not found'))
-
-    const response = await callGet()
-
-    expect(response.status).toBe(404)
-    expect(mocks.getShare).not.toHaveBeenCalled()
-  })
-
-  it('validates the asserted workspace before executing the use case', async () => {
-    const response = await callGet('')
-
-    expect(response.status).toBe(400)
-    expect(mocks.getShare).not.toHaveBeenCalled()
-  })
-
-  it('conceals authorization failures as not found', async () => {
-    mocks.getShare.mockRejectedValueOnce(new OrchestrationError('forbidden', 'Access denied'))
-
-    const response = await callGet()
-    const body = await response.json()
-
-    expect(response.status).toBe(404)
-    expect(body.error.code).toBe('NOT_FOUND')
-    expect(mocks.getShare).toHaveBeenCalledWith({
-      principal: PRINCIPAL,
-      input: { fileId: FILE_ID, assertedWorkspaceId: WORKSPACE_ID },
-      request: expect.anything(),
-    })
-  })
-
-  it('returns the share through the v2 envelope', async () => {
-    const response = await callGet()
-
-    expect(response.status).toBe(200)
-    expect((await response.json()).data).toEqual({ share: SHARE })
-  })
-
-  it('returns the rate-limit response when denied', async () => {
-    mocks.operationRate.mockResolvedValueOnce({ ...RATE_LIMIT_OK, allowed: false, remaining: 0 })
-
-    const response = await callGet()
-
-    expect(response.status).toBe(429)
-    expect((await response.json()).error.code).toBe('RATE_LIMITED')
-    expect(mocks.getShare).not.toHaveBeenCalled()
-  })
-})
+function callDelete(query = `workspaceId=${WORKSPACE_ID}`) {
+  return DELETE(
+    new NextRequest(`http://localhost:3000/api/v2/files/${FILE_ID}/share?${query}`, {
+      method: 'DELETE',
+      headers: { 'x-api-key': 'key' },
+    }),
+    context
+  )
+}
 
 describe('PUT /api/v2/files/[fileId]/share', () => {
   beforeEach(() => {
@@ -203,7 +132,6 @@ describe('PUT /api/v2/files/[fileId]/share', () => {
   it('rejects a caller-supplied token at the v2 boundary', async () => {
     const response = await callPut({
       workspaceId: WORKSPACE_ID,
-      isActive: true,
       token: 'attacker-chosen-token',
     })
 
@@ -217,7 +145,7 @@ describe('PUT /api/v2/files/[fileId]/share', () => {
       new OrchestrationError('validation', 'Password is required for password-protected shares')
     )
 
-    const response = await callPut({ workspaceId: WORKSPACE_ID, isActive: true })
+    const response = await callPut({ workspaceId: WORKSPACE_ID })
     const body = await response.json()
 
     expect(response.status).toBe(400)
@@ -230,13 +158,20 @@ describe('PUT /api/v2/files/[fileId]/share', () => {
   it('passes the shared principal and canonical workspace assertion to the use case', async () => {
     const response = await callPut({
       workspaceId: WORKSPACE_ID,
-      isActive: true,
       authType: 'password',
       password: 'hunter2hunter2',
     })
 
     expect(response.status).toBe(200)
-    expect((await response.json()).data).toEqual({ share: SHARE })
+    expect((await response.json()).data).toEqual({
+      sharing: {
+        enabled: true,
+        url: SHARE.url,
+        authType: 'public',
+        hasPassword: false,
+        allowedEmails: [],
+      },
+    })
     expect(mocks.updateShare).toHaveBeenCalledWith({
       principal: PRINCIPAL,
       input: {
@@ -254,7 +189,7 @@ describe('PUT /api/v2/files/[fileId]/share', () => {
   it('conceals forbidden updates as not found', async () => {
     mocks.updateShare.mockRejectedValueOnce(new OrchestrationError('forbidden', 'Access denied'))
 
-    const response = await callPut({ workspaceId: WORKSPACE_ID, isActive: true })
+    const response = await callPut({ workspaceId: WORKSPACE_ID })
 
     expect(response.status).toBe(404)
     expect((await response.json()).error.code).toBe('NOT_FOUND')
@@ -263,10 +198,49 @@ describe('PUT /api/v2/files/[fileId]/share', () => {
   it('returns the rate-limit response when denied', async () => {
     mocks.operationRate.mockResolvedValueOnce({ ...RATE_LIMIT_OK, allowed: false, remaining: 0 })
 
-    const response = await callPut({ workspaceId: WORKSPACE_ID, isActive: true })
+    const response = await callPut({ workspaceId: WORKSPACE_ID })
 
     expect(response.status).toBe(429)
     expect((await response.json()).error.code).toBe('RATE_LIMITED')
     expect(mocks.updateShare).not.toHaveBeenCalled()
+  })
+})
+
+describe('DELETE /api/v2/files/[fileId]/share', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.authenticate.mockResolvedValue(AUTH)
+    mocks.preauthRate.mockResolvedValue(RATE_LIMIT_OK)
+    mocks.operationRate.mockResolvedValue(RATE_LIMIT_OK)
+    mocks.gate.mockResolvedValue(null)
+    mocks.unshare.mockResolvedValue({ share: { ...SHARE, isActive: false }, changed: true })
+  })
+
+  it('disables sharing through the canonical workspace assertion', async () => {
+    const response = await callDelete()
+
+    expect(response.status).toBe(200)
+    expect((await response.json()).data).toEqual({ sharing: { enabled: false } })
+    expect(mocks.unshare).toHaveBeenCalledWith({
+      principal: PRINCIPAL,
+      input: { fileId: FILE_ID, assertedWorkspaceId: WORKSPACE_ID },
+      request: expect.anything(),
+    })
+  })
+
+  it('validates the workspace before executing', async () => {
+    const response = await callDelete('')
+
+    expect(response.status).toBe(400)
+    expect(mocks.unshare).not.toHaveBeenCalled()
+  })
+
+  it('returns disabled when the file was already unshared', async () => {
+    mocks.unshare.mockResolvedValueOnce({ share: null, changed: false })
+
+    const response = await callDelete()
+
+    expect(response.status).toBe(200)
+    expect((await response.json()).data.sharing).toEqual({ enabled: false })
   })
 })

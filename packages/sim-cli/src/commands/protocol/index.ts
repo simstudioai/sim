@@ -1,6 +1,6 @@
 import { Command } from 'commander'
 import { chatCommand } from './chat.js'
-import { attachFileDownload } from './files-download.js'
+import { attachFileGet } from './files-get.js'
 import { attachFileUpload } from './files-upload.js'
 import { attachKnowledgeDocumentUpload } from './knowledge-document-upload.js'
 import { attachResourceDirectoryCommands } from './resource-directory.js'
@@ -20,7 +20,7 @@ export function attachProtocolCommands(program: Command): void {
 
   const files = group(program, 'files')
   attachFileUpload(files)
-  attachFileDownload(files)
+  attachFileGet(files)
   attachResourceDirectoryCommands(files, {
     kind: 'file',
     resources: 'listFiles',
