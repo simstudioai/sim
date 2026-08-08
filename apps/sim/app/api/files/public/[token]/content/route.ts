@@ -68,6 +68,21 @@ export const GET = withRouteHandler(
         return NextResponse.json({ error: auth.error ?? 'auth_required_password' }, { status: 401 })
       }
 
+      const { file } = resolved
+      const rangeHeader = request.headers.get('range')
+
+      /**
+       * Whether this file is byte-served. Classified from the filename as well
+       * as the stored type, matching how the workspace serve path decides
+       * (`getContentType(displayName)`): uploads frequently land as
+       * `application/octet-stream`, and keying only off `file.contentType` meant
+       * a shared `.mp4` silently lost `Accept-Ranges` while the very same file
+       * stayed seekable inside the workspace.
+       */
+      const isMedia =
+        isMediaContentType(file.contentType) ||
+        isMediaContentType(getContentType(file.originalName))
+
       /**
        * The share is only known after the token resolves, so the aggregate
        * per-share ceiling is enforced here rather than alongside the per-IP
@@ -77,15 +92,17 @@ export const GET = withRouteHandler(
        *
        * A seek within an in-progress playback is charged nothing: the ceiling is
        * shared by every visitor to the link, so counting each of a player's range
-       * requests would let one person scrubbing a video 429 everyone else. Same
-       * rule as the audit row below, from the same predicate.
+       * requests would let one person scrubbing a video 429 everyone else.
+       *
+       * That exemption is scoped to responses that actually honour `Range`.
+       * Every other path ignores the header and returns the whole body, so
+       * reading the predicate unconditionally let `Range: bytes=1-` on any
+       * non-media file collect the full download for free.
        */
-      if (isReadStart(request.headers.get('range'))) {
+      if (!isMedia || isReadStart(rangeHeader)) {
         const shareLimited = await enforcePerShareRateLimit('content', resolved.share.id)
         if (shareLimited) return shareLimited
       }
-
-      const { file } = resolved
 
       /**
        * Media is byte-served so a shared video or track is seekable and never
@@ -93,11 +110,9 @@ export const GET = withRouteHandler(
        * the buffered path below exists for the generated-document swap, which
        * no media file can be subject to.
        */
-      if (isMediaContentType(file.contentType)) {
+      if (isMedia) {
         const head = await headObject(file.key, 'workspace')
         if (!head) throw new FileNotFoundError('Not found')
-
-        const rangeHeader = request.headers.get('range')
 
         logger.info('Public shared media served', {
           shareId: resolved.share.id,
