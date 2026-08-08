@@ -46,11 +46,18 @@ export function buildDynatraceUrl(
 }
 
 /**
- * Encodes a path segment, leaving the `:` separators intact that Dynatrace metric
- * keys and transformation operators use (`builtin:host.cpu.usage:avg`).
+ * Encodes a metric key for a URL path. In Dynatrace a `:` is structural — it
+ * separates the metric key from its transformation operators
+ * (`builtin:host.cpu.usage:avg`) — so each colon-delimited part is encoded and
+ * the separators are rejoined verbatim, matching the unencoded form the API
+ * reference uses in its own examples.
  */
 export function encodeDynatracePathSegment(value: string): string {
-  return encodeURIComponent(value.trim()).replace(/%3A/gi, ':')
+  return value
+    .trim()
+    .split(':')
+    .map((part) => encodeURIComponent(part))
+    .join(':')
 }
 
 /** Encodes an identifier for use in a URL path, tolerating copy-pasted whitespace. */
@@ -90,7 +97,12 @@ export function dynatraceHeaders(
 
 /**
  * Reads a JSON response body, tolerating the empty bodies Dynatrace returns for
- * 201/204 responses.
+ * 201 (comment created) and 204 (logs accepted).
+ *
+ * A non-empty body that will not parse is an error, not an empty result — a
+ * gateway HTML page or a truncated payload would otherwise map to `{}` and
+ * surface as "no results", which is indistinguishable from a genuinely empty
+ * environment.
  */
 export async function readJsonBody(response: Response): Promise<Record<string, unknown>> {
   const text = await response.text()
@@ -98,7 +110,9 @@ export async function readJsonBody(response: Response): Promise<Record<string, u
   try {
     return JSON.parse(text) as Record<string, unknown>
   } catch {
-    return {}
+    throw new Error(
+      `Dynatrace returned a non-JSON body (HTTP ${response.status}): ${truncate(text.trim(), 200)}`
+    )
   }
 }
 

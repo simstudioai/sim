@@ -135,6 +135,19 @@ describe('json request params', () => {
     expect(sent.eventTimeout).toBeUndefined()
   })
 
+  it('rejects an empty log payload instead of sending a no-op that reports success', () => {
+    // Dynatrace answers 204 to `[]`, which would otherwise surface as accepted:true.
+    expect(() => body(ingestLogsTool, { ...base, logs: [] })).toThrow(/at least one log event/)
+    expect(() => body(ingestLogsTool, { ...base, logs: '' })).toThrow(/at least one log event/)
+    expect(() => body(ingestLogsTool, { ...base, logs: undefined })).toThrow(
+      /at least one log event/
+    )
+  })
+
+  it('rejects a malformed JSON string rather than silently dropping the payload', () => {
+    expect(() => body(ingestLogsTool, { ...base, logs: '{not json' })).toThrow(/valid JSON/)
+  })
+
   it('omits optional event fields that were not provided', () => {
     const sent = body(ingestEventTool, {
       ...base,
@@ -410,6 +423,22 @@ describe('response mapping', () => {
     ).output
     expect(closed.problemId).toBe('P-1')
     expect(closed.comment?.content).toBe('fixed')
+  })
+
+  it('raises on a non-JSON body instead of reporting an empty result', async () => {
+    // A gateway HTML page or a truncated payload must not read as "no results".
+    const html = new Response('<html><body>502 Bad Gateway</body></html>', {
+      status: 200,
+      headers: { 'content-type': 'text/html' },
+    })
+    await expect(listProblemsTool.transformResponse!(html)).rejects.toThrow(/non-JSON body/)
+  })
+
+  it('still tolerates the genuinely empty bodies of 201 and 204', async () => {
+    const created = await listProblemCommentsTool.transformResponse!(
+      new Response(null, { status: 204 })
+    )
+    expect(created.output.comments).toEqual([])
   })
 
   it('surfaces a 200 partial-success log ingestion body', async () => {

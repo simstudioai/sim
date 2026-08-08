@@ -46,7 +46,15 @@ export const ingestLogsTool: ToolConfig<DynatraceIngestLogsParams, DynatraceInge
     url: (params) => buildDynatraceUrl(params.environmentUrl, '/logs/ingest'),
     method: 'POST',
     headers: (params) => dynatraceHeaders(params.apiToken),
-    body: (params) => JSON.stringify(parseJsonParam(params.logs) ?? []),
+    body: (params) => {
+      const logs = parseJsonParam(params.logs)
+      // Dynatrace answers 204 for an empty array, which would report a send that
+      // never happened as a success. Fail loudly instead.
+      if (logs === undefined || (Array.isArray(logs) && logs.length === 0)) {
+        throw new Error('logs must contain at least one log event')
+      }
+      return JSON.stringify(logs)
+    },
   },
 
   /** Ingestion answers 204 with no body, or 200 with a partial-success body. */
