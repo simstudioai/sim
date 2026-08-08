@@ -4,6 +4,7 @@ import { useCallback, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { Table } from '@/app/workspace/[workspaceId]/tables/[tableId]/table'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { grantsFromPermissions } from '@/resources'
 
 interface TableRouteProps {
@@ -30,6 +31,7 @@ export function TableRoute({ tableLocksEnabled, viewsEnabled }: TableRouteProps)
   const tableId = typeof params?.tableId === 'string' ? params.tableId : ''
   const permissions = useUserPermissionsContext()
   const router = useRouter()
+  const { config: permissionConfig } = usePermissionConfig()
 
   const grants = useMemo(() => grantsFromPermissions(permissions), [permissions])
   const navigate = useCallback((path: string) => router.push(path), [router])
@@ -39,6 +41,7 @@ export function TableRoute({ tableLocksEnabled, viewsEnabled }: TableRouteProps)
       host='page'
       grants={grants}
       onNavigate={navigate}
+      showExecutionInternals={!permissionConfig.hideTraceSpans}
       workspaceId={workspaceId}
       tableId={tableId}
       tableLocksEnabled={tableLocksEnabled}

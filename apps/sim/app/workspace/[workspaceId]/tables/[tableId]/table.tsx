@@ -37,7 +37,6 @@ import {
   ALL_VIEW_PARAM,
   DEFAULT_TABLE_DETAIL_SORT_DIRECTION,
 } from '@/lib/table/detail-search-params'
-import { LogDetails } from '@/app/workspace/[workspaceId]/logs/components'
 import { useLogByExecutionId } from '@/hooks/queries/logs'
 import {
   downloadTableExport,
@@ -65,6 +64,7 @@ import {
   ColumnsMenu,
   EnrichmentDetails,
   EnrichmentsSidebar,
+  ExecutionSlideout,
   LockSettingsModal,
   NewColumnDropdown,
   RowModal,
@@ -112,6 +112,13 @@ interface TableProps {
    * that owns no router omits this and navigation is inert by construction.
    */
   onNavigate?: (path: string) => void
+  /**
+   * Whether this viewer may see trace internals, forwarded to the execution
+   * slideout's {@link LogView}. Required rather than read from
+   * `usePermissionConfig` here: a permission-group restriction must fail to
+   * compile when a host forgets it, not default to revealing payloads.
+   */
+  showExecutionInternals: boolean
   /**
    * The table's address. Required rather than derived: both mounts know it
    * (`page.tsx` from its route params, the panel from the open resource), and a
@@ -238,6 +245,7 @@ export function Table({
   host,
   grants,
   onNavigate,
+  showExecutionInternals,
   workspaceId,
   tableId,
   tableLocksEnabled = false,
@@ -1305,9 +1313,7 @@ export function Table({
   const enrichmentDetailsGroupName =
     enrichmentDetailsTarget &&
     tableWorkflowGroups.find((g) => g.id === enrichmentDetailsTarget.groupId)?.name
-  // Fetch the workflow log when the execution-details slideout is open. Reuses
-  // the logs page's <LogDetails> directly — no intermediate wrapper needed for
-  // a one-line query forward.
+  // Fetch the workflow log when the execution-details slideout is open.
   const { data: executionLog } = useLogByExecutionId(workspaceId, executionId)
 
   // Stable identity so the memoized Resource.Options can bail — an inline
@@ -1569,10 +1575,15 @@ export function Table({
         tableId={tableId}
         onColumnRename={onColumnRename}
       />
-      <LogDetails
+      <ExecutionSlideout
         log={executionLog ?? null}
         isOpen={Boolean(executionId)}
         onClose={onCloseSlideout}
+        workspaceId={workspaceId}
+        grants={grants}
+        host={host}
+        showExecutionInternals={showExecutionInternals}
+        onNavigate={onNavigate}
       />
       <EnrichmentDetails
         tableId={tableId}

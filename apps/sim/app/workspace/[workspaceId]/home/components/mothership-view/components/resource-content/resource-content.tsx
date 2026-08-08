@@ -316,6 +316,7 @@ export const ResourceContent = memo(function ResourceContent({
           host='panel'
           grants={grants}
           onNavigate={navigate}
+          showExecutionInternals={!permissionConfig.hideTraceSpans}
           workspaceId={workspaceId}
           tableId={resource.id}
           viewsEnabled={tableViewsEnabled}
