@@ -3012,6 +3012,44 @@ describe('Automatic Internal Route Detection', () => {
     Object.assign(tools, originalTools)
   })
 
+  it('rejects external non-2xx responses before running the tool transformer', async () => {
+    const transformResponse = vi.fn().mockResolvedValue({ success: true, output: {} })
+    const mockTool = {
+      id: 'test_external_422_tool',
+      name: 'Test External 422 Tool',
+      description: 'Tests shared non-2xx handling for external tools',
+      version: '1.0.0',
+      params: {},
+      request: {
+        url: 'https://api.example.com/statements/missing',
+        method: 'GET',
+      },
+      transformResponse,
+    }
+    ;(tools as Record<string, unknown>).test_external_422_tool = mockTool
+    mockSecureFetchWithPinnedIP.mockResolvedValueOnce({
+      ok: false,
+      status: 422,
+      statusText: 'Unprocessable Entity',
+      headers: {
+        get: (name: string) => (name.toLowerCase() === 'content-type' ? 'application/json' : null),
+        toRecord: () => ({ 'content-type': 'application/json' }),
+      },
+      text: async () => JSON.stringify({ message: 'Statement not found' }),
+      json: async () => ({ message: 'Statement not found' }),
+    })
+
+    try {
+      const result = await executeTool('test_external_422_tool', {})
+
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('Statement not found')
+      expect(transformResponse).not.toHaveBeenCalled()
+    } finally {
+      Reflect.deleteProperty(tools, 'test_external_422_tool')
+    }
+  })
+
   it('should validate + pin a proxyUrl param and pass it to secureFetchWithPinnedIP', async () => {
     inputValidationMockFns.mockValidateAndPinProxyUrl.mockResolvedValue({
       isValid: true,

@@ -15,6 +15,41 @@ const privateProvenanceTools = Object.entries(tools).filter(
   ([, tool]) => tool.request.modelInput?.mode === 'private-provenance'
 )
 
+describe('prepared tool request headers', () => {
+  const transportProbe: ToolConfig = {
+    id: 'transport_probe',
+    name: 'Transport Probe',
+    description: 'Tests shared request formatting',
+    version: '1.0.0',
+    params: {},
+    request: {
+      url: 'https://api.example.com/probe',
+      method: 'GET',
+    },
+  }
+
+  it('sets the shared versioned User-Agent by default', () => {
+    const prepared = prepareToolRequest(transportProbe, {})
+
+    expect(prepared.headers.get('User-Agent')).toBe('Sim/1.0 (+https://sim.ai)')
+  })
+
+  it('preserves an explicitly supplied User-Agent', () => {
+    const prepared = prepareToolRequest(
+      {
+        ...transportProbe,
+        request: {
+          ...transportProbe.request,
+          headers: () => ({ 'User-Agent': 'CustomClient/2.0' }),
+        },
+      },
+      {}
+    )
+
+    expect(prepared.headers.get('User-Agent')).toBe('CustomClient/2.0')
+  })
+})
+
 describe('private-provenance tool registry invariant', () => {
   it('covers at least one registered tool', () => {
     expect(privateProvenanceTools.length).toBeGreaterThan(0)

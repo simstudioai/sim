@@ -1,27 +1,37 @@
 import { normalizeBindings } from '@/tools/snowflake/sql'
-import type {
-  SnowflakeExecuteSqlParams,
-  SnowflakeExecuteSqlResponse,
-} from '@/tools/snowflake/types'
+import type { SnowflakeExecuteSqlParams, SnowflakeStatementResponse } from '@/tools/snowflake/types'
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   buildSnowflakeStatementBody,
-  getSnowflakeHeaders,
-  normalizeSnowflakeHost,
   snowflakeBaseParams,
-  snowflakeContextParams,
-  transformSnowflakeResponse,
+  snowflakeComputeParams,
+  snowflakeMaxRowsParam,
+  snowflakeStatementRequest,
+  transformSnowflakeResult,
 } from '@/tools/snowflake/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export const executeSqlTool: ToolConfig<SnowflakeExecuteSqlParams, SnowflakeExecuteSqlResponse> = {
+export const executeSqlTool: ToolConfig<SnowflakeExecuteSqlParams, SnowflakeStatementResponse> = {
   id: 'snowflake_execute_sql',
   version: '1.0.0',
   name: 'Snowflake Execute SQL',
   description: 'Execute one parameterized SQL statement through the Snowflake SQL API.',
   params: {
     ...snowflakeBaseParams,
-    ...snowflakeContextParams,
+    ...snowflakeComputeParams,
+    ...snowflakeMaxRowsParam,
+    database: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Database context for this statement',
+    },
+    schema: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Schema context for this statement',
+    },
     statement: {
       type: 'string',
       required: true,
@@ -41,17 +51,22 @@ export const executeSqlTool: ToolConfig<SnowflakeExecuteSqlParams, SnowflakeExec
       description: 'Return immediately with a statement handle',
     },
   },
-  request: {
-    url: (params) =>
-      `${normalizeSnowflakeHost(params.host)}/api/v2/statements${params.async === true ? '?async=true' : ''}`,
-    method: 'POST',
-    headers: getSnowflakeHeaders,
-    body: (params) =>
-      buildSnowflakeStatementBody(params, {
-        statement: params.statement,
-        bindings: normalizeBindings(params.bindings),
-      }),
-  },
-  transformResponse: (response, params) => transformSnowflakeResponse(response, 0, params?.maxRows),
+  request: snowflakeStatementRequest(
+    (params) =>
+      buildSnowflakeStatementBody(
+        params,
+        {
+          statement: params.statement,
+          bindings: normalizeBindings(params.bindings),
+        },
+        {
+          context: { database: params.database, schema: params.schema },
+          warehouse: params.warehouse,
+          maxRows: params.maxRows,
+        }
+      ),
+    (params) => params.async === true
+  ),
+  transformResponse: transformSnowflakeResult(),
   outputs: SNOWFLAKE_STATEMENT_OUTPUTS,
 }

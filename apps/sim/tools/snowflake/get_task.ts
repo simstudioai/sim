@@ -1,24 +1,23 @@
 import { buildGetTask } from '@/tools/snowflake/sql'
-import type { SnowflakeGetTaskResponse, SnowflakeTaskParams } from '@/tools/snowflake/types'
+import type { SnowflakeStatementResponse, SnowflakeTaskParams } from '@/tools/snowflake/types'
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   buildSnowflakeStatementBody,
-  getSnowflakeHeaders,
-  normalizeSnowflakeHost,
   snowflakeBaseParams,
-  snowflakeContextParams,
-  transformSnowflakeResponse,
+  snowflakeStatementParams,
+  snowflakeStatementRequest,
+  transformSnowflakeResult,
 } from '@/tools/snowflake/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export const getTaskTool: ToolConfig<SnowflakeTaskParams, SnowflakeGetTaskResponse> = {
+export const getTaskTool: ToolConfig<SnowflakeTaskParams, SnowflakeStatementResponse> = {
   id: 'snowflake_get_task',
   version: '1.0.0',
   name: 'Snowflake Get Task',
   description: 'Describe a Snowflake task.',
   params: {
     ...snowflakeBaseParams,
-    ...snowflakeContextParams,
+    ...snowflakeStatementParams,
     database: {
       type: 'string',
       required: true,
@@ -38,12 +37,9 @@ export const getTaskTool: ToolConfig<SnowflakeTaskParams, SnowflakeGetTaskRespon
       description: 'Task name',
     },
   },
-  request: {
-    url: (params) => `${normalizeSnowflakeHost(params.host)}/api/v2/statements`,
-    method: 'POST',
-    headers: getSnowflakeHeaders,
-    body: (params) => buildSnowflakeStatementBody(params, buildGetTask(params)),
-  },
-  transformResponse: (response, params) => transformSnowflakeResponse(response, 0, params?.maxRows),
+  request: snowflakeStatementRequest((params) =>
+    buildSnowflakeStatementBody(params, buildGetTask(params), { maxRows: 1 })
+  ),
+  transformResponse: transformSnowflakeResult(),
   outputs: SNOWFLAKE_STATEMENT_OUTPUTS,
 }

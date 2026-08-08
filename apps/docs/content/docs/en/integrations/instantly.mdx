@@ -57,6 +57,7 @@ Retrieves Instantly V2 leads with search, campaign, list, and pagination filters
 | `is_website_visitor` | boolean | No | Whether the lead is a website visitor |
 | `enrichment_status` | number | No | Enrichment status filter |
 | `esg_code` | string | No | Email security gateway code filter |
+| `apiKey` | string | Yes | Instantly API key with the required V2 scopes |
 
 #### Output
 
@@ -91,6 +92,7 @@ Retrieves an Instantly V2 lead by ID.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `leadId` | string | Yes | Lead ID |
+| `apiKey` | string | Yes | Instantly API key with the required V2 scopes |
 
 #### Output
 
@@ -144,6 +146,7 @@ Creates an Instantly V2 lead in a campaign or lead list.
 | `verify_leads_for_lead_finder` | boolean | No | Whether to verify leads imported from Lead Finder |
 | `verify_leads_on_import` | boolean | No | Whether to verify leads on import |
 | `custom_variables` | json | No | Custom variable object with string, number, boolean, or null values |
+| `apiKey` | string | Yes | Instantly API key with the required V2 scopes |
 
 #### Output
 
@@ -189,6 +192,7 @@ Updates fields on an existing Instantly V2 lead.
 | `pl_value_lead` | string | No | Potential value of the lead |
 | `assigned_to` | string | No | ID of the user assigned to the lead |
 | `custom_variables` | json | No | Custom variable object with string, number, boolean, or null values |
+| `apiKey` | string | Yes | Instantly API key with the required V2 scopes |
 
 #### Output
 
@@ -227,6 +231,7 @@ Deletes Instantly V2 leads in bulk from a campaign or lead list.
 | `status` | number | No | Optional lead status filter |
 | `ids` | array | No | Specific lead IDs to delete |
 | `limit` | number | No | Maximum number of matching leads to delete, up to 10000 |
+| `apiKey` | string | Yes | Instantly API key with the required V2 scopes |
 
 #### Output
 
@@ -248,6 +253,7 @@ Submits an Instantly V2 background job to update a lead interest status.
 | `list_id` | string | No | Lead list ID for the lead |
 | `ai_interest_value` | number | No | AI interest value to set for the lead |
 | `disable_auto_interest` | boolean | No | Whether to disable auto interest |
+| `apiKey` | string | Yes | Instantly API key with the required V2 scopes |
 
 #### Output
 
@@ -269,6 +275,7 @@ Retrieves Instantly V2 campaigns with search, status, tag, and pagination filter
 | `tag_ids` | string | No | Comma-separated campaign tag IDs |
 | `ai_sales_agent_id` | string | No | Filter campaigns by AI Sales Agent ID |
 | `status` | number | No | Campaign status enum value |
+| `apiKey` | string | Yes | Instantly API key with the required V2 scopes |
 
 #### Output
 
@@ -314,6 +321,7 @@ Creates an Instantly V2 campaign using the documented campaign schedule schema.
 | `text_only` | boolean | No | Whether the campaign is text only |
 | `email_gap` | number | No | Gap between emails in minutes |
 | `pl_value` | number | No | Value of every positive lead |
+| `apiKey` | string | Yes | Instantly API key with the required V2 scopes |
 
 #### Output
 
@@ -360,6 +368,7 @@ Updates documented Instantly V2 campaign fields.
 | `text_only` | boolean | No | Whether the campaign is text only |
 | `email_gap` | number | No | Gap between emails in minutes |
 | `pl_value` | number | No | Value of every positive lead |
+| `apiKey` | string | Yes | Instantly API key with the required V2 scopes |
 
 #### Output
 
@@ -394,6 +403,7 @@ Activates, starts, or resumes an Instantly V2 campaign.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `campaignId` | string | Yes | Campaign ID |
+| `apiKey` | string | Yes | Instantly API key with the required V2 scopes |
 
 #### Output
 
@@ -428,6 +438,7 @@ Pauses a running Instantly V2 campaign, stopping further email sends.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `campaignId` | string | Yes | Campaign ID |
+| `apiKey` | string | Yes | Instantly API key with the required V2 scopes |
 
 #### Output
 
@@ -462,6 +473,7 @@ Permanently deletes an Instantly V2 campaign.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `campaignId` | string | Yes | Campaign ID |
+| `apiKey` | string | Yes | Instantly API key with the required V2 scopes |
 
 #### Output
 
@@ -504,6 +516,7 @@ Retrieves Instantly V2 Unibox emails with search and pagination filters.
 | `eaccount` | string | No | Sending email account filter |
 | `lead` | string | No | Lead email address filter |
 | `is_unread` | boolean | No | Unread status filter |
+| `apiKey` | string | Yes | Instantly API key with the required V2 scopes |
 
 #### Output
 
@@ -543,6 +556,7 @@ Sends an Instantly V2 reply to an existing Unibox email.
 | `body` | json | Yes | Reply body object with text and/or html |
 | `cc_address_email_list` | string | No | Comma-separated CC email addresses |
 | `bcc_address_email_list` | string | No | Comma-separated BCC email addresses |
+| `apiKey` | string | Yes | Instantly API key with the required V2 scopes |
 
 #### Output
 
@@ -580,6 +594,7 @@ Retrieves Instantly V2 lead lists with search and pagination filters.
 | `starting_after` | string | No | Starting-after timestamp cursor |
 | `has_enrichment_task` | boolean | No | Filter by enrichment task setting |
 | `search` | string | No | Search query to filter lead lists by name |
+| `apiKey` | string | Yes | Instantly API key with the required V2 scopes |
 
 #### Output
 
@@ -616,6 +631,7 @@ Creates an Instantly V2 lead list.
 | `name` | string | Yes | Lead list name |
 | `has_enrichment_task` | boolean | No | Whether this list runs enrichment for every added lead |
 | `owned_by` | string | No | User ID of the lead list owner |
+| `apiKey` | string | Yes | Instantly API key with the required V2 scopes |
 
 #### Output
 

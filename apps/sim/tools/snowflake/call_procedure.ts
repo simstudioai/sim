@@ -1,22 +1,22 @@
 import { buildCallProcedure } from '@/tools/snowflake/sql'
 import type {
   SnowflakeCallProcedureParams,
-  SnowflakeCallProcedureResponse,
+  SnowflakeStatementResponse,
 } from '@/tools/snowflake/types'
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   buildSnowflakeStatementBody,
-  getSnowflakeHeaders,
-  normalizeSnowflakeHost,
   snowflakeBaseParams,
-  snowflakeContextParams,
-  transformSnowflakeResponse,
+  snowflakeComputeParams,
+  snowflakeMaxRowsParam,
+  snowflakeStatementRequest,
+  transformSnowflakeResult,
 } from '@/tools/snowflake/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const callProcedureTool: ToolConfig<
   SnowflakeCallProcedureParams,
-  SnowflakeCallProcedureResponse
+  SnowflakeStatementResponse
 > = {
   id: 'snowflake_call_procedure',
   version: '1.0.0',
@@ -24,7 +24,8 @@ export const callProcedureTool: ToolConfig<
   description: 'Call a stored procedure with explicitly typed Snowflake bindings.',
   params: {
     ...snowflakeBaseParams,
-    ...snowflakeContextParams,
+    ...snowflakeComputeParams,
+    ...snowflakeMaxRowsParam,
     database: {
       type: 'string',
       required: true,
@@ -59,12 +60,12 @@ export const callProcedureTool: ToolConfig<
       },
     },
   },
-  request: {
-    url: (params) => `${normalizeSnowflakeHost(params.host)}/api/v2/statements`,
-    method: 'POST',
-    headers: getSnowflakeHeaders,
-    body: (params) => buildSnowflakeStatementBody(params, buildCallProcedure(params)),
-  },
-  transformResponse: (response, params) => transformSnowflakeResponse(response, 0, params?.maxRows),
+  request: snowflakeStatementRequest((params) =>
+    buildSnowflakeStatementBody(params, buildCallProcedure(params), {
+      warehouse: params.warehouse,
+      maxRows: params.maxRows,
+    })
+  ),
+  transformResponse: transformSnowflakeResult(),
   outputs: SNOWFLAKE_STATEMENT_OUTPUTS,
 }

@@ -44,25 +44,12 @@ describe('Snowflake SQL builders', () => {
     expect(() => normalizeBindings({ '1': { type: 'NOPE', value: 'x' } } as never)).toThrow(
       'Unsupported'
     )
-    const largeValue = 'x'.repeat(1024 * 1024 + 1)
-    expect(
-      normalizeBindings({ '1': { type: 'TEXT', value: largeValue } })?.['1'].value
-    ).toHaveLength(largeValue.length)
+    expect(() => normalizeBindings([] as never)).toThrow('JSON object')
+    expect(() => normalizeBindings({ '1': [] } as never)).toThrow('contain type and value')
     expect(SnowflakeBlock.inputs.bindings.description).toContain(
       'object keyed by 1-based positions'
     )
     expect(SnowflakeBlock.inputs.procedureArguments.description).toContain('ordered JSON array')
-  })
-
-  it('parses JSON block inputs above the former Snowflake-specific byte limit', () => {
-    const mapParams = SnowflakeBlock.tools.config.params
-    if (!mapParams) throw new Error('Snowflake block must map tool parameters')
-    const payload = 'x'.repeat(1024 * 1024 + 1)
-    const result = mapParams({
-      operation: 'insert_rows',
-      rows: `[{"payload":"${payload}"}]`,
-    }) as { rows: Array<{ payload: string }> }
-    expect(result.rows[0].payload).toHaveLength(payload.length)
   })
 
   it('only coerces fields used by the selected block operation', () => {
@@ -103,24 +90,19 @@ describe('Snowflake SQL builders', () => {
     const staleFields = {
       database: 'OBJECT_DB',
       schema: 'OBJECT_SCHEMA',
-      contextDatabase: 'CONTEXT_DB',
-      contextSchema: 'CONTEXT_SCHEMA',
       taskName: 'TASK_DEFINITION',
-      taskNameFilter: 'TASK_HISTORY_FILTER',
     }
 
     expect(finalParams({ operation: 'execute_sql', ...staleFields })).toMatchObject({
-      database: 'CONTEXT_DB',
-      schema: 'CONTEXT_SCHEMA',
+      database: 'OBJECT_DB',
+      schema: 'OBJECT_SCHEMA',
     })
     expect(finalParams({ operation: 'insert_rows', ...staleFields, rows: '[]' })).toMatchObject({
       database: 'OBJECT_DB',
       schema: 'OBJECT_SCHEMA',
     })
     expect(finalParams({ operation: 'list_task_runs', ...staleFields })).toMatchObject({
-      database: 'CONTEXT_DB',
-      schema: 'CONTEXT_SCHEMA',
-      taskName: 'TASK_HISTORY_FILTER',
+      taskName: 'TASK_DEFINITION',
     })
     expect(finalParams({ operation: 'get_task', ...staleFields })).toMatchObject({
       database: 'OBJECT_DB',
@@ -151,6 +133,7 @@ describe('Snowflake SQL builders', () => {
     const params = { ...table, rows: [{ id: 1, name: 'Ada' }], matchColumns: ['ID'] }
     const update = buildUpdateRows(params)
     const upsert = buildUpsertRows(params)
+    expect(update.statement).toContain('ON EQUAL_NULL(target.id, source.id)')
     expect(update.statement).toContain('WHEN MATCHED THEN UPDATE SET target.name = source.name')
     expect(update.statement).not.toContain('WHEN NOT MATCHED')
     expect(upsert.statement).toContain('WHEN NOT MATCHED THEN INSERT (id, name)')
@@ -181,15 +164,6 @@ describe('Snowflake SQL builders', () => {
     expect(() =>
       buildInsertRows({ ...table, rows: [{ id: Number.MAX_SAFE_INTEGER + 1 }] })
     ).toThrow('safe integers')
-  })
-
-  it('builds structured writes above the former 1000-row limit', () => {
-    const result = buildInsertRows({
-      ...table,
-      rows: Array.from({ length: 1001 }, (_, id) => ({ id })),
-    })
-    expect(Object.keys(result.bindings ?? {})).toHaveLength(1001)
-    expect(result.statement).toContain('VALUES (?)')
   })
 
   it('requires delete filters and binds every filter value', () => {

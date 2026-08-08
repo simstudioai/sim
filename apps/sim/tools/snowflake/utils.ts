@@ -1,18 +1,19 @@
-import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
+import { isPlainRecord } from '@sim/utils/object'
 import type {
   SnowflakeBaseParams,
   SnowflakeBinding,
   SnowflakeColumn,
-  SnowflakeContextParams,
-  SnowflakePartition,
+  SnowflakeDmlStats,
+  SnowflakeResultOutput,
   SnowflakeStatementOutput,
+  SnowflakeStatementParams,
   SnowflakeStatementResponse,
+  SnowflakeStatementStatus,
 } from '@/tools/snowflake/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const DEFAULT_MAX_ROWS = 1_000
-export const MAX_RESULT_ROWS = 10_000
-export const MAX_RESPONSE_BYTES = 10 * 1024 * 1024
+export const SIM_MAX_RESULT_ROWS = 10_000
 
 const SNOWFLAKE_HOST_SUFFIXES = ['.snowflakecomputing.com', '.snowflakecomputing.cn']
 
@@ -25,12 +26,6 @@ interface SnowflakeApiColumn {
   nullable?: boolean
 }
 
-interface SnowflakeApiPartition {
-  rowCount?: number
-  compressedSize?: number
-  uncompressedSize?: number
-}
-
 interface SnowflakeApiResponse {
   code?: string
   sqlState?: string
@@ -40,7 +35,7 @@ interface SnowflakeApiResponse {
   resultSetMetaData?: {
     numRows?: number
     rowType?: SnowflakeApiColumn[]
-    partitionInfo?: SnowflakeApiPartition[]
+    partitionInfo?: unknown[]
     stats?: {
       numRowsInserted?: number
       numRowsUpdated?: number
@@ -50,35 +45,24 @@ interface SnowflakeApiResponse {
   }
 }
 
-interface SnowflakeDmlStats {
-  rowsInserted?: number
-  rowsUpdated?: number
-  rowsDeleted?: number
-  duplicateRowsUpdated?: number
-}
-
-type SnowflakeDmlStat = keyof SnowflakeDmlStats
-
-const DML_RESULT_COLUMNS: Record<string, SnowflakeDmlStat> = {
-  'number of rows inserted': 'rowsInserted',
-  'number of rows updated': 'rowsUpdated',
-  'number of rows deleted': 'rowsDeleted',
-  'number of multi-joined rows updated': 'duplicateRowsUpdated',
-  'number of duplicate rows updated': 'duplicateRowsUpdated',
-}
-
-const DML_RESULT_SHAPES = new Set([
-  'rowsDeleted',
-  'rowsInserted',
-  'rowsUpdated',
-  'duplicateRowsUpdated|rowsUpdated',
-  'duplicateRowsUpdated|rowsInserted|rowsUpdated',
-  'rowsInserted|rowsUpdated',
-])
-
 export interface SnowflakeStatementSpec {
   statement: string
   bindings?: Record<string, SnowflakeBinding>
+}
+
+interface SnowflakeResponseOptions {
+  currentPartition?: number
+  canceled?: boolean
+  fallbackStatementHandle?: string
+}
+
+interface SnowflakeStatementBodyOptions {
+  context?: {
+    database?: string
+    schema?: string
+  }
+  warehouse?: string
+  maxRows?: number
 }
 
 type ToolParam = ToolConfig['params'][string]
@@ -98,42 +82,37 @@ export const snowflakeBaseParams = {
   },
 } satisfies Record<string, ToolParam>
 
-export const snowflakeContextParams = {
-  warehouse: {
-    type: 'string',
-    required: false,
-    visibility: 'user-or-llm',
-    description: 'Warehouse to use for this statement; defaults to the PAT user setting',
-  },
-  database: {
-    type: 'string',
-    required: false,
-    visibility: 'user-or-llm',
-    description: 'Database context for this statement',
-  },
-  schema: {
-    type: 'string',
-    required: false,
-    visibility: 'user-or-llm',
-    description: 'Schema context for this statement',
-  },
+export const snowflakeStatementParams = {
   role: {
     type: 'string',
     required: false,
     visibility: 'user-or-llm',
     description: 'Snowflake role to use for this statement',
   },
-  timeout: {
+  statementTimeoutSeconds: {
     type: 'number',
     required: false,
     visibility: 'user-or-llm',
     description: 'Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds',
   },
+} satisfies Record<string, ToolParam>
+
+export const snowflakeComputeParams = {
+  ...snowflakeStatementParams,
+  warehouse: {
+    type: 'string',
+    required: false,
+    visibility: 'user-or-llm',
+    description: 'Warehouse to use for this statement; defaults to the PAT user setting',
+  },
+} satisfies Record<string, ToolParam>
+
+export const snowflakeMaxRowsParam = {
   maxRows: {
     type: 'number',
     required: false,
     visibility: 'user-or-llm',
-    description: 'Maximum result rows, from 1 to 10000; defaults to 1000',
+    description: 'Maximum result rows; defaults to 1000 with a Sim safety limit of 10000',
   },
 } satisfies Record<string, ToolParam>
 
@@ -167,23 +146,37 @@ export function getSnowflakeHeaders(params: SnowflakeBaseParams): Record<string,
     Authorization: `Bearer ${apiKey}`,
     Accept: 'application/json',
     'Content-Type': 'application/json',
-    'User-Agent': 'sim-snowflake-integration/1.0',
     'X-Snowflake-Authorization-Token-Type': 'PROGRAMMATIC_ACCESS_TOKEN',
+  }
+}
+
+export function snowflakeStatementRequest<P extends SnowflakeBaseParams>(
+  body: (params: P) => Record<string, unknown>,
+  asynchronous?: (params: P) => boolean
+): ToolConfig<P>['request'] {
+  return {
+    url: (params) =>
+      `${normalizeSnowflakeHost(params.host)}/api/v2/statements${asynchronous?.(params) ? '?async=true' : ''}`,
+    method: 'POST',
+    headers: getSnowflakeHeaders,
+    body,
   }
 }
 
 export function normalizeMaxRows(value?: number): number {
   const maxRows = value ?? DEFAULT_MAX_ROWS
-  if (!Number.isInteger(maxRows) || maxRows < 1 || maxRows > MAX_RESULT_ROWS) {
-    throw new Error(`maxRows must be an integer between 1 and ${MAX_RESULT_ROWS}`)
+  if (!Number.isInteger(maxRows) || maxRows < 1 || maxRows > SIM_MAX_RESULT_ROWS) {
+    throw new Error(
+      `maxRows must be an integer between 1 and the Sim safety limit of ${SIM_MAX_RESULT_ROWS}`
+    )
   }
   return maxRows
 }
 
-export function normalizeTimeout(value?: number): number | undefined {
+export function normalizeStatementTimeout(value?: number): number | undefined {
   if (value === undefined) return undefined
   if (!Number.isInteger(value) || value < 0 || value > 604_800) {
-    throw new Error('timeout must be an integer between 0 and 604800 seconds')
+    throw new Error('statementTimeoutSeconds must be an integer between 0 and 604800 seconds')
   }
   return value
 }
@@ -198,20 +191,23 @@ function normalizeContextName(value: string): string {
 }
 
 export function buildSnowflakeStatementBody(
-  params: SnowflakeContextParams,
-  spec: SnowflakeStatementSpec
+  params: SnowflakeStatementParams,
+  spec: SnowflakeStatementSpec,
+  options: SnowflakeStatementBodyOptions = {}
 ): Record<string, unknown> {
   if (!/\S/.test(spec.statement)) throw new Error('Snowflake statement is required')
 
   const body: Record<string, unknown> = {
     statement: spec.statement,
-    parameters: { rows_per_resultset: normalizeMaxRows(params.maxRows) },
+    parameters: { rows_per_resultset: normalizeMaxRows(options.maxRows) },
   }
-  const timeout = normalizeTimeout(params.timeout)
-  if (timeout !== undefined) body.timeout = timeout
-  if (params.warehouse?.trim()) body.warehouse = normalizeContextName(params.warehouse)
-  if (params.database?.trim()) body.database = normalizeContextName(params.database)
-  if (params.schema?.trim()) body.schema = normalizeContextName(params.schema)
+  const statementTimeoutSeconds = normalizeStatementTimeout(params.statementTimeoutSeconds)
+  if (statementTimeoutSeconds !== undefined) body.timeout = statementTimeoutSeconds
+  if (options.warehouse?.trim()) body.warehouse = normalizeContextName(options.warehouse)
+  if (options.context?.database?.trim()) {
+    body.database = normalizeContextName(options.context.database)
+  }
+  if (options.context?.schema?.trim()) body.schema = normalizeContextName(options.context.schema)
   if (params.role?.trim()) body.role = normalizeContextName(params.role)
   if (spec.bindings && Object.keys(spec.bindings).length > 0) body.bindings = spec.bindings
   return body
@@ -228,134 +224,96 @@ function mapColumn(column: SnowflakeApiColumn): SnowflakeColumn {
   }
 }
 
-function mapPartition(partition: SnowflakeApiPartition): SnowflakePartition {
-  return {
-    rowCount: partition.rowCount ?? 0,
-    compressedSize: partition.compressedSize ?? null,
-    uncompressedSize: partition.uncompressedSize ?? 0,
-  }
-}
-
-function normalizeResultColumnName(name?: string): string {
-  return name?.trim().toLowerCase().replace(/\s+/g, ' ') ?? ''
-}
-
-function parseRowCount(value: string | null | undefined): number | undefined {
-  if (value === null || value === undefined || !/^[0-9]+$/.test(value.trim())) return undefined
-  const count = Number(value)
-  return Number.isSafeInteger(count) ? count : undefined
-}
-
-function deriveDmlStats(
-  columns: SnowflakeApiColumn[],
-  rows: Array<Array<string | null>>
-): SnowflakeDmlStats {
-  const columnNames = columns.map((column) => normalizeResultColumnName(column.name))
-  const copyColumnIndexes = new Map(columnNames.map((name, index) => [name, index]))
-  if (
-    copyColumnIndexes.has('file') &&
-    copyColumnIndexes.has('status') &&
-    copyColumnIndexes.has('rows_loaded')
-  ) {
-    const rowsLoadedIndex = copyColumnIndexes.get('rows_loaded')
-    if (rowsLoadedIndex === undefined) return {}
-    let rowsInserted = 0
-    let foundCount = false
-    for (const row of rows) {
-      const count = parseRowCount(row[rowsLoadedIndex])
-      if (count === undefined) continue
-      if (!Number.isSafeInteger(rowsInserted + count)) return {}
-      rowsInserted += count
-      foundCount = true
-    }
-    return foundCount ? { rowsInserted } : {}
-  }
-
-  if (rows.length !== 1) return {}
-  const statColumns = columnNames.map((name) => DML_RESULT_COLUMNS[name])
-  if (statColumns.some((column) => column === undefined)) return {}
-  const shape = [...new Set(statColumns)].sort().join('|')
-  if (!DML_RESULT_SHAPES.has(shape)) return {}
-
-  const stats: SnowflakeDmlStats = {}
-  for (const [index, stat] of statColumns.entries()) {
-    if (!stat) continue
-    const count = parseRowCount(rows[0][index])
-    if (count !== undefined) stats[stat] = count
-  }
-  return stats
-}
-
-export async function transformSnowflakeResponse(
+export async function readSnowflakeResult(
   response: Response,
-  currentPartition = 0,
-  requestedMaxRows = DEFAULT_MAX_ROWS,
-  canceled = false,
-  fallbackStatementHandle = ''
-): Promise<SnowflakeStatementResponse> {
-  const data = await readSnowflakeResponse(response)
+  options: SnowflakeResponseOptions = {}
+): Promise<SnowflakeStatementOutput> {
+  const data = await readSnowflakeJson(response)
   const pending = response.status === 202
-  if (!response.ok && !pending) {
-    throw new Error(
-      data.message ||
-        `Snowflake request failed with HTTP ${response.status}${data.code ? ` (${data.code})` : ''}`
-    )
-  }
-  if (data.sqlState && data.sqlState !== '00000' && !canceled) {
+  const successfulSqlStates = options.canceled ? ['', '00000', '57014'] : ['', '00000']
+  if (data.sqlState !== undefined && !successfulSqlStates.includes(data.sqlState)) {
     throw new Error(
       `Snowflake statement failed (SQLSTATE ${data.sqlState}${data.code ? `, ${data.code}` : ''}): ${data.message ?? 'Unknown error'}`
     )
   }
 
-  const maxRows = normalizeMaxRows(requestedMaxRows)
-  const sourceRows = data.data ?? []
-  const rows = sourceRows.slice(0, maxRows)
-  const columns = (data.resultSetMetaData?.rowType ?? []).map(mapColumn)
-  const partitions = (data.resultSetMetaData?.partitionInfo ?? []).map(mapPartition)
-  const partitionCount = partitions.length
+  const statementHandle = (data.statementHandle ?? options.fallbackStatementHandle ?? '').trim()
+  if (pending && !statementHandle) {
+    throw new Error('Snowflake returned a running statement without a statement handle')
+  }
+
+  const canceled = options.canceled === true
+  const hasResult =
+    !pending && !canceled && (data.resultSetMetaData !== undefined || data.data !== undefined)
+  const result = hasResult ? buildResultOutput(data, response, options.currentPartition ?? 0) : null
+  const stats = data.resultSetMetaData?.stats
+  const dml = !pending && !canceled && stats ? buildDmlStats(stats) : null
+
+  return {
+    statementHandle,
+    status: statementStatus(pending, canceled),
+    message: data.message ?? null,
+    result,
+    dml,
+  }
+}
+
+export function transformSnowflakeResult<P extends SnowflakeBaseParams>(
+  options?: (params?: P) => SnowflakeResponseOptions
+): (response: Response, params?: P) => Promise<SnowflakeStatementResponse> {
+  return async (response, params) => ({
+    success: true,
+    output: await readSnowflakeResult(response, options?.(params)),
+  })
+}
+
+async function readSnowflakeJson(response: Response): Promise<SnowflakeApiResponse> {
+  let data: unknown
+  try {
+    data = await response.json()
+  } catch {
+    throw new Error('Snowflake returned an invalid JSON response')
+  }
+  if (!isPlainRecord(data)) throw new Error('Snowflake returned an invalid JSON response')
+  return data as SnowflakeApiResponse
+}
+
+function statementStatus(pending: boolean, canceled: boolean): SnowflakeStatementStatus {
+  if (canceled) return 'CANCELED'
+  return pending ? 'RUNNING' : 'SUCCEEDED'
+}
+
+function buildResultOutput(
+  data: SnowflakeApiResponse,
+  response: Response,
+  currentPartition: number
+): SnowflakeResultOutput {
+  const partitionCount = data.resultSetMetaData?.partitionInfo?.length ?? 0
   const linkedNextPartition = getLinkedPartition(response.headers.get('Link'), 'next')
   const nextPartition =
     linkedNextPartition ?? (currentPartition + 1 < partitionCount ? currentPartition + 1 : null)
-  const stats = data.resultSetMetaData?.stats
-  const derivedStats = deriveDmlStats(data.resultSetMetaData?.rowType ?? [], sourceRows)
-  const rowsInserted = stats?.numRowsInserted ?? derivedStats.rowsInserted ?? 0
-  const rowsUpdated = stats?.numRowsUpdated ?? derivedStats.rowsUpdated ?? 0
-  const rowsDeleted = stats?.numRowsDeleted ?? derivedStats.rowsDeleted ?? 0
-  const duplicateRowsUpdated =
-    stats?.numDuplicateRowsUpdated ?? derivedStats.duplicateRowsUpdated ?? 0
-
-  const output: SnowflakeStatementOutput = {
-    statementHandle: data.statementHandle ?? fallbackStatementHandle,
-    status: canceled ? 'CANCELED' : pending ? 'RUNNING' : 'SUCCEEDED',
-    code: data.code ?? null,
-    sqlState: data.sqlState ?? null,
-    message: data.message ?? (pending ? 'Statement is still running' : 'Statement completed'),
-    columns,
-    rows,
+  return {
+    columns: (data.resultSetMetaData?.rowType ?? []).map(mapColumn),
+    rows: data.data ?? [],
     totalRows: data.resultSetMetaData?.numRows ?? null,
-    partitions,
     currentPartition,
     nextPartition,
-    truncated: data.code === '391908' || sourceRows.length > rows.length || nextPartition !== null,
+    truncated: data.code === '391908' || nextPartition !== null,
+  }
+}
+
+function buildDmlStats(
+  stats: NonNullable<SnowflakeApiResponse['resultSetMetaData']>['stats']
+): SnowflakeDmlStats {
+  const rowsInserted = stats?.numRowsInserted ?? 0
+  const rowsUpdated = stats?.numRowsUpdated ?? 0
+  const rowsDeleted = stats?.numRowsDeleted ?? 0
+  return {
     rowsInserted,
     rowsUpdated,
     rowsDeleted,
-    duplicateRowsUpdated,
+    duplicateRowsUpdated: stats?.numDuplicateRowsUpdated ?? 0,
     rowsAffected: rowsInserted + rowsUpdated + rowsDeleted,
-  }
-  return { success: true, output }
-}
-
-async function readSnowflakeResponse(response: Response): Promise<SnowflakeApiResponse> {
-  const text = await readResponseTextWithLimit(response, {
-    maxBytes: MAX_RESPONSE_BYTES,
-    label: 'Snowflake response',
-  })
-  if (!text) return {}
-  try {
-    return JSON.parse(text) as SnowflakeApiResponse
-  } catch {
-    throw new Error('Snowflake returned an invalid JSON response')
   }
 }
 

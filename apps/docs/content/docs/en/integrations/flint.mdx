@@ -53,6 +53,7 @@ Start a background Flint agent task that modifies a site from a natural-language
 | `prompt` | string | Yes | Natural-language instructions for the agent \(e.g., "Add a new About page with a team section"\) |
 | `callbackUrl` | string | No | HTTPS webhook URL that Flint will POST to when the task completes or fails |
 | `publish` | boolean | No | Whether to automatically publish the changes when the task completes |
+| `apiKey` | string | Yes | Flint API key \(found in Flint team settings, starts with ak_\) |
 
 #### Output
 
@@ -75,6 +76,7 @@ Start a background Flint agent task that generates up to 10 pages from a templat
 | `items` | json | Yes | JSON array of 1-10 pages to generate. Each item requires targetPageSlug \(slug for the new page\) and context \(content details the agent should use\). |
 | `callbackUrl` | string | No | HTTPS webhook URL that Flint will POST to when the task completes or fails |
 | `publish` | boolean | No | Whether to automatically publish the generated pages when the task completes |
+| `apiKey` | string | Yes | Flint API key \(found in Flint team settings, starts with ak_\) |
 
 #### Output
 
@@ -93,6 +95,7 @@ Get the status and results of a background Flint agent task.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `taskId` | string | Yes | Identifier of the task returned when it was created \(e.g., bg-...\) |
+| `apiKey` | string | Yes | Flint API key \(found in Flint team settings, starts with ak_\) |
 
 #### Output
 

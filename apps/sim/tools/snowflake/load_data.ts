@@ -1,24 +1,25 @@
 import { buildLoadData } from '@/tools/snowflake/sql'
-import type { SnowflakeLoadDataParams, SnowflakeLoadDataResponse } from '@/tools/snowflake/types'
+import type { SnowflakeLoadDataParams, SnowflakeStatementResponse } from '@/tools/snowflake/types'
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   buildSnowflakeStatementBody,
-  getSnowflakeHeaders,
-  normalizeSnowflakeHost,
   snowflakeBaseParams,
-  snowflakeContextParams,
-  transformSnowflakeResponse,
+  snowflakeComputeParams,
+  snowflakeMaxRowsParam,
+  snowflakeStatementRequest,
+  transformSnowflakeResult,
 } from '@/tools/snowflake/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export const loadDataTool: ToolConfig<SnowflakeLoadDataParams, SnowflakeLoadDataResponse> = {
+export const loadDataTool: ToolConfig<SnowflakeLoadDataParams, SnowflakeStatementResponse> = {
   id: 'snowflake_load_data',
   version: '1.0.0',
   name: 'Snowflake Load Data',
   description: 'Load files from an existing Snowflake stage with COPY INTO.',
   params: {
     ...snowflakeBaseParams,
-    ...snowflakeContextParams,
+    ...snowflakeComputeParams,
+    ...snowflakeMaxRowsParam,
     database: {
       type: 'string',
       required: true,
@@ -81,12 +82,12 @@ export const loadDataTool: ToolConfig<SnowflakeLoadDataParams, SnowflakeLoadData
       description: 'CASE_SENSITIVE, CASE_INSENSITIVE, or NONE',
     },
   },
-  request: {
-    url: (params) => `${normalizeSnowflakeHost(params.host)}/api/v2/statements`,
-    method: 'POST',
-    headers: getSnowflakeHeaders,
-    body: (params) => buildSnowflakeStatementBody(params, buildLoadData(params)),
-  },
-  transformResponse: (response, params) => transformSnowflakeResponse(response, 0, params?.maxRows),
+  request: snowflakeStatementRequest((params) =>
+    buildSnowflakeStatementBody(params, buildLoadData(params), {
+      warehouse: params.warehouse,
+      maxRows: params.maxRows,
+    })
+  ),
+  transformResponse: transformSnowflakeResult(),
   outputs: SNOWFLAKE_STATEMENT_OUTPUTS,
 }

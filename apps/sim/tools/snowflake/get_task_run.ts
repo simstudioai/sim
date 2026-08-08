@@ -1,17 +1,16 @@
 import { buildGetTaskRun } from '@/tools/snowflake/sql'
-import type { SnowflakeGetTaskRunResponse, SnowflakeTaskRunParams } from '@/tools/snowflake/types'
+import type { SnowflakeGetTaskRunParams, SnowflakeStatementResponse } from '@/tools/snowflake/types'
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   buildSnowflakeStatementBody,
-  getSnowflakeHeaders,
-  normalizeSnowflakeHost,
   snowflakeBaseParams,
-  snowflakeContextParams,
-  transformSnowflakeResponse,
+  snowflakeComputeParams,
+  snowflakeStatementRequest,
+  transformSnowflakeResult,
 } from '@/tools/snowflake/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export const getTaskRunTool: ToolConfig<SnowflakeTaskRunParams, SnowflakeGetTaskRunResponse> = {
+export const getTaskRunTool: ToolConfig<SnowflakeGetTaskRunParams, SnowflakeStatementResponse> = {
   id: 'snowflake_get_task_run',
   version: '1.0.0',
   name: 'Snowflake Get Task Run',
@@ -19,7 +18,7 @@ export const getTaskRunTool: ToolConfig<SnowflakeTaskRunParams, SnowflakeGetTask
     'Find one task history record by query ID within Snowflake’s seven-day window and 10000 most recent records after optional filters.',
   params: {
     ...snowflakeBaseParams,
-    ...snowflakeContextParams,
+    ...snowflakeComputeParams,
     queryId: {
       type: 'string',
       required: true,
@@ -45,12 +44,12 @@ export const getTaskRunTool: ToolConfig<SnowflakeTaskRunParams, SnowflakeGetTask
       description: 'Optional exclusive ISO timestamp within the last seven days',
     },
   },
-  request: {
-    url: (params) => `${normalizeSnowflakeHost(params.host)}/api/v2/statements`,
-    method: 'POST',
-    headers: getSnowflakeHeaders,
-    body: (params) => buildSnowflakeStatementBody(params, buildGetTaskRun(params)),
-  },
-  transformResponse: (response, params) => transformSnowflakeResponse(response, 0, params?.maxRows),
+  request: snowflakeStatementRequest((params) =>
+    buildSnowflakeStatementBody(params, buildGetTaskRun(params), {
+      warehouse: params.warehouse,
+      maxRows: 1,
+    })
+  ),
+  transformResponse: transformSnowflakeResult(),
   outputs: SNOWFLAKE_STATEMENT_OUTPUTS,
 }

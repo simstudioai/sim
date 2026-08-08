@@ -1,27 +1,23 @@
 import { buildInsertRows } from '@/tools/snowflake/sql'
-import type {
-  SnowflakeInsertRowsParams,
-  SnowflakeInsertRowsResponse,
-} from '@/tools/snowflake/types'
+import type { SnowflakeInsertRowsParams, SnowflakeStatementResponse } from '@/tools/snowflake/types'
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   buildSnowflakeStatementBody,
-  getSnowflakeHeaders,
-  normalizeSnowflakeHost,
   snowflakeBaseParams,
-  snowflakeContextParams,
-  transformSnowflakeResponse,
+  snowflakeComputeParams,
+  snowflakeStatementRequest,
+  transformSnowflakeResult,
 } from '@/tools/snowflake/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export const insertRowsTool: ToolConfig<SnowflakeInsertRowsParams, SnowflakeInsertRowsResponse> = {
+export const insertRowsTool: ToolConfig<SnowflakeInsertRowsParams, SnowflakeStatementResponse> = {
   id: 'snowflake_insert_rows',
   version: '1.0.0',
   name: 'Snowflake Insert Rows',
   description: 'Insert structured JSON rows using bound values.',
   params: {
     ...snowflakeBaseParams,
-    ...snowflakeContextParams,
+    ...snowflakeComputeParams,
     database: {
       type: 'string',
       required: true,
@@ -47,12 +43,9 @@ export const insertRowsTool: ToolConfig<SnowflakeInsertRowsParams, SnowflakeInse
       description: 'Non-empty JSON array of row objects with matching keys',
     },
   },
-  request: {
-    url: (params) => `${normalizeSnowflakeHost(params.host)}/api/v2/statements`,
-    method: 'POST',
-    headers: getSnowflakeHeaders,
-    body: (params) => buildSnowflakeStatementBody(params, buildInsertRows(params)),
-  },
-  transformResponse: (response, params) => transformSnowflakeResponse(response, 0, params?.maxRows),
+  request: snowflakeStatementRequest((params) =>
+    buildSnowflakeStatementBody(params, buildInsertRows(params), { warehouse: params.warehouse })
+  ),
+  transformResponse: transformSnowflakeResult(),
   outputs: SNOWFLAKE_STATEMENT_OUTPUTS,
 }

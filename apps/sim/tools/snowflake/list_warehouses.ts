@@ -1,22 +1,22 @@
 import { buildListWarehouses } from '@/tools/snowflake/sql'
 import type {
   SnowflakeListWarehousesParams,
-  SnowflakeListWarehousesResponse,
+  SnowflakeStatementResponse,
 } from '@/tools/snowflake/types'
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   buildSnowflakeStatementBody,
-  getSnowflakeHeaders,
-  normalizeSnowflakeHost,
   snowflakeBaseParams,
-  snowflakeContextParams,
-  transformSnowflakeResponse,
+  snowflakeMaxRowsParam,
+  snowflakeStatementParams,
+  snowflakeStatementRequest,
+  transformSnowflakeResult,
 } from '@/tools/snowflake/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listWarehousesTool: ToolConfig<
   SnowflakeListWarehousesParams,
-  SnowflakeListWarehousesResponse
+  SnowflakeStatementResponse
 > = {
   id: 'snowflake_list_warehouses',
   version: '1.0.0',
@@ -24,7 +24,8 @@ export const listWarehousesTool: ToolConfig<
   description: 'List warehouses visible to the active Snowflake role.',
   params: {
     ...snowflakeBaseParams,
-    ...snowflakeContextParams,
+    ...snowflakeStatementParams,
+    ...snowflakeMaxRowsParam,
     nameLike: {
       type: 'string',
       required: false,
@@ -32,12 +33,11 @@ export const listWarehousesTool: ToolConfig<
       description: 'Optional SQL LIKE pattern for warehouse names',
     },
   },
-  request: {
-    url: (params) => `${normalizeSnowflakeHost(params.host)}/api/v2/statements`,
-    method: 'POST',
-    headers: getSnowflakeHeaders,
-    body: (params) => buildSnowflakeStatementBody(params, buildListWarehouses(params.nameLike)),
-  },
-  transformResponse: (response, params) => transformSnowflakeResponse(response, 0, params?.maxRows),
+  request: snowflakeStatementRequest((params) =>
+    buildSnowflakeStatementBody(params, buildListWarehouses(params.nameLike), {
+      maxRows: params.maxRows,
+    })
+  ),
+  transformResponse: transformSnowflakeResult(),
   outputs: SNOWFLAKE_STATEMENT_OUTPUTS,
 }

@@ -1,19 +1,19 @@
 import type {
   SnowflakeCancelStatementParams,
-  SnowflakeCancelStatementResponse,
+  SnowflakeStatementResponse,
 } from '@/tools/snowflake/types'
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   getSnowflakeHeaders,
   normalizeSnowflakeHost,
   snowflakeBaseParams,
-  transformSnowflakeResponse,
+  transformSnowflakeResult,
 } from '@/tools/snowflake/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const cancelStatementTool: ToolConfig<
   SnowflakeCancelStatementParams,
-  SnowflakeCancelStatementResponse
+  SnowflakeStatementResponse
 > = {
   id: 'snowflake_cancel_statement',
   name: 'Snowflake Cancel Statement',
@@ -34,7 +34,9 @@ export const cancelStatementTool: ToolConfig<
     method: 'POST',
     headers: getSnowflakeHeaders,
   },
-  transformResponse: (response, params) =>
-    transformSnowflakeResponse(response, 0, 1, true, params?.statementHandle.trim()),
+  transformResponse: transformSnowflakeResult((params) => ({
+    canceled: true,
+    fallbackStatementHandle: params?.statementHandle.trim(),
+  })),
   outputs: SNOWFLAKE_STATEMENT_OUTPUTS,
 }

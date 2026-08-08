@@ -1,22 +1,22 @@
 import { buildIntrospectSchema } from '@/tools/snowflake/sql'
 import type {
   SnowflakeIntrospectSchemaParams,
-  SnowflakeIntrospectSchemaResponse,
+  SnowflakeStatementResponse,
 } from '@/tools/snowflake/types'
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   buildSnowflakeStatementBody,
-  getSnowflakeHeaders,
-  normalizeSnowflakeHost,
   snowflakeBaseParams,
-  snowflakeContextParams,
-  transformSnowflakeResponse,
+  snowflakeComputeParams,
+  snowflakeMaxRowsParam,
+  snowflakeStatementRequest,
+  transformSnowflakeResult,
 } from '@/tools/snowflake/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const introspectSchemaTool: ToolConfig<
   SnowflakeIntrospectSchemaParams,
-  SnowflakeIntrospectSchemaResponse
+  SnowflakeStatementResponse
 > = {
   id: 'snowflake_introspect_schema',
   version: '1.0.0',
@@ -24,7 +24,8 @@ export const introspectSchemaTool: ToolConfig<
   description: 'Inspect table and column metadata through Snowflake INFORMATION_SCHEMA views.',
   params: {
     ...snowflakeBaseParams,
-    ...snowflakeContextParams,
+    ...snowflakeComputeParams,
+    ...snowflakeMaxRowsParam,
     database: {
       type: 'string',
       required: true,
@@ -50,12 +51,12 @@ export const introspectSchemaTool: ToolConfig<
       description: 'Include views as well as base tables',
     },
   },
-  request: {
-    url: (params) => `${normalizeSnowflakeHost(params.host)}/api/v2/statements`,
-    method: 'POST',
-    headers: getSnowflakeHeaders,
-    body: (params) => buildSnowflakeStatementBody(params, buildIntrospectSchema(params)),
-  },
-  transformResponse: (response, params) => transformSnowflakeResponse(response, 0, params?.maxRows),
+  request: snowflakeStatementRequest((params) =>
+    buildSnowflakeStatementBody(params, buildIntrospectSchema(params), {
+      warehouse: params.warehouse,
+      maxRows: params.maxRows,
+    })
+  ),
+  transformResponse: transformSnowflakeResult(),
   outputs: SNOWFLAKE_STATEMENT_OUTPUTS,
 }

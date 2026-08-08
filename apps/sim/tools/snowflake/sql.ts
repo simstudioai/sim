@@ -1,8 +1,13 @@
+import { isValidUuid } from '@sim/utils/id'
+import { isPlainRecord } from '@sim/utils/object'
 import {
   SNOWFLAKE_BINDING_TYPES,
   type SnowflakeBinding,
   type SnowflakeCallProcedureParams,
+  type SnowflakeCancelTaskRunParams,
   type SnowflakeDeleteRowsParams,
+  type SnowflakeGetTaskRunOutputParams,
+  type SnowflakeGetTaskRunParams,
   type SnowflakeInsertRowsParams,
   type SnowflakeIntrospectSchemaParams,
   type SnowflakeListTaskRunsParams,
@@ -10,7 +15,6 @@ import {
   type SnowflakeLoadDataParams,
   type SnowflakeRunTaskParams,
   type SnowflakeTaskParams,
-  type SnowflakeTaskRunParams,
   type SnowflakeUpdateRowsParams,
   type SnowflakeWarehouseParams,
 } from '@/tools/snowflake/types'
@@ -18,7 +22,6 @@ import { normalizeMaxRows, type SnowflakeStatementSpec } from '@/tools/snowflake
 
 const UNQUOTED_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_$]*$/
 const QUOTED_IDENTIFIER = /^"(?:[^"]|"")+"$/
-const QUERY_ID = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/
 
 export function identifier(value: string): string {
   const trimmed = value.trim()
@@ -78,7 +81,7 @@ function stringLiteral(value: string): string {
 
 function requireQueryId(queryId: string): string {
   const trimmed = queryId.trim()
-  if (!QUERY_ID.test(trimmed)) throw new Error('queryId must be a Snowflake UUID')
+  if (!isValidUuid(trimmed)) throw new Error('queryId must be a Snowflake UUID')
   return trimmed
 }
 
@@ -86,7 +89,7 @@ export function normalizeBindings(
   input?: Record<string, SnowflakeBinding>
 ): Record<string, SnowflakeBinding> | undefined {
   if (input === undefined) return undefined
-  if (!input || Array.isArray(input) || typeof input !== 'object') {
+  if (!isPlainRecord(input)) {
     throw new Error('bindings must be a JSON object keyed by 1-based positions')
   }
   const normalized: Record<string, SnowflakeBinding> = {}
@@ -98,7 +101,7 @@ export function normalizeBindings(
     if (!/^[1-9][0-9]*$/.test(position)) {
       throw new Error('binding keys must be positive integer positions')
     }
-    if (!binding || typeof binding !== 'object' || Array.isArray(binding)) {
+    if (!isPlainRecord(binding)) {
       throw new Error(`binding ${position} must contain type and value`)
     }
     if (!SNOWFLAKE_BINDING_TYPES.includes(binding.type)) {
@@ -153,20 +156,20 @@ function validateRows(rows: Array<Record<string, unknown>>): string[] {
   const columns = Object.keys(rows[0] ?? {})
   if (columns.length === 0) throw new Error('rows must contain at least one column')
   const signature = [...columns].sort().join('\u0000')
+  const identifierKeys = new Set<string>()
+  for (const column of columns) {
+    const key = identifierKey(column)
+    if (identifierKeys.has(key)) {
+      throw new Error(`rows contain duplicate Snowflake column identifiers: ${column}`)
+    }
+    identifierKeys.add(key)
+  }
   for (const row of rows) {
     if (!row || Array.isArray(row) || typeof row !== 'object') {
       throw new Error('every row must be a JSON object')
     }
     if ([...Object.keys(row)].sort().join('\u0000') !== signature) {
       throw new Error('every row must contain the same columns')
-    }
-    const identifierKeys = new Set<string>()
-    for (const column of Object.keys(row)) {
-      const key = identifierKey(column)
-      if (identifierKeys.has(key)) {
-        throw new Error(`rows contain duplicate Snowflake column identifiers: ${column}`)
-      }
-      identifierKeys.add(key)
     }
   }
   return columns
@@ -223,7 +226,7 @@ function buildMerge(params: SnowflakeUpdateRowsParams, upsert: boolean): Snowfla
   const source = valuesSource(params.rows, columns, binds)
   const target = qualifiedIdentifier(params.database, params.schema, params.table)
   const on = matchColumns
-    .map((column) => `target.${identifier(column)} = source.${identifier(column)}`)
+    .map((column) => `EQUAL_NULL(target.${identifier(column)}, source.${identifier(column)})`)
     .join(' AND ')
   const update = updateColumns
     .map((column) => `target.${identifier(column)} = source.${identifier(column)}`)
@@ -354,7 +357,7 @@ export function buildSuspendWarehouse(params: SnowflakeWarehouseParams): Snowfla
 }
 
 export function buildListTasks(params: SnowflakeListTasksParams): SnowflakeStatementSpec {
-  const limit = normalizeMaxRows(params.limit ?? params.maxRows)
+  const limit = normalizeMaxRows(params.limit)
   return {
     statement: `SHOW TASKS${params.nameLike?.trim() ? ` LIKE ${stringLiteral(params.nameLike.trim())}` : ''} IN SCHEMA ${qualifiedIdentifier(params.database, params.schema)} LIMIT ${limit}`,
   }
@@ -373,7 +376,7 @@ export function buildRunTask(params: SnowflakeRunTaskParams): SnowflakeStatement
 }
 
 export function buildListTaskRuns(params: SnowflakeListTaskRunsParams): SnowflakeStatementSpec {
-  const limit = normalizeMaxRows(params.limit ?? params.maxRows)
+  const limit = normalizeMaxRows(params.limit)
   const binds = new BindingsBuilder()
   const args = [`RESULT_LIMIT => ${limit}`, `ERROR_ONLY => ${params.errorOnly ? 'TRUE' : 'FALSE'}`]
   if (params.taskName?.trim()) args.push(`TASK_NAME => ${binds.add(params.taskName.trim())}`)
@@ -391,7 +394,7 @@ export function buildListTaskRuns(params: SnowflakeListTaskRunsParams): Snowflak
   }
 }
 
-export function buildGetTaskRun(params: SnowflakeTaskRunParams): SnowflakeStatementSpec {
+export function buildGetTaskRun(params: SnowflakeGetTaskRunParams): SnowflakeStatementSpec {
   const binds = new BindingsBuilder()
   const args = ['RESULT_LIMIT => 10000']
   if (params.taskName?.trim()) args.push(`TASK_NAME => ${binds.add(params.taskName.trim())}`)
@@ -410,13 +413,15 @@ export function buildGetTaskRun(params: SnowflakeTaskRunParams): SnowflakeStatem
   }
 }
 
-export function buildCancelTaskRun(params: SnowflakeTaskRunParams): SnowflakeStatementSpec {
+export function buildCancelTaskRun(params: SnowflakeCancelTaskRunParams): SnowflakeStatementSpec {
   return {
     statement: `SELECT SYSTEM$CANCEL_QUERY(${stringLiteral(requireQueryId(params.queryId))}) AS STATUS`,
   }
 }
 
-export function buildGetTaskRunOutput(params: SnowflakeTaskRunParams): SnowflakeStatementSpec {
+export function buildGetTaskRunOutput(
+  params: SnowflakeGetTaskRunOutputParams
+): SnowflakeStatementSpec {
   return {
     statement: `SELECT * FROM TABLE(RESULT_SCAN(${stringLiteral(requireQueryId(params.queryId))}))`,
   }
@@ -446,16 +451,10 @@ export function buildCallProcedure(params: SnowflakeCallProcedureParams): Snowfl
   if (!Array.isArray(procedureArguments)) {
     throw new Error('procedureArguments must be a JSON array')
   }
-  const bindings: Record<string, SnowflakeBinding> = {}
-  const placeholders = procedureArguments.map((argument, index) => {
-    if (!SNOWFLAKE_BINDING_TYPES.includes(argument.type)) {
-      throw new Error(`Unsupported Snowflake binding type: ${argument.type}`)
-    }
-    if (typeof argument.value !== 'string')
-      throw new Error('Procedure argument values must be strings')
-    bindings[String(index + 1)] = argument
-    return '?'
-  })
+  const bindings = normalizeBindings(
+    Object.fromEntries(procedureArguments.map((argument, index) => [String(index + 1), argument]))
+  )
+  const placeholders = procedureArguments.map(() => '?')
   return {
     statement: `CALL ${qualifiedIdentifier(params.database, params.schema, params.procedureName)}(${placeholders.join(', ')})`,
     bindings,

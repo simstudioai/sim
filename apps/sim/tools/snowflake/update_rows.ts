@@ -1,27 +1,23 @@
 import { buildUpdateRows } from '@/tools/snowflake/sql'
-import type {
-  SnowflakeUpdateRowsParams,
-  SnowflakeUpdateRowsResponse,
-} from '@/tools/snowflake/types'
+import type { SnowflakeStatementResponse, SnowflakeUpdateRowsParams } from '@/tools/snowflake/types'
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   buildSnowflakeStatementBody,
-  getSnowflakeHeaders,
-  normalizeSnowflakeHost,
   snowflakeBaseParams,
-  snowflakeContextParams,
-  transformSnowflakeResponse,
+  snowflakeComputeParams,
+  snowflakeStatementRequest,
+  transformSnowflakeResult,
 } from '@/tools/snowflake/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export const updateRowsTool: ToolConfig<SnowflakeUpdateRowsParams, SnowflakeUpdateRowsResponse> = {
+export const updateRowsTool: ToolConfig<SnowflakeUpdateRowsParams, SnowflakeStatementResponse> = {
   id: 'snowflake_update_rows',
   version: '1.0.0',
   name: 'Snowflake Update Rows',
   description: 'Update matching rows with a bound MERGE statement without inserting new rows.',
   params: {
     ...snowflakeBaseParams,
-    ...snowflakeContextParams,
+    ...snowflakeComputeParams,
     database: {
       type: 'string',
       required: true,
@@ -54,12 +50,9 @@ export const updateRowsTool: ToolConfig<SnowflakeUpdateRowsParams, SnowflakeUpda
       items: { type: 'string' },
     },
   },
-  request: {
-    url: (params) => `${normalizeSnowflakeHost(params.host)}/api/v2/statements`,
-    method: 'POST',
-    headers: getSnowflakeHeaders,
-    body: (params) => buildSnowflakeStatementBody(params, buildUpdateRows(params)),
-  },
-  transformResponse: (response, params) => transformSnowflakeResponse(response, 0, params?.maxRows),
+  request: snowflakeStatementRequest((params) =>
+    buildSnowflakeStatementBody(params, buildUpdateRows(params), { warehouse: params.warehouse })
+  ),
+  transformResponse: transformSnowflakeResult(),
   outputs: SNOWFLAKE_STATEMENT_OUTPUTS,
 }

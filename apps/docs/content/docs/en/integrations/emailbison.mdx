@@ -45,6 +45,8 @@ Retrieves leads from Email Bison with optional search and tag filters.
 | `tagIds` | array | No | Tag IDs to include |
 | `excludedTagIds` | array | No | Tag IDs to exclude |
 | `withoutTags` | boolean | No | Only return leads without tags |
+| `apiKey` | string | Yes | Email Bison API token |
+| `apiBaseUrl` | string | Yes | Email Bison instance URL that issued the token |
 
 #### Output
 
@@ -74,6 +76,8 @@ Retrieves a lead by Email Bison lead ID or email address.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `leadId` | string | Yes | Lead ID or email address |
+| `apiKey` | string | Yes | Email Bison API token |
+| `apiBaseUrl` | string | Yes | Email Bison instance URL that issued the token |
 
 #### Output
 
@@ -109,6 +113,8 @@ Creates a single lead in Email Bison.
 | `company` | string | No | Lead company |
 | `notes` | string | No | Additional notes about the lead |
 | `customVariables` | array | No | Custom variables to store on the lead |
+| `apiKey` | string | Yes | Email Bison API token |
+| `apiBaseUrl` | string | Yes | Email Bison instance URL that issued the token |
 
 #### Output
 
@@ -145,6 +151,8 @@ Updates an existing Email Bison lead. Fields omitted from a PUT update may be cl
 | `company` | string | No | Lead company |
 | `notes` | string | No | Additional notes about the lead |
 | `customVariables` | array | No | Custom variables to store on the lead |
+| `apiKey` | string | Yes | Email Bison API token |
+| `apiBaseUrl` | string | Yes | Email Bison instance URL that issued the token |
 
 #### Output
 
@@ -173,6 +181,8 @@ Retrieves Email Bison campaigns.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Email Bison API token |
+| `apiBaseUrl` | string | Yes | Email Bison instance URL that issued the token |
 
 #### Output
 
@@ -203,6 +213,8 @@ Creates a new Email Bison campaign.
 | --------- | ---- | -------- | ----------- |
 | `name` | string | Yes | Campaign name |
 | `campaignType` | string | No | Campaign type: outbound or reply_followup |
+| `apiKey` | string | Yes | Email Bison API token |
+| `apiBaseUrl` | string | Yes | Email Bison instance URL that issued the token |
 
 #### Output
 
@@ -241,6 +253,8 @@ Updates Email Bison campaign settings.
 | `canUnsubscribe` | boolean | No | Enable unsubscribe link |
 | `includeAutoRepliesInStats` | boolean | No | Include auto replies in campaign stats |
 | `sequencePrioritization` | string | No | Sequence prioritization: followups or new_leads |
+| `apiKey` | string | Yes | Email Bison API token |
+| `apiBaseUrl` | string | Yes | Email Bison instance URL that issued the token |
 
 #### Output
 
@@ -271,6 +285,8 @@ Pauses, resumes, or archives an Email Bison campaign.
 | --------- | ---- | -------- | ----------- |
 | `campaignId` | number | Yes | Campaign ID |
 | `action` | string | Yes | Status action: pause, resume, or archive |
+| `apiKey` | string | Yes | Email Bison API token |
+| `apiBaseUrl` | string | Yes | Email Bison instance URL that issued the token |
 
 #### Output
 
@@ -302,6 +318,8 @@ Adds existing Email Bison leads to a campaign.
 | `campaignId` | number | Yes | Campaign ID |
 | `leadIds` | array | Yes | Lead IDs to add to the campaign |
 | `allowParallelSending` | boolean | No | Force add leads already in sequence in other campaigns |
+| `apiKey` | string | Yes | Email Bison API token |
+| `apiBaseUrl` | string | Yes | Email Bison instance URL that issued the token |
 
 #### Output
 
@@ -338,6 +356,8 @@ Retrieves Email Bison replies with optional status, folder, campaign, sender, le
 | `senderEmailId` | number | No | Sender email ID |
 | `leadId` | number | No | Lead ID |
 | `tagIds` | array | No | Tag IDs to filter replies by |
+| `apiKey` | string | Yes | Email Bison API token |
+| `apiBaseUrl` | string | Yes | Email Bison instance URL that issued the token |
 
 #### Output
 
@@ -366,6 +386,8 @@ Retrieves all Email Bison tags for the authenticated workspace.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Email Bison API token |
+| `apiBaseUrl` | string | Yes | Email Bison instance URL that issued the token |
 
 #### Output
 
@@ -395,6 +417,8 @@ Creates a new Email Bison tag.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `name` | string | Yes | Tag name |
+| `apiKey` | string | Yes | Email Bison API token |
+| `apiBaseUrl` | string | Yes | Email Bison instance URL that issued the token |
 
 #### Output
 
@@ -426,6 +450,8 @@ Attaches Email Bison tags to one or more leads.
 | `tagIds` | array | Yes | Tag IDs to attach |
 | `leadIds` | array | Yes | Lead IDs to tag |
 | `skipWebhooks` | boolean | No | Skip Email Bison webhooks for this action |
+| `apiKey` | string | Yes | Email Bison API token |
+| `apiBaseUrl` | string | Yes | Email Bison instance URL that issued the token |
 
 #### Output
 

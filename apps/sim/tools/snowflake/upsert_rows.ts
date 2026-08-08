@@ -1,27 +1,23 @@
 import { buildUpsertRows } from '@/tools/snowflake/sql'
-import type {
-  SnowflakeUpsertRowsParams,
-  SnowflakeUpsertRowsResponse,
-} from '@/tools/snowflake/types'
+import type { SnowflakeStatementResponse, SnowflakeUpsertRowsParams } from '@/tools/snowflake/types'
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   buildSnowflakeStatementBody,
-  getSnowflakeHeaders,
-  normalizeSnowflakeHost,
   snowflakeBaseParams,
-  snowflakeContextParams,
-  transformSnowflakeResponse,
+  snowflakeComputeParams,
+  snowflakeStatementRequest,
+  transformSnowflakeResult,
 } from '@/tools/snowflake/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export const upsertRowsTool: ToolConfig<SnowflakeUpsertRowsParams, SnowflakeUpsertRowsResponse> = {
+export const upsertRowsTool: ToolConfig<SnowflakeUpsertRowsParams, SnowflakeStatementResponse> = {
   id: 'snowflake_upsert_rows',
   version: '1.0.0',
   name: 'Snowflake Upsert Rows',
   description: 'Update matching rows and insert unmatched rows with a bound MERGE statement.',
   params: {
     ...snowflakeBaseParams,
-    ...snowflakeContextParams,
+    ...snowflakeComputeParams,
     database: {
       type: 'string',
       required: true,
@@ -54,12 +50,9 @@ export const upsertRowsTool: ToolConfig<SnowflakeUpsertRowsParams, SnowflakeUpse
       items: { type: 'string' },
     },
   },
-  request: {
-    url: (params) => `${normalizeSnowflakeHost(params.host)}/api/v2/statements`,
-    method: 'POST',
-    headers: getSnowflakeHeaders,
-    body: (params) => buildSnowflakeStatementBody(params, buildUpsertRows(params)),
-  },
-  transformResponse: (response, params) => transformSnowflakeResponse(response, 0, params?.maxRows),
+  request: snowflakeStatementRequest((params) =>
+    buildSnowflakeStatementBody(params, buildUpsertRows(params), { warehouse: params.warehouse })
+  ),
+  transformResponse: transformSnowflakeResult(),
   outputs: SNOWFLAKE_STATEMENT_OUTPUTS,
 }

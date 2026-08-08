@@ -1,14 +1,13 @@
 import type {
   SnowflakeGetStatementParams,
-  SnowflakeGetStatementResponse,
+  SnowflakeStatementResponse,
 } from '@/tools/snowflake/types'
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   getSnowflakeHeaders,
-  normalizeMaxRows,
   normalizeSnowflakeHost,
   snowflakeBaseParams,
-  transformSnowflakeResponse,
+  transformSnowflakeResult,
 } from '@/tools/snowflake/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -20,52 +19,39 @@ function partitionNumber(value?: number): number {
   return partition
 }
 
-export const getStatementTool: ToolConfig<
-  SnowflakeGetStatementParams,
-  SnowflakeGetStatementResponse
-> = {
-  id: 'snowflake_get_statement',
-  name: 'Snowflake Get Statement',
-  description:
-    'Check a running or completed statement and retrieve exactly one result partition. Canceled or failed statements are returned as errors.',
-  version: '1.0.0',
-  params: {
-    ...snowflakeBaseParams,
-    statementHandle: {
-      type: 'string',
-      required: true,
-      visibility: 'user-or-llm',
-      description: 'Statement handle returned by Snowflake',
+export const getStatementTool: ToolConfig<SnowflakeGetStatementParams, SnowflakeStatementResponse> =
+  {
+    id: 'snowflake_get_statement',
+    name: 'Snowflake Get Statement',
+    description:
+      'Check a running or completed statement and retrieve exactly one result partition. Canceled or failed statements are returned as errors.',
+    version: '1.0.0',
+    params: {
+      ...snowflakeBaseParams,
+      statementHandle: {
+        type: 'string',
+        required: true,
+        visibility: 'user-or-llm',
+        description: 'Statement handle returned by Snowflake',
+      },
+      partition: {
+        type: 'number',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Zero-based result partition to retrieve; defaults to 0',
+      },
     },
-    partition: {
-      type: 'number',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Zero-based result partition to retrieve; defaults to 0',
+    request: {
+      url: (params) => {
+        const partition = partitionNumber(params.partition)
+        return `${normalizeSnowflakeHost(params.host)}/api/v2/statements/${encodeURIComponent(params.statementHandle.trim())}?partition=${partition}`
+      },
+      method: 'GET',
+      headers: getSnowflakeHeaders,
     },
-    maxRows: {
-      type: 'number',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Maximum rows returned from this partition, from 1 to 10000',
-    },
-  },
-  request: {
-    url: (params) => {
-      const partition = partitionNumber(params.partition)
-      normalizeMaxRows(params.maxRows)
-      return `${normalizeSnowflakeHost(params.host)}/api/v2/statements/${encodeURIComponent(params.statementHandle.trim())}?partition=${partition}`
-    },
-    method: 'GET',
-    headers: getSnowflakeHeaders,
-  },
-  transformResponse: (response, params) =>
-    transformSnowflakeResponse(
-      response,
-      partitionNumber(params?.partition),
-      params?.maxRows,
-      false,
-      params?.statementHandle.trim()
-    ),
-  outputs: SNOWFLAKE_STATEMENT_OUTPUTS,
-}
+    transformResponse: transformSnowflakeResult((params) => ({
+      currentPartition: partitionNumber(params?.partition),
+      fallbackStatementHandle: params?.statementHandle.trim(),
+    })),
+    outputs: SNOWFLAKE_STATEMENT_OUTPUTS,
+  }
