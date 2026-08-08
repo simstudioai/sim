@@ -127,10 +127,31 @@ export const createSettingsObjectTool: ToolConfig<
             type: 'json',
             description: 'Validation error for this object, when it failed',
             nullable: true,
+            properties: {
+              code: { type: 'number', description: 'Error code' },
+              message: { type: 'string', description: 'Error message' },
+              constraintViolations: {
+                type: 'array',
+                description: 'Which part of the value failed validation',
+                items: {
+                  type: 'object',
+                  properties: {
+                    location: { type: 'string', description: 'Where the violation was found' },
+                    message: { type: 'string', description: 'What is wrong' },
+                    parameterLocation: {
+                      type: 'string',
+                      description: 'HEADER, PATH, PAYLOAD_BODY, or QUERY',
+                    },
+                    path: { type: 'string', description: 'Path to the offending field' },
+                  },
+                },
+              },
+            },
           },
           invalidValue: {
             type: 'json',
-            description: 'The value that was rejected',
+            description:
+              'The value that was rejected. Mirrors the submitted schema-defined value, so the shape is dynamic',
             optional: true,
           },
         },

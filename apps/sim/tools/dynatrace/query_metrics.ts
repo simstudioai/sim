@@ -136,6 +136,10 @@ export const queryMetricsTool: ToolConfig<
             type: 'json',
             description: 'DQL translation of the query, when available',
             nullable: true,
+            properties: {
+              status: { type: 'string', description: 'Whether the translation succeeded' },
+              query: { type: 'string', description: 'The equivalent DQL query' },
+            },
           },
           warnings: {
             type: 'array',

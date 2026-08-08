@@ -1,5 +1,214 @@
 import type { OutputProperty } from '@/tools/types'
 
+/**
+ * Nested shapes below are transcribed from the Dynatrace API reference so that
+ * downstream blocks can reference a field directly rather than digging through
+ * an opaque blob. A bare `type: 'json'` is used ONLY where the payload is
+ * genuinely dynamic — a schema-defined settings value, a type-dependent entity
+ * property bag, user-supplied metadata, or a shape the reference names without
+ * expanding. Each of those carries a description saying so.
+ */
+
+/**
+ * A raw `EntityStub` as it appears NESTED inside a passthrough blob — still in
+ * the API's `{ entityId: { id, type }, name }` form, unlike the top-level stubs
+ * which `mapEntityStub` flattens.
+ */
+const rawEntityStubProperties: Record<string, OutputProperty> = {
+  entityId: {
+    type: 'json',
+    description: 'Identifier of the entity',
+    properties: {
+      id: { type: 'string', description: 'Entity ID' },
+      type: { type: 'string', description: 'Entity type' },
+    },
+  },
+  name: { type: 'string', description: 'Entity display name' },
+}
+
+/** A source-code location, as attached to attacks and code-level vulnerabilities. */
+const codeLocationProperties: Record<string, OutputProperty> = {
+  className: { type: 'string', description: 'Class the code sits in', nullable: true },
+  fileName: { type: 'string', description: 'Source file', nullable: true },
+  functionName: { type: 'string', description: 'Function name', nullable: true },
+  displayName: { type: 'string', description: 'Human-readable location' },
+  lineNumber: { type: 'number', description: 'Line number', nullable: true },
+  columnNumber: { type: 'number', description: 'Column number', nullable: true },
+  returnType: { type: 'string', description: 'Return type', nullable: true },
+  parameterTypes: {
+    type: 'json',
+    description: 'Parameter types, with a truncation marker when the list was cut short',
+  },
+}
+
+/** A vulnerable function reference. */
+const vulnerableFunctionProperties: Record<string, OutputProperty> = {
+  className: { type: 'string', description: 'Class the function sits in' },
+  filePath: { type: 'string', description: 'Path to the source file' },
+  functionName: { type: 'string', description: 'Function name' },
+}
+
+/** `EvidenceDetails` — root-cause evidence, present only when requested via Fields. */
+const evidenceDetailsProperties: Record<string, OutputProperty> = {
+  totalCount: { type: 'number', description: 'Number of evidence entries' },
+  details: {
+    type: 'array',
+    description: 'The evidence entries themselves',
+    items: {
+      type: 'object',
+      properties: {
+        displayName: { type: 'string', description: 'Name of the evidence' },
+        evidenceType: {
+          type: 'string',
+          description: 'AVAILABILITY_EVIDENCE, EVENT, MAINTENANCE_WINDOW, METRIC, or TRANSACTIONAL',
+        },
+        startTime: { type: 'number', description: 'Evidence start in UTC milliseconds' },
+        rootCauseRelevant: {
+          type: 'boolean',
+          description: 'Whether Davis considered this evidence root-cause relevant',
+        },
+        entity: {
+          type: 'json',
+          description: 'Entity the evidence belongs to',
+          properties: rawEntityStubProperties,
+        },
+        groupingEntity: {
+          type: 'json',
+          description: 'Entity the evidence is grouped under',
+          properties: rawEntityStubProperties,
+        },
+      },
+    },
+  },
+}
+
+/** `ImpactAnalysis` — estimated user impact, present only when requested via Fields. */
+const impactAnalysisProperties: Record<string, OutputProperty> = {
+  impacts: {
+    type: 'array',
+    description: 'One entry per impacted application, service, or mobile app',
+    items: {
+      type: 'object',
+      properties: {
+        impactType: {
+          type: 'string',
+          description: 'APPLICATION, CUSTOM_APPLICATION, MOBILE, or SERVICE',
+        },
+        impactedEntity: {
+          type: 'json',
+          description: 'The impacted entity',
+          properties: rawEntityStubProperties,
+        },
+        estimatedAffectedUsers: {
+          type: 'number',
+          description: 'Users Davis estimates were affected',
+        },
+      },
+    },
+  },
+}
+
+/** `CommentsList` — the paged comment envelope. */
+const commentsListProperties: Record<string, OutputProperty> = {
+  totalCount: { type: 'number', description: 'Total comments on the problem' },
+  pageSize: { type: 'number', description: 'Comments in this page' },
+  nextPageKey: { type: 'string', description: 'Cursor for the next page', nullable: true },
+  comments: {
+    type: 'array',
+    description: 'The comments themselves',
+    items: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Comment ID' },
+        authorName: { type: 'string', description: 'Author of the comment' },
+        content: { type: 'string', description: 'Comment text' },
+        context: { type: 'string', description: 'Context of the comment', nullable: true },
+        createdAtTimestamp: { type: 'number', description: 'Created in UTC milliseconds' },
+      },
+    },
+  },
+}
+
+/** Davis risk assessment of a vulnerability. */
+const riskAssessmentProperties: Record<string, OutputProperty> = {
+  riskLevel: { type: 'string', description: 'CRITICAL, HIGH, MEDIUM, LOW, or NONE' },
+  riskScore: { type: 'number', description: 'Davis risk score' },
+  riskVector: { type: 'string', description: 'Risk vector string' },
+  baseRiskLevel: { type: 'string', description: 'CVSS base risk level' },
+  baseRiskScore: { type: 'number', description: 'CVSS base score' },
+  baseRiskVector: { type: 'string', description: 'CVSS base vector' },
+  exposure: { type: 'string', description: 'PUBLIC_NETWORK, NOT_DETECTED, or NOT_AVAILABLE' },
+  dataAssets: { type: 'string', description: 'REACHABLE, NOT_DETECTED, or NOT_AVAILABLE' },
+  publicExploit: { type: 'string', description: 'AVAILABLE or NOT_AVAILABLE' },
+  vulnerableFunctionUsage: {
+    type: 'string',
+    description: 'IN_USE, NOT_IN_USE, or NOT_AVAILABLE',
+  },
+  assessmentAccuracy: { type: 'string', description: 'FULL, REDUCED, or NOT_AVAILABLE' },
+  assessmentAccuracyDetails: {
+    type: 'json',
+    description: 'Why the assessment accuracy is reduced, as a reducedReasons array',
+  },
+}
+
+/** Environment-wide counts attached to a vulnerability. */
+const globalCountsProperties: Record<string, OutputProperty> = {
+  affectedNodes: { type: 'number', description: 'Affected nodes' },
+  affectedProcessGroups: { type: 'number', description: 'Affected process groups' },
+  affectedProcessGroupInstances: {
+    type: 'number',
+    description: 'Affected process group instances',
+  },
+  exposedProcessGroups: { type: 'number', description: 'Publicly exposed process groups' },
+  reachableDataAssets: { type: 'number', description: 'Reachable data assets' },
+  relatedApplications: { type: 'number', description: 'Related applications' },
+  relatedAttacks: { type: 'number', description: 'Related attacks' },
+  relatedHosts: { type: 'number', description: 'Related hosts' },
+  relatedKubernetesClusters: { type: 'number', description: 'Related Kubernetes clusters' },
+  relatedKubernetesWorkloads: { type: 'number', description: 'Related Kubernetes workloads' },
+  relatedServices: { type: 'number', description: 'Related services' },
+  vulnerableComponents: { type: 'number', description: 'Vulnerable components' },
+}
+
+/** Code-level vulnerability detail. */
+const codeLevelVulnerabilityDetailsProperties: Record<string, OutputProperty> = {
+  type: {
+    type: 'string',
+    description: 'CMD_INJECTION, IMPROPER_INPUT_VALIDATION, SQL_INJECTION, or SSRF',
+  },
+  vulnerabilityLocation: { type: 'string', description: 'Where the vulnerability sits' },
+  shortVulnerabilityLocation: { type: 'string', description: 'Shortened location' },
+  vulnerableFunction: { type: 'string', description: 'The vulnerable function' },
+  processGroupIds: {
+    type: 'array',
+    description: 'Process groups carrying the vulnerability',
+    items: { type: 'string' },
+  },
+  processGroups: {
+    type: 'array',
+    description: 'Process group names',
+    items: { type: 'string' },
+  },
+  vulnerableFunctionInput: {
+    type: 'json',
+    description: 'What reached the vulnerable function, as a type plus tainted input segments',
+  },
+}
+
+/** A vulnerable component of a security problem or remediation item. */
+const vulnerableComponentProperties: Record<string, OutputProperty> = {
+  id: { type: 'string', description: 'Component ID' },
+  displayName: { type: 'string', description: 'Component display name' },
+  shortName: { type: 'string', description: 'Short component name' },
+  fileName: { type: 'string', description: 'File the component ships as' },
+  numberOfAffectedEntities: { type: 'number', description: 'Entities affected by it' },
+  affectedEntities: {
+    type: 'array',
+    description: 'IDs of the affected entities',
+    items: { type: 'string' },
+  },
+}
+
 /** Flattened `EntityStub` shape produced by `mapEntityStub`. */
 export const entityStubProperties: Record<string, OutputProperty> = {
   id: { type: 'string', description: 'Entity ID', nullable: true },
@@ -103,16 +312,19 @@ export const problemProperties: Record<string, OutputProperty> = {
     type: 'json',
     description: 'Evidence behind the problem. Only present when requested via Fields',
     nullable: true,
+    properties: evidenceDetailsProperties,
   },
   impactAnalysis: {
     type: 'json',
     description: 'Estimated user impact. Only present when requested via Fields',
     nullable: true,
+    properties: impactAnalysisProperties,
   },
   recentComments: {
     type: 'json',
     description: 'Most recent comments. Only present when requested via Fields',
     nullable: true,
+    properties: commentsListProperties,
   },
 }
 
@@ -123,7 +335,11 @@ export const entityProperties: Record<string, OutputProperty> = {
   displayName: { type: 'string', description: 'Entity display name' },
   firstSeenTms: { type: 'number', description: 'First seen timestamp in UTC milliseconds' },
   lastSeenTms: { type: 'number', description: 'Last seen timestamp in UTC milliseconds' },
-  properties: { type: 'json', description: 'Type-specific entity properties' },
+  properties: {
+    type: 'json',
+    description:
+      'Entity properties. Keys depend on the entity type (a HOST and a SERVICE carry different ones), so the shape is dynamic',
+  },
   tags: {
     type: 'array',
     description: 'Tags of the entity',
@@ -134,9 +350,26 @@ export const entityProperties: Record<string, OutputProperty> = {
     description: 'Management zones of the entity',
     items: { type: 'object', properties: managementZoneProperties },
   },
-  icon: { type: 'json', description: 'Icon of the entity', nullable: true },
-  fromRelationships: { type: 'json', description: 'Relationships originating at this entity' },
-  toRelationships: { type: 'json', description: 'Relationships pointing at this entity' },
+  icon: {
+    type: 'json',
+    description: 'Icon of the entity',
+    nullable: true,
+    properties: {
+      customIconPath: { type: 'string', description: 'Path to a custom icon', nullable: true },
+      primaryIconType: { type: 'string', description: 'Primary icon type' },
+      secondaryIconType: { type: 'string', description: 'Secondary icon type', nullable: true },
+    },
+  },
+  fromRelationships: {
+    type: 'json',
+    description:
+      'Relationships originating at this entity, keyed by relationship name. Keys depend on the entity type',
+  },
+  toRelationships: {
+    type: 'json',
+    description:
+      'Relationships pointing at this entity, keyed by relationship name. Keys depend on the entity type',
+  },
 }
 
 /** Event shape produced by `mapEvent`. */
@@ -201,9 +434,41 @@ export const metricDescriptorProperties: Record<string, OutputProperty> = {
     description: 'Supported aggregations',
     items: { type: 'string' },
   },
-  defaultAggregation: { type: 'json', description: 'Default aggregation', nullable: true },
-  dimensionDefinitions: { type: 'json', description: 'Dimension definitions of the metric' },
-  dimensionCardinalities: { type: 'json', description: 'Estimated dimension cardinalities' },
+  defaultAggregation: {
+    type: 'json',
+    description: 'Default aggregation',
+    nullable: true,
+    properties: {
+      type: { type: 'string', description: 'Aggregation type, e.g. avg or percentile' },
+      parameter: { type: 'number', description: 'Aggregation parameter', nullable: true },
+    },
+  },
+  dimensionDefinitions: {
+    type: 'array',
+    description: 'Dimension definitions of the metric',
+    items: {
+      type: 'object',
+      properties: {
+        key: { type: 'string', description: 'Dimension key' },
+        name: { type: 'string', description: 'Dimension name' },
+        displayName: { type: 'string', description: 'Human-readable dimension name' },
+        index: { type: 'number', description: 'Dimension index', nullable: true },
+        type: { type: 'string', description: 'Dimension value type' },
+      },
+    },
+  },
+  dimensionCardinalities: {
+    type: 'array',
+    description: 'Estimated dimension cardinalities',
+    items: {
+      type: 'object',
+      properties: {
+        key: { type: 'string', description: 'Dimension key' },
+        estimate: { type: 'number', description: 'Estimated distinct values' },
+        relative: { type: 'number', description: 'Cardinality relative to the metric' },
+      },
+    },
+  },
   transformations: {
     type: 'array',
     description: 'Supported transformations',
@@ -218,7 +483,12 @@ export const metricDescriptorProperties: Record<string, OutputProperty> = {
   maximumValue: { type: 'number', description: 'Largest allowed value', nullable: true },
   rootCauseRelevant: { type: 'boolean', description: 'Root-cause relevant', nullable: true },
   impactRelevant: { type: 'boolean', description: 'Impact relevant', nullable: true },
-  metricValueType: { type: 'json', description: 'Value type of the metric', nullable: true },
+  metricValueType: {
+    type: 'json',
+    description: 'Value type of the metric',
+    nullable: true,
+    properties: { type: { type: 'string', description: 'Value type, e.g. score or unknown' } },
+  },
   latency: { type: 'number', description: 'Expected write latency in minutes', nullable: true },
   metricSelector: {
     type: 'string',
@@ -249,7 +519,25 @@ export const sloProperties: Record<string, OutputProperty> = {
   status: { type: 'string', description: 'SLO status: SUCCESS, WARNING, or FAILURE' },
   error: { type: 'string', description: 'Error that prevented evaluation', nullable: true },
   errorBudget: { type: 'number', description: 'Remaining error budget', nullable: true },
-  errorBudgetBurnRate: { type: 'json', description: 'Error budget burn rate', nullable: true },
+  errorBudgetBurnRate: {
+    type: 'json',
+    description: 'Error budget burn rate',
+    nullable: true,
+    properties: {
+      burnRateType: { type: 'string', description: 'FAST, SLOW, or NONE' },
+      burnRateValue: { type: 'number', description: 'Current burn rate' },
+      burnRateVisualizationEnabled: {
+        type: 'boolean',
+        description: 'Whether the burn rate is shown on the SLO',
+      },
+      estimatedTimeToConsumeErrorBudget: {
+        type: 'number',
+        description: 'Hours until the error budget is exhausted at this rate',
+      },
+      fastBurnThreshold: { type: 'number', description: 'Threshold considered a fast burn' },
+      sloValue: { type: 'number', description: 'SLO value the burn rate was computed from' },
+    },
+  },
   metricKey: { type: 'string', description: 'Metric key of the SLO', nullable: true },
   metricName: { type: 'string', description: 'Metric name of the SLO', nullable: true },
   metricExpression: { type: 'string', description: 'Metric expression', nullable: true },
@@ -293,6 +581,7 @@ export const securityProblemProperties: Record<string, OutputProperty> = {
     type: 'json',
     description: 'Davis risk assessment. Only present when requested via Fields',
     nullable: true,
+    properties: riskAssessmentProperties,
   },
   managementZones: {
     type: 'array',
@@ -303,11 +592,13 @@ export const securityProblemProperties: Record<string, OutputProperty> = {
     type: 'json',
     description: 'Global affected-entity counts. Only present when requested via Fields',
     nullable: true,
+    properties: globalCountsProperties,
   },
   codeLevelVulnerabilityDetails: {
     type: 'json',
     description: 'Code-level vulnerability details. Only present when requested via Fields',
     nullable: true,
+    properties: codeLevelVulnerabilityDetailsProperties,
   },
 }
 
@@ -340,17 +631,44 @@ export const securityProblemDetailsProperties: Record<string, OutputProperty> = 
     description: 'IDs of entities with reachable data assets',
     items: { type: 'string' },
   },
-  vulnerableComponents: { type: 'json', description: 'Vulnerable components' },
+  vulnerableComponents: {
+    type: 'array',
+    description: 'Vulnerable components',
+    items: { type: 'object', properties: vulnerableComponentProperties },
+  },
   filteredCounts: {
     type: 'json',
-    description: 'Counts within the management zone filter',
+    description:
+      'Counts within the management zone filter. The API reference names this FilteredCountsDto without expanding it, so the fields are not enumerated here',
     nullable: true,
   },
-  events: { type: 'json', description: 'Lifecycle events of the security problem' },
-  entryPoints: { type: 'json', description: 'Entry points into the vulnerability', nullable: true },
-  relatedEntities: { type: 'json', description: 'Related entities', nullable: true },
-  relatedAttacks: { type: 'json', description: 'Related attacks', nullable: true },
-  relatedContainerImages: { type: 'json', description: 'Related container images', nullable: true },
+  events: {
+    type: 'json',
+    description:
+      'Lifecycle events of the security problem. The reference names SecurityProblemEvent without expanding it',
+  },
+  entryPoints: {
+    type: 'json',
+    description:
+      'Entry points into the vulnerability. The reference names EntryPoints without expanding it',
+    nullable: true,
+  },
+  relatedEntities: {
+    type: 'json',
+    description: 'Related entities. The reference names RelatedEntitiesList without expanding it',
+    nullable: true,
+  },
+  relatedAttacks: {
+    type: 'json',
+    description: 'Related attacks. The reference names RelatedAttacksList without expanding it',
+    nullable: true,
+  },
+  relatedContainerImages: {
+    type: 'json',
+    description:
+      'Related container images. The reference names RelatedContainerList without expanding it',
+    nullable: true,
+  },
 }
 
 /** Shared pagination outputs of the Environment API v2 list endpoints. */
@@ -419,15 +737,101 @@ export const remediationItemProperties: Record<string, OutputProperty> = {
     nullable: true,
   },
   vulnerabilityState: { type: 'string', description: 'VULNERABLE or RESOLVED' },
-  assessment: { type: 'json', description: 'Exposure and reachability assessment', nullable: true },
-  muteState: { type: 'json', description: 'Mute state, reason, and author', nullable: true },
+  assessment: {
+    type: 'json',
+    description: 'Exposure and reachability assessment',
+    nullable: true,
+    properties: {
+      assessmentAccuracy: { type: 'string', description: 'FULL, REDUCED, or NOT_AVAILABLE' },
+      dataAssets: { type: 'string', description: 'REACHABLE, NOT_DETECTED, or NOT_AVAILABLE' },
+      exposure: { type: 'string', description: 'PUBLIC_NETWORK, NOT_DETECTED, or NOT_AVAILABLE' },
+      numberOfDataAssets: { type: 'number', description: 'Reachable data assets' },
+      vulnerableFunctionUsage: {
+        type: 'string',
+        description: 'IN_USE, NOT_IN_USE, or NOT_AVAILABLE',
+      },
+      vulnerableFunctionRestartRequired: {
+        type: 'boolean',
+        description: 'Whether a restart is needed to pick up the fix',
+      },
+      assessmentAccuracyDetails: {
+        type: 'json',
+        description: 'Why accuracy is reduced',
+        properties: {
+          reducedReasons: {
+            type: 'array',
+            description:
+              'LIMITED_AGENT_SUPPORT, LIMITED_BY_CONFIGURATION, or LIMITED_BY_SERVICE_DETECTION_V2',
+            items: { type: 'string' },
+          },
+        },
+      },
+      vulnerableFunctionsInUse: {
+        type: 'array',
+        description: 'Vulnerable functions in use',
+        items: { type: 'object', properties: vulnerableFunctionProperties },
+      },
+      vulnerableFunctionsNotInUse: {
+        type: 'array',
+        description: 'Vulnerable functions not in use',
+        items: { type: 'object', properties: vulnerableFunctionProperties },
+      },
+      vulnerableFunctionsNotAvailable: {
+        type: 'array',
+        description: 'Vulnerable functions whose usage could not be determined',
+        items: { type: 'object', properties: vulnerableFunctionProperties },
+      },
+    },
+  },
+  muteState: {
+    type: 'json',
+    description: 'Mute state, reason, and author',
+    nullable: true,
+    properties: {
+      muted: { type: 'boolean', description: 'Whether the item is muted' },
+      reason: {
+        type: 'string',
+        description:
+          'AFFECTED, CONFIGURATION_NOT_AFFECTED, FALSE_POSITIVE, IGNORE, INITIAL_STATE, OTHER, or VULNERABLE_CODE_NOT_IN_USE',
+      },
+      comment: { type: 'string', description: 'Comment recorded with the mute', nullable: true },
+      user: { type: 'string', description: 'Who set the mute state' },
+      lastUpdatedTimestamp: { type: 'number', description: 'Last change in UTC milliseconds' },
+    },
+  },
   remediationProgress: {
     type: 'json',
     description: 'Affected and unaffected entities',
     nullable: true,
+    properties: {
+      affectedEntities: {
+        type: 'array',
+        description: 'Entities still affected',
+        items: { type: 'string' },
+      },
+      unaffectedEntities: {
+        type: 'array',
+        description: 'Entities already remediated',
+        items: { type: 'string' },
+      },
+    },
   },
-  trackingLink: { type: 'json', description: 'External tracking link', nullable: true },
-  vulnerableComponents: { type: 'json', description: 'Vulnerable components of the item' },
+  trackingLink: {
+    type: 'json',
+    description: 'External tracking link',
+    nullable: true,
+    properties: {
+      url: { type: 'string', description: 'Link to the tracking ticket' },
+      displayName: { type: 'string', description: 'Label for the link' },
+      user: { type: 'string', description: 'Who set the link' },
+      lastUpdatedTimestamp: { type: 'number', description: 'Last change in UTC milliseconds' },
+    },
+  },
+  vulnerableComponents: {
+    type: 'array',
+    description: 'Vulnerable components of the item',
+    items: { type: 'object', properties: vulnerableComponentProperties },
+  },
 }
 
 /** Attack shape produced by `mapAttack`. */
@@ -442,13 +846,141 @@ export const attackProperties: Record<string, OutputProperty> = {
   state: { type: 'string', description: 'ALLOWLISTED, BLOCKED, or EXPLOITED' },
   technology: { type: 'string', description: 'DOTNET, GO, JAVA, or NODE_JS' },
   timestamp: { type: 'number', description: 'Occurrence time in UTC milliseconds' },
-  attackTarget: { type: 'json', description: 'Targeted host or database', nullable: true },
-  attacker: { type: 'json', description: 'Source IP and geo location', nullable: true },
-  affectedEntities: { type: 'json', description: 'Affected process groups', nullable: true },
-  entrypoint: { type: 'json', description: 'Entry point and payload', nullable: true },
-  request: { type: 'json', description: 'The offending request', nullable: true },
-  securityProblem: { type: 'json', description: 'Related security problem', nullable: true },
-  vulnerability: { type: 'json', description: 'Exploited vulnerability', nullable: true },
+  attackTarget: {
+    type: 'json',
+    description: 'Targeted host or database',
+    nullable: true,
+    properties: {
+      entityId: { type: 'string', description: 'ID of the targeted entity' },
+      name: { type: 'string', description: 'Name of the targeted entity' },
+    },
+  },
+  attacker: {
+    type: 'json',
+    description: 'Source IP and geo location',
+    nullable: true,
+    properties: {
+      sourceIp: { type: 'string', description: 'Source IP of the attack' },
+      location: {
+        type: 'json',
+        description: 'Geo location of the source IP',
+        properties: {
+          city: { type: 'string', description: 'City', nullable: true },
+          country: { type: 'string', description: 'Country', nullable: true },
+          countryCode: { type: 'string', description: 'ISO country code', nullable: true },
+        },
+      },
+    },
+  },
+  affectedEntities: {
+    type: 'json',
+    description: 'Affected process groups',
+    nullable: true,
+    properties: {
+      processGroup: {
+        type: 'json',
+        description: 'Affected process group',
+        properties: {
+          id: { type: 'string', description: 'Process group ID' },
+          name: { type: 'string', description: 'Process group name' },
+        },
+      },
+      processGroupInstance: {
+        type: 'json',
+        description: 'Affected process group instance',
+        properties: {
+          id: { type: 'string', description: 'Process group instance ID' },
+          name: { type: 'string', description: 'Process group instance name' },
+        },
+      },
+    },
+  },
+  entrypoint: {
+    type: 'json',
+    description: 'Entry point and payload',
+    nullable: true,
+    properties: {
+      codeLocation: {
+        type: 'json',
+        description: 'Where in the code the attack entered',
+        properties: codeLocationProperties,
+      },
+      entrypointFunction: {
+        type: 'json',
+        description: 'The entry-point function',
+        properties: codeLocationProperties,
+      },
+      payload: {
+        type: 'array',
+        description: 'Payload values passed in',
+        items: {
+          type: 'object',
+          properties: {
+            name: { type: 'string', description: 'Payload parameter name' },
+            type: { type: 'string', description: 'Payload parameter type' },
+            value: { type: 'string', description: 'Payload parameter value' },
+          },
+        },
+      },
+    },
+  },
+  request: {
+    type: 'json',
+    description: 'The offending request',
+    nullable: true,
+    properties: {
+      host: { type: 'string', description: 'Host the request hit' },
+      path: { type: 'string', description: 'Request path' },
+      url: { type: 'string', description: 'Full request URL' },
+      protocolDetails: {
+        type: 'json',
+        description: 'Protocol-specific detail, including HTTP method, headers, and parameters',
+      },
+    },
+  },
+  securityProblem: {
+    type: 'json',
+    description: 'Related security problem',
+    nullable: true,
+    properties: {
+      securityProblemId: { type: 'string', description: 'ID of the exploited security problem' },
+      assessment: {
+        type: 'json',
+        description: 'Exposure assessment at the time of the attack',
+        properties: {
+          dataAssets: { type: 'string', description: 'Data asset reachability' },
+          exposure: { type: 'string', description: 'Network exposure' },
+          numberOfReachableDataAssets: {
+            type: 'number',
+            description: 'Reachable data assets',
+          },
+        },
+      },
+    },
+  },
+  vulnerability: {
+    type: 'json',
+    description: 'Exploited vulnerability',
+    nullable: true,
+    properties: {
+      vulnerabilityId: { type: 'string', description: 'ID of the vulnerability' },
+      displayName: { type: 'string', description: 'Vulnerability display name' },
+      codeLocation: {
+        type: 'json',
+        description: 'Where the vulnerability sits in the code',
+        properties: codeLocationProperties,
+      },
+      vulnerableFunction: {
+        type: 'json',
+        description: 'The vulnerable function',
+        properties: codeLocationProperties,
+      },
+      vulnerableFunctionInput: {
+        type: 'json',
+        description: 'The tainted input that reached the vulnerable function',
+      },
+    },
+  },
   managementZones: {
     type: 'array',
     description: 'Management zones of the attack',
@@ -485,7 +1017,11 @@ export const settingsObjectProperties: Record<string, OutputProperty> = {
   schemaId: { type: 'string', description: 'Schema the object belongs to' },
   schemaVersion: { type: 'string', description: 'Schema version', nullable: true },
   scope: { type: 'string', description: 'Scope the object applies to' },
-  value: { type: 'json', description: 'The configuration itself, shaped by its schema' },
+  value: {
+    type: 'json',
+    description:
+      'The configuration itself. Its shape is defined by the object schema, so it is genuinely dynamic — read an existing object of the same schema to learn the fields',
+  },
   author: { type: 'string', description: 'Who created the object', nullable: true },
   created: { type: 'number', description: 'Creation time in UTC milliseconds', nullable: true },
   modified: { type: 'number', description: 'Last change in UTC milliseconds', nullable: true },

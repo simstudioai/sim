@@ -222,6 +222,8 @@ Read metric data points from Dynatrace using a metric selector, with optional en
 |   ↳ `dimensionCountRatio` | number | Queried dimension tuples relative to the query limit |
 |   ↳ `appliedOptionalFilters` | array | Optional filters Dynatrace applied to the query |
 |   ↳ `dql` | json | DQL translation of the query, when available |
+|     ↳ `status` | string | Whether the translation succeeded |
+|     ↳ `query` | string | The equivalent DQL query |
 |   ↳ `warnings` | array | Warnings for this metric |
 |   ↳ `data` | array | Series of the metric, one per dimension tuple |
 |     ↳ `dimensions` | array | Dimension values of the series |
@@ -291,8 +293,17 @@ Push custom metric data points into Dynatrace using the metric line protocol, on
 | --------- | ---- | ----------- |
 | `linesOk` | number | Number of accepted data points |
 | `linesInvalid` | number | Number of rejected data points |
-| `ingestError` | json | Details of the invalid lines, with the line number and reason for each |
+| `ingestError` | json | Details of the invalid lines |
+|   ↳ `code` | number | Error code |
+|   ↳ `message` | string | Error message |
+|   ↳ `invalidLines` | array | The rejected lines |
+|     ↳ `line` | number | Line number in the payload |
+|     ↳ `error` | string | Why the line was rejected |
 | `warnings` | json | Warnings raised during ingestion, such as changed metric keys |
+|   ↳ `message` | string | Warning message |
+|   ↳ `changedMetricKeys` | array | Lines whose metric key Dynatrace rewrote |
+|     ↳ `line` | number | Line number in the payload |
+|     ↳ `warning` | string | What was changed |
 
 ### Dynatrace List Entities
 
@@ -485,7 +496,7 @@ Push log events into Dynatrace. Accepts a single log event object or an array of
 | --------- | ---- | ----------- |
 | `accepted` | boolean | True when Dynatrace accepted every log event \(HTTP 204\) |
 | `statusCode` | number | HTTP status Dynatrace returned. 204 is full success, 200 is partial success |
-| `details` | json | Partial-success details, present only when some events were rejected |
+| `details` | json | Partial-success body, present only when some events were rejected. The reference does not document its shape, so it is passed through as-is |
 
 ### Dynatrace List SLOs
 
@@ -613,7 +624,7 @@ Read the Dynatrace audit log — who changed which configuration, when, and whet
 |   ↳ `timestamp` | number | Change timestamp in UTC milliseconds |
 |   ↳ `success` | boolean | Whether the change succeeded |
 |   ↳ `message` | string | Description of the change |
-|   ↳ `patch` | json | JSON patch of the change |
+|   ↳ `patch` | json | JSON patch describing the change. Its shape follows whatever settings object was edited, so it is dynamic |
 |   ↳ `settingsSchemaId` | string | Settings schema ID \(dt.settings.schema_id\) |
 |   ↳ `settingsScopeId` | string | Settings scope ID \(dt.settings.scope_id\) |
 |   ↳ `settingsKey` | string | Settings key \(dt.settings.key\) |
@@ -920,7 +931,14 @@ Create a settings object — a maintenance window, alerting profile, management 
 |   ↳ `code` | number | Per-object HTTP status |
 |   ↳ `objectId` | string | ID of the created object |
 |   ↳ `writeError` | json | Validation error for this object, when it failed |
-|   ↳ `invalidValue` | json | The value that was rejected |
+|     ↳ `code` | number | Error code |
+|     ↳ `message` | string | Error message |
+|     ↳ `constraintViolations` | array | Which part of the value failed validation |
+|       ↳ `location` | string | Where the violation was found |
+|       ↳ `message` | string | What is wrong |
+|       ↳ `parameterLocation` | string | HEADER, PATH, PAYLOAD_BODY, or QUERY |
+|       ↳ `path` | string | Path to the offending field |
+|   ↳ `invalidValue` | json | The value that was rejected. Mirrors the submitted schema-defined value, so the shape is dynamic |
 | `objectId` | string | ID of the created object, lifted from the first result |
 
 ### Dynatrace Update Settings Object
@@ -1012,8 +1030,17 @@ Trigger an on-demand batch execution of synthetic monitors, for gating a deploy 
 | `batchId` | string | ID of the batch, to poll with Get Synthetic Batch |
 | `triggeredCount` | number | How many executions were triggered |
 | `triggeringProblemsCount` | number | How many executions could not be triggered |
-| `triggered` | json | Triggered executions, grouped by monitor with execution and location IDs |
-| `triggeringProblemsDetails` | json | Why each untriggered execution failed to start |
+| `triggered` | array | Triggered executions, grouped by monitor |
+|   ↳ `monitorId` | string | Monitor that was triggered |
+|   ↳ `executions` | array | One entry per location the monitor ran from |
+|     ↳ `executionId` | string | Execution ID |
+|     ↳ `locationId` | string | Location the execution ran from |
+| `triggeringProblemsDetails` | array | Why each untriggered execution failed to start |
+|   ↳ `cause` | string | Why the execution could not be triggered |
+|   ↳ `details` | string | Detail behind the cause |
+|   ↳ `entityId` | string | Entity the problem relates to |
+|   ↳ `executionId` | string | Execution ID, when one was assigned |
+|   ↳ `locationId` | string | Location the execution targeted |
 
 ### Dynatrace Get Synthetic Batch
 
@@ -1038,10 +1065,29 @@ Get the status and failures of an on-demand synthetic batch execution. Poll it a
 | `failedToExecuteCount` | number | Executions that never ran |
 | `triggeredCount` | number | Executions triggered |
 | `triggeringProblemsCount` | number | Executions that could not be triggered |
-| `failedExecutions` | json | Failed executions with their error codes |
-| `failedToExecute` | json | Executions that never started |
-| `triggeringProblems` | json | Reasons executions could not be triggered |
-| `metadata` | json | Metadata attached when the batch was triggered |
+| `failedExecutions` | array | Executions that ran and failed |
+|   ↳ `errorCode` | string | Error code Dynatrace reported |
+|   ↳ `executionId` | string | Execution ID |
+|   ↳ `executionStage` | string | DATA_RETRIEVED, EXECUTED, NOT_TRIGGERED, TIMED_OUT, TRIGGERED, or WAITING |
+|   ↳ `executionTimestamp` | number | Execution time in UTC ms |
+|   ↳ `failureMessage` | string | Why the execution failed |
+|   ↳ `locationId` | string | Location the execution ran from |
+|   ↳ `monitorId` | string | Monitor that was executed |
+| `failedToExecute` | array | Executions that never started |
+|   ↳ `errorCode` | string | Error code Dynatrace reported |
+|   ↳ `executionId` | string | Execution ID |
+|   ↳ `executionStage` | string | DATA_RETRIEVED, EXECUTED, NOT_TRIGGERED, TIMED_OUT, TRIGGERED, or WAITING |
+|   ↳ `executionTimestamp` | number | Execution time in UTC ms |
+|   ↳ `failureMessage` | string | Why the execution failed |
+|   ↳ `locationId` | string | Location the execution ran from |
+|   ↳ `monitorId` | string | Monitor that was executed |
+| `triggeringProblems` | array | Reasons executions could not be triggered |
+|   ↳ `cause` | string | Why the execution could not be triggered |
+|   ↳ `details` | string | Detail behind the cause |
+|   ↳ `entityId` | string | Entity the problem relates to |
+|   ↳ `executionId` | string | Execution ID, when one was assigned |
+|   ↳ `locationId` | string | Location the execution targeted |
+| `metadata` | json | Key-value metadata supplied when the batch was triggered. Keys are caller-defined, so the shape is dynamic |
 | `userId` | string | Who triggered the batch |
 
 ### Dynatrace Get Problem Comment

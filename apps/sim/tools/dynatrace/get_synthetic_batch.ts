@@ -102,10 +102,65 @@ export const getSyntheticBatchTool: ToolConfig<
       description: 'Executions that could not be triggered',
       nullable: true,
     },
-    failedExecutions: { type: 'json', description: 'Failed executions with their error codes' },
-    failedToExecute: { type: 'json', description: 'Executions that never started' },
-    triggeringProblems: { type: 'json', description: 'Reasons executions could not be triggered' },
-    metadata: { type: 'json', description: 'Metadata attached when the batch was triggered' },
+    failedExecutions: {
+      type: 'array',
+      description: 'Executions that ran and failed',
+      items: {
+        type: 'object',
+        properties: {
+          errorCode: { type: 'string', description: 'Error code Dynatrace reported' },
+          executionId: { type: 'string', description: 'Execution ID' },
+          executionStage: {
+            type: 'string',
+            description:
+              'DATA_RETRIEVED, EXECUTED, NOT_TRIGGERED, TIMED_OUT, TRIGGERED, or WAITING',
+          },
+          executionTimestamp: { type: 'number', description: 'Execution time in UTC ms' },
+          failureMessage: { type: 'string', description: 'Why the execution failed' },
+          locationId: { type: 'string', description: 'Location the execution ran from' },
+          monitorId: { type: 'string', description: 'Monitor that was executed' },
+        },
+      },
+    },
+    failedToExecute: {
+      type: 'array',
+      description: 'Executions that never started',
+      items: {
+        type: 'object',
+        properties: {
+          errorCode: { type: 'string', description: 'Error code Dynatrace reported' },
+          executionId: { type: 'string', description: 'Execution ID' },
+          executionStage: {
+            type: 'string',
+            description:
+              'DATA_RETRIEVED, EXECUTED, NOT_TRIGGERED, TIMED_OUT, TRIGGERED, or WAITING',
+          },
+          executionTimestamp: { type: 'number', description: 'Execution time in UTC ms' },
+          failureMessage: { type: 'string', description: 'Why the execution failed' },
+          locationId: { type: 'string', description: 'Location the execution ran from' },
+          monitorId: { type: 'string', description: 'Monitor that was executed' },
+        },
+      },
+    },
+    triggeringProblems: {
+      type: 'array',
+      description: 'Reasons executions could not be triggered',
+      items: {
+        type: 'object',
+        properties: {
+          cause: { type: 'string', description: 'Why the execution could not be triggered' },
+          details: { type: 'string', description: 'Detail behind the cause' },
+          entityId: { type: 'string', description: 'Entity the problem relates to' },
+          executionId: { type: 'string', description: 'Execution ID, when one was assigned' },
+          locationId: { type: 'string', description: 'Location the execution targeted' },
+        },
+      },
+    },
+    metadata: {
+      type: 'json',
+      description:
+        'Key-value metadata supplied when the batch was triggered. Keys are caller-defined, so the shape is dynamic',
+    },
     userId: { type: 'string', description: 'Who triggered the batch', nullable: true },
   },
 }

@@ -129,7 +129,12 @@ export const getAuditLogsTool: ToolConfig<
           timestamp: { type: 'number', description: 'Change timestamp in UTC milliseconds' },
           success: { type: 'boolean', description: 'Whether the change succeeded' },
           message: { type: 'string', description: 'Description of the change', nullable: true },
-          patch: { type: 'json', description: 'JSON patch of the change', nullable: true },
+          patch: {
+            type: 'json',
+            description:
+              'JSON patch describing the change. Its shape follows whatever settings object was edited, so it is dynamic',
+            nullable: true,
+          },
           settingsSchemaId: {
             type: 'string',
             description: 'Settings schema ID (dt.settings.schema_id)',

@@ -52,6 +52,17 @@ const ENTITY_SELECTOR_OPERATIONS = [
   'dynatrace_delete_tag',
 ]
 
+/**
+ * Operations whose tool declares `entitySelector` as required. The tag endpoints
+ * cannot run without one, so the block must not let them through empty.
+ */
+const ENTITY_SELECTOR_REQUIRED_OPERATIONS = [
+  'dynatrace_list_entities',
+  'dynatrace_list_tags',
+  'dynatrace_add_tags',
+  'dynatrace_delete_tag',
+]
+
 /** Operations that take a problem ID. */
 const PROBLEM_ID_OPERATIONS = [
   'dynatrace_get_problem',
@@ -389,7 +400,7 @@ Return ONLY the selector string - no explanations, no surrounding quotes.`,
       title: 'Entity Selector',
       type: 'short-input',
       placeholder: 'type("HOST"),tag("env:prod")',
-      required: { field: 'operation', value: 'dynatrace_list_entities' },
+      required: { field: 'operation', value: ENTITY_SELECTOR_REQUIRED_OPERATIONS },
       condition: { field: 'operation', value: ENTITY_SELECTOR_OPERATIONS },
       wandConfig: {
         enabled: true,

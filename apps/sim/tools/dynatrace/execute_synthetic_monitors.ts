@@ -137,12 +137,39 @@ export const executeSyntheticMonitorsTool: ToolConfig<
       nullable: true,
     },
     triggered: {
-      type: 'json',
-      description: 'Triggered executions, grouped by monitor with execution and location IDs',
+      type: 'array',
+      description: 'Triggered executions, grouped by monitor',
+      items: {
+        type: 'object',
+        properties: {
+          monitorId: { type: 'string', description: 'Monitor that was triggered' },
+          executions: {
+            type: 'array',
+            description: 'One entry per location the monitor ran from',
+            items: {
+              type: 'object',
+              properties: {
+                executionId: { type: 'string', description: 'Execution ID' },
+                locationId: { type: 'string', description: 'Location the execution ran from' },
+              },
+            },
+          },
+        },
+      },
     },
     triggeringProblemsDetails: {
-      type: 'json',
+      type: 'array',
       description: 'Why each untriggered execution failed to start',
+      items: {
+        type: 'object',
+        properties: {
+          cause: { type: 'string', description: 'Why the execution could not be triggered' },
+          details: { type: 'string', description: 'Detail behind the cause' },
+          entityId: { type: 'string', description: 'Entity the problem relates to' },
+          executionId: { type: 'string', description: 'Execution ID, when one was assigned' },
+          locationId: { type: 'string', description: 'Location the execution targeted' },
+        },
+      },
     },
   },
 }
