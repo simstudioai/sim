@@ -39,6 +39,17 @@ export interface DelegatedPrincipal {
   }
 }
 
+export interface WorkflowExecutionDelegationContext {
+  kind: 'workflow_execution'
+  workflowId: string
+  executionId?: string
+}
+
+export type WorkflowExecutionDelegatedPrincipal = DelegatedPrincipal & {
+  serviceId: 'executor'
+  delegationContext: WorkflowExecutionDelegationContext
+}
+
 export type PrincipalActor =
   | { kind: 'session'; userId: string }
   | { kind: 'personal_api_key'; keyId: string; userId: string }
