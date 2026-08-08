@@ -151,7 +151,7 @@ export async function completeInternalUploadSession(
     }
   }
   await authorize(session)
-  const actor: UploadActor = { id: principalUserId(principal) }
+  const actor: UploadActor = input.actor ?? { id: principalUserId(principal) }
   return completeUploadSession({
     session,
     loadCompleted: async (claimed) => {

@@ -4,11 +4,11 @@ import {
 } from '@/lib/api/contracts/workspace-file-folders'
 import {
   defineInternalJsonRoute,
-  internalFileErrorPolicy,
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { internalFileErrorPolicy } from '@/lib/workspace-files/api'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import {
   createWorkspaceFileFolderOperation,

@@ -57,6 +57,7 @@ vi.mock('@/lib/uploads/upload-session/provider', () => ({
 
 import {
   abortUploadSession,
+  assertUploadSessionAuthBinding,
   cleanupExpiredUploadSessions,
   completeUploadSession,
   createUploadSession,
@@ -136,6 +137,59 @@ describe('upload sessions', () => {
         principal: { kind: 'workspace_api_key', workspaceId: WORKSPACE_ID, keyId: 'key-2' },
       })
     ).rejects.toMatchObject({ code: 'not_found' })
+  })
+
+  it('preserves legacy unbound sessions under their prior ownership rules', () => {
+    const legacy = sessionRecord({ metadata: {} })
+
+    expect(() =>
+      assertUploadSessionAuthBinding(legacy, {
+        kind: 'session',
+        userId: legacy.userId,
+        sessionId: 'current-session',
+      })
+    ).not.toThrow()
+    expect(() =>
+      assertUploadSessionAuthBinding(legacy, {
+        kind: 'personal_api_key',
+        userId: legacy.userId,
+        keyId: 'current-key',
+      })
+    ).not.toThrow()
+    expect(() =>
+      assertUploadSessionAuthBinding(legacy, {
+        kind: 'workspace_api_key',
+        workspaceId: WORKSPACE_ID,
+        keyId: 'current-workspace-key',
+      })
+    ).not.toThrow()
+
+    expect(() =>
+      assertUploadSessionAuthBinding(legacy, {
+        kind: 'session',
+        userId: 'different-user',
+        sessionId: 'current-session',
+      })
+    ).toThrow('Upload session not found')
+    expect(() =>
+      assertUploadSessionAuthBinding(legacy, {
+        kind: 'workspace_api_key',
+        workspaceId: 'different-workspace',
+        keyId: 'current-workspace-key',
+      })
+    ).toThrow('Upload session not found')
+  })
+
+  it('never treats a malformed credential binding as a legacy session', () => {
+    const malformed = sessionRecord({ metadata: { authBinding: { version: 1 } } })
+
+    expect(() =>
+      assertUploadSessionAuthBinding(malformed, {
+        kind: 'session',
+        userId: malformed.userId,
+        sessionId: 'current-session',
+      })
+    ).toThrow('Upload session not found')
   })
 
   it('initiates multipart storage directly at the final key', async () => {

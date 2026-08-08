@@ -4,14 +4,10 @@ import {
   v2ListFilesContract,
 } from '@/lib/api/contracts/v2/files'
 import { INVALID_CURSOR_MESSAGE } from '@/lib/api/list-query'
-import {
-  defineV2JsonRoute,
-  v2ApiKeyAuth,
-  v2FileErrorPolicies,
-  v2RateLimits,
-} from '@/lib/api/server/routes'
+import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
+import { v2FileErrorPolicies } from '@/lib/workspace-files/api'
 import { createWorkspaceFile } from '@/lib/workspace-files/application/create-workspace-file'
 import { queryWorkspaceFilePage } from '@/lib/workspace-files/application/list-workspace-files'
 import { fileOperations } from '@/lib/workspace-files/application/operations'

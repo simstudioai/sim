@@ -7,9 +7,9 @@ import {
   defineV2BinaryRoute,
   defineV2JsonRoute,
   v2ApiKeyAuth,
-  v2FileErrorPolicies,
   v2RateLimits,
 } from '@/lib/api/server/routes'
+import { v2FileErrorPolicies } from '@/lib/workspace-files/api'
 import { deleteWorkspaceFileOperation } from '@/lib/workspace-files/application/delete-workspace-file'
 import { downloadWorkspaceFileStream } from '@/lib/workspace-files/application/download-workspace-file'
 import { fileOperations } from '@/lib/workspace-files/application/operations'

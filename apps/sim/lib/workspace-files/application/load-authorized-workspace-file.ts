@@ -1,11 +1,11 @@
 import type { Principal } from '@sim/auth/principal'
+import type { WorkspaceOperation } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   type ActiveWorkspaceFileContext,
   loadActiveWorkspaceFileContext,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { authorizeWorkspaceOperation } from '@/lib/workspace-files/application/authorization'
-import type { WorkspaceOperation } from '@/lib/workspace-files/application/operations'
+import { authorizeWorkspaceFileAccess } from '@/lib/workspace-files/application/authorization'
 
 interface LoadAuthorizedWorkspaceFileArgs {
   principal: Principal
@@ -30,7 +30,7 @@ export async function loadAuthorizedWorkspaceFile({
     throw new OrchestrationError('not_found', 'File not found')
   }
 
-  await authorizeWorkspaceOperation(principal, operation, {
+  await authorizeWorkspaceFileAccess(principal, operation, {
     workspaceId: canonical.workspaceId,
     workspaceOrganizationId: canonical.workspaceOrganizationId,
     allowPersonalApiKeys: canonical.allowPersonalApiKeys,

@@ -12,10 +12,8 @@ const { mockGetSession, mockVerifyInternalToken } = vi.hoisted(() => ({
 vi.mock('@/lib/auth', () => ({ getSession: mockGetSession }))
 vi.mock('@/lib/auth/internal', () => ({ verifyInternalToken: mockVerifyInternalToken }))
 
-import {
-  InternalUnauthenticatedError,
-  internalSessionOrServiceAuth,
-} from '@/lib/api/server/routes/internal-json-route'
+import { InternalUnauthenticatedError } from '@/lib/api/server/routes'
+import { internalSessionOrServiceAuth } from '@/lib/workspace-files/api'
 
 describe('internal file route authentication', () => {
   beforeEach(() => {

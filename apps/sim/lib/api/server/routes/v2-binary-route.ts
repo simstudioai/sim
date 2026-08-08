@@ -14,12 +14,16 @@ import {
   type v2ApiKeyAuth,
 } from '@/lib/api/server/routes/v2-json-route'
 import { parseRequest } from '@/lib/api/server/validation'
+import type { ApplicationOperation } from '@/lib/core/application'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import type { WorkspaceOperation } from '@/lib/workspace-files/application/operations'
 import { v2Error, v2ValidationError } from '@/app/api/v2/lib/response'
 
-interface V2BinaryRouteOptions<C extends BinaryApiRouteContract, O extends WorkspaceOperation, I, R>
-  extends BinaryRouteDefinition<C, O, I, R> {
+interface V2BinaryRouteOptions<
+  C extends BinaryApiRouteContract,
+  O extends ApplicationOperation,
+  I,
+  R,
+> extends BinaryRouteDefinition<C, O, I, R> {
   auth: typeof v2ApiKeyAuth
   rateLimit: V2RateLimitPolicy
   errorPolicy: V2ErrorPolicy
@@ -27,7 +31,7 @@ interface V2BinaryRouteOptions<C extends BinaryApiRouteContract, O extends Works
 
 export function defineV2BinaryRoute<
   C extends BinaryApiRouteContract,
-  O extends WorkspaceOperation,
+  O extends ApplicationOperation,
   I,
   R,
 >(options: V2BinaryRouteOptions<C, O, I, R>): JsonNextRouteHandler {

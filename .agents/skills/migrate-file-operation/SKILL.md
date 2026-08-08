@@ -12,11 +12,15 @@ Migrate one bounded semantic operation at a time. Share authorization and busine
 Read these files before editing:
 
 - `packages/auth/src/principal.ts`
+- `apps/sim/lib/core/application/operation.ts`
+- `apps/sim/lib/core/application/workspace-operation.ts`
+- `apps/sim/lib/core/application/workspace-authorization.ts`
 - `apps/sim/lib/workspace-files/application/operations.ts`
 - `apps/sim/lib/workspace-files/application/authorization.ts`
 - `apps/sim/lib/workspace-files/application/rename-workspace-file.ts`
 - `apps/sim/lib/api/server/routes/internal-json-route.ts`
 - `apps/sim/lib/api/server/routes/v2-json-route.ts`
+- `apps/sim/lib/workspace-files/api/route-policies.ts`
 - `apps/sim/lib/copilot/auth/file-delegation.ts`
 - The internal, v2, manager, contract, Copilot, and test files for the requested operation
 
@@ -108,7 +112,7 @@ Inside `execute`:
 1. Load the active file by `fileId` without trusting a caller-supplied workspace.
 2. Derive the canonical workspace and policy context from that record.
 3. Treat an asserted-workspace mismatch like absence when the surface requires concealment.
-4. Call `authorizeWorkspaceOperation` with the canonical context and shared operation.
+4. Call the file-domain `authorizeWorkspaceFileAccess` wrapper with the canonical context and shared operation. The wrapper supplies file delegation scope to the resource-agnostic `authorizeWorkspaceOperation` primitive.
 5. Resolve `PrincipalAttribution` only when a required legacy user field or audit actor needs it.
 6. Call a workspace-predicated, throwing manager primitive.
 7. Record semantic audit once and send shared realtime/domain notifications once.
@@ -197,7 +201,7 @@ Do not claim a check passed unless it was run successfully.
 
 - Assign one agent a non-overlapping route-module and caller set. Two methods in one route file are not safe parallel assignments.
 - Start every agent from the same foundation commit in its own branch/worktree when possible.
-- Treat `operations.ts`, contract family files, and shared route builders as merge hotspots. Make only the minimal operation-specific edit.
+- Treat the file `operations.ts` registry, contract family files, and file route policies as merge hotspots. The core application primitives and shared route builders should not change for an ordinary file-operation migration.
 - Do not refactor shared principal, authorization, rate limiting, or error foundations unless the task explicitly assigns that ownership.
 - Preserve unrelated working-tree changes. Never stage architecture docs, lockfile drift, or another agent's edits.
 - Do not commit, push, or open a PR unless the task explicitly asks for it.

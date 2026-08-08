@@ -8,7 +8,7 @@ import {
   loadWorkspaceFileLifecycleContext,
   restoreWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { authorizeWorkspaceOperation } from '@/lib/workspace-files/application/authorization'
+import { authorizeWorkspaceFileAccess } from '@/lib/workspace-files/application/authorization'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 
 const logger = createLogger('RestoreWorkspaceFile')
@@ -41,7 +41,7 @@ async function executeRestoreWorkspaceFile({
     throw new OrchestrationError('not_found', 'File not found')
   }
 
-  await authorizeWorkspaceOperation(principal, fileOperations.restore, {
+  await authorizeWorkspaceFileAccess(principal, fileOperations.restore, {
     workspaceId: canonical.workspaceId,
     workspaceOrganizationId: canonical.workspaceOrganizationId,
     allowPersonalApiKeys: canonical.allowPersonalApiKeys,

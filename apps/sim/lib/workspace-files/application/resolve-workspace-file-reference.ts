@@ -1,16 +1,14 @@
 import type { Principal } from '@sim/auth/principal'
+import type { WorkspaceOperation } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   loadActiveWorkspaceContext,
   resolveWorkspaceFileReference as resolveStoredWorkspaceFileReference,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { authorizeWorkspaceOperation } from '@/lib/workspace-files/application/authorization'
+import { authorizeWorkspaceFileAccess } from '@/lib/workspace-files/application/authorization'
 import { loadAuthorizedWorkspaceFile } from '@/lib/workspace-files/application/load-authorized-workspace-file'
-import {
-  fileOperations,
-  type WorkspaceOperation,
-} from '@/lib/workspace-files/application/operations'
+import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 
 export interface ResolveWorkspaceFileReferenceInput {
@@ -29,7 +27,7 @@ export async function resolveWorkspaceFileReference({
 }: ResolveWorkspaceFileReferenceInput): Promise<WorkspaceFileRecord> {
   const workspace = await loadActiveWorkspaceContext(workspaceId)
   if (!workspace) throw new OrchestrationError('not_found', 'Workspace not found')
-  await authorizeWorkspaceOperation(principal, operation, workspace)
+  await authorizeWorkspaceFileAccess(principal, operation, workspace)
 
   const file = await resolveStoredWorkspaceFileReference(workspaceId, reference)
   if (!file) throw new OrchestrationError('not_found', 'File not found')

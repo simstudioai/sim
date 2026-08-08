@@ -9,7 +9,7 @@ import {
   loadActiveWorkspaceContext,
   queryWorkspaceFiles,
 } from '@/lib/uploads/contexts/workspace'
-import { authorizeWorkspaceOperation } from '@/lib/workspace-files/application/authorization'
+import { authorizeWorkspaceFileAccess } from '@/lib/workspace-files/application/authorization'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 
 export interface ListAllWorkspaceFilesInput {
@@ -31,7 +31,7 @@ export interface QueryWorkspaceFilePageInput {
 async function requireListWorkspaceFileAccess(principal: Principal, workspaceId: string) {
   const workspace = await loadActiveWorkspaceContext(workspaceId)
   if (!workspace) throw new OrchestrationError('not_found', 'Workspace not found')
-  await authorizeWorkspaceOperation(principal, fileOperations.list, workspace)
+  await authorizeWorkspaceFileAccess(principal, fileOperations.list, workspace)
   return workspace
 }
 

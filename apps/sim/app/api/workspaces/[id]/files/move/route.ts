@@ -1,11 +1,11 @@
 import { moveWorkspaceFileItemsContract } from '@/lib/api/contracts/workspace-file-folders'
 import {
   defineInternalJsonRoute,
-  internalFileErrorPolicy,
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { internalFileErrorPolicy } from '@/lib/workspace-files/api'
 import { moveWorkspaceFileItemsOperation } from '@/lib/workspace-files/application/move-workspace-file-items'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 

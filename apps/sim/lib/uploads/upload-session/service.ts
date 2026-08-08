@@ -382,6 +382,10 @@ export function assertUploadSessionAuthBinding(
 ): void {
   if (session.purpose !== 'workspace_file') return
   const candidate = session.metadata.authBinding
+  if (candidate === undefined) {
+    assertLegacyUploadSessionOwner(session, principal)
+    return
+  }
   if (!isUploadSessionAuthBinding(candidate) || candidate.workspaceId !== session.workspaceId) {
     throw uploadNotFound()
   }
@@ -399,6 +403,22 @@ export function assertUploadSessionAuthBinding(
         : principal.kind === 'workspace_api_key' &&
           bound.workspaceId === principal.workspaceId &&
           bound.keyId === principal.keyId)
+  if (!matches) throw uploadNotFound()
+}
+
+/**
+ * Preserves control access for the bounded set of sessions created before
+ * immutable credential bindings shipped. New workspace-file sessions always
+ * persist `authBinding`, and malformed bindings never enter this compatibility
+ * path. The upload token and current workspace authorization are still checked
+ * by the calling control-plane use case.
+ */
+function assertLegacyUploadSessionOwner(session: UploadSessionRecord, principal: Principal): void {
+  const matches =
+    principal.kind === 'workspace_api_key'
+      ? principal.workspaceId === session.workspaceId
+      : (principal.kind === 'session' || principal.kind === 'personal_api_key') &&
+        principal.userId === session.userId
   if (!matches) throw uploadNotFound()
 }
 

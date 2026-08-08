@@ -17,7 +17,7 @@ vi.mock('@sim/platform-authz/workspace', () => ({
 }))
 
 import type { OrchestrationError } from '@/lib/core/orchestration/types'
-import { authorizeWorkspaceOperation } from '@/lib/workspace-files/application/authorization'
+import { authorizeWorkspaceFileAccess } from '@/lib/workspace-files/application/authorization'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 
 const authorizationContext = {
@@ -29,7 +29,7 @@ const authorizationContext = {
 
 async function expectForbidden(principal: Principal) {
   await expect(
-    authorizeWorkspaceOperation(principal, fileOperations.rename, authorizationContext)
+    authorizeWorkspaceFileAccess(principal, fileOperations.rename, authorizationContext)
   ).rejects.toMatchObject<Partial<OrchestrationError>>({ code: 'forbidden' })
 }
 
@@ -40,7 +40,7 @@ describe('file operation authorization', () => {
   })
 
   it('uses the current workspace permission for sessions', async () => {
-    await authorizeWorkspaceOperation(
+    await authorizeWorkspaceFileAccess(
       { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
       fileOperations.rename,
       authorizationContext
@@ -61,7 +61,7 @@ describe('file operation authorization', () => {
   })
 
   it('lets a workspace key use its fixed write ceiling only in its own workspace', async () => {
-    await authorizeWorkspaceOperation(
+    await authorizeWorkspaceFileAccess(
       { kind: 'workspace_api_key', workspaceId: 'workspace-1', keyId: 'key-1' },
       fileOperations.rename,
       authorizationContext
@@ -77,7 +77,7 @@ describe('file operation authorization', () => {
 
   it('fails a personal key immediately when the workspace disables it', async () => {
     await expect(
-      authorizeWorkspaceOperation(
+      authorizeWorkspaceFileAccess(
         { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
         fileOperations.rename,
         { ...authorizationContext, allowPersonalApiKeys: false }
@@ -87,7 +87,7 @@ describe('file operation authorization', () => {
   })
 
   it('reauthorizes a valid file-scoped Copilot delegation as its human subject', async () => {
-    await authorizeWorkspaceOperation(
+    await authorizeWorkspaceFileAccess(
       {
         kind: 'delegated',
         serviceId: 'copilot',

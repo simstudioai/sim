@@ -1,11 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { getWorkspaceCsvPreviewContract } from '@/lib/api/contracts/workspace-file-table'
+import { defineInternalJsonRoute, internalRateLimits } from '@/lib/api/server/routes'
 import {
-  defineInternalJsonRoute,
   internalPlainFileErrorPolicy,
-  internalRateLimits,
   internalSessionOrServiceAuth,
-} from '@/lib/api/server/routes'
+} from '@/lib/workspace-files/api'
 import { csvPreviewWorkspaceFile } from '@/lib/workspace-files/application/csv-preview-workspace-file'
 
 const logger = createLogger('WorkspaceCsvPreviewAPI')

@@ -4,12 +4,12 @@ import {
 } from '@/lib/api/contracts/workspace-files'
 import {
   defineInternalJsonRoute,
-  internalFileErrorPolicy,
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
+import { internalFileErrorPolicy } from '@/lib/workspace-files/api'
 import { createWorkspaceFile } from '@/lib/workspace-files/application/create-workspace-file'
 import { listAllWorkspaceFiles } from '@/lib/workspace-files/application/list-workspace-files'
 import { fileOperations } from '@/lib/workspace-files/application/operations'

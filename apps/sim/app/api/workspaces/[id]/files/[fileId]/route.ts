@@ -4,11 +4,11 @@ import {
 } from '@/lib/api/contracts/workspace-files'
 import {
   defineInternalJsonRoute,
-  internalFileErrorPolicy,
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { internalFileErrorPolicy } from '@/lib/workspace-files/api'
 import { deleteWorkspaceFileOperation } from '@/lib/workspace-files/application/delete-workspace-file'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { renameWorkspaceFile } from '@/lib/workspace-files/application/rename-workspace-file'

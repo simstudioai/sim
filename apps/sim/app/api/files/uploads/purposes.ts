@@ -4,6 +4,7 @@ import { workspace } from '@sim/db/schema'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { CreateInternalFileUploadBody } from '@/lib/api/contracts/upload-sessions'
+import type { WorkspaceOperation } from '@/lib/core/application'
 import { assertWorkspaceFileFolderTarget } from '@/lib/uploads/contexts/workspace'
 import {
   assertUploadSessionAuthBinding,
@@ -13,8 +14,7 @@ import {
 } from '@/lib/uploads/upload-session/service'
 import { isImageFileType } from '@/lib/uploads/utils/file-utils'
 import { validateAttachmentFileType } from '@/lib/uploads/utils/validation'
-import { authorizeWorkspaceOperation } from '@/lib/workspace-files/application/authorization'
-import type { WorkspaceOperation } from '@/lib/workspace-files/application/operations'
+import { authorizeWorkspaceFileAccess } from '@/lib/workspace-files/application/authorization'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
@@ -43,7 +43,7 @@ export async function createPurposeUploadSession(
     case 'workspace_file': {
       const context = await loadWorkspaceAuthorizationContext(body.workspaceId)
       if (!context) throw new UploadSessionError('not_found', 'Workspace not found')
-      await authorizeWorkspaceOperation(principal, fileOperations.uploadCreate, context)
+      await authorizeWorkspaceFileAccess(principal, fileOperations.uploadCreate, context)
       const folderId = await assertWorkspaceFileFolderTarget(body.workspaceId, body.folderId)
       return createUploadSession({
         purpose: body.purpose,
@@ -151,7 +151,7 @@ export async function reauthorizeWorkspaceUploadPurpose(
   assertUploadSessionAuthBinding(session, principal)
   const context = await loadWorkspaceAuthorizationContext(session.workspaceId)
   if (!context) throw new UploadSessionError('not_found', 'Upload session not found')
-  await authorizeWorkspaceOperation(principal, operation, {
+  await authorizeWorkspaceFileAccess(principal, operation, {
     workspaceId: context.workspaceId,
     workspaceOrganizationId: context.workspaceOrganizationId,
     allowPersonalApiKeys: context.allowPersonalApiKeys,

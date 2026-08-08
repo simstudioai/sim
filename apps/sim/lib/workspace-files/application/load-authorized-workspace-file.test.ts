@@ -13,7 +13,7 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
 }))
 
 vi.mock('@/lib/workspace-files/application/authorization', () => ({
-  authorizeWorkspaceOperation: mocks.authorize,
+  authorizeWorkspaceFileAccess: mocks.authorize,
 }))
 
 import { loadAuthorizedWorkspaceFile } from '@/lib/workspace-files/application/load-authorized-workspace-file'

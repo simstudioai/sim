@@ -1,16 +1,20 @@
 export { defineInternalBinaryRoute } from '@/lib/api/server/routes/internal-binary-route'
 export {
+  createInternalSessionOrServiceAuth,
   defineInternalJsonRoute,
-  internalFileErrorPolicy,
-  internalPlainFileErrorPolicy,
+  type InternalAuthPolicy,
+  type InternalErrorPolicy,
+  InternalUnauthenticatedError,
+  internalOrchestrationErrorPolicy,
+  internalPlainOrchestrationErrorPolicy,
   internalRateLimits,
   internalSessionAuth,
-  internalSessionOrServiceAuth,
 } from '@/lib/api/server/routes/internal-json-route'
 export { defineV2BinaryRoute } from '@/lib/api/server/routes/v2-binary-route'
 export {
   defineV2JsonRoute,
+  type V2ErrorPolicy,
   v2ApiKeyAuth,
-  v2FileErrorPolicies,
+  v2OrchestrationErrorPolicy,
   v2RateLimits,
 } from '@/lib/api/server/routes/v2-json-route'

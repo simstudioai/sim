@@ -1,5 +1,5 @@
 import type { AnyApiRouteContract } from '@/lib/api/contracts'
-import type { WorkspaceOperation } from '@/lib/workspace-files/application/operations'
+import type { ApplicationOperation } from '@/lib/core/application'
 
 export interface JsonRouteDefinitionMetadata {
   successStatus: number
@@ -7,8 +7,8 @@ export interface JsonRouteDefinitionMetadata {
 
 export function requireJsonRouteDefinition(
   contract: AnyApiRouteContract,
-  declaredOperation: WorkspaceOperation,
-  useCaseOperation: WorkspaceOperation
+  declaredOperation: ApplicationOperation,
+  useCaseOperation: ApplicationOperation
 ): JsonRouteDefinitionMetadata {
   if (contract.response.mode !== 'json') {
     throw new Error(`${contract.method} ${contract.path} requires a JSON response contract`)
@@ -32,8 +32,8 @@ export function requireJsonRouteDefinition(
 
 export function requireBinaryRouteDefinition(
   contract: AnyApiRouteContract,
-  declaredOperation: WorkspaceOperation,
-  useCaseOperation: WorkspaceOperation
+  declaredOperation: ApplicationOperation,
+  useCaseOperation: ApplicationOperation
 ): JsonRouteDefinitionMetadata {
   if (contract.response.mode !== 'binary') {
     throw new Error(`${contract.method} ${contract.path} requires a binary response contract`)

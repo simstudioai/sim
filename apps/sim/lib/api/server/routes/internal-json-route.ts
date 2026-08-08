@@ -11,10 +11,9 @@ import type {
 import { type ParseRequestOptions, parseRequest } from '@/lib/api/server/validation'
 import { getSession } from '@/lib/auth'
 import { verifyInternalToken } from '@/lib/auth/internal'
+import type { ApplicationOperation } from '@/lib/core/application'
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { createWorkspaceFileDelegatedPrincipal } from '@/lib/workspace-files/application/delegated-principal'
-import type { WorkspaceOperation } from '@/lib/workspace-files/application/operations'
 
 export class InternalUnauthenticatedError extends Error {
   constructor(message = 'Unauthorized') {
@@ -33,35 +32,29 @@ export const internalSessionAuth = {
   },
 } as const
 
-export const internalSessionOrServiceAuth = {
-  async authenticate(
-    request: NextRequest,
+export function createInternalSessionOrServiceAuth<P extends DelegatedPrincipal>(
+  bindDelegation: (args: {
+    subjectUserId: string
     params: Record<string, string | string[] | undefined>
-  ): Promise<SessionPrincipal | DelegatedPrincipal> {
-    if (request.headers.has('x-api-key')) {
-      throw new InternalUnauthenticatedError('Authentication required')
-    }
+  }) => P
+): InternalAuthPolicy<SessionPrincipal | P> {
+  return {
+    async authenticate(request, params) {
+      if (request.headers.has('x-api-key')) {
+        throw new InternalUnauthenticatedError('Authentication required')
+      }
 
-    const authorization = request.headers.get('authorization')
-    if (!authorization?.startsWith('Bearer ')) return internalSessionAuth.authenticate()
+      const authorization = request.headers.get('authorization')
+      if (!authorization?.startsWith('Bearer ')) return internalSessionAuth.authenticate()
 
-    const verification = await verifyInternalToken(authorization.slice('Bearer '.length))
-    if (!verification.valid || !verification.userId) {
-      throw new InternalUnauthenticatedError('Authentication required')
-    }
-    const workspaceId = params.id
-    if (typeof workspaceId !== 'string' || !workspaceId) {
-      throw new Error('Internal file delegation requires a workspace route parameter')
-    }
-    return createWorkspaceFileDelegatedPrincipal({
-      serviceId: 'executor',
-      subjectUserId: verification.userId,
-      workspaceId,
-      delegationId: `internal-file:${verification.userId}`,
-      fileId: typeof params.fileId === 'string' ? params.fileId : undefined,
-    })
-  },
-} as const
+      const verification = await verifyInternalToken(authorization.slice('Bearer '.length))
+      if (!verification.valid || !verification.userId) {
+        throw new InternalUnauthenticatedError('Authentication required')
+      }
+      return bindDelegation({ subjectUserId: verification.userId, params })
+    },
+  }
+}
 
 interface InternalRateLimitPolicy {
   readonly kind: 'none'
@@ -85,7 +78,7 @@ export interface InternalErrorPolicy {
   unhandled?(): NextResponse
 }
 
-export const internalFileErrorPolicy: InternalErrorPolicy = {
+export const internalOrchestrationErrorPolicy: InternalErrorPolicy = {
   render(error) {
     const classified = asOrchestrationError(error)
     if (!classified) return null
@@ -96,7 +89,7 @@ export const internalFileErrorPolicy: InternalErrorPolicy = {
   },
 }
 
-export const internalPlainFileErrorPolicy: InternalErrorPolicy = {
+export const internalPlainOrchestrationErrorPolicy: InternalErrorPolicy = {
   render(error) {
     const classified = asOrchestrationError(error)
     if (!classified) return null
@@ -110,7 +103,7 @@ export const internalPlainFileErrorPolicy: InternalErrorPolicy = {
   },
 }
 
-interface InternalAuthPolicy<P extends Principal> {
+export interface InternalAuthPolicy<P extends Principal> {
   authenticate(
     request: NextRequest,
     params: Record<string, string | string[] | undefined>
@@ -119,7 +112,7 @@ interface InternalAuthPolicy<P extends Principal> {
 
 interface InternalJsonRouteOptions<
   C extends JsonApiRouteContract,
-  O extends WorkspaceOperation,
+  O extends ApplicationOperation,
   I,
   R,
   P extends Principal,
@@ -139,7 +132,7 @@ interface InternalJsonRouteOptions<
 
 export function defineInternalJsonRoute<
   C extends JsonApiRouteContract,
-  O extends WorkspaceOperation,
+  O extends ApplicationOperation,
   I,
   R,
   P extends Principal,

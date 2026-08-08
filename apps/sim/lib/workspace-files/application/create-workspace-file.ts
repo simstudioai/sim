@@ -16,7 +16,7 @@ import {
 } from '@/lib/uploads/contexts/workspace'
 import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
-import { authorizeWorkspaceOperation } from '@/lib/workspace-files/application/authorization'
+import { authorizeWorkspaceFileAccess } from '@/lib/workspace-files/application/authorization'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { MAX_WORKSPACE_FILE_CONTENT_BYTES } from '@/lib/workspace-files/orchestration'
 
@@ -58,7 +58,7 @@ interface CreateWorkspaceFileBufferArguments {
 async function requireCreateWorkspaceFileAccess(principal: Principal, workspaceId: string) {
   const workspace = await loadActiveWorkspaceContext(workspaceId)
   if (!workspace) throw new OrchestrationError('not_found', 'Workspace not found')
-  await authorizeWorkspaceOperation(principal, fileOperations.create, workspace)
+  await authorizeWorkspaceFileAccess(principal, fileOperations.create, workspace)
   return workspace
 }
 

@@ -20,7 +20,7 @@ vi.mock('@sim/audit', () => ({
 vi.mock('@/lib/realtime/notify', () => ({ notifyWorkspaceFilesChanged: mocks.notify }))
 
 vi.mock('@/lib/workspace-files/application/authorization', () => ({
-  authorizeWorkspaceOperation: mocks.authorize,
+  authorizeWorkspaceFileAccess: mocks.authorize,
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({

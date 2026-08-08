@@ -3,12 +3,12 @@ import { NextResponse } from 'next/server'
 import { downloadWorkspaceFileUrlContract } from '@/lib/api/contracts/workspace-files'
 import {
   defineInternalJsonRoute,
-  internalFileErrorPolicy,
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { internalFileErrorPolicy } from '@/lib/workspace-files/api'
 import { downloadWorkspaceFile } from '@/lib/workspace-files/application/download-workspace-file'
 
 export const dynamic = 'force-dynamic'

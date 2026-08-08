@@ -2,10 +2,10 @@ import { NextResponse } from 'next/server'
 import { workspaceFileCompiledCheckContract } from '@/lib/api/contracts/workspace-files'
 import {
   defineInternalJsonRoute,
-  internalPlainFileErrorPolicy,
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
+import { internalPlainFileErrorPolicy } from '@/lib/workspace-files/api'
 import {
   CompiledCheckTooLargeError,
   CompiledCheckUnsupportedError,

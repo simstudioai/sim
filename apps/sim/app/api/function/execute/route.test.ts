@@ -1250,6 +1250,45 @@ describe('Function Execute API Route', () => {
       expect(data.output.result.message).toContain('/home/user/doc.md')
     })
 
+    it('continues an overwrite when the advisory comparison fails', async () => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+      const newContent = '# doc\nnew content\n'
+      mockExecuteInSandbox.mockResolvedValueOnce({
+        result: 'done',
+        stdout: 'ok',
+        sandboxId: 'sandbox-123',
+        exportedFiles: { '/home/user/doc.md': newContent },
+      })
+      mockResolveWorkspaceFileReference.mockRejectedValueOnce(
+        new Error('comparison storage unavailable')
+      )
+
+      const response = await POST(
+        createMockRequest('POST', {
+          code: 'print("done")',
+          language: 'python',
+          workspaceId: 'workspace-1',
+          outputs: {
+            files: [
+              {
+                path: 'files/doc.md',
+                mode: 'overwrite',
+                sandboxPath: '/home/user/doc.md',
+                mimeType: 'text/markdown',
+              },
+            ],
+          },
+        })
+      )
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+      expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledTimes(1)
+      expect(data.output.result).toMatchObject({ unchanged: false })
+      expect(data.output.result).not.toHaveProperty('previousSize')
+    })
+
     it('reports size, previousSize, and sha256 receipts on a successful overwrite export', async () => {
       envFlagsMock.isRemoteSandboxEnabled = true
       const newContent = '# doc\nnew content\n'

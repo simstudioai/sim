@@ -1320,8 +1320,9 @@ async function appendPrivateResolvedSecretNames(
  * either a legitimately idempotent regeneration, or the incident signature of
  * code that never wrote to the declared sandboxPath (the file still holds the
  * mounted input). Only the model can tell those apart, so callers surface the
- * fact loudly in the receipt instead of failing the write. The current content
- * is only downloaded when the sizes already match.
+ * fact loudly in the receipt instead of failing the write. Comparison is
+ * advisory and never blocks the authoritative write; the current content is
+ * only downloaded when the sizes already match.
  */
 async function checkOverwriteTarget(
   principal: Principal,
@@ -1329,24 +1330,33 @@ async function checkOverwriteTarget(
   targetPath: string,
   buffer: Buffer
 ): Promise<{ previousSize?: number; identical: boolean }> {
-  const existing = await resolveWorkspaceFileReference({
-    principal,
-    operation: fileOperations.updateContent,
-    workspaceId,
-    reference: targetPath,
-  })
-  if (existing.size !== buffer.length) {
-    return { previousSize: existing.size, identical: false }
+  try {
+    const existing = await resolveWorkspaceFileReference({
+      principal,
+      operation: fileOperations.updateContent,
+      workspaceId,
+      reference: targetPath,
+    })
+    if (existing.size !== buffer.length) {
+      return { previousSize: existing.size, identical: false }
+    }
+    const { content: current } = await readWorkspaceFileContent.execute({
+      principal,
+      input: {
+        fileId: existing.id,
+        assertedWorkspaceId: workspaceId,
+        maxBytes: buffer.length,
+      },
+    })
+    return { previousSize: existing.size, identical: current.equals(buffer) }
+  } catch (error) {
+    logger.warn('Unable to compare workspace overwrite target before export', {
+      workspaceId,
+      targetPath,
+      error: getErrorMessage(error),
+    })
+    return { identical: false }
   }
-  const { content: current } = await readWorkspaceFileContent.execute({
-    principal,
-    input: {
-      fileId: existing.id,
-      assertedWorkspaceId: workspaceId,
-      maxBytes: buffer.length,
-    },
-  })
-  return { previousSize: existing.size, identical: current.equals(buffer) }
 }
 
 function formatExportReceipt(bytes: number, previousSize: number | undefined, sha256: string) {

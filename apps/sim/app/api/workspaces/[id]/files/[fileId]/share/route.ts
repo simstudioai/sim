@@ -1,10 +1,10 @@
 import { getFileShareContract, upsertFileShareContract } from '@/lib/api/contracts/public-shares'
 import {
   defineInternalJsonRoute,
-  internalFileErrorPolicy,
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
+import { internalFileErrorPolicy } from '@/lib/workspace-files/api'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import {
   getWorkspaceFileShare,

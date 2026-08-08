@@ -22,7 +22,7 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   restoreWorkspaceFile: mocks.restoreStored,
 }))
 vi.mock('@/lib/workspace-files/application/authorization', () => ({
-  authorizeWorkspaceOperation: mocks.authorize,
+  authorizeWorkspaceFileAccess: mocks.authorize,
 }))
 
 import { restoreWorkspaceFileOperation } from '@/lib/workspace-files/application/restore-workspace-file'

@@ -1,4 +1,5 @@
 import type { Principal } from '@sim/auth/principal'
+import type { WorkspaceOperation } from '@/lib/core/application'
 import type { OrchestrationRequestContext } from '@/lib/core/orchestration/types'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
@@ -6,10 +7,7 @@ import {
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { loadAuthorizedWorkspaceFile } from '@/lib/workspace-files/application/load-authorized-workspace-file'
-import {
-  fileOperations,
-  type WorkspaceOperation,
-} from '@/lib/workspace-files/application/operations'
+import { fileOperations } from '@/lib/workspace-files/application/operations'
 
 export interface ReadWorkspaceFileRecordInput {
   fileId: string

@@ -14,10 +14,10 @@ import {
   V2ApiKeyUnauthenticatedError,
 } from '@/lib/api/server/routes/v2-api-key-auth'
 import { type ParseRequestOptions, parseRequest } from '@/lib/api/server/validation'
+import type { ApplicationOperation } from '@/lib/core/application'
 import { getRateLimit, RateLimiter, type SubscriptionPlan } from '@/lib/core/rate-limiter'
 import { getClientIp } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import type { WorkspaceOperation } from '@/lib/workspace-files/application/operations'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
   v2CaughtOrchestrationError,
@@ -51,7 +51,7 @@ export interface V2RateLimitPolicy {
   enforce(
     request: NextRequest,
     auth: V2ApiKeyAuthContext,
-    operation: WorkspaceOperation
+    operation: ApplicationOperation
   ): Promise<NextResponse | null>
 }
 
@@ -104,25 +104,15 @@ export interface V2ErrorPolicy {
   render(error: unknown): NextResponse | null
 }
 
-export const v2FileErrorPolicies = {
-  default: {
-    render(error) {
-      return v2CaughtOrchestrationError(error)
-    },
-  } satisfies V2ErrorPolicy,
-  concealResourceAuthorization: {
-    render(error) {
-      const response = v2CaughtOrchestrationError(error)
-      if (!response) return null
-      if (response.status === 403) return v2Error('NOT_FOUND', 'File not found')
-      return response
-    },
-  } satisfies V2ErrorPolicy,
-} as const
+export const v2OrchestrationErrorPolicy = {
+  render(error) {
+    return v2CaughtOrchestrationError(error)
+  },
+} satisfies V2ErrorPolicy
 
 export async function admitV2Request(
   request: NextRequest,
-  operation: WorkspaceOperation,
+  operation: ApplicationOperation,
   authPolicy: typeof v2ApiKeyAuth,
   rateLimitPolicy: V2RateLimitPolicy
 ): Promise<
@@ -163,7 +153,7 @@ export async function admitV2Request(
   return limited ? { success: false, response: limited } : { success: true, auth }
 }
 
-interface V2JsonRouteOptions<C extends JsonApiRouteContract, O extends WorkspaceOperation, I, R>
+interface V2JsonRouteOptions<C extends JsonApiRouteContract, O extends ApplicationOperation, I, R>
   extends JsonRouteDefinition<C, O, I, R> {
   auth: typeof v2ApiKeyAuth
   rateLimit: V2RateLimitPolicy
@@ -178,7 +168,7 @@ interface V2JsonRouteOptions<C extends JsonApiRouteContract, O extends Workspace
 
 export function defineV2JsonRoute<
   C extends JsonApiRouteContract,
-  O extends WorkspaceOperation,
+  O extends ApplicationOperation,
   I,
   R,
 >(options: V2JsonRouteOptions<C, O, I, R>): JsonNextRouteHandler {

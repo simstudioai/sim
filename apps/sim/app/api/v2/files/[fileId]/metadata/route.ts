@@ -1,10 +1,6 @@
 import { v2GetFileContract } from '@/lib/api/contracts/v2/files'
-import {
-  defineV2JsonRoute,
-  v2ApiKeyAuth,
-  v2FileErrorPolicies,
-  v2RateLimits,
-} from '@/lib/api/server/routes'
+import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
+import { v2FileErrorPolicies } from '@/lib/workspace-files/api'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
 import { toV2File } from '@/app/api/v2/files/utils'

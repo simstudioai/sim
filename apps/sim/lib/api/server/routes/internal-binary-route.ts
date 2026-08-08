@@ -11,12 +11,11 @@ import type {
   BinaryResponseDescriptor,
   JsonNextRouteHandler,
   JsonRouteContext,
-  OperationUseCase,
 } from '@/lib/api/server/routes/types'
 import type { ParsedRequest } from '@/lib/api/server/validation'
 import { parseRequest } from '@/lib/api/server/validation'
+import type { ApplicationOperation, OperationUseCase } from '@/lib/core/application'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import type { WorkspaceOperation } from '@/lib/workspace-files/application/operations'
 
 interface InternalBinaryRateLimitPolicy {
   readonly kind: 'none'
@@ -30,7 +29,7 @@ interface InternalBinaryErrorPolicy {
 
 interface InternalBinaryRouteDefinition<
   C extends BinaryApiRouteContract,
-  O extends WorkspaceOperation,
+  O extends ApplicationOperation,
   I,
   R,
 > {
@@ -43,7 +42,7 @@ interface InternalBinaryRouteDefinition<
 
 interface InternalBinaryRouteOptions<
   C extends BinaryApiRouteContract,
-  O extends WorkspaceOperation,
+  O extends ApplicationOperation,
   I,
   R,
 > extends InternalBinaryRouteDefinition<C, O, I, R> {
@@ -61,7 +60,7 @@ interface InternalBinaryRouteOptions<
  */
 export function defineInternalBinaryRoute<
   C extends BinaryApiRouteContract,
-  O extends WorkspaceOperation,
+  O extends ApplicationOperation,
   I,
   R,
 >(options: InternalBinaryRouteOptions<C, O, I, R>): JsonNextRouteHandler {
