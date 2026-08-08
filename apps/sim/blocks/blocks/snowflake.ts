@@ -599,30 +599,104 @@ export const SnowflakeBlock: BlockConfig<SnowflakeStatementResponse> = {
       tool: (params) => `snowflake_${params.operation}`,
       params: (params) => {
         const jsonBudget = { bytes: 0 }
-        return {
-          async: optionalBoolean(params.async),
-          bindings: parseJson(params.bindings, 'Bindings', jsonBudget),
-          database: params.database || params.contextDatabase || undefined,
-          schema: params.schema || params.contextSchema || undefined,
-          taskName: params.taskName || params.taskNameFilter || undefined,
-          rows: parseJson(params.rows, 'Rows', jsonBudget),
-          matchColumns: parseJson(params.matchColumns, 'Match columns', jsonBudget),
-          filters: parseJson(params.filters, 'Filters', jsonBudget),
-          procedureArguments: parseJson(
-            params.procedureArguments,
-            'Procedure arguments',
-            jsonBudget
-          ),
-          partition: optionalNumber(params.partition),
+        const statementParams = () => ({
           timeout: optionalNumber(params.timeout),
           maxRows: optionalNumber(params.maxRows),
-          limit: optionalNumber(params.limit),
-          purge: optionalBoolean(params.purge),
-          force: optionalBoolean(params.force),
-          retryLast: optionalBoolean(params.retryLast),
-          errorOnly: optionalBoolean(params.errorOnly),
-          includeViews: optionalBoolean(params.includeViews),
-          onError: copyOnError(params.onError, params.onErrorThreshold),
+        })
+        const contextParams = () => ({
+          ...statementParams(),
+          database: params.contextDatabase || undefined,
+          schema: params.contextSchema || undefined,
+        })
+        const objectParams = () => ({
+          ...statementParams(),
+          database: params.database || undefined,
+          schema: params.schema || undefined,
+        })
+
+        switch (params.operation) {
+          case 'execute_sql':
+            return {
+              ...contextParams(),
+              async: optionalBoolean(params.async),
+              bindings: parseJson(params.bindings, 'Bindings', jsonBudget),
+            }
+          case 'get_statement':
+            return {
+              partition: optionalNumber(params.partition),
+              maxRows: optionalNumber(params.maxRows),
+            }
+          case 'insert_rows':
+            return {
+              ...objectParams(),
+              rows: parseJson(params.rows, 'Rows', jsonBudget),
+            }
+          case 'update_rows':
+          case 'upsert_rows':
+            return {
+              ...objectParams(),
+              rows: parseJson(params.rows, 'Rows', jsonBudget),
+              matchColumns: parseJson(params.matchColumns, 'Match columns', jsonBudget),
+            }
+          case 'delete_rows':
+            return {
+              ...objectParams(),
+              filters: parseJson(params.filters, 'Filters', jsonBudget),
+            }
+          case 'load_data':
+            return {
+              ...objectParams(),
+              purge: optionalBoolean(params.purge),
+              force: optionalBoolean(params.force),
+              onError: copyOnError(params.onError, params.onErrorThreshold),
+            }
+          case 'list_warehouses':
+          case 'get_warehouse':
+          case 'resume_warehouse':
+          case 'suspend_warehouse':
+          case 'cancel_task_run':
+          case 'get_task_run_output':
+            return contextParams()
+          case 'list_tasks':
+            return {
+              ...objectParams(),
+              limit: optionalNumber(params.limit),
+            }
+          case 'get_task':
+            return objectParams()
+          case 'run_task':
+            return {
+              ...objectParams(),
+              retryLast: optionalBoolean(params.retryLast),
+            }
+          case 'list_task_runs':
+            return {
+              ...contextParams(),
+              taskName: params.taskNameFilter || undefined,
+              limit: optionalNumber(params.limit),
+              errorOnly: optionalBoolean(params.errorOnly),
+            }
+          case 'get_task_run':
+            return {
+              ...contextParams(),
+              taskName: params.taskNameFilter || undefined,
+            }
+          case 'introspect_schema':
+            return {
+              ...objectParams(),
+              includeViews: optionalBoolean(params.includeViews),
+            }
+          case 'call_procedure':
+            return {
+              ...objectParams(),
+              procedureArguments: parseJson(
+                params.procedureArguments,
+                'Procedure arguments',
+                jsonBudget
+              ),
+            }
+          default:
+            return {}
         }
       },
     },

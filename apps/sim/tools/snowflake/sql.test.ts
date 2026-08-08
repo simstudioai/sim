@@ -72,6 +72,70 @@ describe('Snowflake SQL builders', () => {
     ).toThrow('exceeds')
   })
 
+  it('only coerces fields used by the selected block operation', () => {
+    const mapParams = SnowflakeBlock.tools.config.params
+    if (!mapParams) throw new Error('Snowflake block must map tool parameters')
+
+    expect(() =>
+      mapParams({
+        operation: 'execute_sql',
+        rows: '{invalid',
+        filters: '{invalid',
+        procedureArguments: '{invalid',
+        onError: 'SKIP_FILE_NUMBER',
+      })
+    ).not.toThrow()
+    expect(() =>
+      mapParams({
+        operation: 'delete_rows',
+        rows: '{invalid',
+        filters: '{"id":1}',
+      })
+    ).not.toThrow()
+    expect(() =>
+      mapParams({
+        operation: 'load_data',
+        onError: 'SKIP_FILE_NUMBER',
+      })
+    ).toThrow('threshold')
+  })
+
+  it('maps overlapping block fields according to the selected operation', () => {
+    const mapParams = SnowflakeBlock.tools.config.params
+    if (!mapParams) throw new Error('Snowflake block must map tool parameters')
+    const finalParams = (params: Record<string, unknown>) => ({
+      ...params,
+      ...mapParams(params),
+    })
+    const staleFields = {
+      database: 'OBJECT_DB',
+      schema: 'OBJECT_SCHEMA',
+      contextDatabase: 'CONTEXT_DB',
+      contextSchema: 'CONTEXT_SCHEMA',
+      taskName: 'TASK_DEFINITION',
+      taskNameFilter: 'TASK_HISTORY_FILTER',
+    }
+
+    expect(finalParams({ operation: 'execute_sql', ...staleFields })).toMatchObject({
+      database: 'CONTEXT_DB',
+      schema: 'CONTEXT_SCHEMA',
+    })
+    expect(finalParams({ operation: 'insert_rows', ...staleFields, rows: '[]' })).toMatchObject({
+      database: 'OBJECT_DB',
+      schema: 'OBJECT_SCHEMA',
+    })
+    expect(finalParams({ operation: 'list_task_runs', ...staleFields })).toMatchObject({
+      database: 'CONTEXT_DB',
+      schema: 'CONTEXT_SCHEMA',
+      taskName: 'TASK_HISTORY_FILTER',
+    })
+    expect(finalParams({ operation: 'get_task', ...staleFields })).toMatchObject({
+      database: 'OBJECT_DB',
+      schema: 'OBJECT_SCHEMA',
+      taskName: 'TASK_DEFINITION',
+    })
+  })
+
   it('builds a bound multi-row INSERT in stable column order', () => {
     const result = buildInsertRows({
       ...table,
