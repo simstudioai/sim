@@ -657,9 +657,13 @@ export async function executeAnthropicProviderRequest(
             }
 
             const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-            const result = await executeProviderTool(toolName, executionParams, {
-              signal: request.abortSignal,
-            })
+            const { rawResponse, modelResponse } = await executeProviderTool(
+              toolName,
+              executionParams,
+              {
+                signal: request.abortSignal,
+              }
+            )
             const toolCallEndTime = Date.now()
 
             return {
@@ -667,7 +671,8 @@ export async function executeAnthropicProviderRequest(
               toolName,
               toolArgs,
               toolParams,
-              result,
+              result: rawResponse,
+              modelResult: modelResponse,
               startTime: toolCallStartTime,
               endTime: toolCallEndTime,
               duration: toolCallEndTime - toolCallStartTime,
@@ -712,6 +717,10 @@ export async function executeAnthropicProviderRequest(
             endTime,
             duration,
           } = executionResult
+          const modelResult =
+            'modelResult' in executionResult && executionResult.modelResult
+              ? executionResult.modelResult
+              : result
 
           timeSegments.push({
             type: 'tool',
@@ -735,6 +744,13 @@ export async function executeAnthropicProviderRequest(
               tool: toolName,
             }
           }
+          const modelResultContent = modelResult.success
+            ? (modelResult.output ?? null)
+            : {
+                error: true,
+                message: modelResult.error || 'Tool execution failed',
+                tool: toolName,
+              }
 
           toolCalls.push({
             name: toolName,
@@ -749,8 +765,8 @@ export async function executeAnthropicProviderRequest(
           toolResultBlocks.push({
             type: 'tool_result',
             tool_use_id: toolUseId,
-            content: JSON.stringify(resultContent),
-            is_error: !result.success,
+            content: JSON.stringify(modelResultContent),
+            is_error: !modelResult.success,
           })
         }
 

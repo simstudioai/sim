@@ -16,7 +16,7 @@
 
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { env } from '@/lib/core/config/env'
+import { getConfiguredCacheProvider } from '@/lib/core/config/env-capabilities.server'
 import { getRedisClient } from '@/lib/core/config/redis'
 
 const logger = createLogger('EventLog')
@@ -111,7 +111,7 @@ function memoryKey(config: EventLogConfig, streamId: string) {
 }
 
 function canUseMemoryBuffer(): boolean {
-  return typeof window === 'undefined' && !env.REDIS_URL
+  return typeof window === 'undefined' && getConfiguredCacheProvider() === 'database'
 }
 
 function pruneExpiredMemoryStreams(now = Date.now()): void {

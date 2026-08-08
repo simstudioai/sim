@@ -2,11 +2,13 @@ import { isRecordLike } from '@sim/utils/object'
 import { z } from 'zod'
 import {
   folderIdSchema,
+  privateSecretProvenanceBundleSchema,
   requiredFieldSchema,
   workspaceIdSchema,
 } from '@/lib/api/contracts/primitives'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
 import { ianaTimezoneSchema } from '@/lib/api/contracts/user'
+import { PRIVATE_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
 import type {
   CsvHeaderMapping,
   EnrichmentRunDetail,
@@ -33,6 +35,11 @@ import {
   TABLE_LIMITS,
 } from '@/lib/table/constants'
 import { CSV_MAX_FILE_SIZE_BYTES } from '@/lib/table/import'
+import {
+  getTablePredicateTreeSizeError,
+  MAX_PREDICATE_GROUP_SIZE,
+  normalizeTablePredicate,
+} from '@/lib/table/query-builder/predicate'
 
 export const domainObjectSchema = <T>() => z.custom<T>(isRecordLike)
 
@@ -320,6 +327,7 @@ export const tableRowSchema = domainObjectSchema<TableRow>()
 export const insertTableRowBodyBaseSchema = z.object({
   workspaceId: workspaceIdSchema,
   data: rowDataSchema,
+  [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
   position: z.number().int().min(0).optional(),
   /** Fractional ordering: insert directly after this row id. Takes precedence over `position`. */
   afterRowId: z.string().min(1).optional(),
@@ -344,11 +352,13 @@ export const upsertTableRowBodySchema = z.object({
   workspaceId: workspaceIdSchema,
   data: rowDataSchema,
   conflictTarget: z.string().min(1).optional(),
+  [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
 })
 
 export const batchInsertTableRowsBodySchema = z
   .object({
     workspaceId: workspaceIdSchema,
+    [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
     rows: z
       .array(rowDataSchema)
       .min(1, 'At least one row is required')
@@ -378,10 +388,12 @@ export const insertTableRowsBodySchema = z.union([
 export const updateTableRowBodySchema = z.object({
   workspaceId: workspaceIdSchema,
   data: rowDataSchema,
+  [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
 })
 
 export const batchUpdateTableRowsBodySchema = z.object({
   workspaceId: workspaceIdSchema,
+  [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
   updates: z
     .array(
       z.object({
@@ -421,45 +433,8 @@ const filterSchema = domainObjectSchema<Filter>()
  */
 export const TABLE_QUERY_MAX_BODY_BYTES = 1024 * 1024
 
-/** Max members in one `all`/`any` group — a generous bound against pathological trees. */
-const MAX_PREDICATE_GROUP_SIZE = 100
 /** Max sort keys — more than a few is already a smell. */
 const MAX_SORT_KEYS = 16
-/** Max nesting levels of `all`/`any` groups. Ten is already unreadable. */
-const MAX_PREDICATE_DEPTH = 10
-/** Max nodes in the whole tree, so a wide-but-shallow tree can't amplify either. */
-const MAX_PREDICATE_NODES = 500
-
-/**
- * Iterative depth/size walk over an unvalidated predicate tree. Runs BEFORE the
- * recursive Zod schema: a few thousand nested `{all:[...]}` levels overflow the
- * stack inside `safeParse`, and a `RangeError` from a parser is a 500, not a 400.
- * The walk itself must stay iterative for the same reason.
- */
-function predicateTreeTooLarge(root: unknown): string | null {
-  const stack: Array<{ node: unknown; depth: number }> = [{ node: root, depth: 1 }]
-  let nodes = 0
-
-  while (stack.length > 0) {
-    const { node, depth } = stack.pop()!
-    if (++nodes > MAX_PREDICATE_NODES) {
-      return `Filter has too many conditions (max ${MAX_PREDICATE_NODES})`
-    }
-    if (depth > MAX_PREDICATE_DEPTH) {
-      return `Filter nesting is too deep (max ${MAX_PREDICATE_DEPTH} levels)`
-    }
-    if (typeof node !== 'object' || node === null) continue
-    const group = node as { all?: unknown; any?: unknown }
-    const members = Array.isArray(group.all)
-      ? group.all
-      : Array.isArray(group.any)
-        ? group.any
-        : null
-    if (!members) continue
-    for (const member of members) stack.push({ node: member, depth: depth + 1 })
-  }
-  return null
-}
 
 /**
  * v2 filter wire format: the typed `{ all | any: [...] }` predicate tree (same
@@ -510,21 +485,30 @@ const predicateTreeSchema: z.ZodType<TablePredicate> = z.lazy(() =>
 )
 const predicateGroupSchema = predicateTreeSchema
 
+const predicateBoundarySchema = z.unknown().superRefine((value, ctx) => {
+  const problem = getTablePredicateTreeSizeError(value)
+  if (problem) ctx.addIssue({ code: 'custom', message: problem })
+})
+
 /**
- * The boundary predicate schema: depth/size guard first, then the recursive
- * structural parse. The guard is only applied at the top level — every nested
- * group is strictly shallower, so re-checking inside the recursion would be
- * redundant work on the hot path.
+ * The canonical grouped predicate schema for dual-grammar boundaries. Keeping
+ * its root group-only prevents a legacy filter with columns named `field`,
+ * `op`, and `value` from being reinterpreted as a v2 predicate.
  */
-export const predicateSchema = z
-  .unknown()
-  .superRefine((value, ctx) => {
-    const problem = predicateTreeTooLarge(value)
-    if (problem) ctx.addIssue({ code: 'custom', message: problem })
-  })
+export const predicateSchema = predicateBoundarySchema
   // double-cast-allowed: the pipe's inferred input is `unknown`, and letting TS
   // widen the recursive lazy union through it makes typecheck OOM
   .pipe(predicateTreeSchema) as unknown as z.ZodType<TablePredicate>
+
+/**
+ * The v2-only input schema accepts either a root leaf or a logical group and
+ * always outputs the canonical grouped shape. The depth/size guard runs before
+ * recursive parsing so pathological input returns a validation error, not a
+ * stack overflow.
+ */
+export const predicateInputSchema = predicateBoundarySchema
+  .pipe(predicateNodeSchema)
+  .transform(normalizeTablePredicate) as z.ZodType<TablePredicate, PredicateNode>
 
 /** v2 sort wire format: an ordered list of `{ field, direction }`. */
 export const sortSpecSchema: z.ZodType<SortSpec> = z
@@ -648,6 +632,7 @@ export const updateRowsByFilterBodySchema = z.object({
   filter: bulkFilterSchema,
   data: rowDataSchema,
   limit: optionalPositiveLimit(TABLE_LIMITS.MAX_BULK_OPERATION_SIZE, 'Limit').optional(),
+  [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
 })
 
 const successResponseSchema = <T extends z.ZodType>(dataSchema: T) =>
@@ -871,7 +856,7 @@ export const listTableRowsContract = defineRouteContract({
  */
 export const rowQueryBodySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
-  predicate: predicateSchema.optional(),
+  predicate: predicateInputSchema.optional(),
   sort: sortSpecSchema.optional(),
   // Omitted limit returns the ENTIRE matching result, failing fast (400) when
   // it exceeds the response byte budget. An explicit limit caps the page row
@@ -1770,7 +1755,7 @@ export const tableViewConfigSchema = tableMetadataSchema.extend({
   // The v2 predicate/sort grammar — same wire as the query routes, so a saved
   // view gets the same strictness and depth bounds as a live filter, and its
   // config can later feed the v2 surfaces without conversion.
-  filter: predicateSchema.nullable().optional(),
+  filter: predicateInputSchema.nullable().optional(),
   sort: sortSpecSchema.nullable().optional(),
 }) satisfies z.ZodType<TableViewConfig>
 

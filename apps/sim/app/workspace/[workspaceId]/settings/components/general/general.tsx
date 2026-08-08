@@ -23,7 +23,6 @@ import { requestJson } from '@/lib/api/client/request'
 import { telemetryContract } from '@/lib/api/contracts/telemetry'
 import { signOut, useSession } from '@/lib/auth/auth-client'
 import { ANONYMOUS_USER_ID } from '@/lib/auth/constants'
-import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { getBrowserTimezone, getTimezoneOptions } from '@/lib/core/utils/timezone'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -79,7 +78,6 @@ export function General() {
 
   const isLoading = isProfileLoading || isSettingsLoading
 
-  const isTrainingEnabled = isTruthy(getEnv('NEXT_PUBLIC_COPILOT_TRAINING_ENABLED'))
   const isAuthDisabled = session?.user?.id === ANONYMOUS_USER_ID
 
   const [name, setName] = useState(profile?.name || '')
@@ -232,12 +230,6 @@ export function General() {
     }
   }
 
-  const handleTrainingControlsChange = async (checked: boolean) => {
-    if (checked !== settings?.showTrainingControls && !updateSetting.isPending) {
-      await updateSetting.mutateAsync({ key: 'showTrainingControls', value: checked })
-    }
-  }
-
   const handleErrorNotificationsChange = async (checked: boolean) => {
     if (checked !== settings?.errorNotificationsEnabled && !updateSetting.isPending) {
       await updateSetting.mutateAsync({ key: 'errorNotificationsEnabled', value: checked })
@@ -314,7 +306,7 @@ export function General() {
                       )
                     }
                     return (
-                      <span className='font-medium text-[var(--text-primary)] text-base'>
+                      <span className='text-[var(--text-primary)] text-base'>
                         {getInitials(profile?.name) || ''}
                       </span>
                     )
@@ -347,10 +339,7 @@ export function General() {
                   {isEditingName ? (
                     <>
                       <div className='relative inline-flex'>
-                        <span
-                          className='invisible whitespace-pre font-medium text-base'
-                          aria-hidden='true'
-                        >
+                        <span className='invisible whitespace-pre text-base' aria-hidden='true'>
                           {name || ' '}
                         </span>
                         <input
@@ -360,7 +349,7 @@ export function General() {
                           onChange={(e) => setName(e.target.value)}
                           onKeyDown={handleKeyDown}
                           onBlur={handleInputBlur}
-                          className='absolute top-0 left-0 h-full w-full border-0 bg-transparent p-0 font-medium text-base outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+                          className='absolute top-0 left-0 h-full w-full border-0 bg-transparent p-0 text-base outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
                           maxLength={100}
                           disabled={updateProfile.isPending}
                           autoComplete='off'
@@ -381,7 +370,7 @@ export function General() {
                     </>
                   ) : (
                     <>
-                      <h3 className='font-medium text-base'>{profile?.name || ''}</h3>
+                      <h3 className='text-base'>{profile?.name || ''}</h3>
                       <Button
                         variant='ghost'
                         className='size-[10.5px] flex-shrink-0 p-0'
@@ -528,17 +517,6 @@ export function General() {
                 onCheckedChange={handleShowActionBarChange}
               />
             </div>
-
-            {isTrainingEnabled && (
-              <div className='flex items-center justify-between'>
-                <Label htmlFor='training-controls'>Training controls</Label>
-                <Switch
-                  id='training-controls'
-                  checked={settings?.showTrainingControls ?? false}
-                  onCheckedChange={handleTrainingControlsChange}
-                />
-              </div>
-            )}
           </div>
         </SettingsSection>
 
@@ -571,8 +549,8 @@ export function General() {
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
             A password reset link will be sent to{' '}
-            <span className='font-medium text-[var(--text-primary)]'>{profile?.email}</span>. Click
-            the link in the email to create a new password.
+            <span className='text-[var(--text-primary)]'>{profile?.email}</span>. Click the link in
+            the email to create a new password.
           </p>
           <ChipModalError>{resetPassword.error?.message}</ChipModalError>
         </ChipModalBody>

@@ -1,6 +1,6 @@
 ---
 name: add-integration
-description: Add a complete Sim integration from API docs, covering tools, block, icon, optional triggers, registrations, and integration conventions. Use when introducing a new service under `apps/sim/tools`, `apps/sim/blocks`, and `apps/sim/triggers`.
+description: Add a complete Sim integration from API docs, covering tools, block, icon, optional triggers, registrations, resolved-secret/model-input safety, and integration conventions. Use when introducing a new service under `apps/sim/tools`, `apps/sim/blocks`, and `apps/sim/triggers`.
 argument-hint: <service-name> [api-docs-url]
 ---
 
@@ -17,7 +17,8 @@ Adding an integration involves these steps in order:
 4. **Add Icon** - Add the service's brand icon
 5. **Create Triggers** (optional) - If the service supports webhooks
 6. **Register** - Register tools, block, and triggers in their registries
-7. **Generate Docs** - Run the docs generation script
+7. **Configure Deployment Availability** - Wire OAuth client and service-account metadata
+8. **Generate and Validate the Catalog** - Regenerate docs/catalog artifacts and run drift checks
 
 ## Step 1: Research the API
 
@@ -120,6 +121,67 @@ export const {service}{Action}Tool: ToolConfig<Params, Response> = {
 - Never output raw JSON dumps - extract meaningful fields
 - When using `type: 'json'` and you know the object shape, define `properties` with the inner fields so downstream consumers know the structure. Only use bare `type: 'json'` when the shape is truly dynamic
 - If you do not know the response JSON shape from docs or verified examples, you MUST tell the user and stop. Never guess outputs or response mappings.
+
+### Resolved Secrets at Model and Persistence Boundaries
+
+Classify every request field before implementing the tool:
+
+This is opt-in, not a blanket integration migration. Add a model-input declaration only when the
+service's official documentation or an unambiguous local execution path proves that the exact
+field is consumed by an AI model. If that cannot be established, preserve existing tool behavior
+and leave the field unannotated.
+
+- **Ordinary provider/API input:** leave it unchanged. Explicit `{{...}}` references resolve and are
+  sent with their normal request semantics. A URL, domain, resource ID, control field, or opaque
+  payload is not model-visible merely because the provider is AI-backed or may process the
+  referenced resource later.
+- **Text or structured content consumed by an AI model:** declare `request.modelInput` with
+  `mode: 'project'` and select only the exact model-visible fields. The shared executor replaces
+  activated Sim secrets with canonical `{{NAME}}` labels before request formatting. For nested or
+  JSON-string fields, use a small shared selector plus `applyProjected`; verify that selecting the
+  rebuilt params reproduces the projected selection.
+- **Serialized model content sent directly to an external provider:** include the serialized
+  top-level param in `request.modelInput`. Project the private copy before the existing request
+  formatter parses it; keep formatter behavior deterministic when a whole-value placeholder is not
+  valid in the serialized grammar. Do not introduce a second hard-rejection path.
+- **Opaque model input owned by an authenticated internal route** such as inline audio, image,
+  video, or document bytes: add `privateProvenance` to a projected request, or use
+  `mode: 'private-provenance'` when there is no textual projection. Do not select storage keys,
+  paths, signed URLs, or ordinary remote URLs as byte provenance; the owning route must authorize
+  stored bytes independently at model egress. The route must call
+  `validateOpaqueModelInputProvenance` before downloading or sending content to the model and must
+  apply the workspace-file provenance guard before reading a persisted workspace file.
+- **Sim-owned durable storage or internal execution handoff** that can later enter a workflow/model
+  (table cells, Agent memory, knowledge documents/chunks, workspace-file contents, or child-workflow
+  input): transport encrypted field-scoped provenance with `request.secretProvenance`. The
+  authenticated receiver validates the exact selection and scope, strips the private envelope, and
+  persists, imports, or propagates it at the owning boundary. Preserve shared legacy behavior for
+  headerless internal calls and rows/files whose provenance marker is `NULL`; never invent a
+  tool-local migration rule.
+
+Hard rules:
+
+- Never substitute secret plaintext into source or serialize plaintext provenance.
+- Never hand-roll private provenance headers/envelopes; the shared `executeTool` boundary owns
+  transport and strips private metadata from functional results.
+- Never attach private provenance to an external URL or to `directExecution`. Project proven
+  model-visible external fields with `request.modelInput`; otherwise preserve ordinary request
+  semantics. Use an authenticated internal route when encrypted provenance must cross the boundary.
+- Never sanitize arbitrary third-party tool results. Projection applies only to secrets activated
+  by Sim's resolved-secret provenance for that execution/tool call.
+- Do not add provenance merely because a value is persisted, returned by a tool, or appears in a
+  filename. Require a concrete Sim `{{...}}` resolution path and a later model/log boundary. If an
+  unsupported field can resolve a secret but does not justify durable tracking (for example a
+  `file_write` path), reject it at that exact ingress.
+- At diagnostic boundaries, project only values carrying execution-scoped provenance. Ordinary
+  provider responses, filenames, URLs, and errors remain unchanged when Sim did not resolve a
+  secret into them.
+
+Add focused tests covering named projection, ordinary identical text without provenance, nested and
+serialized shape handling, unchanged ordinary external inputs, malformed/incomplete private metadata
+failing closed, headerless legacy requests, and absence of private metadata in the public tool result.
+For durable sinks, also cover legacy `NULL` markers, exact-empty new writes, tracked secret writes,
+stale/missing sidecars, and scope isolation.
 
 ## Step 3: Create Block
 
@@ -465,14 +527,47 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
 }
 ```
 
-## Step 7: Generate Docs
+## Step 7: Configure Deployment Availability
+
+Do this for every visible OAuth integration. API-key and unauthenticated integrations do not need
+an OAuth client capability.
+
+The block's `oauth-input.serviceId` is the canonical link between the generated integration catalog,
+the OAuth service configuration, deployment availability, and the setup CLI.
+
+1. Ensure the block has exactly one distinct OAuth `serviceId` and that it matches the canonical
+   service entry in `apps/sim/lib/oauth/oauth.ts`.
+2. Confirm `resolveOAuthClientCapabilityId(serviceId)` resolves to the intended provider entry in
+   `OAUTH_CLIENT_CAPABILITIES` in `apps/sim/lib/core/config/env-capabilities.ts`. Google and
+   Microsoft service IDs deliberately share provider-level capabilities.
+3. For a new OAuth provider, add the required client fields to `OAUTH_CLIENT_CAPABILITIES`, add
+   every referenced field to the env schema in `apps/sim/lib/core/config/env.ts`, and add the
+   matching `text` or `secret` entries to `OAUTH_CLIENT_SETUP_FIELDS` in
+   `scripts/setup/capability-config.ts`. Do not create integration-specific setup logic or infer
+   secret fields from naming; the CLI mapping is exhaustively checked against the runtime fields.
+4. If the canonical OAuth service has `serviceAccountProviderId`, add the matching projection to
+   `SERVICE_ACCOUNT_METADATA_BY_OAUTH_SERVICE_ID` in
+   `apps/sim/lib/integrations/service-account-metadata.ts`. Use:
+   - no `deploymentRequirement` when the service-account path works independently of OAuth client fields;
+   - `'oauth-client'` when it requires the same deployment OAuth client fields;
+   - `'preview-gated'` when availability is controlled by the service-account preview block.
+
+Never add a permissive fallback for missing capability metadata. A visible OAuth integration without
+a resolvable capability must fail validation.
+
+## Step 8: Generate and Validate the Catalog
 
 Run the documentation generator:
 ```bash
 bun run scripts/generate-docs.ts
+bun run integration-catalog:check
 ```
 
 This creates `apps/docs/content/docs/en/integrations/{service}.mdx` — one page per service carrying the block's Actions and, if it has one, its Triggers section. Never hand-edit generated pages; the only editable region is the `{/* MANUAL-CONTENT */}` block (see `scripts/README.md`).
+
+The same generator refreshes `apps/sim/lib/integrations/integrations.json`. The catalog check then
+derives the deployment-relevant fields from the executable block registry and compares them with the
+committed projection. Review the generated diff and keep only intentional changes.
 
 ## V2 Integration Pattern
 
@@ -501,6 +596,11 @@ If creating V2 versions (API-aligned outputs):
 - [ ] Created `index.ts` barrel export
 - [ ] Registered all tools in `tools/registry.ts`
 - [ ] Ran `bun run tool-metadata:generate` and committed the regenerated artifacts
+- [ ] Classified every model-visible, opaque, Sim-durable, and internal-execution request field
+- [ ] Added shared model-input projection or private provenance only where required; ordinary
+      external resource locators and control inputs retain their request semantics
+- [ ] Confirmed ordinary third-party tool results are not generically sanitized
+- [ ] Added provenance compatibility and fail-closed boundary tests where applicable
 
 ### Block
 - [ ] Created `blocks/blocks/{service}.ts`
@@ -524,6 +624,13 @@ If creating V2 versions (API-aligned outputs):
 - [ ] Used `getCanonicalScopesForProvider()` in `auth.ts` (never hardcode)
 - [ ] Used `getScopesForService()` in block `requiredScopes` (never hardcode)
 
+### Deployment Availability (if OAuth service)
+- [ ] Block declares exactly one distinct `oauth-input.serviceId`
+- [ ] `resolveOAuthClientCapabilityId(serviceId)` resolves to the intended `OAUTH_CLIENT_CAPABILITIES` entry
+- [ ] Every new OAuth capability field exists in `apps/sim/lib/core/config/env.ts`
+- [ ] Runtime OAuth fields live in `OAUTH_CLIENT_CAPABILITIES`; matching CLI input modes live in the exhaustively checked `OAUTH_CLIENT_SETUP_FIELDS`
+- [ ] If `serviceAccountProviderId` is configured, `SERVICE_ACCOUNT_METADATA_BY_OAUTH_SERVICE_ID` has the matching projection and deployment requirement
+
 ### Icon
 - [ ] Asked user to provide SVG
 - [ ] Added icon to `components/icons.tsx`
@@ -542,6 +649,8 @@ If creating V2 versions (API-aligned outputs):
 ### Docs
 - [ ] Ran `bun run scripts/generate-docs.ts`
 - [ ] Verified docs file created
+- [ ] Reviewed and committed the generated `apps/sim/lib/integrations/integrations.json` change
+- [ ] `bun run integration-catalog:check` passes
 
 ### Final Validation (Required)
 - [ ] Read every tool file and cross-referenced inputs/outputs against the API docs
@@ -886,3 +995,5 @@ requiredScopes: getScopesForService('{service}'),
 10. **Complex inputs need wandConfig** - Timestamps, JSON arrays, and other hard-to-type values should have `wandConfig` enabled
 11. **Never hardcode scopes** - Use `getScopesForService()` in blocks and `getCanonicalScopesForProvider()` in auth.ts
 12. **Always add scope descriptions** - New scopes must have entries in `SCOPE_DESCRIPTIONS` within `lib/oauth/utils.ts`
+13. **OAuth service IDs need deployment capabilities** - Every visible OAuth integration must resolve through `OAUTH_CLIENT_CAPABILITIES`; shared Google/Microsoft aliases map to their provider capability
+14. **Keep runtime and presentation separate** - Runtime OAuth fields live in `env-capabilities.ts`; CLI input modes live in the exhaustively checked `scripts/setup/capability-config.ts` mapping

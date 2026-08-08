@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
@@ -15,6 +16,7 @@ import {
   renameWorkspaceFileContract,
   restoreWorkspaceFileContract,
   updateWorkspaceFileContentContract,
+  updateWorkspaceFileDimensionsContract,
 } from '@/lib/api/contracts/workspace-files'
 import {
   DirectUploadError,
@@ -23,7 +25,8 @@ import {
 } from '@/lib/uploads/client/direct-upload'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import type { UserFile } from '@/executor/types'
-import { useFileContentSource } from '@/hooks/use-file-content-source'
+import { findWorkspaceFileBySrc } from '@/hooks/queries/utils/find-workspace-file-by-src'
+import { type ImageDimensionsSource, useFileContentSource } from '@/hooks/use-file-content-source'
 
 const logger = createLogger('WorkspaceFilesQuery')
 
@@ -107,6 +110,23 @@ async function fetchWorkspaceFiles(
 }
 
 /**
+ * Shared options for the workspace-file list, so an imperative caller can
+ * `fetchQuery` the same cache entry {@link useWorkspaceFiles} populates instead
+ * of refetching by key and reading the result back out of the cache.
+ */
+export function getWorkspaceFilesQueryOptions(
+  workspaceId: string,
+  scope: WorkspaceFileQueryScope = 'active'
+) {
+  return {
+    queryKey: workspaceFilesKeys.list(workspaceId, scope),
+    queryFn: ({ signal }: { signal?: AbortSignal }) =>
+      fetchWorkspaceFiles(workspaceId, scope, signal),
+    staleTime: WORKSPACE_FILES_LIST_STALE_TIME, // 30 seconds - files can change frequently
+  }
+}
+
+/**
  * Hook to fetch workspace files
  */
 export function useWorkspaceFiles(
@@ -115,12 +135,74 @@ export function useWorkspaceFiles(
   options?: { enabled?: boolean }
 ) {
   return useQuery({
-    queryKey: workspaceFilesKeys.list(workspaceId, scope),
-    queryFn: ({ signal }) => fetchWorkspaceFiles(workspaceId, scope, signal),
+    ...getWorkspaceFilesQueryOptions(workspaceId, scope),
     enabled: !!workspaceId && (options?.enabled ?? true),
-    staleTime: WORKSPACE_FILES_LIST_STALE_TIME, // 30 seconds - files can change frequently
     placeholderData: keepPreviousData, // Show cached data immediately
   })
+}
+
+/**
+ * Back the file content source's image-dimension capability with workspace file metadata. Subscribes to
+ * the active file list ({@link useWorkspaceFiles}) and reads each image's stored intrinsic dimensions from
+ * it, so a stored image reserves its box before it downloads. A reactive read (not a one-shot
+ * `getQueryData`), so it also works on a cold direct file-view load where the list isn't cached until after
+ * the image first renders: the subscription re-runs the node view's dimension read once the list resolves.
+ * Persists the browser's measured dimensions when they're absent or disagree with what's stored — an
+ * overwrite, so a stale value (left over after a content swap, or a non-EXIF-corrected one) self-corrects
+ * rather than sticking. The write is fire-and-forget and de-duped (an exact-match cache check plus
+ * mismatch-only reporting from the caller), so it never storms, never blocks render, and never touches the
+ * collaborative document. `options.enabled` turns the subscription off for callers that supply their own
+ * content source (the public share page, whose `workspaceId` is a share token that would 404).
+ */
+export function useWorkspaceImageDimensionsAdapter(
+  workspaceId: string,
+  options?: { enabled?: boolean }
+): ImageDimensionsSource {
+  const queryClient = useQueryClient()
+  const { data: files } = useWorkspaceFiles(workspaceId, 'active', options)
+  return useMemo<ImageDimensionsSource>(() => {
+    const listKey = workspaceFilesKeys.list(workspaceId, 'active')
+    const findRecord = (src: string | undefined): WorkspaceFileRecord | undefined =>
+      findWorkspaceFileBySrc(files, src)
+    return {
+      getImageDimensions: (src) => {
+        const record = findRecord(src)
+        return record?.width != null && record.height != null
+          ? { width: record.width, height: record.height }
+          : null
+      },
+      reportImageDimensions: (src, dimensions) => {
+        const record = findRecord(src)
+        // Skip when the file isn't one we can key (external/unlisted), or the cache already holds exactly
+        // these dimensions. We do NOT skip merely because SOME dimensions are stored — they may be stale
+        // (post content-swap / EXIF), and the caller only reports the browser's authoritative measurement
+        // on a real mismatch, so we overwrite to self-correct.
+        if (!record || (record.width === dimensions.width && record.height === dimensions.height))
+          return
+        // Populate the cache so this and sibling views reserve space immediately.
+        queryClient.setQueryData<WorkspaceFileRecord[]>(listKey, (previous) =>
+          previous?.map((entry) => (entry.id === record.id ? { ...entry, ...dimensions } : entry))
+        )
+        void requestJson(updateWorkspaceFileDimensionsContract, {
+          params: { id: workspaceId, fileId: record.id },
+          // Send the key we measured against; the server rejects the write if the row's content (key) has
+          // since changed, so a stale in-flight PATCH for replaced bytes can't persist the old size.
+          body: { key: record.key, ...dimensions },
+        })
+          .then((response) => {
+            // The guard rejected the write because the file's content (key) changed since we measured —
+            // our optimistic patch is now for superseded bytes, so refetch to reconcile the cache with the
+            // new content (its real size is persisted when the replaced image next loads). Do NOT re-send
+            // this measurement: it's of the old bytes and would write the wrong size under the new key.
+            if (!response.success) void queryClient.invalidateQueries({ queryKey: listKey })
+          })
+          // A transport error / 403 for a read-only member leaves the optimistic value in place: the
+          // measurement is the real displayed size, correct whether or not it persisted; a later list
+          // refetch reconciles it.
+          .catch(() => {})
+      },
+    }
+  }, [files, queryClient, workspaceId])
 }
 
 /**

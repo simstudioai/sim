@@ -11,21 +11,35 @@ describe('getCopilotDeploymentIdempotencyKey', () => {
   it('is stable for a replay of the same logical tool call', () => {
     const context = { executionId: 'execution-1', runId: 'run-1', toolCallId: 'call-1' }
 
-    expect(getCopilotDeploymentIdempotencyKey(context)).toBe(
-      getCopilotDeploymentIdempotencyKey(context)
+    expect(getCopilotDeploymentIdempotencyKey(context, 'redeploy')).toBe(
+      getCopilotDeploymentIdempotencyKey(context, 'redeploy')
     )
   })
 
-  it('separates different tool calls within the same Mothership execution', () => {
+  it('reuses one operation scope across model retries with new tool-call ids', () => {
     expect(
-      getCopilotDeploymentIdempotencyKey({ executionId: 'execution-1', toolCallId: 'call-1' })
-    ).not.toBe(
-      getCopilotDeploymentIdempotencyKey({ executionId: 'execution-1', toolCallId: 'call-2' })
+      getCopilotDeploymentIdempotencyKey(
+        { executionId: 'execution-1', toolCallId: 'call-1' },
+        'redeploy'
+      )
+    ).toBe(
+      getCopilotDeploymentIdempotencyKey(
+        { executionId: 'execution-1', toolCallId: 'call-2' },
+        'redeploy'
+      )
+    )
+  })
+
+  it('separates deployment intents within the same execution', () => {
+    const context = { executionId: 'execution-1', toolCallId: 'call-1' }
+
+    expect(getCopilotDeploymentIdempotencyKey(context, 'deploy_api')).not.toBe(
+      getCopilotDeploymentIdempotencyKey(context, 'redeploy')
     )
   })
 
   it('does not derive a turn-wide key when the tool-call identity is unavailable', () => {
-    expect(getCopilotDeploymentIdempotencyKey({ executionId: 'execution-1' })).toBeUndefined()
+    expect(getCopilotDeploymentIdempotencyKey({}, 'redeploy')).toBeUndefined()
   })
 })
 

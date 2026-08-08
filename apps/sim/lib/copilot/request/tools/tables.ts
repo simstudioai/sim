@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { isPlainRecord } from '@sim/utils/object'
 import { parse as csvParse } from 'csv-parse/sync'
 import { FunctionExecute, Read as ReadTool } from '@/lib/copilot/generated/tool-catalog-v1'
 import { CopilotTableOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
@@ -11,10 +12,16 @@ import { withCopilotSpan } from '@/lib/copilot/request/otel'
 import { denyOutputWriteWithoutWritePermission } from '@/lib/copilot/request/tools/permissions'
 import { projectToolErrorMessageForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
+import { isPrivateSecretProvenanceScopeCompatible } from '@/lib/execution/durable-secret-provenance'
 import type { RowData, TableDefinition } from '@/lib/table'
 import { buildIdByName, rowDataNameToId } from '@/lib/table/column-keys'
+import {
+  createTableRowSecretProvenanceFromRegistry,
+  createUnknownTableRowSecretProvenance,
+} from '@/lib/table/rows/secret-provenance'
 import { replaceTableRows } from '@/lib/table/rows/service'
 import { getTableById } from '@/lib/table/service'
+import { coerceRowValues } from '@/lib/table/validation'
 
 const logger = createLogger('CopilotToolResultTables')
 
@@ -31,6 +38,10 @@ async function replaceTableRowsFromWire(
   rows: Array<Record<string, unknown>>,
   context: ExecutionContext
 ): Promise<{ error?: string }> {
+  if (!rows.every(isPlainRecord)) {
+    return { error: 'Table rows could not be persisted safely' }
+  }
+
   const idByName = buildIdByName(table.schema)
   const idKeyedRows = rows.map((row) => rowDataNameToId(row as RowData, idByName))
   const emptyIndex = idKeyedRows.findIndex((row) => Object.keys(row).length === 0)
@@ -39,12 +50,31 @@ async function replaceTableRowsFromWire(
       error: `Row ${emptyIndex + 1} has no keys matching columns on table "${table.name}" (columns: ${table.schema.columns.map((c) => c.name).join(', ')})`,
     }
   }
+  const registry = context.resolvedSecretTraceRegistry
+  const persistedRows = idKeyedRows.map((row) => {
+    const persistedRow = { ...row }
+    coerceRowValues(persistedRow, table.schema)
+    return persistedRow
+  })
+  const destinationScope = { userId: context.userId, workspaceId: table.workspaceId }
+  const secretProvenance = persistedRows.map((row) => {
+    if (!registry) return createUnknownTableRowSecretProvenance()
+    const provenance = createTableRowSecretProvenanceFromRegistry(row, registry)
+    if (!provenance.complete) return createUnknownTableRowSecretProvenance()
+    const compatible = Object.values(provenance.columns).every(
+      (columnProvenance) =>
+        columnProvenance.entries.length === 0 ||
+        isPrivateSecretProvenanceScopeCompatible(columnProvenance.scope, destinationScope)
+    )
+    return compatible ? provenance : createUnknownTableRowSecretProvenance()
+  })
   await replaceTableRows(
     {
       tableId: table.id,
       rows: idKeyedRows,
       workspaceId: table.workspaceId,
       userId: context.userId,
+      secretProvenance,
     },
     table,
     generateId().slice(0, 8)
@@ -207,7 +237,11 @@ export async function maybeWriteReadCsvToTable(
         }
 
         const output = result.output as Record<string, unknown>
-        const content = (output.content as string) || ''
+        const content = output.content
+        if (typeof content !== 'string') {
+          span.setAttribute(TraceAttr.CopilotTableOutcome, CopilotTableOutcome.InvalidShape)
+          return { success: false, error: 'File content must be text to import into a table' }
+        }
         if (!content.trim()) {
           span.setAttribute(TraceAttr.CopilotTableOutcome, CopilotTableOutcome.EmptyContent)
           return { success: false, error: 'File has no content to import into table' }

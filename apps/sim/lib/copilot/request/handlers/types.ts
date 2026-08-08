@@ -194,11 +194,14 @@ export function getToolCallUI(data: MothershipStreamV1ToolCallDescriptor): {
 export function handleClientCompletion(
   toolCall: ToolCallState,
   toolCallId: string,
-  completion: AsyncTerminalCompletionSnapshot | null
+  completion: AsyncTerminalCompletionSnapshot | null,
+  backgroundIsSuccess = false
 ): void {
   if (completion?.status === ASYNC_TOOL_CONFIRMATION_STATUS.background) {
     setTerminalToolCallState(toolCall, {
-      status: MothershipStreamV1ToolOutcome.skipped,
+      status: backgroundIsSuccess
+        ? MothershipStreamV1ToolOutcome.success
+        : MothershipStreamV1ToolOutcome.skipped,
       ...(completion.data !== undefined ? { output: completion.data } : {}),
     })
     markToolResultSeen(toolCallId)
@@ -231,14 +234,17 @@ export async function emitSyntheticToolResult(
   toolCallId: string,
   toolName: string,
   completion: AsyncTerminalCompletionSnapshot | null,
-  options: OrchestratorOptions
+  options: OrchestratorOptions,
+  backgroundIsSuccess = false
 ): Promise<void> {
   const isBackground = completion?.status === ASYNC_TOOL_CONFIRMATION_STATUS.background
   const success = isBackground || completion?.status === MothershipStreamV1ToolOutcome.success
   const isCancelled = completion?.status === MothershipStreamV1ToolOutcome.cancelled
   const completionData = completion?.data
   const syntheticStatus = isBackground
-    ? MothershipStreamV1ToolOutcome.skipped
+    ? backgroundIsSuccess
+      ? MothershipStreamV1ToolOutcome.success
+      : MothershipStreamV1ToolOutcome.skipped
     : completion?.status === MothershipStreamV1ToolOutcome.success ||
         completion?.status === MothershipStreamV1ToolOutcome.error ||
         completion?.status === MothershipStreamV1ToolOutcome.cancelled

@@ -63,7 +63,13 @@ export const managedAgentRespondCustomToolTool: ToolConfig<
     },
   },
 
-  request: UNUSED_REQUEST,
+  request: {
+    ...UNUSED_REQUEST,
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({ result: params.result }),
+    },
+  },
 
   directExecution: async (params, signal): Promise<ManagedAgentCustomToolResultResponse> => {
     const emptyOutput = { sessionId: '', answeredToolUseId: '' }

@@ -370,7 +370,7 @@ export const ShortInput = memo(function ShortInput({
               <>
                 <Input
                   ref={ref as React.RefObject<HTMLInputElement>}
-                  className='allow-scroll w-full overflow-auto text-transparent caret-foreground [-ms-overflow-style:none] [scrollbar-width:none] placeholder:text-muted-foreground/50 [&::-webkit-scrollbar]:hidden'
+                  className='allow-scroll w-full overflow-auto text-transparent caret-foreground [-ms-overflow-style:none] [letter-spacing:inherit] [scrollbar-width:none] placeholder:text-muted-foreground/50 [&::-webkit-scrollbar]:hidden'
                   readOnly={readOnly}
                   placeholder={placeholder ?? ''}
                   type='text'
@@ -393,7 +393,7 @@ export const ShortInput = memo(function ShortInput({
                 <div
                   ref={overlayRef}
                   className={cn(
-                    'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 pr-3 font-medium font-sans text-foreground text-sm [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+                    'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 pr-3 font-sans text-foreground text-sm [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
                     (isPreview || disabled) && 'opacity-50',
                     !(isPreview || disabled) && 'pointer-events-none'
                   )}

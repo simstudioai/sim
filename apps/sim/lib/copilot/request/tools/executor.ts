@@ -23,6 +23,10 @@ import {
   CrawlWebsite,
   CreateFile,
   CreateWorkflow,
+  DeployApi,
+  DeployChat,
+  DeployCustomBlock,
+  DeployMcp,
   DownloadToWorkspaceFile,
   EditContent,
   Ffmpeg,
@@ -31,8 +35,11 @@ import {
   GenerateImage,
   GenerateVideo,
   KnowledgeBase,
+  LoadDeployment,
   MaterializeFile,
   Media,
+  PromoteToLive,
+  Redeploy,
   Run,
   RunBlock,
   RunCode,
@@ -53,7 +60,7 @@ import {
   setTerminalToolCallState,
 } from '@/lib/copilot/request/tool-call-state'
 import { maybeWriteOutputToFile } from '@/lib/copilot/request/tools/files'
-import { projectToolResultForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
+import { inspectToolResultForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
 import { handleResourceSideEffects } from '@/lib/copilot/request/tools/resources'
 import {
   maybeWriteOutputToTable,
@@ -223,6 +230,13 @@ const LONG_RUNNING_TOOL_IDS: ReadonlySet<string> = new Set([
   EditContent.id,
   MaterializeFile.id,
   WorkspaceFile.id,
+  DeployApi.id,
+  DeployChat.id,
+  DeployCustomBlock.id,
+  DeployMcp.id,
+  Redeploy.id,
+  LoadDeployment.id,
+  PromoteToLive.id,
 ])
 
 export function toolWatchdogTimeoutMs(toolName: string | undefined): number {
@@ -257,12 +271,13 @@ class ToolExecutionTimeoutError extends Error {
 
 /** Builds the per-call context from the turn-scoped execution context. */
 export function buildToolExecutionContext(
-  toolCall: Pick<ToolCallState, 'id' | 'parentToolCallId'>,
+  toolCall: Pick<ToolCallState, 'id' | 'parentToolCallId' | 'params'>,
   execContext: ExecutionContext
 ): ExecutionContext {
   return {
     ...execContext,
     toolCallId: toolCall.id,
+    resolvedSecretTraceRegistry: execContext.resolvedSecretTraceRegistry?.forkForInputPaths([]),
     ...(toolCall.parentToolCallId ? { parentToolCallId: toolCall.parentToolCallId } : {}),
   }
 }
@@ -275,9 +290,8 @@ export function buildToolExecutionContext(
  * wedges behind a hung await. The losing promise keeps running detached; its
  * eventual settlement is ignored.
  */
-async function executeToolWithWatchdog(toolCall: ToolCallState, execContext: ExecutionContext) {
+async function executeToolWithWatchdog(toolCall: ToolCallState, toolContext: ExecutionContext) {
   const timeoutMs = toolWatchdogTimeoutMs(toolCall.name)
-  const toolContext = buildToolExecutionContext(toolCall, execContext)
   const execution = executeTool(toolCall.name, toolCall.params || {}, toolContext)
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
@@ -408,6 +422,7 @@ export async function executeToolAndReport(
     {
       toolName: toolCall.name,
       toolCallId: toolCall.id,
+      agentName: toolCall.agentId ?? 'main',
       runId: context.runId,
       chatId: execContext.chatId,
       argsBytes: argsPayload?.length,
@@ -428,7 +443,12 @@ export async function executeToolAndReport(
         }
         // Durable Grafana signal for "which Sim tool is slowest" (executor=sim);
         // pairs with the Go executor-boundary metric (U15) as one series set.
-        recordSimToolMetric(toolCall.name, completion.status, durationMs)
+        recordSimToolMetric(
+          toolCall.name,
+          toolCall.agentId ?? 'main',
+          completion.status,
+          durationMs
+        )
         return completion
       } catch (err) {
         // executeToolAndReportInner threw (infra/unexpected error, not a normal
@@ -437,7 +457,12 @@ export async function executeToolAndReport(
         const durationMs = Date.now() - startedAt
         otelSpan.setAttribute(TraceAttr.ToolOutcome, 'error')
         otelSpan.setAttribute(TraceAttr.ToolDurationMs, durationMs)
-        recordSimToolMetric(toolCall.name, 'error', durationMs)
+        recordSimToolMetric(
+          toolCall.name,
+          toolCall.agentId ?? 'main',
+          MothershipStreamV1ToolOutcome.error,
+          durationMs
+        )
         throw err
       }
     }
@@ -558,18 +583,29 @@ async function executeToolAndReportInner(
     toolName: toolCall.name,
   })
 
+  const toolExecutionContext = buildToolExecutionContext(toolCall, execContext)
+  let toolRegistryMerged = false
+  const mergeToolRegistry = (projectionSafe: boolean) => {
+    if (!projectionSafe || toolRegistryMerged) return
+    const toolRegistry = toolExecutionContext.resolvedSecretTraceRegistry
+    if (!toolRegistry?.isComplete()) return
+    toolRegistryMerged = true
+    const parentRegistry = execContext.resolvedSecretTraceRegistry
+    if (parentRegistry && toolRegistry) parentRegistry.mergeToolCallRegistry(toolRegistry)
+  }
+
   try {
     ensureHandlersRegistered()
-    let result = await executeToolWithWatchdog(toolCall, execContext)
+    let result = await executeToolWithWatchdog(toolCall, toolExecutionContext)
     if (toolCall.endTime || isTerminalToolCallStatus(toolCall.status)) {
       endToolSpanFromTerminalState()
       return terminalCompletionFromToolCall(toolCall)
     }
     if (abortRequested(context, execContext, options)) {
-      const copilotResult = projectToolResultForCopilot(
+      const copilotResult = inspectToolResultForCopilot(
         result,
-        execContext.resolvedSecretTraceRegistry
-      )
+        toolExecutionContext.resolvedSecretTraceRegistry
+      ).result
       markToolCallCancelled('Request aborted during tool execution')
       markToolResultSeen(toolCall.id)
       await completeAsyncToolCall({
@@ -595,7 +631,12 @@ async function executeToolAndReportInner(
       })
       return cancelledCompletion('Request aborted during tool execution')
     }
-    result = await maybeWriteOutputToFile(toolCall.name, toolCall.params, result, execContext)
+    result = await maybeWriteOutputToFile(
+      toolCall.name,
+      toolCall.params,
+      result,
+      toolExecutionContext
+    )
     if (abortRequested(context, execContext, options)) {
       markToolCallCancelled('Request aborted during tool post-processing')
       markToolResultSeen(toolCall.id)
@@ -619,7 +660,12 @@ async function executeToolAndReportInner(
       endToolSpan('cancelled', { cancelReason: 'abort_during_post_processing_file' })
       return cancelledCompletion('Request aborted during tool post-processing')
     }
-    result = await maybeWriteOutputToTable(toolCall.name, toolCall.params, result, execContext)
+    result = await maybeWriteOutputToTable(
+      toolCall.name,
+      toolCall.params,
+      result,
+      toolExecutionContext
+    )
     if (abortRequested(context, execContext, options)) {
       markToolCallCancelled('Request aborted during tool post-processing')
       markToolResultSeen(toolCall.id)
@@ -643,7 +689,12 @@ async function executeToolAndReportInner(
       endToolSpan('cancelled', { cancelReason: 'abort_during_post_processing_table' })
       return cancelledCompletion('Request aborted during tool post-processing')
     }
-    result = await maybeWriteReadCsvToTable(toolCall.name, toolCall.params, result, execContext)
+    result = await maybeWriteReadCsvToTable(
+      toolCall.name,
+      toolCall.params,
+      result,
+      toolExecutionContext
+    )
     if (abortRequested(context, execContext, options)) {
       markToolCallCancelled('Request aborted during tool post-processing')
       markToolResultSeen(toolCall.id)
@@ -667,10 +718,13 @@ async function executeToolAndReportInner(
       endToolSpan('cancelled', { cancelReason: 'abort_during_post_processing_csv' })
       return cancelledCompletion('Request aborted during tool post-processing')
     }
-    const copilotResult = projectToolResultForCopilot(
+    const projection = inspectToolResultForCopilot(
       result,
-      execContext.resolvedSecretTraceRegistry
+      toolExecutionContext.resolvedSecretTraceRegistry
     )
+    const copilotResult = projection.result
+    mergeToolRegistry(projection.safe)
+    const modelSucceeded = copilotResult.success
 
     toolSpan.attributes = {
       ...toolSpan.attributes,
@@ -685,7 +739,7 @@ async function executeToolAndReportInner(
       ...(copilotResult.success ? {} : { error: copilotResult.error || 'Tool failed' }),
     })
 
-    if (result.success) {
+    if (modelSucceeded) {
       // Log the model-facing (redacted) view, not result.output — for
       // generate_api_key the raw output carries the plaintext key, which must
       // never reach application logs.
@@ -707,6 +761,7 @@ async function executeToolAndReportInner(
         toolName: toolCall.name,
         error: copilotResult.error,
         params: toolCall.params,
+        runtimeSucceeded: result.success,
       })
     }
 
@@ -714,20 +769,20 @@ async function executeToolAndReportInner(
       applyCreateWorkflowOutputToContext(result.output, execContext)
     }
 
-    const terminalStatus = result.success
+    const terminalStatus = modelSucceeded
       ? MothershipStreamV1ToolOutcome.success
       : MothershipStreamV1ToolOutcome.error
-    const terminalMessage = result.success ? 'Tool completed' : requireToolCallError(toolCall)
+    const terminalMessage = modelSucceeded ? 'Tool completed' : requireToolCallError(toolCall)
     const terminalData = getToolCallTerminalData(toolCall)
 
     markToolResultSeen(toolCall.id)
     await completeAsyncToolCall({
       toolCallId: toolCall.id,
-      status: result.success
+      status: modelSucceeded
         ? MothershipStreamV1AsyncToolRecordStatus.completed
         : MothershipStreamV1AsyncToolRecordStatus.failed,
       ...(terminalData !== undefined ? { result: terminalData } : {}),
-      error: result.success ? null : terminalMessage,
+      error: modelSucceeded ? null : terminalMessage,
     }).catch((err) => {
       logger.warn('Failed to persist async tool completion', {
         toolCallId: toolCall.id,
@@ -757,11 +812,11 @@ async function executeToolAndReportInner(
         executor: MothershipStreamV1ToolExecutor.sim,
         mode: MothershipStreamV1ToolMode.async,
         phase: MothershipStreamV1ToolPhase.result,
-        success: result.success,
-        output: copilotResult.output,
-        ...(result.success
+        success: modelSucceeded,
+        output: terminalData,
+        ...(modelSucceeded
           ? { status: MothershipStreamV1ToolOutcome.success }
-          : { status: MothershipStreamV1ToolOutcome.error }),
+          : { status: MothershipStreamV1ToolOutcome.error, error: terminalMessage }),
       },
     }
     await options?.onEvent?.(resultEvent)
@@ -783,9 +838,9 @@ async function executeToolAndReportInner(
         () => abortRequested(context, execContext, options)
       )
     }
-    endToolSpan(result.success ? 'ok' : 'error', {
-      resultSuccess: result.success,
-      ...(result.success ? {} : { error: terminalMessage }),
+    endToolSpan(modelSucceeded ? 'ok' : 'error', {
+      resultSuccess: modelSucceeded,
+      ...(modelSucceeded ? {} : { error: terminalMessage }),
     })
     return buildCompletionSignal({
       status: terminalStatus,
@@ -794,10 +849,12 @@ async function executeToolAndReportInner(
     })
   } catch (error) {
     const thrownMessage = toError(error).message
-    const copilotError = projectToolResultForCopilot(
+    const projection = inspectToolResultForCopilot(
       { success: false, error: thrownMessage },
-      execContext.resolvedSecretTraceRegistry
+      toolExecutionContext.resolvedSecretTraceRegistry
     )
+    const copilotError = projection.result
+    mergeToolRegistry(projection.safe)
     const safeThrownMessage = copilotError.error || 'Tool failed'
     if (abortRequested(context, execContext, options)) {
       markToolCallCancelled('Request aborted during tool execution')

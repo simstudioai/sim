@@ -16,10 +16,19 @@ import { getToolEntry } from '@/lib/copilot/tool-executor/router'
 import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
 import { encodeVfsSegment } from '@/lib/copilot/vfs/path-utils'
 import type { BlockVisibilityState } from '@/lib/core/config/block-visibility'
-import { isDocSandboxEnabled, isHosted } from '@/lib/core/config/env-flags'
+import { EnvCapabilityConfigurationError } from '@/lib/core/config/env-capabilities'
+import {
+  getAllowedIntegrationsFromEnv,
+  isDocSandboxEnabled,
+  isHosted,
+} from '@/lib/core/config/env-flags'
+import {
+  isIntegrationDeploymentAvailableForVisibility,
+  isOAuthServiceDeploymentAvailable,
+} from '@/lib/integrations/availability.server'
+import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
 import { trackChatUpload } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { buildArchiveExtractGuidance, isArchiveFileName } from '@/lib/uploads/utils/file-utils'
-import { stripVersionSuffix } from '@/tools/utils'
 
 const logger = createLogger('CopilotChatPayload')
 const INTEGRATION_TOOL_SCHEMA_CACHE_TTL_MS = 5_000
@@ -187,6 +196,19 @@ async function buildIntegrationToolSchemasUncached(
 ): Promise<ToolSchema[]> {
   const reqLogger = logger.withMetadata({ messageId })
   const integrationTools: ToolSchema[] = []
+  let allowedIntegrations = getAllowedIntegrationsFromEnv()
+  if (workspaceId) {
+    const { getUserPermissionConfig } = await import('@/ee/access-control/utils/permission-check')
+    const permissionConfig = await getUserPermissionConfig(userId, workspaceId)
+    allowedIntegrations = intersectIntegrationAllowlists(
+      permissionConfig?.allowedIntegrations ?? null,
+      allowedIntegrations
+    )
+  }
+  const allowedIntegrationTypes = allowedIntegrations
+    ? new Set(allowedIntegrations.map((integration) => integration.toLowerCase()))
+    : null
+
   try {
     const { createUserToolSchema } = await import('@/tools/params')
     let shouldAppendEmailTagline = false
@@ -201,46 +223,16 @@ async function buildIntegrationToolSchemasUncached(
       })
     }
 
-    let allowedIntegrations: Set<string> | null = null
-    let toolIdToBlockType: Map<string, string> | null = null
-    if (workspaceId) {
-      try {
-        const [{ getUserPermissionConfig }, { getAllBlocks }] = await Promise.all([
-          import('@/ee/access-control/utils/permission-check'),
-          import('@/blocks/registry'),
-        ])
-        const permissionConfig = await getUserPermissionConfig(userId, workspaceId)
-        if (permissionConfig?.allowedIntegrations) {
-          allowedIntegrations = new Set(
-            permissionConfig.allowedIntegrations.map((i) => i.toLowerCase())
-          )
-          toolIdToBlockType = new Map()
-          for (const blockConfig of getAllBlocks()) {
-            const access = blockConfig.tools?.access
-            if (!access) continue
-            for (const toolId of access) {
-              toolIdToBlockType.set(stripVersionSuffix(toolId), blockConfig.type.toLowerCase())
-            }
-          }
-        }
-      } catch (error) {
-        reqLogger.warn('Failed to load permission config for tool schema filter', {
-          userId,
-          workspaceId,
-          error: toError(error).message,
-        })
-      }
-    }
-
-    const exposedTools = filterExposedIntegrationTools(getExposedIntegrationTools(), vis)
+    const exposedTools = filterExposedIntegrationTools(
+      getExposedIntegrationTools(),
+      vis,
+      (owner) =>
+        isIntegrationDeploymentAvailableForVisibility(owner.blockType, vis) &&
+        (allowedIntegrationTypes === null ||
+          allowedIntegrationTypes.has(owner.blockType.toLowerCase()))
+    )
     for (const { toolId, config: toolConfig, service, operation } of exposedTools) {
       try {
-        if (allowedIntegrations && toolIdToBlockType) {
-          const owningBlock = toolIdToBlockType.get(stripVersionSuffix(toolId))
-          if (owningBlock && !allowedIntegrations.has(owningBlock)) {
-            continue
-          }
-        }
         const userSchema = createUserToolSchema(toolConfig, {
           surface: options.schemaSurface,
           // On hosted deployments the executor injects hosted keys server-side,
@@ -272,14 +264,16 @@ async function buildIntegrationToolSchemasUncached(
           defer_loading: true,
           executeLocally:
             catalogEntry?.clientExecutable === true || catalogEntry?.route === 'client',
-          ...(toolConfig.oauth?.required && {
-            oauth: {
-              required: true,
-              provider: toolConfig.oauth.provider,
-            },
-          }),
+          ...(toolConfig.oauth?.required &&
+            isOAuthServiceDeploymentAvailable(toolConfig.oauth.provider) && {
+              oauth: {
+                required: true,
+                provider: toolConfig.oauth.provider,
+              },
+            }),
         })
       } catch (toolError) {
+        if (toolError instanceof EnvCapabilityConfigurationError) throw toolError
         logger.warn(
           messageId
             ? `Failed to build schema for tool, skipping [messageId:${messageId}]`
@@ -292,6 +286,7 @@ async function buildIntegrationToolSchemasUncached(
       }
     }
   } catch (error) {
+    if (error instanceof EnvCapabilityConfigurationError) throw error
     logger.warn(
       messageId
         ? `Failed to build tool schemas [messageId:${messageId}]`
@@ -400,10 +395,19 @@ export async function buildCopilotRequestPayload(
           content: lines.join('\n'),
         })
       } catch (err) {
+        const cause = toError(err)
         logger.warn('Failed to track chat upload', {
           filename,
           chatId,
-          error: toError(err).message,
+          error: cause.message,
+        })
+        // Isolate failures by entry. Aborting here discarded every valid
+        // sibling attachment in the request, even ones already tracked. Give
+        // the model a local marker for this file and continue preparing the
+        // rest of the batch.
+        uploadContexts.push({
+          type: 'uploaded_file',
+          content: `File "${filename}" could not be prepared for Copilot and was omitted. Other attached files remain available.`,
         })
       }
     }

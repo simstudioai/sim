@@ -1,5 +1,12 @@
-import { encryptionMockFns, environmentUtilsMockFns, resetEnvironmentUtilsMock } from '@sim/testing'
+import { createLogger } from '@sim/logger'
+import {
+  encryptionMockFns,
+  environmentUtilsMockFns,
+  loggerMock,
+  resetEnvironmentUtilsMock,
+} from '@sim/testing'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+import { createTimeoutAbortController, getExecutionDeadlineAt } from '@/lib/core/execution-limits'
 import { getBlock } from '@/blocks/registry'
 import { BlockType } from '@/executor/constants'
 import { BoundarySafeError } from '@/executor/errors/boundary'
@@ -15,6 +22,10 @@ import {
 } from '@/executor/utils/resolved-secret-trace-registry'
 import type { SerializedBlock } from '@/serializer/types'
 
+const mockWorkflowLogger = vi.mocked(loggerMock.createLogger).mock.results[
+  vi.mocked(createLogger).mock.calls.findIndex(([name]) => name === 'WorkflowBlockHandler')
+].value
+
 const {
   mockExecutorExecute,
   mockCreateSnapshot,
@@ -29,6 +40,7 @@ const {
   mockSafeCompleteWithError,
   mockSafeCompleteWithCancellation,
   mockSetResolvedSecretTraceRegistry,
+  mockSetExecutionDeadlineAt,
   mockSetTraceLargeValueAccess,
   mockDispose,
   executorOptions,
@@ -47,6 +59,7 @@ const {
   mockSafeCompleteWithError: vi.fn(),
   mockSafeCompleteWithCancellation: vi.fn(),
   mockSetResolvedSecretTraceRegistry: vi.fn(),
+  mockSetExecutionDeadlineAt: vi.fn(),
   mockSetTraceLargeValueAccess: vi.fn(),
   mockDispose: vi.fn(),
   executorOptions: [] as Array<Record<string, any>>,
@@ -62,6 +75,7 @@ vi.mock('@/lib/logs/execution/logging-session', () => ({
     safeComplete = mockSafeComplete
     safeCompleteWithError = mockSafeCompleteWithError
     safeCompleteWithCancellation = mockSafeCompleteWithCancellation
+    setExecutionDeadlineAt = mockSetExecutionDeadlineAt
     setResolvedSecretTraceRegistry = mockSetResolvedSecretTraceRegistry
     setTraceLargeValueAccess = mockSetTraceLargeValueAccess
     onBlockStart = vi.fn()
@@ -415,6 +429,38 @@ describe('WorkflowBlockHandler', () => {
         result: { data: 'ok' },
       })
       expect(mockExecutorExecute).toHaveBeenCalledWith('child-workflow-id')
+    })
+
+    it('does not log a child Function error while preserving the runtime failure', async () => {
+      const ctx = { ...mockContext, workspaceId: 'workspace-parent' }
+      const runtimeDetail = 'function-secret __var_API_KEY __sim_code_0_binding_0'
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              name: 'Child Workflow',
+              workspaceId: 'workspace-parent',
+              state: { blocks: {}, edges: [], loops: {}, parallels: {} },
+            },
+          }),
+      })
+      mockCreateSnapshot.mockResolvedValue({ snapshot: { id: 'snapshot-1' } })
+      mockExecutorExecute.mockRejectedValue(new Error(runtimeDetail))
+
+      await expect(
+        handler.execute(ctx, mockBlock, { workflowId: 'child-workflow-id' })
+      ).rejects.toThrow(runtimeDetail)
+
+      expect(mockWorkflowLogger.error).toHaveBeenCalledWith('Error executing child workflow', {
+        errorName: 'Error',
+        hasWorkflowId: true,
+      })
+      const logged = JSON.stringify(mockWorkflowLogger.error.mock.calls)
+      expect(logged).not.toContain('function-secret')
+      expect(logged).not.toContain('__var_')
+      expect(logged).not.toContain('__sim_')
     })
 
     it('threads the parent billing attribution into the child execution context', async () => {
@@ -1120,6 +1166,27 @@ describe('WorkflowBlockHandler', () => {
       })
     })
 
+    it('persists the parent deadline before starting the child session', async () => {
+      const timeoutController = createTimeoutAbortController(60_000)
+
+      try {
+        await handler.execute(
+          customBlockContext({ abortSignal: timeoutController.signal }),
+          customBlock(),
+          {}
+        )
+
+        expect(mockSetExecutionDeadlineAt).toHaveBeenCalledWith(
+          getExecutionDeadlineAt(timeoutController.signal)
+        )
+        expect(mockSetExecutionDeadlineAt.mock.invocationCallOrder[0]).toBeLessThan(
+          mockSafeStart.mock.invocationCallOrder[0]
+        )
+      } finally {
+        timeoutController.cleanup()
+      }
+    })
+
     it('admits against the source payer before executing', async () => {
       await handler.execute(customBlockContext(), customBlock(), {})
 
@@ -1176,11 +1243,11 @@ describe('WorkflowBlockHandler', () => {
         workspaceEncrypted: {},
         decryptionFailures: [],
       })
+      let childRegistry: ResolvedSecretTraceRegistry | undefined
       mockExecutorExecute.mockImplementationOnce(async () => {
-        const childRegistry = executorOptions.at(-1)?.contextExtensions
+        childRegistry = executorOptions.at(-1)?.contextExtensions
           .resolvedSecretTraceRegistry as ResolvedSecretTraceRegistry
-        childRegistry.recordResolved('SECRET', 'publisher-secret')
-        childRegistry.recordResolved('UNUSED', 'unused-secret')
+        expect(childRegistry.recordResolved('SECRET', 'publisher-secret')).toBe(true)
         return {
           success: true,
           output: {},
@@ -1206,6 +1273,9 @@ describe('WorkflowBlockHandler', () => {
           plaintext: 'publisher-secret',
           replacement: ANONYMOUS_SECRET_TRACE_REPLACEMENT,
         },
+      ])
+      expect(childRegistry?.getActiveMatches()).toEqual([
+        { plaintext: 'publisher-secret', replacement: '{{SECRET}}' },
       ])
       expect(mockSetResolvedSecretTraceRegistry).toHaveBeenCalledTimes(1)
     })

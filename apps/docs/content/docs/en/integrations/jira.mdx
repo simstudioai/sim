@@ -38,7 +38,7 @@ Integrate Jira into the workflow. Can read, write, and update issues. Can also t
 
 ## Actions
 
-### `jira_retrieve`
+### Jira Retrieve
 
 Retrieve detailed information about a specific Jira issue
 
@@ -240,7 +240,7 @@ Retrieve detailed information about a specific Jira issue
 | `issue` | json | Complete raw Jira issue object from the API |
 | `files` | file[] | Downloaded attachment files \(only when includeAttachments is true\) |
 
-### `jira_update`
+### Jira Update
 
 Update a Jira issue
 
@@ -273,7 +273,7 @@ Update a Jira issue
 | `issueKey` | string | Updated issue key \(e.g., PROJ-123\) |
 | `summary` | string | Issue summary after update |
 
-### `jira_write`
+### Jira Write
 
 Create a new Jira issue
 
@@ -312,7 +312,7 @@ Create a new Jira issue
 | `url` | string | URL to the created issue in Jira |
 | `assigneeId` | string | Account ID of the assigned user \(null if no assignee was set\) |
 
-### `jira_bulk_read`
+### Jira Bulk Read
 
 Retrieve multiple Jira issues from a project in bulk
 
@@ -353,7 +353,7 @@ Retrieve multiple Jira issues from a project in bulk
 | `nextPageToken` | string | Cursor token for the next page. Null when no more results. |
 | `isLast` | boolean | Whether this is the last page of results |
 
-### `jira_delete_issue`
+### Jira Delete Issue
 
 Delete a Jira issue
 
@@ -374,7 +374,7 @@ Delete a Jira issue
 | `success` | boolean | Operation success status |
 | `issueKey` | string | Deleted issue key |
 
-### `jira_assign_issue`
+### Jira Assign Issue
 
 Assign a Jira issue to a user
 
@@ -396,9 +396,9 @@ Assign a Jira issue to a user
 | `issueKey` | string | Issue key that was assigned |
 | `assigneeId` | string | Account ID of the assignee \(use "-1" for auto-assign, null to unassign\) |
 
-### `jira_transition_issue`
+### Jira Transition Issue
 
-Move a Jira issue between workflow statuses (e.g., To Do -> In Progress)
+Move a Jira issue between workflow statuses (e.g., To Do -&gt; In Progress)
 
 #### Input
 
@@ -424,7 +424,7 @@ Move a Jira issue between workflow statuses (e.g., To Do -> In Progress)
 |   ↳ `id` | string | Status ID |
 |   ↳ `name` | string | Status name |
 
-### `jira_search_issues`
+### Jira Search Issues
 
 Search for Jira issues using JQL (Jira Query Language)
 
@@ -508,7 +508,7 @@ Search for Jira issues using JQL (Jira Query Language)
 | `isLast` | boolean | Whether this is the last page of results |
 | `total` | number | Always null. The Jira /search/jql endpoint does not return a total count; use isLast and nextPageToken for pagination. |
 
-### `jira_add_comment`
+### Jira Add Comment
 
 Add a comment to a Jira issue
 
@@ -542,7 +542,7 @@ Add a comment to a Jira issue
 | `created` | string | ISO 8601 timestamp when the comment was created |
 | `updated` | string | ISO 8601 timestamp when the comment was last updated |
 
-### `jira_get_comments`
+### Jira Get Comments
 
 Get all comments from a Jira issue
 
@@ -592,7 +592,7 @@ Get all comments from a Jira issue
 |     ↳ `type` | string | Restriction type \(e.g., role, group\) |
 |     ↳ `value` | string | Restriction value \(e.g., Administrators\) |
 
-### `jira_update_comment`
+### Jira Update Comment
 
 Update an existing comment on a Jira issue
 
@@ -627,7 +627,7 @@ Update an existing comment on a Jira issue
 | `created` | string | ISO 8601 timestamp when the comment was created |
 | `updated` | string | ISO 8601 timestamp when the comment was last updated |
 
-### `jira_delete_comment`
+### Jira Delete Comment
 
 Delete a comment from a Jira issue
 
@@ -649,7 +649,7 @@ Delete a comment from a Jira issue
 | `issueKey` | string | Issue key |
 | `commentId` | string | Deleted comment ID |
 
-### `jira_get_attachments`
+### Jira Get Attachments
 
 Get all attachments from a Jira issue
 
@@ -687,7 +687,7 @@ Get all attachments from a Jira issue
 |   ↳ `created` | string | ISO 8601 timestamp when the attachment was created |
 | `files` | file[] | Downloaded attachment files \(only when includeAttachments is true\) |
 
-### `jira_add_attachment`
+### Jira Add Attachment
 
 Add attachments to a Jira issue
 
@@ -715,7 +715,7 @@ Add attachments to a Jira issue
 | `attachmentIds` | array | Array of attachment IDs |
 | `files` | file[] | Uploaded attachment files |
 
-### `jira_delete_attachment`
+### Jira Delete Attachment
 
 Delete an attachment from a Jira issue
 
@@ -735,7 +735,7 @@ Delete an attachment from a Jira issue
 | `success` | boolean | Operation success status |
 | `attachmentId` | string | Deleted attachment ID |
 
-### `jira_add_worklog`
+### Jira Add Worklog
 
 Add a time tracking worklog entry to a Jira issue
 
@@ -772,7 +772,7 @@ Add a time tracking worklog entry to a Jira issue
 | `started` | string | ISO 8601 timestamp when the work started |
 | `created` | string | ISO 8601 timestamp when the worklog was created |
 
-### `jira_get_worklogs`
+### Jira Get Worklogs
 
 Get all worklog entries from a Jira issue
 
@@ -821,7 +821,7 @@ Get all worklog entries from a Jira issue
 |   ↳ `created` | string | ISO 8601 timestamp when the worklog was created |
 |   ↳ `updated` | string | ISO 8601 timestamp when the worklog was last updated |
 
-### `jira_update_worklog`
+### Jira Update Worklog
 
 Update an existing worklog entry on a Jira issue
 
@@ -869,7 +869,7 @@ Update an existing worklog entry on a Jira issue
 | `created` | string | Worklog creation time |
 | `updated` | string | Worklog last update time |
 
-### `jira_delete_worklog`
+### Jira Delete Worklog
 
 Delete a worklog entry from a Jira issue
 
@@ -891,7 +891,7 @@ Delete a worklog entry from a Jira issue
 | `issueKey` | string | Issue key |
 | `worklogId` | string | Deleted worklog ID |
 
-### `jira_create_issue_link`
+### Jira Create Issue Link
 
 Create a link relationship between two Jira issues
 
@@ -917,7 +917,7 @@ Create a link relationship between two Jira issues
 | `linkType` | string | Type of issue link |
 | `linkId` | string | Created link ID |
 
-### `jira_delete_issue_link`
+### Jira Delete Issue Link
 
 Delete a link between two Jira issues
 
@@ -937,7 +937,7 @@ Delete a link between two Jira issues
 | `success` | boolean | Operation success status |
 | `linkId` | string | Deleted link ID |
 
-### `jira_add_watcher`
+### Jira Add Watcher
 
 Add a watcher to a Jira issue to receive notifications about updates
 
@@ -959,7 +959,7 @@ Add a watcher to a Jira issue to receive notifications about updates
 | `issueKey` | string | Issue key |
 | `watcherAccountId` | string | Added watcher account ID |
 
-### `jira_remove_watcher`
+### Jira Remove Watcher
 
 Remove a watcher from a Jira issue
 
@@ -981,7 +981,7 @@ Remove a watcher from a Jira issue
 | `issueKey` | string | Issue key |
 | `watcherAccountId` | string | Removed watcher account ID |
 
-### `jira_get_users`
+### Jira Get Users
 
 Get Jira users. If an account ID is provided, returns a single user. Otherwise, returns a list of all users.
 
@@ -1014,7 +1014,7 @@ Get Jira users. If an account ID is provided, returns a single user. Otherwise, 
 | `startAt` | number | Pagination start index |
 | `maxResults` | number | Maximum results per page |
 
-### `jira_search_users`
+### Jira Search Users
 
 Search for Jira users by email address or display name. Returns matching users with their accountId, displayName, and emailAddress.
 
@@ -1046,7 +1046,7 @@ Search for Jira users by email address or display name. Returns matching users w
 | `startAt` | number | Pagination start index |
 | `maxResults` | number | Maximum results per page |
 
-### `jira_list_projects`
+### Jira List Projects
 
 List Jira projects visible to the user, with optional name/key filtering and pagination. Returns each project with id, key, name, and type.
 
@@ -1081,7 +1081,7 @@ List Jira projects visible to the user, with optional name/key filtering and pag
 | `maxResults` | number | Maximum results per page |
 | `isLast` | boolean | Whether this is the last page of results |
 
-### `jira_get_project`
+### Jira Get Project
 
 Get the details of a single Jira project by its ID or key, including its type, lead, components, issue types, and versions.
 
@@ -1114,7 +1114,7 @@ Get the details of a single Jira project by its ID or key, including its type, l
 |   ↳ `name` | string | Issue type name \(e.g., Task, Bug, Story\) |
 |   ↳ `subtask` | boolean | Whether this issue type is a subtask |
 
-### `jira_get_transitions`
+### Jira Get Transitions
 
 Get the workflow transitions available for an issue in its current status. Use the returned transition IDs with the Transition Issue operation.
 
@@ -1142,7 +1142,7 @@ Get the workflow transitions available for an issue in its current status. Use t
 |   ↳ `hasScreen` | boolean | Whether the transition requires a screen with fields |
 | `total` | number | Number of available transitions |
 
-### `jira_list_issue_types`
+### Jira List Issue Types
 
 List all issue types visible to the user across projects (e.g., Task, Bug, Story, Epic, Subtask). Useful for discovering valid issue types before creating an issue.
 
@@ -1168,7 +1168,7 @@ List all issue types visible to the user across projects (e.g., Task, Bug, Story
 |   ↳ `scope` | string | Project ID if this issue type is scoped to a team-managed project |
 | `total` | number | Number of issue types returned |
 
-### `jira_get_fields`
+### Jira Get Fields
 
 Get all system and custom fields defined in the Jira instance. Useful for discovering custom field IDs (e.g., customfield_10001) to use when writing or updating issues.
 
@@ -1617,7 +1617,7 @@ Trigger workflow when an issue is updated in Jira
 | --------- | ---- | -------- | ----------- |
 | `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Jira using HMAC signature |
 | `jqlFilter` | string | No | Filter which issue updates trigger this workflow using JQL |
-| `fieldFilters` | string | No | Comma-separated list of fields to monitor. Only trigger when these fields change. |
+| `fieldFilters` | string | No | Comma-separated list of Jira field names. Only trigger when one of these fields changes. Leave empty to trigger on any field change. |
 
 #### Output
 
@@ -1869,27 +1869,122 @@ Trigger workflow on any Jira webhook event
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `webhookEvent` | string | The webhook event type \(e.g., jira:issue_created, comment_created, worklog_created\) |
+| `timestamp` | number | Timestamp of the webhook event |
+| `user` | object | user output from the tool |
+|   ↳ `displayName` | string | Display name of the user who triggered the event |
+|   ↳ `accountId` | string | Account ID of the user who triggered the event |
+|   ↳ `emailAddress` | string | Email address of the user who triggered the event |
+| `issue` | object | issue output from the tool |
+|   ↳ `id` | string | Jira issue ID |
+|   ↳ `key` | string | Jira issue key \(e.g., PROJ-123\) |
+|   ↳ `self` | string | REST API URL for this issue |
+|   ↳ `fields` | object | fields output from the tool |
+|     ↳ `votes` | json | Votes on this issue |
+|     ↳ `labels` | array | Array of labels applied to this issue |
+|     ↳ `status` | object | status output from the tool |
+|       ↳ `name` | string | Status name |
+|       ↳ `id` | string | Status ID |
+|       ↳ `statusCategory` | json | Status category information |
+|     ↳ `created` | string | Issue creation date \(ISO format\) |
+|     ↳ `creator` | object | creator output from the tool |
+|       ↳ `displayName` | string | Creator display name |
+|       ↳ `accountId` | string | Creator account ID |
+|       ↳ `emailAddress` | string | Email address \(Jira Server only — not available in Jira Cloud webhook payloads\) |
+|     ↳ `duedate` | string | Due date for the issue |
+|     ↳ `project` | object | project output from the tool |
+|       ↳ `key` | string | Project key |
+|       ↳ `name` | string | Project name |
+|       ↳ `id` | string | Project ID |
+|     ↳ `summary` | string | Issue summary/title |
+|     ↳ `description` | json | Issue description in Atlassian Document Format \(ADF\). On Jira Server this may be a plain string. |
+|     ↳ `updated` | string | Last updated date \(ISO format\) |
+|     ↳ `watches` | json | Watchers information |
+|     ↳ `assignee` | object | assignee output from the tool |
+|       ↳ `displayName` | string | Assignee display name |
+|       ↳ `accountId` | string | Assignee account ID |
+|       ↳ `emailAddress` | string | Email address \(Jira Server only — not available in Jira Cloud webhook payloads\) |
+|     ↳ `priority` | object | priority output from the tool |
+|       ↳ `name` | string | Priority name |
+|       ↳ `id` | string | Priority ID |
+|     ↳ `progress` | json | Progress tracking information |
+|     ↳ `reporter` | object | reporter output from the tool |
+|       ↳ `displayName` | string | Reporter display name |
+|       ↳ `accountId` | string | Reporter account ID |
+|       ↳ `emailAddress` | string | Email address \(Jira Server only — not available in Jira Cloud webhook payloads\) |
+|     ↳ `security` | string | Security level |
+|     ↳ `subtasks` | array | Array of subtask objects |
+|     ↳ `versions` | array | Array of affected versions |
+|     ↳ `issuetype` | object | issuetype output from the tool |
+|       ↳ `name` | string | Issue type name |
+|       ↳ `id` | string | Issue type ID |
+|     ↳ `resolution` | object | resolution output from the tool |
+|       ↳ `name` | string | Resolution name \(e.g., Done, Fixed\) |
+|       ↳ `id` | string | Resolution ID |
+|     ↳ `components` | array | Array of component objects associated with this issue |
+|     ↳ `fixVersions` | array | Array of fix version objects for this issue |
+| `issue_event_type_name` | string | Issue event type name from Jira \(only present in issue events\) |
 | `changelog` | object | changelog output from the tool |
 |   ↳ `id` | string | Changelog ID |
 | `comment` | object | comment output from the tool |
 |   ↳ `id` | string | Comment ID |
-|   ↳ `body` | string | Comment text/body |
+|   ↳ `body` | json | Comment body in Atlassian Document Format \(ADF\). On Jira Server this may be a plain string. |
 |   ↳ `author` | object | author output from the tool |
 |     ↳ `displayName` | string | Comment author display name |
 |     ↳ `accountId` | string | Comment author account ID |
 |     ↳ `emailAddress` | string | Comment author email address |
+|   ↳ `updateAuthor` | object | updateAuthor output from the tool |
+|     ↳ `displayName` | string | Display name of the user who last updated the comment |
+|     ↳ `accountId` | string | Account ID of the user who last updated the comment |
 |   ↳ `created` | string | Comment creation date \(ISO format\) |
 |   ↳ `updated` | string | Comment last updated date \(ISO format\) |
+|   ↳ `self` | string | REST API URL for this comment |
 | `worklog` | object | worklog output from the tool |
 |   ↳ `id` | string | Worklog entry ID |
 |   ↳ `author` | object | author output from the tool |
 |     ↳ `displayName` | string | Worklog author display name |
 |     ↳ `accountId` | string | Worklog author account ID |
 |     ↳ `emailAddress` | string | Worklog author email address |
+|   ↳ `updateAuthor` | object | updateAuthor output from the tool |
+|     ↳ `displayName` | string | Display name of the user who last updated the worklog |
+|     ↳ `accountId` | string | Account ID of the user who last updated the worklog |
 |   ↳ `timeSpent` | string | Time spent \(e.g., "2h 30m"\) |
 |   ↳ `timeSpentSeconds` | number | Time spent in seconds |
 |   ↳ `comment` | string | Worklog comment/description |
 |   ↳ `started` | string | When the work was started \(ISO format\) |
+|   ↳ `created` | string | When the worklog entry was created \(ISO format\) |
+|   ↳ `updated` | string | When the worklog entry was last updated \(ISO format\) |
+|   ↳ `issueId` | string | ID of the issue this worklog belongs to |
+|   ↳ `self` | string | REST API URL for this worklog entry |
+| `sprint` | object | sprint output from the tool |
+|   ↳ `id` | number | Sprint ID |
+|   ↳ `self` | string | REST API URL for this sprint |
+|   ↳ `state` | string | Sprint state \(future, active, closed\) |
+|   ↳ `name` | string | Sprint name |
+|   ↳ `startDate` | string | Sprint start date \(ISO format\) |
+|   ↳ `endDate` | string | Sprint end date \(ISO format\) |
+|   ↳ `completeDate` | string | Sprint completion date \(ISO format\) |
+|   ↳ `originBoardId` | number | Board ID the sprint belongs to |
+|   ↳ `goal` | string | Sprint goal |
+|   ↳ `createdDate` | string | Sprint creation date \(ISO format\) |
+| `project` | object | project output from the tool |
+|   ↳ `id` | string | Project ID |
+|   ↳ `key` | string | Project key |
+|   ↳ `name` | string | Project name |
+|   ↳ `self` | string | REST API URL for this project |
+|   ↳ `projectTypeKey` | string | Project type \(e.g., software, business\) |
+|   ↳ `lead` | object | lead output from the tool |
+|     ↳ `displayName` | string | Project lead display name |
+|     ↳ `accountId` | string | Project lead account ID |
+| `version` | object | version output from the tool |
+|   ↳ `id` | string | Version ID |
+|   ↳ `name` | string | Version name |
+|   ↳ `self` | string | REST API URL for this version |
+|   ↳ `released` | boolean | Whether the version is released |
+|   ↳ `releaseDate` | string | Release date \(ISO format\) |
+|   ↳ `projectId` | number | Project ID the version belongs to |
+|   ↳ `description` | string | Version description |
+|   ↳ `archived` | boolean | Whether the version is archived |
 
 
 ---

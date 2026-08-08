@@ -1,7 +1,6 @@
 ---
 title: Custom Tools
 description: Create your own tools with JavaScript code and use them in Agent blocks
-pageType: guide
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
@@ -85,6 +84,8 @@ return {
 };
 ```
 
+For a secret used as a complete JavaScript expression, prefer the unquoted form, such as `const apiKey = {{OPENWEATHER_API_KEY}};`. Quoted and embedded forms remain supported, including the placeholder embedded in the URL above, `"Bearer {{KEY}}"`, template literals, and JavaScript regex literals. The value is bound separately when the tool executes rather than pasted into its source, so its exact string contents are preserved.
+
 <Callout type="info">
   You can also use the AI wand to generate code from a description. Environment variables are referenced with `&#123;&#123;KEY&#125;&#125;` syntax.
 </Callout>
@@ -115,7 +116,7 @@ Once created, custom tools appear alongside built-in tools when configuring an A
 - **Async/await** — Your code runs in an async context, so you can use `await` directly
 - **fetch()** — Make HTTP requests to external APIs
 - **Node.js built-ins** — Access to `crypto`, `Buffer`, and other standard modules
-- **Environment variables** — Use `{{KEY}}` syntax to inject secrets
+- **Environment variables** — Use `{{KEY}}` syntax to bind secrets at execution time without placing plaintext in source code
 
 ### Limitations
 
@@ -156,7 +157,7 @@ From **Settings → Custom Tools** you can:
 
 <FAQ items={[
   { question: "Can I use custom tools in standalone blocks (not agents)?", answer: "No. Custom tools are designed for use within Agent blocks, where the AI model decides when to call them. For deterministic tool execution, use the Function block instead." },
-  { question: "How do I pass API keys to my custom tool code?", answer: "Use double curly brace syntax such as {{MY_API_KEY}} for a value saved under Settings → Secrets. The real value is injected at execution time, while exact occurrences are masked in the trace copy. If the tool returns the secret, the raw result still reaches the Agent. See Execution log protection under Secrets for details." },
+  { question: "How do I pass API keys to my custom tool code?", answer: "Use double curly brace syntax such as {{MY_API_KEY}} for a value saved under Settings → Secrets. The value is bound outside the source at execution time. Exact occurrences are masked in the trace copy and replaced with the placeholder before a tool result is sent back to the Agent model. Encoded or otherwise transformed values cannot be recognized reliably. See Execution log protection under Secrets for details." },
   { question: "Can I use external npm packages?", answer: "No. Custom tool code runs in a sandboxed environment with access to built-in Node.js modules and fetch(), but not external packages. For complex dependencies, consider calling an external API that wraps the functionality you need." },
   { question: "What's the difference between custom tools and the Function block?", answer: "Custom tools are called by AI agents when they decide the tool is relevant — the agent chooses when to use it. Function blocks run deterministically at a fixed point in the workflow. Use custom tools for agent-driven actions and Function blocks for predictable data transformations." },
   { question: "Are custom tools shared across the workspace?", answer: "Yes. Custom tools are workspace-scoped, so all workspace members can use them in their workflows." },

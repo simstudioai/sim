@@ -12,6 +12,7 @@ import type { VariantProps } from 'class-variance-authority'
 import { Check, ChevronDown } from '../../icons'
 import { cn } from '../../lib/cn'
 import { chipVariants, TRIGGER_BORDER_CLASS } from '../chip/chip'
+import { chipIconSlotClass } from '../chip/chip-chrome'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -139,7 +140,7 @@ type ChipDropdownProps = ChipDropdownSingleProps | ChipDropdownMultiProps
  *
  * The trigger reuses `chipVariants` for visual parity with `Chip`. The label
  * is `flex-1`, so the trailing chevron is pushed flush right. The chevron is
- * owned by the component and rendered at `h-[6px] w-[10px]` (matching the
+ * owned by the component and rendered at `size-[14px]` (matching the
  * workspace-header chevron) — there is intentionally no `rightIcon` prop. The
  * trigger and menu shell are identical across modes; only the selection
  * semantics (label, item handlers, open state, search) branch on `multiple`.
@@ -241,10 +242,7 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
      * label — without this, the smaller glyph's bounding box would let the
      * chevron read as glued to the text relative to the leading icon.
      */
-    const chevronSlotClass = cn(
-      'inline-flex size-[16px] flex-shrink-0 items-center justify-center',
-      !isInverse && 'text-[var(--text-icon)]'
-    )
+    const chevronSlotClass = cn(chipIconSlotClass, !isInverse && 'text-[var(--text-icon)]')
     /**
      * `flex-1` is always applied so the chevron is pushed flush against the
      * trailing edge whenever the trigger gets stretched — by `fullWidth`, by a
@@ -318,7 +316,7 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
               {displayLabel}
             </span>
             <span aria-hidden className={chevronSlotClass}>
-              <ChevronDown className='h-[6px] w-[10px]' />
+              <ChevronDown className='size-[14px]' />
             </span>
           </button>
         </DropdownMenuTrigger>

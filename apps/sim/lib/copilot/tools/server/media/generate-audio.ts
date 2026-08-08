@@ -6,6 +6,7 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
+import { assertOpaqueWorkspaceFileModelSafe } from '@/lib/copilot/tools/server/model-input'
 import { writeWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
 import { type AudioType, generateFalAudio } from '@/lib/media/falai-audio'
 import {
@@ -80,20 +81,21 @@ export const generateAudioServerTool: BaseServerTool<GenerateAudioArgs, Generate
       }
     }
 
-    // Voice cloning: a reference sample clones that voice into the generated speech.
-    let voiceSampleDataUri: string | undefined
-    const samplePath = params.inputs?.files?.[0]?.path
-    if (samplePath) {
-      const sample = await resolveWorkspaceFileReference(workspaceId, samplePath)
-      if (!sample) {
-        return { success: false, message: `Voice sample not found: ${samplePath}` }
-      }
-      const sampleBuffer = await fetchWorkspaceFileBuffer(sample)
-      const sampleMime = sample.type || 'audio/mpeg'
-      voiceSampleDataUri = `data:${sampleMime};base64,${sampleBuffer.toString('base64')}`
-    }
-
     try {
+      // Voice cloning: a reference sample clones that voice into the generated speech.
+      let voiceSampleDataUri: string | undefined
+      const samplePath = params.inputs?.files?.[0]?.path
+      if (samplePath) {
+        const sample = await resolveWorkspaceFileReference(workspaceId, samplePath)
+        if (!sample) {
+          return { success: false, message: `Voice sample not found: ${samplePath}` }
+        }
+        await assertOpaqueWorkspaceFileModelSafe({ workspaceId, file: sample })
+        const sampleBuffer = await fetchWorkspaceFileBuffer(sample)
+        const sampleMime = sample.type || 'audio/mpeg'
+        voiceSampleDataUri = `data:${sampleMime};base64,${sampleBuffer.toString('base64')}`
+      }
+
       logger.info('Generating audio', {
         type,
         model: params.model,

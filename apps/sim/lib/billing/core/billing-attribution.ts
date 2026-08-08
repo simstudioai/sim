@@ -14,6 +14,7 @@ import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import { getHighestPriorityPersonalSubscription } from '@/lib/billing/core/plan'
 import type { BillingContext, BillingEntity } from '@/lib/billing/core/usage-log'
+import { parseWorkflowExecutionTimeoutSeconds } from '@/lib/billing/execution-timeout-defaults'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
 import {
   BILLING_ACCOUNT_DECISION_HEADER,
@@ -46,6 +47,7 @@ export interface PayerSubscriptionSnapshot {
   readonly periodStart: string | null
   readonly periodEnd: string | null
   readonly enterpriseConcurrencyLimit?: number
+  readonly enterpriseWorkflowExecutionTimeoutSeconds?: number
 }
 
 export interface BillingPeriodSnapshot {
@@ -128,6 +130,10 @@ function serializeSubscription(
     isEnterprise(subscription.plan) && isRecordLike(subscription.metadata)
       ? parseBillingConcurrencyLimit(subscription.metadata.concurrencyLimit)
       : null
+  const enterpriseWorkflowExecutionTimeoutSeconds =
+    isEnterprise(subscription.plan) && isRecordLike(subscription.metadata)
+      ? parseWorkflowExecutionTimeoutSeconds(subscription.metadata.workflowExecutionTimeoutSeconds)
+      : null
   return Object.freeze({
     id: subscription.id,
     referenceId: subscription.referenceId,
@@ -137,6 +143,9 @@ function serializeSubscription(
     periodStart: subscription.periodStart?.toISOString() ?? null,
     periodEnd: subscription.periodEnd?.toISOString() ?? null,
     ...(enterpriseConcurrencyLimit !== null ? { enterpriseConcurrencyLimit } : {}),
+    ...(enterpriseWorkflowExecutionTimeoutSeconds !== null
+      ? { enterpriseWorkflowExecutionTimeoutSeconds }
+      : {}),
   })
 }
 
@@ -259,6 +268,17 @@ export function assertBillingAttributionSnapshot(value: unknown): BillingAttribu
     ) {
       throw new Error('Billing attribution Enterprise concurrency limit is invalid')
     }
+    const enterpriseWorkflowExecutionTimeoutSeconds =
+      subscription.enterpriseWorkflowExecutionTimeoutSeconds
+    if (
+      enterpriseWorkflowExecutionTimeoutSeconds !== undefined &&
+      (!isEnterprise(subscription.plan) ||
+        typeof enterpriseWorkflowExecutionTimeoutSeconds !== 'number' ||
+        parseWorkflowExecutionTimeoutSeconds(enterpriseWorkflowExecutionTimeoutSeconds) !==
+          enterpriseWorkflowExecutionTimeoutSeconds)
+    ) {
+      throw new Error('Billing attribution Enterprise workflow execution timeout is invalid')
+    }
 
     payerSubscription = {
       id: subscription.id,
@@ -269,6 +289,9 @@ export function assertBillingAttributionSnapshot(value: unknown): BillingAttribu
       periodStart: subscriptionStart?.toISOString() ?? null,
       periodEnd: subscriptionEnd?.toISOString() ?? null,
       ...(enterpriseConcurrencyLimit !== undefined ? { enterpriseConcurrencyLimit } : {}),
+      ...(enterpriseWorkflowExecutionTimeoutSeconds !== undefined
+        ? { enterpriseWorkflowExecutionTimeoutSeconds }
+        : {}),
     }
   }
 

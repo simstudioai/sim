@@ -23,6 +23,7 @@ import {
   toast,
 } from '@sim/emcn'
 import { Download, Workflow } from '@sim/emcn/icons'
+import { getErrorMessage } from '@sim/utils/errors'
 import { formatDuration } from '@sim/utils/formatting'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
@@ -92,9 +93,11 @@ import {
   getDisplayStatus,
   type LogStatus,
   parseDuration,
+  resolveLogWorkflowId,
   STATUS_CONFIG,
   StatusBadge,
   TriggerBadge,
+  workflowEditorPath,
 } from './utils'
 
 const LOGS_PER_PAGE = 50 as const
@@ -524,9 +527,9 @@ export default function Logs() {
   }, [contextMenuLog, workspaceId])
 
   const handleOpenWorkflow = useCallback(() => {
-    const wfId = contextMenuLog?.workflow?.id || contextMenuLog?.workflowId
+    const wfId = contextMenuLog ? resolveLogWorkflowId(contextMenuLog) : null
     if (wfId) {
-      window.open(`/workspace/${workspaceId}/w/${wfId}`, '_blank')
+      window.open(workflowEditorPath(workspaceId, wfId), '_blank')
     }
   }, [contextMenuLog, workspaceId])
 
@@ -558,14 +561,19 @@ export default function Logs() {
   const cancelExecution = useCancelExecution(workspaceId)
   const retryExecution = useRetryExecution()
 
-  const handleCancelExecution = useCallback(() => {
+  const handleCancelExecution = useCallback(async () => {
     const workflowId = contextMenuLog?.workflow?.id || contextMenuLog?.workflowId
     const executionId = contextMenuLog?.executionId
-    if (workflowId && executionId) {
-      cancelExecution.mutate({ workflowId, executionId })
+    if (!userPermissions.canEdit || !workflowId || !executionId) return
+
+    try {
+      await cancelExecution.mutateAsync({ workflowId, executionId })
+      toast.success('Run stopped')
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Failed to stop run'))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [contextMenuLog])
+  }, [contextMenuLog, userPermissions.canEdit])
 
   const retryLog = useCallback(
     async (log: WorkflowLogRow | null) => {
@@ -987,7 +995,7 @@ export default function Logs() {
             )}
             {sections.map((section) => (
               <div key={section.title}>
-                <div className='px-3 py-1.5 font-medium text-[var(--text-tertiary)] text-caption uppercase tracking-wide'>
+                <div className='px-3 py-1.5 text-[var(--text-tertiary)] text-caption uppercase tracking-wide'>
                   {section.title}
                 </div>
                 {section.suggestions.map((suggestion) => {
@@ -1011,7 +1019,7 @@ export default function Logs() {
         ) : (
           <div className='py-1'>
             {suggestionType === 'filters' && (
-              <div className='px-3 py-1.5 font-medium text-[var(--text-tertiary)] text-caption uppercase tracking-wide'>
+              <div className='px-3 py-1.5 text-[var(--text-tertiary)] text-caption uppercase tracking-wide'>
                 SUGGESTED FILTERS
               </div>
             )}
@@ -1201,6 +1209,9 @@ export default function Logs() {
         onOpenPreview={handleOpenPreview}
         onCancelExecution={handleCancelExecution}
         onRetryExecution={handleRetryExecution}
+        canCancelExecution={userPermissions.canEdit}
+        isCancelPending={cancelExecution.isPending}
+        cancelPendingExecutionId={cancelExecution.variables?.executionId}
         isRetryPending={retryExecution.isPending}
         onToggleWorkflowFilter={handleToggleWorkflowFilter}
         onClearAllFilters={handleClearAllFilters}

@@ -227,7 +227,7 @@ export function WorkflowBlockView({
             <OverflowSpan
               value={name}
               className={cn(
-                'truncate font-medium text-md',
+                'truncate text-md',
                 !isEnabled && runPathStatus !== 'success' && 'text-[var(--text-muted)]'
               )}
             />

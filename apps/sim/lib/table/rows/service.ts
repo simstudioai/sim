@@ -57,6 +57,7 @@ import {
   resolveBatchInsertOrderKeys,
   resolveInsertOrderKey,
 } from '@/lib/table/rows/ordering'
+import { mutateTableRowsWithSecretProvenance } from '@/lib/table/rows/secret-provenance'
 import {
   buildFilterClause,
   buildPredicateClause,
@@ -162,6 +163,7 @@ export async function insertRow(
     beforeRowId: data.beforeRowId,
     createdBy: data.userId,
     now,
+    secretProvenance: data.secretProvenance,
     proof: insertProof,
   })
 
@@ -312,7 +314,18 @@ export async function batchInsertRowsWithTx(
   const start = await nextRowPosition(trx, data.tableId)
   const positions = Array.from({ length: data.rows.length }, (_, i) => start + i)
   const rowsToInsert = data.rows.map((rowData, i) => buildRow(rowData, positions[i], orderKeys[i]))
-  const insertedRows = await trx.insert(userTableRows).values(rowsToInsert).returning()
+  const insertedRows = await mutateTableRowsWithSecretProvenance(trx, {
+    rows: rowsToInsert.map((row, index) => ({
+      rowId: row.id,
+      provenance: data.secretProvenance?.[index],
+    })),
+    rowState: 'new',
+    mode: 'replace',
+    mutate: async () => {
+      const rows = await trx.insert(userTableRows).values(rowsToInsert).returning()
+      return { value: rows, affectedRowIds: rows.map((row) => row.id) }
+    },
+  })
 
   logger.info(`[${requestId}] Batch inserted ${data.rows.length} rows into table ${data.tableId}`)
 
@@ -496,14 +509,26 @@ export async function replaceTableRowsWithTx(
       ...(data.userId ? { createdBy: data.userId } : {}),
     }))
 
-    const batchSize = TABLE_LIMITS.MAX_BATCH_INSERT_SIZE
-    for (let i = 0; i < rowsToInsert.length; i += batchSize) {
-      const chunk = rowsToInsert.slice(i, i + batchSize)
-      const inserted = await trx.insert(userTableRows).values(chunk).returning({
-        id: userTableRows.id,
-      })
-      insertedCount += inserted.length
-    }
+    insertedCount = await mutateTableRowsWithSecretProvenance(trx, {
+      rows: rowsToInsert.map((row, index) => ({
+        rowId: row.id,
+        provenance: data.secretProvenance?.[index],
+      })),
+      rowState: 'new',
+      mode: 'replace',
+      mutate: async () => {
+        const insertedRowIds: string[] = []
+        const batchSize = TABLE_LIMITS.MAX_BATCH_INSERT_SIZE
+        for (let i = 0; i < rowsToInsert.length; i += batchSize) {
+          const chunk = rowsToInsert.slice(i, i + batchSize)
+          const inserted = await trx.insert(userTableRows).values(chunk).returning({
+            id: userTableRows.id,
+          })
+          insertedRowIds.push(...inserted.map((row) => row.id))
+        }
+        return { value: insertedRowIds.length, affectedRowIds: insertedRowIds }
+      },
+    })
   }
 
   logger.info(
@@ -668,11 +693,21 @@ export async function upsertRow(
 
     if (matchedRowId) {
       assertRowUpdate(table, patchColumnIds(data.data))
-      const [updatedRow] = await trx
-        .update(userTableRows)
-        .set({ data: data.data, updatedAt: now })
-        .where(eq(userTableRows.id, matchedRowId))
-        .returning()
+      const updatedRow = await mutateTableRowsWithSecretProvenance(trx, {
+        rows: [{ rowId: matchedRowId, provenance: data.secretProvenance }],
+        rowState: 'existing',
+        mode: 'replace',
+        mutate: async () => {
+          const [row] = await trx
+            .update(userTableRows)
+            .set({ data: data.data, updatedAt: now })
+            .where(eq(userTableRows.id, matchedRowId))
+            .returning()
+          if (!row) return { value: undefined, affectedRowIds: [] }
+          return { value: row, affectedRowIds: [row.id] }
+        },
+      })
+      if (!updatedRow) throw new Error('Matched table row no longer exists')
 
       const executions = await loadExecutionsForRow(trx, updatedRow.id)
       return {
@@ -696,20 +731,30 @@ export async function upsertRow(
       throw new TableRowLimitError(rowLimit)
     }
 
-    const [insertedRow] = await trx
-      .insert(userTableRows)
-      .values({
-        id: `row_${generateId().replace(/-/g, '')}`,
-        tableId: data.tableId,
-        workspaceId: data.workspaceId,
-        data: data.data,
-        position: await nextRowPosition(trx, data.tableId),
-        orderKey: await resolveInsertOrderKey(trx, data.tableId),
-        createdAt: now,
-        updatedAt: now,
-        ...(data.userId ? { createdBy: data.userId } : {}),
-      })
-      .returning()
+    const insertedRowId = `row_${generateId().replace(/-/g, '')}`
+    const insertedRow = await mutateTableRowsWithSecretProvenance(trx, {
+      rows: [{ rowId: insertedRowId, provenance: data.secretProvenance }],
+      rowState: 'new',
+      mode: 'replace',
+      mutate: async () => {
+        const [row] = await trx
+          .insert(userTableRows)
+          .values({
+            id: insertedRowId,
+            tableId: data.tableId,
+            workspaceId: data.workspaceId,
+            data: data.data,
+            position: await nextRowPosition(trx, data.tableId),
+            orderKey: await resolveInsertOrderKey(trx, data.tableId),
+            createdAt: now,
+            updatedAt: now,
+            ...(data.userId ? { createdBy: data.userId } : {}),
+          })
+          .returning()
+        return { value: row, affectedRowIds: row ? [row.id] : [] }
+      },
+    })
+    if (!insertedRow) throw new Error('Failed to insert table row')
 
     return {
       row: {
@@ -1517,33 +1562,43 @@ export async function updateRow(
   // commit in one transaction so a partial write can't leave the sidecar
   // and the row out of sync.
   const guard = data.cancellationGuard
-  const guardRejected = await db
-    .transaction(async (trx) => {
-      await trx
-        .update(userTableRows)
-        .set({ data: persistedData, updatedAt: now })
-        .where(eq(userTableRows.id, data.rowId))
+  let persistedUpdatedAt: Date
+  try {
+    persistedUpdatedAt = await db.transaction(async (trx) => {
+      return await mutateTableRowsWithSecretProvenance(trx, {
+        rows: [{ rowId: data.rowId, provenance: data.secretProvenance }],
+        rowState: 'existing',
+        mode: 'merge',
+        mutate: async () => {
+          const updatedRows = await trx
+            .update(userTableRows)
+            .set({ data: persistedData, updatedAt: now })
+            .where(eq(userTableRows.id, data.rowId))
+            .returning({ id: userTableRows.id, updatedAt: userTableRows.updatedAt })
+          const [updatedRow] = updatedRows
+          if (!updatedRow) throw new Error('Table row no longer exists')
 
-      const result = await writeExecutionsPatch(
-        trx,
-        data.tableId,
-        data.rowId,
-        effectiveExecutionsPatch,
-        guard
-      )
-      if (result === 'guard-rejected') {
-        // Roll back the data update too — the worker isn't authoritative.
-        throw new GuardRejected()
-      }
-      return false
+          const result = await writeExecutionsPatch(
+            trx,
+            data.tableId,
+            data.rowId,
+            effectiveExecutionsPatch,
+            guard
+          )
+          if (result === 'guard-rejected') {
+            // Roll back the data update too — the worker isn't authoritative.
+            throw new GuardRejected()
+          }
+          return {
+            value: updatedRow.updatedAt,
+            affectedRowIds: [updatedRow.id],
+          }
+        },
+      })
     })
-    .catch((err) => {
-      if (err instanceof GuardRejected) return true
-      throw err
-    })
-
-  if (guardRejected) {
-    return null
+  } catch (err) {
+    if (err instanceof GuardRejected) return null
+    throw err
   }
 
   logger.info(`[${requestId}] Updated row ${data.rowId} in table ${data.tableId}`)
@@ -1554,7 +1609,7 @@ export async function updateRow(
     executions: mergedExecutions,
     position: existingRow.position,
     createdAt: existingRow.createdAt,
-    updatedAt: now,
+    updatedAt: persistedUpdatedAt,
   }
 
   const oldRows = new Map([[data.rowId, existingRow.data as RowData]])
@@ -1748,16 +1803,27 @@ export async function updateRowsByFilter(
 
   await db.transaction(async (trx) => {
     await setTableTxTimeouts(trx, { statementMs: 60_000 })
-    for (let i = 0; i < ids.length; i += TABLE_LIMITS.UPDATE_BATCH_SIZE) {
-      const batchIds = ids.slice(i, i + TABLE_LIMITS.UPDATE_BATCH_SIZE)
-      await trx
-        .update(userTableRows)
-        .set({
-          data: sql`${userTableRows.data} || ${patchJson}::jsonb`,
-          updatedAt: now,
-        })
-        .where(inArray(userTableRows.id, batchIds))
-    }
+    await mutateTableRowsWithSecretProvenance(trx, {
+      rows: ids.map((rowId) => ({ rowId, provenance: data.secretProvenance })),
+      rowState: 'existing',
+      mode: 'merge',
+      mutate: async () => {
+        const affectedRowIds: string[] = []
+        for (let i = 0; i < ids.length; i += TABLE_LIMITS.UPDATE_BATCH_SIZE) {
+          const batchIds = ids.slice(i, i + TABLE_LIMITS.UPDATE_BATCH_SIZE)
+          const updated = await trx
+            .update(userTableRows)
+            .set({
+              data: sql`${userTableRows.data} || ${patchJson}::jsonb`,
+              updatedAt: now,
+            })
+            .where(inArray(userTableRows.id, batchIds))
+            .returning({ id: userTableRows.id })
+          affectedRowIds.push(...updated.map((row) => row.id))
+        }
+        return { value: undefined, affectedRowIds }
+      },
+    })
   })
 
   logger.info(`[${requestId}] Updated ${matchingRows.length} rows in table ${table.id}`)
@@ -1923,23 +1989,33 @@ export async function batchUpdateRows(
 
   await db.transaction(async (trx) => {
     await setTableTxTimeouts(trx, { statementMs: 60_000 })
-    for (let i = 0; i < mergedUpdates.length; i += TABLE_LIMITS.UPDATE_BATCH_SIZE) {
-      const batch = mergedUpdates.slice(i, i + TABLE_LIMITS.UPDATE_BATCH_SIZE)
-      // Update row data in parallel; sidecar exec writes are sequential per
-      // row (each goes through writeExecutionsPatch's per-key upsert). Each row
-      // merges its changed cells via JSONB concat (see jsonbMergePatch) so a
-      // batch edit can't clobber a concurrent edit to another cell of the row.
-      const dataPromises = batch.map(({ rowId, changedColumnIds, mergedData }) =>
-        trx
-          .update(userTableRows)
-          .set({ data: jsonbMergePatch(changedColumnIds, mergedData), updatedAt: now })
-          .where(eq(userTableRows.id, rowId))
-      )
-      await Promise.all(dataPromises)
-      for (const { rowId, executionsPatch } of batch) {
-        await writeExecutionsPatch(trx, data.tableId, rowId, executionsPatch)
-      }
-    }
+    await mutateTableRowsWithSecretProvenance(trx, {
+      rows: mergedUpdates.map((update) => ({
+        rowId: update.rowId,
+        provenance: data.secretProvenanceByRowId?.[update.rowId],
+      })),
+      rowState: 'existing',
+      mode: 'merge',
+      mutate: async () => {
+        const affectedRowIds: string[] = []
+        for (let i = 0; i < mergedUpdates.length; i += TABLE_LIMITS.UPDATE_BATCH_SIZE) {
+          const batch = mergedUpdates.slice(i, i + TABLE_LIMITS.UPDATE_BATCH_SIZE)
+          const dataPromises = batch.map(({ rowId, changedColumnIds, mergedData }) =>
+            trx
+              .update(userTableRows)
+              .set({ data: jsonbMergePatch(changedColumnIds, mergedData), updatedAt: now })
+              .where(eq(userTableRows.id, rowId))
+              .returning({ id: userTableRows.id })
+          )
+          const updatedRows = await Promise.all(dataPromises)
+          affectedRowIds.push(...updatedRows.flatMap((rows) => rows.map((row) => row.id)))
+          for (const { rowId, executionsPatch } of batch) {
+            await writeExecutionsPatch(trx, data.tableId, rowId, executionsPatch)
+          }
+        }
+        return { value: undefined, affectedRowIds }
+      },
+    })
   })
 
   logger.info(`[${requestId}] Batch updated ${mergedUpdates.length} rows in table ${data.tableId}`)

@@ -92,7 +92,7 @@ export function FieldItem({
     >
       <span
         className={clsx(
-          'min-w-0 flex-1 truncate font-medium',
+          'min-w-0 flex-1 truncate',
           'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
         )}
       >
@@ -104,7 +104,7 @@ export function FieldItem({
       {hasChildren && (
         <ChevronDown
           className={clsx(
-            'h-3.5 w-3.5 flex-shrink-0 transition-transform duration-100',
+            'size-[14px] flex-shrink-0 transition-transform duration-100',
             'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]',
             isExpanded && 'rotate-180'
           )}

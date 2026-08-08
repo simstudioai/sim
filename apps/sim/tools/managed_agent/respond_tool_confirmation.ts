@@ -61,7 +61,16 @@ export const managedAgentRespondToolConfirmationTool: ToolConfig<
     },
   },
 
-  request: UNUSED_REQUEST,
+  request: {
+    ...UNUSED_REQUEST,
+    modelInput: {
+      mode: 'project',
+      select: (params) =>
+        params.decision?.toString().trim().toLowerCase() === 'deny'
+          ? { denyMessage: params.denyMessage }
+          : {},
+    },
+  },
 
   directExecution: async (params, signal): Promise<ManagedAgentToolConfirmationResponse> => {
     const emptyOutput = { sessionId: '', decision: '', confirmedToolUseIds: [] as string[] }
@@ -97,7 +106,7 @@ export const managedAgentRespondToolConfirmationTool: ToolConfig<
         confirmations: toolUseIds.map((toolUseId) => ({
           toolUseId,
           result: decision,
-          ...(denyMessage ? { denyMessage } : {}),
+          ...(decision === 'deny' && denyMessage ? { denyMessage } : {}),
         })),
         ...(signal ? { signal } : {}),
       })

@@ -26,6 +26,10 @@ import { EMPTY_JOB_FIELDS, latestJobForTable, latestJobsForTables } from '@/lib/
 import { assertSchemaMutable, TableLockedError } from '@/lib/table/mutation-locks'
 import { nKeysBetween } from '@/lib/table/order-key'
 import type { DbTransaction } from '@/lib/table/planner'
+import {
+  createExactEmptyTableRowSecretProvenance,
+  mutateTableRowsWithSecretProvenance,
+} from '@/lib/table/rows/secret-provenance'
 import { setTableTxTimeouts } from '@/lib/table/tx'
 import {
   type CreateTableData,
@@ -401,7 +405,21 @@ export async function createTable(
           createdAt: now,
           updatedAt: now,
         }))
-        await trx.insert(userTableRows).values(rowsToInsert)
+        await mutateTableRowsWithSecretProvenance(trx, {
+          rows: rowsToInsert.map((row) => ({
+            rowId: row.id,
+            provenance: createExactEmptyTableRowSecretProvenance(row.data),
+          })),
+          rowState: 'new',
+          mode: 'replace',
+          mutate: async () => {
+            const inserted = await trx
+              .insert(userTableRows)
+              .values(rowsToInsert)
+              .returning({ id: userTableRows.id })
+            return { value: undefined, affectedRowIds: inserted.map((row) => row.id) }
+          },
+        })
       }
     })
   } catch (error: unknown) {

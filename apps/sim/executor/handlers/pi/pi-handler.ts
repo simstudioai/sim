@@ -7,6 +7,7 @@
  */
 
 import { createLogger } from '@sim/logger'
+import { projectResolvedModelInput } from '@/lib/execution/model-input-provenance'
 import type { BlockOutput } from '@/blocks/types'
 import { parseOptionalNumberInput } from '@/blocks/utils'
 import {
@@ -14,6 +15,8 @@ import {
   ToolNotAllowedError,
 } from '@/ee/access-control/utils/permission-check'
 import { BlockType } from '@/executor/constants'
+import { runCloudBranchPi, runCloudPi } from '@/executor/handlers/pi/cloud/authoring/backend'
+import { runCloudReviewPi } from '@/executor/handlers/pi/cloud/review/backend'
 import type {
   PiBackendRun,
   PiCloudBranchRunParams,
@@ -24,26 +27,24 @@ import type {
   PiRunParams,
   PiRunResult,
   PiSearchConfig,
-} from '@/executor/handlers/pi/backend'
-import { runCloudBranchPi, runCloudPi } from '@/executor/handlers/pi/cloud-backend'
-import { runCloudReviewPi } from '@/executor/handlers/pi/cloud-review-backend'
+} from '@/executor/handlers/pi/core/backend'
 import {
   appendPiMemory,
   loadPiMemory,
   type PiMemoryConfig,
   resolvePiSkills,
-} from '@/executor/handlers/pi/context'
-import { streamTextForEvent } from '@/executor/handlers/pi/events'
+} from '@/executor/handlers/pi/core/context'
+import { streamTextForEvent } from '@/executor/handlers/pi/core/events'
 import {
   computePiCost,
   PI_SEARCH_PROVIDERS,
   parsePiSearchProvider,
   resolvePiModelKey,
   resolvePiSearchKey,
-} from '@/executor/handlers/pi/keys'
-import { runLocalPi } from '@/executor/handlers/pi/local-backend'
+} from '@/executor/handlers/pi/core/keys'
+import { runLocalPi } from '@/executor/handlers/pi/local/backend'
+import { buildSimToolSpecs } from '@/executor/handlers/pi/local/sim-tools'
 import { buildPiSearchToolSpec } from '@/executor/handlers/pi/search/tool'
-import { buildSimToolSpecs } from '@/executor/handlers/pi/sim-tools'
 import type {
   BlockHandler,
   ExecutionContext,
@@ -160,8 +161,17 @@ export class PiBlockHandler implements BlockHandler {
     inputs: Record<string, any>
   ): Promise<BlockOutput | StreamingExecution> {
     const mode = parsePiMode(inputs.mode)
-    const task = asOptString(inputs.task)
-    if (!task) throw new Error('Task is required')
+    const resolvedTask = asOptString(inputs.task)
+    if (!resolvedTask) throw new Error('Task is required')
+    const taskProjection = projectResolvedModelInput(
+      ctx.resolvedSecretTraceRegistry,
+      { task: resolvedTask },
+      [['task']]
+    )
+    if (!taskProjection.complete || typeof taskProjection.value.task !== 'string') {
+      throw new Error('Pi input could not be safely projected')
+    }
+    const task = taskProjection.value.task
     const model = asOptString(inputs.model) ?? DEFAULT_MODEL
 
     const providerId = getProviderFromModel(model)
@@ -391,15 +401,33 @@ export class PiBlockHandler implements BlockHandler {
       throw error
     }
 
+    const rawSearchApiKey = inputs.searchApiKey
     const apiKey = resolvePiSearchKey({
       provider,
-      apiKey: asOptString(inputs.searchApiKey),
+      apiKey: asOptString(rawSearchApiKey),
     })
-
     const credentials = { provider, apiKey }
-    return mode === 'cloud' || mode === 'cloud_branch'
-      ? credentials
-      : { ...credentials, tool: buildPiSearchToolSpec(ctx, credentials, mode) }
+    if (mode === 'cloud' || mode === 'cloud_branch') return credentials
+
+    const searchInputProjection = projectResolvedModelInput(
+      ctx.resolvedSecretTraceRegistry,
+      { searchApiKey: rawSearchApiKey },
+      [['searchApiKey']]
+    )
+    if (!searchInputProjection.complete) {
+      throw new Error('Pi search input could not be safely projected')
+    }
+    const projectedApiKey = Object.is(searchInputProjection.value.searchApiKey, rawSearchApiKey)
+      ? apiKey
+      : resolvePiSearchKey({
+          provider,
+          apiKey: asOptString(searchInputProjection.value.searchApiKey),
+        })
+
+    return {
+      ...credentials,
+      tool: buildPiSearchToolSpec(ctx, credentials, mode, projectedApiKey),
+    }
   }
 
   private isContentSelectedForStreaming(ctx: ExecutionContext, block: SerializedBlock): boolean {

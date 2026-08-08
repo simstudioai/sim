@@ -417,11 +417,15 @@ export function createBedrockStreamingToolLoopStream(
                   toolArgs,
                   request
                 )
-                const result = await executeProviderTool(toolName, executionParams, {
-                  signal: loopAbortController.signal,
-                })
+                const { rawResponse, modelResponse } = await executeProviderTool(
+                  toolName,
+                  executionParams,
+                  {
+                    signal: loopAbortController.signal,
+                  }
+                )
                 const toolCallEndTime = Date.now()
-                const status: ToolCallEndStatus = result.success ? 'success' : 'error'
+                const status: ToolCallEndStatus = rawResponse.success ? 'success' : 'error'
                 openToolStarts.delete(toolUseId)
                 controller.enqueue({
                   type: 'tool_call_end',
@@ -435,7 +439,8 @@ export function createBedrockStreamingToolLoopStream(
                   toolName,
                   toolArgs,
                   toolParams,
-                  result,
+                  result: rawResponse,
+                  modelResult: modelResponse,
                   startTime: toolCallStartTime,
                   endTime: toolCallEndTime,
                   duration: toolCallEndTime - toolCallStartTime,
@@ -515,6 +520,7 @@ export function createBedrockStreamingToolLoopStream(
           const toolResultContent: ContentBlock[] = []
           for (const value of orderedResults) {
             const { toolUseId, toolName, toolParams, result, startTime, endTime, duration } = value
+            const modelResult = 'modelResult' in value ? value.modelResult : result
 
             timeSegments.push({
               type: 'tool',
@@ -538,6 +544,13 @@ export function createBedrockStreamingToolLoopStream(
                 tool: toolName,
               }
             }
+            const modelResultContent = modelResult.success
+              ? (modelResult.output ?? null)
+              : {
+                  error: true,
+                  message: modelResult.error || 'Tool execution failed',
+                  tool: toolName,
+                }
 
             toolCalls.push({
               name: toolName,
@@ -551,9 +564,9 @@ export function createBedrockStreamingToolLoopStream(
 
             const toolResultBlock: ToolResultBlock = {
               toolUseId,
-              content: [{ text: JSON.stringify(resultContent) }],
+              content: [{ text: JSON.stringify(modelResultContent) }],
               ...(supportsToolResultStatus(modelId)
-                ? { status: result.success ? 'success' : 'error' }
+                ? { status: modelResult.success ? 'success' : 'error' }
                 : {}),
             }
             toolResultContent.push({ toolResult: toolResultBlock })

@@ -36,7 +36,7 @@ Integrate Findymail to find verified work emails by name, domain, or LinkedIn UR
 
 ## Actions
 
-### `findymail_verify_email`
+### Findymail Verify Email
 
 Verifies the deliverability of an email address. Uses one verifier credit.
 
@@ -55,7 +55,7 @@ Verifies the deliverability of an email address. Uses one verifier credit.
 | `verified` | boolean | Whether the email is verified as deliverable |
 | `provider` | string | Email service provider \(e.g., Google, Microsoft\) |
 
-### `findymail_find_email_from_name`
+### Findymail Find Email From Name
 
 Find someone's email from their name and a company domain or company name. Uses one finder credit when a verified email is found.
 
@@ -76,7 +76,7 @@ Find someone's email from their name and a company domain or company name. Uses 
 |   ↳ `email` | string | Contact email address |
 |   ↳ `domain` | string | Email domain |
 
-### `findymail_find_emails_by_domain`
+### Findymail Find Emails By Domain
 
 Find verified contacts at a given domain matching one or more target roles (max 3 roles). Limited to 5 concurrent synchronous requests.
 
@@ -97,7 +97,7 @@ Find verified contacts at a given domain matching one or more target roles (max 
 |   ↳ `email` | string | Contact email address |
 |   ↳ `domain` | string | Email domain |
 
-### `findymail_find_email_from_linkedin`
+### Findymail Find Email From LinkedIn
 
 Find someone's email from a LinkedIn profile URL or username. Uses one finder credit when a verified email is found.
 
@@ -117,7 +117,7 @@ Find someone's email from a LinkedIn profile URL or username. Uses one finder cr
 |   ↳ `email` | string | Contact email address |
 |   ↳ `domain` | string | Email domain |
 
-### `findymail_reverse_email_lookup`
+### Findymail Reverse Email Lookup
 
 Find a business profile from an email address. Uses 1 finder credit if a profile is found, 2 credits if returning full profile data.
 
@@ -153,7 +153,7 @@ Find a business profile from an email address. Uses 1 finder credit if a profile
 | `educations` | array | Education history \(school, degree, fieldOfStudy, startDate, endDate\) |
 | `certificates` | array | Certifications \(name, issuingOrganization, issueDate, expirationDate\) |
 
-### `findymail_get_company`
+### Findymail Get Company
 
 Retrieve company information from a LinkedIn URL, domain, or company name. Uses 1 finder credit per successful response.
 
@@ -177,7 +177,7 @@ Retrieve company information from a LinkedIn URL, domain, or company name. Uses 
 | `linkedin_url` | string | Company LinkedIn URL |
 | `description` | string | Company description |
 
-### `findymail_find_employees`
+### Findymail Find Employees
 
 Find employees at a company by website and target job titles. Uses 1 credit per found contact. Does not return email addresses.
 
@@ -201,7 +201,7 @@ Find employees at a company by website and target job titles. Uses 1 credit per 
 |   ↳ `companyName` | string | Company name |
 |   ↳ `jobTitle` | string | Job title |
 
-### `findymail_find_phone`
+### Findymail Find Phone
 
 Find someone's phone number from a LinkedIn profile URL. Uses 10 finder credits if a phone is found. EU citizens are excluded for legal reasons.
 
@@ -219,7 +219,7 @@ Find someone's phone number from a LinkedIn profile URL. Uses 10 finder credits 
 | `phone` | string | Phone number in E.164 format. Only available for US numbers. |
 | `line_type` | string | Phone line type \(e.g., "Mobile", "Landline"\) |
 
-### `findymail_search_technologies`
+### Findymail Search Technologies
 
 Search the technology catalog by name. Returns up to 25 technologies. Free endpoint, rate limited to 10 requests per minute.
 
@@ -240,7 +240,7 @@ Search the technology catalog by name. Returns up to 25 technologies. Free endpo
 |   ↳ `subcategory` | string | Technology subcategory |
 |   ↳ `last_detected_at` | string | Last detection timestamp \(ISO 8601\) |
 
-### `findymail_lookup_technologies`
+### Findymail Lookup Technologies
 
 Get the technology stack for a company by domain. Optionally filter by technology names. 1 finder credit if technologies are found, free otherwise.
 
@@ -263,7 +263,7 @@ Get the technology stack for a company by domain. Optionally filter by technolog
 |   ↳ `last_detected_at` | string | Last detection timestamp \(ISO 8601\) |
 | `domain` | string | The resolved company domain |
 
-### `findymail_get_credits`
+### Findymail Get Credits
 
 Retrieve the remaining finder and verifier credits for the authenticated account.
 

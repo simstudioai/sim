@@ -107,6 +107,7 @@ describe('getOrCreateTableSnapshot', () => {
       expect.objectContaining({
         key: expect.stringMatching(/^table-snapshots\/ws_1\/tbl_1\/v3-[0-9a-f]{12}\.csv$/),
         context: 'execution',
+        completionPolicy: 'reuse-existing',
       })
     )
     // Select cells materialize as the option name, not the stored id.

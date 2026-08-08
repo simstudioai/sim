@@ -5,8 +5,17 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   applyTriggerConfigToBlockSubblocks,
   createBlockFromParams,
+  filterDisallowedTools,
   normalizeSubblockValue,
 } from '@/lib/copilot/tools/server/workflow/edit-workflow/builders'
+
+const { mockIsIntegrationDeploymentAvailable } = vi.hoisted(() => ({
+  mockIsIntegrationDeploymentAvailable: vi.fn(() => true),
+}))
+
+vi.mock('@/lib/integrations/availability.server', () => ({
+  isIntegrationDeploymentAvailableForVisibility: mockIsIntegrationDeploymentAvailable,
+}))
 
 const agentBlockConfig = {
   type: 'agent',
@@ -130,6 +139,23 @@ describe('createBlockFromParams', () => {
     const filters = JSON.parse(block.subBlocks.tagFilters.value)
     expect(filters[0].tagName).toBe('Department')
     expect(filters[0].id).toEqual(expect.any(String))
+  })
+})
+
+describe('filterDisallowedTools', () => {
+  it('removes unavailable integration tools even without a permission group', () => {
+    mockIsIntegrationDeploymentAvailable.mockImplementation((type: string) => type !== 'slack')
+    const skippedItems: Parameters<typeof filterDisallowedTools>[3] = []
+
+    const tools = filterDisallowedTools(
+      [{ type: 'slack' }, { type: 'custom-tool', customToolId: 'custom-1' }],
+      null,
+      'agent-1',
+      skippedItems
+    )
+
+    expect(tools).toEqual([{ type: 'custom-tool', customToolId: 'custom-1' }])
+    expect(skippedItems[0]?.reason).toContain('unavailable in this deployment')
   })
 })
 

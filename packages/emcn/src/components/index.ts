@@ -28,7 +28,9 @@ export {
   chipFilledFillTokens,
   chipFilledSurfaceTokens,
   chipGeometryClass,
+  chipIconSlotClass,
   chipPrimaryFillTokens,
+  disclosureChevronClass,
 } from './chip/chip-chrome'
 export { ChipCombobox } from './chip-combobox/chip-combobox'
 export {
@@ -151,6 +153,7 @@ export {
   ModalTrigger,
   NATIVE_SURFACE_OCCLUSION_PREPARE_EVENT,
   type NativeSurfaceOcclusionPrepareDetail,
+  useModalDismissDisabled,
   useNativeSurfaceOcclusionReady,
 } from './modal/modal'
 export {

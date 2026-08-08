@@ -1,11 +1,15 @@
-import type { ExecutionContext } from '@/lib/copilot/request/types'
 import {
   type EnvironmentResolutionSnapshot,
   getEffectiveEnvironmentSnapshot,
 } from '@/lib/environment/utils'
-import { createResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  createResolvedSecretTraceRegistry,
+  type ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 
-export type CopilotEnvironmentContext = Pick<ExecutionContext, 'resolvedSecretTraceRegistry'>
+export interface CopilotEnvironmentContext {
+  resolvedSecretTraceRegistry: ResolvedSecretTraceRegistry
+}
 
 export async function createCopilotEnvironmentContext(
   userId: string,

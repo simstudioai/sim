@@ -18,7 +18,7 @@ Integrate ClickUp into the workflow. Create, read, update, and delete tasks, man
 
 ## Actions
 
-### `clickup_create_task`
+### ClickUp Create Task
 
 Create a new task in a ClickUp list
 
@@ -49,7 +49,7 @@ Create a new task in a ClickUp list
 | --------- | ---- | ----------- |
 | `task` | json | The created task |
 
-### `clickup_get_task`
+### ClickUp Get Task
 
 Retrieve a task from ClickUp by ID
 
@@ -67,7 +67,7 @@ Retrieve a task from ClickUp by ID
 | --------- | ---- | ----------- |
 | `task` | json | The requested task |
 
-### `clickup_update_task`
+### ClickUp Update Task
 
 Update an existing task in ClickUp
 
@@ -98,7 +98,7 @@ Update an existing task in ClickUp
 | --------- | ---- | ----------- |
 | `task` | json | The updated task |
 
-### `clickup_delete_task`
+### ClickUp Delete Task
 
 Delete a task from ClickUp
 
@@ -115,7 +115,7 @@ Delete a task from ClickUp
 | `id` | string | ID of the deleted task |
 | `deleted` | boolean | Whether the task was deleted |
 
-### `clickup_get_tasks`
+### ClickUp Get Tasks
 
 List the tasks in a ClickUp list (100 tasks per page; increment page until an empty result to paginate)
 
@@ -143,7 +143,7 @@ List the tasks in a ClickUp list (100 tasks per page; increment page until an em
 | --------- | ---- | ----------- |
 | `tasks` | array | Tasks in the list |
 
-### `clickup_search_tasks`
+### ClickUp Search Tasks
 
 Search tasks across a ClickUp workspace with filters for lists, folders, spaces, statuses, assignees, tags, and due dates (100 tasks per page; increment page until an empty result to paginate)
 
@@ -173,7 +173,7 @@ Search tasks across a ClickUp workspace with filters for lists, folders, spaces,
 | --------- | ---- | ----------- |
 | `tasks` | array | Tasks matching the filters |
 
-### `clickup_create_comment`
+### ClickUp Create Comment
 
 Add a comment to a ClickUp task
 
@@ -194,7 +194,7 @@ Add a comment to a ClickUp task
 | `histId` | string | History ID of the created comment |
 | `date` | number | Creation timestamp of the comment \(Unix ms\) |
 
-### `clickup_get_comments`
+### ClickUp Get Comments
 
 Retrieve comments on a ClickUp task, newest first (25 per page; paginate with start and startId)
 
@@ -212,7 +212,7 @@ Retrieve comments on a ClickUp task, newest first (25 per page; paginate with st
 | --------- | ---- | ----------- |
 | `comments` | array | Comments on the task, newest first |
 
-### `clickup_update_comment`
+### ClickUp Update Comment
 
 Update the content, assignee, or resolved state of a ClickUp task comment
 
@@ -232,7 +232,7 @@ Update the content, assignee, or resolved state of a ClickUp task comment
 | `id` | string | ID of the updated comment |
 | `updated` | boolean | Whether the comment was updated |
 
-### `clickup_delete_comment`
+### ClickUp Delete Comment
 
 Delete a comment from a ClickUp task
 
@@ -249,7 +249,7 @@ Delete a comment from a ClickUp task
 | `id` | string | ID of the deleted comment |
 | `deleted` | boolean | Whether the comment was deleted |
 
-### `clickup_upload_attachment`
+### ClickUp Upload Attachment
 
 Upload a file to a ClickUp task as an attachment
 
@@ -275,7 +275,7 @@ Upload a file to a ClickUp task as an attachment
 |   ↳ `thumbnailLarge` | string | Large thumbnail URL |
 | `files` | file[] | The uploaded attachment file |
 
-### `clickup_add_tag_to_task`
+### ClickUp Add Tag To Task
 
 Add an existing space tag to a ClickUp task
 
@@ -293,7 +293,7 @@ Add an existing space tag to a ClickUp task
 | `taskId` | string | ID of the tagged task |
 | `tagName` | string | Name of the tag that was added |
 
-### `clickup_remove_tag_from_task`
+### ClickUp Remove Tag From Task
 
 Remove a tag from a ClickUp task
 
@@ -311,7 +311,7 @@ Remove a tag from a ClickUp task
 | `taskId` | string | ID of the task |
 | `tagName` | string | Name of the tag that was removed |
 
-### `clickup_get_space_tags`
+### ClickUp Get Space Tags
 
 List the task tags available in a ClickUp space
 
@@ -327,7 +327,7 @@ List the task tags available in a ClickUp space
 | --------- | ---- | ----------- |
 | `tags` | array | Tags available in the space |
 
-### `clickup_get_task_members`
+### ClickUp Get Task Members
 
 List the workspace members who have explicit access to a ClickUp task
 
@@ -343,7 +343,7 @@ List the workspace members who have explicit access to a ClickUp task
 | --------- | ---- | ----------- |
 | `members` | array | Members with explicit access to the task |
 
-### `clickup_get_list_members`
+### ClickUp Get List Members
 
 List the workspace members who have explicit access to a ClickUp list
 
@@ -359,7 +359,7 @@ List the workspace members who have explicit access to a ClickUp list
 | --------- | ---- | ----------- |
 | `members` | array | Members with explicit access to the list |
 
-### `clickup_get_custom_fields`
+### ClickUp Get Custom Fields
 
 List the custom fields accessible in a ClickUp list
 
@@ -381,7 +381,7 @@ List the custom fields accessible in a ClickUp list
 |   ↳ `dateCreated` | string | Creation timestamp \(Unix ms\) |
 |   ↳ `hideFromGuests` | boolean | Whether the field is hidden from guests |
 
-### `clickup_get_workspaces`
+### ClickUp Get Workspaces
 
 List the ClickUp workspaces (teams) available to the connected account
 
@@ -400,7 +400,7 @@ List the ClickUp workspaces (teams) available to the connected account
 |   ↳ `color` | string | Workspace color |
 |   ↳ `avatar` | string | Workspace avatar URL |
 
-### `clickup_get_spaces`
+### ClickUp Get Spaces
 
 List the spaces in a ClickUp workspace
 
@@ -425,7 +425,7 @@ List the spaces in a ClickUp workspace
 |     ↳ `color` | string | Status color |
 |     ↳ `type` | string | Status type |
 
-### `clickup_get_folders`
+### ClickUp Get Folders
 
 List the folders in a ClickUp space
 
@@ -442,7 +442,7 @@ List the folders in a ClickUp space
 | --------- | ---- | ----------- |
 | `folders` | array | Folders in the space |
 
-### `clickup_get_lists`
+### ClickUp Get Lists
 
 List the lists in a ClickUp folder, or the folderless lists in a space when a space ID is provided instead
 
@@ -460,7 +460,7 @@ List the lists in a ClickUp folder, or the folderless lists in a space when a sp
 | --------- | ---- | ----------- |
 | `lists` | array | Lists in the folder or space |
 
-### `clickup_create_folder`
+### ClickUp Create Folder
 
 Create a new folder in a ClickUp space
 
@@ -477,7 +477,7 @@ Create a new folder in a ClickUp space
 | --------- | ---- | ----------- |
 | `folder` | json | The created folder |
 
-### `clickup_create_list`
+### ClickUp Create List
 
 Create a new list in a ClickUp folder, or a folderless list in a space when a space ID is provided instead
 
@@ -497,7 +497,7 @@ Create a new list in a ClickUp folder, or a folderless list in a space when a sp
 | --------- | ---- | ----------- |
 | `list` | json | The created list |
 
-### `clickup_set_custom_field_value`
+### ClickUp Set Custom Field Value
 
 Set the value of a custom field on a ClickUp task (the value shape depends on the field type)
 
@@ -516,7 +516,7 @@ Set the value of a custom field on a ClickUp task (the value shape depends on th
 | `taskId` | string | ID of the updated task |
 | `fieldId` | string | ID of the custom field that was set |
 
-### `clickup_remove_custom_field_value`
+### ClickUp Remove Custom Field Value
 
 Remove the value of a custom field from a ClickUp task (does not delete the field itself)
 
@@ -534,7 +534,7 @@ Remove the value of a custom field from a ClickUp task (does not delete the fiel
 | `taskId` | string | ID of the updated task |
 | `fieldId` | string | ID of the custom field that was cleared |
 
-### `clickup_create_checklist`
+### ClickUp Create Checklist
 
 Add a new checklist to a ClickUp task
 
@@ -551,7 +551,7 @@ Add a new checklist to a ClickUp task
 | --------- | ---- | ----------- |
 | `checklist` | json | The created checklist |
 
-### `clickup_update_checklist`
+### ClickUp Update Checklist
 
 Rename or reorder a checklist on a ClickUp task
 
@@ -570,7 +570,7 @@ Rename or reorder a checklist on a ClickUp task
 | `id` | string | ID of the updated checklist |
 | `updated` | boolean | Whether the checklist was updated |
 
-### `clickup_delete_checklist`
+### ClickUp Delete Checklist
 
 Delete a checklist from a ClickUp task
 
@@ -587,7 +587,7 @@ Delete a checklist from a ClickUp task
 | `id` | string | ID of the deleted checklist |
 | `deleted` | boolean | Whether the checklist was deleted |
 
-### `clickup_create_checklist_item`
+### ClickUp Create Checklist Item
 
 Add an item to a checklist on a ClickUp task
 
@@ -605,7 +605,7 @@ Add an item to a checklist on a ClickUp task
 | --------- | ---- | ----------- |
 | `checklist` | json | The updated checklist including its items |
 
-### `clickup_update_checklist_item`
+### ClickUp Update Checklist Item
 
 Update a checklist item on a ClickUp task — rename, assign, resolve, or nest it
 
@@ -626,7 +626,7 @@ Update a checklist item on a ClickUp task — rename, assign, resolve, or nest i
 | --------- | ---- | ----------- |
 | `checklist` | json | The updated checklist including its items |
 
-### `clickup_delete_checklist_item`
+### ClickUp Delete Checklist Item
 
 Delete an item from a checklist on a ClickUp task
 
@@ -644,7 +644,7 @@ Delete an item from a checklist on a ClickUp task
 | `id` | string | ID of the deleted checklist item |
 | `deleted` | boolean | Whether the item was deleted |
 
-### `clickup_get_time_entries`
+### ClickUp Get Time Entries
 
 List time entries in a ClickUp workspace within a date range (defaults to the last 30 days for the authenticated user)
 
@@ -669,7 +669,7 @@ List time entries in a ClickUp workspace within a date range (defaults to the la
 | --------- | ---- | ----------- |
 | `timeEntries` | array | Time entries in the date range |
 
-### `clickup_create_time_entry`
+### ClickUp Create Time Entry
 
 Create a manual time entry in a ClickUp workspace, optionally linked to a task
 
@@ -691,7 +691,7 @@ Create a manual time entry in a ClickUp workspace, optionally linked to a task
 | --------- | ---- | ----------- |
 | `timeEntry` | json | The created time entry |
 
-### `clickup_update_time_entry`
+### ClickUp Update Time Entry
 
 Update a time entry in a ClickUp workspace — description, start/end times, task, or billable state
 
@@ -715,7 +715,7 @@ Update a time entry in a ClickUp workspace — description, start/end times, tas
 | `id` | string | ID of the updated time entry |
 | `updated` | boolean | Whether the entry was updated |
 
-### `clickup_delete_time_entry`
+### ClickUp Delete Time Entry
 
 Delete a time entry from a ClickUp workspace
 
@@ -732,7 +732,7 @@ Delete a time entry from a ClickUp workspace
 | --------- | ---- | ----------- |
 | `timeEntry` | json | The deleted time entry |
 
-### `clickup_start_timer`
+### ClickUp Start Timer
 
 Start a timer for the authenticated user in a ClickUp workspace
 
@@ -752,7 +752,7 @@ Start a timer for the authenticated user in a ClickUp workspace
 | --------- | ---- | ----------- |
 | `timeEntry` | json | The started time entry \(duration is negative while running\) |
 
-### `clickup_stop_timer`
+### ClickUp Stop Timer
 
 Stop the authenticated user's currently running timer in a ClickUp workspace
 
@@ -768,7 +768,7 @@ Stop the authenticated user's currently running timer in a ClickUp workspace
 | --------- | ---- | ----------- |
 | `timeEntry` | json | The stopped time entry |
 
-### `clickup_get_running_timer`
+### ClickUp Get Running Timer
 
 Get the currently running time entry in a ClickUp workspace (null when no timer is running)
 

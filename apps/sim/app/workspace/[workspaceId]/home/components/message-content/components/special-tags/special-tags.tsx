@@ -3,12 +3,11 @@
 import { createElement, lazy, Suspense, useMemo, useState } from 'react'
 import {
   ArrowRight,
-  Button,
+  Check,
   ChevronDown,
   cn,
   Expandable,
   ExpandableContent,
-  SecretInput,
   SecretReveal,
   SquareArrowUpRight,
   Tooltip,
@@ -21,7 +20,6 @@ import { useSession } from '@/lib/auth/auth-client'
 import { buildHostedUpgradeUrl, HOSTED_BILLING_SETTINGS_URL } from '@/lib/billing/upgrade-reasons'
 import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
 import { isBrowserAgentAvailable, sendBrowserPanelAction } from '@/lib/browser-agent/transport'
-import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { isSafeHttpUrl } from '@/lib/core/utils/urls'
 import { getDesktopBridge } from '@/lib/desktop'
@@ -35,10 +33,19 @@ import { getServiceConfigByProviderId } from '@/lib/oauth/utils'
 import { finishTerminalHandoff, isTerminalAvailable } from '@/lib/terminal/transport'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
+import {
+  INTERACTION_CARD_ROW_CLASSES,
+  InteractionCard,
+  InteractionCardActionRow,
+  InteractionCardInputRow,
+  InteractionCardRecap,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/interaction-card'
 import { QuestionDisplay } from '@/app/workspace/[workspaceId]/home/components/message-content/components/question'
+import { useOAuthChipConnection } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/use-oauth-chip-connection'
 import type {
   ChatMessageContext,
   MothershipResource,
+  WorkspaceResourceRef,
 } from '@/app/workspace/[workspaceId]/home/types'
 // Deep import, not the barrel: the barrel also re-exports
 // ConnectServiceAccountModal, and that edge would pull the modal into this
@@ -54,6 +61,7 @@ import {
 } from '@/hooks/queries/environment'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useTablesList } from '@/hooks/queries/tables'
+import { findWorkspaceFileByPath } from '@/hooks/queries/utils/find-workspace-file-by-src'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
@@ -109,7 +117,7 @@ export const SECRET_INPUT_SCOPES = ['personal', 'workspace'] as const
 
 export type SecretInputScope = (typeof SECRET_INPUT_SCOPES)[number]
 
-export interface CredentialTagData {
+export interface CredentialItemData {
   value?: string
   type: CredentialTagType
   provider?: string
@@ -126,6 +134,120 @@ export interface CredentialTagData {
    * rotate the secret on this credential; absent = create a new one.
    */
   credentialId?: string
+}
+
+/**
+ * Normalized `<credential>` payload. A singleton object remains valid for old
+ * messages, while an array lets one terminal tag render several controls as
+ * rows in a single card.
+ */
+export type CredentialTagData = CredentialItemData[]
+
+export interface CredentialSubmissionProgress {
+  connectedIntegrationIndexes: ReadonlySet<number>
+  savedSecretIndexes: ReadonlySet<number>
+}
+
+export interface CredentialSubmissionPayload {
+  integrations: Array<{ name: string; status: 'connected' | 'skipped' }>
+  secrets: Array<{ name: string; status: 'saved' | 'skipped' }>
+}
+
+/**
+ * Safe user-turn payload emitted by the credential question card. It carries
+ * only the requested provider and environment-variable names; secret values
+ * remain in Sim's credential stores and never enter the transcript.
+ */
+export function formatCredentialSubmissionMessage(
+  data: CredentialTagData,
+  progress?: CredentialSubmissionProgress
+): string {
+  const integrations = data
+    .filter((item) => item.type === 'link' || item.type === 'service_account')
+    .map((item) => item.provider?.trim())
+    .filter((provider): provider is string => Boolean(provider))
+  const secrets = data
+    .filter((item) => item.type === 'secret_input')
+    .map((item) => item.name?.trim())
+    .filter((name): name is string => Boolean(name))
+  const payload: CredentialSubmissionPayload = {
+    integrations: integrations.map((name, index) => ({
+      name,
+      status:
+        !progress || progress.connectedIntegrationIndexes.has(index) ? 'connected' : 'skipped',
+    })),
+    secrets: secrets.map((name, index) => ({
+      name,
+      status: !progress || progress.savedSecretIndexes.has(index) ? 'saved' : 'skipped',
+    })),
+  }
+  return `Credential setup submitted — ${JSON.stringify(payload)}`
+}
+
+export function parseCredentialSubmissionProgress(
+  data: CredentialTagData,
+  content: string
+): CredentialSubmissionPayload | null {
+  const legacyIntegrations = data
+    .filter((item) => item.type === 'link' || item.type === 'service_account')
+    .map((item) => item.provider?.trim())
+    .filter((provider): provider is string => Boolean(provider))
+  const legacySecrets = data
+    .filter((item) => item.type === 'secret_input')
+    .map((item) => item.name?.trim())
+    .filter((name): name is string => Boolean(name))
+  const legacyParts = [
+    legacyIntegrations.length > 0 ? `integrations: ${legacyIntegrations.join(', ')}` : null,
+    legacySecrets.length > 0 ? `secrets: ${legacySecrets.join(', ')}` : null,
+  ].filter((part): part is string => part !== null)
+  const legacyMessage = `Credential setup complete${legacyParts.length > 0 ? ` — ${legacyParts.join('; ')}` : ''}`
+  if (content === legacyMessage) {
+    return {
+      integrations: legacyIntegrations.map((name) => ({ name, status: 'connected' })),
+      secrets: legacySecrets.map((name) => ({ name, status: 'saved' })),
+    }
+  }
+
+  const prefix = 'Credential setup submitted — '
+  if (!content.startsWith(prefix)) return null
+
+  try {
+    const payload = JSON.parse(content.slice(prefix.length)) as CredentialSubmissionPayload
+    const expectedIntegrations = data
+      .filter((item) => item.type === 'link' || item.type === 'service_account')
+      .map((item) => item.provider?.trim())
+      .filter((provider): provider is string => Boolean(provider))
+    const expectedSecrets = data
+      .filter((item) => item.type === 'secret_input')
+      .map((item) => item.name?.trim())
+      .filter((name): name is string => Boolean(name))
+
+    const valid =
+      Array.isArray(payload.integrations) &&
+      payload.integrations.length === expectedIntegrations.length &&
+      payload.integrations.every(
+        (item, index) =>
+          item.name === expectedIntegrations[index] &&
+          (item.status === 'connected' || item.status === 'skipped')
+      ) &&
+      Array.isArray(payload.secrets) &&
+      payload.secrets.length === expectedSecrets.length &&
+      payload.secrets.every(
+        (item, index) =>
+          item.name === expectedSecrets[index] &&
+          (item.status === 'saved' || item.status === 'skipped')
+      )
+    return valid ? payload : null
+  } catch {
+    return null
+  }
+}
+
+export function parseCredentialSubmissionMessage(
+  data: CredentialTagData,
+  content: string
+): boolean {
+  return parseCredentialSubmissionProgress(data, content) !== null
 }
 
 export interface MothershipErrorTagData {
@@ -248,7 +370,7 @@ function isUsageUpgradeTagData(value: unknown): value is UsageUpgradeTagData {
   )
 }
 
-function isCredentialTagData(value: unknown): value is CredentialTagData {
+function isCredentialItemData(value: unknown): value is CredentialItemData {
   if (!isRecord(value)) return false
   if (
     typeof value.type !== 'string' ||
@@ -298,6 +420,28 @@ function isCredentialTagData(value: unknown): value is CredentialTagData {
   // type (e.g. link) needs a string value to render.
   if (value.type === 'sim_key') return true
   return typeof value.value === 'string'
+}
+
+/**
+ * Parses a `<credential>` body and normalizes a singleton object to one row.
+ * Empty arrays and arrays containing one invalid control reject the whole card.
+ */
+export function parseCredentialTagBody(body: string): CredentialTagData | null {
+  try {
+    const parsed = JSON.parse(body) as unknown
+    const items = Array.isArray(parsed) ? parsed : [parsed]
+    return items.length > 0 && items.every(isCredentialItemData) ? items : null
+  } catch {
+    return null
+  }
+}
+
+/** Last complete credential batch, used to pair its Submit turn on reload. */
+export function parseLastCredentialTag(content: string): CredentialTagData | null {
+  const matches = content.match(/<credential>([\s\S]*?)<\/credential>/g)
+  if (!matches || matches.length === 0) return null
+  const last = matches[matches.length - 1]
+  return parseCredentialTagBody(last.slice('<credential>'.length, -'</credential>'.length))
 }
 
 function isMothershipErrorTagData(value: unknown): value is MothershipErrorTagData {
@@ -513,7 +657,7 @@ function parseSpecialTagData(
   }
 
   if (tagName === 'credential') {
-    const data = parseJsonTagBody(body, isCredentialTagData)
+    const data = parseCredentialTagBody(body)
     return data ? { type: 'credential', data } : null
   }
 
@@ -1296,11 +1440,15 @@ export function parseSpecialTags(content: string, isStreaming: boolean): ParsedS
 
 interface SpecialTagsProps {
   segment: Exclude<ContentSegment, { type: 'text' }>
+  /** Stable identity for interaction state owned by this message/tag. */
+  interactionId?: string
   /** Transcript-derived answers for this message's question card (renders the recap). */
   questionAnswers?: string[]
+  /** Transcript-derived status payload for this message's credential card. */
+  credentialSubmission?: CredentialSubmissionPayload
   onOptionSelect?: (id: string) => void
   onQuestionDismiss?: () => void
-  onWorkspaceResourceSelect?: (resource: MothershipResource) => void
+  onWorkspaceResourceSelect?: (resource: WorkspaceResourceRef) => void
 }
 
 /**
@@ -1309,7 +1457,9 @@ interface SpecialTagsProps {
  */
 export function SpecialTags({
   segment,
+  interactionId,
   questionAnswers,
+  credentialSubmission,
   onOptionSelect,
   onQuestionDismiss,
   onWorkspaceResourceSelect,
@@ -1322,7 +1472,14 @@ export function SpecialTags({
     case 'usage_upgrade':
       return <UsageUpgradeDisplay data={segment.data} />
     case 'credential':
-      return <CredentialDisplay data={segment.data} />
+      return (
+        <CredentialDisplay
+          data={segment.data}
+          interactionId={interactionId}
+          submitted={credentialSubmission}
+          onContinue={onOptionSelect}
+        />
+      )
     case 'mothership-error':
       return <MothershipErrorDisplay data={segment.data} />
     case 'workspace_resource':
@@ -1383,7 +1540,7 @@ function OptionsDisplay({ data, onSelect }: OptionsDisplayProps) {
           <span className='text-[var(--text-body)] text-sm'>Suggested follow-ups</span>
           <ChevronDown
             className={cn(
-              'h-[7px] w-[9px] text-[var(--text-icon)] transition-transform duration-150',
+              'size-[14px] text-[var(--text-icon)] transition-transform duration-150',
               !expanded && '-rotate-90'
             )}
           />
@@ -1455,7 +1612,7 @@ export function WorkspaceResourceDisplay({
   onSelect,
 }: {
   data: WorkspaceResourceTagData
-  onSelect?: (resource: MothershipResource) => void
+  onSelect?: (resource: WorkspaceResourceRef) => void
 }) {
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const { data: workflows = [] } = useWorkflows(workspaceId)
@@ -1463,15 +1620,9 @@ export function WorkspaceResourceDisplay({
   const { data: files = [] } = useWorkspaceFiles(workspaceId)
   const { data: knowledgeBases = [] } = useKnowledgeBasesQuery(workspaceId)
 
-  const resource = useMemo<MothershipResource>(() => {
+  const resource = useMemo<WorkspaceResourceRef>(() => {
     const fileFromPath =
-      data.type === 'file' && data.path
-        ? files.find(
-            (file) =>
-              canonicalWorkspaceFilePath({ folderPath: file.folderPath, name: file.name }) ===
-              data.path
-          )
-        : undefined
+      data.type === 'file' ? findWorkspaceFileByPath(files, data.path) : undefined
     const title =
       data.type === 'workflow'
         ? (workflows.find((workflow) => workflow.id === data.id)?.name ??
@@ -1487,9 +1638,10 @@ export function WorkspaceResourceDisplay({
             : (knowledgeBases.find((knowledgeBase) => knowledgeBase.id === data.id)?.name ??
               fallbackWorkspaceResourceTitle(data.type))
 
+    const id = data.id ?? fileFromPath?.id
     return {
       type: toMothershipResourceType(data.type),
-      id: data.id ?? fileFromPath?.id ?? data.path ?? '',
+      ...(id ? { id } : {}),
       title,
       ...(data.type === 'file' && data.path ? { path: data.path } : {}),
     }
@@ -1542,6 +1694,14 @@ function getCredentialIcon(provider: string): React.ComponentType<{ className?: 
   return null
 }
 
+function getCredentialProviderDisplayName(provider: string): string {
+  return (
+    getServiceConfigByProviderId(provider)?.name ??
+    OAUTH_PROVIDERS[provider.toLowerCase()]?.name ??
+    provider
+  )
+}
+
 const LockIcon = (props: { className?: string }) => (
   <svg
     className={props.className}
@@ -1567,12 +1727,24 @@ const LockIcon = (props: { className?: string }) => (
  * workspace (default) or personal environment variables under `name` and never
  * flows back through the chat transcript.
  */
-function SecretInputDisplay({ data }: { data: CredentialTagData }) {
+interface CredentialControlProps {
+  data: CredentialItemData
+  controlId?: string
+  embedded?: boolean
+  divided?: boolean
+  secretValue?: string
+  onSecretValueChange?: (value: string) => void
+  onSaved?: () => void
+  onConnected?: () => void
+}
+
+function SecretInputDisplay({ data, divided = false, onSaved }: CredentialControlProps) {
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const secretName = (data.name ?? '').trim()
   const scope: SecretInputScope = data.scope === 'personal' ? 'personal' : 'workspace'
 
   const [value, setValue] = useState('')
+  const [isFocused, setIsFocused] = useState(false)
   const [saved, setSaved] = useState(false)
 
   const upsertWorkspace = useUpsertWorkspaceEnvironment()
@@ -1608,6 +1780,7 @@ function SecretInputDisplay({ data }: { data: CredentialTagData }) {
       }
       setValue('')
       setSaved(true)
+      onSaved?.()
       toast.success(`Saved ${secretName}`)
     } catch {
       toast.error(`Couldn't save ${secretName}. Please try again.`)
@@ -1621,33 +1794,86 @@ function SecretInputDisplay({ data }: { data: CredentialTagData }) {
   if (!canManage) return null
 
   return (
-    <SecretInput
-      value={value}
-      onChange={setValue}
+    <InteractionCardInputRow
+      divided={divided}
+      type='text'
+      value={isFocused ? value : '•'.repeat(value.length)}
       placeholder={`Paste ${secretName}`}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault()
+      autoComplete='off'
+      aria-label={secretName}
+      onFocus={() => setIsFocused(true)}
+      onBlur={() => setIsFocused(false)}
+      onChange={(event) => {
+        if (isFocused) setValue(event.target.value)
+      }}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') {
+          event.currentTarget.blur()
+          return
+        }
+        if (event.key === 'Enter' && canSave) {
+          event.preventDefault()
           void handleSave()
         }
       }}
-      endAdornment={
+      trailing={
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
-            <Button
+            <button
               type='button'
-              variant='quiet'
-              size='icon'
               onClick={() => void handleSave()}
               disabled={!canSave}
               aria-label='Save'
+              className='disabled:cursor-default'
             >
-              <ArrowRight className='size-[13px]' />
-            </Button>
+              <ArrowRight
+                className={cn(
+                  'size-[16px] shrink-0 transition-colors',
+                  canSave ? 'text-[var(--text-body)]' : 'text-[var(--text-icon)]'
+                )}
+              />
+            </button>
           </Tooltip.Trigger>
           <Tooltip.Content>{isSaving ? 'Saving…' : 'Save'}</Tooltip.Content>
         </Tooltip.Root>
       }
+    />
+  )
+}
+
+interface CredentialSecretInputRowProps {
+  name: string
+  value: string
+  divided?: boolean
+  onChange: (value: string) => void
+}
+
+/** Secret draft field for the unified card; the card's final Submit owns persistence. */
+function CredentialSecretInputRow({
+  name,
+  value,
+  divided = false,
+  onChange,
+}: CredentialSecretInputRowProps) {
+  const [isFocused, setIsFocused] = useState(false)
+
+  return (
+    <InteractionCardInputRow
+      divided={divided}
+      type='text'
+      value={isFocused ? value : '•'.repeat(value.length)}
+      placeholder={`Paste ${name}`}
+      autoComplete='off'
+      aria-label={name}
+      onFocus={() => setIsFocused(true)}
+      onBlur={() => setIsFocused(false)}
+      onChange={(event) => {
+        const maskedValue = '•'.repeat(value.length)
+        if (isFocused || event.target.value !== maskedValue) onChange(event.target.value)
+      }}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') event.currentTarget.blur()
+      }}
     />
   )
 }
@@ -1674,7 +1900,7 @@ const FolderGrantIcon = ({ className }: { className?: string }) => (
  * same flow as the Desktop settings folder picker). Renders nothing outside the
  * desktop app — there is no local filesystem bridge to grant against.
  */
-function FolderAccessDisplay({ data }: { data: CredentialTagData }) {
+function FolderAccessDisplay({ data }: { data: CredentialItemData }) {
   const [picking, setPicking] = useState(false)
   const [grantedName, setGrantedName] = useState<string | null>(null)
 
@@ -1733,7 +1959,7 @@ function FolderAccessDisplay({ data }: { data: CredentialTagData }) {
  * agent browser back to Sim. Renders nothing outside the desktop app — there
  * is no agent browser to hand back.
  */
-function BrowserTakeoverDisplay({ data }: { data: CredentialTagData }) {
+function BrowserTakeoverDisplay({ data }: { data: CredentialItemData }) {
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const { chatId } = useChatSurface()
   const [handedBack, setHandedBack] = useState(false)
@@ -1774,10 +2000,16 @@ function BrowserTakeoverDisplay({ data }: { data: CredentialTagData }) {
  * the integrations page — the user stays in the conversation that asked for
  * the credential, and comes back to it with the credential in hand.
  */
-function ServiceAccountConnectDisplay({ data }: { data: CredentialTagData }) {
+function ServiceAccountConnectDisplay({
+  data,
+  embedded = false,
+  divided = false,
+  onConnected,
+}: CredentialControlProps) {
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const { canEdit } = useUserPermissionsContext()
   const [open, setOpen] = useState(false)
+  const [locallyConnected, setLocallyConnected] = useState(false)
 
   const match = useMemo(
     () => (data.provider ? resolveServiceAccountIntegration(data.provider) : null),
@@ -1794,6 +2026,7 @@ function ServiceAccountConnectDisplay({ data }: { data: CredentialTagData }) {
   // account in place rather than creating a new one — the modal keeps its id.
   const reconnectCredentialId = data.credentialId
   const { data: reconnectCredential } = useWorkspaceCredential(reconnectCredentialId)
+  const connected = locallyConnected
 
   // Creating a credential mutates the workspace — hide it from read-only
   // members, and honour the provider's own preview gate (custom Slack bots
@@ -1804,17 +2037,31 @@ function ServiceAccountConnectDisplay({ data }: { data: CredentialTagData }) {
   const label = reconnectCredentialId
     ? `Reconnect ${reconnectCredential?.displayName ?? target.serviceName}`
     : `${target.label} for ${target.serviceName}`
+  const displayLabel = connected ? `Connected ${target.serviceName}` : label
 
   return (
     <>
       <button
         type='button'
-        onClick={() => setOpen(true)}
-        className='flex w-full items-center gap-2 rounded-2xl border border-[var(--border-1)] px-3 py-2.5 text-left transition-colors hover-hover:bg-[var(--surface-5)]'
+        onClick={() => {
+          if (!connected) setOpen(true)
+        }}
+        disabled={connected}
+        className={cn(
+          embedded
+            ? INTERACTION_CARD_ROW_CLASSES
+            : 'flex w-full items-center gap-2 rounded-2xl border border-[var(--border-1)] px-3 py-2.5 text-left transition-colors',
+          embedded && divided && 'border-t',
+          'hover-hover:bg-[var(--surface-5)]'
+        )}
       >
         {createElement(target.serviceIcon, { className: 'size-[16px] shrink-0' })}
-        <span className='flex-1 text-[var(--text-body)] text-sm'>{label}</span>
-        <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />
+        <span className='flex-1 text-[var(--text-body)] text-sm'>{displayLabel}</span>
+        {connected ? (
+          <Check className='size-[16px] shrink-0 text-[var(--text-icon)]' />
+        ) : (
+          <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />
+        )}
       </button>
       {open && (
         <Suspense fallback={null}>
@@ -1827,6 +2074,10 @@ function ServiceAccountConnectDisplay({ data }: { data: CredentialTagData }) {
             serviceIcon={target.serviceIcon}
             credentialId={reconnectCredentialId}
             credentialDisplayName={reconnectCredential?.displayName ?? undefined}
+            onCreated={() => {
+              setLocallyConnected(true)
+              onConnected?.()
+            }}
           />
         </Suspense>
       )}
@@ -1834,19 +2085,30 @@ function ServiceAccountConnectDisplay({ data }: { data: CredentialTagData }) {
   )
 }
 
-function CredentialLinkDisplay({ data }: { data: CredentialTagData }) {
+function CredentialLinkDisplay({
+  data,
+  controlId = 'credential-link',
+  embedded = false,
+  divided = false,
+  onConnected,
+}: CredentialControlProps) {
   const { canEdit } = useUserPermissionsContext()
-
-  // A connect URL carrying a credentialId re-authorizes that existing
-  // credential in place (reconnect) rather than creating a new one.
-  const reconnectCredentialId = useMemo(() => {
-    if (!data.value) return undefined
-    try {
-      return new URL(data.value).searchParams.get('credentialId') ?? undefined
-    } catch {
-      return undefined
-    }
-  }, [data.value])
+  const integrationName = getCredentialProviderDisplayName(data.provider ?? '')
+  const {
+    reconnectCredentialId,
+    status,
+    connected,
+    connectedFromAttempt,
+    hasExistingCredential,
+    isReady,
+    onConnectClick,
+  } = useOAuthChipConnection({
+    connectUrl: data.value,
+    provider: data.provider,
+    displayName: integrationName,
+    controlId,
+    onConnected,
+  })
   const { data: reconnectCredential } = useWorkspaceCredential(reconnectCredentialId)
 
   // Connecting a credential mutates the workspace — hide it from read-only members.
@@ -1855,47 +2117,48 @@ function CredentialLinkDisplay({ data }: { data: CredentialTagData }) {
   // render it as a clickable link when it resolves to a real http(s) URL.
   if (!data.value || !isSafeHttpUrl(data.value)) return null
   const Icon = getCredentialIcon(data.provider) ?? LockIcon
-  const integrationName =
-    getServiceConfigByProviderId(data.provider)?.name ??
-    OAUTH_PROVIDERS[data.provider.toLowerCase()]?.name ??
-    data.provider
   const label = reconnectCredentialId
     ? `Reconnect ${reconnectCredential?.displayName ?? integrationName}`
-    : `Connect ${integrationName}`
-
-  /**
-   * Desktop app: OAuth cannot run in an embedded window — not in the app
-   * window (better-auth binds the flow's state to the initiating browser's
-   * cookies) and not in the Sim browser panel (its partition isn't signed in
-   * to Sim, and Google/Microsoft reject embedded user agents outright). So
-   * the chip hands the whole flow to the system browser via the connect
-   * handoff, carrying the workspace/credential scope from the authorize URL;
-   * completion returns through the app's loopback and refreshes credentials.
-   */
-  const handleClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
-    const bridge = getDesktopBridge()
-    if (!bridge?.beginOAuthConnect || !data.value) return
-    event.preventDefault()
-    const url = new URL(data.value)
-    const providerId = url.searchParams.get('providerId') ?? data.provider
-    if (!providerId) return
-    void bridge.beginOAuthConnect(providerId, {
-      workspaceId: url.searchParams.get('workspaceId') ?? undefined,
-      credentialId: url.searchParams.get('credentialId') ?? undefined,
-    })
-  }
+    : hasExistingCredential
+      ? `Connect another ${integrationName}`
+      : `Connect ${integrationName}`
+  const retryLabel = reconnectCredentialId
+    ? `Not connected — reconnect ${reconnectCredential?.displayName ?? integrationName}`
+    : hasExistingCredential
+      ? `Not connected — connect another ${integrationName}`
+      : `Not connected — connect ${integrationName}`
+  const displayLabel = connected
+    ? `Connected ${integrationName}`
+    : !isReady
+      ? `Checking ${integrationName} connections…`
+      : status === 'pending'
+        ? `Waiting for ${integrationName} connection…`
+        : status === 'failed'
+          ? retryLabel
+          : label
 
   return (
     <a
       href={data.value}
       target='_blank'
       rel='noopener noreferrer'
-      onClick={handleClick}
-      className='flex items-center gap-2 rounded-2xl border border-[var(--border-1)] px-3 py-2.5 transition-colors hover-hover:bg-[var(--surface-5)]'
+      onClick={onConnectClick}
+      aria-disabled={!isReady || connectedFromAttempt}
+      className={cn(
+        embedded
+          ? INTERACTION_CARD_ROW_CLASSES
+          : 'flex items-center gap-2 rounded-2xl border border-[var(--border-1)] px-3 py-2.5 transition-colors',
+        embedded && divided && 'border-t',
+        'hover-hover:bg-[var(--surface-5)]'
+      )}
     >
       {createElement(Icon, { className: 'size-[16px] shrink-0' })}
-      <span className='flex-1 text-[var(--text-body)] text-sm'>{label}</span>
-      <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />
+      <span className='flex-1 text-[var(--text-body)] text-sm'>{displayLabel}</span>
+      {connected ? (
+        <Check className='size-[16px] shrink-0 text-[var(--text-icon)]' />
+      ) : (
+        <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />
+      )}
     </a>
   )
 }
@@ -1908,7 +2171,7 @@ function CredentialLinkDisplay({ data }: { data: CredentialTagData }) {
  * handoff they are done; the terminal id rides in `value` so the click reaches
  * the right shell. Renders nothing outside the desktop app.
  */
-function TerminalHandoffDisplay({ data }: { data: CredentialTagData }) {
+function TerminalHandoffDisplay({ data }: { data: CredentialItemData }) {
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const { chatId } = useChatSurface()
   const [handedBack, setHandedBack] = useState(false)
@@ -1941,9 +2204,57 @@ function TerminalHandoffDisplay({ data }: { data: CredentialTagData }) {
   )
 }
 
-export function CredentialDisplay({ data }: { data: CredentialTagData }) {
+const CREDENTIAL_CARD_TYPES: ReadonlySet<CredentialTagType> = new Set([
+  'secret_input',
+  'link',
+  'service_account',
+  'sim_key',
+])
+
+function isCredentialCardItemVisible(item: CredentialItemData, canEdit: boolean): boolean {
+  if (item.type === 'sim_key') return true
+  if (item.type === 'secret_input') return item.scope === 'personal' || canEdit
+  if (item.type === 'link') {
+    return canEdit && Boolean(item.provider) && Boolean(item.value && isSafeHttpUrl(item.value))
+  }
+  return canEdit
+}
+
+/** Whether a terminal credential tag produces the shared question-style card. */
+export function credentialTagHasVisibleCard(data: CredentialTagData, canEdit: boolean): boolean {
+  return (
+    data.length > 0 &&
+    data.every((item) => CREDENTIAL_CARD_TYPES.has(item.type)) &&
+    data.some((item) => isCredentialCardItemVisible(item, canEdit))
+  )
+}
+
+function CredentialItemDisplay({
+  data,
+  controlId,
+  embedded = false,
+  divided = false,
+  secretValue,
+  onSecretValueChange,
+  onSaved,
+  onConnected,
+}: CredentialControlProps) {
   if (data.type === 'secret_input') {
-    return <SecretInputDisplay data={data} />
+    const secretName = data.name?.trim()
+    if (embedded) {
+      if (!secretName || !onSecretValueChange) return null
+      return (
+        <CredentialSecretInputRow
+          name={secretName}
+          value={secretValue ?? ''}
+          divided={divided}
+          onChange={onSecretValueChange}
+        />
+      )
+    }
+    return (
+      <SecretInputDisplay data={data} embedded={embedded} divided={divided} onSaved={onSaved} />
+    )
   }
 
   if (data.type === 'folder_access') {
@@ -1959,11 +2270,26 @@ export function CredentialDisplay({ data }: { data: CredentialTagData }) {
   }
 
   if (data.type === 'link') {
-    return <CredentialLinkDisplay data={data} />
+    return (
+      <CredentialLinkDisplay
+        data={data}
+        controlId={controlId}
+        embedded={embedded}
+        divided={divided}
+        onConnected={onConnected}
+      />
+    )
   }
 
   if (data.type === 'service_account') {
-    return <ServiceAccountConnectDisplay data={data} />
+    return (
+      <ServiceAccountConnectDisplay
+        data={data}
+        embedded={embedded}
+        divided={divided}
+        onConnected={onConnected}
+      />
+    )
   }
 
   if (data.type === 'sim_key') {
@@ -1974,6 +2300,253 @@ export function CredentialDisplay({ data }: { data: CredentialTagData }) {
   }
 
   return null
+}
+
+/**
+ * Credential input and OAuth controls use the same InteractionCard primitives
+ * as QuestionDisplay. Integrations come first and secrets follow in one card
+ * with one Submit; legacy/system actions retain their standalone presentation.
+ */
+function CredentialInputCard({
+  data,
+  interactionId,
+  submitted,
+  onContinue,
+}: {
+  data: CredentialTagData
+  interactionId?: string
+  submitted?: CredentialSubmissionPayload
+  onContinue?: (message: string) => void
+}) {
+  const { workspaceId } = useParams<{ workspaceId: string }>()
+  const { canEdit } = useUserPermissionsContext()
+  const upsertWorkspace = useUpsertWorkspaceEnvironment()
+  const savePersonal = useSavePersonalEnvironment()
+  const personalQuery = usePersonalEnvironment()
+  const [secretDrafts, setSecretDrafts] = useState<Record<number, string>>({})
+  const [savedSecretRows, setSavedSecretRows] = useState<Set<number>>(() => new Set())
+  const [connectedIntegrationRows, setConnectedIntegrationRows] = useState<Set<number>>(
+    () => new Set()
+  )
+  const [locallySubmitted, setLocallySubmitted] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  let integrationIndex = 0
+  let secretIndex = 0
+  const indexedRows = data.map((item, dataIndex) => ({
+    item,
+    dataIndex,
+    integrationIndex:
+      item.type === 'link' || item.type === 'service_account' ? integrationIndex++ : undefined,
+    secretIndex: item.type === 'secret_input' ? secretIndex++ : undefined,
+  }))
+  const visibleRows = indexedRows.filter(({ item }) => isCredentialCardItemVisible(item, canEdit))
+  if (visibleRows.length === 0) return null
+
+  const integrationRows = visibleRows.filter(
+    ({ item }) => item.type === 'link' || item.type === 'service_account'
+  )
+  const secretRows = visibleRows.filter(
+    ({ item }) => item.type === 'secret_input' || item.type === 'sim_key'
+  )
+  const requiredSecretRows = secretRows.filter(({ item }) => item.type === 'secret_input')
+  const title =
+    integrationRows.length > 0 && secretRows.length > 0
+      ? 'Set up credentials'
+      : integrationRows.length > 0
+        ? 'Connect integrations'
+        : requiredSecretRows.length > 0
+          ? 'Add secrets'
+          : 'API key'
+  const rows = [
+    ...integrationRows.map(({ item, dataIndex, integrationIndex }, index) => (
+      <CredentialItemDisplay
+        key={`${item.type}-${item.provider ?? dataIndex}-${dataIndex}`}
+        data={item}
+        controlId={`${interactionId ?? 'credential-card'}:${dataIndex}`}
+        embedded
+        divided={index > 0}
+        onConnected={() =>
+          setConnectedIntegrationRows((current) => {
+            if (integrationIndex === undefined || current.has(integrationIndex)) return current
+            const next = new Set(current)
+            next.add(integrationIndex)
+            return next
+          })
+        }
+      />
+    )),
+    ...secretRows.map(({ item, dataIndex, secretIndex }, index) => {
+      return (
+        <CredentialItemDisplay
+          key={`${item.type}-${item.name ?? dataIndex}-${dataIndex}`}
+          data={item}
+          embedded
+          divided={integrationRows.length > 0 || index > 0}
+          secretValue={
+            item.type === 'secret_input' ? (secretDrafts[secretIndex ?? -1] ?? '') : undefined
+          }
+          onSecretValueChange={
+            item.type === 'secret_input' && secretIndex !== undefined
+              ? (value) =>
+                  setSecretDrafts((current) => ({
+                    ...current,
+                    [secretIndex]: value,
+                  }))
+              : undefined
+          }
+        />
+      )
+    }),
+  ]
+
+  const submitCredentialSetup = async (): Promise<boolean> => {
+    if (!onContinue) return false
+
+    const workspaceVariables: Record<string, string> = {}
+    const personalVariables: Record<string, string> = {}
+    const enteredSecretIndexes: number[] = []
+
+    for (const { item, secretIndex } of requiredSecretRows) {
+      if (secretIndex === undefined) continue
+      const name = item.name?.trim()
+      const value = secretDrafts[secretIndex] ?? ''
+      if (!name || value.trim().length === 0) continue
+      const target = item.scope === 'personal' ? personalVariables : workspaceVariables
+      target[name] = value
+      enteredSecretIndexes.push(secretIndex)
+    }
+
+    try {
+      const saves: Promise<unknown>[] = []
+      if (Object.keys(workspaceVariables).length > 0) {
+        saves.push(upsertWorkspace.mutateAsync({ workspaceId, variables: workspaceVariables }))
+      }
+      if (Object.keys(personalVariables).length > 0) {
+        saves.push(
+          (async () => {
+            const { data: latest } = await personalQuery.refetch()
+            const merged: Record<string, string> = {}
+            for (const [key, entry] of Object.entries(latest ?? personalQuery.data ?? {})) {
+              merged[key] = entry.value
+            }
+            Object.assign(merged, personalVariables)
+            await savePersonal.mutateAsync({ variables: merged })
+          })()
+        )
+      }
+      await Promise.all(saves)
+    } catch {
+      toast.error(`Couldn't save secrets. Please try again.`)
+      return false
+    }
+
+    const nextSavedSecretRows = new Set(savedSecretRows)
+    for (const index of enteredSecretIndexes) nextSavedSecretRows.add(index)
+    setSavedSecretRows(nextSavedSecretRows)
+
+    onContinue(
+      formatCredentialSubmissionMessage(data, {
+        connectedIntegrationIndexes: connectedIntegrationRows,
+        savedSecretIndexes: nextSavedSecretRows,
+      })
+    )
+    return true
+  }
+
+  const needsContinuation = integrationRows.length > 0 || requiredSecretRows.length > 0
+  const credentialSummary = [
+    ...integrationRows.map(({ item, integrationIndex }) => ({
+      label: getCredentialProviderDisplayName(item.provider ?? 'Integration'),
+      status: (
+        submitted
+          ? submitted.integrations[integrationIndex ?? -1]?.status === 'connected'
+          : connectedIntegrationRows.has(integrationIndex ?? -1)
+      )
+        ? ('Connected' as const)
+        : ('Skipped' as const),
+    })),
+    ...secretRows.map(({ item, secretIndex }) => {
+      if (item.type === 'sim_key') {
+        return { label: item.name ?? 'Sim API key', status: 'Added' as const }
+      }
+      const saved = submitted
+        ? submitted.secrets[secretIndex ?? -1]?.status === 'saved'
+        : savedSecretRows.has(secretIndex ?? -1)
+      return {
+        label: item.name ?? 'Secret',
+        status: saved ? ('Added' as const) : ('Skipped' as const),
+      }
+    }),
+  ]
+
+  if (submitted || locallySubmitted) {
+    return (
+      <InteractionCardRecap
+        items={credentialSummary.map((item) => ({ label: item.label, values: [item.status] }))}
+      />
+    )
+  }
+
+  const handleSubmit = async () => {
+    if (isSubmitting) return
+    setIsSubmitting(true)
+    try {
+      if (await submitCredentialSetup()) setLocallySubmitted(true)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  return (
+    <InteractionCard title={title}>
+      <div className='flex flex-col'>
+        {rows}
+        {needsContinuation && onContinue && (
+          <InteractionCardActionRow
+            label='Submit'
+            disabled={isSubmitting}
+            onClick={() => void handleSubmit()}
+          />
+        )}
+      </div>
+    </InteractionCard>
+  )
+}
+
+export function CredentialDisplay({
+  data,
+  interactionId,
+  submitted,
+  onContinue,
+}: {
+  data: CredentialTagData
+  interactionId?: string
+  submitted?: CredentialSubmissionPayload
+  onContinue?: (message: string) => void
+}) {
+  const usesCredentialCard = data.every((item) => CREDENTIAL_CARD_TYPES.has(item.type))
+
+  if (usesCredentialCard) {
+    return (
+      <CredentialInputCard
+        data={data}
+        interactionId={interactionId}
+        submitted={submitted}
+        onContinue={onContinue}
+      />
+    )
+  }
+
+  return (
+    <div className={cn(data.length > 1 && 'space-y-3')}>
+      {data.map((item, index) => (
+        <CredentialItemDisplay
+          key={`${item.type}-${item.provider ?? item.name ?? index}`}
+          data={item}
+        />
+      ))}
+    </div>
+  )
 }
 
 function MothershipErrorDisplay({ data }: { data: MothershipErrorTagData }) {
@@ -2018,7 +2591,7 @@ function UsageUpgradeDisplay({ data }: { data: UsageUpgradeTagData }) {
           <path d='M8 6.5v3' stroke='currentColor' strokeWidth='1.3' strokeLinecap='round' />
           <circle cx='8' cy='11.5' r='0.75' fill='currentColor' />
         </svg>
-        <span className='font-medium text-amber-800 text-sm leading-5 dark:text-amber-300'>
+        <span className='text-amber-800 text-sm leading-5 dark:text-amber-300'>
           Usage Limit Reached
         </span>
       </div>
@@ -2031,15 +2604,13 @@ function UsageUpgradeDisplay({ data }: { data: UsageUpgradeTagData }) {
           target={isHosted ? undefined : '_blank'}
           rel={isHosted ? undefined : 'noopener noreferrer'}
           aria-label={isHosted ? undefined : `${buttonLabel} (opens in a new tab)`}
-          className='mt-2 inline-flex items-center gap-1 font-medium text-amber-700 text-small underline decoration-dashed underline-offset-2 transition-colors hover-hover:text-amber-900 dark:text-amber-300 dark:hover-hover:text-amber-200'
+          className='mt-2 inline-flex items-center gap-1 text-amber-700 text-small underline decoration-dashed underline-offset-2 transition-colors hover-hover:text-amber-900 dark:text-amber-300 dark:hover-hover:text-amber-200'
         >
           {buttonLabel}
           {isHosted ? <ArrowRight className='size-3' /> : <SquareArrowUpRight className='size-3' />}
         </a>
       ) : (
-        <p className='mt-2 font-medium text-amber-700 text-small dark:text-amber-300'>
-          {unavailableMessage}
-        </p>
+        <p className='mt-2 text-amber-700 text-small dark:text-amber-300'>{unavailableMessage}</p>
       )}
     </div>
   )

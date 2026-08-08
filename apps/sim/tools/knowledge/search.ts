@@ -87,6 +87,11 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
   request: {
     url: () => '/api/knowledge/search',
     method: 'POST',
+    modelInput: {
+      mode: 'private-provenance',
+      inputPaths: () => [['query']],
+    },
+    secretProvenance: { response: { incomplete: 'reject' } },
     headers: () => ({
       'Content-Type': 'application/json',
     }),

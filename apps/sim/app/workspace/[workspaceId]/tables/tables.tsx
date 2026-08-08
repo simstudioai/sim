@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ComboboxOption } from '@sim/emcn'
 import { ChipCombobox, ChipConfirmModal, Plus, toast, Upload } from '@sim/emcn'
-import { Columns3, FolderPlus, Rows3, Table as TableIcon } from '@sim/emcn/icons'
+import { Columns3, FolderPlus, Pencil, Rows3, Table as TableIcon, Trash } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -467,11 +467,13 @@ export function Tables() {
     return [
       {
         label: 'Rename',
+        icon: Pencil,
         disabled: !canEdit,
         onClick: () => breadcrumbRename.startRename(folder.id, folder.name),
       },
       {
         label: 'Delete',
+        icon: Trash,
         disabled: !canEdit,
         /**
          * The only way to delete the folder you are inside — its own row is not in the list.
@@ -590,7 +592,7 @@ export function Tables() {
     () => (
       <div className='flex w-[240px] flex-col gap-3 p-3'>
         <div className='flex flex-col gap-1.5'>
-          <span className='font-medium text-[var(--text-secondary)] text-caption'>Row Count</span>
+          <span className='text-[var(--text-secondary)] text-caption'>Row Count</span>
           <ChipCombobox
             options={[
               { value: 'empty', label: 'Empty' },
@@ -610,7 +612,7 @@ export function Tables() {
         </div>
         {memberOptions.length > 0 && (
           <div className='flex flex-col gap-1.5'>
-            <span className='font-medium text-[var(--text-secondary)] text-caption'>Owner</span>
+            <span className='text-[var(--text-secondary)] text-caption'>Owner</span>
             <ChipCombobox
               options={memberOptions}
               multiSelect

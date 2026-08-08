@@ -33,7 +33,7 @@ Integrate Asana into the workflow. Can read, write, and update tasks.
 
 ## Actions
 
-### `asana_get_task`
+### Asana Get Task
 
 Retrieve a single task by GID or get multiple tasks with filters
 
@@ -72,7 +72,7 @@ Retrieve a single task by GID or get multiple tasks with filters
 |   ↳ `name` | string | Task name |
 |   ↳ `completed` | boolean | Completion status |
 
-### `asana_create_task`
+### Asana Create Task
 
 Create a new task in Asana
 
@@ -99,7 +99,7 @@ Create a new task in Asana
 | `created_at` | string | Task creation timestamp |
 | `permalink_url` | string | URL to the task in Asana |
 
-### `asana_update_task`
+### Asana Update Task
 
 Update an existing task in Asana
 
@@ -126,7 +126,7 @@ Update an existing task in Asana
 | `completed` | boolean | Whether the task is completed |
 | `modified_at` | string | Task last modified timestamp |
 
-### `asana_get_projects`
+### Asana Get Projects
 
 Retrieve all projects from an Asana workspace
 
@@ -147,7 +147,7 @@ Retrieve all projects from an Asana workspace
 |   ↳ `name` | string | Project name |
 |   ↳ `resource_type` | string | Resource type \(project\) |
 
-### `asana_search_tasks`
+### Asana Search Tasks
 
 Search for tasks in an Asana workspace
 
@@ -185,7 +185,7 @@ Search for tasks in an Asana workspace
 |   ↳ `path` | string | API path |
 |   ↳ `uri` | string | Full URI |
 
-### `asana_add_comment`
+### Asana Add Comment
 
 Add a comment (story) to an Asana task
 
@@ -209,7 +209,7 @@ Add a comment (story) to an Asana task
 |   ↳ `gid` | string | Author GID |
 |   ↳ `name` | string | Author name |
 
-### `asana_create_subtask`
+### Asana Create Subtask
 
 Create a subtask under an existing Asana task
 
@@ -236,7 +236,7 @@ Create a subtask under an existing Asana task
 | `created_at` | string | Subtask creation timestamp |
 | `permalink_url` | string | URL to the subtask in Asana |
 
-### `asana_delete_task`
+### Asana Delete Task
 
 Delete an Asana task by its GID (moves it to the trash)
 
@@ -255,7 +255,7 @@ Delete an Asana task by its GID (moves it to the trash)
 | `gid` | string | GID of the deleted task |
 | `deleted` | boolean | Whether the task was deleted |
 
-### `asana_add_followers`
+### Asana Add Followers
 
 Add one or more followers to an Asana task
 
@@ -278,7 +278,7 @@ Add one or more followers to an Asana task
 |   ↳ `gid` | string | Follower GID |
 |   ↳ `name` | string | Follower name |
 
-### `asana_create_project`
+### Asana Create Project
 
 Create a new project in an Asana workspace
 
@@ -305,7 +305,7 @@ Create a new project in an Asana workspace
 | `modified_at` | string | Project last modified timestamp |
 | `permalink_url` | string | URL to the project in Asana |
 
-### `asana_get_project`
+### Asana Get Project
 
 Retrieve a single Asana project by its GID
 
@@ -330,7 +330,7 @@ Retrieve a single Asana project by its GID
 | `modified_at` | string | Project last modified timestamp |
 | `permalink_url` | string | URL to the project in Asana |
 
-### `asana_list_workspaces`
+### Asana List Workspaces
 
 List all Asana workspaces and organizations the authenticated user belongs to
 
@@ -350,7 +350,7 @@ List all Asana workspaces and organizations the authenticated user belongs to
 |   ↳ `name` | string | Workspace name |
 |   ↳ `resource_type` | string | Resource type \(workspace\) |
 
-### `asana_create_section`
+### Asana Create Section
 
 Create a new section in an Asana project
 
@@ -371,7 +371,7 @@ Create a new section in an Asana project
 | `name` | string | Section name |
 | `created_at` | string | Section creation timestamp |
 
-### `asana_list_sections`
+### Asana List Sections
 
 List all sections in an Asana project
 

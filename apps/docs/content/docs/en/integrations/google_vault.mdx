@@ -34,7 +34,7 @@ Connect Google Vault to manage the full matter lifecycle, create and manage hold
 
 ## Actions
 
-### `google_vault_create_matters_export`
+### Vault Create Export
 
 Create an export in a matter
 
@@ -57,7 +57,7 @@ Create an export in a matter
 | --------- | ---- | ----------- |
 | `export` | json | Created export object |
 
-### `google_vault_list_matters_export`
+### Vault List Exports
 
 List exports for a matter
 
@@ -78,7 +78,7 @@ List exports for a matter
 | `export` | json | Single export object \(when exportId is provided\) |
 | `nextPageToken` | string | Token for fetching next page of results |
 
-### `google_vault_delete_matters_export`
+### Vault Delete Export
 
 Delete an export from a matter
 
@@ -95,7 +95,7 @@ Delete an export from a matter
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the export was deleted |
 
-### `google_vault_download_export_file`
+### Vault Download Export File
 
 Download a single file from a Google Vault export (GCS object)
 
@@ -114,7 +114,7 @@ Download a single file from a Google Vault export (GCS object)
 | --------- | ---- | ----------- |
 | `file` | file | Downloaded Vault export file stored in execution files |
 
-### `google_vault_create_matters_holds`
+### Vault Create Hold
 
 Create a hold in a matter
 
@@ -138,7 +138,7 @@ Create a hold in a matter
 | --------- | ---- | ----------- |
 | `hold` | json | Created hold object |
 
-### `google_vault_list_matters_holds`
+### Vault List Holds
 
 List holds for a matter
 
@@ -159,7 +159,7 @@ List holds for a matter
 | `hold` | json | Single hold object \(when holdId is provided\) |
 | `nextPageToken` | string | Token for fetching next page of results |
 
-### `google_vault_update_matters_holds`
+### Vault Update Hold
 
 Replace the name, query, and scope of an existing hold. This is a full-resource update: fetch the current hold first (Vault List Holds) and resupply every field you want to keep — any field left blank is cleared, not left unchanged.
 
@@ -184,7 +184,7 @@ Replace the name, query, and scope of an existing hold. This is a full-resource 
 | --------- | ---- | ----------- |
 | `hold` | json | Updated hold object |
 
-### `google_vault_delete_matters_holds`
+### Vault Delete Hold
 
 Delete a hold and release its covered accounts
 
@@ -201,7 +201,7 @@ Delete a hold and release its covered accounts
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the hold was deleted |
 
-### `google_vault_add_held_accounts`
+### Vault Add Held Accounts
 
 Add accounts to an existing hold
 
@@ -221,7 +221,7 @@ Add accounts to an existing hold
 |   ↳ `account` | json | Held account \(accountId, email\) |
 |   ↳ `status` | json | Status \(code, message\) if the add failed |
 
-### `google_vault_remove_held_accounts`
+### Vault Remove Held Accounts
 
 Remove accounts from an existing hold
 
@@ -239,7 +239,7 @@ Remove accounts from an existing hold
 | --------- | ---- | ----------- |
 | `statuses` | array | Per-account removal status, in request order |
 
-### `google_vault_create_matters`
+### Vault Create Matter
 
 Create a new matter in Google Vault
 
@@ -256,7 +256,7 @@ Create a new matter in Google Vault
 | --------- | ---- | ----------- |
 | `matter` | json | Created matter object |
 
-### `google_vault_list_matters`
+### Vault List Matters
 
 List matters, or get a specific matter if matterId is provided
 
@@ -276,7 +276,7 @@ List matters, or get a specific matter if matterId is provided
 | `matter` | json | Single matter object \(when matterId is provided\) |
 | `nextPageToken` | string | Token for fetching next page of results |
 
-### `google_vault_update_matters`
+### Vault Update Matter
 
 Update the name and/or description of a matter
 
@@ -294,7 +294,7 @@ Update the name and/or description of a matter
 | --------- | ---- | ----------- |
 | `matter` | json | Updated matter object |
 
-### `google_vault_close_matters`
+### Vault Close Matter
 
 Close a matter
 
@@ -310,7 +310,7 @@ Close a matter
 | --------- | ---- | ----------- |
 | `matter` | json | Closed matter object |
 
-### `google_vault_reopen_matters`
+### Vault Reopen Matter
 
 Reopen a closed matter
 
@@ -326,7 +326,7 @@ Reopen a closed matter
 | --------- | ---- | ----------- |
 | `matter` | json | Reopened matter object |
 
-### `google_vault_delete_matters`
+### Vault Delete Matter
 
 Permanently delete a matter (must be closed first)
 
@@ -342,7 +342,7 @@ Permanently delete a matter (must be closed first)
 | --------- | ---- | ----------- |
 | `matter` | json | Deleted matter object |
 
-### `google_vault_undelete_matters`
+### Vault Undelete Matter
 
 Restore a deleted matter
 
@@ -358,7 +358,7 @@ Restore a deleted matter
 | --------- | ---- | ----------- |
 | `matter` | json | Restored matter object |
 
-### `google_vault_add_matters_permissions`
+### Vault Add Matter Collaborator
 
 Add a collaborator (or transfer ownership) to a matter
 
@@ -378,7 +378,7 @@ Add a collaborator (or transfer ownership) to a matter
 | --------- | ---- | ----------- |
 | `permission` | json | Created matter permission \(accountId, role\) |
 
-### `google_vault_remove_matters_permissions`
+### Vault Remove Matter Collaborator
 
 Remove a collaborator from a matter
 
@@ -395,7 +395,7 @@ Remove a collaborator from a matter
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the collaborator was removed |
 
-### `google_vault_create_saved_query`
+### Vault Create Saved Query
 
 Save a reusable search query in a matter
 
@@ -418,7 +418,7 @@ Save a reusable search query in a matter
 | --------- | ---- | ----------- |
 | `savedQuery` | json | Created saved query object |
 
-### `google_vault_list_saved_queries`
+### Vault List Saved Queries
 
 List saved queries in a matter, or get a specific one if savedQueryId is provided
 
@@ -439,7 +439,7 @@ List saved queries in a matter, or get a specific one if savedQueryId is provide
 | `savedQuery` | json | Single saved query object \(when savedQueryId is provided\) |
 | `nextPageToken` | string | Token for fetching next page of results |
 
-### `google_vault_delete_saved_query`
+### Vault Delete Saved Query
 
 Delete a saved query from a matter
 

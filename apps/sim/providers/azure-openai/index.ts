@@ -332,16 +332,21 @@ async function executeChatCompletionsRequest(
           }
 
           const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-          const result = await executeProviderTool(toolName, executionParams, {
-            signal: request.abortSignal,
-          })
+          const { rawResponse, modelResponse } = await executeProviderTool(
+            toolName,
+            executionParams,
+            {
+              signal: request.abortSignal,
+            }
+          )
           const toolCallEndTime = Date.now()
 
           return {
             toolCall,
             toolName,
             toolParams,
-            result,
+            result: rawResponse,
+            modelResult: modelResponse,
             startTime: toolCallStartTime,
             endTime: toolCallEndTime,
             duration: toolCallEndTime - toolCallStartTime,
@@ -387,6 +392,8 @@ async function executeChatCompletionsRequest(
       for (const executionResult of executionResults) {
         const { toolCall, toolName, toolParams, result, startTime, endTime, duration } =
           executionResult
+        const modelResult =
+          'modelResult' in executionResult ? (executionResult.modelResult ?? result) : result
 
         timeSegments.push({
           type: 'tool',
@@ -409,6 +416,13 @@ async function executeChatCompletionsRequest(
             tool: toolName,
           }
         }
+        const modelResultContent = modelResult.success
+          ? (modelResult.output ?? null)
+          : {
+              error: true,
+              message: modelResult.error || 'Tool execution failed',
+              tool: toolName,
+            }
 
         toolCalls.push({
           name: toolName,
@@ -423,7 +437,7 @@ async function executeChatCompletionsRequest(
         currentMessages.push({
           role: 'tool',
           tool_call_id: toolCall.id,
-          content: JSON.stringify(resultContent),
+          content: JSON.stringify(modelResultContent),
         })
       }
 

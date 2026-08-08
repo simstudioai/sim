@@ -33,7 +33,7 @@ Integrate Fathom AI Notetaker into your workflow. List meetings, get transcripts
 
 ## Actions
 
-### `fathom_list_meetings`
+### Fathom List Meetings
 
 List recent meetings recorded by the user or shared to their team.
 
@@ -127,7 +127,7 @@ List recent meetings recorded by the user or shared to their team.
 |     ↳ `error` | string | CRM match error, if any |
 | `next_cursor` | string | Pagination cursor for next page |
 
-### `fathom_list_meeting_types`
+### Fathom List Meeting Types
 
 List meeting types configured in your Fathom organization.
 
@@ -148,7 +148,7 @@ List meeting types configured in your Fathom organization.
 |   ↳ `created_at` | string | Date the meeting type was created |
 | `next_cursor` | string | Pagination cursor for next page |
 
-### `fathom_get_summary`
+### Fathom Get Summary
 
 Get the call summary for a specific meeting recording.
 
@@ -166,7 +166,7 @@ Get the call summary for a specific meeting recording.
 | `template_name` | string | Name of the summary template used |
 | `markdown_formatted` | string | Markdown-formatted summary text |
 
-### `fathom_get_transcript`
+### Fathom Get Transcript
 
 Get the full transcript for a specific meeting recording.
 
@@ -188,7 +188,7 @@ Get the full transcript for a specific meeting recording.
 |   ↳ `text` | string | Transcript text |
 |   ↳ `timestamp` | string | Timestamp \(HH:MM:SS\) |
 
-### `fathom_list_team_members`
+### Fathom List Team Members
 
 List team members in your Fathom organization.
 
@@ -210,7 +210,7 @@ List team members in your Fathom organization.
 |   ↳ `created_at` | string | Date the member was added |
 | `next_cursor` | string | Pagination cursor for next page |
 
-### `fathom_list_teams`
+### Fathom List Teams
 
 List teams in your Fathom organization.
 
@@ -268,8 +268,12 @@ Trigger workflow when new meeting content is ready in Fathom
 | `transcript_language` | string | Language of the transcript |
 | `calendar_invitees_domains_type` | string | Domain type: only_internal or one_or_more_external |
 | `recorded_by` | object | Recorder details |
+|   ↳ `name` | string | Name of the recorder |
+|   ↳ `email` | string | Email of the recorder |
 | `calendar_invitees` | array | Array of calendar invitees with name and email |
 | `default_summary` | object | Meeting summary |
+|   ↳ `template_name` | string | Summary template name |
+|   ↳ `markdown_formatted` | string | Markdown-formatted summary |
 | `transcript` | array | Array of transcript entries with speaker, text, and timestamp |
 | `action_items` | array | Array of action items extracted from the meeting |
 | `crm_matches` | json | Matched CRM contacts, companies, and deals from linked CRM |
@@ -309,8 +313,12 @@ Generic webhook trigger for all Fathom events
 | `transcript_language` | string | Language of the transcript |
 | `calendar_invitees_domains_type` | string | Domain type: only_internal or one_or_more_external |
 | `recorded_by` | object | Recorder details |
+|   ↳ `name` | string | Name of the recorder |
+|   ↳ `email` | string | Email of the recorder |
 | `calendar_invitees` | array | Array of calendar invitees with name and email |
 | `default_summary` | object | Meeting summary |
+|   ↳ `template_name` | string | Summary template name |
+|   ↳ `markdown_formatted` | string | Markdown-formatted summary |
 | `transcript` | array | Array of transcript entries with speaker, text, and timestamp |
 | `action_items` | array | Array of action items extracted from the meeting |
 | `crm_matches` | json | Matched CRM contacts, companies, and deals from linked CRM |

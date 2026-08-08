@@ -22,6 +22,8 @@ vi.mock('@/lib/core/config/env-flags', () => ({
 
 vi.mock('@/lib/core/config/env', () => ({
   env: { COPILOT_API_KEY: 'test-copilot-key' },
+  envBoolean: () => undefined,
+  getEnv: () => undefined,
 }))
 
 vi.mock('@/lib/copilot/request/go/fetch', () => ({
@@ -51,12 +53,14 @@ import {
   resolveAutoModel,
 } from '@/lib/model-router/resolve'
 import type { ExecutionContext } from '@/executor/types'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const ctx = {
   userId: 'user-1',
   workspaceId: 'ws-1',
   workflowId: 'wf-1',
   executionId: 'exec-1',
+  resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
 } as unknown as ExecutionContext
 
 /** Distinct-by-default signals so the module-level decision cache never collides across tests. */
@@ -159,6 +163,82 @@ describe('resolveAutoModel', () => {
     for (const model of ['glm', 'kimi', 'gemini', 'gpt-5.6-sol', 'sonnet']) {
       expect(JSON.stringify(body)).not.toContain(model)
     }
+  })
+
+  it('forwards caller-projected signals without rescanning model content or controls', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      {
+        name: 'LOW_ENTROPY_SECRET',
+        plaintext: 'x',
+        encryptedValue: 'encrypted-low-entropy-secret',
+      },
+    ])
+    registry.recordResolved('LOW_ENTROPY_SECRET', 'x')
+    mockFetchGo.mockResolvedValue(routerResponse({ choice: '1' }))
+
+    await resolveAutoModel({
+      ctx: { ...ctx, resolvedSecretTraceRegistry: registry },
+      blockId: 'b1',
+      signals: makeSignals({
+        systemPrompt: 'Box eSign {{LOW_ENTROPY_SECRET}}',
+        lastMessage: 'Brex {{LOW_ENTROPY_SECRET}}',
+        messageCount: 123,
+        toolNames: ['x', 'true'],
+        hasResponseFormat: true,
+        approxInputTokens: 123,
+      }),
+      fallbackModel: 'claude-sonnet-5',
+    })
+
+    const body = JSON.parse(mockFetchGo.mock.calls[0][1].body as string)
+    expect(body.signals).toEqual({
+      systemPrompt: 'Box eSign {{LOW_ENTROPY_SECRET}}',
+      lastMessage: 'Brex {{LOW_ENTROPY_SECRET}}',
+      messageCount: 123,
+      toolNames: ['x', 'true'],
+      hasMedia: false,
+      hasResponseFormat: true,
+      approxInputTokens: 123,
+    })
+  })
+
+  it('does not infer provenance from dormant catalog values in routing signals', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      {
+        name: 'DORMANT_SECRET',
+        plaintext: 'ordinary-tool-name',
+        encryptedValue: 'encrypted-dormant-secret',
+      },
+    ])
+    mockFetchGo.mockResolvedValue(routerResponse({ choice: '1' }))
+
+    await resolveAutoModel({
+      ctx: { ...ctx, resolvedSecretTraceRegistry: registry },
+      blockId: 'b1',
+      signals: makeSignals({ toolNames: ['ordinary-tool-name'] }),
+      fallbackModel: 'claude-sonnet-5',
+    })
+
+    const body = JSON.parse(mockFetchGo.mock.calls[0][1].body as string)
+    expect(body.signals.toolNames).toEqual(['ordinary-tool-name'])
+  })
+
+  it('does not gate caller-projected signals on ambient registry completeness', async () => {
+    const registry = new ResolvedSecretTraceRegistry()
+    registry.markIncomplete()
+    mockFetchGo.mockResolvedValue(routerResponse({ choice: '1' }))
+
+    const result = await resolveAutoModel({
+      ctx: { ...ctx, resolvedSecretTraceRegistry: registry },
+      blockId: 'b1',
+      signals: makeSignals(),
+      fallbackModel: 'claude-sonnet-5',
+    })
+
+    expect(result.model).toBe('fireworks/glm-5.2')
+    expect(result.tier).toBe('1')
+    expect(mockGetMothershipBaseURL).toHaveBeenCalled()
+    expect(mockFetchGo).toHaveBeenCalled()
   })
 
   it('never crosses media kinds when walking down from a denied tier', async () => {

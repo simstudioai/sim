@@ -1,8 +1,21 @@
+import {
+  applyProjectedSttAudioFileNameModelInput,
+  selectSttAudioFileNameModelInput,
+} from '@/tools/stt/model-input'
 import type { SttParams, SttResponse, SttV2Params } from '@/tools/stt/types'
 import { STT_SEGMENT_OUTPUT_PROPERTIES } from '@/tools/stt/types'
 import type { ToolConfig } from '@/tools/types'
 
-export const whisperSttTool: ToolConfig<SttParams, SttResponse> = {
+type WhisperModelParams = {
+  prompt?: string
+  temperature?: number
+  responseFormat?: string
+}
+
+type WhisperSttParams = SttParams & WhisperModelParams
+type WhisperSttV2Params = SttV2Params & WhisperModelParams
+
+export const whisperSttTool: ToolConfig<WhisperSttParams, SttResponse> = {
   id: 'stt_whisper',
   name: 'OpenAI Whisper STT',
   description: 'Transcribe audio to text using OpenAI Whisper',
@@ -87,13 +100,26 @@ export const whisperSttTool: ToolConfig<SttParams, SttResponse> = {
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({
+        language: params.language,
+        prompt: params.prompt,
+        ...selectSttAudioFileNameModelInput(params),
+      }),
+      applyProjected: (selectedParams, projectedSelection) => ({
+        language: projectedSelection.language,
+        prompt: projectedSelection.prompt,
+        ...applyProjectedSttAudioFileNameModelInput(selectedParams, projectedSelection),
+      }),
+    },
     url: '/api/tools/stt',
     method: 'POST',
     headers: () => ({
       'Content-Type': 'application/json',
     }),
     body: (
-      params: SttParams & {
+      params: WhisperSttParams & {
         _context?: { workspaceId?: string; workflowId?: string; executionId?: string }
       }
     ) => ({
@@ -106,9 +132,9 @@ export const whisperSttTool: ToolConfig<SttParams, SttResponse> = {
       language: params.language || 'auto',
       timestamps: params.timestamps || 'none',
       translateToEnglish: params.translateToEnglish || false,
-      prompt: (params as any).prompt,
-      temperature: (params as any).temperature,
-      responseFormat: (params as any).responseFormat,
+      prompt: params.prompt,
+      temperature: params.temperature,
+      responseFormat: params.responseFormat,
       workspaceId: params._context?.workspaceId,
       workflowId: params._context?.workflowId,
       executionId: params._context?.executionId,
@@ -168,7 +194,7 @@ const whisperSttV2Params = {
   responseFormat: whisperSttTool.params.responseFormat,
 } satisfies ToolConfig['params']
 
-export const whisperSttV2Tool: ToolConfig<SttV2Params, SttResponse> = {
+export const whisperSttV2Tool: ToolConfig<WhisperSttV2Params, SttResponse> = {
   ...whisperSttTool,
   id: 'stt_whisper_v2',
   name: 'OpenAI Whisper STT',
@@ -176,7 +202,7 @@ export const whisperSttV2Tool: ToolConfig<SttV2Params, SttResponse> = {
   request: {
     ...whisperSttTool.request,
     body: (
-      params: SttV2Params & {
+      params: WhisperSttV2Params & {
         _context?: { workspaceId?: string; workflowId?: string; executionId?: string }
       }
     ) => ({
@@ -188,9 +214,9 @@ export const whisperSttV2Tool: ToolConfig<SttV2Params, SttResponse> = {
       language: params.language || 'auto',
       timestamps: params.timestamps || 'none',
       translateToEnglish: params.translateToEnglish || false,
-      prompt: (params as any).prompt,
-      temperature: (params as any).temperature,
-      responseFormat: (params as any).responseFormat,
+      prompt: params.prompt,
+      temperature: params.temperature,
+      responseFormat: params.responseFormat,
       workspaceId: params._context?.workspaceId,
       workflowId: params._context?.workflowId,
       executionId: params._context?.executionId,

@@ -174,10 +174,7 @@ export function SubflowNodeView({
             </div>
             <OverflowSpan
               value={blockName}
-              className={cn(
-                'truncate font-medium text-md',
-                !isEnabled && 'text-[var(--text-muted)]'
-              )}
+              className={cn('truncate text-md', !isEnabled && 'text-[var(--text-muted)]')}
             />
           </div>
           <div className='flex items-center gap-1'>
@@ -224,7 +221,7 @@ export function SubflowNodeView({
             data-node-role={`${data.kind}-start`}
             data-extent='parent'
           >
-            <span className='font-medium text-[var(--text-primary)] text-sm'>Start</span>
+            <span className='text-[var(--text-primary)] text-sm'>Start</span>
 
             <Handle
               type='source'

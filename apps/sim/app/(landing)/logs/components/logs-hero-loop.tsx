@@ -335,7 +335,7 @@ export function LogsHeroLoop() {
                   {COL_HEADERS.map((label) => (
                     <th
                       key={label}
-                      className='h-10 px-6 py-1.5 text-left align-middle font-normal text-[var(--text-muted)] text-caption'
+                      className='h-10 px-6 py-1.5 text-left align-middle text-[var(--text-muted)] text-caption'
                     >
                       {label}
                     </th>

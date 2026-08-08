@@ -131,10 +131,7 @@ export function LandingPreviewResource({
           <thead className='border-[var(--border)] border-b'>
             <tr>
               {columns.map((col) => (
-                <th
-                  key={col.id}
-                  className='h-10 px-6 py-1.5 text-left align-middle font-normal text-caption'
-                >
+                <th key={col.id} className='h-10 px-6 py-1.5 text-left align-middle text-caption'>
                   <button
                     type='button'
                     onClick={() => handleSortClick(col.id)}

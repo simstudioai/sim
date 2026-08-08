@@ -1,5 +1,5 @@
 {
-  "id": "b0073013-cfd7-4e39-aff1-88d6568ae912",
+  "id": "0e19b710-903c-460a-923a-60d0e7a14c43",
   "prevId": "8ffb620a-92ff-49d1-95be-a429b4c04e52",
   "version": "7",
   "dialect": "postgresql",
@@ -13618,6 +13618,22 @@
           "method": "btree",
           "with": {}
         },
+        "webhook_tiktok_credential_id_idx": {
+          "name": "webhook_tiktok_credential_id_idx",
+          "columns": [
+            {
+              "expression": "((\"provider_config\")::jsonb ->> 'credentialId')",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"webhook\".\"provider\" = 'tiktok' AND \"webhook\".\"is_active\" = true AND \"webhook\".\"archived_at\" IS NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "idx_webhook_on_workflow_id_block_id_updated_at_desc": {
           "name": "idx_webhook_on_workflow_id_block_id_updated_at_desc",
           "columns": [
@@ -17231,6 +17247,18 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true
+        },
+        "width": {
+          "name": "width",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "height": {
+          "name": "height",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
         },
         "deleted_at": {
           "name": "deleted_at",

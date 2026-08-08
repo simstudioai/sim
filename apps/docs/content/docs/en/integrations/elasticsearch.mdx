@@ -34,7 +34,7 @@ Integrate Elasticsearch into workflows for powerful search, indexing, and data m
 
 ## Actions
 
-### `elasticsearch_search`
+### Elasticsearch Search
 
 Search documents in Elasticsearch using Query DSL. Returns matching documents with scores and metadata.
 
@@ -67,7 +67,7 @@ Search documents in Elasticsearch using Query DSL. Returns matching documents wi
 | `hits` | object | Search results with total count and matching documents |
 | `aggregations` | json | Aggregation results if any |
 
-### `elasticsearch_index_document`
+### Elasticsearch Index Document
 
 Index (create or update) a document in Elasticsearch.
 
@@ -96,7 +96,7 @@ Index (create or update) a document in Elasticsearch.
 | `_version` | number | Document version |
 | `result` | string | Operation result \(created or updated\) |
 
-### `elasticsearch_get_document`
+### Elasticsearch Get Document
 
 Retrieve a document by ID from Elasticsearch.
 
@@ -126,7 +126,7 @@ Retrieve a document by ID from Elasticsearch.
 | `found` | boolean | Whether the document was found |
 | `_source` | json | Document content |
 
-### `elasticsearch_update_document`
+### Elasticsearch Update Document
 
 Partially update a document in Elasticsearch using doc merge.
 
@@ -155,7 +155,7 @@ Partially update a document in Elasticsearch using doc merge.
 | `_version` | number | New document version |
 | `result` | string | Operation result \(updated or noop\) |
 
-### `elasticsearch_delete_document`
+### Elasticsearch Delete Document
 
 Delete a document from Elasticsearch by ID.
 
@@ -183,7 +183,7 @@ Delete a document from Elasticsearch by ID.
 | `_version` | number | Document version |
 | `result` | string | Operation result \(deleted or not_found\) |
 
-### `elasticsearch_bulk`
+### Elasticsearch Bulk Operations
 
 Perform multiple index, create, delete, or update operations in a single request for high performance.
 
@@ -210,7 +210,7 @@ Perform multiple index, create, delete, or update operations in a single request
 | `errors` | boolean | Whether any operation had an error |
 | `items` | array | Results for each operation |
 
-### `elasticsearch_count`
+### Elasticsearch Count
 
 Count documents matching a query in Elasticsearch.
 
@@ -235,7 +235,7 @@ Count documents matching a query in Elasticsearch.
 | `count` | number | Number of documents matching the query |
 | `_shards` | object | Shard statistics |
 
-### `elasticsearch_create_index`
+### Elasticsearch Create Index
 
 Create a new index with optional settings and mappings.
 
@@ -262,7 +262,7 @@ Create a new index with optional settings and mappings.
 | `shards_acknowledged` | boolean | Whether the shards were acknowledged |
 | `index` | string | Created index name |
 
-### `elasticsearch_delete_index`
+### Elasticsearch Delete Index
 
 Delete an index and all its documents. This operation is irreversible.
 
@@ -285,7 +285,7 @@ Delete an index and all its documents. This operation is irreversible.
 | --------- | ---- | ----------- |
 | `acknowledged` | boolean | Whether the deletion was acknowledged |
 
-### `elasticsearch_get_index`
+### Elasticsearch Get Index
 
 Retrieve index information including settings, mappings, and aliases.
 
@@ -308,7 +308,7 @@ Retrieve index information including settings, mappings, and aliases.
 | --------- | ---- | ----------- |
 | `index` | json | Index information including aliases, mappings, and settings |
 
-### `elasticsearch_cluster_health`
+### Elasticsearch Cluster Health
 
 Get the health status of the Elasticsearch cluster.
 
@@ -337,7 +337,7 @@ Get the health status of the Elasticsearch cluster.
 | `active_shards` | number | Number of active shards |
 | `unassigned_shards` | number | Number of unassigned shards |
 
-### `elasticsearch_cluster_stats`
+### Elasticsearch Cluster Stats
 
 Get comprehensive statistics about the Elasticsearch cluster.
 
@@ -362,7 +362,7 @@ Get comprehensive statistics about the Elasticsearch cluster.
 | `nodes` | object | Node statistics including count and versions |
 | `indices` | object | Index statistics including document count and store size |
 
-### `elasticsearch_list_indices`
+### Elasticsearch List Indices
 
 List all indices in the Elasticsearch cluster with their health, status, and statistics.
 

@@ -68,9 +68,7 @@ const ProgressItem = forwardRef<HTMLDivElement, ProgressItemProps>(function Prog
       <StatusIcon status={status} />
       <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
         <div className='flex items-center gap-2'>
-          <span className='min-w-0 flex-1 truncate font-medium text-[var(--text-primary)]'>
-            {title}
-          </span>
+          <span className='min-w-0 flex-1 truncate text-[var(--text-primary)]'>{title}</span>
           {meta != null && (
             <span className='shrink-0 text-[var(--text-secondary)] tabular-nums'>{meta}</span>
           )}

@@ -350,7 +350,7 @@ export function InboxSettingsTab() {
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
             Changing your email address will create a new inbox.{' '}
-            <span className='font-medium text-[var(--text-primary)]'>
+            <span className='text-[var(--text-primary)]'>
               The old address will stop receiving emails immediately.
             </span>
           </p>

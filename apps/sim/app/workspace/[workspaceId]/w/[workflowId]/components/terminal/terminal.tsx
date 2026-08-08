@@ -12,16 +12,7 @@ import {
   PopoverTrigger,
   Tooltip,
 } from '@sim/emcn'
-import {
-  ArrowDown,
-  ArrowUp,
-  Database,
-  Download,
-  MoreHorizontal,
-  Palette,
-  Pause,
-  Trash,
-} from '@sim/emcn/icons'
+import { ArrowDown, ArrowUp, Download, MoreHorizontal, Palette, Trash } from '@sim/emcn/icons'
 import { formatDuration } from '@sim/utils/formatting'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import clsx from 'clsx'
@@ -58,7 +49,6 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/utils'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { getTileIconColorClass } from '@/blocks/icon-color'
-import { useShowTrainingControls } from '@/hooks/queries/general-settings'
 import { OUTPUT_PANEL_WIDTH, TERMINAL_HEIGHT } from '@/stores/constants'
 import type { ConsoleEntry } from '@/stores/terminal'
 import {
@@ -216,7 +206,7 @@ const IterationNodeRow = memo(function IterationNodeRow({
           {hasChildren && (
             <ChevronDown
               className={clsx(
-                'h-[7px] w-[9px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-100',
+                'size-[14px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-100',
                 !isExpanded && '-rotate-90'
               )}
             />
@@ -326,7 +316,7 @@ const SubflowNodeRow = memo(function SubflowNodeRow({
           {hasChildren && (
             <ChevronDown
               className={clsx(
-                'h-[7px] w-[9px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-100',
+                'size-[14px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-100',
                 !isExpanded && '-rotate-90'
               )}
             />
@@ -453,7 +443,7 @@ const WorkflowNodeRow = memo(function WorkflowNodeRow({
           {hasChildren && (
             <ChevronDown
               className={clsx(
-                'h-[7px] w-[9px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-100',
+                'size-[14px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-100',
                 !isExpanded && '-rotate-90'
               )}
             />
@@ -717,14 +707,6 @@ export const Terminal = memo(function Terminal() {
   const [showInput, setShowInput] = useState(false)
   const [autoSelectEnabled, setAutoSelectEnabled] = useState(true)
   const [mainOptionsOpen, setMainOptionsOpen] = useState(false)
-
-  const [isTrainingEnvEnabled] = useState(() =>
-    isTruthy(getEnv('NEXT_PUBLIC_COPILOT_TRAINING_ENABLED'))
-  )
-  const showTrainingControls = useShowTrainingControls()
-  const isTraining = false
-  const toggleTrainingModal = useCallback(() => {}, [])
-  const stopTraining = useCallback(() => {}, [])
 
   const [isPlaygroundEnabled] = useState(() => isTruthy(getEnv('NEXT_PUBLIC_ENABLE_PLAYGROUND')))
 
@@ -1043,20 +1025,6 @@ export const Terminal = memo(function Terminal() {
     },
     [closeLogRowMenu]
   )
-
-  const handleTrainingClick = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation()
-      if (isTraining) {
-        stopTraining()
-      } else {
-        toggleTrainingModal()
-      }
-    },
-    [isTraining, stopTraining, toggleTrainingModal]
-  )
-
-  const shouldShowTrainingButton = isTrainingEnvEnabled && showTrainingControls
 
   useRegisterGlobalCommands(() =>
     createCommands([
@@ -1392,31 +1360,6 @@ export const Terminal = memo(function Terminal() {
                     </Tooltip.Root>
                   )}
 
-                  {shouldShowTrainingButton && (
-                    <Tooltip.Root>
-                      <Tooltip.Trigger asChild>
-                        <Button
-                          variant='ghost'
-                          onClick={handleTrainingClick}
-                          aria-label={isTraining ? 'Stop training' : 'Train Sim'}
-                          className={clsx(
-                            '!p-1.5 -m-1.5',
-                            isTraining && 'text-orange-600 dark:text-orange-400'
-                          )}
-                        >
-                          {isTraining ? (
-                            <Pause className='h-3.5 w-3.5' />
-                          ) : (
-                            <Database className='h-3.5 w-3.5' />
-                          )}
-                        </Button>
-                      </Tooltip.Trigger>
-                      <Tooltip.Content>
-                        <span>{isTraining ? 'Stop Training' : 'Train Sim'}</span>
-                      </Tooltip.Content>
-                    </Tooltip.Root>
-                  )}
-
                   {filteredEntries.length > 0 && (
                     <>
                       <Tooltip.Root>
@@ -1528,9 +1471,6 @@ export const Terminal = memo(function Terminal() {
               setShowInput={setShowInput}
               hasInputData={hasInputData}
               isPlaygroundEnabled={isPlaygroundEnabled}
-              shouldShowTrainingButton={shouldShowTrainingButton}
-              isTraining={isTraining}
-              handleTrainingClick={handleTrainingClick}
               showCopySuccess={showCopySuccess}
               handleCopy={handleCopy}
               hasEntries={filteredEntries.length > 0}

@@ -1,7 +1,6 @@
 ---
 title: Function
-description: The Function block runs your JavaScript or Python code as a step and returns what it produces.
-pageType: reference
+description: The Function block runs your JavaScript, Python, or Shell code as a step and returns what it produces.
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
@@ -9,7 +8,7 @@ import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { BlockPreview, WorkflowPreview, FUNCTION_RESHAPE_WORKFLOW, FUNCTION_VALIDATE_WORKFLOW } from '@/components/workflow-preview'
 import { FAQ } from '@/components/ui/faq'
 
-The **Function block** runs your own JavaScript or Python code as one step of a workflow. Use it to reshape a value, run a calculation, or add logic no other block covers.
+The **Function block** runs your own JavaScript, Python, or Shell code as one step of a workflow. Use it to reshape a value, run a calculation, call a CLI, or add logic no other block covers.
 
 <BlockPreview type="function" />
 
@@ -17,9 +16,13 @@ The **Function block** runs your own JavaScript or Python code as one step of a 
 
 ### Code
 
-Your code, in JavaScript (the default) or Python — pick the language on the block. Reference an earlier output directly, with no quotes around the tag, and read an environment variable with `{{VAR}}`:
+JavaScript is the default. The language field is part of the saved workflow and is
+never removed when Sandbox configuration changes. Python remains available as a
+language choice; Shell and custom Sandbox controls appear when a remote Function
+sandbox provider is enabled. Reference an earlier output directly, with no quotes
+around the tag, and read an environment variable with `{{VAR}}`:
 
-<Tabs items={['JavaScript', 'Python']}>
+<Tabs items={['JavaScript', 'Python', 'Shell']}>
   <Tab value="JavaScript">
   ```javascript
   const data = <api.data>;
@@ -28,14 +31,51 @@ Your code, in JavaScript (the default) or Python — pick the language on the bl
   </Tab>
   <Tab value="Python">
   ```python
-  import json
-  data = json.loads('<api.data>')
-  print(json.dumps([i["id"] for i in data["items"] if i["active"]]))
+  data = <api.data>
+  __sim_result__ = [item["id"] for item in data["items"] if item["active"]]
+  ```
+  </Tab>
+  <Tab value="Shell">
+  ```bash
+  set -euo pipefail
+  active_ids=$(printf '%s' <api.data> | jq -c '[.items[] | select(.active) | .id]')
+  printf '__SIM_RESULT__=%s\n' "$active_ids"
   ```
   </Tab>
 </Tabs>
 
-Return a value in JavaScript with `return`. In Python, print it as JSON to stdout with `print(json.dumps(...))`; the block captures stdout as the result. Your code runs in an async context, so you can `await` directly in JavaScript.
+JavaScript returns a value with `return`. Python runs as a normal module: assign the value for downstream blocks to `__sim_result__`. A full script with functions, imports, and an `if __name__ == '__main__':` guard works as written; legacy snippets with a top-level `return` remain supported. `print()` is logging and goes to `stdout` rather than becoming the result.
+
+Shell returns structured data by printing a line beginning with `__SIM_RESULT__=`. A valid JSON payload becomes an object, array, number, boolean, or string; a non-JSON payload becomes a string. The marker line is removed from `stdout`. Other command output remains available in `stdout`.
+
+### Secret placeholders in code
+
+When an environment variable is the complete JavaScript or Python expression, prefer the unquoted form:
+
+```javascript
+const apiKey = {{API_KEY}};
+```
+
+Existing quoted and embedded forms are also supported, including `"{{API_KEY}}"`, `"Bearer {{API_KEY}}"`, and placeholders in template literals. Function and Custom Tool code use the same compiler at the execution boundary. It binds the secret separately from the source instead of pasting plaintext into your code, so quotes, backslashes, newlines, and string values such as `"123"` and `"true"` retain their exact contents and do not become JavaScript or Python literals of another type.
+
+JavaScript regex literals can contain a placeholder:
+
+```javascript
+const matcher = /^{{PATH_PATTERN}}$/i;
+```
+
+The value is interpreted as raw regex pattern text and the literal's flags are preserved. If you need the value matched literally rather than as a pattern, escape regex metacharacters before constructing the expression.
+
+In Shell, use the same `{{KEY}}` syntax and write `"{{KEY}}"` when the value should remain one scalar argument. Bare placeholders remain supported for existing workflows and retain Bash's native unquoted behavior, including word splitting and regex-pattern semantics. Placeholders also work inside quoted heredocs without enabling unrelated shell expansion:
+
+```bash
+cat > /tmp/request.txt <<'REQUEST'
+Authorization: Bearer {{API_KEY}}
+Home remains literal: $HOME
+REQUEST
+```
+
+Sim supplies the rendered heredoc privately while preserving the quoted delimiter's literal `$VAR`, backtick, and command-substitution behavior.
 
 ## Outputs
 
@@ -46,51 +86,75 @@ Return a value in JavaScript with `return`. In Python, print it as JSON to stdou
 
 ## Language
 
-JavaScript runs in a fast local sandbox, or in an [E2B](https://e2b.dev) sandbox when your code uses `import` or `require`. Python always runs in the E2B sandbox.
+JavaScript without imports runs in a fast local sandbox. JavaScript with `import` or `require`, Python, and Shell run in the configured remote sandbox provider.
 
-| | JavaScript | Python |
-| --- | --- | --- |
-| **Execution** | Local sandbox (fast), or E2B with imports | Always E2B sandbox |
-| **Return a value** | `return { … }` | `print(json.dumps({ … }))` |
-| **HTTP requests** | `fetch()` built-in | `requests` or `httpx` |
-| **Best for** | quick transforms, JSON | data science, charts, complex math |
+| | JavaScript | Python | Shell |
+| --- | --- | --- | --- |
+| **Execution** | Local when there are no imports; remote with imports | Always remote | Always remote |
+| **Return a value** | `return { … }` | Assign `__sim_result__ = { … }` | Print `__SIM_RESULT__={…}` |
+| **HTTP requests** | `fetch()` built in | `requests` or `httpx` | `curl` or an installed CLI |
+| **Best for** | quick transforms and JSON | scripts, data science, charts, complex math | CLI workflows and system utilities |
 
 <Callout type="info">
-Python requires E2B. It is enabled by default on sim.ai; on a self-hosted instance, enable E2B to see Python in the language dropdown. Any figures you generate are captured as images automatically.
+Python and Shell require a remote sandbox. They are enabled by default on sim.ai;
+on a self-hosted instance, build and configure the provider's dedicated
+[Function base](/platform/enterprise/self-hosted) first. Any Python figures you
+generate are captured as images automatically.
 </Callout>
 
-{/* Package list provenance (verified 2026-06-10): E2B code-interpreter template
-    requirements (github.com/e2b-dev/code-interpreter, template/requirements.txt)
-    plus Sim's template additions — pip awscli/yq/csvkit — from
-    simstudioai/copilot scripts/e2b/template.ts. Update if either source changes. */}
+<Callout type="info">
+If no remote provider is configured, JavaScript without `import` or `require`
+continues to run in Sim's local isolated VM. Missing E2B or Daytona configuration
+does not disable that path. Remote-only code fails with an explicit configuration
+error; Sim does not reinterpret Python or Shell as JavaScript.
+</Callout>
 
-Beyond the Python standard library, the sandbox ships E2B's data-science stack plus a few Sim additions:
+The dedicated Function base has the same runtime and universal package contract
+on E2B and Daytona. It includes this data-science stack; use a workspace sandbox
+when another dependency must be present:
 
-- **Data:** `pandas`, `numpy`, `scipy`, `xarray`, `numba`, `joblib`
+- **Data and graphs:** `pandas`, `numpy`, `scipy`, `xarray`, `numba`, `networkx`
 - **ML and NLP:** `scikit-learn`, `gensim`, `nltk`, `spacy`, `textblob`
-- **Plots and images:** `matplotlib`, `seaborn`, `plotly`, `bokeh`, `pillow`, `opencv-python`, `scikit-image`, `imageio`
+- **Plots and images:** `matplotlib`, `seaborn`, `plotly`, `bokeh`, `kaleido`, `pillow`, `opencv-python`, `scikit-image`, `imageio`, `tifffile`
 - **Audio:** `librosa`, `soundfile`
-- **Web and files:** `requests`, `aiohttp`, `beautifulsoup4`, `openpyxl`, `xlrd`, `python-docx`, `orjson`
-- **Math and testing:** `sympy`, `pytest`
-- **Sim additions:** `awscli`, `yq`, `csvkit`
+- **Web, parsing, and files:** `requests`, `beautifulsoup4`, `lxml`, `openpyxl`, `xlrd`, `python-docx`, `xmltodict`, `PyYAML`, `tomlkit`, `simplejson`, `orjson`, `SQLAlchemy`
+- **Math:** `sympy`
+- **Application helpers:** `rich`, `typer`, `click`, `tqdm`, `Jinja2`, `pydantic`, `python-dateutil`, `pytz`, `psutil`, `filetype`, `python-slugify`, `parsedatetime`, `pytimeparse`
+- **Generic CLIs:** `jq`, `yq`, `csvkit`, `zx`, `xmlstarlet`, `httpie`, `ripgrep`, `fd`, `bat`, `sqlite3`, `tar`, `gzip`, `bzip2`, ZIP/XZ/7z, media/image tools, and standard network utilities
+
+Vendor and service clients such as AWS CLI and GitHub CLI are not part of the
+universal base. Add them through the managed catalog. Database clients such as
+PostgreSQL, MySQL, and Redis can be added as system packages when available from
+the configured Debian repositories.
 
 ## Sandboxes
 
-A sandbox is a named dependency set your workspace maintains — a language plus a
-list of pip or npm packages. Select one on a Function block and its code can
-import everything on that list. Leave it empty and the block runs on the default
-image, exactly as before.
+A sandbox is a named environment your workspace maintains: a language, a list of
+pip or npm dependencies, optional Debian/APT system packages, and optional managed
+CLI tools. Select one on a Function block and its code can import the dependencies
+and run the commands it declares. Leave the selection empty to use the dedicated
+Function base.
 
 Create and edit sandboxes in **Settings → Sandboxes**. Only workspace admins can
 create or edit them. On sim.ai they need an active Max or Enterprise plan;
 self-hosted deployments turn them on with `SANDBOXES_ENABLED` (see
 [self-hosted enterprise](/platform/enterprise/self-hosted)). The section is
-hidden when a deployment has no sandbox provider configured.
+usable only when the deployment also has a remote provider and immutable Function
+base configured. The Function block hides its custom Sandbox selector when that
+runtime is unavailable.
 
 1. **Name** the sandbox — `bigquery-etl`, `scraping`, whatever the job is.
-2. Pick the **language**. A sandbox is language-scoped, so a Python block only
-   ever lists Python sandboxes.
+2. Pick the **language**. This selects pip or npm for the dependency list. Python
+   and JavaScript blocks list matching sandboxes; Shell can use either kind.
 3. Paste your **dependencies**, one per line. Version pins are optional.
+4. Add **system packages** by Debian/APT package coordinate, one per line. Use this
+   for ordinary command-line utilities such as `jq` and `ffmpeg`.
+5. Select any **managed CLI tools** that require a specialized, verified installer.
+   The searchable catalog is grouped by cloud, Kubernetes, infrastructure,
+   deployment, data and storage, and security tools. Every entry uses a pinned,
+   integrity-checked vendor artifact.
+
+Dependencies:
 
 ```
 google-cloud-bigquery==3.25.0
@@ -98,41 +162,99 @@ pyairtable>=3.0
 pandas
 ```
 
+System packages:
+
+```
+shellcheck
+pandoc
+graphviz
+```
+
 Then open the block's advanced options and choose the sandbox under **Sandbox**.
 
-In JavaScript the sandbox applies to code that uses `import` or `require` — that is
-what sends the block to a remote sandbox in the first place, so a block without them
-keeps running locally and ignores the selection. Python always runs remotely, so a
-selected sandbox always applies.
+The default and custom behavior is intentionally explicit:
+
+- **JavaScript without imports** stays in the local isolated runtime for speed and
+  ignores the sandbox selection.
+- **JavaScript with `import` or `require`** runs remotely. With no selection it
+  uses the Function base; with a sandbox it gets that sandbox's npm packages and
+  system packages and managed CLI tools.
+- **Python and Shell** always run remotely. With no selection they get only the
+  Function base; with a sandbox they get its dependencies, system packages, and
+  managed CLI tools.
+
+When a Function block next loads its sandbox options, a successful lookup that
+confirms its selected sandbox was deleted clears that selection. Fetch or auth
+failures leave the workflow unchanged.
 
 <Callout type="info">
-Two sandboxes with the same language and the same package list share one build,
-so duplicating a set costs nothing. Editing a package list starts a new build;
-runs already in flight keep using the old one. Deleting a sandbox frees its build
-once nothing else uses it.
+Two sandboxes with the same language, dependency list, system packages, and managed
+CLI tools share one build, so duplicating a set costs nothing. Editing any part of
+that install specification starts a new build. Runs already in flight keep using
+the old one. Deleting a sandbox frees its build once nothing else uses it.
 </Callout>
 
 ### Build status
 
-On sim.ai, each dependency set is prebuilt into a reusable image, so runs pay no
-install cost. The status row in Settings shows **Queued**, **Building**,
+On sim.ai, each sandbox specification is prebuilt into a reusable image, so runs
+pay no install cost. The status row in Settings shows **Queued**, **Building**,
 **Ready**, or **Failed**. A failed build reports what went wrong — a package that
 does not exist, a version that has no match, a resolver conflict — with the
 installer log behind a disclosure.
 
 Running a block before its sandbox is **Ready** stops the run and shows you the
-status. A failed build is retried periodically on its own; to retry immediately,
-save the sandbox again in Settings.
+status. A failed build is retried periodically on its own. To retry immediately,
+open the three-dot menu at the end of the failed status row and choose **Retry
+build**. Save or discard unsaved sandbox edits first so the retry always uses the
+visible spec.
 
-On a self-hosted deployment using Daytona, dependencies install inside the
-sandbox at the start of every run instead, adding roughly 10–30 seconds per
-execution. Prebuilt images require E2B.
+On a self-hosted deployment using Daytona, dependencies, system packages, and
+managed CLI tools install inside the sandbox at the start of every run instead,
+adding startup time per execution. Prebuilt images require E2B.
+
+### System packages, managed CLIs, and one-off installs
+
+Use **System packages** for CLIs available from the sandbox's Debian/APT
+repositories. Entries may include an architecture or exact version, such as
+`package:architecture=version`. They are validated, deduplicated, and installed
+when the sandbox is built or prepared.
+
+The **Managed CLI tools** selector covers CLIs that need more than a normal APT
+installation, such as a pinned vendor archive, PATH setup, or command verification.
+Service and vendor CLIs are intentionally not part of the universal Function base.
+For example, after adding **Google Cloud CLI** to a sandbox, a Shell Function can
+run `bq` directly:
+
+```bash
+set -euo pipefail
+bq query --use_legacy_sql=false --format=json 'SELECT CURRENT_DATE() AS today'
+```
+
+For a command needed only once, install it at the start of the Shell script. The
+remote sandbox is ephemeral, so the install applies only to that Function call
+and adds to its execution time:
+
+```bash
+set -euo pipefail
+python -m pip install --quiet csvkit
+csvcut -n /tmp/input.csv
+```
+
+Use a custom sandbox instead when reproducibility or startup time matters. Put
+ordinary Debian utilities in **System packages**; use the managed selector only
+for one of its specialized installers. Arbitrary install commands are not saved
+in a sandbox specification.
 
 ### What is allowed
 
-Package names and version specifiers only. URLs, `git+` references, `-e`, local
-paths, `--index-url`, and npm aliases are rejected, with the offending line
-number reported. A sandbox may declare up to 50 packages.
+Dependency fields accept package names and version specifiers only. URLs, `git+`
+references, `-e`, local paths, `--index-url`, and npm aliases are rejected, with
+the offending line number reported.
+
+System packages use Debian coordinates in the form
+`package[:architecture][=version]`. Flags, URLs, paths, whitespace, globs, and
+shell syntax are rejected. A sandbox may declare up to 50 dependencies, 50 system
+packages, and 10 managed CLI tools.
 
 ## Scoping secrets for agent tools
 
@@ -148,9 +270,10 @@ tool configuration and pick the names the code may read. Two things change:
 
 - Only those secrets are injected. `{{OTHER_SECRET}}` no longer resolves either.
 - The selected **names** are added to the tool's description, so the model knows
-  what it can reference. Values are injected server-side when the Function runs.
-  If the Function returns a secret, the raw result is still sent to the Agent;
-  masking affects only the trace and display copy.
+  what it can reference. Values are bound server-side only when the Function runs;
+  they are not included in the model request. If a Function result contains an
+  exact secret value, the Agent model receives `{{NAME}}` in its place. The raw
+  runtime result and local side effects are not rewritten.
 
 Leaving the default (*All secrets*) resolves the list at run time, so a secret
 added next month is included automatically.
@@ -194,24 +317,30 @@ return {
   </Tab>
   <Tab value="Python">
 ```python title="loyalty-calculator.py"
-import json
+def calculate_loyalty(data):
+    purchase_history = data["purchaseHistory"]
+    account_age = data["accountAge"]
+    support_tickets = data["supportTickets"]
 
-data = json.loads('<agent>')
-purchase_history = data["purchaseHistory"]
-account_age = data["accountAge"]
-support_tickets = data["supportTickets"]
+    total_spent = sum(p["amount"] for p in purchase_history)
+    purchase_frequency = len(purchase_history) / (account_age / 365)
+    ticket_ratio = support_tickets["resolved"] / support_tickets["total"]
 
-total_spent = sum(p["amount"] for p in purchase_history)
-purchase_frequency = len(purchase_history) / (account_age / 365)
-ticket_ratio = support_tickets["resolved"] / support_tickets["total"]
+    spend_score = min(total_spent / 1000 * 30, 30)
+    frequency_score = min(purchase_frequency * 20, 40)
+    support_score = ticket_ratio * 30
+    loyalty_score = round(spend_score + frequency_score + support_score)
+    tier = "Platinum" if loyalty_score >= 80 else "Gold" if loyalty_score >= 60 else "Silver"
 
-spend_score = min(total_spent / 1000 * 30, 30)
-frequency_score = min(purchase_frequency * 20, 40)
-support_score = ticket_ratio * 30
-loyalty_score = round(spend_score + frequency_score + support_score)
+    return {
+        "customer": data["name"],
+        "loyaltyScore": loyalty_score,
+        "loyaltyTier": tier,
+    }
 
-tier = "Platinum" if loyalty_score >= 80 else "Gold" if loyalty_score >= 60 else "Silver"
-print(json.dumps({ "customer": data["name"], "loyaltyScore": loyalty_score, "loyaltyTier": tier }))
+
+if __name__ == "__main__":
+    __sim_result__ = calculate_loyalty(<agent>)
 ```
   </Tab>
 </Tabs>
@@ -234,7 +363,7 @@ const bytes = await sim.files.readBase64Chunk(file, { offset: 0, length: 1024 * 
 `sim.files.readText`, `readBase64`, and the `…Chunk` variants stream from execution storage under memory caps. `sim.values.read(ref)` and `sim.values.readArray(ref)` read large value and array references. Chunk `offset` and `length` are byte-based, so for exact Unicode parsing prefer smaller structured references. For large generated data, write the result to a file or table with `outputPath`, `outputSandboxPath`, or `outputTable` instead of returning the whole payload inline.
 
 <Callout type="warn">
-The lazy `sim.files` and `sim.values` helpers are available only in JavaScript functions without imports. JavaScript with imports, Python, and shell do not support them yet.
+The lazy `sim.files` and `sim.values` helpers are available only in JavaScript functions without imports. JavaScript with imports, Python, and Shell do not support them yet.
 </Callout>
 
 ## Best Practices
@@ -244,13 +373,14 @@ The lazy `sim.files` and `sim.values` helpers are available only in JavaScript f
 - **Keep each function focused.** One transform per block is easier to read, test, and debug.
 - **Handle errors.** Wrap risky code in `try`/`catch` and return a clear message, or let it throw to the error path.
 - **Reference only what you need.** Pull a narrow field rather than a whole large object to keep values out of the request body.
-- **Use stdout to debug.** `console.log()` and `print()` land in `<function.stdout>` and the run logs.
+- **Use stdout to debug.** `console.log()`, `print()`, and ordinary shell output land in `<function.stdout>` and the run logs.
 
 <FAQ items={[
-  { question: "What languages does the Function block support?", answer: "JavaScript and Python. JavaScript is the default. Python requires the E2B feature, since Python always runs in a secure E2B sandbox." },
-  { question: "When does code run locally vs. in a sandbox?", answer: "JavaScript without external imports runs in a local isolated sandbox for speed. JavaScript that uses import or require runs in E2B. Python always runs in the E2B sandbox, with or without imports." },
+  { question: "What languages does the Function block support?", answer: "JavaScript, Python, and Shell. JavaScript is the default. Python remains a stable saved language choice; Shell and custom Sandbox controls appear when a remote sandbox provider is enabled. Python and Shell execution require that provider." },
+  { question: "When does code run locally vs. in a sandbox?", answer: "JavaScript without external imports runs in a local isolated sandbox for speed. JavaScript that uses import or require, Python, and Shell run in the configured remote sandbox." },
+  { question: "Does JavaScript still work without E2B or Daytona?", answer: "Yes. JavaScript without import or require runs in Sim's local isolated VM and does not require a remote provider. JavaScript with external imports, Python, Shell, and custom Sandboxes require E2B or Daytona and fail explicitly when it is unavailable." },
   { question: "How do I reference outputs from other blocks inside my code?", answer: "Use angle-bracket syntax directly, like <agent.content> or <api.data>, with no quotes around the tag — Sim replaces it with the real value before execution. For environment variables, use double curly braces: {{API_KEY}}." },
-  { question: "What does the Function block return?", answer: "Two outputs: result (the return value of your code, read as <function.result>) and stdout (anything logged with console.log or print, read as <function.stdout>). Include a return statement in JavaScript, or print JSON in Python, to pass data downstream." },
-  { question: "Can I make HTTP requests from a Function block?", answer: "Yes. fetch() is available in JavaScript with async/await; libraries like axios are only available when the block has a sandbox selected. In Python, use requests or httpx in the E2B sandbox." },
+  { question: "What does the Function block return?", answer: "Two outputs: result and stdout. Use return in JavaScript, assign __sim_result__ in Python, or print an __SIM_RESULT__= marker in Shell to set result. Ordinary console, print, and command output goes to stdout." },
+  { question: "Can I make HTTP requests from a Function block?", answer: "Yes. fetch() is available in JavaScript with async/await. In Python, use requests or httpx. In Shell, use curl or a CLI available on the selected sandbox." },
   { question: "Is there a timeout for Function block execution?", answer: "Yes, a configurable execution timeout. If your code exceeds it, the run is terminated and the block reports an error. Keep this in mind for external calls or heavy processing." },
 ]} />

@@ -3,7 +3,7 @@ import { Readable } from 'stream'
 import { createLogger } from '@sim/logger'
 import { type Options, parse } from 'csv-parse'
 import type { FileParseResult, FileParser } from '@/lib/file-parsers/types'
-import { sanitizeTextForUTF8 } from '@/lib/file-parsers/utils'
+import { sanitizeTextForUTF8, truncationNotice } from '@/lib/file-parsers/utils'
 
 const logger = createLogger('CsvParser')
 
@@ -123,7 +123,9 @@ export class CsvParser implements FileParser {
       parser.on('end', () => {
         if (!aborted) {
           if (rowCount > CONFIG.MAX_PREVIEW_ROWS) {
-            processedContent += `\n[... ${rowCount.toLocaleString()} total rows, showing first ${CONFIG.MAX_PREVIEW_ROWS} ...]\n`
+            processedContent += truncationNotice(
+              `${rowCount.toLocaleString()} total rows, showing first ${CONFIG.MAX_PREVIEW_ROWS}`
+            )
           }
 
           logger.info(`CSV parsing complete: ${rowCount} rows, ${errorCount} errors`)

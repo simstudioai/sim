@@ -3,7 +3,7 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { cn, toast } from '@sim/emcn'
 import { FILE_DOC_SEED, type JoinFileDocError } from '@sim/realtime-protocol/file-doc'
-import { type Extensions, generateHTML, type JSONContent } from '@tiptap/core'
+import type { Extensions, JSONContent } from '@tiptap/core'
 import { isChangeOrigin } from '@tiptap/extension-collaboration'
 import { Fragment, Slice } from '@tiptap/pm/model'
 import { NodeSelection } from '@tiptap/pm/state'
@@ -80,6 +80,44 @@ const STREAM_REPARSE_THROTTLE_MS = 120
 
 /** Debounce before naming a still-untitled file after its leading heading, so it fires once typing settles. */
 const DERIVE_TITLE_DEBOUNCE_MS = 600
+
+/**
+ * The editor's reading column — the centered, padded surface both the live editor and the read-only
+ * {@link ReadOnlyPlaceholder} render into, so the two are geometrically identical and the placeholder →
+ * live swap never reflows. Shared as one constant to keep them in lockstep.
+ */
+const EDITOR_SURFACE_CLASS =
+  'mx-auto flex w-full max-w-[48rem] flex-1 flex-col px-8 py-6 selection:bg-[var(--selection-bg)] selection:text-[var(--text-primary)] dark:selection:bg-[var(--selection-dark)] dark:selection:text-white'
+
+/**
+ * Read-only editor that renders the already-fetched markdown while a collaborative doc waits for its
+ * server seed, so the pane shows content instantly instead of blocking blank on the socket round-trip
+ * (the seed IS the same markdown, so the swap on `collabReady` is seamless). It shares the live
+ * editor's extension set ({@link EXTENSIONS}) — and therefore its node views and decoration plugins
+ * (syntax highlighting, mention chips, images, mermaid diagrams, media embeds) — so the content is
+ * pixel-identical to the live editor and the swap neither repaints nor reflows. It carries no
+ * Collaboration extension, Y.Doc, or awareness, so it structurally cannot write to the shared document
+ * (a client seed would duplicate it), and `editable={false}` disables every editing affordance. Mounted
+ * only while the placeholder shows, so no second editor lingers once the live one takes over.
+ */
+interface ReadOnlyPlaceholderProps {
+  content: JSONContent
+}
+
+function ReadOnlyPlaceholder({ content }: ReadOnlyPlaceholderProps) {
+  const editor = useEditor({
+    extensions: EXTENSIONS,
+    editable: false,
+    // Render synchronously on first paint (safe — this surface is client-only, never SSR'd) so the
+    // placeholder appears instantly like the static HTML it replaced, instead of blanking for a frame
+    // while the editor mounts.
+    immediatelyRender: true,
+    shouldRerenderOnTransaction: false,
+    content,
+    editorProps: { attributes: { class: 'rich-markdown-prose' } },
+  })
+  return <EditorContent editor={editor} className={EDITOR_SURFACE_CLASS} />
+}
 
 interface RichMarkdownEditorProps {
   file: WorkspaceFileRecord
@@ -332,16 +370,12 @@ export function LoadedRichMarkdownEditor({
       : parseMarkdownToDoc(splitFrontmatter(content).body)
   )
   /**
-   * A read-only placeholder rendered from the already-fetched markdown while a collaborative doc waits
-   * for its server seed, so the pane shows content instantly instead of blocking blank on the socket
-   * round-trip (the seed IS the same markdown, so the swap on {@link collabReady} is seamless). Static
-   * HTML — it holds no editor, doc, or awareness, so it structurally cannot write to the Y.Doc, which
-   * is the invariant that keeps seeding out of the client (a client seed duplicates the doc).
+   * The already-fetched markdown, parsed once, for the read-only {@link ReadOnlyPlaceholder} shown while
+   * a collaborative doc waits for its server seed. Held only when collaborating; the local path seeds
+   * the live editor directly, so it needs no placeholder.
    */
-  const [placeholderHtml] = useState<string | null>(() =>
-    collaborationEnabled
-      ? generateHTML(parseMarkdownToDoc(splitFrontmatter(content).body), EXTENSIONS)
-      : null
+  const [placeholderContent] = useState<JSONContent | null>(() =>
+    collaborationEnabled ? parseMarkdownToDoc(splitFrontmatter(content).body) : null
   )
   /**
    * The body currently shown in the editor: seeded from a settled mount, updated on local edits (via
@@ -1170,7 +1204,7 @@ export function LoadedRichMarkdownEditor({
   return (
     <div
       ref={containerRef}
-      className={cn('flex flex-1 flex-col overflow-y-auto', isEditable && 'cursor-text')}
+      className={cn('relative flex flex-1 flex-col overflow-y-auto', isEditable && 'cursor-text')}
     >
       {editor && (
         <EditorBubbleMenu
@@ -1197,20 +1231,12 @@ export function LoadedRichMarkdownEditor({
           if (images.length > 0) void insertImagesRef.current(images, at)
         }}
       />
-      {showPlaceholder && placeholderHtml && (
-        // Instant read-only content while the collaborative doc seeds; the editor stays mounted-but-
-        // hidden below so it renders the seeded doc before the swap. Same layout box → no reflow.
-        <div
-          className='rich-markdown-prose mx-auto w-full max-w-[48rem] px-8 py-6'
-          dangerouslySetInnerHTML={{ __html: placeholderHtml }}
-        />
+      {showPlaceholder && placeholderContent && (
+        <ReadOnlyPlaceholder content={placeholderContent} />
       )}
       <EditorContent
         editor={editor}
-        className={cn(
-          'mx-auto flex w-full max-w-[48rem] flex-1 flex-col px-8 py-6 selection:bg-[var(--selection-bg)] selection:text-[var(--text-primary)] dark:selection:bg-[var(--selection-dark)] dark:selection:text-white',
-          showPlaceholder && placeholderHtml && 'hidden'
-        )}
+        className={cn(EDITOR_SURFACE_CLASS, showPlaceholder && 'hidden')}
       />
     </div>
   )

@@ -16,6 +16,9 @@ const {
   mockStorageSharedKeyCredential,
   mockGenerateBlobSASQueryParameters,
   mockBlobSASPermissionsParse,
+  mockCommitBlockList,
+  mockGetProperties,
+  mockSetMetadata,
 } = vi.hoisted(() => ({
   mockUpload: vi.fn(),
   mockDownload: vi.fn(),
@@ -27,6 +30,9 @@ const {
   mockStorageSharedKeyCredential: vi.fn(),
   mockGenerateBlobSASQueryParameters: vi.fn(),
   mockBlobSASPermissionsParse: vi.fn(),
+  mockCommitBlockList: vi.fn(),
+  mockGetProperties: vi.fn(),
+  mockSetMetadata: vi.fn(),
 }))
 
 vi.mock('@azure/storage-blob', () => ({
@@ -51,9 +57,14 @@ vi.mock('@/lib/uploads/config', () => ({
 }))
 
 import {
+  abortMultipartUpload,
+  commitBlobBlockList,
+  completeMultipartUpload,
   deleteFromBlob,
   downloadFromBlob,
   getPresignedUrl,
+  headBlobObject,
+  initiateMultipartUpload,
   parseConnectionString,
   uploadToBlob,
 } from '@/lib/uploads/providers/blob/client'
@@ -66,10 +77,13 @@ describe('Azure Blob Storage Client', () => {
     mockBlobSASPermissionsParse.mockReturnValue('r')
 
     mockGetBlockBlobClient.mockReturnValue({
+      commitBlockList: mockCommitBlockList,
       upload: mockUpload,
       download: mockDownload,
       delete: mockDelete,
       deleteIfExists: mockDeleteIfExists,
+      getProperties: mockGetProperties,
+      setMetadata: mockSetMetadata,
       url: 'https://test.blob.core.windows.net/container/test-file',
     })
 
@@ -181,6 +195,60 @@ describe('Azure Blob Storage Client', () => {
     })
   })
 
+  describe('headBlobObject', () => {
+    it('returns custom metadata used for direct-upload receipt verification', async () => {
+      mockGetProperties.mockResolvedValueOnce({
+        contentLength: 12,
+        contentType: 'text/plain',
+        metadata: { simuploadid: 'receipt-1' },
+      })
+
+      await expect(headBlobObject('workspace/file.txt')).resolves.toEqual({
+        size: 12,
+        contentType: 'text/plain',
+        metadata: { simuploadid: 'receipt-1' },
+      })
+    })
+
+    it('reports an absent blob as null rather than raising', async () => {
+      /** Azure names the class in `name` and the reason in `code`. */
+      mockGetProperties.mockRejectedValueOnce(
+        Object.assign(new Error('BlobNotFound'), {
+          name: 'RestError',
+          code: 'BlobNotFound',
+          statusCode: 404,
+        })
+      )
+
+      await expect(headBlobObject('workspace/superseded.md')).resolves.toBeNull()
+    })
+
+    it('raises when the container itself is missing', async () => {
+      /** Also a 404, but a misconfiguration — reporting absence would hide an outage. */
+      mockGetProperties.mockRejectedValueOnce(
+        Object.assign(new Error('ContainerNotFound'), {
+          name: 'RestError',
+          code: 'ContainerNotFound',
+          statusCode: 404,
+        })
+      )
+
+      await expect(headBlobObject('workspace/file.txt')).rejects.toThrow('ContainerNotFound')
+    })
+
+    it('raises on a permission failure', async () => {
+      mockGetProperties.mockRejectedValueOnce(
+        Object.assign(new Error('AuthorizationFailure'), {
+          name: 'RestError',
+          code: 'AuthorizationFailure',
+          statusCode: 403,
+        })
+      )
+
+      await expect(headBlobObject('workspace/file.txt')).rejects.toThrow('AuthorizationFailure')
+    })
+  })
+
   describe('deleteFromBlob', () => {
     it('should delete a file from Azure Blob Storage', async () => {
       const testKey = 'test-file-key'
@@ -205,6 +273,150 @@ describe('Azure Blob Storage Client', () => {
       expect(mockGenerateBlobSASQueryParameters).toHaveBeenCalled()
       expect(result).toContain('https://test.blob.core.windows.net/container/test-file')
       expect(result).toContain('sv=2021-06-08')
+    })
+  })
+
+  describe('multipart uploads', () => {
+    it('does not create the canonical blob when initiating an upload', async () => {
+      const result = await initiateMultipartUpload({
+        fileName: 'large.bin',
+        contentType: 'application/octet-stream',
+        fileSize: 10,
+        customKey: 'workspace/ws-1/large.bin',
+      })
+
+      expect(result.key).toBe('workspace/ws-1/large.bin')
+      expect(mockSetMetadata).not.toHaveBeenCalled()
+    })
+
+    it('commits multipart blocks only when the canonical blob does not exist', async () => {
+      mockCommitBlockList.mockResolvedValueOnce(undefined)
+
+      await completeMultipartUpload('workspace/ws-1/large.bin', 'upload-1', [
+        { partNumber: 2, blockId: 'block-2' },
+        { partNumber: 1, blockId: 'block-1' },
+      ])
+
+      expect(mockCommitBlockList).toHaveBeenCalledWith(['block-1', 'block-2'], {
+        conditions: { ifNoneMatch: '*' },
+        metadata: {
+          sim_multipart_status: 'completed',
+          sim_upload_id: 'upload-1',
+          uploadCompletedAt: expect.any(String),
+        },
+      })
+    })
+
+    it('returns the immutable blob when a successful commit response was lost', async () => {
+      mockCommitBlockList.mockRejectedValueOnce(new Error('ConditionNotMet'))
+      mockGetProperties.mockResolvedValueOnce({
+        contentLength: 10,
+        contentType: 'application/octet-stream',
+        metadata: { sim_upload_id: 'upload-1', sim_multipart_status: 'completed' },
+      })
+
+      const result = await completeMultipartUpload('workspace/ws-1/large.bin', 'upload-1', [
+        { partNumber: 1, blockId: 'block-1' },
+      ])
+
+      expect(mockGetProperties).toHaveBeenCalled()
+      expect(result.key).toBe('workspace/ws-1/large.bin')
+    })
+
+    it('finishes a matching legacy pending placeholder without opening unrelated overwrite', async () => {
+      mockCommitBlockList
+        .mockRejectedValueOnce(
+          Object.assign(new Error('ConditionNotMet'), { code: 'ConditionNotMet' })
+        )
+        .mockResolvedValueOnce(undefined)
+      mockGetProperties.mockResolvedValueOnce({
+        etag: 'legacy-etag',
+        metadata: { uploadid: 'upload-1', multipartupload: 'true' },
+      })
+
+      await completeMultipartUpload('workspace/ws-1/large.bin', 'upload-1', [
+        { partNumber: 1, blockId: 'block-1' },
+      ])
+
+      expect(mockCommitBlockList).toHaveBeenNthCalledWith(2, ['block-1'], {
+        conditions: { ifMatch: 'legacy-etag' },
+        metadata: {
+          sim_multipart_status: 'completed',
+          sim_upload_id: 'upload-1',
+          uploadCompletedAt: expect.any(String),
+        },
+      })
+    })
+
+    it('fails closed when a different upload already owns the canonical blob', async () => {
+      mockCommitBlockList.mockRejectedValueOnce(new Error('ConditionNotMet'))
+      mockGetProperties.mockResolvedValueOnce({
+        metadata: { sim_upload_id: 'different-upload', sim_multipart_status: 'completed' },
+      })
+
+      await expect(
+        completeMultipartUpload('workspace/ws-1/large.bin', 'upload-1', [
+          { partNumber: 1, blockId: 'block-1' },
+        ])
+      ).rejects.toThrow('ConditionNotMet')
+    })
+
+    it('never deletes a completed blob while aborting a retried request', async () => {
+      mockGetProperties.mockResolvedValueOnce({
+        metadata: { sim_upload_id: 'upload-1', sim_multipart_status: 'completed' },
+      })
+
+      await abortMultipartUpload('workspace/ws-1/large.bin', 'upload-1')
+
+      expect(mockDeleteIfExists).not.toHaveBeenCalled()
+    })
+
+    it('cleans up only a matching legacy pending placeholder', async () => {
+      mockGetProperties.mockResolvedValueOnce({
+        metadata: { uploadid: 'upload-1', multipartupload: 'true' },
+      })
+
+      await abortMultipartUpload('workspace/ws-1/large.bin', 'upload-1')
+
+      expect(mockDeleteIfExists).toHaveBeenCalledTimes(1)
+    })
+
+    it('retains replace semantics for deterministic internal exports', async () => {
+      mockCommitBlockList.mockResolvedValueOnce(undefined)
+
+      await commitBlobBlockList(
+        'workspace/ws-1/export.csv',
+        'upload-1',
+        [{ partNumber: 1, blockId: 'block-1' }],
+        'text/csv',
+        undefined,
+        'replace'
+      )
+
+      expect(mockCommitBlockList).toHaveBeenCalledWith(
+        ['block-1'],
+        expect.not.objectContaining({ conditions: { ifNoneMatch: '*' } })
+      )
+    })
+
+    it('reuses an existing snapshot only under the explicit policy', async () => {
+      mockCommitBlockList.mockRejectedValueOnce(
+        Object.assign(new Error('ConditionNotMet'), { code: 'ConditionNotMet' })
+      )
+      mockGetProperties.mockResolvedValueOnce({
+        metadata: { sim_upload_id: 'different-upload' },
+      })
+
+      await expect(
+        commitBlobBlockList(
+          'table-snapshots/ws-1/table.csv',
+          'upload-1',
+          [{ partNumber: 1, blockId: 'block-1' }],
+          'text/csv',
+          undefined,
+          'reuse-existing'
+        )
+      ).resolves.toBeUndefined()
     })
   })
 

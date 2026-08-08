@@ -4,6 +4,7 @@ import type { EdgeManager } from '@/executor/execution/edge-manager'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata, SerializableExecutionState } from '@/executor/execution/types'
 import type { ExecutionContext, SerializedSnapshot } from '@/executor/types'
+import { RESOLVED_SECRET_TRACE_CHECKPOINT_VERSION } from '@/executor/utils/resolved-secret-trace-registry'
 
 const JSON_SYNTAX_BYTES = {
   QUOTE: 1,
@@ -236,7 +237,15 @@ export function serializePauseSnapshot(
       largeValueKeys: Array.from(new Set(context.largeValueKeys ?? [])),
       fileKeys: Array.from(new Set(context.fileKeys ?? [])),
     },
-    resolvedSecretTraceProvenance: context.resolvedSecretTraceRegistry?.exportProvenance(),
+    resolvedSecretTraceProvenance:
+      context.resolvedSecretTraceRegistry?.exportCheckpointProvenance(),
+    workflowVariableResolvedSecretTraceProvenance:
+      context.workflowVariableResolvedSecretTraceProvenance,
+    workflowInputResolvedSecretTraceProvenance: context.workflowInputResolvedSecretTraceProvenance,
+    finalOutputResolvedSecretTraceProvenance: context.finalOutputResolvedSecretTraceProvenance,
+    resolvedSecretTraceCheckpointVersion: context.resolvedSecretTraceRegistry
+      ? RESOLVED_SECRET_TRACE_CHECKPOINT_VERSION
+      : undefined,
   }
 
   assertSnapshotValueIsCompact(context.workflowVariables, 'workflow variables')

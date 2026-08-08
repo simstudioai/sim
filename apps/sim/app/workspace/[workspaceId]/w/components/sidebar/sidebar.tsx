@@ -42,6 +42,7 @@ import { isChatEnabled } from '@/lib/core/config/env-flags'
 import { isMacPlatform } from '@/lib/core/utils/platform'
 import { buildFolderTree, getFolderPathNames } from '@/lib/folders/tree'
 import { captureEvent } from '@/lib/posthog/client'
+import { CONNECT_MODE } from '@/app/workspace/[workspaceId]/integrations/connect-route'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
@@ -194,6 +195,13 @@ const SidebarChatItem = memo(function SidebarChatItem({
 }) {
   const dragGhostRef = useRef<HTMLElement | null>(null)
 
+  /**
+   * The trailing slot fits one glyph, and the dot wins over the pin: it reports
+   * transient state (a run in progress, or an unread reply elsewhere), while pinning
+   * is persistent and already conveyed by the row sorting to the top of the list.
+   */
+  const showStatusDot = isActive || (!isCurrentRoute && isUnread)
+
   function handleDragStart(e: React.DragEvent) {
     e.dataTransfer.effectAllowed = 'copyMove'
     e.dataTransfer.setData(
@@ -237,12 +245,12 @@ const SidebarChatItem = memo(function SidebarChatItem({
       >
         <div className='min-w-0 flex-1 truncate text-[var(--text-body)]'>{chat.name}</div>
         {chat.id !== 'new' && (
-          <div className='relative flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center'>
-            {(isActive || (!isCurrentRoute && isUnread)) && (
+          <div className='relative flex size-[18px] flex-shrink-0 items-center justify-center'>
+            {showStatusDot && (
               <span
                 aria-hidden='true'
                 className={cn(
-                  'h-[6px] w-[6px] rounded-full transition-opacity',
+                  'size-[6px] rounded-full transition-opacity',
                   isMenuOpen ? 'opacity-0' : 'group-hover:opacity-0'
                 )}
                 style={{
@@ -250,10 +258,13 @@ const SidebarChatItem = memo(function SidebarChatItem({
                 }}
               />
             )}
-            {!isActive && !isUnread && isPinned && !isCurrentRoute && !isMenuOpen && (
+            {!showStatusDot && isPinned && (
               <Pin
                 aria-hidden='true'
-                className='absolute size-[12px] text-[var(--text-icon)] group-hover:hidden'
+                className={cn(
+                  'absolute size-[12px] text-[var(--text-icon)] transition-opacity',
+                  isMenuOpen ? 'opacity-0' : 'group-hover:opacity-0'
+                )}
               />
             )}
             <button
@@ -270,7 +281,7 @@ const SidebarChatItem = memo(function SidebarChatItem({
                 isMenuOpen && 'opacity-100'
               )}
             >
-              <MoreHorizontal className='size-[9px] text-[var(--text-icon)]' />
+              <MoreHorizontal className='size-[14px] text-[var(--text-icon)]' />
             </button>
           </div>
         )}
@@ -412,7 +423,12 @@ export const Sidebar = memo(function Sidebar({
   const posthog = usePostHog()
   const { data: sessionData, isPending: sessionLoading } = useSession()
   const { canEdit, isLoading: permissionsLoading } = useUserPermissionsContext()
-  const { config: permissionConfig, filterBlocks } = usePermissionConfig()
+  const {
+    config: permissionConfig,
+    filterBlocks,
+    isBlockAllowed,
+    integrationAvailability,
+  } = usePermissionConfig()
   const { navigateToSettings } = useSettingsNavigation()
   const initializeSearchData = useSearchModalStore((state) => state.initializeData)
   const customBlockOverlayVersion = useCustomBlockOverlayVersion()
@@ -502,6 +518,8 @@ export const Sidebar = memo(function Sidebar({
 
   const {
     workspaces,
+    pinnedWorkspaceIds,
+    toggleWorkspacePin,
     workspaceCreationPolicy,
     activeWorkspace,
     isWorkspacesLoading,
@@ -1067,8 +1085,17 @@ export const Sidebar = memo(function Sidebar({
   })
 
   const searchModalIntegrations = useMemo(
-    () => (permissionConfig.hideIntegrationsTab ? [] : buildIntegrationSearchItems(workspaceId)),
-    [workspaceId, permissionConfig.hideIntegrationsTab]
+    () =>
+      permissionConfig.hideIntegrationsTab
+        ? []
+        : buildIntegrationSearchItems(workspaceId, isBlockAllowed, (blockType) => {
+            const availability = integrationAvailability.get(blockType.toLowerCase())
+            if (!availability) return CONNECT_MODE.oauth
+            if (availability?.oauthAvailable) return CONNECT_MODE.oauth
+            if (availability?.state === 'limited') return CONNECT_MODE.serviceAccount
+            return null
+          }),
+    [workspaceId, permissionConfig.hideIntegrationsTab, isBlockAllowed, integrationAvailability]
   )
 
   const searchModalConnectedAccounts = useMemo(
@@ -1330,6 +1357,8 @@ export const Sidebar = memo(function Sidebar({
                 activeWorkspace={activeWorkspace}
                 workspaceId={workspaceId}
                 workspaces={workspaces}
+                pinnedWorkspaceIds={pinnedWorkspaceIds}
+                onToggleWorkspacePin={toggleWorkspacePin}
                 workspaceCreationPolicy={workspaceCreationPolicy}
                 isWorkspacesLoading={isWorkspacesLoading}
                 isCreatingWorkspace={isCreatingWorkspace}
@@ -1597,7 +1626,7 @@ export const Sidebar = memo(function Sidebar({
                                       {isImporting || isCreatingFolder ? (
                                         <Loader className='h-[16px] w-[16px]' animate />
                                       ) : (
-                                        <MoreHorizontal className='size-[9px]' />
+                                        <MoreHorizontal className='size-[14px]' />
                                       )}
                                     </Button>
                                   </DropdownMenuTrigger>

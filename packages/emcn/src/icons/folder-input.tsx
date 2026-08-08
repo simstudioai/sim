@@ -21,14 +21,14 @@ export function FolderInput(props: SVGProps<SVGSVGElement>) {
       <path
         d='M2 13h10'
         stroke='currentColor'
-        strokeWidth='2'
+        strokeWidth='1.55'
         strokeLinecap='round'
         strokeLinejoin='round'
       />
       <path
         d='m9 16 3-3-3-3'
         stroke='currentColor'
-        strokeWidth='2'
+        strokeWidth='1.55'
         strokeLinecap='round'
         strokeLinejoin='round'
       />

@@ -25,6 +25,12 @@ export const defaultMockEnv = {
   EMAIL_DOMAIN: 'test.sim.ai',
   PERSONAL_EMAIL_FROM: 'Test <test@test.sim.ai>',
 
+  // Cache
+  REDIS_URL: undefined,
+
+  // Storage
+  STORAGE_PROVIDER: 'local',
+
   // URLs
   NEXT_PUBLIC_APP_URL: 'https://test.sim.ai',
 }

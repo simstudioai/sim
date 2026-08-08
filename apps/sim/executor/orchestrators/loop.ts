@@ -19,6 +19,8 @@ import type { BlockStateController, ContextExtensions } from '@/executor/executi
 import type { ExecutionContext, NormalizedBlockOutput } from '@/executor/types'
 import type { LoopConfigWithNodes } from '@/executor/types/loop'
 import { createReferencePattern } from '@/executor/utils/reference-validation'
+import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
+import { mergeSubflowSecretProvenance } from '@/executor/utils/subflow-secret-provenance'
 import {
   addSubflowErrorLog,
   buildParallelSentinelEndId,
@@ -140,28 +142,52 @@ export class LoopOrchestrator {
           throw new Error(errorMessage)
         }
         let items: any[]
+        const parentRegistry = ctx.resolvedSecretTraceRegistry
+        const resolutionRegistry = parentRegistry?.forkForInputPaths([])
+        const resolutionCtx = resolutionRegistry
+          ? { ...ctx, resolvedSecretTraceRegistry: resolutionRegistry }
+          : ctx
         try {
           items = await resolveArrayInputAsync(
-            ctx,
+            resolutionCtx,
             loopConfig.forEachItems,
             this.resolver,
             buildSentinelStartId(loopId)
           )
         } catch (error) {
           const errorMessage = `ForEach loop resolution failed: ${toError(error).message}`
-          logger.error(errorMessage, { loopId, forEachItems: loopConfig.forEachItems })
-          await this.addLoopErrorLog(ctx, loopId, loopType, errorMessage, {
-            forEachItems: loopConfig.forEachItems,
+          const errorDiagnostic = projectResolvedSecretDiagnosticError(
+            new Error(errorMessage),
+            resolutionCtx.resolvedSecretTraceRegistry,
+            { loopId }
+          )
+          const persistedErrorMessage = resolutionCtx.resolvedSecretTraceRegistry
+            ? typeof errorDiagnostic.error === 'string'
+              ? errorDiagnostic.error
+              : 'ForEach loop resolution failed'
+            : errorMessage
+          logger.error('ForEach loop resolution failed', errorDiagnostic)
+          await this.addLoopErrorLog(resolutionCtx, loopId, loopType, persistedErrorMessage, {
+            inputType: Array.isArray(loopConfig.forEachItems)
+              ? 'array'
+              : loopConfig.forEachItems === null
+                ? 'null'
+                : typeof loopConfig.forEachItems,
           })
           scope.items = []
           scope.maxIterations = 0
-          scope.validationError = errorMessage
+          scope.validationError = persistedErrorMessage
           scope.condition = buildLoopIndexCondition(0)
           ctx.loopExecutions?.set(loopId, scope)
-          throw new Error(errorMessage)
+          throw new Error(persistedErrorMessage)
         }
 
         scope.items = items
+        scope.inputResolvedSecretTraceProvenance =
+          resolutionRegistry?.exportCommittedProvenanceForValue(items)
+        if (parentRegistry && resolutionRegistry?.isComplete()) {
+          parentRegistry.mergeToolCallRegistry(resolutionRegistry)
+        }
         scope.maxIterations = items.length
         scope.item = items[0]
         scope.condition = buildLoopIndexCondition(scope.maxIterations)
@@ -227,6 +253,10 @@ export class LoopOrchestrator {
 
     const baseId = extractBaseBlockId(nodeId)
     scope.currentIterationOutputs.set(baseId, output)
+    scope.resolvedSecretTraceProvenance = mergeSubflowSecretProvenance(
+      scope.resolvedSecretTraceProvenance,
+      this.state.getBlockState(nodeId)?.resolvedSecretTraceProvenance
+    )
   }
 
   async evaluateLoopContinuation(
@@ -327,7 +357,16 @@ export class LoopOrchestrator {
       requireDurable: true,
     })
     const output = { results: compactedResults }
-    this.state.setBlockOutput(loopId, output, DEFAULTS.EXECUTION_TIME)
+    if (scope.resolvedSecretTraceProvenance) {
+      this.state.setBlockOutput(
+        loopId,
+        output,
+        DEFAULTS.EXECUTION_TIME,
+        scope.resolvedSecretTraceProvenance
+      )
+    } else {
+      this.state.setBlockOutput(loopId, output, DEFAULTS.EXECUTION_TIME)
+    }
     scope.allIterationOutputs = []
 
     await emitSubflowSuccessEvents(ctx, loopId, 'loop', output, this.contextExtensions)
@@ -686,7 +725,7 @@ export class LoopOrchestrator {
       const result = await this.evaluateWhileCondition(ctx, scope.condition, scope)
       logger.info('While loop initial condition evaluation', {
         loopId,
-        condition: scope.condition,
+        conditionLength: scope.condition.length,
         result,
       })
 
@@ -712,7 +751,7 @@ export class LoopOrchestrator {
 
     try {
       logger.info('Evaluating loop condition', {
-        originalCondition: condition,
+        conditionLength: condition.length,
         iteration: scope.iteration,
         workflowVariableCount: Object.keys(ctx.workflowVariables ?? {}).length,
       })
@@ -720,7 +759,7 @@ export class LoopOrchestrator {
       const evaluatedCondition = await replaceLoopConditionReferences(condition, async (match) => {
         const resolved = await this.resolver.resolveSingleReference(ctx, '', match, scope)
         logger.debug('Resolved variable reference in loop condition', {
-          reference: match,
+          referenceLength: match.length,
           resolvedType: resolved === null ? 'null' : typeof resolved,
         })
         if (resolved !== undefined) {
@@ -732,7 +771,7 @@ export class LoopOrchestrator {
             if (lower === 'true' || lower === 'false') {
               return lower
             }
-            return `"${resolved}"`
+            return JSON.stringify(resolved)
           }
           return JSON.stringify(resolved)
         }
@@ -757,10 +796,8 @@ export class LoopOrchestrator {
         const isSystemError = vmResult.error.isSystemError === true
         const logFn = isSystemError ? logger.error.bind(logger) : logger.warn.bind(logger)
         logFn('Failed to evaluate loop condition', {
-          condition,
-          evaluatedCondition,
-          error: vmResult.error,
           isSystemError,
+          ...projectResolvedSecretDiagnosticError(vmResult.error, ctx.resolvedSecretTraceRegistry),
         })
         return false
       }
@@ -768,14 +805,16 @@ export class LoopOrchestrator {
       const result = Boolean(vmResult.result)
 
       logger.info('Loop condition evaluation result', {
-        originalCondition: condition,
-        evaluatedCondition,
+        conditionLength: condition.length,
         result,
       })
 
       return result
     } catch (error) {
-      logger.error('Failed to evaluate loop condition', { condition, error })
+      logger.error('Failed to evaluate loop condition', {
+        conditionLength: condition.length,
+        ...projectResolvedSecretDiagnosticError(error, ctx.resolvedSecretTraceRegistry),
+      })
       return false
     }
   }

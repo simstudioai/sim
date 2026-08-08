@@ -18,6 +18,48 @@ const OPERATIONS_NEEDING_ORG = [
   'get_attachment',
 ]
 
+/**
+ * Collapse the three "not supplied" shapes to `undefined`. The workflow
+ * serializer initializes untouched subBlocks to `null`, and a cleared field
+ * arrives as `''`; both mean the same thing as absent.
+ */
+function orUndefined(value: unknown): unknown {
+  if (value === undefined || value === null || value === '') return undefined
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    return trimmed || undefined
+  }
+  return value
+}
+
+/**
+ * Coerce a pagination input to an integer at or above `min`, or `undefined`.
+ * Anything out of range is discarded rather than forwarded: Zoho answers a
+ * negative or fractional index with an opaque provider error.
+ */
+function toPaginationValue(value: unknown, min: number): number | undefined {
+  const resolved = orUndefined(value)
+  if (resolved === undefined) return undefined
+  const parsed = Number(resolved)
+  return Number.isInteger(parsed) && parsed >= min ? parsed : undefined
+}
+
+/**
+ * Accept the custom-field map as either an object (an agent supplying it
+ * directly) or the JSON text the subBlock stores. Anything unparseable fails
+ * loudly rather than reaching Zoho as a string it would silently ignore.
+ */
+function parseCustomFields(value: unknown): Record<string, unknown> | undefined {
+  if (value === undefined || value === null) return undefined
+  if (typeof value !== 'string') return value as Record<string, unknown>
+  if (!value.trim()) return undefined
+  try {
+    return JSON.parse(value)
+  } catch {
+    throw new Error('Invalid JSON provided for custom fields')
+  }
+}
+
 export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
   type: 'zoho_desk',
   name: 'Zoho Desk',
@@ -209,6 +251,39 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
       condition: { field: 'operation', value: 'list_tickets' },
     },
     {
+      id: 'assigneeFilter',
+      title: 'Assignee',
+      type: 'short-input',
+      placeholder: 'Filter, e.g. Unassigned',
+      condition: { field: 'operation', value: 'list_tickets' },
+      mode: 'advanced',
+    },
+    {
+      id: 'channelFilter',
+      title: 'Channel',
+      type: 'short-input',
+      placeholder: 'Filter, e.g. Email,Web',
+      condition: { field: 'operation', value: 'list_tickets' },
+      mode: 'advanced',
+    },
+    {
+      id: 'receivedInDays',
+      title: 'Customer Responded Within',
+      type: 'dropdown',
+      // "Any time" is required, not cosmetic: a dropdown with no empty option
+      // seeds its first option into the store on mount, so merely opening the
+      // advanced fields would pin every List Tickets run to a 15-day
+      // customer-response window with no way to clear it.
+      options: [
+        { label: 'Any time', id: '' },
+        { label: 'Last 15 days', id: '15' },
+        { label: 'Last 30 days', id: '30' },
+        { label: 'Last 90 days', id: '90' },
+      ],
+      condition: { field: 'operation', value: 'list_tickets' },
+      mode: 'advanced',
+    },
+    {
       id: 'assigneeId',
       title: 'Assignee',
       type: 'project-selector',
@@ -245,16 +320,15 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
       condition: { field: 'operation', value: 'update_ticket' },
       mode: 'advanced',
     },
+    // Zoho marks classification `x-dynamic-enum` and documents "Custom values
+    // are also supported", so the picklist is portal-editable — a closed
+    // dropdown would lock out any portal that renamed or replaced the
+    // system-defined values. Free text, with those values as the placeholder.
     {
       id: 'classification',
       title: 'Classification',
-      type: 'dropdown',
-      options: [
-        { label: 'Problem', id: 'Problem' },
-        { label: 'Request', id: 'Request' },
-        { label: 'Question', id: 'Question' },
-        { label: 'Others', id: 'Others' },
-      ],
+      type: 'short-input',
+      placeholder: 'e.g. Problem, Request, Question',
       condition: { field: 'operation', value: 'update_ticket' },
       mode: 'advanced',
     },
@@ -365,15 +439,65 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
       title: 'Include',
       type: 'short-input',
       placeholder: 'e.g. contacts,assignee',
-      condition: { field: 'operation', value: ['list_tickets', 'get_ticket'] },
+      condition: { field: 'operation', value: 'list_tickets' },
       mode: 'advanced',
     },
+    // Split from the list_tickets `include` above rather than shared: Get Ticket
+    // additionally accepts `contract` and `skills`, which List Tickets does not
+    // document. A shared subBlock keeps its value across an operation change, so
+    // `skills` set here would follow the user to List Tickets and put an
+    // undocumented token on the wire.
+    {
+      id: 'ticketInclude',
+      title: 'Include',
+      type: 'short-input',
+      placeholder: 'e.g. contacts,contract,skills',
+      condition: { field: 'operation', value: 'get_ticket' },
+      mode: 'advanced',
+    },
+    {
+      id: 'contactInclude',
+      title: 'Include',
+      type: 'short-input',
+      placeholder: 'accounts,owner',
+      condition: { field: 'operation', value: 'get_contact' },
+      mode: 'advanced',
+    },
+    {
+      id: 'threadInclude',
+      title: 'Include',
+      type: 'short-input',
+      placeholder: 'plainText',
+      condition: { field: 'operation', value: 'get_thread' },
+      mode: 'advanced',
+    },
+    // Sort is split per operation because Zoho allows a different field set on
+    // each list endpoint (tickets sort on createdTime/customerResponseTime/
+    // responseDueDate, comments on commentedTime, threads on sendDateTime). One
+    // shared subBlock keeps its value across an operation change, so it would
+    // carry a field name the next endpoint rejects.
     {
       id: 'sortBy',
       title: 'Sort By',
       type: 'short-input',
       placeholder: 'createdTime, customerResponseTime, or responseDueDate',
       condition: { field: 'operation', value: 'list_tickets' },
+      mode: 'advanced',
+    },
+    {
+      id: 'commentSortBy',
+      title: 'Sort By',
+      type: 'short-input',
+      placeholder: 'commentedTime or -commentedTime',
+      condition: { field: 'operation', value: 'list_comments' },
+      mode: 'advanced',
+    },
+    {
+      id: 'threadSortBy',
+      title: 'Sort By',
+      type: 'short-input',
+      placeholder: 'sendDateTime or -sendDateTime',
+      condition: { field: 'operation', value: 'list_threads' },
       mode: 'advanced',
     },
     {
@@ -416,9 +540,29 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
     config: {
       tool: (params) => `zoho_desk_${params.operation}`,
       params: (params) => {
-        // Pull raw pagination out of the spread so invalid values never reach the
-        // tool; only re-add them when Number() yields a finite value (a non-numeric
-        // typo would otherwise become NaN and produce an invalid Zoho query param).
+        // The agent-tool path does not carry `operation` inside params - it is a
+        // sibling of the tool call, used only to pick the tool - and there the
+        // model addresses tool params by their real names. The tool is already
+        // selected, so there is no cross-operation leak to guard against, while
+        // running the scoping below WOULD overwrite the model's own values with
+        // `undefined`. Leave those params alone; only coerce the JSON field,
+        // which is a type fix rather than an operation gate.
+        if (typeof params.operation !== 'string') {
+          return { ...params, customFields: parseCustomFields(params.customFields) }
+        }
+        // IMPORTANT: destructuring a key out of `rest` does NOT keep it from the
+        // tool. Both call sites merge this function's return value on top of the
+        // original inputs (`{ ...inputs, ...transformedParams }` in
+        // executor/handlers/generic/generic-handler.ts, and the same shape in
+        // providers/utils.ts), so a key left out of `result` is simply restored
+        // from `inputs`. The only way to scope a param to an operation is to
+        // OVERWRITE it with `undefined`, which every tool then treats as unset.
+        //
+        // This matters because a `mode: 'advanced'` subBlock with a retained
+        // value is serialized for every operation when the block's advanced
+        // toggle is off - serializer/index.ts returns on `isNonEmptyValue`
+        // without evaluating the subBlock's `condition` - so stale advanced
+        // values genuinely do arrive here under an unrelated operation.
         const {
           oauthCredential,
           from: rawFrom,
@@ -431,6 +575,16 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
           priorityFilter: rawPriorityFilter,
           customFields: rawCustomFields,
           departmentIds: rawDepartmentIds,
+          sortBy: rawSortBy,
+          commentSortBy: rawCommentSortBy,
+          threadSortBy: rawThreadSortBy,
+          include: rawInclude,
+          ticketInclude: rawTicketInclude,
+          contactInclude: rawContactInclude,
+          threadInclude: rawThreadInclude,
+          assigneeFilter: rawAssigneeFilter,
+          channelFilter: rawChannelFilter,
+          receivedInDays: rawReceivedInDays,
           ...rest
         } = params
         const result: Record<string, unknown> = { ...rest, oauthCredential }
@@ -447,15 +601,19 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
           : typeof rawDepartmentIds === 'string'
             ? rawDepartmentIds.trim()
             : ''
-        if (departmentIds) result.departmentIds = departmentIds
+        // Always assigned, never conditionally: an emptied multi-select stores
+        // `[]`, and leaving the key unset would let that array through to the
+        // tool, where the comma-list normalizer would throw on `.split`.
+        result.departmentIds = departmentIds || undefined
 
         // contentType is the comment's content type; its default would otherwise
         // serialize for every operation (e.g. get_attachment, which has no such
         // param). Only forward it for add_comment so the UI can't imply an option
         // that has no effect elsewhere.
-        if (params.operation === 'add_comment' && typeof contentType === 'string' && contentType) {
-          result.contentType = contentType
-        }
+        result.contentType =
+          params.operation === 'add_comment' && typeof contentType === 'string' && contentType
+            ? contentType
+            : undefined
 
         // Zoho documents from >= 0 and limit >= 1 as integers; a negative or
         // fractional value reaches the API as an opaque provider error, so drop
@@ -463,21 +621,16 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
         // `null` is checked explicitly: the serializer initializes untouched
         // subBlocks to null, and Number(null) is 0 — which would otherwise inject
         // from=0 on every operation instead of leaving the param unset.
-        if (rawFrom !== undefined && rawFrom !== null && rawFrom !== '') {
-          const from = Number(rawFrom)
-          if (Number.isInteger(from) && from >= 0) result.from = from
-        }
-        if (rawLimit !== undefined && rawLimit !== null && rawLimit !== '') {
-          const limit = Number(rawLimit)
-          if (Number.isInteger(limit) && limit >= 1) result.limit = limit
-        }
+        result.from = toPaginationValue(rawFrom, 0)
+        result.limit = toPaginationValue(rawLimit, 1)
         // Gated for the same reason as contentType above: isPublic carries a
         // defaultValue, so forwarding it unconditionally would serialize a
         // comment-only field onto every other operation's params. Destructured
         // out of `rest` so the default never reaches non-comment operations.
-        if (params.operation === 'add_comment' && isPublic !== undefined) {
-          result.isPublic = isPublic === true || isPublic === 'true'
-        }
+        result.isPublic =
+          params.operation === 'add_comment' && isPublic !== undefined
+            ? isPublic === true || isPublic === 'true'
+            : undefined
         // Gated to update_ticket for the same reason as contentType and isPublic
         // above: the subBlock keeps its value when the operation changes, so
         // stale (or half-typed) JSON left behind after switching away from
@@ -498,27 +651,57 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
             : params.operation === 'update_ticket'
               ? rawPriority
               : undefined
-        if (activeStatus !== undefined && activeStatus !== null && activeStatus !== '') {
-          result.status = activeStatus
-        }
-        if (activePriority !== undefined && activePriority !== null && activePriority !== '') {
-          result.priority = activePriority
-        }
+        result.status = orUndefined(activeStatus)
+        result.priority = orUndefined(activePriority)
 
-        if (params.operation === 'update_ticket' && rawCustomFields !== undefined) {
-          if (typeof rawCustomFields === 'string') {
-            if (rawCustomFields.trim()) {
-              try {
-                result.customFields = JSON.parse(rawCustomFields)
-              } catch {
-                throw new Error('Invalid JSON provided for custom fields')
-              }
-            }
-          } else if (rawCustomFields !== null) {
-            // Already an object when an agent supplies it directly.
-            result.customFields = rawCustomFields
-          }
-        }
+        // sortBy and include are per-operation for the same reason: three list
+        // endpoints accept three different sort fields, and get_contact accepts a
+        // different `include` vocabulary than the ticket endpoints. A subBlock
+        // keeps its value across an operation change, so an ungated spread would
+        // send list_tickets' `createdTime` to list_comments, which Zoho rejects.
+        const activeSortBy =
+          params.operation === 'list_tickets'
+            ? rawSortBy
+            : params.operation === 'list_comments'
+              ? rawCommentSortBy
+              : params.operation === 'list_threads'
+                ? rawThreadSortBy
+                : undefined
+        result.sortBy = orUndefined(activeSortBy)
+
+        // Get Ticket falls back to the legacy shared `include`: workflows saved
+        // before the split stored their value there, and dropping it would
+        // silently stop embedding what they asked for. The fallback is one-way
+        // and safe - Get Ticket accepts every value List Tickets does, plus
+        // `contract` and `skills` - while List Tickets never reads
+        // `ticketInclude`, so those two extra tokens can still never reach it.
+        const activeInclude =
+          params.operation === 'list_tickets'
+            ? rawInclude
+            : params.operation === 'get_ticket'
+              ? (orUndefined(rawTicketInclude) ?? rawInclude)
+              : params.operation === 'get_contact'
+                ? rawContactInclude
+                : params.operation === 'get_thread'
+                  ? rawThreadInclude
+                  : undefined
+        result.include = orUndefined(activeInclude)
+
+        // Gated for the same stale-value reason as the filters above: these three
+        // are list_tickets-only query params, and no other operation declares them.
+        const isListTickets = params.operation === 'list_tickets'
+        result.assignee = isListTickets ? orUndefined(rawAssigneeFilter) : undefined
+        result.channel = isListTickets ? orUndefined(rawChannelFilter) : undefined
+        // Forward whatever was supplied and let the tool judge it. Filtering here
+        // on shape would swallow 30.5 or a non-numeric value, and the tool would
+        // then run without the filter and return the entire queue as though the
+        // requested window had applied. Only the empty "Any time" option is
+        // dropped, because that genuinely means no filter.
+        const receivedInDays = isListTickets ? orUndefined(rawReceivedInDays) : undefined
+        result.receivedInDays = receivedInDays === undefined ? undefined : Number(receivedInDays)
+
+        result.customFields =
+          params.operation === 'update_ticket' ? parseCustomFields(rawCustomFields) : undefined
         return result
       },
     },
@@ -537,6 +720,12 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
     status: { type: 'string', description: 'Ticket status to set' },
     statusFilter: { type: 'string', description: 'Status filter for listing tickets' },
     priorityFilter: { type: 'string', description: 'Priority filter for listing tickets' },
+    assigneeFilter: { type: 'string', description: 'Assignee filter for listing tickets' },
+    channelFilter: { type: 'string', description: 'Channel filter for listing tickets' },
+    receivedInDays: {
+      type: 'number',
+      description: 'Only tickets with a customer response in the last N days',
+    },
     priority: { type: 'string', description: 'Ticket priority' },
     assigneeId: { type: 'string', description: 'Assignee (agent) ID' },
     description: { type: 'string', description: 'Ticket description' },
@@ -550,8 +739,13 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
     customFields: { type: 'json', description: 'Custom field values' },
     href: { type: 'string', description: 'Attachment download href' },
     fileName: { type: 'string', description: 'Downloaded file name' },
-    include: { type: 'string', description: 'Related data to include' },
-    sortBy: { type: 'string', description: 'Sort field' },
+    include: { type: 'string', description: 'Related data to include when listing tickets' },
+    ticketInclude: { type: 'string', description: 'Related data to include on a single ticket' },
+    contactInclude: { type: 'string', description: 'Related data to include on a contact' },
+    threadInclude: { type: 'string', description: 'Related data to include on a thread' },
+    sortBy: { type: 'string', description: 'Sort field for listing tickets' },
+    commentSortBy: { type: 'string', description: 'Sort field for listing comments' },
+    threadSortBy: { type: 'string', description: 'Sort field for listing threads' },
     from: { type: 'number', description: 'Pagination start index' },
     limit: { type: 'number', description: 'Maximum results' },
   },
@@ -659,7 +853,7 @@ export const ZohoDeskBlockMeta = {
       description:
         'Read an incoming Zoho Desk ticket, classify it, and set priority, classification, category, and assignee.',
       content:
-        '# Triage a Zoho Desk Ticket\n\nClassify a newly created ticket and route it to the right owner.\n\n## Steps\n1. If the organization ID is unknown, List Organizations and pick the portal to work in.\n2. Get Ticket for the ticket ID and read subject, descriptionText, channel, and status.\n3. Decide the urgency and the owning team from the content, and pick a classification of Problem, Request, Question, or Others.\n4. Update Ticket to set priority, classification, category and subCategory, and the assigneeId or departmentId that should own it.\n5. Add Comment as an internal note explaining the triage decision so the agent who picks it up has the reasoning.\n\n## Output\nReport the ticket ID and number, the classification and priority set, the assignee or department it was routed to, and anything ambiguous that needs a human decision.',
+        "# Triage a Zoho Desk Ticket\n\nClassify a newly created ticket and route it to the right owner.\n\n## Steps\n1. If the organization ID is unknown, List Organizations and pick the portal to work in.\n2. Get Ticket for the ticket ID and read subject, descriptionText, channel, and status.\n3. Decide the urgency and the owning team from the content, and pick a classification — Problem, Request and Question are Zoho's system-defined values, but the portal may define its own.\n4. Update Ticket to set priority, classification, category and subCategory, and the assigneeId or departmentId that should own it.\n5. Add Comment as an internal note explaining the triage decision so the agent who picks it up has the reasoning.\n\n## Output\nReport the ticket ID and number, the classification and priority set, the assignee or department it was routed to, and anything ambiguous that needs a human decision.",
     },
     {
       name: 'escalate-overdue-tickets',

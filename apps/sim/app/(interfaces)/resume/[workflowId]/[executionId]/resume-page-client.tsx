@@ -705,9 +705,7 @@ export default function ResumeExecutionPage({
       <Tooltip.Provider>
         <div className='flex flex-1 items-center justify-center p-6'>
           <div className='max-w-[400px] text-center'>
-            <h1 className='mb-2 font-medium text-[20px] text-[var(--text-primary)]'>
-              Execution Not Found
-            </h1>
+            <h1 className='mb-2 text-[20px] text-[var(--text-primary)]'>Execution Not Found</h1>
             <p className='mb-6 text-[14px] text-[var(--text-secondary)]'>
               This execution could not be located or has already completed.
             </p>
@@ -726,7 +724,7 @@ export default function ResumeExecutionPage({
         {/* Header */}
         <div className='mb-8 flex items-center justify-between'>
           <div>
-            <h1 className='font-medium text-[20px] text-[var(--text-primary)]'>Paused Execution</h1>
+            <h1 className='text-[20px] text-[var(--text-primary)]'>Paused Execution</h1>
             <p className='mt-1 text-[14px] text-[var(--text-secondary)]'>
               Select a pause point to review and resume
             </p>

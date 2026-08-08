@@ -1,3 +1,5 @@
+import { normalizeSecretMountPolicy } from '@/lib/copilot/secret-mount-policy'
+import { getRemainingExecutionMs } from '@/lib/core/execution-limits'
 import {
   normalizeRecord,
   normalizeStringRecord,
@@ -53,13 +55,35 @@ export class FunctionBlockHandler implements BlockHandler {
     const { blockNameMapping, blockOutputSchemas } = collectBlockData(ctx)
 
     const contextVariables = normalizeRecord(inputs[FUNCTION_BLOCK_CONTEXT_VARS_KEY])
+    const requestedTimeout =
+      typeof inputs.timeout === 'number' && Number.isFinite(inputs.timeout) && inputs.timeout > 0
+        ? inputs.timeout
+        : undefined
+    const remainingExecutionMs = getRemainingExecutionMs(ctx.abortSignal)
+    const timeout =
+      remainingExecutionMs === undefined
+        ? (requestedTimeout ?? DEFAULT_EXECUTION_TIMEOUT_MS)
+        : Math.max(
+            1,
+            requestedTimeout === undefined
+              ? remainingExecutionMs
+              : Math.min(requestedTimeout, remainingExecutionMs)
+          )
+    const secretMountPolicy =
+      inputs.secretScope === undefined
+        ? undefined
+        : normalizeSecretMountPolicy({
+            secretScope: inputs.secretScope,
+            mountedSecrets: inputs.mountedSecrets,
+          })
 
     const toolParams = {
       code: codeContent,
       ...(sourceCode ? { sourceCode } : {}),
       language: inputs.language || DEFAULT_CODE_LANGUAGE,
-      timeout: inputs.timeout || DEFAULT_EXECUTION_TIMEOUT_MS,
+      timeout,
       ...(inputs.sandboxId ? { sandboxId: inputs.sandboxId } : {}),
+      ...(secretMountPolicy ?? {}),
       envVars: normalizeStringRecord(ctx.environmentVariables),
       workflowVariables: normalizeWorkflowVariables(ctx.workflowVariables),
       blockData: {},

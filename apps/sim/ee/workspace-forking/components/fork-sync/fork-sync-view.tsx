@@ -4,6 +4,7 @@ import { type Dispatch, Fragment, type SetStateAction, useMemo, useState } from 
 import {
   Badge,
   ChevronDown,
+  Chip,
   ChipCombobox,
   ChipSwitch,
   CollapsibleCard,
@@ -18,6 +19,7 @@ import type {
   ForkDependentReconfig,
   ForkMappingEntry,
   ForkResourceUsage,
+  ForkTriggerMapping,
 } from '@/lib/api/contracts/workspace-fork'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
@@ -25,7 +27,10 @@ import {
   FileKindRow,
   ResourceKindRow,
 } from '@/ee/workspace-forking/components/fork-resource-picker/fork-resource-picker'
-import { forkBlockerResolution } from '@/ee/workspace-forking/components/fork-sync/cleared-refs-list'
+import {
+  FORK_RESOURCE_KIND_LABEL,
+  forkBlockerResolution,
+} from '@/ee/workspace-forking/components/fork-sync/cleared-refs-list'
 import { forkRefKey } from '@/ee/workspace-forking/components/fork-sync/copy-reconciliation'
 import { DependentFieldSelector } from '@/ee/workspace-forking/components/fork-sync/dependent-field-selector'
 import {
@@ -39,7 +44,9 @@ import type {
   ForkSyncController,
 } from '@/ee/workspace-forking/components/fork-sync/use-fork-sync'
 import type { ForkDirection } from '@/ee/workspace-forking/hooks/workspace-fork'
+import { forkSyncBlockerReasonFor } from '@/ee/workspace-forking/lib/promote/sync-blockers'
 import type { SelectorKey } from '@/hooks/selectors/types'
+import { buildWebhookTriggerUrl } from '@/triggers/webhook-url'
 
 /**
  * Copyable kinds as expandable rows in the "Copy resources" section, ordered + labeled to match
@@ -65,8 +72,18 @@ const COPYABLE_KIND_SECTIONS: ReadonlyArray<{
  */
 const NEW_COPY_VALUE = '__new_copy__'
 
-/** Fixed target-picker width so every mapping row's control lines up as one column (mirrors General). */
-const MAPPING_TARGET_TRIGGER_CLASS = 'w-[240px] flex-shrink-0'
+/**
+ * Sentinel option value for "New URL" - the trigger mints a fresh public URL instead of taking
+ * over a retiring one. Sent as `adoptPath: null`.
+ */
+const NEW_TRIGGER_URL_VALUE = '__new_trigger_url__'
+
+/**
+ * Fixed target-picker width so every mapping row's control lines up as one column (mirrors
+ * General). Wide enough to hold a full-length secret key - these are the longest labels the
+ * picker shows, and clipping them is what makes two same-prefixed keys indistinguishable.
+ */
+const MAPPING_TARGET_TRIGGER_CLASS = 'w-[380px] flex-shrink-0'
 
 interface DependentBlock {
   targetBlockId: string
@@ -387,12 +404,21 @@ function MappingEntry({ controller, group, entry }: MappingEntryProps) {
               value={copying ? NEW_COPY_VALUE : target || undefined}
               onChange={(value) => controller.setTarget(entry, value)}
               placeholder='Select target'
+              searchable
+              searchPlaceholder='Search targets'
             />
           </div>
         </div>
+        {entry.sourceDeleted ? (
+          <p className='text-[var(--text-muted)] text-small'>
+            Deleted in the source — its name can't be shown. Map it to an existing{' '}
+            {FORK_RESOURCE_KIND_LABEL[entry.kind] ?? 'resource'} in the target, or fix the reference
+            in the source and redeploy.
+          </p>
+        ) : null}
         {entry.candidatesTruncated ? (
           <p className='text-[var(--text-muted)] text-small'>
-            More options than shown — search by name.
+            Too many targets to list them all — search covers only the ones shown.
           </p>
         ) : null}
       </div>
@@ -473,7 +499,7 @@ function MappingKindRow({ controller, group, summary }: MappingKindRowProps) {
         </Badge>
         <ChevronDown
           className={cn(
-            'h-[6px] w-[10px] shrink-0 text-[var(--text-icon)] transition-transform',
+            'size-[14px] shrink-0 text-[var(--text-icon)] transition-transform',
             open && 'rotate-180'
           )}
         />
@@ -561,6 +587,94 @@ function CopyKindSections({ controller, byKind }: CopyKindSectionsProps) {
   )
 }
 
+interface TriggerMappingRowProps {
+  controller: ForkSyncController
+  mapping: ForkTriggerMapping
+}
+
+/**
+ * One arriving trigger's URL decision: take over a URL that is retiring in the same target
+ * workflow, or mint a new one.
+ *
+ * Keyed and labelled by BLOCK NAME rather than the raw path - it is one block to one webhook URL,
+ * and the name is what the user recognises. Adopting keeps the external caller (a Slack Request
+ * URL, a provider subscription) working with no re-registration at all.
+ */
+function TriggerMappingRow({ controller, mapping }: TriggerMappingRowProps) {
+  // A trigger that already serves a URL keeps it, so the row states the URL and offers no
+  // control. Only a trigger the sync would give a NEW URL has something to decide.
+  const decidable = mapping.ownPath === null && mapping.adoptablePaths.length > 0
+  const pathOwners = controller.triggerPathOwnersFor(mapping.sourceBlockId)
+  // The RESOLVED choice, not the raw pick: a path another row claimed first is awarded once, so
+  // displaying the raw pick would promise a URL this row is not going to get.
+  const chosen = controller.triggerChoiceFor(mapping.sourceBlockId)
+  const resultingPath = mapping.ownPath ?? (chosen === '' ? null : chosen)
+
+  return (
+    <div className='flex flex-col gap-1'>
+      <div className='flex items-center justify-between gap-4'>
+        {/* One inner span, so the name and its "in <workflow>" suffix share a normal inline flow:
+            `Label` is inline-flex, and a flex container DISCARDS whitespace-only children, which
+            eats the separating space (and leaves `truncate` with no text run to clip). */}
+        <Label className='min-w-0'>
+          <span className='min-w-0 truncate'>
+            {mapping.blockName}{' '}
+            <span className='text-[var(--text-muted)]'>in {mapping.workflowName}</span>
+          </span>
+        </Label>
+        <div className={MAPPING_TARGET_TRIGGER_CLASS}>
+          {decidable ? (
+            <ChipCombobox
+              className='w-full'
+              align='start'
+              options={[
+                // The full URL lives under the row and follows the selection, so an option only
+                // has to name the CHOICE. Several retiring URLs is the one case that needs a
+                // disambiguator, and the path tail is what distinguishes them.
+                //
+                // A URL another trigger already took is disabled and says who took it: two blocks
+                // cannot serve one path, and the resolver awards it to the first slot - so
+                // allowing the pick would leave this row reading "Keeps this URL" while the sync
+                // silently minted it a new one.
+                ...mapping.adoptablePaths.map((path) => {
+                  const owner = pathOwners.get(path)
+                  const base =
+                    mapping.adoptablePaths.length === 1
+                      ? 'Keep existing URL'
+                      : `Keep …${path.slice(-12)}`
+                  return {
+                    label: owner ? `${base} · taken by ${owner}` : base,
+                    value: path,
+                    disabled: owner !== undefined,
+                  }
+                }),
+                { label: 'Generate new URL', value: NEW_TRIGGER_URL_VALUE },
+              ]}
+              value={chosen === '' ? NEW_TRIGGER_URL_VALUE : chosen}
+              onChange={(value) =>
+                controller.setTriggerAdoption(
+                  mapping.sourceBlockId,
+                  value === NEW_TRIGGER_URL_VALUE ? '' : value
+                )
+              }
+              placeholder='Generate new URL'
+            />
+          ) : (
+            <p className='text-right text-[var(--text-muted)] text-small'>Unchanged</p>
+          )}
+        </div>
+      </div>
+      <p className='min-w-0 truncate text-[var(--text-muted)] text-small'>
+        {resultingPath ? (
+          <span className='font-mono text-caption'>{buildWebhookTriggerUrl(resultingPath)}</span>
+        ) : (
+          'Gets a new URL on sync — register it with the calling service afterwards.'
+        )}
+      </p>
+    </div>
+  )
+}
+
 interface ForkSyncViewProps {
   controller: ForkSyncController
   onDirectionChange: (direction: ForkDirection) => void
@@ -574,7 +688,10 @@ interface ForkSyncViewProps {
  */
 export function ForkSyncView({ controller, onDirectionChange }: ForkSyncViewProps) {
   const detailsError = controller.errorMessage ?? controller.diffErrorMessage
-  const headsUp = controller.mcpReauthCount > 0 || controller.inlineSecretCount > 0
+  const headsUp =
+    controller.mcpReauthCount > 0 ||
+    controller.inlineSecretCount > 0 ||
+    controller.triggerUrlChanges.length > 0
 
   // Excluded workflows render greyed in the change list. Orient each name's tooltip
   // to WHERE it is excluded (that's the only place it can be re-included): the sync's
@@ -694,6 +811,20 @@ export function ForkSyncView({ controller, onDirectionChange }: ForkSyncViewProp
               target workspace.
             </div>
           ) : null}
+          {controller.triggerUrlChanges.map((change) => (
+            <div
+              key={`${change.workflowName}:${change.path}`}
+              className='mt-1 min-w-0 text-[var(--text-muted)] text-small'
+            >
+              <span className='text-[var(--text-body)]'>
+                A webhook URL in {change.workflowName}
+              </span>{' '}
+              stops being served — anything calling it will stop working.
+              <span className='block truncate font-mono text-caption'>
+                {buildWebhookTriggerUrl(change.path)}
+              </span>
+            </div>
+          ))}
         </SettingsSection>
       ) : null}
 
@@ -722,6 +853,20 @@ export function ForkSyncView({ controller, onDirectionChange }: ForkSyncViewProp
         </SettingsSection>
       ) : null}
 
+      {controller.triggerMappings.length > 0 ? (
+        <SettingsSection label={`Trigger URLs in ${controller.targetWorkspaceName}`}>
+          <div className='flex flex-col gap-2'>
+            {controller.triggerMappings.map((mapping) => (
+              <TriggerMappingRow
+                key={mapping.sourceBlockId}
+                controller={controller}
+                mapping={mapping}
+              />
+            ))}
+          </div>
+        </SettingsSection>
+      ) : null}
+
       {controller.hasVisibleCopyables ? (
         <SettingsSection label='Copy resources'>
           <div className='flex flex-col gap-2'>
@@ -743,18 +888,51 @@ export function ForkSyncView({ controller, onDirectionChange }: ForkSyncViewProp
       ) : null}
 
       {controller.blockingRefs.length > 0 ? (
-        <SettingsSection label='Blocking sync'>
+        <SettingsSection
+          label='Blocking sync'
+          action={
+            controller.droppableBlockerCount > 1 ? (
+              <Chip onClick={controller.dropAllDeletedRefs}>Drop all deleted</Chip>
+            ) : undefined
+          }
+        >
           <div className='flex flex-col gap-1'>
-            {controller.blockingRefs.map((ref, index) => (
-              <div
-                key={`${ref.targetWorkflowId}:${ref.blockId}:${ref.kind}:${ref.sourceId}:${ref.fieldLabel}:${index}`}
-                className='min-w-0 text-[var(--text-secondary)] text-small'
-              >
-                <span className='text-[var(--text-body)]'>{ref.blockLabel}</span> would lose{' '}
-                <span className='text-[var(--text-body)]'>{ref.fieldLabel}</span> in{' '}
-                {ref.workflowName} — {forkBlockerResolution(ref)}
-              </div>
-            ))}
+            {controller.blockingRefs.map((ref, index) => {
+              const dropKey = `${ref.kind}:${ref.sourceId}`
+              const uses = controller.blockingUsesByResource.get(dropKey) ?? 1
+              return (
+                <div
+                  key={`${ref.targetWorkflowId}:${ref.blockId}:${ref.kind}:${ref.sourceId}:${ref.fieldLabel}:${index}`}
+                  className='flex min-w-0 items-start justify-between gap-3 text-[var(--text-secondary)] text-small'
+                >
+                  <span className='min-w-0'>
+                    <span className='text-[var(--text-body)]'>{ref.blockLabel}</span> would lose{' '}
+                    <span className='text-[var(--text-body)]'>{ref.fieldLabel}</span> in{' '}
+                    {ref.workflowName} — {forkBlockerResolution(ref)}
+                  </span>
+                  {/* Only a source-deleted reference can be dropped: an unmapped copyable can still
+                      be copied and a missing workflow can still be deployed, so neither is a dead
+                      end the user should be able to accept away.
+
+                      One control per RESOURCE, not per row: the resource is gone, so the sync
+                      clears every field naming it (the remapper's clear resolves by reference, not
+                      by field). Rendering a Drop on each row would imply a per-field choice the
+                      write path cannot honour, so later rows for the same id state the scope
+                      instead. */}
+                  {forkSyncBlockerReasonFor(ref) !==
+                  'source-deleted' ? null : controller.firstBlockingRowForResource.get(dropKey) ===
+                    index ? (
+                    <Chip onClick={() => controller.toggleDroppedRef(ref.kind, ref.sourceId, true)}>
+                      {uses > 1 ? `Drop from ${uses} fields` : 'Drop'}
+                    </Chip>
+                  ) : (
+                    <span className='flex-shrink-0 text-[var(--text-muted)] text-caption'>
+                      same reference
+                    </span>
+                  )}
+                </div>
+              )
+            })}
           </div>
         </SettingsSection>
       ) : null}
@@ -762,16 +940,30 @@ export function ForkSyncView({ controller, onDirectionChange }: ForkSyncViewProp
       {controller.dependentClears.length > 0 ? (
         <SettingsSection label='Will be cleared'>
           <div className='flex flex-col gap-1'>
-            {controller.dependentClears.map((ref, index) => (
-              <div
-                key={`${ref.targetWorkflowId}:${ref.blockId}:${ref.kind}:${ref.sourceId}:${ref.fieldLabel}:${index}`}
-                className='min-w-0 text-[var(--text-secondary)] text-small'
-              >
-                <span className='text-[var(--text-body)]'>{ref.blockLabel}</span> will lose{' '}
-                <span className='text-[var(--text-body)]'>{ref.fieldLabel}</span> in{' '}
-                {ref.workflowName}
-              </div>
-            ))}
+            {controller.dependentClears.map((ref, index) => {
+              const droppedKey = `${ref.kind}:${ref.sourceId}`
+              const dropped = controller.droppedRefs.has(droppedKey)
+              return (
+                <div
+                  key={`${ref.targetWorkflowId}:${ref.blockId}:${ref.kind}:${ref.sourceId}:${ref.fieldLabel}:${index}`}
+                  className='flex min-w-0 items-start justify-between gap-3 text-[var(--text-secondary)] text-small'
+                >
+                  <span className='min-w-0'>
+                    <span className='text-[var(--text-body)]'>{ref.blockLabel}</span> will lose{' '}
+                    <span className='text-[var(--text-body)]'>{ref.fieldLabel}</span> in{' '}
+                    {ref.workflowName}
+                    {dropped ? ' — dropped' : ''}
+                  </span>
+                  {dropped ? (
+                    <Chip
+                      onClick={() => controller.toggleDroppedRef(ref.kind, ref.sourceId, false)}
+                    >
+                      Undo
+                    </Chip>
+                  ) : null}
+                </div>
+              )
+            })}
           </div>
           <p className='text-[var(--text-muted)] text-caption'>
             Re-pick these in the target after the sync.

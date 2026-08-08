@@ -43,6 +43,12 @@ export type TagSlot = (typeof TAG_SLOTS)[number]
 /** Type for all tag slots */
 export type AllTagSlot = (typeof ALL_TAG_SLOTS)[number]
 
+/**
+ * Max character length for a tag display name, enforced on every write path (UI,
+ * create API, bulk document API, copilot tools).
+ */
+export const KNOWLEDGE_TAG_DISPLAY_NAME_MAX_LENGTH = 100
+
 /** Type for number tag slots */
 export type NumberTagSlot = (typeof TAG_SLOT_CONFIG.number.slots)[number]
 

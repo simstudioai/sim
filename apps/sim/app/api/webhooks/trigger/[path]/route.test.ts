@@ -20,6 +20,7 @@ import {
   ADMISSION_ERROR_DESCRIPTOR,
   ADMISSION_RETRY_AFTER_SECONDS,
 } from '@/lib/core/admission/transient-failure'
+import { INTERNAL_TRIGGER_PROVIDERS, POLLING_PROVIDERS } from '@/triggers/constants'
 
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
@@ -638,7 +639,8 @@ describe('Webhook Trigger API Route', () => {
   })
 
   describe('Non-path trigger providers', () => {
-    it.each(['sim', 'table', 'tiktok'])(
+    /** Sourced from the registries so a newly added trigger is covered automatically. */
+    it.each([...INTERNAL_TRIGGER_PROVIDERS, ...POLLING_PROVIDERS, 'tiktok'])(
       'rejects HTTP deliveries to %s trigger paths with 404',
       async (provider) => {
         testData.webhooks.push({
@@ -657,6 +659,7 @@ describe('Webhook Trigger API Route', () => {
 
         expect(response.status).toBe(404)
         expect(queueWebhookExecutionMock).not.toHaveBeenCalled()
+        expect(dispatchResolvedWebhookTargetMock).not.toHaveBeenCalled()
       }
     )
 

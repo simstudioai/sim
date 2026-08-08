@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import type { UserSettingsApi } from '@/lib/api/contracts/user'
+import { normalizeStringArray } from '@/lib/core/utils/arrays'
 
 const logger = createLogger('UserQueries')
 
@@ -17,7 +18,6 @@ export const defaultUserSettings: UserSettingsApi = {
   telemetryEnabled: true,
   emailPreferences: {},
   billingUsageNotificationsEnabled: true,
-  showTrainingControls: false,
   superUserModeEnabled: false,
   mothershipEnvironment: 'default',
   errorNotificationsEnabled: true,
@@ -26,16 +26,6 @@ export const defaultUserSettings: UserSettingsApi = {
   copilotAutoAllowedTools: [],
   timezone: null,
   lastActiveWorkspaceId: null,
-}
-
-/**
- * The auto-allowed tool list is a jsonb column, so the driver hands back
- * `unknown`. Anything that is not an array of strings is treated as an empty
- * list: a malformed value must not widen what the copilot may run unprompted.
- */
-function normalizeAutoAllowedTools(value: unknown): string[] {
-  if (!Array.isArray(value)) return []
-  return value.filter((entry): entry is string => typeof entry === 'string')
 }
 
 /**
@@ -54,7 +44,6 @@ export async function getUserSettings(userId: string | null): Promise<UserSettin
       telemetryEnabled: settings.telemetryEnabled,
       emailPreferences: settings.emailPreferences,
       billingUsageNotificationsEnabled: settings.billingUsageNotificationsEnabled,
-      showTrainingControls: settings.showTrainingControls,
       superUserModeEnabled: settings.superUserModeEnabled,
       mothershipEnvironment: settings.mothershipEnvironment,
       errorNotificationsEnabled: settings.errorNotificationsEnabled,
@@ -80,14 +69,13 @@ export async function getUserSettings(userId: string | null): Promise<UserSettin
     telemetryEnabled: userSettings.telemetryEnabled,
     emailPreferences: userSettings.emailPreferences ?? {},
     billingUsageNotificationsEnabled: userSettings.billingUsageNotificationsEnabled ?? true,
-    showTrainingControls: userSettings.showTrainingControls ?? false,
     superUserModeEnabled: userSettings.superUserModeEnabled ?? false,
     mothershipEnvironment:
       (userSettings.mothershipEnvironment as UserSettingsApi['mothershipEnvironment']) ?? 'default',
     errorNotificationsEnabled: userSettings.errorNotificationsEnabled ?? true,
     snapToGridSize: userSettings.snapToGridSize ?? 0,
     showActionBar: userSettings.showActionBar ?? true,
-    copilotAutoAllowedTools: normalizeAutoAllowedTools(userSettings.copilotAutoAllowedTools),
+    copilotAutoAllowedTools: normalizeStringArray(userSettings.copilotAutoAllowedTools),
     timezone: userSettings.timezone ?? null,
     lastActiveWorkspaceId: userSettings.lastActiveWorkspaceId ?? null,
   }

@@ -2320,6 +2320,11 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             },
           },
         },
+        sandboxId: {
+          type: 'string',
+          description:
+            'Optional Sim sandbox id from agent/sandboxes/{name}.json. DEFAULT-FIRST: omit this whenever the documented default function_execute environment can do the job. Select a ready existing Sim sandbox only when a required third-party dependency, Debian system package, or managed CLI is known to be absent, or a default attempt failed specifically because it was missing. Never guess an id.',
+        },
         timeout: {
           type: 'number',
           description:
@@ -3458,6 +3463,60 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  manage_sandbox: {
+    parameters: {
+      type: 'object',
+      properties: {
+        cliTools: {
+          type: 'array',
+          description:
+            'Complete managed CLI id list (maximum 10). Use exact pinned ids returned by list. On edit, passing this replaces the whole list; pass [] to clear it.',
+          items: {
+            type: 'string',
+          },
+        },
+        dependencies: {
+          type: 'array',
+          description:
+            'Complete npm or PyPI dependency list (maximum 50). On edit, passing this replaces the whole list; pass [] to clear it.',
+          items: {
+            type: 'string',
+          },
+        },
+        language: {
+          type: 'string',
+          description:
+            'Dependency language. javascript installs from npm; python installs from PyPI. Required for add; optional for edit.',
+          enum: ['javascript', 'python'],
+        },
+        name: {
+          type: 'string',
+          description:
+            'Workspace-unique Sim sandbox name (1-64 characters). Required for add; optional for edit.',
+        },
+        operation: {
+          type: 'string',
+          description: "The operation to perform: 'add', 'edit', 'list', or 'delete'.",
+          enum: ['add', 'edit', 'delete', 'list'],
+        },
+        sandboxId: {
+          type: 'string',
+          description:
+            'The Sim sandbox id. Get it from list or the inner id field in agent/sandboxes/{name}.json; never guess it. Required for edit and delete.',
+        },
+        systemPackages: {
+          type: 'array',
+          description:
+            'Complete Debian package-coordinate list in package[:architecture][=version] form (maximum 50). On edit, passing this replaces the whole list; pass [] to clear it.',
+          items: {
+            type: 'string',
+          },
+        },
+      },
+      required: ['operation'],
+    },
+    resultSchema: undefined,
+  },
   manage_skill: {
     parameters: {
       type: 'object',
@@ -3603,7 +3662,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         providerName: {
           type: 'string',
           description:
-            "The OAuth provider to connect. Pass the integration's provider value (e.g. `google-email`, `slack`); the service display name or providerId resolves case-insensitively/fuzzily, so avoid bare base providers like `google`.",
+            "The OAuth provider to connect. Pass the integration's provider value (e.g. `google-email`, `slack`).",
         },
       },
       required: ['providerName'],
@@ -4194,6 +4253,11 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     parameters: {
       type: 'object',
       properties: {
+        async: {
+          type: 'boolean',
+          description:
+            'Queue the deployed workflow and return its execution ID immediately. Default: false. Set true only when explicitly asked for a background run, or when the three most recent completed runs each exceeded 30 minutes. Fails if the current workflow differs from its deployed version. Missing history, complexity, or one slow run never justify async; check completion later with query_logs.',
+        },
         inputFromExecutionId: {
           type: 'string',
           description:

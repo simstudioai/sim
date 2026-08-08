@@ -94,6 +94,10 @@ export const assemblyaiSttTool: ToolConfig<SttParams, SttResponse> = {
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({ language: params.language }),
+    },
     url: '/api/tools/stt',
     method: 'POST',
     headers: () => ({

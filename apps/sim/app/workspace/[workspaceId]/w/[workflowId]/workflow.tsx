@@ -58,6 +58,7 @@ import {
   getDescendantBlockIds,
   getEdgeSelectionContextId,
   getNodeSelectionContextId,
+  getRunFromBlockDependencyState,
   getWorkflowLockToggleIds,
   isBlockProtected,
   isEdgeProtected,
@@ -93,7 +94,11 @@ import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useOAuthReturnForWorkflow } from '@/hooks/use-oauth-return'
 import { useCanvasModeStore } from '@/stores/canvas-mode'
 import { useChatStore } from '@/stores/chat/store'
-import { defaultWorkflowExecutionState, useExecutionStore } from '@/stores/execution'
+import {
+  defaultWorkflowExecutionState,
+  useExecutionStore,
+  useLastExecutionSnapshot,
+} from '@/stores/execution'
 import { useSearchModalStore } from '@/stores/modals/search/store'
 import type { PendingConnect } from '@/stores/modals/search/types'
 import { usePanelEditorStore } from '@/stores/panel'
@@ -839,7 +844,7 @@ const WorkflowContent = React.memo(
         }
       })
     )
-    const getLastExecutionSnapshot = useExecutionStore((s) => s.getLastExecutionSnapshot)
+    const lastExecutionSnapshot = useLastExecutionSnapshot(workflowIdParam)
 
     const [dragStartParentId, setDragStartParentId] = useState<string | null>(null)
 
@@ -1386,22 +1391,11 @@ const WorkflowContent = React.memo(
         return { canRun: false, reason: undefined }
       }
       const block = contextMenuBlocks[0]
-      const snapshot = getLastExecutionSnapshot(workflowIdParam)
-      const incomingEdges = edges.filter((edge) => edge.target === block.id)
-      const isTriggerBlock = incomingEdges.length === 0
-
-      // Check if each source block is either executed OR is a trigger block (triggers don't need prior execution)
-      const isSourceSatisfied = (sourceId: string) => {
-        if (snapshot?.executedBlocks.includes(sourceId)) return true
-        // Check if source is a trigger (has no incoming edges itself)
-        const sourceIncomingEdges = edges.filter((edge) => edge.target === sourceId)
-        return sourceIncomingEdges.length === 0
-      }
-
-      // Non-trigger blocks need a snapshot to exist (so upstream outputs are available)
-      const dependenciesSatisfied =
-        isTriggerBlock ||
-        (snapshot && incomingEdges.every((edge) => isSourceSatisfied(edge.source)))
+      const { dependenciesSatisfied } = getRunFromBlockDependencyState(
+        block.id,
+        edges,
+        lastExecutionSnapshot
+      )
       const isNoteBlock = block.type === 'note'
       const isInsideSubflow =
         block.parentId && (block.parentType === 'loop' || block.parentType === 'parallel')
@@ -1412,7 +1406,7 @@ const WorkflowContent = React.memo(
       if (isExecuting) return { canRun: false, reason: undefined }
 
       return { canRun: true, reason: undefined }
-    }, [contextMenuBlocks, edges, workflowIdParam, getLastExecutionSnapshot, isExecuting])
+    }, [contextMenuBlocks, edges, lastExecutionSnapshot, isExecuting])
 
     const handleContextAddBlock = useCallback(() => {
       useSearchModalStore.getState().open()

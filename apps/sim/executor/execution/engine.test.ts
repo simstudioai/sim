@@ -1,8 +1,10 @@
 /**
  * @vitest-environment node
  */
+import { loggerMock } from '@sim/testing'
 import { sleep } from '@sim/utils/helpers'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+import { createTimeoutAbortController, getRemainingExecutionMs } from '@/lib/core/execution-limits'
 
 const { mockCancellationSubscribers } = vi.hoisted(() => ({
   mockCancellationSubscribers: new Set<(event: { executionId: string }) => void>(),
@@ -33,8 +35,16 @@ import type { DAG, DAGNode } from '@/executor/dag/builder'
 import type { EdgeManager } from '@/executor/execution/edge-manager'
 import type { NodeExecutionOrchestrator } from '@/executor/orchestrators/node'
 import type { ExecutionContext } from '@/executor/types'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { SerializedBlock } from '@/serializer/types'
 import { ExecutionEngine } from './engine'
+
+const executionEngineLoggerCallIndex = loggerMock.createLogger.mock.calls.findIndex(
+  ([name]) => name === 'ExecutionEngine'
+)
+const executionEngineBaseLogger =
+  loggerMock.createLogger.mock.results[executionEngineLoggerCallIndex]?.value
+if (!executionEngineBaseLogger) throw new Error('ExecutionEngine logger mock was not initialized')
 
 function createMockBlock(id: string): SerializedBlock {
   return {
@@ -186,6 +196,48 @@ describe('ExecutionEngine', () => {
 
       expect(result.success).toBe(true)
       expect(result.status).toBeUndefined()
+    })
+
+    it('persists the selected final block provenance instead of run-global matches', async () => {
+      const node = createMockNode('function', 'function')
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'TOKEN', plaintext: 'Test', encryptedValue: 'ciphertext' },
+      ])
+      registry.recordResolved('TOKEN', 'Test')
+      const context = createMockContext({
+        decisions: { router: new Map(), condition: new Map() },
+        resolvedSecretTraceRegistry: registry,
+      })
+      const nodeOrchestrator = createMockNodeOrchestrator()
+      vi.mocked(nodeOrchestrator.executeNode).mockResolvedValue({
+        nodeId: node.id,
+        output: { result: 'Test' },
+        isFinalOutput: true,
+      })
+      vi.mocked(nodeOrchestrator.handleNodeCompletion).mockImplementation(
+        (_ctx, nodeId, output) => {
+          context.blockStates.set(nodeId, {
+            output,
+            executed: true,
+            executionTime: 1,
+            resolvedSecretTraceProvenance: { version: 1, complete: true, entries: [] },
+          })
+        }
+      )
+
+      const engine = new ExecutionEngine(
+        context,
+        createMockDAG([node]),
+        createMockEdgeManager(),
+        nodeOrchestrator
+      )
+      const result = await engine.run(node.id)
+
+      expect(result.output).toEqual({ result: 'Test' })
+      expect(result.executionState?.resolvedSecretTraceProvenance?.entries).toEqual([
+        { name: 'TOKEN', encryptedValue: 'ciphertext' },
+      ])
+      expect(result.executionState?.finalOutputResolvedSecretTraceProvenance?.entries).toEqual([])
     })
 
     it('should not fall back to starter blocks for terminal resume snapshots', async () => {
@@ -476,6 +528,7 @@ describe('ExecutionEngine', () => {
 
       expect(result.status).toBe('cancelled')
       expect(nodeOrchestrator.executionCount).toBe(0)
+      expect(context.abortSignal?.aborted).toBe(true)
     })
 
     it('should stop execution when aborted mid-workflow', async () => {
@@ -554,6 +607,37 @@ describe('ExecutionEngine', () => {
   })
 
   describe('Cancellation via Redis', () => {
+    it('aborts the active execution signal without dropping its deadline', async () => {
+      ;(isRedisCancellationEnabled as Mock).mockReturnValue(true)
+      ;(isExecutionCancelled as Mock).mockResolvedValue(false)
+      const timeoutController = createTimeoutAbortController(60_000)
+      const startNode = createMockNode('start', 'starter')
+      const context = createMockContext({
+        executionId: 'pubsub-signal-execution',
+        abortSignal: timeoutController.signal,
+      })
+      const engine = new ExecutionEngine(
+        context,
+        createMockDAG([startNode]),
+        createMockEdgeManager(),
+        createMockNodeOrchestrator()
+      )
+
+      try {
+        expect(context.abortSignal).not.toBe(timeoutController.signal)
+        expect(getRemainingExecutionMs(context.abortSignal)).toBeGreaterThan(0)
+
+        for (const handler of mockCancellationSubscribers) {
+          handler({ executionId: 'pubsub-signal-execution' })
+        }
+
+        expect(context.abortSignal?.aborted).toBe(true)
+        await expect(engine.run('start')).resolves.toMatchObject({ status: 'cancelled' })
+      } finally {
+        timeoutController.cleanup()
+      }
+    })
+
     it('should check Redis for cancellation when enabled', async () => {
       ;(isRedisCancellationEnabled as Mock).mockReturnValue(true)
       ;(isExecutionCancelled as Mock).mockResolvedValue(false)
@@ -680,6 +764,7 @@ describe('ExecutionEngine', () => {
 
       expect(result.status).toBe('cancelled')
       expect(nodeOrchestrator.executionCount).toBe(0)
+      expect(context.abortSignal?.aborted).toBe(true)
     })
 
     it('calls isExecutionCancelled once as the startup backstop check', async () => {
@@ -917,12 +1002,20 @@ describe('ExecutionEngine', () => {
 
   describe('Error handling in execution', () => {
     it('should fail execution when a single node throws an error', async () => {
+      const secret = 'engine-error-secret-7f3a91'
+      const rawError = `Block execution failed ${secret} __var_API_KEY __sim_code_2_binding_0`
       const startNode = createMockNode('start', 'starter')
       const errorNode = createMockNode('error-node', 'function')
       startNode.outgoingEdges.set('edge1', { target: 'error-node' })
 
       const dag = createMockDAG([startNode, errorNode])
-      const context = createMockContext()
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'API_KEY', plaintext: secret, encryptedValue: 'encrypted-api-key' },
+      ])
+      registry.recordResolved('API_KEY', secret)
+      const context = createMockContext({
+        resolvedSecretTraceRegistry: registry,
+      })
       const edgeManager = createMockEdgeManager((node) => {
         if (node.id === 'start') return ['error-node']
         return []
@@ -932,7 +1025,7 @@ describe('ExecutionEngine', () => {
         executionCount: 0,
         executeNode: vi.fn().mockImplementation(async (_ctx: ExecutionContext, nodeId: string) => {
           if (nodeId === 'error-node') {
-            throw new Error('Block execution failed')
+            throw new Error(rawError)
           }
           return { nodeId, output: {}, isFinalOutput: false }
         }),
@@ -941,7 +1034,15 @@ describe('ExecutionEngine', () => {
 
       const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
 
-      await expect(engine.run('start')).rejects.toThrow('Block execution failed')
+      await expect(engine.run('start')).rejects.toThrow(rawError)
+
+      const executionLogger = executionEngineBaseLogger.withMetadata.mock.results.at(-1)?.value
+      expect(executionLogger).toBeDefined()
+      const loggerCalls = JSON.stringify(executionLogger?.error.mock.calls)
+      expect(loggerCalls).toContain('{{API_KEY}}')
+      expect(loggerCalls).not.toContain(secret)
+      expect(loggerCalls).not.toContain('__var_')
+      expect(loggerCalls).not.toContain('__sim_')
     })
 
     it('should stop parallel branches when one branch throws an error', async () => {

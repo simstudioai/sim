@@ -35,7 +35,7 @@ Integrate Intercom into the workflow. Can create, get, update, list, search, and
 
 ## Actions
 
-### `intercom_create_contact`
+### Create Contact in Intercom
 
 Create a new contact in Intercom with email, external_id, or role. Returns API-aligned fields only.
 
@@ -107,7 +107,7 @@ Create a new contact in Intercom with email, external_id, or role. Returns API-a
 |   ↳ `unsubscribed_from_emails` | boolean | Whether contact is unsubscribed from emails |
 | `contactId` | string | ID of the created contact |
 
-### `intercom_get_contact`
+### Get Single Contact from Intercom
 
 Get a single contact by ID from Intercom. Returns API-aligned fields only.
 
@@ -182,7 +182,7 @@ Get a single contact by ID from Intercom. Returns API-aligned fields only.
 |     ↳ `username` | string | Username on the social network |
 |     ↳ `id` | string | User ID on the social network |
 
-### `intercom_update_contact`
+### Update Contact in Intercom
 
 Update an existing contact in Intercom. Returns API-aligned fields only.
 
@@ -230,7 +230,7 @@ Update an existing contact in Intercom. Returns API-aligned fields only.
 |   ↳ `unsubscribed_from_emails` | boolean | Whether contact is unsubscribed from emails |
 | `contactId` | string | ID of the updated contact |
 
-### `intercom_list_contacts`
+### List Contacts from Intercom
 
 List all contacts from Intercom with pagination support
 
@@ -266,7 +266,7 @@ List all contacts from Intercom with pagination support
 |   ↳ `total_pages` | number | Total number of pages |
 | `total_count` | number | Total number of contacts |
 
-### `intercom_search_contacts`
+### Search Contacts in Intercom
 
 Search for contacts in Intercom using a query
 
@@ -313,7 +313,7 @@ Search for contacts in Intercom using a query
 |   ↳ `total_pages` | number | Total number of pages |
 | `total_count` | number | Total number of matching contacts |
 
-### `intercom_delete_contact`
+### Delete Contact from Intercom
 
 Delete a contact from Intercom by ID. Returns API-aligned fields only.
 
@@ -330,7 +330,7 @@ Delete a contact from Intercom by ID. Returns API-aligned fields only.
 | `id` | string | ID of deleted contact |
 | `deleted` | boolean | Whether the contact was deleted |
 
-### `intercom_create_company`
+### Create Company in Intercom
 
 Create or update a company in Intercom
 
@@ -377,7 +377,7 @@ Create or update a company in Intercom
 |     ↳ `segments` | array | Array of segment objects |
 | `companyId` | string | ID of the created/updated company |
 
-### `intercom_get_company`
+### Get Company from Intercom
 
 Retrieve a single company by ID from Intercom
 
@@ -410,7 +410,7 @@ Retrieve a single company by ID from Intercom
 |   ↳ `tags` | object | Tags associated with the company |
 |   ↳ `segments` | object | Segments the company belongs to |
 
-### `intercom_list_companies`
+### List Companies from Intercom
 
 List all companies from Intercom with pagination support. Note: This endpoint has a limit of 10,000 companies that can be returned using pagination. For datasets larger than 10,000 companies, use the Scroll API instead.
 
@@ -450,7 +450,7 @@ List all companies from Intercom with pagination support. Note: This endpoint ha
 | `total_count` | number | Total number of companies |
 | `success` | boolean | Operation success status |
 
-### `intercom_get_conversation`
+### Get Conversation from Intercom
 
 Retrieve a single conversation by ID from Intercom
 
@@ -488,7 +488,7 @@ Retrieve a single conversation by ID from Intercom
 |   ↳ `statistics` | object | Conversation statistics |
 | `success` | boolean | Operation success status |
 
-### `intercom_list_conversations`
+### List Conversations from Intercom
 
 List all conversations from Intercom with pagination support
 
@@ -529,7 +529,7 @@ List all conversations from Intercom with pagination support
 | `total_count` | number | Total number of conversations |
 | `success` | boolean | Operation success status |
 
-### `intercom_reply_conversation`
+### Reply to Conversation in Intercom
 
 Reply to a conversation as an admin in Intercom
 
@@ -568,7 +568,7 @@ Reply to a conversation as an admin in Intercom
 | `conversationId` | string | ID of the conversation |
 | `success` | boolean | Operation success status |
 
-### `intercom_search_conversations`
+### Search Conversations in Intercom
 
 Search for conversations in Intercom using a query. Returns API-aligned fields only.
 
@@ -610,7 +610,7 @@ Search for conversations in Intercom using a query. Returns API-aligned fields o
 | `total_count` | number | Total number of matching conversations |
 | `success` | boolean | Operation success status |
 
-### `intercom_create_ticket`
+### Create Ticket in Intercom
 
 Create a new ticket in Intercom. Returns API-aligned fields only.
 
@@ -649,7 +649,7 @@ Create a new ticket in Intercom. Returns API-aligned fields only.
 | `ticketId` | string | ID of the created ticket |
 | `success` | boolean | Operation success status |
 
-### `intercom_get_ticket`
+### Get Ticket from Intercom
 
 Retrieve a single ticket by ID from Intercom. Returns API-aligned fields only.
 
@@ -682,7 +682,7 @@ Retrieve a single ticket by ID from Intercom. Returns API-aligned fields only.
 | `ticketId` | string | ID of the retrieved ticket |
 | `success` | boolean | Operation success status |
 
-### `intercom_update_ticket`
+### Update Ticket in Intercom
 
 Update a ticket in Intercom (change state, assignment, attributes)
 
@@ -718,7 +718,7 @@ Update a ticket in Intercom (change state, assignment, attributes)
 | `ticketId` | string | ID of the updated ticket |
 | `ticket_state` | string | Current state of the ticket |
 
-### `intercom_create_message`
+### Create Message in Intercom
 
 Create and send a new admin-initiated message in Intercom. Returns API-aligned fields only.
 
@@ -751,7 +751,7 @@ Create and send a new admin-initiated message in Intercom. Returns API-aligned f
 | `messageId` | string | ID of the created message |
 | `success` | boolean | Operation success status |
 
-### `intercom_list_admins`
+### List Admins from Intercom
 
 Fetch a list of all admins for the workspace
 
@@ -778,7 +778,7 @@ Fetch a list of all admins for the workspace
 |   ↳ `email_verified` | boolean | Whether email is verified |
 | `type` | string | Object type \(admin.list\) |
 
-### `intercom_close_conversation`
+### Close Conversation in Intercom
 
 Close a conversation in Intercom
 
@@ -805,7 +805,7 @@ Close a conversation in Intercom
 | `conversationId` | string | ID of the closed conversation |
 | `state` | string | State of the conversation \(closed\) |
 
-### `intercom_open_conversation`
+### Open Conversation in Intercom
 
 Open a closed or snoozed conversation in Intercom
 
@@ -831,7 +831,7 @@ Open a closed or snoozed conversation in Intercom
 | `conversationId` | string | ID of the opened conversation |
 | `state` | string | State of the conversation \(open\) |
 
-### `intercom_snooze_conversation`
+### Snooze Conversation in Intercom
 
 Snooze a conversation to reopen at a future time
 
@@ -859,7 +859,7 @@ Snooze a conversation to reopen at a future time
 | `state` | string | State of the conversation \(snoozed\) |
 | `snoozed_until` | number | Unix timestamp when conversation will reopen |
 
-### `intercom_assign_conversation`
+### Assign Conversation in Intercom
 
 Assign a conversation to an admin or team in Intercom
 
@@ -889,7 +889,7 @@ Assign a conversation to an admin or team in Intercom
 | `admin_assignee_id` | number | ID of the assigned admin |
 | `team_assignee_id` | string | ID of the assigned team |
 
-### `intercom_list_tags`
+### List Tags from Intercom
 
 Fetch a list of all tags in the workspace
 
@@ -908,7 +908,7 @@ Fetch a list of all tags in the workspace
 |   ↳ `name` | string | Name of the tag |
 | `type` | string | Object type \(list\) |
 
-### `intercom_create_tag`
+### Create Tag in Intercom
 
 Create a new tag or update an existing tag name
 
@@ -927,7 +927,7 @@ Create a new tag or update an existing tag name
 | `name` | string | Name of the tag |
 | `type` | string | Object type \(tag\) |
 
-### `intercom_tag_contact`
+### Tag Contact in Intercom
 
 Add a tag to a specific contact
 
@@ -946,7 +946,7 @@ Add a tag to a specific contact
 | `name` | string | Name of the tag |
 | `type` | string | Object type \(tag\) |
 
-### `intercom_untag_contact`
+### Untag Contact in Intercom
 
 Remove a tag from a specific contact
 
@@ -965,7 +965,7 @@ Remove a tag from a specific contact
 | `name` | string | Name of the tag that was removed |
 | `type` | string | Object type \(tag\) |
 
-### `intercom_tag_conversation`
+### Tag Conversation in Intercom
 
 Add a tag to a specific conversation
 
@@ -985,7 +985,7 @@ Add a tag to a specific conversation
 | `name` | string | Name of the tag |
 | `type` | string | Object type \(tag\) |
 
-### `intercom_create_note`
+### Create Note in Intercom
 
 Add a note to a specific contact
 
@@ -1014,7 +1014,7 @@ Add a note to a specific contact
 |   ↳ `type` | string | Contact type |
 |   ↳ `id` | string | Contact ID |
 
-### `intercom_create_event`
+### Create Event in Intercom
 
 Track a custom event for a contact in Intercom
 
@@ -1035,7 +1035,7 @@ Track a custom event for a contact in Intercom
 | --------- | ---- | ----------- |
 | `accepted` | boolean | Whether the event was accepted \(202 Accepted\) |
 
-### `intercom_attach_contact_to_company`
+### Attach Contact to Company in Intercom
 
 Attach a contact to a company in Intercom
 
@@ -1064,7 +1064,7 @@ Attach a contact to a company in Intercom
 | `companyId` | string | ID of the company |
 | `name` | string | Name of the company |
 
-### `intercom_detach_contact_from_company`
+### Detach Contact from Company in Intercom
 
 Remove a contact from a company in Intercom
 
@@ -1113,7 +1113,7 @@ Trigger workflow when a new lead is created in Intercom
 | `created_at` | number | Unix timestamp when the event occurred |
 | `delivery_attempts` | number | Number of delivery attempts for this notification |
 | `first_sent_at` | number | Unix timestamp of first delivery attempt |
-| `data` | json | data output from the tool |
+| `data` | json | Event data containing the contact object. Access via data.item for contact details including id, role, email, name, phone, external_id, custom_attributes, location, avatar, tags, companies, and timestamps |
 
 
 ---
@@ -1138,7 +1138,7 @@ Trigger workflow when a conversation is closed in Intercom
 | `created_at` | number | Unix timestamp when the event occurred |
 | `delivery_attempts` | number | Number of delivery attempts for this notification |
 | `first_sent_at` | number | Unix timestamp of first delivery attempt |
-| `data` | json | data output from the tool |
+| `data` | json | Event data containing the conversation object. Access via data.item for conversation details including id, state, open, assignee, contacts, conversation_parts, tags, and source |
 
 
 ---
@@ -1163,7 +1163,7 @@ Trigger workflow when a new conversation is created in Intercom
 | `created_at` | number | Unix timestamp when the event occurred |
 | `delivery_attempts` | number | Number of delivery attempts for this notification |
 | `first_sent_at` | number | Unix timestamp of first delivery attempt |
-| `data` | json | data output from the tool |
+| `data` | json | Event data containing the conversation object. Access via data.item for conversation details including id, state, open, assignee, contacts, conversation_parts, tags, and source |
 
 
 ---
@@ -1188,7 +1188,7 @@ Trigger workflow when someone replies to an Intercom conversation
 | `created_at` | number | Unix timestamp when the event occurred |
 | `delivery_attempts` | number | Number of delivery attempts for this notification |
 | `first_sent_at` | number | Unix timestamp of first delivery attempt |
-| `data` | json | data output from the tool |
+| `data` | json | Event data containing the conversation object. Access via data.item for conversation details including id, state, open, assignee, contacts, conversation_parts, tags, and source |
 
 
 ---
@@ -1213,7 +1213,7 @@ Trigger workflow when a new user is created in Intercom
 | `created_at` | number | Unix timestamp when the event occurred |
 | `delivery_attempts` | number | Number of delivery attempts for this notification |
 | `first_sent_at` | number | Unix timestamp of first delivery attempt |
-| `data` | json | data output from the tool |
+| `data` | json | Event data containing the contact object. Access via data.item for contact details including id, role, email, name, phone, external_id, custom_attributes, location, avatar, tags, companies, and timestamps |
 
 
 ---
@@ -1238,5 +1238,5 @@ Trigger workflow on any Intercom webhook event
 | `created_at` | number | Unix timestamp when the event occurred |
 | `delivery_attempts` | number | Number of delivery attempts for this notification |
 | `first_sent_at` | number | Unix timestamp of first delivery attempt |
-| `data` | json | data output from the tool |
+| `data` | json | Event data containing the affected object. Access via data.item for the resource \(conversation, contact, company, ticket, etc.\) |
 

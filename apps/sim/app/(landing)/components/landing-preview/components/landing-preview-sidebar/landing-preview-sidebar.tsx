@@ -97,7 +97,7 @@ export function LandingPreviewSidebar({
           <span className='min-w-0 flex-1 truncate text-left font-medium text-[13px] text-[var(--text-primary)]'>
             Superark
           </span>
-          <ChevronDown className='h-[8px] w-[10px] flex-shrink-0 text-[var(--text-icon)]' />
+          <ChevronDown className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
         </div>
       </div>
 

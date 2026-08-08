@@ -40,7 +40,7 @@ export default async function OAuthErrorPage({ searchParams }: OAuthErrorPagePro
     <main className='desktop-title-bar-page flex items-center justify-center px-6'>
       <DesktopTitleBarLane />
       <div className='max-w-sm text-center'>
-        <h1 className='font-semibold text-foreground text-lg'>Couldn’t complete that</h1>
+        <h1 className='text-foreground text-lg'>Couldn’t complete that</h1>
         <p className='mt-2 text-muted-foreground text-sm'>{messageForError(code)}</p>
         <p className='mt-4 text-muted-foreground text-sm'>
           You can close this tab and try again from Sim.

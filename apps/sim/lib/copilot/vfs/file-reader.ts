@@ -14,7 +14,12 @@ import { recordFileRead } from '@/lib/copilot/request/metrics'
 import { markSpanForError } from '@/lib/copilot/request/otel'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { fetchWorkspaceFileBuffer } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { isImageFileType } from '@/lib/uploads/utils/file-utils'
+import { isHeifContainer, transcodeHeicToJpeg } from '@/lib/uploads/server/heic'
+import {
+  isImageFileType,
+  MODEL_SUPPORTED_IMAGE_MIME_TYPES,
+  resolveEffectiveMimeType,
+} from '@/lib/uploads/utils/file-utils'
 
 // Lazy tracer (same pattern as lib/copilot/request/otel.ts).
 function getVfsTracer() {
@@ -55,7 +60,7 @@ const TEXT_TYPES = new Set([
 
 const PARSEABLE_EXTENSIONS = new Set(['pdf', 'docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt'])
 
-function isReadableType(contentType: string): boolean {
+export function isReadableFileType(contentType: string): boolean {
   return TEXT_TYPES.has(contentType) || contentType.startsWith('text/')
 }
 
@@ -91,54 +96,82 @@ interface PreparedVisionImage {
  * dimension/quality chosen.
  */
 async function prepareImageForVision(
-  buffer: Buffer,
+  sourceBuffer: Buffer,
   claimedType: string
 ): Promise<PreparedVisionImage | null> {
   return getVfsTracer().startActiveSpan(
     TraceSpan.CopilotVfsPrepareImage,
     {
       attributes: {
-        [TraceAttr.CopilotVfsInputBytes]: buffer.length,
+        [TraceAttr.CopilotVfsInputBytes]: sourceBuffer.length,
         [TraceAttr.CopilotVfsInputMediaTypeClaimed]: claimedType,
       },
     },
     async (span) => {
       try {
-        const mediaType = detectImageMime(buffer, claimedType)
-        span.setAttribute(TraceAttr.CopilotVfsInputMediaTypeDetected, mediaType)
+        const detectedType = detectImageMime(sourceBuffer, claimedType)
+        span.setAttribute(TraceAttr.CopilotVfsInputMediaTypeDetected, detectedType)
 
         let sharpModule: SharpConstructor
         try {
           sharpModule = (await import('sharp')).default
         } catch (err) {
           logger.warn('Failed to load sharp for image preparation', {
-            mediaType,
+            mediaType: detectedType,
             error: toError(err).message,
           })
           span.setAttribute(TraceAttr.CopilotVfsSharpLoadFailed, true)
-          const fitsWithoutSharp = buffer.length <= MAX_IMAGE_READ_BYTES
+          const fitsWithoutSharp =
+            MODEL_SUPPORTED_IMAGE_MIME_TYPES.has(detectedType) &&
+            sourceBuffer.length <= MAX_IMAGE_READ_BYTES
           span.setAttribute(
             TraceAttr.CopilotVfsOutcome,
             fitsWithoutSharp ? 'passthrough_no_sharp' : 'rejected_no_sharp'
           )
-          return fitsWithoutSharp ? { buffer, mediaType, resized: false } : null
+          return fitsWithoutSharp
+            ? { buffer: sourceBuffer, mediaType: detectedType, resized: false }
+            : null
         }
 
-        let metadata: Awaited<ReturnType<ReturnType<typeof sharpModule>['metadata']>>
-        try {
-          metadata = await sharpModule(buffer, { limitInputPixels: false }).metadata()
-        } catch (err) {
-          logger.warn('Failed to read image metadata for VFS read', {
-            mediaType,
-            error: toError(err).message,
-          })
+        const readMetadata = (candidate: Buffer) =>
+          sharpModule(candidate, { limitInputPixels: false })
+            .metadata()
+            .catch((err: unknown) => {
+              logger.warn('Failed to read image metadata for VFS read', {
+                mediaType: detectedType,
+                error: toError(err).message,
+              })
+              return null
+            })
+
+        // sharp first: its libvips reads everything we accept except HEVC-coded
+        // HEIF, and it is ~10x faster than the WASM decoder. Capability-based
+        // rather than brand-based, so AV1-coded `mif1` — which sharp handles
+        // natively — does not get sent down the slow path.
+        let buffer = sourceBuffer
+        let mediaType = detectedType
+        let metadata = await readMetadata(sourceBuffer)
+
+        if (!metadata && isHeifContainer(sourceBuffer)) {
+          const transcoded = await transcodeHeicToJpeg(sourceBuffer)
+          if (transcoded) {
+            buffer = transcoded
+            mediaType = 'image/jpeg'
+            metadata = await readMetadata(transcoded)
+          }
+        }
+
+        if (!metadata) {
           span.setAttribute(TraceAttr.CopilotVfsMetadataFailed, true)
-          const fitsWithoutSharp = buffer.length <= MAX_IMAGE_READ_BYTES
+          // Bytes the model cannot decode are worse than no image: it describes
+          // them as empty rather than reporting them as broken.
+          const passthroughViable =
+            MODEL_SUPPORTED_IMAGE_MIME_TYPES.has(mediaType) && buffer.length <= MAX_IMAGE_READ_BYTES
           span.setAttribute(
             TraceAttr.CopilotVfsOutcome,
-            fitsWithoutSharp ? 'passthrough_no_metadata' : 'rejected_no_metadata'
+            passthroughViable ? 'passthrough_no_metadata' : 'rejected_no_metadata'
           )
-          return fitsWithoutSharp ? { buffer, mediaType, resized: false } : null
+          return passthroughViable ? { buffer, mediaType, resized: false } : null
         }
 
         const width = metadata.width ?? 0
@@ -148,11 +181,15 @@ async function prepareImageForVision(
           [TraceAttr.CopilotVfsInputHeight]: height,
         })
 
-        const needsResize =
+        // A format the model cannot decode has to be re-encoded even when it is
+        // already small enough — the ladder below emits JPEG or WebP, both of
+        // which it accepts.
+        const needsReencode =
+          !MODEL_SUPPORTED_IMAGE_MIME_TYPES.has(mediaType) ||
           buffer.length > MAX_IMAGE_READ_BYTES ||
           width > MAX_IMAGE_DIMENSION ||
           height > MAX_IMAGE_DIMENSION
-        if (!needsResize) {
+        if (!needsReencode) {
           span.setAttributes({
             [TraceAttr.CopilotVfsResized]: false,
             [TraceAttr.CopilotVfsOutcome]: CopilotVfsOutcome.PassthroughFitsBudget,
@@ -300,14 +337,17 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
     },
     async (span) => {
       try {
-        if (isImageFileType(record.type)) {
+        // Resolve against the filename: a phone upload commonly stores as
+        // `application/octet-stream`, and matching the raw type would route a real
+        // image down the binary path where the model never sees it.
+        if (isImageFileType(resolveEffectiveMimeType(record.type, record.name))) {
           span.setAttribute(TraceAttr.CopilotVfsReadPath, CopilotVfsReadPath.Image)
           const originalBuffer = await fetchWorkspaceFileBuffer(record)
           const prepared = await prepareImageForVision(originalBuffer, record.type)
           if (!prepared) {
             span.setAttribute(TraceAttr.CopilotVfsReadOutcome, CopilotVfsReadOutcome.ImageTooLarge)
             return {
-              content: `[Image too large: ${record.name} (${(record.size / 1024 / 1024).toFixed(1)}MB, limit 5MB after resize/compression)]`,
+              content: `[Image unavailable: ${record.name} (${(record.size / 1024 / 1024).toFixed(1)}MB). It could not be decoded, or still exceeded the 5MB vision limit after resizing.]`,
               totalLines: 1,
             }
           }
@@ -334,7 +374,7 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
           }
         }
 
-        if (isReadableType(record.type)) {
+        if (isReadableFileType(record.type)) {
           span.setAttribute(TraceAttr.CopilotVfsReadPath, CopilotVfsReadPath.Text)
           if (record.size > MAX_TEXT_READ_BYTES) {
             span.setAttribute(TraceAttr.CopilotVfsReadOutcome, CopilotVfsReadOutcome.TextTooLarge)

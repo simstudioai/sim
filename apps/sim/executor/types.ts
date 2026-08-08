@@ -9,7 +9,10 @@ import type {
   PiiBlockOutputRedaction,
   SerializableExecutionState,
 } from '@/executor/execution/types'
-import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import type {
+  ResolvedSecretTraceProvenanceV1,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 import type { RunFromBlockContext } from '@/executor/utils/run-from-block'
 import type { AgentStreamSink, UnsubscribeAgentStreamSink } from '@/providers/stream-events'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
@@ -284,6 +287,8 @@ export interface BlockLog {
    * while preserving data for trace-spans processing.
    */
   childTraceSpans?: TraceSpan[]
+  /** Internal encrypted sidecar used only for causal display projection. */
+  displayResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
 }
 
 interface ExecutionMetadata {
@@ -327,6 +332,8 @@ export interface BlockState {
   output: NormalizedBlockOutput
   executed: boolean
   executionTime: number
+  /** Encrypted candidates active in this block call. Consumers filter them to the selected value. */
+  resolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
 }
 
 export interface ExecutionContext {
@@ -356,7 +363,12 @@ export interface ExecutionContext {
   startRunMetadata?: StartBlockRunMetadata
   environmentVariables: Record<string, string>
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
+  /** Exact candidates that may be carried by this block's terminal error, never its normal output. */
+  errorResolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
   workflowVariables?: Record<string, any>
+  workflowVariableResolvedSecretTraceProvenance?: Record<string, ResolvedSecretTraceProvenanceV1>
+  workflowInputResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
+  finalOutputResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
 
   decisions: {
     router: Map<string, string>
@@ -389,6 +401,8 @@ export interface ExecutionContext {
       skipFirstConditionCheck?: boolean
       skippedAtStart?: boolean
       loopType?: 'for' | 'forEach' | 'while' | 'doWhile'
+      inputResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
+      resolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
     }
   >
 
@@ -406,6 +420,8 @@ export interface ExecutionContext {
       items?: any[]
       validationError?: string
       isEmpty?: boolean
+      inputResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
+      resolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
     }
   >
 
@@ -556,6 +572,10 @@ export interface StreamingExecution {
    * keep sourcing answer text from {@link stream} instead of the sink.
    */
   clientStreamTransformed?: boolean
+  /** Internal provenance for the exact block input that initiated this live stream. */
+  displayResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
+  /** Internal source registry retained only for sanitizing failures while the stream drains. */
+  diagnosticResolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
   execution: ExecutionResult & { isStreaming?: boolean }
   /**
    * Invoked with the assembled response text after the stream drains. Lets agent

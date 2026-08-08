@@ -13,9 +13,11 @@ import {
   unsealClientToolCompletion,
   unsealClientToolContext,
 } from '@/lib/copilot/request/tools/client-completion-seal.server'
-import { projectToolResultForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
+import { inspectToolResultForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
 import {
+  type AsyncWorkflowDeploymentError,
   createStructuralWorkflowToolCompletionData,
+  getAsyncWorkflowDeploymentError,
   getWorkflowToolCompletionExecutionId,
   getWorkflowToolCompletionMessage,
   getWorkflowToolConfirmationStatus,
@@ -82,67 +84,80 @@ export async function waitForClientToolCompletion({
   const completion = await waitForToolCompletion(toolCallId, timeoutMs, abortSignal)
   if (!completion) return null
 
+  const toolRegistry = registry?.forkForInputPaths([])
   const genericMessage = getGenericCompletionMessage(completion.status)
   const binding = runId ? { toolCallId, runId, userId } : undefined
-  const registryCanImport = registry !== undefined && !registry.isPermanentlyIncomplete()
-  const finishPendingActivation = registry?.beginPendingActivation()
+  const registryCanImport = toolRegistry !== undefined && !toolRegistry.isPermanentlyIncomplete()
+  const finishPendingActivation = toolRegistry?.beginPendingActivation()
   let content: Awaited<ReturnType<typeof unsealClientToolCompletion>> = null
   try {
     const [sealedContent, sealedContext] =
-      binding && registry && registryCanImport
+      binding && registry && toolRegistry && registryCanImport
         ? await Promise.all([
             unsealClientToolCompletion(completion.data, binding),
             unsealClientToolContext(completion.data, binding, registry),
           ])
         : [null, null]
-    if (registry && registryCanImport) {
+    if (toolRegistry && registryCanImport) {
       if (!sealedContent || !sealedContext) {
-        registry.markIncomplete()
+        toolRegistry.markIncomplete()
       } else {
-        const imported = await registry.importProvenance(sealedContext.provenance, {
+        const imported = await toolRegistry.importProvenance(sealedContext.provenance, {
           trusted: true,
         })
         if (!imported || !sealedContext.provenance.complete) {
-          registry.markIncomplete()
+          toolRegistry.markIncomplete()
         } else {
           content = sealedContent
         }
       }
     }
   } catch {
-    registry?.markIncomplete()
+    toolRegistry?.markIncomplete()
   } finally {
     finishPendingActivation?.()
   }
-  if (!registry?.isComplete()) content = null
+  if (!toolRegistry?.isComplete()) content = null
 
   const rawOutput: Record<string, unknown> = {
     ...(content?.message !== undefined ? { message: content.message } : {}),
     ...(content && Object.hasOwn(content, 'data') ? { data: content.data } : {}),
   }
   const succeeded = completion.status === MothershipStreamV1ToolOutcome.success
-  const projected = projectToolResultForCopilot(
+  const projection = inspectToolResultForCopilot(
     {
       success: succeeded,
       output: rawOutput,
       ...(!succeeded ? { error: content?.message ?? genericMessage } : {}),
     },
-    registry
+    toolRegistry
   )
+  const projected = projection.result
   const projectedOutput = isPlainRecord(projected.output) ? projected.output : undefined
+  const modelSucceeded = succeeded && projected.success
   const message =
     typeof projectedOutput?.message === 'string'
       ? projectedOutput.message
-      : !succeeded && projected.error
+      : !projected.success && projected.error
         ? projected.error
         : genericMessage
   const data =
     projectedOutput && Object.hasOwn(projectedOutput, 'data') ? projectedOutput.data : undefined
+  const terminalData =
+    data === undefined
+      ? modelSucceeded
+        ? { success: true }
+        : { error: message }
+      : data === null && modelSucceeded
+        ? { success: true, data: null }
+        : data
 
   if (completion.status !== ASYNC_TOOL_CONFIRMATION_STATUS.background) {
     const status =
       completion.status === MothershipStreamV1ToolOutcome.success
-        ? 'completed'
+        ? modelSucceeded
+          ? 'completed'
+          : 'failed'
         : completion.status === MothershipStreamV1ToolOutcome.cancelled
           ? 'cancelled'
           : 'failed'
@@ -150,8 +165,8 @@ export async function waitForClientToolCompletion({
       const updated = await replaceTerminalAsyncToolCallResult({
         toolCallId,
         status,
-        result: data ?? null,
-        error: succeeded ? null : message,
+        result: terminalData,
+        error: modelSucceeded ? null : message,
       })
       if (!updated) {
         logger.warn('Client tool row was no longer terminal during safe payload update', {
@@ -166,10 +181,17 @@ export async function waitForClientToolCompletion({
     }
   }
 
+  if (projection.safe && registry && toolRegistry?.isComplete()) {
+    registry.mergeToolCallRegistry(toolRegistry)
+  }
+
   return {
-    status: completion.status,
+    status:
+      completion.status === MothershipStreamV1ToolOutcome.success && !modelSucceeded
+        ? MothershipStreamV1ToolOutcome.error
+        : completion.status,
     message,
-    ...(data !== undefined ? { data } : {}),
+    data: terminalData,
   }
 }
 
@@ -184,12 +206,18 @@ interface WaitForWorkflowToolCompletionOptions {
 function structuralWorkflowCompletion(
   status: AsyncTerminalCompletionSnapshot['status'],
   workflowId?: string,
-  executionId?: string
+  executionId?: string,
+  deploymentError?: AsyncWorkflowDeploymentError
 ): AsyncTerminalCompletionSnapshot {
   return {
     status,
-    message: getWorkflowToolCompletionMessage(status),
-    data: createStructuralWorkflowToolCompletionData(status, workflowId, executionId),
+    message: deploymentError?.message ?? getWorkflowToolCompletionMessage(status),
+    data: createStructuralWorkflowToolCompletionData(
+      status,
+      workflowId,
+      executionId,
+      deploymentError
+    ),
   }
 }
 
@@ -204,29 +232,36 @@ export async function waitForWorkflowToolCompletion({
   abortSignal,
   registry,
 }: WaitForWorkflowToolCompletionOptions): Promise<AsyncTerminalCompletionSnapshot | null> {
-  const finishPendingActivation = registry?.beginPendingActivation()
+  const toolRegistry = registry?.forkForInputPaths([])
+  const finishPendingActivation = toolRegistry?.beginPendingActivation()
   let completion: AsyncTerminalCompletionSnapshot | null = null
   let trustedExecution: Awaited<ReturnType<typeof getTrustedWorkflowToolExecution>> = null
 
   try {
     completion = await waitForToolCompletion(toolCallId, timeoutMs, abortSignal)
     if (!completion) {
-      registry?.markIncomplete()
+      toolRegistry?.markIncomplete()
       return null
     }
 
     const executionId = getWorkflowToolCompletionExecutionId(completion.data)
+    const deploymentError = getAsyncWorkflowDeploymentError(completion.data)
     if (completion.status === ASYNC_TOOL_CONFIRMATION_STATUS.background) {
-      registry?.markIncomplete()
+      toolRegistry?.markIncomplete()
       return structuralWorkflowCompletion(completion.status, workflowId, executionId)
     }
     if (!workflowId || !executionId) {
-      registry?.markIncomplete()
+      toolRegistry?.markIncomplete()
       const structuralStatus =
         completion.status === MothershipStreamV1ToolOutcome.success
           ? MothershipStreamV1ToolOutcome.error
           : completion.status
-      return structuralWorkflowCompletion(structuralStatus, workflowId, executionId)
+      return structuralWorkflowCompletion(
+        structuralStatus,
+        workflowId,
+        executionId,
+        deploymentError
+      )
     }
 
     try {
@@ -241,12 +276,12 @@ export async function waitForWorkflowToolCompletion({
     }
 
     if (!trustedExecution) {
-      registry?.markIncomplete()
+      toolRegistry?.markIncomplete()
       return structuralWorkflowCompletion(completion.status, workflowId, executionId)
     }
 
     if (!trustedExecution.contentAvailable) {
-      registry?.markIncomplete()
+      toolRegistry?.markIncomplete()
       return structuralWorkflowCompletion(
         getWorkflowToolConfirmationStatus(trustedExecution.status),
         workflowId,
@@ -254,8 +289,12 @@ export async function waitForWorkflowToolCompletion({
       )
     }
 
-    if (!registry || registry.isPermanentlyIncomplete() || !trustedExecution.provenance.complete) {
-      if (!trustedExecution.provenance.complete) registry?.markIncomplete()
+    if (
+      !toolRegistry ||
+      toolRegistry.isPermanentlyIncomplete() ||
+      !trustedExecution.provenance.complete
+    ) {
+      if (!trustedExecution.provenance.complete) toolRegistry?.markIncomplete()
       return structuralWorkflowCompletion(
         getWorkflowToolConfirmationStatus(trustedExecution.status),
         workflowId,
@@ -264,7 +303,7 @@ export async function waitForWorkflowToolCompletion({
     }
 
     try {
-      const imported = await registry.importCrossingProvenance(
+      const imported = await toolRegistry.importCrossingProvenance(
         trustedExecution.provenance,
         {
           ...(Object.hasOwn(trustedExecution, 'finalOutput')
@@ -275,9 +314,9 @@ export async function waitForWorkflowToolCompletion({
         },
         { trusted: true }
       )
-      if (!imported) registry.markIncomplete()
+      if (!imported) toolRegistry.markIncomplete()
     } catch (error) {
-      registry.markIncomplete()
+      toolRegistry.markIncomplete()
       logger.warn('Failed to import bound workflow provenance', {
         toolCallId,
         workflowId,
@@ -307,7 +346,7 @@ export async function waitForWorkflowToolCompletion({
       ? { reason: 'user_cancelled', cancelledByUser: true }
       : {}),
   }
-  const projected = projectToolResultForCopilot(
+  const projection = inspectToolResultForCopilot(
     {
       success: status === MothershipStreamV1ToolOutcome.success,
       output: rawData,
@@ -315,8 +354,9 @@ export async function waitForWorkflowToolCompletion({
         ? { error: trustedExecution.error ?? genericMessage }
         : {}),
     },
-    registry
+    toolRegistry
   )
+  const projected = projection.result
   const projectedData = isPlainRecord(projected.output) ? projected.output : {}
   const data = {
     ...projectedData,
@@ -350,6 +390,10 @@ export async function waitForWorkflowToolCompletion({
       executionId,
       error: getErrorMessage(error),
     })
+  }
+
+  if (projection.safe && registry && toolRegistry?.isComplete()) {
+    registry.mergeToolCallRegistry(toolRegistry)
   }
 
   return { status, message, data }

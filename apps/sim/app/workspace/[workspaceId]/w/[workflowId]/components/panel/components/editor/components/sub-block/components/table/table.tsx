@@ -189,7 +189,7 @@ function TableCell({
           autoCorrect='off'
           autoCapitalize='off'
           spellCheck='false'
-          className='w-full bg-transparent px-2.5 py-2 font-medium text-sm text-transparent leading-[21px] caret-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] disabled:cursor-not-allowed disabled:opacity-50'
+          className='w-full bg-transparent px-2.5 py-2 text-sm text-transparent leading-[21px] caret-[var(--text-primary)] outline-none [letter-spacing:inherit] placeholder:text-[var(--text-muted)] disabled:cursor-not-allowed disabled:opacity-50'
         />
         <div
           ref={(el) => {
@@ -199,7 +199,7 @@ function TableCell({
           data-overlay={cellKey}
           className='scrollbar-hide pointer-events-none absolute top-0 right-[10px] bottom-0 left-[10px] overflow-x-auto overflow-y-hidden bg-transparent'
         >
-          <div className='whitespace-pre py-2 font-medium text-[var(--text-primary)] text-sm leading-[21px]'>
+          <div className='whitespace-pre py-2 text-[var(--text-primary)] text-sm leading-[21px]'>
             {formatDisplayText(cellValue, {
               accessiblePrefixes,
               highlightAll: !accessiblePrefixes,
@@ -378,7 +378,7 @@ export function Table({
             <th
               key={column}
               className={cn(
-                'bg-transparent px-2.5 py-[5px] text-left font-medium text-[var(--text-tertiary)] text-sm',
+                'bg-transparent px-2.5 py-[5px] text-left text-[var(--text-tertiary)] text-sm',
                 index < columns.length - 1 && 'border-[var(--border-1)] border-r'
               )}
             >

@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { getApiKeyWithBYOK } from '@/lib/api-key/byok'
+import { filterModelSafeWorkspaceFileAttachments } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import type { StreamingExecution } from '@/executor/types'
 import {
   applyModelCostPolicy,
@@ -33,6 +34,41 @@ import {
 } from '@/providers/utils'
 
 const logger = createLogger('Providers')
+
+async function omitUnsafeProviderFileAttachments(
+  request: ProviderRequest
+): Promise<ProviderRequest> {
+  const attachments = (request.messages ?? []).flatMap((message) => message.files ?? [])
+  if (attachments.length === 0) return request
+
+  let safeAttachments: typeof attachments
+  try {
+    safeAttachments = await filterModelSafeWorkspaceFileAttachments(attachments, {
+      workspaceId: request.workspaceId,
+    })
+  } catch (error) {
+    logger.error('Workspace file secret provenance could not be verified', {
+      attachmentCount: attachments.length,
+      error: toError(error).message,
+    })
+    throw new Error('File attachments could not be verified for model use')
+  }
+
+  if (safeAttachments.length === attachments.length) return request
+  const safe = new Set(safeAttachments)
+  logger.warn('Omitting model attachments with unsafe secret provenance', {
+    attachmentCount: attachments.length,
+    omittedCount: attachments.length - safeAttachments.length,
+  })
+  return {
+    ...request,
+    messages: request.messages?.map((message) => {
+      if (!message.files) return message
+      const files = message.files.filter((file) => safe.has(file))
+      return { ...message, ...(files.length > 0 ? { files } : { files: undefined }) }
+    }),
+  }
+}
 
 /**
  * Maximum number of iterations for tool call loops to prevent infinite loops.
@@ -171,34 +207,33 @@ export async function executeProviderRequest(
   resolvedRequest.isBYOK = isBYOK
   const sanitizedRequest = resolvedRequest
 
-  if (sanitizedRequest.responseFormat) {
-    if (
-      typeof sanitizedRequest.responseFormat === 'string' &&
-      sanitizedRequest.responseFormat === ''
-    ) {
-      logger.info('Empty response format provided, ignoring it')
-      sanitizedRequest.responseFormat = undefined
-    } else {
-      const structuredOutputInstructions = generateStructuredOutputInstructions(
-        sanitizedRequest.responseFormat
-      )
+  if (
+    typeof sanitizedRequest.responseFormat === 'string' &&
+    sanitizedRequest.responseFormat === ''
+  ) {
+    logger.info('Empty response format provided, ignoring it')
+    sanitizedRequest.responseFormat = undefined
+  }
 
-      if (structuredOutputInstructions.trim()) {
-        const originalPrompt = sanitizedRequest.systemPrompt || ''
-        sanitizedRequest.systemPrompt =
-          `${originalPrompt}\n\n${structuredOutputInstructions}`.trim()
+  const provenanceSafeRequest = await omitUnsafeProviderFileAttachments(sanitizedRequest)
+  const modelSafeRequest = provenanceSafeRequest
 
-        logger.info('Added structured output instructions to system prompt')
-      }
+  if (modelSafeRequest.responseFormat) {
+    const structuredOutputInstructions = generateStructuredOutputInstructions(
+      modelSafeRequest.responseFormat
+    )
+    if (structuredOutputInstructions.trim()) {
+      const originalPrompt = modelSafeRequest.systemPrompt || ''
+      modelSafeRequest.systemPrompt = `${originalPrompt}\n\n${structuredOutputInstructions}`.trim()
+      logger.info('Added structured output instructions to system prompt')
     }
   }
 
-  await attachLargeFileRemoteUrls(sanitizedRequest, providerId)
-  await uploadLargeFilesToProvider(sanitizedRequest, providerId)
-
-  const response = await runWithProviderRuntimeContext(runtimeContext, () =>
-    provider.executeRequest(sanitizedRequest)
-  )
+  const response = await runWithProviderRuntimeContext(runtimeContext, async () => {
+    await attachLargeFileRemoteUrls(modelSafeRequest, providerId)
+    await uploadLargeFilesToProvider(modelSafeRequest, providerId)
+    return provider.executeRequest(modelSafeRequest)
+  })
 
   if (isStreamingExecution(response)) {
     logger.info('Provider returned StreamingExecution', { isBYOK })

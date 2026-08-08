@@ -7,7 +7,10 @@ import {
 } from '@sim/platform-authz/workflow'
 import { toError } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
+import { hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
+import { getBlockVisibilityForCopilot } from '@/lib/copilot/block-visibility'
 import { EditWorkflow } from '@/lib/copilot/generated/tool-catalog-v1'
+import { operationsReferenceSimSandbox } from '@/lib/copilot/sim-sandbox-projection'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
@@ -15,6 +18,7 @@ import {
 } from '@/lib/copilot/tools/server/base-tool'
 import { env } from '@/lib/core/config/env'
 import { getSocketServerUrl } from '@/lib/core/utils/urls'
+import { MAX_PLAN_REQUIRED } from '@/lib/execution/remote-sandbox/workspace-sandboxes'
 import {
   applyTargetedLayout,
   getTargetedLayoutImpact,
@@ -30,6 +34,7 @@ import {
   saveWorkflowToNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
 import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
+import { withBlockVisibility } from '@/blocks/visibility/server-context'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import { normalizeWorkflowState } from '@/stores/workflows/workflow/validation'
@@ -115,6 +120,13 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
     const workspaceId = authorization.workflow?.workspaceId ?? undefined
     const workflowName = authorization.workflow?.name ?? undefined
 
+    if (
+      operationsReferenceSimSandbox(operations) &&
+      (!workspaceId || !(await hasWorkspaceSandboxAccess(workspaceId)))
+    ) {
+      throw new Error(MAX_PLAN_REQUIRED)
+    }
+
     logger.info('Executing edit_workflow', {
       operationCount: operations.length,
       workflowId,
@@ -137,10 +149,10 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
       workflowState = fromDb.workflowState
     }
 
-    const permissionConfig =
-      context?.userId && workspaceId
-        ? await getUserPermissionConfig(context.userId, workspaceId)
-        : null
+    const [permissionConfig, blockVisibility] = await Promise.all([
+      workspaceId ? getUserPermissionConfig(context.userId, workspaceId) : null,
+      getBlockVisibilityForCopilot(context.userId, workspaceId),
+    ])
 
     // Pre-validate credential and apiKey inputs before applying operations
     // This filters out invalid credentials and apiKeys for hosted models
@@ -161,7 +173,9 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
       state: modifiedWorkflowState,
       validationErrors,
       skippedItems,
-    } = applyOperationsToWorkflowState(workflowState, operationsToApply, permissionConfig)
+    } = await withBlockVisibility(blockVisibility, async () =>
+      applyOperationsToWorkflowState(workflowState, operationsToApply, permissionConfig)
+    )
 
     // Add credential validation errors
     validationErrors.push(...credentialErrors)

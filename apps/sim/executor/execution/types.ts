@@ -102,6 +102,14 @@ export interface SerializableExecutionState {
   }
   /** Encrypted-only provenance for Secrets-tab values resolved during this execution. */
   resolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
+  /** Exact-value provenance for mutable workflow variables, keyed by persisted variable id. */
+  workflowVariableResolvedSecretTraceProvenance?: Record<string, ResolvedSecretTraceProvenanceV1>
+  /** Exact-value provenance for the persisted workflow input. Absence means legacy/untracked. */
+  workflowInputResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
+  /** Encrypted candidates for the persisted terminal output. Absence means legacy/untracked. */
+  finalOutputResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
+  /** Presence distinguishes current checkpoints from legacy states that predate provenance. */
+  resolvedSecretTraceCheckpointVersion?: 1
 }
 
 /**
@@ -161,6 +169,13 @@ export interface ChildWorkflowContext {
 export interface BlockCompletionCallbackData {
   input?: unknown
   output: NormalizedBlockOutput
+  /**
+   * Encrypted candidates active in this block call. Internal durable consumers
+   * filter them against the exact value that crosses a storage boundary.
+   */
+  resolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
+  /** Internal encrypted candidates filtered against the display envelope during projection. */
+  displayResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
   executionTime: number
   startedAt: string
   executionOrder: number
@@ -240,6 +255,7 @@ export interface ContextExtensions {
   dagIncomingEdges?: Record<string, string[]>
   snapshotState?: SerializableExecutionState
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
+  workflowInputResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
   metadata?: ExecutionMetadata
   /**
    * Trusted run metadata injected into the Start block output when its
@@ -313,12 +329,18 @@ export interface WorkflowInput {
 }
 
 interface BlockStateReader {
+  getBlockState(blockId: string, currentNodeId?: string): BlockState | undefined
   getBlockOutput(blockId: string, currentNodeId?: string): NormalizedBlockOutput | undefined
   hasExecuted(blockId: string): boolean
 }
 
 export interface BlockStateWriter {
-  setBlockOutput(blockId: string, output: NormalizedBlockOutput, executionTime?: number): void
+  setBlockOutput(
+    blockId: string,
+    output: NormalizedBlockOutput,
+    executionTime?: number,
+    resolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
+  ): void
   setBlockState(blockId: string, state: BlockState): void
   deleteBlockState(blockId: string): void
   unmarkExecuted(blockId: string): void

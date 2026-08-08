@@ -12,6 +12,7 @@ const {
   mockResolveStorageBillingContext,
   mockHasCloudStorage,
   mockHeadObject,
+  mockReplaceWorkspaceFileSecretProvenanceInTx,
 } = vi.hoisted(() => ({
   mockCheckStorageQuotaForBillingContext: vi.fn(),
   mockDecrementStorageUsageForBillingContext: vi.fn(),
@@ -19,6 +20,7 @@ const {
   mockResolveStorageBillingContext: vi.fn(),
   mockHasCloudStorage: vi.fn(),
   mockHeadObject: vi.fn(),
+  mockReplaceWorkspaceFileSecretProvenanceInTx: vi.fn(),
 }))
 
 vi.mock('@/lib/billing/storage', () => ({
@@ -36,6 +38,12 @@ vi.mock('@/lib/uploads/core/storage-service', () => ({
   uploadFile: vi.fn(),
 }))
 
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
+  EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE: { status: 'exact', entries: [] },
+  preserveWorkspaceFileSecretProvenanceInTx: vi.fn(),
+  replaceWorkspaceFileSecretProvenanceInTx: mockReplaceWorkspaceFileSecretProvenanceInTx,
+}))
+
 import { CHAT_DISPLAY_NAME_INDEX, suffixedName, trackChatUpload } from './workspace-file-manager'
 
 const CHAT_ID = '11111111-1111-1111-1111-111111111111'
@@ -44,6 +52,7 @@ const OTHER_WORKSPACE_ID = '33333333-3333-3333-3333-333333333333'
 const USER_ID = 'user_1'
 const OTHER_USER_ID = 'user_2'
 const S3_KEY = `workspace/${WORKSPACE_ID}/1731000000000-ab12cd34-image.png`
+const CONTENT_UPDATED_AT = new Date('2026-08-04T00:00:00.000Z')
 
 /** Row shape `resolveClaimableChatUploadRow` selects, with claimable defaults. */
 function existingRow(overrides: Record<string, unknown> = {}) {
@@ -103,11 +112,16 @@ describe('trackChatUpload', () => {
     resetDbChainMock()
     mockHasCloudStorage.mockReturnValue(true)
     mockHeadObject.mockResolvedValue({ size: 1024 })
+    dbChainMockFns.returning.mockResolvedValue([
+      { id: 'wf_inserted', contentUpdatedAt: CONTENT_UPDATED_AT },
+    ])
   })
 
   it('finalizes an existing direct upload without workspace storage accounting', async () => {
     queueOwnershipLookup([existingRow()])
-    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'wf_existing' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      { id: 'wf_existing', contentUpdatedAt: CONTENT_UPDATED_AT },
+    ])
 
     const result = await trackChatUpload(
       WORKSPACE_ID,
@@ -127,6 +141,7 @@ describe('trackChatUpload', () => {
         displayName: 'image.png',
       })
     )
+    expect(mockReplaceWorkspaceFileSecretProvenanceInTx).not.toHaveBeenCalled()
     expectNoWorkspaceStorageAccounting()
   })
 
@@ -153,12 +168,32 @@ describe('trackChatUpload', () => {
         displayName: 'image.png',
       })
     )
+    expect(mockReplaceWorkspaceFileSecretProvenanceInTx).not.toHaveBeenCalled()
     expectNoWorkspaceStorageAccounting()
+  })
+
+  it('does not reclassify uploaded bytes while linking chat metadata', async () => {
+    queueOwnershipLookup([existingRow()])
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      { id: 'wf_existing', contentUpdatedAt: CONTENT_UPDATED_AT },
+    ])
+    mockReplaceWorkspaceFileSecretProvenanceInTx.mockRejectedValueOnce(
+      new Error('provenance write failed')
+    )
+
+    await expect(
+      trackChatUpload(WORKSPACE_ID, USER_ID, CHAT_ID, S3_KEY, 'image.png', 'image/png', 1024)
+    ).resolves.toEqual({ displayName: 'image.png' })
+
+    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(1)
+    expect(mockReplaceWorkspaceFileSecretProvenanceInTx).not.toHaveBeenCalled()
   })
 
   it('stamps message_id on the UPDATE arm when the birth message is known', async () => {
     queueOwnershipLookup([existingRow()])
-    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'wf_existing' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      { id: 'wf_existing', contentUpdatedAt: CONTENT_UPDATED_AT },
+    ])
 
     await trackChatUpload(
       WORKSPACE_ID,
@@ -196,7 +231,9 @@ describe('trackChatUpload', () => {
 
     // Legacy callers without a message id write an explicit NULL ("birth unknown").
     queueOwnershipLookup([existingRow()])
-    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'wf_existing' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      { id: 'wf_existing', contentUpdatedAt: CONTENT_UPDATED_AT },
+    ])
     await trackChatUpload(WORKSPACE_ID, USER_ID, CHAT_ID, S3_KEY, 'image.png', 'image/png', 1024)
     expect(dbChainMockFns.set).toHaveBeenLastCalledWith(
       expect.objectContaining({ messageId: null })
@@ -211,8 +248,7 @@ describe('trackChatUpload', () => {
     })
 
     queueOwnershipLookup([])
-    dbChainMockFns.values.mockRejectedValueOnce(displayNameCollision)
-    dbChainMockFns.values.mockResolvedValueOnce(undefined)
+    dbChainMockFns.returning.mockRejectedValueOnce(displayNameCollision)
 
     const result = await trackChatUpload(
       WORKSPACE_ID,
@@ -241,7 +277,7 @@ describe('trackChatUpload', () => {
     })
 
     queueOwnershipLookup([])
-    dbChainMockFns.values.mockRejectedValueOnce(keyCollision)
+    dbChainMockFns.returning.mockRejectedValueOnce(keyCollision)
 
     await expect(
       trackChatUpload(WORKSPACE_ID, USER_ID, CHAT_ID, S3_KEY, 'image.png', 'image/png', 1024)
@@ -355,7 +391,9 @@ describe('trackChatUpload', () => {
 
     it('scopes the UPDATE to the caller-owned row id rather than the raw key', async () => {
       queueOwnershipLookup([existingRow({ id: 'wf_mine' })])
-      dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'wf_mine' }])
+      dbChainMockFns.returning.mockResolvedValueOnce([
+        { id: 'wf_mine', contentUpdatedAt: CONTENT_UPDATED_AT },
+      ])
 
       await trackChatUpload(WORKSPACE_ID, USER_ID, CHAT_ID, S3_KEY, 'image.png', 'image/png', 1024)
 
@@ -386,7 +424,9 @@ describe('trackChatUpload', () => {
      */
     it('re-asserts every ownership predicate in the update, not just the row id', async () => {
       queueOwnershipLookup([existingRow({ id: 'wf_mine' })])
-      dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'wf_mine' }])
+      dbChainMockFns.returning.mockResolvedValueOnce([
+        { id: 'wf_mine', contentUpdatedAt: CONTENT_UPDATED_AT },
+      ])
 
       await trackChatUpload(WORKSPACE_ID, USER_ID, CHAT_ID, S3_KEY, 'image.png', 'image/png', 1024)
 
@@ -426,7 +466,9 @@ describe('trackChatUpload', () => {
 
     it('still re-links an upload already bound to this same chat', async () => {
       queueOwnershipLookup([existingRow({ chatId: CHAT_ID })])
-      dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'wf_existing' }])
+      dbChainMockFns.returning.mockResolvedValueOnce([
+        { id: 'wf_existing', contentUpdatedAt: CONTENT_UPDATED_AT },
+      ])
 
       const result = await trackChatUpload(
         WORKSPACE_ID,

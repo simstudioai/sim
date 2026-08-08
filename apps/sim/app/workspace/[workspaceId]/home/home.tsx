@@ -12,15 +12,15 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react'
-import { Button, cn } from '@sim/emcn'
+import { Button, cn, toast } from '@sim/emcn'
 import { PanelLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
+import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
 import { requestJson } from '@/lib/api/client/request'
 import { createWorkflowContract } from '@/lib/api/contracts'
-import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
 import {
   LandingPromptStorage,
   type LandingWorkflowSeed,
@@ -36,6 +36,7 @@ import {
 import { captureEvent } from '@/lib/posthog/client'
 import { persistImportedWorkflow } from '@/lib/workflows/operations/import-export'
 import { RESOURCE_HEADER_CLASSES } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
+import { resolveWorkspaceResourceRef } from '@/app/workspace/[workspaceId]/home/resolve-resource-ref'
 import { resourceParam, resourceUrlKeys } from '@/app/workspace/[workspaceId]/home/search-params'
 import { useFolders } from '@/hooks/queries/folders'
 import {
@@ -43,7 +44,7 @@ import {
   useMothershipChatHistory,
 } from '@/hooks/queries/mothership-chats'
 import { useWorkflows } from '@/hooks/queries/workflows'
-import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import { getWorkspaceFilesQueryOptions, useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
 import type { ChatContext } from '@/stores/panel'
 import {
@@ -56,7 +57,12 @@ import {
   type UserInputHandle,
 } from './components'
 import { getMothershipUseChatOptions, useChat, useMothershipResize } from './hooks'
-import type { FileAttachmentForApi, MothershipResource, MothershipResourceType } from './types'
+import type {
+  FileAttachmentForApi,
+  MothershipResource,
+  MothershipResourceType,
+  WorkspaceResourceRef,
+} from './types'
 
 const logger = createLogger('Home')
 const subscribeToDesktopApp = () => () => {}
@@ -90,6 +96,7 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
   )
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const router = useRouter()
+  const queryClient = useQueryClient()
   /**
    * URL is the single source of truth for the selected resource. `Home` renders
    * client-side, so nuqs reads `?resource=` from the URL on mount — the same
@@ -432,37 +439,54 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
     removeResource(resolved.type, resolved.id)
   }
 
-  const resolveFileResource = useCallback(
-    (resource: MothershipResource): MothershipResource => {
-      if (resource.type !== 'file') return resource
-
-      const reference = (resource.path || resource.id).trim()
-
-      const file = workspaceFiles.find((candidate) => {
-        const candidatePath = canonicalWorkspaceFilePath({
-          folderPath: candidate.folderPath,
-          name: candidate.name,
-        })
-        return candidate.id === reference || candidatePath === reference
-      })
-
-      if (!file) return resource
-      return {
-        ...resource,
-        id: file.id,
-        title: resource.title || file.name,
-      }
-    },
-    [workspaceFiles]
-  )
-
-  function handleWorkspaceResourceSelect(resource: MothershipResource) {
-    const resolvedResource = resolveFileResource(resource)
-    const wasAdded = addResource(resolvedResource)
+  function openWorkspaceResource(resource: MothershipResource) {
+    const wasAdded = addResource(resource)
     if (!wasAdded) {
-      setActiveResourceId(resolvedResource.id)
+      setActiveResourceId(resource.id)
     }
     handleResourceEvent()
+  }
+
+  /**
+   * Opens the resource a message chip points at, resolving it first. A chip may
+   * carry only a filename — the agent names a file before the client's file
+   * list knows it exists — so one forced refetch closes that window. What still
+   * resolves to nothing opens nothing, rather than a tab that cannot be
+   * viewed or removed.
+   */
+  async function handleWorkspaceResourceSelect(ref: WorkspaceResourceRef) {
+    const immediate = resolveWorkspaceResourceRef(ref, workspaceFiles)
+    if (immediate) {
+      openWorkspaceResource(immediate)
+      return
+    }
+    if (ref.type !== 'file') return
+
+    // `staleTime: 0` forces the fetch this branch exists for — the cached list
+    // is what already failed to resolve. `fetchQuery` rejects on error and this
+    // handler is invoked as a void callback, so failure becomes null rather
+    // than an unhandled rejection — and stays distinct from an empty list, so
+    // "we could not look" is never reported as "it is not there".
+    const files = await queryClient
+      .fetchQuery({ ...getWorkspaceFilesQueryOptions(workspaceId), staleTime: 0 })
+      .catch(() => null)
+    const resolved = files && resolveWorkspaceResourceRef(ref, files)
+    if (resolved) {
+      openWorkspaceResource(resolved)
+      return
+    }
+    // The chip looks clickable, so refusing silently reads as a broken button.
+    toast.error(
+      files
+        ? `Couldn't find "${ref.title}" in this workspace`
+        : `Couldn't open "${ref.title}" — check your connection and try again`
+    )
+    logger.warn('Ignored a resource chip that did not resolve', {
+      type: ref.type,
+      title: ref.title,
+      hasPath: Boolean(ref.path),
+      reachedWorkspace: files !== null,
+    })
   }
 
   const hasMessages = messages.length > 0

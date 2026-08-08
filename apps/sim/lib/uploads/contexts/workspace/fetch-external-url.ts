@@ -1,6 +1,7 @@
 import type { Buffer } from 'buffer'
 import path from 'path'
 import { createLogger } from '@sim/logger'
+import { describeError } from '@sim/utils/errors'
 import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
@@ -134,7 +135,7 @@ export async function fetchExternalUrlToWorkspace(
         logger.warn('Failed to save fetched URL to workspace storage', {
           workspaceId,
           filename,
-          saveError,
+          cause: describeError(saveError),
         })
       }
     } else if (permission === null) {

@@ -1,5 +1,4 @@
 import { createLogger, type Logger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
 import { isTimeoutAbortReason } from '@/lib/core/execution-limits/types'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { normalizeStringArray } from '@/lib/core/utils/arrays'
@@ -51,6 +50,11 @@ import {
 } from '@/executor/utils/iteration-context'
 import { isJSONString } from '@/executor/utils/json'
 import { filterOutputForLog } from '@/executor/utils/output-filter'
+import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
+import type {
+  ResolvedSecretTraceProvenanceV1,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 import {
   buildBranchNodeId,
   buildOuterBranchScopedId,
@@ -99,6 +103,26 @@ export class BlockExecutor {
       })
     }
 
+    const parentResolvedSecretTraceRegistry = ctx.resolvedSecretTraceRegistry
+    const blockResolvedSecretTraceRegistry = parentResolvedSecretTraceRegistry?.forkForInputPaths(
+      []
+    )
+    const inputDisplayRegistry = blockResolvedSecretTraceRegistry
+    const blockCtx = blockResolvedSecretTraceRegistry
+      ? { ...ctx, resolvedSecretTraceRegistry: blockResolvedSecretTraceRegistry }
+      : ctx
+    let registryCommitted = false
+    const commitBlockRegistry = () => {
+      const settledBlockRegistry = blockCtx.resolvedSecretTraceRegistry
+      if (registryCommitted || !parentResolvedSecretTraceRegistry || !settledBlockRegistry) {
+        return
+      }
+      registryCommitted = true
+      if (settledBlockRegistry.isComplete()) {
+        parentResolvedSecretTraceRegistry.mergeToolCallRegistry(settledBlockRegistry)
+      }
+    }
+
     const blockType = block.metadata?.id ?? ''
     const isSentinel = isSentinelBlockType(blockType)
 
@@ -111,9 +135,14 @@ export class BlockExecutor {
     let blockLog: BlockLog | undefined
     let blockStartPromise: Promise<void> | undefined
     if (!isSentinel) {
-      blockLog = this.createBlockLog(ctx, node.id, block, node, startedAt)
-      ctx.blockLogs.push(blockLog)
-      blockStartPromise = this.fireBlockStartCallback(ctx, node, block, blockLog.executionOrder)
+      blockLog = this.createBlockLog(blockCtx, node.id, block, node, startedAt)
+      blockCtx.blockLogs.push(blockLog)
+      blockStartPromise = this.fireBlockStartCallback(
+        blockCtx,
+        node,
+        block,
+        blockLog.executionOrder
+      )
       await blockStartPromise
     }
 
@@ -127,12 +156,17 @@ export class BlockExecutor {
     let cleanupSelfReference: (() => void) | undefined
 
     if (block.metadata?.id === BlockType.HUMAN_IN_THE_LOOP) {
-      cleanupSelfReference = this.preparePauseResumeSelfReference(ctx, node, block, nodeMetadata)
+      cleanupSelfReference = this.preparePauseResumeSelfReference(
+        blockCtx,
+        node,
+        block,
+        nodeMetadata
+      )
     }
 
     try {
       if (!isSentinel && blockType) {
-        await validateBlockType(ctx.userId, ctx.workspaceId, blockType, ctx)
+        await validateBlockType(blockCtx.userId, blockCtx.workspaceId, blockType, blockCtx)
       }
 
       if (block.metadata?.id === BlockType.FUNCTION) {
@@ -141,7 +175,7 @@ export class BlockExecutor {
           displayInputs,
           contextVariables,
         } = await this.resolver.resolveInputsForFunctionBlock(
-          ctx,
+          blockCtx,
           node.id,
           block.config.params,
           block
@@ -155,35 +189,45 @@ export class BlockExecutor {
         }
         inputsForLog = displayInputs
       } else {
-        resolvedInputs = await this.resolver.resolveInputs(ctx, node.id, block.config.params, block)
+        resolvedInputs = await this.resolver.resolveInputs(
+          blockCtx,
+          node.id,
+          block.config.params,
+          block
+        )
         inputsForLog = resolvedInputs
       }
 
       if (blockLog) {
-        blockLog.input = this.sanitizeInputsForLog(inputsForLog, block)
+        blockLog.input = this.projectInputsForDisplay(inputsForLog, block, inputDisplayRegistry)
       }
     } catch (error) {
       cleanupSelfReference?.()
-      return await this.handleBlockError(
-        error,
-        ctx,
-        node,
-        block,
-        blockStartPromise,
-        startTime,
-        blockLog,
-        inputsForLog,
-        isSentinel,
-        'input_resolution'
-      )
+      try {
+        return await this.handleBlockError(
+          error,
+          blockCtx,
+          node,
+          block,
+          blockStartPromise,
+          startTime,
+          blockLog,
+          inputsForLog,
+          inputDisplayRegistry,
+          isSentinel,
+          'input_resolution'
+        )
+      } finally {
+        commitBlockRegistry()
+      }
     }
     cleanupSelfReference?.()
 
     let streamingPartialOutput: Record<string, any> | undefined
     try {
       const output = handler.executeWithNode
-        ? await handler.executeWithNode(ctx, block, resolvedInputs, nodeMetadata)
-        : await handler.execute(ctx, block, resolvedInputs)
+        ? await handler.executeWithNode(blockCtx, block, resolvedInputs, nodeMetadata)
+        : await handler.execute(blockCtx, block, resolvedInputs)
 
       const isStreamingExecution =
         output && typeof output === 'object' && 'stream' in output && 'execution' in output
@@ -198,14 +242,24 @@ export class BlockExecutor {
         // final output reaches the client via block-complete.
         try {
           await this.handleStreamingExecution(
-            ctx,
+            blockCtx,
             node,
             block,
             streamingExec,
             resolvedInputs,
-            normalizeStringArray(ctx.selectedOutputs)
+            normalizeStringArray(blockCtx.selectedOutputs)
           )
         } catch (streamError) {
+          const resultRegistry = blockCtx.resolvedSecretTraceRegistry
+          const diagnosticRegistry = streamingExec.diagnosticResolvedSecretTraceRegistry
+          const errorRegistry = diagnosticRegistry
+            ? diagnosticRegistry.forkForToolCall()
+            : resultRegistry?.forkForToolCall()
+          if (errorRegistry && resultRegistry && resultRegistry !== diagnosticRegistry) {
+            errorRegistry.mergeToolCallRegistry(resultRegistry)
+          }
+          blockCtx.errorResolvedSecretTraceRegistry = errorRegistry
+          blockCtx.resolvedSecretTraceRegistry = resultRegistry?.forkForPropagatedEntries()
           // Timeout / drain failures may still have projected answer text — keep it
           // for the failed block output so logs match what the client already saw.
           streamingPartialOutput = streamingExec.execution?.output
@@ -219,31 +273,31 @@ export class BlockExecutor {
         normalizedOutput = this.normalizeOutput(output)
       }
 
-      if (ctx.includeFileBase64 === true && containsUserFileWithMetadata(normalizedOutput)) {
+      if (blockCtx.includeFileBase64 === true && containsUserFileWithMetadata(normalizedOutput)) {
         normalizedOutput = (await hydrateUserFilesWithBase64(normalizedOutput, {
-          requestId: ctx.metadata.requestId,
-          workspaceId: ctx.workspaceId,
-          workflowId: ctx.workflowId,
-          executionId: ctx.executionId,
-          largeValueExecutionIds: ctx.largeValueExecutionIds,
-          largeValueKeys: ctx.largeValueKeys,
-          fileKeys: ctx.fileKeys,
-          allowLargeValueWorkflowScope: ctx.allowLargeValueWorkflowScope,
-          userId: ctx.userId,
-          maxBytes: ctx.base64MaxBytes,
+          requestId: blockCtx.metadata.requestId,
+          workspaceId: blockCtx.workspaceId,
+          workflowId: blockCtx.workflowId,
+          executionId: blockCtx.executionId,
+          largeValueExecutionIds: blockCtx.largeValueExecutionIds,
+          largeValueKeys: blockCtx.largeValueKeys,
+          fileKeys: blockCtx.fileKeys,
+          allowLargeValueWorkflowScope: blockCtx.allowLargeValueWorkflowScope,
+          userId: blockCtx.userId,
+          maxBytes: blockCtx.base64MaxBytes,
           preserveLargeValueMetadata: true,
         })) as NormalizedBlockOutput
       }
 
-      if (ctx.piiBlockOutputRedaction?.enabled) {
+      if (blockCtx.piiBlockOutputRedaction?.enabled) {
         // In-flight redaction before the log/state split below, so both the
         // downstream state copy and the persisted log copy are masked.
         // `onFailure: 'throw'` aborts the run rather than feeding corrupted/leaked
         // data downstream.
         const redactionOptions = {
-          entityTypes: ctx.piiBlockOutputRedaction.entityTypes,
-          language: ctx.piiBlockOutputRedaction.language,
-          customPatterns: ctx.piiBlockOutputRedaction.customPatterns,
+          entityTypes: blockCtx.piiBlockOutputRedaction.entityTypes,
+          language: blockCtx.piiBlockOutputRedaction.language,
+          customPatterns: blockCtx.piiBlockOutputRedaction.customPatterns,
           onFailure: 'throw' as const,
         }
         // Tools like the function executor offload large outputs to large-value
@@ -253,21 +307,21 @@ export class BlockExecutor {
         normalizedOutput = await redactLargeValueRefsInValue(normalizedOutput, {
           ...redactionOptions,
           store: {
-            workspaceId: ctx.workspaceId,
-            workflowId: ctx.workflowId,
-            executionId: ctx.executionId,
-            userId: ctx.userId,
+            workspaceId: blockCtx.workspaceId,
+            workflowId: blockCtx.workflowId,
+            executionId: blockCtx.executionId,
+            userId: blockCtx.userId,
           },
         })
         normalizedOutput = await redactObjectStrings(normalizedOutput, redactionOptions)
       }
 
       normalizedOutput = (await compactExecutionPayload(normalizedOutput, {
-        workspaceId: ctx.workspaceId,
-        workflowId: ctx.workflowId,
-        executionId: ctx.executionId,
-        userId: ctx.userId,
-        preserveUserFileBase64: ctx.includeFileBase64 === true,
+        workspaceId: blockCtx.workspaceId,
+        workflowId: blockCtx.workflowId,
+        executionId: blockCtx.executionId,
+        userId: blockCtx.userId,
+        preserveUserFileBase64: blockCtx.includeFileBase64 === true,
         requireDurable: true,
       })) as NormalizedBlockOutput
 
@@ -285,7 +339,10 @@ export class BlockExecutor {
       }
 
       const { childTraceSpans: _traces, ...outputForState } = normalizedOutput
-      this.setNodeOutput(node, outputForState as NormalizedBlockOutput, duration)
+      const stateOutput = outputForState as NormalizedBlockOutput
+      const settledBlockRegistry = blockCtx.resolvedSecretTraceRegistry
+      const stateProvenance = settledBlockRegistry?.exportCommittedProvenanceForValue(stateOutput)
+      this.setNodeOutput(node, stateOutput, duration, stateProvenance)
 
       if (!isSentinel && blockLog) {
         const childWorkflowInstanceId =
@@ -295,36 +352,51 @@ export class BlockExecutor {
         const displayOutput = filterOutputForLog(block.metadata?.id || '', normalizedOutput, {
           block,
         })
+        const displayInput = this.projectInputsForDisplay(inputsForLog, block, inputDisplayRegistry)
+        blockLog.input = displayInput
+        const displayProvenance = settledBlockRegistry?.exportCommittedProvenanceForValue({
+          input: displayInput,
+          output: displayOutput,
+        })
+        this.setBlockLogDisplayProvenance(blockLog, displayProvenance)
         this.fireBlockCompleteCallback(
           blockStartPromise,
-          ctx,
+          blockCtx,
           node,
           block,
-          this.sanitizeInputsForLog(inputsForLog, block),
+          displayInput,
           displayOutput,
           duration,
           blockLog.startedAt,
           blockLog.executionOrder,
           blockLog.endedAt,
-          childWorkflowInstanceId
+          childWorkflowInstanceId,
+          stateProvenance,
+          displayProvenance
         )
       }
 
-      return outputForState as NormalizedBlockOutput
+      commitBlockRegistry()
+      return stateOutput
     } catch (error) {
-      return await this.handleBlockError(
-        error,
-        ctx,
-        node,
-        block,
-        blockStartPromise,
-        startTime,
-        blockLog,
-        inputsForLog,
-        isSentinel,
-        'execution',
-        streamingPartialOutput
-      )
+      try {
+        return await this.handleBlockError(
+          error,
+          blockCtx,
+          node,
+          block,
+          blockStartPromise,
+          startTime,
+          blockLog,
+          inputsForLog,
+          inputDisplayRegistry,
+          isSentinel,
+          'execution',
+          streamingPartialOutput
+        )
+      } finally {
+        commitBlockRegistry()
+      }
     }
   }
 
@@ -343,8 +415,13 @@ export class BlockExecutor {
     }
   }
 
-  private setNodeOutput(node: DAGNode, output: NormalizedBlockOutput, duration = 0): void {
-    this.state.setBlockOutput(node.id, output, duration)
+  private setNodeOutput(
+    node: DAGNode,
+    output: NormalizedBlockOutput,
+    duration = 0,
+    resolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
+  ): void {
+    this.state.setBlockOutput(node.id, output, duration, resolvedSecretTraceProvenance)
 
     const originalBlockId = node.metadata.originalBlockId
     const branchIndex = node.metadata.branchIndex
@@ -356,14 +433,33 @@ export class BlockExecutor {
     ) {
       const globalBranchNodeId = buildBranchNodeId(originalBlockId, branchIndex)
       if (globalBranchNodeId !== node.id) {
-        this.state.setBlockOutput(globalBranchNodeId, output, duration)
+        this.state.setBlockOutput(
+          globalBranchNodeId,
+          output,
+          duration,
+          resolvedSecretTraceProvenance
+        )
       }
       this.state.setBlockOutput(
         buildOuterBranchScopedId(originalBlockId, branchIndex),
         output,
-        duration
+        duration,
+        resolvedSecretTraceProvenance
       )
     }
+  }
+
+  private setBlockLogDisplayProvenance(
+    blockLog: BlockLog,
+    provenance: ResolvedSecretTraceProvenanceV1 | undefined
+  ): void {
+    if (!provenance) return
+    Object.defineProperty(blockLog, 'displayResolvedSecretTraceProvenance', {
+      value: provenance,
+      enumerable: true,
+      configurable: true,
+      writable: true,
+    })
   }
 
   private findHandler(block: SerializedBlock): BlockHandler | undefined {
@@ -379,6 +475,7 @@ export class BlockExecutor {
     startTime: number,
     blockLog: BlockLog | undefined,
     inputsForLog: Record<string, any>,
+    inputDisplayRegistry: ResolvedSecretTraceRegistry | undefined,
     isSentinel: boolean,
     phase: 'input_resolution' | 'execution',
     streamingPartialOutput?: Record<string, any>
@@ -405,15 +502,17 @@ export class BlockExecutor {
       const softOutput: NormalizedBlockOutput = {
         content: '',
       }
+      const softOutputProvenance =
+        ctx.resolvedSecretTraceRegistry?.exportCommittedProvenanceForValue(softOutput)
 
-      this.setNodeOutput(node, softOutput, duration)
+      this.setNodeOutput(node, softOutput, duration, softOutputProvenance)
 
       if (blockLog) {
         blockLog.endedAt = endedAt
         blockLog.durationMs = duration
         blockLog.success = true
         blockLog.error = undefined
-        blockLog.input = this.sanitizeInputsForLog(input, block)
+        blockLog.input = this.projectInputsForDisplay(input, block, inputDisplayRegistry)
         blockLog.output = filterOutputForLog(block.metadata?.id || '', softOutput, { block })
       }
 
@@ -423,17 +522,28 @@ export class BlockExecutor {
       })
 
       if (!isSentinel && blockLog) {
+        const displayInput = this.projectInputsForDisplay(input, block, inputDisplayRegistry)
+        const displayOutput = filterOutputForLog(block.metadata?.id || '', softOutput, { block })
+        const displayProvenance =
+          ctx.resolvedSecretTraceRegistry?.exportCommittedProvenanceForValue({
+            input: displayInput,
+            output: displayOutput,
+          })
+        this.setBlockLogDisplayProvenance(blockLog, displayProvenance)
         this.fireBlockCompleteCallback(
           blockStartPromise,
           ctx,
           node,
           block,
-          this.sanitizeInputsForLog(input, block),
-          filterOutputForLog(block.metadata?.id || '', softOutput, { block }),
+          displayInput,
+          displayOutput,
           duration,
           blockLog.startedAt,
           blockLog.executionOrder,
-          blockLog.endedAt
+          blockLog.endedAt,
+          undefined,
+          softOutputProvenance,
+          displayProvenance
         )
       }
 
@@ -473,14 +583,16 @@ export class BlockExecutor {
       }
     }
 
-    this.setNodeOutput(node, errorOutput, duration)
+    const errorRegistry = ctx.errorResolvedSecretTraceRegistry ?? ctx.resolvedSecretTraceRegistry
+    const errorOutputProvenance = errorRegistry?.exportCommittedProvenanceForValue(errorOutput)
+    this.setNodeOutput(node, errorOutput, duration, errorOutputProvenance)
 
     if (blockLog) {
       blockLog.endedAt = endedAt
       blockLog.durationMs = duration
       blockLog.success = false
       blockLog.error = errorMessage
-      blockLog.input = this.sanitizeInputsForLog(input, block)
+      blockLog.input = this.projectInputsForDisplay(input, block, inputDisplayRegistry)
       blockLog.output = filterOutputForLog(block.metadata?.id || '', errorOutput, { block })
 
       if (ChildWorkflowError.isChildWorkflowError(error) && error.childTraceSpans.length > 0) {
@@ -488,12 +600,28 @@ export class BlockExecutor {
       }
     }
 
+    const diagnosticRegistry = ctx.errorResolvedSecretTraceRegistry
+      ? ctx.errorResolvedSecretTraceRegistry
+      : inputDisplayRegistry?.forkForToolCall()
+    if (
+      !ctx.errorResolvedSecretTraceRegistry &&
+      diagnosticRegistry &&
+      ctx.resolvedSecretTraceRegistry &&
+      ctx.resolvedSecretTraceRegistry !== inputDisplayRegistry
+    ) {
+      diagnosticRegistry.mergeToolCallRegistry(ctx.resolvedSecretTraceRegistry)
+    }
+    const errorDiagnostic = projectResolvedSecretDiagnosticError(
+      error,
+      diagnosticRegistry ?? ctx.resolvedSecretTraceRegistry
+    )
+
     this.execLogger.error(
       phase === 'input_resolution' ? 'Failed to resolve block inputs' : 'Block execution failed',
       {
         blockId: node.id,
         blockType: block.metadata?.id,
-        error: errorMessage,
+        ...errorDiagnostic,
       }
     )
 
@@ -502,18 +630,26 @@ export class BlockExecutor {
         ? error.childWorkflowInstanceId
         : undefined
       const displayOutput = filterOutputForLog(block.metadata?.id || '', errorOutput, { block })
+      const displayInput = this.projectInputsForDisplay(input, block, inputDisplayRegistry)
+      const displayProvenance = errorRegistry?.exportCommittedProvenanceForValue({
+        input: displayInput,
+        output: displayOutput,
+      })
+      this.setBlockLogDisplayProvenance(blockLog, displayProvenance)
       this.fireBlockCompleteCallback(
         blockStartPromise,
         ctx,
         node,
         block,
-        this.sanitizeInputsForLog(input, block),
+        displayInput,
         displayOutput,
         duration,
         blockLog.startedAt,
         blockLog.executionOrder,
         blockLog.endedAt,
-        childWorkflowInstanceId
+        childWorkflowInstanceId,
+        errorOutputProvenance,
+        displayProvenance
       )
     }
 
@@ -524,7 +660,7 @@ export class BlockExecutor {
       }
       this.execLogger.info('Block has error port - returning error output instead of throwing', {
         blockId: node.id,
-        error: errorMessage,
+        ...errorDiagnostic,
       })
       return errorOutput
     }
@@ -619,6 +755,17 @@ export class BlockExecutor {
     }
 
     return { result: output }
+  }
+
+  /** Builds the log-facing input copy from resolver-recorded projections only. */
+  private projectInputsForDisplay(
+    inputs: Record<string, any>,
+    block: SerializedBlock | undefined,
+    registry: ResolvedSecretTraceRegistry | undefined
+  ): Record<string, any> {
+    const projection = registry?.projectResolvedInputSelection(inputs)
+    if (projection && !projection.complete) return {}
+    return this.sanitizeInputsForLog(projection?.value ?? inputs, block)
   }
 
   /**
@@ -723,7 +870,7 @@ export class BlockExecutor {
         this.execLogger.warn('Block start callback failed', {
           blockId,
           blockType,
-          error: toError(error).message,
+          ...projectResolvedSecretDiagnosticError(error, ctx.resolvedSecretTraceRegistry),
         })
       })
   }
@@ -744,7 +891,9 @@ export class BlockExecutor {
     startedAt: string,
     executionOrder: number,
     endedAt: string,
-    childWorkflowInstanceId?: string
+    childWorkflowInstanceId?: string,
+    resolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1,
+    displayResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
   ): void {
     if (!this.contextExtensions.onBlockComplete) return
 
@@ -762,6 +911,8 @@ export class BlockExecutor {
         {
           input,
           output,
+          ...(resolvedSecretTraceProvenance ? { resolvedSecretTraceProvenance } : {}),
+          ...(displayResolvedSecretTraceProvenance ? { displayResolvedSecretTraceProvenance } : {}),
           executionTime: duration,
           startedAt,
           executionOrder,
@@ -775,7 +926,7 @@ export class BlockExecutor {
       this.execLogger.warn('Block completion callback failed', {
         blockId,
         blockType,
-        error: toError(error).message,
+        ...projectResolvedSecretDiagnosticError(error, ctx.resolvedSecretTraceRegistry),
       })
     })
   }
@@ -862,6 +1013,16 @@ export class BlockExecutor {
     const piiEnabled = Boolean(ctx.piiBlockOutputRedaction?.enabled)
     // Live-forward only when a client stream exists and PII redaction is off.
     const forwardToClient = Boolean(ctx.onStream) && !piiEnabled
+    const projectStreamDiagnosticError = (error: unknown): Record<string, unknown> => {
+      const sourceRegistry = streamingExec.diagnosticResolvedSecretTraceRegistry
+      const resultRegistry = ctx.resolvedSecretTraceRegistry
+      if (!sourceRegistry || sourceRegistry === resultRegistry) {
+        return projectResolvedSecretDiagnosticError(error, resultRegistry)
+      }
+      const diagnosticRegistry = sourceRegistry.forkForToolCall()
+      if (resultRegistry) diagnosticRegistry.mergeToolCallRegistry(resultRegistry)
+      return projectResolvedSecretDiagnosticError(error, diagnosticRegistry)
+    }
 
     const responseFormat =
       resolvedInputs?.responseFormat ??
@@ -881,6 +1042,10 @@ export class BlockExecutor {
     let processedClientStream: ReadableStream<Uint8Array> | undefined
 
     if (forwardToClient && ctx.onStream && pump.textStream) {
+      const {
+        diagnosticResolvedSecretTraceRegistry: _diagnosticRegistry,
+        ...streamingExecutionForConsumer
+      } = streamingExec
       processedClientStream = streamingResponseFormatProcessor.processStream(
         pump.textStream,
         blockId,
@@ -893,16 +1058,21 @@ export class BlockExecutor {
       // with `pump.run()`.
       onStreamPromise = ctx
         .onStream({
-          ...streamingExec,
+          ...streamingExecutionForConsumer,
           stream: processedClientStream,
           streamFormat: 'text',
           subscribe: pump.subscribe,
           // processStream returns the input stream identity when no
           // response-format extraction applies.
           clientStreamTransformed: processedClientStream !== pump.textStream,
+          displayResolvedSecretTraceProvenance:
+            ctx.resolvedSecretTraceRegistry?.exportCommittedProvenanceForValue(resolvedInputs),
         })
         .catch(async (error) => {
-          this.execLogger.error('Error in onStream callback', { blockId, error })
+          this.execLogger.error('Error in onStream callback', {
+            blockId,
+            ...projectStreamDiagnosticError(error),
+          })
           await processedClientStream?.cancel().catch(() => {})
         })
     }
@@ -911,7 +1081,10 @@ export class BlockExecutor {
     try {
       pumpResult = await pump.run()
     } catch (error) {
-      this.execLogger.error('Error reading stream for block', { blockId, error })
+      this.execLogger.error('Error reading stream for block', {
+        blockId,
+        ...projectStreamDiagnosticError(error),
+      })
       if (onStreamPromise) {
         await onStreamPromise.catch(() => {})
       }
@@ -1001,7 +1174,7 @@ export class BlockExecutor {
         } catch (error) {
           this.execLogger.warn('Failed to parse streamed content for response format', {
             blockId,
-            error,
+            ...projectStreamDiagnosticError(error),
           })
         }
       }
@@ -1014,7 +1187,10 @@ export class BlockExecutor {
       try {
         await streamingExec.onFullContent(fullContent)
       } catch (error) {
-        this.execLogger.error('onFullContent callback failed', { blockId, error })
+        this.execLogger.error('onFullContent callback failed', {
+          blockId,
+          ...projectStreamDiagnosticError(error),
+        })
       }
     }
   }

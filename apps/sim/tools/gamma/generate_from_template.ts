@@ -66,6 +66,10 @@ export const generateFromTemplateTool: ToolConfig<
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({ prompt: params.prompt, imageStyle: params.imageStyle }),
+    },
     url: 'https://public-api.gamma.app/v1.0/generations/from-template',
     method: 'POST',
     headers: (params) => ({

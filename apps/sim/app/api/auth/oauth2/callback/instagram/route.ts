@@ -7,7 +7,8 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { instagramCallbackContract } from '@/lib/api/contracts/oauth-connections'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { env } from '@/lib/core/config/env'
+import { EnvCapabilityConfigurationError } from '@/lib/core/config/env-capabilities'
+import { requireConfiguredOAuthClient } from '@/lib/core/config/env-capabilities.server'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseJsonWithLimit,
@@ -76,14 +77,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const clientId = env.INSTAGRAM_CLIENT_ID
-    const clientSecret = env.INSTAGRAM_CLIENT_SECRET
-    if (!clientId || !clientSecret) {
-      logger.error('Instagram credentials not configured')
-      return clearOAuthCookies(
-        NextResponse.redirect(`${baseUrl}/workspace?error=instagram_config_error`)
-      )
-    }
+    const {
+      values: { INSTAGRAM_CLIENT_ID: clientId, INSTAGRAM_CLIENT_SECRET: clientSecret },
+    } = requireConfiguredOAuthClient('instagram')
 
     if (!code) {
       logger.error('No authorization code received from Instagram')
@@ -318,8 +314,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     return clearOAuthCookies(NextResponse.redirect(finalUrl.toString()))
   } catch (error) {
     logger.error('Error in Instagram OAuth callback', { error })
-    return clearOAuthCookies(
-      NextResponse.redirect(`${baseUrl}/workspace?error=instagram_callback_error`)
-    )
+    const errorCode =
+      error instanceof EnvCapabilityConfigurationError && error.capabilityId === 'oauth'
+        ? 'instagram_config_error'
+        : 'instagram_callback_error'
+    return clearOAuthCookies(NextResponse.redirect(`${baseUrl}/workspace?error=${errorCode}`))
   }
 })

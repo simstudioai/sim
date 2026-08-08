@@ -133,24 +133,28 @@ async function executeToolCallsBatch(
       }
 
       const { toolParams, executionParams } = prepareToolExecution(tool, args, request)
-      const result = await executeProviderTool(toolName, executionParams, {
+      const { rawResponse, modelResponse } = await executeProviderTool(toolName, executionParams, {
         signal: request.abortSignal,
       })
       const toolCallEndTime = Date.now()
       const duration = toolCallEndTime - toolCallStartTime
 
-      const resultContent: Record<string, unknown> = result.success
-        ? ensureStructResponse(result.output)
-        : { error: true, message: result.error || 'Tool execution failed', tool: toolName }
+      const resultContent: Record<string, unknown> = rawResponse.success
+        ? ensureStructResponse(rawResponse.output)
+        : { error: true, message: rawResponse.error || 'Tool execution failed', tool: toolName }
+      const modelResultContent: Record<string, unknown> = modelResponse.success
+        ? ensureStructResponse(modelResponse.output)
+        : { error: true, message: modelResponse.error || 'Tool execution failed', tool: toolName }
 
       return {
-        success: result.success,
+        success: rawResponse.success,
         part,
         toolName,
         args,
         resultContent,
+        modelResultContent,
         toolParams,
-        result,
+        result: rawResponse,
         startTime: toolCallStartTime,
         endTime: toolCallEndTime,
         duration,
@@ -198,7 +202,7 @@ async function executeToolCallsBatch(
   const userParts: Part[] = results.map((r) => ({
     functionResponse: {
       name: r.toolName,
-      response: r.resultContent,
+      response: 'modelResultContent' in r ? r.modelResultContent : r.resultContent,
     },
   }))
 

@@ -2,7 +2,8 @@
  * @vitest-environment node
  */
 
-import { dbChainMockFns, workflowAuthzMockFns } from '@sim/testing'
+import { createLogger } from '@sim/logger'
+import { dbChainMockFns, loggerMock, workflowAuthzMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   MAX_TABLE_SELECTION_CONTENT_LENGTH,
@@ -10,15 +11,36 @@ import {
 } from '@/lib/copilot/chat/selection-context'
 import type { ChatContext } from '@/stores/panel'
 
-const { discoverServerTools, getSkillById, getWorkspaceFile, getTableById, getRowsByIds } =
-  vi.hoisted(() => ({
-    discoverServerTools: vi.fn(),
-    getSkillById: vi.fn(),
-    getWorkspaceFile: vi.fn(),
-    getTableById: vi.fn(),
-    getRowsByIds: vi.fn(),
-  }))
+const {
+  discoverServerTools,
+  getBlock,
+  getBlockRegistry,
+  getSkillById,
+  getUserPermissionConfig,
+  getWorkspaceFile,
+  getTableById,
+  getRowsByIds,
+  getBlockVisibilityForCopilot,
+  isIntegrationDeploymentAvailable,
+} = vi.hoisted(() => ({
+  discoverServerTools: vi.fn(),
+  getBlock: vi.fn(),
+  getBlockRegistry: vi.fn(),
+  getSkillById: vi.fn(),
+  getUserPermissionConfig: vi.fn(),
+  getWorkspaceFile: vi.fn(),
+  getTableById: vi.fn(),
+  getRowsByIds: vi.fn(),
+  getBlockVisibilityForCopilot: vi.fn(async () => null),
+  isIntegrationDeploymentAvailable: vi.fn(() => true),
+}))
 
+vi.mock('@/blocks/registry', () => ({ getBlock, getBlockRegistry }))
+vi.mock('@/lib/copilot/block-visibility', () => ({ getBlockVisibilityForCopilot }))
+vi.mock('@/ee/access-control/utils/permission-check', () => ({ getUserPermissionConfig }))
+vi.mock('@/lib/integrations/availability.server', () => ({
+  isIntegrationDeploymentAvailableForVisibility: isIntegrationDeploymentAvailable,
+}))
 vi.mock('@/lib/workflows/skills/operations', () => ({ getSkillById }))
 vi.mock('@/lib/mcp/service', () => ({ mcpService: { discoverServerTools } }))
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({ getWorkspaceFile }))
@@ -31,6 +53,46 @@ vi.mock('@/lib/table/rows/service', () => ({ getRowsByIds }))
  */
 
 import { processContextsServer } from './process-contents'
+
+const mockProcessContentsLogger = vi.mocked(loggerMock.createLogger).mock.results[
+  vi.mocked(createLogger).mock.calls.findIndex(([name]) => name === 'ProcessContents')
+].value
+
+describe('processContextsServer - block contexts', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    const blocks = {
+      start_trigger: { type: 'start_trigger', hideFromToolbar: false },
+      slack: { type: 'slack', hideFromToolbar: false },
+      notion: { type: 'notion', hideFromToolbar: false },
+    }
+    getBlockRegistry.mockReturnValue(blocks)
+    getBlock.mockImplementation((type: string) => blocks[type as keyof typeof blocks])
+    getUserPermissionConfig.mockResolvedValue({ allowedIntegrations: ['slack'] })
+    isIntegrationDeploymentAvailable.mockReturnValue(true)
+  })
+
+  it('keeps access-control-exempt blocks while filtering non-exempt integrations', async () => {
+    const result = await processContextsServer(
+      [
+        { kind: 'blocks', blockIds: ['start_trigger'], label: 'Start' } as ChatContext,
+        { kind: 'blocks', blockIds: ['notion'], label: 'Notion' } as ChatContext,
+      ],
+      'user-1',
+      'hello',
+      'workspace-1'
+    )
+
+    expect(result).toEqual([
+      {
+        type: 'blocks',
+        tag: '@Start',
+        content: '',
+        path: 'components/blocks/start_trigger.json',
+      },
+    ])
+  })
+})
 
 describe('processContextsServer - skill contexts', () => {
   beforeEach(() => {
@@ -63,6 +125,35 @@ describe('processContextsServer - skill contexts', () => {
     ])
   })
 
+  it('uses the skill ID only for lookup and omits it from model context', async () => {
+    const skillId = 'private-skill-id'
+    getSkillById.mockResolvedValue({
+      id: skillId,
+      name: 'Resolved Skill',
+      description: 'desc',
+      content: '# Resolved Skill\n\nDo the thing.',
+    })
+
+    const result = await processContextsServer(
+      [{ kind: 'skill', skillId, label: 'Skill' } as ChatContext],
+      'user-1',
+      'hello',
+      'ws-1'
+    )
+
+    expect(getSkillById).toHaveBeenCalledWith({ skillId, workspaceId: 'ws-1' })
+    expect(result).toEqual([
+      {
+        type: 'skill',
+        tag: '@Skill',
+        content: '# Resolved Skill\n\nDo the thing.',
+        path: 'agent/skills/Resolved%20Skill.json',
+      },
+    ])
+    expect(JSON.stringify(result)).not.toContain(skillId)
+    expect(JSON.stringify(result)).not.toContain('SKILL_ID')
+  })
+
   it('drops a skill that does not resolve (unknown or cross-workspace)', async () => {
     getSkillById.mockResolvedValue(null)
 
@@ -86,6 +177,28 @@ describe('processContextsServer - skill contexts', () => {
 
     expect(getSkillById).not.toHaveBeenCalled()
     expect(result).toEqual([])
+  })
+
+  it('does not log a private skill selector when lookup throws', async () => {
+    const skillId = 'private-skill-id __var_API_KEY __sim_code_0_binding_0'
+    getSkillById.mockRejectedValue(new Error(`Lookup failed for ${skillId}`))
+
+    const result = await processContextsServer(
+      [{ kind: 'skill', skillId, label: 'Skill 1' } as ChatContext],
+      'user-1',
+      'hello',
+      'ws-1'
+    )
+
+    expect(result).toEqual([])
+    expect(mockProcessContentsLogger.error).toHaveBeenCalledWith(
+      'Error processing skill context (db)',
+      { workspaceId: 'ws-1', hasSkillId: true }
+    )
+    const logged = JSON.stringify(mockProcessContentsLogger.error.mock.calls)
+    expect(logged).not.toContain('private-skill-id')
+    expect(logged).not.toContain('__var_')
+    expect(logged).not.toContain('__sim_')
   })
 })
 

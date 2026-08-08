@@ -40,7 +40,7 @@ Reach people on iMessage, SMS, and RCS through Linq. Start chats, send messages 
 
 ## Actions
 
-### `linq_add_participant`
+### Add Participant
 
 Add a participant to a group chat (3+ existing participants)
 
@@ -60,7 +60,7 @@ Add a participant to a group chat (3+ existing participants)
 | `status` | string | Queued action status |
 | `traceId` | string | Trace ID for the queued action |
 
-### `linq_check_imessage`
+### Check iMessage Capability
 
 Check whether an address (phone number or email) supports iMessage
 
@@ -79,7 +79,7 @@ Check whether an address (phone number or email) supports iMessage
 | `address` | string | The address that was checked |
 | `available` | boolean | Whether the address supports iMessage |
 
-### `linq_check_rcs`
+### Check RCS Capability
 
 Check whether an address (phone number or email) supports RCS
 
@@ -98,7 +98,7 @@ Check whether an address (phone number or email) supports RCS
 | `address` | string | The address that was checked |
 | `available` | boolean | Whether the address supports RCS |
 
-### `linq_create_attachment`
+### Upload Attachment
 
 Upload a file to Linq as a reusable attachment (max 100MB) and get an attachment ID to send in messages
 
@@ -123,7 +123,7 @@ Upload a file to Linq as a reusable attachment (max 100MB) and get an attachment
 | `sizeBytes` | number | File size in bytes |
 | `status` | string | Upload status |
 
-### `linq_create_chat`
+### Create Chat
 
 Start a new iMessage, SMS, or RCS chat and send the first message
 
@@ -156,7 +156,7 @@ Start a new iMessage, SMS, or RCS chat and send the first message
 | `healthStatus` | json | Messaging line health status |
 | `message` | json | The sent message object with parts and delivery info |
 
-### `linq_create_contact_card`
+### Create Contact Card
 
 Set up a contact card (Name and Photo Sharing) for a phone number
 
@@ -180,7 +180,7 @@ Set up a contact card (Name and Photo Sharing) for a phone number
 | `imageUrl` | string | Profile photo URL |
 | `isActive` | boolean | Whether the card is active |
 
-### `linq_create_webhook_subscription`
+### Create Webhook Subscription
 
 Subscribe an HTTPS endpoint to Linq webhook events
 
@@ -206,7 +206,7 @@ Subscribe an HTTPS endpoint to Linq webhook events
 | `updatedAt` | string | ISO 8601 update timestamp |
 | `signingSecret` | string | HMAC-SHA256 signing secret. Store securely — it cannot be retrieved again |
 
-### `linq_delete_attachment`
+### Delete Attachment
 
 Permanently delete an attachment owned by your account
 
@@ -223,7 +223,7 @@ Permanently delete an attachment owned by your account
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the attachment was deleted |
 
-### `linq_delete_message`
+### Delete Message
 
 Delete a message from the Linq API only (does not unsend it; recipients still see it)
 
@@ -240,7 +240,7 @@ Delete a message from the Linq API only (does not unsend it; recipients still se
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the message was deleted |
 
-### `linq_delete_webhook_subscription`
+### Delete Webhook Subscription
 
 Delete a webhook subscription from your account
 
@@ -257,7 +257,7 @@ Delete a webhook subscription from your account
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the subscription was deleted |
 
-### `linq_edit_message`
+### Edit Message
 
 Edit the text of a sent message (up to 5 times, within 15 minutes of sending; iMessage only)
 
@@ -287,7 +287,7 @@ Edit the text of a sent message (up to 5 times, within 15 minutes of sending; iM
 | `parts` | json | Updated message parts with reactions |
 | `message` | json | The full updated message object |
 
-### `linq_get_attachment`
+### Get Attachment
 
 Retrieve metadata for an attachment, including its download URL and status
 
@@ -310,7 +310,7 @@ Retrieve metadata for an attachment, including its download URL and status
 | `downloadUrl` | string | URL to download the file |
 | `createdAt` | string | ISO 8601 creation timestamp |
 
-### `linq_get_chat`
+### Get Chat
 
 Retrieve a chat by ID, including participants and line health
 
@@ -335,7 +335,7 @@ Retrieve a chat by ID, including participants and line health
 | `handles` | json | Participant handles in the chat |
 | `healthStatus` | json | Messaging line health status |
 
-### `linq_get_contact_card`
+### Get Contact Card
 
 Retrieve contact cards, optionally filtered by phone number
 
@@ -357,7 +357,7 @@ Retrieve contact cards, optionally filtered by phone number
 |   ↳ `imageUrl` | string | Profile photo URL |
 |   ↳ `isActive` | boolean | Whether the card is active |
 
-### `linq_get_message`
+### Get Message
 
 Retrieve a single message by ID, including parts, reactions, and delivery status
 
@@ -385,7 +385,7 @@ Retrieve a single message by ID, including parts, reactions, and delivery status
 | `parts` | json | Message parts \(text, media, link\) with reactions |
 | `message` | json | The full message object |
 
-### `linq_get_webhook_subscription`
+### Get Webhook Subscription
 
 Retrieve a webhook subscription by ID
 
@@ -408,7 +408,7 @@ Retrieve a webhook subscription by ID
 | `createdAt` | string | ISO 8601 creation timestamp |
 | `updatedAt` | string | ISO 8601 update timestamp |
 
-### `linq_leave_chat`
+### Leave Chat
 
 Leave an iMessage group chat (4+ active participants; not supported for direct chats)
 
@@ -427,7 +427,7 @@ Leave an iMessage group chat (4+ active participants; not supported for direct c
 | `status` | string | Queued action status \(e.g. accepted\) |
 | `traceId` | string | Trace ID for the queued action |
 
-### `linq_list_chats`
+### List Chats
 
 List chats, optionally filtered by sender or participant handle
 
@@ -448,7 +448,7 @@ List chats, optionally filtered by sender or participant handle
 | `chats` | json | Array of chat objects |
 | `nextCursor` | string | Cursor for the next page, or null if there are no more results |
 
-### `linq_list_messages`
+### List Messages
 
 List messages in a chat with pagination
 
@@ -468,7 +468,7 @@ List messages in a chat with pagination
 | `messages` | json | Array of message objects with parts and reactions |
 | `nextCursor` | string | Cursor for the next page, or null if there are no more results |
 
-### `linq_list_phone_numbers`
+### List Phone Numbers
 
 List all phone numbers assigned to your partner account, with line health
 
@@ -488,7 +488,7 @@ List all phone numbers assigned to your partner account, with line health
 |   ↳ `forwardingNumber` | string | Forwarding number in E.164 format, or null |
 |   ↳ `healthStatus` | json | Line reputation/health status \(status, doc_url\) |
 
-### `linq_list_thread`
+### List Thread Messages
 
 List all messages in the thread that contains a given message
 
@@ -509,7 +509,7 @@ List all messages in the thread that contains a given message
 | `messages` | json | Array of message objects in the thread |
 | `nextCursor` | string | Cursor for the next page, or null if there are no more results |
 
-### `linq_list_webhook_events`
+### List Webhook Events
 
 List all webhook event types available to subscribe to
 
@@ -526,7 +526,7 @@ List all webhook event types available to subscribe to
 | `events` | json | Available webhook event type names |
 | `docUrl` | string | Documentation URL for webhook events |
 
-### `linq_list_webhook_subscriptions`
+### List Webhook Subscriptions
 
 List all webhook subscriptions on your account
 
@@ -549,7 +549,7 @@ List all webhook subscriptions on your account
 |   ↳ `createdAt` | string | ISO 8601 creation timestamp |
 |   ↳ `updatedAt` | string | ISO 8601 update timestamp |
 
-### `linq_mark_chat_read`
+### Mark Chat as Read
 
 Mark messages in a chat as read (only applies to 1:1 iMessage/RCS; no effect on group chats)
 
@@ -566,7 +566,7 @@ Mark messages in a chat as read (only applies to 1:1 iMessage/RCS; no effect on 
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the chat was marked as read |
 
-### `linq_react_to_message`
+### React to Message
 
 Add or remove a tapback reaction on a message
 
@@ -589,7 +589,7 @@ Add or remove a tapback reaction on a message
 | `status` | string | Queued action status |
 | `traceId` | string | Trace ID for the queued action |
 
-### `linq_remove_participant`
+### Remove Participant
 
 Remove a participant from a group chat (minimum 3 participants must remain)
 
@@ -609,7 +609,7 @@ Remove a participant from a group chat (minimum 3 participants must remain)
 | `status` | string | Queued action status |
 | `traceId` | string | Trace ID for the queued action |
 
-### `linq_send_message`
+### Send Message
 
 Send a message to an existing chat, with optional media, link, effect, or reply
 
@@ -641,7 +641,7 @@ Send a message to an existing chat, with optional media, link, effect, or reply
 | `service` | string | Delivery service \(iMessage, SMS, RCS\) |
 | `message` | json | The full sent message object with parts |
 
-### `linq_send_voice_memo`
+### Send Voice Memo
 
 Send a voice memo to a chat from a URL or a pre-uploaded attachment
 
@@ -665,7 +665,7 @@ Send a voice memo to a chat from a URL or a pre-uploaded attachment
 | `service` | string | Delivery service \(iMessage, SMS, RCS\) |
 | `voiceMemo` | json | Audio file metadata \(id, filename, mime_type, size_bytes, url, duration_ms\) |
 
-### `linq_share_contact_card`
+### Share Contact Card
 
 Share your configured contact card (Name and Photo Sharing) with a chat
 
@@ -682,7 +682,7 @@ Share your configured contact card (Name and Photo Sharing) with a chat
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the contact card was shared |
 
-### `linq_start_typing`
+### Start Typing Indicator
 
 Show a typing indicator in a one-on-one chat (iMessage only, not group chats)
 
@@ -699,7 +699,7 @@ Show a typing indicator in a one-on-one chat (iMessage only, not group chats)
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the typing indicator was sent |
 
-### `linq_stop_typing`
+### Stop Typing Indicator
 
 Stop the typing indicator in a one-on-one chat (iMessage only, not group chats)
 
@@ -716,7 +716,7 @@ Stop the typing indicator in a one-on-one chat (iMessage only, not group chats)
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the typing indicator was stopped |
 
-### `linq_update_chat`
+### Update Chat
 
 Update chat properties such as group display name and icon
 
@@ -736,7 +736,7 @@ Update chat properties such as group display name and icon
 | `chatId` | string | ID of the updated chat |
 | `status` | string | Status of the queued update |
 
-### `linq_update_contact_card`
+### Update Contact Card
 
 Partially update an existing active contact card for a phone number
 
@@ -760,7 +760,7 @@ Partially update an existing active contact card for a phone number
 | `imageUrl` | string | Profile photo URL |
 | `isActive` | boolean | Whether the card is active |
 
-### `linq_update_webhook_subscription`
+### Update Webhook Subscription
 
 Update a webhook subscription (target URL, events, phone filter, or active state)
 

@@ -22,6 +22,7 @@ import { captureServerEvent } from '@/lib/posthog/server'
 import type { StorageContext } from '@/lib/uploads/config'
 import { generateKnowledgeBaseFileKey } from '@/lib/uploads/contexts/knowledge-base/knowledge-base-file-manager'
 import { generateWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { MAX_WORKSPACE_FORMDATA_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { isArchiveFileName, isImageFileType, resolveFileType } from '@/lib/uploads/utils/file-utils'
 import {
@@ -264,7 +265,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             session.user.id,
             buffer,
             originalName,
-            file.type || 'application/octet-stream'
+            file.type || 'application/octet-stream',
+            { secretProvenance: EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE }
           )
 
           uploadResults.push(userFile)

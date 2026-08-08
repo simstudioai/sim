@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+import { createTimeoutAbortController } from '@/lib/core/execution-limits'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/execution/constants'
 import { BlockType } from '@/executor/constants'
 import { FunctionBlockHandler } from '@/executor/handlers/function/function-handler'
@@ -162,6 +163,84 @@ describe('FunctionBlockHandler', () => {
     expect(mockExecuteTool).toHaveBeenCalledWith('function_execute', expectedToolParams, {
       executionContext: mockContext,
     })
+  })
+
+  it('caps the block timeout to the remaining workflow execution budget', async () => {
+    const controller = createTimeoutAbortController(20_000)
+    mockContext.abortSignal = controller.signal
+
+    try {
+      await handler.execute(mockContext, mockBlock, {
+        code: 'return true;',
+        timeout: 60_000,
+      })
+
+      const toolParams = mockExecuteTool.mock.calls[0][1]
+      expect(toolParams.timeout).toBeGreaterThan(0)
+      expect(toolParams.timeout).toBeLessThanOrEqual(20_000)
+    } finally {
+      controller.cleanup()
+    }
+  })
+
+  it('uses the remaining workflow budget when no block timeout is configured', async () => {
+    const controller = createTimeoutAbortController(DEFAULT_EXECUTION_TIMEOUT_MS * 2)
+    mockContext.abortSignal = controller.signal
+
+    try {
+      await handler.execute(mockContext, mockBlock, {
+        code: 'return true;',
+      })
+
+      const timeout = mockExecuteTool.mock.calls[0][1].timeout
+      expect(timeout).toBeGreaterThan(DEFAULT_EXECUTION_TIMEOUT_MS)
+      expect(timeout).toBeLessThanOrEqual(DEFAULT_EXECUTION_TIMEOUT_MS * 2)
+    } finally {
+      controller.cleanup()
+    }
+  })
+
+  it('forwards an explicit selected secret scope without changing legacy unset blocks', async () => {
+    await handler.execute(mockContext, mockBlock, {
+      code: 'return {{API_KEY}}',
+      secretScope: 'selected',
+      mountedSecrets: [' API_KEY ', 42, 'SECOND_KEY', '', 'API_KEY'],
+    })
+
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      'function_execute',
+      expect.objectContaining({
+        secretScope: 'selected',
+        mountedSecrets: ['API_KEY', 'SECOND_KEY'],
+      }),
+      { executionContext: mockContext }
+    )
+
+    vi.clearAllMocks()
+    mockExecuteTool.mockResolvedValue({ success: true, output: { result: 'Success' } })
+
+    await handler.execute(mockContext, mockBlock, { code: 'return {{API_KEY}}' })
+
+    const legacyParams = mockExecuteTool.mock.calls[0][1]
+    expect(legacyParams).not.toHaveProperty('secretScope')
+    expect(legacyParams).not.toHaveProperty('mountedSecrets')
+  })
+
+  it('fails closed for an invalid explicit secret scope', async () => {
+    await handler.execute(mockContext, mockBlock, {
+      code: 'return {{API_KEY}}',
+      secretScope: 'invalid',
+      mountedSecrets: ['API_KEY'],
+    })
+
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      'function_execute',
+      expect.objectContaining({
+        secretScope: 'selected',
+        mountedSecrets: [],
+      }),
+      { executionContext: mockContext }
+    )
   })
 
   it('should handle execution errors from the tool', async () => {

@@ -4,16 +4,16 @@
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDiscoverServerTools, mockExecuteTool, mockReadResponseToBufferWithLimit } = vi.hoisted(
-  () => ({
-    mockDiscoverServerTools: vi.fn(),
-    mockExecuteTool: vi.fn(),
-    mockReadResponseToBufferWithLimit: vi.fn(),
-  })
-)
-
-vi.mock('@/lib/core/utils/stream-limits', () => ({
-  readResponseToBufferWithLimit: mockReadResponseToBufferWithLimit,
+const {
+  mockCapExecutionTimeoutMs,
+  mockDiscoverServerTools,
+  mockExecuteTool,
+  mockGetExecutionTimeout,
+} = vi.hoisted(() => ({
+  mockCapExecutionTimeoutMs: vi.fn((_policy: number, requested?: number) => requested ?? 0),
+  mockDiscoverServerTools: vi.fn(),
+  mockExecuteTool: vi.fn(),
+  mockGetExecutionTimeout: vi.fn(() => 0),
 }))
 
 vi.mock('@/lib/mcp/middleware', () => ({
@@ -60,7 +60,8 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
 
 vi.mock('@/lib/core/execution-limits', () => ({
   DEFAULT_EXECUTION_TIMEOUT_MS: 30_000,
-  getExecutionTimeout: () => 0,
+  capExecutionTimeoutMs: mockCapExecutionTimeoutMs,
+  getExecutionTimeout: mockGetExecutionTimeout,
 }))
 
 vi.mock('@/ee/access-control/utils/permission-check', () => ({
@@ -95,45 +96,24 @@ describe('MCP tool execution private secret provenance', () => {
     vi.clearAllMocks()
     mockDiscoverServerTools.mockResolvedValue([{ name: 'example_tool', inputSchema: {} }])
     mockExecuteTool.mockResolvedValue({ content: [{ type: 'text', text: 'ok' }] })
-    mockReadResponseToBufferWithLimit.mockImplementation(async (response: Response) =>
-      Buffer.from(await response.arrayBuffer())
-    )
   })
 
-  it('returns fail-closed scoped provenance only to an authenticated internal caller', async () => {
+  it('returns provenance activated by this MCP transport call', async () => {
     mockDiscoverServerTools.mockImplementationOnce(
       async (
         _userId: string,
         _serverId: string,
         _workspaceId: string,
         _forceRefresh: boolean,
-        report: (value: unknown) => void
+        recordProvenance?: (provenance: unknown) => void
       ) => {
-        report({
+        recordProvenance?.({
           version: 1,
-          complete: false,
-          entries: [],
+          complete: true,
+          entries: [{ name: 'MCP_TOKEN', encryptedValue: 'encrypted-mcp-token' }],
           scope: { userId: 'user-1', workspaceId: 'workspace-1' },
         })
         return [{ name: 'example_tool', inputSchema: {} }]
-      }
-    )
-    mockExecuteTool.mockImplementationOnce(
-      async (
-        _userId: string,
-        _serverId: string,
-        _toolCall: unknown,
-        _workspaceId: string,
-        _headers: unknown,
-        report: (value: unknown) => void
-      ) => {
-        report({
-          version: 1,
-          complete: true,
-          entries: [{ name: 'NEW_TOKEN', encryptedValue: 'encrypted-v2' }],
-          scope: { userId: 'user-1', workspaceId: 'workspace-1' },
-        })
-        return { content: [{ type: 'text', text: 'ok' }] }
       }
     )
     const request = createRequest({
@@ -148,10 +128,12 @@ describe('MCP tool execution private secret provenance', () => {
     )
     expect(body.__resolvedSecretTraceProvenance).toEqual({
       version: 1,
-      complete: false,
-      entries: [],
+      complete: true,
+      entries: [{ name: 'MCP_TOKEN', encryptedValue: 'encrypted-mcp-token' }],
       scope: { userId: 'user-1', workspaceId: 'workspace-1' },
     })
+    expect(mockDiscoverServerTools.mock.calls[0]?.[4]).toEqual(expect.any(Function))
+    expect(mockExecuteTool.mock.calls[0]?.[5]).toEqual(expect.any(Function))
   })
 
   it('does not expose private provenance metadata to a session caller', async () => {
@@ -169,10 +151,10 @@ describe('MCP tool execution private secret provenance', () => {
     expect(mockExecuteTool.mock.calls[0]?.[5]).toBeUndefined()
   })
 
-  it('preserves the functional response when private provenance cannot be attached', async () => {
-    mockReadResponseToBufferWithLimit.mockRejectedValueOnce(new Error('Response exceeds limit'))
+  it('preserves MCP error status and message when attaching private provenance', async () => {
     mockExecuteTool.mockResolvedValueOnce({
-      content: [{ type: 'text', text: 'unchanged' }],
+      isError: true,
+      content: [{ type: 'text', text: 'Provider rejected the request' }],
     })
     const request = createRequest({
       'x-sim-request-private-tool-metadata': 'resolved-secret-provenance-v1',
@@ -181,10 +163,54 @@ describe('MCP tool execution private secret provenance', () => {
     const response = await POST(request, {})
     const body = (await response.json()) as Record<string, unknown>
 
+    expect(response.status).toBe(400)
+    expect(response.headers.get('x-sim-private-tool-metadata')).toBe(
+      'resolved-secret-provenance-v1'
+    )
+    expect(body).toMatchObject({
+      success: false,
+      error: 'Provider rejected the request',
+      __resolvedSecretTraceProvenance: {
+        version: 1,
+        complete: true,
+        entries: [],
+        scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+      },
+    })
+  })
+
+  it('attaches private provenance without imposing a second functional response limit', async () => {
+    const largeText = 'x'.repeat(10 * 1024 * 1024 + 1)
+    mockExecuteTool.mockResolvedValueOnce({
+      content: [{ type: 'text', text: largeText }],
+    })
+    const request = createRequest({
+      'x-sim-request-private-tool-metadata': 'resolved-secret-provenance-v1',
+    })
+
+    const response = await (async () => {
+      const responseJsonSpy = vi.spyOn(Response.prototype, 'json')
+      try {
+        const result = await POST(request, {})
+        expect(responseJsonSpy).not.toHaveBeenCalled()
+        return result
+      } finally {
+        responseJsonSpy.mockRestore()
+      }
+    })()
+    const body = (await response.json()) as Record<string, unknown>
+
     expect(response.status).toBe(200)
     expect(response.ok).toBe(true)
-    expect(response.headers.has('x-sim-private-tool-metadata')).toBe(false)
-    expect(body).not.toHaveProperty('__resolvedSecretTraceProvenance')
+    expect(response.headers.get('x-sim-private-tool-metadata')).toBe(
+      'resolved-secret-provenance-v1'
+    )
+    expect(body.__resolvedSecretTraceProvenance).toEqual({
+      version: 1,
+      complete: true,
+      entries: [],
+      scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+    })
     expect(body).toMatchObject({
       success: true,
       data: {
@@ -194,6 +220,34 @@ describe('MCP tool execution private secret provenance', () => {
     })
     expect(
       (body.data as { output: { content: Array<{ text?: unknown }> } }).output.content[0]?.text
-    ).toBe('unchanged')
+    ).toBe(largeText)
+  })
+
+  it('uses the remaining workflow deadline for trusted internal tool calls', async () => {
+    const request = createRequest({
+      'x-sim-execution-deadline-ms': String(Date.now() + 10_000),
+    })
+
+    const response = await POST(request, {})
+
+    expect(response.status).toBe(200)
+    expect(mockGetExecutionTimeout).toHaveBeenCalledWith('pro', 'async', undefined)
+    expect(mockCapExecutionTimeoutMs).toHaveBeenCalledWith(0, expect.any(Number))
+    const remainingMs = mockCapExecutionTimeoutMs.mock.calls.at(-1)?.[1]
+    expect(remainingMs).toBeGreaterThan(0)
+    expect(remainingMs).toBeLessThanOrEqual(10_000)
+  })
+
+  it('ignores the internal deadline header for session callers', async () => {
+    const request = createRequest({
+      'x-test-session': 'true',
+      'x-sim-execution-deadline-ms': String(Date.now() + 10_000),
+    })
+
+    const response = await POST(request, {})
+
+    expect(response.status).toBe(200)
+    expect(mockGetExecutionTimeout).toHaveBeenCalledWith('pro', 'sync')
+    expect(mockCapExecutionTimeoutMs).not.toHaveBeenCalled()
   })
 })

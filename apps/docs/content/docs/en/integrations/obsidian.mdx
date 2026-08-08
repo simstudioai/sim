@@ -34,7 +34,7 @@ Read, create, update, search, and delete notes in your Obsidian vault. Manage pe
 
 ## Actions
 
-### `obsidian_append_active`
+### Obsidian Append to Active File
 
 Append content to the currently active file in Obsidian
 
@@ -52,7 +52,7 @@ Append content to the currently active file in Obsidian
 | --------- | ---- | ----------- |
 | `appended` | boolean | Whether content was successfully appended |
 
-### `obsidian_append_note`
+### Obsidian Append to Note
 
 Append content to an existing note in your Obsidian vault
 
@@ -72,7 +72,7 @@ Append content to an existing note in your Obsidian vault
 | `filename` | string | Path of the note |
 | `appended` | boolean | Whether content was successfully appended |
 
-### `obsidian_append_periodic_note`
+### Obsidian Append to Periodic Note
 
 Append content to the current periodic note (daily, weekly, monthly, quarterly, or yearly). Creates the note if it does not exist.
 
@@ -92,7 +92,7 @@ Append content to the current periodic note (daily, weekly, monthly, quarterly, 
 | `period` | string | Period type of the note |
 | `appended` | boolean | Whether content was successfully appended |
 
-### `obsidian_create_note`
+### Obsidian Create Note
 
 Create or replace a note in your Obsidian vault
 
@@ -112,7 +112,7 @@ Create or replace a note in your Obsidian vault
 | `filename` | string | Path of the created note |
 | `created` | boolean | Whether the note was successfully created |
 
-### `obsidian_delete_note`
+### Obsidian Delete Note
 
 Delete a note from your Obsidian vault
 
@@ -131,7 +131,7 @@ Delete a note from your Obsidian vault
 | `filename` | string | Path of the deleted note |
 | `deleted` | boolean | Whether the note was successfully deleted |
 
-### `obsidian_execute_command`
+### Obsidian Execute Command
 
 Execute a command in Obsidian (e.g. open daily note, toggle sidebar)
 
@@ -150,7 +150,7 @@ Execute a command in Obsidian (e.g. open daily note, toggle sidebar)
 | `commandId` | string | ID of the executed command |
 | `executed` | boolean | Whether the command was successfully executed |
 
-### `obsidian_get_active`
+### Obsidian Get Active File
 
 Retrieve the content of the currently active file in Obsidian
 
@@ -168,7 +168,7 @@ Retrieve the content of the currently active file in Obsidian
 | `content` | string | Markdown content of the active file |
 | `filename` | string | Path to the active file |
 
-### `obsidian_get_note`
+### Obsidian Get Note
 
 Retrieve the content of a note from your Obsidian vault
 
@@ -187,7 +187,7 @@ Retrieve the content of a note from your Obsidian vault
 | `content` | string | Markdown content of the note |
 | `filename` | string | Path to the note |
 
-### `obsidian_get_periodic_note`
+### Obsidian Get Periodic Note
 
 Retrieve the current periodic note (daily, weekly, monthly, quarterly, or yearly)
 
@@ -206,7 +206,7 @@ Retrieve the current periodic note (daily, weekly, monthly, quarterly, or yearly
 | `content` | string | Markdown content of the periodic note |
 | `period` | string | Period type of the note |
 
-### `obsidian_list_commands`
+### Obsidian List Commands
 
 List all available commands in Obsidian
 
@@ -225,7 +225,7 @@ List all available commands in Obsidian
 |   ↳ `id` | string | Command identifier |
 |   ↳ `name` | string | Human-readable command name |
 
-### `obsidian_list_files`
+### Obsidian List Files
 
 List files and directories in your Obsidian vault
 
@@ -245,7 +245,7 @@ List files and directories in your Obsidian vault
 |   ↳ `path` | string | File or directory path |
 |   ↳ `type` | string | Whether the entry is a file or directory |
 
-### `obsidian_open_file`
+### Obsidian Open File
 
 Open a file in the Obsidian UI (creates the file if it does not exist)
 
@@ -265,7 +265,7 @@ Open a file in the Obsidian UI (creates the file if it does not exist)
 | `filename` | string | Path of the opened file |
 | `opened` | boolean | Whether the file was successfully opened |
 
-### `obsidian_patch_active`
+### Obsidian Patch Active File
 
 Insert or replace content at a specific heading, block reference, or frontmatter field in the active file
 
@@ -288,7 +288,7 @@ Insert or replace content at a specific heading, block reference, or frontmatter
 | --------- | ---- | ----------- |
 | `patched` | boolean | Whether the active file was successfully patched |
 
-### `obsidian_patch_note`
+### Obsidian Patch Note
 
 Insert or replace content at a specific heading, block reference, or frontmatter field in a note
 
@@ -313,7 +313,7 @@ Insert or replace content at a specific heading, block reference, or frontmatter
 | `filename` | string | Path of the patched note |
 | `patched` | boolean | Whether the note was successfully patched |
 
-### `obsidian_search`
+### Obsidian Search
 
 Search for text across notes in your Obsidian vault
 

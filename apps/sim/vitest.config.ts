@@ -1,7 +1,6 @@
 import path from 'path'
 /// <reference types="vitest" />
 import react from '@vitejs/plugin-react'
-import tsconfigPaths from 'vite-tsconfig-paths'
 import { configDefaults, defineConfig } from 'vitest/config'
 
 const nextEnv = require('@next/env')
@@ -11,7 +10,7 @@ const projectDir = process.cwd()
 loadEnvConfig(projectDir)
 
 export default defineConfig({
-  plugins: [react(), tsconfigPaths()],
+  plugins: [react()],
   test: {
     globals: true,
     environment: 'node',
@@ -27,6 +26,7 @@ export default defineConfig({
     testTimeout: 10000,
   },
   resolve: {
+    tsconfigPaths: true,
     alias: [
       {
         find: '@sim/db',

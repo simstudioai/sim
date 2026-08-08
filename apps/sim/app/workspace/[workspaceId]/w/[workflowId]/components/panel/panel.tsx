@@ -693,7 +693,7 @@ export const Panel = memo(function Panel() {
               <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
                 <DropdownMenuTrigger asChild>
                   <Button className='size-[30px] rounded-[5px]'>
-                    <MoreHorizontal />
+                    <MoreHorizontal className='size-[14px]' />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align='start' side='bottom' sideOffset={8}>
@@ -841,7 +841,7 @@ export const Panel = memo(function Panel() {
               >
                 {/* Copilot Header */}
                 <div className='mx-[-1px] flex flex-shrink-0 items-center justify-between gap-2 border border-[var(--border)] bg-[var(--surface-4)] px-3 py-1.5'>
-                  <h2 className='min-w-0 flex-1 truncate font-medium text-[14px] text-[var(--text-primary)]'>
+                  <h2 className='min-w-0 flex-1 truncate text-[var(--text-primary)] text-sm'>
                     {copilotChatTitle || 'New Chat'}
                   </h2>
                   <div className='flex items-center gap-2'>
@@ -862,7 +862,7 @@ export const Panel = memo(function Panel() {
                       </PopoverTrigger>
                       <PopoverContent align='end' side='bottom' sideOffset={8} maxHeight={280}>
                         {copilotChatList.length === 0 ? (
-                          <div className='px-1.5 py-4 text-center text-[12px] text-muted-foreground'>
+                          <div className='px-1.5 py-4 text-center text-caption text-muted-foreground'>
                             No chats yet
                           </div>
                         ) : (
@@ -878,7 +878,7 @@ export const Panel = memo(function Panel() {
                                     <ConversationListItem
                                       title={chat.title || 'New Chat'}
                                       isActive={Boolean(chat.activeStreamId)}
-                                      titleClassName='text-[13px]'
+                                      titleClassName='text-small'
                                       actions={
                                         <div
                                           className={`flex flex-shrink-0 items-center gap-1 ${copilotChatId !== chat.id ? 'opacity-0 transition-opacity group-hover:opacity-100' : ''}`}

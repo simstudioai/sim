@@ -14,10 +14,15 @@ import {
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray, notInArray, sql } from 'drizzle-orm'
+import { and, asc, eq, gt, inArray, notInArray, or, sql } from 'drizzle-orm'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
-import type { EnqueueOptions } from '@/lib/core/async-jobs/types'
+import type { EnqueueOptions, WorkflowGroupExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
+import {
+  getAsyncExecutionTimeoutForBillingAttribution,
+  toTriggerMaxDurationSeconds,
+} from '@/lib/core/execution-limits'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { buildCancelledExecution } from '@/lib/table/cell-write'
 import type {
   Filter,
@@ -31,6 +36,12 @@ import type {
 } from '@/lib/table/types'
 
 const logger = createLogger('WorkflowGroupScheduler')
+
+const TABLE_CANCELLATION_BATCH_SIZE = 100
+const TABLE_CANCELLATION_MAX_ROWS = 5_000
+const TABLE_CANCELLATION_CONCURRENCY = 10
+const TABLE_TRIGGER_CANCELLATION_MAX_RUNS = 5_000
+const TABLE_TRIGGER_CANCELLATION_RETENTION_MS = 14 * 24 * 60 * 60_000
 
 import { getColumnId } from '@/lib/table/column-keys'
 import { USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
@@ -236,7 +247,10 @@ export function buildPendingRuns(
  *
  *  `runner` is only used by the database backend; trigger.dev triggers by task
  *  id. The cell-job import pulls in the executor + blocks stack, so skip it on
- *  trigger.dev to avoid a multi-second dispatcher cold-start. */
+ *  trigger.dev to avoid a multi-second dispatcher cold-start. The carrier is
+ *  capped to the admitted workflow policy plus cleanup headroom. The carrier
+ *  starts one absolute workflow deadline when it dequeues and every cascaded
+ *  group inherits that same deadline rather than resetting the policy budget. */
 export async function buildEnqueueItems(
   pendingRuns: WorkflowGroupCellPayload[],
   concurrencyLimit: number = TABLE_CONCURRENCY_LIMIT
@@ -279,27 +293,49 @@ export async function buildEnqueueItems(
     ? undefined
     : ((await import('@/background/workflow-column-execution'))
         .executeWorkflowGroupCellJob as EnqueueOptions['runner'])
-  return hydratedRuns.map((runOpts) => ({
-    payload: runOpts,
-    options: {
-      metadata: {
-        workflowId: runOpts.workflowId,
-        workspaceId: runOpts.workspaceId,
-        correlation: {
-          executionId: runOpts.executionId,
-          requestId: `wfgrp-${runOpts.executionId}`,
-          source: 'workflow' as const,
+  return hydratedRuns.map((runOpts) => {
+    const executionTimeoutMs = getAsyncExecutionTimeoutForBillingAttribution(
+      runOpts.billingAttribution
+    )
+    return {
+      payload: { ...runOpts, executionTimeoutMs },
+      options: {
+        metadata: {
           workflowId: runOpts.workflowId,
-          triggerType: 'table',
+          workspaceId: runOpts.workspaceId,
+          correlation: buildWorkflowGroupExecutionCorrelation(runOpts),
         },
+        concurrencyKey: runOpts.tableId,
+        concurrencyLimit,
+        tags: cellTagsFor(runOpts),
+        maxDurationSeconds: toTriggerMaxDurationSeconds(executionTimeoutMs),
+        ...(runner ? { runner } : {}),
+        cancelKey: cellCancelKey(runOpts.tableId, runOpts.rowId, runOpts.groupId),
       },
-      concurrencyKey: runOpts.tableId,
-      concurrencyLimit,
-      tags: cellTagsFor(runOpts),
-      ...(runner ? { runner } : {}),
-      cancelKey: cellCancelKey(runOpts.tableId, runOpts.rowId, runOpts.groupId),
-    },
-  }))
+    }
+  })
+}
+
+/**
+ * Builds the server-issued identity that distinguishes a workflow-group cell
+ * attempt from a workflow invoked by a Table trigger block.
+ */
+export function buildWorkflowGroupExecutionCorrelation(
+  run: Pick<
+    WorkflowGroupCellPayload,
+    'executionId' | 'workflowId' | 'tableId' | 'rowId' | 'groupId'
+  >
+): WorkflowGroupExecutionCorrelation {
+  return {
+    executionId: run.executionId,
+    requestId: `wfgrp-${run.executionId}`,
+    source: 'workflow_group',
+    workflowId: run.workflowId,
+    triggerType: 'table',
+    tableId: run.tableId,
+    rowId: run.rowId,
+    groupId: run.groupId,
+  }
 }
 
 /** Stable key for `cancelInlineRun` lookups. Stamped on every enqueue item by
@@ -323,28 +359,49 @@ export function cellTagsFor(runOpts: WorkflowGroupCellPayload): string[] {
 export async function cancelCellRunsByTags(tags: string[]): Promise<void> {
   if (tags.length === 0) return
   const { runs } = await import('@trigger.dev/sdk')
-  const cancellations: Array<Promise<unknown>> = []
+  let inspectedRuns = 0
+  let cancellationBatch: string[] = []
+
+  const flushCancellationBatch = async (): Promise<void> => {
+    const runIds = cancellationBatch
+    cancellationBatch = []
+    await Promise.allSettled(
+      runIds.map((runId) =>
+        runs.cancel(runId).catch((error) => {
+          logger.warn(`cancelCellRunsByTags: cancel ${runId} failed`, {
+            error: toError(error).message,
+          })
+        })
+      )
+    )
+  }
+
   try {
-    // Trigger.dev paginates with auto-iterating cursor — looping the page
-    // iterator is the documented usage pattern.
     for await (const run of runs.list({
       tag: tags,
       taskIdentifier: 'workflow-group-cell',
       status: ['PENDING_VERSION', 'QUEUED', 'DEQUEUED', 'EXECUTING', 'WAITING', 'DELAYED'],
+      from: new Date(Date.now() - TABLE_TRIGGER_CANCELLATION_RETENTION_MS),
+      limit: TABLE_CANCELLATION_BATCH_SIZE,
     })) {
-      cancellations.push(
-        runs.cancel(run.id).catch((err) => {
-          logger.warn(`cancelCellRunsByTags: cancel ${run.id} failed`, {
-            error: toError(err).message,
-          })
+      if (inspectedRuns >= TABLE_TRIGGER_CANCELLATION_MAX_RUNS) {
+        logger.warn('cancelCellRunsByTags: bounded run scan reached its safety cap', {
+          tags,
+          maxRuns: TABLE_TRIGGER_CANCELLATION_MAX_RUNS,
         })
-      )
+        break
+      }
+      inspectedRuns++
+      cancellationBatch.push(run.id)
+      if (cancellationBatch.length >= TABLE_CANCELLATION_CONCURRENCY) {
+        await flushCancellationBatch()
+      }
     }
-    await Promise.allSettled(cancellations)
-  } catch (err) {
+    if (cancellationBatch.length > 0) await flushCancellationBatch()
+  } catch (error) {
     logger.warn(`cancelCellRunsByTags: list failed`, {
       tags,
-      error: toError(err).message,
+      error: toError(error).message,
     })
   }
 }
@@ -376,6 +433,8 @@ export interface WorkflowGroupCellPayload {
   executionId: string
   /** Immutable actor/payer decision captured before the cell is queued. */
   billingAttribution?: BillingAttributionSnapshot
+  /** Trusted attempt budget resolved before the cell enters the queue. */
+  executionTimeoutMs?: number
   /** Owning dispatch, set by `dispatcherStep`. Lets the cell halt its dispatch
    *  on a hard stop (e.g. usage limit). Absent for cascade/auto-fire payloads
    *  that aren't driven by a dispatch. */
@@ -526,11 +585,6 @@ export async function cancelWorkflowGroupRuns(
       )
     }
   }
-  const inFlightRows = await db
-    .select()
-    .from(tableRowExecutions)
-    .where(and(...inFlightFilters))
-
   const queue = await getJobQueue()
 
   type RowMutation = {
@@ -539,102 +593,166 @@ export async function cancelWorkflowGroupRuns(
     jobIds: string[]
     cancelledCount: number
   }
-  const byRow = new Map<string, RowMutation>()
-
-  for (const r of inFlightRows) {
-    const prev: RowExecutionMetadata = {
-      status: r.status as RowExecutionMetadata['status'],
-      executionId: r.executionId ?? null,
-      jobId: r.jobId ?? null,
-      workflowId: r.workflowId,
-      error: r.error ?? null,
-      ...(r.blockErrors && Object.keys(r.blockErrors as Record<string, string>).length > 0
-        ? { blockErrors: r.blockErrors as Record<string, string> }
-        : {}),
-    }
-    const existing = byRow.get(r.rowId) ?? {
-      rowId: r.rowId,
-      executionsPatch: {},
-      jobIds: [],
-      cancelledCount: 0,
-    }
-    if (prev.jobId) existing.jobIds.push(prev.jobId)
-    existing.executionsPatch[r.groupId] = buildCancelledExecution(prev)
-    existing.cancelledCount++
-    byRow.set(r.rowId, existing)
-  }
-
-  const mutations: RowMutation[] = Array.from(byRow.values())
-
-  // Defense-in-depth for paused/awaiting cells: a cell that paused mid-run is
-  // stamped `pending` with a `paused-<executionId>` jobId and keeps a record in
-  // `paused_executions`. Mark those cancelling so a pending waitpoint short-
-  // circuits before it resumes (the resume worker also re-checks the cell's
-  // cancelled tombstone — that's the authoritative stop). No-op for cells with
-  // no paused record.
-  const pausedCancellations = inFlightRows
-    .filter((r) => r.executionId && r.jobId?.startsWith('paused-'))
-    .map((r) => ({ executionId: r.executionId as string, workflowId: r.workflowId }))
-  if (pausedCancellations.length > 0) {
-    const { PauseResumeManager } = await import(
-      '@/lib/workflows/executor/human-in-the-loop-manager'
-    )
-    await Promise.allSettled(
-      pausedCancellations.map((p) =>
-        PauseResumeManager.beginPausedCancellation(p.executionId, p.workflowId).catch((err) => {
-          logger.warn(`beginPausedCancellation failed for ${p.executionId}`, {
-            error: toError(err).message,
-          })
-        })
-      )
-    )
-  }
-
-  // Abort in-flight cell runs. The interface method `cancelByKey` is a no-op
-  // on the trigger.dev backend (no in-process AbortControllers) and aborts
-  // the matching AbortController on the database backend. Trigger.dev's tag
-  // sweep covers the SaaS path; the cell-write SQL guard is the
-  // authoritative stop signal regardless of backend.
-  for (const m of mutations) {
-    for (const gid of Object.keys(m.executionsPatch)) {
-      queue.cancelByKey(cellCancelKey(tableId, m.rowId, gid))
-    }
-  }
   const tagSweepPromise = isTriggerDevEnabled
     ? cancelCellRunsByTags(rowId ? [`rowId:${rowId}`] : [`tableId:${tableId}`])
     : Promise.resolve()
-  await Promise.allSettled([
-    ...mutations.flatMap((m) =>
-      m.jobIds.map((jobId) =>
-        queue.cancelJob(jobId).catch((err) => {
-          logger.error(`Failed to cancel job ${jobId} for ${tableId}/${m.rowId}:`, err)
-        })
+  let cursor: { rowId: string; groupId: string } | undefined
+  let processedCount = 0
+  let reachedEnd = false
+  const handledGroupIds = new Set<string>()
+
+  while (processedCount < TABLE_CANCELLATION_MAX_ROWS) {
+    const pageFilters = [...inFlightFilters]
+    if (cursor) {
+      const cursorFilter = or(
+        gt(tableRowExecutions.rowId, cursor.rowId),
+        and(
+          eq(tableRowExecutions.rowId, cursor.rowId),
+          gt(tableRowExecutions.groupId, cursor.groupId)
+        )
       )
-    ),
-    tagSweepPromise,
-  ])
-  // `updateRow` no longer auto-fires the dispatcher post-write — the reactor
-  // was removed. Cancel-writes only touch executions[gid] state; no risk of
-  // re-enqueueing what we just cancelled.
-  await Promise.allSettled(
-    mutations.map((m) =>
-      // Only touches execution state — `data: {}` is a no-op on the row's cells (updateRow merges
-      // the empty patch), so this cancel can't revert a user's concurrent edit to the same row.
-      updateRow(
+      if (cursorFilter) pageFilters.push(cursorFilter)
+    }
+
+    const pageSize = Math.min(
+      TABLE_CANCELLATION_BATCH_SIZE,
+      TABLE_CANCELLATION_MAX_ROWS - processedCount
+    )
+    const inFlightRows = await db
+      .select()
+      .from(tableRowExecutions)
+      .where(and(...pageFilters))
+      .orderBy(asc(tableRowExecutions.rowId), asc(tableRowExecutions.groupId))
+      .limit(pageSize)
+
+    if (inFlightRows.length === 0) {
+      reachedEnd = true
+      break
+    }
+
+    const lastRow = inFlightRows.at(-1)
+    if (lastRow) cursor = { rowId: lastRow.rowId, groupId: lastRow.groupId }
+    processedCount += inFlightRows.length
+
+    const byRow = new Map<string, RowMutation>()
+    for (const executionRow of inFlightRows) {
+      const prev: RowExecutionMetadata = {
+        status: executionRow.status as RowExecutionMetadata['status'],
+        executionId: executionRow.executionId ?? null,
+        jobId: executionRow.jobId ?? null,
+        workflowId: executionRow.workflowId,
+        error: executionRow.error ?? null,
+        ...(executionRow.blockErrors &&
+        Object.keys(executionRow.blockErrors as Record<string, string>).length > 0
+          ? { blockErrors: executionRow.blockErrors as Record<string, string> }
+          : {}),
+      }
+      const existing = byRow.get(executionRow.rowId) ?? {
+        rowId: executionRow.rowId,
+        executionsPatch: {},
+        jobIds: [],
+        cancelledCount: 0,
+      }
+      if (prev.jobId) existing.jobIds.push(prev.jobId)
+      existing.executionsPatch[executionRow.groupId] = buildCancelledExecution(prev)
+      existing.cancelledCount++
+      handledGroupIds.add(executionRow.groupId)
+      byRow.set(executionRow.rowId, existing)
+    }
+    const mutations = Array.from(byRow.values())
+
+    const pausedCancellations = inFlightRows
+      .filter((executionRow) =>
+        Boolean(executionRow.executionId && executionRow.jobId?.startsWith('paused-'))
+      )
+      .map((executionRow) => ({
+        executionId: executionRow.executionId as string,
+        workflowId: executionRow.workflowId,
+      }))
+    if (pausedCancellations.length > 0) {
+      const { PauseResumeManager } = await import(
+        '@/lib/workflows/executor/human-in-the-loop-manager'
+      )
+      await mapWithConcurrency(
+        pausedCancellations,
+        TABLE_CANCELLATION_CONCURRENCY,
+        async (pausedCancellation) => {
+          await PauseResumeManager.beginPausedCancellation(
+            pausedCancellation.executionId,
+            pausedCancellation.workflowId
+          ).catch((error) => {
+            logger.warn(`beginPausedCancellation failed for ${pausedCancellation.executionId}`, {
+              error: toError(error).message,
+            })
+          })
+        }
+      )
+    }
+
+    for (const mutation of mutations) {
+      for (const groupId of Object.keys(mutation.executionsPatch)) {
+        queue.cancelByKey(cellCancelKey(tableId, mutation.rowId, groupId))
+      }
+    }
+    const queuedJobs = mutations.flatMap((mutation) =>
+      mutation.jobIds.map((jobId) => ({ jobId, rowId: mutation.rowId }))
+    )
+    await mapWithConcurrency(
+      queuedJobs,
+      TABLE_CANCELLATION_CONCURRENCY,
+      async ({ jobId, rowId: cancelledRowId }) => {
+        await queue.cancelJob(jobId).catch((error) => {
+          logger.error(`Failed to cancel job ${jobId} for ${tableId}/${cancelledRowId}`, {
+            error: toError(error).message,
+          })
+        })
+      }
+    )
+
+    await mapWithConcurrency(mutations, TABLE_CANCELLATION_CONCURRENCY, async (mutation) => {
+      await updateRow(
         {
           tableId,
-          rowId: m.rowId,
+          rowId: mutation.rowId,
           data: {},
           workspaceId: table.workspaceId,
-          executionsPatch: m.executionsPatch,
+          executionsPatch: mutation.executionsPatch,
         },
         table,
-        `wfgrp-cancel-${m.rowId}`
-      ).catch((err) => {
-        logger.error(`Failed to write cancelled state for row ${m.rowId}:`, err)
+        `wfgrp-cancel-${mutation.rowId}`
+      ).catch((error) => {
+        logger.error(`Failed to write cancelled state for row ${mutation.rowId}`, {
+          error: toError(error).message,
+        })
       })
-    )
-  )
+    })
+
+    if (inFlightRows.length < pageSize) {
+      reachedEnd = true
+      break
+    }
+  }
+
+  if (!reachedEnd) {
+    const now = new Date()
+    logger.warn('cancelWorkflowGroupRuns reached its synchronous row safety cap', {
+      tableId,
+      maxRows: TABLE_CANCELLATION_MAX_ROWS,
+    })
+    await db
+      .update(tableRowExecutions)
+      .set({
+        status: 'cancelled',
+        jobId: null,
+        error: 'Cancelled',
+        runningBlockIds: [],
+        cancelledAt: now,
+        updatedAt: now,
+      })
+      .where(and(...inFlightFilters))
+  }
+
+  await tagSweepPromise
 
   // Tombstones for ahead-of-cursor groups. The in-flight cancel writes above
   // already cover groups that have a sidecar entry; we only need fresh
@@ -642,22 +760,23 @@ export async function cancelWorkflowGroupRuns(
   // yet, so there's nothing to cancel — but without a tombstone the
   // dispatcher would still re-fire when its cursor walks to this row).
   if (rowId && aheadOfCursorTombstones.length > 0) {
-    const alreadyHandled = new Set(mutations.flatMap((m) => Object.keys(m.executionsPatch)))
-    const needsTombstone = aheadOfCursorTombstones.filter((t) => !alreadyHandled.has(t.groupId))
+    const needsTombstone = aheadOfCursorTombstones.filter((t) => !handledGroupIds.has(t.groupId))
     if (needsTombstone.length > 0) {
       const now = new Date()
-      await Promise.allSettled(
-        needsTombstone.map((t) =>
-          db
+      await mapWithConcurrency(
+        needsTombstone,
+        TABLE_CANCELLATION_CONCURRENCY,
+        async (tombstone) => {
+          await db
             .insert(tableRowExecutions)
             .values({
               tableId,
               rowId,
-              groupId: t.groupId,
+              groupId: tombstone.groupId,
               status: 'cancelled',
               executionId: null,
               jobId: null,
-              workflowId: t.workflowId,
+              workflowId: tombstone.workflowId,
               error: 'Cancelled',
               runningBlockIds: [],
               blockErrors: {},
@@ -667,15 +786,18 @@ export async function cancelWorkflowGroupRuns(
             .onConflictDoNothing({
               target: [tableRowExecutions.rowId, tableRowExecutions.groupId],
             })
-            .catch((err) => {
-              logger.error(`Failed to write tombstone for ${tableId}/${rowId}/${t.groupId}:`, err)
+            .catch((error) => {
+              logger.error(
+                `Failed to write tombstone for ${tableId}/${rowId}/${tombstone.groupId}`,
+                { error: toError(error).message }
+              )
             })
-        )
+        }
       )
     }
   }
 
-  return mutations.reduce((sum, m) => sum + m.cancelledCount, 0)
+  return processedCount
 }
 
 /**

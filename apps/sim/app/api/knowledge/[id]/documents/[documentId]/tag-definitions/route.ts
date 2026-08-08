@@ -5,12 +5,13 @@ import { saveDocumentTagDefinitionsContract } from '@/lib/api/contracts/knowledg
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { SUPPORTED_FIELD_TYPES } from '@/lib/knowledge/constants'
+import { getFieldTypeForSlot, SUPPORTED_FIELD_TYPES } from '@/lib/knowledge/constants'
 import {
   cleanupUnusedTagDefinitions,
   createOrUpdateTagDefinitionsBulk,
   deleteAllTagDefinitions,
   getDocumentTagDefinitions,
+  KnowledgeTagProvenanceConflictError,
 } from '@/lib/knowledge/tags/service'
 import type { BulkTagDefinitionsData } from '@/lib/knowledge/tags/types'
 import { checkDocumentAccess, checkDocumentWriteAccess } from '@/app/api/knowledge/utils'
@@ -113,6 +114,16 @@ export const POST = withRouteHandler(
             { status: 400 }
           )
         }
+        /**
+         * Slot validity only, not slot/field-type agreement: this route also renames
+         * existing definitions, which resend whatever pair is already stored.
+         */
+        if (getFieldTypeForSlot(def.tagSlot) === null) {
+          return NextResponse.json(
+            { error: 'Invalid request data', details: `Unsupported tag slot: ${def.tagSlot}` },
+            { status: 400 }
+          )
+        }
       }
 
       const bulkData: BulkTagDefinitionsData = {
@@ -198,6 +209,9 @@ export const DELETE = withRouteHandler(
         data: { deleted: deletedCount },
       })
     } catch (error) {
+      if (error instanceof KnowledgeTagProvenanceConflictError) {
+        return NextResponse.json({ error: error.message }, { status: 409 })
+      }
       logger.error(`[${requestId}] Error with tag definitions operation`, error)
       return NextResponse.json({ error: 'Failed to process tag definitions' }, { status: 500 })
     }

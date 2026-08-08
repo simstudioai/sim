@@ -11,6 +11,15 @@ import {
   uploadWorkspaceFile,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import {
+  EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE,
+  type WorkspaceFileSecretProvenance,
+} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import {
+  resolveWorkspaceAccess,
+  type WorkspaceAccess,
+  WorkspaceAccessDeniedError,
+} from '@/lib/workspaces/permissions/utils'
 
 export type WorkspaceFileWriteMode = 'create' | 'overwrite'
 
@@ -132,11 +141,30 @@ function vfsPathForRecord(record: WorkspaceFileRecord): string {
   return canonicalWorkspaceFilePath({ folderPath: record.folderPath, name: record.name })
 }
 
+/**
+ * Authorization is a property of the writer rather than something each caller has to remember,
+ * because `workspaceId` reaches here from request bodies. Callers holding a resolved access pass
+ * it through `workspaceAccess`; {@link resolveWorkspaceAccess} guards the reuse.
+ */
+async function assertWorkspaceFileWriteAccess(args: {
+  workspaceId: string
+  userId: string
+  workspaceAccess?: WorkspaceAccess
+}): Promise<void> {
+  const access = await resolveWorkspaceAccess(args.workspaceId, args.userId, args.workspaceAccess)
+  if (!access.exists || !access.canWrite) {
+    throw new WorkspaceAccessDeniedError(args.workspaceId)
+  }
+}
+
 export async function validateWorkspaceFileWriteTarget(args: {
   workspaceId: string
-  userId?: string
+  userId: string
+  workspaceAccess?: WorkspaceAccess
   target: WorkspaceFileWriteTarget
 }): Promise<WorkspaceFileWriteValidation> {
+  await assertWorkspaceFileWriteAccess(args)
+
   if (args.target.mode === 'overwrite') {
     const existing = await resolveWorkspaceFileReference(args.workspaceId, args.target.path)
     if (!existing) {
@@ -161,6 +189,7 @@ export async function validateWorkspaceFileWriteTarget(args: {
 export async function writeWorkspaceFileByPath(args: {
   workspaceId: string
   userId: string
+  workspaceAccess?: WorkspaceAccess
   target: WorkspaceFileWriteTarget
   buffer: Buffer
   inferredMimeType: string
@@ -170,7 +199,11 @@ export async function writeWorkspaceFileByPath(args: {
    * only a placeholder — e.g. `create_file`'s empty shell, whose real content lands via a later write.
    */
   syncLiveDoc?: boolean
+  /** Private provenance for the exact bytes being written. */
+  secretProvenance?: WorkspaceFileSecretProvenance
 }): Promise<WorkspaceFileWriteResult> {
+  await assertWorkspaceFileWriteAccess(args)
+
   const contentType = args.target.mimeType || args.inferredMimeType
   if (args.target.mode === 'overwrite') {
     const existing = await resolveWorkspaceFileReference(args.workspaceId, args.target.path)
@@ -184,7 +217,13 @@ export async function writeWorkspaceFileByPath(args: {
       args.userId,
       args.buffer,
       contentType || existing.type,
-      { syncLiveDoc: args.syncLiveDoc }
+      {
+        syncLiveDoc: args.syncLiveDoc,
+        secretProvenancePolicy: {
+          mode: 'replace',
+          provenance: args.secretProvenance ?? { status: 'exact', entries: [] },
+        },
+      }
     )
 
     return {
@@ -207,7 +246,10 @@ export async function writeWorkspaceFileByPath(args: {
     args.buffer,
     createTarget.fileName,
     contentType,
-    { folderId: createTarget.folderId }
+    {
+      folderId: createTarget.folderId,
+      secretProvenance: args.secretProvenance ?? EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE,
+    }
   )
 
   return {

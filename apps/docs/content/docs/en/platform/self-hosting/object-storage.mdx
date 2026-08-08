@@ -23,14 +23,14 @@ Sim stores every uploaded file — knowledge base documents, chat attachments, e
 
 ## How the backend is selected
 
-Sim picks the backend automatically from environment variables — there is no explicit "provider" flag. The logic, in order of precedence:
+Set `STORAGE_PROVIDER` to `local`, `s3`, `azure`, or `gcs` to select a backend explicitly. When it is unset, Sim infers the backend from the configured environment variables in this order:
 
 1. **Azure Blob** — used if `AZURE_STORAGE_CONTAINER_NAME` is set **and** either (`AZURE_ACCOUNT_NAME` + `AZURE_ACCOUNT_KEY`) or `AZURE_CONNECTION_STRING` is set.
 2. **AWS S3** — used if `S3_BUCKET_NAME` **and** `AWS_REGION` are set (and Azure is not configured).
 3. **Google Cloud Storage** — used if `GCS_BUCKET_NAME` is set (and neither Azure nor S3 is configured).
 4. **Local disk** — the fallback when none is configured.
 
-If more than one backend is configured, the first match in that order wins. Set only the variables for the backend you intend to use.
+If `STORAGE_PROVIDER` is unset, Sim skips incomplete backends and uses the first ready match in that order. A higher-priority backend with its required fields present but invalid supplied values fails fast instead of silently falling through. An explicit `STORAGE_PROVIDER` takes precedence and must be valid and complete.
 
 ## Set up AWS S3
 
@@ -237,6 +237,21 @@ AZURE_STORAGE_OG_IMAGES_CONTAINER_NAME=og-images
 AZURE_STORAGE_WORKSPACE_LOGOS_CONTAINER_NAME=workspace-logos
 ```
 
+Browser uploads also require an account-level Blob service CORS rule. This rule explicitly allows Sim's create-only `If-None-Match` precondition, Azure upload headers, and multipart `ETag` reads:
+
+```bash
+az storage cors add \
+  --services b \
+  --methods GET PUT OPTIONS \
+  --origins "https://your-sim-domain.com" \
+  --allowed-headers "Content-Type" "If-None-Match" "x-ms-*" \
+  --exposed-headers "ETag" \
+  --max-age 3600 \
+  --account-name mystorageaccount
+```
+
+The CORS rule applies to every blob container in the storage account, so it only needs to be added once per account.
+
 A full Helm example lives at `helm/sim/examples/values-azure.yaml`.
 
 ## Set up Google Cloud Storage
@@ -276,6 +291,7 @@ cat > /tmp/cors.json <<'EOF'
     "responseHeader": [
       "Content-Type",
       "ETag",
+      "x-goog-if-generation-match",
       "x-goog-meta-originalname",
       "x-goog-meta-uploadedat",
       "x-goog-meta-purpose",
@@ -283,7 +299,8 @@ cat > /tmp/cors.json <<'EOF'
       "x-goog-meta-workspaceid",
       "x-goog-meta-folderid",
       "x-goog-meta-workflowid",
-      "x-goog-meta-executionid"
+      "x-goog-meta-executionid",
+      "x-goog-meta-simuploadid"
     ],
     "maxAgeSeconds": 3600
   }
@@ -297,7 +314,7 @@ done
 ```
 
 <Callout type="info">
-  Header names must be listed individually — GCS CORS matches `responseHeader` entries exactly and does not support wildcards like `x-goog-meta-*`. `ETag` is required because large-file multipart uploads read each part's `ETag` from the browser, and CORS hides the header otherwise.
+  Header names must be listed individually — GCS CORS matches `responseHeader` entries exactly and does not support wildcards like `x-goog-meta-*`. `ETag` is required because large-file multipart uploads read each part's `ETag` from the browser, and CORS hides the header otherwise. `x-goog-if-generation-match` is required by Sim's create-only signed uploads, which prevent a reused upload URL from replacing existing bytes. `x-goog-meta-simuploadid` carries the opaque receipt used to verify an upload after an ambiguous network response.
 </Callout>
 
 </Step>

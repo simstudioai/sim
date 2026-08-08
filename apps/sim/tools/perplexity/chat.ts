@@ -155,6 +155,13 @@ export const chatTool: ToolConfig<PerplexityChatParams, PerplexityChatResponse> 
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({
+        systemPrompt: params.systemPrompt,
+        content: params.content,
+      }),
+    },
     method: 'POST',
     url: () => 'https://api.perplexity.ai/chat/completions',
     headers: (params) => ({

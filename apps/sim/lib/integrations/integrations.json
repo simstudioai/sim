@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-02",
+  "updatedAt": "2026-08-08",
   "integrations": [
     {
       "type": "onepassword",
@@ -5428,6 +5428,213 @@
       "tags": ["web-scraping"]
     },
     {
+      "type": "dynatrace",
+      "slug": "dynatrace",
+      "name": "Dynatrace",
+      "description": "Manage Dynatrace problems, metrics, entities, logs, SLOs, settings, and security",
+      "longDescription": "Integrate Dynatrace into workflows. Investigate and close Davis problems, query metrics and monitored entities, search and ingest logs, push deployment events, manage SLOs and their burn rates, triage and mute Application Security vulnerabilities, review runtime attacks, tag entities, manage settings objects such as maintenance windows and alerting profiles, run synthetic monitors on demand, and read the audit log.",
+      "bgColor": "#FFFFFF",
+      "iconName": "DynatraceIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/dynatrace",
+      "operations": [
+        {
+          "name": "List Problems",
+          "description": "List Davis-detected problems in a Dynatrace environment, filtered by timeframe, problem selector, or entity selector."
+        },
+        {
+          "name": "Get Problem",
+          "description": "Get the full details of a single Dynatrace problem, including root cause, affected entities, and optionally its evidence and impact analysis."
+        },
+        {
+          "name": "Close Problem",
+          "description": "Close a Dynatrace problem and record the closing comment."
+        },
+        {
+          "name": "List Problem Comments",
+          "description": "List the comments recorded on a Dynatrace problem."
+        },
+        {
+          "name": "Add Problem Comment",
+          "description": "Add a comment to a Dynatrace problem."
+        },
+        {
+          "name": "Query Metrics",
+          "description": "Read metric data points from Dynatrace using a metric selector, with optional entity and management-zone scoping."
+        },
+        {
+          "name": "List Metrics",
+          "description": "Discover the metrics available in a Dynatrace environment, filtered by metric selector, free text, or metadata."
+        },
+        {
+          "name": "Get Metric Descriptor",
+          "description": "Get the descriptor of a single Dynatrace metric — its unit, dimensions, supported aggregations, and transformations."
+        },
+        {
+          "name": "Ingest Metrics",
+          "description": "Push custom metric data points into Dynatrace using the metric line protocol, one data point per line."
+        },
+        {
+          "name": "List Entities",
+          "description": "List monitored entities — hosts, services, applications, Kubernetes workloads — matching an entity selector."
+        },
+        {
+          "name": "Get Entity",
+          "description": "Get the properties, tags, management zones, and relationships of a single monitored entity."
+        },
+        {
+          "name": "List Entity Types",
+          "description": "List the monitored entity types available in the environment, with the properties and relationships each supports. Use it to build valid entity selectors."
+        },
+        {
+          "name": "List Events",
+          "description": "List events — deployments, availability changes, alerts, custom annotations — in a Dynatrace environment."
+        },
+        {
+          "name": "Get Event",
+          "description": "Get the full details of a single Dynatrace event."
+        },
+        {
+          "name": "Ingest Event",
+          "description": "Push an event into Dynatrace — a deployment marker, custom annotation, or custom alert — attached to the entities matched by an entity selector."
+        },
+        {
+          "name": "Search Logs",
+          "description": "Search log records in Dynatrace by query and timeframe, for troubleshooting and incident analysis."
+        },
+        {
+          "name": "Ingest Logs",
+          "description": "Push log events into Dynatrace. Accepts a single log event object or an array of them."
+        },
+        {
+          "name": "List SLOs",
+          "description": "List service-level objectives with their current attainment, error budget, and burn rate."
+        },
+        {
+          "name": "Get SLO",
+          "description": "Get a single service-level objective with its evaluated attainment, error budget, and burn rate."
+        },
+        {
+          "name": "List Security Problems",
+          "description": "List vulnerabilities detected by Dynatrace Application Security, filtered by risk level, status, CVE, or technology."
+        },
+        {
+          "name": "Get Security Problem",
+          "description": "Get a single vulnerability with its description, remediation guidance, affected entities, and risk assessment."
+        },
+        {
+          "name": "Mute Security Problem",
+          "description": "Mute a single Dynatrace vulnerability with a reason, for triaging false positives or accepted risk."
+        },
+        {
+          "name": "Unmute Security Problem",
+          "description": "Unmute a single Dynatrace vulnerability, returning it to the active triage queue."
+        },
+        {
+          "name": "Mute Security Problems (Bulk)",
+          "description": "Mute several Dynatrace vulnerabilities at once with a shared reason, for bulk triage."
+        },
+        {
+          "name": "Unmute Security Problems (Bulk)",
+          "description": "Unmute several Dynatrace vulnerabilities at once, returning them to active triage."
+        },
+        {
+          "name": "List Remediation Items",
+          "description": "List the remediation items of a third-party vulnerability — the components to upgrade, their affected entities, and their mute state."
+        },
+        {
+          "name": "List Attacks",
+          "description": "List runtime attacks Dynatrace Application Protection detected — injection attempts, their source, and whether they were blocked."
+        },
+        {
+          "name": "Get Attack",
+          "description": "Get a single attack with its entry point, payload, attacker, and the vulnerability it exploited."
+        },
+        {
+          "name": "List Tags",
+          "description": "List the custom tags applied to the monitored entities an entity selector matches."
+        },
+        {
+          "name": "Add Tags",
+          "description": "Add custom tags to every monitored entity an entity selector matches. Tags drive selectors, management zones, and alerting."
+        },
+        {
+          "name": "Delete Tag",
+          "description": "Remove a custom tag from every monitored entity an entity selector matches. Deletes one key-value pair, or every tag with the key."
+        },
+        {
+          "name": "List Settings Schemas",
+          "description": "List the settings schemas available in the environment. Use it to find the schema ID for a configuration type such as builtin:alerting.profile."
+        },
+        {
+          "name": "List Settings Objects",
+          "description": "List settings objects — the configuration behind maintenance windows, alerting profiles, management zones, and anomaly detection."
+        },
+        {
+          "name": "Get Settings Object",
+          "description": "Get a single settings object with its value and its update token. Read it before updating so the token can guard against a concurrent change."
+        },
+        {
+          "name": "Create Settings Object",
+          "description": "Create a settings object — a maintenance window, alerting profile, management zone, or any other schema-backed configuration."
+        },
+        {
+          "name": "Update Settings Object",
+          "description": "Update an existing settings object. Pass the update token from Get Settings Object to fail rather than overwrite a concurrent change."
+        },
+        {
+          "name": "Delete Settings Object",
+          "description": "Delete a settings object. Dynatrace cannot undo this."
+        },
+        {
+          "name": "List Synthetic Monitors",
+          "description": "List synthetic monitors and their IDs. Use it to find the monitor IDs to feed into an on-demand execution."
+        },
+        {
+          "name": "Execute Synthetic Monitors",
+          "description": "Trigger an on-demand batch execution of synthetic monitors, for gating a deploy on a smoke test. Returns a batch ID to poll."
+        },
+        {
+          "name": "Get Synthetic Batch",
+          "description": "Get the status and failures of an on-demand synthetic batch execution. Poll it after triggering to gate a deploy on the result."
+        },
+        {
+          "name": "Get Problem Comment",
+          "description": "Get a single comment on a Dynatrace problem."
+        },
+        {
+          "name": "Update Problem Comment",
+          "description": "Replace the text of an existing comment on a Dynatrace problem."
+        },
+        {
+          "name": "Delete Problem Comment",
+          "description": "Delete a comment from a Dynatrace problem."
+        },
+        {
+          "name": "Create SLO",
+          "description": "Create a service-level objective from a metric expression, target, and evaluation timeframe."
+        },
+        {
+          "name": "Update SLO",
+          "description": "Update an existing service-level objective. Every field is replaced, so send the complete definition."
+        },
+        {
+          "name": "Delete SLO",
+          "description": "Delete a service-level objective."
+        },
+        {
+          "name": "Get Audit Logs",
+          "description": "Read the Dynatrace audit log — who changed which configuration, when, and whether it succeeded."
+        }
+      ],
+      "operationCount": 47,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "observability",
+      "tags": ["monitoring", "incident-management", "error-tracking"]
+    },
+    {
       "type": "elasticsearch",
       "slug": "elasticsearch",
       "name": "Elasticsearch",
@@ -5715,14 +5922,14 @@
       "tags": ["sales-engagement", "email-marketing", "automation"]
     },
     {
-      "type": "openai",
+      "type": "embeddings",
       "slug": "embeddings",
       "name": "Embeddings",
-      "description": "Generate Open AI embeddings",
-      "longDescription": "Integrate Embeddings into the workflow. Can generate embeddings from text.",
-      "bgColor": "#000000",
-      "iconName": "OpenAIIcon",
-      "docsUrl": "https://docs.sim.ai/integrations/openai",
+      "description": "Generate embeddings",
+      "longDescription": "Turn text into embedding vectors for semantic search, clustering, and similarity. Supports OpenAI, Google Gemini, Cohere, and Mistral embedding models.",
+      "bgColor": "#7B4DFF",
+      "iconName": "EmbeddingsIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/embeddings",
       "operations": [],
       "operationCount": 0,
       "triggers": [],
@@ -17718,6 +17925,213 @@
         },
         "aiDisclaimer": "Sim agents use AI models to generate messages and responses sent to Slack. AI-generated content can be inaccurate or incomplete, so review automated outputs before relying on them, especially for important communications."
       }
+    },
+    {
+      "type": "smartlead",
+      "slug": "smartlead",
+      "name": "Smartlead",
+      "description": "Manage Smartlead cold email campaigns, sequences, and leads",
+      "longDescription": "Integrate Smartlead into workflows. Create campaigns, write multi-step email sequences, import and categorize leads, pull campaign analytics, and register webhooks for engagement events.",
+      "bgColor": "#000000",
+      "iconName": "SmartleadIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/smartlead",
+      "operations": [
+        {
+          "name": "List Campaigns",
+          "description": "Retrieves all Smartlead campaigns for the authenticated account."
+        },
+        {
+          "name": "Get Campaign",
+          "description": "Retrieves a single Smartlead campaign by ID."
+        },
+        {
+          "name": "Create Campaign",
+          "description": "Creates a Smartlead campaign. The campaign starts in DRAFTED status; add sequences, email accounts, and a schedule before starting it."
+        },
+        {
+          "name": "Update Campaign Status",
+          "description": "Starts, pauses, or stops a Smartlead campaign. START requires the campaign to already have a schedule, sequences, and at least one email account."
+        },
+        {
+          "name": "Update Campaign Schedule",
+          "description": "Sets the sending window, timezone, and throughput limits for a Smartlead campaign. A campaign cannot be started until a schedule exists."
+        },
+        {
+          "name": "Update Campaign Settings",
+          "description": "Updates tracking, stop-on-activity, and sending settings for a Smartlead campaign."
+        },
+        {
+          "name": "Get Campaign Analytics",
+          "description": "Retrieves lifetime performance totals for a Smartlead campaign — sends, opens, clicks, replies, bounces, and lead counts by state."
+        },
+        {
+          "name": "Get Campaign Analytics by Date",
+          "description": "Retrieves Smartlead campaign performance totals for a date range. Smartlead rejects ranges longer than roughly one month."
+        },
+        {
+          "name": "Get Campaign Sequences",
+          "description": "Retrieves the email sequence steps for a Smartlead campaign, including subjects, bodies, and per-step delays."
+        },
+        {
+          "name": "Save Campaign Sequences",
+          "description": "Replaces the email sequence for a Smartlead campaign. Send every step in one call — steps omitted from the request are removed. An empty subject makes a step reply in the previous thread."
+        },
+        {
+          "name": "Get Campaign Statistics",
+          "description": "Retrieves per-email statistics rows for a Smartlead campaign, filterable by sequence step, engagement status, and sent-time range."
+        },
+        {
+          "name": "Add Leads to Campaign",
+          "description": "Adds leads to a Smartlead campaign, up to 400 per call. Returns per-reason counts for leads that were skipped as duplicates, blocked, bounced, or invalid."
+        },
+        {
+          "name": "List Campaign Leads",
+          "description": "Retrieves the leads in a Smartlead campaign with their per-campaign status."
+        },
+        {
+          "name": "Get Lead by Email",
+          "description": "Looks up a Smartlead lead by email address and returns the lead record plus every campaign it belongs to."
+        },
+        {
+          "name": "Update Lead",
+          "description": "Updates a lead in a Smartlead campaign. Smartlead requires the email field even when it is unchanged, and lead edits apply across every campaign the lead belongs to."
+        },
+        {
+          "name": "Update Lead Category",
+          "description": "Sets the category of a lead in a Smartlead campaign, such as Interested or Not Interested. Use List Lead Categories to resolve a category ID."
+        },
+        {
+          "name": "Pause Lead",
+          "description": "Pauses a lead in a Smartlead campaign so it stops receiving sequence emails."
+        },
+        {
+          "name": "Resume Lead",
+          "description": "Resumes a paused lead in a Smartlead campaign, optionally after a delay."
+        },
+        {
+          "name": "List Lead Categories",
+          "description": "Retrieves the lead categories configured on the Smartlead account, with the category IDs needed to categorize a lead."
+        },
+        {
+          "name": "Get Lead Message History",
+          "description": "Retrieves the sent-and-received message history for a lead in a Smartlead campaign."
+        },
+        {
+          "name": "List Campaign Webhooks",
+          "description": "Retrieves the webhooks registered on a Smartlead campaign."
+        },
+        {
+          "name": "Create or Update Webhook",
+          "description": "Creates a webhook on a Smartlead campaign, or updates an existing one when a webhook ID is supplied. Smartlead requires at least one lead category."
+        },
+        {
+          "name": "Delete Campaign Webhook",
+          "description": "Deletes a webhook from a Smartlead campaign."
+        },
+        {
+          "name": "Get Webhook Summary",
+          "description": "Retrieves webhook delivery counts for a Smartlead campaign over a time window, for checking whether events are reaching their destination."
+        },
+        {
+          "name": "Duplicate Campaign",
+          "description": "Copies a Smartlead campaign, including its sequences and settings. The copy is named \"<original> - copy\" and starts in DRAFTED status."
+        },
+        {
+          "name": "Delete Campaign",
+          "description": "Permanently deletes a Smartlead campaign along with its sequences, leads, and webhooks. This cannot be undone."
+        },
+        {
+          "name": "Export Campaign Leads (CSV)",
+          "description": "Exports every lead in a Smartlead campaign as CSV, including engagement counts and the sequence step last sent to each lead."
+        },
+        {
+          "name": "List Campaign Email Accounts",
+          "description": "Retrieves the sending email accounts attached to a Smartlead campaign."
+        },
+        {
+          "name": "Add Email Accounts to Campaign",
+          "description": "Attaches sending email accounts to a Smartlead campaign. A campaign needs at least one attached account before it can start."
+        },
+        {
+          "name": "Remove Email Accounts from Campaign",
+          "description": "Detaches sending email accounts from a Smartlead campaign."
+        },
+        {
+          "name": "List Email Accounts",
+          "description": "Retrieves the sending email accounts on the Smartlead account, including their IDs for attaching to a campaign."
+        },
+        {
+          "name": "Get Campaign Lead Statistics",
+          "description": "Retrieves per-lead engagement statistics for a Smartlead campaign."
+        },
+        {
+          "name": "Get Campaign Mailbox Statistics",
+          "description": "Retrieves per-mailbox sending statistics for a Smartlead campaign, for spotting which sending accounts are underperforming."
+        },
+        {
+          "name": "Get Top-Level Analytics by Date",
+          "description": "Retrieves top-level Smartlead campaign counts for a date range, including positive replies, skipped, failed, and stopped counts not present in the standard analytics."
+        },
+        {
+          "name": "List Lead Activities",
+          "description": "Retrieves recent lead activity across all Smartlead campaigns — opens, clicks, replies, and status changes. Smartlead exposes no campaign filter on this endpoint."
+        },
+        {
+          "name": "Get Lead by ID",
+          "description": "Looks up a Smartlead lead by its ID."
+        },
+        {
+          "name": "Unsubscribe Lead from Campaign",
+          "description": "Unsubscribes a lead from a single Smartlead campaign, leaving it active in other campaigns."
+        },
+        {
+          "name": "Unsubscribe Lead Globally",
+          "description": "Unsubscribes a lead across every Smartlead campaign and adds it to the account-wide unsubscribe list."
+        },
+        {
+          "name": "Mark Lead Complete",
+          "description": "Marks a lead as completed in a Smartlead campaign so it stops receiving further sequence steps."
+        },
+        {
+          "name": "Delete Lead from Campaign",
+          "description": "Removes a lead from a Smartlead campaign. The lead record itself remains on the account."
+        },
+        {
+          "name": "List Inbox Replies",
+          "description": "Retrieves replies from the Smartlead master inbox across all campaigns, optionally limited to unread replies. Smartlead exposes no campaign filter on this endpoint."
+        },
+        {
+          "name": "List Lead Lists",
+          "description": "Retrieves the lead lists on the Smartlead account with their lead counts."
+        },
+        {
+          "name": "Get Lead List",
+          "description": "Retrieves a single Smartlead lead list by ID."
+        },
+        {
+          "name": "Create Lead List",
+          "description": "Creates a lead list on the Smartlead account."
+        },
+        {
+          "name": "Update Lead List",
+          "description": "Renames a Smartlead lead list."
+        },
+        {
+          "name": "Delete Lead List",
+          "description": "Deletes a Smartlead lead list."
+        },
+        {
+          "name": "List Clients",
+          "description": "Retrieves the clients on a Smartlead agency account, including the client IDs used to scope campaigns and email accounts."
+        }
+      ],
+      "operationCount": 47,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "email",
+      "tags": ["sales-engagement", "email-marketing", "automation"]
     },
     {
       "type": "smtp",

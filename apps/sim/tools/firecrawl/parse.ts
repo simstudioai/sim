@@ -1,4 +1,12 @@
+import {
+  applyProjectedModelVisibleFileNames,
+  selectModelVisibleFileNames,
+} from '@/lib/uploads/utils/model-input'
 import { firecrawlHosting } from '@/tools/firecrawl/hosting'
+import {
+  applyFirecrawlFormatModelInput,
+  selectFirecrawlFormatModelInput,
+} from '@/tools/firecrawl/model-input'
 import type { ParseParams, ParseResponse } from '@/tools/firecrawl/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -87,6 +95,27 @@ export const parseTool: ToolConfig<ParseParams, ParseResponse> = {
   hosting: firecrawlHosting(),
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => {
+        const file = selectModelVisibleFileNames(params.file)
+        return {
+          formats: selectFirecrawlFormatModelInput(params.formats),
+          ...(file === undefined ? {} : { file }),
+        }
+      },
+      applyProjected: (selectedParams, projectedSelection) => ({
+        formats: applyFirecrawlFormatModelInput(selectedParams.formats, projectedSelection.formats),
+        ...(Object.hasOwn(projectedSelection, 'file')
+          ? {
+              file: applyProjectedModelVisibleFileNames(
+                selectedParams.file,
+                projectedSelection.file
+              ),
+            }
+          : {}),
+      }),
+    },
     method: 'POST',
     url: '/api/tools/firecrawl/parse',
     headers: () => ({

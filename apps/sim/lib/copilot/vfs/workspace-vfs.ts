@@ -2,7 +2,6 @@ import { trace } from '@opentelemetry/api'
 import { db } from '@sim/db'
 import {
   chat as chatTable,
-  copilotChats,
   customTools as customToolsTable,
   document,
   folder as folderTable,
@@ -17,8 +16,9 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { and, desc, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNotNull, isNull, or } from 'drizzle-orm'
 import { listApiKeys } from '@/lib/api-key/service'
+import { hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
 import {
   buildWorkspaceContextMd,
   buildWorkspaceMd,
@@ -26,9 +26,18 @@ import {
 } from '@/lib/copilot/chat/workspace-context'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
-import { getExposedIntegrationTools } from '@/lib/copilot/integration-tools'
+import {
+  type ExposedIntegrationTool,
+  filterExposedIntegrationTools,
+  getExposedIntegrationTools,
+} from '@/lib/copilot/integration-tools'
 import { recordVfsMaterialize } from '@/lib/copilot/request/metrics'
 import { markSpanForError } from '@/lib/copilot/request/otel'
+import {
+  filterSecretNamesByMountPolicy,
+  type SecretMountPolicy,
+} from '@/lib/copilot/secret-mount-policy'
+import { RESTRICTED_SIM_SANDBOX_INPUTS } from '@/lib/copilot/sim-sandbox-projection'
 import { compileDoc, getE2BDocFormat } from '@/lib/copilot/tools/server/files/doc-compile'
 import { extractDocText, isExtractableDocExt } from '@/lib/copilot/tools/server/files/doc-extract'
 import { runE2BCompiledCheck } from '@/lib/copilot/tools/server/files/doc-recalc'
@@ -39,7 +48,11 @@ import {
 } from '@/lib/copilot/tools/server/workflow/edit-workflow/lint'
 import { UNRESOLVABLE_AT_LINT_NOTE } from '@/lib/copilot/tools/server/workflow/edit-workflow/validation'
 import { extractDocumentStyle } from '@/lib/copilot/vfs/document-style'
-import { type FileReadResult, readFileRecord } from '@/lib/copilot/vfs/file-reader'
+import {
+  type FileReadResult,
+  isReadableFileType,
+  readFileRecord,
+} from '@/lib/copilot/vfs/file-reader'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
 import type { GrepMatch, GrepOptions, ReadResult } from '@/lib/copilot/vfs/operations'
 import * as ops from '@/lib/copilot/vfs/operations'
@@ -73,26 +86,41 @@ import {
   serializeKBMeta,
   serializeMcpServer,
   serializeRecentExecutions,
+  serializeSandbox,
+  serializeSandboxCatalog,
   serializeSkill,
   serializeTableMeta,
-  serializeTaskChat,
-  serializeTaskSession,
   serializeTriggerOverview,
   serializeTriggerSchema,
   serializeVersions,
   serializeWorkflowMeta,
 } from '@/lib/copilot/vfs/serializers'
 import type { BlockVisibilityState } from '@/lib/core/config/block-visibility'
-import { isDocSandboxEnabled, isHosted } from '@/lib/core/config/env-flags'
+import {
+  getAllowedIntegrationsFromEnv,
+  isDocSandboxEnabled,
+  isHosted,
+} from '@/lib/core/config/env-flags'
 import {
   getAccessibleEnvCredentials,
   getAccessibleOAuthCredentials,
 } from '@/lib/credentials/environment'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { BINARY_DOC_TASKS, MAX_DOCUMENT_PREVIEW_CODE_BYTES } from '@/lib/execution/constants'
+import {
+  currentSandboxStrategy,
+  listWorkspaceSandboxes,
+} from '@/lib/execution/remote-sandbox/workspace-sandboxes'
 import { runSandboxTask, SandboxUserCodeError } from '@/lib/execution/sandbox/run-task'
+import {
+  isIntegrationDeploymentAvailableForVisibility,
+  isOAuthServiceDeploymentAvailable,
+} from '@/lib/integrations/availability.server'
+import { createIntegrationCredentialVisibility } from '@/lib/integrations/credential-visibility.server'
 import { getKnowledgeBases } from '@/lib/knowledge/service'
 import { validateMermaidSource } from '@/lib/mermaid/validate'
+import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
+import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
 import { getWorkspaceShares } from '@/lib/public-shares/share-manager'
 import { listTables } from '@/lib/table/service'
 import { listWorkspaceFileFolders } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
@@ -102,12 +130,13 @@ import {
   listWorkspaceFiles,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import type {
+  WorkspaceFileSecretProvenanceEnvelope,
+  WorkspaceFileSecretProvenanceIdentity,
+} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { listCustomBlocksWithInputsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
-import {
-  loadWorkflowDeploymentSnapshot,
-  loadWorkflowFromNormalizedTables,
-} from '@/lib/workflows/persistence/utils'
+import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import { getSkillById } from '@/lib/workflows/skills/operations'
 import { listFolders, listWorkflows } from '@/lib/workflows/utils'
@@ -117,13 +146,13 @@ import {
   getWorkspaceWithOwner,
   hasWorkspaceAdminAccess,
 } from '@/lib/workspaces/permissions/utils'
-import { computeNeedsRedeployment } from '@/app/api/workflows/utils'
+import { checkNeedsRedeployment } from '@/app/api/workflows/utils'
 import { buildCustomBlockConfig, isCustomBlockType } from '@/blocks/custom/build-config'
 import { BLOCK_REGISTRY } from '@/blocks/registry-maps'
 import type { BlockConfig, BlockIcon } from '@/blocks/types'
 import { isHiddenUnder, overlayVisibility } from '@/blocks/visibility/context'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
-import type { WorkflowState } from '@/stores/workflows/workflow/types'
+import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 import type { ToolConfig } from '@/tools/types'
 import { TRIGGER_REGISTRY } from '@/triggers/registry'
 
@@ -134,6 +163,31 @@ const logger = createLogger('WorkspaceVFS')
 const PLACEHOLDER_BLOCK_ICON = (() => null) as unknown as BlockIcon
 const MAX_COMPILED_ATTACHMENT_BYTES = 5 * 1024 * 1024
 
+function bindWorkspaceFileResult<T>(
+  record: WorkspaceFileRecord,
+  value: T,
+  view: 'complete' | 'derived' = 'derived',
+  contributingFiles: readonly WorkspaceFileSecretProvenanceIdentity[] = []
+): WorkspaceFileSecretProvenanceEnvelope<T> {
+  return {
+    value,
+    view,
+    file: {
+      fileId: record.id,
+      key: record.key,
+      context: record.storageContext ?? 'workspace',
+    },
+    ...(contributingFiles.length > 0 ? { contributingFiles } : {}),
+  }
+}
+
+function recordContributingFile(
+  files: Map<string, WorkspaceFileSecretProvenanceIdentity>,
+  identity: WorkspaceFileSecretProvenanceIdentity
+): void {
+  files.set(`${identity.context}:${identity.fileId}:${identity.key}`, identity)
+}
+
 /**
  * Static component files, computed once and shared across all VFS instances.
  * Built from the UNGATED registry universe (preview blocks included) so this
@@ -142,6 +196,7 @@ const MAX_COMPILED_ATTACHMENT_BYTES = 5 * 1024 * 1024
  * (see {@link isStaticFileHidden}).
  */
 let staticComponentFiles: Map<string, string> | null = null
+let staticFunctionSchemaWithRestrictedSimSandboxes: string | null = null
 
 /**
  * Owning block for each `components/integrations/**` file, recorded at build
@@ -149,7 +204,7 @@ let staticComponentFiles: Map<string, string> | null = null
  * basename, but integration paths use the version-stripped service name — so
  * their owners need this lookup for the stamp-time visibility filter.
  */
-const integrationPathOwners = new Map<string, Pick<BlockConfig, 'type' | 'preview'>>()
+const integrationPathOwners = new Map<string, Array<Pick<BlockConfig, 'type' | 'preview'>>>()
 
 /**
  * Owning block(s) for each `components/triggers/{provider}/{id}.json` file,
@@ -168,18 +223,126 @@ const triggerPathOwners = new Map<string, Array<Pick<BlockConfig, 'type' | 'prev
  * default with no context — and kill-switched types). Non-registry paths
  * (loop/parallel, connectors, overviews) are always visible.
  */
-function isStaticFileHidden(path: string, vis: BlockVisibilityState | null): boolean {
+function isBlockOwnerHidden(
+  owner: Pick<BlockConfig, 'type' | 'preview'>,
+  vis: BlockVisibilityState | null,
+  allowedIntegrationTypes: ReadonlySet<string> | null
+): boolean {
+  const config = BLOCK_REGISTRY[owner.type]
+  if (config?.hideFromToolbar) return true
+  if (!isIntegrationDeploymentAvailableForVisibility(owner.type, vis)) return true
+  if (
+    allowedIntegrationTypes !== null &&
+    !isBlockTypeAccessControlExempt(owner.type) &&
+    !allowedIntegrationTypes.has(owner.type.toLowerCase())
+  ) {
+    return true
+  }
+  return isHiddenUnder(vis, owner)
+}
+
+function isStaticFileHidden(
+  path: string,
+  vis: BlockVisibilityState | null,
+  allowedIntegrationTypes: ReadonlySet<string> | null = null
+): boolean {
   const blockMatch = path.match(/^components\/(?:blocks|triggers\/sim)\/([^/]+)\.json$/)
   if (blockMatch) {
     const config = BLOCK_REGISTRY[blockMatch[1]!]
-    return config ? isHiddenUnder(vis, config) : false
+    return config ? isBlockOwnerHidden(config, vis, allowedIntegrationTypes) : false
   }
   const triggerOwners = triggerPathOwners.get(path)
   if (triggerOwners) {
-    return triggerOwners.length > 0 && triggerOwners.every((owner) => isHiddenUnder(vis, owner))
+    return (
+      triggerOwners.length > 0 &&
+      triggerOwners.every((owner) => isBlockOwnerHidden(owner, vis, allowedIntegrationTypes))
+    )
   }
-  const owner = integrationPathOwners.get(path)
-  return owner ? isHiddenUnder(vis, owner) : false
+  const owners = integrationPathOwners.get(path)
+  return owners
+    ? owners.length > 0 &&
+        owners.every((owner) => isBlockOwnerHidden(owner, vis, allowedIntegrationTypes))
+    : false
+}
+
+function buildIntegrationAggregateFiles(
+  exposedTools: readonly ExposedIntegrationTool[]
+): Map<string, string> {
+  const oauthServices = new Map<
+    string,
+    {
+      provider: string
+      operations: string[]
+      oauthAvailable: boolean
+      serviceAccount?: VfsServiceAccountAuth
+    }
+  >()
+  for (const { config: tool, service, operation, blockType } of exposedTools) {
+    if (!tool.oauth?.required) continue
+    const oauthAvailable = isOAuthServiceDeploymentAvailable(tool.oauth.provider)
+    const serviceAccount = describeServiceAccountForOAuthProvider(tool.oauth.provider, blockType)
+    if (!oauthAvailable && !serviceAccount) continue
+    const existing = oauthServices.get(service)
+    if (existing) {
+      existing.operations.push(operation)
+      existing.oauthAvailable ||= oauthAvailable
+      existing.serviceAccount ??= serviceAccount
+    } else {
+      oauthServices.set(service, {
+        provider: tool.oauth.provider,
+        operations: [operation],
+        oauthAvailable,
+        serviceAccount,
+      })
+    }
+  }
+
+  return new Map([
+    [
+      'environment/oauth-integrations.json',
+      JSON.stringify(Object.fromEntries(oauthServices), null, 2),
+    ],
+    ['environment/api-key-integrations.json', serializeApiKeyIntegrations(exposedTools, isHosted)],
+  ])
+}
+
+function buildTriggerOverview(
+  vis: BlockVisibilityState | null,
+  allowedIntegrationTypes: ReadonlySet<string> | null
+): string {
+  const builtinTriggers = Object.values(BLOCK_REGISTRY)
+    .filter(
+      (block) =>
+        block.category === 'triggers' &&
+        !block.preview &&
+        !isStaticFileHidden(
+          `components/triggers/sim/${block.type}.json`,
+          vis,
+          allowedIntegrationTypes
+        )
+    )
+    .map((block) => ({
+      id: block.type,
+      name: block.name,
+      provider: 'sim',
+      description: block.description,
+    }))
+  const externalTriggers = Object.entries(TRIGGER_REGISTRY)
+    .filter(
+      ([id, trigger]) =>
+        !isStaticFileHidden(
+          `components/triggers/${trigger.provider}/${id}.json`,
+          vis,
+          allowedIntegrationTypes
+        )
+    )
+    .map(([id, trigger]) => ({
+      id,
+      name: trigger.name,
+      provider: trigger.provider,
+      description: trigger.description,
+    }))
+  return serializeTriggerOverview(builtinTriggers, externalTriggers)
 }
 
 // On-the-fly doc reads (render/extract) download the binary into the Sim process
@@ -214,11 +377,10 @@ function getStaticComponentFiles(): Map<string, string> {
 
   // Raw registry, never the visibility-projected getAllBlocks: this map is a
   // process-global shared cache, so it must hold the deterministic ungated
-  // universe. Preview blocks get schema files here (path-filterable at stamp
-  // time for revealed viewers) but are EXCLUDED from the shared aggregate
-  // files (overviews, oauth/api-key summaries) that all viewers receive.
+  // universe. Preview blocks get schema files here and are filtered per viewer
+  // at stamp time. Viewer-specific aggregate files are built during materialization.
   const allBlocks = Object.values(BLOCK_REGISTRY)
-  const visibleBlocks = allBlocks.filter((b) => !b.hideFromToolbar)
+  const visibleBlocks = allBlocks.filter((block) => !block.hideFromToolbar)
   const exposedTools = getExposedIntegrationTools()
   const toolConfigs = new Map<string, ToolConfig>()
   for (const { toolId, config } of exposedTools) {
@@ -230,57 +392,38 @@ function getStaticComponentFiles(): Map<string, string> {
   for (const block of visibleBlocks) {
     const path = `components/blocks/${block.type}.json`
     files.set(path, serializeBlockSchema(block, { toolConfigs }))
+    if (block.type === 'function') {
+      staticFunctionSchemaWithRestrictedSimSandboxes = serializeBlockSchema(block, {
+        toolConfigs,
+        restrictedInputs: RESTRICTED_SIM_SANDBOX_INPUTS,
+      })
+    }
   }
   blocksFiltered = allBlocks.length - visibleBlocks.length
 
   let integrationCount = 0
 
-  // `serviceAccount` marks services that also accept a shared service-account
-  // credential (connect AS AN APPLICATION, not as the user) — the same
-  // `auth.serviceAccount` shape the per-operation schemas carry, so the agent
-  // discovers all three auth modes (oauth / api_key / service account) from one
-  // uniform field instead of a separate file.
-  const oauthServices = new Map<
-    string,
-    { provider: string; operations: string[]; serviceAccount?: VfsServiceAccountAuth }
-  >()
-
   // Integration tools come from the shared exposed-tool set (latest version of
   // each operation owned by a visible block), the same set used to build the
   // deferred callable tools — so discovery and execution can never drift.
   for (const exposedTool of exposedTools) {
-    const { config: tool, service, operation, blockType, preview } = exposedTool
+    const { config: tool, service, operation } = exposedTool
     const path = `components/integrations/${service}/${operation}.json`
-    files.set(path, serializeIntegrationSchema(tool))
-    integrationPathOwners.set(path, { type: blockType, preview })
-    integrationCount++
-
-    // Preview-owned tools stay out of the shared oauth/api-key aggregates —
-    // those files are identical for every viewer.
-    if (preview) continue
-
-    if (tool.oauth?.required) {
-      const existing = oauthServices.get(service)
-      if (existing) {
-        existing.operations.push(operation)
-      } else {
-        oauthServices.set(service, {
-          provider: tool.oauth.provider,
-          operations: [operation],
-          serviceAccount: describeServiceAccountForOAuthProvider(tool.oauth.provider),
-        })
+    files.set(
+      path,
+      serializeIntegrationSchema(tool, {
+        oauthAvailable: !tool.oauth || isOAuthServiceDeploymentAvailable(tool.oauth.provider),
+      })
+    )
+    const owners = integrationPathOwners.get(path) ?? []
+    for (const owner of exposedTool.owners) {
+      if (!owners.some((existing) => existing.type === owner.blockType)) {
+        owners.push({ type: owner.blockType, preview: owner.preview })
       }
     }
+    integrationPathOwners.set(path, owners)
+    integrationCount++
   }
-
-  files.set(
-    'environment/oauth-integrations.json',
-    JSON.stringify(Object.fromEntries(oauthServices), null, 2)
-  )
-  files.set(
-    'environment/api-key-integrations.json',
-    serializeApiKeyIntegrations(exposedTools, isHosted)
-  )
 
   files.set(
     'components/blocks/loop.json',
@@ -389,33 +532,7 @@ function getStaticComponentFiles(): Map<string, string> {
     externalTriggerCount++
   }
 
-  files.set(
-    'components/triggers/triggers.md',
-    serializeTriggerOverview(
-      // The overview is a shared file — preview trigger blocks stay out of it
-      // (their per-type schema file remains discoverable for revealed viewers).
-      builtinTriggerBlocks
-        .filter((b) => !b.preview)
-        .map((b) => ({
-          id: b.type,
-          name: b.name,
-          provider: 'sim',
-          description: b.description,
-        })),
-      // Same for external triggers: a trigger owned solely by preview blocks is
-      // hidden under the null (no-viewer) state this shared file is built with.
-      Object.entries(TRIGGER_REGISTRY)
-        .filter(
-          ([id, t]) => !isStaticFileHidden(`components/triggers/${t.provider}/${id}.json`, null)
-        )
-        .map(([id, t]) => ({
-          id,
-          name: t.name,
-          provider: t.provider,
-          description: t.description,
-        }))
-    )
-  )
+  files.set('components/triggers/triggers.md', buildTriggerOverview(null, null))
 
   logger.info('Static component files built', {
     blocks: visibleBlocks.length,
@@ -449,9 +566,9 @@ function getStaticComponentFiles(): Map<string, string> {
  *   files/{name}                         (workspace file leaf; dynamic content on read)
  *   files/{path}/{name}/style            (dynamic — style extraction for .docx/.pptx/.pdf)
  *   files/{path}/{name}/compiled-check   (dynamic — compile generated source / validate diagrams, returns {ok,error?})
- *   tasks/{title}/session.md
- *   tasks/{title}/chat.json
  *   custom-tools/{name}.json
+ *   agent/sandboxes/README.md
+ *   agent/sandboxes/{name}.json
  *   environment/credentials.json
  *   environment/api-keys.json
  *   environment/variables.json
@@ -555,15 +672,11 @@ export class WorkspaceVFS {
   }
 
   /** Load a workflow's deployment data once per instance (deployment.json + versions.json share it). */
-  private loadDeployments(wf: {
-    id: string
-    isDeployed: boolean
-    deployedAt: Date | null
-  }): Promise<DeploymentData | null> {
-    let cached = this.deploymentCache.get(wf.id)
+  private loadDeployments(workflowId: string): Promise<DeploymentData | null> {
+    let cached = this.deploymentCache.get(workflowId)
     if (!cached) {
-      cached = this.getWorkflowDeployments(wf.id, this._workspaceId, wf.isDeployed, wf.deployedAt)
-      this.deploymentCache.set(wf.id, cached)
+      cached = this.getWorkflowDeployments(workflowId, this._workspaceId)
+      this.deploymentCache.set(workflowId, cached)
     }
     return cached
   }
@@ -588,7 +701,8 @@ export class WorkspaceVFS {
         path,
         error: toError(err).message,
       })
-      content = null
+      this.lazy.set(path, loader)
+      throw err
     }
     if (content !== null) this.files.set(path, content)
     return content
@@ -640,7 +754,11 @@ export class WorkspaceVFS {
    * Uses shared service functions for all data access, then generates
    * WORKSPACE.md from the summaries returned by each materializer.
    */
-  async materialize(workspaceId: string, userId: string): Promise<void> {
+  async materialize(
+    workspaceId: string,
+    userId: string,
+    options?: { secretMountPolicy?: SecretMountPolicy }
+  ): Promise<void> {
     const start = Date.now()
     this.files = new Map()
     this.lazy = new Map()
@@ -659,7 +777,6 @@ export class WorkspaceVFS {
         phaseMs[phase] = Date.now() - t0
       })
     }
-
     await trace
       .getTracer('sim-copilot-vfs', '1.0.0')
       .startActiveSpan(
@@ -667,6 +784,15 @@ export class WorkspaceVFS {
         { attributes: { [TraceAttr.WorkspaceId]: workspaceId } },
         async (span) => {
           try {
+            const blockVisibility = overlayVisibility()
+            const permissionConfigPromise = timed(
+              'permissions',
+              getUserPermissionConfig(userId, workspaceId)
+            )
+            const sandboxEntitlementPromise = timed(
+              'sandbox_entitlement',
+              hasWorkspaceSandboxAccess(workspaceId)
+            )
             const [
               wfSummary,
               kbSummary,
@@ -677,27 +803,42 @@ export class WorkspaceVFS {
               customBlocksSummary,
               mcpServersSummary,
               skillsSummary,
+              sandboxesSummary,
               wsRow,
               members,
+              permissionConfig,
+              sandboxEntitled,
             ] = await Promise.all([
               timed('workflows', this.materializeWorkflows(workspaceId)),
               timed('knowledge_bases', this.materializeKnowledgeBases(workspaceId, userId)),
               timed('tables', this.materializeTables(workspaceId)),
               timed('files', this.materializeFiles(workspaceId)),
-              timed('environment', this.materializeEnvironment(workspaceId, userId)),
+              timed(
+                'environment',
+                this.materializeEnvironment(
+                  workspaceId,
+                  userId,
+                  permissionConfigPromise,
+                  blockVisibility,
+                  options?.secretMountPolicy
+                )
+              ),
               timed('custom_tools', this.materializeCustomTools(workspaceId, userId)),
               timed('custom_blocks', this.materializeCustomBlocks(workspaceId)),
               timed('mcp_servers', this.materializeMcpServers(workspaceId)),
               timed('skills', this.materializeSkills(workspaceId)),
+              timed(
+                'sandboxes',
+                sandboxEntitlementPromise.then((entitled) =>
+                  entitled ? this.materializeSandboxes(workspaceId) : []
+                )
+              ),
               timed('workspace_row', getWorkspaceWithOwner(workspaceId)),
               timed('members', getUsersWithPermissions(workspaceId)),
-              // Writes tasks/ files only — WORKSPACE.md has no Tasks section
-              // (recent chats reorder every turn and would bust the cached
-              // prompt prefix), so nothing is destructured from this one.
-              timed('tasks', this.materializeTasks(workspaceId, userId)),
+              permissionConfigPromise,
+              sandboxEntitlementPromise,
             ])
-
-            const workspaceMdData = {
+            const workspaceMdData: WorkspaceMdData = {
               workspace: wsRow,
               members,
               workflows: wfSummary,
@@ -710,6 +851,7 @@ export class WorkspaceVFS {
               customBlocks: customBlocksSummary,
               mcpServers: mcpServersSummary,
               skills: skillsSummary,
+              ...(sandboxEntitled ? { sandboxes: sandboxesSummary } : {}),
             }
 
             this.files.set('WORKSPACE.md', buildWorkspaceMd(workspaceMdData))
@@ -719,11 +861,47 @@ export class WorkspaceVFS {
 
             // Per-viewer gating happens HERE, not in the shared builder: files
             // owned by blocks hidden for this viewer are skipped at stamp time.
-            const blockVisibility = overlayVisibility()
+            const configuredAllowedIntegrations = intersectIntegrationAllowlists(
+              permissionConfig?.allowedIntegrations ?? null,
+              getAllowedIntegrationsFromEnv()
+            )
+            const allowedIntegrationTypes = configuredAllowedIntegrations
+              ? new Set(configuredAllowedIntegrations.map((type) => type.toLowerCase()))
+              : null
             for (const [path, content] of getStaticComponentFiles()) {
-              if (isStaticFileHidden(path, blockVisibility)) continue
+              if (isStaticFileHidden(path, blockVisibility, allowedIntegrationTypes)) continue
+              const projectedContent =
+                path === 'components/blocks/function.json' && !sandboxEntitled
+                  ? (staticFunctionSchemaWithRestrictedSimSandboxes ?? content)
+                  : content
+              this.files.set(path, projectedContent)
+            }
+            const viewerIntegrationTools = filterExposedIntegrationTools(
+              getExposedIntegrationTools(),
+              blockVisibility,
+              (owner) =>
+                isIntegrationDeploymentAvailableForVisibility(owner.blockType, blockVisibility) &&
+                (allowedIntegrationTypes === null ||
+                  allowedIntegrationTypes.has(owner.blockType.toLowerCase()))
+            )
+            for (const exposedTool of viewerIntegrationTools) {
+              const { config: tool, service, operation, blockType } = exposedTool
+              this.files.set(
+                `components/integrations/${service}/${operation}.json`,
+                serializeIntegrationSchema(tool, {
+                  oauthAvailable:
+                    !tool.oauth || isOAuthServiceDeploymentAvailable(tool.oauth.provider),
+                  ownerBlockType: blockType,
+                })
+              )
+            }
+            for (const [path, content] of buildIntegrationAggregateFiles(viewerIntegrationTools)) {
               this.files.set(path, content)
             }
+            this.files.set(
+              'components/triggers/triggers.md',
+              buildTriggerOverview(blockVisibility, allowedIntegrationTypes)
+            )
 
             span.setAttributes({
               [TraceAttr.CopilotVfsMaterializeFileCount]: this.files.size,
@@ -811,6 +989,14 @@ export class WorkspaceVFS {
     pattern: string,
     options?: GrepOptions
   ): Promise<GrepMatch[] | string[] | ops.GrepCountEntry[]> {
+    return (await this.grepFileWithProvenance(path, pattern, options)).value
+  }
+
+  async grepFileWithProvenance(
+    path: string,
+    pattern: string,
+    options?: GrepOptions
+  ): Promise<WorkspaceFileSecretProvenanceEnvelope<GrepMatch[] | string[] | ops.GrepCountEntry[]>> {
     const normalized = path.replace(/^\/+/, '')
     // Prefer the path verbatim when it is itself a file leaf (e.g. a file literally
     // named "content"); otherwise drop a trailing "/content" read suffix.
@@ -829,12 +1015,15 @@ export class WorkspaceVFS {
     }
 
     const contentPath = `${leaf}/content`
-    const result = await this.readFileContent(contentPath)
+    const result = await this.readFileContentWithProvenance(contentPath)
     if (!result) {
       throw new ops.WorkspaceFileGrepError(`Workspace file content not found for "${path}".`)
     }
 
-    return ops.grepReadResult(leaf, result, pattern, contentPath, options)
+    return {
+      value: ops.grepReadResult(leaf, result.value, pattern, contentPath, options),
+      file: result.file,
+    }
   }
 
   glob(pattern: string): string[] {
@@ -880,7 +1069,8 @@ export class WorkspaceVFS {
   private async renderDocRecordResult(
     record: WorkspaceFileRecord,
     ext: string,
-    buildMessage: (pageCount: number) => string
+    buildMessage: (pageCount: number) => string,
+    contributingFiles: Map<string, WorkspaceFileSecretProvenanceIdentity>
   ): Promise<FileReadResult> {
     if (typeof record.size === 'number' && record.size > MAX_DOC_READ_INPUT_BYTES) {
       return {
@@ -909,10 +1099,16 @@ export class WorkspaceVFS {
           totalLines: 1,
         }
       }
-      if (isDocSandboxEnabled && (await getE2BDocFormat(record.name))) {
-        bin = (
-          await compileDoc({ source: code, fileName: record.name, workspaceId: this._workspaceId })
-        ).buffer
+      if (await getE2BDocFormat(record.name)) {
+        const compiled = await compileDoc({
+          source: code,
+          fileName: record.name,
+          workspaceId: this._workspaceId,
+        })
+        for (const identity of compiled.contributingFiles ?? []) {
+          recordContributingFile(contributingFiles, identity)
+        }
+        bin = compiled.buffer
       } else {
         const taskId = BINARY_DOC_TASKS[ext]
         if (!taskId) {
@@ -921,7 +1117,14 @@ export class WorkspaceVFS {
             totalLines: 1,
           }
         }
-        bin = await runSandboxTask(taskId, { code, workspaceId: this._workspaceId })
+        bin = await runSandboxTask(
+          taskId,
+          { code, workspaceId: this._workspaceId },
+          {
+            onWorkspaceFileAccess: (identity) =>
+              recordContributingFile(contributingFiles, identity),
+          }
+        )
       }
     }
     const { grid, pageCount } = await renderDocToGrid({
@@ -955,16 +1158,23 @@ export class WorkspaceVFS {
    * Returns null if the path doesn't match a dynamic file path or the file isn't found.
    */
   async readFileContent(path: string): Promise<FileReadResult | null> {
+    return (await this.readFileContentWithProvenance(path))?.value ?? null
+  }
+
+  async readFileContentWithProvenance(
+    path: string
+  ): Promise<WorkspaceFileSecretProvenanceEnvelope<FileReadResult> | null> {
     const compiledMatch = /^files\/.+\/compiled$/.test(path)
     if (compiledMatch) {
       let record: WorkspaceFileRecord | null = null
+      const contributingFiles = new Map<string, WorkspaceFileSecretProvenanceIdentity>()
       try {
         record = await this.resolveWorkspaceFileForDynamicRead(path, 'compiled')
         if (!record) return null
         const ext = record.name.split('.').pop()?.toLowerCase() ?? ''
-        const e2bFmt = isDocSandboxEnabled ? await getE2BDocFormat(record.name) : null
+        const docFmt = await getE2BDocFormat(record.name)
         const taskId = BINARY_DOC_TASKS[ext]
-        if (!e2bFmt && !taskId) return null
+        if (!docFmt && !taskId) return null
 
         // Only PDF can be attached as a model-readable `document` block —
         // Bedrock/Anthropic document blocks accept application/pdf ONLY. Attaching
@@ -975,59 +1185,80 @@ export class WorkspaceVFS {
         if (ext !== 'pdf') {
           if (isRenderableDocExt(ext)) {
             const compiledName = record.name
-            return await this.renderDocRecordResult(
+            const rendered = await this.renderDocRecordResult(
               record,
               ext,
               (pageCount) =>
-                `${compiledName}: the raw ${ext.toUpperCase()} binary isn't model-readable, so it was rendered to ${pageCount} page image(s) for inspection.`
+                `${compiledName}: the raw ${ext.toUpperCase()} binary isn't model-readable, so it was rendered to ${pageCount} page image(s) for inspection.`,
+              contributingFiles
             )
+            return bindWorkspaceFileResult(record, rendered, 'derived', [
+              ...contributingFiles.values(),
+            ])
           }
           const extractPath = `${canonicalWorkspaceFilePath({
             folderPath: record.folderPath,
             name: record.name,
           })}/extract`
-          return {
+          return bindWorkspaceFileResult(record, {
             content: `${record.name} is a spreadsheet — read "${extractPath}" for its contents.`,
             totalLines: 1,
-          }
+          })
         }
 
         const buffer = await fetchWorkspaceFileBuffer(record)
         const code = buffer.toString('utf-8')
         if (Buffer.byteLength(code, 'utf-8') > MAX_DOCUMENT_PREVIEW_CODE_BYTES) {
-          return {
+          return bindWorkspaceFileResult(record, {
             content: JSON.stringify({ ok: false, error: 'File source exceeds maximum size' }),
             totalLines: 1,
-          }
+          })
         }
-        const compiled = e2bFmt
-          ? (
-              await compileDoc({
-                source: code,
-                fileName: record.name,
-                workspaceId: this._workspaceId,
-              })
-            ).buffer
-          : await runSandboxTask(taskId, { code, workspaceId: this._workspaceId })
+        let compiled: Buffer
+        if (docFmt) {
+          const compiledResult = await compileDoc({
+            source: code,
+            fileName: record.name,
+            workspaceId: this._workspaceId,
+          })
+          for (const identity of compiledResult.contributingFiles ?? []) {
+            recordContributingFile(contributingFiles, identity)
+          }
+          compiled = compiledResult.buffer
+        } else {
+          compiled = await runSandboxTask(
+            taskId,
+            { code, workspaceId: this._workspaceId },
+            {
+              onWorkspaceFileAccess: (identity) =>
+                recordContributingFile(contributingFiles, identity),
+            }
+          )
+        }
         if (compiled.length > MAX_COMPILED_ATTACHMENT_BYTES) {
-          return {
+          return bindWorkspaceFileResult(record, {
             content: `[Compiled artifact too large: ${record.name} (${compiled.length} bytes, limit ${MAX_COMPILED_ATTACHMENT_BYTES})]`,
             totalLines: 1,
-          }
+          })
         }
-        return {
-          content: `Compiled file: ${record.name} (${compiled.length} bytes, application/pdf)`,
-          totalLines: 1,
-          attachment: {
-            type: 'file',
-            name: record.name,
-            source: {
-              type: 'base64',
-              media_type: 'application/pdf',
-              data: compiled.toString('base64'),
+        return bindWorkspaceFileResult(
+          record,
+          {
+            content: `Compiled file: ${record.name} (${compiled.length} bytes, application/pdf)`,
+            totalLines: 1,
+            attachment: {
+              type: 'file',
+              name: record.name,
+              source: {
+                type: 'base64',
+                media_type: 'application/pdf',
+                data: compiled.toString('base64'),
+              },
             },
           },
-        }
+          'derived',
+          [...contributingFiles.values()]
+        )
       } catch (err) {
         logger.warn('Compiled artifact read failed via VFS', {
           workspaceId: this._workspaceId,
@@ -1041,7 +1272,9 @@ export class WorkspaceVFS {
             error: toError(err).message,
             errorName: err.name,
           })
-          return { content: json, totalLines: 1 }
+          return record
+            ? bindWorkspaceFileResult(record, { content: json, totalLines: 1 })
+            : { value: { content: json, totalLines: 1 } }
         }
         return null
       }
@@ -1050,26 +1283,29 @@ export class WorkspaceVFS {
     const renderMatch = /^files\/.+\/render$/.test(path)
     if (renderMatch) {
       let record: WorkspaceFileRecord | null = null
+      const contributingFiles = new Map<string, WorkspaceFileSecretProvenanceIdentity>()
       try {
         record = await this.resolveWorkspaceFileForDynamicRead(path, 'render')
         if (!record) return null
         const ext = record.name.split('.').pop()?.toLowerCase() ?? ''
         if (!isRenderableDocExt(ext)) {
-          return {
+          return bindWorkspaceFileResult(record, {
             content: JSON.stringify({
               ok: false,
               error: 'Render supports .pptx, .docx, and .pdf only',
             }),
             totalLines: 1,
-          }
+          })
         }
         const renderName = record.name
-        return await this.renderDocRecordResult(
+        const rendered = await this.renderDocRecordResult(
           record,
           ext,
           (pageCount) =>
-            `Rendered ${pageCount} page(s) of ${renderName} as a contact-sheet grid for visual QA. Inspect each page for text overflow/cutoff, overlapping elements, low contrast, misalignment, and leftover placeholder text; fix and re-render until clean.`
+            `Rendered ${pageCount} page(s) of ${renderName} as a contact-sheet grid for visual QA. Inspect each page for text overflow/cutoff, overlapping elements, low contrast, misalignment, and leftover placeholder text; fix and re-render until clean.`,
+          contributingFiles
         )
+        return bindWorkspaceFileResult(record, rendered, 'derived', [...contributingFiles.values()])
       } catch (err) {
         logger.warn('Render read failed via VFS', {
           workspaceId: this._workspaceId,
@@ -1080,10 +1316,11 @@ export class WorkspaceVFS {
         // Return an explicit error (not null) once the file resolved — a null read
         // looks like a missing path and sends the agent hunting for the "correct"
         // render path instead of surfacing the real compile/render failure.
-        return {
+        const errorResult = {
           content: JSON.stringify({ ok: false, error: toError(err).message }),
           totalLines: 1,
         }
+        return record ? bindWorkspaceFileResult(record, errorResult) : { value: errorResult }
       }
     }
 
@@ -1095,47 +1332,47 @@ export class WorkspaceVFS {
         if (!record) return null
         const ext = record.name.split('.').pop()?.toLowerCase() ?? ''
         if (!isExtractableDocExt(ext)) {
-          return {
+          return bindWorkspaceFileResult(record, {
             content: JSON.stringify({
               ok: false,
               error: 'Extraction supports .pdf, .pptx, .docx, and .xlsx only',
             }),
             totalLines: 1,
-          }
+          })
         }
         // Bound the input before downloading + base64-staging it in-process.
         if (typeof record.size === 'number' && record.size > MAX_DOC_READ_INPUT_BYTES) {
-          return {
+          return bindWorkspaceFileResult(record, {
             content: JSON.stringify({ ok: false, error: 'File is too large to extract' }),
             totalLines: 1,
-          }
+          })
         }
         const buffer = await fetchWorkspaceFileBuffer(record)
         if (buffer.length > MAX_DOC_READ_INPUT_BYTES) {
-          return {
+          return bindWorkspaceFileResult(record, {
             content: JSON.stringify({ ok: false, error: 'File is too large to extract' }),
             totalLines: 1,
-          }
+          })
         }
         // Extraction reads the binary. A source-backed generated doc (text source,
         // no binary magic) should be read directly instead — point the agent there.
         if (!isBinaryDocBuffer(buffer, ext)) {
-          return {
+          return bindWorkspaceFileResult(record, {
             content: JSON.stringify({
               ok: false,
               error: 'This is a source-backed generated file; read its content directly instead.',
             }),
             totalLines: 1,
-          }
+          })
         }
         const { text, truncated } = await extractDocText({ binary: buffer, ext })
         const note = truncated
           ? '\n\n[... truncated — read the file directly for the full content]'
           : ''
-        return {
+        return bindWorkspaceFileResult(record, {
           content: `${text || '[no extractable text found]'}${note}`,
           totalLines: 1,
-        }
+        })
       } catch (err) {
         logger.warn('Extract read failed via VFS', {
           workspaceId: this._workspaceId,
@@ -1143,10 +1380,11 @@ export class WorkspaceVFS {
           fileId: record?.id,
           error: toError(err).message,
         })
-        return {
+        const errorResult = {
           content: JSON.stringify({ ok: false, error: toError(err).message }),
           totalLines: 1,
         }
+        return record ? bindWorkspaceFileResult(record, errorResult) : { value: errorResult }
       }
     }
 
@@ -1164,15 +1402,15 @@ export class WorkspaceVFS {
         const buffer = await fetchWorkspaceFileBuffer(record)
         const code = buffer.toString('utf-8')
         if (Buffer.byteLength(code, 'utf-8') > MAX_DOCUMENT_PREVIEW_CODE_BYTES) {
-          return {
+          return bindWorkspaceFileResult(record, {
             content: JSON.stringify({ ok: false, error: 'File source exceeds maximum size' }),
             totalLines: 1,
-          }
+          })
         }
         if (isMermaidFile) {
           const result = await validateMermaidSource(code)
           const json = JSON.stringify(result)
-          return { content: json, totalLines: 1 }
+          return bindWorkspaceFileResult(record, { content: json, totalLines: 1 })
         }
         let result: { ok: boolean; error?: string; errorName?: string }
         if (e2bFmt) {
@@ -1199,7 +1437,7 @@ export class WorkspaceVFS {
           }
         }
         const json = JSON.stringify(result)
-        return { content: json, totalLines: 1 }
+        return bindWorkspaceFileResult(record, { content: json, totalLines: 1 })
       } catch (err) {
         logger.warn('Compiled check failed via VFS', {
           workspaceId: this._workspaceId,
@@ -1224,7 +1462,10 @@ export class WorkspaceVFS {
         const summary = await extractDocumentStyle(buffer, ext)
         if (!summary) return null
         const json = JSON.stringify(summary, null, 2)
-        return { content: json, totalLines: json.split('\n').length }
+        return bindWorkspaceFileResult(record, {
+          content: json,
+          totalLines: json.split('\n').length,
+        })
       } catch (err) {
         logger.warn('Failed to extract document style via VFS', {
           workspaceId: this._workspaceId,
@@ -1253,7 +1494,14 @@ export class WorkspaceVFS {
       const files = await listWorkspaceFiles(this._workspaceId, { scope })
       const record = findWorkspaceFileRecord(files, fileReference)
       if (!record) return null
-      return readFileRecord(record)
+      const result = await readFileRecord(record)
+      return result
+        ? bindWorkspaceFileResult(
+            record,
+            result,
+            isReadableFileType(record.type) ? 'complete' : 'derived'
+          )
+        : null
     } catch (err) {
       logger.warn('Failed to list workspace files for readFileContent', {
         workspaceId: this._workspaceId,
@@ -1317,6 +1565,33 @@ export class WorkspaceVFS {
       listWorkflows(workspaceId),
       listFolders(workspaceId),
     ])
+    const deploymentVersionRows =
+      workflowRows.length === 0
+        ? []
+        : await db
+            .select({
+              workflowId: workflowDeploymentVersion.workflowId,
+              isActive: workflowDeploymentVersion.isActive,
+              createdAt: workflowDeploymentVersion.createdAt,
+            })
+            .from(workflowDeploymentVersion)
+            .where(
+              inArray(
+                workflowDeploymentVersion.workflowId,
+                workflowRows.map((workflowRow) => workflowRow.id)
+              )
+            )
+    const versionedWorkflowIds = new Set(
+      deploymentVersionRows.map((deploymentVersion) => deploymentVersion.workflowId)
+    )
+    const activeDeploymentDates = new Map<string, Date>()
+    for (const deploymentVersion of deploymentVersionRows) {
+      if (!deploymentVersion.isActive) continue
+      const current = activeDeploymentDates.get(deploymentVersion.workflowId)
+      if (!current || current < deploymentVersion.createdAt) {
+        activeDeploymentDates.set(deploymentVersion.workflowId, deploymentVersion.createdAt)
+      }
+    }
 
     const folderPaths = this.buildFolderPaths(folderRows)
     const lockedFolderIds = this.computeLockedFolderIds(folderRows)
@@ -1331,12 +1606,21 @@ export class WorkspaceVFS {
 
     await Promise.all(
       workflowRows.map(async (wf) => {
+        const deployedAt = activeDeploymentDates.get(wf.id) ?? null
+        const authoritativeWorkflow = {
+          ...wf,
+          isDeployed: deployedAt !== null,
+          deployedAt,
+        }
         const folderPath = wf.folderId ? folderPaths.get(wf.folderId) : null
         const prefix = `${canonicalWorkflowVfsDir({ name: wf.name, folderPath })}/`
         const workflowPath = prefix.replace(/\/$/, '')
 
         const inheritedFolderLock = wf.folderId ? lockedFolderIds.has(wf.folderId) : false
-        this.files.set(`${prefix}meta.json`, serializeWorkflowMeta(wf, { inheritedFolderLock }))
+        this.files.set(
+          `${prefix}meta.json`,
+          serializeWorkflowMeta(authoritativeWorkflow, { inheritedFolderLock })
+        )
 
         // Heavy per-workflow content is LAZY: a read/glob never loads the block
         // graph, runs lint, or queries executions/deployments. Only a read of the
@@ -1407,15 +1691,13 @@ export class WorkspaceVFS {
           })
         }
 
-        // deployment.json / versions.json are advertised when the workflow is
-        // deployed (cheap signal: isDeployed). Both share one memoized query.
-        if (wf.isDeployed) {
+        if (versionedWorkflowIds.has(wf.id)) {
           this.registerLazy(`${prefix}deployment.json`, async () => {
-            const deploymentData = await this.loadDeployments(wf)
+            const deploymentData = await this.loadDeployments(wf.id)
             return deploymentData ? serializeDeployments(deploymentData) : null
           })
           this.registerLazy(`${prefix}versions.json`, async () => {
-            const deploymentData = await this.loadDeployments(wf)
+            const deploymentData = await this.loadDeployments(wf.id)
             return deploymentData?.versions && deploymentData.versions.length > 0
               ? serializeVersions(deploymentData.versions)
               : null
@@ -1427,7 +1709,7 @@ export class WorkspaceVFS {
     return workflowRows.map((wf) => ({
       id: wf.id,
       name: wf.name,
-      isDeployed: wf.isDeployed,
+      isDeployed: activeDeploymentDates.has(wf.id),
       lastRunAt: wf.lastRunAt,
       folderPath: wf.folderId ? (folderPaths.get(wf.folderId) ?? null) : null,
     }))
@@ -1704,9 +1986,7 @@ export class WorkspaceVFS {
    */
   private async getWorkflowDeployments(
     workflowId: string,
-    workspaceId: string,
-    isDeployed: boolean,
-    deployedAt: Date | null
+    workspaceId: string
   ): Promise<DeploymentData | null> {
     const [chatRows, mcpRows, versionRows, allVersionRows] = await Promise.all([
       db
@@ -1738,27 +2018,21 @@ export class WorkspaceVFS {
             isNull(workflowMcpServer.deletedAt)
           )
         ),
-      isDeployed
-        ? db
-            .select({
-              version: workflowDeploymentVersion.version,
-              state: workflowDeploymentVersion.state,
-              createdAt: workflowDeploymentVersion.createdAt,
-            })
-            .from(workflowDeploymentVersion)
-            .where(
-              and(
-                eq(workflowDeploymentVersion.workflowId, workflowId),
-                eq(workflowDeploymentVersion.isActive, true)
-              )
-            )
-            // Match checkNeedsRedeployment/loadDeployedWorkflowState. Historical
-            // workflows can contain more than one active row, so an unordered
-            // limit may compare the draft with an older deployment while the UI
-            // correctly compares against the newest active deployment.
-            .orderBy(desc(workflowDeploymentVersion.createdAt))
-            .limit(1)
-        : Promise.resolve([]),
+      db
+        .select({
+          version: workflowDeploymentVersion.version,
+          state: workflowDeploymentVersion.state,
+          createdAt: workflowDeploymentVersion.createdAt,
+        })
+        .from(workflowDeploymentVersion)
+        .where(
+          and(
+            eq(workflowDeploymentVersion.workflowId, workflowId),
+            eq(workflowDeploymentVersion.isActive, true)
+          )
+        )
+        .orderBy(desc(workflowDeploymentVersion.createdAt))
+        .limit(1),
       db
         .select({
           id: workflowDeploymentVersion.id,
@@ -1773,29 +2047,14 @@ export class WorkspaceVFS {
         .orderBy(desc(workflowDeploymentVersion.version)),
     ])
 
+    const deployedVersion = versionRows[0]
+    const isDeployed = Boolean(deployedVersion)
+    const deployedAt = deployedVersion?.createdAt ?? null
     const hasAnyDeployment = isDeployed || chatRows.length > 0 || mcpRows.length > 0
     if (!hasAnyDeployment && allVersionRows.length === 0) return null
 
-    let needsRedeployment: boolean | undefined
-    const deployedVersion = versionRows[0]
-    if (isDeployed && deployedVersion?.state) {
-      try {
-        // Use the canonical deployment snapshot (includes variables) so this
-        // matches check_deployment_status exactly. The reshaped normalized load
-        // dropped variables, which made any workflow with deployment variables
-        // permanently report needsRedeployment: true.
-        const currentSnapshot = await loadWorkflowDeploymentSnapshot(workflowId)
-        needsRedeployment = computeNeedsRedeployment(
-          currentSnapshot,
-          deployedVersion.state as WorkflowState
-        )
-      } catch (err) {
-        logger.warn('Failed to compute needsRedeployment', {
-          workflowId,
-          error: toError(err).message,
-        })
-      }
-    }
+    const needsRedeployment =
+      isDeployed && deployedVersion?.state ? await checkNeedsRedeployment(workflowId) : undefined
 
     return {
       workflowId,
@@ -1999,88 +2258,38 @@ export class WorkspaceVFS {
   }
 
   /**
-   * Materialize mothership task chats as browsable conversation files under
-   * `tasks/{title}/`. Nothing is returned: the inventory deliberately has no
-   * Tasks section, so these files are reached through glob/read only.
+   * Project the shared sandbox domain objects into discoverable VFS resources.
+   * Entitlement is checked by the caller before this method runs.
    */
-  private async materializeTasks(workspaceId: string, userId: string): Promise<void> {
+  private async materializeSandboxes(
+    workspaceId: string
+  ): Promise<NonNullable<WorkspaceMdData['sandboxes']>> {
     try {
-      const taskRows = await db
-        .select({
-          id: copilotChats.id,
-          title: copilotChats.title,
-          messageCount: sql<number>`COALESCE((
-            SELECT COUNT(*) FROM copilot_messages cm
-            WHERE cm.chat_id = ${copilotChats.id} AND cm.deleted_at IS NULL
-          ), 0)`,
-          messages: sql<unknown[]>`COALESCE((
-            SELECT jsonb_agg(
-              jsonb_build_object(
-                'role', cm.content->>'role',
-                'content', cm.content->'content',
-                'contentBlocks', COALESCE((
-                  SELECT jsonb_agg(jsonb_build_object('type', 'text', 'content', b.value->'content') ORDER BY b.ord)
-                  FROM jsonb_array_elements(
-                    CASE WHEN jsonb_typeof(cm.content->'contentBlocks') = 'array'
-                         THEN cm.content->'contentBlocks'
-                         ELSE '[]'::jsonb
-                    END
-                  ) WITH ORDINALITY AS b(value, ord)
-                  WHERE b.value->>'type' = 'text'
-                ), '[]'::jsonb)
-              )
-              ORDER BY cm.seq ASC NULLS LAST, cm.created_at ASC, cm.id ASC
-            )
-            FROM copilot_messages cm
-            WHERE cm.chat_id = ${copilotChats.id}
-              AND cm.deleted_at IS NULL
-              AND cm.content->>'role' IN ('user', 'assistant')
-          ), '[]'::jsonb)`,
-          createdAt: copilotChats.createdAt,
-          updatedAt: copilotChats.updatedAt,
-        })
-        .from(copilotChats)
-        .where(
-          and(
-            eq(copilotChats.workspaceId, workspaceId),
-            eq(copilotChats.userId, userId),
-            eq(copilotChats.type, 'mothership'),
-            isNull(copilotChats.deletedAt)
-          )
-        )
-        .orderBy(desc(copilotChats.updatedAt))
-        .limit(5)
-
-      for (const task of taskRows) {
-        const title = task.title || 'Untitled task'
-        const safeName = sanitizeName(title)
-        const prefix = `tasks/${safeName}/`
-        const messages = Array.isArray(task.messages) ? task.messages : []
-        const messageCount = Number(task.messageCount) || 0
-
+      const sandboxes = await listWorkspaceSandboxes(workspaceId)
+      const strategy = currentSandboxStrategy()
+      this.files.set('agent/sandboxes/README.md', serializeSandboxCatalog(strategy))
+      for (const sandbox of sandboxes) {
         this.files.set(
-          `${prefix}session.md`,
-          serializeTaskSession({
-            id: task.id,
-            title,
-            messageCount,
-            createdAt: task.createdAt,
-            updatedAt: task.updatedAt,
-          })
+          `agent/sandboxes/${sanitizeName(sandbox.name)}.json`,
+          serializeSandbox(sandbox, strategy)
         )
-
-        if (messages.length > 0) {
-          this.files.set(`${prefix}chat.json`, serializeTaskChat(messages))
-        }
       }
+      return sandboxes.map((sandbox) => ({
+        id: sandbox.id,
+        name: sandbox.name,
+        language: sandbox.language,
+        dependencies: sandbox.dependencies,
+        systemPackages: sandbox.systemPackages,
+        cliTools: sandbox.cliTools,
+      }))
     } catch (err) {
-      logger.warn('Failed to materialize tasks', {
+      logger.warn('Failed to materialize Sim sandboxes', {
         workspaceId,
         error: toError(err).message,
       })
+      return []
     }
   }
-
   private async materializeRecentlyDeleted(workspaceId: string, userId: string): Promise<void> {
     try {
       const [
@@ -2229,29 +2438,59 @@ export class WorkspaceVFS {
    */
   private async materializeEnvironment(
     workspaceId: string,
-    userId: string
+    userId: string,
+    permissionConfigPromise: ReturnType<typeof getUserPermissionConfig>,
+    blockVisibility: BlockVisibilityState | null,
+    secretMountPolicy?: SecretMountPolicy
   ): Promise<{
     oauthIntegrations: WorkspaceMdData['oauthIntegrations']
     envVariables: WorkspaceMdData['envVariables']
   }> {
     try {
       const isWorkspaceAdmin = await hasWorkspaceAdminAccess(userId, workspaceId)
-      const [envCredentials, oauthCredentials, apiKeyRows, envData] = await Promise.all([
-        getAccessibleEnvCredentials(workspaceId, userId, { isWorkspaceAdmin }),
-        getAccessibleOAuthCredentials(workspaceId, userId, { isWorkspaceAdmin }),
-        listApiKeys(workspaceId),
-        getPersonalAndWorkspaceEnv(userId, workspaceId),
-      ])
+      const [envCredentials, oauthCredentials, apiKeyRows, envData, permissionConfig] =
+        await Promise.all([
+          getAccessibleEnvCredentials(workspaceId, userId, { isWorkspaceAdmin }),
+          getAccessibleOAuthCredentials(workspaceId, userId, { isWorkspaceAdmin }),
+          listApiKeys(workspaceId),
+          getPersonalAndWorkspaceEnv(userId, workspaceId),
+          permissionConfigPromise,
+        ])
+      const configuredAllowedIntegrations = intersectIntegrationAllowlists(
+        permissionConfig?.allowedIntegrations ?? null,
+        getAllowedIntegrationsFromEnv()
+      )
+      const credentialVisibility = createIntegrationCredentialVisibility({
+        allowedIntegrationTypes: configuredAllowedIntegrations
+          ? new Set(configuredAllowedIntegrations.map((type) => type.toLowerCase()))
+          : null,
+        blockVisibility,
+      })
+      const visibleOAuthCredentials = oauthCredentials.filter((credential) =>
+        credentialVisibility.isCredentialVisible({
+          providerId: credential.providerId,
+          type: credential.type,
+        })
+      )
+      const visibleEnvCredentialNames = new Set(
+        filterSecretNamesByMountPolicy(
+          envCredentials.map((credential) => credential.envKey),
+          secretMountPolicy
+        )
+      )
+      const visibleEnvCredentials = envCredentials.filter((credential) =>
+        visibleEnvCredentialNames.has(credential.envKey)
+      )
 
       this.files.set(
         'environment/credentials.json',
         serializeCredentials([
-          ...envCredentials.map((c) => ({
+          ...visibleEnvCredentials.map((c) => ({
             providerId: c.envKey,
             scope: c.type === 'env_workspace' ? 'workspace' : 'personal',
             createdAt: c.updatedAt,
           })),
-          ...oauthCredentials.map((c) => ({
+          ...visibleOAuthCredentials.map((c) => ({
             id: c.id,
             providerId: c.providerId,
             displayName: c.displayName,
@@ -2265,16 +2504,22 @@ export class WorkspaceVFS {
 
       this.files.set('environment/api-keys.json', serializeApiKeys(apiKeyRows))
 
-      const personalVarNames = Object.keys(envData.personalEncrypted)
-      const workspaceVarNames = Object.keys(envData.workspaceEncrypted)
+      const personalVarNames = filterSecretNamesByMountPolicy(
+        Object.keys(envData.personalEncrypted),
+        secretMountPolicy
+      )
+      const workspaceVarNames = filterSecretNamesByMountPolicy(
+        Object.keys(envData.workspaceEncrypted),
+        secretMountPolicy
+      )
       this.files.set(
         'environment/variables.json',
         serializeEnvironmentVariables(personalVarNames, workspaceVarNames)
       )
 
-      const envKeys = [...new Set(envCredentials.map((c) => c.envKey))]
+      const envKeys = [...visibleEnvCredentialNames]
       return {
-        oauthIntegrations: oauthCredentials.map((c) => ({
+        oauthIntegrations: visibleOAuthCredentials.map((c) => ({
           id: c.id,
           providerId: c.providerId,
           displayName: c.displayName,
@@ -2299,11 +2544,12 @@ export class WorkspaceVFS {
  */
 export async function getOrMaterializeVFS(
   workspaceId: string,
-  userId: string
+  userId: string,
+  options?: { secretMountPolicy?: SecretMountPolicy }
 ): Promise<WorkspaceVFS> {
   await assertActiveWorkspaceAccess(workspaceId, userId)
   const vfs = new WorkspaceVFS()
-  await vfs.materialize(workspaceId, userId)
+  await vfs.materialize(workspaceId, userId, options)
   return vfs
 }
 

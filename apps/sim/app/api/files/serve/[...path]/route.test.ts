@@ -7,6 +7,13 @@ import { hybridAuthMockFns, storageServiceMock, storageServiceMockFns } from '@s
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+vi.mock('@sim/logger', () => ({
+  createLogger: vi.fn(() => serveLogger),
+  logger: serveLogger,
+  runWithRequestContext: vi.fn(<T>(_ctx: unknown, fn: () => T): T => fn()),
+  getRequestContext: vi.fn(() => undefined),
+}))
+
 const {
   mockVerifyFileAccess,
   mockReadFile,
@@ -18,6 +25,7 @@ const {
   mockCreateFileResponse,
   mockCreateErrorResponse,
   FileNotFoundError,
+  serveLogger,
 } = vi.hoisted(() => {
   class FileNotFoundErrorClass extends Error {
     constructor(message: string) {
@@ -26,6 +34,7 @@ const {
     }
   }
   return {
+    serveLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
     mockVerifyFileAccess: vi.fn(),
     mockReadFile: vi.fn(),
     mockIsUsingCloudStorage: vi.fn(),
@@ -231,5 +240,33 @@ describe('File Serve API Route', () => {
         expect(response.headers.get('Content-Type')).toBe(test.contentType)
       })
     }
+  })
+
+  describe('failure log level', () => {
+    it('records a missing file at info, not error', async () => {
+      /** A superseded key is an ordinary 404, not a server fault. */
+      const req = new NextRequest('http://localhost:3000/api/files/serve/')
+      const response = await GET(req, { params: Promise.resolve({ path: [] }) })
+
+      expect(response.status).toBe(404)
+      expect(serveLogger.info).toHaveBeenCalledWith(
+        'Error serving file:',
+        expect.objectContaining({ reason: expect.any(String) })
+      )
+      expect(serveLogger.error).not.toHaveBeenCalled()
+    })
+
+    it('still records a genuine failure at error', async () => {
+      mockVerifyFileAccess.mockRejectedValueOnce(new Error('permission backend down'))
+
+      const req = new NextRequest(
+        'http://localhost:3000/api/files/serve/workspace/ws/test-file.txt'
+      )
+      await GET(req, {
+        params: Promise.resolve({ path: ['workspace', 'ws', 'test-file.txt'] }),
+      }).catch(() => undefined)
+
+      expect(serveLogger.error).toHaveBeenCalled()
+    })
   })
 })

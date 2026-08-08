@@ -37,7 +37,7 @@ Integrate Linear into the workflow. Can manage issues, comments, projects, label
 
 ## Actions
 
-### `linear_read_issues`
+### Linear Issue Reader
 
 Fetch and filter issues from Linear
 
@@ -95,7 +95,7 @@ Fetch and filter issues from Linear
 |     ↳ `name` | string | Label name |
 |     ↳ `color` | string | Label color \(hex\) |
 
-### `linear_get_issue`
+### Linear Get Issue
 
 Get a single issue by ID from Linear with full details
 
@@ -137,7 +137,7 @@ Get a single issue by ID from Linear with full details
 |     ↳ `name` | string | Label name |
 |     ↳ `color` | string | Label color \(hex\) |
 
-### `linear_create_issue`
+### Linear Issue Writer
 
 Create a new issue in Linear
 
@@ -199,7 +199,7 @@ Create a new issue in Linear
 |   ↳ `projectMilestoneId` | string | Project milestone ID |
 |   ↳ `projectMilestoneName` | string | Project milestone name |
 
-### `linear_update_issue`
+### Linear Update Issue
 
 Update an existing issue in Linear
 
@@ -261,7 +261,7 @@ Update an existing issue in Linear
 |   ↳ `projectMilestoneId` | string | Project milestone ID |
 |   ↳ `projectMilestoneName` | string | Project milestone name |
 
-### `linear_archive_issue`
+### Linear Archive Issue
 
 Archive an issue in Linear
 
@@ -278,7 +278,7 @@ Archive an issue in Linear
 | `success` | boolean | Whether the archive operation was successful |
 | `issueId` | string | The ID of the archived issue |
 
-### `linear_unarchive_issue`
+### Linear Unarchive Issue
 
 Unarchive (restore) an archived issue in Linear
 
@@ -295,7 +295,7 @@ Unarchive (restore) an archived issue in Linear
 | `success` | boolean | Whether the unarchive operation was successful |
 | `issueId` | string | The ID of the unarchived issue |
 
-### `linear_delete_issue`
+### Linear Delete Issue
 
 Delete (trash) an issue in Linear
 
@@ -311,7 +311,7 @@ Delete (trash) an issue in Linear
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the delete operation was successful |
 
-### `linear_search_issues`
+### Linear Search Issues
 
 Search for issues in Linear using full-text search
 
@@ -360,7 +360,7 @@ Search for issues in Linear using full-text search
 |     ↳ `name` | string | Label name |
 |     ↳ `color` | string | Label color \(hex\) |
 
-### `linear_add_label_to_issue`
+### Linear Add Label to Issue
 
 Add a label to an issue in Linear
 
@@ -378,7 +378,7 @@ Add a label to an issue in Linear
 | `success` | boolean | Whether the label was successfully added |
 | `issueId` | string | The ID of the issue |
 
-### `linear_remove_label_from_issue`
+### Linear Remove Label from Issue
 
 Remove a label from an issue in Linear
 
@@ -396,7 +396,7 @@ Remove a label from an issue in Linear
 | `success` | boolean | Whether the label was successfully removed |
 | `issueId` | string | The ID of the issue |
 
-### `linear_create_comment`
+### Linear Create Comment
 
 Add a comment to an issue in Linear
 
@@ -424,7 +424,7 @@ Add a comment to an issue in Linear
 |     ↳ `id` | string | Issue ID |
 |     ↳ `title` | string | Issue title |
 
-### `linear_update_comment`
+### Linear Update Comment
 
 Edit a comment in Linear
 
@@ -452,7 +452,7 @@ Edit a comment in Linear
 |     ↳ `id` | string | Issue ID |
 |     ↳ `title` | string | Issue title |
 
-### `linear_delete_comment`
+### Linear Delete Comment
 
 Delete a comment from Linear
 
@@ -468,7 +468,7 @@ Delete a comment from Linear
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the delete operation was successful |
 
-### `linear_list_comments`
+### Linear List Comments
 
 List all comments on an issue in Linear
 
@@ -500,7 +500,7 @@ List all comments on an issue in Linear
 |     ↳ `id` | string | Issue ID |
 |     ↳ `title` | string | Issue title |
 
-### `linear_list_projects`
+### Linear List Projects
 
 List projects in Linear with optional filtering
 
@@ -537,7 +537,7 @@ List projects in Linear with optional filtering
 |     ↳ `id` | string | Team ID |
 |     ↳ `name` | string | Team name |
 
-### `linear_get_project`
+### Linear Get Project
 
 Get a single project by ID from Linear
 
@@ -568,7 +568,7 @@ Get a single project by ID from Linear
 |     ↳ `id` | string | Team ID |
 |     ↳ `name` | string | Team name |
 
-### `linear_create_project`
+### Linear Create Project
 
 Create a new project in Linear
 
@@ -605,7 +605,7 @@ Create a new project in Linear
 |     ↳ `id` | string | Team ID |
 |     ↳ `name` | string | Team name |
 
-### `linear_update_project`
+### Linear Update Project
 
 Update an existing project in Linear
 
@@ -643,7 +643,7 @@ Update an existing project in Linear
 |     ↳ `id` | string | Team ID |
 |     ↳ `name` | string | Team name |
 
-### `linear_archive_project`
+### Linear Archive Project
 
 Archive a project in Linear
 
@@ -660,7 +660,7 @@ Archive a project in Linear
 | `success` | boolean | Whether the archive operation was successful |
 | `projectId` | string | The ID of the archived project |
 
-### `linear_list_users`
+### Linear List Users
 
 List all users in the Linear workspace
 
@@ -688,7 +688,7 @@ List all users in the Linear workspace
 |   ↳ `admin` | boolean | Whether user is admin |
 |   ↳ `avatarUrl` | string | Avatar URL |
 
-### `linear_list_teams`
+### Linear List Teams
 
 List all teams in the Linear workspace
 
@@ -712,7 +712,7 @@ List all teams in the Linear workspace
 |   ↳ `key` | string | Team key \(used in issue identifiers\) |
 |   ↳ `description` | string | Team description |
 
-### `linear_get_viewer`
+### Linear Get Current User
 
 Get the currently authenticated user (viewer) information
 
@@ -734,7 +734,7 @@ Get the currently authenticated user (viewer) information
 |   ↳ `admin` | boolean | Whether user is admin |
 |   ↳ `avatarUrl` | string | Avatar URL |
 
-### `linear_list_labels`
+### Linear List Labels
 
 List all labels in Linear workspace or team
 
@@ -766,7 +766,7 @@ List all labels in Linear workspace or team
 |     ↳ `id` | string | Team ID |
 |     ↳ `name` | string | Team name |
 
-### `linear_create_label`
+### Linear Create Label
 
 Create a new label in Linear
 
@@ -796,7 +796,7 @@ Create a new label in Linear
 |     ↳ `id` | string | Team ID |
 |     ↳ `name` | string | Team name |
 
-### `linear_update_label`
+### Linear Update Label
 
 Update an existing label in Linear
 
@@ -826,7 +826,7 @@ Update an existing label in Linear
 |     ↳ `id` | string | Team ID |
 |     ↳ `name` | string | Team name |
 
-### `linear_archive_label`
+### Linear Archive Label
 
 Archive a label in Linear
 
@@ -843,7 +843,7 @@ Archive a label in Linear
 | `success` | boolean | Whether the archive operation was successful |
 | `labelId` | string | The ID of the archived label |
 
-### `linear_list_workflow_states`
+### Linear List Workflow States
 
 List all workflow states (statuses) in Linear
 
@@ -876,7 +876,7 @@ List all workflow states (statuses) in Linear
 |     ↳ `id` | string | Team ID |
 |     ↳ `name` | string | Team name |
 
-### `linear_create_workflow_state`
+### Linear Create Workflow State
 
 Create a new workflow state (status) in Linear
 
@@ -909,7 +909,7 @@ Create a new workflow state (status) in Linear
 |     ↳ `id` | string | Team ID |
 |     ↳ `name` | string | Team name |
 
-### `linear_update_workflow_state`
+### Linear Update Workflow State
 
 Update an existing workflow state in Linear
 
@@ -941,7 +941,7 @@ Update an existing workflow state in Linear
 |     ↳ `id` | string | Team ID |
 |     ↳ `name` | string | Team name |
 
-### `linear_list_cycles`
+### Linear List Cycles
 
 List cycles (sprints/iterations) in Linear
 
@@ -973,7 +973,7 @@ List cycles (sprints/iterations) in Linear
 |     ↳ `id` | string | Team ID |
 |     ↳ `name` | string | Team name |
 
-### `linear_get_cycle`
+### Linear Get Cycle
 
 Get a single cycle by ID from Linear
 
@@ -1000,7 +1000,7 @@ Get a single cycle by ID from Linear
 |     ↳ `id` | string | Team ID |
 |     ↳ `name` | string | Team name |
 
-### `linear_create_cycle`
+### Linear Create Cycle
 
 Create a new cycle (sprint/iteration) in Linear
 
@@ -1030,7 +1030,7 @@ Create a new cycle (sprint/iteration) in Linear
 |     ↳ `id` | string | Team ID |
 |     ↳ `name` | string | Team name |
 
-### `linear_get_active_cycle`
+### Linear Get Active Cycle
 
 Get the currently active cycle for a team
 
@@ -1057,7 +1057,7 @@ Get the currently active cycle for a team
 |     ↳ `id` | string | Team ID |
 |     ↳ `name` | string | Team name |
 
-### `linear_create_attachment`
+### Linear Create Attachment
 
 Add an attachment to an issue in Linear
 
@@ -1083,7 +1083,7 @@ Add an attachment to an issue in Linear
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
 
-### `linear_list_attachments`
+### Linear List Attachments
 
 List all attachments on an issue in Linear
 
@@ -1110,7 +1110,7 @@ List all attachments on an issue in Linear
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
 
-### `linear_update_attachment`
+### Linear Update Attachment
 
 Update an attachment metadata in Linear
 
@@ -1134,7 +1134,7 @@ Update an attachment metadata in Linear
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
 
-### `linear_delete_attachment`
+### Linear Delete Attachment
 
 Delete an attachment from Linear
 
@@ -1150,7 +1150,7 @@ Delete an attachment from Linear
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the delete operation was successful |
 
-### `linear_create_issue_relation`
+### Linear Create Issue Relation
 
 Link two issues together in Linear (blocks, relates to, duplicates)
 
@@ -1172,7 +1172,7 @@ Link two issues together in Linear (blocks, relates to, duplicates)
 |   ↳ `issue` | object | Source issue |
 |   ↳ `relatedIssue` | object | Target issue |
 
-### `linear_list_issue_relations`
+### Linear List Issue Relations
 
 List all relations (dependencies) for an issue in Linear
 
@@ -1195,7 +1195,7 @@ List all relations (dependencies) for an issue in Linear
 |   ↳ `relatedIssue` | object | Target issue |
 | `pageInfo` | object | Pagination information |
 
-### `linear_delete_issue_relation`
+### Linear Delete Issue Relation
 
 Remove a relation between two issues in Linear
 
@@ -1211,7 +1211,7 @@ Remove a relation between two issues in Linear
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the delete operation was successful |
 
-### `linear_create_favorite`
+### Linear Create Favorite
 
 Bookmark an issue, project, cycle, or label in Linear
 
@@ -1235,7 +1235,7 @@ Bookmark an issue, project, cycle, or label in Linear
 |   ↳ `project` | object | Favorited project \(if applicable\) |
 |   ↳ `cycle` | object | Favorited cycle \(if applicable\) |
 
-### `linear_list_favorites`
+### Linear List Favorites
 
 List all bookmarked items for the current user in Linear
 
@@ -1258,7 +1258,7 @@ List all bookmarked items for the current user in Linear
 |   ↳ `cycle` | object | Favorited cycle |
 | `pageInfo` | object | Pagination information |
 
-### `linear_create_project_update`
+### Linear Create Project Update
 
 Post a status update for a project in Linear
 
@@ -1281,7 +1281,7 @@ Post a status update for a project in Linear
 |   ↳ `createdAt` | string | Creation timestamp |
 |   ↳ `user` | object | User who created the update |
 
-### `linear_list_project_updates`
+### Linear List Project Updates
 
 List all status updates for a project in Linear
 
@@ -1305,7 +1305,7 @@ List all status updates for a project in Linear
 |   ↳ `user` | object | User who created the update |
 | `pageInfo` | object | Pagination information |
 
-### `linear_list_notifications`
+### Linear List Notifications
 
 List notifications for the current user in Linear
 
@@ -1328,7 +1328,7 @@ List notifications for the current user in Linear
 |   ↳ `issue` | object | Related issue |
 | `pageInfo` | object | Pagination information |
 
-### `linear_update_notification`
+### Linear Update Notification
 
 Mark a notification as read or unread in Linear
 
@@ -1350,7 +1350,7 @@ Mark a notification as read or unread in Linear
 |   ↳ `readAt` | string | Read timestamp |
 |   ↳ `issue` | object | Related issue |
 
-### `linear_create_customer`
+### Linear Create Customer
 
 Create a new customer in Linear
 
@@ -1386,7 +1386,7 @@ Create a new customer in Linear
 |   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
-### `linear_list_customers`
+### Linear List Customers
 
 List all customers in Linear
 
@@ -1419,7 +1419,7 @@ List all customers in Linear
 |   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
-### `linear_create_customer_request`
+### Linear Create Customer Request
 
 Create a customer request (need) in Linear. Assign to customer, set urgency (priority: 0 = Not important, 1 = Important), and optionally link to an issue.
 
@@ -1450,7 +1450,7 @@ Create a customer request (need) in Linear. Assign to customer, set urgency (pri
 |   ↳ `creator` | object | User who created the request |
 |   ↳ `url` | string | URL to the customer request |
 
-### `linear_update_customer_request`
+### Linear Update Customer Request
 
 Update a customer request (need) in Linear. Can change urgency, description, customer assignment, and linked issue.
 
@@ -1482,7 +1482,7 @@ Update a customer request (need) in Linear. Can change urgency, description, cus
 |   ↳ `creator` | object | User who created the request |
 |   ↳ `url` | string | URL to the customer request |
 
-### `linear_list_customer_requests`
+### Linear List Customer Requests
 
 List all customer requests (needs) in Linear
 
@@ -1512,7 +1512,7 @@ List all customer requests (needs) in Linear
 |   ↳ `url` | string | URL to the customer request |
 | `pageInfo` | object | Pagination information |
 
-### `linear_get_customer`
+### Linear Get Customer
 
 Get a single customer by ID in Linear
 
@@ -1540,7 +1540,7 @@ Get a single customer by ID in Linear
 |   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
-### `linear_update_customer`
+### Linear Update Customer
 
 Update a customer in Linear
 
@@ -1577,7 +1577,7 @@ Update a customer in Linear
 |   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
-### `linear_delete_customer`
+### Linear Delete Customer
 
 Delete a customer in Linear
 
@@ -1593,7 +1593,7 @@ Delete a customer in Linear
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the deletion was successful |
 
-### `linear_merge_customers`
+### Linear Merge Customers
 
 Merge two customers in Linear by moving all data from source to target
 
@@ -1610,7 +1610,7 @@ Merge two customers in Linear by moving all data from source to target
 | --------- | ---- | ----------- |
 | `customer` | object | The merged target customer |
 
-### `linear_create_customer_status`
+### Linear Create Customer Status
 
 Create a new customer status in Linear
 
@@ -1639,7 +1639,7 @@ Create a new customer status in Linear
 |   ↳ `updatedAt` | string | Last updated timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
-### `linear_update_customer_status`
+### Linear Update Customer Status
 
 Update a customer status in Linear
 
@@ -1669,7 +1669,7 @@ Update a customer status in Linear
 |   ↳ `updatedAt` | string | Last updated timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
-### `linear_delete_customer_status`
+### Linear Delete Customer Status
 
 Delete a customer status in Linear
 
@@ -1685,7 +1685,7 @@ Delete a customer status in Linear
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the deletion was successful |
 
-### `linear_list_customer_statuses`
+### Linear List Customer Statuses
 
 List all customer statuses in Linear
 
@@ -1714,7 +1714,7 @@ List all customer statuses in Linear
 |   ↳ `updatedAt` | string | Last updated timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
-### `linear_create_customer_tier`
+### Linear Create Customer Tier
 
 Create a new customer tier in Linear
 
@@ -1742,7 +1742,7 @@ Create a new customer tier in Linear
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
-### `linear_update_customer_tier`
+### Linear Update Customer Tier
 
 Update a customer tier in Linear
 
@@ -1763,7 +1763,7 @@ Update a customer tier in Linear
 | --------- | ---- | ----------- |
 | `customerTier` | object | The updated customer tier |
 
-### `linear_delete_customer_tier`
+### Linear Delete Customer Tier
 
 Delete a customer tier in Linear
 
@@ -1779,7 +1779,7 @@ Delete a customer tier in Linear
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the deletion was successful |
 
-### `linear_list_customer_tiers`
+### Linear List Customer Tiers
 
 List all customer tiers in Linear
 
@@ -1807,7 +1807,7 @@ List all customer tiers in Linear
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
-### `linear_delete_project`
+### Linear Delete Project
 
 Delete a project in Linear
 
@@ -1823,7 +1823,7 @@ Delete a project in Linear
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the deletion was successful |
 
-### `linear_create_project_label`
+### Linear Create Project Label
 
 Create a new project label in Linear
 
@@ -1851,7 +1851,7 @@ Create a new project label in Linear
 |   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
-### `linear_update_project_label`
+### Linear Update Project Label
 
 Update a project label in Linear
 
@@ -1878,7 +1878,7 @@ Update a project label in Linear
 |   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
-### `linear_delete_project_label`
+### Linear Delete Project Label
 
 Delete a project label in Linear
 
@@ -1894,7 +1894,7 @@ Delete a project label in Linear
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the deletion was successful |
 
-### `linear_list_project_labels`
+### Linear List Project Labels
 
 List all project labels in Linear
 
@@ -1923,7 +1923,7 @@ List all project labels in Linear
 |   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
-### `linear_add_label_to_project`
+### Linear Add Label to Project
 
 Add a label to a project in Linear
 
@@ -1941,7 +1941,7 @@ Add a label to a project in Linear
 | `success` | boolean | Whether the label was added successfully |
 | `projectId` | string | The project ID |
 
-### `linear_remove_label_from_project`
+### Linear Remove Label from Project
 
 Remove a label from a project in Linear
 
@@ -1959,7 +1959,7 @@ Remove a label from a project in Linear
 | `success` | boolean | Whether the label was removed successfully |
 | `projectId` | string | The project ID |
 
-### `linear_create_project_milestone`
+### Linear Create Project Milestone
 
 Create a new project milestone in Linear
 
@@ -1988,7 +1988,7 @@ Create a new project milestone in Linear
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
-### `linear_update_project_milestone`
+### Linear Update Project Milestone
 
 Update a project milestone in Linear
 
@@ -2017,7 +2017,7 @@ Update a project milestone in Linear
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
-### `linear_delete_project_milestone`
+### Linear Delete Project Milestone
 
 Delete a project milestone in Linear
 
@@ -2033,7 +2033,7 @@ Delete a project milestone in Linear
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the deletion was successful |
 
-### `linear_list_project_milestones`
+### Linear List Project Milestones
 
 List all milestones for a project in Linear
 
@@ -2064,7 +2064,7 @@ List all milestones for a project in Linear
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
-### `linear_create_project_status`
+### Linear Create Project Status
 
 Create a new project status in Linear
 
@@ -2095,7 +2095,7 @@ Create a new project status in Linear
 |   ↳ `updatedAt` | string | Last updated timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
-### `linear_update_project_status`
+### Linear Update Project Status
 
 Update a project status in Linear
 
@@ -2126,7 +2126,7 @@ Update a project status in Linear
 |   ↳ `updatedAt` | string | Last updated timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
-### `linear_delete_project_status`
+### Linear Delete Project Status
 
 Delete a project status in Linear
 
@@ -2142,7 +2142,7 @@ Delete a project status in Linear
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the deletion was successful |
 
-### `linear_list_project_statuses`
+### Linear List Project Statuses
 
 List all project statuses in Linear
 
@@ -2189,6 +2189,39 @@ Trigger workflow when a new comment is created in Linear
 | `apiKey` | string | Yes | API Key |
 | `teamId` | string | No | Team ID |
 
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `action` | string | Action performed \(create, update, remove\) |
+| `type` | string | Entity type \(Comment\) |
+| `webhookId` | string | Webhook ID |
+| `webhookTimestamp` | number | Webhook timestamp \(milliseconds\) |
+| `organizationId` | string | Organization ID |
+| `createdAt` | string | Event creation timestamp |
+| `url` | string | URL of the subject entity in Linear \(top-level webhook payload\) |
+| `actor` | object | actor output from the tool |
+|   ↳ `id` | string | User ID |
+|   ↳ `name` | string | User display name |
+|   ↳ `actorType` | string | Actor type from Linear \(e.g. user, OauthClient, Integration\) |
+|   ↳ `email` | string | Actor email \(present for user actors in Linear webhook payloads\) |
+|   ↳ `url` | string | Actor profile URL in Linear \(distinct from the top-level subject entity `url`\) |
+| `data` | object | data output from the tool |
+|   ↳ `id` | string | Comment ID |
+|   ↳ `body` | string | Comment body text |
+|   ↳ `edited` | boolean | Whether the comment body has been edited \(Linear webhook payload field\) |
+|   ↳ `url` | string | Comment URL |
+|   ↳ `issueId` | string | Issue ID this comment belongs to |
+|   ↳ `userId` | string | User ID of the comment author |
+|   ↳ `editedAt` | string | Last edited timestamp |
+|   ↳ `createdAt` | string | Comment creation timestamp |
+|   ↳ `updatedAt` | string | Comment last update timestamp |
+|   ↳ `archivedAt` | string | Archived timestamp |
+|   ↳ `resolvedAt` | string | Resolved timestamp \(for comment threads\) |
+|   ↳ `parent` | object | Parent comment object \(if this is a reply\) |
+|   ↳ `reactionData` | object | Reaction data for the comment |
+| `updatedFrom` | object | Previous values for changed fields \(only present on update\) |
+
 
 ---
 
@@ -2202,6 +2235,39 @@ Trigger workflow when a comment is updated in Linear
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | API Key |
 | `teamId` | string | No | Team ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `action` | string | Action performed \(create, update, remove\) |
+| `type` | string | Entity type \(Comment\) |
+| `webhookId` | string | Webhook ID |
+| `webhookTimestamp` | number | Webhook timestamp \(milliseconds\) |
+| `organizationId` | string | Organization ID |
+| `createdAt` | string | Event creation timestamp |
+| `url` | string | URL of the subject entity in Linear \(top-level webhook payload\) |
+| `actor` | object | actor output from the tool |
+|   ↳ `id` | string | User ID |
+|   ↳ `name` | string | User display name |
+|   ↳ `actorType` | string | Actor type from Linear \(e.g. user, OauthClient, Integration\) |
+|   ↳ `email` | string | Actor email \(present for user actors in Linear webhook payloads\) |
+|   ↳ `url` | string | Actor profile URL in Linear \(distinct from the top-level subject entity `url`\) |
+| `data` | object | data output from the tool |
+|   ↳ `id` | string | Comment ID |
+|   ↳ `body` | string | Comment body text |
+|   ↳ `edited` | boolean | Whether the comment body has been edited \(Linear webhook payload field\) |
+|   ↳ `url` | string | Comment URL |
+|   ↳ `issueId` | string | Issue ID this comment belongs to |
+|   ↳ `userId` | string | User ID of the comment author |
+|   ↳ `editedAt` | string | Last edited timestamp |
+|   ↳ `createdAt` | string | Comment creation timestamp |
+|   ↳ `updatedAt` | string | Comment last update timestamp |
+|   ↳ `archivedAt` | string | Archived timestamp |
+|   ↳ `resolvedAt` | string | Resolved timestamp \(for comment threads\) |
+|   ↳ `parent` | object | Parent comment object \(if this is a reply\) |
+|   ↳ `reactionData` | object | Reaction data for the comment |
+| `updatedFrom` | object | Previous values for changed fields \(only present on update\) |
 
 
 ---
@@ -2217,6 +2283,37 @@ Trigger workflow when a new customer request is created in Linear
 | `apiKey` | string | Yes | API Key |
 | `teamId` | string | No | Team ID |
 
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `action` | string | Action performed \(create, update, remove\) |
+| `type` | string | Entity type \(CustomerNeed\) |
+| `webhookId` | string | Webhook ID |
+| `webhookTimestamp` | number | Webhook timestamp \(milliseconds\) |
+| `organizationId` | string | Organization ID |
+| `createdAt` | string | Event creation timestamp |
+| `url` | string | URL of the subject entity in Linear \(top-level webhook payload\) |
+| `actor` | object | actor output from the tool |
+|   ↳ `id` | string | User ID |
+|   ↳ `name` | string | User display name |
+|   ↳ `actorType` | string | Actor type from Linear \(e.g. user, OauthClient, Integration\) |
+|   ↳ `email` | string | Actor email \(present for user actors in Linear webhook payloads\) |
+|   ↳ `url` | string | Actor profile URL in Linear \(distinct from the top-level subject entity `url`\) |
+| `data` | object | data output from the tool |
+|   ↳ `id` | string | Customer request ID |
+|   ↳ `body` | string | Request body content \(Markdown\) |
+|   ↳ `priority` | number | Request priority \(0 = Not important, 1 = Important\) |
+|   ↳ `customerId` | string | Customer ID |
+|   ↳ `issueId` | string | Linked issue ID |
+|   ↳ `projectId` | string | Associated project ID |
+|   ↳ `creatorId` | string | Creator user ID |
+|   ↳ `url` | string | Customer request URL |
+|   ↳ `createdAt` | string | Request creation timestamp |
+|   ↳ `updatedAt` | string | Request last update timestamp |
+|   ↳ `archivedAt` | string | Archived timestamp |
+| `updatedFrom` | object | Previous values for changed fields \(only present on update\) |
+
 
 ---
 
@@ -2230,6 +2327,37 @@ Trigger workflow when a customer request is updated in Linear
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | API Key |
 | `teamId` | string | No | Team ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `action` | string | Action performed \(create, update, remove\) |
+| `type` | string | Entity type \(CustomerNeed\) |
+| `webhookId` | string | Webhook ID |
+| `webhookTimestamp` | number | Webhook timestamp \(milliseconds\) |
+| `organizationId` | string | Organization ID |
+| `createdAt` | string | Event creation timestamp |
+| `url` | string | URL of the subject entity in Linear \(top-level webhook payload\) |
+| `actor` | object | actor output from the tool |
+|   ↳ `id` | string | User ID |
+|   ↳ `name` | string | User display name |
+|   ↳ `actorType` | string | Actor type from Linear \(e.g. user, OauthClient, Integration\) |
+|   ↳ `email` | string | Actor email \(present for user actors in Linear webhook payloads\) |
+|   ↳ `url` | string | Actor profile URL in Linear \(distinct from the top-level subject entity `url`\) |
+| `data` | object | data output from the tool |
+|   ↳ `id` | string | Customer request ID |
+|   ↳ `body` | string | Request body content \(Markdown\) |
+|   ↳ `priority` | number | Request priority \(0 = Not important, 1 = Important\) |
+|   ↳ `customerId` | string | Customer ID |
+|   ↳ `issueId` | string | Linked issue ID |
+|   ↳ `projectId` | string | Associated project ID |
+|   ↳ `creatorId` | string | Creator user ID |
+|   ↳ `url` | string | Customer request URL |
+|   ↳ `createdAt` | string | Request creation timestamp |
+|   ↳ `updatedAt` | string | Request last update timestamp |
+|   ↳ `archivedAt` | string | Archived timestamp |
+| `updatedFrom` | object | Previous values for changed fields \(only present on update\) |
 
 
 ---
@@ -2245,6 +2373,42 @@ Trigger workflow when a new cycle is created in Linear
 | `apiKey` | string | Yes | API Key |
 | `teamId` | string | No | Team ID |
 
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `action` | string | Action performed \(create, update, remove\) |
+| `type` | string | Entity type \(Cycle\) |
+| `webhookId` | string | Webhook ID |
+| `webhookTimestamp` | number | Webhook timestamp \(milliseconds\) |
+| `organizationId` | string | Organization ID |
+| `createdAt` | string | Event creation timestamp |
+| `url` | string | URL of the subject entity in Linear \(top-level webhook payload\) |
+| `actor` | object | actor output from the tool |
+|   ↳ `id` | string | User ID |
+|   ↳ `name` | string | User display name |
+|   ↳ `actorType` | string | Actor type from Linear \(e.g. user, OauthClient, Integration\) |
+|   ↳ `email` | string | Actor email \(present for user actors in Linear webhook payloads\) |
+|   ↳ `url` | string | Actor profile URL in Linear \(distinct from the top-level subject entity `url`\) |
+| `data` | object | data output from the tool |
+|   ↳ `id` | string | Cycle ID |
+|   ↳ `number` | number | Cycle number |
+|   ↳ `name` | string | Cycle name |
+|   ↳ `description` | string | Cycle description |
+|   ↳ `teamId` | string | Team ID |
+|   ↳ `startsAt` | string | Cycle start date |
+|   ↳ `endsAt` | string | Cycle end date |
+|   ↳ `completedAt` | string | Completed timestamp |
+|   ↳ `archivedAt` | string | Archived timestamp |
+|   ↳ `autoArchivedAt` | string | Auto-archived timestamp |
+|   ↳ `createdAt` | string | Cycle creation timestamp |
+|   ↳ `updatedAt` | string | Cycle last update timestamp |
+|   ↳ `progress` | number | Cycle progress \(0-1\) |
+|   ↳ `scopeHistory` | array | History of scope changes |
+|   ↳ `completedScopeHistory` | array | History of completed scope |
+|   ↳ `inProgressScopeHistory` | array | History of in-progress scope |
+| `updatedFrom` | object | Previous values for changed fields \(only present on update\) |
+
 
 ---
 
@@ -2258,6 +2422,42 @@ Trigger workflow when a cycle is updated in Linear
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | API Key |
 | `teamId` | string | No | Team ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `action` | string | Action performed \(create, update, remove\) |
+| `type` | string | Entity type \(Cycle\) |
+| `webhookId` | string | Webhook ID |
+| `webhookTimestamp` | number | Webhook timestamp \(milliseconds\) |
+| `organizationId` | string | Organization ID |
+| `createdAt` | string | Event creation timestamp |
+| `url` | string | URL of the subject entity in Linear \(top-level webhook payload\) |
+| `actor` | object | actor output from the tool |
+|   ↳ `id` | string | User ID |
+|   ↳ `name` | string | User display name |
+|   ↳ `actorType` | string | Actor type from Linear \(e.g. user, OauthClient, Integration\) |
+|   ↳ `email` | string | Actor email \(present for user actors in Linear webhook payloads\) |
+|   ↳ `url` | string | Actor profile URL in Linear \(distinct from the top-level subject entity `url`\) |
+| `data` | object | data output from the tool |
+|   ↳ `id` | string | Cycle ID |
+|   ↳ `number` | number | Cycle number |
+|   ↳ `name` | string | Cycle name |
+|   ↳ `description` | string | Cycle description |
+|   ↳ `teamId` | string | Team ID |
+|   ↳ `startsAt` | string | Cycle start date |
+|   ↳ `endsAt` | string | Cycle end date |
+|   ↳ `completedAt` | string | Completed timestamp |
+|   ↳ `archivedAt` | string | Archived timestamp |
+|   ↳ `autoArchivedAt` | string | Auto-archived timestamp |
+|   ↳ `createdAt` | string | Cycle creation timestamp |
+|   ↳ `updatedAt` | string | Cycle last update timestamp |
+|   ↳ `progress` | number | Cycle progress \(0-1\) |
+|   ↳ `scopeHistory` | array | History of scope changes |
+|   ↳ `completedScopeHistory` | array | History of completed scope |
+|   ↳ `inProgressScopeHistory` | array | History of in-progress scope |
+| `updatedFrom` | object | Previous values for changed fields \(only present on update\) |
 
 
 ---
@@ -2273,6 +2473,61 @@ Trigger workflow when a new issue is created in Linear
 | `apiKey` | string | Yes | API Key |
 | `teamId` | string | No | Team ID |
 
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `action` | string | Action performed \(create, update, remove\) |
+| `type` | string | Entity type \(Issue\) |
+| `webhookId` | string | Webhook ID |
+| `webhookTimestamp` | number | Webhook timestamp \(milliseconds\) |
+| `organizationId` | string | Organization ID |
+| `createdAt` | string | Event creation timestamp |
+| `url` | string | URL of the subject entity in Linear \(top-level webhook payload\) |
+| `actor` | object | actor output from the tool |
+|   ↳ `id` | string | User ID |
+|   ↳ `name` | string | User display name |
+|   ↳ `actorType` | string | Actor type from Linear \(e.g. user, OauthClient, Integration\) |
+|   ↳ `email` | string | Actor email \(present for user actors in Linear webhook payloads\) |
+|   ↳ `url` | string | Actor profile URL in Linear \(distinct from the top-level subject entity `url`\) |
+| `data` | object | data output from the tool |
+|   ↳ `id` | string | Issue ID |
+|   ↳ `title` | string | Issue title |
+|   ↳ `description` | string | Issue description |
+|   ↳ `identifier` | string | Issue identifier \(e.g., ENG-123\) |
+|   ↳ `number` | number | Issue number |
+|   ↳ `priority` | number | Issue priority \(0 = None, 1 = Urgent, 2 = High, 3 = Medium, 4 = Low\) |
+|   ↳ `estimate` | number | Issue estimate |
+|   ↳ `sortOrder` | number | Issue sort order |
+|   ↳ `teamId` | string | Team ID |
+|   ↳ `stateId` | string | Workflow state ID |
+|   ↳ `assigneeId` | string | Assignee user ID |
+|   ↳ `creatorId` | string | Creator user ID |
+|   ↳ `projectId` | string | Project ID |
+|   ↳ `cycleId` | string | Cycle ID |
+|   ↳ `parentId` | string | Parent issue ID \(for sub-issues\) |
+|   ↳ `labelIds` | array | Array of label IDs |
+|   ↳ `subscriberIds` | array | Array of subscriber user IDs |
+|   ↳ `url` | string | Issue URL |
+|   ↳ `branchName` | string | Git branch name |
+|   ↳ `customerTicketCount` | number | Number of customer tickets |
+|   ↳ `dueDate` | string | Issue due date |
+|   ↳ `snoozedUntilAt` | string | Snoozed until timestamp |
+|   ↳ `archivedAt` | string | Archived timestamp |
+|   ↳ `canceledAt` | string | Canceled timestamp |
+|   ↳ `completedAt` | string | Completed timestamp |
+|   ↳ `startedAt` | string | Started timestamp |
+|   ↳ `triagedAt` | string | Triaged timestamp |
+|   ↳ `createdAt` | string | Issue creation timestamp |
+|   ↳ `updatedAt` | string | Issue last update timestamp |
+|   ↳ `autoArchivedAt` | string | Auto-archived timestamp |
+|   ↳ `autoClosedAt` | string | Auto-closed timestamp |
+|   ↳ `previousIdentifiers` | array | Array of previous issue identifiers \(when an issue is moved between teams\) |
+|   ↳ `integrationSourceType` | string | Integration source type \(if created from an integration\) |
+|   ↳ `slaStartedAt` | string | SLA timer started timestamp |
+|   ↳ `slaBreachesAt` | string | SLA breach timestamp |
+| `updatedFrom` | object | Previous values for changed fields \(only present on update\) |
+
 
 ---
 
@@ -2286,6 +2541,61 @@ Trigger workflow when an issue is removed/deleted in Linear
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | API Key |
 | `teamId` | string | No | Team ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `action` | string | Action performed \(create, update, remove\) |
+| `type` | string | Entity type \(Issue\) |
+| `webhookId` | string | Webhook ID |
+| `webhookTimestamp` | number | Webhook timestamp \(milliseconds\) |
+| `organizationId` | string | Organization ID |
+| `createdAt` | string | Event creation timestamp |
+| `url` | string | URL of the subject entity in Linear \(top-level webhook payload\) |
+| `actor` | object | actor output from the tool |
+|   ↳ `id` | string | User ID |
+|   ↳ `name` | string | User display name |
+|   ↳ `actorType` | string | Actor type from Linear \(e.g. user, OauthClient, Integration\) |
+|   ↳ `email` | string | Actor email \(present for user actors in Linear webhook payloads\) |
+|   ↳ `url` | string | Actor profile URL in Linear \(distinct from the top-level subject entity `url`\) |
+| `data` | object | data output from the tool |
+|   ↳ `id` | string | Issue ID |
+|   ↳ `title` | string | Issue title |
+|   ↳ `description` | string | Issue description |
+|   ↳ `identifier` | string | Issue identifier \(e.g., ENG-123\) |
+|   ↳ `number` | number | Issue number |
+|   ↳ `priority` | number | Issue priority \(0 = None, 1 = Urgent, 2 = High, 3 = Medium, 4 = Low\) |
+|   ↳ `estimate` | number | Issue estimate |
+|   ↳ `sortOrder` | number | Issue sort order |
+|   ↳ `teamId` | string | Team ID |
+|   ↳ `stateId` | string | Workflow state ID |
+|   ↳ `assigneeId` | string | Assignee user ID |
+|   ↳ `creatorId` | string | Creator user ID |
+|   ↳ `projectId` | string | Project ID |
+|   ↳ `cycleId` | string | Cycle ID |
+|   ↳ `parentId` | string | Parent issue ID \(for sub-issues\) |
+|   ↳ `labelIds` | array | Array of label IDs |
+|   ↳ `subscriberIds` | array | Array of subscriber user IDs |
+|   ↳ `url` | string | Issue URL |
+|   ↳ `branchName` | string | Git branch name |
+|   ↳ `customerTicketCount` | number | Number of customer tickets |
+|   ↳ `dueDate` | string | Issue due date |
+|   ↳ `snoozedUntilAt` | string | Snoozed until timestamp |
+|   ↳ `archivedAt` | string | Archived timestamp |
+|   ↳ `canceledAt` | string | Canceled timestamp |
+|   ↳ `completedAt` | string | Completed timestamp |
+|   ↳ `startedAt` | string | Started timestamp |
+|   ↳ `triagedAt` | string | Triaged timestamp |
+|   ↳ `createdAt` | string | Issue creation timestamp |
+|   ↳ `updatedAt` | string | Issue last update timestamp |
+|   ↳ `autoArchivedAt` | string | Auto-archived timestamp |
+|   ↳ `autoClosedAt` | string | Auto-closed timestamp |
+|   ↳ `previousIdentifiers` | array | Array of previous issue identifiers \(when an issue is moved between teams\) |
+|   ↳ `integrationSourceType` | string | Integration source type \(if created from an integration\) |
+|   ↳ `slaStartedAt` | string | SLA timer started timestamp |
+|   ↳ `slaBreachesAt` | string | SLA breach timestamp |
+| `updatedFrom` | object | Previous values for changed fields \(only present on update\) |
 
 
 ---
@@ -2301,6 +2611,61 @@ Trigger workflow when an issue is updated in Linear
 | `apiKey` | string | Yes | API Key |
 | `teamId` | string | No | Team ID |
 
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `action` | string | Action performed \(create, update, remove\) |
+| `type` | string | Entity type \(Issue\) |
+| `webhookId` | string | Webhook ID |
+| `webhookTimestamp` | number | Webhook timestamp \(milliseconds\) |
+| `organizationId` | string | Organization ID |
+| `createdAt` | string | Event creation timestamp |
+| `url` | string | URL of the subject entity in Linear \(top-level webhook payload\) |
+| `actor` | object | actor output from the tool |
+|   ↳ `id` | string | User ID |
+|   ↳ `name` | string | User display name |
+|   ↳ `actorType` | string | Actor type from Linear \(e.g. user, OauthClient, Integration\) |
+|   ↳ `email` | string | Actor email \(present for user actors in Linear webhook payloads\) |
+|   ↳ `url` | string | Actor profile URL in Linear \(distinct from the top-level subject entity `url`\) |
+| `data` | object | data output from the tool |
+|   ↳ `id` | string | Issue ID |
+|   ↳ `title` | string | Issue title |
+|   ↳ `description` | string | Issue description |
+|   ↳ `identifier` | string | Issue identifier \(e.g., ENG-123\) |
+|   ↳ `number` | number | Issue number |
+|   ↳ `priority` | number | Issue priority \(0 = None, 1 = Urgent, 2 = High, 3 = Medium, 4 = Low\) |
+|   ↳ `estimate` | number | Issue estimate |
+|   ↳ `sortOrder` | number | Issue sort order |
+|   ↳ `teamId` | string | Team ID |
+|   ↳ `stateId` | string | Workflow state ID |
+|   ↳ `assigneeId` | string | Assignee user ID |
+|   ↳ `creatorId` | string | Creator user ID |
+|   ↳ `projectId` | string | Project ID |
+|   ↳ `cycleId` | string | Cycle ID |
+|   ↳ `parentId` | string | Parent issue ID \(for sub-issues\) |
+|   ↳ `labelIds` | array | Array of label IDs |
+|   ↳ `subscriberIds` | array | Array of subscriber user IDs |
+|   ↳ `url` | string | Issue URL |
+|   ↳ `branchName` | string | Git branch name |
+|   ↳ `customerTicketCount` | number | Number of customer tickets |
+|   ↳ `dueDate` | string | Issue due date |
+|   ↳ `snoozedUntilAt` | string | Snoozed until timestamp |
+|   ↳ `archivedAt` | string | Archived timestamp |
+|   ↳ `canceledAt` | string | Canceled timestamp |
+|   ↳ `completedAt` | string | Completed timestamp |
+|   ↳ `startedAt` | string | Started timestamp |
+|   ↳ `triagedAt` | string | Triaged timestamp |
+|   ↳ `createdAt` | string | Issue creation timestamp |
+|   ↳ `updatedAt` | string | Issue last update timestamp |
+|   ↳ `autoArchivedAt` | string | Auto-archived timestamp |
+|   ↳ `autoClosedAt` | string | Auto-closed timestamp |
+|   ↳ `previousIdentifiers` | array | Array of previous issue identifiers \(when an issue is moved between teams\) |
+|   ↳ `integrationSourceType` | string | Integration source type \(if created from an integration\) |
+|   ↳ `slaStartedAt` | string | SLA timer started timestamp |
+|   ↳ `slaBreachesAt` | string | SLA breach timestamp |
+| `updatedFrom` | object | Previous values for changed fields \(only present on update\) |
+
 
 ---
 
@@ -2314,6 +2679,38 @@ Trigger workflow when a new label is created in Linear
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | API Key |
 | `teamId` | string | No | Team ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `action` | string | Action performed \(create, update, remove\) |
+| `type` | string | Entity type \(IssueLabel\) |
+| `webhookId` | string | Webhook ID |
+| `webhookTimestamp` | number | Webhook timestamp \(milliseconds\) |
+| `organizationId` | string | Organization ID |
+| `createdAt` | string | Event creation timestamp |
+| `url` | string | URL of the subject entity in Linear \(top-level webhook payload\) |
+| `actor` | object | actor output from the tool |
+|   ↳ `id` | string | User ID |
+|   ↳ `name` | string | User display name |
+|   ↳ `actorType` | string | Actor type from Linear \(e.g. user, OauthClient, Integration\) |
+|   ↳ `email` | string | Actor email \(present for user actors in Linear webhook payloads\) |
+|   ↳ `url` | string | Actor profile URL in Linear \(distinct from the top-level subject entity `url`\) |
+| `data` | object | data output from the tool |
+|   ↳ `id` | string | Label ID |
+|   ↳ `name` | string | Label name |
+|   ↳ `description` | string | Label description |
+|   ↳ `color` | string | Label color \(hex code\) |
+|   ↳ `organizationId` | string | Organization ID |
+|   ↳ `teamId` | string | Team ID \(if team-specific label\) |
+|   ↳ `creatorId` | string | Creator user ID |
+|   ↳ `isGroup` | boolean | Whether this is a label group |
+|   ↳ `parentId` | string | Parent label ID \(for nested labels\) |
+|   ↳ `archivedAt` | string | Archived timestamp |
+|   ↳ `createdAt` | string | Label creation timestamp |
+|   ↳ `updatedAt` | string | Label last update timestamp |
+| `updatedFrom` | object | Previous values for changed fields \(only present on update\) |
 
 
 ---
@@ -2329,6 +2726,38 @@ Trigger workflow when a label is updated in Linear
 | `apiKey` | string | Yes | API Key |
 | `teamId` | string | No | Team ID |
 
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `action` | string | Action performed \(create, update, remove\) |
+| `type` | string | Entity type \(IssueLabel\) |
+| `webhookId` | string | Webhook ID |
+| `webhookTimestamp` | number | Webhook timestamp \(milliseconds\) |
+| `organizationId` | string | Organization ID |
+| `createdAt` | string | Event creation timestamp |
+| `url` | string | URL of the subject entity in Linear \(top-level webhook payload\) |
+| `actor` | object | actor output from the tool |
+|   ↳ `id` | string | User ID |
+|   ↳ `name` | string | User display name |
+|   ↳ `actorType` | string | Actor type from Linear \(e.g. user, OauthClient, Integration\) |
+|   ↳ `email` | string | Actor email \(present for user actors in Linear webhook payloads\) |
+|   ↳ `url` | string | Actor profile URL in Linear \(distinct from the top-level subject entity `url`\) |
+| `data` | object | data output from the tool |
+|   ↳ `id` | string | Label ID |
+|   ↳ `name` | string | Label name |
+|   ↳ `description` | string | Label description |
+|   ↳ `color` | string | Label color \(hex code\) |
+|   ↳ `organizationId` | string | Organization ID |
+|   ↳ `teamId` | string | Team ID \(if team-specific label\) |
+|   ↳ `creatorId` | string | Creator user ID |
+|   ↳ `isGroup` | boolean | Whether this is a label group |
+|   ↳ `parentId` | string | Parent label ID \(for nested labels\) |
+|   ↳ `archivedAt` | string | Archived timestamp |
+|   ↳ `createdAt` | string | Label creation timestamp |
+|   ↳ `updatedAt` | string | Label last update timestamp |
+| `updatedFrom` | object | Previous values for changed fields \(only present on update\) |
+
 
 ---
 
@@ -2342,6 +2771,52 @@ Trigger workflow when a new project is created in Linear
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | API Key |
 | `teamId` | string | No | Team ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `action` | string | Action performed \(create, update, remove\) |
+| `type` | string | Entity type \(Project\) |
+| `webhookId` | string | Webhook ID |
+| `webhookTimestamp` | number | Webhook timestamp \(milliseconds\) |
+| `organizationId` | string | Organization ID |
+| `createdAt` | string | Event creation timestamp |
+| `url` | string | URL of the subject entity in Linear \(top-level webhook payload\) |
+| `actor` | object | actor output from the tool |
+|   ↳ `id` | string | User ID |
+|   ↳ `name` | string | User display name |
+|   ↳ `actorType` | string | Actor type from Linear \(e.g. user, OauthClient, Integration\) |
+|   ↳ `email` | string | Actor email \(present for user actors in Linear webhook payloads\) |
+|   ↳ `url` | string | Actor profile URL in Linear \(distinct from the top-level subject entity `url`\) |
+| `data` | object | data output from the tool |
+|   ↳ `id` | string | Project ID |
+|   ↳ `name` | string | Project name |
+|   ↳ `description` | string | Project description |
+|   ↳ `icon` | string | Project icon |
+|   ↳ `color` | string | Project color |
+|   ↳ `state` | string | Project state \(planned, started, completed, canceled, backlog\) |
+|   ↳ `slugId` | string | Project slug ID |
+|   ↳ `url` | string | Project URL |
+|   ↳ `leadId` | string | Project lead user ID |
+|   ↳ `creatorId` | string | Creator user ID |
+|   ↳ `memberIds` | array | Array of member user IDs |
+|   ↳ `teamIds` | array | Array of team IDs |
+|   ↳ `priority` | number | Project priority |
+|   ↳ `sortOrder` | number | Project sort order |
+|   ↳ `startDate` | string | Project start date |
+|   ↳ `targetDate` | string | Project target date |
+|   ↳ `startedAt` | string | Started timestamp |
+|   ↳ `completedAt` | string | Completed timestamp |
+|   ↳ `canceledAt` | string | Canceled timestamp |
+|   ↳ `archivedAt` | string | Archived timestamp |
+|   ↳ `createdAt` | string | Project creation timestamp |
+|   ↳ `updatedAt` | string | Project last update timestamp |
+|   ↳ `progress` | number | Project progress \(0-1\) |
+|   ↳ `scope` | number | Project scope estimate |
+|   ↳ `statusId` | string | Project status ID |
+|   ↳ `bodyData` | object | Project body data \(rich text content\) |
+| `updatedFrom` | object | Previous values for changed fields \(only present on update\) |
 
 
 ---
@@ -2357,6 +2832,35 @@ Trigger workflow when a new project update is posted in Linear
 | `apiKey` | string | Yes | API Key |
 | `teamId` | string | No | Team ID |
 
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `action` | string | Action performed \(create, update, remove\) |
+| `type` | string | Entity type \(ProjectUpdate\) |
+| `webhookId` | string | Webhook ID |
+| `webhookTimestamp` | number | Webhook timestamp \(milliseconds\) |
+| `organizationId` | string | Organization ID |
+| `createdAt` | string | Event creation timestamp |
+| `url` | string | URL of the subject entity in Linear \(top-level webhook payload\) |
+| `actor` | object | actor output from the tool |
+|   ↳ `id` | string | User ID |
+|   ↳ `name` | string | User display name |
+|   ↳ `actorType` | string | Actor type from Linear \(e.g. user, OauthClient, Integration\) |
+|   ↳ `email` | string | Actor email \(present for user actors in Linear webhook payloads\) |
+|   ↳ `url` | string | Actor profile URL in Linear \(distinct from the top-level subject entity `url`\) |
+| `data` | object | data output from the tool |
+|   ↳ `id` | string | Project update ID |
+|   ↳ `body` | string | Update body content |
+|   ↳ `url` | string | Project update URL |
+|   ↳ `projectId` | string | Project ID |
+|   ↳ `userId` | string | User ID of the author |
+|   ↳ `health` | string | Project health \(onTrack, atRisk, offTrack\) |
+|   ↳ `editedAt` | string | Last edited timestamp |
+|   ↳ `createdAt` | string | Update creation timestamp |
+|   ↳ `updatedAt` | string | Update last update timestamp |
+| `updatedFrom` | object | Previous values for changed fields \(only present on update\) |
+
 
 ---
 
@@ -2370,6 +2874,52 @@ Trigger workflow when a project is updated in Linear
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | API Key |
 | `teamId` | string | No | Team ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `action` | string | Action performed \(create, update, remove\) |
+| `type` | string | Entity type \(Project\) |
+| `webhookId` | string | Webhook ID |
+| `webhookTimestamp` | number | Webhook timestamp \(milliseconds\) |
+| `organizationId` | string | Organization ID |
+| `createdAt` | string | Event creation timestamp |
+| `url` | string | URL of the subject entity in Linear \(top-level webhook payload\) |
+| `actor` | object | actor output from the tool |
+|   ↳ `id` | string | User ID |
+|   ↳ `name` | string | User display name |
+|   ↳ `actorType` | string | Actor type from Linear \(e.g. user, OauthClient, Integration\) |
+|   ↳ `email` | string | Actor email \(present for user actors in Linear webhook payloads\) |
+|   ↳ `url` | string | Actor profile URL in Linear \(distinct from the top-level subject entity `url`\) |
+| `data` | object | data output from the tool |
+|   ↳ `id` | string | Project ID |
+|   ↳ `name` | string | Project name |
+|   ↳ `description` | string | Project description |
+|   ↳ `icon` | string | Project icon |
+|   ↳ `color` | string | Project color |
+|   ↳ `state` | string | Project state \(planned, started, completed, canceled, backlog\) |
+|   ↳ `slugId` | string | Project slug ID |
+|   ↳ `url` | string | Project URL |
+|   ↳ `leadId` | string | Project lead user ID |
+|   ↳ `creatorId` | string | Creator user ID |
+|   ↳ `memberIds` | array | Array of member user IDs |
+|   ↳ `teamIds` | array | Array of team IDs |
+|   ↳ `priority` | number | Project priority |
+|   ↳ `sortOrder` | number | Project sort order |
+|   ↳ `startDate` | string | Project start date |
+|   ↳ `targetDate` | string | Project target date |
+|   ↳ `startedAt` | string | Started timestamp |
+|   ↳ `completedAt` | string | Completed timestamp |
+|   ↳ `canceledAt` | string | Canceled timestamp |
+|   ↳ `archivedAt` | string | Archived timestamp |
+|   ↳ `createdAt` | string | Project creation timestamp |
+|   ↳ `updatedAt` | string | Project last update timestamp |
+|   ↳ `progress` | number | Project progress \(0-1\) |
+|   ↳ `scope` | number | Project scope estimate |
+|   ↳ `statusId` | string | Project status ID |
+|   ↳ `bodyData` | object | Project body data \(rich text content\) |
+| `updatedFrom` | object | Previous values for changed fields \(only present on update\) |
 
 
 ---
@@ -2396,6 +2946,12 @@ Trigger workflow from Linear events you select when creating the webhook in Line
 | `organizationId` | string | Organization ID |
 | `createdAt` | string | Event creation timestamp |
 | `url` | string | URL of the subject entity in Linear \(top-level webhook payload\) |
+| `actor` | object | actor output from the tool |
+|   ↳ `id` | string | User ID |
+|   ↳ `name` | string | User display name |
+|   ↳ `actorType` | string | Actor type from Linear \(e.g. user, OauthClient, Integration\) |
+|   ↳ `email` | string | Actor email \(present for user actors in Linear webhook payloads\) |
+|   ↳ `url` | string | Actor profile URL in Linear \(distinct from the top-level subject entity `url`\) |
 | `data` | object | Complete entity data object |
 | `updatedFrom` | object | Previous values for changed fields \(only present on update\) |
 

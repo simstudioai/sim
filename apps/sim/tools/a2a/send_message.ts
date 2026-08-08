@@ -1,4 +1,8 @@
 import {
+  applyProjectedModelVisibleFileNames,
+  selectModelVisibleFileNames,
+} from '@/lib/uploads/utils/model-input'
+import {
   A2A_TASK_OUTPUTS,
   type A2ASendMessageParams,
   type A2ATaskResponse,
@@ -57,6 +61,29 @@ export const a2aSendMessageTool: ToolConfig<A2ASendMessageParams, A2ATaskRespons
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => {
+        const files = selectModelVisibleFileNames(params.files)
+        return {
+          message: params.message,
+          data: params.data,
+          ...(files === undefined ? {} : { files }),
+        }
+      },
+      applyProjected: (selectedParams, projectedSelection) => ({
+        message: projectedSelection.message,
+        data: projectedSelection.data,
+        ...(Object.hasOwn(projectedSelection, 'files')
+          ? {
+              files: applyProjectedModelVisibleFileNames(
+                selectedParams.files,
+                projectedSelection.files
+              ),
+            }
+          : {}),
+      }),
+    },
     url: '/api/tools/a2a/send-message',
     method: 'POST',
     headers: () => ({ 'Content-Type': 'application/json' }),

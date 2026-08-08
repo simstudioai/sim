@@ -43,7 +43,7 @@ Read and update Zoho Desk tickets, manage comments and threads, look up contacts
 
 ## Actions
 
-### `zoho_desk_list_tickets`
+### Zoho Desk List Tickets
 
 List tickets from a Zoho Desk organization with optional filters. Returns a list projection: description, resolution, statusType and classification are only available from Get Ticket.
 
@@ -53,11 +53,14 @@ List tickets from a Zoho Desk organization with optional filters. Returns a list
 | --------- | ---- | -------- | ----------- |
 | `apiDomain` | string | No | Zoho Desk data-center REST base URL |
 | `orgId` | string | Yes | Zoho Desk organization ID |
-| `from` | number | No | Pagination start index \(0-based, max 4999\) |
-| `limit` | number | No | Number of tickets to return \(1-100, default 10\) |
+| `from` | number | No | Pagination start index \(0-based\) |
+| `limit` | number | No | Number of tickets to return \(1-100\) |
 | `departmentIds` | string | No | Filter by department ID \(comma-separated for multiple\) |
 | `status` | string | No | Filter by status, including custom statuses. Comma-separate to match multiple \(e.g. "Open,On Hold"\) |
 | `priority` | string | No | Filter by priority. Comma-separate to match multiple \(e.g. "High,Urgent"\) |
+| `assignee` | string | No | Filter by assignee: an agent ID, or "Unassigned". Comma-separate to match multiple. |
+| `channel` | string | No | Filter by origin channel, spelled as your portal spells it. Comma-separate to match multiple. |
+| `receivedInDays` | number | No | Only tickets whose last customer response was within the last 15, 30, or 90 days \(Zoho filters on customerResponseTime, despite the name\) |
 | `sortBy` | string | No | Sort field: createdTime, customerResponseTime, or responseDueDate. Prefix with - for descending. |
 | `include` | string | No | Comma-separated related data to embed. Allowed: contacts, products, departments, team, isRead, assignee |
 
@@ -88,6 +91,7 @@ List tickets from a Zoho Desk organization with optional filters. Returns a list
 |   ↳ `responseDueDate` | string | Response due date |
 |   ↳ `createdTime` | string | Created timestamp |
 |   ↳ `modifiedTime` | string | Last modified timestamp |
+|   ↳ `customerResponseTime` | string | Time the last customer response was received |
 |   ↳ `closedTime` | string | Closed timestamp |
 |   ↳ `resolution` | string | Resolution text |
 |   ↳ `threadCount` | string | Number of threads |
@@ -99,7 +103,7 @@ List tickets from a Zoho Desk organization with optional filters. Returns a list
 |   ↳ `cf` | json | Custom field values, keyed by custom field API name |
 | `count` | number | Number of tickets returned |
 
-### `zoho_desk_get_ticket`
+### Zoho Desk Get Ticket
 
 Retrieve a single Zoho Desk ticket by ID.
 
@@ -139,6 +143,7 @@ Retrieve a single Zoho Desk ticket by ID.
 |   ↳ `responseDueDate` | string | Response due date |
 |   ↳ `createdTime` | string | Created timestamp |
 |   ↳ `modifiedTime` | string | Last modified timestamp |
+|   ↳ `customerResponseTime` | string | Time the last customer response was received |
 |   ↳ `closedTime` | string | Closed timestamp |
 |   ↳ `resolution` | string | Resolution text |
 |   ↳ `threadCount` | string | Number of threads |
@@ -149,7 +154,7 @@ Retrieve a single Zoho Desk ticket by ID.
 |   ↳ `isSpam` | boolean | Whether the ticket is marked spam |
 |   ↳ `cf` | json | Custom field values, keyed by custom field API name |
 
-### `zoho_desk_update_ticket`
+### Zoho Desk Update Ticket
 
 Update fields on an existing Zoho Desk ticket.
 
@@ -170,7 +175,7 @@ Update fields on an existing Zoho Desk ticket.
 | `dueDate` | string | No | Due date \(ISO 8601\) |
 | `description` | string | No | Ticket description |
 | `resolution` | string | No | Resolution notes recorded on the ticket |
-| `classification` | string | No | Ticket classification: Problem, Request, Question, or Others |
+| `classification` | string | No | Ticket classification. Zoho\'s system-defined values are Problem, Request, and Question; portals can define custom values. Pass "" to clear it. |
 | `customFields` | json | No | Custom field values as a JSON object, keyed by custom field API name |
 
 #### Output
@@ -200,6 +205,7 @@ Update fields on an existing Zoho Desk ticket.
 |   ↳ `responseDueDate` | string | Response due date |
 |   ↳ `createdTime` | string | Created timestamp |
 |   ↳ `modifiedTime` | string | Last modified timestamp |
+|   ↳ `customerResponseTime` | string | Time the last customer response was received |
 |   ↳ `closedTime` | string | Closed timestamp |
 |   ↳ `resolution` | string | Resolution text |
 |   ↳ `threadCount` | string | Number of threads |
@@ -210,7 +216,7 @@ Update fields on an existing Zoho Desk ticket.
 |   ↳ `isSpam` | boolean | Whether the ticket is marked spam |
 |   ↳ `cf` | json | Custom field values, keyed by custom field API name |
 
-### `zoho_desk_list_comments`
+### Zoho Desk List Comments
 
 List comments on a Zoho Desk ticket.
 
@@ -223,6 +229,7 @@ List comments on a Zoho Desk ticket.
 | `ticketId` | string | Yes | Ticket ID |
 | `from` | number | No | Pagination start index \(0-based\) |
 | `limit` | number | No | Number of comments to return \(1-100, default 50\) |
+| `sortBy` | string | No | Sort by commentedTime. Ascending by default; prefix with - for descending \(-commentedTime\). |
 
 #### Output
 
@@ -252,7 +259,7 @@ List comments on a Zoho Desk ticket.
 |     ↳ `href` | string | Download href |
 | `count` | number | Number of comments returned |
 
-### `zoho_desk_add_comment`
+### Zoho Desk Add Comment
 
 Add a comment to a Zoho Desk ticket.
 
@@ -294,7 +301,7 @@ Add a comment to a Zoho Desk ticket.
 |     ↳ `size` | string | File size as reported by Zoho |
 |     ↳ `href` | string | Download href |
 
-### `zoho_desk_list_threads`
+### Zoho Desk List Threads
 
 List conversation threads on a Zoho Desk ticket, newest first (Zoho sorts by sendDateTime descending by default). Returns a list projection: message bodies (content, summary, to/cc/bcc) come back only from Get Thread.
 
@@ -307,6 +314,7 @@ List conversation threads on a Zoho Desk ticket, newest first (Zoho sorts by sen
 | `ticketId` | string | Yes | Ticket ID |
 | `from` | number | No | Pagination start index \(0-based\) |
 | `limit` | number | No | Number of threads to return \(1-200, default 100\) |
+| `sortBy` | string | No | Sort by sendDateTime. Zoho sorts descending \(newest first\) when unset; pass sendDateTime for oldest first. |
 
 #### Output
 
@@ -333,7 +341,7 @@ List conversation threads on a Zoho Desk ticket, newest first (Zoho sorts by sen
 |   ↳ `isContentTruncated` | boolean | Whether Zoho truncated the thread content; fetch fullContentURL for the rest |
 |   ↳ `fullContentURL` | string | URL returning the untruncated thread content |
 |   ↳ `plainText` | string | Zoho's own plain-text rendering of the thread, when it supplies one |
-|   ↳ `status` | string | Delivery status of an outgoing thread \(SUCCESS/FAILED/DRAFT\) |
+|   ↳ `status` | string | Delivery status of the thread \(e.g. SUCCESS, PENDING, FAILED, DRAFT\) |
 |   ↳ `isDescriptionThread` | boolean | Whether this thread is the ticket's original description |
 |   ↳ `visibility` | string | Thread visibility \(e.g. public\) |
 |   ↳ `canReply` | boolean | Whether the thread can be replied to |
@@ -351,7 +359,7 @@ List conversation threads on a Zoho Desk ticket, newest first (Zoho sorts by sen
 |     ↳ `href` | string | Download href |
 | `count` | number | Number of threads returned |
 
-### `zoho_desk_get_thread`
+### Zoho Desk Get Thread
 
 Retrieve the full content of a single Zoho Desk ticket thread.
 
@@ -363,6 +371,7 @@ Retrieve the full content of a single Zoho Desk ticket thread.
 | `orgId` | string | Yes | Zoho Desk organization ID |
 | `ticketId` | string | Yes | Ticket ID |
 | `threadId` | string | Yes | Thread ID |
+| `include` | string | No | Related data to embed. Allowed: plainText — Zoho's own plain-text rendering of the thread |
 
 #### Output
 
@@ -389,7 +398,7 @@ Retrieve the full content of a single Zoho Desk ticket thread.
 |   ↳ `isContentTruncated` | boolean | Whether Zoho truncated the thread content; fetch fullContentURL for the rest |
 |   ↳ `fullContentURL` | string | URL returning the untruncated thread content |
 |   ↳ `plainText` | string | Zoho's own plain-text rendering of the thread, when it supplies one |
-|   ↳ `status` | string | Delivery status of an outgoing thread \(SUCCESS/FAILED/DRAFT\) |
+|   ↳ `status` | string | Delivery status of the thread \(e.g. SUCCESS, PENDING, FAILED, DRAFT\) |
 |   ↳ `isDescriptionThread` | boolean | Whether this thread is the ticket's original description |
 |   ↳ `visibility` | string | Thread visibility \(e.g. public\) |
 |   ↳ `canReply` | boolean | Whether the thread can be replied to |
@@ -406,7 +415,7 @@ Retrieve the full content of a single Zoho Desk ticket thread.
 |     ↳ `size` | string | File size as reported by Zoho |
 |     ↳ `href` | string | Download href |
 
-### `zoho_desk_get_contact`
+### Zoho Desk Get Contact
 
 Retrieve a Zoho Desk contact by ID.
 
@@ -417,6 +426,7 @@ Retrieve a Zoho Desk contact by ID.
 | `apiDomain` | string | No | Zoho Desk data-center REST base URL |
 | `orgId` | string | Yes | Zoho Desk organization ID |
 | `contactId` | string | Yes | Contact ID to retrieve |
+| `include` | string | No | Comma-separated related data to embed. Allowed: accounts, owner |
 
 #### Output
 
@@ -442,7 +452,7 @@ Retrieve a Zoho Desk contact by ID.
 |   ↳ `description` | string | Description |
 |   ↳ `cf` | json | Custom field values, keyed by custom field API name |
 
-### `zoho_desk_get_attachment`
+### Zoho Desk Get Attachment
 
 Download a Zoho Desk ticket attachment (from its href) as a file.
 
@@ -461,7 +471,7 @@ Download a Zoho Desk ticket attachment (from its href) as a file.
 | --------- | ---- | ----------- |
 | `file` | file | The downloaded attachment file |
 
-### `zoho_desk_list_organizations`
+### Zoho Desk List Organizations
 
 List the Zoho Desk organizations (portals) the connected account can access.
 

@@ -1,11 +1,16 @@
 import { toError } from '@sim/utils/errors'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { ensureWorkspaceAccess } from '@/lib/copilot/tools/handlers/access'
+import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getCredentialActorContext } from '@/lib/credentials/access'
 import { isServiceAccountProviderId } from '@/lib/credentials/service-account-provider-ids'
+import { isOAuthServiceAllowedByIntegrationTypes } from '@/lib/integrations/availability'
+import { isOAuthServiceDeploymentAvailable } from '@/lib/integrations/availability.server'
 import { getAllOAuthServices } from '@/lib/oauth/utils'
+import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
 import type { WorkspaceAccess } from '@/lib/workspaces/permissions/utils'
+import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 
 export async function executeOAuthGetAuthLink(
   rawParams: Record<string, unknown>,
@@ -43,12 +48,21 @@ export async function executeOAuthGetAuthLink(
       context.userId,
       'write'
     )
+    const permissionConfig = await getUserPermissionConfig(context.userId, context.workspaceId)
+    const configuredAllowedIntegrations = intersectIntegrationAllowlists(
+      permissionConfig?.allowedIntegrations ?? null,
+      getAllowedIntegrationsFromEnv()
+    )
+    const allowedIntegrationTypes = configuredAllowedIntegrations
+      ? new Set(configuredAllowedIntegrations.map((type) => type.toLowerCase()))
+      : null
     const result = await generateOAuthLink(
       context.workspaceId,
       context.workflowId,
       context.chatId,
       providerName,
       baseUrl,
+      allowedIntegrationTypes,
       credentialId ? { credentialId, userId: context.userId, workspaceAccess } : undefined
     )
     const action = credentialId ? 'reconnect' : 'connect'
@@ -80,6 +94,7 @@ export async function executeOAuthGetAuthLink(
   }
 }
 
+/** Compatibility executor for older Mothership calls and persisted checkpoints. */
 export async function executeOAuthRequestAccess(
   rawParams: Record<string, unknown>,
   _context: ExecutionContext
@@ -117,13 +132,14 @@ async function generateOAuthLink(
   chatId: string | undefined,
   providerName: string,
   baseUrl: string,
+  allowedIntegrationTypes: ReadonlySet<string> | null,
   reconnect?: { credentialId: string; userId: string; workspaceAccess: WorkspaceAccess }
 ): Promise<{ url: string; providerId: string; serviceName: string }> {
   if (!workspaceId) {
     throw new Error('workspaceId is required to generate an OAuth link')
   }
 
-  const allServices = getAllOAuthServices()
+  const allServices = getAllOAuthServices().filter((service) => service.authType === 'oauth')
   const normalizedInput = providerName.toLowerCase().trim()
 
   const matched =
@@ -144,6 +160,12 @@ async function generateOAuthLink(
   }
 
   const { providerId, name: serviceName } = matched
+  if (!isOAuthServiceAllowedByIntegrationTypes(matched.serviceId, allowedIntegrationTypes)) {
+    throw new Error(`${serviceName} is not allowed for this workspace member`)
+  }
+  if (!isOAuthServiceDeploymentAvailable(providerId)) {
+    throw new Error(`${serviceName} OAuth is not configured for this deployment`)
+  }
 
   if (reconnect) {
     if (providerId === 'trello' || providerId === 'shopify') {
@@ -185,7 +207,9 @@ async function generateOAuthLink(
         : `${baseUrl}/workspace/${workspaceId}`
 
   if (providerId === 'trello') {
-    return { url: `${baseUrl}/api/auth/trello/authorize`, providerId, serviceName }
+    const authorizeUrl = new URL(`${baseUrl}/api/auth/trello/authorize`)
+    authorizeUrl.searchParams.set('returnUrl', callbackURL)
+    return { url: authorizeUrl.toString(), providerId, serviceName }
   }
   if (providerId === 'instagram') {
     const authorizeUrl = new URL(`${baseUrl}/api/auth/instagram/authorize`)
