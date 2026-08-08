@@ -33,7 +33,6 @@ import {
   createScrubbedPiError,
   getScrubbedPiErrorMessage,
   scrubPiEvent,
-  scrubPiSecrets,
 } from '@/executor/handlers/pi/redaction'
 import {
   buildSshToolSpecs,
@@ -113,18 +112,15 @@ async function runLocalAgent(
     let runErrorMessage: string | undefined
     try {
       await agentSession.prompt(
-        scrubPiSecrets(
-          buildPiPrompt({
-            skills: params.skills,
-            initialMessages: params.initialMessages,
-            task: params.task,
-            guidance: LOCAL_GUIDANCE,
-          }),
-          secrets
-        )
+        buildPiPrompt({
+          skills: params.skills,
+          initialMessages: params.initialMessages,
+          task: params.task,
+          guidance: LOCAL_GUIDANCE,
+        })
       )
       runErrorMessage = agentSession.agent.state.errorMessage
-        ? scrubPiSecrets(agentSession.agent.state.errorMessage, secrets)
+        ? getScrubbedPiErrorMessage(agentSession.agent.state.errorMessage, secrets)
         : undefined
     } finally {
       unsubscribe()
@@ -151,8 +147,8 @@ async function runLocalAgent(
     )
     return {
       totals,
-      changedFiles: changedFiles.map((file) => scrubPiSecrets(file, secrets)),
-      diff: scrubPiSecrets(diff, secrets),
+      changedFiles,
+      diff,
     }
   } finally {
     await modelRuntime.removeRuntimeApiKey(piProviderId)
@@ -179,12 +175,11 @@ async function runLocalPiInternal(
 }
 
 /**
- * Runs local Pi with boundary-specific secret redaction. The model credential can surface through
- * provider/SDK output and the search key through a provider error, so agent-visible text is scrubbed
- * against both. SSH authentication material is consumed only while opening the host-side connection;
- * keeping it out of agent-content redaction avoids corrupting unrelated repository text when a
- * password or passphrase is a short common value.
- * All credentials still participate in the outer error scrub in case connection setup echoes one.
+ * Runs local Pi with boundary-specific credential diagnostic redaction. The model credential can
+ * surface through provider/SDK errors and the search key through a provider error, so those error
+ * paths are redacted against both. SSH authentication material is consumed only while opening the
+ * host-side connection and participates only in the outer error scrub in case setup echoes it.
+ * Ordinary model, tool, and repository content stays unchanged.
  */
 export const runLocalPi: PiBackendRun<PiLocalRunParams> = async (params, context) => {
   const agentSecrets = [params.apiKey, params.search?.apiKey ?? '']

@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { getErrorMessage } from '@sim/utils/errors'
 import { formatQuotedNameList } from '@sim/utils/string'
 import { useQueryClient } from '@tanstack/react-query'
@@ -11,11 +10,6 @@ import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import { acceptInvitationContract } from '@/lib/api/contracts/invitations'
 import { client, useSession } from '@/lib/auth/auth-client'
-import {
-  buildMembershipNotice,
-  buildWorkspaceMigrationNotice,
-  MAX_LISTED_WORKSPACE_NAMES,
-} from '@/lib/invitations/disclosure-copy'
 import { InviteLayout, InviteStatusCard } from '@/app/invite/components'
 import { useInvitationDetails } from '@/hooks/queries/invitations'
 import { organizationKeys } from '@/hooks/queries/organization'
@@ -24,6 +18,9 @@ import { subscriptionKeys } from '@/hooks/queries/subscription'
 import { workspaceKeys } from '@/hooks/queries/workspace'
 
 const logger = createLogger('InviteById')
+
+/** Workspace names listed in the invitation title before collapsing into an "and N more" tail. */
+const MAX_LISTED_WORKSPACE_NAMES = 3
 
 function runBestEffortCacheRefresh(cache: string, refresh: () => Promise<unknown>): void {
   void Promise.resolve()
@@ -233,7 +230,6 @@ export default function Invite() {
   })
   const invitation = invitationQuery.data?.invitation ?? null
   const joinPreview = invitationQuery.data?.joinPreview ?? null
-  const joinPreviewUnavailable = invitationQuery.data?.joinPreviewUnavailable === true
   const isLoading = Boolean(session?.user) && invitationQuery.isPending
 
   const fetchError = invitationQuery.error
@@ -491,53 +487,13 @@ export default function Invite() {
   }
 
   const isOrg = invitation?.kind === 'organization'
-  /**
-   * Prefer the preview's organization (the one acceptance will really join)
-   * over the invitation's stamped name — a granted workspace may have moved
-   * organizations since the invite was sent.
-   */
-  const organizationLabel =
-    joinPreview?.organizationName || invitation?.organizationName || 'the organization'
-  /**
-   * When the server could not compute the preview, fall back to a generic
-   * migration notice for membership invites — a missing preview must never
-   * read as "nothing moves".
-   */
-  const migrationNotice = buildWorkspaceMigrationNotice({
-    joinPreview,
-    joinPreviewUnavailable,
-    membershipIntent: invitation?.membershipIntent,
-    organizationLabel,
-  })
-  /**
-   * Only disclosed when the invitation actually carries organization standing —
-   * a personal-workspace invite has no seat or membership to explain.
-   */
-  const membershipNotice = buildMembershipNotice({
-    joinPreview,
-    membershipIntent: invitation?.membershipIntent,
-    isOrganizationAdminRole: Boolean(invitation?.role && isOrgAdminRole(invitation.role)),
-    organizationLabel,
-    /**
-     * A personal-workspace invite has no organization id and no organization
-     * name yet — acceptance creates one by converting the billed owner's Pro to
-     * Team — so a `will-join` outcome is the authoritative signal that a
-     * membership and seat are involved. Gating on the ids alone silenced the
-     * disclosure for exactly the case that creates the membership.
-     */
-    isOrganizationScoped: Boolean(
-      invitation?.organizationId ||
-        joinPreview?.organizationName ||
-        joinPreview?.outcome === 'will-join'
-    ),
-  })
 
   return (
     <InviteLayout>
       <InviteStatusCard
         type='invitation'
         title={isOrg ? 'Organization Invitation' : 'Workspace Invitation'}
-        description={`You've been invited to join ${displayName}.${membershipNotice}${migrationNotice}`}
+        description={`You've been invited to join ${displayName}.`}
         icon={isOrg ? 'users' : 'mail'}
         actions={[
           {

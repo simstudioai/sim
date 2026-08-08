@@ -130,9 +130,7 @@ export function TransferOwnershipDialog({
                 onAction={onOpenBillingPortal}
                 text={
                   <>
-                    <span className='block font-medium'>
-                      Your payment method stays on this organization
-                    </span>
+                    <span className='block'>Your payment method stays on this organization</span>
                     <span className='block text-[var(--text-secondary)]'>
                       Future charges will keep hitting the card you added. Open the Stripe billing
                       portal to remove it before you leave.
@@ -183,7 +181,7 @@ export function TransferOwnershipDialog({
                           </Avatar>
                           <div className='min-w-0 flex-1'>
                             <div className='flex items-center gap-2'>
-                              <span className='truncate font-medium text-[var(--text-primary)] text-small'>
+                              <span className='truncate text-[var(--text-primary)] text-small'>
                                 {m.name}
                               </span>
                               {m.role === 'admin' && (

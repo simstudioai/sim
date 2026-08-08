@@ -125,10 +125,6 @@ export const findSimilarLinksTool: ToolConfig<
   },
 
   request: {
-    opaqueModelInput: {
-      mode: 'reject-resolved-secrets',
-      inputPaths: () => [['url']],
-    },
     url: 'https://api.exa.ai/findSimilar',
     method: 'POST',
     headers: (params) => ({

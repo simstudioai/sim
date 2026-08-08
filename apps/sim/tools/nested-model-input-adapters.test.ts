@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { addFollowupTool, addFollowupV2Tool } from '@/tools/cursor/add_followup'
 import { launchAgentTool, launchAgentV2Tool } from '@/tools/cursor/launch_agent'
 import { flintGeneratePagesTool } from '@/tools/flint/generate_pages'
@@ -9,6 +10,7 @@ import { mem0AddMemoriesTool } from '@/tools/mem0/add_memories'
 import { searchTextTool } from '@/tools/pinecone/search_text'
 import type { PineconeUpsertTextRecord } from '@/tools/pinecone/types'
 import { upsertTextTool } from '@/tools/pinecone/upsert_text'
+import { prepareToolRequest } from '@/tools/request-transport'
 import { zepAddMessagesTool } from '@/tools/zep/add_messages'
 
 describe('nested model-input adapters', () => {
@@ -19,13 +21,11 @@ describe('nested model-input adapters', () => {
     '$id omits the optional image key when no images were supplied',
     (tool, key, text) => {
       const modelInput = tool.request.modelInput
-      const opaqueModelInput = tool.request.opaqueModelInput
-      if (modelInput?.mode !== 'project' || !opaqueModelInput) {
-        throw new Error('Expected Cursor prompt descriptors')
+      if (modelInput?.mode !== 'project') {
+        throw new Error('Expected Cursor prompt projection')
       }
 
       expect(modelInput.select({ [key]: text })).toStrictEqual({ [key]: text })
-      expect(opaqueModelInput.inputPaths({ [key]: text })).toEqual([])
     }
   )
 
@@ -67,12 +67,11 @@ describe('nested model-input adapters', () => {
   )
 
   it.each([launchAgentTool, launchAgentV2Tool])(
-    '$id projects prompt text and guards parsed images without changing their transport',
+    '$id selects effective image payloads without changing their serialized transport',
     (tool) => {
       const modelInput = tool.request.modelInput
-      const opaqueModelInput = tool.request.opaqueModelInput
-      if (modelInput?.mode !== 'project' || !opaqueModelInput) {
-        throw new Error('Expected Cursor launch descriptors')
+      if (modelInput?.mode !== 'project') {
+        throw new Error('Expected Cursor prompt projection')
       }
       const promptImages = JSON.stringify([
         {
@@ -90,9 +89,13 @@ describe('nested model-input adapters', () => {
         })
       ).toStrictEqual({
         promptText: 'Inspect this image',
+        promptImages: [
+          {
+            data: 'quote" slash\\ newline\n123 true',
+            dimension: { width: 100, height: 200 },
+          },
+        ],
       })
-
-      expect(opaqueModelInput.inputPaths({ promptImages })).toStrictEqual([['promptImages']])
 
       const body = tool.request.body?.({
         apiKey: 'key',
@@ -113,9 +116,8 @@ describe('nested model-input adapters', () => {
     '$id preserves the existing empty-array fallback for malformed image JSON',
     (tool) => {
       const modelInput = tool.request.modelInput
-      const opaqueModelInput = tool.request.opaqueModelInput
-      if (modelInput?.mode !== 'project' || !opaqueModelInput) {
-        throw new Error('Expected Cursor follow-up descriptors')
+      if (modelInput?.mode !== 'project') {
+        throw new Error('Expected Cursor prompt projection')
       }
 
       expect(
@@ -126,7 +128,6 @@ describe('nested model-input adapters', () => {
           promptImages: 'not-json',
         })
       ).toStrictEqual({ followupPromptText: 'Continue' })
-      expect(opaqueModelInput.inputPaths({ promptImages: 'not-json' })).toStrictEqual([])
 
       const body = tool.request.body?.({
         apiKey: 'key',
@@ -137,6 +138,98 @@ describe('nested model-input adapters', () => {
       expect((body as { prompt: { images: unknown } }).prompt.images).toStrictEqual([])
     }
   )
+
+  it('rejects an exact resolved secret inside serialized Cursor image data', () => {
+    const secret = 'nested-image-secret'
+    const promptImages = JSON.stringify([
+      { data: `prefix-${secret}-suffix`, dimension: { width: 100, height: 200 } },
+    ])
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'CURSOR_IMAGE', plaintext: secret, encryptedValue: 'encrypted-cursor-image' },
+    ])
+    registry.recordResolvedAtInputPath('CURSOR_IMAGE', secret, ['promptImages'])
+    registry.recordResolvedInputProjection(
+      ['promptImages'],
+      promptImages,
+      JSON.stringify([
+        { data: 'prefix-{{CURSOR_IMAGE}}-suffix', dimension: { width: 100, height: 200 } },
+      ])
+    )
+
+    expect(() =>
+      prepareToolRequest(
+        launchAgentTool,
+        {
+          apiKey: 'cursor-key',
+          repository: 'https://github.com/acme/repo',
+          promptText: 'Inspect this image',
+          promptImages,
+        },
+        registry
+      )
+    ).toThrow('Model input could not be safely projected')
+  })
+
+  it('rejects a whole-value Cursor image secret instead of silently sending an empty array', () => {
+    const promptImages = JSON.stringify([
+      { data: 'whole-image-secret', dimension: { width: 100, height: 200 } },
+    ])
+    const registry = new ResolvedSecretTraceRegistry([
+      {
+        name: 'CURSOR_IMAGES',
+        plaintext: promptImages,
+        encryptedValue: 'encrypted-cursor-images',
+      },
+    ])
+    registry.recordResolvedAtInputPath('CURSOR_IMAGES', promptImages, ['promptImages'])
+    registry.recordResolvedInputProjection(['promptImages'], promptImages, '{{CURSOR_IMAGES}}')
+
+    expect(() =>
+      prepareToolRequest(
+        launchAgentTool,
+        {
+          apiKey: 'cursor-key',
+          repository: 'https://github.com/acme/repo',
+          promptText: 'Inspect this image',
+          promptImages,
+        },
+        registry
+      )
+    ).toThrow('Model input could not be safely projected')
+  })
+
+  it('projects Cursor prompt text while preserving ordinary serialized image bytes exactly', () => {
+    const promptImages = JSON.stringify([
+      { data: 'ordinary-base64-bytes', dimension: { width: 100, height: 200 } },
+    ])
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'CURSOR_PROMPT', plaintext: 'private-prompt', encryptedValue: 'encrypted-prompt' },
+      { name: 'UNUSED_LOW_ENTROPY', plaintext: 'a', encryptedValue: 'encrypted-unused' },
+    ])
+    registry.recordResolvedAtInputPath('CURSOR_PROMPT', 'private-prompt', ['promptText'])
+    registry.recordResolvedInputProjection(
+      ['promptText'],
+      'Inspect private-prompt',
+      'Inspect {{CURSOR_PROMPT}}'
+    )
+
+    const request = prepareToolRequest(
+      launchAgentTool,
+      {
+        apiKey: 'cursor-key',
+        repository: 'https://github.com/acme/repo',
+        promptText: 'Inspect private-prompt',
+        promptImages,
+      },
+      registry
+    )
+    const body = JSON.parse(request.body ?? '{}')
+
+    expect(body.prompt).toStrictEqual({
+      text: 'Inspect {{CURSOR_PROMPT}}',
+      images: [{ data: 'ordinary-base64-bytes', dimension: { width: 100, height: 200 } }],
+    })
+  })
 
   it.each([
     ['array', false],

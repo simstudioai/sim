@@ -1910,7 +1910,7 @@ export function Files() {
     return (
       <div className='flex w-[240px] flex-col gap-3 p-3'>
         <div className='flex flex-col gap-1.5'>
-          <span className='font-medium text-[var(--text-secondary)] text-caption'>File Type</span>
+          <span className='text-[var(--text-secondary)] text-caption'>File Type</span>
           <ChipCombobox
             options={[
               { value: 'document', label: 'Documents' },
@@ -1930,7 +1930,7 @@ export function Files() {
           />
         </div>
         <div className='flex flex-col gap-1.5'>
-          <span className='font-medium text-[var(--text-secondary)] text-caption'>Size</span>
+          <span className='text-[var(--text-secondary)] text-caption'>Size</span>
           <ChipCombobox
             options={[
               { value: 'small', label: 'Small (< 1 MB)' },
@@ -1950,9 +1950,7 @@ export function Files() {
         </div>
         {memberOptions.length > 0 && (
           <div className='flex flex-col gap-1.5'>
-            <span className='font-medium text-[var(--text-secondary)] text-caption'>
-              Uploaded By
-            </span>
+            <span className='text-[var(--text-secondary)] text-caption'>Uploaded By</span>
             <ChipCombobox
               options={memberOptions}
               multiSelect
@@ -2147,9 +2145,7 @@ export function Files() {
                 <div className='pointer-events-none absolute inset-0 z-[var(--z-dropdown)] flex flex-col items-center justify-center gap-2 border border-[var(--brand-secondary)] border-dashed bg-[var(--surface-4)] transition-colors'>
                   <Upload className='size-5 text-[var(--brand-secondary)]' />
                   <div className='flex flex-col gap-0.5 text-center'>
-                    <p className='font-medium text-[14px] text-[var(--brand-secondary)]'>
-                      Drop to upload
-                    </p>
+                    <p className='text-[14px] text-[var(--brand-secondary)]'>Drop to upload</p>
                     <p className='text-[11px] text-[var(--text-tertiary)]'>
                       Release files here to add them to this workspace
                     </p>

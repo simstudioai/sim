@@ -787,7 +787,7 @@ function EmbeddedFolder({ workspaceId, folderId }: EmbeddedFolderProps) {
 
   return (
     <div className='flex h-full flex-col overflow-y-auto p-6'>
-      <h2 className='mb-4 font-medium text-[16px] text-[var(--text-primary)]'>{folder.name}</h2>
+      <h2 className='mb-4 text-[16px] text-[var(--text-primary)]'>{folder.name}</h2>
       {folderWorkflows.length === 0 ? (
         <p className='text-[13px] text-[var(--text-muted)]'>No workflows in this folder</p>
       ) : (

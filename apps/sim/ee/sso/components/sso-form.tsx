@@ -220,7 +220,7 @@ export default function SSOForm() {
           <span className='font-normal'>Don't have an account? </span>
           <Link
             href={`/signup${callbackUrl ? `?callbackUrl=${encodeURIComponent(callbackUrl)}` : ''}`}
-            className='font-medium text-[var(--text-primary)] underline-offset-4 transition hover:underline'
+            className='text-[var(--text-primary)] underline-offset-4 transition hover:underline'
           >
             Sign up
           </Link>

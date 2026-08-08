@@ -504,7 +504,7 @@ export const OutputPanel = React.memo(function OutputPanel({
             />
             <span
               className={clsx(
-                'w-[58px] font-medium text-xs',
+                'w-[58px] text-xs',
                 matchCount > 0 ? 'text-[var(--text-secondary)]' : 'text-[var(--text-tertiary)]'
               )}
             >

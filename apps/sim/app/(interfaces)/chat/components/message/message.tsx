@@ -187,7 +187,7 @@ export const ClientChatMessage = memo(function ClientChatMessage({
                             {getFileIcon(attachment.type)}
                           </div>
                           <div className='min-w-0 flex-1'>
-                            <div className='truncate font-medium text-[var(--text-primary)] text-xs md:text-sm'>
+                            <div className='truncate text-[var(--text-primary)] text-xs md:text-sm'>
                               {attachment.name}
                             </div>
                             {attachment.size && (

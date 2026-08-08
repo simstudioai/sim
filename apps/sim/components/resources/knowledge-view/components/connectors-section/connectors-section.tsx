@@ -383,7 +383,7 @@ function ConnectorCard({
           </div>
           <div className='flex min-w-0 flex-col gap-0.5'>
             <div className='flex min-w-0 items-center gap-2'>
-              <span className='flex min-w-0 items-center gap-1.5 font-medium text-[var(--text-primary)] text-small'>
+              <span className='flex min-w-0 items-center gap-1.5 text-[var(--text-primary)] text-small'>
                 <span className='truncate'>{connectorDef?.name || connector.connectorType}</span>
                 {(isSyncPending || connector.status === 'syncing') && (
                   <Loader className='size-3 text-[var(--text-muted)]' animate />
@@ -556,7 +556,7 @@ function ConnectorCard({
       {connector.status === 'disabled' && (
         <div className='border-[var(--border-muted)] border-t px-2 py-2'>
           <div className='flex flex-col gap-2 rounded-md border border-[var(--border-muted)] bg-[var(--surface-3)] px-2.5 py-2'>
-            <div className='flex items-center gap-1.5 font-medium text-[var(--text-primary)] text-caption'>
+            <div className='flex items-center gap-1.5 text-[var(--text-primary)] text-caption'>
               <TriangleAlert className='size-3 flex-shrink-0 text-[var(--caution)]' />
               Connector disabled after repeated sync failures
             </div>
@@ -596,7 +596,7 @@ function ConnectorCard({
       {missingScopes.length > 0 && connector.status !== 'disabled' && (
         <div className='border-[var(--border-muted)] border-t px-2 py-2'>
           <div className='flex flex-col gap-2 rounded-md border border-[var(--border-muted)] bg-[var(--surface-3)] px-2.5 py-2'>
-            <div className='flex items-center font-medium text-[var(--text-primary)] text-caption'>
+            <div className='flex items-center text-[var(--text-primary)] text-caption'>
               <span className='mr-1.5 inline-block size-[6px] rounded-xs bg-[var(--caution)]' />
               Additional permissions required
             </div>

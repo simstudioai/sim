@@ -4214,7 +4214,7 @@ export function TableGrid({
       <div className='flex h-full flex-col items-center justify-center gap-3'>
         <TableX className='size-[32px] text-[var(--text-muted)]' />
         <div className='flex flex-col items-center gap-1'>
-          <h2 className='font-medium text-[20px] text-[var(--text-secondary)]'>Table not found</h2>
+          <h2 className='text-[20px] text-[var(--text-secondary)]'>Table not found</h2>
           <p className='text-[var(--text-muted)] text-small'>
             This table may have been deleted or moved
           </p>

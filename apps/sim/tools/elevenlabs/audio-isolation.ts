@@ -1,4 +1,7 @@
-import { selectElevenLabsAudioModelInputPaths } from '@/tools/elevenlabs/model-input'
+import {
+  applyProjectedElevenLabsAudioFileNameModelInput,
+  selectElevenLabsAudioFileNameModelInput,
+} from '@/tools/elevenlabs/model-input'
 import type {
   ElevenLabsAudioIsolationParams,
   ElevenLabsAudioResponse,
@@ -31,8 +34,9 @@ export const elevenLabsAudioIsolationTool: ToolConfig<
 
   request: {
     modelInput: {
-      mode: 'private-provenance',
-      inputPaths: selectElevenLabsAudioModelInputPaths,
+      mode: 'project',
+      select: selectElevenLabsAudioFileNameModelInput,
+      applyProjected: applyProjectedElevenLabsAudioFileNameModelInput,
     },
     url: '/api/tools/elevenlabs/audio',
     method: 'POST',

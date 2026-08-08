@@ -359,7 +359,7 @@ export function RemoteSelectionOverlay({
           // `rounded-bl-none` tabs the label's bottom-left corner onto the selection's
           // top-left, the one deviation from the free-floating canvas cursor tag.
           <div
-            className='pointer-events-none fixed z-[60] max-w-[160px] truncate whitespace-nowrap rounded-xs rounded-bl-none px-1.5 py-0.5 font-medium text-[var(--surface-1)] text-xs'
+            className='pointer-events-none fixed z-[60] max-w-[160px] truncate whitespace-nowrap rounded-xs rounded-bl-none px-1.5 py-0.5 text-[var(--surface-1)] text-xs'
             style={{
               top: hoveredBox.viewportTop,
               left: hoveredBox.viewportLeft,

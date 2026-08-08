@@ -133,7 +133,7 @@ export function VersionDescriptionModal({
             title={
               <span>
                 {currentDescription ? 'Edit the' : 'Add a'} description for{' '}
-                <span className='font-medium text-[var(--text-primary)]'>{versionName}</span>
+                <span className='text-[var(--text-primary)]'>{versionName}</span>
               </span>
             }
             error={

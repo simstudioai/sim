@@ -135,7 +135,7 @@ export const LogDetails = memo(function LogDetails({
           <div className='flex h-full flex-col px-3.5 pt-3'>
             {/* Header */}
             <div className='flex items-center justify-between'>
-              <h2 className='font-medium text-[var(--text-primary)] text-sm'>Log Details</h2>
+              <h2 className='text-[var(--text-primary)] text-sm'>Log Details</h2>
               <div className='flex items-center gap-[1px]'>
                 {log.status === 'failed' &&
                   (log.workflow?.id || log.workflowId) &&

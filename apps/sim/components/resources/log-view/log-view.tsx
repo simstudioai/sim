@@ -512,17 +512,15 @@ export function LogView({
               {/* Timestamp + Workflow header */}
               <div className='grid grid-cols-2 gap-x-3 pb-0.5'>
                 <div className='flex min-w-0 flex-col gap-0.5'>
-                  <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                    Timestamp
-                  </span>
-                  <span className='font-medium text-[var(--text-secondary)] text-sm tabular-nums'>
+                  <span className='text-[var(--text-tertiary)] text-caption'>Timestamp</span>
+                  <span className='text-[var(--text-secondary)] text-sm tabular-nums'>
                     {formattedTimestamp
                       ? `${formattedTimestamp.compactDate} ${formattedTimestamp.compactTime}`
                       : '—'}
                   </span>
                 </div>
                 <div className='flex min-w-0 flex-col gap-0.5'>
-                  <span className='font-medium text-[var(--text-tertiary)] text-caption'>
+                  <span className='text-[var(--text-tertiary)] text-caption'>
                     {log.trigger === 'mothership' ? 'Job' : 'Workflow'}
                   </span>
                   {workflowHref ? (
@@ -537,7 +535,7 @@ export function LogView({
                         <Workflow className='col-start-1 row-start-1 size-[14px] text-[var(--text-icon)] opacity-100 blur-0 transition-[opacity,filter,transform] duration-200 ease-in-out group-hover:scale-[0.25] group-hover:opacity-0 group-hover:blur-[2px] group-focus-visible:scale-[0.25] group-focus-visible:opacity-0 group-focus-visible:blur-[2px] motion-reduce:transition-none' />
                         <SquareArrowUpRight className='col-start-1 row-start-1 size-[14px] scale-[0.25] text-[var(--text-icon)] opacity-0 blur-[2px] transition-[opacity,filter,transform] duration-200 ease-in-out group-hover:scale-100 group-hover:opacity-100 group-hover:blur-0 group-focus-visible:scale-100 group-focus-visible:opacity-100 group-focus-visible:blur-0 motion-reduce:transition-none' />
                       </span>
-                      <span className='min-w-0 truncate font-medium text-[var(--text-secondary)] text-sm transition-colors group-hover:text-[var(--text-primary)] group-focus-visible:text-[var(--text-primary)]'>
+                      <span className='min-w-0 truncate text-[var(--text-secondary)] text-sm transition-colors group-hover:text-[var(--text-primary)] group-focus-visible:text-[var(--text-primary)]'>
                         {workflowLabel}
                       </span>
                       <span className='sr-only'>(opens in a new tab)</span>
@@ -545,7 +543,7 @@ export function LogView({
                   ) : (
                     <div className='flex min-w-0 items-center gap-1.5'>
                       <Workflow className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-                      <span className='min-w-0 truncate font-medium text-[var(--text-secondary)] text-sm'>
+                      <span className='min-w-0 truncate text-[var(--text-secondary)] text-sm'>
                         {workflowLabel}
                       </span>
                     </div>
@@ -567,10 +565,10 @@ export function LogView({
                       handleKeyboardActivation(event, () => copyRunId(log.executionId!))
                     }
                   >
-                    <span className='flex-shrink-0 font-medium text-[var(--text-tertiary)] text-caption'>
+                    <span className='flex-shrink-0 text-[var(--text-tertiary)] text-caption'>
                       Run ID
                     </span>
-                    <span className='min-w-0 truncate font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
+                    <span className='min-w-0 truncate text-[var(--text-secondary)] text-caption tabular-nums'>
                       {copiedRunId ? 'Copied!' : log.executionId}
                     </span>
                   </div>
@@ -578,32 +576,24 @@ export function LogView({
 
                 {/* Level */}
                 <div className='flex h-10 items-center justify-between px-3'>
-                  <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                    Level
-                  </span>
+                  <span className='text-[var(--text-tertiary)] text-caption'>Level</span>
                   <StatusBadge status={logStatus} />
                 </div>
 
                 {/* Trigger */}
                 <div className='flex h-10 items-center justify-between px-3'>
-                  <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                    Trigger
-                  </span>
+                  <span className='text-[var(--text-tertiary)] text-caption'>Trigger</span>
                   {log.trigger ? (
                     <TriggerBadge trigger={log.trigger} />
                   ) : (
-                    <span className='font-medium text-[var(--text-secondary)] text-caption'>
-                      None
-                    </span>
+                    <span className='text-[var(--text-secondary)] text-caption'>None</span>
                   )}
                 </div>
 
                 {/* Duration */}
                 <div className='flex h-10 items-center justify-between px-3'>
-                  <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                    Duration
-                  </span>
-                  <span className='font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
+                  <span className='text-[var(--text-tertiary)] text-caption'>Duration</span>
+                  <span className='text-[var(--text-secondary)] text-caption tabular-nums'>
                     {formatDuration(log.duration, { precision: 2 }) || '—'}
                   </span>
                 </div>
@@ -611,7 +601,7 @@ export function LogView({
                 {/* Version */}
                 {log.deploymentVersion && (
                   <div className='flex h-10 items-center gap-2 px-3'>
-                    <span className='flex-shrink-0 font-medium text-[var(--text-tertiary)] text-caption'>
+                    <span className='flex-shrink-0 text-[var(--text-tertiary)] text-caption'>
                       Version
                     </span>
                     <div className='flex w-0 flex-1 justify-end'>
@@ -625,9 +615,7 @@ export function LogView({
                 {/* Snapshot */}
                 {showWorkflowState && (
                   <div className='flex h-10 items-center justify-between px-3'>
-                    <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                      Snapshot
-                    </span>
+                    <span className='text-[var(--text-tertiary)] text-caption'>Snapshot</span>
                     <Chip leftIcon={Eye} onClick={() => setIsExecutionSnapshotOpen(true)}>
                       View Snapshot
                     </Chip>
@@ -637,9 +625,7 @@ export function LogView({
                 {/* Troubleshoot */}
                 {canTroubleshoot && (
                   <div className='flex h-10 items-center justify-between px-3'>
-                    <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                      Troubleshoot
-                    </span>
+                    <span className='text-[var(--text-tertiary)] text-caption'>Troubleshoot</span>
                     <Chip leftIcon={Wrench} onClick={handleTroubleshoot}>
                       Troubleshoot in Chat
                     </Chip>
@@ -650,9 +636,7 @@ export function LogView({
               {/* Workflow Input */}
               {isWorkflowExecutionLog && workflowInput && showExecutionInternals && (
                 <div className='flex flex-col gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-2 dark:bg-transparent'>
-                  <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                    Workflow Input
-                  </span>
+                  <span className='text-[var(--text-tertiary)] text-caption'>Workflow Input</span>
                   <WorkflowOutputSection output={workflowInput} />
                 </div>
               )}
@@ -662,7 +646,7 @@ export function LogView({
                 <div className='flex flex-col gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-2 dark:bg-transparent'>
                   <span
                     className={cn(
-                      'font-medium text-caption',
+                      'text-caption',
                       workflowOutput.error
                         ? 'text-[var(--text-error)]'
                         : 'text-[var(--text-tertiary)]'
@@ -684,34 +668,30 @@ export function LogView({
                 <div className='divide-y divide-[var(--border)] overflow-hidden rounded-md border border-[var(--border)] bg-[var(--surface-2)] dark:bg-transparent'>
                   {costBreakdown.rows.map((row) => (
                     <div key={row.key} className='flex h-10 items-center justify-between px-3'>
-                      <span className='min-w-0 truncate font-medium text-[var(--text-tertiary)] text-caption'>
+                      <span className='min-w-0 truncate text-[var(--text-tertiary)] text-caption'>
                         {row.label}
                       </span>
-                      <span className='flex-shrink-0 font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
+                      <span className='flex-shrink-0 text-[var(--text-secondary)] text-caption tabular-nums'>
                         {creditLabel(row.credits, row.dollars)}
                       </span>
                     </div>
                   ))}
                   <div className='flex h-10 items-center justify-between px-3'>
-                    <span className='font-medium text-[var(--text-secondary)] text-caption'>
-                      Total
-                    </span>
+                    <span className='text-[var(--text-secondary)] text-caption'>Total</span>
                     <span className='font-semibold text-[var(--text-primary)] text-caption tabular-nums'>
                       {creditLabel(costBreakdown.totalCredits, costBreakdown.totalDollars)}
                     </span>
                   </div>
                   {(costBreakdown.tokens.input > 0 || costBreakdown.tokens.output > 0) && (
                     <div className='flex h-10 items-center justify-between px-3'>
-                      <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                        Tokens
-                      </span>
-                      <span className='font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
+                      <span className='text-[var(--text-tertiary)] text-caption'>Tokens</span>
+                      <span className='text-[var(--text-secondary)] text-caption tabular-nums'>
                         {costBreakdown.tokens.input} in · {costBreakdown.tokens.output} out
                       </span>
                     </div>
                   )}
                   <div className='px-3 py-2'>
-                    <p className='font-medium text-[var(--text-tertiary)] text-xs'>
+                    <p className='text-[var(--text-tertiary)] text-xs'>
                       Total includes a {formatCost(BASE_EXECUTION_CHARGE)} base charge plus model
                       and tool usage.
                     </p>
@@ -729,15 +709,13 @@ export function LogView({
               <TraceView traceSpans={traceSpans} runCostDollars={log.cost?.total} />
             ) : log.executionData ? (
               <div className='flex h-full items-center justify-center px-4 text-center'>
-                <span className='font-medium text-[var(--text-tertiary)] text-sm'>
+                <span className='text-[var(--text-tertiary)] text-sm'>
                   No trace data available for this run
                 </span>
               </div>
             ) : (
               <div className='flex h-full items-center justify-center px-4 text-center'>
-                <span className='font-medium text-[var(--text-tertiary)] text-sm'>
-                  Loading trace…
-                </span>
+                <span className='text-[var(--text-tertiary)] text-sm'>Loading trace…</span>
               </div>
             )}
           </div>

@@ -73,7 +73,7 @@ const CursorsComponent = () => {
 
               {/* Name tag to the right, background tightly wrapping text */}
               <div
-                className='ml-[-4px] inline-flex max-w-[160px] truncate whitespace-nowrap rounded-xs px-1.5 py-0.5 font-medium text-[var(--surface-1)] text-xs'
+                className='ml-[-4px] inline-flex max-w-[160px] truncate whitespace-nowrap rounded-xs px-1.5 py-0.5 text-[var(--surface-1)] text-xs'
                 style={{ backgroundColor: color }}
               >
                 {name}

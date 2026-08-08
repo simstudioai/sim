@@ -645,7 +645,7 @@ export function AddResourceDropdown({
                 )
               })
             ) : (
-              <div className='px-2 py-1.5 text-center font-medium text-[var(--text-tertiary)] text-caption'>
+              <div className='px-2 py-1.5 text-center text-[var(--text-tertiary)] text-caption'>
                 No results
               </div>
             )

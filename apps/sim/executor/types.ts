@@ -363,6 +363,8 @@ export interface ExecutionContext {
   startRunMetadata?: StartBlockRunMetadata
   environmentVariables: Record<string, string>
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
+  /** Exact candidates that may be carried by this block's terminal error, never its normal output. */
+  errorResolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
   workflowVariables?: Record<string, any>
   workflowVariableResolvedSecretTraceProvenance?: Record<string, ResolvedSecretTraceProvenanceV1>
   workflowInputResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
@@ -572,6 +574,8 @@ export interface StreamingExecution {
   clientStreamTransformed?: boolean
   /** Internal provenance for the exact block input that initiated this live stream. */
   displayResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
+  /** Internal source registry retained only for sanitizing failures while the stream drains. */
+  diagnosticResolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
   execution: ExecutionResult & { isStreaming?: boolean }
   /**
    * Invoked with the assembled response text after the stream drains. Lets agent

@@ -471,7 +471,7 @@ const Pagination = memo(function Pagination({
                 variant='ghost'
                 onClick={() => onPageChange(page)}
                 className={cn(
-                  'h-auto p-0 font-medium text-sm transition-colors hover-hover:bg-transparent hover-hover:text-[var(--text-body)]',
+                  'h-auto p-0 text-sm transition-colors hover-hover:bg-transparent hover-hover:text-[var(--text-body)]',
                   page === currentPage ? 'text-[var(--text-body)]' : 'text-[var(--text-secondary)]'
                 )}
               >

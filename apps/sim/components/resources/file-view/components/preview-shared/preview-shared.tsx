@@ -34,7 +34,7 @@ export const UnsupportedPreview = memo(function UnsupportedPreview({
 
   return (
     <div className='flex flex-1 flex-col items-center justify-center gap-[8px]'>
-      <p className='font-medium text-[var(--text-primary)] text-sm'>
+      <p className='text-[var(--text-primary)] text-sm'>
         Preview not available{ext ? ` for .${ext} files` : ' for this file'}
       </p>
       {href ? (
@@ -51,9 +51,7 @@ export const UnsupportedPreview = memo(function UnsupportedPreview({
 export function PreviewError({ label, error }: { label: string; error: string }) {
   return (
     <div className='flex flex-1 flex-col items-center justify-center gap-[8px]'>
-      <p className='font-medium text-[14px] text-[var(--text-primary)]'>
-        Failed to preview {label}
-      </p>
+      <p className='text-[14px] text-[var(--text-primary)]'>Failed to preview {label}</p>
       <p className='text-[13px] text-[var(--text-muted)]'>{error}</p>
     </div>
   )

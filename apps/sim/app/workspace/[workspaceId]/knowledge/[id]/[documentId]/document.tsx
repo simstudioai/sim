@@ -646,7 +646,7 @@ export function Document({
     () => (
       <div className='flex w-[240px] flex-col gap-3 p-3'>
         <div className='flex flex-col gap-1.5'>
-          <span className='font-medium text-[var(--text-secondary)] text-caption'>Status</span>
+          <span className='text-[var(--text-secondary)] text-caption'>Status</span>
           <ChipCombobox
             options={[
               { value: 'enabled', label: 'Enabled' },
