@@ -36,6 +36,7 @@ import {
 } from '@/app/workspace/[workspaceId]/components/folders'
 import { PresenceAvatars } from '@/app/workspace/[workspaceId]/components/presence/presence-avatars'
 import { LogDetails } from '@/app/workspace/[workspaceId]/logs/components'
+import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ImportCsvDialog } from '@/app/workspace/[workspaceId]/tables/components/import-csv-dialog'
 import { ImportProgressMenu } from '@/app/workspace/[workspaceId]/tables/components/import-progress-menu'
@@ -1067,6 +1068,12 @@ export function Table({
       toast.error('Failed to export table')
     }
   }, [tableData, workspaceId])
+
+  useRegisterGlobalCommands(() => [
+    { id: 'table-new-column', handler: () => handleAddColumnOfType('string') },
+    { id: 'table-export-csv', handler: () => void handleExportCsv() },
+    { id: 'table-import-csv', handler: () => setIsImportCsvOpen(true) },
+  ])
 
   const columnOptions = useMemo<ColumnOption[]>(
     () =>

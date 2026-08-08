@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Chip, Tooltip } from '@sim/emcn'
+import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { DeployModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/deploy-modal'
 import {
   useChangeDetection,
@@ -74,6 +75,8 @@ export function Deploy({ activeWorkflowId, userPermissions, disabled = false }: 
       setIsModalOpen(true)
     }
   }
+
+  useRegisterGlobalCommands(() => [{ id: 'deploy-workflow', handler: () => void onDeployClick() }])
 
   const getTooltipText = () => {
     if (isEmpty) {

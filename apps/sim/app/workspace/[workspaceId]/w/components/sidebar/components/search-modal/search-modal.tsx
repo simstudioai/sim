@@ -4,7 +4,9 @@ import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } f
 import { cn, Library } from '@sim/emcn'
 import {
   Calendar,
+  Columns3,
   Database,
+  Download,
   Duplicate,
   File,
   FolderPlus,
@@ -12,11 +14,16 @@ import {
   Home,
   Integration,
   Key,
+  Pencil,
   Play,
   Plus,
+  RefreshCw,
+  Rocket,
   Send,
   Settings,
   Table,
+  TagIcon,
+  Trash,
   Upload,
 } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
@@ -26,23 +33,29 @@ import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { createPortal } from 'react-dom'
 import { isChatEnabled } from '@/lib/core/config/env-flags'
+import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
+import { sendMothershipMessage } from '@/lib/mothership/events'
 import { captureEvent } from '@/lib/posthog/client'
-import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
+import { toSearchToken } from '@/lib/search/tokens'
+import { getMothershipHandoffHref } from '@/app/workspace/[workspaceId]/home/search-params'
 import { useInvokeGlobalCommand } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import {
   CommandFadedList,
   CommandSearch,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/components/command-chrome'
+import { MemoizedActionItem } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/components/command-items'
 import { SearchEntryGroup } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/components/search-groups'
 import type {
   ActionGroupLabel,
   ActionItem,
   FileItem,
   IntegrationSearchItem,
+  LogItem,
   PageItem,
   SearchEntry,
   SearchEntryHandlers,
   SearchModalProps,
+  SearchSection,
   TaskItem,
   WorkflowItem,
   WorkspaceItem,
@@ -50,7 +63,10 @@ import type {
 import {
   getActionGroupLabel,
   getGlobalSearchResults,
+  getPageActionGroupLabel,
   MAX_RESULTS_PER_GROUP,
+  PAGE_CONTEXT_HOISTED_SECTION,
+  SEARCH_SECTIONS,
   SECTION_LABELS,
   scoreActions,
   scoreSectionItems,
@@ -62,14 +78,6 @@ import {
 import { SIDEBAR_SCROLL_EVENT } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
-import { useSearchModalStore } from '@/stores/modals/search/store'
-import type {
-  SearchBlockItem,
-  SearchDocItem,
-  SearchSection,
-  SearchToolOperationItem,
-} from '@/stores/modals/search/types'
-import { SEARCH_SECTIONS } from '@/stores/modals/search/types'
 
 const logger = createLogger('SearchModal')
 
@@ -84,10 +92,11 @@ export function SearchModal({
   tables = [],
   files = [],
   knowledgeBases = [],
+  logs = [],
   integrations = [],
   connectedAccounts = [],
   isOnWorkflowPage = false,
-  isOnIntegrationsPage = false,
+  pageContext = null,
   canEdit = false,
   onCreateWorkflow,
   onCreateFolder,
@@ -96,8 +105,8 @@ export function SearchModal({
   const params = useParams()
   const router = useRouter()
   const workspaceId = params.workspaceId as string
-  const currentWorkflowId = params.workflowId as string | undefined
   const inputRef = useRef<HTMLInputElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
   const [mounted, setMounted] = useState(false)
   const { navigateToSettings } = useSettingsNavigation()
   const { config: permissionConfig } = usePermissionConfig()
@@ -114,16 +123,6 @@ export function SearchModal({
   useEffect(() => {
     setMounted(true)
   }, [])
-
-  const { blocks, tools, triggers, toolOperations, docs } = useSearchModalStore(
-    (state) => state.data
-  )
-
-  const sections = useSearchModalStore((state) => state.sections)
-  const displaySections = useMemo(
-    () => SEARCH_SECTIONS.filter((section) => !sections || sections.includes(section)),
-    [sections]
-  )
 
   const openHelpModal = useCallback(() => {
     window.dispatchEvent(new CustomEvent('open-help-modal'))
@@ -210,15 +209,49 @@ export function SearchModal({
    */
   const actions = useMemo((): ActionItem[] => {
     const list: ActionItem[] = []
-    list.push({
-      id: 'run-workflow',
-      name: 'Run workflow',
-      keywords: 'execute start play test',
-      icon: Play,
-      shortcut: '⌘↵',
-      context: 'workflow',
-      run: () => invokeCommand('run-workflow'),
-    })
+    const onCanvas = pageContext === 'workflow'
+    const invoke = (id: string) => () => invokeCommand(id)
+
+    list.push(
+      {
+        id: 'run-workflow',
+        name: 'Run workflow',
+        keywords: 'execute start play test',
+        icon: Play,
+        shortcut: '⌘↵',
+        context: 'workflow',
+        run: invoke('run-workflow'),
+      },
+      {
+        id: 'deploy-workflow',
+        name: 'Deploy workflow',
+        keywords: 'ship release publish api',
+        icon: Rocket,
+        context: 'workflow',
+        run: invoke('deploy-workflow'),
+      },
+      {
+        id: 'fit-to-view',
+        name: 'Fit workflow to view',
+        keywords: 'zoom center recenter canvas reset',
+        icon: Scan,
+        shortcut: '⇧⌘F',
+        context: 'workflow',
+        run: invoke('fit-to-view'),
+      },
+      {
+        id: 'copy-workflow-url',
+        name: 'Copy workflow link',
+        keywords: 'url share clipboard',
+        icon: Duplicate,
+        context: 'workflow',
+        run: () => {
+          navigator.clipboard.writeText(window.location.href).catch((error) => {
+            logger.error('Failed to copy workflow link to clipboard', { error })
+          })
+        },
+      }
+    )
     if (isChatEnabled) {
       list.push({
         id: 'new-chat',
@@ -229,13 +262,15 @@ export function SearchModal({
         run: () => routerRef.current.push(`/workspace/${workspaceId}/home`),
       })
     }
+    /* On the canvas these three join the Workflow Actions group; everywhere
+       else they are platform verbs. */
     if (canEdit && onCreateWorkflow) {
       list.push({
         id: 'create-workflow',
         name: 'Create workflow',
         keywords: 'new add build',
         icon: Plus,
-        context: 'global',
+        context: onCanvas ? 'workflow' : 'global',
         run: onCreateWorkflow,
       })
     }
@@ -245,7 +280,7 @@ export function SearchModal({
         name: 'Create folder',
         keywords: 'new add group',
         icon: FolderPlus,
-        context: 'global',
+        context: onCanvas ? 'workflow' : 'global',
         run: onCreateFolder,
       })
     }
@@ -255,31 +290,10 @@ export function SearchModal({
         name: 'Import workflow',
         keywords: 'upload add',
         icon: Upload,
-        context: 'global',
+        context: onCanvas ? 'workflow' : 'global',
         run: onImportWorkflow,
       })
     }
-    list.push({
-      id: 'fit-to-view',
-      name: 'Fit workflow to view',
-      keywords: 'zoom center recenter canvas reset',
-      icon: Scan,
-      shortcut: '⇧⌘F',
-      context: 'workflow',
-      run: () => invokeCommand('fit-to-view'),
-    })
-    list.push({
-      id: 'copy-workflow-url',
-      name: 'Copy workflow link',
-      keywords: 'url share clipboard',
-      icon: Duplicate,
-      context: 'workflow',
-      run: () => {
-        navigator.clipboard.writeText(window.location.href).catch((error) => {
-          logger.error('Failed to copy workflow link to clipboard', { error })
-        })
-      },
-    })
     list.push({
       id: 'invite-teammates',
       name: 'Invite teammates',
@@ -288,10 +302,247 @@ export function SearchModal({
       context: 'global',
       run: () => navigateToSettings({ section: 'teammates' }),
     })
+
+    if (canEdit && pageContext === 'tables') {
+      list.push(
+        {
+          id: 'tables-new-table',
+          name: 'New table',
+          keywords: 'create add',
+          icon: Plus,
+          context: 'tables',
+          run: invoke('tables-new-table'),
+        },
+        {
+          id: 'tables-new-folder',
+          name: 'New folder',
+          keywords: 'create add group',
+          icon: FolderPlus,
+          context: 'tables',
+          run: invoke('tables-new-folder'),
+        },
+        {
+          id: 'tables-import-csv',
+          name: 'Import CSV',
+          keywords: 'upload tsv spreadsheet',
+          icon: Upload,
+          context: 'tables',
+          run: invoke('tables-import-csv'),
+        }
+      )
+    }
+    if (canEdit && pageContext === 'tableDetail') {
+      list.push(
+        {
+          id: 'table-new-column',
+          name: 'New column',
+          keywords: 'create add field',
+          icon: Columns3,
+          context: 'tableDetail',
+          run: invoke('table-new-column'),
+        },
+        {
+          id: 'table-export-csv',
+          name: 'Export CSV',
+          keywords: 'download spreadsheet',
+          icon: Download,
+          context: 'tableDetail',
+          run: invoke('table-export-csv'),
+        },
+        {
+          id: 'table-import-csv',
+          name: 'Import CSV',
+          keywords: 'upload tsv spreadsheet',
+          icon: Upload,
+          context: 'tableDetail',
+          run: invoke('table-import-csv'),
+        }
+      )
+    }
+    if (canEdit && pageContext === 'files') {
+      list.push(
+        {
+          id: 'files-new-file',
+          name: 'New file',
+          keywords: 'create add document markdown',
+          icon: File,
+          context: 'files',
+          run: invoke('files-new-file'),
+        },
+        {
+          id: 'files-new-folder',
+          name: 'New folder',
+          keywords: 'create add group',
+          icon: FolderPlus,
+          context: 'files',
+          run: invoke('files-new-folder'),
+        },
+        {
+          id: 'files-upload',
+          name: 'Upload',
+          keywords: 'add import file',
+          icon: Upload,
+          context: 'files',
+          run: invoke('files-upload'),
+        }
+      )
+    }
+    if (pageContext === 'fileDetail') {
+      list.push({
+        id: 'file-download',
+        name: 'Download',
+        keywords: 'save export',
+        icon: Download,
+        context: 'fileDetail',
+        run: invoke('file-download'),
+      })
+      if (canEdit) {
+        list.push(
+          {
+            id: 'file-rename',
+            name: 'Rename',
+            keywords: 'edit name',
+            icon: Pencil,
+            context: 'fileDetail',
+            run: invoke('file-rename'),
+          },
+          {
+            id: 'file-share',
+            name: 'Share',
+            keywords: 'link send',
+            icon: Send,
+            context: 'fileDetail',
+            run: invoke('file-share'),
+          },
+          {
+            id: 'file-delete',
+            name: 'Delete',
+            keywords: 'remove trash',
+            icon: Trash,
+            context: 'fileDetail',
+            run: invoke('file-delete'),
+          }
+        )
+      }
+    }
+    if (canEdit && pageContext === 'knowledge') {
+      list.push(
+        {
+          id: 'knowledge-new-base',
+          name: 'New base',
+          keywords: 'create add knowledge kb',
+          icon: Plus,
+          context: 'knowledge',
+          run: invoke('knowledge-new-base'),
+        },
+        {
+          id: 'knowledge-new-folder',
+          name: 'New folder',
+          keywords: 'create add group',
+          icon: FolderPlus,
+          context: 'knowledge',
+          run: invoke('knowledge-new-folder'),
+        }
+      )
+    }
+    if (canEdit && pageContext === 'knowledgeBase') {
+      list.push(
+        {
+          id: 'knowledge-base-new-documents',
+          name: 'New documents',
+          keywords: 'add upload document',
+          icon: Plus,
+          context: 'knowledgeBase',
+          run: invoke('knowledge-base-new-documents'),
+        },
+        {
+          id: 'knowledge-base-new-connector',
+          name: 'New connector',
+          keywords: 'add sync source connect',
+          icon: Integration,
+          context: 'knowledgeBase',
+          run: invoke('knowledge-base-new-connector'),
+        },
+        {
+          id: 'knowledge-base-rename',
+          name: 'Rename',
+          keywords: 'edit name',
+          icon: Pencil,
+          context: 'knowledgeBase',
+          run: invoke('knowledge-base-rename'),
+        },
+        {
+          id: 'knowledge-base-tags',
+          name: 'Edit tags',
+          keywords: 'label metadata',
+          icon: TagIcon,
+          context: 'knowledgeBase',
+          run: invoke('knowledge-base-tags'),
+        },
+        {
+          id: 'knowledge-base-delete',
+          name: 'Delete',
+          keywords: 'remove trash',
+          icon: Trash,
+          context: 'knowledgeBase',
+          run: invoke('knowledge-base-delete'),
+        }
+      )
+    }
+    if (pageContext === 'logs' || pageContext === 'logsDashboard') {
+      list.push({
+        id: 'logs-refresh',
+        name: 'Refresh',
+        keywords: 'reload update',
+        icon: RefreshCw,
+        context: pageContext,
+        run: invoke('logs-refresh'),
+      })
+      if (canEdit) {
+        list.push({
+          id: 'logs-export',
+          name: 'Export',
+          keywords: 'download csv',
+          icon: Download,
+          context: pageContext,
+          run: invoke('logs-export'),
+        })
+      }
+      list.push(
+        pageContext === 'logs'
+          ? {
+              id: 'logs-show-dashboard',
+              name: 'Visit dashboard',
+              keywords: 'charts stats overview',
+              icon: Library,
+              context: 'logs',
+              run: invoke('logs-show-dashboard'),
+            }
+          : {
+              id: 'logs-show-logs',
+              name: 'Visit logs',
+              keywords: 'list executions runs',
+              icon: Library,
+              context: 'logsDashboard',
+              run: invoke('logs-show-logs'),
+            }
+      )
+    }
+    if (canEdit && pageContext === 'scheduledTasks') {
+      list.push({
+        id: 'scheduled-tasks-new',
+        name: 'New scheduled task',
+        keywords: 'create add schedule cron recurring',
+        icon: Plus,
+        context: 'scheduledTasks',
+        run: invoke('scheduled-tasks-new'),
+      })
+    }
     return list
   }, [
     workspaceId,
     canEdit,
+    pageContext,
     onCreateWorkflow,
     onCreateFolder,
     onImportWorkflow,
@@ -317,6 +568,24 @@ export function SearchModal({
       inputRef.current.dispatchEvent(new Event('input', { bubbles: true }))
     }
     inputRef.current.focus()
+    /**
+     * cmdk keeps its last selected value across closes and does not re-anchor
+     * when items mount above it (it only auto-selects when nothing is selected
+     * yet), so a palette whose top rows appeared after mount — e.g. page
+     * actions gated on async permissions — would open with a mid-list row
+     * selected. Home re-selects the first row on every open.
+     */
+    inputRef.current.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }))
+    /**
+     * After the frame settles, pin the list back to the very top. cmdk's own
+     * `scrollIntoView({ block: 'nearest' })` stops as soon as the selected row
+     * edges into the scrollport, which parks it under the floating search
+     * input; and without any reset a reopened palette keeps its previous
+     * scroll offset.
+     */
+    requestAnimationFrame(() => {
+      if (listRef.current) listRef.current.scrollTop = 0
+    })
   }, [open])
 
   const deferredSearch = useDeferredValue(search)
@@ -326,10 +595,7 @@ export function SearchModal({
   const handleSearchChange = useCallback((value: string) => {
     setSearch(value)
     requestAnimationFrame(() => {
-      const list = document.querySelector('[cmdk-list]')
-      if (list) {
-        list.scrollTop = 0
-      }
+      if (listRef.current) listRef.current.scrollTop = 0
     })
   }, [])
 
@@ -346,50 +612,6 @@ export function SearchModal({
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [open])
-
-  const handleBlockSelect = useCallback(
-    (block: SearchBlockItem, type: 'block' | 'trigger' | 'tool') => {
-      const enableTriggerMode =
-        type === 'trigger' && block.config ? hasTriggerCapability(block.config) : false
-      window.dispatchEvent(
-        new CustomEvent('add-block-from-toolbar', {
-          detail: {
-            type: block.type,
-            enableTriggerMode,
-            pendingConnect: useSearchModalStore.getState().pendingConnect,
-          },
-        })
-      )
-      captureEvent(posthogRef.current, 'search_result_selected', {
-        result_type: type,
-        query_length: deferredSearchRef.current.length,
-        workspace_id: workspaceId,
-      })
-      onOpenChangeRef.current(false)
-    },
-    [workspaceId]
-  )
-
-  const handleToolOperationSelect = useCallback(
-    (op: SearchToolOperationItem) => {
-      window.dispatchEvent(
-        new CustomEvent('add-block-from-toolbar', {
-          detail: {
-            type: op.blockType,
-            presetOperation: op.operationId,
-            pendingConnect: useSearchModalStore.getState().pendingConnect,
-          },
-        })
-      )
-      captureEvent(posthogRef.current, 'search_result_selected', {
-        result_type: 'tool_operation',
-        query_length: deferredSearchRef.current.length,
-        workspace_id: workspaceId,
-      })
-      onOpenChangeRef.current(false)
-    },
-    [workspaceId]
-  )
 
   const handleWorkflowSelect = useCallback(
     (workflow: WorkflowItem) => {
@@ -497,11 +719,11 @@ export function SearchModal({
     [workspaceId]
   )
 
-  const handleDocSelect = useCallback(
-    (doc: SearchDocItem) => {
-      window.open(doc.href, '_blank', 'noopener,noreferrer')
+  const handleLogSelect = useCallback(
+    (item: LogItem) => {
+      routerRef.current.push(item.href)
       captureEvent(posthogRef.current, 'search_result_selected', {
-        result_type: 'docs',
+        result_type: 'log',
         query_length: deferredSearchRef.current.length,
         workspace_id: workspaceId,
       })
@@ -550,20 +772,31 @@ export function SearchModal({
     [workspaceId]
   )
 
-  const handleBlockSelectAsBlock = useCallback(
-    (block: SearchBlockItem) => handleBlockSelect(block, 'block'),
-    [handleBlockSelect]
-  )
+  const handleNewChatFromQuery = useCallback(() => {
+    const query = deferredSearchRef.current.trim()
+    if (!query) return
 
-  const handleBlockSelectAsTool = useCallback(
-    (tool: SearchBlockItem) => handleBlockSelect(tool, 'tool'),
-    [handleBlockSelect]
-  )
+    const homeHref = `/workspace/${workspaceId}/home`
+    const sentToMountedHome = window.location.pathname === homeHref && sendMothershipMessage(query)
 
-  const handleBlockSelectAsTrigger = useCallback(
-    (trigger: SearchBlockItem) => handleBlockSelect(trigger, 'trigger'),
-    [handleBlockSelect]
-  )
+    if (!sentToMountedHome) {
+      if (!MothershipHandoffStorage.store({ message: query }, workspaceId)) {
+        logger.warn('Failed to persist command palette query for a new chat', {
+          workspaceId,
+        })
+        return
+      }
+      routerRef.current.push(getMothershipHandoffHref(workspaceId))
+    }
+
+    onOpenChangeRef.current(false)
+    captureEvent(posthogRef.current, 'search_result_selected', {
+      result_type: 'action',
+      action_id: 'new-chat-from-query',
+      query_length: query.length,
+      workspace_id: workspaceId,
+    })
+  }, [workspaceId])
 
   const handleOverlayClick = useCallback(() => {
     onOpenChangeRef.current(false)
@@ -571,85 +804,40 @@ export function SearchModal({
 
   const entriesBySection = useMemo((): Record<SearchSection, SearchEntry[]> => {
     const query = deferredSearch.trim()
-    const visibleSections = new Set(displaySections)
     const rank = <T,>(
       section: SearchSection,
       items: T[],
       toValue: (item: T) => string,
       toExtra?: (item: T) => string | undefined
-    ) => {
-      if (!visibleSections.has(section)) return []
-      return query
+    ) =>
+      query
         ? scoreSectionItems(section, items, toValue, deferredSearch, toExtra, MAX_RESULTS_PER_GROUP)
         : items.map((item) => ({ item, score: 0 }))
-    }
     const availableActions = actions.filter(
-      (action) =>
-        action.context === 'global' ||
-        (action.context === 'workflow' && isOnWorkflowPage) ||
-        (action.context === 'integrations' && isOnIntegrationsPage)
+      (action) => action.context === 'global' || action.context === pageContext
     )
     const rankActionGroup = (items: ActionItem[], groupLabel: ActionGroupLabel) =>
       query
         ? scoreActions(items, deferredSearch, MAX_RESULTS_PER_GROUP, groupLabel)
         : items.map((item) => ({ item, score: 0 }))
-    const rankedActions = visibleSections.has('actions')
-      ? [
-          ...rankActionGroup(
-            availableActions.filter((action) => getActionGroupLabel(action) === 'Workflow'),
-            'Workflow'
-          ),
-          ...rankActionGroup(
-            availableActions.filter((action) => getActionGroupLabel(action) === 'Platform'),
-            'Platform'
-          ),
-        ]
-      : []
-    const availableBlocks = isOnWorkflowPage
-      ? blocks.filter(
-          (block) => !block.sourceWorkflowId || block.sourceWorkflowId !== currentWorkflowId
-        )
-      : []
-    const availableTools = isOnWorkflowPage
-      ? tools.filter(
-          (tool) => !tool.sourceWorkflowId || tool.sourceWorkflowId !== currentWorkflowId
-        )
-      : []
-    const rankedIntegrations = isOnIntegrationsPage
-      ? rank('integrations', integrations, (item) => item.name)
-      : []
+    const pageGroupLabel = pageContext ? getPageActionGroupLabel(pageContext) : null
+    const rankedActions = [
+      ...(pageGroupLabel
+        ? rankActionGroup(
+            availableActions.filter((action) => getActionGroupLabel(action) === pageGroupLabel),
+            pageGroupLabel
+          )
+        : []),
+      ...rankActionGroup(
+        availableActions.filter((action) => getActionGroupLabel(action) === 'Platform'),
+        'Platform'
+      ),
+    ]
 
     return {
       actions: rankedActions.map(({ item, score }) => ({ section: 'actions', item, score })),
-      connectedAccounts: (isOnIntegrationsPage
-        ? rank('connectedAccounts', connectedAccounts, (item) => item.name)
-        : []
-      ).map(({ item, score }) => ({ section: 'connectedAccounts', item, score })),
-      integrations: rankedIntegrations.map(({ item, score }) => ({
-        section: 'integrations',
-        item,
-        score,
-      })),
-      blocks: rank(
-        'blocks',
-        availableBlocks,
-        (item) => item.name,
-        (item) => item.searchValue
-      ).map(({ item, score }) => ({ section: 'blocks', item, score })),
-      tools: rank(
-        'tools',
-        availableTools,
-        (item) => item.name,
-        (item) => item.searchValue
-      ).map(({ item, score }) => ({ section: 'tools', item, score })),
-      triggers: rank(
-        'triggers',
-        isOnWorkflowPage ? triggers : [],
-        (item) => item.name,
-        (item) => `${item.name} ${item.id}`
-      ).map(({ item, score }) => ({ section: 'triggers', item, score })),
-      chats: rank('chats', chats, (item) => item.name).map(({ item, score }) => ({
-        section: 'chats',
+      pages: rank('pages', pages, (item) => item.name).map(({ item, score }) => ({
+        section: 'pages',
         item,
         score,
       })),
@@ -657,10 +845,10 @@ export function SearchModal({
         'workflows',
         workflows,
         (item) => item.name,
-        (item) => item.folderPath?.join(' ')
+        (item) => item.folderPath?.map(toSearchToken).join(' ')
       ).map(({ item, score }) => ({ section: 'workflows', item, score })),
-      tables: rank('tables', tables, (item) => item.name).map(({ item, score }) => ({
-        section: 'tables',
+      workspaces: rank('workspaces', workspaces, (item) => item.name).map(({ item, score }) => ({
+        section: 'workspaces',
         item,
         score,
       })),
@@ -668,120 +856,135 @@ export function SearchModal({
         'files',
         files,
         (item) => item.name,
-        (item) => item.folderPath?.join(' ')
+        (item) => item.folderPath?.map(toSearchToken).join(' ')
       ).map(({ item, score }) => ({ section: 'files', item, score })),
-      knowledgeBases: rank('knowledgeBases', knowledgeBases, (item) => item.name).map(
-        ({ item, score }) => ({ section: 'knowledgeBases', item, score })
-      ),
-      toolOperations: rank(
-        'toolOperations',
-        isOnWorkflowPage ? toolOperations : [],
+      tables: rank(
+        'tables',
+        tables,
         (item) => item.name,
-        (item) => item.searchValue
-      ).map(({ item, score }) => ({ section: 'toolOperations', item, score })),
-      workspaces: rank('workspaces', workspaces, (item) => item.name).map(({ item, score }) => ({
-        section: 'workspaces',
+        (item) => item.folderPath?.map(toSearchToken).join(' ')
+      ).map(({ item, score }) => ({ section: 'tables', item, score })),
+      knowledgeBases: rank(
+        'knowledgeBases',
+        knowledgeBases,
+        (item) => item.name,
+        (item) => item.folderPath?.map(toSearchToken).join(' ')
+      ).map(({ item, score }) => ({ section: 'knowledgeBases', item, score })),
+      logs: rank('logs', logs, (item) => item.name).map(({ item, score }) => ({
+        section: 'logs',
         item,
         score,
       })),
-      docs: rank(
-        'docs',
-        isOnWorkflowPage ? docs : [],
-        (item) => item.name,
-        (item) => `${item.name} docs documentation`
-      ).map(({ item, score }) => ({ section: 'docs', item, score })),
-      pages: rank('pages', pages, (item) => item.name).map(({ item, score }) => ({
-        section: 'pages',
+      connectedAccounts: rank('connectedAccounts', connectedAccounts, (item) => item.name).map(
+        ({ item, score }) => ({ section: 'connectedAccounts', item, score })
+      ),
+      integrations: rank('integrations', integrations, (item) => item.name).map(
+        ({ item, score }) => ({ section: 'integrations', item, score })
+      ),
+      chats: rank('chats', chats, (item) => item.name).map(({ item, score }) => ({
+        section: 'chats',
         item,
         score,
       })),
     }
   }, [
     deferredSearch,
-    displaySections,
     actions,
-    isOnWorkflowPage,
-    isOnIntegrationsPage,
-    blocks,
-    currentWorkflowId,
-    tools,
+    pageContext,
     integrations,
     connectedAccounts,
-    triggers,
     chats,
     workflows,
     tables,
     files,
     knowledgeBases,
-    toolOperations,
+    logs,
     workspaces,
-    docs,
     pages,
   ])
 
-  const isSearching = Boolean(deferredSearch.trim())
+  const searchQuery = deferredSearch.trim()
+  const isSearching = Boolean(searchQuery)
+  /**
+   * Section order for both the browse list and the flat search tie-break: the
+   * page's own entity section is hoisted directly under `actions`, the rest
+   * keep the canonical order.
+   */
+  const orderedSections = useMemo((): SearchSection[] => {
+    const hoisted = pageContext ? PAGE_CONTEXT_HOISTED_SECTION[pageContext] : undefined
+    if (!hoisted) return [...SEARCH_SECTIONS]
+    return [
+      'actions',
+      hoisted,
+      ...SEARCH_SECTIONS.filter((section) => section !== 'actions' && section !== hoisted),
+    ]
+  }, [pageContext])
   const searchResults = useMemo(
-    () => (isSearching ? getGlobalSearchResults(entriesBySection, displaySections) : []),
-    [displaySections, entriesBySection, isSearching]
+    () => (isSearching ? getGlobalSearchResults(entriesBySection, orderedSections) : []),
+    [orderedSections, entriesBySection, isSearching]
   )
-  const sectionGroups = useMemo(
-    () =>
-      displaySections.flatMap((section) => {
-        const entries = entriesBySection[section]
-        if (section !== 'actions') {
-          return [{ key: section, heading: SECTION_LABELS[section], entries }]
-        }
+  const showNewChatFallback = isSearching && searchResults.length === 0 && isChatEnabled
+  const newChatFallbackLabel = `New Chat: ${searchQuery}`
+  const sectionGroups = useMemo(() => {
+    const actionEntriesByLabel = (label: ActionGroupLabel) =>
+      entriesBySection.actions.filter(
+        (entry) => entry.section === 'actions' && getActionGroupLabel(entry.item) === label
+      )
+    const entityGroup = (section: SearchSection) => ({
+      key: section,
+      heading: SECTION_LABELS[section],
+      entries: entriesBySection[section],
+    })
+    const pageGroupLabel = pageContext ? getPageActionGroupLabel(pageContext) : null
+    const hoisted = pageContext ? PAGE_CONTEXT_HOISTED_SECTION[pageContext] : undefined
 
-        const platformEntries = entries.filter(
-          (entry) => entry.section === 'actions' && getActionGroupLabel(entry.item) === 'Platform'
-        )
-        const workflowEntries = entries.filter(
-          (entry) => entry.section === 'actions' && getActionGroupLabel(entry.item) === 'Workflow'
-        )
-
-        return [
-          ...(isOnWorkflowPage
-            ? [{ key: 'workflow-actions', heading: 'Workflow', entries: workflowEntries }]
-            : []),
-          { key: 'platform-actions', heading: 'Platform', entries: platformEntries },
-        ]
-      }),
-    [displaySections, entriesBySection, isOnWorkflowPage]
-  )
+    return [
+      ...(pageGroupLabel
+        ? [
+            {
+              key: 'page-actions',
+              heading: pageGroupLabel,
+              entries: actionEntriesByLabel(pageGroupLabel),
+            },
+          ]
+        : []),
+      ...(hoisted ? [entityGroup(hoisted)] : []),
+      {
+        key: 'platform-actions',
+        heading: 'Platform',
+        entries: actionEntriesByLabel('Platform'),
+      },
+      ...SEARCH_SECTIONS.filter((section) => section !== 'actions' && section !== hoisted).map(
+        entityGroup
+      ),
+    ]
+  }, [entriesBySection, pageContext])
 
   const entryHandlers = useMemo(
     (): SearchEntryHandlers => ({
       onSelectAction: handleActionSelect,
       onSelectConnectedAccount: handleConnectedAccountSelect,
       onSelectIntegration: handleIntegrationSelect,
-      onSelectBlock: handleBlockSelectAsBlock,
-      onSelectTool: handleBlockSelectAsTool,
-      onSelectTrigger: handleBlockSelectAsTrigger,
       onSelectChat: handleChatSelect,
       onSelectWorkflow: handleWorkflowSelect,
       onSelectTable: handleTableSelect,
       onSelectFile: handleFileSelect,
       onSelectKnowledgeBase: handleKbSelect,
-      onSelectToolOperation: handleToolOperationSelect,
+      onSelectLog: handleLogSelect,
       onSelectWorkspace: handleWorkspaceSelect,
-      onSelectDoc: handleDocSelect,
       onSelectPage: handlePageSelect,
     }),
     [
       handleActionSelect,
       handleConnectedAccountSelect,
       handleIntegrationSelect,
-      handleBlockSelectAsBlock,
-      handleBlockSelectAsTool,
-      handleBlockSelectAsTrigger,
       handleChatSelect,
       handleWorkflowSelect,
       handleTableSelect,
       handleFileSelect,
       handleKbSelect,
-      handleToolOperationSelect,
+      handleLogSelect,
       handleWorkspaceSelect,
-      handleDocSelect,
       handlePageSelect,
     ]
   )
@@ -815,12 +1018,18 @@ export function SearchModal({
         }}
       >
         <div className='overflow-hidden rounded-lg border border-[var(--border-1)] bg-[var(--bg)]'>
-          <Command label='Search' shouldFilter={false} loop>
+          <Command
+            label='Search'
+            shouldFilter={false}
+            loop
+            value={showNewChatFallback ? newChatFallbackLabel : undefined}
+          >
             <div className='relative'>
               <CommandFadedList
+                ref={listRef}
                 fade='palette'
                 className={cn(
-                  'scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent max-h-[448px] [clip-path:inset(3px_round_13px)]',
+                  'scrollbar-none max-h-[448px] [clip-path:inset(3px_round_13px)]',
                   CMDK_ITEM_GAP_CLASS,
                   CMDK_SECTION_GAP_CLASS
                 )}
@@ -829,10 +1038,16 @@ export function SearchModal({
                   No results found.
                 </Command.Empty>
 
-                {isSearching ? (
+                {showNewChatFallback ? (
+                  <MemoizedActionItem
+                    value={newChatFallbackLabel}
+                    onSelect={handleNewChatFromQuery}
+                    icon={Home}
+                    name={newChatFallbackLabel}
+                  />
+                ) : isSearching ? (
                   <SearchEntryGroup
                     variant='results'
-                    search={deferredSearch}
                     entries={searchResults}
                     handlers={entryHandlers}
                   />

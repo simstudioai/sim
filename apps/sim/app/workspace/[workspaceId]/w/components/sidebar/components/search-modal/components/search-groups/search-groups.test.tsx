@@ -5,10 +5,7 @@ import { act } from 'react'
 import { Command } from 'cmdk'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  SearchEntryGroup,
-  WorkspacesGroup,
-} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/components/search-groups/search-groups'
+import { SearchEntryGroup } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/components/search-groups/search-groups'
 import type {
   SearchEntry,
   SearchEntryHandlers,
@@ -23,17 +20,13 @@ const handlers: SearchEntryHandlers = {
   onSelectAction: vi.fn(),
   onSelectConnectedAccount: vi.fn(),
   onSelectIntegration: vi.fn(),
-  onSelectBlock: vi.fn(),
-  onSelectTool: vi.fn(),
-  onSelectTrigger: vi.fn(),
   onSelectChat: vi.fn(),
   onSelectWorkflow: vi.fn(),
   onSelectTable: vi.fn(),
   onSelectFile: vi.fn(),
   onSelectKnowledgeBase: vi.fn(),
-  onSelectToolOperation: vi.fn(),
+  onSelectLog: vi.fn(),
   onSelectWorkspace: vi.fn(),
-  onSelectDoc: vi.fn(),
   onSelectPage: vi.fn(),
 }
 
@@ -118,7 +111,6 @@ describe('SearchEntryGroup', () => {
     })
 
     expect(container.textContent).toContain('Run workflow')
-    expect(container.textContent).toContain('Workflow')
     expect(container.querySelector('[cmdk-group-heading]')).toBeNull()
     expect(container.querySelector('button[aria-label*="favorites"]')).toBeNull()
   })
@@ -147,7 +139,12 @@ describe('SearchEntryGroup', () => {
       root.render(
         <Command>
           <Command.List>
-            <WorkspacesGroup items={workspaceItems} onSelect={handlers.onSelectWorkspace} />
+            <SearchEntryGroup
+              variant='section'
+              heading='Workspaces'
+              entries={workspaceEntries}
+              handlers={handlers}
+            />
           </Command.List>
         </Command>
       )

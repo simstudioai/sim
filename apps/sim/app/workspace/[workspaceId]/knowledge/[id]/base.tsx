@@ -77,6 +77,7 @@ import {
   pageUrlKeys,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/search-params'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
+import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
@@ -706,6 +707,14 @@ export function KnowledgeBase({
   const handleAddDocuments = () => {
     setShowAddDocumentsModal(true)
   }
+
+  useRegisterGlobalCommands(() => [
+    { id: 'knowledge-base-new-documents', handler: () => setShowAddDocumentsModal(true) },
+    { id: 'knowledge-base-new-connector', handler: () => setShowAddConnectorModal(true) },
+    { id: 'knowledge-base-rename', handler: () => kbRename.startRename(id, knowledgeBaseName) },
+    { id: 'knowledge-base-tags', handler: () => setShowTagsModal(true) },
+    { id: 'knowledge-base-delete', handler: () => setShowDeleteDialog(true) },
+  ])
 
   /**
    * Handles bulk enabling of selected documents

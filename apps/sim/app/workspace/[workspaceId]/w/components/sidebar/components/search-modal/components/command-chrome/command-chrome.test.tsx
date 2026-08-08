@@ -46,21 +46,7 @@ describe('CommandFadedList', () => {
     vi.unstubAllGlobals()
   })
 
-  it('insets the palette scrollbar track below the search field', () => {
-    act(() => {
-      root.render(
-        <Command>
-          <CommandFadedList fade='palette' />
-        </Command>
-      )
-    })
-
-    const list = container.querySelector('[cmdk-list]')
-    expect(list?.className).toContain('[&::-webkit-scrollbar-track]:mt-12')
-    expect(list?.className).toContain('[&::-webkit-scrollbar-track]:mb-1.5')
-  })
-
-  it('uses the canvas search surface and content fade in the palette', () => {
+  it('fades the palette with the short single mask and the shared search surface', () => {
     act(() => {
       root.render(
         <Command>
@@ -72,7 +58,8 @@ describe('CommandFadedList', () => {
 
     const list = container.querySelector('[cmdk-list]')
     const search = container.querySelector('[cmdk-input]')?.parentElement
-    expect(list?.className).toContain('transparent_8%,black_18%,black_94%')
+    expect(list?.className).toContain('transparent_8%,black_13%,black_97%')
+    expect(list?.className).not.toContain('scrollbar-track')
     expect(search?.className).toContain('var(--surface-2)')
   })
 

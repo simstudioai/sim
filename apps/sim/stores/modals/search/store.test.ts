@@ -81,7 +81,7 @@ describe('search modal store', () => {
       const searchValue = buildCommandSearchableOptionSearchValue(block)
 
       expect(searchValue).toContain('Provider')
-      expect(searchValue).toContain('Fal.ai (Multi-Model)')
+      expect(searchValue).toContain('Fal.ai-(Multi-Model)')
       expect(searchValue).toContain('falai')
       expect(searchValue).not.toContain('Hidden Provider')
       expect(searchValue).not.toContain('hidden')
@@ -144,7 +144,7 @@ describe('search modal store', () => {
     expect(tools[0]).toEqual(
       expect.objectContaining({
         id: 'image_generator_v2',
-        searchValue: expect.stringContaining('Fal.ai (Multi-Model)'),
+        searchValue: expect.stringContaining('Fal.ai-(Multi-Model)'),
       })
     )
   })

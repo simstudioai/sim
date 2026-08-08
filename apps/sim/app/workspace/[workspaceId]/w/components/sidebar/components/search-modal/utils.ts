@@ -1,10 +1,28 @@
 import type { ComponentType } from 'react'
-import type {
-  SearchBlockItem,
-  SearchDocItem,
-  SearchSection,
-  SearchToolOperationItem,
-} from '@/stores/modals/search/types'
+import { toSearchToken } from '@/lib/search/tokens'
+
+/**
+ * Every result group the palette can render. This is also the canonical order:
+ * the zero-query browse list and the flat search tie-break both follow it,
+ * with two page-aware insertions at the front — the page's action group, then
+ * its own entity section hoisted above `actions`' platform group.
+ */
+export const SEARCH_SECTIONS = [
+  'actions',
+  'pages',
+  'workflows',
+  'workspaces',
+  'files',
+  'tables',
+  'knowledgeBases',
+  'logs',
+  'connectedAccounts',
+  'integrations',
+  'chats',
+] as const
+
+/** A single search-modal result group. */
+export type SearchSection = (typeof SEARCH_SECTIONS)[number]
 
 export interface IntegrationSearchItem {
   id: string
@@ -18,17 +36,17 @@ export interface TaskItem {
   id: string
   name: string
   href: string
-}
-
-/**
- * A {@link TaskItem} that lives in a folder tree, so the row can show which
- * folder it came from — a name is only unique within its folder.
- */
-export interface FolderedItem extends TaskItem {
+  /** Owning folder names, root first. Set for tables and knowledge bases. */
   folderPath?: string[]
+  /** Formatted last-activity date shown as trailing metadata. Set for chats. */
+  date?: string
 }
 
-export interface WorkflowItem extends FolderedItem {
+export interface WorkflowItem {
+  id: string
+  name: string
+  href: string
+  folderPath?: string[]
   isCurrent?: boolean
 }
 
@@ -51,10 +69,41 @@ export interface PageItem {
   hidden?: boolean
 }
 
-export type FileItem = FolderedItem
+export interface FileItem {
+  id: string
+  name: string
+  href: string
+  folderPath?: string[]
+}
+
+export interface LogItem {
+  id: string
+  /** Workflow (or job) name the execution belongs to. */
+  name: string
+  href: string
+  /** Human-readable run date shown as trailing metadata. */
+  date: string
+}
+
+/**
+ * Pages that contribute their own palette actions while active. Each page
+ * registers its handlers as global commands on mount; the palette invokes
+ * them by id and only offers them while the matching route is mounted.
+ */
+export type PageActionContext =
+  | 'workflow'
+  | 'tables'
+  | 'tableDetail'
+  | 'files'
+  | 'fileDetail'
+  | 'knowledge'
+  | 'knowledgeBase'
+  | 'logs'
+  | 'logsDashboard'
+  | 'scheduledTasks'
 
 /** Where an {@link ActionItem} (a verb) is available. */
-export type ActionContext = 'global' | 'workflow' | 'integrations'
+export type ActionContext = 'global' | PageActionContext
 
 /**
  * An action is a verb the palette can run directly (create, import, toggle),
@@ -73,11 +122,51 @@ export interface ActionItem {
   run: () => void
 }
 
-export type ActionGroupLabel = 'Platform' | 'Workflow'
+export type ActionGroupLabel =
+  | 'Platform'
+  | 'Workflow Actions'
+  | 'Table Actions'
+  | 'File Actions'
+  | 'Knowledge Base Actions'
+  | 'Logs Actions'
+  | 'Scheduled Task Actions'
+
+const PAGE_CONTEXT_GROUP_LABELS: Record<PageActionContext, ActionGroupLabel> = {
+  workflow: 'Workflow Actions',
+  tables: 'Table Actions',
+  tableDetail: 'Table Actions',
+  files: 'File Actions',
+  fileDetail: 'File Actions',
+  knowledge: 'Knowledge Base Actions',
+  knowledgeBase: 'Knowledge Base Actions',
+  logs: 'Logs Actions',
+  logsDashboard: 'Logs Actions',
+  scheduledTasks: 'Scheduled Task Actions',
+}
+
+/**
+ * The page's own entity section, hoisted directly under its action group in
+ * both the browse list and the search tie-break.
+ */
+export const PAGE_CONTEXT_HOISTED_SECTION: Partial<Record<PageActionContext, SearchSection>> = {
+  tables: 'tables',
+  tableDetail: 'tables',
+  files: 'files',
+  fileDetail: 'files',
+  knowledge: 'knowledgeBases',
+  knowledgeBase: 'knowledgeBases',
+  logs: 'logs',
+  logsDashboard: 'logs',
+}
+
+/** Heading for a page's contributed action group. */
+export function getPageActionGroupLabel(context: PageActionContext): ActionGroupLabel {
+  return PAGE_CONTEXT_GROUP_LABELS[context]
+}
 
 /** Presentation group for an action without changing its stable result identity. */
 export function getActionGroupLabel(action: ActionItem): ActionGroupLabel {
-  return action.context === 'workflow' ? 'Workflow' : 'Platform'
+  return action.context === 'global' ? 'Platform' : PAGE_CONTEXT_GROUP_LABELS[action.context]
 }
 
 export interface SearchModalProps {
@@ -86,13 +175,15 @@ export interface SearchModalProps {
   workflows?: WorkflowItem[]
   workspaces?: WorkspaceItem[]
   chats?: TaskItem[]
-  tables?: FolderedItem[]
+  tables?: TaskItem[]
   files?: FileItem[]
-  knowledgeBases?: FolderedItem[]
+  knowledgeBases?: TaskItem[]
+  logs?: LogItem[]
   integrations?: IntegrationSearchItem[]
   connectedAccounts?: IntegrationSearchItem[]
   isOnWorkflowPage?: boolean
-  isOnIntegrationsPage?: boolean
+  /** Page the palette was opened on, when that page contributes actions. */
+  pageContext?: PageActionContext | null
   canEdit?: boolean
   onCreateWorkflow?: () => void
   onCreateFolder?: () => void
@@ -113,56 +204,46 @@ export interface CommandItemProps {
   workflowType?: string
   /** Primary text of the row. */
   label: string
-  /** Right-aligned source section shown in aggregate result groups. */
+  /** Right-aligned trailing metadata. */
   meta?: string
 }
 
 export const SECTION_LABELS: Record<SearchSection, string> = {
   actions: 'Platform',
-  connectedAccounts: 'Connected',
-  integrations: 'Integrations',
-  blocks: 'Blocks',
-  tools: 'Tools',
-  triggers: 'Triggers',
-  chats: 'Chats',
-  workflows: 'Workflows',
-  tables: 'Tables',
-  files: 'Files',
-  knowledgeBases: 'Knowledge bases',
-  toolOperations: 'Tool operations',
-  workspaces: 'Workspaces',
-  docs: 'Docs',
   pages: 'Pages',
+  workflows: 'Workflows',
+  workspaces: 'Workspaces',
+  files: 'Files',
+  tables: 'Tables',
+  knowledgeBases: 'Knowledge Bases',
+  logs: 'Logs',
+  connectedAccounts: 'Connected Integrations',
+  integrations: 'Integrations',
+  chats: 'Chats',
 }
 
 export type SearchEntry =
   | { section: 'actions'; score: number; item: ActionItem }
   | { section: 'connectedAccounts' | 'integrations'; score: number; item: IntegrationSearchItem }
-  | { section: 'blocks' | 'tools' | 'triggers'; score: number; item: SearchBlockItem }
   | { section: 'chats'; score: number; item: TaskItem }
   | { section: 'workflows'; score: number; item: WorkflowItem }
   | { section: 'tables' | 'knowledgeBases'; score: number; item: TaskItem }
   | { section: 'files'; score: number; item: FileItem }
-  | { section: 'toolOperations'; score: number; item: SearchToolOperationItem }
+  | { section: 'logs'; score: number; item: LogItem }
   | { section: 'workspaces'; score: number; item: WorkspaceItem }
-  | { section: 'docs'; score: number; item: SearchDocItem }
   | { section: 'pages'; score: number; item: PageItem }
 
 export interface SearchEntryHandlers {
   onSelectAction: (item: ActionItem) => void
   onSelectConnectedAccount: (item: IntegrationSearchItem) => void
   onSelectIntegration: (item: IntegrationSearchItem) => void
-  onSelectBlock: (item: SearchBlockItem) => void
-  onSelectTool: (item: SearchBlockItem) => void
-  onSelectTrigger: (item: SearchBlockItem) => void
   onSelectChat: (item: TaskItem) => void
   onSelectWorkflow: (item: WorkflowItem) => void
   onSelectTable: (item: TaskItem) => void
   onSelectFile: (item: FileItem) => void
   onSelectKnowledgeBase: (item: TaskItem) => void
-  onSelectToolOperation: (item: SearchToolOperationItem) => void
+  onSelectLog: (item: LogItem) => void
   onSelectWorkspace: (item: WorkspaceItem) => void
-  onSelectDoc: (item: SearchDocItem) => void
   onSelectPage: (item: PageItem) => void
 }
 
@@ -192,26 +273,22 @@ export function getGlobalSearchResults(
   }
 
   rankedMatches.sort(compare)
-  const matches = rankedMatches.map(({ entry }) => entry)
-  const integrationDetails = [
-    ...matches.filter((entry) => entry.section === 'toolOperations'),
-    ...matches.filter((entry) => entry.section === 'docs'),
-  ]
-  let integrationDetailIndex = 0
-
-  return matches.map((entry) => {
-    if (entry.section !== 'toolOperations' && entry.section !== 'docs') return entry
-    const orderedEntry = integrationDetails[integrationDetailIndex]
-    integrationDetailIndex += 1
-    return orderedEntry
-  })
+  return rankedMatches.map(({ entry }) => entry)
 }
 
+/**
+ * `scroll-mt-12` mirrors the list's `pt-12`: the search input floats over the
+ * top 48px of the scrollport, and cmdk keeps the selection visible with
+ * `scrollIntoView({ block: 'nearest' })` — without the scroll margin, arrowing
+ * upward (or loop-wrapping to the first row) parks the row under the input.
+ * Group headings need the same margin because cmdk scrolls the heading into
+ * view when the selection is its group's first row.
+ */
 export const GROUP_HEADING_CLASSNAME =
-  '[&_[cmdk-group-heading]]:flex [&_[cmdk-group-heading]]:h-[18px] [&_[cmdk-group-heading]]:items-center [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:mb-2 [&_[cmdk-group-heading]]:text-small [&_[cmdk-group-heading]]:text-[var(--text-muted)]'
+  '[&_[cmdk-group-heading]]:flex [&_[cmdk-group-heading]]:h-[18px] [&_[cmdk-group-heading]]:items-center [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:mb-2 [&_[cmdk-group-heading]]:scroll-mt-12 [&_[cmdk-group-heading]]:text-small [&_[cmdk-group-heading]]:text-[var(--text-muted)]'
 
 export const COMMAND_ITEM_CLASSNAME =
-  'group mx-0.5 flex h-[30px] w-full cursor-pointer items-center gap-2 rounded-lg border border-transparent px-2 text-left text-sm aria-selected:border-[var(--border-1)] aria-selected:bg-[var(--surface-active)] data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50'
+  'group mx-0.5 flex h-[30px] w-full cursor-pointer items-center gap-2 rounded-lg border border-transparent px-2 text-left text-sm scroll-mt-12 scroll-mb-1.5 aria-selected:border-[var(--border-1)] aria-selected:bg-[var(--surface-active)] data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50'
 
 /** Characters that begin a new word — a match here scores higher. */
 const SEPARATORS = new Set([' ', '-', '_', '/', '.', ':', '(', ')'])
@@ -293,8 +370,18 @@ function tokenFallback(lowerText: string, lowerQuery: string): FuzzyResult {
  *
  * Contiguous substring matches report the indices of the substring itself
  * rather than an earlier scattered occurrence of the same characters.
+ *
+ * Pass `scatter: false` to skip the scattered-subsequence mode. Over long
+ * multi-word text (alias lists, option labels) a scattered query matches
+ * almost anything — "whatsapp" finds `w…h…a…t…s…a…p…p` across unrelated alias
+ * words — so secondary-text matching keeps only the exact/prefix/substring
+ * and multi-word token modes.
  */
-export function fuzzyMatch(text: string, query: string): FuzzyResult {
+export function fuzzyMatch(
+  text: string,
+  query: string,
+  options?: { scatter?: boolean }
+): FuzzyResult {
   if (!query) return { matched: true, score: 1, positions: [] }
   if (!text) return NO_MATCH
 
@@ -321,6 +408,8 @@ export function fuzzyMatch(text: string, query: string): FuzzyResult {
     score -= lowerText.length * 0.1
     return { matched: true, score, positions }
   }
+
+  if (options?.scatter === false) return tokenFallback(lowerText, lowerQuery)
 
   const positions: number[] = []
   let queryIndex = 0
@@ -356,11 +445,37 @@ export function fuzzyMatch(text: string, query: string): FuzzyResult {
 const NAME_MATCH_TIER = 1_000_000
 
 /**
+ * Rank offset that lifts an entire section above every name match when the
+ * query IS that section's name — typing "triggers" asks for the Triggers
+ * section itself, not rows from other sections that happen to contain the word.
+ */
+const SECTION_MATCH_TIER = 2_000_000
+
+/**
  * Ranks an item by its name first, falling back to secondary text (ids, aliases,
  * option labels) only when the name doesn't match — a name match always wins, so
  * an exact name hit isn't diluted by a long secondary string ("Agent" beats
  * "Pi Coding Agent" for the query "agent").
  */
+/**
+ * Matches a query against secondary search text: a space-separated list of
+ * entries where multi-word phrases are kebab-cased into single tokens (see
+ * `toSearchToken`). Whole-string matching keeps the exact/prefix/substring and
+ * multi-word token modes; scattered matching runs against each entry
+ * individually, so a query can scatter within one entry ("sndmsg" →
+ * "send-message") but never assemble itself across unrelated entries
+ * ("whatsapp" must not match "wealthbox-write-contact match snap up").
+ */
+function matchSecondaryText(extra: string, query: string): FuzzyResult {
+  const whole = fuzzyMatch(extra, query, { scatter: false })
+  let best = whole.matched ? whole : NO_MATCH
+  for (const word of extra.split(/\s+/)) {
+    const byWord = fuzzyMatch(word, query)
+    if (byWord.matched && (!best.matched || byWord.score > best.score)) best = byWord
+  }
+  return best
+}
+
 function scoreItem(name: string, search: string, getExtra?: () => string | undefined): FuzzyResult {
   const byName = fuzzyMatch(name, search)
   if (byName.matched) {
@@ -368,7 +483,7 @@ function scoreItem(name: string, search: string, getExtra?: () => string | undef
   }
   const extra = getExtra?.()
   if (!extra) return NO_MATCH
-  const byExtra = fuzzyMatch(extra, search)
+  const byExtra = matchSecondaryText(extra, search)
   return byExtra.matched ? byExtra : NO_MATCH
 }
 
@@ -393,26 +508,11 @@ export function scoreAndSort<T>(
   return scored
 }
 
-function matchesIntegrationQuery(integrationName: string, search: string): boolean {
-  const query = search.trim()
-  if (!query) return false
-
-  return query.split(/\s+/).some((term) => fuzzyMatch(integrationName, term).matched)
-}
-
-/** Adds integration context only when it, rather than the operation name, matched the query. */
-export function getToolOperationLabel(operation: SearchToolOperationItem, search: string): string {
-  const query = search.trim()
-  if (!query || fuzzyMatch(operation.name, query).matched) return operation.name
-
-  return matchesIntegrationQuery(operation.serviceName, query)
-    ? `${operation.serviceName} · ${operation.name}`
-    : operation.name
-}
-
 /**
  * Scores normal item matches first, then fills a matched section with its
- * remaining rows in natural order.
+ * remaining rows in natural order. A query that exactly names the section
+ * lifts every returned row into {@link SECTION_MATCH_TIER}, keeping this
+ * internal order but beating name matches from other sections.
  */
 function scoreItemsForSection<T>(
   sectionLabel: string,
@@ -423,22 +523,31 @@ function scoreItemsForSection<T>(
   maxResults = Number.POSITIVE_INFINITY
 ): Array<{ item: T; score: number }> {
   const rankedItems = scoreAndSort(items, toValue, search, toExtra)
-  const sectionMatch = fuzzyMatch(sectionLabel, search.trim())
+  const query = search.trim()
+  const sectionMatch = fuzzyMatch(sectionLabel, query)
+  const isExactLabelMatch =
+    sectionMatch.matched && query.toLowerCase() === sectionLabel.toLowerCase()
+
+  let results: Array<{ item: T; score: number }>
   if (!sectionMatch.matched || rankedItems.length >= maxResults) {
-    return rankedItems.slice(0, maxResults)
+    results = rankedItems.slice(0, maxResults)
+  } else {
+    const matchedItems = new Set(rankedItems.map(({ item }) => item))
+    const lowestItemScore = rankedItems.at(-1)?.score
+    const fallbackScore =
+      lowestItemScore === undefined
+        ? sectionMatch.score
+        : Math.min(sectionMatch.score, lowestItemScore - 1)
+
+    results = [...rankedItems]
+    for (const item of items) {
+      if (!matchedItems.has(item)) results.push({ item, score: fallbackScore })
+      if (results.length >= maxResults) break
+    }
   }
 
-  const matchedItems = new Set(rankedItems.map(({ item }) => item))
-  const lowestItemScore = rankedItems.at(-1)?.score
-  const fallbackScore =
-    lowestItemScore === undefined
-      ? sectionMatch.score
-      : Math.min(sectionMatch.score, lowestItemScore - 1)
-
-  const results = [...rankedItems]
-  for (const item of items) {
-    if (!matchedItems.has(item)) results.push({ item, score: fallbackScore })
-    if (results.length >= maxResults) break
+  if (isExactLabelMatch) {
+    return results.map(({ item }, index) => ({ item, score: SECTION_MATCH_TIER - index }))
   }
   return results
 }
@@ -466,7 +575,7 @@ export function scoreActions(
     actions,
     (action) => action.name,
     search,
-    (action) => `${action.name} ${action.keywords ?? ''}`,
+    (action) => `${toSearchToken(action.name)} ${action.keywords ?? ''}`,
     maxResults
   )
 }

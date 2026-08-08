@@ -8,21 +8,4 @@ export {
   MemoizedWorkflowItem,
   MemoizedWorkspaceItem,
 } from './command-items'
-export {
-  ActionsGroup,
-  BlocksGroup,
-  ChatsGroup,
-  ConnectedAccountsGroup,
-  DocsGroup,
-  FilesGroup,
-  IntegrationsGroup,
-  KnowledgeBasesGroup,
-  PagesGroup,
-  SearchEntryGroup,
-  TablesGroup,
-  ToolOpsGroup,
-  ToolsGroup,
-  TriggersGroup,
-  WorkflowsGroup,
-  WorkspacesGroup,
-} from './search-groups'
+export { BlocksGroup, SearchEntryGroup, ToolsGroup } from './search-groups'

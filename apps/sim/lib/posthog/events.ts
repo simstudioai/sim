@@ -565,7 +565,6 @@ export interface PostHogEventMap {
     result_type:
       | 'block'
       | 'tool'
-      | 'trigger'
       | 'tool_operation'
       | 'connected_account'
       | 'integration'
@@ -575,10 +574,8 @@ export interface PostHogEventMap {
       | 'table'
       | 'file'
       | 'knowledge_base'
+      | 'log'
       | 'page'
-      | 'docs'
-      | 'connected_account'
-      | 'integration'
       | 'action'
     query_length: number
     workspace_id: string

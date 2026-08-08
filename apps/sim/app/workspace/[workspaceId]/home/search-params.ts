@@ -25,3 +25,20 @@ export const resourceUrlKeys = {
   history: 'replace',
   clearOnDefault: true,
 } as const
+
+/** Signals that a cached Home surface should consume a pending one-shot chat handoff. */
+export const mothershipHandoffParam = {
+  key: 'handoff',
+  parser: parseAsString,
+} as const
+
+/** Removes the transient handoff signal without adding a browser-history entry. */
+export const mothershipHandoffUrlKeys = {
+  history: 'replace',
+  clearOnDefault: true,
+} as const
+
+/** Builds a fresh-chat URL that wakes the handoff consumer without exposing prompt text. */
+export function getMothershipHandoffHref(workspaceId: string): string {
+  return `/workspace/${workspaceId}/home?${mothershipHandoffParam.key}=1`
+}

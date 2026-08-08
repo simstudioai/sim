@@ -24,11 +24,17 @@ const SEARCH_SURFACE_CLASSNAME = {
     'bg-[linear-gradient(to_bottom,var(--surface-2)_0%,color-mix(in_srgb,var(--surface-2)_88%,transparent)_68%,transparent_100%)]',
 } as const
 
+/**
+ * The palette hides its scrollbar (`scrollbar-none` at the call site), so it
+ * fades with one plain mask; its band is kept short — fully masked only under
+ * the floating input (0–8%), legible by 13%, and a brief 97–100% exit — so
+ * rows spend less time in the fog than on the canvas surface.
+ */
 const LIST_FADE_CLASSNAME = {
   canvas:
     '[-webkit-mask-image:linear-gradient(to_bottom,transparent_0%,transparent_8%,black_18%,black_94%,transparent_100%)] [mask-image:linear-gradient(to_bottom,transparent_0%,transparent_8%,black_18%,black_94%,transparent_100%)]',
   palette:
-    '[&::-webkit-scrollbar-track]:mt-12 [&::-webkit-scrollbar-track]:mb-1.5 [-webkit-mask-composite:source-over] [-webkit-mask-image:linear-gradient(to_bottom,transparent_0%,transparent_8%,black_18%,black_94%,transparent_100%),linear-gradient(black,black)] [-webkit-mask-position:left_top,right_top] [-webkit-mask-repeat:no-repeat,no-repeat] [-webkit-mask-size:calc(100%_-_8px)_100%,8px_100%] [mask-composite:add] [mask-image:linear-gradient(to_bottom,transparent_0%,transparent_8%,black_18%,black_94%,transparent_100%),linear-gradient(black,black)] [mask-position:left_top,right_top] [mask-repeat:no-repeat,no-repeat] [mask-size:calc(100%_-_8px)_100%,8px_100%]',
+    '[-webkit-mask-image:linear-gradient(to_bottom,transparent_0%,transparent_8%,black_13%,black_97%,transparent_100%)] [mask-image:linear-gradient(to_bottom,transparent_0%,transparent_8%,black_13%,black_97%,transparent_100%)]',
 } as const
 
 /** Borderless search field layered over a fading command-result list. */

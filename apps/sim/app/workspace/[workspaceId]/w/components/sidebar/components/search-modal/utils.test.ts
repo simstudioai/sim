@@ -8,7 +8,7 @@ import {
   fuzzyMatch,
   getActionGroupLabel,
   getGlobalSearchResults,
-  getToolOperationLabel,
+  getPageActionGroupLabel,
   MAX_RESULTS_PER_GROUP,
   type SearchEntry,
   scoreActions,
@@ -24,10 +24,30 @@ describe('getActionGroupLabel', () => {
     run: () => {},
   }
 
-  it('separates workflow actions from platform actions', () => {
-    expect(getActionGroupLabel({ ...action, context: 'workflow' })).toBe('Workflow')
+  it('separates page actions from platform actions', () => {
+    expect(getActionGroupLabel({ ...action, context: 'workflow' })).toBe('Workflow Actions')
     expect(getActionGroupLabel({ ...action, context: 'global' })).toBe('Platform')
-    expect(getActionGroupLabel({ ...action, context: 'integrations' })).toBe('Platform')
+  })
+
+  it('groups page actions under their module name', () => {
+    expect(getActionGroupLabel({ ...action, context: 'tables' })).toBe('Table Actions')
+    expect(getActionGroupLabel({ ...action, context: 'tableDetail' })).toBe('Table Actions')
+    expect(getActionGroupLabel({ ...action, context: 'files' })).toBe('File Actions')
+    expect(getActionGroupLabel({ ...action, context: 'fileDetail' })).toBe('File Actions')
+    expect(getActionGroupLabel({ ...action, context: 'knowledge' })).toBe('Knowledge Base Actions')
+    expect(getActionGroupLabel({ ...action, context: 'knowledgeBase' })).toBe(
+      'Knowledge Base Actions'
+    )
+    expect(getActionGroupLabel({ ...action, context: 'logs' })).toBe('Logs Actions')
+    expect(getActionGroupLabel({ ...action, context: 'logsDashboard' })).toBe('Logs Actions')
+    expect(getActionGroupLabel({ ...action, context: 'scheduledTasks' })).toBe(
+      'Scheduled Task Actions'
+    )
+  })
+
+  it('resolves the same module labels for page contexts directly', () => {
+    expect(getPageActionGroupLabel('tables')).toBe('Table Actions')
+    expect(getPageActionGroupLabel('knowledgeBase')).toBe('Knowledge Base Actions')
   })
 
   it('lets an action group label surface actions whose names do not match', () => {
@@ -37,8 +57,10 @@ describe('getActionGroupLabel', () => {
       context: 'workflow' as const,
     }
 
-    expect(scoreActions([workflowAction], 'workflow', 50, 'Workflow')).toHaveLength(1)
-    expect(scoreActions([workflowAction], 'platform', 50, 'Workflow')).toHaveLength(0)
+    expect(scoreActions([workflowAction], 'workflow actions', 50, 'Workflow Actions')).toHaveLength(
+      1
+    )
+    expect(scoreActions([workflowAction], 'platform', 50, 'Workflow Actions')).toHaveLength(0)
   })
 })
 
@@ -119,67 +141,6 @@ describe('getGlobalSearchResults', () => {
       'workflow-0',
     ])
   })
-
-  it('places selected docs after selected tool operations without changing the result set', () => {
-    const Icon = () => null
-    const tool: SearchEntry = {
-      section: 'tools',
-      score: 100,
-      item: { id: 'whatsapp', name: 'WhatsApp', icon: Icon, bgColor: '#25D366', type: 'whatsapp' },
-    }
-    const docs: SearchEntry = {
-      section: 'docs',
-      score: 90,
-      item: { id: 'docs-whatsapp', name: 'WhatsApp', icon: Icon, href: '/whatsapp' },
-    }
-    const operation: SearchEntry = {
-      section: 'toolOperations',
-      score: 80,
-      item: {
-        id: 'whatsapp_upload_media',
-        name: 'Upload Media',
-        serviceName: 'WhatsApp',
-        searchValue: 'WhatsApp Upload Media',
-        icon: Icon,
-        bgColor: '#25D366',
-        blockType: 'whatsapp',
-        operationId: 'upload_media',
-      },
-    }
-
-    expect(
-      getGlobalSearchResults({ tools: [tool], docs: [docs], toolOperations: [operation] }, [
-        'tools',
-        'docs',
-        'toolOperations',
-      ]).map((entry) => entry.item.id)
-    ).toEqual(['whatsapp', 'whatsapp_upload_media', 'docs-whatsapp'])
-  })
-})
-
-describe('getToolOperationLabel', () => {
-  const Icon = () => null
-  const operation = {
-    id: 'whatsapp_send_message',
-    name: 'Send Message',
-    serviceName: 'WhatsApp',
-    searchValue: 'WhatsApp Send Message',
-    icon: Icon,
-    bgColor: '#25D366',
-    blockType: 'whatsapp',
-    operationId: 'send_message',
-  }
-
-  it('adds the integration breadcrumb when the integration name matched', () => {
-    expect(getToolOperationLabel(operation, 'WhatsApp')).toBe('WhatsApp · Send Message')
-    expect(getToolOperationLabel(operation, 'whats send')).toBe('WhatsApp · Send Message')
-  })
-
-  it('keeps the bare operation name for direct operation-name matches', () => {
-    expect(getToolOperationLabel(operation, 'Send Message')).toBe('Send Message')
-    expect(getToolOperationLabel(operation, 'message')).toBe('Send Message')
-    expect(getToolOperationLabel(operation, '')).toBe('Send Message')
-  })
 })
 
 describe('scoreSectionItems', () => {
@@ -208,6 +169,41 @@ describe('scoreSectionItems', () => {
         (workspace) => workspace.keywords
       ).map(({ item }) => item.name)
     ).toEqual(['Workspaces demo', 'Acme', 'Beta'])
+  })
+
+  it('lifts a whole section above other sections’ name matches when the query is exactly its name', () => {
+    const workflowItems = [
+      { name: 'Onboarding' },
+      { name: 'Billing sync' },
+      { name: 'Workflow QA' },
+    ]
+    const sectionScores = scoreSectionItems(
+      'workflows',
+      workflowItems,
+      (item) => item.name,
+      'workflows'
+    )
+    const [chatMatch] = scoreAndSort(
+      [{ name: 'Workflows retro' }],
+      (item) => item.name,
+      'workflows'
+    )
+
+    expect(sectionScores).toHaveLength(3)
+    expect(sectionScores.every(({ score }) => score > chatMatch.score)).toBe(true)
+  })
+
+  it('does not lift a section for a partial section-name query', () => {
+    const workflowItems = [{ name: 'Onboarding' }]
+    const [sectionFill] = scoreSectionItems(
+      'workflows',
+      workflowItems,
+      (item) => item.name,
+      'workflow'
+    )
+    const [chatMatch] = scoreAndSort([{ name: 'Workflow retro' }], (item) => item.name, 'workflow')
+
+    expect(sectionFill.score).toBeLessThan(chatMatch.score)
   })
 })
 
@@ -498,6 +494,75 @@ describe('filterAndSort — name ranked above secondary text', () => {
     expect(filterAndSort(items, (s) => s, 'slack')).toEqual(
       filterAndSort(items, (s) => s, 'slack', undefined)
     )
+  })
+})
+
+describe('secondary-text matching — no scattered noise', () => {
+  it('does not scatter-match a query across long unrelated secondary text', () => {
+    const items = [{ name: 'Write Contact', extra: 'Wealthbox Write Contact match snap up' }]
+
+    // The scattered mode alone finds w…h…a…t…s…a…p…p across this extra, so
+    // without the restriction this item would surface for "whatsapp".
+    expect(fuzzyMatch(items[0].extra, 'whatsapp').matched).toBe(true)
+    expect(
+      filterAndSort(
+        items,
+        (item) => item.name,
+        'whatsapp',
+        (item) => item.extra
+      )
+    ).toEqual([])
+  })
+
+  it('still matches secondary text by substring and by whole tokens', () => {
+    const items = [{ name: 'Send Message', extra: 'Slack Send Message dm chat' }]
+
+    expect(
+      filterAndSort(
+        items,
+        (item) => item.name,
+        'slack',
+        (item) => item.extra
+      )
+    ).toHaveLength(1)
+    expect(
+      filterAndSort(
+        items,
+        (item) => item.name,
+        'slack chat',
+        (item) => item.extra
+      )
+    ).toHaveLength(1)
+    expect(
+      filterAndSort(
+        items,
+        (item) => item.name,
+        'whatsapp',
+        (item) => item.extra
+      )
+    ).toHaveLength(0)
+  })
+
+  it('scatter-matches within a single kebab-cased entry but never across entries', () => {
+    const items = [{ name: 'Do Thing', extra: 'slack send-message dm chat' }]
+
+    expect(
+      filterAndSort(
+        items,
+        (item) => item.name,
+        'sndmsg',
+        (item) => item.extra
+      )
+    ).toHaveLength(1)
+    // "dmchat" needs letters from both the "dm" and "chat" entries — rejected.
+    expect(
+      filterAndSort(
+        items,
+        (item) => item.name,
+        'dmchat',
+        (item) => item.extra
+      )
+    ).toHaveLength(0)
   })
 })
 
