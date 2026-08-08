@@ -156,7 +156,22 @@ describe('assertOoxmlArchiveWithinLimits', () => {
         maxCompressionRatio: 10_000,
         ratioCheckFloorBytes: 1024 * 1024 * 1024,
       })
-    ).toThrow(/single part's decompressed size .* exceeds the maximum allowed/)
+    ).toThrow(/single entry's decompressed size .* exceeds the maximum allowed/)
+  })
+
+  it('applies the per-entry cap to a non-.xml part resolved through OPC relationships', async () => {
+    // The main document part is resolved via relationship target, not a fixed
+    // path, so a bomb under a `.bin` name is still DOM-parsed — the cap must not
+    // exempt it on filename.
+    const buffer = await buildZip({ 'word/document.bin': 'A'.repeat(200_000) })
+    expect(() =>
+      assertOoxmlArchiveWithinLimits(buffer, {
+        maxTotalUncompressedBytes: 1024 * 1024 * 1024,
+        maxEntryUncompressedBytes: 100_000,
+        maxCompressionRatio: 10_000,
+        ratioCheckFloorBytes: 1024 * 1024 * 1024,
+      })
+    ).toThrow(/single entry's decompressed size .* exceeds the maximum allowed/)
   })
 
   it('rejects a single part larger than the 64 MiB per-entry default before any parser sees it', async () => {
@@ -166,24 +181,8 @@ describe('assertOoxmlArchiveWithinLimits', () => {
     const honest = await buildZip({ 'word/document.xml': 'A'.repeat(200_000) })
     const oversized = underDeclareSizes(honest, 70 * 1024 * 1024)
     expect(() => assertOoxmlArchiveWithinLimits(oversized)).toThrow(
-      /single part's decompressed size .* exceeds the maximum allowed 67108864 bytes/
+      /single entry's decompressed size .* exceeds the maximum allowed 67108864 bytes/
     )
-  })
-
-  it('does not apply the per-entry cap to binary media parts', async () => {
-    // Media is copied out, not DOM-parsed, so a media part above the per-entry
-    // cap must not trip it — only the total cap bounds media. The XML part stays
-    // under the cap; the media part is larger than it but is not a text part.
-    const buffer = await buildZip({
-      'word/document.xml': '<w:document/>',
-      'word/media/clip.mp4': 'A'.repeat(5000),
-    })
-    expect(() =>
-      assertOoxmlArchiveWithinLimits(buffer, {
-        ...HIGH_LIMITS,
-        maxEntryUncompressedBytes: 1000,
-      })
-    ).not.toThrow()
   })
 
   it('accepts an ordinary document under the default limits', async () => {
