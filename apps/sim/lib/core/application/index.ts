@@ -1,3 +1,10 @@
+export {
+  type AuthorizedWorkspaceUseCaseContext,
+  type AuthorizedWorkspaceUseCaseDefinition,
+  type AuthorizedWorkspaceUseCaseResultContext,
+  defineAuthorizedWorkspaceUseCase,
+  type WorkspaceUseCaseAuditEntry,
+} from '@/lib/core/application/authorized-workspace-use-case'
 export type {
   ApplicationOperation,
   OperationUseCase,
@@ -7,8 +14,13 @@ export type {
   WorkspaceAuthorizationOptions,
   WorkspaceDelegationPolicy,
 } from '@/lib/core/application/workspace-authorization'
-export { authorizeWorkspaceOperation } from '@/lib/core/application/workspace-authorization'
+export {
+  authorizeWorkspaceOperation,
+  requireAllowedWorkspacePrincipal,
+} from '@/lib/core/application/workspace-authorization'
 export {
   defineWorkspaceOperation,
+  type PrincipalForOperation,
+  type PrincipalKind,
   type WorkspaceOperation,
 } from '@/lib/core/application/workspace-operation'

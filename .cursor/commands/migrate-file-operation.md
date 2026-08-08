@@ -72,15 +72,18 @@ Do not add API-key rechecks, row locks, or transaction-wide authorization solely
 
 ## Define the operation once
 
-Add exactly one entry to `fileOperations` with a stable semantic ID, minimum workspace role, and explicit workspace-key policy.
+Add exactly one entry to `fileOperations` with a stable semantic ID, minimum workspace role, explicit workspace-key policy, and accepted principal kinds.
 
 ```ts
 operationName: defineWorkspaceOperation({
   id: 'files.operation_name',
   minimumRole: 'read' satisfies PermissionType,
   workspaceApiKey: 'allow',
+  principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
 })
 ```
+
+Do not accept every principal merely because a use case is shared. An internal-only operation can declare `['session']`; a shared internal/Copilot operation can declare `['session', 'delegated']`. The definition fails immediately when `principalKinds` and the workspace-key policy disagree. The authorized-use-case wrapper rejects disallowed kinds before canonical loading and narrows the business callback's principal type.
 
 Choose policy from behavior, not from the calling surface:
 
@@ -93,25 +96,35 @@ The route declaration and use case must expose the same literal operation. Let r
 
 ## Implement the application use case
 
-Expose an object with `operation` and `execute` matching `OperationUseCase`.
+Define the use case with `defineAuthorizedWorkspaceFileUseCase`, the file-domain binding over the resource-agnostic application foundation.
 
 ```ts
-export const operationWorkspaceFile = {
+export const operationWorkspaceFile = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.operationName,
+  resolveContext: ({ input }: { input: OperationWorkspaceFileInput }) =>
+    loadCanonicalOperationContext(input),
   execute: executeOperationWorkspaceFile,
-} as const
+  projectAudit: ({ result }) => ({
+    action: AuditAction.FILE_UPDATED,
+    resourceType: AuditResourceType.FILE,
+    resourceId: result.file.id,
+    resourceName: result.file.name,
+  }),
+  afterSuccess: ({ context }) => notifyWorkspaceFilesChanged(context.workspaceId),
+})
 ```
 
-Inside `execute`:
+The wrapper owns this lifecycle:
 
-1. Load the active file by `fileId` without trusting a caller-supplied workspace.
-2. Derive the canonical workspace and policy context from that record.
-3. Treat an asserted-workspace mismatch like absence when the surface requires concealment.
-4. Call the file-domain `authorizeWorkspaceFileAccess` wrapper with the canonical context and shared operation. The wrapper supplies file delegation scope to the resource-agnostic `authorizeWorkspaceOperation` primitive.
-5. Resolve `PrincipalAttribution` only when a required legacy user field or audit actor needs it.
-6. Call a workspace-predicated, throwing manager primitive.
-7. Record semantic audit once and send shared realtime/domain notifications once.
-8. Return a surface-neutral domain result.
+1. Reject principal kinds not declared by the operation.
+2. Resolve the canonical context and authorize it with file delegation scope.
+3. Execute the business callback.
+4. Resolve audit attribution and record projected semantic entries.
+5. Await declared post-success domain effects.
+
+`resolveContext` loads canonical resources, derives workspace policy state, and conceals asserted-workspace mismatches. It does not authorize. `execute` receives an already-authorized, operation-narrowed principal and calls manager/repository primitives. `projectAudit` derives zero, one, or several entries from the authoritative mutation result; return `[]` for a no-op and never infer affected resources from requested IDs. The wrapper injects workspace, operation, actor, and request metadata. `afterSuccess` owns shared notifications.
+
+Do not call `authorizeWorkspaceFileAccess`, `authorizeWorkspaceFileOperation`, `resolvePrincipalAuditAttribution`, or `recordAudit` from an ordinary migrated use-case body. Resolve `PrincipalAttribution` only when a required legacy user field needs it. Upload lifecycle code and other explicitly deferred special cases may retain their dedicated flow until separately migrated.
 
 Propagate infrastructure failures. Use existing typed orchestration errors for expected not-found, forbidden, validation, and conflict outcomes. Do not turn database failures into not-found or authorization failures, and never add fallback behavior.
 
@@ -126,7 +139,7 @@ Inspect legacy orchestration before reusing it. If it already records audit, sen
 - Use the current billing owner only where a legacy required user ID or billing attribution requires one. Never use that owner for authorization, rate-limit identity, delegated identity, or human product analytics.
 - Preserve `PrincipalActor` metadata in audit records so a workspace key is not represented as a human actor.
 
-Audit is shared semantic behavior and belongs in the application layer. Product analytics are surface behavior: preserve an existing internal `captureServerEvent` with the internal route's optional `onSuccess`; do not move it into the shared use case or manufacture a human distinct ID for workspace keys or Copilot.
+Audit is shared semantic behavior declared through `projectAudit`; the wrapper records it after successful execution using the real `PrincipalActor`. Product analytics are surface behavior: preserve an existing internal `captureServerEvent` with the internal route's optional `onSuccess`; do not move it into the shared use case or manufacture a human distinct ID for workspace keys or Copilot.
 
 ## Adapt each surface independently
 
@@ -178,7 +191,7 @@ Add focused tests proportional to the migrated surfaces:
 - Internal route: authentication before parsing, exact response contract, typed errors, and any preserved `onSuccess` event only after success.
 - V2 route: personal and workspace keys, rollout/rate behavior, concealment, exact v2 envelope, and rate headers after charging.
 - Copilot: trusted delegation, aliases/resume paths, permission re-check, safe errors, and unchanged tool response shape.
-- Side effects: audit and shared notifications are invoked once per successful use-case execution and never on rejected operations. Do not claim exactly-once delivery across independent client retries without durable idempotency/outbox support.
+- Side effects: audit is projected from authoritative results, notifications follow audit projection, and neither occurs for rejected operations or zero-row results. Do not claim exactly-once delivery across independent client retries without durable idempotency/outbox support.
 
 Run at minimum:
 

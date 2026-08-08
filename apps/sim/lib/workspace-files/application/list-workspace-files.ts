@@ -1,4 +1,3 @@
-import type { Principal } from '@sim/auth/principal'
 import type { CursorKey } from '@/lib/api/list-query'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { ROOT_FOLDER_PATH } from '@/lib/folders/paths'
@@ -9,7 +8,7 @@ import {
   loadActiveWorkspaceContext,
   queryWorkspaceFiles,
 } from '@/lib/uploads/contexts/workspace'
-import { authorizeWorkspaceFileAccess } from '@/lib/workspace-files/application/authorization'
+import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 
 export interface ListAllWorkspaceFilesInput {
@@ -28,64 +27,49 @@ export interface QueryWorkspaceFilePageInput {
   cursorSort: string
 }
 
-async function requireListWorkspaceFileAccess(principal: Principal, workspaceId: string) {
+async function resolveListWorkspaceFileContext(workspaceId: string) {
   const workspace = await loadActiveWorkspaceContext(workspaceId)
   if (!workspace) throw new OrchestrationError('not_found', 'Workspace not found')
-  await authorizeWorkspaceFileAccess(principal, fileOperations.list, workspace)
   return workspace
 }
 
-async function executeListAllWorkspaceFiles({
-  principal,
-  input,
-}: {
-  principal: Principal
-  input: ListAllWorkspaceFilesInput
-}) {
-  const workspace = await requireListWorkspaceFileAccess(principal, input.workspaceId)
-  const files = await listWorkspaceFiles(workspace.workspaceId, { scope: input.scope })
-  const shares = await getWorkspaceShares('file', workspace.workspaceId)
-  return {
-    files: files.map((file) => ({ ...file, share: shares.get(file.id) ?? null })),
-  }
-}
-
-async function executeQueryWorkspaceFilePage({
-  principal,
-  input,
-}: {
-  principal: Principal
-  input: QueryWorkspaceFilePageInput
-}) {
-  const workspace = await requireListWorkspaceFileAccess(principal, input.workspaceId)
-  const folderIndex = await loadActiveFolderPathIndex(workspace.workspaceId, 'file')
-  const folderId =
-    input.folderPath === undefined
-      ? undefined
-      : input.folderPath === ROOT_FOLDER_PATH
-        ? null
-        : folderIndex.idByPath.get(input.folderPath)
-  if (input.folderPath !== undefined && folderId === undefined) {
-    throw new OrchestrationError('not_found', 'Folder not found')
-  }
-
-  const { files, nextKeys } = await queryWorkspaceFiles(workspace.workspaceId, {
-    folderId,
-    search: input.search,
-    sortBy: input.sortBy,
-    sortOrder: input.sortOrder,
-    limit: input.limit,
-    after: input.after,
-  })
-  return { files, nextKeys, cursorSort: input.cursorSort }
-}
-
-export const listAllWorkspaceFiles = {
+export const listAllWorkspaceFiles = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.list,
-  execute: executeListAllWorkspaceFiles,
-} as const
+  resolveContext: ({ input }: { input: ListAllWorkspaceFilesInput }) =>
+    resolveListWorkspaceFileContext(input.workspaceId),
+  async execute({ input, context }) {
+    const files = await listWorkspaceFiles(context.workspaceId, { scope: input.scope })
+    const shares = await getWorkspaceShares('file', context.workspaceId)
+    return {
+      files: files.map((file) => ({ ...file, share: shares.get(file.id) ?? null })),
+    }
+  },
+})
 
-export const queryWorkspaceFilePage = {
+export const queryWorkspaceFilePage = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.list,
-  execute: executeQueryWorkspaceFilePage,
-} as const
+  resolveContext: ({ input }: { input: QueryWorkspaceFilePageInput }) =>
+    resolveListWorkspaceFileContext(input.workspaceId),
+  async execute({ input, context }) {
+    const folderIndex = await loadActiveFolderPathIndex(context.workspaceId, 'file')
+    const folderId =
+      input.folderPath === undefined
+        ? undefined
+        : input.folderPath === ROOT_FOLDER_PATH
+          ? null
+          : folderIndex.idByPath.get(input.folderPath)
+    if (input.folderPath !== undefined && folderId === undefined) {
+      throw new OrchestrationError('not_found', 'Folder not found')
+    }
+
+    const { files, nextKeys } = await queryWorkspaceFiles(context.workspaceId, {
+      folderId,
+      search: input.search,
+      sortBy: input.sortBy,
+      sortOrder: input.sortOrder,
+      limit: input.limit,
+      after: input.after,
+    })
+    return { files, nextKeys, cursorSort: input.cursorSort }
+  },
+})

@@ -9,6 +9,19 @@ import { fileOperations } from '@/lib/workspace-files/application/operations'
 describe('file operation registry', () => {
   it('keeps every workspace-key operation at or below the fixed write ceiling', () => {
     for (const operation of Object.values(fileOperations)) {
+      expect(
+        operation.principalKinds.length,
+        `${operation.id} has no allowed principals`
+      ).toBeGreaterThan(0)
+      expect(
+        new Set(operation.principalKinds).size,
+        `${operation.id} repeats a principal kind`
+      ).toBe(operation.principalKinds.length)
+      expect(
+        operation.principalKinds.includes('workspace_api_key'),
+        `${operation.id} has inconsistent workspace API-key declarations`
+      ).toBe(operation.workspaceApiKey === 'allow')
+
       if (operation.workspaceApiKey === 'allow') {
         expect(
           permissionSatisfies('write', operation.minimumRole),
@@ -25,5 +38,19 @@ describe('file operation registry', () => {
 
   it('keeps external sharing policy changes human-delegated', () => {
     expect(fileOperations.updateShare.workspaceApiKey).toBe('deny')
+    expect(fileOperations.updateShare.principalKinds).toEqual([
+      'session',
+      'personal_api_key',
+      'delegated',
+    ])
+  })
+
+  it('restricts compiled checks to authenticated sessions', () => {
+    expect(fileOperations.compiledCheck).toMatchObject({
+      id: 'files.compiled_check',
+      minimumRole: 'read',
+      workspaceApiKey: 'deny',
+      principalKinds: ['session'],
+    })
   })
 })

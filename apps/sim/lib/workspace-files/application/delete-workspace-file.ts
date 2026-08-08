@@ -1,11 +1,14 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
-import { type Principal, resolvePrincipalAuditAttribution } from '@sim/auth/principal'
+import { AuditAction, AuditResourceType } from '@sim/audit'
 import { createLogger } from '@sim/logger'
-import type { OrchestrationRequestContext } from '@/lib/core/orchestration/types'
+import type { AuthorizedWorkspaceUseCaseContext } from '@/lib/core/application'
 import { notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
-import { deleteWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { loadAuthorizedWorkspaceFile } from '@/lib/workspace-files/application/load-authorized-workspace-file'
+import {
+  type ActiveWorkspaceFileContext,
+  deleteWorkspaceFile,
+} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
+import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
 
 const logger = createLogger('DeleteWorkspaceFile')
 
@@ -20,48 +23,34 @@ export interface DeleteWorkspaceFileResult {
   deleted: true
 }
 
-interface DeleteWorkspaceFileArguments {
-  principal: Principal
-  input: DeleteWorkspaceFileInput
-  request?: OrchestrationRequestContext
-}
-
 async function executeDeleteWorkspaceFile({
   principal,
-  input,
-  request,
-}: DeleteWorkspaceFileArguments): Promise<DeleteWorkspaceFileResult> {
-  const canonical = await loadAuthorizedWorkspaceFile({
-    principal,
-    operation: fileOperations.delete,
-    fileId: input.fileId,
-    assertedWorkspaceId: input.assertedWorkspaceId,
-  })
-
-  const auditAttribution = resolvePrincipalAuditAttribution(principal)
-  await deleteWorkspaceFile(canonical.workspaceId, canonical.fileId)
-
-  recordAudit({
-    workspaceId: canonical.workspaceId,
-    actorId: auditAttribution.actorId,
-    actorName: auditAttribution.actorName,
-    action: AuditAction.FILE_DELETED,
-    resourceType: AuditResourceType.FILE,
-    resourceId: canonical.fileId,
-    description: `Deleted workspace file ${canonical.fileId}`,
-    metadata: { operation: fileOperations.delete.id, actor: auditAttribution.actor },
-    request,
-  })
-  await notifyWorkspaceFilesChanged(canonical.workspaceId)
-  logger.info('Deleted workspace file', {
-    workspaceId: canonical.workspaceId,
-    fileId: canonical.fileId,
-    principalKind: principal.kind,
-  })
-  return { id: canonical.fileId, workspaceId: canonical.workspaceId, deleted: true }
+  context,
+}: AuthorizedWorkspaceUseCaseContext<
+  typeof fileOperations.delete,
+  DeleteWorkspaceFileInput,
+  ActiveWorkspaceFileContext
+>): Promise<DeleteWorkspaceFileResult> {
+  await deleteWorkspaceFile(context.workspaceId, context.fileId)
+  return { id: context.fileId, workspaceId: context.workspaceId, deleted: true }
 }
 
-export const deleteWorkspaceFileOperation = {
+export const deleteWorkspaceFileOperation = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.delete,
+  resolveContext: ({ input }) => resolveActiveWorkspaceFileContext(input),
   execute: executeDeleteWorkspaceFile,
-} as const
+  projectAudit: ({ result }) => ({
+    action: AuditAction.FILE_DELETED,
+    resourceType: AuditResourceType.FILE,
+    resourceId: result.id,
+    description: `Deleted workspace file ${result.id}`,
+  }),
+  async afterSuccess({ principal, result }) {
+    await notifyWorkspaceFilesChanged(result.workspaceId)
+    logger.info('Deleted workspace file', {
+      workspaceId: result.workspaceId,
+      fileId: result.id,
+      principalKind: principal.kind,
+    })
+  },
+})

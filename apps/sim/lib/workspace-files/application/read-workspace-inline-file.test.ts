@@ -4,19 +4,21 @@
 import { Readable } from 'node:stream'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockLoadAuthorized, mockGetWorkspaceFile, mockGetMetadataByKey, mockDownloadFileStream } =
+const { mockLoadContext, mockGetWorkspaceFile, mockGetMetadataByKey, mockDownloadFileStream } =
   vi.hoisted(() => ({
-    mockLoadAuthorized: vi.fn(),
+    mockLoadContext: vi.fn(),
     mockGetWorkspaceFile: vi.fn(),
     mockGetMetadataByKey: vi.fn(),
     mockDownloadFileStream: vi.fn(),
   }))
 
-vi.mock('@/lib/workspace-files/application/load-authorized-workspace-file', () => ({
-  loadAuthorizedWorkspaceFile: mockLoadAuthorized,
+vi.mock('@sim/platform-authz/workspace', () => ({
+  permissionSatisfies: () => true,
+  resolveEffectiveWorkspacePermission: vi.fn().mockResolvedValue('admin'),
 }))
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   getWorkspaceFile: mockGetWorkspaceFile,
+  loadActiveWorkspaceFileContext: mockLoadContext,
 }))
 vi.mock('@/lib/uploads/server/metadata', () => ({ getFileMetadataByKey: mockGetMetadataByKey }))
 vi.mock('@/lib/uploads/core/storage-service', () => ({
@@ -37,7 +39,13 @@ const file = {
 describe('readWorkspaceInlineFile', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockLoadAuthorized.mockResolvedValue({ fileId: 'f1', workspaceId: 'ws-1' })
+    mockLoadContext.mockResolvedValue({
+      fileId: 'f1',
+      workspaceId: 'ws-1',
+      workspaceOrganizationId: null,
+      allowPersonalApiKeys: true,
+      billedAccountUserId: 'billing-owner',
+    })
     mockGetWorkspaceFile.mockResolvedValue(file)
     mockDownloadFileStream.mockResolvedValue(Readable.from(Buffer.from('png')))
   })
@@ -48,12 +56,7 @@ describe('readWorkspaceInlineFile', () => {
       input: { workspaceId: 'ws-1', fileId: 'f1' },
     })
 
-    expect(mockLoadAuthorized).toHaveBeenCalledWith({
-      principal,
-      operation: expect.objectContaining({ id: 'files.read_content' }),
-      fileId: 'f1',
-      assertedWorkspaceId: 'ws-1',
-    })
+    expect(mockLoadContext).toHaveBeenCalledWith('f1')
     expect(mockDownloadFileStream).toHaveBeenCalledWith({
       key: file.key,
       context: 'workspace',
@@ -70,9 +73,7 @@ describe('readWorkspaceInlineFile', () => {
     })
 
     expect(mockGetMetadataByKey).toHaveBeenCalledWith(file.key, 'workspace')
-    expect(mockLoadAuthorized).toHaveBeenCalledWith(
-      expect.objectContaining({ fileId: 'f1', assertedWorkspaceId: 'ws-1' })
-    )
+    expect(mockLoadContext).toHaveBeenCalledWith('f1')
   })
 
   it('conceals a key belonging to another workspace before authorization', async () => {
@@ -84,7 +85,7 @@ describe('readWorkspaceInlineFile', () => {
         input: { workspaceId: 'ws-1', key: 'workspace/ws-other/photo.png' },
       })
     ).rejects.toMatchObject({ code: 'not_found' })
-    expect(mockLoadAuthorized).not.toHaveBeenCalled()
+    expect(mockLoadContext).not.toHaveBeenCalled()
     expect(mockDownloadFileStream).not.toHaveBeenCalled()
   })
 })

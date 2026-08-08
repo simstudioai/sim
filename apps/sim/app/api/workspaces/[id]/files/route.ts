@@ -13,7 +13,10 @@ import {
   internalFileErrorPolicies,
   internalFilePresenters,
 } from '@/lib/workspace-files/api'
-import { createWorkspaceFile } from '@/lib/workspace-files/application/create-workspace-file'
+import {
+  admitCreateWorkspaceFile,
+  createWorkspaceFile,
+} from '@/lib/workspace-files/application/create-workspace-file'
 import { listAllWorkspaceFiles } from '@/lib/workspace-files/application/list-workspace-files'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { MAX_WORKSPACE_FILE_INLINE_BODY_BYTES } from '@/lib/workspace-files/orchestration'
@@ -41,7 +44,7 @@ export const POST = defineInternalJsonRoute({
   errorPolicy: internalFileErrorPolicies.default,
   parseOptions: { maxBodyBytes: MAX_WORKSPACE_FILE_INLINE_BODY_BYTES },
   beforeParse: async ({ principal, params }) => {
-    if (typeof params.id === 'string') await createWorkspaceFile.admit(principal, params.id)
+    if (typeof params.id === 'string') await admitCreateWorkspaceFile(principal, params.id)
   },
   mapInput: ({ params, body }) => ({
     workspaceId: params.id,

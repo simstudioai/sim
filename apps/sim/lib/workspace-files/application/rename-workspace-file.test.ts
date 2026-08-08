@@ -6,9 +6,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   loadContext: vi.fn(),
   renameStored: vi.fn(),
-  authorize: vi.fn(),
+  resolvePermission: vi.fn(),
   recordAudit: vi.fn(),
   notify: vi.fn(),
+}))
+
+vi.mock('@sim/platform-authz/workspace', () => ({
+  permissionSatisfies: () => true,
+  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -18,10 +23,6 @@ vi.mock('@sim/audit', () => ({
 }))
 
 vi.mock('@/lib/realtime/notify', () => ({ notifyWorkspaceFilesChanged: mocks.notify }))
-
-vi.mock('@/lib/workspace-files/application/authorization', () => ({
-  authorizeWorkspaceFileAccess: mocks.authorize,
-}))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   loadActiveWorkspaceFileContext: mocks.loadContext,
@@ -57,7 +58,7 @@ describe('renameWorkspaceFile application service', () => {
     vi.clearAllMocks()
     mocks.loadContext.mockResolvedValue(canonical)
     mocks.renameStored.mockResolvedValue(mappedFile)
-    mocks.authorize.mockResolvedValue(undefined)
+    mocks.resolvePermission.mockResolvedValue('admin')
     mocks.notify.mockResolvedValue(undefined)
   })
 
@@ -69,16 +70,21 @@ describe('renameWorkspaceFile application service', () => {
 
     expect(result).toEqual({ file: mappedFile })
     expect(mocks.loadContext).toHaveBeenCalledWith('file-1', { includeDeleted: undefined })
-    expect(mocks.authorize).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: 'session', userId: 'user-1' }),
-      expect.objectContaining({ id: 'files.rename' }),
-      expect.objectContaining({ workspaceId: 'workspace-1', fileId: 'file-1' })
+    expect(mocks.resolvePermission).toHaveBeenCalledWith(
+      'user-1',
+      'workspace-1',
+      'organization-1',
+      undefined,
+      { forUpdate: undefined }
     )
     expect(mocks.renameStored).toHaveBeenCalledWith('workspace-1', 'file-1', 'new.csv')
     expect(mocks.renameStored.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.recordAudit.mock.invocationCallOrder[0]
     )
     expect(mocks.renameStored.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.notify.mock.invocationCallOrder[0]
+    )
+    expect(mocks.recordAudit.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.notify.mock.invocationCallOrder[0]
     )
   })
@@ -91,7 +97,7 @@ describe('renameWorkspaceFile application service', () => {
       })
     ).rejects.toMatchObject({ code: 'not_found', message: 'File not found' })
 
-    expect(mocks.authorize).not.toHaveBeenCalled()
+    expect(mocks.resolvePermission).not.toHaveBeenCalled()
     expect(mocks.renameStored).not.toHaveBeenCalled()
     expect(mocks.recordAudit).not.toHaveBeenCalled()
   })

@@ -13,9 +13,9 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/workspace-files/application/create-workspace-file', () => ({
+  admitCreateWorkspaceFile: mocks.admitCreate,
   createWorkspaceFile: {
     operation: { id: 'files.create', minimumRole: 'write', workspaceApiKey: 'allow' },
-    admit: mocks.admitCreate,
     execute: mocks.createFile,
   },
 }))

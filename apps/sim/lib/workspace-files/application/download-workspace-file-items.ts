@@ -1,6 +1,4 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
-import { type Principal, resolvePrincipalAuditAttribution } from '@sim/auth/principal'
-import type { OrchestrationRequestContext } from '@/lib/core/orchestration/types'
+import { AuditAction, AuditResourceType } from '@sim/audit'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import {
@@ -8,6 +6,7 @@ import {
   fetchServableWorkspaceFileBuffer,
   listWorkspaceFileFolders,
   listWorkspaceFiles,
+  loadWorkspaceFileOperationContext,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace'
 import {
@@ -17,8 +16,8 @@ import {
   MAX_RENDERED_DOCUMENT_BYTES,
 } from '@/lib/uploads/utils/file-utils'
 import { docNotReadyMessage, isDocNotReadyError } from '@/lib/uploads/utils/servable-file-response'
+import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
-import { authorizeWorkspaceFileOperation } from '@/lib/workspace-files/application/workspace-operation-context'
 
 export const MAX_ZIP_DOWNLOAD_FILES = 100
 export const MAX_ZIP_DOWNLOAD_BYTES = 250 * 1024 * 1024
@@ -65,32 +64,26 @@ function validationError(message: string): never {
 }
 
 async function executeDownloadWorkspaceFileItems({
-  principal,
   input,
-  request,
+  context,
 }: {
-  principal: Principal
   input: DownloadWorkspaceFileItemsInput
-  request?: OrchestrationRequestContext
+  context: Awaited<ReturnType<typeof resolveDownloadContext>>
 }): Promise<DownloadWorkspaceFileItemsResult> {
-  if (input.fileIds.length > MAX_REQUESTED_FILE_IDS) {
+  const fileIds = [...new Set(input.fileIds)]
+  const folderIds = [...new Set(input.folderIds)]
+  if (fileIds.length > MAX_REQUESTED_FILE_IDS) {
     validationError(`Too many file IDs selected. Select ${MAX_REQUESTED_FILE_IDS} or fewer files.`)
   }
-  if (input.folderIds.length > MAX_REQUESTED_FOLDER_IDS) {
+  if (folderIds.length > MAX_REQUESTED_FOLDER_IDS) {
     validationError(
       `Too many folder IDs selected. Select ${MAX_REQUESTED_FOLDER_IDS} or fewer folders.`
     )
   }
-  if (input.fileIds.length === 0 && input.folderIds.length === 0) {
+  if (fileIds.length === 0 && folderIds.length === 0) {
     validationError('No files selected for download')
   }
 
-  const { context } = await authorizeWorkspaceFileOperation(
-    principal,
-    fileOperations.download,
-    input.workspaceId
-  )
-  const auditAttribution = resolvePrincipalAuditAttribution(principal)
   const [files, folders] = await Promise.all([
     listWorkspaceFiles(context.workspaceId, { hydrateFolderPaths: false, throwOnError: true }),
     listWorkspaceFileFolders(context.workspaceId),
@@ -99,13 +92,13 @@ async function executeDownloadWorkspaceFileItems({
   const knownFileIds = new Set(files.map((file) => file.id))
   const knownFolderIds = new Set(folders.map((folder) => folder.id))
   if (
-    input.fileIds.some((fileId) => !knownFileIds.has(fileId)) ||
-    input.folderIds.some((folderId) => !knownFolderIds.has(folderId))
+    fileIds.some((fileId) => !knownFileIds.has(fileId)) ||
+    folderIds.some((folderId) => !knownFolderIds.has(folderId))
   ) {
     throw new OrchestrationError('not_found', 'File selection not found')
   }
-  const selectedFolderIds = collectDescendantFolderIds(input.folderIds, folders)
-  const requestedFileIds = new Set(input.fileIds)
+  const selectedFolderIds = collectDescendantFolderIds(folderIds, folders)
+  const requestedFileIds = new Set(fileIds)
   const filesToZip = files.filter(
     (file) =>
       requestedFileIds.has(file.id) ||
@@ -158,26 +151,33 @@ async function executeDownloadWorkspaceFileItems({
     throw new OrchestrationError('conflict', docNotReadyMessage(pendingNames))
   }
 
-  recordAudit({
-    workspaceId: context.workspaceId,
-    actorId: auditAttribution.actorId,
-    actorName: auditAttribution.actorName,
-    action: AuditAction.FILE_DOWNLOADED,
-    resourceType: AuditResourceType.FILE,
-    description: `Downloaded ${filesToZip.length} file${filesToZip.length === 1 ? '' : 's'} as zip`,
-    metadata: {
-      operation: fileOperations.download.id,
-      actor: auditAttribution.actor,
-      fileCount: filesToZip.length,
-      totalBytes: declaredBytes,
-    },
-    request,
-  })
-
   return { filesToZip, folderPaths, renderedDocuments, declaredBytes }
 }
 
-export const downloadWorkspaceFileItems = {
+async function resolveDownloadContext({ input }: { input: DownloadWorkspaceFileItemsInput }) {
+  const context = await loadWorkspaceFileOperationContext(input.workspaceId)
+  if (!context) throw new OrchestrationError('not_found', 'Workspace not found')
+  const fileIds = [...new Set(input.fileIds)]
+  const folderIds = [...new Set(input.folderIds)]
+  return {
+    ...context,
+    fileId: fileIds.length === 1 && folderIds.length === 0 ? fileIds[0] : undefined,
+  }
+}
+
+export const downloadWorkspaceFileItems = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.download,
+  resolveContext: resolveDownloadContext,
   execute: executeDownloadWorkspaceFileItems,
-} as const
+  projectAudit({ result }) {
+    return {
+      action: AuditAction.FILE_DOWNLOADED,
+      resourceType: AuditResourceType.FILE,
+      description: `Downloaded ${result.filesToZip.length} file${result.filesToZip.length === 1 ? '' : 's'} as zip`,
+      metadata: {
+        fileCount: result.filesToZip.length,
+        totalBytes: result.declaredBytes,
+      },
+    }
+  },
+})

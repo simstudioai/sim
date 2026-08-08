@@ -1,11 +1,6 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
-import {
-  type Principal,
-  resolvePrincipalAttribution,
-  resolvePrincipalAuditAttribution,
-} from '@sim/auth/principal'
+import { AuditAction, AuditResourceType } from '@sim/audit'
+import { type Principal, resolvePrincipalAttribution } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
-import type { OrchestrationRequestContext } from '@/lib/core/orchestration/types'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   ContentVersionConflictError,
@@ -16,8 +11,9 @@ import {
   EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE,
   type WorkspaceFileSecretProvenance,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
-import { loadAuthorizedWorkspaceFile } from '@/lib/workspace-files/application/load-authorized-workspace-file'
+import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
+import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
 import { MAX_WORKSPACE_FILE_CONTENT_BYTES } from '@/lib/workspace-files/orchestration'
 
 const logger = createLogger('UpdateWorkspaceFileContent')
@@ -43,89 +39,20 @@ export interface UpdateWorkspaceFileContentBufferInput
   content: Buffer
 }
 
-interface UpdateWorkspaceFileContentArguments {
-  principal: Principal
-  input: UpdateWorkspaceFileContentInput
-  request?: OrchestrationRequestContext
-}
-
-interface UpdateWorkspaceFileContentBufferArguments {
-  principal: Principal
-  input: UpdateWorkspaceFileContentBufferInput
-  request?: OrchestrationRequestContext
-}
-
-async function admitUpdateWorkspaceFileContent(
-  principal: Principal,
-  fileId: string
-): Promise<void> {
-  await loadAuthorizedWorkspaceFile({
-    principal,
-    operation: fileOperations.updateContent,
-    fileId,
-  })
-}
-
-async function executeUpdateWorkspaceFileContent({
-  principal,
-  input,
-  request,
-}: UpdateWorkspaceFileContentArguments): Promise<UpdateWorkspaceFileContentResult> {
-  const canonical = await loadAuthorizedWorkspaceFile({
-    principal,
-    operation: fileOperations.updateContent,
-    fileId: input.fileId,
-    assertedWorkspaceId: input.assertedWorkspaceId,
-  })
-  const content = Buffer.from(input.content, input.encoding === 'base64' ? 'base64' : 'utf-8')
-  if (content.length > MAX_WORKSPACE_FILE_CONTENT_BYTES) {
-    throw new OrchestrationError(
-      'payload_too_large',
-      `File size exceeds ${MAX_WORKSPACE_FILE_CONTENT_BYTES / 1024 / 1024}MB limit`
-    )
-  }
-
-  return updateAuthorizedWorkspaceFileContent({ principal, input, content, request, canonical })
-}
-
-async function executeUpdateWorkspaceFileContentBuffer({
-  principal,
-  input,
-  request,
-}: UpdateWorkspaceFileContentBufferArguments): Promise<UpdateWorkspaceFileContentResult> {
-  const canonical = await loadAuthorizedWorkspaceFile({
-    principal,
-    operation: fileOperations.updateContent,
-    fileId: input.fileId,
-    assertedWorkspaceId: input.assertedWorkspaceId,
-  })
-  return updateAuthorizedWorkspaceFileContent({
-    principal,
-    input,
-    content: input.content,
-    request,
-    canonical,
-  })
-}
-
 async function updateAuthorizedWorkspaceFileContent({
   principal,
   input,
   content,
-  request,
   canonical,
 }: {
   principal: Principal
   input: Omit<UpdateWorkspaceFileContentInput, 'content' | 'encoding'>
   content: Buffer
-  request?: OrchestrationRequestContext
-  canonical: Awaited<ReturnType<typeof loadAuthorizedWorkspaceFile>>
+  canonical: Awaited<ReturnType<typeof resolveActiveWorkspaceFileContext>>
 }): Promise<UpdateWorkspaceFileContentResult> {
   const attribution = resolvePrincipalAttribution(principal, {
     workspaceBillingOwnerUserId: canonical.billedAccountUserId,
   })
-  const auditAttribution = resolvePrincipalAuditAttribution(principal)
-
   let file: WorkspaceFileRecord
   try {
     file = await updateStoredWorkspaceFileContent(
@@ -160,33 +87,66 @@ async function updateAuthorizedWorkspaceFileContent({
     size: content.length,
     principalKind: principal.kind,
   })
-  recordAudit({
-    workspaceId: canonical.workspaceId,
-    actorId: auditAttribution.actorId,
-    actorName: auditAttribution.actorName,
-    action: AuditAction.FILE_UPDATED,
-    resourceType: AuditResourceType.FILE,
-    resourceId: file.id,
-    resourceName: file.name,
-    description: `Updated content of file "${file.name}"`,
-    metadata: {
-      operation: fileOperations.updateContent.id,
-      actor: auditAttribution.actor,
-      contentSize: content.length,
-    },
-    request,
-  })
-
   return { file }
 }
 
-export const updateWorkspaceFileContent = {
-  operation: fileOperations.updateContent,
-  admit: admitUpdateWorkspaceFileContent,
-  execute: executeUpdateWorkspaceFileContent,
-} as const
+function projectUpdateWorkspaceFileContentAudit(result: UpdateWorkspaceFileContentResult) {
+  return {
+    action: AuditAction.FILE_UPDATED,
+    resourceType: AuditResourceType.FILE,
+    resourceId: result.file.id,
+    resourceName: result.file.name,
+    description: `Updated content of file "${result.file.name}"`,
+    metadata: { contentSize: result.file.size },
+  } as const
+}
 
-export const updateWorkspaceFileContentFromBuffer = {
+const admitUpdateWorkspaceFileContentUseCase = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.updateContent,
-  execute: executeUpdateWorkspaceFileContentBuffer,
-} as const
+  resolveContext: ({ input }: { input: { fileId: string } }) =>
+    resolveActiveWorkspaceFileContext(input),
+  async execute() {},
+})
+
+export async function admitUpdateWorkspaceFileContent(
+  principal: Principal,
+  fileId: string
+): Promise<void> {
+  await admitUpdateWorkspaceFileContentUseCase.execute({ principal, input: { fileId } })
+}
+
+export const updateWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
+  operation: fileOperations.updateContent,
+  resolveContext: ({ input }: { input: UpdateWorkspaceFileContentInput }) =>
+    resolveActiveWorkspaceFileContext(input),
+  async execute({ principal, input, context }): Promise<UpdateWorkspaceFileContentResult> {
+    const content = Buffer.from(input.content, input.encoding === 'base64' ? 'base64' : 'utf-8')
+    if (content.length > MAX_WORKSPACE_FILE_CONTENT_BYTES) {
+      throw new OrchestrationError(
+        'payload_too_large',
+        `File size exceeds ${MAX_WORKSPACE_FILE_CONTENT_BYTES / 1024 / 1024}MB limit`
+      )
+    }
+    return updateAuthorizedWorkspaceFileContent({
+      principal,
+      input,
+      content,
+      canonical: context,
+    })
+  },
+  projectAudit: ({ result }) => projectUpdateWorkspaceFileContentAudit(result),
+})
+
+export const updateWorkspaceFileContentFromBuffer = defineAuthorizedWorkspaceFileUseCase({
+  operation: fileOperations.updateContent,
+  resolveContext: ({ input }: { input: UpdateWorkspaceFileContentBufferInput }) =>
+    resolveActiveWorkspaceFileContext(input),
+  execute: ({ principal, input, context }) =>
+    updateAuthorizedWorkspaceFileContent({
+      principal,
+      input,
+      content: input.content,
+      canonical: context,
+    }),
+  projectAudit: ({ result }) => projectUpdateWorkspaceFileContentAudit(result),
+})

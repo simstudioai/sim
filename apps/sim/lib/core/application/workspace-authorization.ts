@@ -5,7 +5,10 @@ import {
   permissionSatisfies,
   resolveEffectiveWorkspacePermission,
 } from '@sim/platform-authz/workspace'
-import type { WorkspaceOperation } from '@/lib/core/application/workspace-operation'
+import type {
+  PrincipalForOperation,
+  WorkspaceOperation,
+} from '@/lib/core/application/workspace-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 export interface WorkspaceAuthorizationContext {
@@ -23,6 +26,18 @@ export interface WorkspaceAuthorizationOptions<C extends WorkspaceAuthorizationC
   executor?: Pick<typeof db, 'select'>
   forUpdate?: boolean
   delegation?: WorkspaceDelegationPolicy<C>
+}
+
+export function requireAllowedWorkspacePrincipal<O extends WorkspaceOperation>(
+  principal: Principal,
+  operation: O
+): asserts principal is PrincipalForOperation<O> {
+  if (!operation.principalKinds.some((kind) => kind === principal.kind)) {
+    throw new OrchestrationError(
+      'forbidden',
+      `Principal kind ${principal.kind} cannot perform operation ${operation.id}`
+    )
+  }
 }
 
 function requirePermission(permission: PermissionType | null, required: PermissionType): void {
@@ -53,6 +68,8 @@ export async function authorizeWorkspaceOperation<C extends WorkspaceAuthorizati
   context: C,
   options?: WorkspaceAuthorizationOptions<C>
 ): Promise<void> {
+  requireAllowedWorkspacePrincipal(principal, operation)
+
   switch (principal.kind) {
     case 'session':
       await requireCurrentHumanPermission(principal.userId, context, operation.minimumRole, options)

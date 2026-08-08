@@ -61,7 +61,7 @@ vi.mock('@/lib/workspace-files/application/read-workspace-file-metadata', () => 
 }))
 
 vi.mock('@/lib/workspace-files/application/create-workspace-file', () => ({
-  createWorkspaceFile: { admit: mockAdmitCreateWorkspaceFile },
+  admitCreateWorkspaceFile: mockAdmitCreateWorkspaceFile,
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({

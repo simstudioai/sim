@@ -1,7 +1,6 @@
 import { moveWorkspaceFileItemsContract } from '@/lib/api/contracts/workspace-file-folders'
 import {
   defineInternalJsonRoute,
-  internalJsonPresenters,
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
@@ -23,5 +22,5 @@ export const POST = defineInternalJsonRoute({
   }),
   useCase: moveWorkspaceFileItemsOperation,
   onSuccess: internalFileAnalytics.moved,
-  present: internalJsonPresenters.withSuccess,
+  present: ({ movedItems }) => ({ success: true, movedItems }),
 })

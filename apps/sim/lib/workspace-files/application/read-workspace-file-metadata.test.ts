@@ -4,16 +4,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  loadAuthorized: vi.fn(),
+  loadContext: vi.fn(),
   getWorkspaceFile: vi.fn(),
+  resolvePermission: vi.fn(),
 }))
 
-vi.mock('@/lib/workspace-files/application/load-authorized-workspace-file', () => ({
-  loadAuthorizedWorkspaceFile: mocks.loadAuthorized,
+vi.mock('@sim/platform-authz/workspace', () => ({
+  permissionSatisfies: () => true,
+  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   getWorkspaceFile: mocks.getWorkspaceFile,
+  loadActiveWorkspaceFileContext: mocks.loadContext,
 }))
 
 import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
@@ -43,8 +46,9 @@ const file = {
 describe('readWorkspaceFileMetadata', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.loadAuthorized.mockResolvedValue(canonical)
+    mocks.loadContext.mockResolvedValue(canonical)
     mocks.getWorkspaceFile.mockResolvedValue(file)
+    mocks.resolvePermission.mockResolvedValue('admin')
   })
 
   it('returns the canonical active file without side effects', async () => {
@@ -60,11 +64,8 @@ describe('readWorkspaceFileMetadata', () => {
       })
     ).resolves.toEqual({ file })
 
-    expect(mocks.loadAuthorized).toHaveBeenCalledWith({
-      principal,
-      operation: readWorkspaceFileMetadata.operation,
-      fileId: 'file-1',
-      assertedWorkspaceId: 'workspace-1',
+    expect(mocks.loadContext).toHaveBeenCalledWith('file-1', {
+      includeDeleted: undefined,
     })
     expect(mocks.getWorkspaceFile).toHaveBeenCalledWith('workspace-1', 'file-1', {
       throwOnError: true,

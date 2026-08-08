@@ -4,10 +4,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  loadAuthorized: vi.fn(),
+  loadContext: vi.fn(),
   deleteStored: vi.fn(),
+  resolvePermission: vi.fn(),
   recordAudit: vi.fn(),
   notify: vi.fn(),
+}))
+
+vi.mock('@sim/platform-authz/workspace', () => ({
+  permissionSatisfies: () => true,
+  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -18,9 +24,7 @@ vi.mock('@sim/audit', () => ({
 vi.mock('@/lib/realtime/notify', () => ({ notifyWorkspaceFilesChanged: mocks.notify }))
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   deleteWorkspaceFile: mocks.deleteStored,
-}))
-vi.mock('@/lib/workspace-files/application/load-authorized-workspace-file', () => ({
-  loadAuthorizedWorkspaceFile: mocks.loadAuthorized,
+  loadActiveWorkspaceFileContext: mocks.loadContext,
 }))
 
 import { deleteWorkspaceFileOperation } from '@/lib/workspace-files/application/delete-workspace-file'
@@ -36,8 +40,9 @@ const context = {
 describe('deleteWorkspaceFileOperation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.loadAuthorized.mockResolvedValue(context)
+    mocks.loadContext.mockResolvedValue(context)
     mocks.deleteStored.mockResolvedValue(undefined)
+    mocks.resolvePermission.mockResolvedValue('admin')
     mocks.notify.mockResolvedValue(undefined)
   })
 
@@ -48,12 +53,8 @@ describe('deleteWorkspaceFileOperation', () => {
     })
 
     expect(result).toEqual({ id: 'file-1', workspaceId: 'workspace-1', deleted: true })
-    expect(mocks.loadAuthorized).toHaveBeenCalledWith({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-      operation: expect.objectContaining({ id: 'files.delete' }),
-      fileId: 'file-1',
-      assertedWorkspaceId: 'workspace-1',
-    })
+    expect(mocks.loadContext).toHaveBeenCalledWith('file-1', { includeDeleted: undefined })
+    expect(mocks.resolvePermission).toHaveBeenCalled()
     expect(mocks.deleteStored).toHaveBeenCalledWith('workspace-1', 'file-1')
     expect(mocks.recordAudit).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -63,6 +64,9 @@ describe('deleteWorkspaceFileOperation', () => {
       })
     )
     expect(mocks.notify).toHaveBeenCalledWith('workspace-1')
+    expect(mocks.recordAudit.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.notify.mock.invocationCallOrder[0]
+    )
   })
 
   it('does not emit side effects when storage fails', async () => {

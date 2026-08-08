@@ -1,9 +1,10 @@
-import type { Principal } from '@sim/auth/principal'
+import { type Principal, resolvePrincipalAttribution } from '@sim/auth/principal'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { ensureWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import { loadActiveWorkspaceContext } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import {
+  admitCreateWorkspaceFile,
   createWorkspaceFile,
   createWorkspaceFileFromBuffer,
 } from '@/lib/workspace-files/application/create-workspace-file'
@@ -80,7 +81,7 @@ async function executeCreate({
   input: WriteWorkspaceFileByPathInput
 }): Promise<WriteWorkspaceFileByPathResult> {
   const parsed = parseWorkspaceFileCreatePath(input.path)
-  await createWorkspaceFile.admit(principal, input.workspaceId)
+  await admitCreateWorkspaceFile(principal, input.workspaceId)
 
   const folderUserId = await resolveFolderAttributionUserId(principal, input.workspaceId)
 
@@ -142,7 +143,7 @@ async function executeCreateBuffer({
   input: WriteWorkspaceFileBufferByPathInput
 }): Promise<WriteWorkspaceFileByPathResult> {
   const parsed = parseWorkspaceFileCreatePath(input.path)
-  await createWorkspaceFile.admit(principal, input.workspaceId)
+  await admitCreateWorkspaceFile(principal, input.workspaceId)
   const folderUserId = await resolveFolderAttributionUserId(principal, input.workspaceId)
   const folderId = await ensureWorkspaceFileFolderPath({
     workspaceId: input.workspaceId,
@@ -196,11 +197,13 @@ async function resolveFolderAttributionUserId(
   principal: Principal,
   workspaceId: string
 ): Promise<string> {
-  if (principal.kind === 'session' || principal.kind === 'personal_api_key') return principal.userId
-  if (principal.kind === 'delegated') return principal.subjectUserId
-  const workspace = await loadActiveWorkspaceContext(workspaceId)
-  if (!workspace) throw new OrchestrationError('not_found', 'Workspace not found')
-  return workspace.billedAccountUserId
+  let workspaceBillingOwnerUserId: string | undefined
+  if (principal.kind === 'workspace_api_key') {
+    const workspace = await loadActiveWorkspaceContext(workspaceId)
+    if (!workspace) throw new OrchestrationError('not_found', 'Workspace not found')
+    workspaceBillingOwnerUserId = workspace.billedAccountUserId
+  }
+  return resolvePrincipalAttribution(principal, { workspaceBillingOwnerUserId }).attributedUserId
 }
 
 export const createWorkspaceFileByPath = {

@@ -1,13 +1,16 @@
-import type { Principal } from '@sim/auth/principal'
 import { getE2BDocFormat } from '@/lib/copilot/tools/server/files/doc-compile'
 import { runE2BCompiledCheck } from '@/lib/copilot/tools/server/files/doc-recalc'
+import type { AuthorizedWorkspaceUseCaseContext } from '@/lib/core/application'
 import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
-import type { OrchestrationRequestContext } from '@/lib/core/orchestration/types'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { BINARY_DOC_TASKS, MAX_DOCUMENT_PREVIEW_CODE_BYTES } from '@/lib/execution/constants'
 import { runSandboxTask, SandboxUserCodeError } from '@/lib/execution/sandbox/run-task'
 import { validateMermaidSource } from '@/lib/mermaid/validate'
-import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
-import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
+import { fetchWorkspaceFileBuffer, getWorkspaceFile } from '@/lib/uploads/contexts/workspace'
+import type { ActiveWorkspaceFileContext } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
+import { fileOperations } from '@/lib/workspace-files/application/operations'
+import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
 
 export class CompiledCheckUnsupportedError extends Error {
   constructor() {
@@ -47,13 +50,16 @@ function normalizeCompiledCheckResult(result: {
 
 async function executeCompiledCheckWorkspaceFile({
   principal,
-  input,
-}: {
-  principal: Principal
-  input: CompiledCheckWorkspaceFileInput
-  request?: OrchestrationRequestContext
-}): Promise<CompiledCheckWorkspaceFileResult> {
-  const { file } = await readWorkspaceFileMetadata.execute({ principal, input })
+  context,
+}: AuthorizedWorkspaceUseCaseContext<
+  typeof fileOperations.compiledCheck,
+  CompiledCheckWorkspaceFileInput,
+  ActiveWorkspaceFileContext
+>): Promise<CompiledCheckWorkspaceFileResult> {
+  const file = await getWorkspaceFile(context.workspaceId, context.fileId, {
+    throwOnError: true,
+  })
+  if (!file) throw new OrchestrationError('not_found', 'File not found')
   const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
   const e2bFmt = isDocSandboxEnabled ? await getE2BDocFormat(file.name) : null
   const taskId = BINARY_DOC_TASKS[ext]
@@ -64,9 +70,8 @@ async function executeCompiledCheckWorkspaceFile({
     throw new CompiledCheckTooLargeError()
   }
 
-  const { content } = await readWorkspaceFileContent.execute({
-    principal,
-    input: { ...input, maxBytes: MAX_DOCUMENT_PREVIEW_CODE_BYTES },
+  const content = await fetchWorkspaceFileBuffer(file, {
+    maxBytes: MAX_DOCUMENT_PREVIEW_CODE_BYTES,
   })
 
   const code = content.toString('utf-8')
@@ -88,16 +93,10 @@ async function executeCompiledCheckWorkspaceFile({
 
   try {
     if (!taskId) throw new CompiledCheckUnsupportedError()
-    const ownerId =
-      principal.kind === 'session' || principal.kind === 'personal_api_key'
-        ? principal.userId
-        : principal.kind === 'delegated'
-          ? principal.subjectUserId
-          : file.uploadedBy
     await runSandboxTask(
       taskId,
       { code, workspaceId: file.workspaceId },
-      { ownerKey: `user:${ownerId}` }
+      { ownerKey: `user:${principal.userId}` }
     )
     return { ok: true }
   } catch (error) {
@@ -108,7 +107,8 @@ async function executeCompiledCheckWorkspaceFile({
   }
 }
 
-export const compiledCheckWorkspaceFile = {
-  operation: readWorkspaceFileContent.operation,
+export const compiledCheckWorkspaceFile = defineAuthorizedWorkspaceFileUseCase({
+  operation: fileOperations.compiledCheck,
+  resolveContext: ({ input }) => resolveActiveWorkspaceFileContext(input),
   execute: executeCompiledCheckWorkspaceFile,
-} as const
+})

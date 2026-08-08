@@ -1,15 +1,14 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
-import { type Principal, resolvePrincipalAuditAttribution } from '@sim/auth/principal'
+import { AuditAction, AuditResourceType } from '@sim/audit'
 import { createLogger } from '@sim/logger'
-import type { OrchestrationRequestContext } from '@/lib/core/orchestration/types'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
+import type { AuthorizedWorkspaceUseCaseContext } from '@/lib/core/application'
 import { notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
 import {
-  loadWorkspaceFileLifecycleContext,
   restoreWorkspaceFile,
+  type WorkspaceFileLifecycleContext,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { authorizeWorkspaceFileAccess } from '@/lib/workspace-files/application/authorization'
+import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
+import { resolveWorkspaceFileLifecycleContext } from '@/lib/workspace-files/application/workspace-file-context'
 
 const logger = createLogger('RestoreWorkspaceFile')
 
@@ -22,57 +21,34 @@ export interface RestoreWorkspaceFileResult {
   restored: true
 }
 
-interface RestoreWorkspaceFileArguments {
-  principal: Principal
-  input: RestoreWorkspaceFileInput
-  request?: OrchestrationRequestContext
-}
-
 async function executeRestoreWorkspaceFile({
-  principal,
-  input,
-  request,
-}: RestoreWorkspaceFileArguments): Promise<RestoreWorkspaceFileResult> {
-  const canonical = await loadWorkspaceFileLifecycleContext(input.fileId)
-  if (
-    !canonical ||
-    (input.assertedWorkspaceId !== undefined && input.assertedWorkspaceId !== canonical.workspaceId)
-  ) {
-    throw new OrchestrationError('not_found', 'File not found')
-  }
-
-  await authorizeWorkspaceFileAccess(principal, fileOperations.restore, {
-    workspaceId: canonical.workspaceId,
-    workspaceOrganizationId: canonical.workspaceOrganizationId,
-    allowPersonalApiKeys: canonical.allowPersonalApiKeys,
-    fileId: canonical.fileId,
-  })
-
-  const auditAttribution = resolvePrincipalAuditAttribution(principal)
-  await restoreWorkspaceFile(canonical.workspaceId, canonical.fileId)
-
-  recordAudit({
-    workspaceId: canonical.workspaceId,
-    actorId: auditAttribution.actorId,
-    actorName: auditAttribution.actorName,
-    action: AuditAction.FILE_RESTORED,
-    resourceType: AuditResourceType.FILE,
-    resourceId: canonical.fileId,
-    resourceName: canonical.fileId,
-    description: `Restored workspace file ${canonical.fileId}`,
-    metadata: { operation: fileOperations.restore.id, actor: auditAttribution.actor },
-    request,
-  })
-  await notifyWorkspaceFilesChanged(canonical.workspaceId)
-  logger.info('Restored workspace file', {
-    workspaceId: canonical.workspaceId,
-    fileId: canonical.fileId,
-    principalKind: principal.kind,
-  })
+  context,
+}: AuthorizedWorkspaceUseCaseContext<
+  typeof fileOperations.restore,
+  RestoreWorkspaceFileInput,
+  WorkspaceFileLifecycleContext
+>): Promise<RestoreWorkspaceFileResult> {
+  await restoreWorkspaceFile(context.workspaceId, context.fileId)
   return { restored: true }
 }
 
-export const restoreWorkspaceFileOperation = {
+export const restoreWorkspaceFileOperation = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.restore,
+  resolveContext: ({ input }) => resolveWorkspaceFileLifecycleContext(input),
   execute: executeRestoreWorkspaceFile,
-} as const
+  projectAudit: ({ context }) => ({
+    action: AuditAction.FILE_RESTORED,
+    resourceType: AuditResourceType.FILE,
+    resourceId: context.fileId,
+    resourceName: context.fileId,
+    description: `Restored workspace file ${context.fileId}`,
+  }),
+  async afterSuccess({ principal, context }) {
+    await notifyWorkspaceFilesChanged(context.workspaceId)
+    logger.info('Restored workspace file', {
+      workspaceId: context.workspaceId,
+      fileId: context.fileId,
+      principalKind: principal.kind,
+    })
+  },
+})

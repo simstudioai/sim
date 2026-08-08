@@ -1,12 +1,7 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
-import {
-  type Principal,
-  resolvePrincipalAttribution,
-  resolvePrincipalAuditAttribution,
-} from '@sim/auth/principal'
+import { AuditAction, AuditResourceType } from '@sim/audit'
+import { type Principal, resolvePrincipalAttribution } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
-import type { OrchestrationRequestContext } from '@/lib/core/orchestration/types'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   FileConflictError,
@@ -16,7 +11,7 @@ import {
 } from '@/lib/uploads/contexts/workspace'
 import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
-import { authorizeWorkspaceFileAccess } from '@/lib/workspace-files/application/authorization'
+import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { MAX_WORKSPACE_FILE_CONTENT_BYTES } from '@/lib/workspace-files/orchestration'
 
@@ -43,76 +38,26 @@ export interface CreateWorkspaceFileBufferInput
   content: Buffer
 }
 
-interface CreateWorkspaceFileArguments {
-  principal: Principal
-  input: CreateWorkspaceFileInput
-  request?: OrchestrationRequestContext
-}
-
-interface CreateWorkspaceFileBufferArguments {
-  principal: Principal
-  input: CreateWorkspaceFileBufferInput
-  request?: OrchestrationRequestContext
-}
-
-async function requireCreateWorkspaceFileAccess(principal: Principal, workspaceId: string) {
+async function resolveCreateWorkspaceFileContext(workspaceId: string) {
   const workspace = await loadActiveWorkspaceContext(workspaceId)
   if (!workspace) throw new OrchestrationError('not_found', 'Workspace not found')
-  await authorizeWorkspaceFileAccess(principal, fileOperations.create, workspace)
   return workspace
-}
-
-async function executeCreateWorkspaceFile({
-  principal,
-  input,
-  request,
-}: CreateWorkspaceFileArguments): Promise<CreateWorkspaceFileResult> {
-  const workspace = await requireCreateWorkspaceFileAccess(principal, input.workspaceId)
-
-  const content = Buffer.from(input.content, input.encoding === 'base64' ? 'base64' : 'utf-8')
-  if (content.length > MAX_WORKSPACE_FILE_CONTENT_BYTES) {
-    throw new OrchestrationError(
-      'payload_too_large',
-      `File size exceeds ${MAX_WORKSPACE_FILE_CONTENT_BYTES / 1024 / 1024}MB limit`
-    )
-  }
-
-  return createAuthorizedWorkspaceFile({ principal, input, content, request, workspace })
-}
-
-async function executeCreateWorkspaceFileBuffer({
-  principal,
-  input,
-  request,
-}: CreateWorkspaceFileBufferArguments): Promise<CreateWorkspaceFileResult> {
-  const workspace = await requireCreateWorkspaceFileAccess(principal, input.workspaceId)
-  return createAuthorizedWorkspaceFile({
-    principal,
-    input,
-    content: input.content,
-    request,
-    workspace,
-  })
 }
 
 async function createAuthorizedWorkspaceFile({
   principal,
   input,
   content,
-  request,
   workspace,
 }: {
   principal: Principal
   input: Omit<CreateWorkspaceFileInput, 'content' | 'encoding'>
   content: Buffer
-  request?: OrchestrationRequestContext
-  workspace: Awaited<ReturnType<typeof requireCreateWorkspaceFileAccess>>
+  workspace: Awaited<ReturnType<typeof resolveCreateWorkspaceFileContext>>
 }): Promise<CreateWorkspaceFileResult> {
   const attribution = resolvePrincipalAttribution(principal, {
     workspaceBillingOwnerUserId: workspace.billedAccountUserId,
   })
-  const auditAttribution = resolvePrincipalAuditAttribution(principal)
-
   let file: WorkspaceFileRecord
   try {
     file = await uploadWorkspaceFile(
@@ -142,34 +87,64 @@ async function createAuthorizedWorkspaceFile({
     size: file.size,
     principalKind: principal.kind,
   })
-  recordAudit({
-    workspaceId: workspace.workspaceId,
-    actorId: auditAttribution.actorId,
-    actorName: auditAttribution.actorName,
-    action: AuditAction.FILE_UPLOADED,
-    resourceType: AuditResourceType.FILE,
-    resourceId: file.id,
-    resourceName: file.name,
-    description: `Uploaded file "${file.name}"`,
-    metadata: {
-      operation: fileOperations.create.id,
-      actor: auditAttribution.actor,
-      fileSize: file.size,
-      fileType: file.type,
-    },
-    request,
-  })
-
   return { file }
 }
 
-export const createWorkspaceFile = {
-  operation: fileOperations.create,
-  admit: requireCreateWorkspaceFileAccess,
-  execute: executeCreateWorkspaceFile,
-} as const
+function projectCreateWorkspaceFileAudit(result: CreateWorkspaceFileResult) {
+  return {
+    action: AuditAction.FILE_UPLOADED,
+    resourceType: AuditResourceType.FILE,
+    resourceId: result.file.id,
+    resourceName: result.file.name,
+    description: `Uploaded file "${result.file.name}"`,
+    metadata: {
+      fileSize: result.file.size,
+      fileType: result.file.type,
+    },
+  } as const
+}
 
-export const createWorkspaceFileFromBuffer = {
+const admitCreateWorkspaceFileUseCase = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.create,
-  execute: executeCreateWorkspaceFileBuffer,
-} as const
+  resolveContext: ({ input }: { input: { workspaceId: string } }) =>
+    resolveCreateWorkspaceFileContext(input.workspaceId),
+  async execute() {},
+})
+
+export async function admitCreateWorkspaceFile(
+  principal: Principal,
+  workspaceId: string
+): Promise<void> {
+  await admitCreateWorkspaceFileUseCase.execute({ principal, input: { workspaceId } })
+}
+
+export const createWorkspaceFile = defineAuthorizedWorkspaceFileUseCase({
+  operation: fileOperations.create,
+  resolveContext: ({ input }: { input: CreateWorkspaceFileInput }) =>
+    resolveCreateWorkspaceFileContext(input.workspaceId),
+  async execute({ principal, input, context }): Promise<CreateWorkspaceFileResult> {
+    const content = Buffer.from(input.content, input.encoding === 'base64' ? 'base64' : 'utf-8')
+    if (content.length > MAX_WORKSPACE_FILE_CONTENT_BYTES) {
+      throw new OrchestrationError(
+        'payload_too_large',
+        `File size exceeds ${MAX_WORKSPACE_FILE_CONTENT_BYTES / 1024 / 1024}MB limit`
+      )
+    }
+    return createAuthorizedWorkspaceFile({ principal, input, content, workspace: context })
+  },
+  projectAudit: ({ result }) => projectCreateWorkspaceFileAudit(result),
+})
+
+export const createWorkspaceFileFromBuffer = defineAuthorizedWorkspaceFileUseCase({
+  operation: fileOperations.create,
+  resolveContext: ({ input }: { input: CreateWorkspaceFileBufferInput }) =>
+    resolveCreateWorkspaceFileContext(input.workspaceId),
+  execute: ({ principal, input, context }) =>
+    createAuthorizedWorkspaceFile({
+      principal,
+      input,
+      content: input.content,
+      workspace: context,
+    }),
+  projectAudit: ({ result }) => projectCreateWorkspaceFileAudit(result),
+})

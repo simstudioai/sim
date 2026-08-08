@@ -20,13 +20,15 @@ const run = promisify(execFile)
 
 const {
   mockGetSession,
-  mockAuthorizeWorkspaceFileOperation,
+  mockLoadWorkspaceFileOperationContext,
+  mockResolvePermission,
   mockListWorkspaceFiles,
   mockListFolders,
   mockDownloadFileStream,
 } = vi.hoisted(() => ({
   mockGetSession: vi.fn(),
-  mockAuthorizeWorkspaceFileOperation: vi.fn(),
+  mockLoadWorkspaceFileOperationContext: vi.fn(),
+  mockResolvePermission: vi.fn(),
   mockListWorkspaceFiles: vi.fn(),
   mockListFolders: vi.fn(),
   mockDownloadFileStream: vi.fn(),
@@ -36,8 +38,14 @@ vi.mock('@/lib/auth', () => ({
   auth: { api: { getSession: vi.fn() } },
   getSession: mockGetSession,
 }))
-vi.mock('@/lib/workspace-files/application/workspace-operation-context', () => ({
-  authorizeWorkspaceFileOperation: mockAuthorizeWorkspaceFileOperation,
+vi.mock('@sim/platform-authz/workspace', () => ({
+  permissionSatisfies: (actual: string | null, required: string) => {
+    const rank = { read: 1, write: 2, admin: 3 } as const
+    return (
+      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
+    )
+  },
+  resolveEffectiveWorkspacePermission: mockResolvePermission,
 }))
 vi.mock('@/lib/uploads/contexts/workspace', () => ({
   listWorkspaceFiles: mockListWorkspaceFiles,
@@ -45,6 +53,7 @@ vi.mock('@/lib/uploads/contexts/workspace', () => ({
   buildWorkspaceFileFolderPathMap: (folders: Array<{ id: string; name: string }>) =>
     new Map(folders.map((folder) => [folder.id, folder.name])),
   fetchServableWorkspaceFileBuffer: vi.fn(),
+  loadWorkspaceFileOperationContext: mockLoadWorkspaceFileOperationContext,
 }))
 vi.mock('@/lib/uploads/core/storage-service', () => ({
   downloadFileStream: mockDownloadFileStream,
@@ -89,8 +98,12 @@ describe('workspace files download — real archive', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockGetSession.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })
-    mockAuthorizeWorkspaceFileOperation.mockResolvedValue({
-      context: { workspaceId: WORKSPACE_ID },
+    mockResolvePermission.mockResolvedValue('admin')
+    mockLoadWorkspaceFileOperationContext.mockResolvedValue({
+      workspaceId: WORKSPACE_ID,
+      workspaceOrganizationId: null,
+      allowPersonalApiKeys: true,
+      billedAccountUserId: 'user-1',
     })
     mockListFolders.mockResolvedValue([{ id: 'folder-1', name: 'Reports', parentId: null }])
     // A real fs stream, not a single pre-made buffer.

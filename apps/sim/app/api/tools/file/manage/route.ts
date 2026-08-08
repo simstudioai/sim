@@ -49,6 +49,7 @@ import {
 import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { buildZipEntryPaths } from '@/lib/uploads/zip-entry-path'
 import {
+  admitCreateWorkspaceFile,
   createWorkspaceFile,
   createWorkspaceFileFromBuffer,
 } from '@/lib/workspace-files/application/create-workspace-file'
@@ -698,7 +699,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           )
         }
         const { folderSegments, leafName } = splitWorkspaceFilePath(fileName)
-        await createWorkspaceFile.admit(principal, workspaceId)
+        await admitCreateWorkspaceFile(principal, workspaceId)
         const folderId =
           folderSegments.length === 0
             ? null
@@ -932,7 +933,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         if (selectedFileIds.length === 0 && selectedInputFiles.length === 0) {
           return NextResponse.json({ success: false, error: 'File is required' }, { status: 400 })
         }
-        await createWorkspaceFile.admit(principal, workspaceId)
+        await admitCreateWorkspaceFile(principal, workspaceId)
 
         const workspaceFiles = [] as Array<
           NonNullable<Awaited<ReturnType<typeof getWorkspaceFile>>>
@@ -1092,7 +1093,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             { status: 400 }
           )
         }
-        await createWorkspaceFile.admit(principal, workspaceId)
+        await admitCreateWorkspaceFile(principal, workspaceId)
 
         const workspaceFiles = [] as Array<
           NonNullable<Awaited<ReturnType<typeof getWorkspaceFile>>>

@@ -6,7 +6,10 @@ import {
 } from '@/lib/api/server/routes'
 import { internalFileErrorPolicies, internalFilePresenters } from '@/lib/workspace-files/api'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
-import { updateWorkspaceFileContent } from '@/lib/workspace-files/application/update-workspace-file-content'
+import {
+  admitUpdateWorkspaceFileContent,
+  updateWorkspaceFileContent,
+} from '@/lib/workspace-files/application/update-workspace-file-content'
 import { MAX_WORKSPACE_FILE_INLINE_BODY_BYTES } from '@/lib/workspace-files/orchestration'
 
 export const dynamic = 'force-dynamic'
@@ -23,7 +26,7 @@ export const PUT = defineInternalJsonRoute({
   parseOptions: { maxBodyBytes: MAX_WORKSPACE_FILE_INLINE_BODY_BYTES },
   beforeParse: async ({ principal, params }) => {
     if (typeof params.fileId === 'string') {
-      await updateWorkspaceFileContent.admit(principal, params.fileId)
+      await admitUpdateWorkspaceFileContent(principal, params.fileId)
     }
   },
   mapInput: ({ params, body }) => ({

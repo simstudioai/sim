@@ -40,7 +40,7 @@ import { isArchiveFileName } from '@/lib/uploads/utils/file-utils'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { deduplicateWorkflowName } from '@/lib/workflows/utils'
-import { createWorkspaceFile } from '@/lib/workspace-files/application/create-workspace-file'
+import { admitCreateWorkspaceFile } from '@/lib/workspace-files/application/create-workspace-file'
 import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
 import { extractWorkflowMetadata } from '@/app/api/v1/admin/types'
 
@@ -570,7 +570,7 @@ export async function executeMaterializeFile(
     if (operation === 'import') {
       await ensureWorkspaceAccess(context.workspaceId, context.userId, 'write')
     } else {
-      await createWorkspaceFile.admit(principal, context.workspaceId)
+      await admitCreateWorkspaceFile(principal, context.workspaceId)
     }
   } catch (error) {
     return { success: false, error: getErrorMessage(error, 'Workspace write access required') }

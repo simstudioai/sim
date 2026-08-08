@@ -16,7 +16,10 @@ import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { runSandboxTask } from '@/lib/execution/sandbox/run-task'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { createWorkspaceFile } from '@/lib/workspace-files/application/create-workspace-file'
+import {
+  admitCreateWorkspaceFile,
+  createWorkspaceFile,
+} from '@/lib/workspace-files/application/create-workspace-file'
 import { deleteWorkspaceFileOperation } from '@/lib/workspace-files/application/delete-workspace-file'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
@@ -342,7 +345,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
           if (fileNameValidationError) return { success: false, message: fileNameValidationError }
 
           try {
-            await createWorkspaceFile.admit(principal, workspaceId)
+            await admitCreateWorkspaceFile(principal, workspaceId)
           } catch (error) {
             return {
               success: false,

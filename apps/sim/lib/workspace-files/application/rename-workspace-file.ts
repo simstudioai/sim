@@ -1,14 +1,15 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
-import { type Principal, resolvePrincipalAuditAttribution } from '@sim/auth/principal'
+import { AuditAction, AuditResourceType } from '@sim/audit'
 import { createLogger } from '@sim/logger'
-import type { OrchestrationRequestContext } from '@/lib/core/orchestration/types'
+import type { AuthorizedWorkspaceUseCaseContext } from '@/lib/core/application'
 import { notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
 import {
+  type ActiveWorkspaceFileContext,
   renameWorkspaceFile as renameStoredWorkspaceFile,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { loadAuthorizedWorkspaceFile } from '@/lib/workspace-files/application/load-authorized-workspace-file'
+import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
+import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
 
 const logger = createLogger('RenameWorkspaceFile')
 
@@ -22,54 +23,36 @@ export interface RenameWorkspaceFileResult {
   file: WorkspaceFileRecord
 }
 
-interface RenameWorkspaceFileArguments {
-  principal: Principal
-  input: RenameWorkspaceFileInput
-  request?: OrchestrationRequestContext
-}
-
 async function executeRenameWorkspaceFile({
   principal,
   input,
-  request,
-}: RenameWorkspaceFileArguments): Promise<RenameWorkspaceFileResult> {
-  const canonical = await loadAuthorizedWorkspaceFile({
-    principal,
-    operation: fileOperations.rename,
-    fileId: input.fileId,
-    assertedWorkspaceId: input.assertedWorkspaceId,
-  })
-
-  const auditAttribution = resolvePrincipalAuditAttribution(principal)
-  const file = await renameStoredWorkspaceFile(canonical.workspaceId, canonical.fileId, input.name)
-  const workspaceId = canonical.workspaceId
+  context,
+}: AuthorizedWorkspaceUseCaseContext<
+  typeof fileOperations.rename,
+  RenameWorkspaceFileInput,
+  ActiveWorkspaceFileContext
+>): Promise<RenameWorkspaceFileResult> {
+  const file = await renameStoredWorkspaceFile(context.workspaceId, context.fileId, input.name)
 
   logger.info('Renamed workspace file', {
-    workspaceId,
-    fileId: input.fileId,
+    workspaceId: context.workspaceId,
+    fileId: context.fileId,
     name: file.name,
     principalKind: principal.kind,
   })
-  recordAudit({
-    workspaceId,
-    actorId: auditAttribution.actorId,
-    actorName: auditAttribution.actorName,
-    action: AuditAction.FILE_UPDATED,
-    resourceType: AuditResourceType.FILE,
-    resourceId: file.id,
-    resourceName: file.name,
-    description: `Renamed file to "${file.name}"`,
-    metadata: {
-      operation: fileOperations.rename.id,
-      actor: auditAttribution.actor,
-    },
-    request,
-  })
-  await notifyWorkspaceFilesChanged(workspaceId)
   return { file }
 }
 
-export const renameWorkspaceFile = {
+export const renameWorkspaceFile = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.rename,
+  resolveContext: ({ input }) => resolveActiveWorkspaceFileContext(input),
   execute: executeRenameWorkspaceFile,
-} as const
+  projectAudit: ({ result }) => ({
+    action: AuditAction.FILE_UPDATED,
+    resourceType: AuditResourceType.FILE,
+    resourceId: result.file.id,
+    resourceName: result.file.name,
+    description: `Renamed file to "${result.file.name}"`,
+  }),
+  afterSuccess: ({ context }) => notifyWorkspaceFilesChanged(context.workspaceId),
+})

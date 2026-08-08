@@ -17,6 +17,16 @@ export type WorkspaceFileAuthorizationOptions = Omit<
   'delegation'
 >
 
+export const workspaceFileDelegationPolicy = {
+  audience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
+  isWithinScope: (
+    delegated: Extract<Principal, { kind: 'delegated' }>,
+    canonicalContext: WorkspaceFileAuthorizationContext
+  ) =>
+    delegated.resourceScope?.fileId === undefined ||
+    delegated.resourceScope.fileId === canonicalContext.fileId,
+} as const
+
 export async function authorizeWorkspaceFileAccess(
   principal: Principal,
   operation: WorkspaceOperation,
@@ -25,11 +35,6 @@ export async function authorizeWorkspaceFileAccess(
 ): Promise<void> {
   await authorizeWorkspaceOperation(principal, operation, context, {
     ...options,
-    delegation: {
-      audience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
-      isWithinScope: (delegated, canonicalContext) =>
-        delegated.resourceScope?.fileId === undefined ||
-        delegated.resourceScope.fileId === canonicalContext.fileId,
-    },
+    delegation: workspaceFileDelegationPolicy,
   })
 }

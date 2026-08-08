@@ -8,7 +8,12 @@ const mocks = vi.hoisted(() => ({
   restoreStored: vi.fn(),
   recordAudit: vi.fn(),
   notify: vi.fn(),
-  authorize: vi.fn(),
+  resolvePermission: vi.fn(),
+}))
+
+vi.mock('@sim/platform-authz/workspace', () => ({
+  permissionSatisfies: () => true,
+  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -20,9 +25,6 @@ vi.mock('@/lib/realtime/notify', () => ({ notifyWorkspaceFilesChanged: mocks.not
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   loadWorkspaceFileLifecycleContext: mocks.loadLifecycle,
   restoreWorkspaceFile: mocks.restoreStored,
-}))
-vi.mock('@/lib/workspace-files/application/authorization', () => ({
-  authorizeWorkspaceFileAccess: mocks.authorize,
 }))
 
 import { restoreWorkspaceFileOperation } from '@/lib/workspace-files/application/restore-workspace-file'
@@ -40,7 +42,7 @@ describe('restoreWorkspaceFileOperation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.loadLifecycle.mockResolvedValue(context)
-    mocks.authorize.mockResolvedValue(undefined)
+    mocks.resolvePermission.mockResolvedValue('admin')
     mocks.restoreStored.mockResolvedValue(undefined)
     mocks.notify.mockResolvedValue(undefined)
   })
@@ -52,11 +54,7 @@ describe('restoreWorkspaceFileOperation', () => {
     })
 
     expect(result).toEqual({ restored: true })
-    expect(mocks.authorize).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: 'session' }),
-      expect.objectContaining({ id: 'files.restore' }),
-      expect.objectContaining({ workspaceId: 'workspace-1', fileId: 'file-1' })
-    )
+    expect(mocks.resolvePermission).toHaveBeenCalled()
     expect(mocks.restoreStored).toHaveBeenCalledWith('workspace-1', 'file-1')
     expect(mocks.recordAudit).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -66,6 +64,9 @@ describe('restoreWorkspaceFileOperation', () => {
       })
     )
     expect(mocks.notify).toHaveBeenCalledWith('workspace-1')
+    expect(mocks.recordAudit.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.notify.mock.invocationCallOrder[0]
+    )
   })
 
   it('conceals an asserted-workspace mismatch before authorization', async () => {
@@ -75,7 +76,7 @@ describe('restoreWorkspaceFileOperation', () => {
         input: { fileId: 'file-1', assertedWorkspaceId: 'workspace-2' },
       })
     ).rejects.toMatchObject({ code: 'not_found' })
-    expect(mocks.authorize).not.toHaveBeenCalled()
+    expect(mocks.resolvePermission).not.toHaveBeenCalled()
     expect(mocks.restoreStored).not.toHaveBeenCalled()
   })
 })

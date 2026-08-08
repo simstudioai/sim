@@ -120,6 +120,11 @@ export interface WorkspaceFileArchiveResult {
   files: number
 }
 
+export interface WorkspaceFileBulkArchiveResult extends WorkspaceFileArchiveResult {
+  folderIds: string[]
+  fileIds: string[]
+}
+
 function assertBulkAffectedItemsWithinLimit(count: number): void {
   if (count > MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS) {
     throw new OrchestrationError(
@@ -806,7 +811,12 @@ export async function moveWorkspaceFileItems(params: {
   folderIds?: string[]
   targetFolderId?: string | null
   targetFolderPath?: string
-}): Promise<{ movedFiles: number; movedFolders: number }> {
+}): Promise<{
+  movedFiles: number
+  movedFolders: number
+  movedFileIds: string[]
+  movedFolderIds: string[]
+}> {
   const fileIds = Array.from(new Set(params.fileIds ?? []))
   const folderIds = Array.from(new Set(params.folderIds ?? []))
   if (params.targetFolderId !== undefined && params.targetFolderPath !== undefined) {
@@ -1023,7 +1033,12 @@ export async function moveWorkspaceFileItems(params: {
             .returning({ id: folderTable.id })
         : []
 
-    return { movedFiles: movedFiles.length, movedFolders: movedFolders.length }
+    return {
+      movedFiles: movedFiles.length,
+      movedFolders: movedFolders.length,
+      movedFileIds: movedFiles.map((file) => file.id),
+      movedFolderIds: movedFolders.map((folder) => folder.id),
+    }
   })
 }
 
@@ -1276,7 +1291,7 @@ export async function bulkArchiveWorkspaceFileItems(params: {
   workspaceId: string
   fileIds?: string[]
   folderIds?: string[]
-}): Promise<WorkspaceFileArchiveResult> {
+}): Promise<WorkspaceFileBulkArchiveResult> {
   const now = new Date()
   const explicitFileIds = Array.from(new Set(params.fileIds ?? []))
   const explicitFolderIds = Array.from(new Set(params.folderIds ?? []))
@@ -1371,10 +1386,15 @@ export async function bulkArchiveWorkspaceFileItems(params: {
             .returning({ id: folderTable.id })
         : []
 
+    const archivedFileIds = Array.from(
+      new Set([...archivedExplicitFiles, ...archivedDescendantFiles].map((file) => file.id))
+    )
+    const archivedFolderIds = archivedFolders.map((folder) => folder.id)
     return {
-      folders: archivedFolders.length,
-      files: new Set([...archivedExplicitFiles, ...archivedDescendantFiles].map((file) => file.id))
-        .size,
+      folders: archivedFolderIds.length,
+      files: archivedFileIds.length,
+      folderIds: archivedFolderIds,
+      fileIds: archivedFileIds,
     }
   })
 }

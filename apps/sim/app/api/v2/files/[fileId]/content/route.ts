@@ -2,7 +2,10 @@ import { v2UpdateFileContentContract } from '@/lib/api/contracts/v2/files'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import { v2FileErrorPolicies } from '@/lib/workspace-files/api'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
-import { updateWorkspaceFileContent } from '@/lib/workspace-files/application/update-workspace-file-content'
+import {
+  admitUpdateWorkspaceFileContent,
+  updateWorkspaceFileContent,
+} from '@/lib/workspace-files/application/update-workspace-file-content'
 import { MAX_WORKSPACE_FILE_INLINE_BODY_BYTES } from '@/lib/workspace-files/orchestration'
 import { toV2File } from '@/app/api/v2/files/utils'
 import { v2Error } from '@/app/api/v2/lib/response'
@@ -24,7 +27,7 @@ export const PUT = defineV2JsonRoute({
   },
   beforeParse: async ({ principal, params }) => {
     if (typeof params.fileId === 'string') {
-      await updateWorkspaceFileContent.admit(principal, params.fileId)
+      await admitUpdateWorkspaceFileContent(principal, params.fileId)
     }
   },
   mapInput: ({ params, body }) => ({

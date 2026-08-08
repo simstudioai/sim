@@ -12,9 +12,9 @@ vi.mock('@/lib/workspace-files/orchestration', () => ({
 }))
 
 vi.mock('@/lib/workspace-files/application/update-workspace-file-content', () => ({
+  admitUpdateWorkspaceFileContent: mocks.admit,
   updateWorkspaceFileContent: {
     operation: { id: 'files.update_content', minimumRole: 'write', workspaceApiKey: 'allow' },
-    admit: mocks.admit,
     execute: mocks.updateContent,
   },
 }))

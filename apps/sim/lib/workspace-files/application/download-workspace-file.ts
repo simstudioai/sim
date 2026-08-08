@@ -1,9 +1,15 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
-import { type Principal, resolvePrincipalAuditAttribution } from '@sim/auth/principal'
-import type { OrchestrationRequestContext } from '@/lib/core/orchestration/types'
+import { AuditAction, AuditResourceType } from '@sim/audit'
+import type { AuthorizedWorkspaceUseCaseContext } from '@/lib/core/application'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { nodeReadableToWebStream } from '@/lib/core/utils/node-stream'
+import {
+  type ActiveWorkspaceFileContext,
+  getWorkspaceFile,
+} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { downloadFileStream } from '@/lib/uploads/core/storage-service'
-import { downloadWorkspaceFileRecord } from '@/lib/workspace-files/application/read-workspace-file-record'
+import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
+import { fileOperations } from '@/lib/workspace-files/application/operations'
+import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
 
 export interface DownloadWorkspaceFileInput {
   fileId: string
@@ -11,24 +17,15 @@ export interface DownloadWorkspaceFileInput {
 }
 
 export interface DownloadWorkspaceFileResult {
-  file: Awaited<ReturnType<typeof downloadWorkspaceFileRecord.execute>>['file']
+  file: NonNullable<Awaited<ReturnType<typeof getWorkspaceFile>>>
 }
 
 export interface DownloadWorkspaceFileStreamResult extends DownloadWorkspaceFileResult {
   stream: ReadableStream<Uint8Array>
 }
 
-function recordDownloadAudit(
-  file: DownloadWorkspaceFileResult['file'],
-  principal: Principal,
-  request?: OrchestrationRequestContext
-) {
-  const auditAttribution = resolvePrincipalAuditAttribution(principal)
-
-  recordAudit({
-    workspaceId: file.workspaceId,
-    actorId: auditAttribution.actorId,
-    actorName: auditAttribution.actorName,
+function projectDownloadAudit(file: DownloadWorkspaceFileResult['file']) {
+  return {
     action: AuditAction.FILE_DOWNLOADED,
     resourceType: AuditResourceType.FILE,
     resourceId: file.id,
@@ -38,55 +35,53 @@ function recordDownloadAudit(
       fileId: file.id,
       fileName: file.name,
       bytes: file.size,
-      actor: auditAttribution.actor,
     },
-    request,
-  })
+  }
 }
 
 async function executeDownloadWorkspaceFile({
-  principal,
-  input,
-  request,
-}: {
-  principal: Principal
-  input: DownloadWorkspaceFileInput
-  request?: OrchestrationRequestContext
-}): Promise<DownloadWorkspaceFileResult> {
-  const result = await downloadWorkspaceFileRecord.execute({ principal, input, request })
-  recordDownloadAudit(result.file, principal, request)
-  return { file: result.file }
+  context,
+}: AuthorizedWorkspaceUseCaseContext<
+  typeof fileOperations.download,
+  DownloadWorkspaceFileInput,
+  ActiveWorkspaceFileContext
+>): Promise<DownloadWorkspaceFileResult> {
+  const file = await getWorkspaceFile(context.workspaceId, context.fileId, {
+    throwOnError: true,
+  })
+  if (!file) throw new OrchestrationError('not_found', 'File not found')
+  return { file }
 }
 
-export const downloadWorkspaceFile = {
-  operation: downloadWorkspaceFileRecord.operation,
+export const downloadWorkspaceFile = defineAuthorizedWorkspaceFileUseCase({
+  operation: fileOperations.download,
+  resolveContext: ({ input }) => resolveActiveWorkspaceFileContext(input),
   execute: executeDownloadWorkspaceFile,
-} as const
+  projectAudit: ({ result }) => projectDownloadAudit(result.file),
+})
 
 async function executeDownloadWorkspaceFileStream({
-  principal,
-  input,
-  request,
-}: {
-  principal: Principal
-  input: DownloadWorkspaceFileInput
-  request?: OrchestrationRequestContext
-}): Promise<DownloadWorkspaceFileStreamResult> {
-  const result = await downloadWorkspaceFileRecord.execute({
-    principal,
-    input,
-    request,
+  context,
+}: AuthorizedWorkspaceUseCaseContext<
+  typeof fileOperations.download,
+  DownloadWorkspaceFileInput,
+  ActiveWorkspaceFileContext
+>): Promise<DownloadWorkspaceFileStreamResult> {
+  const file = await getWorkspaceFile(context.workspaceId, context.fileId, {
+    throwOnError: true,
   })
+  if (!file) throw new OrchestrationError('not_found', 'File not found')
   const stream = await downloadFileStream({
-    key: result.file.key,
-    context: result.file.storageContext ?? 'workspace',
+    key: file.key,
+    context: file.storageContext ?? 'workspace',
   })
-  recordDownloadAudit(result.file, principal, request)
-  return { file: result.file, stream: nodeReadableToWebStream(stream) }
+  return { file, stream: nodeReadableToWebStream(stream) }
 }
 
 /** Authorized and audited binary download without materializing the file in memory. */
-export const downloadWorkspaceFileStream = {
-  operation: downloadWorkspaceFileRecord.operation,
+export const downloadWorkspaceFileStream = defineAuthorizedWorkspaceFileUseCase({
+  operation: fileOperations.download,
+  resolveContext: ({ input }) => resolveActiveWorkspaceFileContext(input),
   execute: executeDownloadWorkspaceFileStream,
-} as const
+  projectAudit: ({ result }) => projectDownloadAudit(result.file),
+})

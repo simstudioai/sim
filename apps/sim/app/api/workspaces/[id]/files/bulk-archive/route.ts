@@ -1,7 +1,6 @@
 import { bulkArchiveWorkspaceFileItemsContract } from '@/lib/api/contracts/workspace-file-folders'
 import {
   defineInternalJsonRoute,
-  internalJsonPresenters,
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
@@ -24,5 +23,5 @@ export const POST = defineInternalJsonRoute({
   }),
   useCase: archiveWorkspaceFileItemsOperation,
   onSuccess: internalFileAnalytics.bulkDeleted,
-  present: internalJsonPresenters.withSuccess,
+  present: ({ deletedItems }) => ({ success: true, deletedItems }),
 })

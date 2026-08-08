@@ -1,13 +1,15 @@
-import type { Principal } from '@sim/auth/principal'
+import type { AuthorizedWorkspaceUseCaseContext } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { nodeReadableToWebStream } from '@/lib/core/utils/node-stream'
 import {
+  type ActiveWorkspaceFileContext,
   getWorkspaceFile,
+  loadActiveWorkspaceFileContext,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { downloadFileStream } from '@/lib/uploads/core/storage-service'
 import { getFileMetadataByKey } from '@/lib/uploads/server/metadata'
-import { loadAuthorizedWorkspaceFile } from '@/lib/workspace-files/application/load-authorized-workspace-file'
+import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 
 export interface ReadWorkspaceInlineFileInput {
@@ -22,29 +24,13 @@ export interface ReadWorkspaceInlineFileResult {
 }
 
 async function executeReadWorkspaceInlineFile({
-  principal,
-  input,
-}: {
-  principal: Principal
-  input: ReadWorkspaceInlineFileInput
-}): Promise<ReadWorkspaceInlineFileResult> {
-  let fileId = input.fileId
-  if (!fileId && input.key) {
-    const metadata = await getFileMetadataByKey(input.key, 'workspace')
-    if (!metadata || metadata.workspaceId !== input.workspaceId) {
-      throw new OrchestrationError('not_found', 'Not found')
-    }
-    fileId = metadata.id
-  }
-  if (!fileId) throw new OrchestrationError('validation', 'Provide exactly one file reference')
-
-  const canonical = await loadAuthorizedWorkspaceFile({
-    principal,
-    operation: fileOperations.readContent,
-    fileId,
-    assertedWorkspaceId: input.workspaceId,
-  })
-  const file = await getWorkspaceFile(canonical.workspaceId, canonical.fileId, {
+  context,
+}: AuthorizedWorkspaceUseCaseContext<
+  typeof fileOperations.readContent,
+  ReadWorkspaceInlineFileInput,
+  ActiveWorkspaceFileContext
+>): Promise<ReadWorkspaceInlineFileResult> {
+  const file = await getWorkspaceFile(context.workspaceId, context.fileId, {
     throwOnError: true,
   })
   if (!file) throw new OrchestrationError('not_found', 'Not found')
@@ -53,7 +39,24 @@ async function executeReadWorkspaceInlineFile({
   return { file, stream: nodeReadableToWebStream(stream) }
 }
 
-export const readWorkspaceInlineFile = {
+export const readWorkspaceInlineFile = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.readContent,
+  async resolveContext({ input }) {
+    let fileId = input.fileId
+    if (!fileId && input.key) {
+      const metadata = await getFileMetadataByKey(input.key, 'workspace')
+      if (!metadata || metadata.workspaceId !== input.workspaceId) {
+        throw new OrchestrationError('not_found', 'Not found')
+      }
+      fileId = metadata.id
+    }
+    if (!fileId) throw new OrchestrationError('validation', 'Provide exactly one file reference')
+
+    const canonical = await loadActiveWorkspaceFileContext(fileId)
+    if (!canonical || canonical.workspaceId !== input.workspaceId) {
+      throw new OrchestrationError('not_found', 'Not found')
+    }
+    return canonical
+  },
   execute: executeReadWorkspaceInlineFile,
-} as const
+})

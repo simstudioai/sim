@@ -4,7 +4,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockAuthorize,
+  events,
+  mockLoadContext,
+  mockResolvePermission,
   mockListFiles,
   mockListFolders,
   mockFetchServable,
@@ -13,7 +15,9 @@ const {
   mockIsRenderable,
   mockIsDocNotReady,
 } = vi.hoisted(() => ({
-  mockAuthorize: vi.fn(),
+  events: [] as string[],
+  mockLoadContext: vi.fn(),
+  mockResolvePermission: vi.fn(),
   mockListFiles: vi.fn(),
   mockListFolders: vi.fn(),
   mockFetchServable: vi.fn(),
@@ -23,15 +27,18 @@ const {
   mockIsDocNotReady: vi.fn(),
 }))
 
-vi.mock('@/lib/workspace-files/application/workspace-operation-context', () => ({
-  authorizeWorkspaceFileOperation: mockAuthorize,
-}))
 vi.mock('@/lib/uploads/contexts/workspace', () => ({
   buildWorkspaceFileFolderPathMap: (folders: Array<{ id: string; path?: string; name: string }>) =>
     new Map(folders.map((folder) => [folder.id, folder.path ?? folder.name])),
   fetchServableWorkspaceFileBuffer: mockFetchServable,
   listWorkspaceFileFolders: mockListFolders,
   listWorkspaceFiles: mockListFiles,
+  loadWorkspaceFileOperationContext: mockLoadContext,
+}))
+vi.mock('@sim/platform-authz/workspace', () => ({
+  permissionSatisfies: (actual: string | null, required: string) =>
+    actual === 'admin' || actual === required || (actual === 'write' && required === 'read'),
+  resolveEffectiveWorkspacePermission: mockResolvePermission,
 }))
 vi.mock('@/lib/uploads/utils/file-utils', () => ({
   formatFileSize: (bytes: number) => `${bytes} bytes`,
@@ -52,6 +59,17 @@ vi.mock('@sim/audit', () => ({
 import { downloadWorkspaceFileItems } from '@/lib/workspace-files/application/download-workspace-file-items'
 
 const principal = { kind: 'session' as const, userId: 'u1', sessionId: 's1' }
+const delegatedPrincipal = {
+  kind: 'delegated' as const,
+  serviceId: 'copilot' as const,
+  subjectUserId: 'u1',
+  workspaceId: 'ws-1',
+  delegationId: 'delegation-1',
+  audience: 'sim:workspace-files',
+  issuedAt: new Date('2026-01-01T00:00:00Z'),
+  expiresAt: new Date('2099-01-01T00:00:00Z'),
+  resourceScope: { fileId: 'f1' },
+}
 const workspace = {
   workspaceId: 'ws-1',
   workspaceOrganizationId: null,
@@ -66,14 +84,19 @@ function file(id: string, name: string, folderId: string | null = null, size = 1
 describe('downloadWorkspaceFileItems', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockAuthorize.mockResolvedValue({
-      context: workspace,
-      attribution: {
-        attributedUserId: 'u1',
-        actor: { kind: 'session', userId: 'u1' },
-      },
+    events.length = 0
+    mockLoadContext.mockImplementation(async () => {
+      events.push('resolve')
+      return workspace
     })
-    mockListFiles.mockResolvedValue([file('f1', 'clip.mp4')])
+    mockResolvePermission.mockImplementation(async () => {
+      events.push('authorize')
+      return 'read'
+    })
+    mockListFiles.mockImplementation(async () => {
+      events.push('execute')
+      return [file('f1', 'clip.mp4')]
+    })
     mockListFolders.mockResolvedValue([])
     mockIsGenerated.mockReturnValue(false)
     mockIsRenderable.mockReturnValue(false)
@@ -86,15 +109,38 @@ describe('downloadWorkspaceFileItems', () => {
       input: { workspaceId: 'ws-1', fileIds: ['f1'], folderIds: [] },
     })
 
-    expect(mockAuthorize).toHaveBeenCalledWith(
-      principal,
-      expect.objectContaining({ id: 'files.download' }),
-      'ws-1'
-    )
+    expect(events).toEqual(['resolve', 'authorize', 'execute'])
     expect(result.filesToZip).toHaveLength(1)
     expect(mockRecordAudit).toHaveBeenCalledWith(
       expect.objectContaining({ actorId: 'u1', workspaceId: 'ws-1' })
     )
+  })
+
+  it('allows a file-scoped delegated principal to download its one explicit file', async () => {
+    const result = await downloadWorkspaceFileItems.execute({
+      principal: delegatedPrincipal,
+      input: { workspaceId: 'ws-1', fileIds: ['f1'], folderIds: [] },
+    })
+
+    expect(result.filesToZip.map((item) => item.id)).toEqual(['f1'])
+    expect(mockResolvePermission).toHaveBeenCalledOnce()
+  })
+
+  it.each([
+    { label: 'multiple files', fileIds: ['f1', 'f2'], folderIds: [] },
+    { label: 'a folder', fileIds: [], folderIds: ['folder-1'] },
+    { label: 'a file and folder', fileIds: ['f1'], folderIds: ['folder-1'] },
+  ])('denies a file-scoped delegated principal selecting $label before listing', async (input) => {
+    await expect(
+      downloadWorkspaceFileItems.execute({
+        principal: delegatedPrincipal,
+        input: { workspaceId: 'ws-1', ...input },
+      })
+    ).rejects.toThrow('Delegated workspace access is no longer valid')
+
+    expect(mockResolvePermission).not.toHaveBeenCalled()
+    expect(mockListFiles).not.toHaveBeenCalled()
+    expect(mockListFolders).not.toHaveBeenCalled()
   })
 
   it('expands selected folders and renders generated documents before returning', async () => {
@@ -125,7 +171,7 @@ describe('downloadWorkspaceFileItems', () => {
         input: { workspaceId: 'ws-1', fileIds: [], folderIds: [] },
       })
     ).rejects.toMatchObject({ code: 'validation' })
-    expect(mockAuthorize).not.toHaveBeenCalled()
+    expect(events).toEqual(['resolve', 'authorize'])
 
     mockListFiles.mockResolvedValue([file('f1', 'pending.docx')])
     mockIsGenerated.mockReturnValue(true)

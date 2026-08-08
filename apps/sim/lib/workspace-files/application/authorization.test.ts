@@ -86,6 +86,20 @@ describe('file operation authorization', () => {
     expect(resolvePermission).not.toHaveBeenCalled()
   })
 
+  it('rejects a disallowed principal kind before principal-specific authorization', async () => {
+    await expect(
+      authorizeWorkspaceFileAccess(
+        { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+        fileOperations.compiledCheck,
+        { ...authorizationContext, allowPersonalApiKeys: false }
+      )
+    ).rejects.toMatchObject<Partial<OrchestrationError>>({
+      code: 'forbidden',
+      message: 'Principal kind personal_api_key cannot perform operation files.compiled_check',
+    })
+    expect(resolvePermission).not.toHaveBeenCalled()
+  })
+
   it('reauthorizes a valid file-scoped Copilot delegation as its human subject', async () => {
     await authorizeWorkspaceFileAccess(
       {

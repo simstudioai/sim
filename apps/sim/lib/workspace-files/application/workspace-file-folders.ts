@@ -1,14 +1,7 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
-import {
-  type Principal,
-  resolvePrincipalAttribution,
-  resolvePrincipalAuditAttribution,
-} from '@sim/auth/principal'
+import { AuditAction, AuditResourceType } from '@sim/audit'
+import { resolvePrincipalAttribution } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
-import {
-  OrchestrationError,
-  type OrchestrationRequestContext,
-} from '@/lib/core/orchestration/types'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
 import {
   assertWorkspaceFileItemsBelongToWorkspace,
@@ -17,14 +10,15 @@ import {
   createWorkspaceFileFolderAtPath,
   deleteWorkspaceFileFolderByPath,
   listWorkspaceFileFolders,
+  loadWorkspaceFileOperationContext,
   relocateWorkspaceFileFolderByPath,
   restoreWorkspaceFileFolder,
   updateWorkspaceFileFolder,
   type WorkspaceFileArchiveResult,
   type WorkspaceFileFolderRecord,
 } from '@/lib/uploads/contexts/workspace'
+import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
-import { authorizeWorkspaceFileOperation } from '@/lib/workspace-files/application/workspace-operation-context'
 
 const logger = createLogger('WorkspaceFileFolders')
 
@@ -88,17 +82,21 @@ export interface RestoreWorkspaceFileFolderResult {
   restoredItems: WorkspaceFileArchiveResult
 }
 
+async function resolveFolderContext({ input }: { input: { workspaceId: string } }) {
+  const context = await loadWorkspaceFileOperationContext(input.workspaceId)
+  if (!context) throw new OrchestrationError('not_found', 'Workspace not found')
+  return context
+}
+
+type FolderOperationContext = Awaited<ReturnType<typeof resolveFolderContext>>
+
 async function executeListWorkspaceFileFolders(args: {
-  principal: Principal
   input: ListWorkspaceFileFoldersInput
-  request?: OrchestrationRequestContext
+  context: FolderOperationContext
 }): Promise<ListWorkspaceFileFoldersResult> {
-  await authorizeWorkspaceFileOperation(
-    args.principal,
-    fileOperations.listFolders,
-    args.input.workspaceId
-  )
-  let folders = await listWorkspaceFileFolders(args.input.workspaceId, { scope: args.input.scope })
+  let folders = await listWorkspaceFileFolders(args.context.workspaceId, {
+    scope: args.input.scope,
+  })
   if (args.input.parentPath !== undefined) {
     const parentPath = args.input.parentPath === '/' ? '' : args.input.parentPath.replace(/^\//, '')
     folders = folders.filter((folder) => {
@@ -124,69 +122,43 @@ async function executeListWorkspaceFileFolders(args: {
 }
 
 async function executeCreateWorkspaceFileFolder(args: {
-  principal: Principal
+  principal: Parameters<typeof resolvePrincipalAttribution>[0]
   input: CreateWorkspaceFileFolderInput
-  request?: OrchestrationRequestContext
+  context: FolderOperationContext
 }): Promise<CreateWorkspaceFileFolderResult> {
-  const { context } = await authorizeWorkspaceFileOperation(
-    args.principal,
-    fileOperations.createFolder,
-    args.input.workspaceId
-  )
   const attribution = resolvePrincipalAttribution(args.principal, {
-    workspaceBillingOwnerUserId: context.billedAccountUserId,
+    workspaceBillingOwnerUserId: args.context.billedAccountUserId,
   })
-  const auditAttribution = resolvePrincipalAuditAttribution(args.principal)
   const result =
     args.input.path !== undefined
       ? await createWorkspaceFileFolderAtPath({
-          workspaceId: context.workspaceId,
+          workspaceId: args.context.workspaceId,
           userId: attribution.attributedUserId,
           path: args.input.path,
         })
       : {
           folder: await createWorkspaceFileFolder({
-            workspaceId: context.workspaceId,
+            workspaceId: args.context.workspaceId,
             userId: attribution.attributedUserId,
             name: args.input.name ?? '',
             parentId: args.input.parentId,
           }),
         }
   const folder = 'path' in result ? { ...result.folder, path: result.path } : result.folder
-  recordAudit({
-    workspaceId: context.workspaceId,
-    actorId: auditAttribution.actorId,
-    actorName: auditAttribution.actorName,
-    action: AuditAction.FOLDER_CREATED,
-    resourceType: AuditResourceType.FOLDER,
-    resourceId: folder.id,
-    resourceName: folder.name,
-    description: `Created file folder "${folder.name}"`,
-    metadata: { operation: fileOperations.createFolder.id, actor: auditAttribution.actor },
-    request: args.request,
-  })
-  await notifyWorkspaceFilesChanged(context.workspaceId)
   return { folder }
 }
 
 async function executeUpdateWorkspaceFileFolder(args: {
-  principal: Principal
   input: UpdateWorkspaceFileFolderInput
-  request?: OrchestrationRequestContext
+  context: FolderOperationContext
 }): Promise<UpdateWorkspaceFileFolderResult> {
-  const { context } = await authorizeWorkspaceFileOperation(
-    args.principal,
-    fileOperations.updateFolder,
-    args.input.workspaceId
-  )
-  const auditAttribution = resolvePrincipalAuditAttribution(args.principal)
   let folder: WorkspaceFileFolderRecord
   if (args.input.path !== undefined || args.input.destinationPath !== undefined) {
     if (!args.input.path || !args.input.destinationPath) {
       throw new OrchestrationError('validation', 'path and destinationPath are required')
     }
     const result = await relocateWorkspaceFileFolderByPath({
-      workspaceId: context.workspaceId,
+      workspaceId: args.context.workspaceId,
       path: args.input.path,
       destinationPath: args.input.destinationPath,
     })
@@ -194,136 +166,134 @@ async function executeUpdateWorkspaceFileFolder(args: {
   } else {
     if (!args.input.folderId) throw new OrchestrationError('validation', 'Folder ID is required')
     folder = await updateWorkspaceFileFolder({
-      workspaceId: context.workspaceId,
+      workspaceId: args.context.workspaceId,
       folderId: args.input.folderId,
       name: args.input.name,
       parentId: args.input.parentId,
       sortOrder: args.input.sortOrder,
     })
   }
-  recordAudit({
-    workspaceId: context.workspaceId,
-    actorId: auditAttribution.actorId,
-    actorName: auditAttribution.actorName,
-    action: args.input.path !== undefined ? AuditAction.FOLDER_MOVED : AuditAction.FOLDER_UPDATED,
-    resourceType: AuditResourceType.FOLDER,
-    resourceId: folder.id,
-    resourceName: folder.name,
-    description: `Updated file folder "${folder.name}"`,
-    metadata: { operation: fileOperations.updateFolder.id, actor: auditAttribution.actor },
-    request: args.request,
-  })
-  await notifyWorkspaceFilesChanged(context.workspaceId)
   logger.info('Updated workspace file folder', {
-    workspaceId: context.workspaceId,
+    workspaceId: args.context.workspaceId,
     folderId: folder.id,
   })
   return { folder }
 }
 
 async function executeDeleteWorkspaceFileFolder(args: {
-  principal: Principal
   input: DeleteWorkspaceFileFolderInput
-  request?: OrchestrationRequestContext
+  context: FolderOperationContext
 }): Promise<DeleteWorkspaceFileFolderResult> {
-  const { context } = await authorizeWorkspaceFileOperation(
-    args.principal,
-    fileOperations.deleteFolder,
-    args.input.workspaceId
-  )
-  const auditAttribution = resolvePrincipalAuditAttribution(args.principal)
   let deletedItems: WorkspaceFileArchiveResult
   if (args.input.path !== undefined) {
     deletedItems = await deleteWorkspaceFileFolderByPath({
-      workspaceId: context.workspaceId,
+      workspaceId: args.context.workspaceId,
       path: args.input.path,
       recursive: args.input.recursive ?? false,
     })
   } else {
     if (!args.input.folderId) throw new OrchestrationError('validation', 'Folder ID is required')
     await assertWorkspaceFileItemsBelongToWorkspace({
-      workspaceId: context.workspaceId,
+      workspaceId: args.context.workspaceId,
       folderIds: [args.input.folderId],
     })
-    deletedItems = await bulkArchiveWorkspaceFileItems({
-      workspaceId: context.workspaceId,
+    const archived = await bulkArchiveWorkspaceFileItems({
+      workspaceId: args.context.workspaceId,
       folderIds: [args.input.folderId],
     })
+    deletedItems = { files: archived.fileIds.length, folders: archived.folderIds.length }
   }
-  recordAudit({
-    workspaceId: context.workspaceId,
-    actorId: auditAttribution.actorId,
-    actorName: auditAttribution.actorName,
-    action: AuditAction.FOLDER_DELETED,
-    resourceType: AuditResourceType.FOLDER,
-    resourceId: args.input.folderId,
-    description: 'Deleted file folder',
-    metadata: {
-      operation: fileOperations.deleteFolder.id,
-      actor: auditAttribution.actor,
-      path: args.input.path,
-      deletedItems,
-    },
-    request: args.request,
-  })
-  await notifyWorkspaceFilesChanged(context.workspaceId)
+  if (deletedItems.files === 0 && deletedItems.folders === 0) {
+    throw new OrchestrationError('not_found', 'Folder not found')
+  }
   return { deletedItems, path: args.input.path }
 }
 
 async function executeRestoreWorkspaceFileFolder(args: {
-  principal: Principal
   input: RestoreWorkspaceFileFolderInput
-  request?: OrchestrationRequestContext
+  context: FolderOperationContext
 }): Promise<RestoreWorkspaceFileFolderResult> {
-  const { context } = await authorizeWorkspaceFileOperation(
-    args.principal,
-    fileOperations.restoreFolder,
-    args.input.workspaceId,
-    args.input.folderId
-  )
-  const auditAttribution = resolvePrincipalAuditAttribution(args.principal)
-  const result = await restoreWorkspaceFileFolder(context.workspaceId, args.input.folderId)
-  recordAudit({
-    workspaceId: context.workspaceId,
-    actorId: auditAttribution.actorId,
-    actorName: auditAttribution.actorName,
-    action: AuditAction.FOLDER_RESTORED,
-    resourceType: AuditResourceType.FOLDER,
-    resourceId: args.input.folderId,
-    resourceName: result.folder.name,
-    description: `Restored file folder "${result.folder.name}"`,
-    metadata: {
-      operation: fileOperations.restoreFolder.id,
-      actor: auditAttribution.actor,
-      restoredItems: result.restoredItems,
-    },
-    request: args.request,
-  })
-  await notifyWorkspaceFilesChanged(context.workspaceId)
-  return result
+  return restoreWorkspaceFileFolder(args.context.workspaceId, args.input.folderId)
 }
 
-export const listWorkspaceFileFoldersOperation = {
+export const listWorkspaceFileFoldersOperation = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.listFolders,
+  resolveContext: (args: { input: ListWorkspaceFileFoldersInput }) => resolveFolderContext(args),
   execute: executeListWorkspaceFileFolders,
-} as const
+})
 
-export const createWorkspaceFileFolderOperation = {
+export const createWorkspaceFileFolderOperation = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.createFolder,
+  resolveContext: (args: { input: CreateWorkspaceFileFolderInput }) => resolveFolderContext(args),
   execute: executeCreateWorkspaceFileFolder,
-} as const
+  projectAudit({ result }) {
+    return {
+      action: AuditAction.FOLDER_CREATED,
+      resourceType: AuditResourceType.FOLDER,
+      resourceId: result.folder.id,
+      resourceName: result.folder.name,
+      description: `Created file folder "${result.folder.name}"`,
+    }
+  },
+  async afterSuccess({ context }) {
+    await notifyWorkspaceFilesChanged(context.workspaceId)
+  },
+})
 
-export const updateWorkspaceFileFolderOperation = {
+export const updateWorkspaceFileFolderOperation = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.updateFolder,
+  resolveContext: (args: { input: UpdateWorkspaceFileFolderInput }) => resolveFolderContext(args),
   execute: executeUpdateWorkspaceFileFolder,
-} as const
+  projectAudit({ input, result }) {
+    return {
+      action: input.path !== undefined ? AuditAction.FOLDER_MOVED : AuditAction.FOLDER_UPDATED,
+      resourceType: AuditResourceType.FOLDER,
+      resourceId: result.folder.id,
+      resourceName: result.folder.name,
+      description: `Updated file folder "${result.folder.name}"`,
+    }
+  },
+  async afterSuccess({ context }) {
+    await notifyWorkspaceFilesChanged(context.workspaceId)
+  },
+})
 
-export const deleteWorkspaceFileFolderOperation = {
+export const deleteWorkspaceFileFolderOperation = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.deleteFolder,
+  resolveContext: (args: { input: DeleteWorkspaceFileFolderInput }) => resolveFolderContext(args),
   execute: executeDeleteWorkspaceFileFolder,
-} as const
+  projectAudit({ input, result }) {
+    return {
+      action: AuditAction.FOLDER_DELETED,
+      resourceType: AuditResourceType.FOLDER,
+      resourceId: input.folderId,
+      description: 'Deleted file folder',
+      metadata: {
+        path: input.path,
+        deletedItems: result.deletedItems,
+      },
+    }
+  },
+  async afterSuccess({ context }) {
+    await notifyWorkspaceFilesChanged(context.workspaceId)
+  },
+})
 
-export const restoreWorkspaceFileFolderOperation = {
+export const restoreWorkspaceFileFolderOperation = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.restoreFolder,
+  resolveContext: (args: { input: RestoreWorkspaceFileFolderInput }) => resolveFolderContext(args),
   execute: executeRestoreWorkspaceFileFolder,
-} as const
+  projectAudit({ input, result }) {
+    return {
+      action: AuditAction.FOLDER_RESTORED,
+      resourceType: AuditResourceType.FOLDER,
+      resourceId: input.folderId,
+      resourceName: result.folder.name,
+      description: `Restored file folder "${result.folder.name}"`,
+      metadata: { restoredItems: result.restoredItems },
+    }
+  },
+  async afterSuccess({ context }) {
+    await notifyWorkspaceFilesChanged(context.workspaceId)
+  },
+})

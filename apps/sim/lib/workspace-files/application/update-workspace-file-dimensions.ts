@@ -1,8 +1,11 @@
-import type { Principal } from '@sim/auth/principal'
-import type { OrchestrationRequestContext } from '@/lib/core/orchestration/types'
-import { updateWorkspaceFileDimensions } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { loadAuthorizedWorkspaceFile } from '@/lib/workspace-files/application/load-authorized-workspace-file'
+import type { AuthorizedWorkspaceUseCaseContext } from '@/lib/core/application'
+import {
+  type ActiveWorkspaceFileContext,
+  updateWorkspaceFileDimensions,
+} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
+import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
 
 export interface UpdateWorkspaceFileDimensionsInput {
   fileId: string
@@ -17,20 +20,14 @@ export interface UpdateWorkspaceFileDimensionsResult {
 }
 
 async function executeUpdateWorkspaceFileDimensions({
-  principal,
   input,
-}: {
-  principal: Principal
-  input: UpdateWorkspaceFileDimensionsInput
-  request?: OrchestrationRequestContext
-}): Promise<UpdateWorkspaceFileDimensionsResult> {
-  const canonical = await loadAuthorizedWorkspaceFile({
-    principal,
-    operation: fileOperations.updateMetadata,
-    fileId: input.fileId,
-    assertedWorkspaceId: input.assertedWorkspaceId,
-  })
-  const success = await updateWorkspaceFileDimensions(canonical.workspaceId, canonical.fileId, {
+  context,
+}: AuthorizedWorkspaceUseCaseContext<
+  typeof fileOperations.updateMetadata,
+  UpdateWorkspaceFileDimensionsInput,
+  ActiveWorkspaceFileContext
+>): Promise<UpdateWorkspaceFileDimensionsResult> {
+  const success = await updateWorkspaceFileDimensions(context.workspaceId, context.fileId, {
     key: input.key,
     width: input.width,
     height: input.height,
@@ -38,7 +35,8 @@ async function executeUpdateWorkspaceFileDimensions({
   return { success }
 }
 
-export const updateWorkspaceFileDimensionsOperation = {
+export const updateWorkspaceFileDimensionsOperation = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.updateMetadata,
+  resolveContext: ({ input }) => resolveActiveWorkspaceFileContext(input),
   execute: executeUpdateWorkspaceFileDimensions,
-} as const
+})

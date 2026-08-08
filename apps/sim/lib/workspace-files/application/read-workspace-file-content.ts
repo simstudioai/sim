@@ -1,13 +1,14 @@
-import type { Principal } from '@sim/auth/principal'
-import type { WorkspaceOperation } from '@/lib/core/application'
+import type { AuthorizedWorkspaceUseCaseContext } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
+  type ActiveWorkspaceFileContext,
   fetchWorkspaceFileBuffer,
   getWorkspaceFile,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace'
-import { loadAuthorizedWorkspaceFile } from '@/lib/workspace-files/application/load-authorized-workspace-file'
+import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
+import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
 
 export interface ReadWorkspaceFileContentInput {
   fileId: string
@@ -22,34 +23,27 @@ export interface ReadWorkspaceFileContentResult {
   content: Buffer
 }
 
-function executeReadWorkspaceFileContent(operation: WorkspaceOperation) {
-  return async ({
-    principal,
-    input,
-  }: {
-    principal: Principal
-    input: ReadWorkspaceFileContentInput
-  }): Promise<ReadWorkspaceFileContentResult> => {
-    const canonical = await loadAuthorizedWorkspaceFile({
-      principal,
-      operation,
-      fileId: input.fileId,
-      assertedWorkspaceId: input.assertedWorkspaceId,
-      includeDeleted: input.includeDeleted,
-    })
-    const file = await getWorkspaceFile(canonical.workspaceId, canonical.fileId, {
-      includeDeleted: input.includeDeleted,
-      throwOnError: true,
-    })
-    if (!file) throw new OrchestrationError('not_found', 'File not found')
-    return {
-      file,
-      content: await fetchWorkspaceFileBuffer(file, { maxBytes: input.maxBytes }),
-    }
+async function executeReadWorkspaceFileContent({
+  input,
+  context,
+}: AuthorizedWorkspaceUseCaseContext<
+  typeof fileOperations.readContent,
+  ReadWorkspaceFileContentInput,
+  ActiveWorkspaceFileContext
+>): Promise<ReadWorkspaceFileContentResult> {
+  const file = await getWorkspaceFile(context.workspaceId, context.fileId, {
+    includeDeleted: input.includeDeleted,
+    throwOnError: true,
+  })
+  if (!file) throw new OrchestrationError('not_found', 'File not found')
+  return {
+    file,
+    content: await fetchWorkspaceFileBuffer(file, { maxBytes: input.maxBytes }),
   }
 }
 
-export const readWorkspaceFileContent = {
+export const readWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.readContent,
-  execute: executeReadWorkspaceFileContent(fileOperations.readContent),
-} as const
+  resolveContext: ({ input }) => resolveActiveWorkspaceFileContext(input),
+  execute: executeReadWorkspaceFileContent,
+})

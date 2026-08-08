@@ -1,17 +1,14 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
-import { type Principal, resolvePrincipalAuditAttribution } from '@sim/auth/principal'
+import { AuditAction, AuditResourceType } from '@sim/audit'
 import { createLogger } from '@sim/logger'
-import {
-  OrchestrationError,
-  type OrchestrationRequestContext,
-} from '@/lib/core/orchestration/types'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
 import {
   assertWorkspaceFileItemsBelongToWorkspace,
+  loadWorkspaceFileOperationContext,
   moveWorkspaceFileItems,
 } from '@/lib/uploads/contexts/workspace'
+import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
-import { authorizeWorkspaceFileOperation } from '@/lib/workspace-files/application/workspace-operation-context'
 import { MAX_WORKSPACE_FILE_BULK_REQUEST_IDS } from '@/lib/workspace-files/limits'
 
 const logger = createLogger('MoveWorkspaceFileItems')
@@ -26,15 +23,24 @@ export interface MoveWorkspaceFileItemsInput {
 
 export interface MoveWorkspaceFileItemsResult {
   movedItems: { files: number; folders: number }
+  affectedIds: { fileIds: string[]; folderIds: string[] }
 }
 
-async function executeMoveWorkspaceFileItems(args: {
-  principal: Principal
+function normalizeSelection(input: MoveWorkspaceFileItemsInput) {
+  return {
+    fileIds: [...new Set(input.fileIds ?? [])],
+    folderIds: [...new Set(input.folderIds ?? [])],
+  }
+}
+
+async function executeMoveWorkspaceFileItems({
+  input,
+  context,
+}: {
   input: MoveWorkspaceFileItemsInput
-  request?: OrchestrationRequestContext
+  context: Awaited<ReturnType<typeof resolveMoveContext>>
 }): Promise<MoveWorkspaceFileItemsResult> {
-  const fileIds = [...new Set(args.input.fileIds ?? [])]
-  const folderIds = [...new Set(args.input.folderIds ?? [])]
+  const { fileIds, folderIds } = normalizeSelection(input)
   if (fileIds.length === 0 && folderIds.length === 0) {
     throw new OrchestrationError('validation', 'At least one file or folder must be selected')
   }
@@ -48,13 +54,6 @@ async function executeMoveWorkspaceFileItems(args: {
     )
   }
 
-  const { context } = await authorizeWorkspaceFileOperation(
-    args.principal,
-    fileOperations.move,
-    args.input.workspaceId,
-    fileIds[0]
-  )
-  const auditAttribution = resolvePrincipalAuditAttribution(args.principal)
   await assertWorkspaceFileItemsBelongToWorkspace({
     workspaceId: context.workspaceId,
     fileIds,
@@ -64,54 +63,65 @@ async function executeMoveWorkspaceFileItems(args: {
     workspaceId: context.workspaceId,
     fileIds,
     folderIds,
-    targetFolderId: args.input.targetFolderId,
-    targetFolderPath: args.input.targetFolderPath,
+    targetFolderId: input.targetFolderId,
+    targetFolderPath: input.targetFolderPath,
   })
-  const movedItems = { files: moved.movedFiles, folders: moved.movedFolders }
+  const movedItems = { files: moved.movedFileIds.length, folders: moved.movedFolderIds.length }
 
-  if (fileIds.length > 0) {
-    recordAudit({
-      workspaceId: context.workspaceId,
-      actorId: auditAttribution.actorId,
-      actorName: auditAttribution.actorName,
-      action: AuditAction.FILE_MOVED,
-      resourceType: AuditResourceType.FILE,
-      description: `Moved ${fileIds.length} file${fileIds.length === 1 ? '' : 's'}`,
-      metadata: {
-        operation: fileOperations.move.id,
-        actor: auditAttribution.actor,
-        fileIds,
-        targetFolderId: args.input.targetFolderId,
-        targetFolderPath: args.input.targetFolderPath,
-      },
-      request: args.request,
-    })
-  }
-  if (folderIds.length > 0) {
-    recordAudit({
-      workspaceId: context.workspaceId,
-      actorId: auditAttribution.actorId,
-      actorName: auditAttribution.actorName,
-      action: AuditAction.FOLDER_MOVED,
-      resourceType: AuditResourceType.FOLDER,
-      resourceId: folderIds.length === 1 ? folderIds[0] : undefined,
-      description: `Moved ${folderIds.length} file folder${folderIds.length === 1 ? '' : 's'}`,
-      metadata: {
-        operation: fileOperations.move.id,
-        actor: auditAttribution.actor,
-        folderIds,
-        targetFolderId: args.input.targetFolderId,
-        targetFolderPath: args.input.targetFolderPath,
-      },
-      request: args.request,
-    })
-  }
-  await notifyWorkspaceFilesChanged(context.workspaceId)
   logger.info('Moved workspace file items', { workspaceId: context.workspaceId, movedItems })
-  return { movedItems }
+  return {
+    movedItems,
+    affectedIds: { fileIds: moved.movedFileIds, folderIds: moved.movedFolderIds },
+  }
 }
 
-export const moveWorkspaceFileItemsOperation = {
+async function resolveMoveContext({ input }: { input: MoveWorkspaceFileItemsInput }) {
+  const context = await loadWorkspaceFileOperationContext(input.workspaceId)
+  if (!context) throw new OrchestrationError('not_found', 'Workspace not found')
+  const { fileIds, folderIds } = normalizeSelection(input)
+  return {
+    ...context,
+    fileId: fileIds.length === 1 && folderIds.length === 0 ? fileIds[0] : undefined,
+  }
+}
+
+export const moveWorkspaceFileItemsOperation = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.move,
+  resolveContext: resolveMoveContext,
   execute: executeMoveWorkspaceFileItems,
-} as const
+  projectAudit({ input, result }) {
+    const entries = []
+    if (result.affectedIds.fileIds.length > 0) {
+      entries.push({
+        action: AuditAction.FILE_MOVED,
+        resourceType: AuditResourceType.FILE,
+        description: `Moved ${result.affectedIds.fileIds.length} file${result.affectedIds.fileIds.length === 1 ? '' : 's'}`,
+        metadata: {
+          fileIds: result.affectedIds.fileIds,
+          targetFolderId: input.targetFolderId,
+          targetFolderPath: input.targetFolderPath,
+        },
+      })
+    }
+    if (result.affectedIds.folderIds.length > 0) {
+      entries.push({
+        action: AuditAction.FOLDER_MOVED,
+        resourceType: AuditResourceType.FOLDER,
+        resourceId:
+          result.affectedIds.folderIds.length === 1 ? result.affectedIds.folderIds[0] : undefined,
+        description: `Moved ${result.affectedIds.folderIds.length} file folder${result.affectedIds.folderIds.length === 1 ? '' : 's'}`,
+        metadata: {
+          folderIds: result.affectedIds.folderIds,
+          targetFolderId: input.targetFolderId,
+          targetFolderPath: input.targetFolderPath,
+        },
+      })
+    }
+    return entries
+  },
+  async afterSuccess({ context, result }) {
+    if (result.affectedIds.fileIds.length > 0 || result.affectedIds.folderIds.length > 0) {
+      await notifyWorkspaceFilesChanged(context.workspaceId)
+    }
+  },
+})
