@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import type { QueryClient } from '@tanstack/react-query'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiClientError } from '@/lib/api/client/errors'
@@ -143,6 +144,8 @@ function applyPinToggle(pinnedWorkspaceIds: string[], workspaceId: string, pinne
 export function useToggleWorkspacePin() {
   const queryClient = useQueryClient()
   const queryKey = workspaceKeys.list('active')
+  /** Toggles the user has made that have not settled yet; see `onSettled`. */
+  const outstandingRef = useRef(0)
 
   return useMutation({
     scope: { id: 'workspace-pin' },
@@ -164,6 +167,7 @@ export function useToggleWorkspacePin() {
       }
     },
     onMutate: async ({ workspaceId, pinned }) => {
+      outstandingRef.current += 1
       await queryClient.cancelQueries({ queryKey })
       queryClient.setQueryData<WorkspacesResponse>(queryKey, (old) =>
         old
@@ -188,7 +192,15 @@ export function useToggleWorkspacePin() {
           : old
       )
     },
+    /**
+     * Reconciles only once nothing is still queued. `scope` serializes the writes,
+     * so an earlier toggle settles while a later one is still waiting its turn —
+     * refetching there would render the server's intermediate state and bounce the
+     * row out of the pinned group and back before the last write even leaves.
+     */
     onSettled: () => {
+      outstandingRef.current -= 1
+      if (outstandingRef.current > 0) return
       queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
     },
   })

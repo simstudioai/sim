@@ -157,6 +157,38 @@ describe('useToggleWorkspacePin', () => {
     expect(readPins(queryClient)).toEqual([])
   })
 
+  /**
+   * The writes are serialized, so an earlier toggle settles while a later one is
+   * still queued. Refetching there would render the server's intermediate state and
+   * bounce the row out of the pinned group and back.
+   */
+  it('reconciles only once no toggle is still queued', async () => {
+    const resolvers: Array<() => void> = []
+    mockRequestJson.mockImplementation(
+      () => new Promise((resolve) => resolvers.push(() => resolve({ pinnedItem: {} })))
+    )
+    const { getResult, queryClient } = renderHookWithClient(() => useToggleWorkspacePin())
+    seedList(queryClient, [])
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
+
+    act(() => {
+      getResult().mutate({ workspaceId: 'ws-a', pinned: true })
+      getResult().mutate({ workspaceId: 'ws-a', pinned: false })
+    })
+    await flush()
+
+    act(() => resolvers[0]())
+    await flush()
+
+    // The unpin is now in flight; reconciling here would refetch the pinned state.
+    expect(invalidateSpy).not.toHaveBeenCalled()
+
+    act(() => resolvers[1]())
+    await flush()
+
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: workspaceKeys.lists() })
+  })
+
   /** Both duplicate-click outcomes mean the row is already in the requested end state. */
   it.each([
     ['pin', true, 409],
