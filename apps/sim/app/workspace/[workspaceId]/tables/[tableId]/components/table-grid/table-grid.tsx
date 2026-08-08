@@ -8,7 +8,6 @@ import { createLogger } from '@sim/logger'
 import type { TableCellSelection } from '@sim/realtime-protocol/table-presence'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import type { EditingCell, SaveReason } from '@/components/resources/table-view'
 import {
@@ -165,8 +164,13 @@ export interface SelectionSnapshot {
 }
 
 interface TableGridProps {
-  workspaceId?: string
-  tableId?: string
+  /**
+   * The table's address, supplied by the view. Required rather than derived: a
+   * route-param fallback meant this grid could only ever exist once per page,
+   * and it is mounted in a panel beside the page that owns those params.
+   */
+  workspaceId: string
+  tableId: string
   embedded?: boolean
   /** Remote collaborators' cell selections, rendered as presence overlays. */
   remoteSelections: RemoteTableSelection[]
@@ -419,8 +423,8 @@ async function chunkBatchUpdates(
 }
 
 export function TableGrid({
-  workspaceId: propWorkspaceId,
-  tableId: propTableId,
+  workspaceId,
+  tableId,
   embedded,
   remoteSelections,
   emitCellSelection,
@@ -456,9 +460,6 @@ export function TableGrid({
   confirmDeleteColumnsSinkRef,
   pushTableRenameUndoSinkRef,
 }: TableGridProps) {
-  const params = useParams()
-  const workspaceId = propWorkspaceId || (params.workspaceId as string)
-  const tableId = propTableId || (params.tableId as string)
   const posthog = usePostHog()
 
   useEffect(() => {

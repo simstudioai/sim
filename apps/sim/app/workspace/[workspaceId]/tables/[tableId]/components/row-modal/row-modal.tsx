@@ -16,7 +16,6 @@ import {
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useParams } from 'next/navigation'
 import {
   cleanCellValue,
   dateValueToLocalParts,
@@ -35,6 +34,12 @@ const logger = createLogger('RowModal')
 
 export interface RowModalProps {
   mode: 'edit' | 'delete'
+  /**
+   * The workspace the table lives in. A prop rather than a route-param read:
+   * this modal is mounted inside a view that also renders in the chat panel,
+   * where the page's params address a different resource entirely.
+   */
+  workspaceId: string
   isOpen: boolean
   onClose: () => void
   table: TableInfo
@@ -70,9 +75,16 @@ function cleanRowData(
  * call-site ever keeps it mounted across target-row changes, it must supply a `key`
  * prop (e.g. the row id) so React remounts with the new row's values.
  */
-export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess }: RowModalProps) {
-  const params = useParams()
-  const workspaceId = params.workspaceId as string
+export function RowModal({
+  mode,
+  workspaceId,
+  isOpen,
+  onClose,
+  table,
+  row,
+  rowIds,
+  onSuccess,
+}: RowModalProps) {
   const tableId = table.id
 
   const schema = table?.schema

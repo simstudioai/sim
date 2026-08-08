@@ -1592,6 +1592,7 @@ export function Table({
       {editingRow && tableData && (
         <RowModal
           mode='edit'
+          workspaceId={workspaceId}
           isOpen={true}
           onClose={() => setEditingRow(null)}
           table={tableData}
@@ -1602,6 +1603,7 @@ export function Table({
       {deletingRows.length > 0 && tableData && (
         <RowModal
           mode='delete'
+          workspaceId={workspaceId}
           isOpen={true}
           onClose={() => setDeletingRows([])}
           table={tableData}
