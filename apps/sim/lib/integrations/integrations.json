@@ -5428,6 +5428,113 @@
       "tags": ["web-scraping"]
     },
     {
+      "type": "dynatrace",
+      "slug": "dynatrace",
+      "name": "Dynatrace",
+      "description": "Query Dynatrace problems, metrics, entities, logs, SLOs, and vulnerabilities",
+      "longDescription": "Integrate Dynatrace into workflows. Investigate and close Davis problems, query metrics and monitored entities, search and ingest logs, push deployment events, track SLO burn rates, review Application Security vulnerabilities, and read the audit log.",
+      "bgColor": "#FFFFFF",
+      "iconName": "DynatraceIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/dynatrace",
+      "operations": [
+        {
+          "name": "List Problems",
+          "description": "List Davis-detected problems in a Dynatrace environment, filtered by timeframe, problem selector, or entity selector."
+        },
+        {
+          "name": "Get Problem",
+          "description": "Get the full details of a single Dynatrace problem, including root cause, affected entities, and optionally its evidence and impact analysis."
+        },
+        {
+          "name": "Close Problem",
+          "description": "Close a Dynatrace problem and record the closing comment."
+        },
+        {
+          "name": "List Problem Comments",
+          "description": "List the comments recorded on a Dynatrace problem."
+        },
+        {
+          "name": "Add Problem Comment",
+          "description": "Add a comment to a Dynatrace problem."
+        },
+        {
+          "name": "Query Metrics",
+          "description": "Read metric data points from Dynatrace using a metric selector, with optional entity and management-zone scoping."
+        },
+        {
+          "name": "List Metrics",
+          "description": "Discover the metrics available in a Dynatrace environment, filtered by metric selector, free text, or metadata."
+        },
+        {
+          "name": "Get Metric Descriptor",
+          "description": "Get the descriptor of a single Dynatrace metric — its unit, dimensions, supported aggregations, and transformations."
+        },
+        {
+          "name": "Ingest Metrics",
+          "description": "Push custom metric data points into Dynatrace using the metric line protocol, one data point per line."
+        },
+        {
+          "name": "List Entities",
+          "description": "List monitored entities — hosts, services, applications, Kubernetes workloads — matching an entity selector."
+        },
+        {
+          "name": "Get Entity",
+          "description": "Get the properties, tags, management zones, and relationships of a single monitored entity."
+        },
+        {
+          "name": "List Entity Types",
+          "description": "List the monitored entity types available in the environment, with the properties and relationships each supports. Use it to build valid entity selectors."
+        },
+        {
+          "name": "List Events",
+          "description": "List events — deployments, availability changes, alerts, custom annotations — in a Dynatrace environment."
+        },
+        {
+          "name": "Get Event",
+          "description": "Get the full details of a single Dynatrace event."
+        },
+        {
+          "name": "Ingest Event",
+          "description": "Push an event into Dynatrace — a deployment marker, custom annotation, or custom alert — attached to the entities matched by an entity selector."
+        },
+        {
+          "name": "Search Logs",
+          "description": "Search log records in Dynatrace by query and timeframe, for troubleshooting and incident analysis."
+        },
+        {
+          "name": "Ingest Logs",
+          "description": "Push log events into Dynatrace. Accepts a single log event object or an array of them."
+        },
+        {
+          "name": "List SLOs",
+          "description": "List service-level objectives with their current attainment, error budget, and burn rate."
+        },
+        {
+          "name": "Get SLO",
+          "description": "Get a single service-level objective with its evaluated attainment, error budget, and burn rate."
+        },
+        {
+          "name": "List Security Problems",
+          "description": "List vulnerabilities detected by Dynatrace Application Security, filtered by risk level, status, CVE, or technology."
+        },
+        {
+          "name": "Get Security Problem",
+          "description": "Get a single vulnerability with its description, remediation guidance, affected entities, and risk assessment."
+        },
+        {
+          "name": "Get Audit Logs",
+          "description": "Read the Dynatrace audit log — who changed which configuration, when, and whether it succeeded."
+        }
+      ],
+      "operationCount": 22,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "observability",
+      "tags": ["monitoring", "incident-management", "error-tracking"]
+    },
+    {
       "type": "elasticsearch",
       "slug": "elasticsearch",
       "name": "Elasticsearch",

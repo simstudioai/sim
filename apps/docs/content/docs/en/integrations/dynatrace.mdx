@@ -1,0 +1,601 @@
+---
+title: Dynatrace
+description: Query Dynatrace problems, metrics, entities, logs, SLOs, and vulnerabilities
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="dynatrace"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Dynatrace](https://www.dynatrace.com/) is an observability platform that monitors applications, infrastructure, and user experience from a single agent. Its Davis AI correlates signals across the stack into **problems** — a single incident with a root cause, an impact assessment, and the affected entities attached — instead of a stream of disconnected alerts.
+
+**What you can reach from Sim**
+
+- **Problems** — list and inspect Davis problems, read their root cause and affected entities, close them, and add comments.
+- **Metrics** — query time series with a metric selector, discover which metrics exist, read a metric's descriptor, and push your own data points.
+- **Entities** — list and inspect monitored hosts, services, applications, and Kubernetes workloads, and enumerate the entity types available for building selectors.
+- **Events** — read deployments, availability changes, and annotations, and ingest your own.
+- **Logs** — search log records and ingest new ones.
+- **SLOs** — read service-level objectives with their attainment, error budget, and burn rate.
+- **Application Security** — list and inspect vulnerabilities with risk assessment and remediation guidance.
+- **Audit log** — read who changed which configuration, and when.
+
+**Setup**
+
+You need two values: your **environment URL** and an **access token**.
+
+The environment URL is the base address of your Dynatrace environment, without the API path:
+
+| Deployment | Environment URL |
+| --- | --- |
+| SaaS | `https://abc12345.live.dynatrace.com` |
+| Managed / environment ActiveGate | `https://your-activegate:9999/e/abc12345` |
+
+Create the token under **Access tokens** in Dynatrace, and grant only the scopes for the operations you plan to call. Each action's `apiToken` description names the scope it needs — `problems.read`, `metrics.read`, `entities.read`, `events.read`, `logs.read`, `slo.read`, `securityProblems.read`, `auditLogs.read` for reads, and `problems.write`, `metrics.ingest`, `events.ingest`, `logs.ingest` for writes.
+
+**Selectors**
+
+Most read operations are scoped by a selector rather than by fixed filter fields. Criteria are comma-separated, and every criterion matched must hold:
+
+```
+entitySelector:         type("HOST"),tag("env:prod")
+problemSelector:        status("open"),severityLevel("AVAILABILITY")
+metricSelector:         builtin:host.cpu.usage:splitBy("dt.entity.host"):avg:names
+securityProblemSelector: status("OPEN"),riskLevel("CRITICAL")
+```
+
+Every selector field in the block has a wand — describe what you want in plain language and Sim writes the selector for you.
+
+**Pagination**
+
+List operations return a `nextPageKey` (a `nextSliceKey` for log search). Feed it back into the next call to read the following page. Dynatrace encodes the original filters into the cursor, so Sim sends the cursor alone and ignores the other filters on that call — which is what the API requires.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Dynatrace into workflows. Investigate and close Davis problems, query metrics and monitored entities, search and ingest logs, push deployment events, track SLO burn rates, review Application Security vulnerabilities, and read the audit log.
+
+
+
+## Actions
+
+### Dynatrace List Problems
+
+List Davis-detected problems in a Dynatrace environment, filtered by timeframe, problem selector, or entity selector.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `environmentUrl` | string | Yes | Dynatrace environment URL \(e.g., https://abc12345.live.dynatrace.com, or https://your-activegate:9999/e/abc12345 for Managed\) |
+| `apiToken` | string | Yes | Dynatrace access token \(dt0c01...\) with the problems.read scope |
+| `from` | string | No | Start of the timeframe as UTC milliseconds, ISO 8601, or a relative expression such as now-1d. Defaults to now-2h |
+| `to` | string | No | End of the timeframe in the same formats as From. Defaults to now |
+| `problemSelector` | string | No | Problem selector, e.g. status\("open"\),severityLevel\("AVAILABILITY"\),impactLevel\("SERVICES"\) |
+| `entitySelector` | string | No | Entity selector scoping the result, e.g. type\("HOST"\),tag\("env:prod"\) |
+| `sort` | string | No | Sort order: status, startTime, or relevance, each optionally prefixed with + or - \(e.g. -startTime\) |
+| `fields` | string | No | Comma-separated optional properties to include: evidenceDetails, impactAnalysis, recentComments |
+| `pageSize` | number | No | Problems per page \(max 500, default 50\) |
+| `nextPageKey` | string | No | Cursor for the next page. All other filters are ignored when it is set |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `problems` | array | Matching problems |
+
+### Dynatrace Get Problem
+
+Get the full details of a single Dynatrace problem, including root cause, affected entities, and optionally its evidence and impact analysis.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `environmentUrl` | string | Yes | Dynatrace environment URL \(e.g., https://abc12345.live.dynatrace.com, or https://your-activegate:9999/e/abc12345 for Managed\) |
+| `apiToken` | string | Yes | Dynatrace access token \(dt0c01...\) with the problems.read scope |
+| `problemId` | string | Yes | ID of the problem \(e.g., -1234567890123456789_1700000000000V2\) |
+| `fields` | string | No | Comma-separated optional properties to include: evidenceDetails, impactAnalysis, recentComments |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `problem` | object | The requested problem |
+
+### Dynatrace Close Problem
+
+Close a Dynatrace problem and record the closing comment.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `environmentUrl` | string | Yes | Dynatrace environment URL \(e.g., https://abc12345.live.dynatrace.com, or https://your-activegate:9999/e/abc12345 for Managed\) |
+| `apiToken` | string | Yes | Dynatrace access token \(dt0c01...\) with the problems.write scope |
+| `problemId` | string | Yes | ID of the problem to close |
+| `message` | string | Yes | Text of the closing comment |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `problemId` | string | ID of the closed problem |
+| `closeTimestamp` | number | Timestamp when closing was triggered, in UTC milliseconds |
+| `closing` | boolean | Whether the problem is in the process of being closed |
+| `comment` | object | The closing comment that was recorded |
+
+### Dynatrace List Problem Comments
+
+List the comments recorded on a Dynatrace problem.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `environmentUrl` | string | Yes | Dynatrace environment URL \(e.g., https://abc12345.live.dynatrace.com, or https://your-activegate:9999/e/abc12345 for Managed\) |
+| `apiToken` | string | Yes | Dynatrace access token \(dt0c01...\) with the problems.read scope |
+| `problemId` | string | Yes | ID of the problem whose comments should be listed |
+| `pageSize` | number | No | Comments per page \(max 500, default 10\) |
+| `nextPageKey` | string | No | Cursor for the next page. Page size is ignored when it is set |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `comments` | array | Comments on the problem |
+
+### Dynatrace Add Problem Comment
+
+Add a comment to a Dynatrace problem.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `environmentUrl` | string | Yes | Dynatrace environment URL \(e.g., https://abc12345.live.dynatrace.com, or https://your-activegate:9999/e/abc12345 for Managed\) |
+| `apiToken` | string | Yes | Dynatrace access token \(dt0c01...\) with the problems.write scope |
+| `problemId` | string | Yes | ID of the problem to comment on |
+| `message` | string | Yes | Text of the comment |
+| `context` | string | No | Context of the comment, shown alongside the author \(e.g., the source system\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `problemId` | string | ID of the problem the comment was added to |
+| `message` | string | Text of the comment that was added |
+| `context` | string | Context of the comment |
+
+### Dynatrace Query Metrics
+
+Read metric data points from Dynatrace using a metric selector, with optional entity and management-zone scoping.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `environmentUrl` | string | Yes | Dynatrace environment URL \(e.g., https://abc12345.live.dynatrace.com, or https://your-activegate:9999/e/abc12345 for Managed\) |
+| `apiToken` | string | Yes | Dynatrace access token \(dt0c01...\) with the metrics.read scope |
+| `metricSelector` | string | Yes | Metric selector, up to 10 metrics comma-separated, with optional transformations after a colon \(e.g. builtin:host.cpu.usage:avg:names\) |
+| `from` | string | No | Start of the timeframe as UTC milliseconds, ISO 8601, or a relative expression such as now-2h. Defaults to now-2h |
+| `to` | string | No | End of the timeframe in the same formats as From. Defaults to now |
+| `resolution` | string | No | Number of data points \(default 120\), a timespan such as 10m or 3w, or Inf for a single aggregated value |
+| `entitySelector` | string | No | Entity selector scoping the query, e.g. type\("HOST"\),tag\("env:prod"\) |
+| `mzSelector` | string | No | Management zone selector, e.g. mzName\("Production"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | array | One entry per queried metric |
+|   ↳ `metricId` | string | Metric key including transformations |
+|   ↳ `dataPointCountRatio` | number | Queried data points relative to the query limit |
+|   ↳ `dimensionCountRatio` | number | Queried dimension tuples relative to the query limit |
+|   ↳ `appliedOptionalFilters` | array | Optional filters Dynatrace applied to the query |
+|   ↳ `dql` | json | DQL translation of the query, when available |
+|   ↳ `warnings` | array | Warnings for this metric |
+|   ↳ `data` | array | Series of the metric, one per dimension tuple |
+|     ↳ `dimensions` | array | Dimension values of the series |
+|     ↳ `dimensionMap` | json | Dimension values keyed by dimension key |
+|     ↳ `timestamps` | array | Timestamps in UTC milliseconds, one per value |
+|     ↳ `values` | array | Metric values. Null where no data exists |
+| `resolution` | string | Resolution Dynatrace actually used |
+
+### Dynatrace List Metrics
+
+Discover the metrics available in a Dynatrace environment, filtered by metric selector, free text, or metadata.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `environmentUrl` | string | Yes | Dynatrace environment URL \(e.g., https://abc12345.live.dynatrace.com, or https://your-activegate:9999/e/abc12345 for Managed\) |
+| `apiToken` | string | Yes | Dynatrace access token \(dt0c01...\) with the metrics.read scope |
+| `metricSelector` | string | No | Metric selector, supporting wildcards \(e.g. builtin:host.cpu.*\) |
+| `text` | string | No | Free-text search across metric display names and descriptions |
+| `fields` | string | No | Comma-separated descriptor properties. Prefix with + to add a non-default property and - to drop a default one; metricId is always returned \(e.g. +aggregationTypes,-description\) |
+| `writtenSince` | string | No | Only metrics written since this point, as UTC milliseconds, ISO 8601, or a relative expression such as now-7d |
+| `writtenSinceMode` | string | No | INCLUDE \(default\) keeps metrics written since Written Since; EXCLUDE keeps the ones not written since then |
+| `metadataSelector` | string | No | Metadata selector, e.g. unit\("Percent"\),tags\("dashboard"\) |
+| `pageSize` | number | No | Metrics per page \(max 500, default 100\) |
+| `nextPageKey` | string | No | Cursor for the next page. All other filters are ignored when it is set |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `metrics` | array | Matching metric descriptors |
+
+### Dynatrace Get Metric Descriptor
+
+Get the descriptor of a single Dynatrace metric — its unit, dimensions, supported aggregations, and transformations.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `environmentUrl` | string | Yes | Dynatrace environment URL \(e.g., https://abc12345.live.dynatrace.com, or https://your-activegate:9999/e/abc12345 for Managed\) |
+| `apiToken` | string | Yes | Dynatrace access token \(dt0c01...\) with the metrics.read scope |
+| `metricKey` | string | Yes | Metric key, optionally followed by transformation operators separated by a colon \(e.g. builtin:host.cpu.usage\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `metric` | object | The requested metric descriptor |
+
+### Dynatrace Ingest Metrics
+
+Push custom metric data points into Dynatrace using the metric line protocol, one data point per line.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `environmentUrl` | string | Yes | Dynatrace environment URL \(e.g., https://abc12345.live.dynatrace.com, or https://your-activegate:9999/e/abc12345 for Managed\) |
+| `apiToken` | string | Yes | Dynatrace access token \(dt0c01...\) with the metrics.ingest scope |
+| `payload` | string | Yes | Metric line protocol payload, one data point per line, max 1 MB \(e.g. cpu.temperature,dt.entity.host=HOST-06F288EE2A930951,cpu=1 55\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `linesOk` | number | Number of accepted data points |
+| `linesInvalid` | number | Number of rejected data points |
+| `ingestError` | json | Details of the invalid lines, with the line number and reason for each |
+| `warnings` | json | Warnings raised during ingestion, such as changed metric keys |
+
+### Dynatrace List Entities
+
+List monitored entities — hosts, services, applications, Kubernetes workloads — matching an entity selector.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `environmentUrl` | string | Yes | Dynatrace environment URL \(e.g., https://abc12345.live.dynatrace.com, or https://your-activegate:9999/e/abc12345 for Managed\) |
+| `apiToken` | string | Yes | Dynatrace access token \(dt0c01...\) with the entities.read scope |
+| `entitySelector` | string | Yes | Entity selector defining the scope, e.g. type\("HOST"\),tag\("env:prod"\) or entityId\("HOST-06F288EE2A930951"\) |
+| `from` | string | No | Start of the timeframe as UTC milliseconds, ISO 8601, or a relative expression such as now-3d. Defaults to now-3d |
+| `to` | string | No | End of the timeframe in the same formats as From. Defaults to now |
+| `fields` | string | No | Comma-separated additional entity properties to include \(e.g. +lastSeenTms,+properties.BITNESS,+tags\) |
+| `sort` | string | No | Sort by display name: +displayName ascending or -displayName descending |
+| `pageSize` | number | No | Entities per page \(default 50\) |
+| `nextPageKey` | string | No | Cursor for the next page. All other filters are ignored when it is set |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `entities` | array | Matching monitored entities |
+
+### Dynatrace Get Entity
+
+Get the properties, tags, management zones, and relationships of a single monitored entity.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `environmentUrl` | string | Yes | Dynatrace environment URL \(e.g., https://abc12345.live.dynatrace.com, or https://your-activegate:9999/e/abc12345 for Managed\) |
+| `apiToken` | string | Yes | Dynatrace access token \(dt0c01...\) with the entities.read scope |
+| `entityId` | string | Yes | ID of the entity \(e.g., HOST-06F288EE2A930951\) |
+| `from` | string | No | Start of the timeframe as UTC milliseconds, ISO 8601, or a relative expression such as now-3d. Defaults to now-3d |
+| `to` | string | No | End of the timeframe in the same formats as From. Defaults to now |
+| `fields` | string | No | Comma-separated additional entity properties to include \(e.g. +lastSeenTms,+properties.BITNESS\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `entity` | object | The requested monitored entity |
+
+### Dynatrace List Entity Types
+
+List the monitored entity types available in the environment, with the properties and relationships each supports. Use it to build valid entity selectors.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `environmentUrl` | string | Yes | Dynatrace environment URL \(e.g., https://abc12345.live.dynatrace.com, or https://your-activegate:9999/e/abc12345 for Managed\) |
+| `apiToken` | string | Yes | Dynatrace access token \(dt0c01...\) with the entities.read scope |
+| `pageSize` | number | No | Entity types per page \(max 500, default 50\) |
+| `nextPageKey` | string | No | Cursor for the next page. Page size is ignored when it is set |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `types` | array | Available entity types |
+|   ↳ `type` | string | Entity type \(e.g., HOST, SERVICE\) |
+|   ↳ `displayName` | string | Display name of the type |
+|   ↳ `dimensionKey` | string | Metric dimension key of the type |
+|   ↳ `entityLimitExceeded` | boolean | Whether the environment exceeded the entity limit for this type |
+|   ↳ `fromRelationships` | array | Relationships originating at this type |
+|     ↳ `id` | string | Relationship ID |
+|     ↳ `toTypes` | array | Entity types the relationship points to |
+|   ↳ `toRelationships` | array | Relationships pointing at this type |
+|     ↳ `id` | string | Relationship ID |
+|     ↳ `fromTypes` | array | Entity types the relationship originates from |
+
+### Dynatrace List Events
+
+List events — deployments, availability changes, alerts, custom annotations — in a Dynatrace environment.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `environmentUrl` | string | Yes | Dynatrace environment URL \(e.g., https://abc12345.live.dynatrace.com, or https://your-activegate:9999/e/abc12345 for Managed\) |
+| `apiToken` | string | Yes | Dynatrace access token \(dt0c01...\) with the events.read scope |
+| `from` | string | No | Start of the timeframe as UTC milliseconds, ISO 8601, or a relative expression such as now-1d. Defaults to now-2h |
+| `to` | string | No | End of the timeframe in the same formats as From. Defaults to now |
+| `eventSelector` | string | No | Event selector, e.g. eventType\("CUSTOM_DEPLOYMENT"\),status\("OPEN"\),correlationId\("build-42"\) |
+| `entitySelector` | string | No | Entity selector scoping the result, e.g. type\("SERVICE"\),tag\("env:prod"\) |
+| `pageSize` | number | No | Events per page \(max 1000, default 100\) |
+| `nextPageKey` | string | No | Cursor for the next page. All other filters are ignored when it is set |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `events` | array | Matching events |
+
+### Dynatrace Get Event
+
+Get the full details of a single Dynatrace event.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `environmentUrl` | string | Yes | Dynatrace environment URL \(e.g., https://abc12345.live.dynatrace.com, or https://your-activegate:9999/e/abc12345 for Managed\) |
+| `apiToken` | string | Yes | Dynatrace access token \(dt0c01...\) with the events.read scope |
+| `eventId` | string | Yes | ID of the event |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | object | The requested event |
+
+### Dynatrace Ingest Event
+
+Push an event into Dynatrace — a deployment marker, custom annotation, or custom alert — attached to the entities matched by an entity selector.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `environmentUrl` | string | Yes | Dynatrace environment URL \(e.g., https://abc12345.live.dynatrace.com, or https://your-activegate:9999/e/abc12345 for Managed\) |
+| `apiToken` | string | Yes | Dynatrace access token \(dt0c01...\) with the events.ingest scope |
+| `eventType` | string | Yes | One of AVAILABILITY_EVENT, CUSTOM_ALERT, CUSTOM_ANNOTATION, CUSTOM_CONFIGURATION, CUSTOM_DEPLOYMENT, CUSTOM_INFO, ERROR_EVENT, MARKED_FOR_TERMINATION, PERFORMANCE_EVENT, RESOURCE_CONTENTION_EVENT, WARNING |
+| `title` | string | Yes | Title of the event |
+| `entitySelector` | string | No | Entity selector for the entities to attach the event to. Defaults to the environment entity |
+| `startTime` | number | No | Event start in UTC milliseconds. Defaults to now |
+| `endTime` | number | No | Event end in UTC milliseconds. Defaults to the start time plus the timeout |
+| `eventTimeout` | number | No | Minutes the event stays open when no end time is given. Defaults to 15, capped at 360 |
+| `properties` | json | No | Event properties as a key-value object. Max 100 entries, keys up to 100 and values up to 4096 characters |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `reportCount` | number | Number of events Dynatrace reported |
+| `eventIngestResults` | array | One result per ingested event |
+|   ↳ `correlationId` | string | Correlation ID of the ingested event |
+|   ↳ `status` | string | OK, INVALID_ENTITY_TYPE, INVALID_METADATA, or INVALID_TIMESTAMPS |
+
+### Dynatrace Search Logs
+
+Search log records in Dynatrace by query and timeframe, for troubleshooting and incident analysis.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `environmentUrl` | string | Yes | Dynatrace environment URL \(e.g., https://abc12345.live.dynatrace.com, or https://your-activegate:9999/e/abc12345 for Managed\) |
+| `apiToken` | string | Yes | Dynatrace access token \(dt0c01...\) with the logs.read scope, or storage:logs:read and storage:buckets:read on Grail |
+| `query` | string | No | Log search query, e.g. status="ERROR" AND dt.entity.host="HOST-06F288EE2A930951" |
+| `from` | string | No | Start of the timeframe as UTC milliseconds, ISO 8601, or a relative expression such as now-1h. Defaults to now-2w |
+| `to` | string | No | End of the timeframe in the same formats as From. Defaults to now |
+| `sort` | string | No | Sort by field with a + or - prefix, e.g. -timestamp for newest first |
+| `limit` | number | No | Number of log records to return \(max 1000, default 1000\) |
+| `nextSliceKey` | string | No | Cursor for the next slice. All other filters are ignored when it is set |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | Matching log records |
+|   ↳ `timestamp` | number | Log timestamp in UTC milliseconds |
+|   ↳ `status` | string | Log level: ERROR, WARN, INFO, NONE, or NOT_APPLICABLE |
+|   ↳ `content` | string | Log message content |
+|   ↳ `eventType` | string | Event type of the record |
+|   ↳ `additionalColumns` | json | Additional log attributes keyed by column name |
+| `sliceSize` | number | Number of records in this slice |
+| `nextSliceKey` | string | Cursor for the next slice. Null when the result is complete |
+| `warnings` | string | Warning raised while searching |
+
+### Dynatrace Ingest Logs
+
+Push log events into Dynatrace. Accepts a single log event object or an array of them.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `environmentUrl` | string | Yes | Dynatrace environment URL \(e.g., https://abc12345.live.dynatrace.com, or https://your-activegate:9999/e/abc12345 for Managed\) |
+| `apiToken` | string | Yes | Dynatrace access token \(dt0c01...\) with the logs.ingest scope |
+| `logs` | json | Yes | A log event object, or an array of them. Recognized keys are content, timestamp, and severity; any other key becomes a custom attribute \(e.g. \[\{"content":"Deploy finished","severity":"info","service":"checkout"\}\]\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `accepted` | boolean | True when Dynatrace accepted every log event \(HTTP 204\) |
+| `statusCode` | number | HTTP status Dynatrace returned. 204 is full success, 200 is partial success |
+| `details` | json | Partial-success details, present only when some events were rejected |
+
+### Dynatrace List SLOs
+
+List service-level objectives with their current attainment, error budget, and burn rate.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `environmentUrl` | string | Yes | Dynatrace environment URL \(e.g., https://abc12345.live.dynatrace.com, or https://your-activegate:9999/e/abc12345 for Managed\) |
+| `apiToken` | string | Yes | Dynatrace access token \(dt0c01...\) with the slo.read scope |
+| `sloSelector` | string | No | SLO selector, e.g. healthState\("WARNING"\),text\("checkout"\),problems\("true"\). Combine criteria with commas |
+| `from` | string | No | Start of the evaluation timeframe as UTC milliseconds, ISO 8601, or a relative expression such as now-7d |
+| `to` | string | No | End of the evaluation timeframe in the same formats as From. Defaults to now |
+| `timeFrame` | string | No | CURRENT evaluates each SLO over its own timeframe; GTF evaluates over the From/To range |
+| `sort` | string | No | Sort by name: name ascending or -name descending |
+| `enabledSlos` | string | No | Filter by enabled state: true, false, or all |
+| `evaluate` | boolean | No | Evaluate each SLO and include its calculated values |
+| `showGlobalSlos` | boolean | No | Include SLOs that are not scoped to a management zone |
+| `pageSize` | number | No | SLOs per page \(max 10000, default 10\) |
+| `nextPageKey` | string | No | Cursor for the next page. All other filters are ignored when it is set |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `slos` | array | Matching service-level objectives |
+
+### Dynatrace Get SLO
+
+Get a single service-level objective with its evaluated attainment, error budget, and burn rate.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `environmentUrl` | string | Yes | Dynatrace environment URL \(e.g., https://abc12345.live.dynatrace.com, or https://your-activegate:9999/e/abc12345 for Managed\) |
+| `apiToken` | string | Yes | Dynatrace access token \(dt0c01...\) with the slo.read scope |
+| `sloId` | string | Yes | ID of the SLO |
+| `from` | string | No | Start of the evaluation timeframe as UTC milliseconds, ISO 8601, or a relative expression such as now-7d. Defaults to now-2w |
+| `to` | string | No | End of the evaluation timeframe in the same formats as From. Defaults to now |
+| `timeFrame` | string | No | CURRENT evaluates the SLO over its own timeframe; GTF evaluates over the From/To range |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `slo` | object | The requested service-level objective |
+
+### Dynatrace List Security Problems
+
+List vulnerabilities detected by Dynatrace Application Security, filtered by risk level, status, CVE, or technology.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `environmentUrl` | string | Yes | Dynatrace environment URL \(e.g., https://abc12345.live.dynatrace.com, or https://your-activegate:9999/e/abc12345 for Managed\) |
+| `apiToken` | string | Yes | Dynatrace access token \(dt0c01...\) with the securityProblems.read scope |
+| `securityProblemSelector` | string | No | Security problem selector, e.g. status\("OPEN"\),riskLevel\("CRITICAL"\),technology\("JAVA"\) |
+| `from` | string | No | Start of the timeframe as UTC milliseconds, ISO 8601, or a relative expression such as now-7d. Defaults to now-30d |
+| `to` | string | No | End of the timeframe in the same formats as From. Defaults to now |
+| `fields` | string | No | Comma-separated optional properties to include: +riskAssessment, +managementZones, +codeLevelVulnerabilityDetails, +globalCounts |
+| `sort` | string | No | Sort by a field with a + or - prefix, e.g. -riskAssessment.riskScore |
+| `pageSize` | number | No | Security problems per page \(max 500, default 100\) |
+| `nextPageKey` | string | No | Cursor for the next page. All other filters are ignored when it is set |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `securityProblems` | array | Matching security problems |
+
+### Dynatrace Get Security Problem
+
+Get a single vulnerability with its description, remediation guidance, affected entities, and risk assessment.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `environmentUrl` | string | Yes | Dynatrace environment URL \(e.g., https://abc12345.live.dynatrace.com, or https://your-activegate:9999/e/abc12345 for Managed\) |
+| `apiToken` | string | Yes | Dynatrace access token \(dt0c01...\) with the securityProblems.read scope |
+| `securityProblemId` | string | Yes | ID of the security problem |
+| `fields` | string | No | Comma-separated optional properties to include: +riskAssessment, +managementZones, +codeLevelVulnerabilityDetails, +globalCounts |
+| `managementZoneFilter` | string | No | Restrict the counts to management zones, e.g. names\("Production"\) |
+| `from` | string | No | Start of the timeframe as UTC milliseconds, ISO 8601, or a relative expression such as now-24h. Defaults to the last 24 hours |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `securityProblem` | object | The requested security problem |
+
+### Dynatrace Get Audit Logs
+
+Read the Dynatrace audit log — who changed which configuration, when, and whether it succeeded.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `environmentUrl` | string | Yes | Dynatrace environment URL \(e.g., https://abc12345.live.dynatrace.com, or https://your-activegate:9999/e/abc12345 for Managed\) |
+| `apiToken` | string | Yes | Dynatrace access token \(dt0c01...\) with the auditLogs.read scope |
+| `filter` | string | No | Audit log filter, e.g. eventType\("UPDATE"\),user\("someone@example.com"\),category\("CONFIG"\) |
+| `from` | string | No | Start of the timeframe as UTC milliseconds, ISO 8601, or a relative expression such as now-1d. Defaults to now-2w |
+| `to` | string | No | End of the timeframe in the same formats as From. Defaults to now |
+| `sort` | string | No | timestamp for oldest first, or -timestamp for newest first \(default\) |
+| `pageSize` | number | No | Entries per page \(max 5000, default 1000\) |
+| `nextPageKey` | string | No | Cursor for the next page. All other filters are ignored when it is set |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `auditLogs` | array | Matching audit log entries |
+|   ↳ `logId` | string | Audit log entry ID |
+|   ↳ `eventType` | string | Type of the audited change |
+|   ↳ `category` | string | Category of the audited change |
+|   ↳ `entityId` | string | ID of the changed entity |
+|   ↳ `environmentId` | string | Environment the change happened in |
+|   ↳ `user` | string | User or token that made the change |
+|   ↳ `userType` | string | Type of the acting user |
+|   ↳ `userOrigin` | string | Origin of the request |
+|   ↳ `timestamp` | number | Change timestamp in UTC milliseconds |
+|   ↳ `success` | boolean | Whether the change succeeded |
+|   ↳ `message` | string | Description of the change |
+|   ↳ `patch` | json | JSON patch of the change |
+|   ↳ `settingsSchemaId` | string | Settings schema ID \(dt.settings.schema_id\) |
+|   ↳ `settingsScopeId` | string | Settings scope ID \(dt.settings.scope_id\) |
+|   ↳ `settingsKey` | string | Settings key \(dt.settings.key\) |
+|   ↳ `settingsObjectId` | string | Settings object ID \(dt.settings.object_id\) |
+|   ↳ `settingsObjectSummary` | string | Settings object summary \(dt.settings.object_summary\) |
+|   ↳ `settingsScopeName` | string | Settings scope name \(dt.settings.scope_name\) |
+
+
