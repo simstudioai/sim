@@ -29,18 +29,13 @@ import {
   fetchBabysitThreads,
   replyAndResolveBabysitThreads,
   requestBabysitReview,
-} from '@/executor/handlers/pi/babysit-github'
+} from '@/executor/handlers/pi/cloud/babysit/github'
 import {
   BABYSIT_ROUND_PATH,
   MAX_ROUND_FILE_BYTES,
   MAX_THREADS_PER_ROUND,
   parseBabysitRound,
-} from '@/executor/handlers/pi/babysit-round'
-import type {
-  PiBabysitContinuationParams,
-  PiRunContext,
-  PiRunResult,
-} from '@/executor/handlers/pi/backend'
+} from '@/executor/handlers/pi/cloud/babysit/round'
 import {
   buildPiScript,
   CLONE_TIMEOUT_MS,
@@ -58,20 +53,25 @@ import {
   raceAbort,
   resolvePiTimeoutMs,
   scrubGitSecrets,
-} from '@/executor/handlers/pi/cloud-shared'
-import { buildPiPrompt } from '@/executor/handlers/pi/context'
+} from '@/executor/handlers/pi/cloud/shared'
+import type {
+  PiBabysitContinuationParams,
+  PiRunContext,
+  PiRunResult,
+} from '@/executor/handlers/pi/core/backend'
+import { buildPiPrompt } from '@/executor/handlers/pi/core/context'
 import {
   applyPiEvent,
   createPiTotals,
   type PiRunTotals,
   parseJsonLine,
-} from '@/executor/handlers/pi/events'
-import { mapThinkingLevel, providerApiKeyEnvVar } from '@/executor/handlers/pi/keys'
+} from '@/executor/handlers/pi/core/events'
+import { mapThinkingLevel, providerApiKeyEnvVar } from '@/executor/handlers/pi/core/keys'
 import {
   createScrubbedPiError,
   scrubPiEvent,
   scrubPiSecrets,
-} from '@/executor/handlers/pi/redaction'
+} from '@/executor/handlers/pi/core/redaction'
 import {
   PI_SEARCH_API_KEY_ENV_VAR,
   PI_SEARCH_EXTENSION_PATH,

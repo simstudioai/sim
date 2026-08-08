@@ -11,7 +11,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { memoryService } from '@/executor/handlers/agent/memory'
 import { resolveSkillContentById } from '@/executor/handlers/agent/skills-resolver'
 import type { AgentInputs, Message, SkillInput } from '@/executor/handlers/agent/types'
-import type { PiMessage, PiSkill } from '@/executor/handlers/pi/backend'
+import type { PiMessage, PiSkill } from '@/executor/handlers/pi/core/backend'
 import type { ExecutionContext } from '@/executor/types'
 
 const logger = createLogger('PiContext')

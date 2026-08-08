@@ -7,7 +7,7 @@ import {
   getScrubbedPiErrorMessage,
   scrubPiEvent,
   scrubPiSecrets,
-} from '@/executor/handlers/pi/redaction'
+} from '@/executor/handlers/pi/core/redaction'
 
 describe('Pi credential diagnostic redaction', () => {
   it('redacts literal and URL-encoded credential representations', () => {

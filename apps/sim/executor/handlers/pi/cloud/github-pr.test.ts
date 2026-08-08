@@ -13,7 +13,7 @@ import {
   findOpenPrForBranch,
   setPullRequestDraftState,
   validateRepositoryCoordinates,
-} from '@/executor/handlers/pi/github-pr'
+} from '@/executor/handlers/pi/cloud/github-pr'
 
 const HEAD_SHA = 'a'.repeat(40)
 const BASE_SHA = 'b'.repeat(40)

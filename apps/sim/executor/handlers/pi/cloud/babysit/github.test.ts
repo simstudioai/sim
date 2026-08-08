@@ -12,7 +12,7 @@ import {
   fetchBabysitSnapshot,
   fetchBabysitThreads,
   replyAndResolveBabysitThreads,
-} from '@/executor/handlers/pi/babysit-github'
+} from '@/executor/handlers/pi/cloud/babysit/github'
 
 const HEAD_SHA = 'a'.repeat(40)
 const BASE_SHA = 'b'.repeat(40)

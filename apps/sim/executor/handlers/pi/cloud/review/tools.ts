@@ -1,10 +1,10 @@
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
 import { Type } from 'typebox'
 import type { PiSandboxRunner } from '@/lib/execution/remote-sandbox'
-import { REVIEW_TOOLS_SCRIPT } from '@/executor/handlers/pi/cloud-review-tools-script'
-import { raceAbort } from '@/executor/handlers/pi/cloud-shared'
-import type { PiSdk } from '@/executor/handlers/pi/pi-sdk'
-import { scrubPiSecrets } from '@/executor/handlers/pi/redaction'
+import { REVIEW_TOOLS_SCRIPT } from '@/executor/handlers/pi/cloud/review/tools-script'
+import { raceAbort } from '@/executor/handlers/pi/cloud/shared'
+import type { PiSdk } from '@/executor/handlers/pi/core/pi-sdk'
+import { scrubPiSecrets } from '@/executor/handlers/pi/core/redaction'
 import {
   parseReviewFindings,
   type ReviewFindings,

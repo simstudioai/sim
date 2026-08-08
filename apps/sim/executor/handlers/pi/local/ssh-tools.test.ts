@@ -20,8 +20,7 @@ vi.mock('@/app/api/tools/ssh/utils', () => ({
   },
 }))
 
-import type { PiSshSession } from '@/executor/handlers/pi/ssh-tools'
-import { buildSshToolSpecs } from '@/executor/handlers/pi/ssh-tools'
+import { buildSshToolSpecs, type PiSshSession } from '@/executor/handlers/pi/local/ssh-tools'
 
 function createSession(files: Record<string, string>): PiSshSession {
   const sftp = {

@@ -1,7 +1,7 @@
 import { InMemoryCredentialStore } from '@earendil-works/pi-ai'
 import type { ModelRuntime, ResourceLoader, ToolDefinition } from '@earendil-works/pi-coding-agent'
-import type { PiToolSpec } from '@/executor/handlers/pi/backend'
-import { createScrubbedPiError, scrubPiSecrets } from '@/executor/handlers/pi/redaction'
+import type { PiToolSpec } from '@/executor/handlers/pi/core/backend'
+import { createScrubbedPiError, scrubPiSecrets } from '@/executor/handlers/pi/core/redaction'
 
 /** The Pi SDK module, loaded dynamically so it stays externalized from the bundle. */
 export type PiSdk = typeof import('@earendil-works/pi-coding-agent')

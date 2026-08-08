@@ -9,7 +9,7 @@
  * holds the two request paths together.
  */
 
-import type { PiSearchProvider } from '@/executor/handlers/pi/keys'
+import type { PiSearchProvider } from '@/executor/handlers/pi/core/keys'
 
 /** The tool name Pi sees, in every mode. */
 export const PI_SEARCH_TOOL_NAME = 'web_search'

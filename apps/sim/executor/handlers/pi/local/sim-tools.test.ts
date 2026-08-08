@@ -17,7 +17,7 @@ vi.mock('@/lib/core/security/encryption', () => ({
   decryptSecret: encryptionMockFns.mockDecryptSecret,
 }))
 
-import { buildSimToolSpecs } from '@/executor/handlers/pi/sim-tools'
+import { buildSimToolSpecs } from '@/executor/handlers/pi/local/sim-tools'
 import type { ExecutionContext } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { ToolSchemaEnrichmentError } from '@/tools/params'
