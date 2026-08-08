@@ -86,10 +86,17 @@ export const agentMailEnvelopeSchema = z
   })
   .passthrough()
 
-/** Unverified view of an AgentMail envelope, read only to pick which secret to check. */
+/**
+ * Unverified view of an AgentMail envelope, read only to pick which secret to
+ * check. An AgentMail inbox id is the inbox's email address, so the bound is
+ * RFC 5321's maximum address length rather than an arbitrary cutoff.
+ */
 export const agentMailRoutingSchema = z.object({
   message: z.object({
-    inbox_id: z.string().min(1, 'message.inbox_id cannot be empty').max(320),
+    inbox_id: z
+      .string()
+      .min(1, 'message.inbox_id cannot be empty')
+      .max(320, 'message.inbox_id exceeds the maximum email address length'),
   }),
 })
 

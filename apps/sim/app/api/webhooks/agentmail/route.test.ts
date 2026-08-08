@@ -88,7 +88,7 @@ vi.mock('@/lib/mothership/inbox/executor', () => ({
   executeInboxTask: mockExecuteInboxTask,
 }))
 
-import { AGENTMAIL_WEBHOOK_MAX_BODY_BYTES, WEBHOOK_MAX_BODY_BYTES } from '@/lib/webhooks/constants'
+import { WEBHOOK_MAX_BODY_BYTES } from '@/lib/webhooks/constants'
 import { POST } from '@/app/api/webhooks/agentmail/route'
 
 const TARGET_INBOX_ID = 'agent-b@agentmail.to'
@@ -191,13 +191,13 @@ describe('POST /api/webhooks/agentmail', () => {
     expect(mockVerify).not.toHaveBeenCalled()
   })
 
-  it('rejects a body above the AgentMail cap even though it fits the shared webhook cap', async () => {
-    const oversized = AGENTMAIL_WEBHOOK_MAX_BODY_BYTES + 1
-    expect(oversized).toBeLessThan(WEBHOOK_MAX_BODY_BYTES)
+  it('rejects an oversized body before parsing or hashing it', async () => {
+    const oversized = WEBHOOK_MAX_BODY_BYTES + 1
 
     const response = await POST(webhookRequest(envelope(), { 'content-length': String(oversized) }))
 
     expect(response.status).toBe(413)
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
     expect(mockVerify).not.toHaveBeenCalled()
   })
 
