@@ -79,7 +79,7 @@ function serializedResultSize(value: unknown): number {
 function isOversizedReadPlaceholder(content: string): boolean {
   return (
     content.startsWith('[File too large to display inline:') ||
-    content.startsWith('[Image too large:') ||
+    content.startsWith('[Image too large to read inline:') ||
     content.startsWith('[Compiled artifact too large:')
   )
 }

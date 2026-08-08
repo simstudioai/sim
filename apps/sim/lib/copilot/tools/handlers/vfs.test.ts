@@ -182,7 +182,7 @@ describe('vfs handlers oversize policy', () => {
   it('fails oversized image placeholder when image exceeds size limit', async () => {
     const vfs = makeVfs()
     vfs.readFileContent.mockResolvedValue({
-      content: '[Image too large: huge.png (10.0MB, limit 5MB)]',
+      content: '[Image too large to read inline: huge.png (26214401 bytes, limit 26214400)]',
       totalLines: 1,
     })
     getOrMaterializeVFS.mockResolvedValue(vfs)
