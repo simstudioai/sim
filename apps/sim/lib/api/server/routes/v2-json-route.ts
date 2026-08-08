@@ -164,6 +164,12 @@ interface V2JsonRouteOptions<C extends JsonApiRouteContract, O extends Applicati
     principal: V2ApiKeyAuthContext['principal']
     params: Record<string, string | string[] | undefined>
   }): void | Promise<void>
+  onSuccess?(args: {
+    principal: V2ApiKeyAuthContext['principal']
+    input: NoInfer<I>
+    result: NoInfer<R>
+  }): void | Promise<void>
+  statusForResult?(result: NoInfer<R>): number
 }
 
 export function defineV2JsonRoute<
@@ -213,9 +219,10 @@ export function defineV2JsonRoute<
       if (!parsed.success) return parsed.response
 
       try {
+        const input = options.mapInput(parsed.data)
         const result = await options.useCase.execute({
           principal: auth.principal,
-          input: options.mapInput(parsed.data),
+          input,
           request,
         })
         const body = await options.present(result)
@@ -224,8 +231,13 @@ export function defineV2JsonRoute<
           throw new Error('V2 JSON route response mode changed after initialization')
         }
         const validatedBody = responseSchema.schema.parse(body)
+        const responseStatus = options.statusForResult?.(result) ?? successStatus
+        if (!Number.isInteger(responseStatus) || responseStatus < 200 || responseStatus >= 300) {
+          throw new Error(`V2 JSON route produced invalid success status ${responseStatus}`)
+        }
+        await options.onSuccess?.({ principal: auth.principal, input, result })
         return NextResponse.json(validatedBody, {
-          status: successStatus,
+          status: responseStatus,
           headers: { 'Cache-Control': 'private, no-store' },
         })
       } catch (error) {

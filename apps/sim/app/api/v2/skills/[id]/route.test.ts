@@ -1,331 +1,168 @@
 /**
  * @vitest-environment node
- *
- * Public v2 skill detail: the get-by-id that has no internal equivalent, plus
- * the per-id update/delete that replaced the bulk upsert.
  */
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCheckRateLimit,
-  mockResolveWorkspaceAccess,
-  mockGetSkillById,
-  mockPerformUpdateSkill,
-  mockPerformDeleteSkill,
-} = vi.hoisted(() => ({
-  mockCheckRateLimit: vi.fn(),
-  mockResolveWorkspaceAccess: vi.fn(),
-  mockGetSkillById: vi.fn(),
-  mockPerformUpdateSkill: vi.fn(),
-  mockPerformDeleteSkill: vi.fn(),
-}))
+const { mocks, MockV2ApiKeyUnauthenticatedError } = vi.hoisted(() => {
+  class MockV2ApiKeyUnauthenticatedError extends Error {}
+  return {
+    mocks: {
+      authenticate: vi.fn(),
+      preauthRate: vi.fn(),
+      operationRate: vi.fn(),
+      gate: vi.fn(),
+      get: vi.fn(),
+      update: vi.fn(),
+      remove: vi.fn(),
+      capture: vi.fn(),
+    },
+    MockV2ApiKeyUnauthenticatedError,
+  }
+})
 
-vi.mock('@/app/api/v1/middleware', () => ({
-  checkRateLimit: mockCheckRateLimit,
-  resolveWorkspaceAccess: mockResolveWorkspaceAccess,
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
+  authenticateV2ApiKey: mocks.authenticate,
+  V2ApiKeyUnauthenticatedError: MockV2ApiKeyUnauthenticatedError,
 }))
-
-vi.mock('@/lib/workflows/skills/operations', () => ({
-  getSkillById: mockGetSkillById,
+vi.mock('@/lib/core/rate-limiter', () => ({
+  RateLimiter: class {
+    checkRateLimitDirect = mocks.preauthRate
+    checkRateLimitDirectOrThrow = mocks.operationRate
+  },
+  getRateLimit: vi.fn().mockReturnValue({
+    maxTokens: 100,
+    refillRate: 100,
+    refillIntervalMs: 60_000,
+  }),
 }))
-
-vi.mock('@/lib/skills/orchestration', () => ({
-  performUpdateSkill: mockPerformUpdateSkill,
-  performDeleteSkill: mockPerformDeleteSkill,
+vi.mock('@/lib/api/server/rate-limit-context', () => ({
+  recordRateLimitSnapshot: vi.fn(),
+  getRateLimitHeaders: vi.fn().mockReturnValue(null),
 }))
-
-vi.mock('@/app/api/v2/lib/gate', () => ({
-  v2ApiGateError: vi.fn().mockResolvedValue(null),
+vi.mock('@/lib/core/utils/request', () => ({
+  generateRequestId: vi.fn().mockReturnValue('request-1'),
+  getClientIp: vi.fn().mockReturnValue('127.0.0.1'),
+}))
+vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: mocks.gate }))
+vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.capture }))
+vi.mock('@/lib/skills/application/use-cases', () => ({
+  getSkillUseCase: { operation: { id: 'skills.read' }, execute: mocks.get },
+  updateSkillUseCase: { operation: { id: 'skills.update' }, execute: mocks.update },
+  deleteSkillUseCase: { operation: { id: 'skills.delete' }, execute: mocks.remove },
 }))
 
 import { DELETE, GET, PATCH } from '@/app/api/v2/skills/[id]/route'
 
+const WORKSPACE_ID = 'workspace-1'
+const PRINCIPAL = { kind: 'personal_api_key' as const, userId: 'user-1', keyId: 'key-personal' }
+const AUTH = {
+  principal: PRINCIPAL,
+  rolloutUserId: 'user-1',
+  rateLimitSubjectIds: ['user:user-1'] as const,
+  rateLimitSubscription: null,
+  keyType: 'personal' as const,
+}
 const RATE_LIMIT_OK = {
   allowed: true,
-  userId: 'user-1',
-  keyType: 'workspace',
   limit: 100,
   remaining: 99,
-  resetAt: new Date('2024-01-01T01:00:00Z'),
+  resetAt: new Date('2026-01-01T00:00:00Z'),
+  retryAfterMs: 0,
 }
-
-const RATE_LIMIT_DENIED = {
-  allowed: false,
-  limit: 100,
-  remaining: 0,
-  resetAt: new Date('2024-01-01T01:00:00Z'),
-  retryAfterMs: 1000,
+const skill = {
+  id: 'skill-1',
+  workspaceId: WORKSPACE_ID,
+  userId: 'user-1',
+  name: 'refund-policy',
+  description: 'How to handle refunds',
+  content: '# Refund policy',
+  createdAt: new Date('2026-01-01T00:00:00Z'),
+  updatedAt: new Date('2026-01-02T00:00:00Z'),
 }
+const context = { params: Promise.resolve({ id: skill.id }) }
 
-const ACCESS_DENIED = { status: 403, code: 'FORBIDDEN', message: 'Access denied' }
-
-function buildSkill(overrides: Record<string, unknown> = {}) {
-  return {
-    id: 'skl_abc123',
-    workspaceId: 'workspace-1',
-    userId: 'user-1',
-    name: 'refund-policy',
-    description: 'How to handle refunds',
-    content: '# Refund policy',
-    createdAt: new Date('2024-01-01T00:00:00Z'),
-    updatedAt: new Date('2024-01-02T00:00:00Z'),
-    ...overrides,
-  }
-}
-
-const routeContext = () => ({ params: Promise.resolve({ id: 'skl_abc123' }) })
-const url = (query = 'workspaceId=workspace-1') =>
-  `http://localhost:3000/api/v2/skills/skl_abc123?${query}`
-
-const callGet = (query?: string) => GET(new NextRequest(url(query)), routeContext())
-const callDelete = (query?: string) =>
-  DELETE(new NextRequest(url(query), { method: 'DELETE' }), routeContext())
-
-function callPatch(body: unknown) {
-  return PATCH(
-    new NextRequest('http://localhost:3000/api/v2/skills/skl_abc123', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    }),
-    routeContext()
+function request(method: 'GET' | 'PATCH' | 'DELETE', body?: unknown) {
+  return new NextRequest(
+    `http://localhost:3000/api/v2/skills/${skill.id}?workspaceId=${WORKSPACE_ID}`,
+    {
+      method,
+      headers: {
+        'x-api-key': 'key',
+        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+      },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    }
   )
 }
 
-describe('GET /api/v2/skills/[id]', () => {
+describe('/api/v2/skills/[id]', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
-    mockResolveWorkspaceAccess.mockResolvedValue(null)
-    mockGetSkillById.mockResolvedValue(buildSkill())
+    mocks.authenticate.mockResolvedValue(AUTH)
+    mocks.preauthRate.mockResolvedValue(RATE_LIMIT_OK)
+    mocks.operationRate.mockResolvedValue(RATE_LIMIT_OK)
+    mocks.gate.mockResolvedValue(null)
+    mocks.get.mockResolvedValue({ skill })
+    mocks.update.mockResolvedValue({ skill })
+    mocks.remove.mockResolvedValue({ skill })
   })
 
-  it('returns 404 when the v2 API surface flag is off', async () => {
-    const { v2ApiGateError } = await import('@/app/api/v2/lib/gate')
-    const { v2Error } = await import('@/app/api/v2/lib/response')
-    vi.mocked(v2ApiGateError).mockResolvedValueOnce(v2Error('NOT_FOUND', 'Not found'))
+  it('gets a skill through the semantic read operation', async () => {
+    const response = await GET(request('GET'), context)
 
-    const res = await callGet()
-
-    expect(res.status).toBe(404)
-    expect(mockGetSkillById).not.toHaveBeenCalled()
+    expect(response.status).toBe(200)
+    expect((await response.json()).data.skill.content).toBe(skill.content)
+    expect(mocks.get).toHaveBeenCalledWith({
+      principal: PRINCIPAL,
+      input: { workspaceId: WORKSPACE_ID, skillId: skill.id },
+      request: expect.anything(),
+    })
   })
 
-  it('400s when workspaceId is missing', async () => {
-    const res = await callGet('')
-    expect(res.status).toBe(400)
-    expect(mockGetSkillById).not.toHaveBeenCalled()
-  })
+  it('updates a skill and emits only surface analytics', async () => {
+    const response = await PATCH(
+      request('PATCH', { workspaceId: WORKSPACE_ID, content: '# Updated' }),
+      context
+    )
 
-  it('surfaces an access-denied failure in the v2 error envelope', async () => {
-    mockResolveWorkspaceAccess.mockResolvedValue(ACCESS_DENIED)
-    const res = await callGet()
-    expect(res.status).toBe(403)
-    expect(mockGetSkillById).not.toHaveBeenCalled()
-  })
-
-  it('returns the rate-limit response when denied', async () => {
-    mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_DENIED)
-    const res = await callGet()
-    expect(res.status).toBe(429)
-    expect((await res.json()).error.code).toBe('RATE_LIMITED')
-  })
-
-  it('404s when the skill is not in the workspace', async () => {
-    mockGetSkillById.mockResolvedValue(null)
-    const res = await callGet()
-    expect(res.status).toBe(404)
-    expect((await res.json()).error.code).toBe('NOT_FOUND')
-  })
-
-  it('returns the single skill including its body', async () => {
-    const res = await callGet()
-    const body = await res.json()
-
-    expect(res.status).toBe(200)
-    expect(body.data).toEqual({
-      skill: {
-        id: 'skl_abc123',
-        name: 'refund-policy',
-        description: 'How to handle refunds',
-        content: '# Refund policy',
-        readOnly: false,
-        createdAt: '2024-01-01T00:00:00.000Z',
-        updatedAt: '2024-01-02T00:00:00.000Z',
+    expect(response.status).toBe(200)
+    expect(mocks.update).toHaveBeenCalledWith({
+      principal: PRINCIPAL,
+      input: {
+        workspaceId: WORKSPACE_ID,
+        skillId: skill.id,
+        content: '# Updated',
+        source: 'api',
       },
+      request: expect.anything(),
     })
-    expect(mockGetSkillById).toHaveBeenCalledWith({
-      skillId: 'skl_abc123',
-      workspaceId: 'workspace-1',
-    })
-  })
-})
-
-describe('PATCH /api/v2/skills/[id]', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
-    mockResolveWorkspaceAccess.mockResolvedValue(null)
-    mockPerformUpdateSkill.mockResolvedValue({
-      success: true,
-      skill: buildSkill({ description: 'Updated' }),
-    })
-  })
-
-  it('returns 404 when the v2 API surface flag is off', async () => {
-    const { v2ApiGateError } = await import('@/app/api/v2/lib/gate')
-    const { v2Error } = await import('@/app/api/v2/lib/response')
-    vi.mocked(v2ApiGateError).mockResolvedValueOnce(v2Error('NOT_FOUND', 'Not found'))
-
-    const res = await callPatch({ workspaceId: 'workspace-1', description: 'Updated' })
-
-    expect(res.status).toBe(404)
-    expect(mockPerformUpdateSkill).not.toHaveBeenCalled()
-  })
-
-  it('400s when no field to change is supplied', async () => {
-    const res = await callPatch({ workspaceId: 'workspace-1' })
-    expect(res.status).toBe(400)
-    expect((await res.json()).error.code).toBe('BAD_REQUEST')
-    expect(mockPerformUpdateSkill).not.toHaveBeenCalled()
-  })
-
-  it('surfaces an access-denied failure in the v2 error envelope', async () => {
-    mockResolveWorkspaceAccess.mockResolvedValue(ACCESS_DENIED)
-    const res = await callPatch({ workspaceId: 'workspace-1', description: 'Updated' })
-    expect(res.status).toBe(403)
-    expect(mockPerformUpdateSkill).not.toHaveBeenCalled()
-  })
-
-  it('returns the rate-limit response when denied', async () => {
-    mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_DENIED)
-    const res = await callPatch({ workspaceId: 'workspace-1', description: 'Updated' })
-    expect(res.status).toBe(429)
-    expect((await res.json()).error.code).toBe('RATE_LIMITED')
-  })
-
-  it('403s when the caller is not a skill editor', async () => {
-    mockPerformUpdateSkill.mockResolvedValue({
-      success: false,
-      error: 'Skill editor access required to modify "refund-policy"',
-      errorCode: 'forbidden',
-    })
-    const res = await callPatch({ workspaceId: 'workspace-1', description: 'Updated' })
-    expect(res.status).toBe(403)
-    expect((await res.json()).error.code).toBe('FORBIDDEN')
-  })
-
-  it('400s when the orchestration rejects a built-in skill', async () => {
-    mockPerformUpdateSkill.mockResolvedValue({
-      success: false,
-      error: 'Built-in skills are read-only and cannot be modified',
-      errorCode: 'validation',
-    })
-    const res = await callPatch({ workspaceId: 'workspace-1', description: 'Updated' })
-    expect(res.status).toBe(400)
-    expect((await res.json()).error.message).toContain('Built-in')
-  })
-
-  it('gates on workspace read, leaving edit rights to the per-skill editor check', async () => {
-    await callPatch({ workspaceId: 'workspace-1', description: 'Updated' })
-    expect(mockResolveWorkspaceAccess).toHaveBeenCalledWith(
-      expect.anything(),
+    expect(mocks.capture).toHaveBeenCalledWith(
       'user-1',
-      'workspace-1',
-      'read'
+      'skill_updated',
+      expect.objectContaining({ skill_id: skill.id }),
+      expect.anything()
     )
   })
 
-  it('updates the skill and returns the single skill', async () => {
-    const res = await callPatch({ workspaceId: 'workspace-1', description: 'Updated' })
-    const body = await res.json()
+  it('deletes a skill through the semantic delete operation', async () => {
+    const response = await DELETE(request('DELETE'), context)
 
-    expect(res.status).toBe(200)
-    expect(body.data.skill.description).toBe('Updated')
-    expect(Array.isArray(body.data)).toBe(false)
-    expect(mockPerformUpdateSkill).toHaveBeenCalledWith(
-      expect.objectContaining({
-        workspaceId: 'workspace-1',
-        userId: 'user-1',
-        skillId: 'skl_abc123',
-        description: 'Updated',
-        source: 'api',
-      })
-    )
-  })
-})
-
-describe('DELETE /api/v2/skills/[id]', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
-    mockResolveWorkspaceAccess.mockResolvedValue(null)
-    mockPerformDeleteSkill.mockResolvedValue({ success: true, skill: buildSkill() })
-  })
-
-  it('returns 404 when the v2 API surface flag is off', async () => {
-    const { v2ApiGateError } = await import('@/app/api/v2/lib/gate')
-    const { v2Error } = await import('@/app/api/v2/lib/response')
-    vi.mocked(v2ApiGateError).mockResolvedValueOnce(v2Error('NOT_FOUND', 'Not found'))
-
-    const res = await callDelete()
-
-    expect(res.status).toBe(404)
-    expect(mockPerformDeleteSkill).not.toHaveBeenCalled()
-  })
-
-  it('400s when workspaceId is missing', async () => {
-    const res = await callDelete('')
-    expect(res.status).toBe(400)
-    expect(mockPerformDeleteSkill).not.toHaveBeenCalled()
-  })
-
-  it('surfaces an access-denied failure in the v2 error envelope', async () => {
-    mockResolveWorkspaceAccess.mockResolvedValue(ACCESS_DENIED)
-    const res = await callDelete()
-    expect(res.status).toBe(403)
-    expect(mockPerformDeleteSkill).not.toHaveBeenCalled()
-  })
-
-  it('returns the rate-limit response when denied', async () => {
-    mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_DENIED)
-    const res = await callDelete()
-    expect(res.status).toBe(429)
-    expect((await res.json()).error.code).toBe('RATE_LIMITED')
-  })
-
-  it('400s when the skill is a read-only built-in', async () => {
-    mockPerformDeleteSkill.mockResolvedValue({
-      success: false,
-      error: 'Built-in skills are read-only and cannot be modified',
-      errorCode: 'validation',
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ data: { id: skill.id, deleted: true } })
+    expect(mocks.remove).toHaveBeenCalledWith({
+      principal: PRINCIPAL,
+      input: { workspaceId: WORKSPACE_ID, skillId: skill.id, source: 'api' },
+      request: expect.anything(),
     })
-    const res = await callDelete()
-    expect(res.status).toBe(400)
   })
 
-  it('gates on workspace read, leaving delete rights to the per-skill editor check', async () => {
-    await callDelete()
-    expect(mockResolveWorkspaceAccess).toHaveBeenCalledWith(
-      expect.anything(),
-      'user-1',
-      'workspace-1',
-      'read'
-    )
-  })
+  it('authenticates before parsing an empty update body', async () => {
+    mocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
 
-  it('deletes the skill and acknowledges the id', async () => {
-    const res = await callDelete()
-    expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ data: { id: 'skl_abc123', deleted: true } })
-    expect(mockPerformDeleteSkill).toHaveBeenCalledWith(
-      expect.objectContaining({
-        workspaceId: 'workspace-1',
-        userId: 'user-1',
-        skillId: 'skl_abc123',
-        source: 'api',
-      })
-    )
+    const response = await PATCH(request('PATCH', {}), context)
+
+    expect(response.status).toBe(401)
+    expect(mocks.update).not.toHaveBeenCalled()
   })
 })

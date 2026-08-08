@@ -1,13 +1,15 @@
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, toError } from '@sim/utils/errors'
+import { toError } from '@sim/utils/errors'
+import { executeCopilotSkillUseCase } from '@/lib/copilot/application/execute-skill-use-case'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
-import { copilotToolCanWrite, copilotWriteDeniedMessage } from '@/lib/copilot/tools/permissions'
+import { asOrchestrationError } from '@/lib/core/orchestration/types'
+import { captureServerEvent } from '@/lib/posthog/server'
 import {
-  performCreateSkill,
-  performDeleteSkill,
-  performUpdateSkill,
-} from '@/lib/skills/orchestration'
-import { listSkillsForUser } from '@/lib/workflows/skills/operations'
+  createSkillUseCase,
+  deleteSkillUseCase,
+  listAvailableSkillsUseCase,
+  updateSkillUseCase,
+} from '@/lib/skills/application/use-cases'
 
 const logger = createLogger('CopilotToolExecutor')
 
@@ -37,18 +39,11 @@ export async function executeManageSkill(
     return { success: false, error: 'workspaceId is required' }
   }
 
-  // Workspace write gates only creation; edits and deletes are gated per skill
-  // below (skill editor — explicit editor row or derived workspace admin).
-  if (operation === 'add' && !copilotToolCanWrite(context.userPermission)) {
-    return {
-      success: false,
-      error: copilotWriteDeniedMessage('manage_skill', operation, context.userPermission),
-    }
-  }
-
   try {
     if (operation === 'list') {
-      const skills = await listSkillsForUser({ workspaceId, userId: context.userId })
+      const { skills } = await executeCopilotSkillUseCase(context, listAvailableSkillsUseCase, {
+        workspaceId,
+      })
 
       return {
         success: true,
@@ -74,26 +69,33 @@ export async function executeManageSkill(
         }
       }
 
-      const result = await performCreateSkill({
+      const { skill } = await executeCopilotSkillUseCase(context, createSkillUseCase, {
         workspaceId,
-        userId: context.userId,
         name: params.name,
         description: params.description,
         content: params.content,
         source: 'tool_input',
       })
-      if (!result.success || !result.skill) {
-        return { success: false, error: result.error ?? 'Failed to create skill' }
-      }
+      captureServerEvent(
+        context.userId,
+        'skill_created',
+        {
+          skill_id: skill.id,
+          skill_name: skill.name,
+          workspace_id: workspaceId,
+          source: 'tool_input',
+        },
+        { groups: { workspace: workspaceId } }
+      )
 
       return {
         success: true,
         output: {
           success: true,
           operation,
-          skillId: result.skill.id,
-          name: result.skill.name,
-          message: `Created skill "${result.skill.name}"`,
+          skillId: skill.id,
+          name: skill.name,
+          message: `Created skill "${skill.name}"`,
         },
       }
     }
@@ -109,28 +111,34 @@ export async function executeManageSkill(
         }
       }
 
-      // Partial update: omitted fields keep their current values server-side.
-      const result = await performUpdateSkill({
+      const { skill } = await executeCopilotSkillUseCase(context, updateSkillUseCase, {
         workspaceId,
-        userId: context.userId,
         skillId: params.skillId,
         ...(params.name ? { name: params.name } : {}),
         ...(params.description ? { description: params.description } : {}),
         ...(params.content ? { content: params.content } : {}),
         source: 'tool_input',
       })
-      if (!result.success || !result.skill) {
-        return { success: false, error: result.error ?? 'Failed to update skill' }
-      }
+      captureServerEvent(
+        context.userId,
+        'skill_updated',
+        {
+          skill_id: skill.id,
+          skill_name: skill.name,
+          workspace_id: workspaceId,
+          source: 'tool_input',
+        },
+        { groups: { workspace: workspaceId } }
+      )
 
       return {
         success: true,
         output: {
           success: true,
           operation,
-          skillId: result.skill.id,
-          name: result.skill.name,
-          message: `Updated skill "${result.skill.name}"`,
+          skillId: skill.id,
+          name: skill.name,
+          message: `Updated skill "${skill.name}"`,
         },
       }
     }
@@ -140,22 +148,24 @@ export async function executeManageSkill(
         return { success: false, error: "'skillId' is required for 'delete'" }
       }
 
-      const result = await performDeleteSkill({
+      const { skill } = await executeCopilotSkillUseCase(context, deleteSkillUseCase, {
         workspaceId,
-        userId: context.userId,
         skillId: params.skillId,
         source: 'tool_input',
       })
-      if (!result.success) {
-        return { success: false, error: result.error ?? 'Failed to delete skill' }
-      }
+      captureServerEvent(
+        context.userId,
+        'skill_deleted',
+        { skill_id: skill.id, workspace_id: workspaceId, source: 'tool_input' },
+        { groups: { workspace: workspaceId } }
+      )
 
       return {
         success: true,
         output: {
           success: true,
           operation,
-          skillId: params.skillId,
+          skillId: skill.id,
           message: 'Deleted skill',
         },
       }
@@ -173,9 +183,13 @@ export async function executeManageSkill(
         error: toError(error).message,
       }
     )
+    const classified = asOrchestrationError(error)
     return {
       success: false,
-      error: getErrorMessage(error, 'Failed to manage skill'),
+      error:
+        classified && classified.code !== 'internal'
+          ? classified.message
+          : 'Failed to manage skill',
     }
   }
 }
