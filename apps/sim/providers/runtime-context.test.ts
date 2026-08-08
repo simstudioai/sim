@@ -15,42 +15,23 @@ import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-tr
 import {
   type ExecuteProviderToolOptions,
   executeProviderTool as executeProviderToolWithInput,
-  projectProviderAttachmentFilenameForModel,
   runWithProviderRuntimeContext,
 } from '@/providers/runtime-context'
+import { registerProviderToolInputProvenance } from '@/providers/tool-input-provenance'
 import { prepareToolExecution } from '@/providers/utils'
 
 async function executeProviderTool(
   toolId: string,
   params: Parameters<typeof executeProviderToolWithInput>[1],
-  options: Omit<ExecuteProviderToolOptions, 'toolInput'> & {
-    toolInput?: Record<string, unknown>
-  } = {}
+  options: ExecuteProviderToolOptions = {}
 ) {
-  const execution = await executeProviderToolWithInput(toolId, params, {
-    toolInput: params,
-    ...options,
-  })
+  const execution = await executeProviderToolWithInput(toolId, params, options)
   return execution.modelResponse
 }
 
 describe('provider runtime context', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-  })
-
-  it('projects a provider-bound filename while preserving its inferred extension', () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'FILE_NAME', plaintext: 'report.pdf', encryptedValue: 'ciphertext' },
-    ])
-    registry.recordResolved('FILE_NAME', 'report.pdf')
-
-    const projected = runWithProviderRuntimeContext({ resolvedSecretTraceRegistry: registry }, () =>
-      projectProviderAttachmentFilenameForModel('report.pdf', 'pdf')
-    )
-
-    expect(projected).toBe('{{FILE_NAME}}.pdf')
-    expect(projectProviderAttachmentFilenameForModel('report.pdf', 'pdf')).toBe('report.pdf')
   })
 
   it('isolates concurrent tool executions without adding registry data to params', async () => {
@@ -142,7 +123,7 @@ describe('provider runtime context', () => {
       output: { text: 'Test', boolean: true, booleanText: 'true', number: 123, numberText: '123' },
     }
     mockExecuteTool.mockResolvedValueOnce(rawResult)
-    const { toolParams, executionParams } = prepareToolExecution(
+    const { executionParams } = prepareToolExecution(
       { params: { visible: 'unrelated' } },
       {},
       {
@@ -155,7 +136,7 @@ describe('provider runtime context', () => {
 
     const result = await runWithProviderRuntimeContext(
       { resolvedSecretTraceRegistry: registry },
-      () => executeProviderTool('custom-tool', executionParams, { toolInput: toolParams })
+      () => executeProviderTool('custom-tool', executionParams)
     )
 
     expect(result).toEqual(rawResult)
@@ -190,7 +171,7 @@ describe('provider runtime context', () => {
     expect(registry.isComplete()).toBe(true)
   })
 
-  it('projects a secret inherited through the exact current tool input', async () => {
+  it('does not infer output provenance from a secret in the current tool input', async () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
     ])
@@ -209,21 +190,142 @@ describe('provider runtime context', () => {
     const execution = await runWithProviderRuntimeContext(
       { resolvedSecretTraceRegistry: registry },
       () =>
-        executeProviderToolWithInput(
-          'custom-tool',
-          { token: 'secret-value', envVars: { unrelated: 'public' } },
-          { toolInput: { token: 'secret-value' } }
-        )
+        executeProviderToolWithInput('custom-tool', {
+          token: 'secret-value',
+          envVars: { unrelated: 'public' },
+        })
     )
 
     expect(execution.rawResponse).toBe(rawResult)
     expect(execution.rawResponse.output).toEqual({ authorization: 'Bearer secret-value' })
-    expect(execution.modelResponse).toEqual({
-      ...rawResult,
-      output: { authorization: 'Bearer {{TOKEN}}' },
-    })
+    expect(execution.modelResponse).toEqual(rawResult)
     expect(execution.modelResponse.resources).toBe(rawResult.resources)
     expect(registry.isComplete()).toBe(true)
+  })
+
+  it('projects only the active preset secret for the exact configured tool instance', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'ACTIVE', plaintext: 'x', encryptedValue: 'encrypted-active' },
+      { name: 'UNUSED', plaintext: 'true', encryptedValue: 'encrypted-unused' },
+    ])
+    const sourcePath = ['tools', '0', 'params', 'apiKey'] as const
+    registry.recordResolvedAtInputPath('ACTIVE', 'x', sourcePath)
+    registry.recordResolvedInputProjection(sourcePath, 'x', '{{ACTIVE}}')
+    const tool = {
+      id: 'duplicate-tool',
+      params: { apiKey: 'x' },
+      parameters: { type: 'object', properties: {}, required: [] },
+      paramsTransform: (params: Record<string, unknown>) => ({ token: params.apiKey }),
+    }
+    registerProviderToolInputProvenance(tool, {
+      registry,
+      sourcePath: ['tools', '0', 'params'],
+      projectedParams: { apiKey: '{{ACTIVE}}' },
+    })
+    const rawResult = { success: true, output: { reflected: 'x', ordinary: 'true' } }
+    mockExecuteTool.mockResolvedValueOnce(rawResult)
+
+    const execution = await runWithProviderRuntimeContext(
+      { resolvedSecretTraceRegistry: registry },
+      () => {
+        const { executionParams } = prepareToolExecution(tool, {}, {})
+        return executeProviderToolWithInput(tool.id, executionParams)
+      }
+    )
+
+    expect(execution.rawResponse).toBe(rawResult)
+    expect(execution.modelResponse.output).toEqual({
+      reflected: '{{ACTIVE}}',
+      ordinary: 'true',
+    })
+    expect(mockExecuteTool.mock.calls.at(-1)?.[1]).toEqual(expect.objectContaining({ token: 'x' }))
+    expect(mockExecuteTool.mock.calls.at(-1)?.[1]).not.toHaveProperty(
+      '__resolvedSecretTraceProvenance'
+    )
+  })
+
+  it('does not carry a prior low-entropy preset into a later duplicate tool instance', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'FIRST', plaintext: 'x', encryptedValue: 'encrypted-first' },
+    ])
+    const firstPath = ['tools', '0', 'params', 'apiKey'] as const
+    registry.recordResolvedAtInputPath('FIRST', 'x', firstPath)
+    registry.recordResolvedInputProjection(firstPath, 'x', '{{FIRST}}')
+    const firstTool = {
+      id: 'duplicate-tool',
+      params: { apiKey: 'x' },
+      parameters: { type: 'object', properties: {}, required: [] },
+    }
+    const secondTool = {
+      id: 'duplicate-tool',
+      params: { query: 'safe' },
+      parameters: { type: 'object', properties: {}, required: [] },
+    }
+    registerProviderToolInputProvenance(firstTool, {
+      registry,
+      sourcePath: ['tools', '0', 'params'],
+      projectedParams: { apiKey: '{{FIRST}}' },
+    })
+    registerProviderToolInputProvenance(secondTool, {
+      registry,
+      sourcePath: ['tools', '1', 'params'],
+      projectedParams: { query: 'safe' },
+    })
+    mockExecuteTool
+      .mockResolvedValueOnce({ success: true, output: { value: 'x' } })
+      .mockResolvedValueOnce({ success: true, output: { value: 'Box' } })
+
+    const executions = await runWithProviderRuntimeContext(
+      { resolvedSecretTraceRegistry: registry },
+      async () => {
+        const firstParams = prepareToolExecution(firstTool, {}, {}).executionParams
+        const first = await executeProviderToolWithInput(firstTool.id, firstParams)
+        const secondParams = prepareToolExecution(secondTool, {}, {}).executionParams
+        const second = await executeProviderToolWithInput(secondTool.id, secondParams)
+        return { first, second }
+      }
+    )
+
+    expect(executions.first.modelResponse.output).toEqual({ value: '{{FIRST}}' })
+    expect(executions.second.rawResponse.output).toEqual({ value: 'Box' })
+    expect(executions.second.modelResponse.output).toEqual({ value: 'Box' })
+  })
+
+  it('does not activate a configured preset that the deterministic transform drops', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'DROPPED', plaintext: 'x', encryptedValue: 'encrypted-dropped' },
+    ])
+    const sourcePath = ['tools', '0', 'params', 'inactive'] as const
+    registry.recordResolvedAtInputPath('DROPPED', 'x', sourcePath)
+    registry.recordResolvedInputProjection(sourcePath, 'x', '{{DROPPED}}')
+    const tool = {
+      id: 'conditional-tool',
+      params: { inactive: 'x', query: 'safe' },
+      parameters: { type: 'object', properties: {}, required: [] },
+      paramsTransform: (params: Record<string, unknown>) => ({ query: params.query }),
+    }
+    registerProviderToolInputProvenance(tool, {
+      registry,
+      sourcePath: ['tools', '0', 'params'],
+      projectedParams: { inactive: '{{DROPPED}}', query: 'safe' },
+    })
+    const rawResult = { success: true, output: { value: 'Box' } }
+    mockExecuteTool.mockResolvedValueOnce(rawResult)
+
+    const execution = await runWithProviderRuntimeContext(
+      { resolvedSecretTraceRegistry: registry },
+      () => {
+        const { executionParams } = prepareToolExecution(tool, {}, {})
+        return executeProviderToolWithInput(tool.id, executionParams)
+      }
+    )
+
+    expect(mockExecuteTool.mock.calls.at(-1)?.[1]).toEqual(
+      expect.objectContaining({ query: 'safe' })
+    )
+    expect(mockExecuteTool.mock.calls.at(-1)?.[1]).not.toHaveProperty('inactive')
+    expect(execution.rawResponse).toBe(rawResult)
+    expect(execution.modelResponse.output).toEqual({ value: 'Box' })
   })
 
   it('serializes dates for provider continuations while preserving the raw tool response', async () => {
@@ -237,7 +339,7 @@ describe('provider runtime context', () => {
 
     const execution = await runWithProviderRuntimeContext(
       { resolvedSecretTraceRegistry: registry },
-      () => executeProviderToolWithInput('custom-tool', {}, { toolInput: {} })
+      () => executeProviderToolWithInput('custom-tool', {})
     )
 
     expect(execution.rawResponse).toBe(rawResult)
@@ -273,7 +375,9 @@ describe('provider runtime context', () => {
       { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
     ])
     mockExecuteTool.mockImplementationOnce(async (_toolId, _params, options) => {
-      options.resolvedSecretTraceRegistry?.recordResolved('TOKEN', 'secret-value')
+      options.resolvedSecretTraceRegistry?.recordResolved('TOKEN', 'secret-value', {
+        propagated: true,
+      })
       return { success: true, output: 'secret-value' }
     })
 
@@ -292,7 +396,7 @@ describe('provider runtime context', () => {
         { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
       ])
       mockExecuteTool.mockImplementationOnce(async (_toolId, _params, options) => {
-        options.resolvedSecretTraceRegistry?.recordResolved('TOKEN', secret)
+        options.resolvedSecretTraceRegistry?.recordResolved('TOKEN', secret, { propagated: true })
         return {
           success: true,
           output: {
@@ -393,7 +497,7 @@ describe('provider runtime context', () => {
       if (toolId === 'sibling') await siblingGate
       const name = toolId === 'sibling' ? 'SIBLING' : 'COMPLETED'
       const plaintext = toolId === 'sibling' ? 'sibling-secret' : 'completed-secret'
-      toolCallRegistry.recordResolved(name, plaintext)
+      toolCallRegistry.recordResolved(name, plaintext, { propagated: true })
       finish()
       return { success: true, output: { value: plaintext } }
     })
@@ -451,7 +555,12 @@ describe('provider runtime context', () => {
       () => executeProviderTool('custom-tool', {})
     )
 
-    expect(result).toEqual({ success: false, output: {} })
+    expect(result).toEqual({
+      success: false,
+      output: {},
+      error:
+        'Tool execution settled, but its result could not be returned safely. Do not retry a mutation automatically.',
+    })
     expect(registry.isComplete()).toBe(false)
     expect(registry.getActiveMatches()).toEqual([])
   })
@@ -471,7 +580,7 @@ describe('provider runtime context', () => {
 
     const execution = await runWithProviderRuntimeContext(
       { resolvedSecretTraceRegistry: registry },
-      () => executeProviderToolWithInput('custom-tool', {}, { toolInput: {} })
+      () => executeProviderToolWithInput('custom-tool', {})
     )
 
     expect(execution.rawResponse.output).toHaveProperty('value', 'secret-value')
@@ -493,7 +602,7 @@ describe('provider runtime context', () => {
 
     const execution = await runWithProviderRuntimeContext(
       { resolvedSecretTraceRegistry: registry },
-      () => executeProviderToolWithInput('custom-tool', {}, { toolInput: {} })
+      () => executeProviderToolWithInput('custom-tool', {})
     )
 
     expect(execution.rawResponse).toEqual({
@@ -501,7 +610,12 @@ describe('provider runtime context', () => {
       output: {},
       error: 'secret-value',
     })
-    expect(execution.modelResponse).toEqual({ success: false, output: {} })
+    expect(execution.modelResponse).toEqual({
+      success: false,
+      output: {},
+      error:
+        'Tool execution settled, but its result could not be returned safely. Do not retry a mutation automatically.',
+    })
     expect(registry.isComplete()).toBe(false)
     expect(registry.getActiveMatches()).toEqual([])
   })

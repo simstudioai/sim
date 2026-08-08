@@ -60,7 +60,7 @@ const TEXT_TYPES = new Set([
 
 const PARSEABLE_EXTENSIONS = new Set(['pdf', 'docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt'])
 
-function isReadableType(contentType: string): boolean {
+export function isReadableFileType(contentType: string): boolean {
   return TEXT_TYPES.has(contentType) || contentType.startsWith('text/')
 }
 
@@ -374,7 +374,7 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
           }
         }
 
-        if (isReadableType(record.type)) {
+        if (isReadableFileType(record.type)) {
           span.setAttribute(TraceAttr.CopilotVfsReadPath, CopilotVfsReadPath.Text)
           if (record.size > MAX_TEXT_READ_BYTES) {
             span.setAttribute(TraceAttr.CopilotVfsReadOutcome, CopilotVfsReadOutcome.TextTooLarge)

@@ -70,13 +70,13 @@ export const firefliesUploadAudioTool: ToolConfig<
     modelInput: {
       mode: 'project',
       select: (params) => ({ language: params.language }),
-      privateProvenance: (params) => {
+      privateInputPaths: (params) => {
         if (isPlainRecord(params.audioFile)) {
-          if (params.audioFile.key) return undefined
-          if (params.audioFile.url) return { url: params.audioFile.url }
-          if (params.audioFile.path) return { path: params.audioFile.path }
+          if (params.audioFile.key) return []
+          if (params.audioFile.url) return [['audioFile', 'url']]
+          if (params.audioFile.path) return [['audioFile', 'path']]
         }
-        return params.audioUrl || undefined
+        return params.audioUrl ? [['audioUrl']] : []
       },
     },
     url: '/api/tools/fireflies/upload-audio',

@@ -441,7 +441,7 @@ describe('executeProviderRequest — streaming cost policy', () => {
   })
 })
 
-describe('executeProviderRequest — model secret projection', () => {
+describe('executeProviderRequest — caller-prepared model input', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockExecuteRequest.mockResolvedValue({
@@ -451,7 +451,7 @@ describe('executeProviderRequest — model secret projection', () => {
     } as ProviderResponse)
   })
 
-  it('projects only model-visible request content before provider execution', async () => {
+  it('does not rescan or rewrite a caller-prepared provider request', async () => {
     const secret = 'quoted"secret\\with\nnewline'
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
@@ -529,9 +529,9 @@ describe('executeProviderRequest — model secret projection', () => {
     )
 
     const sent = mockExecuteRequest.mock.calls[0][0]
-    expect(sent.systemPrompt).not.toContain(secret)
-    expect(sent.context).toBe('context {{TOKEN}}')
-    expect(sent.messages[0].content).toBe('message {{TOKEN}} {{TOKEN}}')
+    expect(sent.systemPrompt).toBe(`system ${secret}`)
+    expect(sent.context).toBe(`context ${secret}`)
+    expect(sent.messages[0].content).toBe(`message ${secret} __var_TOKEN`)
     expect(sent.messages[0].files[0]).toMatchObject({
       name: `${secret}.txt`,
       base64: 'c2FmZQ==',
@@ -540,14 +540,14 @@ describe('executeProviderRequest — model secret projection', () => {
       name: 'assistant-safe',
       function_call: {
         name: 'legacy-safe',
-        arguments: JSON.stringify({ value: '{{TOKEN}}' }),
+        arguments: JSON.stringify({ value: secret }),
       },
       tool_calls: [
         {
           id: `call-${secret}`,
           function: {
             name: 'tool-safe',
-            arguments: JSON.stringify({ value: '{{TOKEN}}' }),
+            arguments: JSON.stringify({ value: secret }),
           },
         },
       ],
@@ -555,22 +555,22 @@ describe('executeProviderRequest — model secret projection', () => {
     })
     expect(sent.tools[0]).toMatchObject({
       name: 'Safe Tool',
-      description: 'Description {{TOKEN}}',
+      description: `Description ${secret}`,
       params: { runtimeSecret: secret },
       parameters: {
-        properties: { value: { description: '{{TOKEN}}' } },
+        properties: { value: { description: secret } },
       },
     })
     expect(sent.responseFormat).toMatchObject({
       name: 'safe_result',
       schema: {
-        properties: { value: { description: '{{TOKEN}}' } },
+        properties: { value: { description: secret } },
       },
     })
     expect(sent.apiKey).toBe(secret)
     expect(sent.environmentVariables).toEqual({ TOKEN: secret })
     expect(sent.workflowVariables).toEqual({ raw: secret })
-    expect(JSON.stringify(sent)).not.toContain('__var_')
+    expect(JSON.stringify(sent)).toContain('__var_TOKEN')
   })
 
   it('does not infer provenance from a dormant request environment map', async () => {
@@ -666,7 +666,7 @@ describe('executeProviderRequest — model secret projection', () => {
     })
   })
 
-  it('omits only the response format when an active secret collides with its semantic keys', async () => {
+  it('preserves public prompt and schema text that equals an active secret', async () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'SCHEMA_KEY', plaintext: 'messages', encryptedValue: 'encrypted-schema-key' },
     ])
@@ -693,13 +693,18 @@ describe('executeProviderRequest — model secret projection', () => {
 
     const sent = mockExecuteRequest.mock.calls.at(-1)?.[0]
     expect(sent).toMatchObject({
-      systemPrompt: 'Choose loading {{SCHEMA_KEY}}',
-      messages: [{ role: 'user', content: 'Select {{SCHEMA_KEY}} for this request' }],
-      responseFormat: undefined,
+      systemPrompt: 'Choose loading messages',
+      messages: [{ role: 'user', content: 'Select messages for this request' }],
+      responseFormat: {
+        name: 'loading_messages',
+        schema: {
+          properties: { messages: { type: 'array', items: { type: 'string' } } },
+        },
+      },
     })
   })
 
-  it('omits a safe schema when no deterministic response-format name avoids an active secret', async () => {
+  it('preserves response-format control text without inventing replacement names', async () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'UNDERSCORE', plaintext: '_', encryptedValue: 'encrypted-underscore' },
     ])
@@ -720,11 +725,14 @@ describe('executeProviderRequest — model secret projection', () => {
 
     expect(mockExecuteRequest.mock.calls.at(-1)?.[0]).toMatchObject({
       messages: [{ role: 'user', content: 'Continue safely' }],
-      responseFormat: undefined,
+      responseFormat: {
+        name: 'unsafe_name',
+        schema: { type: 'object', properties: {} },
+      },
     })
   })
 
-  it('omits malformed and oversized optional schemas without failing the model call', async () => {
+  it('leaves provider schema validation to the provider adapter', async () => {
     const registry = new ResolvedSecretTraceRegistry()
     const oversizedSchema = { allOf: new Array(100_001) }
 
@@ -751,8 +759,8 @@ describe('executeProviderRequest — model secret projection', () => {
 
       expect(mockExecuteRequest.mock.calls.at(-1)?.[0]).toMatchObject({
         messages: [{ role: 'user', content: 'Continue safely' }],
-        tools: [],
-        responseFormat: undefined,
+        tools: [expect.objectContaining({ id: 'unsafe_tool', parameters: schema })],
+        responseFormat: { name: 'unsafe_response', schema },
       })
     }
   })
@@ -863,7 +871,7 @@ describe('executeProviderRequest — model secret projection', () => {
     expect(mockExecuteRequest).not.toHaveBeenCalled()
   })
 
-  it('projects JSON arguments without mutating attachment metadata before serialization', async () => {
+  it('preserves provider-generated JSON arguments and attachment metadata byte-for-byte', async () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'TOKEN', plaintext: 'TOKEN', encryptedValue: 'ciphertext' },
     ])
@@ -910,11 +918,11 @@ describe('executeProviderRequest — model secret projection', () => {
 
     const sent = mockExecuteRequest.mock.calls.at(-1)?.[0]
     expect(sent.messages[0]).toMatchObject({
-      content: '{{TOKEN}}',
-      function_call: { arguments: JSON.stringify({ value: '{{TOKEN}}' }) },
+      content: 'TOKEN',
+      function_call: { arguments: JSON.stringify({ value: 'TOKEN' }) },
       tool_calls: [
         {
-          function: { arguments: JSON.stringify({ value: '{{TOKEN}}' }) },
+          function: { arguments: JSON.stringify({ value: 'TOKEN' }) },
         },
       ],
       files: [
@@ -924,17 +932,14 @@ describe('executeProviderRequest — model secret projection', () => {
         },
       ],
     })
-    const modelVisible = JSON.stringify({
-      content: sent.messages[0].content,
-      function_call: sent.messages[0].function_call,
-      tool_calls: sent.messages[0].tool_calls,
-    })
-    expect(modelVisible.replaceAll('{{TOKEN}}', '')).not.toContain('TOKEN')
-    expect(modelVisible).not.toContain('{{{{TOKEN}}}}')
+    expect(sent.messages[0].function_call.arguments).toBe(JSON.stringify({ value: 'TOKEN' }))
+    expect(sent.messages[0].tool_calls[0].function.arguments).toBe(
+      JSON.stringify({ value: 'TOKEN' })
+    )
   })
 
   it.each(['123', 'true'])(
-    'keeps low-entropy JSON valid, projects typed conversions, and preserves transport IDs (%s)',
+    'never infers provenance from low-entropy values in provider protocol fields (%s)',
     async (secret) => {
       const registry = new ResolvedSecretTraceRegistry([
         { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
@@ -1042,7 +1047,7 @@ describe('executeProviderRequest — model secret projection', () => {
       expect(sent.messages[0]).toMatchObject({
         role: 'assistant',
         name: 'assistant-safe',
-        content: '{{TOKEN}}',
+        content: secret,
         function_call: {
           name: 'legacy-safe',
         },
@@ -1057,12 +1062,12 @@ describe('executeProviderRequest — model secret projection', () => {
         tool_call_id: secret,
       })
       expect(JSON.parse(sent.messages[0].function_call.arguments)).toEqual({
-        value: '{{TOKEN}}',
-        converted: '{{TOKEN}}',
+        value: secret,
+        converted,
       })
       expect(JSON.parse(sent.messages[0].tool_calls[0].function.arguments)).toEqual({
-        value: '{{TOKEN}}',
-        converted: '{{TOKEN}}',
+        value: secret,
+        converted,
       })
       expect(sent.messages[0].files[0]).toEqual({
         id: secret,
@@ -1076,29 +1081,29 @@ describe('executeProviderRequest — model secret projection', () => {
         providerFileUri: `provider://${secret}`,
         remoteUrl: `https://remote.example/${secret}`,
       })
-      expect(sent.tools).toHaveLength(1)
+      expect(sent.tools).toHaveLength(3)
       expect(sent.tools[0]).toMatchObject({
         id: 'safe_tool',
         name: 'Safe Tool',
-        description: 'Description {{TOKEN}}',
+        description: `Description ${secret}`,
         params: { runtimeControl: secret },
         parameters: {
           properties: {
             value: {
-              title: 'Title {{TOKEN}}',
-              description: 'Field {{TOKEN}}',
+              title: `Title ${secret}`,
+              description: `Field ${secret}`,
               enum: ['public'],
             },
           },
           required: ['value'],
         },
       })
-      expect(sent.responseFormat.name).not.toBe(secret)
+      expect(sent.responseFormat.name).toBe(secret)
       expect(sent.responseFormat).toMatchObject({
         schema: {
           properties: {
             value: {
-              description: 'Result {{TOKEN}}',
+              description: `Result ${secret}`,
               enum: ['public'],
             },
           },
@@ -1109,7 +1114,7 @@ describe('executeProviderRequest — model secret projection', () => {
   )
 
   it.each(ARBITRARY_SCHEMA_CONTROL_KEYS)(
-    'guards arbitrary %s schema controls while omitting only the unsafe model capability',
+    'preserves caller-prepared %s schema controls without plaintext inference',
     async (controlKey) => {
       const secret = `schema-control-secret-${controlKey}`
       const registry = new ResolvedSecretTraceRegistry([
@@ -1147,6 +1152,7 @@ describe('executeProviderRequest — model secret projection', () => {
       )
 
       expect(mockExecuteRequest.mock.calls.at(-1)?.[0].tools).toEqual([
+        expect.objectContaining({ id: 'unsafe_tool', parameters: unsafeSchema }),
         expect.objectContaining({ id: 'safe_tool' }),
       ])
 
@@ -1163,10 +1169,10 @@ describe('executeProviderRequest — model secret projection', () => {
       expect(mockExecuteRequest).toHaveBeenCalledWith(
         expect.objectContaining({
           messages: [{ role: 'user', content: 'Continue safely' }],
-          responseFormat: undefined,
+          responseFormat: { name: 'unsafe_response', schema: unsafeSchema },
         })
       )
-      expect(JSON.stringify(mockExecuteRequest.mock.calls.at(-1)?.[0])).not.toContain(secret)
+      expect(JSON.stringify(mockExecuteRequest.mock.calls.at(-1)?.[0])).toContain(secret)
     }
   )
 
@@ -1247,7 +1253,7 @@ describe('executeProviderRequest — model secret projection', () => {
   })
 
   it.each(['123', 'true'])(
-    'omits a response schema whose semantic value equals a secret (%s)',
+    'preserves a response schema whose semantic value equals an active secret (%s)',
     async (secret) => {
       const registry = new ResolvedSecretTraceRegistry([
         { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
@@ -1270,34 +1276,31 @@ describe('executeProviderRequest — model secret projection', () => {
       expect(mockExecuteRequest).toHaveBeenCalledWith(
         expect.objectContaining({
           messages: [{ role: 'user', content: 'Continue safely' }],
-          responseFormat: undefined,
+          responseFormat: {
+            name: 'safe_response',
+            schema: { type: 'object', properties: {}, enum: [semanticValue] },
+          },
         })
       )
       expect(mockExecuteRequest.mock.calls.at(-1)?.[0].systemPrompt).toBeUndefined()
     }
   )
 
-  it('fails before invoking a provider when an expected registry is incomplete or missing', async () => {
+  it('does not make provider execution depend on registry completeness', async () => {
     const incomplete = new ResolvedSecretTraceRegistry()
     incomplete.markIncomplete()
 
-    await expect(
-      executeProviderRequest(
-        'anthropic',
-        { model: 'test-model', messages: [{ role: 'user', content: 'possibly secret' }] },
-        { resolvedSecretTraceRegistry: incomplete }
-      )
-    ).rejects.toThrow('Model input could not be safely projected')
-    await expect(
-      executeProviderRequest(
-        'anthropic',
-        { model: 'test-model', messages: [{ role: 'user', content: 'possibly secret' }] },
-        {}
-      )
-    ).rejects.toThrow('Model input could not be safely projected')
-    expect(mockAttachLargeFileRemoteUrls).not.toHaveBeenCalled()
-    expect(mockUploadLargeFilesToProvider).not.toHaveBeenCalled()
-    expect(mockExecuteRequest).not.toHaveBeenCalled()
+    await executeProviderRequest(
+      'anthropic',
+      { model: 'test-model', messages: [{ role: 'user', content: 'possibly secret' }] },
+      { resolvedSecretTraceRegistry: incomplete }
+    )
+    await executeProviderRequest(
+      'anthropic',
+      { model: 'test-model', messages: [{ role: 'user', content: 'possibly secret' }] },
+      {}
+    )
+    expect(mockExecuteRequest).toHaveBeenCalledTimes(2)
   })
 
   it('leaves non-workflow provider callers unchanged when no runtime context is supplied', async () => {

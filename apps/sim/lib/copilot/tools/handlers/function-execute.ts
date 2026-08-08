@@ -103,19 +103,24 @@ async function importMountedWorkspaceFileProvenance(args: {
   mountPath: string
   registry?: ResolvedSecretTraceRegistry
 }): Promise<void> {
-  const imported = await importWorkspaceFileSecretProvenanceForRuntime({
-    workspaceId: args.workspaceId,
-    identity: {
-      fileId: args.record.id,
-      key: args.record.key,
-      context: args.record.storageContext ?? 'workspace',
-    },
-    registry: args.registry,
-  })
-  if (!imported) {
+  if (!args.registry) {
     throw new Error(
       `Input file "${args.mountPath}" cannot be mounted because its secret provenance is unavailable.`
     )
+  }
+  try {
+    const imported = await importWorkspaceFileSecretProvenanceForRuntime({
+      workspaceId: args.workspaceId,
+      identity: {
+        fileId: args.record.id,
+        key: args.record.key,
+        context: args.record.storageContext ?? 'workspace',
+      },
+      registry: args.registry,
+    })
+    if (!imported) args.registry.markIncomplete()
+  } catch {
+    args.registry.markIncomplete()
   }
 }
 
@@ -448,15 +453,20 @@ export async function resolveInputFiles(
       // Large/hot tables mount by reference from a version-keyed CSV snapshot in object storage.
       if (snapshotCacheEnabled && table.rowCount >= SNAPSHOT_MIN_ROWS) {
         const snapshot = await getOrCreateTableSnapshot(table, 'copilot-fn-exec')
-        const safeForModelMount = await isTableSnapshotSafeForModelMount({
-          tableId: table.id,
-          workspaceId,
-          rowsVersion: snapshot.version,
-        })
-        if (!safeForModelMount) {
+        if (!resolvedSecretTraceRegistry) {
           throw new Error(
-            `Input table "${tableId}" cannot be mounted because its secret provenance is not safe for an opaque sandbox file.`
+            `Input table "${tableId}" cannot be mounted because its secret provenance is unavailable.`
           )
+        }
+        try {
+          const safeForModelMount = await isTableSnapshotSafeForModelMount({
+            tableId: table.id,
+            workspaceId,
+            rowsVersion: snapshot.version,
+          })
+          if (!safeForModelMount) resolvedSecretTraceRegistry.markIncomplete()
+        } catch {
+          resolvedSecretTraceRegistry.markIncomplete()
         }
 
         if (hasCloudStorage()) {
@@ -506,14 +516,24 @@ export async function resolveInputFiles(
         { limit: TABLE_LIMITS.DEFAULT_QUERY_LIMIT },
         'copilot-fn-exec'
       )
-      const provenance = await loadTableRowSecretProvenance(rows.rows, {
-        userId: provenanceUserId ?? 'opaque-model-mount',
-        workspaceId,
-      })
-      if (!provenance.complete || provenance.entries.length > 0) {
+      if (!resolvedSecretTraceRegistry) {
         throw new Error(
-          `Input table "${tableId}" cannot be mounted because its secret provenance is not safe for an opaque sandbox file.`
+          `Input table "${tableId}" cannot be mounted because its secret provenance is unavailable.`
         )
+      }
+      try {
+        const provenance = await loadTableRowSecretProvenance(rows.rows, {
+          userId: provenanceUserId ?? 'opaque-model-mount',
+          workspaceId,
+        })
+        if (
+          !provenance.complete ||
+          !(await resolvedSecretTraceRegistry.importProvenance(provenance, { trusted: true }))
+        ) {
+          resolvedSecretTraceRegistry.markIncomplete()
+        }
+      } catch {
+        resolvedSecretTraceRegistry.markIncomplete()
       }
 
       const columns = table.schema.columns
@@ -636,30 +656,19 @@ export async function executeFunctionExecute(
           secretActorUserId ?? context.userId,
           mountedRegistry
         )
-        // Every mount ships its provenance envelope, tables included. The route classifies an
-        // output file from that envelope, so a mount without one is unclassifiable there — it
-        // cannot tell "nothing secret was mounted" from "nobody said". Emitting on the same
-        // condition that produces the mount keeps the two from drifting apart.
         if (resolved.length > 0) {
           const existing = (enrichedParams._sandboxFiles as SandboxFile[]) || []
           enrichedParams._sandboxFiles = [...existing, ...resolved]
 
-          // The envelope attests to the WHOLE mounted set or it is not emitted at all. Mounts
-          // that arrived already on the params came from outside this resolver, so
-          // `mountedRegistry` knows nothing about them; an envelope covering only `resolved`
-          // would read at the route as a complete attestation over every mounted byte. With no
-          // envelope the route fails closed instead, which is the honest answer.
-          if (existing.length === 0) {
-            const provenance = mountedRegistry.exportProvenance()
-            const bundle: PrivateSecretProvenanceBundleV1 = {
-              version: 1,
-              complete: provenance.complete,
-              selections: provenance.complete
-                ? [{ key: MOUNTED_WORKSPACE_FILES_PROVENANCE_KEY, provenance }]
-                : [],
-            }
-            enrichedParams[PRIVATE_SECRET_PROVENANCE_FIELD] = bundle
+          const provenance = mountedRegistry.exportProvenance()
+          const bundle: PrivateSecretProvenanceBundleV1 = {
+            version: 1,
+            complete: provenance.complete,
+            selections: provenance.complete
+              ? [{ key: MOUNTED_WORKSPACE_FILES_PROVENANCE_KEY, provenance }]
+              : [],
           }
+          enrichedParams[PRIVATE_SECRET_PROVENANCE_FIELD] = bundle
         }
       }
     }

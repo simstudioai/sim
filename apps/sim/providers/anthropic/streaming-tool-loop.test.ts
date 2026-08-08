@@ -14,6 +14,7 @@ import { createAnthropicStreamingToolLoopStream } from '@/providers/anthropic/st
 import type { AnthropicUsageLike } from '@/providers/anthropic/usage'
 import { runWithProviderRuntimeContext } from '@/providers/runtime-context'
 import type { AgentStreamEvent } from '@/providers/stream-events'
+import { registerPreparedProviderToolInputProvenance } from '@/providers/tool-input-provenance'
 import type { TimeSegment } from '@/providers/types'
 
 const { mockExecuteTool, mockPrepareToolExecution } = vi.hoisted(() => ({
@@ -260,10 +261,23 @@ describe('createAnthropicStreamingToolLoopStream', () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
     ])
-    registry.recordResolved('TOKEN', secret)
+    const sourcePath = ['tools', '0', 'params', 'token'] as const
+    registry.recordResolvedAtInputPath('TOKEN', secret, sourcePath)
+    registry.recordResolvedInputProjection(sourcePath, secret, '{{TOKEN}}')
+    const executionParams = { token: secret }
+    const inputRegistry = registry.forkForInputPaths([['tools', '0', 'params']])
+    inputRegistry.recordTransformedInputProjection(
+      { params: executionParams },
+      { params: { token: '{{TOKEN}}' } }
+    )
+    registerPreparedProviderToolInputProvenance(executionParams, {
+      parentRegistry: registry,
+      registry: inputRegistry,
+      inputPaths: [['params']],
+    })
     mockPrepareToolExecution.mockReturnValue({
-      toolParams: { token: secret },
-      executionParams: { token: secret },
+      toolParams: executionParams,
+      executionParams,
     })
     mockExecuteTool.mockResolvedValue({
       success: true,

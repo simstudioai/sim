@@ -25,9 +25,9 @@ interface KnowledgeModelInputContext {
 const knowledgeModelInputContext = new AsyncLocalStorage<KnowledgeModelInputContext>()
 
 /**
- * Authenticates and imports provenance supplied by the internal tool transport. External
- * headerless calls retain their existing behavior; internal calls and private envelopes fail
- * closed when metadata is missing, partial, or forged.
+ * Authenticates and imports provenance supplied by the internal tool transport. A missing envelope
+ * is the additive legacy protocol. Once either half of the private protocol is present, partial or
+ * forged metadata fails closed.
  */
 export async function prepareKnowledgeModelInputProvenance(options: {
   headers: HeaderReader
@@ -38,11 +38,7 @@ export async function prepareKnowledgeModelInputProvenance(options: {
   modelInput: unknown
 }): Promise<KnowledgeModelInputProvenancePreparation> {
   const inspection = inspectModelInputProvenanceRequest(options.headers, options.payload)
-  if (inspection.status === 'unsupported') {
-    return options.isInternalRequest
-      ? { success: false, error: 'Model input provenance is unavailable', status: 400 }
-      : { success: true }
-  }
+  if (inspection.status === 'unsupported') return { success: true }
   if (inspection.status === 'invalid' || !options.isInternalRequest) {
     return { success: false, error: 'Invalid model input provenance', status: 400 }
   }

@@ -332,7 +332,7 @@ export interface BlockState {
   output: NormalizedBlockOutput
   executed: boolean
   executionTime: number
-  /** Encrypted provenance filtered to this exact output. Absent means legacy/untracked state. */
+  /** Encrypted candidates active in this block call. Consumers filter them to the selected value. */
   resolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
 }
 

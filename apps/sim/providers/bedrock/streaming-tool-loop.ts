@@ -422,7 +422,6 @@ export function createBedrockStreamingToolLoopStream(
                   executionParams,
                   {
                     signal: loopAbortController.signal,
-                    toolInput: toolParams,
                   }
                 )
                 const toolCallEndTime = Date.now()

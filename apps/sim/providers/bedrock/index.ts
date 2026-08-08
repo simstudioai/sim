@@ -35,10 +35,7 @@ import {
   getProviderModels,
   supportsNativeStructuredOutputs,
 } from '@/providers/models'
-import {
-  executeProviderTool,
-  projectProviderAttachmentFilenameForModel,
-} from '@/providers/runtime-context'
+import { executeProviderTool } from '@/providers/runtime-context'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
 import { isAbortError, parseToolArguments } from '@/providers/streaming-tool-loop-shared'
@@ -213,12 +210,7 @@ export const bedrockProvider: ProviderConfig = {
           }
         } else {
           const role: ConversationRole = msg.role === 'assistant' ? 'assistant' : 'user'
-          const content = buildBedrockMessageContent(
-            msg.content,
-            msg.files,
-            'bedrock',
-            projectProviderAttachmentFilenameForModel
-          )
+          const content = buildBedrockMessageContent(msg.content, msg.files, 'bedrock')
           messages.push({
             role,
             // double-cast-allowed: shared attachment builder emits Bedrock Converse content blocks while keeping provider-neutral attachment types
@@ -677,7 +669,6 @@ export const bedrockProvider: ProviderConfig = {
               executionParams,
               {
                 signal: request.abortSignal,
-                toolInput: toolParams,
               }
             )
             const toolCallEndTime = Date.now()

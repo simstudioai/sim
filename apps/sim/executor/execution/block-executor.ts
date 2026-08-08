@@ -101,8 +101,9 @@ export class BlockExecutor {
     }
 
     const parentResolvedSecretTraceRegistry = ctx.resolvedSecretTraceRegistry
-    const blockResolvedSecretTraceRegistry =
-      parentResolvedSecretTraceRegistry?.forkForToolInputValues([])
+    const blockResolvedSecretTraceRegistry = parentResolvedSecretTraceRegistry?.forkForInputPaths(
+      []
+    )
     const blockCtx = blockResolvedSecretTraceRegistry
       ? { ...ctx, resolvedSecretTraceRegistry: blockResolvedSecretTraceRegistry }
       : ctx

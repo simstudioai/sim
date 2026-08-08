@@ -2,6 +2,7 @@ import type { MothershipResource } from '@/lib/copilot/resources/types'
 import type { HostedKeyRateLimitConfig } from '@/lib/core/rate-limiter'
 import type { PrivateSecretProvenanceSelection } from '@/lib/execution/model-input-provenance'
 import type { OAuthService } from '@/lib/oauth'
+import type { ResolvedSecretInputPath } from '@/executor/utils/resolved-secret-trace-registry'
 
 export type BYOKProviderId =
   | 'openai'
@@ -201,7 +202,7 @@ export interface ToolConfig<P = any, R = any> {
            * signed URLs. Provenance is delivered privately to an authenticated internal route,
            * which owns the final allow/reject decision.
            */
-          privateProvenance?: (params: P) => unknown
+          privateInputPaths?: (params: P) => readonly ResolvedSecretInputPath[]
         }
       | {
           /**
@@ -209,7 +210,7 @@ export interface ToolConfig<P = any, R = any> {
            * the corresponding projection boundary.
            */
           mode: 'private-provenance'
-          select: (params: P) => unknown
+          inputPaths: (params: P) => readonly ResolvedSecretInputPath[]
         }
     /**
      * Selects model-bound values whose byte representation cannot be rewritten safely. The
@@ -218,7 +219,7 @@ export interface ToolConfig<P = any, R = any> {
      */
     opaqueModelInput?: {
       mode: 'reject-resolved-secrets'
-      select: (params: P) => unknown
+      inputPaths: (params: P) => readonly ResolvedSecretInputPath[]
     }
     /**
      * Transports encrypted secret provenance across an authenticated internal

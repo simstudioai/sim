@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 
-import { loggerMock } from '@sim/testing'
+import { encryptionMock, encryptionMockFns, loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table'
 
@@ -19,6 +19,8 @@ vi.mock('@/lib/table/service', () => ({
 vi.mock('@/lib/table/rows/service', () => ({
   replaceTableRows: mockReplaceTableRows,
 }))
+
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 vi.mock('@/lib/copilot/request/otel', () => ({
   withCopilotSpan: (
@@ -147,22 +149,25 @@ describe('maybeWriteOutputToTable', () => {
     expect(table.id).toBe('tbl_1')
   })
 
-  it('projects activated secrets before persistence without rewriting sibling literals', async () => {
-    const parentRegistry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'OUTPUT_SECRET',
-        plaintext: 'secret-value',
-        encryptedValue: 'encrypted-output-secret',
-      },
-      {
-        name: 'UNRELATED',
-        plaintext: 'true',
-        encryptedValue: 'encrypted-unrelated',
-      },
-    ])
+  it('persists raw values with per-cell provenance without rewriting sibling literals', async () => {
+    const parentRegistry = new ResolvedSecretTraceRegistry(
+      [
+        {
+          name: 'OUTPUT_SECRET',
+          plaintext: 'secret-value',
+          encryptedValue: 'encrypted-output-secret',
+        },
+        {
+          name: 'UNRELATED',
+          plaintext: 'true',
+          encryptedValue: 'encrypted-unrelated',
+        },
+      ],
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
     parentRegistry.recordResolved('UNRELATED', 'true')
-    const toolRegistry = parentRegistry.forkForToolInput({ code: 'return {{OUTPUT_SECRET}}' })
-    toolRegistry.recordResolved('OUTPUT_SECRET', 'secret-value')
+    const toolRegistry = parentRegistry.forkForInputPaths([])
+    toolRegistry.recordResolved('OUTPUT_SECRET', 'secret-value', { propagated: true })
     const runtimeRows = [{ name: 'secret-value', age: '123', status: 'true' }]
 
     const result = await maybeWriteOutputToTable(
@@ -173,9 +178,35 @@ describe('maybeWriteOutputToTable', () => {
     )
 
     expect(result.success).toBe(true)
-    const persistedRows = mockReplaceTableRows.mock.calls[0][0].rows
+    const persistedWrite = mockReplaceTableRows.mock.calls[0][0]
+    const persistedRows = persistedWrite.rows
     expect(persistedRows).toEqual([
-      { col_name: '{{OUTPUT_SECRET}}', col_age: '123', col_status: 'true' },
+      { col_name: 'secret-value', col_age: '123', col_status: 'true' },
+    ])
+    expect(persistedWrite.secretProvenance).toEqual([
+      {
+        complete: true,
+        columns: {
+          col_name: {
+            version: 1,
+            complete: true,
+            entries: [{ name: 'OUTPUT_SECRET', encryptedValue: 'encrypted-output-secret' }],
+            scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+          },
+          col_age: {
+            version: 1,
+            complete: true,
+            entries: [],
+            scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+          },
+          col_status: {
+            version: 1,
+            complete: true,
+            entries: [],
+            scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+          },
+        },
+      },
     ])
     expect(runtimeRows).toEqual([{ name: 'secret-value', age: '123', status: 'true' }])
 
@@ -189,14 +220,164 @@ describe('maybeWriteOutputToTable', () => {
       },
     })
 
+    encryptionMockFns.mockDecryptSecret.mockResolvedValue({ decrypted: 'secret-value' })
+    const readRegistry = new ResolvedSecretTraceRegistry([], {
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+    })
+    expect(
+      await readRegistry.importCrossingProvenance(
+        persistedWrite.secretProvenance[0].columns.col_name,
+        persistedRows,
+        { trusted: true }
+      )
+    ).toBe(true)
     const laterRead = projectToolResultForCopilot(
       { success: true, output: { data: { rows: persistedRows } } },
-      new ResolvedSecretTraceRegistry()
+      readRegistry
     )
-    expect(laterRead.output).toEqual({ data: { rows: persistedRows } })
+    expect(laterRead.output).toEqual({
+      data: {
+        rows: [{ col_name: '{{OUTPUT_SECRET}}', col_age: '123', col_status: 'true' }],
+      },
+    })
   })
 
-  it('does not write when table persistence provenance is incomplete', async () => {
+  it('never rewrites stored public text when an active secret has a common value', async () => {
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'SHORT_SECRET', plaintext: 'x', encryptedValue: 'encrypted-short-secret' }],
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+    registry.recordResolved('SHORT_SECRET', 'x')
+    const rows = [{ name: 'Box eSign' }, { name: 'Brex' }, { name: 'hex' }]
+
+    const result = await maybeWriteOutputToTable(
+      FunctionExecute.id,
+      { outputTable: 'tbl_1' },
+      { success: true, output: { result: rows } },
+      buildContext({ resolvedSecretTraceRegistry: registry })
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockReplaceTableRows.mock.calls[0][0].rows).toEqual([
+      { col_name: 'Box eSign' },
+      { col_name: 'Brex' },
+      { col_name: 'hex' },
+    ])
+  })
+
+  it('binds provenance to the values produced by table coercion', async () => {
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        { name: 'NUMBER_SECRET', plaintext: '123', encryptedValue: 'encrypted-number' },
+        { name: 'INVALID_SECRET', plaintext: 'not-a-number', encryptedValue: 'encrypted-invalid' },
+      ],
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+    registry.recordResolved('NUMBER_SECRET', '123')
+    registry.recordResolved('INVALID_SECRET', 'not-a-number')
+
+    const result = await maybeWriteOutputToTable(
+      FunctionExecute.id,
+      { outputTable: 'tbl_1' },
+      {
+        success: true,
+        output: { result: [{ age: '123' }, { age: 'not-a-number' }] },
+      },
+      buildContext({ resolvedSecretTraceRegistry: registry })
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockReplaceTableRows.mock.calls[0][0].secretProvenance).toEqual([
+      {
+        complete: true,
+        columns: {
+          col_age: {
+            version: 1,
+            complete: true,
+            entries: [{ name: 'NUMBER_SECRET', encryptedValue: 'encrypted-number' }],
+            scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+          },
+        },
+      },
+      {
+        complete: true,
+        columns: {
+          col_age: {
+            version: 1,
+            complete: true,
+            entries: [],
+            scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+          },
+        },
+      },
+    ])
+  })
+
+  it('accepts same-workspace provenance from a different actor and preserves its source', async () => {
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'OUTPUT_SECRET', plaintext: 'secret-value', encryptedValue: 'encrypted-secret' }],
+      { userId: 'workflow-owner', workspaceId: 'workspace-1' }
+    )
+    registry.recordResolved('OUTPUT_SECRET', 'secret-value')
+
+    const result = await maybeWriteOutputToTable(
+      FunctionExecute.id,
+      { outputTable: 'tbl_1' },
+      { success: true, output: { result: [{ name: 'secret-value' }] } },
+      buildContext({ userId: 'billing-actor', resolvedSecretTraceRegistry: registry })
+    )
+
+    expect(result.success).toBe(true)
+    expect(
+      mockReplaceTableRows.mock.calls[0][0].secretProvenance[0].columns.col_name.scope
+    ).toEqual({ userId: 'workflow-owner', workspaceId: 'workspace-1' })
+  })
+
+  it('persists raw rows with unknown provenance when the source workspace differs', async () => {
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'OUTPUT_SECRET', plaintext: 'secret-value', encryptedValue: 'encrypted-secret' }],
+      { userId: 'user-1', workspaceId: 'workspace-2' }
+    )
+    registry.recordResolved('OUTPUT_SECRET', 'secret-value')
+
+    const result = await maybeWriteOutputToTable(
+      FunctionExecute.id,
+      { outputTable: 'tbl_1' },
+      { success: true, output: { result: [{ name: 'secret-value' }] } },
+      buildContext({ resolvedSecretTraceRegistry: registry })
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockReplaceTableRows).toHaveBeenCalledWith(
+      expect.objectContaining({ secretProvenance: [{ complete: false, columns: {} }] }),
+      expect.anything(),
+      expect.any(String)
+    )
+  })
+
+  it('persists raw rows with unknown provenance when the source scope is unavailable', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'OUTPUT_SECRET', plaintext: 'secret-value', encryptedValue: 'encrypted-secret' },
+    ])
+    registry.recordResolved('OUTPUT_SECRET', 'secret-value')
+
+    const result = await maybeWriteOutputToTable(
+      FunctionExecute.id,
+      { outputTable: 'tbl_1' },
+      { success: true, output: { result: [{ name: 'secret-value' }] } },
+      buildContext({ resolvedSecretTraceRegistry: registry })
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockReplaceTableRows).toHaveBeenCalledWith(
+      expect.objectContaining({ secretProvenance: [{ complete: false, columns: {} }] }),
+      expect.anything(),
+      expect.any(String)
+    )
+  })
+
+  it('persists raw rows with unknown provenance when lineage is incomplete', async () => {
     const registry = new ResolvedSecretTraceRegistry()
     registry.markIncomplete()
 
@@ -207,14 +388,15 @@ describe('maybeWriteOutputToTable', () => {
       buildContext({ resolvedSecretTraceRegistry: registry })
     )
 
-    expect(result).toEqual({
-      success: false,
-      error: 'Tool output could not be persisted safely because secret provenance was unavailable.',
-    })
-    expect(mockReplaceTableRows).not.toHaveBeenCalled()
+    expect(result.success).toBe(true)
+    expect(mockReplaceTableRows).toHaveBeenCalledWith(
+      expect.objectContaining({ secretProvenance: [{ complete: false, columns: {} }] }),
+      expect.anything(),
+      expect.any(String)
+    )
   })
 
-  it('preserves legacy table writes when execution provenance is unavailable', async () => {
+  it('preserves legacy table writes without certifying unavailable provenance', async () => {
     const result = await maybeWriteOutputToTable(
       FunctionExecute.id,
       { outputTable: 'tbl_1' },
@@ -224,7 +406,10 @@ describe('maybeWriteOutputToTable', () => {
 
     expect(result.success).toBe(true)
     expect(mockReplaceTableRows).toHaveBeenCalledWith(
-      expect.objectContaining({ rows: [{ col_name: 'unknown' }] }),
+      expect.objectContaining({
+        rows: [{ col_name: 'unknown' }],
+        secretProvenance: [{ complete: false, columns: {} }],
+      }),
       expect.anything(),
       expect.any(String)
     )
@@ -271,10 +456,11 @@ describe('maybeWriteOutputToTable', () => {
   })
 
   it('keeps raw errors for terminal projection but projects application logs and OTel events', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'SECRET', plaintext: 'secret-value', encryptedValue: 'encrypted-secret-value' },
-    ])
-    registry.recordResolved('SECRET', 'secret-value')
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'SECRET', plaintext: 'secret-value', encryptedValue: 'encrypted-secret-value' }],
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+    registry.recordResolved('SECRET', 'secret-value', { propagated: true })
     mockReplaceTableRows.mockRejectedValue(new Error('Duplicate value "secret-value"'))
 
     const result = await maybeWriteOutputToTable(
@@ -343,11 +529,14 @@ describe('maybeWriteReadCsvToTable', () => {
     ])
   })
 
-  it('projects active secret literals into string-compatible CSV columns', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'NUMBER', plaintext: '123', encryptedValue: 'encrypted-number' },
-      { name: 'BOOLEAN', plaintext: 'true', encryptedValue: 'encrypted-boolean' },
-    ])
+  it('persists raw CSV cells with per-cell secret provenance', async () => {
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        { name: 'NUMBER', plaintext: '123', encryptedValue: 'encrypted-number' },
+        { name: 'BOOLEAN', plaintext: 'true', encryptedValue: 'encrypted-boolean' },
+      ],
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
     registry.recordResolved('NUMBER', '123')
     registry.recordResolved('BOOLEAN', 'true')
 
@@ -363,8 +552,27 @@ describe('maybeWriteReadCsvToTable', () => {
       expect.objectContaining({
         rows: [
           {
-            col_name: '{{NUMBER}}',
-            col_status: '{{BOOLEAN}}',
+            col_name: '123',
+            col_status: 'true',
+          },
+        ],
+        secretProvenance: [
+          {
+            complete: true,
+            columns: {
+              col_name: {
+                version: 1,
+                complete: true,
+                entries: [{ name: 'NUMBER', encryptedValue: 'encrypted-number' }],
+                scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+              },
+              col_status: {
+                version: 1,
+                complete: true,
+                entries: [{ name: 'BOOLEAN', encryptedValue: 'encrypted-boolean' }],
+                scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+              },
+            },
           },
         ],
       }),
@@ -373,32 +581,104 @@ describe('maybeWriteReadCsvToTable', () => {
     )
   })
 
-  it('rejects active secret literals in number and boolean columns before mutation', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'NUMBER', plaintext: '123', encryptedValue: 'encrypted-number' },
-      { name: 'BOOLEAN', plaintext: 'true', encryptedValue: 'encrypted-boolean' },
-    ])
+  it('retains original provenance after a quote-escaped CSV round trip', async () => {
+    encryptionMockFns.mockDecryptSecret.mockImplementation(async (encryptedValue: string) => ({
+      decrypted: encryptedValue === 'encrypted-original' ? 'a"b' : '"a""b"',
+    }))
+    const registry = new ResolvedSecretTraceRegistry([], {
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+    })
+    await expect(
+      registry.importProvenance(
+        {
+          version: 1,
+          complete: true,
+          entries: [
+            { name: 'CSV_SECRET', encryptedValue: 'encrypted-original' },
+            { name: 'CSV_SECRET', encryptedValue: 'encrypted-representation' },
+          ],
+          scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+        },
+        { trusted: true }
+      )
+    ).resolves.toBe(true)
+
+    const result = await maybeWriteReadCsvToTable(
+      ReadTool.id,
+      { outputTable: 'tbl_1', path: 'files/people.csv' },
+      { success: true, output: { content: 'name\n"a""b"' } },
+      buildContext({ resolvedSecretTraceRegistry: registry })
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockReplaceTableRows).toHaveBeenCalledWith(
+      expect.objectContaining({
+        rows: [{ col_name: 'a"b' }],
+        secretProvenance: [
+          {
+            complete: true,
+            columns: {
+              col_name: {
+                version: 1,
+                complete: true,
+                entries: [{ name: 'CSV_SECRET', encryptedValue: 'encrypted-original' }],
+                scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+              },
+            },
+          },
+        ],
+      }),
+      expect.anything(),
+      expect.any(String)
+    )
+  })
+
+  it('preserves numeric and boolean cells while recording their provenance', async () => {
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        { name: 'NUMBER', plaintext: '123', encryptedValue: 'encrypted-number' },
+        { name: 'BOOLEAN', plaintext: 'true', encryptedValue: 'encrypted-boolean' },
+      ],
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
     registry.recordResolved('NUMBER', '123')
     registry.recordResolved('BOOLEAN', 'true')
 
     const result = await maybeWriteReadCsvToTable(
       ReadTool.id,
-      { outputTable: 'tbl_1', path: 'files/people.csv' },
-      { success: true, output: { content: 'name,age,active\nAlice,123,true' } },
+      { outputTable: 'tbl_1', path: 'files/people.json' },
+      {
+        success: true,
+        output: { content: '[{"name":"Alice","age":123,"active":true}]' },
+      },
       buildContext({ resolvedSecretTraceRegistry: registry })
     )
 
-    expect(result).toEqual({
-      success: false,
-      error:
-        'Tool output could not be persisted safely because a resolved secret is incompatible with the target column type.',
-    })
-    expect(mockReplaceTableRows).not.toHaveBeenCalled()
-    expect(JSON.stringify(result)).not.toContain('123')
-    expect(JSON.stringify(result)).not.toContain('true')
+    expect(result.success).toBe(true)
+    expect(mockReplaceTableRows).toHaveBeenCalledWith(
+      expect.objectContaining({
+        rows: [{ col_name: 'Alice', col_age: 123, col_active: true }],
+        secretProvenance: [
+          expect.objectContaining({
+            complete: true,
+            columns: expect.objectContaining({
+              col_age: expect.objectContaining({
+                entries: [{ name: 'NUMBER', encryptedValue: 'encrypted-number' }],
+              }),
+              col_active: expect.objectContaining({
+                entries: [{ name: 'BOOLEAN', encryptedValue: 'encrypted-boolean' }],
+              }),
+            }),
+          }),
+        ],
+      }),
+      expect.anything(),
+      expect.any(String)
+    )
   })
 
-  it('does not import CSV rows when persistence provenance is incomplete', async () => {
+  it('imports raw CSV rows with unknown provenance when lineage is incomplete', async () => {
     const registry = new ResolvedSecretTraceRegistry()
     registry.markIncomplete()
 
@@ -409,14 +689,15 @@ describe('maybeWriteReadCsvToTable', () => {
       buildContext({ resolvedSecretTraceRegistry: registry })
     )
 
-    expect(result).toEqual({
-      success: false,
-      error: 'Tool output could not be persisted safely because secret provenance was unavailable.',
-    })
-    expect(mockReplaceTableRows).not.toHaveBeenCalled()
+    expect(result.success).toBe(true)
+    expect(mockReplaceTableRows).toHaveBeenCalledWith(
+      expect.objectContaining({ secretProvenance: [{ complete: false, columns: {} }] }),
+      expect.anything(),
+      expect.any(String)
+    )
   })
 
-  it('preserves legacy CSV imports when execution provenance is unavailable', async () => {
+  it('preserves legacy CSV imports without certifying unavailable provenance', async () => {
     const result = await maybeWriteReadCsvToTable(
       ReadTool.id,
       { outputTable: 'tbl_1', path: 'files/people.csv' },
@@ -428,6 +709,7 @@ describe('maybeWriteReadCsvToTable', () => {
     expect(mockReplaceTableRows).toHaveBeenCalledWith(
       expect.objectContaining({
         rows: [{ col_name: 'legacy-value', col_age: '123', col_active: 'true' }],
+        secretProvenance: [{ complete: false, columns: {} }],
       }),
       expect.anything(),
       expect.any(String)
@@ -462,10 +744,11 @@ describe('maybeWriteReadCsvToTable', () => {
   })
 
   it('projects active secret literals in CSV-import log and OTel errors', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'SECRET', plaintext: 'secret-value', encryptedValue: 'encrypted-secret-value' },
-    ])
-    registry.recordResolved('SECRET', 'secret-value')
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'SECRET', plaintext: 'secret-value', encryptedValue: 'encrypted-secret-value' }],
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+    registry.recordResolved('SECRET', 'secret-value', { propagated: true })
     mockReplaceTableRows.mockRejectedValue(new Error('Duplicate value "secret-value"'))
 
     const result = await maybeWriteReadCsvToTable(

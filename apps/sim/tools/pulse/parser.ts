@@ -1,8 +1,8 @@
 import { toError } from '@sim/utils/errors'
 import { isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
 import {
-  selectModelBoundFileInput,
-  selectPreferredModelBoundFileInput,
+  selectModelBoundFileInputPaths,
+  selectPreferredModelBoundFileInputPaths,
 } from '@/lib/uploads/utils/model-input'
 import type { PulseParserInput, PulseParserOutput, PulseParserV2Input } from '@/tools/pulse/types'
 import type { ToolConfig } from '@/tools/types'
@@ -79,10 +79,12 @@ export const pulseParserTool: ToolConfig<PulseParserInput, PulseParserOutput> = 
   request: {
     modelInput: {
       mode: 'private-provenance',
-      select: (params) =>
-        selectPreferredModelBoundFileInput({
+      inputPaths: (params) =>
+        selectPreferredModelBoundFileInputPaths({
           file: params.file && typeof params.file === 'object' ? params.file : params.fileUpload,
           filePath: params.filePath,
+          fileInputPath: params.file && typeof params.file === 'object' ? ['file'] : ['fileUpload'],
+          filePathInputPath: ['filePath'],
           prefer: 'path',
         }),
     },
@@ -294,7 +296,7 @@ export const pulseParserV2Tool: ToolConfig<PulseParserV2Input, PulseParserOutput
   request: {
     modelInput: {
       mode: 'private-provenance',
-      select: (params) => selectModelBoundFileInput(params.file),
+      inputPaths: (params) => selectModelBoundFileInputPaths(params.file, ['file']),
     },
     url: '/api/tools/pulse/parse',
     method: 'POST',

@@ -470,7 +470,6 @@ export function createGeminiStreamingToolLoopStream(
                     executionParams,
                     {
                       signal: loopAbortController.signal,
-                      toolInput: toolParams,
                     }
                   )
                   const toolCallEndTime = Date.now()

@@ -248,6 +248,17 @@ export class LoggingSession {
     this.resolvedSecretTraceRegistry = registry
   }
 
+  /** Exports exact active provenance for one settled value without changing that value. */
+  exportResolvedSecretTraceProvenanceForValue(value: unknown): ResolvedSecretTraceProvenanceV1 {
+    return (
+      this.resolvedSecretTraceRegistry?.exportCommittedProvenanceForValue(value) ?? {
+        version: 1,
+        complete: false,
+        entries: [],
+      }
+    )
+  }
+
   /** Projects an execution error for operational logs and telemetry without mutating runtime data. */
   projectDiagnosticError(
     error: unknown,

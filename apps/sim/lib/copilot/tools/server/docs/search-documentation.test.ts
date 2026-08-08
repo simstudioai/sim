@@ -24,7 +24,7 @@ describe('documentation search model boundary', () => {
     mockGenerateSearchEmbedding.mockResolvedValue({ embedding: [], isBYOK: false })
   })
 
-  it('projects the query immediately before embedding without logging plaintext', async () => {
+  it('preserves a query that merely collides with ambient secret plaintext', async () => {
     const registry = new ResolvedSecretTraceRegistry([
       {
         name: 'DOCS_QUERY',
@@ -39,7 +39,7 @@ describe('documentation search model boundary', () => {
       { userId: 'user-1', resolvedSecretTraceRegistry: registry }
     )
 
-    expect(mockGenerateSearchEmbedding).toHaveBeenCalledWith('{{DOCS_QUERY}}')
+    expect(mockGenerateSearchEmbedding).toHaveBeenCalledWith('private documentation query')
     expect(result).toEqual({
       results: [],
       query: 'private documentation query',

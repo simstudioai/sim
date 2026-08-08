@@ -1,4 +1,4 @@
-import { selectModelBoundFileInput } from '@/lib/uploads/utils/model-input'
+import { selectModelBoundFileInputPaths } from '@/lib/uploads/utils/model-input'
 import type { QuiverSvgResponse, QuiverTextToSvgParams } from '@/tools/quiver/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -78,8 +78,10 @@ export const quiverTextToSvgTool: ToolConfig<QuiverTextToSvgParams, QuiverSvgRes
         prompt: params.prompt,
         instructions: params.instructions,
       }),
-      privateProvenance: (params) =>
-        selectModelBoundFileInput(params.references, { parseSerializedFile: true }),
+      privateInputPaths: (params) =>
+        selectModelBoundFileInputPaths(params.references, ['references'], {
+          parseSerializedFile: true,
+        }),
     },
     url: '/api/tools/quiver/text-to-svg',
     method: 'POST',

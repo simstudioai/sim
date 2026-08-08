@@ -28,26 +28,26 @@ function createMockResponse(data: unknown): Response {
 describe('Knowledge Tools', () => {
   it('uses private provenance for search and durable sidecars for persisted content', () => {
     expect(
-      knowledgeSearchTool.request.modelInput?.select({
+      knowledgeSearchTool.request.modelInput?.inputPaths({
         knowledgeBaseId: 'kb-1',
         query: 'search secret',
         apiKey: 'credential',
         tagFilters: [{ tagName: 'team', tagValue: 'support' }],
       })
-    ).toBe('search secret')
+    ).toEqual([['query']])
     expect(
-      knowledgeSearchTool.request.modelInput?.select({
+      knowledgeSearchTool.request.modelInput?.inputPaths({
         knowledgeBaseId: 'kb-1',
         tagFilters: [{ tagName: 'team', tagValue: 'support' }],
       })
-    ).toBeUndefined()
+    ).toEqual([['query']])
     expect(
       knowledgeUploadChunkTool.request.secretProvenance?.request?.({
         knowledgeBaseId: 'kb-1',
         documentId: 'doc-1',
         content: 'chunk secret',
       })
-    ).toEqual([{ key: 'chunk-content', value: 'chunk secret' }])
+    ).toEqual([{ key: 'chunk-content', inputPaths: [['content']] }])
     expect(
       knowledgeUpdateChunkTool.request.secretProvenance?.request?.({
         knowledgeBaseId: 'kb-1',
@@ -56,7 +56,7 @@ describe('Knowledge Tools', () => {
         content: 'updated secret',
         enabled: true,
       })
-    ).toEqual([{ key: 'chunk-content', value: 'updated secret' }])
+    ).toEqual([{ key: 'chunk-content', inputPaths: [['content']] }])
     expect(
       knowledgeCreateDocumentTool.request.secretProvenance?.request?.({
         knowledgeBaseId: 'kb-1',
@@ -65,10 +65,9 @@ describe('Knowledge Tools', () => {
         documentTags: { team: 'support' },
       })
     ).toEqual([
-      { key: 'document-filename:0', value: 'document.txt' },
-      { key: 'document-content:0', value: 'document secret' },
-      { key: 'document-tag-name:0:0', value: 'team' },
-      { key: 'document-tag-value:0:0', value: 'support' },
+      { key: 'document-filename:0', inputPaths: [['name']] },
+      { key: 'document-content:0', inputPaths: [['content']] },
+      { key: 'document-tag-value:0:0', inputPaths: [['documentTags', 'team']] },
     ])
     expect(
       knowledgeUpsertDocumentTool.request.secretProvenance?.request?.({
@@ -78,10 +77,9 @@ describe('Knowledge Tools', () => {
         documentTags: [{ tagName: 'team', value: 'support' }],
       })
     ).toEqual([
-      { key: 'document-filename:0', value: 'document.txt' },
-      { key: 'document-content:0', value: 'replacement secret' },
-      { key: 'document-tag-name:0:0', value: 'team' },
-      { key: 'document-tag-value:0:0', value: 'support' },
+      { key: 'document-filename:0', inputPaths: [['name']] },
+      { key: 'document-content:0', inputPaths: [['content']] },
+      { key: 'document-tag-value:0:0', inputPaths: [['documentTags', '0', 'value']] },
     ])
 
     expect(knowledgeSearchTool.request.modelInput?.mode).toBe('private-provenance')

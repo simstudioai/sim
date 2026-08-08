@@ -329,11 +329,14 @@ describe('executeDeployCustomBlock', () => {
   it('ingests a workspace-file icon into public icon storage', async () => {
     listWorkspaceFilesMock.mockResolvedValue([
       {
+        id: 'file-1',
+        workspaceId: 'ws-1',
         name: 'icon.png',
         folderPath: null,
         type: 'image/png',
         size: 1024,
         key: 'workspace/ws-1/123-abc-icon.png',
+        storageContext: 'workspace',
       },
     ])
     fetchWorkspaceFileBufferMock.mockResolvedValue(Buffer.from('png-bytes'))

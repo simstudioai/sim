@@ -33,7 +33,7 @@ export const knowledgeUploadChunkTool: ToolConfig<any, KnowledgeUploadChunkRespo
       `/api/knowledge/${params.knowledgeBaseId}/documents/${params.documentId}/chunks`,
     method: 'POST',
     secretProvenance: {
-      request: (params) => [{ key: 'chunk-content', value: params.content }],
+      request: () => [{ key: 'chunk-content', inputPaths: [['content']] }],
       response: { incomplete: 'reject' },
     },
     headers: () => ({

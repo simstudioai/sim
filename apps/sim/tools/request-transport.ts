@@ -5,8 +5,8 @@ import {
   addModelInputProvenanceToRequest,
   createModelInputProvenanceRequestMetadata,
   createPrivateSecretProvenanceRequestMetadata,
+  markModelInputProjected,
 } from '@/lib/execution/model-input-provenance'
-import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { ToolConfig } from '@/tools/types'
 
@@ -77,59 +77,45 @@ export function projectToolModelInputParams(
     if (!selection) throw new Error(MODEL_INPUT_PROJECTION_ERROR_MESSAGE)
 
     const { record: selected, entries } = selection
-    const selectedValues = entries.map(([, value]) => value)
-    const projection = projectResolvedSecretModelContent(
-      selectedValues,
-      registry.forkForToolInputValues(selectedValues)
-    )
-    if (
-      !projection.safe ||
-      !Array.isArray(projection.value) ||
-      projection.value.length !== entries.length
-    ) {
-      throw new Error(MODEL_INPUT_PROJECTION_ERROR_MESSAGE)
-    }
-
-    const projectedSelected = Object.create(Object.getPrototypeOf(selected)) as Record<
-      string,
-      unknown
-    >
-    for (let index = 0; index < entries.length; index++) {
-      Object.defineProperty(projectedSelected, entries[index][0], {
-        value: projection.value[index],
-        enumerable: true,
-        configurable: true,
-        writable: true,
-      })
-    }
-    if (!haveExactOwnKeys(selected, projectedSelected)) {
-      throw new Error(MODEL_INPUT_PROJECTION_ERROR_MESSAGE)
-    }
-
-    if (!modelInput.applyProjected) return { ...params, ...projectedSelected }
-
     const originalSelectedParams: Record<string, unknown> = {}
     for (const [key] of entries) originalSelectedParams[key] = params[key]
+    const projection = registry.projectResolvedInputSelection(originalSelectedParams)
+    if (!projection.complete) {
+      throw new Error(MODEL_INPUT_PROJECTION_ERROR_MESSAGE)
+    }
+
+    const projectedParams = { ...params, ...projection.value }
+    const projectedSelection = inspectSelectedModelInputRecord(
+      tool,
+      modelInput.select(projectedParams)
+    )
+    if (!projectedSelection || !haveExactOwnKeys(selected, projectedSelection.record)) {
+      throw new Error(MODEL_INPUT_PROJECTION_ERROR_MESSAGE)
+    }
+    JSON.stringify(projectedSelection.record)
+
+    if (!modelInput.applyProjected) return projectedParams
+
     const selectedParamsClone = structuredClone(originalSelectedParams)
     const patch = inspectSelectedModelInputRecord(
       tool,
-      modelInput.applyProjected(selectedParamsClone, projectedSelected)
+      modelInput.applyProjected(selectedParamsClone, projectedSelection.record)
     )
     if (!patch || !haveExactOwnKeys(selected, patch.record)) {
       throw new Error(MODEL_INPUT_PROJECTION_ERROR_MESSAGE)
     }
 
-    const projectedParams = { ...params, ...patch.record }
-    const verification = inspectSelectedModelInputRecord(tool, modelInput.select(projectedParams))
+    const patchedParams = { ...projectedParams, ...patch.record }
+    const verification = inspectSelectedModelInputRecord(tool, modelInput.select(patchedParams))
     if (
       !verification ||
       !haveExactOwnKeys(selected, verification.record) ||
-      !isDeepStrictEqual(verification.record, projectedSelected)
+      !isDeepStrictEqual(verification.record, projectedSelection.record)
     ) {
       throw new Error(MODEL_INPUT_PROJECTION_ERROR_MESSAGE)
     }
 
-    return projectedParams
+    return patchedParams
   } catch {
     throw new Error(MODEL_INPUT_PROJECTION_ERROR_MESSAGE)
   }
@@ -199,7 +185,7 @@ export function prepareToolRequest(
   const secretProvenance = tool.request.secretProvenance
   const hasPrivateModelInputProvenance =
     modelInput?.mode === 'private-provenance' ||
-    (modelInput?.mode === 'project' && modelInput.privateProvenance !== undefined)
+    (modelInput?.mode === 'project' && modelInput.privateInputPaths !== undefined)
 
   if (hasPrivateModelInputProvenance && !configuredUrl.startsWith('/api/')) {
     throw new Error(PRIVATE_MODEL_INPUT_EXTERNAL_URL_ERROR_MESSAGE)
@@ -217,14 +203,14 @@ export function prepareToolRequest(
     throw new Error(PRIVATE_SECRET_PROVENANCE_EXTERNAL_URL_ERROR_MESSAGE)
   }
 
-  const selectedModelInput =
+  const selectedModelInputPaths =
     modelInput?.mode === 'private-provenance'
-      ? modelInput.select(requestInput)
+      ? modelInput.inputPaths(requestInput)
       : modelInput?.mode === 'project'
-        ? modelInput.privateProvenance?.(requestInput)
+        ? modelInput.privateInputPaths?.(requestInput)
         : undefined
   const modelInputMetadata = hasPrivateModelInputProvenance
-    ? createModelInputProvenanceRequestMetadata(registry, selectedModelInput)
+    ? createModelInputProvenanceRequestMetadata(registry, selectedModelInputPaths ?? [])
     : undefined
   const secretProvenanceMetadata = secretProvenance?.request
     ? createPrivateSecretProvenanceRequestMetadata(registry, secretProvenance.request(requestInput))
@@ -248,6 +234,9 @@ export function prepareToolRequest(
       request.headers,
       modelInputMetadata
     )
+    if (modelInputMetadata && modelInput?.mode === 'project') {
+      markModelInputProjected(request.headers)
+    }
     request.body = JSON.stringify(
       addModelInputProvenanceToRequest(
         bodyWithModelInputProvenance,
