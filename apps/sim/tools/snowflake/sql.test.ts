@@ -422,10 +422,7 @@ describe('Snowflake SQL builders', () => {
       limit: 50,
     })
     expect(history.statement).toContain('RESULT_LIMIT => 50, ERROR_ONLY => TRUE')
-    expect(history.bindings).toEqual({
-      '1': { type: 'TEXT', value: 'DAILY_LOAD' },
-      '2': { type: 'TEXT', value: '2026-08-01T00:00:00Z' },
-    })
+    expect(history.bindings).toEqual({ '1': { type: 'TEXT', value: 'DAILY_LOAD' } })
     const run = buildGetTaskRun({
       ...context,
       queryId,
@@ -433,16 +430,38 @@ describe('Snowflake SQL builders', () => {
       startTime: '2026-08-01T00:00:00Z',
     })
     expect(run.statement).toContain('TASK_NAME => ?')
-    expect(run.statement).toContain('SCHEDULED_TIME_RANGE_START => TO_TIMESTAMP_LTZ(?)')
     expect(run.statement).toContain('WHERE QUERY_ID = ?')
     expect(run.bindings).toEqual({
       '1': { type: 'TEXT', value: 'DAILY_LOAD' },
-      '2': { type: 'TEXT', value: '2026-08-01T00:00:00Z' },
-      '3': { type: 'TEXT', value: queryId },
+      '2': { type: 'TEXT', value: queryId },
     })
     expect(() =>
       buildListTaskRuns({ ...context, taskName: 'ANALYTICS.PUBLIC.DAILY_LOAD' })
     ).toThrow('unqualified task name')
+
+    /**
+     * TASK_HISTORY silently drops a bind in its time-range arguments, so the window has to
+     * reach Snowflake as a literal or the filter becomes a no-op with no error.
+     */
+    const window = buildListTaskRuns({
+      ...context,
+      startTime: '2026-08-01T00:00:00Z',
+      endTime: '2026-08-02T00:00:00Z',
+    })
+    expect(window.statement).toContain(
+      "SCHEDULED_TIME_RANGE_START => TO_TIMESTAMP_LTZ('2026-08-01T00:00:00Z')"
+    )
+    expect(window.statement).toContain(
+      "SCHEDULED_TIME_RANGE_END => TO_TIMESTAMP_LTZ('2026-08-02T00:00:00Z')"
+    )
+    expect(window.statement).not.toContain('TO_TIMESTAMP_LTZ(?)')
+    expect(window.bindings).toEqual({})
+    expect(() => buildListTaskRuns({ ...context, startTime: 'not-a-timestamp' })).toThrow(
+      'startTime must be an ISO-8601 timestamp'
+    )
+    expect(() => buildGetTaskRun({ ...context, queryId, endTime: 'nope' })).toThrow(
+      'endTime must be an ISO-8601 timestamp'
+    )
     expect(() =>
       buildGetTaskRun({ ...context, queryId, taskName: 'ANALYTICS.PUBLIC.DAILY_LOAD' })
     ).toThrow('unqualified task name')

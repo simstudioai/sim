@@ -19,7 +19,7 @@ export const cancelTaskRunTool: ToolConfig<
   version: '1.0.0',
   name: 'Snowflake Cancel Task Query',
   description:
-    'Cancel one running task query by query ID with SYSTEM$CANCEL_QUERY. Other tasks in the same task graph keep running and must be cancelled separately.',
+    'Cancel one running task query by query ID with SYSTEM$CANCEL_QUERY. Task runs already in flight are unaffected and must be cancelled individually; a cancelled child marks the task graph run failed, so downstream tasks are skipped.',
   params: {
     host: {
       type: 'string',

@@ -533,6 +533,20 @@ export function buildRunTask(params: SnowflakeRunTaskParams): SnowflakeStatement
  * yields an empty result set rather than an error. The name is also resolved the way Snowflake
  * stored it, so an unquoted name is upper-cased and a quoted one keeps its exact spelling.
  */
+/**
+ * TASK_HISTORY time-range arguments are `constant_expr` and are not in BCR-1410's bind
+ * allowlist for this function, which covers only RESULT_LIMIT and TASK_NAME. A bind here
+ * is silently dropped rather than rejected, which would turn the requested window into a
+ * no-op, so the timestamp is emitted as a literal instead.
+ */
+function taskHistoryTimestamp(value: string, field: string): string {
+  const trimmed = value.trim()
+  if (Number.isNaN(Date.parse(trimmed))) {
+    throw new Error(`${field} must be an ISO-8601 timestamp within the last seven days`)
+  }
+  return `TO_TIMESTAMP_LTZ(${stringLiteral(trimmed)})`
+}
+
 function unqualifiedTaskName(value: string): string {
   const trimmed = value.trim()
   if (splitQualifiedIdentifier(trimmed).length > 1) {
@@ -552,11 +566,11 @@ export function buildListTaskRuns(params: SnowflakeListTaskRunsParams): Snowflak
   }
   if (params.startTime?.trim()) {
     args.push(
-      `SCHEDULED_TIME_RANGE_START => TO_TIMESTAMP_LTZ(${binds.add(params.startTime.trim())})`
+      `SCHEDULED_TIME_RANGE_START => ${taskHistoryTimestamp(params.startTime, 'startTime')}`
     )
   }
   if (params.endTime?.trim()) {
-    args.push(`SCHEDULED_TIME_RANGE_END => TO_TIMESTAMP_LTZ(${binds.add(params.endTime.trim())})`)
+    args.push(`SCHEDULED_TIME_RANGE_END => ${taskHistoryTimestamp(params.endTime, 'endTime')}`)
   }
   return {
     statement: `SELECT * FROM TABLE(SNOWFLAKE.INFORMATION_SCHEMA.TASK_HISTORY(${args.join(', ')})) ORDER BY SCHEDULED_TIME DESC`,
@@ -572,11 +586,11 @@ export function buildGetTaskRun(params: SnowflakeGetTaskRunParams): SnowflakeSta
   }
   if (params.startTime?.trim()) {
     args.push(
-      `SCHEDULED_TIME_RANGE_START => TO_TIMESTAMP_LTZ(${binds.add(params.startTime.trim())})`
+      `SCHEDULED_TIME_RANGE_START => ${taskHistoryTimestamp(params.startTime, 'startTime')}`
     )
   }
   if (params.endTime?.trim()) {
-    args.push(`SCHEDULED_TIME_RANGE_END => TO_TIMESTAMP_LTZ(${binds.add(params.endTime.trim())})`)
+    args.push(`SCHEDULED_TIME_RANGE_END => ${taskHistoryTimestamp(params.endTime, 'endTime')}`)
   }
   const queryId = binds.add(requireQueryId(params.queryId))
   return {

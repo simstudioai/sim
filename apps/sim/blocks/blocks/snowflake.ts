@@ -70,8 +70,8 @@ function resolveCopyOnError(value: unknown, threshold: unknown): string | undefi
   if (number === undefined || number <= 0) {
     throw new Error('Skip file threshold must be greater than zero')
   }
-  if (value === 'SKIP_FILE_PERCENT' && number > 100) {
-    throw new Error('Skip file percentage must be between 1 and 100')
+  if (value === 'SKIP_FILE_PERCENT' && (number > 100 || !Number.isInteger(number))) {
+    throw new Error('Skip file percentage must be a whole number between 1 and 100')
   }
   if (value === 'SKIP_FILE_NUMBER' && !Number.isInteger(number)) {
     throw new Error('Skip file error count must be a positive integer')

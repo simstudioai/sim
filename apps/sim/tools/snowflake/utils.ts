@@ -69,9 +69,9 @@ interface SnowflakeApiResponse {
   statementHandle?: string
   data?: Array<Array<string | null>>
   /**
-   * The SQL API reference and OpenAPI spec both declare `stats` as a direct
-   * property of the ResultSet object. The `resultSetMetaData` fallback below is
-   * defensive only - no documented response uses it.
+   * The SQL API reference declares `stats` as a direct property of the ResultSet
+   * object, and also describes it under `resultSetMetaData`. Snowflake's own docs
+   * are inconsistent here, so both shapes are read with the top-level one winning.
    */
   stats?: SnowflakeApiStats
   resultSetMetaData?: {

@@ -785,7 +785,7 @@ Find one task history record by query ID within Snowflake’s seven-day window a
 
 ### Snowflake Cancel Task Query
 
-Cancel one running task query by query ID with SYSTEM$CANCEL_QUERY. Other tasks in the same task graph keep running and must be cancelled separately.
+Cancel one running task query by query ID with SYSTEM$CANCEL_QUERY. Task runs already in flight are unaffected and must be cancelled individually; a cancelled child marks the task graph run failed, so downstream tasks are skipped.
 
 #### Input
 
