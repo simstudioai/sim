@@ -108,16 +108,20 @@ Settings → API keys.
 
 ## Commands
 
-Plural resource names are canonical, but every plural top-level resource group
-also accepts its singular form: for example, `sim table list`,
+Plural resource names are canonical, but most plural top-level resource groups
+also accept their singular form: for example, `sim table list`,
 `sim file download`, and `sim workflow get` are equivalent to their plural
-spellings.
+spellings. Chats deliberately keep separate names: `sim chat` is the terminal
+conversation, while `sim chats` manages saved chat resources.
 
 `knowledge` also accepts the shorter `kb` alias.
 
 ```bash
 sim chat [prompt...] [-f <path>...] [--read-only]
 sim chat -p [prompt...] [-f <path>...] [--read-only]
+sim chats list [--search <text>] [--limit <n>]
+sim chats get <chatId> [--read-only]
+sim chats rename <chatId> --title <title>
 
 sim workflows ls [path] [--search <text>] [--limit <n>]
 sim workflows list [--folder <path>] [--deployed-only] [--limit <n>]
@@ -183,6 +187,8 @@ sim billing logs [--period 7d] [--source sim-chat] [--limit <n>] [--all-workspac
 The `sim-chat` billing source combines Copilot and workspace chat usage.
 Organization audit logs require a personal API key. Commands with
 `--all-workspaces` otherwise default to the workspace in the active profile.
+Saved chat commands also require a personal API key and use that active
+workspace unless `--workspace` overrides it.
 
 `workflows runs get` is the lightweight status and polling resource.
 `--workflow` names the parent resource, while the run ID remains positional.
@@ -237,7 +243,7 @@ a searchable picker. Selecting one restores its transcript and continues it
 with a fresh opaque token. The header shows the active chat title and keeps the
 `/chats` switch hint visible; a new chat's generated title appears there as soon
 as the server publishes it. `/rename <title>` retitles the active synced chat in
-both the terminal and Sim Home. `/clear` clears the visible transcript and
+both the terminal and Sim Home. `/new` clears the visible transcript and
 starts a new conversation, `/help` lists commands, and `/exit` or Ctrl+D exits.
 Ctrl+C clears idle input or cancels the active generation and returns to the
 prompt.
@@ -261,10 +267,15 @@ pipelines and redirected output must use `-p`.
 
 ```bash
 sim chat -p "Which workflows handle support tickets?"
+sim chat -p --chat <chatId> "Continue this conversation"
 cat incident.txt | sim chat -p "Which workflow is most likely involved?"
 sim chat -p < question.txt
 sim chat -p --file report.pdf "Summarize this in workspace context"
 ```
+
+Pass `--chat <chatId>` to append one print-mode turn to an existing inactive
+chat, print its answer, and exit. The chat must belong to the active workspace,
+and synchronized history requires a personal API key.
 
 When both a positional prompt and stdin are present, the positional prompt comes
 first and the piped content follows on the next line. This matches Claude Code's

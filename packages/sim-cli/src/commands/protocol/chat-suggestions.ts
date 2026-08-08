@@ -185,10 +185,10 @@ export function contextSpans(
 /** Composer slash commands, the source for the `/` menu. */
 export const SLASH_COMMANDS: SuggestionItem[] = [
   {
-    id: 'clear',
-    value: '/clear',
-    displayText: '/clear',
-    description: 'start a new conversation',
+    id: 'new',
+    value: '/new',
+    displayText: '/new',
+    description: 'start a new chat',
     tag: 'command',
   },
   {

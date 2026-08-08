@@ -105,10 +105,17 @@ describe('timestampKey', () => {
     )
   })
 
-  it('truncates the bound cursor value to match, binding it through the column encoder', () => {
+  /**
+   * The cast is not cosmetic. `date_trunc` is overloaded on timestamp,
+   * timestamptz and interval, so an untyped parameter makes the call ambiguous
+   * and Postgres rejects the whole statement with "function date_trunc(unknown,
+   * unknown) is not unique" — which only ever fires on a second page, since
+   * page one carries no cursor.
+   */
+  it('truncates the bound cursor value to match, cast to the column type', () => {
     const { sql: text, params } = render(createdKey.bind('2024-01-01T00:00:00.123Z')!)
 
-    expect(text).toBe(`date_trunc('milliseconds', $1)`)
+    expect(text).toBe(`date_trunc('milliseconds', $1::timestamp)`)
     expect(params).toEqual(['2024-01-01T00:00:00.123Z'])
   })
 
@@ -173,8 +180,8 @@ describe('keysetAfter', () => {
     )
 
     expect(text).toBe(
-      `(date_trunc('milliseconds', "thing"."created_at") > date_trunc('milliseconds', $1) or ` +
-        `(date_trunc('milliseconds', "thing"."created_at") = date_trunc('milliseconds', $2) and ` +
+      `(date_trunc('milliseconds', "thing"."created_at") > date_trunc('milliseconds', $1::timestamp) or ` +
+        `(date_trunc('milliseconds', "thing"."created_at") = date_trunc('milliseconds', $2::timestamp) and ` +
         `"thing"."id" > $3))`
     )
     expect(params).toEqual(['2024-01-01T00:00:00.123Z', '2024-01-01T00:00:00.123Z', 'file-7'])

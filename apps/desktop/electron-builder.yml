@@ -60,6 +60,22 @@ mac:
 
 dmg:
   sign: false
+  title: ${productName}
+  # Finder uses the image dimensions as the installer window dimensions. The
+  # @2x companion is detected automatically and keeps the mountain artwork and
+  # install arrow sharp on Retina displays.
+  background: build/dmg-background.png
+  iconSize: 96
+  iconTextSize: 13
+  # Keep both icon centers inside the compact 660x420 Finder canvas.
+  contents:
+    - x: 165
+      y: 210
+      type: file
+    - x: 495
+      y: 210
+      type: link
+      path: /Applications
 
 # node-pty ships pure N-API prebuilds, which are ABI-stable across Node and
 # Electron versions, so there is nothing to rebuild against Electron's ABI.
