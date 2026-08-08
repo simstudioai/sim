@@ -1,12 +1,11 @@
 'use client'
 
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
-import { chipVariants, cn, toast } from '@sim/emcn'
+import { chipContentIconClass, chipVariants, cn, disclosureChevronClass, toast } from '@sim/emcn'
 import { ChevronRight, Folder, FolderOpen, Lock, MoreHorizontal } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import clsx from 'clsx'
 import { useRouter } from 'next/navigation'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { generateSubfolderName } from '@/lib/workspaces/naming'
@@ -501,22 +500,13 @@ export const FolderItem = memo(function FolderItem({ workspaceId, folder }: Fold
         onDragEnd={handleDragEnd}
       >
         <ChevronRight
-          className={clsx(
-            'size-[14px] flex-shrink-0 text-[var(--text-icon)] transition-transform duration-150',
-            isExpanded && 'rotate-90'
-          )}
+          className={cn(disclosureChevronClass, isExpanded && 'rotate-90')}
           aria-hidden='true'
         />
         {isExpanded ? (
-          <FolderOpen
-            className='size-[16px] flex-shrink-0 text-[var(--text-icon)]'
-            aria-hidden='true'
-          />
+          <FolderOpen className={chipContentIconClass} aria-hidden='true' />
         ) : (
-          <Folder
-            className='size-[16px] flex-shrink-0 text-[var(--text-icon)]'
-            aria-hidden='true'
-          />
+          <Folder className={chipContentIconClass} aria-hidden='true' />
         )}
         {isEditing ? (
           <input
@@ -552,7 +542,7 @@ export const FolderItem = memo(function FolderItem({ workspaceId, folder }: Fold
                 <span
                   role='img'
                   aria-label='Folder is locked'
-                  className={clsx(
+                  className={cn(
                     'pointer-events-none absolute inset-0 flex items-center justify-center transition-opacity',
                     !isAnyDragActive && 'group-hover:opacity-0',
                     isContextMenuOpen && 'opacity-0'
@@ -566,7 +556,7 @@ export const FolderItem = memo(function FolderItem({ workspaceId, folder }: Fold
                 aria-label='Folder options'
                 onPointerDown={handleMorePointerDown}
                 onClick={handleMoreClick}
-                className={clsx(
+                className={cn(
                   'pointer-events-none absolute inset-0 flex items-center justify-center rounded-sm opacity-0 transition-opacity',
                   !isAnyDragActive && 'group-hover:pointer-events-auto group-hover:opacity-100',
                   isContextMenuOpen && 'pointer-events-auto opacity-100'
