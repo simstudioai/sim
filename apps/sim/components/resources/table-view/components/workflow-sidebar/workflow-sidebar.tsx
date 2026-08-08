@@ -22,6 +22,10 @@ import { ArrowLeft, ChevronDown, Repeat, Split, SquareArrowUpRight, X } from '@s
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import {
+  FieldError,
+  RequiredLabel,
+} from '@/components/resources/table-view/components/sidebar-fields'
 import { findValidationIssue, isValidationError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import type {
@@ -52,10 +56,18 @@ import {
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import type { InputFormatField } from '@/lib/workflows/types'
-import {
-  FieldError,
-  RequiredLabel,
-} from '@/app/workspace/[workspaceId]/tables/[tableId]/components/sidebar-fields'
+/**
+ * The workflow-column config sidebar previews the workflow it binds to, and that
+ * preview is the editor's own read-only canvas — it reads
+ * `useParams<{ workspaceId }>()` and pulls in the editor's node and edge
+ * components. It IS editor UI, so hoisting it here would drag half the editor
+ * into `components/`.
+ *
+ * The second instance of the same structural fact, after the log view's frozen
+ * canvas. That is the signal the preview itself wants to move to `components/`,
+ * which is a third PR, not this one.
+ */
+// boundary-resource-tree: renders the workflow editor's read-only canvas; safe only while `table`'s share seed is `never`, so no anonymous surface can mount this unit
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { getBlock } from '@/blocks'
 import { getTileIconColorClass } from '@/blocks/icon-color'

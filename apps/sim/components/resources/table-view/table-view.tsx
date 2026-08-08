@@ -18,6 +18,37 @@ import {
   columnTypeIcon,
   generateColumnName,
 } from '@/components/resources/table-view'
+import {
+  type ColumnConfig,
+  ColumnConfigSidebar,
+  ColumnsMenu,
+  EnrichmentDetails,
+  EnrichmentsSidebar,
+  ExecutionSlideout,
+  LockSettingsModal,
+  NewColumnDropdown,
+  RowModal,
+  RunStatusControl,
+  SaveViewModal,
+  type SelectionSnapshot,
+  TableActionBar,
+  TableFilter,
+  TableGrid,
+  ViewsMenu,
+  type WorkflowConfig,
+  WorkflowSidebar,
+} from '@/components/resources/table-view/components'
+import {
+  useTable,
+  useTableEventStream,
+  useTableRoom,
+} from '@/components/resources/table-view/hooks'
+import type { QueryOptions } from '@/components/resources/table-view/types'
+import {
+  type BlockedTableAction,
+  describeBlockedAction,
+  lockedNouns,
+} from '@/components/resources/table-view/utils/lock-copy'
 import { ImportCsvDialog, ImportProgressMenu } from '@/components/table-import'
 import type { RunLimit, RunMode, TableViewWire } from '@/lib/api/contracts/tables'
 import { captureEvent } from '@/lib/posthog/client'
@@ -55,39 +86,22 @@ import {
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useTableDetailState } from '@/hooks/use-table-detail-state'
-import { hostOwnsUrl, type ResourceGrants, type ResourceHost, workspaceSource } from '@/resources'
+import {
+  hostOwnsUrl,
+  type ResourceGrants,
+  type ResourceHost,
+  type ResourceSource,
+} from '@/resources'
+import { tableResourceId, tableWorkspaceId } from '@/resources/table-source'
 import { useLogDetailsUIStore } from '@/stores/logs/store'
 import type { DeletedRowSnapshot } from '@/stores/table/types'
-import {
-  type ColumnConfig,
-  ColumnConfigSidebar,
-  ColumnsMenu,
-  EnrichmentDetails,
-  EnrichmentsSidebar,
-  ExecutionSlideout,
-  LockSettingsModal,
-  NewColumnDropdown,
-  RowModal,
-  RunStatusControl,
-  SaveViewModal,
-  type SelectionSnapshot,
-  TableActionBar,
-  TableFilter,
-  TableGrid,
-  ViewsMenu,
-  type WorkflowConfig,
-  WorkflowSidebar,
-} from './components'
-import { useTable, useTableEventStream, useTableRoom } from './hooks'
-import { type BlockedTableAction, describeBlockedAction, lockedNouns } from './lock-copy'
-import type { QueryOptions } from './types'
 
 const logger = createLogger('Table')
 
 /** Blocked-action toasts carry a button, so they linger past the 5s default. */
 const BLOCKED_TOAST_MS = 8000
 
-interface TableProps {
+export interface TableViewProps {
   /**
    * Which surface this table is mounted on. `'page'` renders the full route
    * chrome — header, breadcrumbs, page-level options bar; every other host
@@ -120,18 +134,14 @@ interface TableProps {
    */
   showExecutionInternals: boolean
   /**
-   * The table's address. Required rather than derived: both mounts know it
-   * (`page.tsx` from its route params, the panel from the open resource), and a
-   * `useParams()` fallback meant this component could only ever exist once per
-   * page.
+   * Where the table comes from and by what address.
    *
-   * Plain ids rather than a `ResourceSource` because `page.tsx` is a Server
-   * Component and a source carries functions, which cannot cross the RSC
-   * boundary — the same reason the public interface page hands over a plain
-   * seed and lets the client mint the source.
+   * Built by each host's client shell, never by its Server Component: a source
+   * carries closures (`hrefFor`, `unavailableCopy`) and cannot cross the RSC
+   * boundary — the same reason the public share page hands over a plain seed and
+   * lets the client mint the source.
    */
-  workspaceId: string
-  tableId: string
+  source: ResourceSource<'table'>
   /**
    * Whether an admin may CHANGE locks, resolved server-side by the page (the
    * flag's gating lives in AppConfig and has no client counterpart). Defaults
@@ -241,25 +251,23 @@ function isSameViewConfig(a: TableViewConfig, b: TableViewConfig): boolean {
  *
  * Embedded mode skips the page header but otherwise renders the same surface.
  */
-export function Table({
+export function TableView({
   host,
   grants,
   onNavigate,
   showExecutionInternals,
-  workspaceId,
-  tableId,
+  source,
   tableLocksEnabled = false,
   viewsEnabled = false,
-}: TableProps) {
+}: TableViewProps) {
   /**
-   * The table's address on the resource axis. Built here rather than taken as a
-   * prop because `page.tsx` is a Server Component and a source carries closures,
-   * which cannot cross the RSC boundary.
+   * The subtree below takes plain ids — the grid, the sidebars and the mutation
+   * hooks all key on them — so the source is narrowed once, here. Both are
+   * non-null for every constructible table source: `ResourceSeedMap['table']` is
+   * `never`, so there is no share arm to fall through to.
    */
-  const source = useMemo(
-    () => workspaceSource({ kind: 'table' as const, workspaceId, resourceId: tableId }),
-    [workspaceId, tableId]
-  )
+  const workspaceId = tableWorkspaceId(source) ?? ''
+  const tableId = tableResourceId(source) ?? ''
   const navigateToList = useCallback(() => {
     const list = source.hrefFor({ to: 'list' })
     if (list) onNavigate?.(list)

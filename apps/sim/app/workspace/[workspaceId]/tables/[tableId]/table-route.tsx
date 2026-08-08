@@ -2,10 +2,10 @@
 
 import { useCallback, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import { TableView } from '@/components/resources/table-view'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { Table } from '@/app/workspace/[workspaceId]/tables/[tableId]/table'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
-import { grantsFromPermissions } from '@/resources'
+import { grantsFromPermissions, workspaceSource } from '@/resources'
 
 interface TableRouteProps {
   /** `table-locks` — resolved server-side; AppConfig has no client counterpart. */
@@ -33,17 +33,20 @@ export function TableRoute({ tableLocksEnabled, viewsEnabled }: TableRouteProps)
   const router = useRouter()
   const { config: permissionConfig } = usePermissionConfig()
 
+  const source = useMemo(
+    () => workspaceSource({ kind: 'table' as const, workspaceId, resourceId: tableId }),
+    [workspaceId, tableId]
+  )
   const grants = useMemo(() => grantsFromPermissions(permissions), [permissions])
   const navigate = useCallback((path: string) => router.push(path), [router])
 
   return (
-    <Table
+    <TableView
       host='page'
       grants={grants}
       onNavigate={navigate}
       showExecutionInternals={!permissionConfig.hideTraceSpans}
-      workspaceId={workspaceId}
-      tableId={tableId}
+      source={source}
       tableLocksEnabled={tableLocksEnabled}
       viewsEnabled={viewsEnabled}
     />

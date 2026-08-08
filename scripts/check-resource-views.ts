@@ -180,15 +180,10 @@ const CANONICAL_UNITS: readonly CanonicalUnit[] = [
     kind: 'file',
   },
   {
-    /**
-     * The table's view LAYER, not a canonical view: the tables route's editing
-     * shell mounts these parts, but no standalone read-only `TableView` has a
-     * consumer yet. Registered anyway so R2 keeps the barrel closed — `views`
-     * fills in, and `kind` with it, when a surface mounts one.
-     */
     barrel: '@/components/resources/table-view',
     root: 'apps/sim/components/resources/table-view',
-    views: [],
+    views: ['TableView'],
+    kind: 'table',
   },
   {
     barrel: '@/components/resources/log-view',
@@ -412,6 +407,15 @@ const CROSS_TREE_ALLOWLIST = new Set<string>([
    * guards anonymous surfaces — still covers it and stays at 0.
    */
   'apps/sim/components/resources/log-view/components/execution-snapshot/execution-snapshot.tsx',
+  /**
+   * The table view's workflow-column sidebar previews the bound workflow through
+   * the same editor canvas, and is safe for the same reason:
+   * `ResourceSeedMap['table']` is `never`.
+   *
+   * Two entries naming one component is the signal that `Preview` itself belongs
+   * in `components/`. That is its own change, not this one.
+   */
+  'apps/sim/components/resources/table-view/components/workflow-sidebar/workflow-sidebar.tsx',
 ])
 
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx'])

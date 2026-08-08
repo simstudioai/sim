@@ -1,31 +1,17 @@
 /**
- * The table resource's view layer — everything that draws a table and nothing
- * that writes one.
+ * The table resource view. Consumers mount {@link TableView} against a source,
+ * grants and a host; everything else here is what the surrounding surfaces need
+ * to describe a table without opening it.
  *
- * Moved out of `app/workspace/[workspaceId]/tables/[tableId]/` so it stops being
- * addressable only from inside the workspace route tree. The editing shell
- * (`TableGrid` and the mutation surfaces it owns) stays behind and mounts these;
- * the dependency runs shell → unit and never back.
- *
- * The split line is the write path. Nothing exported here mounts a mutation, reads
- * a permission context, or calls `useParams()`; the two props that would carry
- * workspace identity — `CellContent.workspaceId` and `DataRow.workspaceId` — are
- * optional precisely so a surface without one can render. See
- * `components/cells/cell-render.test.ts` for the property that makes that safe.
+ * The view reads and writes — like {@link FileView}, and unlike the read-only
+ * split this unit briefly held. What it does NOT hold is route context: no
+ * router, no params, no permission context. Capability arrives as `grants`,
+ * addressing as ids the host resolves, navigation as `onNavigate`.
  *
  * This is the unit barrel: import from `@/components/resources/table-view`, not
  * from a file inside it. The exception is a `lazy()`/`dynamic()` split point,
  * which must use a deep path — `apps/sim` has no `sideEffects: false`, so routing
  * a split point through a barrel silently re-attaches the chunk.
- *
- * Deliberately the ONE unit with no `table-view.tsx`. `file-view`, `log-view` and
- * `knowledge-view` each export a single component mounted against source, grants
- * and host; a table has no equivalent read surface yet, because everything that
- * draws a grid today also writes one. Until that shell is split, `table` is
- * absent from the check's `CANONICAL_UNITS` view list and this stays a component
- * library that happens to live beside the views. The file layout matches theirs
- * — `components/<child>/`, `utils/`, `types.ts` — so the day a `TableView` lands,
- * it lands in the shape everything else already has.
  */
 
 export {
@@ -58,6 +44,7 @@ export {
   SelectAllCheckbox,
   TableColGroup,
 } from '@/components/resources/table-view/components/table-primitives'
+export { TableView, type TableViewProps } from '@/components/resources/table-view/table-view'
 export type {
   BlockIconInfo,
   ColumnSourceInfo,

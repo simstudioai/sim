@@ -1,6 +1,6 @@
 import type React from 'react'
 import type { TableCellSelection } from '@sim/realtime-protocol/table-presence'
-import type { ColumnDefinition } from '@/lib/table'
+import type { ColumnDefinition, SortSpec, TablePredicate, TableRow } from '@/lib/table'
 
 export interface BlockIconInfo {
   icon: React.ComponentType<{ className?: string }>
@@ -67,4 +67,24 @@ export interface EditingCell {
   rowId: string
   columnName: string
   columnKey?: string
+}
+
+/**
+ * Query options for filtering and sorting table data
+ */
+export interface QueryOptions {
+  filter: TablePredicate | null
+  sort: SortSpec | null
+}
+
+/**
+ * State for the row context menu (right-click).
+ * When `row` is null and `rowIndex` is set, the menu targets an empty cell.
+ */
+export interface ContextMenuState {
+  isOpen: boolean
+  position: { x: number; y: number }
+  row: TableRow | null
+  rowIndex: number | null
+  columnName: string | null
 }

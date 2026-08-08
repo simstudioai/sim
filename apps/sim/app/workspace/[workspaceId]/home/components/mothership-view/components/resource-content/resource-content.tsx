@@ -27,6 +27,7 @@ import { useRouter } from 'next/navigation'
 import { FileView, type PreviewMode, resolveFileCategory } from '@/components/resources/file-view'
 import { LogView } from '@/components/resources/log-view'
 import { ResourceEmptyState } from '@/components/resources/resource-empty-state'
+import { TableView } from '@/components/resources/table-view'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { useSession } from '@/lib/auth/auth-client'
 import { getWorkspaceUsageLimitAction } from '@/lib/billing/workspace-permissions'
@@ -59,7 +60,6 @@ import {
   useUserPermissionsContext,
   useWorkspacePermissionsContext,
 } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { Table } from '@/app/workspace/[workspaceId]/tables/[tableId]/table'
 import { useUsageLimits } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/hooks'
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import { useFolders } from '@/hooks/queries/folders'
@@ -270,6 +270,11 @@ export const ResourceContent = memo(function ResourceContent({
     error: logError,
   } = useLogDetail(resource.id, workspaceId, { enabled: isLogResource })
 
+  const tableSource = useMemo(
+    () => workspaceSource({ kind: 'table' as const, workspaceId, resourceId: resource.id }),
+    [workspaceId, resource.id]
+  )
+
   const logSource = useMemo(
     () => workspaceSource({ kind: 'log' as const, workspaceId, resourceId: resource.id }),
     [workspaceId, resource.id]
@@ -311,14 +316,13 @@ export const ResourceContent = memo(function ResourceContent({
   switch (resource.type) {
     case 'table':
       return (
-        <Table
+        <TableView
           key={resource.id}
           host='panel'
           grants={grants}
           onNavigate={navigate}
           showExecutionInternals={!permissionConfig.hideTraceSpans}
-          workspaceId={workspaceId}
-          tableId={resource.id}
+          source={tableSource}
           viewsEnabled={tableViewsEnabled}
         />
       )

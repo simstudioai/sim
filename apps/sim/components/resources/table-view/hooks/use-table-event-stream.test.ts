@@ -2,9 +2,9 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { applyCellEventToRow } from '@/components/resources/table-view/hooks/use-table-event-stream'
 import type { RowExecutionMetadata, TableRow } from '@/lib/table'
 import type { TableEvent } from '@/lib/table/events'
-import { applyCellEventToRow } from '@/app/workspace/[workspaceId]/tables/[tableId]/hooks/use-table-event-stream'
 
 const TABLE_ID = 'table-1'
 const ROW_ID = 'row-1'

@@ -11,11 +11,8 @@ import {
   Tooltip,
 } from '@sim/emcn'
 import { CircleInfo, Lock } from '@sim/emcn/icons'
+import { describeLocks, LOCK_FIELDS } from '@/components/resources/table-view/utils/lock-copy'
 import type { TableLocks } from '@/lib/table'
-import {
-  describeLocks,
-  LOCK_FIELDS,
-} from '@/app/workspace/[workspaceId]/tables/[tableId]/lock-copy'
 import { useUpdateTableLocks } from '@/hooks/queries/tables'
 
 function locksEqual(a: TableLocks, b: TableLocks): boolean {

@@ -49,6 +49,7 @@ import {
   TableFind,
   WorkflowGroupMetaCell,
 } from '@/components/resources/table-view'
+import type { BlockedTableAction } from '@/components/resources/table-view/utils/lock-copy'
 import type { RunLimit, RunMode, TableFindMatch } from '@/lib/api/contracts/tables'
 import { attachSelectionContextToClipboard } from '@/lib/copilot/chat/selection-clipboard'
 import { captureEvent } from '@/lib/posthog/client'
@@ -63,7 +64,6 @@ import type {
 import { getColumnId } from '@/lib/table/column-keys'
 import { columnTypeOf } from '@/lib/table/column-types'
 import { TABLE_LIMITS } from '@/lib/table/constants'
-import type { BlockedTableAction } from '@/app/workspace/[workspaceId]/tables/[tableId]/lock-copy'
 import { useTimezone } from '@/hooks/queries/general-settings'
 import {
   useAddTableColumn,

@@ -69,7 +69,7 @@ vi.mock('@/lib/table/constants', () => ({
   TABLE_LIMITS: { MAX_QUERY_LIMIT: 1000 },
 }))
 
-import { useTable } from '@/app/workspace/[workspaceId]/tables/[tableId]/hooks/use-table'
+import { useTable } from '@/components/resources/table-view/hooks/use-table'
 
 const WORKSPACE_ID = 'ws-1'
 const TABLE_ID = 'tbl-1'

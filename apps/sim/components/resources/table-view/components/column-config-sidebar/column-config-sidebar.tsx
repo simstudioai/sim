@@ -4,6 +4,10 @@ import { useState } from 'react'
 import { Button, ChipCombobox, ChipInput, cn, FieldDivider, Label, Switch, toast } from '@sim/emcn'
 import { X } from '@sim/emcn/icons'
 import { toError } from '@sim/utils/errors'
+import {
+  FieldError,
+  RequiredLabel,
+} from '@/components/resources/table-view/components/sidebar-fields'
 import { findValidationIssue, isValidationError } from '@/lib/api/client/errors'
 import type { ColumnDefinition, SelectOption } from '@/lib/table'
 import {
@@ -11,10 +15,6 @@ import {
   getCurrencyOptions,
   resolveCurrencyCode,
 } from '@/lib/table/currency'
-import {
-  FieldError,
-  RequiredLabel,
-} from '@/app/workspace/[workspaceId]/tables/[tableId]/components/sidebar-fields'
 import { useAddTableColumn, useUpdateColumn } from '@/hooks/queries/tables'
 import { SelectOptionsEditor } from '../select-field'
 import { PLAIN_COLUMN_TYPE_OPTIONS } from './column-types'

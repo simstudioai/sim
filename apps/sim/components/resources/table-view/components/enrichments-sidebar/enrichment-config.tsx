@@ -15,11 +15,11 @@ import {
 import { ArrowLeft, X } from '@sim/emcn/icons'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { FieldError } from '@/components/resources/table-view/components/sidebar-fields'
 import type { AddWorkflowGroupBodyInput } from '@/lib/api/contracts/tables'
 import type { ColumnDefinition, WorkflowGroup, WorkflowGroupOutput } from '@/lib/table'
 import { columnMatchesRef, getColumnId } from '@/lib/table/column-keys'
 import { deriveOutputColumnName } from '@/lib/table/column-naming'
-import { FieldError } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/sidebar-fields'
 import type { EnrichmentConfig as EnrichmentDef } from '@/enrichments/types'
 import {
   useAddWorkflowGroup,
