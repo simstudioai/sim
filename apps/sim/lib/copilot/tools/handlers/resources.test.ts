@@ -4,10 +4,12 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { listAllWorkspaceFilesMock, readWorkspaceFileMetadataMock } = vi.hoisted(() => ({
-  listAllWorkspaceFilesMock: vi.fn(),
-  readWorkspaceFileMetadataMock: vi.fn(),
-}))
+const { listAllWorkspaceFilesMock, readKnowledgeBaseMock, readWorkspaceFileMetadataMock } =
+  vi.hoisted(() => ({
+    listAllWorkspaceFilesMock: vi.fn(),
+    readKnowledgeBaseMock: vi.fn(),
+    readWorkspaceFileMetadataMock: vi.fn(),
+  }))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   findWorkspaceFileRecord: (
@@ -37,8 +39,11 @@ vi.mock('@/lib/table/service', () => ({
   getTableById: vi.fn(),
 }))
 
-vi.mock('@/lib/knowledge/service', () => ({
-  getKnowledgeBaseById: vi.fn(),
+vi.mock('@/lib/knowledge/application/knowledge-bases', () => ({
+  readKnowledgeBase: {
+    operation: { id: 'knowledge.read' },
+    execute: readKnowledgeBaseMock,
+  },
 }))
 
 vi.mock('@/lib/logs/service', () => ({
@@ -135,5 +140,56 @@ describe('executeOpenResource', () => {
         },
       ],
     })
+  })
+
+  it('opens a knowledge base through trusted application delegation', async () => {
+    readKnowledgeBaseMock.mockResolvedValue({
+      knowledgeBase: { id: 'kb-1', name: 'Product Docs', workspaceId: 'workspace-1' },
+      folderPath: '/',
+    })
+
+    const result = await executeOpenResource(
+      { resources: [{ type: 'knowledgebase', id: 'kb-1' }] },
+      {
+        userId: 'user-1',
+        workflowId: 'workflow-1',
+        workspaceId: 'workspace-1',
+        toolCallId: 'tool-1',
+        copilotToolExecution: true,
+      }
+    )
+
+    expect(readKnowledgeBaseMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal: expect.objectContaining({
+          kind: 'delegated',
+          subjectUserId: 'user-1',
+          workspaceId: 'workspace-1',
+          delegationId: 'tool-1',
+        }),
+        input: { knowledgeBaseId: 'kb-1', assertedWorkspaceId: 'workspace-1' },
+      })
+    )
+    expect(result).toMatchObject({
+      success: true,
+      resources: [{ type: 'knowledgebase', id: 'kb-1', title: 'Product Docs' }],
+    })
+  })
+
+  it('propagates knowledge application infrastructure failures', async () => {
+    readKnowledgeBaseMock.mockRejectedValueOnce(new Error('knowledge database unavailable'))
+
+    await expect(
+      executeOpenResource(
+        { resources: [{ type: 'knowledgebase', id: 'kb-1' }] },
+        {
+          userId: 'user-1',
+          workflowId: 'workflow-1',
+          workspaceId: 'workspace-1',
+          toolCallId: 'tool-1',
+          copilotToolExecution: true,
+        }
+      )
+    ).rejects.toThrow('knowledge database unavailable')
   })
 })

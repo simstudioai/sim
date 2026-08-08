@@ -307,6 +307,7 @@ export const v2CreateKnowledgeBaseContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: v2DataResponse(v2KnowledgeBaseDataSchema),
+    status: 201,
   },
 })
 
@@ -362,7 +363,7 @@ export const v2CreateKnowledgeFolderContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/knowledge/folders',
   body: v2CreateFolderBodySchema,
-  response: { mode: 'json', schema: v2DataResponse(v2KnowledgeFolderDataSchema) },
+  response: { mode: 'json', schema: v2DataResponse(v2KnowledgeFolderDataSchema), status: 201 },
 })
 
 export const v2RelocateKnowledgeFolderContract = defineRouteContract({
@@ -418,6 +419,7 @@ export const v2UploadKnowledgeDocumentContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: v2DataResponse(v2KnowledgeDocumentSummaryDataSchema),
+    status: 201,
   },
 })
 
@@ -429,6 +431,7 @@ export const v2CreateKnowledgeDocumentUploadContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: v2DataResponse(v2CreateKnowledgeDocumentUploadDataSchema),
+    status: 201,
   },
 })
 

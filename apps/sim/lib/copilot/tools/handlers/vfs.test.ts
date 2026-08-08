@@ -75,7 +75,13 @@ function makeVfs() {
   }
 }
 
-const GREP_CTX = { userId: 'user-1', workflowId: 'wf-1', workspaceId: 'ws-1' }
+const GREP_CTX = {
+  userId: 'user-1',
+  workflowId: 'wf-1',
+  workspaceId: 'ws-1',
+  toolCallId: 'tool-1',
+  copilotToolExecution: true,
+}
 const GREP_CTX_CHAT = { ...GREP_CTX, chatId: 'chat-1' }
 
 describe('vfs handlers oversize policy', () => {
@@ -89,10 +95,7 @@ describe('vfs handlers oversize policy', () => {
     vfs.grep.mockReturnValue([{ path: 'files/a.txt', line: 1, content: OVERSIZED_INLINE_CONTENT }])
     getOrMaterializeVFS.mockResolvedValue(vfs)
 
-    const result = await executeVfsGrep(
-      { pattern: 'foo', output_mode: 'content' },
-      { userId: 'user-1', workflowId: 'wf-1', workspaceId: 'ws-1' }
-    )
+    const result = await executeVfsGrep({ pattern: 'foo', output_mode: 'content' }, GREP_CTX)
 
     expect(result.success).toBe(false)
     expect(result.error).toContain('more specific pattern')
@@ -105,10 +108,7 @@ describe('vfs handlers oversize policy', () => {
     vfs.read.mockReturnValue({ content: OVERSIZED_INLINE_CONTENT, totalLines: 1 })
     getOrMaterializeVFS.mockResolvedValue(vfs)
 
-    const result = await executeVfsRead(
-      { path: 'workflows/My Workflow/state.json' },
-      { userId: 'user-1', workflowId: 'wf-1', workspaceId: 'ws-1' }
-    )
+    const result = await executeVfsRead({ path: 'workflows/My Workflow/state.json' }, GREP_CTX)
 
     expect(result.success).toBe(false)
     expect(result.error).toContain('Use grep')
@@ -124,10 +124,7 @@ describe('vfs handlers oversize policy', () => {
     })
     getOrMaterializeVFS.mockResolvedValue(vfs)
 
-    const result = await executeVfsRead(
-      { path: 'files/big.txt/content' },
-      { userId: 'user-1', workflowId: 'wf-1', workspaceId: 'ws-1' }
-    )
+    const result = await executeVfsRead({ path: 'files/big.txt/content' }, GREP_CTX)
 
     expect(result.success).toBe(false)
     expect(result.error).toContain('File too large to display inline')
@@ -147,10 +144,7 @@ describe('vfs handlers oversize policy', () => {
     })
     getOrMaterializeVFS.mockResolvedValue(vfs)
 
-    const result = await executeVfsRead(
-      { path: 'files/chess.png/content' },
-      { userId: 'user-1', workflowId: 'wf-1', workspaceId: 'ws-1' }
-    )
+    const result = await executeVfsRead({ path: 'files/chess.png/content' }, GREP_CTX)
 
     expect(result.success).toBe(true)
     expect((result.output as { attachment?: { type: string } })?.attachment?.type).toBe('image')
@@ -170,10 +164,7 @@ describe('vfs handlers oversize policy', () => {
     })
     getOrMaterializeVFS.mockResolvedValue(vfs)
 
-    const result = await executeVfsRead(
-      { path: 'files/reports/report.pdf/compiled' },
-      { userId: 'user-1', workflowId: 'wf-1', workspaceId: 'ws-1' }
-    )
+    const result = await executeVfsRead({ path: 'files/reports/report.pdf/compiled' }, GREP_CTX)
 
     expect(result.success).toBe(true)
     expect((result.output as { attachment?: { type: string } })?.attachment?.type).toBe('file')
@@ -187,10 +178,7 @@ describe('vfs handlers oversize policy', () => {
     })
     getOrMaterializeVFS.mockResolvedValue(vfs)
 
-    const result = await executeVfsRead(
-      { path: 'files/huge.png/content' },
-      { userId: 'user-1', workflowId: 'wf-1', workspaceId: 'ws-1' }
-    )
+    const result = await executeVfsRead({ path: 'files/huge.png/content' }, GREP_CTX)
 
     expect(result.success).toBe(false)
     expect(result.error).toContain('too large')
@@ -204,10 +192,7 @@ describe('vfs handlers oversize policy', () => {
     })
     getOrMaterializeVFS.mockResolvedValue(vfs)
 
-    const result = await executeVfsRead(
-      { path: 'files/report.csv' },
-      { userId: 'user-1', workflowId: 'wf-1', workspaceId: 'ws-1' }
-    )
+    const result = await executeVfsRead({ path: 'files/report.csv' }, GREP_CTX)
 
     expect(result.success).toBe(true)
     expect(vfs.readFileContent).not.toHaveBeenCalled()
@@ -229,9 +214,18 @@ describe('vfs handlers oversize policy', () => {
     )
 
     expect(result.success).toBe(true)
-    expect(getOrMaterializeVFS).toHaveBeenCalledWith('ws-1', 'user-1', {
-      secretMountPolicy,
-    })
+    expect(getOrMaterializeVFS).toHaveBeenCalledWith(
+      'ws-1',
+      'user-1',
+      expect.objectContaining({
+        secretMountPolicy,
+        knowledgePrincipal: expect.objectContaining({
+          kind: 'delegated',
+          delegationId: 'tool-1',
+          workspaceId: 'ws-1',
+        }),
+      })
+    )
   })
 
   it('uses dynamic file reads for canonical style paths', async () => {
@@ -242,10 +236,7 @@ describe('vfs handlers oversize policy', () => {
     })
     getOrMaterializeVFS.mockResolvedValue(vfs)
 
-    const result = await executeVfsRead(
-      { path: 'files/reports/brief.docx/style' },
-      { userId: 'user-1', workflowId: 'wf-1', workspaceId: 'ws-1' }
-    )
+    const result = await executeVfsRead({ path: 'files/reports/brief.docx/style' }, GREP_CTX)
 
     expect(result.success).toBe(true)
     expect(vfs.readFileContent).toHaveBeenCalledWith('files/reports/brief.docx/style')
@@ -260,10 +251,7 @@ describe('vfs handlers oversize policy', () => {
     })
     getOrMaterializeVFS.mockResolvedValue(vfs)
 
-    const result = await executeVfsRead(
-      { path: 'files/reports/brief.pdf/compiled' },
-      { userId: 'user-1', workflowId: 'wf-1', workspaceId: 'ws-1' }
-    )
+    const result = await executeVfsRead({ path: 'files/reports/brief.pdf/compiled' }, GREP_CTX)
 
     expect(result.success).toBe(true)
     expect(vfs.readFileContent).toHaveBeenCalledWith('files/reports/brief.pdf/compiled')

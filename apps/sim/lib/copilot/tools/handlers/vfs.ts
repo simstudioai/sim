@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
+import { resolveCopilotKnowledgePrincipal } from '@/lib/copilot/application/execute-knowledge-use-case'
 import { resolveCopilotFilePrincipal } from '@/lib/copilot/auth/file-delegation'
 import { getBlockVisibilityForCopilot } from '@/lib/copilot/block-visibility'
 import { TOOL_RESULT_MAX_INLINE_CHARS } from '@/lib/copilot/constants'
@@ -30,6 +31,7 @@ const logger = createLogger('VfsTools')
 async function getGatedVFS(context: ExecutionContext) {
   const workspaceId = context.workspaceId
   if (!workspaceId) throw new Error('No workspace context available')
+  const knowledgePrincipal = resolveCopilotKnowledgePrincipal(context)
   const vis = await getBlockVisibilityForCopilot(context.userId, workspaceId)
   const filePrincipal =
     context.copilotToolExecution && context.toolCallId
@@ -39,6 +41,7 @@ async function getGatedVFS(context: ExecutionContext) {
     getOrMaterializeVFS(workspaceId, context.userId, {
       secretMountPolicy: context.secretMountPolicy,
       filePrincipal,
+      knowledgePrincipal,
     })
   )
 }

@@ -4,7 +4,6 @@ import { db } from '@sim/db'
 import {
   chat as chatTable,
   customTools as customToolsTable,
-  document,
   folder as folderTable,
   knowledgeBaseTagDefinitions,
   knowledgeConnector,
@@ -118,7 +117,9 @@ import {
   isOAuthServiceDeploymentAvailable,
 } from '@/lib/integrations/availability.server'
 import { createIntegrationCredentialVisibility } from '@/lib/integrations/credential-visibility.server'
-import { getKnowledgeBases } from '@/lib/knowledge/service'
+import { listKnowledgeDocuments } from '@/lib/knowledge/application/documents'
+import { listKnowledgeBases } from '@/lib/knowledge/application/knowledge-bases'
+import { getKnowledgeBases as getLegacyKnowledgeBases } from '@/lib/knowledge/service'
 import { validateMermaidSource } from '@/lib/mermaid/validate'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
@@ -157,6 +158,8 @@ const logger = createLogger('WorkspaceVFS')
 // double-cast-allowed: a no-op stands in for the unused SVG-typed BlockIcon slot
 const PLACEHOLDER_BLOCK_ICON = (() => null) as unknown as BlockIcon
 const MAX_COMPILED_ATTACHMENT_BYTES = 5 * 1024 * 1024
+const KNOWLEDGE_DOCUMENT_PAGE_SIZE = 100
+const MAX_VFS_KNOWLEDGE_DOCUMENTS = 10_000
 
 function bindWorkspaceFileResult<T>(
   record: WorkspaceFileRecord,
@@ -566,6 +569,7 @@ function getStaticComponentFiles(): Map<string, string> {
  */
 export class WorkspaceVFS {
   private readonly filePrincipal?: Principal
+  private readonly knowledgePrincipal?: Principal
   // Eagerly-materialized, cheap content (structure + metadata): folder markers,
   // per-resource meta.json, WORKSPACE.md/WORKSPACE_CONTEXT.md, static components.
   private files: Map<string, string> = new Map()
@@ -598,8 +602,9 @@ export class WorkspaceVFS {
    */
   private _customBlockTypes: Set<string> | null = null
 
-  constructor(filePrincipal?: Principal) {
+  constructor(filePrincipal?: Principal, knowledgePrincipal?: Principal) {
     this.filePrincipal = filePrincipal
+    this.knowledgePrincipal = knowledgePrincipal
   }
 
   get workspaceId(): string {
@@ -799,7 +804,7 @@ export class WorkspaceVFS {
               sandboxEntitled,
             ] = await Promise.all([
               timed('workflows', this.materializeWorkflows(workspaceId)),
-              timed('knowledge_bases', this.materializeKnowledgeBases(workspaceId, userId)),
+              timed('knowledge_bases', this.materializeKnowledgeBases(workspaceId)),
               timed('tables', this.materializeTables(workspaceId)),
               timed('files', this.materializeFiles(workspaceId)),
               timed(
@@ -1738,99 +1743,120 @@ export class WorkspaceVFS {
     }))
   }
 
-  /**
-   * Materialize knowledge bases using the shared getKnowledgeBases function.
-   * Returns a summary for WORKSPACE.md generation.
-   */
+  /** Materializes authorized knowledge summaries for WORKSPACE.md generation. */
   private async materializeKnowledgeBases(
-    workspaceId: string,
-    userId: string
+    workspaceId: string
   ): Promise<WorkspaceMdData['knowledgeBases']> {
-    const kbs = await getKnowledgeBases(userId, workspaceId)
+    if (!this.knowledgePrincipal) {
+      throw new Error('Workspace VFS knowledge materialization requires a trusted principal')
+    }
+    const { knowledgeBases } = await listKnowledgeBases.execute({
+      principal: this.knowledgePrincipal,
+      input: { workspaceId },
+    })
+    const kbs = knowledgeBases.map(({ knowledgeBase }) => knowledgeBase)
 
     const tagDefinitionsByKb = await this.loadKbTagDefinitions(kbs.map((kb) => kb.id))
 
-    await Promise.all(
-      kbs.map(async (kb) => {
-        const safeName = sanitizeName(kb.name)
-        const prefix = `knowledgebases/${safeName}/`
+    for (const kb of kbs) {
+      const safeName = sanitizeName(kb.name)
+      const prefix = `knowledgebases/${safeName}/`
 
-        this.files.set(
-          `${prefix}meta.json`,
-          serializeKBMeta({
-            id: kb.id,
-            name: kb.name,
-            description: kb.description,
-            embeddingModel: kb.embeddingModel,
-            embeddingDimension: kb.embeddingDimension,
-            tokenCount: kb.tokenCount,
-            createdAt: kb.createdAt,
-            updatedAt: kb.updatedAt,
-            documentCount: kb.docCount,
-            connectorTypes: kb.connectorTypes,
-            tagDefinitions: tagDefinitionsByKb.get(kb.id),
-          })
-        )
+      this.files.set(
+        `${prefix}meta.json`,
+        serializeKBMeta({
+          id: kb.id,
+          name: kb.name,
+          description: kb.description,
+          embeddingModel: kb.embeddingModel,
+          embeddingDimension: kb.embeddingDimension,
+          tokenCount: kb.tokenCount,
+          createdAt: kb.createdAt,
+          updatedAt: kb.updatedAt,
+          documentCount: kb.docCount,
+          connectorTypes: kb.connectorTypes,
+          tagDefinitions: tagDefinitionsByKb.get(kb.id),
+        })
+      )
 
-        // documents.json / connectors.json are lazy, advertised only when the KB
-        // summary says they exist (docCount / connectorTypes) — no per-KB query on
-        // a read/glob, only when the artifact is read or grepped.
-        if (kb.docCount > 0) {
-          this.registerLazy(`${prefix}documents.json`, async () => {
-            const docRows = await db
-              .select({
-                id: document.id,
-                filename: document.filename,
-                fileSize: document.fileSize,
-                mimeType: document.mimeType,
-                chunkCount: document.chunkCount,
-                tokenCount: document.tokenCount,
-                processingStatus: document.processingStatus,
-                enabled: document.enabled,
-                uploadedAt: document.uploadedAt,
-              })
-              .from(document)
-              .where(
-                and(
-                  eq(document.knowledgeBaseId, kb.id),
-                  eq(document.userExcluded, false),
-                  isNull(document.archivedAt),
-                  isNull(document.deletedAt)
-                )
+      // documents.json / connectors.json are lazy, advertised only when the KB
+      // summary says they exist (docCount / connectorTypes) — no per-KB query on
+      // a read/glob, only when the artifact is read or grepped.
+      if (kb.docCount > 0) {
+        this.registerLazy(`${prefix}documents.json`, async () => {
+          if (!this.knowledgePrincipal) {
+            throw new Error('Workspace VFS knowledge document read requires a trusted principal')
+          }
+          if (kb.docCount > MAX_VFS_KNOWLEDGE_DOCUMENTS) {
+            throw new Error(
+              `Knowledge base ${kb.id} has more than ${MAX_VFS_KNOWLEDGE_DOCUMENTS} documents; documents.json cannot be materialized`
+            )
+          }
+          const documents: Awaited<ReturnType<typeof listKnowledgeDocuments.execute>>['documents'] =
+            []
+          let offset = 0
+          while (true) {
+            const page = await listKnowledgeDocuments.execute({
+              principal: this.knowledgePrincipal,
+              input: {
+                knowledgeBaseId: kb.id,
+                assertedWorkspaceId: workspaceId,
+                limit: KNOWLEDGE_DOCUMENT_PAGE_SIZE,
+                offset,
+              },
+            })
+            documents.push(...page.documents)
+            if (documents.length > MAX_VFS_KNOWLEDGE_DOCUMENTS) {
+              throw new Error(
+                `Knowledge base ${kb.id} exceeded the ${MAX_VFS_KNOWLEDGE_DOCUMENTS} document limit while materializing documents.json`
               )
-            return docRows.length > 0 ? serializeDocuments(docRows) : null
-          })
-        }
+            }
+            if (!page.pagination.hasMore) break
+            offset += page.pagination.limit
+          }
+          const docRows = documents.map((document) => ({
+            id: document.id,
+            filename: document.filename,
+            fileSize: document.fileSize,
+            mimeType: document.mimeType,
+            chunkCount: document.chunkCount,
+            tokenCount: document.tokenCount,
+            processingStatus: document.processingStatus,
+            enabled: document.enabled,
+            uploadedAt: document.uploadedAt,
+          }))
+          return docRows.length > 0 ? serializeDocuments(docRows) : null
+        })
+      }
 
-        if (kb.connectorTypes.length > 0) {
-          this.registerLazy(`${prefix}connectors.json`, async () => {
-            const connectorRows = await db
-              .select({
-                id: knowledgeConnector.id,
-                connectorType: knowledgeConnector.connectorType,
-                status: knowledgeConnector.status,
-                syncMode: knowledgeConnector.syncMode,
-                syncIntervalMinutes: knowledgeConnector.syncIntervalMinutes,
-                lastSyncAt: knowledgeConnector.lastSyncAt,
-                lastSyncError: knowledgeConnector.lastSyncError,
-                lastSyncDocCount: knowledgeConnector.lastSyncDocCount,
-                nextSyncAt: knowledgeConnector.nextSyncAt,
-                consecutiveFailures: knowledgeConnector.consecutiveFailures,
-                createdAt: knowledgeConnector.createdAt,
-              })
-              .from(knowledgeConnector)
-              .where(
-                and(
-                  eq(knowledgeConnector.knowledgeBaseId, kb.id),
-                  isNull(knowledgeConnector.archivedAt),
-                  isNull(knowledgeConnector.deletedAt)
-                )
+      if (kb.connectorTypes.length > 0) {
+        this.registerLazy(`${prefix}connectors.json`, async () => {
+          const connectorRows = await db
+            .select({
+              id: knowledgeConnector.id,
+              connectorType: knowledgeConnector.connectorType,
+              status: knowledgeConnector.status,
+              syncMode: knowledgeConnector.syncMode,
+              syncIntervalMinutes: knowledgeConnector.syncIntervalMinutes,
+              lastSyncAt: knowledgeConnector.lastSyncAt,
+              lastSyncError: knowledgeConnector.lastSyncError,
+              lastSyncDocCount: knowledgeConnector.lastSyncDocCount,
+              nextSyncAt: knowledgeConnector.nextSyncAt,
+              consecutiveFailures: knowledgeConnector.consecutiveFailures,
+              createdAt: knowledgeConnector.createdAt,
+            })
+            .from(knowledgeConnector)
+            .where(
+              and(
+                eq(knowledgeConnector.knowledgeBaseId, kb.id),
+                isNull(knowledgeConnector.archivedAt),
+                isNull(knowledgeConnector.deletedAt)
               )
-            return connectorRows.length > 0 ? serializeConnectors(connectorRows) : null
-          })
-        }
-      })
-    )
+            )
+          return connectorRows.length > 0 ? serializeConnectors(connectorRows) : null
+        })
+      }
+    }
 
     return kbs.map((kb) => ({
       id: kb.id,
@@ -2343,7 +2369,7 @@ export class WorkspaceVFS {
             input: { workspaceId, scope: 'archived' },
           })
           .then(({ folders }) => folders),
-        getKnowledgeBases(userId, workspaceId, 'archived'),
+        getLegacyKnowledgeBases(userId, workspaceId, 'archived'),
       ])
 
       for (const wf of archivedWorkflows) {
@@ -2570,10 +2596,14 @@ export class WorkspaceVFS {
 export async function getOrMaterializeVFS(
   workspaceId: string,
   userId: string,
-  options?: { secretMountPolicy?: SecretMountPolicy; filePrincipal?: Principal }
+  options?: {
+    secretMountPolicy?: SecretMountPolicy
+    filePrincipal?: Principal
+    knowledgePrincipal?: Principal
+  }
 ): Promise<WorkspaceVFS> {
   await assertActiveWorkspaceAccess(workspaceId, userId)
-  const vfs = new WorkspaceVFS(options?.filePrincipal)
+  const vfs = new WorkspaceVFS(options?.filePrincipal, options?.knowledgePrincipal)
   await vfs.materialize(workspaceId, userId, options)
   return vfs
 }

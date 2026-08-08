@@ -5,123 +5,98 @@ import {
   v2RelocateKnowledgeFolderContract,
 } from '@/lib/api/contracts/v2/knowledge'
 import {
-  createFolderAtPath,
-  deleteFolderByPath,
-  relocateFolderByPath,
-} from '@/lib/folders/orchestration'
-import { listActiveFolderRows, loadActiveFolderPathIndex } from '@/lib/folders/queries'
-import { withPublicApiRouteHandler } from '@/app/api/public-api-route-handler'
-import { resolveWorkspaceAccess } from '@/app/api/v1/middleware'
+  defineV2JsonRoute,
+  v2ApiKeyAuth,
+  v2OrchestrationErrorPolicy,
+  v2RateLimits,
+} from '@/lib/api/server/routes'
+import { toFolderPathView } from '@/lib/folders/paths'
 import {
-  resolveFolderPathId,
-  toV2PathFolder,
-  v2FolderPathMutationError,
-} from '@/app/api/v2/lib/folders'
-import { v2CursorList, v2Data, v2Error, v2WorkspaceAccessError } from '@/app/api/v2/lib/response'
+  createKnowledgeFolder,
+  deleteKnowledgeFolder,
+  listKnowledgeFolders,
+  relocateKnowledgeFolder,
+} from '@/lib/knowledge/application/folders'
+import { knowledgeOperations } from '@/lib/knowledge/application/operations'
+import { v2Error } from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-export const GET = withPublicApiRouteHandler({
+export const GET = defineV2JsonRoute({
   contract: v2ListKnowledgeFoldersContract,
-  rateLimitEndpoint: 'knowledge',
-  handler: async ({ input, auth: { userId, rateLimit } }) => {
-    const { workspaceId, parentPath, search, sortBy, sortOrder } = input.query
-    const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'read')
-    if (access) return v2WorkspaceAccessError(access)
-
-    const index = await loadActiveFolderPathIndex(workspaceId, 'knowledge_base')
-    const parentId = parentPath === undefined ? undefined : resolveFolderPathId(index, parentPath)
-    if (parentPath !== undefined && parentId === undefined) {
-      return v2Error('NOT_FOUND', 'Folder not found')
-    }
-    const rows = await listActiveFolderRows(workspaceId, 'knowledge_base', {
-      parentId,
-      search,
-      sortBy,
-      sortOrder,
-    })
-    return v2CursorList(
-      rows.map((row) => toV2PathFolder(row, index, false)),
-      null,
-      { rateLimit }
-    )
-  },
+  auth: v2ApiKeyAuth,
+  operation: knowledgeOperations.listFolders,
+  rateLimit: v2RateLimits.publicApi,
+  errorPolicy: v2OrchestrationErrorPolicy,
+  mapInput: ({ query }) => ({
+    workspaceId: query.workspaceId,
+    parentPath: query.parentPath,
+    search: query.search,
+    sortBy: query.sortBy,
+    sortOrder: query.sortOrder,
+  }),
+  useCase: listKnowledgeFolders,
+  present: ({ folders }) => ({
+    data: folders.map((folder) => toFolderPathView(folder, folder.path)),
+    nextCursor: null,
+  }),
 })
 
-export const POST = withPublicApiRouteHandler({
+export const POST = defineV2JsonRoute({
   contract: v2CreateKnowledgeFolderContract,
-  rateLimitEndpoint: 'knowledge',
-  handler: async ({ input, auth: { userId, rateLimit } }) => {
-    const { workspaceId, path } = input.body
-    const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
-    if (access) return v2WorkspaceAccessError(access)
-    const result = await createFolderAtPath({
-      resourceType: 'knowledge_base',
-      workspaceId,
-      userId,
-      path,
-    })
-    if (!result.success || !result.folder) {
-      return v2FolderPathMutationError(result.errorCode, result.error ?? 'Failed to create folder')
-    }
-    const index = await loadActiveFolderPathIndex(workspaceId, 'knowledge_base')
-    return v2Data(
-      { folder: toV2PathFolder(result.folder, index, false) },
-      { rateLimit, status: 201 }
-    )
+  auth: v2ApiKeyAuth,
+  operation: knowledgeOperations.createFolder,
+  rateLimit: v2RateLimits.publicApi,
+  errorPolicy: v2OrchestrationErrorPolicy,
+  parseOptions: {
+    invalidJsonResponse: () => v2Error('BAD_REQUEST', 'Request body must be valid JSON'),
   },
+  mapInput: ({ body }) => ({ workspaceId: body.workspaceId, path: body.path, source: 'api' }),
+  useCase: createKnowledgeFolder,
+  present: ({ folder }) => ({ data: { folder: toFolderPathView(folder, folder.path) } }),
 })
 
-export const PATCH = withPublicApiRouteHandler({
+export const PATCH = defineV2JsonRoute({
   contract: v2RelocateKnowledgeFolderContract,
-  rateLimitEndpoint: 'knowledge',
-  handler: async ({ input, auth: { userId, rateLimit } }) => {
-    const { workspaceId, path, destinationPath } = input.body
-    const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
-    if (access) return v2WorkspaceAccessError(access)
-    const result = await relocateFolderByPath({
-      resourceType: 'knowledge_base',
-      workspaceId,
-      userId,
-      path,
-      destinationPath,
-    })
-    if (!result.success || !result.folder) {
-      return v2FolderPathMutationError(result.errorCode, result.error ?? 'Failed to move folder')
-    }
-    const index = await loadActiveFolderPathIndex(workspaceId, 'knowledge_base')
-    return v2Data({ folder: toV2PathFolder(result.folder, index, false) }, { rateLimit })
+  auth: v2ApiKeyAuth,
+  operation: knowledgeOperations.relocateFolder,
+  rateLimit: v2RateLimits.publicApi,
+  errorPolicy: v2OrchestrationErrorPolicy,
+  parseOptions: {
+    invalidJsonResponse: () => v2Error('BAD_REQUEST', 'Request body must be valid JSON'),
   },
+  mapInput: ({ body }) => ({
+    workspaceId: body.workspaceId,
+    path: body.path,
+    destinationPath: body.destinationPath,
+    source: 'api',
+  }),
+  useCase: relocateKnowledgeFolder,
+  present: ({ folder }) => ({ data: { folder: toFolderPathView(folder, folder.path) } }),
 })
 
-export const DELETE = withPublicApiRouteHandler({
+export const DELETE = defineV2JsonRoute({
   contract: v2DeleteKnowledgeFolderContract,
-  rateLimitEndpoint: 'knowledge',
-  handler: async ({ input, auth: { userId, rateLimit } }) => {
-    const { workspaceId, path, recursive } = input.query
-    const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
-    if (access) return v2WorkspaceAccessError(access)
-    const result = await deleteFolderByPath({
-      resourceType: 'knowledge_base',
-      workspaceId,
-      userId,
+  auth: v2ApiKeyAuth,
+  operation: knowledgeOperations.deleteFolder,
+  rateLimit: v2RateLimits.publicApi,
+  errorPolicy: v2OrchestrationErrorPolicy,
+  mapInput: ({ query }) => ({
+    workspaceId: query.workspaceId,
+    path: query.path,
+    recursive: query.recursive,
+    source: 'api',
+  }),
+  useCase: deleteKnowledgeFolder,
+  present: ({ path, deletedItems }) => ({
+    data: {
       path,
-      recursive,
-    })
-    if (!result.success || !result.deletedItems) {
-      return v2FolderPathMutationError(result.errorCode, result.error ?? 'Failed to delete folder')
-    }
-    return v2Data(
-      {
-        path,
-        deleted: true as const,
-        deletedItems: {
-          folders: result.deletedItems.folders,
-          knowledgeBases: result.deletedItems.knowledgeBases ?? 0,
-        },
+      deleted: true as const,
+      deletedItems: {
+        folders: deletedItems.folders,
+        knowledgeBases: deletedItems.knowledgeBases ?? 0,
       },
-      { rateLimit }
-    )
-  },
+    },
+  }),
 })

@@ -41,7 +41,11 @@ function makeTx(options: { selects?: unknown[][]; updates?: unknown[][] } = {}) 
       from: () => ({
         where: (where: unknown) => {
           selectCalls.push({ where })
-          return Promise.resolve(selectQueue.shift() ?? [])
+          const rows = selectQueue.shift() ?? []
+          return {
+            limit: () => Promise.resolve(rows),
+            then: (resolve: (value: unknown) => unknown) => Promise.resolve(rows).then(resolve),
+          }
         },
       }),
     }),
@@ -138,6 +142,22 @@ describe('collectCascadeSubtreeIds', () => {
       true
     )
     expect(hasMockCondition(selectCalls[0].where, (node) => node.right === 'ws-1')).toBe(true)
+  })
+
+  it('fails before materializing an oversized recursive cascade', async () => {
+    const { tx } = makeTx({
+      selects: [
+        [
+          { id: 'root', parentId: null },
+          { id: 'child', parentId: 'root' },
+          { id: 'grandchild', parentId: 'child' },
+        ],
+      ],
+    })
+
+    await expect(
+      collectCascadeSubtreeIds(tx, 'ws-1', 'knowledge_base', 'root', TIMESTAMP, 2)
+    ).rejects.toThrow('Folder cascade exceeds the 2 row limit')
   })
 })
 

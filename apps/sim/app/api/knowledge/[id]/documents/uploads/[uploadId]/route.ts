@@ -2,16 +2,12 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { abortKnowledgeDocumentUploadContract } from '@/lib/api/contracts/knowledge/upload-sessions'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { uploadSessionErrorResponse } from '@/app/api/files/uploads/utils'
+import { cancelKnowledgeDocumentUpload } from '@/lib/knowledge/application/upload-sessions'
 import {
-  requireKnowledgeDocumentUploadAccess,
+  knowledgeDocumentUploadErrorResponse,
   requireKnowledgeDocumentUploadActor,
 } from '@/app/api/knowledge/[id]/documents/uploads/utils'
-import {
-  abortKnowledgeDocumentUpload,
-  getOwnedKnowledgeDocumentUpload,
-  toV2KnowledgeDocumentUpload,
-} from '@/app/api/v2/knowledge/[id]/documents/uploads/utils'
+import { toV2KnowledgeDocumentUpload } from '@/app/api/v2/knowledge/[id]/documents/uploads/utils'
 
 interface KnowledgeDocumentUploadRouteParams {
   params: Promise<{ id: string; uploadId: string }>
@@ -25,24 +21,20 @@ export const DELETE = withRouteHandler(
     if (!parsed.success) return parsed.response
     const { id: knowledgeBaseId, uploadId } = parsed.data.params
     const { workspaceId } = parsed.data.query
-    const access = await requireKnowledgeDocumentUploadAccess({
-      knowledgeBaseId,
-      workspaceId,
-      userId: actor.id,
-    })
-    if (access instanceof NextResponse) return access
     try {
-      const upload = await getOwnedKnowledgeDocumentUpload({
-        knowledgeBaseId,
-        uploadId,
-        workspaceId,
-        userId: actor.id,
-        uploadToken: parsed.data.headers['upload-token'],
+      const aborted = await cancelKnowledgeDocumentUpload.execute({
+        principal: { kind: 'session', userId: actor.id, sessionId: actor.sessionId },
+        input: {
+          knowledgeBaseId,
+          assertedWorkspaceId: workspaceId,
+          uploadId,
+          uploadToken: parsed.data.headers['upload-token'],
+        },
+        request,
       })
-      const aborted = await abortKnowledgeDocumentUpload(upload, knowledgeBaseId)
       return NextResponse.json({ data: toV2KnowledgeDocumentUpload(aborted, null) })
     } catch (error) {
-      const classified = uploadSessionErrorResponse(error)
+      const classified = knowledgeDocumentUploadErrorResponse(error)
       if (classified) return classified
       throw error
     }
