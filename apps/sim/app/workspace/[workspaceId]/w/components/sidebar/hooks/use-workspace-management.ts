@@ -8,6 +8,8 @@ import { useLeaveWorkspace } from '@/hooks/queries/invitations'
 import {
   useCreateWorkspace,
   useDeleteWorkspace,
+  usePinnedWorkspaceIds,
+  useToggleWorkspacePin,
   useUpdateWorkspace,
   useWorkspaceCreationPolicy,
   useWorkspacesQuery,
@@ -45,6 +47,8 @@ export function useWorkspaceManagement({
   const { data: workspaceCreationPolicy = null } = useWorkspaceCreationPolicy(
     Boolean(sessionUserId)
   )
+  const { data: pinnedWorkspaceIdList } = usePinnedWorkspaceIds(Boolean(sessionUserId))
+  const { mutate: toggleWorkspacePinMutate } = useToggleWorkspacePin()
 
   const leaveWorkspaceMutation = useLeaveWorkspace()
   const createWorkspaceMutation = useCreateWorkspace()
@@ -87,10 +91,47 @@ export function useWorkspaceManagement({
     }, 1000)
   }, [])
 
-  const sortedWorkspaces = useMemo(
-    () => WorkspaceRecencyStorage.sortByRecency(workspaces),
+  const pinnedWorkspaceIds = useMemo(
+    () => new Set(pinnedWorkspaceIdList ?? []),
+    [pinnedWorkspaceIdList]
+  )
+
+  /**
+   * Pinned workspaces float to the top, recency ordering them within each group.
+   * Matches `resource-sort.ts`: pinning is a user-declared priority layered over
+   * the list's own sort, not a competing sort key.
+   */
+  const sortedWorkspaces = useMemo(() => {
+    const byRecency = WorkspaceRecencyStorage.sortByRecency(workspaces)
+    if (pinnedWorkspaceIds.size === 0) return byRecency
+    const pinned: Workspace[] = []
+    const unpinned: Workspace[] = []
+    for (const workspace of byRecency) {
+      if (pinnedWorkspaceIds.has(workspace.id)) pinned.push(workspace)
+      else unpinned.push(workspace)
+    }
+    return [...pinned, ...unpinned]
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [workspaces, recencySortKey]
+  }, [workspaces, recencySortKey, pinnedWorkspaceIds])
+
+  const pinnedWorkspaceIdsRef = useRef<Set<string>>(pinnedWorkspaceIds)
+  pinnedWorkspaceIdsRef.current = pinnedWorkspaceIds
+
+  /**
+   * Reads the current pins through a ref so the callback identity stays stable for
+   * the memoized switcher, and derives the whole next list here — the settings
+   * endpoint replaces it wholesale, and this hook is the one place that already
+   * owns the set.
+   */
+  const toggleWorkspacePin = useCallback(
+    (workspaceId: string) => {
+      const current = pinnedWorkspaceIdsRef.current
+      const pinnedWorkspaceIds = current.has(workspaceId)
+        ? [...current].filter((id) => id !== workspaceId)
+        : [...current, workspaceId]
+      toggleWorkspacePinMutate({ pinnedWorkspaceIds })
+    },
+    [toggleWorkspacePinMutate]
   )
 
   const activeWorkspace = useMemo(() => {
@@ -233,6 +274,8 @@ export function useWorkspaceManagement({
 
   return {
     workspaces: sortedWorkspaces,
+    pinnedWorkspaceIds,
+    toggleWorkspacePin,
     workspaceCreationPolicy,
     activeWorkspace,
     isWorkspacesLoading,

@@ -19,7 +19,7 @@ import {
   Skeleton,
   Tooltip,
 } from '@sim/emcn'
-import { MoreHorizontal, PanelLeft, Search } from '@sim/emcn/icons'
+import { MoreHorizontal, PanelLeft, Pin, Search } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
@@ -42,8 +42,17 @@ import { SIDEBAR_WIDTH } from '@/stores/constants'
 
 const logger = createLogger('WorkspaceHeader')
 
-/** Show the search input once the workspace list exceeds this count. */
-const WORKSPACE_SEARCH_THRESHOLD = 3
+/**
+ * Show the search input once the workspace list reaches this count, and size the
+ * list viewport to exactly this many rows — so the sixth workspace is the one that
+ * both fills the viewport and brings in search.
+ *
+ * The viewport's `max-h-[190px]` is derived from it: 6 rows at `chipGeometryClass`'s
+ * 30px plus the 2px `gap-0.5` between them (6 * 30 + 5 * 2). Tailwind arbitrary
+ * values must be statically analyzable, so the arithmetic cannot live in the class —
+ * change the two together.
+ */
+const WORKSPACE_SEARCH_THRESHOLD = 6
 
 /**
  * Derives the single-letter avatar initial for a workspace, ignoring the word
@@ -80,8 +89,12 @@ interface WorkspaceHeaderProps {
   activeWorkspace?: { name: string } | null
   /** Current workspace ID */
   workspaceId: string
-  /** List of available workspaces */
+  /** List of available workspaces, already ordered pinned-first */
   workspaces: Workspace[]
+  /** Ids of workspaces the viewer pinned to the top of the switcher */
+  pinnedWorkspaceIds: ReadonlySet<string>
+  /** Callback to toggle a workspace's pinned state */
+  onToggleWorkspacePin: (workspaceId: string) => void
   /** Server-derived workspace creation policy for the current user context */
   workspaceCreationPolicy?: WorkspaceCreationPolicy | null
   /** Whether workspaces are loading */
@@ -123,6 +136,8 @@ function WorkspaceHeaderImpl({
   activeWorkspace,
   workspaceId,
   workspaces,
+  pinnedWorkspaceIds,
+  onToggleWorkspacePin,
   workspaceCreationPolicy,
   isWorkspacesLoading,
   isCreatingWorkspace,
@@ -156,7 +171,12 @@ function WorkspaceHeaderImpl({
   const [menuOpenWorkspaceId, setMenuOpenWorkspaceId] = useState<string | null>(null)
   const contextMenuRef = useRef<HTMLDivElement | null>(null)
   const capturedWorkspaceRef = useRef<Workspace | null>(null)
-  const isRenamingRef = useRef(false)
+  /**
+   * Set by context-menu actions whose result is only visible in the still-open
+   * switcher — renaming (the inline input lives there) and pinning (the row moves
+   * to the pinned group).
+   */
+  const keepWorkspaceMenuOpenRef = useRef(false)
   const isContextMenuOpeningRef = useRef(false)
   const contextMenuClosedRef = useRef(true)
   const hasInputFocusedRef = useRef(false)
@@ -180,7 +200,7 @@ function WorkspaceHeaderImpl({
    */
   const [isKeyboardNav, setIsKeyboardNav] = useState(false)
 
-  const showSearch = workspaces.length > WORKSPACE_SEARCH_THRESHOLD
+  const showSearch = workspaces.length >= WORKSPACE_SEARCH_THRESHOLD
   const searchQuery = workspaceSearch.trim().toLowerCase()
   const filteredWorkspaces =
     showSearch && searchQuery
@@ -322,10 +342,10 @@ function WorkspaceHeaderImpl({
     setMenuOpenWorkspaceId(null)
     const isOpeningAnother = isContextMenuOpeningRef.current
     isContextMenuOpeningRef.current = false
-    if (!isRenamingRef.current && !isOpeningAnother) {
+    if (!keepWorkspaceMenuOpenRef.current && !isOpeningAnother) {
       setIsWorkspaceMenuOpen(false)
     }
-    isRenamingRef.current = false
+    keepWorkspaceMenuOpenRef.current = false
   }
 
   /**
@@ -334,7 +354,7 @@ function WorkspaceHeaderImpl({
   const handleRenameAction = () => {
     if (!capturedWorkspaceRef.current) return
 
-    isRenamingRef.current = true
+    keepWorkspaceMenuOpenRef.current = true
     hasInputFocusedRef.current = false
     setEditingWorkspaceId(capturedWorkspaceRef.current.id)
     setEditingName(capturedWorkspaceRef.current.name)
@@ -367,6 +387,17 @@ function WorkspaceHeaderImpl({
       setIsLeaveModalOpen(true)
       setIsWorkspaceMenuOpen(false)
     }
+  }
+
+  /**
+   * Pinning leaves the switcher open: the row jumps to the pinned group, and
+   * closing the menu would hide the only feedback that the action landed.
+   */
+  const handleTogglePinAction = () => {
+    const target = capturedWorkspaceRef.current
+    if (!target) return
+    keepWorkspaceMenuOpenRef.current = true
+    onToggleWorkspacePin(target.id)
   }
 
   const handleUploadLogoAction = () => {
@@ -565,7 +596,7 @@ function WorkspaceHeaderImpl({
                 )}
                 <div
                   ref={workspaceListRef}
-                  className='-mx-1.5 flex max-h-[94px] flex-col gap-0.5 overflow-y-auto px-1.5'
+                  className='-mx-1.5 flex max-h-[190px] flex-col gap-0.5 overflow-y-auto px-1.5'
                 >
                   {filteredWorkspaces.length === 0 && workspaceSearch && (
                     <div className='px-2 py-[5px] text-[var(--text-muted)] text-caption'>
@@ -711,6 +742,16 @@ function WorkspaceHeaderImpl({
                             <span className='min-w-0 flex-1 truncate text-[var(--text-body)] text-sm'>
                               {workspace.name}
                             </span>
+                            {pinnedWorkspaceIds.has(workspace.id) && (
+                              /* `Pin` hardcodes `aria-hidden` ahead of its prop spread,
+                                 so un-hiding it is what makes the label announce. */
+                              <Pin
+                                aria-hidden={false}
+                                role='img'
+                                aria-label='Pinned'
+                                className='size-[12px] flex-shrink-0 text-[var(--text-icon)]'
+                              />
+                            )}
                             <button
                               type='button'
                               aria-label='Workspace options'
@@ -843,7 +884,15 @@ function WorkspaceHeaderImpl({
             renameInputRef={renameInputRef}
             onDelete={handleDeleteAction}
             onLeave={handleLeaveAction}
+            onTogglePin={handleTogglePinAction}
             onUploadLogo={handleUploadLogoAction}
+            showPin={true}
+            /**
+             * Read from state, not `capturedWorkspaceRef` — both are set together in
+             * `openContextMenuAt`, but only the state re-renders, so the ref would
+             * leave the Pin/Unpin label showing the previous row's value.
+             */
+            isPinned={Boolean(menuOpenWorkspaceId && pinnedWorkspaceIds.has(menuOpenWorkspaceId))}
             showRename={true}
             showUploadLogo={!!onUploadLogo}
             showLeave={!isOwner && !!onLeaveWorkspace}

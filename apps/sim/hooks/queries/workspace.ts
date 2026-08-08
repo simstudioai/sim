@@ -10,6 +10,7 @@ import {
   getWorkspaceMembersContract,
   getWorkspacePermissionsContract,
   listWorkspacesContract,
+  updateUserSettingsContract,
   updateWorkspaceContract,
   type Workspace,
   type WorkspaceCreationPolicy,
@@ -98,6 +99,61 @@ export function useWorkspaceCreationPolicy(enabled = true) {
   })
 }
 
+const selectPinnedWorkspaceIds = (data: WorkspacesResponse): string[] => data.pinnedWorkspaceIds
+
+/**
+ * The viewer's pinned workspace ids, read off the workspace list the switcher
+ * already loads — pins ride along on that payload rather than costing a second
+ * request, which is also what lets the server prefetch hydrate them in the same
+ * pass and keeps pinned-first ordering from re-sorting after hydration.
+ */
+export function usePinnedWorkspaceIds(enabled = true) {
+  return useQuery({
+    queryKey: workspaceKeys.list('active'),
+    queryFn: ({ signal }) => fetchWorkspaces('active', signal),
+    select: selectPinnedWorkspaceIds,
+    enabled,
+    staleTime: WORKSPACE_LIST_STALE_TIME,
+  })
+}
+
+/**
+ * Persists the viewer's pinned workspaces.
+ *
+ * The settings endpoint replaces the list wholesale, so the caller passes the full
+ * set it wants rather than a delta. Optimistic because the pin re-sorts the list
+ * under the user's cursor, where a round-trip delay reads as a dropped click.
+ */
+export function useToggleWorkspacePin() {
+  const queryClient = useQueryClient()
+  const queryKey = workspaceKeys.list('active')
+
+  return useMutation({
+    mutationFn: ({ pinnedWorkspaceIds }: { pinnedWorkspaceIds: string[] }) =>
+      requestJson(updateUserSettingsContract, { body: { pinnedWorkspaceIds } }),
+    onMutate: async ({ pinnedWorkspaceIds }) => {
+      await queryClient.cancelQueries({ queryKey })
+      const previous = queryClient.getQueryData<WorkspacesResponse>(queryKey)
+      queryClient.setQueryData<WorkspacesResponse>(queryKey, (old) =>
+        old ? { ...old, pinnedWorkspaceIds } : old
+      )
+      return { previous }
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previous) queryClient.setQueryData(queryKey, context.previous)
+    },
+    /**
+     * Reconciles unconditionally, and this is the only thing that does: the
+     * settings route answers `{ success: true }` even when the write throws, so a
+     * failed save never reaches `onError` and the optimistic list would otherwise
+     * stay wrong until something else refetched.
+     */
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
+    },
+  })
+}
+
 type CreateWorkspaceParams = Pick<ContractBodyInput<typeof createWorkspaceContract>, 'name'>
 
 /**
@@ -116,7 +172,12 @@ export function useCreateWorkspace() {
     onSuccess: (newWorkspace) => {
       queryClient.setQueryData<WorkspacesResponse>(workspaceKeys.list('active'), (previous) => {
         if (!previous) {
-          return { workspaces: [newWorkspace], lastActiveWorkspaceId: null, creationPolicy: null }
+          return {
+            workspaces: [newWorkspace],
+            lastActiveWorkspaceId: null,
+            pinnedWorkspaceIds: [],
+            creationPolicy: null,
+          }
         }
         if (previous.workspaces.some((w) => w.id === newWorkspace.id)) {
           return previous

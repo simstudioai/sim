@@ -721,6 +721,16 @@ export const settings = pgTable('settings', {
   // Workspace navigation
   lastActiveWorkspaceId: text('last_active_workspace_id'),
 
+  /**
+   * Workspace ids the user pinned to the top of the workspace switcher.
+   *
+   * Lives here rather than in `pinned_item` because that table pins resources
+   * *within* one workspace — every row is scoped by `workspace_id` and listed
+   * per workspace. A workspace pin is user-global by nature: it must be visible
+   * from every workspace, so it belongs to the user's own settings.
+   */
+  pinnedWorkspaceIds: jsonb('pinned_workspace_ids').notNull().default('[]'),
+
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 

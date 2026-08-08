@@ -3,6 +3,7 @@ import { settings, type workspace as workspaceTable } from '@sim/db/schema'
 import type { PermissionType } from '@sim/platform-authz/workspace'
 import { eq } from 'drizzle-orm'
 import type { PlanCategory } from '@/lib/billing/plan-helpers'
+import { normalizeStringArray } from '@/lib/core/utils/arrays'
 import {
   evaluateWorkspaceInvitePolicy,
   getInvitePlanCategoryForOrganization,
@@ -28,6 +29,8 @@ export type WorkspaceWithInviteFlags = WorkspaceRow &
 export interface WorkspaceListPayload {
   workspaces: WorkspaceWithInviteFlags[]
   lastActiveWorkspaceId: string | null
+  /** Workspace ids the viewer pinned to the top of the switcher. */
+  pinnedWorkspaceIds: string[]
   creationPolicy: WorkspaceCreationPolicy
 }
 
@@ -114,7 +117,10 @@ export async function listWorkspacesForViewer(params: {
       buildWorkspacesWithInviteFlags(rows, userId)
     ),
     db
-      .select({ lastActiveWorkspaceId: settings.lastActiveWorkspaceId })
+      .select({
+        lastActiveWorkspaceId: settings.lastActiveWorkspaceId,
+        pinnedWorkspaceIds: settings.pinnedWorkspaceIds,
+      })
       .from(settings)
       .where(eq(settings.userId, userId))
       .limit(1),
@@ -123,6 +129,18 @@ export async function listWorkspacesForViewer(params: {
   return {
     workspaces,
     lastActiveWorkspaceId: userSettings[0]?.lastActiveWorkspaceId ?? null,
+    /**
+     * Returned verbatim — deliberately NOT intersected with `workspaces`.
+     *
+     * The client persists pins by replacing the whole list, so it can only send
+     * back what it was given: filtering here would make a pin for a workspace that
+     * is merely archived, or temporarily unreachable, vanish from the payload and
+     * then be erased for good by the user's next unrelated pin. Ids the viewer
+     * cannot currently see are inert instead — every consumer asks
+     * `pinned.has(workspace.id)` about a workspace it is already rendering, so an
+     * unmatched id is never read.
+     */
+    pinnedWorkspaceIds: normalizeStringArray(userSettings[0]?.pinnedWorkspaceIds),
     creationPolicy,
   }
 }
