@@ -23,7 +23,7 @@ export const POST = defineV2JsonRoute({
     source: 'api' as const,
   }),
   useCase: completeKnowledgeDocumentUpload,
-  afterSuccess: ({ principal, result }) => {
+  onSuccess: ({ principal, result }) => {
     if (result.value.created && principal.kind === 'personal_api_key') {
       captureServerEvent(
         principal.userId,

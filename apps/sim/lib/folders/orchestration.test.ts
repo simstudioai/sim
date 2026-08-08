@@ -72,6 +72,7 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
 import {
   createFolder,
   createFolderAtPath,
+  createFolderAtPathTransition,
   deleteFolder,
   deleteFolderByPath,
   relocateFolderByPath,
@@ -333,6 +334,21 @@ describe('createFolder', () => {
 })
 
 describe('path-owned folder mutations', () => {
+  it('does not project legacy audit from the application transition', async () => {
+    queueTableRows(schemaMock.folder, [{ minSortOrder: 0 }])
+    dbChainMockFns.returning.mockResolvedValueOnce([folderRow()])
+
+    const result = await createFolderAtPathTransition({
+      resourceType: 'workflow',
+      workspaceId: 'ws-1',
+      userId: 'user-1',
+      path: '/Reports',
+    })
+
+    expect(result).toMatchObject({ success: true, path: '/Reports' })
+    expect(auditMock.recordAudit).not.toHaveBeenCalled()
+  })
+
   it('creates only the addressed leaf under an existing canonical parent path', async () => {
     const parent = folderRow({ id: 'parent-1', name: 'Reports' })
     mockLoadActiveFolderPathIndex.mockResolvedValue({

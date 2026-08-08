@@ -1,17 +1,24 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { isRecordLike } from '@sim/utils/object'
 import type { NextRequest } from 'next/server'
 import {
   V2_WORKFLOW_RUN_ID_HEADER,
   v2ResumeWorkflowContract,
 } from '@/lib/api/contracts/v2/workflows'
 import { parseRequest } from '@/lib/api/server'
+import {
+  admitV2Request,
+  V2RouteInfrastructureError,
+  v2ApiKeyAuth,
+  v2RateLimits,
+} from '@/lib/api/server/routes'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { handleResumeExecution } from '@/app/api/resume/resume-handler'
+import { v2WorkflowErrorPolicies } from '@/lib/workflows/api'
+import { workflowOperations } from '@/lib/workflows/application/operations'
+import { resumeWorkflowRun } from '@/lib/workflows/application/resume-run'
+import { ResumeWorkflowExecutionError } from '@/lib/workflows/executor/resume-execution'
 import { type V2ErrorCode, v2Data, v2Error, v2ValidationError } from '@/app/api/v2/lib/response'
-import { resolveV2WorkflowAccess } from '@/app/api/v2/workflows/lib/access'
 import { classifyExecutionError } from '@/executor/utils/errors'
 
 const logger = createLogger('V2WorkflowResumeAPI')
@@ -34,110 +41,89 @@ const ERROR_CODE_BY_STATUS: Record<number, V2ErrorCode> = {
 
 const TERMINAL_RESUME_STATUSES = new Set(['completed', 'failed', 'paused', 'cancelled'])
 
-function errorMessage(payload: Record<string, unknown>): string {
-  return typeof payload.error === 'string' ? payload.error : 'Resume execution failed'
-}
-
-/**
- * POST /api/v2/workflows/[id]/runs/[runId]/resume resumes one pause context on
- * the parent run. The new resume attempt gets its own run ID, which is the only
- * polling handle exposed by v2.
- */
 export const POST = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ id: string; runId: string }> }) => {
-    const { id: workflowId } = await context.params
-    const access = await resolveV2WorkflowAccess(request, workflowId, 'write')
-    if (!access.ok) return access.response
+    const admission = await admitV2Request(
+      request,
+      workflowOperations.resumeRun,
+      v2ApiKeyAuth,
+      v2RateLimits.publicApi
+    )
+    if (!admission.success) return admission.response
 
     const parsed = await parseRequest(v2ResumeWorkflowContract, request, context, {
       maxBodyBytes: 10 * 1024 * 1024,
       validationErrorResponse: v2ValidationError,
     })
     if (!parsed.success) return parsed.response
-    const { runId } = parsed.data.params
+    const { id: workflowId, runId } = parsed.data.params
     const { contextId, input } = parsed.data.body
 
-    if (!access.workflow.workspaceId) {
-      return v2Error('INTERNAL_ERROR', 'Workflow has no associated workspace')
-    }
-
     try {
-      const response = await handleResumeExecution({
+      const result = await resumeWorkflowRun.execute({
+        principal: admission.auth.principal,
+        input: {
+          workflowId,
+          runId,
+          contextId,
+          resumeInput: input === undefined ? {} : input,
+        },
         request,
-        workflowId,
-        executionId: runId,
-        contextId,
-        workspaceId: access.workflow.workspaceId,
-        userId: access.userId,
-        resumeInput: input === undefined ? {} : input,
-        isApiCaller: true,
-        pollingSurface: 'v2',
-        allowStreaming: false,
       })
 
-      const payload: unknown = await response.json()
-      if (!isRecordLike(payload)) {
-        return v2Error('INTERNAL_ERROR', 'Resume execution returned an invalid response')
-      }
-
-      if (!response.ok) {
-        return v2Error(
-          ERROR_CODE_BY_STATUS[response.status] ?? 'INTERNAL_ERROR',
-          errorMessage(payload),
-          { status: response.status }
-        )
-      }
-
-      if (typeof payload.executionId !== 'string') {
-        return v2Error('INTERNAL_ERROR', 'Resume execution did not return a run ID')
-      }
-
-      const statusUrl = `${getBaseUrl()}/api/v2/workflows/${workflowId}/runs/${payload.executionId}`
-      const headers = { [V2_WORKFLOW_RUN_ID_HEADER]: payload.executionId }
-
-      if (response.status === 202 || payload.status === 'queued') {
+      const statusUrl = `${getBaseUrl()}/api/v2/workflows/${workflowId}/runs/${result.executionId}`
+      const headers = { [V2_WORKFLOW_RUN_ID_HEADER]: result.executionId }
+      if (result.kind === 'async' || result.kind === 'queued') {
         return v2Data(
           {
-            runId: payload.executionId,
+            runId: result.executionId,
             statusUrl,
-            ...(typeof payload.queuePosition === 'number'
-              ? { queuePosition: payload.queuePosition }
-              : {}),
+            ...(result.kind === 'queued' ? { queuePosition: result.queuePosition } : {}),
           },
           { status: 202, headers }
         )
       }
-
-      if (typeof payload.status !== 'string' || !TERMINAL_RESUME_STATUSES.has(payload.status)) {
+      if (result.kind !== 'sync' || !TERMINAL_RESUME_STATUSES.has(result.status)) {
         return v2Error('INTERNAL_ERROR', 'Resume execution returned an invalid status')
       }
 
-      const metadata = isRecordLike(payload.metadata) ? payload.metadata : undefined
       return v2Data(
         {
-          runId: payload.executionId,
+          runId: result.executionId,
           workflowId,
-          status: payload.status as 'completed' | 'failed' | 'paused' | 'cancelled',
-          output: payload.output ?? null,
+          status: result.status as 'completed' | 'failed' | 'paused' | 'cancelled',
+          output: result.output ?? null,
           error:
-            typeof payload.error === 'string'
-              ? classifyExecutionError(new Error(payload.error))
+            typeof result.error === 'string'
+              ? classifyExecutionError(new Error(result.error))
               : null,
-          startedAt:
-            metadata && typeof metadata.startTime === 'string' ? metadata.startTime : undefined,
-          endedAt: metadata && typeof metadata.endTime === 'string' ? metadata.endTime : undefined,
-          durationMs:
-            metadata && typeof metadata.duration === 'number' ? metadata.duration : undefined,
+          startedAt: result.metadata?.startTime,
+          endedAt: result.metadata?.endTime,
+          durationMs: result.metadata?.duration,
         },
         { headers }
       )
     } catch (error) {
+      const domainResponse = v2WorkflowErrorPolicies.concealRunAuthorization.render(error)
+      if (domainResponse) return domainResponse
+      if (error instanceof ResumeWorkflowExecutionError) {
+        if (!error.safeForPublicApi) throw error
+        return v2Error(ERROR_CODE_BY_STATUS[error.statusCode] ?? 'INTERNAL_ERROR', error.message, {
+          status: error.statusCode,
+        })
+      }
       logger.error('Failed to resume workflow run', {
         workflowId,
         runId,
         error: getErrorMessage(error, 'Unknown error'),
       })
-      return v2Error('INTERNAL_ERROR', 'Internal server error')
+      throw error
     }
+  },
+  {
+    unhandledErrorResponse: ({ error }) =>
+      error instanceof V2RouteInfrastructureError
+        ? v2Error('SERVICE_UNAVAILABLE', 'Service temporarily unavailable')
+        : v2Error('INTERNAL_ERROR', 'Internal server error'),
   }
 )

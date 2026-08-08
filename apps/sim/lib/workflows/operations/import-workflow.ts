@@ -17,7 +17,12 @@ import {
 import { workflowStateSchema } from '@/lib/api/contracts/workflows'
 import { serializeZodIssues } from '@/lib/api/server'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
-import { performCreateWorkflow } from '@/lib/workflows/orchestration'
+import {
+  type PerformCreateWorkflowParams,
+  type PerformCreateWorkflowResult,
+  performCreateWorkflow,
+  performCreateWorkflowTransition,
+} from '@/lib/workflows/orchestration'
 import { extractAndPersistCustomTools } from '@/lib/workflows/persistence/custom-tools-persistence'
 import { prepareWorkflowStateForPersistence } from '@/lib/workflows/persistence/prepare-state'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
@@ -64,6 +69,7 @@ export interface ImportedWorkflow {
   description: string | null
   workspaceId: string
   folderId: string | null
+  sortOrder: number
   createdAt: Date
   updatedAt: Date
 }
@@ -166,8 +172,9 @@ function resolveImportedMetadata(
  * `workspaceId`; this performs only resource-level checks (workspace exists,
  * folder ownership/lock state).
  */
-export async function importWorkflowIntoWorkspace(
-  params: ImportWorkflowParams
+async function executeImportWorkflowIntoWorkspace(
+  params: ImportWorkflowParams,
+  createWorkflow: (params: PerformCreateWorkflowParams) => Promise<PerformCreateWorkflowResult>
 ): Promise<ImportWorkflowResult> {
   const { workspaceId, folderId, userId, requestId } = params
 
@@ -264,7 +271,7 @@ export async function importWorkflowIntoWorkspace(
     params.description
   )
 
-  const created = await performCreateWorkflow({
+  const created = await createWorkflow({
     name,
     description,
     workspaceId,
@@ -362,8 +369,23 @@ export async function importWorkflowIntoWorkspace(
       description: created.workflow.description ?? null,
       workspaceId,
       folderId: created.workflow.folderId ?? null,
+      sortOrder: created.workflow.sortOrder,
       createdAt: created.workflow.createdAt,
       updatedAt: created.workflow.updatedAt,
     },
   }
+}
+
+/** Existing transport behavior, including its legacy workflow-created audit. */
+export async function importWorkflowIntoWorkspace(
+  params: ImportWorkflowParams
+): Promise<ImportWorkflowResult> {
+  return executeImportWorkflowIntoWorkspace(params, performCreateWorkflow)
+}
+
+/** Authoritative import transition without route- or service-local audit projection. */
+export async function importWorkflowIntoWorkspaceTransition(
+  params: ImportWorkflowParams
+): Promise<ImportWorkflowResult> {
+  return executeImportWorkflowIntoWorkspace(params, performCreateWorkflowTransition)
 }

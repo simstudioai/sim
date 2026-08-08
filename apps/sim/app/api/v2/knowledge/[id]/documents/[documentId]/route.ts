@@ -93,7 +93,7 @@ export const DELETE = defineV2JsonRoute({
     source: 'api',
   }),
   useCase: deleteKnowledgeDocument,
-  afterSuccess: ({ principal, input }) => {
+  onSuccess: ({ principal, input }) => {
     if (principal.kind === 'personal_api_key') {
       captureServerEvent(
         principal.userId,

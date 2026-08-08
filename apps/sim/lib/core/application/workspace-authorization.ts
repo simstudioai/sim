@@ -28,21 +28,53 @@ export interface WorkspaceAuthorizationOptions<C extends WorkspaceAuthorizationC
   delegation?: WorkspaceDelegationPolicy<C>
 }
 
+export class InsufficientWorkspacePermissionsError extends OrchestrationError {
+  constructor() {
+    super('forbidden', 'Insufficient workspace permissions')
+    this.name = 'InsufficientWorkspacePermissionsError'
+  }
+}
+
+export class PersonalApiKeysDisabledError extends OrchestrationError {
+  constructor() {
+    super('forbidden', 'Personal API keys are not allowed for this workspace')
+    this.name = 'PersonalApiKeysDisabledError'
+  }
+}
+
+export class WorkspaceApiKeyAuthorizationError extends OrchestrationError {
+  constructor() {
+    super('forbidden', 'Workspace API key cannot perform this operation')
+    this.name = 'WorkspaceApiKeyAuthorizationError'
+  }
+}
+
+export class DelegatedWorkspaceAuthorizationError extends OrchestrationError {
+  constructor() {
+    super('forbidden', 'Delegated workspace access is no longer valid')
+    this.name = 'DelegatedWorkspaceAuthorizationError'
+  }
+}
+
+export class PrincipalKindAuthorizationError extends OrchestrationError {
+  constructor(principalKind: Principal['kind'], operationId: string) {
+    super('forbidden', `Principal kind ${principalKind} cannot perform operation ${operationId}`)
+    this.name = 'PrincipalKindAuthorizationError'
+  }
+}
+
 export function requireAllowedWorkspacePrincipal<O extends WorkspaceOperation>(
   principal: Principal,
   operation: O
 ): asserts principal is PrincipalForOperation<O> {
   if (!operation.principalKinds.some((kind) => kind === principal.kind)) {
-    throw new OrchestrationError(
-      'forbidden',
-      `Principal kind ${principal.kind} cannot perform operation ${operation.id}`
-    )
+    throw new PrincipalKindAuthorizationError(principal.kind, operation.id)
   }
 }
 
 function requirePermission(permission: PermissionType | null, required: PermissionType): void {
   if (!permissionSatisfies(permission, required)) {
-    throw new OrchestrationError('forbidden', 'Insufficient workspace permissions')
+    throw new InsufficientWorkspacePermissionsError()
   }
 }
 
@@ -76,10 +108,7 @@ export async function authorizeWorkspaceOperation<C extends WorkspaceAuthorizati
       return
     case 'personal_api_key':
       if (!context.allowPersonalApiKeys) {
-        throw new OrchestrationError(
-          'forbidden',
-          'Personal API keys are disabled for this workspace'
-        )
+        throw new PersonalApiKeysDisabledError()
       }
       await requireCurrentHumanPermission(principal.userId, context, operation.minimumRole, options)
       return
@@ -89,7 +118,7 @@ export async function authorizeWorkspaceOperation<C extends WorkspaceAuthorizati
         operation.workspaceApiKey !== 'allow' ||
         !permissionSatisfies('write', operation.minimumRole)
       ) {
-        throw new OrchestrationError('forbidden', 'Workspace API key cannot perform this operation')
+        throw new WorkspaceApiKeyAuthorizationError()
       }
       return
     case 'delegated': {
@@ -103,7 +132,7 @@ export async function authorizeWorkspaceOperation<C extends WorkspaceAuthorizati
         principal.workspaceId !== context.workspaceId ||
         !delegation.isWithinScope(principal, context)
       ) {
-        throw new OrchestrationError('forbidden', 'Delegated workspace access is no longer valid')
+        throw new DelegatedWorkspaceAuthorizationError()
       }
       await requireCurrentHumanPermission(
         principal.subjectUserId,

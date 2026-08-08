@@ -116,7 +116,7 @@ export const DELETE = defineV2JsonRoute({
     source: 'api',
   }),
   useCase: deleteKnowledgeBaseOperation,
-  afterSuccess: ({ result }) => {
+  onSuccess: ({ result }) => {
     PlatformEvents.knowledgeBaseDeleted({ knowledgeBaseId: result.id })
   },
   present: ({ id }) => ({ data: { id, deleted: true as const } }),

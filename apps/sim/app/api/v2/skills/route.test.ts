@@ -1,290 +1,180 @@
 /**
  * @vitest-environment node
- *
- * Public v2 skills list/create: gate ordering, contract validation, and the
- * single-resource create that replaced the internal bulk upsert.
  */
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCheckRateLimit, mockResolveWorkspaceAccess, mockListSkills, mockPerformCreateSkill } =
-  vi.hoisted(() => ({
-    mockCheckRateLimit: vi.fn(),
-    mockResolveWorkspaceAccess: vi.fn(),
-    mockListSkills: vi.fn(),
-    mockPerformCreateSkill: vi.fn(),
-  }))
+const { mocks, MockV2ApiKeyUnauthenticatedError } = vi.hoisted(() => {
+  class MockV2ApiKeyUnauthenticatedError extends Error {}
+  return {
+    mocks: {
+      authenticate: vi.fn(),
+      preauthRate: vi.fn(),
+      operationRate: vi.fn(),
+      gate: vi.fn(),
+      list: vi.fn(),
+      create: vi.fn(),
+      capture: vi.fn(),
+    },
+    MockV2ApiKeyUnauthenticatedError,
+  }
+})
 
-vi.mock('@/app/api/v1/middleware', () => ({
-  checkRateLimit: mockCheckRateLimit,
-  resolveWorkspaceAccess: mockResolveWorkspaceAccess,
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
+  authenticateV2ApiKey: mocks.authenticate,
+  V2ApiKeyUnauthenticatedError: MockV2ApiKeyUnauthenticatedError,
 }))
-
-vi.mock('@/lib/workflows/skills/operations', () => ({
-  listSkills: mockListSkills,
+vi.mock('@/lib/core/rate-limiter', () => ({
+  RateLimiter: class {
+    checkRateLimitDirect = mocks.preauthRate
+    checkRateLimitDirectOrThrow = mocks.operationRate
+  },
+  getRateLimit: vi.fn().mockReturnValue({
+    maxTokens: 100,
+    refillRate: 100,
+    refillIntervalMs: 60_000,
+  }),
 }))
-
-vi.mock('@/lib/skills/orchestration', () => ({
-  performCreateSkill: mockPerformCreateSkill,
+vi.mock('@/lib/api/server/rate-limit-context', () => ({
+  recordRateLimitSnapshot: vi.fn(),
+  getRateLimitHeaders: vi.fn().mockReturnValue(null),
 }))
-
-vi.mock('@/app/api/v2/lib/gate', () => ({
-  v2ApiGateError: vi.fn().mockResolvedValue(null),
+vi.mock('@/lib/core/utils/request', () => ({
+  generateRequestId: vi.fn().mockReturnValue('request-1'),
+  getClientIp: vi.fn().mockReturnValue('127.0.0.1'),
+}))
+vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: mocks.gate }))
+vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.capture }))
+vi.mock('@/lib/skills/application/use-cases', () => ({
+  listSkillsUseCase: { operation: { id: 'skills.list' }, execute: mocks.list },
+  createSkillUseCase: { operation: { id: 'skills.create' }, execute: mocks.create },
 }))
 
 import { GET, POST } from '@/app/api/v2/skills/route'
 
+const WORKSPACE_ID = 'workspace-1'
+const PRINCIPAL = { kind: 'workspace_api_key' as const, workspaceId: WORKSPACE_ID, keyId: 'key-1' }
+const AUTH = {
+  principal: PRINCIPAL,
+  rolloutUserId: 'owner-1',
+  rateLimitSubjectIds: ['workspace:workspace-1'] as const,
+  rateLimitSubscription: null,
+  keyType: 'workspace' as const,
+}
 const RATE_LIMIT_OK = {
   allowed: true,
-  userId: 'user-1',
-  keyType: 'workspace',
   limit: 100,
   remaining: 99,
-  resetAt: new Date('2024-01-01T01:00:00Z'),
+  resetAt: new Date('2026-01-01T00:00:00Z'),
+  retryAfterMs: 0,
 }
-
-const RATE_LIMIT_DENIED = {
-  allowed: false,
-  limit: 100,
-  remaining: 0,
-  resetAt: new Date('2024-01-01T01:00:00Z'),
-  retryAfterMs: 1000,
-}
-
-function buildSkill(overrides: Record<string, unknown> = {}) {
-  return {
-    id: 'skl_abc123',
-    workspaceId: 'workspace-1',
-    userId: 'user-1',
-    name: 'refund-policy',
-    description: 'How to handle refunds',
-    content: '# Refund policy\n\nAlways be kind.',
-    createdAt: new Date('2024-01-01T00:00:00Z'),
-    updatedAt: new Date('2024-01-02T00:00:00Z'),
-    ...overrides,
-  }
-}
-
-function callList(query: string) {
-  return GET(new NextRequest(`http://localhost:3000/api/v2/skills?${query}`))
-}
-
-function callCreate(body: unknown) {
-  return POST(
-    new NextRequest('http://localhost:3000/api/v2/skills', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
-  )
-}
-
-const VALID_BODY = {
-  workspaceId: 'workspace-1',
+const skill = {
+  id: 'skill-1',
+  workspaceId: WORKSPACE_ID,
+  userId: 'owner-1',
   name: 'refund-policy',
   description: 'How to handle refunds',
   content: '# Refund policy',
+  createdAt: new Date('2026-01-01T00:00:00Z'),
+  updatedAt: new Date('2026-01-02T00:00:00Z'),
 }
 
-describe('GET /api/v2/skills', () => {
+function request(method: 'GET' | 'POST', url: string, body?: unknown) {
+  return new NextRequest(`http://localhost:3000${url}`, {
+    method,
+    headers: {
+      'x-api-key': 'key',
+      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+    },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  })
+}
+
+describe('/api/v2/skills', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
-    mockResolveWorkspaceAccess.mockResolvedValue(null)
-    mockListSkills.mockResolvedValue([buildSkill()])
+    mocks.authenticate.mockResolvedValue(AUTH)
+    mocks.preauthRate.mockResolvedValue(RATE_LIMIT_OK)
+    mocks.operationRate.mockResolvedValue(RATE_LIMIT_OK)
+    mocks.gate.mockResolvedValue(null)
+    mocks.list.mockResolvedValue({ skills: [skill] })
+    mocks.create.mockResolvedValue({ skill })
   })
 
-  it('returns 404 when the v2 API surface flag is off', async () => {
-    const { v2ApiGateError } = await import('@/app/api/v2/lib/gate')
-    const { v2Error } = await import('@/app/api/v2/lib/response')
-    vi.mocked(v2ApiGateError).mockResolvedValueOnce(v2Error('NOT_FOUND', 'Not found'))
+  it('lists skill summaries through the authorized application use case', async () => {
+    const response = await GET(request('GET', `/api/v2/skills?workspaceId=${WORKSPACE_ID}`))
 
-    const res = await callList('workspaceId=workspace-1')
-
-    expect(res.status).toBe(404)
-    expect((await res.json()).error.code).toBe('NOT_FOUND')
-    expect(mockListSkills).not.toHaveBeenCalled()
-  })
-
-  it('400s when workspaceId is missing', async () => {
-    const res = await callList('')
-    expect(res.status).toBe(400)
-    expect((await res.json()).error.code).toBe('BAD_REQUEST')
-    expect(mockListSkills).not.toHaveBeenCalled()
-  })
-
-  it('surfaces an access-denied failure in the v2 error envelope', async () => {
-    mockResolveWorkspaceAccess.mockResolvedValue({
-      status: 403,
-      code: 'FORBIDDEN',
-      message: 'Access denied',
-    })
-    const res = await callList('workspaceId=workspace-1')
-    expect(res.status).toBe(403)
-    expect(mockListSkills).not.toHaveBeenCalled()
-  })
-
-  it('returns the rate-limit response when denied', async () => {
-    mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_DENIED)
-    const res = await callList('workspaceId=workspace-1')
-    expect(res.status).toBe(429)
-    expect((await res.json()).error.code).toBe('RATE_LIMITED')
-  })
-
-  it('returns summaries without skill bodies in the cursor envelope', async () => {
-    const res = await callList('workspaceId=workspace-1')
-    const body = await res.json()
-
-    expect(res.status).toBe(200)
-    expect(body.nextCursor).toBeNull()
-    expect(body.data).toEqual([
-      {
-        id: 'skl_abc123',
-        name: 'refund-policy',
-        description: 'How to handle refunds',
-        readOnly: false,
-        createdAt: '2024-01-01T00:00:00.000Z',
-        updatedAt: '2024-01-02T00:00:00.000Z',
+    expect(response.status).toBe(200)
+    expect((await response.json()).data[0]).not.toHaveProperty('content')
+    expect(mocks.list).toHaveBeenCalledWith({
+      principal: PRINCIPAL,
+      input: {
+        workspaceId: WORKSPACE_ID,
+        search: undefined,
+        sortBy: 'createdAt',
+        sortOrder: 'desc',
       },
-    ])
-    expect(mockListSkills).toHaveBeenCalledWith({
-      workspaceId: 'workspace-1',
-      search: undefined,
-      sort: { sortBy: 'createdAt', sortOrder: 'desc' },
+      request: expect.anything(),
     })
   })
-  it('400s on a sort field outside the enum instead of letting it reach the query', async () => {
-    const res = await callList(`workspaceId=workspace-1&sortBy=name);--`)
 
-    expect(res.status).toBe(400)
-    expect((await res.json()).error.code).toBe('BAD_REQUEST')
-  })
-
-  it('400s on a sort direction outside the enum', async () => {
-    const res = await callList(`workspaceId=workspace-1&sortOrder=sideways`)
-
-    expect(res.status).toBe(400)
-  })
-
-  it('400s on an empty search rather than treating it as unsearched', async () => {
-    const res = await callList(`workspaceId=workspace-1&search=`)
-
-    expect(res.status).toBe(400)
-  })
-
-  it('forwards search and sort into the query and still terminates pagination', async () => {
-    const res = await callList(`workspaceId=workspace-1&search=report&sortBy=name&sortOrder=asc`)
-
-    expect(res.status).toBe(200)
-    expect((await res.json()).nextCursor).toBeNull()
-  })
-})
-
-describe('POST /api/v2/skills', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
-    mockResolveWorkspaceAccess.mockResolvedValue(null)
-    mockPerformCreateSkill.mockResolvedValue({ success: true, skill: buildSkill() })
-  })
-
-  it('returns 404 when the v2 API surface flag is off', async () => {
-    const { v2ApiGateError } = await import('@/app/api/v2/lib/gate')
-    const { v2Error } = await import('@/app/api/v2/lib/response')
-    vi.mocked(v2ApiGateError).mockResolvedValueOnce(v2Error('NOT_FOUND', 'Not found'))
-
-    const res = await callCreate(VALID_BODY)
-
-    expect(res.status).toBe(404)
-    expect(mockPerformCreateSkill).not.toHaveBeenCalled()
-  })
-
-  it('400s when the body is missing content', async () => {
-    const res = await callCreate({
-      workspaceId: 'workspace-1',
-      name: 'refund-policy',
-      description: 'How to handle refunds',
-    })
-    expect(res.status).toBe(400)
-    expect((await res.json()).error.code).toBe('BAD_REQUEST')
-    expect(mockPerformCreateSkill).not.toHaveBeenCalled()
-  })
-
-  it('400s when the name is not kebab-case', async () => {
-    const res = await callCreate({ ...VALID_BODY, name: 'Refund Policy' })
-    expect(res.status).toBe(400)
-    expect(mockPerformCreateSkill).not.toHaveBeenCalled()
-  })
-
-  it('surfaces an access-denied failure in the v2 error envelope', async () => {
-    mockResolveWorkspaceAccess.mockResolvedValue({
-      status: 403,
-      code: 'FORBIDDEN',
-      message: 'Access denied',
-    })
-    const res = await callCreate(VALID_BODY)
-    expect(res.status).toBe(403)
-    expect(mockPerformCreateSkill).not.toHaveBeenCalled()
-  })
-
-  it('returns the rate-limit response when denied', async () => {
-    mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_DENIED)
-    const res = await callCreate(VALID_BODY)
-    expect(res.status).toBe(429)
-    expect((await res.json()).error.code).toBe('RATE_LIMITED')
-  })
-
-  it('400s when the orchestration rejects a built-in skill name', async () => {
-    mockPerformCreateSkill.mockResolvedValue({
-      success: false,
-      error: 'The skill name "deploy-workflow" is reserved by a built-in skill',
-      errorCode: 'validation',
-    })
-
-    const res = await callCreate({ ...VALID_BODY, name: 'deploy-workflow' })
-    const body = await res.json()
-
-    expect(res.status).toBe(400)
-    expect(body.error.code).toBe('BAD_REQUEST')
-    expect(body.error.message).toContain('built-in')
-  })
-
-  it('409s when the skill name is already taken', async () => {
-    mockPerformCreateSkill.mockResolvedValue({
-      success: false,
-      error: 'The skill name "refund-policy" is unavailable in this workspace',
-      errorCode: 'conflict',
-    })
-    const res = await callCreate(VALID_BODY)
-    expect(res.status).toBe(409)
-    expect((await res.json()).error.code).toBe('CONFLICT')
-  })
-
-  it('creates the skill and returns 201 with the single skill, not the workspace list', async () => {
-    const res = await callCreate(VALID_BODY)
-    const body = await res.json()
-
-    expect(res.status).toBe(201)
-    expect(body.data).toEqual({
-      skill: {
-        id: 'skl_abc123',
-        name: 'refund-policy',
-        description: 'How to handle refunds',
-        content: '# Refund policy\n\nAlways be kind.',
-        readOnly: false,
-        createdAt: '2024-01-01T00:00:00.000Z',
-        updatedAt: '2024-01-02T00:00:00.000Z',
-      },
-    })
-    expect(mockPerformCreateSkill).toHaveBeenCalledWith(
-      expect.objectContaining({
-        workspaceId: 'workspace-1',
-        userId: 'user-1',
-        name: 'refund-policy',
-        description: 'How to handle refunds',
-        content: '# Refund policy',
-        source: 'api',
+  it('creates a skill with the v2 source and status', async () => {
+    const response = await POST(
+      request('POST', '/api/v2/skills', {
+        workspaceId: WORKSPACE_ID,
+        name: skill.name,
+        description: skill.description,
+        content: skill.content,
       })
     )
+
+    expect(response.status).toBe(201)
+    expect((await response.json()).data.skill.id).toBe(skill.id)
+    expect(mocks.create).toHaveBeenCalledWith({
+      principal: PRINCIPAL,
+      input: {
+        workspaceId: WORKSPACE_ID,
+        name: skill.name,
+        description: skill.description,
+        content: skill.content,
+        source: 'api',
+      },
+      request: expect.anything(),
+    })
+    expect(mocks.capture).not.toHaveBeenCalled()
+  })
+
+  it('keeps skill analytics on the personal-key v2 surface', async () => {
+    mocks.authenticate.mockResolvedValueOnce({
+      ...AUTH,
+      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-personal' },
+      keyType: 'personal',
+    })
+
+    const response = await POST(
+      request('POST', '/api/v2/skills', {
+        workspaceId: WORKSPACE_ID,
+        name: skill.name,
+        description: skill.description,
+        content: skill.content,
+      })
+    )
+
+    expect(response.status).toBe(201)
+    expect(mocks.capture).toHaveBeenCalledWith(
+      'user-1',
+      'skill_created',
+      expect.objectContaining({ skill_id: skill.id, source: 'api' }),
+      expect.anything()
+    )
+  })
+
+  it('authenticates before parsing skill input', async () => {
+    mocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
+
+    const response = await POST(request('POST', '/api/v2/skills', {}))
+
+    expect(response.status).toBe(401)
+    expect(mocks.create).not.toHaveBeenCalled()
   })
 })

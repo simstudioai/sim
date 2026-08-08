@@ -93,7 +93,7 @@ export const POST = defineV2JsonRoute({
     source: 'api',
   }),
   useCase: createKnowledgeBase,
-  afterSuccess: ({ principal, result: { knowledgeBase } }) => {
+  onSuccess: ({ principal, result: { knowledgeBase } }) => {
     PlatformEvents.knowledgeBaseCreated({
       knowledgeBaseId: knowledgeBase.id,
       name: knowledgeBase.name,
