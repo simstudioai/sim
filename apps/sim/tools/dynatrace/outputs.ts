@@ -377,3 +377,132 @@ export const warningsOutput: OutputProperty = {
   description: 'Warnings returned alongside the result',
   items: { type: 'string' },
 }
+
+/** Per-problem summary a batch mute/unmute returns. */
+export const muteSummaryOutput: OutputProperty = {
+  type: 'array',
+  description: 'One entry per requested security problem',
+  items: {
+    type: 'object',
+    properties: {
+      securityProblemId: { type: 'string', description: 'Security problem ID' },
+      muteStateChangeTriggered: {
+        type: 'boolean',
+        description: 'False when the problem was already in the requested state',
+      },
+      reason: {
+        type: 'string',
+        description: 'ALREADY_MUTED or ALREADY_UNMUTED when no change was triggered',
+        nullable: true,
+      },
+    },
+  },
+}
+
+/** Remediation item shape produced by `mapRemediationItem`. */
+export const remediationItemProperties: Record<string, OutputProperty> = {
+  id: { type: 'string', description: 'Remediation item ID' },
+  name: { type: 'string', description: 'Name of the affected component' },
+  entityIds: {
+    type: 'array',
+    description: 'Entities the remediation item covers',
+    items: { type: 'string' },
+  },
+  firstAffectedTimestamp: {
+    type: 'number',
+    description: 'First affected, in UTC milliseconds',
+    nullable: true,
+  },
+  resolvedTimestamp: {
+    type: 'number',
+    description: 'Resolved, in UTC milliseconds',
+    nullable: true,
+  },
+  vulnerabilityState: { type: 'string', description: 'VULNERABLE or RESOLVED' },
+  assessment: { type: 'json', description: 'Exposure and reachability assessment', nullable: true },
+  muteState: { type: 'json', description: 'Mute state, reason, and author', nullable: true },
+  remediationProgress: {
+    type: 'json',
+    description: 'Affected and unaffected entities',
+    nullable: true,
+  },
+  trackingLink: { type: 'json', description: 'External tracking link', nullable: true },
+  vulnerableComponents: { type: 'json', description: 'Vulnerable components of the item' },
+}
+
+/** Attack shape produced by `mapAttack`. */
+export const attackProperties: Record<string, OutputProperty> = {
+  attackId: { type: 'string', description: 'Attack ID' },
+  displayId: { type: 'string', description: 'Human-readable attack ID' },
+  displayName: { type: 'string', description: 'Attack display name' },
+  attackType: {
+    type: 'string',
+    description: 'COMMAND_INJECTION, JNDI_INJECTION, SQL_INJECTION, or SSRF',
+  },
+  state: { type: 'string', description: 'ALLOWLISTED, BLOCKED, or EXPLOITED' },
+  technology: { type: 'string', description: 'DOTNET, GO, JAVA, or NODE_JS' },
+  timestamp: { type: 'number', description: 'Occurrence time in UTC milliseconds' },
+  attackTarget: { type: 'json', description: 'Targeted host or database', nullable: true },
+  attacker: { type: 'json', description: 'Source IP and geo location', nullable: true },
+  affectedEntities: { type: 'json', description: 'Affected process groups', nullable: true },
+  entrypoint: { type: 'json', description: 'Entry point and payload', nullable: true },
+  request: { type: 'json', description: 'The offending request', nullable: true },
+  securityProblem: { type: 'json', description: 'Related security problem', nullable: true },
+  vulnerability: { type: 'json', description: 'Exploited vulnerability', nullable: true },
+  managementZones: {
+    type: 'array',
+    description: 'Management zones of the attack',
+    items: { type: 'object', properties: managementZoneProperties },
+  },
+}
+
+/** Settings schema descriptor shape. */
+export const settingsSchemaProperties: Record<string, OutputProperty> = {
+  schemaId: { type: 'string', description: 'Schema ID (e.g., builtin:alerting.profile)' },
+  displayName: { type: 'string', description: 'Human-readable schema name', nullable: true },
+  latestSchemaVersion: { type: 'string', description: 'Latest schema version', nullable: true },
+  maturity: {
+    type: 'string',
+    description: 'GENERAL_AVAILABILITY, EARLY_ADOPTER, or PREVIEW',
+    nullable: true,
+  },
+  multiObject: {
+    type: 'boolean',
+    description: 'Whether a scope may hold several objects of this schema',
+    nullable: true,
+  },
+  ordered: { type: 'boolean', description: 'Whether objects are ordered', nullable: true },
+  ownerBasedAccessControl: {
+    type: 'boolean',
+    description: 'Whether owner-based access control applies',
+    nullable: true,
+  },
+}
+
+/** Settings object shape. */
+export const settingsObjectProperties: Record<string, OutputProperty> = {
+  objectId: { type: 'string', description: 'Settings object ID' },
+  schemaId: { type: 'string', description: 'Schema the object belongs to' },
+  schemaVersion: { type: 'string', description: 'Schema version', nullable: true },
+  scope: { type: 'string', description: 'Scope the object applies to' },
+  value: { type: 'json', description: 'The configuration itself, shaped by its schema' },
+  author: { type: 'string', description: 'Who created the object', nullable: true },
+  created: { type: 'number', description: 'Creation time in UTC milliseconds', nullable: true },
+  modified: { type: 'number', description: 'Last change in UTC milliseconds', nullable: true },
+  updateToken: {
+    type: 'string',
+    description: 'Optimistic-concurrency token to pass back on update or delete',
+    nullable: true,
+  },
+  externalId: { type: 'string', description: 'External ID, if set', nullable: true },
+  summary: { type: 'string', description: 'Short summary of the object', nullable: true },
+  searchSummary: { type: 'string', description: 'Searchable summary', nullable: true },
+}
+
+/** Synthetic monitor short representation. */
+export const syntheticMonitorProperties: Record<string, OutputProperty> = {
+  entityId: { type: 'string', description: 'Monitor entity ID (e.g., SYNTHETIC_TEST-...)' },
+  name: { type: 'string', description: 'Monitor name' },
+  type: { type: 'string', description: 'BROWSER or HTTP' },
+  enabled: { type: 'boolean', description: 'Whether the monitor is enabled' },
+}

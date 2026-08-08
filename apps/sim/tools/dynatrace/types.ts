@@ -602,27 +602,470 @@ export interface DynatraceGetAuditLogsResponse extends ToolResponse {
   }
 }
 
+/** Outcome of one entry in a batch mute/unmute call. */
+export interface DynatraceMuteSummaryEntry {
+  securityProblemId: string | null
+  muteStateChangeTriggered: boolean | null
+  reason: string | null
+}
+
+/** A remediation item of a third-party vulnerability. */
+export interface DynatraceRemediationItem {
+  id: string | null
+  name: string | null
+  entityIds: string[]
+  firstAffectedTimestamp: number | null
+  resolvedTimestamp: number | null
+  vulnerabilityState: string | null
+  assessment: Record<string, unknown> | null
+  muteState: Record<string, unknown> | null
+  remediationProgress: Record<string, unknown> | null
+  trackingLink: Record<string, unknown> | null
+  vulnerableComponents: Array<Record<string, unknown>>
+}
+
+/** An Application Security attack. */
+export interface DynatraceAttack {
+  attackId: string | null
+  displayId: string | null
+  displayName: string | null
+  attackType: string | null
+  state: string | null
+  technology: string | null
+  timestamp: number | null
+  attackTarget: Record<string, unknown> | null
+  attacker: Record<string, unknown> | null
+  affectedEntities: Record<string, unknown> | null
+  entrypoint: Record<string, unknown> | null
+  request: Record<string, unknown> | null
+  securityProblem: Record<string, unknown> | null
+  vulnerability: Record<string, unknown> | null
+  managementZones: DynatraceManagementZone[]
+}
+
+/** A settings schema descriptor. */
+export interface DynatraceSettingsSchema {
+  schemaId: string | null
+  displayName: string | null
+  latestSchemaVersion: string | null
+  maturity: string | null
+  multiObject: boolean | null
+  ordered: boolean | null
+  ownerBasedAccessControl: boolean | null
+}
+
+/** A settings object. */
+export interface DynatraceSettingsObject {
+  objectId: string | null
+  schemaId: string | null
+  schemaVersion: string | null
+  scope: string | null
+  value: Record<string, unknown> | null
+  author: string | null
+  created: number | null
+  modified: number | null
+  updateToken: string | null
+  externalId: string | null
+  summary: string | null
+  searchSummary: string | null
+}
+
+/** Result of a settings object write. */
+export interface DynatraceSettingsWriteResult {
+  code: number | null
+  objectId: string | null
+  writeError: Record<string, unknown> | null
+  invalidValue: unknown
+}
+
+/** Short representation of a synthetic monitor. */
+export interface DynatraceSyntheticMonitor {
+  entityId: string | null
+  name: string | null
+  type: string | null
+  enabled: boolean | null
+}
+
+export interface DynatraceMuteSecurityProblemParams extends DynatraceBaseParams {
+  securityProblemId: string
+  reason: string
+  comment?: string
+}
+
+export interface DynatraceMuteSecurityProblemResponse extends ToolResponse {
+  output: {
+    securityProblemId: string
+    reason: string | null
+    comment: string | null
+    alreadyInState: boolean
+  }
+}
+
+export interface DynatraceMuteSecurityProblemsParams extends DynatraceBaseParams {
+  securityProblemIds: string | string[]
+  reason: string
+  comment?: string
+}
+
+export interface DynatraceMuteSecurityProblemsResponse extends ToolResponse {
+  output: {
+    summary: DynatraceMuteSummaryEntry[]
+    changedCount: number
+  }
+}
+
+export interface DynatraceListRemediationItemsParams extends DynatraceBaseParams {
+  securityProblemId: string
+  remediationItemSelector?: string
+}
+
+export interface DynatraceListRemediationItemsResponse extends ToolResponse {
+  output: {
+    remediationItems: DynatraceRemediationItem[]
+  }
+}
+
+export interface DynatraceListAttacksParams extends DynatraceBaseParams {
+  attackSelector?: string
+  from?: string
+  to?: string
+  fields?: string
+  sort?: string
+  pageSize?: number
+  nextPageKey?: string
+}
+
+export interface DynatraceListAttacksResponse extends ToolResponse {
+  output: {
+    attacks: DynatraceAttack[]
+    totalCount: number | null
+    pageSize: number | null
+    nextPageKey: string | null
+  }
+}
+
+export interface DynatraceGetAttackParams extends DynatraceBaseParams {
+  attackId: string
+  fields?: string
+}
+
+export interface DynatraceGetAttackResponse extends ToolResponse {
+  output: {
+    attack: DynatraceAttack
+  }
+}
+
+export interface DynatraceListTagsParams extends DynatraceBaseParams {
+  entitySelector: string
+  from?: string
+  to?: string
+}
+
+export interface DynatraceListTagsResponse extends ToolResponse {
+  output: {
+    tags: DynatraceTag[]
+    totalCount: number | null
+  }
+}
+
+export interface DynatraceAddTagsParams extends DynatraceBaseParams {
+  entitySelector: string
+  tags: Array<{ key: string; value?: string }> | string
+  from?: string
+  to?: string
+}
+
+export interface DynatraceAddTagsResponse extends ToolResponse {
+  output: {
+    appliedTags: DynatraceTag[]
+    matchedEntitiesCount: number | null
+  }
+}
+
+export interface DynatraceDeleteTagParams extends DynatraceBaseParams {
+  entitySelector: string
+  key: string
+  value?: string
+  deleteAllWithKey?: boolean
+  from?: string
+  to?: string
+}
+
+export interface DynatraceDeleteTagResponse extends ToolResponse {
+  output: {
+    matchedEntitiesCount: number | null
+  }
+}
+
+export interface DynatraceListSettingsSchemasParams extends DynatraceBaseParams {
+  fields?: string
+}
+
+export interface DynatraceListSettingsSchemasResponse extends ToolResponse {
+  output: {
+    schemas: DynatraceSettingsSchema[]
+    totalCount: number | null
+  }
+}
+
+export interface DynatraceListSettingsObjectsParams extends DynatraceBaseParams {
+  schemaIds?: string
+  scopes?: string
+  externalIds?: string
+  fields?: string
+  filter?: string
+  sort?: string
+  pageSize?: number
+  nextPageKey?: string
+}
+
+export interface DynatraceListSettingsObjectsResponse extends ToolResponse {
+  output: {
+    items: DynatraceSettingsObject[]
+    totalCount: number | null
+    pageSize: number | null
+    nextPageKey: string | null
+  }
+}
+
+export interface DynatraceGetSettingsObjectParams extends DynatraceBaseParams {
+  objectId: string
+}
+
+export interface DynatraceGetSettingsObjectResponse extends ToolResponse {
+  output: {
+    object: DynatraceSettingsObject
+  }
+}
+
+export interface DynatraceCreateSettingsObjectParams extends DynatraceBaseParams {
+  schemaId: string
+  scope: string
+  value: Record<string, unknown> | string
+  schemaVersion?: string
+  externalId?: string
+  validateOnly?: boolean
+}
+
+export interface DynatraceCreateSettingsObjectResponse extends ToolResponse {
+  output: {
+    results: DynatraceSettingsWriteResult[]
+    objectId: string | null
+  }
+}
+
+export interface DynatraceUpdateSettingsObjectParams extends DynatraceBaseParams {
+  objectId: string
+  value: Record<string, unknown> | string
+  schemaVersion?: string
+  updateToken?: string
+  validateOnly?: boolean
+}
+
+export interface DynatraceUpdateSettingsObjectResponse extends ToolResponse {
+  output: {
+    objectId: string | null
+    code: number | null
+  }
+}
+
+export interface DynatraceDeleteSettingsObjectParams extends DynatraceBaseParams {
+  objectId: string
+  updateToken?: string
+}
+
+export interface DynatraceDeleteSettingsObjectResponse extends ToolResponse {
+  output: {
+    objectId: string
+    deleted: boolean
+  }
+}
+
+export interface DynatraceListSyntheticMonitorsParams extends DynatraceBaseParams {
+  type?: string
+  enabled?: boolean
+  location?: string
+  tag?: string
+  managementZone?: number
+}
+
+export interface DynatraceListSyntheticMonitorsResponse extends ToolResponse {
+  output: {
+    monitors: DynatraceSyntheticMonitor[]
+  }
+}
+
+export interface DynatraceExecuteSyntheticMonitorsParams extends DynatraceBaseParams {
+  monitors: Array<Record<string, unknown>> | string
+  processingMode?: string
+  failOnPerformanceIssue?: boolean
+  stopOnProblem?: boolean
+  takeScreenshotsOnSuccess?: boolean
+  metadata?: Record<string, string> | string
+}
+
+export interface DynatraceExecuteSyntheticMonitorsResponse extends ToolResponse {
+  output: {
+    batchId: string | null
+    triggeredCount: number | null
+    triggeringProblemsCount: number | null
+    triggered: Array<Record<string, unknown>>
+    triggeringProblemsDetails: Array<Record<string, unknown>>
+  }
+}
+
+export interface DynatraceGetSyntheticBatchParams extends DynatraceBaseParams {
+  batchId: string
+}
+
+export interface DynatraceGetSyntheticBatchResponse extends ToolResponse {
+  output: {
+    batchId: string | null
+    batchStatus: string | null
+    executedCount: number | null
+    failedCount: number | null
+    failedToExecuteCount: number | null
+    triggeredCount: number | null
+    triggeringProblemsCount: number | null
+    failedExecutions: Array<Record<string, unknown>>
+    failedToExecute: Array<Record<string, unknown>>
+    triggeringProblems: Array<Record<string, unknown>>
+    metadata: Record<string, unknown>
+    userId: string | null
+  }
+}
+
+export interface DynatraceGetProblemCommentParams extends DynatraceBaseParams {
+  problemId: string
+  commentId: string
+}
+
+export interface DynatraceGetProblemCommentResponse extends ToolResponse {
+  output: {
+    comment: DynatraceComment
+  }
+}
+
+export interface DynatraceUpdateProblemCommentParams extends DynatraceBaseParams {
+  problemId: string
+  commentId: string
+  message: string
+  context?: string
+}
+
+export interface DynatraceUpdateProblemCommentResponse extends ToolResponse {
+  output: {
+    problemId: string
+    commentId: string
+    message: string
+    context: string | null
+  }
+}
+
+export interface DynatraceDeleteProblemCommentParams extends DynatraceBaseParams {
+  problemId: string
+  commentId: string
+}
+
+export interface DynatraceDeleteProblemCommentResponse extends ToolResponse {
+  output: {
+    problemId: string
+    commentId: string
+    deleted: boolean
+  }
+}
+
+/** Fields shared by the SLO create and update payloads. */
+export interface DynatraceSloWriteFields {
+  name: string
+  target: number
+  warning: number
+  timeframe: string
+  evaluationType: string
+  description?: string
+  enabled?: boolean
+  filter?: string
+  metricExpression?: string
+  metricName?: string
+  burnRateVisualizationEnabled?: boolean
+  fastBurnThreshold?: number
+}
+
+export interface DynatraceCreateSloParams extends DynatraceBaseParams, DynatraceSloWriteFields {}
+
+export interface DynatraceCreateSloResponse extends ToolResponse {
+  output: {
+    sloId: string | null
+    name: string
+  }
+}
+
+export interface DynatraceUpdateSloParams extends DynatraceBaseParams, DynatraceSloWriteFields {
+  sloId: string
+}
+
+export interface DynatraceUpdateSloResponse extends ToolResponse {
+  output: {
+    sloId: string
+    name: string
+  }
+}
+
+export interface DynatraceDeleteSloParams extends DynatraceBaseParams {
+  sloId: string
+}
+
+export interface DynatraceDeleteSloResponse extends ToolResponse {
+  output: {
+    sloId: string
+    deleted: boolean
+  }
+}
+
 /** Union of every Dynatrace tool response, used as the block's response type. */
 export type DynatraceResponse =
-  | DynatraceListProblemsResponse
-  | DynatraceGetProblemResponse
-  | DynatraceCloseProblemResponse
-  | DynatraceListProblemCommentsResponse
   | DynatraceAddProblemCommentResponse
-  | DynatraceQueryMetricsResponse
-  | DynatraceListMetricsResponse
-  | DynatraceGetMetricResponse
-  | DynatraceIngestMetricsResponse
-  | DynatraceListEntitiesResponse
+  | DynatraceAddTagsResponse
+  | DynatraceCloseProblemResponse
+  | DynatraceCreateSettingsObjectResponse
+  | DynatraceCreateSloResponse
+  | DynatraceDeleteProblemCommentResponse
+  | DynatraceDeleteSettingsObjectResponse
+  | DynatraceDeleteSloResponse
+  | DynatraceDeleteTagResponse
+  | DynatraceExecuteSyntheticMonitorsResponse
+  | DynatraceGetAttackResponse
+  | DynatraceGetAuditLogsResponse
   | DynatraceGetEntityResponse
+  | DynatraceGetEventResponse
+  | DynatraceGetMetricResponse
+  | DynatraceGetProblemCommentResponse
+  | DynatraceGetProblemResponse
+  | DynatraceGetSecurityProblemResponse
+  | DynatraceGetSettingsObjectResponse
+  | DynatraceGetSloResponse
+  | DynatraceGetSyntheticBatchResponse
+  | DynatraceIngestEventResponse
+  | DynatraceIngestLogsResponse
+  | DynatraceIngestMetricsResponse
+  | DynatraceListAttacksResponse
+  | DynatraceListEntitiesResponse
   | DynatraceListEntityTypesResponse
   | DynatraceListEventsResponse
-  | DynatraceGetEventResponse
-  | DynatraceIngestEventResponse
-  | DynatraceSearchLogsResponse
-  | DynatraceIngestLogsResponse
-  | DynatraceListSlosResponse
-  | DynatraceGetSloResponse
+  | DynatraceListMetricsResponse
+  | DynatraceListProblemCommentsResponse
+  | DynatraceListProblemsResponse
+  | DynatraceListRemediationItemsResponse
   | DynatraceListSecurityProblemsResponse
-  | DynatraceGetSecurityProblemResponse
-  | DynatraceGetAuditLogsResponse
+  | DynatraceListSettingsObjectsResponse
+  | DynatraceListSettingsSchemasResponse
+  | DynatraceListSlosResponse
+  | DynatraceListSyntheticMonitorsResponse
+  | DynatraceListTagsResponse
+  | DynatraceMuteSecurityProblemResponse
+  | DynatraceMuteSecurityProblemsResponse
+  | DynatraceQueryMetricsResponse
+  | DynatraceSearchLogsResponse
+  | DynatraceUpdateProblemCommentResponse
+  | DynatraceUpdateSettingsObjectResponse
+  | DynatraceUpdateSloResponse

@@ -1,5 +1,6 @@
 import { truncate } from '@sim/utils/string'
 import type {
+  DynatraceAttack,
   DynatraceAuditLog,
   DynatraceComment,
   DynatraceEntity,
@@ -10,15 +11,54 @@ import type {
   DynatraceManagementZone,
   DynatraceMetricDescriptor,
   DynatraceMetricResult,
+  DynatraceMuteSummaryEntry,
   DynatraceProblem,
   DynatraceProblemFilter,
+  DynatraceRemediationItem,
   DynatraceSecurityProblem,
   DynatraceSecurityProblemDetails,
+  DynatraceSettingsObject,
+  DynatraceSettingsSchema,
+  DynatraceSettingsWriteResult,
   DynatraceSlo,
+  DynatraceSloWriteFields,
+  DynatraceSyntheticMonitor,
   DynatraceTag,
 } from '@/tools/dynatrace/types'
 
-type QueryValue = string | number | boolean | undefined | null
+type QueryScalar = string | number | boolean | undefined | null
+type QueryValue = QueryScalar | QueryScalar[]
+
+/** Strips a trailing slash and a trailing `/api/v1` or `/api/v2` from the environment URL. */
+function normalizeEnvironmentUrl(environmentUrl: string): string {
+  return environmentUrl
+    .trim()
+    .replace(/\/+$/, '')
+    .replace(/\/api\/v[12]$/, '')
+}
+
+function buildUrl(
+  environmentUrl: string,
+  apiPrefix: string,
+  path: string,
+  query?: Record<string, QueryValue>
+): string {
+  const search = new URLSearchParams()
+
+  for (const [key, value] of Object.entries(query ?? {})) {
+    // Repeatable params (e.g. Synthetic's `tag`) append once per entry.
+    const values = Array.isArray(value) ? value : [value]
+    for (const entry of values) {
+      if (entry === undefined || entry === null || entry === '') continue
+      search.append(key, String(entry))
+    }
+  }
+
+  const queryString = search.toString()
+  return `${normalizeEnvironmentUrl(environmentUrl)}${apiPrefix}${path}${
+    queryString ? `?${queryString}` : ''
+  }`
+}
 
 /**
  * Builds an absolute Environment API v2 URL. Tolerates a trailing slash and a
@@ -30,19 +70,19 @@ export function buildDynatraceUrl(
   path: string,
   query?: Record<string, QueryValue>
 ): string {
-  const base = environmentUrl
-    .trim()
-    .replace(/\/+$/, '')
-    .replace(/\/api\/v2$/, '')
-  const search = new URLSearchParams()
+  return buildUrl(environmentUrl, '/api/v2', path, query)
+}
 
-  for (const [key, value] of Object.entries(query ?? {})) {
-    if (value === undefined || value === null || value === '') continue
-    search.set(key, String(value))
-  }
-
-  const queryString = search.toString()
-  return `${base}/api/v2${path}${queryString ? `?${queryString}` : ''}`
+/**
+ * Builds an absolute Environment API **v1** URL. Only the Synthetic monitors
+ * endpoints still live on v1 — everything else in this integration is v2.
+ */
+export function buildDynatraceV1Url(
+  environmentUrl: string,
+  path: string,
+  query?: Record<string, QueryValue>
+): string {
+  return buildUrl(environmentUrl, '/api/v1', path, query)
 }
 
 /**
@@ -443,6 +483,164 @@ export function mapLogRecord(value: Record<string, unknown>): DynatraceLogRecord
     eventType: (value.eventType as string) ?? null,
     additionalColumns: toRecord(value.additionalColumns),
   }
+}
+
+/**
+ * Normalizes a list param that may arrive as a real array, a JSON array string,
+ * or a comma-separated string.
+ */
+export function toStringList(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map((entry) => String(entry).trim()).filter(Boolean)
+  if (typeof value !== 'string') return []
+  const trimmed = value.trim()
+  if (!trimmed) return []
+  if (trimmed.startsWith('[')) {
+    const parsed = parseJsonParam(trimmed)
+    if (Array.isArray(parsed)) return parsed.map((entry) => String(entry).trim()).filter(Boolean)
+  }
+  return trimmed
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+}
+
+/** Maps the per-problem summary a batch mute/unmute returns. */
+export function mapMuteSummary(value: unknown): DynatraceMuteSummaryEntry[] {
+  return toRecordArray(value).map((entry) => ({
+    securityProblemId: (entry.securityProblemId as string) ?? null,
+    muteStateChangeTriggered: (entry.muteStateChangeTriggered as boolean) ?? null,
+    reason: (entry.reason as string) ?? null,
+  }))
+}
+
+/** Maps a remediation item of a third-party vulnerability. */
+export function mapRemediationItem(value: Record<string, unknown>): DynatraceRemediationItem {
+  return {
+    id: (value.id as string) ?? null,
+    name: (value.name as string) ?? null,
+    entityIds: toStringArray(value.entityIds),
+    firstAffectedTimestamp: (value.firstAffectedTimestamp as number) ?? null,
+    resolvedTimestamp: (value.resolvedTimestamp as number) ?? null,
+    vulnerabilityState: (value.vulnerabilityState as string) ?? null,
+    assessment: toRecordOrNull(value.assessment),
+    muteState: toRecordOrNull(value.muteState),
+    remediationProgress: toRecordOrNull(value.remediationProgress),
+    trackingLink: toRecordOrNull(value.trackingLink),
+    vulnerableComponents: toRecordArray(value.vulnerableComponents),
+  }
+}
+
+/** Maps an Application Security attack. */
+export function mapAttack(value: Record<string, unknown>): DynatraceAttack {
+  return {
+    attackId: (value.attackId as string) ?? null,
+    displayId: (value.displayId as string) ?? null,
+    displayName: (value.displayName as string) ?? null,
+    attackType: (value.attackType as string) ?? null,
+    state: (value.state as string) ?? null,
+    technology: (value.technology as string) ?? null,
+    timestamp: (value.timestamp as number) ?? null,
+    attackTarget: toRecordOrNull(value.attackTarget),
+    attacker: toRecordOrNull(value.attacker),
+    affectedEntities: toRecordOrNull(value.affectedEntities),
+    entrypoint: toRecordOrNull(value.entrypoint),
+    request: toRecordOrNull(value.request),
+    securityProblem: toRecordOrNull(value.securityProblem),
+    vulnerability: toRecordOrNull(value.vulnerability),
+    managementZones: mapManagementZones(value.managementZones),
+  }
+}
+
+/** Maps a settings schema descriptor. */
+export function mapSettingsSchema(value: Record<string, unknown>): DynatraceSettingsSchema {
+  return {
+    schemaId: (value.schemaId as string) ?? null,
+    displayName: (value.displayName as string) ?? null,
+    latestSchemaVersion: (value.latestSchemaVersion as string) ?? null,
+    maturity: (value.maturity as string) ?? null,
+    multiObject: (value.multiObject as boolean) ?? null,
+    ordered: (value.ordered as boolean) ?? null,
+    ownerBasedAccessControl: (value.ownerBasedAccessControl as boolean) ?? null,
+  }
+}
+
+/** Maps a settings object. */
+export function mapSettingsObject(value: Record<string, unknown>): DynatraceSettingsObject {
+  return {
+    objectId: (value.objectId as string) ?? null,
+    schemaId: (value.schemaId as string) ?? null,
+    schemaVersion: (value.schemaVersion as string) ?? null,
+    scope: (value.scope as string) ?? null,
+    value: toRecordOrNull(value.value),
+    author: (value.author as string) ?? null,
+    created: (value.created as number) ?? null,
+    modified: (value.modified as number) ?? null,
+    updateToken: (value.updateToken as string) ?? null,
+    externalId: (value.externalId as string) ?? null,
+    summary: (value.summary as string) ?? null,
+    searchSummary: (value.searchSummary as string) ?? null,
+  }
+}
+
+/** Maps the per-object result a settings write returns. */
+export function mapSettingsWriteResult(
+  value: Record<string, unknown>
+): DynatraceSettingsWriteResult {
+  return {
+    code: (value.code as number) ?? null,
+    objectId: (value.objectId as string) ?? null,
+    writeError: toRecordOrNull(value.error),
+    invalidValue: value.invalidValue,
+  }
+}
+
+/** Maps a short synthetic monitor representation. */
+export function mapSyntheticMonitor(value: Record<string, unknown>): DynatraceSyntheticMonitor {
+  return {
+    entityId: (value.entityId as string) ?? null,
+    name: (value.name as string) ?? null,
+    type: (value.type as string) ?? null,
+    enabled: (value.enabled as boolean) ?? null,
+  }
+}
+
+/**
+ * Builds the SLO payload shared by create and update. Both endpoints take the
+ * same `SloConfigItemDto`, so keeping one builder stops them drifting apart.
+ */
+export function buildSloBody(params: DynatraceSloWriteFields): Record<string, unknown> {
+  const body: Record<string, unknown> = {
+    name: params.name,
+    target: params.target,
+    warning: params.warning,
+    timeframe: params.timeframe,
+    evaluationType: params.evaluationType || 'AGGREGATE',
+  }
+  if (params.description) body.description = params.description
+  if (params.enabled !== undefined) body.enabled = params.enabled
+  if (params.filter) body.filter = params.filter
+  if (params.metricExpression) body.metricExpression = params.metricExpression
+  if (params.metricName) body.metricName = params.metricName
+
+  const burnRate: Record<string, unknown> = {}
+  if (params.burnRateVisualizationEnabled !== undefined) {
+    burnRate.burnRateVisualizationEnabled = params.burnRateVisualizationEnabled
+  }
+  if (params.fastBurnThreshold !== undefined) burnRate.fastBurnThreshold = params.fastBurnThreshold
+  if (Object.keys(burnRate).length > 0) body.errorBudgetBurnRate = burnRate
+
+  return body
+}
+
+/**
+ * Extracts the trailing identifier from a `Location` response header. Dynatrace
+ * returns a created SLO's ID there rather than in a body.
+ */
+export function idFromLocationHeader(response: Response): string | null {
+  const location = response.headers.get('location')
+  if (!location) return null
+  const id = location.split('/').filter(Boolean).pop()
+  return id ?? null
 }
 
 /** Normalizes the `warnings` array Dynatrace list endpoints return. */
