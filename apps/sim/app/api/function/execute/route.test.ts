@@ -28,6 +28,17 @@ import {
   SandboxOutputLimitError,
 } from '@/lib/execution/remote-sandbox/output-limits'
 
+function grantedAccess(workspaceId: string) {
+  return {
+    exists: true,
+    hasAccess: true,
+    canWrite: true,
+    canAdmin: false,
+    workspace: { id: workspaceId },
+    permission: 'admin',
+  }
+}
+
 const {
   mockExecuteInSandbox,
   mockExecuteInIsolatedVM,
@@ -41,6 +52,8 @@ const {
   mockUploadFile,
   mockValidateWorkspaceFileWriteTarget,
   mockWriteWorkspaceFileByPath,
+  mockCheckWorkspaceAccess,
+  mockResolveWorkspaceAccess,
 } = vi.hoisted(() => ({
   mockExecuteInSandbox: vi.fn(),
   mockExecuteInIsolatedVM: vi.fn(),
@@ -59,6 +72,13 @@ const {
   mockUploadFile: vi.fn(),
   mockValidateWorkspaceFileWriteTarget: vi.fn(),
   mockWriteWorkspaceFileByPath: vi.fn(),
+  mockCheckWorkspaceAccess: vi.fn(),
+  mockResolveWorkspaceAccess: vi.fn(),
+}))
+
+vi.mock('@/lib/workspaces/permissions/utils', () => ({
+  checkWorkspaceAccess: mockCheckWorkspaceAccess,
+  resolveWorkspaceAccess: mockResolveWorkspaceAccess,
 }))
 
 vi.mock('@/lib/core/security/encryption', () => ({
@@ -153,6 +173,9 @@ describe('Function Execute API Route', () => {
       authType: 'internal_jwt',
     })
 
+    mockCheckWorkspaceAccess.mockImplementation(async (id: string) => grantedAccess(id))
+    mockResolveWorkspaceAccess.mockImplementation(async (id: string) => grantedAccess(id))
+
     mockExecuteInIsolatedVM.mockResolvedValue({ result: 'test', stdout: '' })
     mockUploadFile.mockImplementation(async ({ customKey }) => ({ key: customKey }))
     clearLargeValueCacheForTests()
@@ -216,6 +239,103 @@ describe('Function Execute API Route', () => {
 
       expect(response.status).toBe(401)
       expect(data).toHaveProperty('error', 'Unauthorized')
+    })
+
+    it('rejects a body-supplied workspaceId the acting user is not a member of', async () => {
+      mockCheckWorkspaceAccess.mockResolvedValue({
+        exists: true,
+        hasAccess: false,
+        canWrite: false,
+        canAdmin: false,
+        workspace: { id: 'workspace-victim' },
+        permission: null,
+      })
+
+      const req = createMockRequest('POST', {
+        code: 'return "test"',
+        workspaceId: 'workspace-victim',
+      })
+
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(403)
+      expect(data).toHaveProperty('error', 'Workspace access denied')
+      expect(mockCheckWorkspaceAccess).toHaveBeenCalledWith('workspace-victim', 'user-123')
+      expect(mockExecuteInIsolatedVM).not.toHaveBeenCalled()
+    })
+
+    it('rejects a sandbox output export into a workspace the acting user cannot write to', async () => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+      mockExecuteInSandbox.mockResolvedValueOnce({
+        result: 'done',
+        stdout: 'ok',
+        sandboxId: 'sandbox-123',
+        exportedFiles: { '/tmp/out.txt': 'owned by attacker' },
+      })
+      const readOnly = {
+        exists: true,
+        hasAccess: true,
+        canWrite: false,
+        canAdmin: false,
+        workspace: { id: 'workspace-victim' },
+        permission: 'read',
+      }
+      mockCheckWorkspaceAccess.mockResolvedValue(readOnly)
+      mockResolveWorkspaceAccess.mockResolvedValue(readOnly)
+
+      const req = createMockRequest('POST', {
+        code: 'print("done")',
+        language: 'python',
+        workspaceId: 'workspace-victim',
+        outputs: {
+          files: [{ path: 'files/README.md', mode: 'overwrite', sandboxPath: '/tmp/out.txt' }],
+        },
+      })
+
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(403)
+      expect(data).toHaveProperty('error', 'Workspace access denied')
+      expect(mockValidateWorkspaceFileWriteTarget).not.toHaveBeenCalled()
+      expect(mockWriteWorkspaceFileByPath).not.toHaveBeenCalled()
+    })
+
+    it('rejects an export whose workspace is derived from a body-supplied workflowId', async () => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+      mockExecuteInSandbox.mockResolvedValueOnce({
+        result: 'done',
+        stdout: 'ok',
+        sandboxId: 'sandbox-123',
+        exportedFiles: { '/tmp/out.txt': 'owned by attacker' },
+      })
+      workflowsUtilsMock.getWorkflowById.mockResolvedValueOnce({
+        id: 'workflow-victim',
+        workspaceId: 'workspace-victim',
+      })
+      mockResolveWorkspaceAccess.mockResolvedValue({
+        exists: true,
+        hasAccess: false,
+        canWrite: false,
+        canAdmin: false,
+        workspace: { id: 'workspace-victim' },
+        permission: null,
+      })
+
+      const req = createMockRequest('POST', {
+        code: 'print("done")',
+        language: 'python',
+        workflowId: 'workflow-victim',
+        outputs: {
+          files: [{ path: 'files/README.md', mode: 'overwrite', sandboxPath: '/tmp/out.txt' }],
+        },
+      })
+
+      const response = await POST(req)
+
+      expect(response.status).toBe(403)
+      expect(mockWriteWorkspaceFileByPath).not.toHaveBeenCalled()
     })
 
     it('runs import-free JavaScript in isolated-vm without a remote provider', async () => {

@@ -16,6 +16,7 @@ import {
   type WorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenanceRepresentation,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 import type { ResolvedSecretMatcher } from '@/executor/utils/resolved-secret-matcher'
 import {
   createResolvedSecretMatcher,
@@ -433,6 +434,10 @@ export async function maybeWriteOutputToFile(
         }
 
         const writtenFiles = []
+        // Resolved once so the writer's authorization check does not re-query per output file.
+        const workspaceAccess = preparedFiles.length
+          ? await checkWorkspaceAccess(workspaceId, userId)
+          : undefined
         for (const { outputFile, format, contentType, buffer, secretProvenance } of preparedFiles) {
           if (context.abortSignal?.aborted) {
             throw new Error('Request aborted before tool mutation could be applied')
@@ -441,6 +446,7 @@ export async function maybeWriteOutputToFile(
           const written = await writeWorkspaceFileByPath({
             workspaceId,
             userId,
+            workspaceAccess,
             target: {
               path: outputFile.path,
               mode: outputFile.mode ?? 'create',
