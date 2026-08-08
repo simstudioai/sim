@@ -2821,6 +2821,13 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  get_account_billing: {
+    parameters: {
+      type: 'object',
+      properties: {},
+    },
+    resultSchema: undefined,
+  },
   get_block_outputs: {
     parameters: {
       type: 'object',

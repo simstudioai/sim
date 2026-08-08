@@ -56,6 +56,7 @@ export interface ToolCatalogEntry {
     | 'generate_audio'
     | 'generate_image'
     | 'generate_video'
+    | 'get_account_billing'
     | 'get_block_outputs'
     | 'get_block_upstream_references'
     | 'get_deployed_workflow_state'
@@ -177,6 +178,7 @@ export interface ToolCatalogEntry {
     | 'generate_audio'
     | 'generate_image'
     | 'generate_video'
+    | 'get_account_billing'
     | 'get_block_outputs'
     | 'get_block_upstream_references'
     | 'get_deployed_workflow_state'
@@ -2921,6 +2923,14 @@ export const GenerateVideo: ToolCatalogEntry = {
   },
   requiredPermission: 'write',
   capabilities: ['file_input', 'file_output', 'generated_media'],
+}
+
+export const GetAccountBilling: ToolCatalogEntry = {
+  id: 'get_account_billing',
+  name: 'get_account_billing',
+  route: 'sim',
+  mode: 'async',
+  parameters: { type: 'object', properties: {} },
 }
 
 export const GetBlockOutputs: ToolCatalogEntry = {
@@ -6568,6 +6578,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [GenerateAudio.id]: GenerateAudio,
   [GenerateImage.id]: GenerateImage,
   [GenerateVideo.id]: GenerateVideo,
+  [GetAccountBilling.id]: GetAccountBilling,
   [GetBlockOutputs.id]: GetBlockOutputs,
   [GetBlockUpstreamReferences.id]: GetBlockUpstreamReferences,
   [GetDeployedWorkflowState.id]: GetDeployedWorkflowState,

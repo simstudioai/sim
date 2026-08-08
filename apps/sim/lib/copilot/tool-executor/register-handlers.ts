@@ -12,6 +12,7 @@ import {
   DiffWorkflows,
   FunctionExecute,
   GenerateApiKey,
+  GetAccountBilling,
   GetBlockOutputs,
   GetBlockUpstreamReferences,
   GetDeployedWorkflowState,
@@ -52,6 +53,7 @@ import {
 } from '@/lib/copilot/generated/tool-catalog-v1'
 import { createServerToolHandler } from '@/lib/copilot/tools/registry/server-tool-adapter'
 import { getRegisteredServerToolNames } from '@/lib/copilot/tools/server/router'
+import { executeGetAccountBilling } from '../tools/handlers/account'
 import { executeDeployCustomBlock } from '../tools/handlers/deployment/custom-block'
 import {
   executeDeployApi,
@@ -134,6 +136,7 @@ function h(fn: (params: any, context: any) => Promise<any>): ToolHandler {
 function buildHandlerMap(): Record<string, ToolHandler> {
   return {
     [ListUserWorkspaces.id]: h((_p, c) => executeListUserWorkspaces(c)),
+    [GetAccountBilling.id]: h((_p, c) => executeGetAccountBilling(c)),
     [GetWorkflowData.id]: h(executeGetWorkflowData),
     [GetWorkflowRunOptions.id]: h(executeGetWorkflowRunOptions),
     [GetBlockOutputs.id]: h(executeGetBlockOutputs),

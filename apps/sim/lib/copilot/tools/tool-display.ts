@@ -474,6 +474,7 @@ const TOOL_TITLES: Record<string, string> = {
   function_execute: 'Running code',
   complete_scheduled_task: 'Completing scheduled task',
   generate_api_key: 'Generating API key',
+  get_account_billing: 'Checking plan and usage',
   get_block_outputs: 'Getting block outputs',
   get_block_upstream_references: 'Getting block references',
   get_deployed_workflow_state: 'Getting deployed workflow',
