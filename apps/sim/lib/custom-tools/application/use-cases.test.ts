@@ -43,7 +43,11 @@ vi.mock('@/lib/workflows/custom-tools/operations', () => ({
   upsertCustomTools: mocks.upsert,
 }))
 
-import { createWorkspaceCustomToolUseCase } from '@/lib/custom-tools/application/use-cases'
+import { CUSTOM_TOOL_DELEGATION_AUDIENCE } from '@/lib/custom-tools/application/authorization'
+import {
+  createWorkspaceCustomToolUseCase,
+  saveWorkspaceCustomToolUseCase,
+} from '@/lib/custom-tools/application/use-cases'
 
 const workspace = {
   workspaceId: 'workspace-1',
@@ -128,6 +132,56 @@ describe('custom tool application use cases', () => {
     ).rejects.toMatchObject({ code: 'conflict' })
 
     expect(mocks.upsert).not.toHaveBeenCalled()
+    expect(mocks.audit).not.toHaveBeenCalled()
+  })
+
+  it('normalizes the in-transaction duplicate-title error for strict creates', async () => {
+    mocks.upsert.mockRejectedValueOnce(
+      new Error(`A tool with the title "${tool.title}" already exists in this workspace`)
+    )
+
+    await expect(
+      createWorkspaceCustomToolUseCase.execute({
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        input: {
+          workspaceId: workspace.workspaceId,
+          title: tool.title,
+          schema: tool.schema,
+          code: tool.code,
+        },
+      })
+    ).rejects.toMatchObject({ code: 'conflict' })
+
+    expect(mocks.audit).not.toHaveBeenCalled()
+  })
+
+  it('normalizes the in-transaction duplicate-title error for compatibility saves', async () => {
+    mocks.upsert.mockRejectedValueOnce(
+      new Error(`A tool with the title "${tool.title}" already exists in this workspace`)
+    )
+
+    await expect(
+      saveWorkspaceCustomToolUseCase.execute({
+        principal: {
+          kind: 'delegated',
+          serviceId: 'copilot',
+          subjectUserId: 'user-1',
+          workspaceId: workspace.workspaceId,
+          delegationId: 'delegation-1',
+          audience: CUSTOM_TOOL_DELEGATION_AUDIENCE,
+          issuedAt: new Date(Date.now() - 1_000),
+          expiresAt: new Date(Date.now() + 60_000),
+        },
+        input: {
+          workspaceId: workspace.workspaceId,
+          title: tool.title,
+          schema: tool.schema,
+          code: tool.code,
+          source: 'tool_input',
+        },
+      })
+    ).rejects.toMatchObject({ code: 'conflict' })
+
     expect(mocks.audit).not.toHaveBeenCalled()
   })
 })

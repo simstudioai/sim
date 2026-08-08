@@ -1,7 +1,7 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { type Principal, resolvePrincipalAttribution } from '@sim/auth/principal'
 import type { customTools } from '@sim/db/schema'
-import { getPostgresErrorCode } from '@sim/utils/errors'
+import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
 import type { ListSortOrder } from '@/lib/api/list-query'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -77,6 +77,10 @@ function customToolConflict(error: unknown): never {
       'conflict',
       'A custom tool with that title already exists in this workspace'
     )
+  }
+  const message = getErrorMessage(error, '')
+  if (/already exists in this workspace/i.test(message)) {
+    throw new OrchestrationError('conflict', message)
   }
   throw error
 }
