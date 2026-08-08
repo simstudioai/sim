@@ -79,9 +79,21 @@ export const GET = withRouteHandler(
        * a shared `.mp4` silently lost `Accept-Ranges` while the very same file
        * stayed seekable inside the workspace.
        */
-      const isMedia =
-        isMediaContentType(file.contentType) ||
-        isMediaContentType(getContentType(file.originalName))
+      const storedIsMedia = isMediaContentType(file.contentType)
+      const filenameContentType = getContentType(file.originalName)
+      const isMedia = storedIsMedia || isMediaContentType(filenameContentType)
+
+      /**
+       * What the media branch actually declares. The stored type wins when it is
+       * already audio/video — it is the more specific answer — otherwise the
+       * filename-derived one, which is what admitted the file in the first place.
+       *
+       * Emitting the stored type unconditionally would defeat the widening above:
+       * these responses are `nosniff`, so an `application/octet-stream` `.mp4`
+       * would enter the byte-range branch and still refuse to play. The buffered
+       * branch below resolves the type the same way, for the same reason.
+       */
+      const mediaContentType = storedIsMedia ? file.contentType : filenameContentType
 
       /**
        * The share is only known after the token resolves, so the aggregate
@@ -149,7 +161,7 @@ export const GET = withRouteHandler(
         return await createByteRangeResponse({
           openStream: (range) => downloadFileStream({ key: file.key, context: 'workspace', range }),
           size: head.size,
-          contentType: file.contentType,
+          contentType: mediaContentType,
           filename: file.originalName,
           cacheControl: 'private, no-cache, must-revalidate',
           rangeHeader,
