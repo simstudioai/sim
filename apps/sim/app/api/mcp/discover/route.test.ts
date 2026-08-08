@@ -15,10 +15,27 @@ vi.mock('@/lib/workspaces/utils', () => ({
 
 import { GET } from '@/app/api/mcp/discover/route'
 
-function workspaceRow(id: string, allowPersonalApiKeys: boolean) {
+function workspaceRow(id: string) {
   return {
-    workspace: { id, name: `${id} name`, allowPersonalApiKeys, archivedAt: null },
+    workspace: { id, name: `${id} name`, archivedAt: null },
     permissionType: 'write' as const,
+  }
+}
+
+function serverRow(
+  id: string,
+  { isPublic = false, workspaceAllowsPersonalApiKeys = true } = {}
+): Record<string, unknown> {
+  return {
+    id,
+    name: `${id} name`,
+    description: null,
+    workspaceId: 'ws-1',
+    workspaceName: 'ws-1 name',
+    isPublic,
+    workspaceAllowsPersonalApiKeys,
+    createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    toolCount: 1,
   }
 }
 
@@ -29,61 +46,53 @@ function discoverRequest() {
   })
 }
 
+function authAs(auth: Record<string, unknown>) {
+  hybridAuthMockFns.mockCheckHybridAuth.mockResolvedValueOnce({
+    success: true,
+    userId: 'user-1',
+    ...auth,
+  })
+}
+
 describe('MCP Discover Route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    mockListAccessibleWorkspaceRowsForUser.mockResolvedValue([
-      workspaceRow('ws-allowed', true),
-      workspaceRow('ws-blocked', false),
-    ])
+    mockListAccessibleWorkspaceRowsForUser.mockResolvedValue([workspaceRow('ws-1')])
   })
 
-  it('hides servers in workspaces that disallow personal api keys', async () => {
-    hybridAuthMockFns.mockCheckHybridAuth.mockResolvedValueOnce({
-      success: true,
-      userId: 'user-1',
-      authType: 'api_key',
-      apiKeyType: 'personal',
-    })
+  it('hides private servers whose workspace disallows personal api keys', async () => {
+    authAs({ authType: 'api_key', apiKeyType: 'personal' })
     dbChainMockFns.orderBy.mockResolvedValueOnce([
-      { id: 'server-1', name: 'Allowed', workspaceId: 'ws-allowed', toolCount: 1 },
+      serverRow('allowed', { workspaceAllowsPersonalApiKeys: true }),
+      serverRow('blocked', { workspaceAllowsPersonalApiKeys: false }),
     ])
 
     const response = await GET(discoverRequest())
     const body = await response.json()
 
     expect(response.status).toBe(200)
-    expect(body.servers).toHaveLength(1)
-    expect(body.servers[0].workspace.id).toBe('ws-allowed')
+    expect(body.servers.map((server: { id: string }) => server.id)).toEqual(['allowed'])
   })
 
-  it('returns no servers when a personal key has only blocked workspaces', async () => {
-    mockListAccessibleWorkspaceRowsForUser.mockResolvedValue([workspaceRow('ws-blocked', false)])
-    hybridAuthMockFns.mockCheckHybridAuth.mockResolvedValueOnce({
-      success: true,
-      userId: 'user-1',
-      authType: 'api_key',
-      apiKeyType: 'personal',
-    })
+  it('keeps public servers listed for a personal key even when the workspace disallows them', async () => {
+    authAs({ authType: 'api_key', apiKeyType: 'personal' })
+    dbChainMockFns.orderBy.mockResolvedValueOnce([
+      serverRow('public', { isPublic: true, workspaceAllowsPersonalApiKeys: false }),
+      serverRow('private', { isPublic: false, workspaceAllowsPersonalApiKeys: false }),
+    ])
 
     const response = await GET(discoverRequest())
     const body = await response.json()
 
     expect(response.status).toBe(200)
-    expect(body.servers).toEqual([])
-    expect(dbChainMockFns.orderBy).not.toHaveBeenCalled()
+    expect(body.servers.map((server: { id: string }) => server.id)).toEqual(['public'])
   })
 
-  it('does not filter workspaces for a session caller', async () => {
-    mockListAccessibleWorkspaceRowsForUser.mockResolvedValue([workspaceRow('ws-blocked', false)])
-    hybridAuthMockFns.mockCheckHybridAuth.mockResolvedValueOnce({
-      success: true,
-      userId: 'user-1',
-      authType: 'session',
-    })
+  it('does not filter for a session caller', async () => {
+    authAs({ authType: 'session' })
     dbChainMockFns.orderBy.mockResolvedValueOnce([
-      { id: 'server-1', name: 'Blocked workspace server', workspaceId: 'ws-blocked', toolCount: 0 },
+      serverRow('blocked', { workspaceAllowsPersonalApiKeys: false }),
     ])
 
     const response = await GET(discoverRequest())
@@ -93,17 +102,10 @@ describe('MCP Discover Route', () => {
     expect(body.servers).toHaveLength(1)
   })
 
-  it('does not filter workspaces for a workspace key', async () => {
-    mockListAccessibleWorkspaceRowsForUser.mockResolvedValue([workspaceRow('ws-blocked', false)])
-    hybridAuthMockFns.mockCheckHybridAuth.mockResolvedValueOnce({
-      success: true,
-      userId: 'user-1',
-      authType: 'api_key',
-      apiKeyType: 'workspace',
-      workspaceId: 'ws-blocked',
-    })
+  it('does not filter for a workspace key', async () => {
+    authAs({ authType: 'api_key', apiKeyType: 'workspace', workspaceId: 'ws-1' })
     dbChainMockFns.orderBy.mockResolvedValueOnce([
-      { id: 'server-1', name: 'Blocked workspace server', workspaceId: 'ws-blocked', toolCount: 0 },
+      serverRow('blocked', { workspaceAllowsPersonalApiKeys: false }),
     ])
 
     const response = await GET(discoverRequest())
