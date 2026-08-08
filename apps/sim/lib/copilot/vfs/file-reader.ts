@@ -16,6 +16,7 @@ import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/works
 import { fetchWorkspaceFileBuffer } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { isHeifContainer, transcodeHeicToJpeg } from '@/lib/uploads/server/heic'
 import {
+  formatFileSize,
   isImageFileType,
   MODEL_SUPPORTED_IMAGE_MIME_TYPES,
   resolveEffectiveMimeType,
@@ -39,6 +40,15 @@ const MAX_IMAGE_READ_BYTES = 5 * 1024 * 1024 // 5 MB
 // produce huge extracted text; reject up front to avoid wasting a
 // download + parse only to blow past the tool-result budget.
 const MAX_PARSEABLE_READ_BYTES = 5 * 1024 * 1024 // 5 MB
+/** Source-image byte ceiling. Sits above the 20MB HEIC transcode ceiling, so a HEIF is bounded by the tighter of the two. */
+const MAX_IMAGE_SOURCE_BYTES = 25 * 1024 * 1024
+/**
+ * Pixel ceiling on the decoded raster. libvips materialises the whole raster, and
+ * an allocation this large OOM-kills the process rather than throwing, so it has to
+ * be refused up front. 100MP caps the decode near 400MB while clearing every real
+ * camera — a 48MP iPhone still is 8064x6048.
+ */
+const MAX_IMAGE_INPUT_PIXELS = 100_000_000
 const MAX_IMAGE_DIMENSION = 1568
 const IMAGE_RESIZE_DIMENSIONS = [1568, 1280, 1024, 768]
 const IMAGE_QUALITY_STEPS = [85, 70, 55, 40]
@@ -86,6 +96,20 @@ interface PreparedVisionImage {
 }
 
 /**
+ * Shown to the model verbatim in the read placeholder, so each value names the one
+ * thing that actually failed rather than a disjunction of everything that might have.
+ */
+const VisionImageRejection = {
+  Undecodable: 'It could not be decoded.',
+  TooManyPixels: 'It is too large to decode safely.',
+  TooLargeAfterResize: 'It still exceeded the 5MB vision limit after resizing.',
+} as const
+
+type VisionImageResult =
+  | { ok: true; image: PreparedVisionImage }
+  | { ok: false; reason: (typeof VisionImageRejection)[keyof typeof VisionImageRejection] }
+
+/**
  * Prepare an image for vision models: detect media type, optionally
  * resize/compress with sharp, and return the prepared buffer.
  *
@@ -98,7 +122,7 @@ interface PreparedVisionImage {
 async function prepareImageForVision(
   sourceBuffer: Buffer,
   claimedType: string
-): Promise<PreparedVisionImage | null> {
+): Promise<VisionImageResult> {
   return getVfsTracer().startActiveSpan(
     TraceSpan.CopilotVfsPrepareImage,
     {
@@ -107,7 +131,7 @@ async function prepareImageForVision(
         [TraceAttr.CopilotVfsInputMediaTypeClaimed]: claimedType,
       },
     },
-    async (span) => {
+    async (span): Promise<VisionImageResult> => {
       try {
         const detectedType = detectImageMime(sourceBuffer, claimedType)
         span.setAttribute(TraceAttr.CopilotVfsInputMediaTypeDetected, detectedType)
@@ -128,11 +152,17 @@ async function prepareImageForVision(
             TraceAttr.CopilotVfsOutcome,
             fitsWithoutSharp ? 'passthrough_no_sharp' : 'rejected_no_sharp'
           )
-          return fitsWithoutSharp
-            ? { buffer: sourceBuffer, mediaType: detectedType, resized: false }
-            : null
+          if (!fitsWithoutSharp) return { ok: false, reason: VisionImageRejection.Undecodable }
+          return {
+            ok: true,
+            image: { buffer: sourceBuffer, mediaType: detectedType, resized: false },
+          }
         }
 
+        // Left unguarded deliberately: metadata() only parses the header, so it
+        // allocates nothing proportional to the declared dimensions, and enabling the
+        // guard here would route an oversized image into the passthrough branch below
+        // — which hands the bytes to the model instead of refusing them.
         const readMetadata = (candidate: Buffer) =>
           sharpModule(candidate, { limitInputPixels: false })
             .metadata()
@@ -171,7 +201,8 @@ async function prepareImageForVision(
             TraceAttr.CopilotVfsOutcome,
             passthroughViable ? 'passthrough_no_metadata' : 'rejected_no_metadata'
           )
-          return passthroughViable ? { buffer, mediaType, resized: false } : null
+          if (!passthroughViable) return { ok: false, reason: VisionImageRejection.Undecodable }
+          return { ok: true, image: { buffer, mediaType, resized: false } }
         }
 
         const width = metadata.width ?? 0
@@ -180,6 +211,20 @@ async function prepareImageForVision(
           [TraceAttr.CopilotVfsInputWidth]: width,
           [TraceAttr.CopilotVfsInputHeight]: height,
         })
+
+        const pixels = width * height
+        if (pixels > MAX_IMAGE_INPUT_PIXELS) {
+          logger.warn('Rejected image above the decode pixel budget', {
+            mediaType,
+            width,
+            height,
+            pixels,
+            budget: MAX_IMAGE_INPUT_PIXELS,
+            bytes: buffer.length,
+          })
+          span.setAttribute(TraceAttr.CopilotVfsOutcome, 'rejected_pixel_budget')
+          return { ok: false, reason: VisionImageRejection.TooManyPixels }
+        }
 
         // A format the model cannot decode has to be re-encoded even when it is
         // already small enough — the ladder below emits JPEG or WebP, both of
@@ -196,7 +241,7 @@ async function prepareImageForVision(
             [TraceAttr.CopilotVfsOutputBytes]: buffer.length,
             [TraceAttr.CopilotVfsOutputMediaType]: mediaType,
           })
-          return { buffer, mediaType, resized: false }
+          return { ok: true, image: { buffer, mediaType, resized: false } }
         }
 
         const hasAlpha = Boolean(
@@ -208,16 +253,19 @@ async function prepareImageForVision(
         span.setAttribute(TraceAttr.CopilotVfsHasAlpha, hasAlpha)
 
         let attempts = 0
+        let decodeFailed = false
         for (const dimension of IMAGE_RESIZE_DIMENSIONS) {
           for (const quality of IMAGE_QUALITY_STEPS) {
             attempts += 1
             try {
-              const pipeline = sharpModule(buffer, { limitInputPixels: false }).rotate().resize({
-                width: dimension,
-                height: dimension,
-                fit: 'inside',
-                withoutEnlargement: true,
-              })
+              const pipeline = sharpModule(buffer, { limitInputPixels: MAX_IMAGE_INPUT_PIXELS })
+                .rotate()
+                .resize({
+                  width: dimension,
+                  height: dimension,
+                  fit: 'inside',
+                  withoutEnlargement: true,
+                })
 
               const transformed = hasAlpha
                 ? {
@@ -262,12 +310,20 @@ async function prepareImageForVision(
                   [TraceAttr.CopilotVfsOutcome]: CopilotVfsOutcome.Resized,
                 })
                 return {
-                  buffer: transformed.buffer,
-                  mediaType: transformed.mediaType,
-                  resized: true,
+                  ok: true,
+                  image: {
+                    buffer: transformed.buffer,
+                    mediaType: transformed.mediaType,
+                    resized: true,
+                  },
                 }
               }
             } catch (err) {
+              // Move to the next dimension rather than the next quality: the quality
+              // rungs re-decode the identical source and only change the encoder, so
+              // repeating a failed decode there is pure waste. A smaller dimension is
+              // worth trying — libvips shrinks JPEG on load, so it decodes less.
+              decodeFailed = true
               logger.warn('Failed image resize attempt for VFS read', {
                 mediaType,
                 dimension,
@@ -279,6 +335,7 @@ async function prepareImageForVision(
                 [TraceAttr.CopilotVfsResizeQuality]: quality,
                 [TraceAttr.ErrorMessage]: toError(err).message.slice(0, 500),
               })
+              break
             }
           }
         }
@@ -288,7 +345,12 @@ async function prepareImageForVision(
           [TraceAttr.CopilotVfsResizeAttempts]: attempts,
           [TraceAttr.CopilotVfsOutcome]: CopilotVfsOutcome.RejectedTooLargeAfterResize,
         })
-        return null
+        return {
+          ok: false,
+          reason: decodeFailed
+            ? VisionImageRejection.Undecodable
+            : VisionImageRejection.TooLargeAfterResize,
+        }
       } catch (err) {
         recordSpanError(span, err)
         throw err
@@ -342,33 +404,45 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
         // image down the binary path where the model never sees it.
         if (isImageFileType(resolveEffectiveMimeType(record.type, record.name))) {
           span.setAttribute(TraceAttr.CopilotVfsReadPath, CopilotVfsReadPath.Image)
-          const originalBuffer = await fetchWorkspaceFileBuffer(record)
-          const prepared = await prepareImageForVision(originalBuffer, record.type)
-          if (!prepared) {
+          // `record.size` is client-declared, so it only buys the friendly placeholder;
+          // the download's own `maxBytes` is what actually bounds the bytes read.
+          if (record.size > MAX_IMAGE_SOURCE_BYTES) {
             span.setAttribute(TraceAttr.CopilotVfsReadOutcome, CopilotVfsReadOutcome.ImageTooLarge)
             return {
-              content: `[Image unavailable: ${record.name} (${(record.size / 1024 / 1024).toFixed(1)}MB). It could not be decoded, or still exceeded the 5MB vision limit after resizing.]`,
+              content: `[Image too large to read inline: ${record.name} (${record.size} bytes, limit ${MAX_IMAGE_SOURCE_BYTES})]`,
               totalLines: 1,
             }
           }
-          const sizeKb = (prepared.buffer.length / 1024).toFixed(1)
-          const resizeNote = prepared.resized ? ', resized for vision' : ''
+          const originalBuffer = await fetchWorkspaceFileBuffer(record, {
+            maxBytes: MAX_IMAGE_SOURCE_BYTES,
+          })
+          const prepared = await prepareImageForVision(originalBuffer, record.type)
+          if (!prepared.ok) {
+            span.setAttribute(TraceAttr.CopilotVfsReadOutcome, CopilotVfsReadOutcome.ImageTooLarge)
+            return {
+              content: `[Image unavailable: ${record.name} (${formatFileSize(record.size)}). ${prepared.reason}]`,
+              totalLines: 1,
+            }
+          }
+          const { buffer, mediaType, resized } = prepared.image
+          const sizeKb = (buffer.length / 1024).toFixed(1)
+          const resizeNote = resized ? ', resized for vision' : ''
           span.setAttributes({
             [TraceAttr.CopilotVfsReadOutcome]: CopilotVfsReadOutcome.ImagePrepared,
-            [TraceAttr.CopilotVfsReadOutputBytes]: prepared.buffer.length,
-            [TraceAttr.CopilotVfsReadOutputMediaType]: prepared.mediaType,
-            [TraceAttr.CopilotVfsReadImageResized]: prepared.resized,
+            [TraceAttr.CopilotVfsReadOutputBytes]: buffer.length,
+            [TraceAttr.CopilotVfsReadOutputMediaType]: mediaType,
+            [TraceAttr.CopilotVfsReadImageResized]: resized,
           })
           return {
-            content: `Image: ${record.name} (${sizeKb}KB, ${prepared.mediaType}${resizeNote})`,
+            content: `Image: ${record.name} (${sizeKb}KB, ${mediaType}${resizeNote})`,
             totalLines: 1,
             attachment: {
               type: 'image',
               name: record.name,
               source: {
                 type: 'base64' as const,
-                media_type: prepared.mediaType,
-                data: prepared.buffer.toString('base64'),
+                media_type: mediaType,
+                data: buffer.toString('base64'),
               },
             },
           }
@@ -384,7 +458,7 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
             }
           }
 
-          const buffer = await fetchWorkspaceFileBuffer(record)
+          const buffer = await fetchWorkspaceFileBuffer(record, { maxBytes: MAX_TEXT_READ_BYTES })
           const content = buffer.toString('utf-8')
           const lines = content.split('\n').length
           span.setAttributes({
@@ -408,7 +482,9 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
               totalLines: 1,
             }
           }
-          const buffer = await fetchWorkspaceFileBuffer(record)
+          const buffer = await fetchWorkspaceFileBuffer(record, {
+            maxBytes: MAX_PARSEABLE_READ_BYTES,
+          })
           try {
             const { parseBuffer } = await import('@/lib/file-parsers')
             const result = await parseBuffer(buffer, ext)
