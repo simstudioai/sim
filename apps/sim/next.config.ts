@@ -319,11 +319,15 @@ const nextConfig: NextConfig = {
       {
         // Exclude Vercel internal resources and static assets from strict COOP, Google Drive Picker
         // and the /demo Cal.com booking embed to prevent 'refused to connect' / slow-load issues.
-        // `oauth/chat-complete` runs *as* a popup: `same-origin` moves a document into its own
-        // browsing-context group, which would disown it from the opener that launched it the moment
-        // it loads — leaving it not reliably script-closable and its opener unable to observe it.
+        // The OAuth popup pages are excluded because `same-origin` moves a document into its own
+        // browsing-context group, disowning it from the opener that launched it: the popup stops
+        // being reliably script-closable and its opener sees `closed` report true for a live window.
+        // That covers the return leg (`oauth/chat-complete`) and both pages a flow can exit on
+        // without reaching it — `oauth-error` and the `workspace` root, which the custom-provider
+        // callbacks bounce to. Bare `workspace` also matches `/workspace` itself, which previously
+        // fell here while every `/workspace/...` route got the permissive policy below.
         source:
-          '/((?!_next|_vercel|api|favicon.ico|w/.*|workspace/.*|api/tools/drive|demo|oauth/chat-complete).*)',
+          '/((?!_next|_vercel|api|favicon.ico|w/.*|workspace|api/tools/drive|demo|oauth-error|oauth/chat-complete).*)',
         headers: [
           {
             key: 'Cross-Origin-Opener-Policy',
@@ -346,11 +350,11 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        // For main app routes, Google Drive Picker, the /demo Cal.com embed, the chat OAuth popup
-        // return leg, and Vercel resources - use permissive policies. The return leg matches its
-        // opener's value so the two stay in one browsing-context group.
+        // For main app routes, Google Drive Picker, the /demo Cal.com embed, the pages an OAuth
+        // popup can land on, and Vercel resources - use permissive policies. The popup pages match
+        // their opener's value so the two stay in one browsing-context group.
         source:
-          '/(w/.*|workspace/.*|api/tools/drive|demo.*|oauth/chat-complete|_next/.*|_vercel/.*)',
+          '/(w/.*|workspace.*|api/tools/drive|demo.*|oauth-error|oauth/chat-complete|_next/.*|_vercel/.*)',
         headers: [
           {
             key: 'Cross-Origin-Embedder-Policy',
