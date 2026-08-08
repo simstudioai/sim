@@ -2,7 +2,7 @@
 
 import { execSync, spawn } from 'child_process'
 import { randomBytes } from 'crypto'
-import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
+import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'fs'
 import { homedir } from 'os'
 import { join } from 'path'
 import { createInterface } from 'readline'
@@ -28,6 +28,10 @@ const AES_KEY_PATTERN = /^[0-9a-f]{64}$/i
  * leave that data permanently unreadable. Any value that is not a 32-byte hex key is
  * replaced.
  *
+ * Regenerating one key rewrites the whole file, so the write goes to a temp file and is
+ * renamed into place: a plain write truncates first, and a crash mid-write would strand a
+ * still-valid `ENCRYPTION_KEY` and orphan the data it protects.
+ *
  * Permissions are reasserted on every run: `writeFileSync`'s `mode` applies only when it
  * creates the file, so a file left by an earlier run — or one the user created — would
  * otherwise keep whatever mode it already had and stay readable by other local accounts.
@@ -50,7 +54,9 @@ function resolveSecrets(): Record<string, string> {
   if (missing.length > 0) {
     mkdirSync(configDir, { recursive: true })
     const contents = SECRET_KEYS.map((key) => `${key}=${secrets[key]}`).join('\n')
-    writeFileSync(secretsPath, `${contents}\n`, { mode: 0o600 })
+    const pending = `${secretsPath}.tmp`
+    writeFileSync(pending, `${contents}\n`, { mode: 0o600 })
+    renameSync(pending, secretsPath)
     console.log(chalk.gray(`🔑 Generated local secrets in ${secretsPath}`))
   }
 
