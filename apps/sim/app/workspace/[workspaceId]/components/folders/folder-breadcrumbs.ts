@@ -3,7 +3,7 @@ import type {
   BreadcrumbEditing,
   BreadcrumbItem,
   DropdownOption,
-} from '@/app/workspace/[workspaceId]/components/resource/components/resource-header'
+} from '@/components/resource/components/resource-header'
 import type { WorkflowFolder } from '@/stores/folders/types'
 
 export interface FolderBreadcrumbItemsOptions {

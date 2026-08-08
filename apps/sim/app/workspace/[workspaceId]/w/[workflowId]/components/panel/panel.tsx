@@ -31,6 +31,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { useShallow } from 'zustand/react/shallow'
 import { VariableIcon } from '@/components/icons'
+import { useWorkspaceHostContext } from '@/components/workspace-host-provider'
 import { requestJson } from '@/lib/api/client/request'
 import {
   createWorkflowCopilotChatContract,
@@ -51,7 +52,6 @@ import { MothershipChat } from '@/app/workspace/[workspaceId]/home/components'
 import { getWorkflowCopilotUseChatOptions, useChat } from '@/app/workspace/[workspaceId]/home/hooks'
 import type { FileAttachmentForApi } from '@/app/workspace/[workspaceId]/home/types'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
-import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import {

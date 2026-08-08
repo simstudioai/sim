@@ -17,6 +17,10 @@ import {
   toast,
 } from '@sim/emcn'
 import { useParams, useRouter } from 'next/navigation'
+import {
+  CHAT_ACTION_BUTTON_CLASS as BUTTON_CLASS,
+  CHAT_ACTION_ICON_CLASS as ICON_CLASS,
+} from '@/components/chat/turn-layout'
 import { isLiveAssistantMessageId } from '@/lib/copilot/chat/effective-transcript'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { useSubmitCopilotFeedback } from '@/hooks/queries/copilot-feedback'
@@ -44,10 +48,6 @@ function toPlainText(raw: string): string {
       .trim()
   )
 }
-
-const ICON_CLASS = 'size-[14px]'
-const BUTTON_CLASS =
-  'flex size-[26px] items-center justify-center rounded-[6px] text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-hover)] focus-visible:outline-none'
 
 interface MessageActionsProps {
   content: string

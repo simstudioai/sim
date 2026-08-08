@@ -6,6 +6,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { PAGE_HEADER_BAR } from '@/components/page-header-bar'
+import { useWorkspaceHostContext } from '@/components/workspace-host-provider'
 import { useSession } from '@/lib/auth/auth-client'
 import {
   getUpgradeCardCta,
@@ -16,7 +17,6 @@ import {
 import { ANNUAL_DISCOUNT_RATE } from '@/lib/billing/constants'
 import { DEFAULT_UPGRADE_HEADER, UPGRADE_REASON_COPY } from '@/lib/billing/upgrade-reasons'
 import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
-import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import {
   BillingPeriodToggle,
   ComparisonTable,

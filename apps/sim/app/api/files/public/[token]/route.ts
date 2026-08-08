@@ -11,7 +11,7 @@ import { setDeploymentAuthCookie } from '@/lib/core/security/deployment'
 import { validateDeploymentAuth } from '@/lib/core/security/deployment-auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { enforcePublicFileRateLimit } from '@/lib/public-shares/rate-limit'
+import { enforcePerIpRateLimit } from '@/lib/public-shares/rate-limit'
 import { resolveActiveShareByToken } from '@/lib/public-shares/share-manager'
 
 export const dynamic = 'force-dynamic'
@@ -24,13 +24,17 @@ const logger = createLogger('PublicFileMetadataAPI')
  * inactive, or deleted shares — the existence of a file is never leaked. A
  * password-protected share returns 401 `auth_required_password` until a valid
  * `file_auth_{shareId}` cookie is present.
+ *
+ * Per-IP only: this reads one indexed row and spends nothing, so it carries no
+ * aggregate per-share ceiling — see `PER_SHARE_RATE_LIMIT`. The bytes behind it
+ * (`/content`, `/inline`) do carry one.
  */
 export const GET = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ token: string }> }) => {
     const requestId = generateRequestId()
 
     try {
-      const limited = await enforcePublicFileRateLimit(request, 'metadata')
+      const limited = await enforcePerIpRateLimit(request, 'metadata')
       if (limited) return limited
 
       const parsed = await parseRequest(getPublicFileContract, request, context)
@@ -130,7 +134,7 @@ export const POST = withRouteHandler(
         resolved.share.authType,
         resolved.share.password
       )
-      logger.info('Public file share password accepted', { token, shareId: resolved.share.id })
+      logger.info('Public file share password accepted', { shareId: resolved.share.id })
       return response
     } catch (error) {
       logger.error('Error authenticating public file share:', error)

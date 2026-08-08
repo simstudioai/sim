@@ -19,7 +19,6 @@ import {
 } from '@/lib/execution/payloads/materialization.server'
 import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import { isExecutionResourceLimitError } from '@/lib/execution/resource-errors'
-import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { processStreamingBlockLogs } from '@/lib/tokenization'
 import {
   cleanupExecutionBase64Cache,
@@ -37,6 +36,7 @@ import {
   type ChatStreamToolFrame,
   clientAcceptsAgentStreamProtocol,
 } from '@/lib/workflows/streaming/agent-stream-protocol'
+import { completeLoggingSession } from '@/lib/workflows/streaming/logging-session-completion'
 import type { BlockLog, ExecutionResult, StreamingExecution } from '@/executor/types'
 import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
 import { navigatePathAsync } from '@/executor/variables/resolvers/reference-async.server'
@@ -476,25 +476,17 @@ function updateLogsWithStreamedContent(
   })
 }
 
-async function completeLoggingSession(result: ExecutionResult): Promise<void> {
-  if (!result._streamingMetadata?.loggingSession) {
-    return
-  }
-
-  const { traceSpans, totalDuration } = buildTraceSpans(result)
-
-  await result._streamingMetadata.loggingSession.safeComplete({
-    endedAt: new Date().toISOString(),
-    totalDurationMs: totalDuration || 0,
-    finalOutput: result.output || {},
-    traceSpans: (traceSpans || []) as any,
-    workflowInput: result._streamingMetadata.processedInput,
-    executionState: result.executionState,
-  })
-
-  result._streamingMetadata = undefined
-}
-
+/**
+ * Streams a workflow run as the **deployed-chat / public-API** SSE dialect:
+ * bare `{ blockId, chunk }` frames, `{ event: 'error' | 'stream_error' }`, a
+ * terminal `{ event: 'final', data }`, then `[DONE]`. Its consumers are the
+ * deployed chat client (`use-chat-streaming`) and external callers of the
+ * public execute API.
+ *
+ * It is **not** interchangeable with the typed `ExecutionEvent` dialect that
+ * `processSSEStream` decodes: a frame from one is silently dropped by the
+ * other's decoder, so a route must pick the dialect its client speaks.
+ */
 export async function createStreamingResponse(
   options: StreamingResponseOptions
 ): Promise<ReadableStream> {

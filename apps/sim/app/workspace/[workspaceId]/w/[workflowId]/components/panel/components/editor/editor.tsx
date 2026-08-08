@@ -41,8 +41,6 @@ import {
   useEditorSubblockLayout,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/hooks'
 import { ActiveSearchTargetProvider } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
-import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/loop/loop-config'
-import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
 import { getSubBlockStableKey } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/utils'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import {
@@ -52,6 +50,7 @@ import {
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { getTileIconColorClass } from '@/blocks/icon-color'
 import { getBlock } from '@/blocks/registry'
+import { LoopTool, ParallelTool } from '@/blocks/subflow-tools'
 import { useFolderMap } from '@/hooks/queries/folders'
 import { isWorkflowEffectivelyLocked } from '@/hooks/queries/utils/folder-tree'
 import { useWorkflowMap, useWorkflowState } from '@/hooks/queries/workflows'

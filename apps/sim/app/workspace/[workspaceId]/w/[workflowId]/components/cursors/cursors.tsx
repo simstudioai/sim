@@ -2,9 +2,9 @@
 
 import { memo, useMemo } from 'react'
 import { useViewport } from 'reactflow'
+import { useSocket } from '@/components/socket-provider'
 import { getUserColor } from '@/lib/workspaces/colors'
 import { usePreventZoom } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
-import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { usePresenceStore } from '@/stores/presence/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 

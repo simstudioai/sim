@@ -35,7 +35,7 @@ vi.mock('@/lib/auth/auth-client', () => ({
   useSession: () => ({ data: { user: { id: 'user-1', email: 'viewer@example.com' } } }),
 }))
 
-vi.mock('@/app/workspace/[workspaceId]/providers/workspace-host-provider', () => ({
+vi.mock('@/components/workspace-host-provider', () => ({
   useWorkspaceHostContext: () => hostContext.current,
 }))
 

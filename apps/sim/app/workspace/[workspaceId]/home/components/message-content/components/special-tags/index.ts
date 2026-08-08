@@ -17,13 +17,11 @@ export type {
   UsageUpgradeTagData,
   WorkspaceResourceTagData,
   WorkspaceResourceTagType,
-} from './special-tags'
+} from '@/components/chat/special-tags/parse'
 export {
   CREDENTIAL_TAG_TYPES,
-  CredentialDisplay,
   credentialTagHasVisibleCard,
   formatCredentialSubmissionMessage,
-  PendingTagIndicator,
   parseCredentialSubmissionMessage,
   parseCredentialSubmissionProgress,
   parseCredentialTagBody,
@@ -36,8 +34,12 @@ export {
   parseTagAttributes,
   parseTextTagBody,
   QUESTION_TYPES,
-  SpecialTags,
   USAGE_UPGRADE_ACTIONS,
   WORKSPACE_RESOURCE_TAG_TYPES,
+} from '@/components/chat/special-tags/parse'
+export {
+  CredentialDisplay,
+  PendingTagIndicator,
+  SpecialTags,
   WorkspaceResourceDisplay,
 } from './special-tags'

@@ -1,6 +1,4 @@
-export { ChatMessageAttachments } from './chat-message-attachments'
 export { ChatSurfaceProvider, useChatSurface } from './chat-surface-context'
-export { ContextMentionIcon } from './context-mention-icon'
 export { CreditsChip } from './credits-chip'
 export {
   assistantMessageHasRenderableContent,

@@ -160,8 +160,7 @@ function main(): void {
     process.exit(1)
   }
 
-  const next =
-    doc.slice(0, beginIndex + BEGIN_MARKER.length) + `\n${content}\n` + doc.slice(endIndex)
+  const next = `${doc.slice(0, beginIndex + BEGIN_MARKER.length)}\n${content}\n${doc.slice(endIndex)}`
 
   if (checkMode) {
     if (next !== doc) {

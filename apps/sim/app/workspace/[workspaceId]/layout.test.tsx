@@ -65,7 +65,7 @@ vi.mock('@/app/workspace/[workspaceId]/components/workspace-chrome', () => ({
   WorkspaceChrome: ({ children }: { children: ReactNode }) => children,
 }))
 
-vi.mock('@/app/workspace/[workspaceId]/components/workspace-access-denied', () => ({
+vi.mock('@/components/workspace-host-provider/workspace-access-denied', () => ({
   WorkspaceAccessDenied: () => <div>Workspace access denied</div>,
 }))
 
@@ -93,7 +93,7 @@ vi.mock('@/app/workspace/[workspaceId]/providers/settings-loader', () => ({
   SettingsLoader: () => null,
 }))
 
-vi.mock('@/app/workspace/[workspaceId]/providers/workspace-host-provider', () => ({
+vi.mock('@/components/workspace-host-provider', () => ({
   WorkspaceHostProvider: ({ children }: { children: ReactNode }) => children,
 }))
 

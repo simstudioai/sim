@@ -1,8 +1,8 @@
 'use client'
 
 import { type DragEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { RowDragDropConfig } from '@/components/resource/resource'
 import { parseFolderedRowId } from '@/app/workspace/[workspaceId]/components/folders/folder-row-id'
-import type { RowDragDropConfig } from '@/app/workspace/[workspaceId]/components/resource/resource'
 
 /**
  * Private drag payload, namespaced so a drag started on another Sim surface (or an external

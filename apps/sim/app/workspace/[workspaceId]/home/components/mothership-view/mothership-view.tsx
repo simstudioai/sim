@@ -2,14 +2,14 @@
 
 import { forwardRef, memo, useCallback, useMemo, useRef, useState } from 'react'
 import { cn } from '@sim/emcn'
-import type { FilePreviewSession } from '@/lib/copilot/request/session'
-import { getFileExtension } from '@/lib/uploads/utils/file-utils'
-import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
+import type { PreviewMode } from '@/components/resources/file-view'
 import {
   isCsvStreamOnly,
   isMarkdownFile,
   RICH_PREVIEWABLE_EXTENSIONS,
-} from '@/app/workspace/[workspaceId]/files/components/file-viewer'
+} from '@/components/resources/file-view'
+import type { FilePreviewSession } from '@/lib/copilot/request/session'
+import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
 import type { BrowserPanelOverlayController } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion'
 import { hasRenderableFilePreviewContent } from '@/app/workspace/[workspaceId]/home/hooks/preview'
@@ -19,7 +19,7 @@ import type {
 } from '@/app/workspace/[workspaceId]/home/types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
-import { ResourceActions, ResourceContent, ResourceTabs } from './components'
+import { ResourceContent, ResourceTabActions, ResourceTabs } from './components'
 
 /**
  * Panels that are kept mounted across resource switches rather than rebuilt.
@@ -188,7 +188,7 @@ export const MothershipView = memo(
             activeId={active?.id ?? null}
             useFixedResourceToggle={useFixedResourceToggle}
             actions={
-              active ? <ResourceActions workspaceId={workspaceId} resource={active} /> : null
+              active ? <ResourceTabActions workspaceId={workspaceId} resource={active} /> : null
             }
             previewMode={isActivePreviewable ? previewMode : undefined}
             onCyclePreviewMode={isActivePreviewable ? handleCyclePreview : undefined}

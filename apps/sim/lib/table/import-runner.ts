@@ -129,8 +129,9 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
       return fresh ?? undefined
     }
 
-    // Total byte size for the progress estimate — a cheap HEAD, no download. May be null on
-    // the local dev provider, in which case the bar stays indeterminate (rows still show).
+    // Total byte size for the progress estimate — a cheap HEAD, no download. Every backend
+    // answers it, including local storage (which stats the file), so the bar is real; a
+    // genuinely absent object still yields 0 and leaves it indeterminate.
     const totalBytes = (await headObject(fileKey, 'workspace'))?.size ?? 0
 
     // Stream the file rather than buffering it — a ~1M-row import must never be held in memory.

@@ -96,6 +96,7 @@ import {
   MCP_TOOL_BRIDGE_ACTOR_HEADER,
   MCP_TOOL_BRIDGE_HEADER,
 } from '@/lib/mcp/constants'
+import { ChatFiles } from '@/lib/uploads'
 import {
   cleanupExecutionBase64Cache,
   hydrateUserFilesWithBase64,
@@ -1437,6 +1438,39 @@ async function handleExecutePost(
           actorUserId
         )
       }
+
+      /**
+       * A chat turn carries its attachments inline as base64 under
+       * `input.files`, which `processInputFileFields` does not see — that pass
+       * only walks fields the start block declares as `file[]`. Upload them the
+       * same way the deployed chat route does, so the start block receives the
+       * `UserFile[]` it normalizes; anything else it silently drops.
+       *
+       * Already-uploaded files carry a storage `key` and no inline payload, so a
+       * re-submitted payload passes through untouched.
+       *
+       * `dataUrl` is the preferred inline field and `data` the legacy one — the
+       * same precedence `processChatFiles` itself applies. Testing only `data`
+       * would skip the upload for every current client and drop its attachments
+       * silently, which is the failure this pass exists to prevent.
+       */
+      if (triggerType === 'chat') {
+        const chatFiles = (processedInput as { files?: unknown } | null | undefined)?.files
+        const pending =
+          Array.isArray(chatFiles) &&
+          chatFiles.some(
+            (file) => file && typeof file === 'object' && ('dataUrl' in file || 'data' in file)
+          )
+        if (pending) {
+          const uploaded = await ChatFiles.processChatFiles(
+            chatFiles as Parameters<typeof ChatFiles.processChatFiles>[0],
+            { workspaceId, workflowId, executionId },
+            requestId,
+            actorUserId
+          )
+          processedInput = { ...(processedInput as object), files: uploaded }
+        }
+      }
     } catch (fileError) {
       reqLogger.error('Failed to process input file fields:', fileError)
 
@@ -1730,6 +1764,14 @@ async function handleExecutePost(
     } else {
       reqLogger.info('Using streaming API response')
 
+      /**
+       * Trigger type carried into the streamed run. `chat` is the one execution
+       * trigger type that must survive to the logging session; every other
+       * trigger reaching this branch streams as an API execution. Declared once
+       * so the streamConfig and executeWorkflow call below cannot drift apart.
+       */
+      const streamingTriggerType = triggerType === 'chat' ? 'chat' : 'api'
+
       const resolvedSelectedOutputs = resolveOutputIds(
         selectedOutputs,
         cachedWorkflowData?.blocks || {}
@@ -1773,7 +1815,7 @@ async function handleExecutePost(
         streamConfig: {
           selectedOutputs: resolvedSelectedOutputs,
           isSecureMode: false,
-          workflowTriggerType: triggerType === 'chat' ? 'chat' : 'api',
+          workflowTriggerType: streamingTriggerType,
           includeFileBase64,
           base64MaxBytes,
           timeoutMs: getEffectiveSyncTimeoutMs(),
@@ -1800,7 +1842,7 @@ async function handleExecutePost(
               enabled: true,
               selectedOutputs: resolvedSelectedOutputs,
               isSecureMode: false,
-              workflowTriggerType: triggerType === 'chat' ? 'chat' : 'api',
+              workflowTriggerType: streamingTriggerType,
               onStream,
               onBlockComplete,
               skipLoggingComplete: true,

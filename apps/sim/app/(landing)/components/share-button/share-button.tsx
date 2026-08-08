@@ -11,6 +11,7 @@ import {
 } from '@sim/emcn'
 import { Duplicate, Share } from '@sim/emcn/icons'
 import { LinkedInIcon, xIcon as XIcon } from '@/components/icons'
+import { buildLinkedInShareUrl, buildXShareUrl } from '@/lib/social-share'
 
 interface ShareButtonProps {
   url: string
@@ -22,13 +23,11 @@ export function ShareButton({ url, title }: ShareButtonProps) {
   const { copied, copy } = useCopyToClipboard({ resetMs: 1500 })
 
   const handleShareTwitter = () => {
-    const tweetUrl = `https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}&text=${encodeURIComponent(title)}`
-    window.open(tweetUrl, '_blank', 'noopener,noreferrer')
+    window.open(buildXShareUrl(`${title} ${url}`), '_blank', 'noopener,noreferrer')
   }
 
   const handleShareLinkedIn = () => {
-    const linkedInUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`
-    window.open(linkedInUrl, '_blank', 'noopener,noreferrer')
+    window.open(buildLinkedInShareUrl(url), '_blank', 'noopener,noreferrer')
   }
 
   return (

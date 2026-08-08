@@ -10,7 +10,8 @@ import { getStorageMethod } from '@/lib/core/storage'
 export type DeploymentKind = 'chat' | 'file'
 
 /**
- * Shared OTP configuration for deployment email-auth gates (chat + public file shares).
+ * Shared OTP configuration for deployment email-auth gates (chat + public file
+ * and interface shares).
  */
 export const OTP_EXPIRY_SECONDS = 15 * 60
 export const OTP_EXPIRY_MS = OTP_EXPIRY_SECONDS * 1000

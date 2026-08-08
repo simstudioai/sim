@@ -4,6 +4,7 @@ import { createElement, useCallback, useMemo, useRef, useState } from 'react'
 import { Button, Combobox } from '@sim/emcn'
 import { SquareArrowUpRight } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
+import { ConnectOAuthModal } from '@/components/connect-oauth-modal'
 import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import {
   getCanonicalScopesForProvider,
@@ -15,7 +16,6 @@ import {
   parseProvider,
 } from '@/lib/oauth'
 import { getMissingRequiredScopes } from '@/lib/oauth/utils'
-import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'

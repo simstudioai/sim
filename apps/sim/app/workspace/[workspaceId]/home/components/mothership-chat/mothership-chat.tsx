@@ -12,9 +12,11 @@ import {
 } from 'react'
 import { cn } from '@sim/emcn'
 import { defaultRangeExtractor, type Range, useVirtualizer } from '@tanstack/react-virtual'
+import { ChatMessageAttachments } from '@/components/chat/chat-message-attachments'
+import { CHAT_TURN_LAYOUT } from '@/components/chat/turn-layout'
+import { UserMessageContent } from '@/components/chat/user-message-content'
 import { SMOOTH_CHASE_RATE } from '@/lib/core/utils/smooth-bottom-chase'
 import { MessageActions } from '@/app/workspace/[workspaceId]/components'
-import { ChatMessageAttachments } from '@/app/workspace/[workspaceId]/home/components/chat-message-attachments'
 import { ChatSurfaceProvider } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import {
   assistantMessageHasRenderableContent,
@@ -34,7 +36,6 @@ import {
   UserInput,
   type UserInputHandle,
 } from '@/app/workspace/[workspaceId]/home/components/user-input'
-import { UserMessageContent } from '@/app/workspace/[workspaceId]/home/components/user-message-content'
 import type {
   ChatMessage,
   ChatMessageAttachment,
@@ -119,16 +120,18 @@ const PIN_THRESHOLD = 2
  */
 const UNSCROLLED = Symbol('unscrolled')
 
+/**
+ * Chrome around the transcript. The turn itself comes from
+ * {@link CHAT_TURN_LAYOUT}, which an interface's chat module mounts too — so
+ * the bubble, the row gap, and the attachment strip have one definition and
+ * only the surrounding page/panel frame is spelled out here.
+ */
 const LAYOUT_STYLES = {
   'mothership-view': {
     scrollContainer:
       'mt-[var(--workspace-content-title-bar-inset)] min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 pt-4 pb-2 [overflow-anchor:none] [scrollbar-gutter:stable_both-edges]',
     sizer: 'relative mx-auto w-full max-w-chat',
-    rowGap: 'pb-6',
-    userRow: 'flex flex-col items-end gap-[6px] pt-3',
-    attachmentWidth: 'max-w-[70%]',
-    userBubble: 'max-w-[70%] overflow-hidden rounded-[16px] bg-[var(--surface-5)] px-3.5 py-2',
-    assistantRow: 'group/msg',
+    ...CHAT_TURN_LAYOUT.wide,
     footer: 'flex-shrink-0 px-[24px] pb-[16px]',
     footerInner: 'mx-auto max-w-chat',
   },
@@ -136,11 +139,7 @@ const LAYOUT_STYLES = {
     scrollContainer:
       'min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 pt-2 pb-4 [overflow-anchor:none]',
     sizer: 'relative w-full',
-    rowGap: 'pb-4',
-    userRow: 'flex flex-col items-end gap-[6px] pt-2',
-    attachmentWidth: 'max-w-[85%]',
-    userBubble: 'max-w-[85%] overflow-hidden rounded-[16px] bg-[var(--surface-5)] px-3 py-2',
-    assistantRow: 'group/msg',
+    ...CHAT_TURN_LAYOUT.narrow,
     footer: 'flex-shrink-0 px-3 pb-3',
     footerInner: '',
   },
