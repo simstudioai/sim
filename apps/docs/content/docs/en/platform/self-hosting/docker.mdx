@@ -107,6 +107,8 @@ For nginx, Traefik, or a cloud load balancer — and for the GKE websocket timeo
 
 ## Ollama
 
+This stack needs the same `.env` as the production one — it refuses to start without `BETTER_AUTH_SECRET`, `ENCRYPTION_KEY`, and `INTERNAL_API_SECRET`. Create it as shown in [Quick Start](#quick-start) first.
+
 ```bash
 # With GPU
 docker compose -f docker-compose.ollama.yml --profile gpu --profile setup up -d

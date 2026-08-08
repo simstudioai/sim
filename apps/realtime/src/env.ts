@@ -1,4 +1,14 @@
+import { hasUnexpandedShellSubstitution } from '@sim/security/secrets'
 import { z } from 'zod'
+
+/** `min(32)` alone passes: an unexpanded `$(openssl rand -hex 32)` literal clears it. */
+const secretSchema = z
+  .string()
+  .min(32)
+  .refine((value) => !hasUnexpandedShellSubstitution(value), {
+    message:
+      'holds an unexpanded shell substitution rather than a value; generate one with `openssl rand -hex 32`',
+  })
 
 const EnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -10,8 +20,8 @@ const EnvSchema = z.object({
     z.string().url().optional()
   ),
   BETTER_AUTH_URL: z.string().url(),
-  BETTER_AUTH_SECRET: z.string().min(32),
-  INTERNAL_API_SECRET: z.string().min(32),
+  BETTER_AUTH_SECRET: secretSchema,
+  INTERNAL_API_SECRET: secretSchema,
   NEXT_PUBLIC_APP_URL: z.string().url(),
   ALLOWED_ORIGINS: z.string().optional(),
   PORT: z.coerce.number().int().positive().default(3002),

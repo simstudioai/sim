@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { hasUnexpandedShellSubstitution } from '@sim/security/secrets'
 import { generateRandomHex } from '@sim/utils/random'
 
 export const ROOT = path.resolve(fileURLToPath(new URL('.', import.meta.url)), '../..')
@@ -182,6 +183,7 @@ const HEX_SECRET_KEYS = new Set<string>(['ENCRYPTION_KEY', 'API_ENCRYPTION_KEY']
 
 export function isUsableSecret(key: string, value: string): boolean {
   if (isPlaceholder(value)) return false
+  if (hasUnexpandedShellSubstitution(value)) return false
   return HEX_SECRET_KEYS.has(key) ? HEX_KEY_PATTERN.test(value) : value.length >= 32
 }
 
