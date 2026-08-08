@@ -30,6 +30,7 @@ const logger = createLogger('FileReader')
 /** Inline text-read cap — exported so callers can align their own byte-sniff budgets with what read() can actually display. */
 export const MAX_TEXT_READ_BYTES = 5 * 1024 * 1024 // 5 MB
 const MAX_IMAGE_READ_BYTES = 5 * 1024 * 1024 // 5 MB
+const MAX_IMAGE_SOURCE_BYTES = 50 * 1024 * 1024 // 50 MB
 // Parseable-document byte cap. Large office/PDF files can still
 // produce huge extracted text; reject up front to avoid wasting a
 // download + parse only to blow past the tool-result budget.
@@ -286,7 +287,11 @@ export interface FileReadResult {
  * binary), and any size rejection. The `prepareImageForVision` span
  * nests underneath for the image-resize path.
  */
-export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileReadResult | null> {
+export async function readFileRecord(
+  record: WorkspaceFileRecord,
+  /** Pre-authorized workspace bytes; omitted only for chat-upload records in the mothership store. */
+  authorizedContent?: Buffer
+): Promise<FileReadResult | null> {
   const startedAt = Date.now()
   const result = await getVfsTracer().startActiveSpan(
     TraceSpan.CopilotVfsReadFile,
@@ -302,7 +307,14 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
       try {
         if (isImageFileType(record.type)) {
           span.setAttribute(TraceAttr.CopilotVfsReadPath, CopilotVfsReadPath.Image)
-          const originalBuffer = await fetchWorkspaceFileBuffer(record)
+          if (record.size > MAX_IMAGE_SOURCE_BYTES) {
+            span.setAttribute(TraceAttr.CopilotVfsReadOutcome, CopilotVfsReadOutcome.ImageTooLarge)
+            return {
+              content: `[Image too large to process: ${record.name} (${(record.size / 1024 / 1024).toFixed(1)}MB, source limit 50MB)]`,
+              totalLines: 1,
+            }
+          }
+          const originalBuffer = authorizedContent ?? (await fetchWorkspaceFileBuffer(record))
           const prepared = await prepareImageForVision(originalBuffer, record.type)
           if (!prepared) {
             span.setAttribute(TraceAttr.CopilotVfsReadOutcome, CopilotVfsReadOutcome.ImageTooLarge)
@@ -344,7 +356,7 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
             }
           }
 
-          const buffer = await fetchWorkspaceFileBuffer(record)
+          const buffer = authorizedContent ?? (await fetchWorkspaceFileBuffer(record))
           const content = buffer.toString('utf-8')
           const lines = content.split('\n').length
           span.setAttributes({
@@ -368,7 +380,7 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
               totalLines: 1,
             }
           }
-          const buffer = await fetchWorkspaceFileBuffer(record)
+          const buffer = authorizedContent ?? (await fetchWorkspaceFileBuffer(record))
           try {
             const { parseBuffer } = await import('@/lib/file-parsers')
             const result = await parseBuffer(buffer, ext)

@@ -1,3 +1,4 @@
+import type { SessionPrincipal } from '@sim/auth/principal'
 import { NextResponse } from 'next/server'
 import {
   type InternalFileUploadSession,
@@ -8,15 +9,25 @@ import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/or
 import type { UploadSessionRecord } from '@/lib/uploads/upload-session/service'
 import type { UploadActor, UploadPurposeResult } from '@/app/api/files/uploads/finalizers'
 
-export async function requireUploadUser(): Promise<UploadActor | NextResponse> {
+export type AuthenticatedUploadActor = UploadActor & { principal: SessionPrincipal }
+
+export async function requireUploadUser(): Promise<AuthenticatedUploadActor | NextResponse> {
   const session = await getSession()
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+  const sessionId = session.session?.id
+  if (!sessionId) throw new Error('Authenticated session is missing its session ID')
+  const principal: SessionPrincipal = {
+    kind: 'session',
+    userId: session.user.id,
+    sessionId,
   }
   return {
     id: session.user.id,
     name: session.user.name,
     email: session.user.email,
+    principal,
   }
 }
 

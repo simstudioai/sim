@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { createInternalFileUploadContract } from '@/lib/api/contracts/upload-sessions'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { createPurposeUploadSession } from '@/app/api/files/uploads/purposes'
+import { createInternalPurposeUploadSession } from '@/lib/uploads/upload-session/application'
 import {
   requireUploadUser,
   toInternalUploadSession,
@@ -16,10 +16,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   if (!parsed.success) return parsed.response
 
   try {
-    const created = await createPurposeUploadSession(
-      actor.id,
+    const created = await createInternalPurposeUploadSession(
+      actor.principal,
       parsed.data.body,
-      request.nextUrl.origin
+      request
     )
     return NextResponse.json(
       {

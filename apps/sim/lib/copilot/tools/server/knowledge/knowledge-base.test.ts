@@ -62,6 +62,9 @@ vi.mock('@/lib/knowledge/service', () => ({
 vi.mock('@/lib/knowledge/secret-provenance', () => ({
   importKnowledgeSearchResultSecretProvenance: mockImportKnowledgeSearchResultSecretProvenance,
 }))
+vi.mock('@/lib/knowledge/documents/service', () => ({
+  createSingleDocument: vi.fn(),
+}))
 vi.mock('@/lib/knowledge/tags/service', () => ({
   createTagDefinition: vi.fn(),
   deleteTagDefinition: vi.fn(),
@@ -72,7 +75,7 @@ vi.mock('@/lib/knowledge/tags/service', () => ({
   updateTagDefinition: vi.fn(),
 }))
 vi.mock('@/lib/uploads', () => ({ StorageService: {} }))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
+vi.mock('@/lib/workspace-files/application/resolve-workspace-file-reference', () => ({
   resolveWorkspaceFileReference: vi.fn(),
 }))
 vi.mock('@/app/api/auth/oauth/utils', () => ({ getCredential: vi.fn() }))
@@ -95,7 +98,7 @@ import { createSingleDocument } from '@/lib/knowledge/documents/service'
 import { generateSearchEmbedding, recordSearchEmbeddingUsage } from '@/lib/knowledge/embeddings'
 import { executeKnowledgeSearch } from '@/lib/knowledge/search/queries'
 import { getKnowledgeBaseById } from '@/lib/knowledge/service'
-import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { resolveWorkspaceFileReference } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
 import { checkKnowledgeBaseAccess } from '@/app/api/knowledge/utils'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -294,6 +297,8 @@ describe('knowledge base query model boundary', () => {
       {
         userId: 'external-admin',
         workspaceId: 'workspace-paid',
+        toolCallId: 'tool-1',
+        copilotToolExecution: true,
         billingAttribution: BILLING_ATTRIBUTION,
         resolvedSecretTraceRegistry: registry,
       }
@@ -358,6 +363,8 @@ describe('knowledge base query model boundary', () => {
       {
         userId: 'external-admin',
         workspaceId: 'workspace-paid',
+        toolCallId: 'tool-1',
+        copilotToolExecution: true,
         billingAttribution: BILLING_ATTRIBUTION,
         resolvedSecretTraceRegistry: registry,
       }
@@ -400,6 +407,8 @@ describe('knowledge base query model boundary', () => {
       {
         userId: 'external-admin',
         workspaceId: 'workspace-paid',
+        toolCallId: 'tool-1',
+        copilotToolExecution: true,
         billingAttribution: BILLING_ATTRIBUTION,
         resolvedSecretTraceRegistry: registry,
       }
@@ -440,6 +449,8 @@ describe('knowledge base add_file usage gate', () => {
       {
         userId: 'external-admin',
         workspaceId: 'workspace-paid',
+        toolCallId: 'tool-1',
+        copilotToolExecution: true,
         billingAttribution: BILLING_ATTRIBUTION,
       }
     )

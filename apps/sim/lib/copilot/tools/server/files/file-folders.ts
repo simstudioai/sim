@@ -1,25 +1,32 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
-import { ensureWorkspaceAccess } from '@/lib/copilot/tools/handlers/access'
+import {
+  executeCopilotFileUseCase,
+  resolveCopilotWorkspaceFileReference,
+} from '@/lib/copilot/application/execute-file-use-case'
+import { messageForCopilotFileError } from '@/lib/copilot/auth/file-delegation'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
-import { decodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
 import {
-  ensureWorkspaceFileFolderPath,
+  ensureCopilotFileFolderPath,
+  requireCopilotWorkspace,
+} from '@/lib/copilot/tools/server/files/file-folder-application'
+import { decodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
+import { asOrchestrationError } from '@/lib/core/orchestration/types'
+import {
   findWorkspaceFileFolderIdByPath,
   getWorkspaceFileFolder,
-  listWorkspaceFileFolders,
   type WorkspaceFileFolderRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
-import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { moveWorkspaceFileItemsOperation } from '@/lib/workspace-files/application/move-workspace-file-items'
+import { fileOperations } from '@/lib/workspace-files/application/operations'
 import {
-  performCreateWorkspaceFileFolder,
-  performMoveWorkspaceFileItems,
-  performUpdateWorkspaceFileFolder,
-} from '@/lib/workspace-files/orchestration'
+  createWorkspaceFileFolderOperation,
+  listWorkspaceFileFoldersOperation,
+  updateWorkspaceFileFolderOperation,
+} from '@/lib/workspace-files/application/workspace-file-folders'
 
 const logger = createLogger('FileFolderServerTools')
 
@@ -134,7 +141,8 @@ async function resolveOptionalFolderId(
 
 async function resolveFileIdsFromPaths(
   workspaceId: string,
-  paths: string[]
+  paths: string[],
+  context: ServerToolContext
 ): Promise<{
   fileIds: string[]
   failed: string[]
@@ -142,33 +150,34 @@ async function resolveFileIdsFromPaths(
   const fileIds: string[] = []
   const failed: string[] = []
   for (const path of paths) {
-    const file = await resolveWorkspaceFileReference(workspaceId, path)
-    if (!file) {
+    try {
+      const file = await resolveCopilotWorkspaceFileReference(context, fileOperations.move, {
+        workspaceId,
+        reference: path,
+      })
+      fileIds.push(file.id)
+    } catch (error) {
+      const classified = asOrchestrationError(error)
+      if (classified?.code !== 'not_found') throw error
       failed.push(path)
-      continue
     }
-    fileIds.push(file.id)
   }
   return { fileIds, failed }
 }
 
 async function resolveWorkspaceId(
   params: WorkspaceScopedArgs,
-  context: ServerToolContext | undefined,
-  permission: 'read' | 'write'
+  context: ServerToolContext | undefined
 ): Promise<string | FileFolderResult> {
   if (!context?.userId) {
     throw new Error('Authentication required')
   }
 
   const payload = nested(params)
-  const workspaceId =
-    stringValue(params.workspaceId) || stringValue(payload?.workspaceId) || context.workspaceId
-  if (!workspaceId) {
-    return { success: false, message: 'Workspace ID is required' }
-  }
+  const assertedWorkspaceId =
+    stringValue(params.workspaceId) || stringValue(payload?.workspaceId) || undefined
+  const workspaceId = requireCopilotWorkspace(context, assertedWorkspaceId)
 
-  await ensureWorkspaceAccess(workspaceId, context.userId, permission)
   return workspaceId
 }
 
@@ -183,10 +192,13 @@ export const listFileFoldersServerTool: BaseServerTool<ListFileFoldersArgs, File
     context?: ServerToolContext
   ): Promise<FileFolderResult> {
     try {
-      const workspaceId = await resolveWorkspaceId(params, context, 'read')
+      const workspaceId = await resolveWorkspaceId(params, context)
       if (typeof workspaceId !== 'string') return workspaceId
 
-      const folders = await listWorkspaceFileFolders(workspaceId)
+      const result = await executeCopilotFileUseCase(context, listWorkspaceFileFoldersOperation, {
+        workspaceId,
+      })
+      const folders = result.folders
       return {
         success: true,
         message:
@@ -194,7 +206,10 @@ export const listFileFoldersServerTool: BaseServerTool<ListFileFoldersArgs, File
         data: { workspaceId, folders },
       }
     } catch (error) {
-      return { success: false, message: toError(error).message }
+      return {
+        success: false,
+        message: messageForCopilotFileError(error, 'Failed to list file folders'),
+      }
     }
   },
 }
@@ -206,7 +221,7 @@ export const createFileFolderServerTool: BaseServerTool<CreateFileFolderArgs, Fi
     context?: ServerToolContext
   ): Promise<FileFolderResult> {
     try {
-      const workspaceId = await resolveWorkspaceId(params, context, 'write')
+      const workspaceId = await resolveWorkspaceId(params, context)
       if (typeof workspaceId !== 'string') return workspaceId
       if (!context?.userId) throw new Error('Authentication required')
 
@@ -226,23 +241,19 @@ export const createFileFolderServerTool: BaseServerTool<CreateFileFolderArgs, Fi
         nullableStringValue(params.parentId ?? payload?.parentId) ??
         null
       if (pathSegments && pathSegments.length > 1) {
-        parentId = await ensureWorkspaceFileFolderPath({
+        parentId = await ensureCopilotFileFolderPath(
+          context,
           workspaceId,
-          userId: context.userId,
-          pathSegments: pathSegments.slice(0, -1),
-        })
+          pathSegments.slice(0, -1)
+        )
       }
 
       assertServerToolNotAborted(context)
-      const result = await performCreateWorkspaceFileFolder({
+      const result = await executeCopilotFileUseCase(context, createWorkspaceFileFolderOperation, {
         workspaceId,
-        userId: context.userId,
         name,
         parentId,
       })
-      if (!result.success || !result.folder) {
-        return { success: false, message: result.error || 'Failed to create file folder' }
-      }
       const { folder } = result
 
       logger.info('File folder created via create_file_folder', {
@@ -258,7 +269,10 @@ export const createFileFolderServerTool: BaseServerTool<CreateFileFolderArgs, Fi
         data: { folder },
       }
     } catch (error) {
-      return { success: false, message: toError(error).message }
+      return {
+        success: false,
+        message: messageForCopilotFileError(error, 'Failed to create file folder'),
+      }
     }
   },
 }
@@ -270,7 +284,7 @@ export const renameFileFolderServerTool: BaseServerTool<RenameFileFolderArgs, Fi
     context?: ServerToolContext
   ): Promise<FileFolderResult> {
     try {
-      const workspaceId = await resolveWorkspaceId(params, context, 'write')
+      const workspaceId = await resolveWorkspaceId(params, context)
       if (typeof workspaceId !== 'string') return workspaceId
       if (!context?.userId) throw new Error('Authentication required')
 
@@ -289,15 +303,11 @@ export const renameFileFolderServerTool: BaseServerTool<RenameFileFolderArgs, Fi
       if (!existing) return { success: false, message: 'Folder not found' }
 
       assertServerToolNotAborted(context)
-      const result = await performUpdateWorkspaceFileFolder({
+      const result = await executeCopilotFileUseCase(context, updateWorkspaceFileFolderOperation, {
         workspaceId,
         folderId,
-        userId: context.userId,
         name,
       })
-      if (!result.success || !result.folder) {
-        return { success: false, message: result.error || 'Failed to rename file folder' }
-      }
       const { folder } = result
 
       logger.info('File folder renamed via rename_file_folder', {
@@ -314,7 +324,10 @@ export const renameFileFolderServerTool: BaseServerTool<RenameFileFolderArgs, Fi
         data: { folder },
       }
     } catch (error) {
-      return { success: false, message: toError(error).message }
+      return {
+        success: false,
+        message: messageForCopilotFileError(error, 'Failed to rename file folder'),
+      }
     }
   },
 }
@@ -326,7 +339,7 @@ export const moveFileFolderServerTool: BaseServerTool<MoveFileFolderArgs, FileFo
     context?: ServerToolContext
   ): Promise<FileFolderResult> {
     try {
-      const workspaceId = await resolveWorkspaceId(params, context, 'write')
+      const workspaceId = await resolveWorkspaceId(params, context)
       if (typeof workspaceId !== 'string') return workspaceId
       if (!context?.userId) throw new Error('Authentication required')
 
@@ -347,15 +360,11 @@ export const moveFileFolderServerTool: BaseServerTool<MoveFileFolderArgs, FileFo
         null
 
       assertServerToolNotAborted(context)
-      const result = await performUpdateWorkspaceFileFolder({
+      const result = await executeCopilotFileUseCase(context, updateWorkspaceFileFolderOperation, {
         workspaceId,
         folderId,
-        userId: context.userId,
         parentId,
       })
-      if (!result.success || !result.folder) {
-        return { success: false, message: result.error || 'Failed to move file folder' }
-      }
       const { folder } = result
 
       logger.info('File folder moved via move_file_folder', {
@@ -373,7 +382,10 @@ export const moveFileFolderServerTool: BaseServerTool<MoveFileFolderArgs, FileFo
         data: { folder },
       }
     } catch (error) {
-      return { success: false, message: toError(error).message }
+      return {
+        success: false,
+        message: messageForCopilotFileError(error, 'Failed to move file folder'),
+      }
     }
   },
 }
@@ -382,14 +394,14 @@ export const moveFileServerTool: BaseServerTool<MoveFileArgs, FileFolderResult> 
   name: 'move_file',
   async execute(params: MoveFileArgs, context?: ServerToolContext): Promise<FileFolderResult> {
     try {
-      const workspaceId = await resolveWorkspaceId(params, context, 'write')
+      const workspaceId = await resolveWorkspaceId(params, context)
       if (typeof workspaceId !== 'string') return workspaceId
       if (!context?.userId) throw new Error('Authentication required')
 
       const payload = nested(params)
       const paths = stringListFromValues(params.paths, payload?.paths, params.path, payload?.path)
       const resolvedByPath =
-        paths.length > 0 ? await resolveFileIdsFromPaths(workspaceId, paths) : undefined
+        paths.length > 0 ? await resolveFileIdsFromPaths(workspaceId, paths, context) : undefined
       if (resolvedByPath?.failed.length) {
         return {
           success: false,
@@ -412,15 +424,11 @@ export const moveFileServerTool: BaseServerTool<MoveFileArgs, FileFolderResult> 
         null
 
       assertServerToolNotAborted(context)
-      const result = await performMoveWorkspaceFileItems({
+      const result = await executeCopilotFileUseCase(context, moveWorkspaceFileItemsOperation, {
         workspaceId,
-        userId: context.userId,
         fileIds,
         targetFolderId: folderId,
       })
-      if (!result.success || !result.movedItems) {
-        return { success: false, message: result.error || 'Failed to move files' }
-      }
 
       logger.info('Files moved via move_file', {
         workspaceId,
@@ -438,7 +446,7 @@ export const moveFileServerTool: BaseServerTool<MoveFileArgs, FileFolderResult> 
         data: result.movedItems,
       }
     } catch (error) {
-      return { success: false, message: toError(error).message }
+      return { success: false, message: messageForCopilotFileError(error, 'Failed to move files') }
     }
   },
 }

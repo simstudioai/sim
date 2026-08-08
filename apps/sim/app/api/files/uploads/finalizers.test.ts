@@ -73,6 +73,7 @@ import { finalizeUploadPurpose } from '@/app/api/files/uploads/finalizers'
 
 const now = new Date('2026-08-04T12:00:00.000Z')
 const actor = { id: 'user-1', name: 'Ada', email: 'ada@example.com' }
+const principal = { kind: 'session' as const, userId: actor.id, sessionId: 'session-1' }
 const metadataRow = {
   id: 'file-1',
   key: 'workspace-logos/upload-1-logo.png',
@@ -147,8 +148,8 @@ describe('upload purpose finalizers', () => {
     mockInsertReturning.mockResolvedValueOnce([metadataRow])
     const request = new NextRequest('http://localhost/api/files/uploads/upload-1/complete')
 
-    const first = await finalizeUploadPurpose({ session: uploadSession, actor, request })
-    const retry = await finalizeUploadPurpose({ session: uploadSession, actor, request })
+    const first = await finalizeUploadPurpose({ session: uploadSession, actor, principal, request })
+    const retry = await finalizeUploadPurpose({ session: uploadSession, actor, principal, request })
 
     expect(first.value).toEqual({
       path: `/api/files/serve/s3/${encodeURIComponent(metadataRow.key)}?context=workspace-logos`,
@@ -169,6 +170,7 @@ describe('upload purpose finalizers', () => {
       finalizeUploadPurpose({
         session: uploadSession,
         actor,
+        principal,
         request: new NextRequest('http://localhost/api/files/uploads/upload-1/complete'),
       })
     ).rejects.toMatchObject({ code: 'conflict' })
@@ -185,6 +187,7 @@ describe('upload purpose finalizers', () => {
       finalizeUploadPurpose({
         session: uploadSession,
         actor,
+        principal,
         request: new NextRequest('http://localhost/api/files/uploads/upload-1/complete'),
       })
     ).rejects.toMatchObject({ code: 'conflict' })
@@ -208,10 +211,23 @@ describe('upload purpose finalizers', () => {
     mockGetWorkspaceFile.mockResolvedValue(workspaceFile)
     const request = new NextRequest('http://localhost/api/files/uploads/upload-1/complete')
 
-    const first = await finalizeUploadPurpose({ session: workspaceSession, actor, request })
-    const retry = await finalizeUploadPurpose({ session: workspaceSession, actor, request })
+    const first = await finalizeUploadPurpose({
+      session: workspaceSession,
+      actor,
+      principal,
+      request,
+    })
+    const retry = await finalizeUploadPurpose({
+      session: workspaceSession,
+      actor,
+      principal,
+      request,
+    })
 
     expect(retry.value).toEqual(first.value)
+    expect(mockRegisterUploadedWorkspaceFile).toHaveBeenCalledWith(
+      expect.objectContaining({ uploadSessionId: workspaceSession.id })
+    )
     expect(mockNotifyWorkspaceFilesChanged).toHaveBeenCalledTimes(1)
     expect(mockRecordAudit).toHaveBeenCalledTimes(1)
     expect(mockCaptureServerEvent).toHaveBeenCalledTimes(1)
@@ -236,11 +252,46 @@ describe('upload purpose finalizers', () => {
       finalizeUploadPurpose({
         session: workspaceSession,
         actor,
+        principal,
         request: new NextRequest('http://localhost/api/files/uploads/upload-1/complete'),
       })
     ).rejects.toMatchObject({ code: 'conflict' })
     expect(mockNotifyWorkspaceFilesChanged).not.toHaveBeenCalled()
     expect(mockRecordAudit).not.toHaveBeenCalled()
+    expect(mockCaptureServerEvent).not.toHaveBeenCalled()
+  })
+
+  it('uses the current billing owner only for workspace-key legacy attribution', async () => {
+    const workspaceSession = {
+      ...uploadSession,
+      purpose: 'workspace_file' as const,
+      storageContext: 'workspace' as const,
+      storageKey: workspaceFile.key,
+      finalKey: workspaceFile.key,
+      fileName: workspaceFile.name,
+      contentType: workspaceFile.type,
+    }
+    mockRegisterUploadedWorkspaceFile.mockResolvedValueOnce({
+      file: { id: workspaceFile.id },
+      created: true,
+    })
+    mockGetWorkspaceFile.mockResolvedValue(workspaceFile)
+    const request = new NextRequest('http://localhost/api/files/uploads/upload-1/complete')
+
+    await finalizeUploadPurpose({
+      session: workspaceSession,
+      actor: { id: 'current-owner' },
+      principal: {
+        kind: 'workspace_api_key',
+        workspaceId: 'workspace-1',
+        keyId: 'key-1',
+      },
+      request,
+    })
+
+    expect(mockRegisterUploadedWorkspaceFile).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'current-owner' })
+    )
     expect(mockCaptureServerEvent).not.toHaveBeenCalled()
   })
 })

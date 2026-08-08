@@ -71,6 +71,26 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   resolveWorkspaceFileReference: mockResolveWorkspaceFileReference,
   fetchWorkspaceFileBuffer: mockDownloadWorkspaceFile,
 }))
+vi.mock('@/lib/workspace-files/application/resolve-workspace-file-reference', () => ({
+  resolveWorkspaceFileReference: mockResolveWorkspaceFileReference,
+}))
+vi.mock('@/lib/workspace-files/application/read-workspace-file-content', () => ({
+  readWorkspaceFileContent: {
+    execute: async () => ({ content: await mockDownloadWorkspaceFile() }),
+  },
+}))
+vi.mock('@/lib/copilot/auth/file-delegation', () => ({
+  resolveCopilotFilePrincipal: vi.fn(() => ({
+    kind: 'delegated',
+    serviceId: 'copilot',
+    subjectUserId: 'user-1',
+    workspaceId: 'workspace-1',
+    delegationId: 'test-tool',
+    audience: 'sim:workspace-files',
+    issuedAt: new Date(0),
+    expiresAt: new Date(Date.now() + 60_000),
+  })),
+}))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
   getBoundWorkspaceFileSecretProvenance: mockGetBoundWorkspaceFileSecretProvenance,

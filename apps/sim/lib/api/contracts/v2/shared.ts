@@ -67,6 +67,8 @@ export const v2ErrorResponseSchema = z.object({
   }),
 })
 
+export type V2ErrorResponse = z.output<typeof v2ErrorResponseSchema>
+
 /** `{ data: T }` */
 export const v2DataResponse = <T extends z.ZodType>(dataSchema: T) => z.object({ data: dataSchema })
 

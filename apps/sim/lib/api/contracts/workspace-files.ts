@@ -3,6 +3,7 @@ import {
   folderIdSchema,
   inlineFileRefQuerySchema,
   isCanonicalBase64,
+  workspaceFileNameSchema,
   workspaceIdSchema,
 } from '@/lib/api/contracts/primitives'
 import { shareRecordSchema } from '@/lib/api/contracts/public-shares'
@@ -43,19 +44,15 @@ export const getInlineWorkspaceFileContract = defineRouteContract({
   },
 })
 
-export const workspaceFileNameSchema = z
-  .string({ error: 'Name is required' })
-  .trim()
-  .min(1, 'Name is required')
-  .max(255, 'Name is too long')
-  .refine(
-    (name) => name !== '.' && name !== '..' && !name.includes('/') && !name.includes('\\'),
-    'Name cannot contain path separators or dot segments'
-  )
-
 export const renameWorkspaceFileBodySchema = z.object({
   name: workspaceFileNameSchema,
 })
+
+export const renameWorkspaceFileErrorSchema = z.union([
+  z.object({ error: z.string() }),
+  z.object({ error: z.string(), details: z.array(z.unknown()) }),
+  z.object({ success: z.literal(false), error: z.string() }),
+])
 
 export const updateWorkspaceFileContentBodySchema = z
   .object({
@@ -169,6 +166,7 @@ export const createWorkspaceFileContract = defineRouteContract({
     schema: workspaceFileSuccessSchema.extend({
       file: workspaceFileRecordSchema,
     }),
+    status: 201,
   },
 })
 
@@ -183,6 +181,7 @@ export const renameWorkspaceFileContract = defineRouteContract({
       file: workspaceFileRecordSchema,
     }),
   },
+  error: renameWorkspaceFileErrorSchema,
 })
 
 export const updateWorkspaceFileDimensionsContract = defineRouteContract({
@@ -227,6 +226,22 @@ export const updateWorkspaceFileContentContract = defineRouteContract({
     mode: 'json',
     schema: workspaceFileSuccessSchema.extend({
       file: workspaceFileRecordSchema,
+    }),
+  },
+})
+
+export const downloadWorkspaceFileUrlContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/workspaces/[id]/files/[fileId]/download',
+  params: workspaceFileParamsSchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
+      downloadUrl: z.string().min(1),
+      viewerUrl: z.string().min(1),
+      fileName: z.string().min(1),
+      expiresIn: z.null(),
     }),
   },
 })

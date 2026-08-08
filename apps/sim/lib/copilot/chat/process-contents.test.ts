@@ -17,6 +17,7 @@ const {
   getSkillById,
   getUserPermissionConfig,
   getWorkspaceFile,
+  readWorkspaceFileMetadata,
   getTableById,
   getRowsByIds,
   getBlockVisibilityForCopilot,
@@ -28,6 +29,7 @@ const {
   getSkillById: vi.fn(),
   getUserPermissionConfig: vi.fn(),
   getWorkspaceFile: vi.fn(),
+  readWorkspaceFileMetadata: vi.fn(),
   getTableById: vi.fn(),
   getRowsByIds: vi.fn(),
   getBlockVisibilityForCopilot: vi.fn(async () => null),
@@ -43,6 +45,9 @@ vi.mock('@/lib/integrations/availability.server', () => ({
 vi.mock('@/lib/workflows/skills/operations', () => ({ getSkillById }))
 vi.mock('@/lib/mcp/service', () => ({ mcpService: { discoverServerTools } }))
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({ getWorkspaceFile }))
+vi.mock('@/lib/workspace-files/application/read-workspace-file-metadata', () => ({
+  readWorkspaceFileMetadata: { execute: readWorkspaceFileMetadata },
+}))
 vi.mock('@/lib/table/service', () => ({ getTableById }))
 vi.mock('@/lib/table/rows/service', () => ({ getRowsByIds }))
 
@@ -444,6 +449,13 @@ describe('processContextsServer - logs contexts', () => {
 describe('processContextsServer - file_selection contexts', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    readWorkspaceFileMetadata.mockImplementation(
+      async ({ input }: { input: { fileId: string } }) => {
+        const file = await getWorkspaceFile('ws-1', input.fileId)
+        if (!file) throw new Error('File not found')
+        return { file }
+      }
+    )
   })
 
   it('inlines the selected passage with its line range and a path pointer', async () => {

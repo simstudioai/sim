@@ -4,109 +4,91 @@ import {
   v2ListFileFoldersContract,
   v2RelocateFileFolderContract,
 } from '@/lib/api/contracts/v2/files'
-import { toFolderPathView } from '@/lib/folders/paths'
-import { listActiveFolderRows, loadActiveFolderPathIndex } from '@/lib/folders/queries'
+import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
+import { v2FileErrorPolicies } from '@/lib/workspace-files/api'
+import { fileOperations } from '@/lib/workspace-files/application/operations'
 import {
-  performCreateWorkspaceFileFolderAtPath,
-  performDeleteWorkspaceFileFolderByPath,
-  performRelocateWorkspaceFileFolderByPath,
-} from '@/lib/workspace-files/orchestration/file-folder-lifecycle'
-import { withPublicApiRouteHandler } from '@/app/api/public-api-route-handler'
-import { resolveWorkspaceAccess } from '@/app/api/v1/middleware'
-import {
-  resolveFolderPathId,
-  toV2PathFolder,
-  v2FolderPathMutationError,
-} from '@/app/api/v2/lib/folders'
-import { v2CursorList, v2Data, v2Error, v2WorkspaceAccessError } from '@/app/api/v2/lib/response'
+  createWorkspaceFileFolderOperation,
+  deleteWorkspaceFileFolderOperation,
+  listWorkspaceFileFoldersOperation,
+  updateWorkspaceFileFolderOperation,
+} from '@/lib/workspace-files/application/workspace-file-folders'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-export const GET = withPublicApiRouteHandler({
+function toV2Folder(folder: { name: string; path: string; createdAt: Date; updatedAt: Date }) {
+  const path = folder.path.startsWith('/') ? folder.path : `/${folder.path}`
+  const parentPath = path.includes('/') ? path.slice(0, path.lastIndexOf('/')) || '/' : '/'
+  return {
+    name: folder.name,
+    path,
+    parentPath,
+    createdAt: folder.createdAt.toISOString(),
+    updatedAt: folder.updatedAt.toISOString(),
+  }
+}
+
+export const GET = defineV2JsonRoute({
   contract: v2ListFileFoldersContract,
-  rateLimitEndpoint: 'files',
-  handler: async ({ input, auth: { userId, rateLimit } }) => {
-    const { workspaceId, parentPath, search, sortBy, sortOrder } = input.query
-    const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'read')
-    if (access) return v2WorkspaceAccessError(access)
-
-    const index = await loadActiveFolderPathIndex(workspaceId, 'file')
-    const parentId = parentPath === undefined ? undefined : resolveFolderPathId(index, parentPath)
-    if (parentPath !== undefined && parentId === undefined) {
-      return v2Error('NOT_FOUND', 'Folder not found')
-    }
-    const rows = await listActiveFolderRows(workspaceId, 'file', {
-      parentId,
-      search,
-      sortBy,
-      sortOrder,
-    })
-    return v2CursorList(
-      rows.map((row) => toV2PathFolder(row, index, false)),
-      null,
-      { rateLimit }
-    )
-  },
+  auth: v2ApiKeyAuth,
+  operation: fileOperations.listFolders,
+  rateLimit: v2RateLimits.publicApi,
+  errorPolicy: v2FileErrorPolicies.default,
+  mapInput: ({ query }) => ({
+    workspaceId: query.workspaceId,
+    parentPath: query.parentPath,
+    search: query.search,
+    sortBy: query.sortBy,
+    sortOrder: query.sortOrder,
+  }),
+  useCase: listWorkspaceFileFoldersOperation,
+  present: ({ folders }) => ({ data: folders.map(toV2Folder), nextCursor: null }),
 })
 
-export const POST = withPublicApiRouteHandler({
+export const POST = defineV2JsonRoute({
   contract: v2CreateFileFolderContract,
-  rateLimitEndpoint: 'files',
-  handler: async ({ input, auth: { userId, rateLimit } }) => {
-    const { workspaceId, path } = input.body
-    const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
-    if (access) return v2WorkspaceAccessError(access)
-    const result = await performCreateWorkspaceFileFolderAtPath({ workspaceId, userId, path })
-    if (!result.success || !result.folder || !result.path) {
-      return v2FolderPathMutationError(result.errorCode, result.error ?? 'Failed to create folder')
-    }
-    return v2Data(
-      { folder: toFolderPathView(result.folder, result.path) },
-      { rateLimit, status: 201 }
-    )
-  },
+  auth: v2ApiKeyAuth,
+  operation: fileOperations.createFolder,
+  rateLimit: v2RateLimits.publicApi,
+  errorPolicy: v2FileErrorPolicies.default,
+  mapInput: ({ body }) => ({ workspaceId: body.workspaceId, path: body.path }),
+  useCase: createWorkspaceFileFolderOperation,
+  present: ({ folder }) => ({ data: { folder: toV2Folder(folder) } }),
 })
 
-export const PATCH = withPublicApiRouteHandler({
+export const PATCH = defineV2JsonRoute({
   contract: v2RelocateFileFolderContract,
-  rateLimitEndpoint: 'files',
-  handler: async ({ input, auth: { userId, rateLimit } }) => {
-    const { workspaceId, path, destinationPath } = input.body
-    const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
-    if (access) return v2WorkspaceAccessError(access)
-    const result = await performRelocateWorkspaceFileFolderByPath({
-      workspaceId,
-      userId,
-      path,
-      destinationPath,
-    })
-    if (!result.success || !result.folder || !result.path) {
-      return v2FolderPathMutationError(result.errorCode, result.error ?? 'Failed to move folder')
-    }
-    return v2Data({ folder: toFolderPathView(result.folder, result.path) }, { rateLimit })
-  },
+  auth: v2ApiKeyAuth,
+  operation: fileOperations.updateFolder,
+  rateLimit: v2RateLimits.publicApi,
+  errorPolicy: v2FileErrorPolicies.default,
+  mapInput: ({ body }) => ({
+    workspaceId: body.workspaceId,
+    path: body.path,
+    destinationPath: body.destinationPath,
+  }),
+  useCase: updateWorkspaceFileFolderOperation,
+  present: ({ folder }) => ({ data: { folder: toV2Folder(folder) } }),
 })
 
-export const DELETE = withPublicApiRouteHandler({
+export const DELETE = defineV2JsonRoute({
   contract: v2DeleteFileFolderContract,
-  rateLimitEndpoint: 'files',
-  handler: async ({ input, auth: { userId, rateLimit } }) => {
-    const { workspaceId, path, recursive } = input.query
-    const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
-    if (access) return v2WorkspaceAccessError(access)
-    const result = await performDeleteWorkspaceFileFolderByPath({
-      workspaceId,
-      userId,
-      path,
-      recursive,
-    })
-    if (!result.success || !result.deletedItems) {
-      return v2FolderPathMutationError(result.errorCode, result.error ?? 'Failed to delete folder')
-    }
-    return v2Data(
-      { path, deleted: true as const, deletedItems: result.deletedItems },
-      { rateLimit }
-    )
-  },
+  auth: v2ApiKeyAuth,
+  operation: fileOperations.deleteFolder,
+  rateLimit: v2RateLimits.publicApi,
+  errorPolicy: v2FileErrorPolicies.default,
+  mapInput: ({ query }) => ({
+    workspaceId: query.workspaceId,
+    path: query.path,
+    recursive: query.recursive,
+  }),
+  useCase: deleteWorkspaceFileFolderOperation,
+  present: ({ deletedItems, path }) => ({
+    data: {
+      path: path ?? '/',
+      deleted: true as const,
+      deletedItems,
+    },
+  }),
 })

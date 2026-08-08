@@ -1,9 +1,9 @@
 import { toError } from '@sim/utils/errors'
 import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
+import { executeCopilotFileUseCase } from '@/lib/copilot/application/execute-file-use-case'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { formatNormalizedWorkflowForCopilot } from '@/lib/copilot/tools/shared/workflow-utils'
 import { mcpService } from '@/lib/mcp/service'
-import { listWorkspaceFiles } from '@/lib/uploads/contexts/workspace'
 import { getEffectiveBlockOutputPaths } from '@/lib/workflows/blocks/block-outputs'
 import { BlockPathCalculator } from '@/lib/workflows/blocks/block-path-calculator'
 import { getBlockReferenceTags } from '@/lib/workflows/blocks/block-reference-tags'
@@ -16,6 +16,7 @@ import {
 import { resolveTriggerRunOptions, toPublicRunOption } from '@/lib/workflows/triggers/run-options'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import { getWorkflowById } from '@/lib/workflows/utils'
+import { listAllWorkspaceFiles } from '@/lib/workspace-files/application/list-workspace-files'
 import { listUserWorkspaces } from '@/lib/workspaces/utils'
 import { getBlock } from '@/blocks/registry'
 import { normalizeName } from '@/executor/constants'
@@ -191,7 +192,10 @@ export async function executeGetWorkflowData(
       if (!workspaceId) {
         return { success: false, error: 'workspaceId is required' }
       }
-      const files = await listWorkspaceFiles(workspaceId)
+      const { files } = await executeCopilotFileUseCase(context, listAllWorkspaceFiles, {
+        workspaceId,
+        scope: 'active',
+      })
       const fileResults = files.map((file) => ({
         id: String(file.id || ''),
         name: String(file.name || ''),

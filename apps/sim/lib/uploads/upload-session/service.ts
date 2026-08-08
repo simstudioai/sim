@@ -1,3 +1,4 @@
+import type { Principal } from '@sim/auth/principal'
 import { db, dbFor } from '@sim/db'
 import { uploadSession } from '@sim/db/schema'
 import { safeCompare } from '@sim/security/compare'
@@ -90,6 +91,23 @@ export interface UploadSessionRecord {
   updatedAt: Date
 }
 
+/**
+ * The credential that was authorized to create a workspace-file upload.
+ *
+ * This is deliberately kept in the existing JSON metadata column. It is
+ * server-authored and immutable for the lifetime of the session; the upload
+ * token only proves possession of the byte-plane capability and never grants
+ * workspace access by itself.
+ */
+export interface UploadSessionAuthBinding {
+  version: 1
+  workspaceId: string
+  principal:
+    | { kind: 'session'; userId: string; sessionId: string }
+    | { kind: 'personal_api_key'; userId: string; keyId: string }
+    | { kind: 'workspace_api_key'; workspaceId: string; keyId: string }
+}
+
 export interface CreatedUploadSession extends UploadSessionRecord {
   transfer: UploadSessionTransfer
 }
@@ -112,6 +130,7 @@ interface CreateUploadSessionBaseParams {
   fileSize: number
   metadata?: Record<string, unknown>
   localOrigin?: string
+  principal?: Principal
 }
 
 export type CreateUploadSessionParams = CreateUploadSessionBaseParams &
@@ -137,6 +156,14 @@ export async function createUploadSession(
   const id = params.id ?? generateId()
   const uploadToken = generateSecureToken(32)
   const workspaceId = params.purpose === 'profile_picture' ? null : params.workspaceId
+  const metadata = { ...(params.metadata ?? {}) }
+  if (params.purpose === 'workspace_file') {
+    if (!workspaceId) throw new Error('Workspace-file upload is missing workspaceId')
+    if (!params.principal) {
+      throw new Error('Workspace-file upload requires an authenticated principal')
+    }
+    metadata.authBinding = createUploadSessionAuthBinding(params.principal, workspaceId)
+  }
   const { storageContext, finalKey } = resolveUploadStorage(params, id)
   const method: UploadTransferMethod =
     params.fileSize <= UPLOAD_SESSION_PUT_MAX_BYTES ? 'put' : 'multipart'
@@ -206,7 +233,7 @@ export async function createUploadSession(
         fileSize: params.fileSize,
         partSize,
         partCount,
-        metadata: params.metadata ?? {},
+        metadata,
         createdAt,
         expiresAt,
         updatedAt: createdAt,
@@ -265,6 +292,7 @@ export async function getOwnedUploadSession(params: {
   knowledgeBaseId?: string
   workflowId?: string
   executionId?: string
+  principal?: Principal
 }): Promise<UploadSessionRecord> {
   const [row] = await db
     .select()
@@ -287,7 +315,111 @@ export async function getOwnedUploadSession(params: {
   if (params.executionId !== undefined && session.executionId !== params.executionId) {
     throw uploadNotFound()
   }
+  if (params.principal && session.purpose === 'workspace_file') {
+    assertUploadSessionAuthBinding(session, params.principal)
+  }
   return session
+}
+
+/**
+ * Loads a session using the signed token and verifies the immutable principal
+ * binding for workspace-file control-plane requests.
+ */
+export async function getPrincipalUploadSession(params: {
+  uploadId: string
+  uploadToken: string
+  principal: Principal
+  workspaceId?: string
+}): Promise<UploadSessionRecord> {
+  const session = await getOwnedUploadSession({
+    uploadId: params.uploadId,
+    uploadToken: params.uploadToken,
+    workspaceId: params.workspaceId,
+    purpose: 'workspace_file',
+    principal: params.principal,
+  })
+  return session
+}
+
+export function createUploadSessionAuthBinding(
+  principal: Principal,
+  workspaceId: string
+): UploadSessionAuthBinding {
+  switch (principal.kind) {
+    case 'session':
+      return {
+        version: 1,
+        workspaceId,
+        principal: {
+          kind: principal.kind,
+          userId: principal.userId,
+          sessionId: principal.sessionId,
+        },
+      }
+    case 'personal_api_key':
+      return {
+        version: 1,
+        workspaceId,
+        principal: { kind: principal.kind, userId: principal.userId, keyId: principal.keyId },
+      }
+    case 'workspace_api_key':
+      if (principal.workspaceId !== workspaceId) {
+        throw new UploadSessionError('forbidden', 'Workspace API key cannot access this workspace')
+      }
+      return {
+        version: 1,
+        workspaceId,
+        principal: { kind: principal.kind, workspaceId, keyId: principal.keyId },
+      }
+    case 'delegated':
+      throw new UploadSessionError('forbidden', 'Delegated principals cannot create uploads')
+  }
+}
+
+export function assertUploadSessionAuthBinding(
+  session: UploadSessionRecord,
+  principal: Principal
+): void {
+  if (session.purpose !== 'workspace_file') return
+  const candidate = session.metadata.authBinding
+  if (candidate === undefined) {
+    assertLegacyUploadSessionOwner(session, principal)
+    return
+  }
+  if (!isUploadSessionAuthBinding(candidate) || candidate.workspaceId !== session.workspaceId) {
+    throw uploadNotFound()
+  }
+  const bound = candidate.principal
+  const matches =
+    bound.kind === principal.kind &&
+    (bound.kind === 'session'
+      ? principal.kind === 'session' &&
+        bound.userId === principal.userId &&
+        bound.sessionId === principal.sessionId
+      : bound.kind === 'personal_api_key'
+        ? principal.kind === 'personal_api_key' &&
+          bound.userId === principal.userId &&
+          bound.keyId === principal.keyId
+        : principal.kind === 'workspace_api_key' &&
+          bound.workspaceId === principal.workspaceId &&
+          bound.keyId === principal.keyId)
+  if (!matches) throw uploadNotFound()
+}
+
+/**
+ * Preserves control access for the bounded set of sessions created before
+ * immutable credential bindings shipped. New workspace-file sessions always
+ * persist `authBinding`, and malformed bindings never enter this compatibility
+ * path. The upload token and current workspace authorization are still checked
+ * by the calling control-plane use case.
+ */
+function assertLegacyUploadSessionOwner(session: UploadSessionRecord, principal: Principal): void {
+  const matches =
+    principal.kind === 'workspace_api_key'
+      ? principal.workspaceId === session.workspaceId
+      : (principal.kind === 'session' || principal.kind === 'personal_api_key') &&
+        principal.userId === session.userId
+  if (!matches) throw uploadNotFound()
 }
 
 export async function verifyUploadSessionToken(uploadToken: string): Promise<UploadSessionRecord> {
@@ -345,8 +477,16 @@ export async function createUploadPartUrls(params: {
 export async function completeUploadSession<T>(params: {
   session: UploadSessionRecord
   finalize: (session: UploadSessionRecord) => Promise<{ value: T; completedFileId?: string }>
+  loadCompleted?: (session: UploadSessionRecord) => Promise<T>
 }): Promise<{ session: UploadSessionRecord; value: T; alreadyCompleted: boolean }> {
   if (params.session.status === 'completed') {
+    if (params.loadCompleted && params.session.completedFileId) {
+      return {
+        session: params.session,
+        value: await params.loadCompleted(params.session),
+        alreadyCompleted: true,
+      }
+    }
     const finalized = await params.finalize(params.session)
     return { session: params.session, value: finalized.value, alreadyCompleted: true }
   }
@@ -373,6 +513,12 @@ export async function completeUploadSession<T>(params: {
   let alreadyCompleted = false
 
   try {
+    if (recoveringFinalization && claimed.completedFileId && params.loadCompleted) {
+      const value = await params.loadCompleted(claimed)
+      const completed = await markUploadSessionCompleted(claimed, leaseId, claimed.completedFileId)
+      return { session: completed, value, alreadyCompleted: true }
+    }
+
     let finalObject = await headProviderObject({
       provider: claimed.storageProvider,
       key: claimed.finalKey,
@@ -439,25 +585,13 @@ export async function completeUploadSession<T>(params: {
       claimed.uploadToken
     )
     const finalized = await params.finalize(finalizing)
-    const completedAt = new Date()
-    const [completedRow] = await db
-      .update(uploadSession)
-      .set({
-        status: 'completed',
-        completedFileId: finalized.completedFileId ?? null,
-        completedAt,
-        processingLeaseId: null,
-        processingLeaseExpiresAt: null,
-        error: null,
-        updatedAt: completedAt,
-      })
-      .where(and(eq(uploadSession.id, claimed.id), eq(uploadSession.processingLeaseId, leaseId)))
-      .returning()
+    const completed = await markUploadSessionCompleted(
+      claimed,
+      leaseId,
+      finalized.completedFileId ?? null
+    )
     return {
-      session: sessionFromRow(
-        requireRow(completedRow, 'Upload completion lease was lost'),
-        claimed.uploadToken
-      ),
+      session: completed,
       value: finalized.value,
       alreadyCompleted,
     }
@@ -476,6 +610,31 @@ export async function completeUploadSession<T>(params: {
   }
 }
 
+async function markUploadSessionCompleted(
+  session: UploadSessionRecord,
+  leaseId: string,
+  completedFileId: string | null
+): Promise<UploadSessionRecord> {
+  const completedAt = new Date()
+  const [completedRow] = await db
+    .update(uploadSession)
+    .set({
+      status: 'completed',
+      completedFileId,
+      completedAt,
+      processingLeaseId: null,
+      processingLeaseExpiresAt: null,
+      error: null,
+      updatedAt: completedAt,
+    })
+    .where(and(eq(uploadSession.id, session.id), eq(uploadSession.processingLeaseId, leaseId)))
+    .returning()
+  return sessionFromRow(
+    requireRow(completedRow, 'Upload completion lease was lost'),
+    session.uploadToken
+  )
+}
+
 export async function abortUploadSession(
   session: UploadSessionRecord
 ): Promise<UploadSessionRecord> {
@@ -483,13 +642,17 @@ export async function abortUploadSession(
   if (session.status === 'completed') {
     throw new UploadSessionError('conflict', 'Completed upload sessions cannot be aborted')
   }
-  if (session.status === 'finalizing') {
-    throw new UploadSessionError('conflict', 'Finalizing upload sessions cannot be aborted')
+  if (session.status === 'finalizing' && session.completedFileId) {
+    throw new UploadSessionError(
+      'conflict',
+      'Finalizing upload sessions with a registered file cannot be aborted'
+    )
   }
   if (
     session.status !== 'uploading' &&
     session.status !== 'completing' &&
-    session.status !== 'aborting'
+    session.status !== 'aborting' &&
+    session.status !== 'finalizing'
   ) {
     throw new UploadSessionError('conflict', `Upload session is ${session.status}`)
   }
@@ -498,7 +661,7 @@ export async function abortUploadSession(
     ...(await claimSession(
       session.id,
       leaseId,
-      ['uploading', 'completing', 'aborting'],
+      ['uploading', 'completing', 'aborting', 'finalizing'],
       'aborting'
     )),
     uploadToken: session.uploadToken,
@@ -545,7 +708,10 @@ export async function cleanupExpiredUploadSessions(): Promise<{
     .from(uploadSession)
     .where(
       and(
-        inArray(uploadSession.status, ['uploading', 'completing', 'aborting']),
+        or(
+          inArray(uploadSession.status, ['uploading', 'completing', 'aborting']),
+          and(eq(uploadSession.status, 'finalizing'), isNull(uploadSession.completedFileId))
+        ),
         lt(uploadSession.expiresAt, now),
         or(
           isNull(uploadSession.processingLeaseId),
@@ -565,7 +731,7 @@ export async function cleanupExpiredUploadSessions(): Promise<{
       const claimed = await claimSession(
         candidate.id,
         leaseId,
-        ['uploading', 'completing', 'aborting'],
+        ['uploading', 'completing', 'aborting', 'finalizing'],
         'aborting',
         cleanupDb
       )
@@ -977,6 +1143,25 @@ function isStorageContext(value: string): value is StorageContext {
     'mothership',
     'execution',
   ].includes(value)
+}
+
+function isUploadSessionAuthBinding(value: unknown): value is UploadSessionAuthBinding {
+  if (!value || typeof value !== 'object') return false
+  const binding = value as Record<string, unknown>
+  if (binding.version !== 1 || typeof binding.workspaceId !== 'string') return false
+  if (!binding.principal || typeof binding.principal !== 'object') return false
+  const principal = binding.principal as Record<string, unknown>
+  if (principal.kind === 'session') {
+    return typeof principal.userId === 'string' && typeof principal.sessionId === 'string'
+  }
+  if (principal.kind === 'personal_api_key') {
+    return typeof principal.userId === 'string' && typeof principal.keyId === 'string'
+  }
+  return (
+    principal.kind === 'workspace_api_key' &&
+    typeof principal.workspaceId === 'string' &&
+    typeof principal.keyId === 'string'
+  )
 }
 
 function uploadNotFound(): UploadSessionError {

@@ -11,13 +11,15 @@ export function createServerToolHandler(toolId: string): ToolHandler {
     const enrichedParams = { ...params }
     if (!enrichedParams.workflowId && context.workflowId)
       enrichedParams.workflowId = context.workflowId
-    if (!enrichedParams.workspaceId && context.workspaceId)
-      enrichedParams.workspaceId = context.workspaceId
+    if (context.workspaceId) enrichedParams.workspaceId = context.workspaceId
 
     try {
       const result = await routeExecution(toolId, enrichedParams, {
         userId: context.userId,
         workspaceId: context.workspaceId,
+        executionId: context.executionId,
+        toolCallId: context.toolCallId,
+        copilotToolExecution: context.copilotToolExecution,
         billingAttribution: context.billingAttribution,
         userPermission: context.userPermission ?? undefined,
         chatId: context.chatId,

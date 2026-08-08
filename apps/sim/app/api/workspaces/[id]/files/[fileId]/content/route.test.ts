@@ -5,25 +5,27 @@ import { authMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetUserEntityPermissions, mockPerformUpdateContent } = vi.hoisted(() => ({
-  mockGetUserEntityPermissions: vi.fn(),
-  mockPerformUpdateContent: vi.fn(),
-}))
+const mocks = vi.hoisted(() => ({ admit: vi.fn(), updateContent: vi.fn() }))
 
 vi.mock('@/lib/workspace-files/orchestration', () => ({
   MAX_WORKSPACE_FILE_INLINE_BODY_BYTES: 70 * 1024 * 1024,
-  performUpdateWorkspaceFileContent: mockPerformUpdateContent,
 }))
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUserEntityPermissions: mockGetUserEntityPermissions,
+vi.mock('@/lib/workspace-files/application/update-workspace-file-content', () => ({
+  admitUpdateWorkspaceFileContent: mocks.admit,
+  updateWorkspaceFileContent: {
+    operation: { id: 'files.update_content', minimumRole: 'write', workspaceApiKey: 'allow' },
+    execute: mocks.updateContent,
+  },
 }))
 
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { PUT } from '@/app/api/workspaces/[id]/files/[fileId]/content/route'
 
 const WORKSPACE_ID = 'workspace-1'
 const FILE_ID = 'wf_1'
 const USER = { id: 'user-1', name: 'Test User', email: 'test@sim.ai' }
+const PRINCIPAL = { kind: 'session' as const, userId: USER.id, sessionId: 'session-1' }
 const RECORD = {
   id: FILE_ID,
   workspaceId: WORKSPACE_ID,
@@ -34,7 +36,6 @@ const RECORD = {
   type: 'text/markdown',
   uploadedBy: USER.id,
   folderId: null,
-  folderPath: null,
   uploadedAt: new Date('2026-08-04T00:00:00.000Z'),
   updatedAt: new Date('2026-08-04T00:00:00.000Z'),
 }
@@ -58,9 +59,9 @@ function createRequest(body: unknown, contentLength?: number): NextRequest {
 describe('PUT /api/workspaces/[id]/files/[fileId]/content', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    authMockFns.mockGetSession.mockResolvedValue({ user: USER })
-    mockGetUserEntityPermissions.mockResolvedValue('write')
-    mockPerformUpdateContent.mockResolvedValue({ success: true, file: RECORD })
+    authMockFns.mockGetSession.mockResolvedValue({ user: USER, session: { id: 'session-1' } })
+    mocks.admit.mockResolvedValue(undefined)
+    mocks.updateContent.mockResolvedValue({ file: RECORD })
   })
 
   it('authenticates before parsing an invalid request body', async () => {
@@ -70,22 +71,23 @@ describe('PUT /api/workspaces/[id]/files/[fileId]/content', () => {
 
     expect(response.status).toBe(401)
     await expect(response.json()).resolves.toEqual({ error: 'Unauthorized' })
-    expect(mockGetUserEntityPermissions).not.toHaveBeenCalled()
-    expect(mockPerformUpdateContent).not.toHaveBeenCalled()
+    expect(mocks.admit).not.toHaveBeenCalled()
+    expect(mocks.updateContent).not.toHaveBeenCalled()
   })
 
-  it('authorizes the workspace before parsing the request body', async () => {
-    mockGetUserEntityPermissions.mockResolvedValue('read')
+  it('performs cheap file admission before buffering the request body', async () => {
+    mocks.admit.mockRejectedValue(
+      new OrchestrationError('forbidden', 'Insufficient workspace permissions')
+    )
 
     const response = await PUT(createRequest('{not-json'), routeContext)
 
     expect(response.status).toBe(403)
-    await expect(response.json()).resolves.toEqual({ error: 'Insufficient permissions' })
-    expect(mockGetUserEntityPermissions).toHaveBeenCalledWith(USER.id, 'workspace', WORKSPACE_ID)
-    expect(mockPerformUpdateContent).not.toHaveBeenCalled()
+    expect(mocks.admit).toHaveBeenCalledWith(PRINCIPAL, FILE_ID)
+    expect(mocks.updateContent).not.toHaveBeenCalled()
   })
 
-  it('rejects malformed base64 after authorization', async () => {
+  it('rejects malformed base64 after admission', async () => {
     const response = await PUT(
       createRequest({ content: 'not-base64!', encoding: 'base64' }),
       routeContext
@@ -93,7 +95,7 @@ describe('PUT /api/workspaces/[id]/files/[fileId]/content', () => {
 
     expect(response.status).toBe(400)
     await expect(response.json()).resolves.toMatchObject({ error: 'Validation error' })
-    expect(mockPerformUpdateContent).not.toHaveBeenCalled()
+    expect(mocks.updateContent).not.toHaveBeenCalled()
   })
 
   it('accepts empty base64 as a zero-byte replacement', async () => {
@@ -101,14 +103,14 @@ describe('PUT /api/workspaces/[id]/files/[fileId]/content', () => {
     const response = await PUT(request, routeContext)
 
     expect(response.status).toBe(200)
-    expect(mockPerformUpdateContent).toHaveBeenCalledWith({
-      workspaceId: WORKSPACE_ID,
-      fileId: FILE_ID,
-      userId: USER.id,
-      content: '',
-      encoding: 'base64',
-      actorName: USER.name,
-      actorEmail: USER.email,
+    expect(mocks.updateContent).toHaveBeenCalledWith({
+      principal: PRINCIPAL,
+      input: {
+        fileId: FILE_ID,
+        assertedWorkspaceId: WORKSPACE_ID,
+        content: '',
+        encoding: 'base64',
+      },
       request,
     })
   })
@@ -120,16 +122,14 @@ describe('PUT /api/workspaces/[id]/files/[fileId]/content', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(mockPerformUpdateContent).toHaveBeenCalled()
+    expect(mocks.updateContent).toHaveBeenCalled()
   })
 
-  it('rejects a JSON body above the inline-content cap', async () => {
+  it('rejects a JSON body above the inline-content cap after admission', async () => {
     const response = await PUT(createRequest({ content: '' }, 70 * 1024 * 1024 + 1), routeContext)
 
     expect(response.status).toBe(413)
-    await expect(response.json()).resolves.toEqual({
-      error: `Request body exceeds the maximum allowed size of ${70 * 1024 * 1024} bytes`,
-    })
-    expect(mockPerformUpdateContent).not.toHaveBeenCalled()
+    expect(mocks.admit).toHaveBeenCalled()
+    expect(mocks.updateContent).not.toHaveBeenCalled()
   })
 })

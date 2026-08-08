@@ -1,6 +1,8 @@
+import type { Principal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { omit } from '@sim/utils/object'
 import { hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
+import { resolveCopilotFilePrincipal } from '@/lib/copilot/auth/file-delegation'
 import { applySecretMountPolicy } from '@/lib/copilot/secret-mount-policy'
 import type { ToolExecutionContext, ToolExecutionResult } from '@/lib/copilot/tool-executor/types'
 import {
@@ -27,13 +29,10 @@ import {
 import { queryRows } from '@/lib/table/rows/service'
 import { getTableById, listTables } from '@/lib/table/service'
 import { getOrCreateTableSnapshot, SNAPSHOT_MAX_BYTES } from '@/lib/table/snapshot-cache'
-import { listWorkspaceFileFolders } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
   fetchServableWorkspaceFileBuffer,
-  fetchWorkspaceFileBuffer,
   findWorkspaceFileRecord,
   getSandboxWorkspaceFilePath,
-  listWorkspaceFiles,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { importWorkspaceFileSecretProvenanceForRuntime } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
@@ -43,6 +42,10 @@ import {
   hasCloudStorage,
 } from '@/lib/uploads/core/storage-service'
 import { isGeneratedDocumentSourceType } from '@/lib/uploads/utils/file-utils'
+import { listAllWorkspaceFiles } from '@/lib/workspace-files/application/list-workspace-files'
+import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
+import { downloadWorkspaceFileRecord } from '@/lib/workspace-files/application/read-workspace-file-record'
+import { listWorkspaceFileFoldersOperation } from '@/lib/workspace-files/application/workspace-file-folders'
 import { extractCodeSecretNames } from '@/executor/utils/code-secret-references'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { executeTool as executeAppTool } from '@/tools'
@@ -132,8 +135,15 @@ async function pushWorkspaceFileMount(
   mountPath: string,
   mounted: MountedBytes,
   workspaceId: string,
+  principal: Principal,
   registry?: ResolvedSecretTraceRegistry
 ): Promise<void> {
+  record = (
+    await downloadWorkspaceFileRecord.execute({
+      principal,
+      input: { fileId: record.id, assertedWorkspaceId: workspaceId },
+    })
+  ).file
   await importMountedWorkspaceFileProvenance({ workspaceId, record, mountPath, registry })
 
   // A generated document stores its generator source, so a presigned URL for
@@ -191,7 +201,19 @@ async function pushWorkspaceFileMount(
           `Input file "${mountPath}" renders to more than the ${MAX_FILE_SIZE / 1024 / 1024}MB per-file mount limit, or than the mount budget left. Mount fewer or smaller files.`
         )
       })
-    : { buffer: await fetchWorkspaceFileBuffer(record), contentType: record.type }
+    : {
+        buffer: (
+          await readWorkspaceFileContent.execute({
+            principal,
+            input: {
+              fileId: record.id,
+              assertedWorkspaceId: workspaceId,
+              maxBytes: Math.min(MAX_FILE_SIZE, remainingBudget),
+            },
+          })
+        ).content,
+        contentType: record.type,
+      }
   // Keyed off the resolved type: a rendered document's source MIME is `text/x-…`, and
   // decoding the binary as UTF-8 would corrupt it just as surely as shipping the source.
   const isText = /^text\/|application\/json|application\/xml|application\/csv/.test(
@@ -286,18 +308,25 @@ export async function resolveInputFiles(
   inputTables?: unknown[],
   inputDirectories?: unknown[],
   provenanceUserId?: string,
-  resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
+  resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry,
+  filePrincipal?: Principal
 ): Promise<SandboxFile[]> {
   const sandboxFiles: SandboxFile[] = []
   const mounted: MountedBytes = { buffered: 0, url: 0 }
 
   if (inputFiles?.length && workspaceId) {
+    if (!filePrincipal) {
+      throw new Error('Workspace file mounts require a trusted Copilot principal')
+    }
     if (inputFiles.length > MAX_MOUNTED_FILES) {
       throw new Error(
         `Too many input files (${inputFiles.length}). Maximum is ${MAX_MOUNTED_FILES}. Mount fewer files.`
       )
     }
-    const allFiles = await listWorkspaceFiles(workspaceId)
+    const { files: allFiles } = await listAllWorkspaceFiles.execute({
+      principal: filePrincipal,
+      input: { workspaceId, scope: 'active' },
+    })
     for (const fileRef of inputFiles) {
       const filePath =
         typeof fileRef === 'string'
@@ -327,14 +356,24 @@ export async function resolveInputFiles(
         mountPath,
         mounted,
         workspaceId,
+        filePrincipal,
         resolvedSecretTraceRegistry
       )
     }
   }
 
   if (inputDirectories?.length && workspaceId) {
-    const folders = await listWorkspaceFileFolders(workspaceId)
-    const allFiles = await listWorkspaceFiles(workspaceId, { folders })
+    if (!filePrincipal) {
+      throw new Error('Workspace directory mounts require a trusted Copilot principal')
+    }
+    const { folders } = await listWorkspaceFileFoldersOperation.execute({
+      principal: filePrincipal,
+      input: { workspaceId },
+    })
+    const { files: allFiles } = await listAllWorkspaceFiles.execute({
+      principal: filePrincipal,
+      input: { workspaceId, scope: 'active' },
+    })
     for (const dirRef of inputDirectories) {
       const dirPath =
         typeof dirRef === 'string'
@@ -405,6 +444,7 @@ export async function resolveInputFiles(
           `${mountRoot}/${relativePath}`,
           mounted,
           workspaceId,
+          filePrincipal,
           resolvedSecretTraceRegistry
         )
       }
@@ -634,7 +674,10 @@ export async function executeFunctionExecute(
           inputTables,
           inputDirectories,
           secretActorUserId ?? context.userId,
-          mountedRegistry
+          mountedRegistry,
+          inputFiles.length > 0 || inputDirectories.length > 0
+            ? resolveCopilotFilePrincipal(context)
+            : undefined
         )
         if (resolved.length > 0) {
           const existing = (enrichedParams._sandboxFiles as SandboxFile[]) || []

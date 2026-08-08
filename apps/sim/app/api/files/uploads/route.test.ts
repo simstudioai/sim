@@ -7,6 +7,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   mockGetSession,
   mockCreateUploadSession,
+  mockCreateInternalPurposeUploadSession,
+  mockCompleteInternalUploadSession,
   mockGetOwnedUploadSession,
   mockCompleteUploadSession,
   mockGetUserEntityPermissions,
@@ -14,6 +16,8 @@ const {
 } = vi.hoisted(() => ({
   mockGetSession: vi.fn(),
   mockCreateUploadSession: vi.fn(),
+  mockCreateInternalPurposeUploadSession: vi.fn(),
+  mockCompleteInternalUploadSession: vi.fn(),
   mockGetOwnedUploadSession: vi.fn(),
   mockCompleteUploadSession: vi.fn(),
   mockGetUserEntityPermissions: vi.fn(),
@@ -36,6 +40,13 @@ vi.mock('@/lib/uploads/upload-session/service', () => ({
   completeUploadSession: mockCompleteUploadSession,
   createUploadPartUrls: vi.fn(),
   abortUploadSession: vi.fn(),
+}))
+
+vi.mock('@/lib/uploads/upload-session/application', () => ({
+  createInternalPurposeUploadSession: mockCreateInternalPurposeUploadSession,
+  completeInternalUploadSession: mockCompleteInternalUploadSession,
+  issueInternalUploadPartUrls: vi.fn(),
+  abortInternalUploadSession: vi.fn(),
 }))
 
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
@@ -98,12 +109,12 @@ function session(overrides: Record<string, unknown> = {}) {
 describe('/api/files/uploads', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockGetSession.mockResolvedValue({ user: actor })
+    mockGetSession.mockResolvedValue({ user: actor, session: { id: 'session-1' } })
     mockGetUserEntityPermissions.mockResolvedValue('admin')
   })
 
   it('creates a purpose-scoped PUT session without exposing write capability in the session', async () => {
-    mockCreateUploadSession.mockResolvedValue({
+    mockCreateInternalPurposeUploadSession.mockResolvedValue({
       ...session(),
       transfer: {
         method: 'put',
@@ -126,12 +137,10 @@ describe('/api/files/uploads', () => {
     const body = await response.json()
 
     expect(response.status).toBe(201)
-    expect(mockCreateUploadSession).toHaveBeenCalledWith(
-      expect.objectContaining({
-        purpose: 'profile_picture',
-        userId: actor.id,
-        localOrigin: 'http://localhost',
-      })
+    expect(mockCreateInternalPurposeUploadSession).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'session', userId: actor.id }),
+      expect.objectContaining({ purpose: 'profile_picture' }),
+      request
     )
     expect(body.data).toMatchObject({
       session: {
@@ -148,7 +157,7 @@ describe('/api/files/uploads', () => {
   })
 
   it('creates a PUT session for an empty workspace file', async () => {
-    mockCreateUploadSession.mockResolvedValue({
+    mockCreateInternalPurposeUploadSession.mockResolvedValue({
       ...session({
         workspaceId: 'workspace-1',
         purpose: 'workspace_file',
@@ -179,8 +188,10 @@ describe('/api/files/uploads', () => {
     const response = await createUpload(request)
 
     expect(response.status).toBe(201)
-    expect(mockCreateUploadSession).toHaveBeenCalledWith(
-      expect.objectContaining({ purpose: 'workspace_file', fileSize: 0 })
+    expect(mockCreateInternalPurposeUploadSession).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'session' }),
+      expect.objectContaining({ purpose: 'workspace_file', size: 0 }),
+      request
     )
     await expect(response.json()).resolves.toMatchObject({
       data: { session: { purpose: 'workspace_file', size: 0 } },
@@ -188,7 +199,7 @@ describe('/api/files/uploads', () => {
   })
 
   it('preserves the 5 GiB direct-to-storage limit for mothership attachments', async () => {
-    mockCreateUploadSession.mockResolvedValue({
+    mockCreateInternalPurposeUploadSession.mockResolvedValue({
       ...session({
         workspaceId: 'workspace-1',
         purpose: 'mothership_attachment',
@@ -216,11 +227,10 @@ describe('/api/files/uploads', () => {
     const response = await createUpload(request)
 
     expect(response.status).toBe(201)
-    expect(mockCreateUploadSession).toHaveBeenCalledWith(
-      expect.objectContaining({
-        purpose: 'mothership_attachment',
-        fileSize: MAX_WORKSPACE_FILE_SIZE,
-      })
+    expect(mockCreateInternalPurposeUploadSession).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'session' }),
+      expect.objectContaining({ purpose: 'mothership_attachment', size: MAX_WORKSPACE_FILE_SIZE }),
+      request
     )
   })
 
@@ -240,7 +250,7 @@ describe('/api/files/uploads', () => {
     const response = await createUpload(request)
 
     expect(response.status).toBe(400)
-    expect(mockCreateUploadSession).not.toHaveBeenCalled()
+    expect(mockCreateInternalPurposeUploadSession).not.toHaveBeenCalled()
   })
 
   it('reauthorizes a terminal request and returns only the terminal-safe session', async () => {
@@ -259,7 +269,7 @@ describe('/api/files/uploads', () => {
       type: 'image/png',
     }
     mockGetOwnedUploadSession.mockReturnValue(logoSession)
-    mockCompleteUploadSession.mockResolvedValue({
+    mockCompleteInternalUploadSession.mockResolvedValue({
       session: { ...logoSession, status: 'completed', completedAt: now },
       value: result,
       alreadyCompleted: false,
@@ -275,9 +285,13 @@ describe('/api/files/uploads', () => {
     const body = await response.json()
 
     expect(response.status).toBe(200)
-    expect(mockGetUserEntityPermissions).toHaveBeenCalledWith(actor.id, 'workspace', 'workspace-1')
-    expect(mockCompleteUploadSession).toHaveBeenCalledWith(
-      expect.objectContaining({ session: logoSession })
+    expect(mockCompleteInternalUploadSession).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'session' }),
+      expect.objectContaining({
+        uploadId: 'upload-1',
+        actor: expect.objectContaining({ id: actor.id }),
+      }),
+      request
     )
     expect(body).toEqual({
       data: expect.objectContaining({
@@ -302,6 +316,6 @@ describe('/api/files/uploads', () => {
     const response = await createUpload(request)
 
     expect(response.status).toBe(401)
-    expect(mockCreateUploadSession).not.toHaveBeenCalled()
+    expect(mockCreateInternalPurposeUploadSession).not.toHaveBeenCalled()
   })
 })
