@@ -12,6 +12,7 @@ import type { VariantProps } from 'class-variance-authority'
 import { Check, ChevronDown } from '../../icons'
 import { cn } from '../../lib/cn'
 import { chipVariants, TRIGGER_BORDER_CLASS } from '../chip/chip'
+import { chipIconSlotClass } from '../chip/chip-chrome'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -241,10 +242,7 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
      * label — without this, the smaller glyph's bounding box would let the
      * chevron read as glued to the text relative to the leading icon.
      */
-    const chevronSlotClass = cn(
-      'inline-flex size-[16px] flex-shrink-0 items-center justify-center',
-      !isInverse && 'text-[var(--text-icon)]'
-    )
+    const chevronSlotClass = cn(chipIconSlotClass, !isInverse && 'text-[var(--text-icon)]')
     /**
      * `flex-1` is always applied so the chevron is pushed flush against the
      * trailing edge whenever the trigger gets stretched — by `fullWidth`, by a

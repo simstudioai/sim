@@ -59,6 +59,20 @@ export const chipContentIconClass = 'size-[16px] flex-shrink-0 text-[var(--text-
 /** Chip-content label (non-inverse): truncating `--text-body` at `text-sm`. Inverse chip variants override the color to `currentColor`. */
 export const chipContentLabelClass = 'min-w-0 truncate text-[var(--text-body)] text-sm'
 /**
+ * The disclosure chevron that rotates to expand or collapse a sidebar section or a
+ * tree row: 14px at `--text-icon`, animating on the same 150ms curve the section
+ * body expands on so the chevron and what it reveals read as one gesture. Opacity
+ * is in the property list for the consumers that also fade the chevron in.
+ *
+ * Single source for the sidebar section headers and the two sidebar trees. Other
+ * collapsible surfaces still carry their own literals at 8-12px and 100-200ms;
+ * migrating them onto this token is the remaining half of the consolidation.
+ */
+export const disclosureChevronClass =
+  'size-[14px] flex-shrink-0 text-[var(--text-icon)] transition-[opacity,transform] duration-150'
+/** The 16px square a chip-row icon or chevron centers in, so every row's label starts on the same baseline. */
+export const chipIconSlotClass = 'inline-flex size-[16px] flex-shrink-0 items-center justify-center'
+/**
  * Force-sizes a PRE-RENDERED icon node (`<svg>`/`<img>`/`<span>` avatar) to the
  * 14px resource-row standard + `--text-icon` color — regardless of the size the
  * consumer passed — so every table-row icon across every consumer matches (the

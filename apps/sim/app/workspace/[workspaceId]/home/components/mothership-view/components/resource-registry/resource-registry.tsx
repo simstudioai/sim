@@ -222,7 +222,36 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
   },
 } as const
 
-export const RESOURCE_TYPES = Object.values(RESOURCE_REGISTRY)
+/**
+ * Top-down order for every menu that lists resource families, mirroring the
+ * workspace sidebar so a user reads the same sequence in both places. The two
+ * desktop-only panels trail the workspace resources, matching where they surface
+ * in the app. `folder`/`filefolder` never render as their own entry — they feed
+ * their family's folder tree — but are ordered beside it so a menu that ever does
+ * surface them lands in the right place.
+ */
+export const RESOURCE_MENU_ORDER: readonly MothershipResourceType[] = [
+  'integration',
+  'task',
+  'table',
+  'file',
+  'filefolder',
+  'knowledgebase',
+  'log',
+  'workflow',
+  'folder',
+  'browser',
+  'terminal',
+  'generic',
+]
+
+/** Sorts anything keyed by resource type into {@link RESOURCE_MENU_ORDER}. */
+export function byResourceMenuOrder<T extends { type: MothershipResourceType }>(
+  a: T,
+  b: T
+): number {
+  return RESOURCE_MENU_ORDER.indexOf(a.type) - RESOURCE_MENU_ORDER.indexOf(b.type)
+}
 
 export function getResourceConfig(type: MothershipResourceType): ResourceTypeConfig {
   return RESOURCE_REGISTRY[type]

@@ -1,7 +1,14 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, ChipConfirmModal, chipVariants, cn } from '@sim/emcn'
+import {
+  ChipConfirmModal,
+  chipContentIconClass,
+  chipIconSlotClass,
+  chipVariants,
+  cn,
+} from '@sim/emcn'
+import { ChevronLeft } from '@sim/emcn/icons'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import type { DesktopSettingsSurface } from '@/components/settings/navigation'
@@ -299,9 +306,10 @@ export function SettingsSidebar({
       >
         <SidebarTooltip label='Back' enabled={showCollapsedTooltips}>
           <button type='button' onClick={handleBack} className={chipVariants({ fullWidth: true })}>
-            <div className='flex size-[16px] flex-shrink-0 items-center justify-center text-[var(--text-icon)]'>
-              <ChevronDown className='size-[10px] rotate-90' />
-            </div>
+            {/* The 16px slot every settings row gives its icon, so Back's label starts on their baseline. */}
+            <span aria-hidden className={cn(chipIconSlotClass, 'text-[var(--text-icon)]')}>
+              <ChevronLeft className='size-[14px]' />
+            </span>
             <span className='sidebar-collapse-hide truncate text-[var(--text-body)]'>Back</span>
           </button>
         </SidebarTooltip>
@@ -347,7 +355,7 @@ export function SettingsSidebar({
                     const itemClassName = chipVariants({ active, fullWidth: true })
                     const content = (
                       <>
-                        <Icon className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+                        <Icon className={chipContentIconClass} />
                         <span className='sidebar-collapse-hide min-w-0 truncate text-[var(--text-body)]'>
                           {item.label}
                         </span>
