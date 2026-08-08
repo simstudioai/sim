@@ -667,7 +667,7 @@ export async function createLLMToolSchema(
       }
 
       const propertySchema = buildParameterSchema(toolConfig.id, paramId, param)
-      const enrichedSchema = await enrichmentConfig.enrichSchema(dependencyValue)
+      const enrichedSchema = await enrichmentConfig.enrichSchema(dependencyValue, enrichmentContext)
 
       if (enrichedSchema) {
         safeAssign(propertySchema, enrichedSchema as Record<string, unknown>)

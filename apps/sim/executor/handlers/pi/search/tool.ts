@@ -8,8 +8,8 @@
  */
 
 import { createLogger } from '@sim/logger'
-import type { PiSearchConfig, PiToolSpec } from '@/executor/handlers/pi/backend'
-import { PI_SEARCH_PROVIDERS } from '@/executor/handlers/pi/keys'
+import type { PiSearchConfig, PiToolSpec } from '@/executor/handlers/pi/core/backend'
+import { PI_SEARCH_PROVIDERS } from '@/executor/handlers/pi/core/keys'
 import {
   buildPiSearchProviderArgs,
   extractPiSearchRecords,

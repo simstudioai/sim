@@ -12,7 +12,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@sim/emcn'
-import { Folder, MoreHorizontal, Pencil, Plus, SquareArrowUpRight } from '@sim/emcn/icons'
+import { File, Folder, MoreHorizontal, Pencil, Plus, SquareArrowUpRight } from '@sim/emcn/icons'
 import Link from 'next/link'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { ConversationListItem } from '@/app/workspace/[workspaceId]/components'
@@ -62,19 +62,7 @@ function fileFlyoutEntries(
 }
 
 const FILE_FLYOUT_ICON = (
-  <svg
-    className='size-[14px] flex-shrink-0 text-[var(--text-icon)]'
-    viewBox='0 0 24 24'
-    fill='none'
-    stroke='currentColor'
-    strokeWidth='2'
-    strokeLinecap='round'
-    strokeLinejoin='round'
-    aria-hidden='true'
-  >
-    <path d='M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z' />
-    <path d='M14 2v4a2 2 0 0 0 2 2h4' />
-  </svg>
+  <File className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' aria-hidden='true' />
 )
 
 export function CollapsedFileFolderItems({

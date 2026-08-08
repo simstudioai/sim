@@ -26,6 +26,7 @@ import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
 import { canonicalWorkspaceFilePath, decodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import type { DbOrTx } from '@/lib/db/types'
 import { mergeEditIntoLiveFileDoc, notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
 import { getServePathPrefix } from '@/lib/uploads'
@@ -1251,6 +1252,10 @@ export async function fetchWorkspaceFileBuffer(
     return buffer
   } catch (error) {
     logger.error(`Failed to download workspace file ${fileRecord.name}:`, error)
+    // Rethrow a `maxBytes` breach unwrapped: callers distinguish "too large" from a
+    // transport failure to answer with their own placeholder, and re-wrapping it in a
+    // plain Error would erase the only thing that tells the two apart.
+    if (isPayloadSizeLimitError(error)) throw error
     throw new Error(`Failed to download file: ${getErrorMessage(error, 'Unknown error')}`)
   }
 }

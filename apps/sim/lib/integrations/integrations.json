@@ -12832,6 +12832,97 @@
       "tags": ["enrichment", "sales-engagement"]
     },
     {
+      "type": "mintlify",
+      "slug": "mintlify",
+      "name": "Mintlify",
+      "description": "Deploy, edit, search, and measure Mintlify documentation",
+      "longDescription": "Integrate Mintlify into your workflow. Trigger production and preview deployments, run scheduled automations, launch documentation agent jobs, detect AI-sounding prose, search your docs and read page content, ask the docs assistant, and export feedback, conversation, search, view, and visitor analytics.",
+      "bgColor": "#000000",
+      "iconName": "MintlifyIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/mintlify",
+      "operations": [
+        {
+          "name": "Trigger Update",
+          "description": "Queue a deployment update for a Mintlify documentation project from its configured deployment branch. Returns a status ID for tracking progress."
+        },
+        {
+          "name": "Get Update Status",
+          "description": "Get the status of a Mintlify deployment update from its status ID, including logs, commit details, and screenshots."
+        },
+        {
+          "name": "Trigger Preview Deployment",
+          "description": "Create or update a Mintlify preview deployment for a Git branch. Redeploys when a preview already exists for the branch."
+        },
+        {
+          "name": "Trigger Automation",
+          "description": "Run a scheduled Mintlify automation immediately instead of waiting for its next scheduled time. Only automations with a custom schedule can be triggered."
+        },
+        {
+          "name": "Create Agent Job",
+          "description": "Create a background Mintlify agent job that edits your documentation from a prompt. Opens a pull request when the agent successfully edits files."
+        },
+        {
+          "name": "Get Agent Job",
+          "description": "Retrieve the current status and details of a Mintlify agent job, including the pull request link once the agent opens one."
+        },
+        {
+          "name": "Send Agent Message",
+          "description": "Send a follow-up instruction to an existing Mintlify agent job. The message is processed asynchronously."
+        },
+        {
+          "name": "Detect AI-Sounding Prose",
+          "description": "Analyze a documentation page for AI-generated prose and return flagged passages with suggested human rewrites. Consumes one AI credit per checked page."
+        },
+        {
+          "name": "Search Documentation",
+          "description": "Run a semantic and keyword search across a Mintlify documentation site, with optional version, language, tag, and group filters."
+        },
+        {
+          "name": "Get Page Content",
+          "description": "Retrieve the full text content of a Mintlify documentation page by its path. Use it after a search to fetch the complete page."
+        },
+        {
+          "name": "Ask Assistant",
+          "description": "Ask the Mintlify assistant, trained on your documentation, a question and get the assembled answer with its cited sources. Consumes the deployment's assistant credits."
+        },
+        {
+          "name": "Get Feedback",
+          "description": "Export paginated user feedback from a Mintlify documentation project, with optional date-range, source, and status filters."
+        },
+        {
+          "name": "Get Feedback By Page",
+          "description": "Export Mintlify feedback counts aggregated by documentation page path, broken down into thumbs up, thumbs down, and code snippet feedback."
+        },
+        {
+          "name": "Get Assistant Conversations",
+          "description": "Export paginated Mintlify AI assistant conversation history, including the query, response, cited sources, and whether the question was answered."
+        },
+        {
+          "name": "Get Assistant Caller Stats",
+          "description": "Get a breakdown of Mintlify assistant query counts by caller type — web, API, and other — for a date range."
+        },
+        {
+          "name": "Get Search Queries",
+          "description": "Export Mintlify documentation search terms for a date range, ordered by hit count, with click-through rate and the most-clicked result path."
+        },
+        {
+          "name": "Get Page Views",
+          "description": "Export Mintlify per-path and site-wide content view counts for a date range, split by human and AI bot traffic."
+        },
+        {
+          "name": "Get Unique Visitors",
+          "description": "Export Mintlify per-path and site-wide approximate distinct visitor counts for a date range, split by human and AI bot traffic."
+        }
+      ],
+      "operationCount": 18,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "documents",
+      "tags": ["content-management", "knowledge-base", "automation"]
+    },
+    {
       "type": "mistral_parse_v3",
       "slug": "mistral-parser",
       "name": "Mistral Parser",

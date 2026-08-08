@@ -13,7 +13,7 @@ export const instagramPublishStoryTool: ToolConfig<
   id: 'instagram_publish_story',
   name: 'Instagram Publish Story',
   description:
-    'Publish an image or video story for an Instagram professional account from an uploaded file or public HTTPS URL',
+    'Publish an image or video story for an Instagram professional account from a Sim file',
   version: '1.0.0',
 
   oauth: {
@@ -38,7 +38,8 @@ export const instagramPublishStoryTool: ToolConfig<
       type: 'file',
       required: true,
       visibility: 'user-or-llm',
-      description: 'JPEG image or MP4/MOV video file, or a public HTTPS URL',
+      description:
+        'JPEG image or MP4/MOV video uploaded to Sim or referenced from a previous block',
     },
   },
 

@@ -15,7 +15,6 @@ import {
   verifyProviderAuth,
 } from '@/lib/webhooks/processor'
 import { acceptsPathWebhookDelivery } from '@/lib/webhooks/providers'
-import { isInternalTriggerProvider } from '@/triggers/constants'
 
 const logger = createLogger('WebhookTriggerAPI')
 
@@ -100,11 +99,8 @@ async function handleWebhookPost(
   // Find all webhooks for this path (multiple webhooks in one workflow may share a path)
   const allWebhooksForPath = await findAllWebhooksForPath({ requestId, path })
 
-  /** Exclude in-process triggers and providers that own an app-level ingress route. */
-  const webhooksForPath = allWebhooksForPath.filter(
-    ({ webhook: foundWebhook }) =>
-      !isInternalTriggerProvider(foundWebhook.provider) &&
-      acceptsPathWebhookDelivery(foundWebhook.provider)
+  const webhooksForPath = allWebhooksForPath.filter(({ webhook: foundWebhook }) =>
+    acceptsPathWebhookDelivery(foundWebhook.provider)
   )
 
   if (allWebhooksForPath.length > 0 && webhooksForPath.length === 0) {

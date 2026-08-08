@@ -104,6 +104,21 @@ export async function getKnowledgeBases(
         ? sql`${knowledgeBase.deletedAt} IS NOT NULL`
         : isNull(knowledgeBase.deletedAt)
 
+  /**
+   * Legacy knowledge bases predate workspaces and have no `workspaceId`, so the creator is
+   * their only possible authority. Anything with a `workspaceId` must clear
+   * `currentWorkspaceMembership` instead — creator identity goes stale the moment a member
+   * is removed from the workspace.
+   */
+  const legacyOwnedKnowledgeBase = and(
+    eq(knowledgeBase.userId, userId),
+    isNull(knowledgeBase.workspaceId)
+  )
+  const currentWorkspaceMembership = and(
+    isNotNull(permissions.userId),
+    isNull(workspace.archivedAt)
+  )
+
   const knowledgeBasesWithCounts = await db
     .select({
       id: knowledgeBase.id,
@@ -143,25 +158,13 @@ export async function getKnowledgeBases(
     .where(
       and(
         scopeCondition,
-        workspaceId
-          ? // When filtering by workspace
-            or(
-              // Knowledge bases belonging to the specified workspace (user must have workspace permissions)
-              and(
-                eq(knowledgeBase.workspaceId, workspaceId),
-                isNotNull(permissions.userId),
-                isNull(workspace.archivedAt)
-              ),
-              // Fallback: User-owned knowledge bases without workspace (legacy)
-              and(eq(knowledgeBase.userId, userId), isNull(knowledgeBase.workspaceId))
-            )
-          : // When not filtering by workspace, use original logic
-            or(
-              // User owns the knowledge base directly
-              eq(knowledgeBase.userId, userId),
-              // User has permissions on the knowledge base's workspace
-              and(isNotNull(permissions.userId), isNull(workspace.archivedAt))
-            )
+        or(
+          and(
+            workspaceId ? eq(knowledgeBase.workspaceId, workspaceId) : undefined,
+            currentWorkspaceMembership
+          ),
+          legacyOwnedKnowledgeBase
+        )
       )
     )
     .groupBy(knowledgeBase.id)

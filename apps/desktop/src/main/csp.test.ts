@@ -1,4 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+// csp pulls in @/main/navigation, which imports electron.
+vi.mock('electron', () => import('@/test/electron-mock'))
+
 import { attachCspFallback, DEFAULT_DESKTOP_CSP } from '@/main/csp'
 
 type HeadersReceivedHandler = (
