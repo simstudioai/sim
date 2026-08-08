@@ -207,6 +207,7 @@
         "@react-email/components": "1.0.12",
         "@react-email/render": "2.1.0",
         "@sim/audit": "workspace:*",
+        "@sim/auth": "workspace:*",
         "@sim/browser-protocol": "workspace:*",
         "@sim/desktop-bridge": "workspace:*",
         "@sim/emcn": "workspace:*",
