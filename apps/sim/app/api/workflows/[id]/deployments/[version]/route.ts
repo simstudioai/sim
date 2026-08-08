@@ -4,14 +4,14 @@ import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { updateDeploymentVersionMetadataContract } from '@/lib/api/contracts/deployments'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
-import { statusForOrchestrationError } from '@/lib/core/orchestration/types'
+import { InternalUnauthenticatedError, internalSessionAuth } from '@/lib/api/server/routes'
+import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { performActivateVersion } from '@/lib/workflows/orchestration'
-import {
-  getWorkflowDeploymentVersion,
-  updateDeploymentVersionMetadata,
-} from '@/lib/workflows/persistence/utils'
+import { captureServerEvent } from '@/lib/posthog/server'
+import { activateWorkflowVersion } from '@/lib/workflows/application/deployments'
+import { readWorkflowVersion } from '@/lib/workflows/application/read-workflow-version'
+import { updateDeploymentVersionMetadata } from '@/lib/workflows/persistence/utils'
 import { validateWorkflowPermissions } from '@/lib/workflows/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
@@ -30,28 +30,36 @@ export const GET = withRouteHandler(
     const { id, version } = await params
 
     try {
-      const { error } = await validateWorkflowPermissions(id, requestId, 'read')
-      if (error) {
-        return createErrorResponse(error.message, error.status)
-      }
+      const principal = await internalSessionAuth.authenticate()
 
       const versionNum = Number(version)
       if (!Number.isFinite(versionNum)) {
         return createErrorResponse('Invalid version', 400)
       }
 
-      const row = await getWorkflowDeploymentVersion(id, versionNum)
-      if (!row?.state) {
-        return createErrorResponse('Deployment version not found', 404)
-      }
+      const { version: row } = await readWorkflowVersion.execute({
+        principal,
+        input: { workflowId: id, version: versionNum },
+        request,
+      })
 
       return createSuccessResponse({ deployedState: row.state })
-    } catch (error: any) {
+    } catch (error: unknown) {
+      if (error instanceof InternalUnauthenticatedError) {
+        return createErrorResponse(error.message, 401)
+      }
+      const orchestrationError = asOrchestrationError(error)
+      if (orchestrationError) {
+        return createErrorResponse(
+          orchestrationError.message,
+          statusForOrchestrationError(orchestrationError.code)
+        )
+      }
       logger.error(
         `[${requestId}] Error fetching deployment version ${version} for workflow ${id}`,
-        error
+        { error }
       )
-      return createErrorResponse(error.message || 'Failed to fetch deployment version', 500)
+      return createErrorResponse('Failed to fetch deployment version', 500)
     }
   }
 )
@@ -61,6 +69,7 @@ export const PATCH = withRouteHandler(
     const requestId = generateRequestId()
 
     try {
+      const principal = await internalSessionAuth.authenticate()
       const parsed = await parseRequest(updateDeploymentVersionMetadataContract, request, context, {
         validationErrorResponse: (error) =>
           createErrorResponse(getValidationErrorMessage(error, 'Invalid request body'), 400),
@@ -70,42 +79,15 @@ export const PATCH = withRouteHandler(
       const { id, version } = parsed.data.params
       const { name, description, isActive } = parsed.data.body
 
-      // Activation requires admin permission, other updates require write
-      const requiredPermission = isActive ? 'admin' : 'write'
-      const { error, session } = await validateWorkflowPermissions(
-        id,
-        requestId,
-        requiredPermission
-      )
-      if (error) {
-        return createErrorResponse(error.message, error.status)
-      }
-
       const versionNum = version
 
       // Handle activation
       if (isActive) {
-        const actorUserId = session?.user?.id
-        if (!actorUserId) {
-          logger.warn(
-            `[${requestId}] Unable to resolve actor user for deployment activation: ${id}`
-          )
-          return createErrorResponse('Unable to determine activating user', 400)
-        }
-
-        const activateResult = await performActivateVersion({
-          workflowId: id,
-          version: versionNum,
-          userId: actorUserId,
-          requestId,
+        const activateResult = await activateWorkflowVersion.execute({
+          principal,
+          input: { workflowId: id, version: versionNum, transition: 'activate', requestId },
+          request,
         })
-
-        if (!activateResult.success) {
-          return createErrorResponse(
-            activateResult.error || 'Failed to activate deployment',
-            statusForOrchestrationError(activateResult.errorCode)
-          )
-        }
 
         let updatedName: string | null | undefined
         let updatedDescription: string | null | undefined
@@ -142,6 +124,17 @@ export const PATCH = withRouteHandler(
           }
         }
 
+        captureServerEvent(
+          principal.userId,
+          'deployment_version_activated',
+          {
+            workflow_id: activateResult.workflowId,
+            workspace_id: activateResult.workspaceId,
+            version: versionNum,
+          },
+          { groups: { workspace: activateResult.workspaceId } }
+        )
+
         return createSuccessResponse({
           success: true,
           deployedAt: activateResult.deployedAt ?? null,
@@ -151,6 +144,11 @@ export const PATCH = withRouteHandler(
           ...(updatedName !== undefined && { name: updatedName }),
           ...(updatedDescription !== undefined && { description: updatedDescription }),
         })
+      }
+
+      const { error } = await validateWorkflowPermissions(id, requestId, 'write')
+      if (error) {
+        return createErrorResponse(error.message, error.status)
       }
 
       // Handle name/description updates (shared with the update_deployment_version copilot tool)
@@ -171,9 +169,19 @@ export const PATCH = withRouteHandler(
       })
 
       return createSuccessResponse({ name: updated.name, description: updated.description })
-    } catch (error: any) {
-      logger.error(`[${requestId}] Error updating deployment version`, error)
-      return createErrorResponse(error.message || 'Failed to update deployment version', 500)
+    } catch (error: unknown) {
+      if (error instanceof InternalUnauthenticatedError) {
+        return createErrorResponse(error.message, 401)
+      }
+      const orchestrationError = asOrchestrationError(error)
+      if (orchestrationError) {
+        return createErrorResponse(
+          orchestrationError.message,
+          statusForOrchestrationError(orchestrationError.code)
+        )
+      }
+      logger.error(`[${requestId}] Error updating deployment version`, { error })
+      return createErrorResponse('Failed to update deployment version', 500)
     }
   }
 )

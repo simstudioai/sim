@@ -32,9 +32,10 @@ export async function collectCascadeSubtreeIds(
   workspaceId: string,
   resourceType: FolderResourceType,
   folderId: string,
-  timestamp: Date
+  timestamp: Date,
+  maxRows?: number
 ): Promise<string[]> {
-  const cascadeFolders = await tx
+  const query = tx
     .select({ id: folderTable.id, parentId: folderTable.parentId })
     .from(folderTable)
     .where(
@@ -44,6 +45,10 @@ export async function collectCascadeSubtreeIds(
         or(isNull(folderTable.deletedAt), eq(folderTable.deletedAt, timestamp))
       )
     )
+  const cascadeFolders = maxRows === undefined ? await query : await query.limit(maxRows + 1)
+  if (maxRows !== undefined && cascadeFolders.length > maxRows) {
+    throw new Error(`Folder cascade exceeds the ${maxRows} row limit`)
+  }
 
   return [folderId, ...collectDescendantFolderIds(cascadeFolders, folderId)]
 }

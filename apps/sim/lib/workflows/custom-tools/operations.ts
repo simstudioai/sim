@@ -3,12 +3,12 @@ import { customTools } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import { and, type Column, desc, eq, isNull, or } from 'drizzle-orm'
-import type { V2CustomToolSortBy } from '@/lib/api/contracts/v2/custom-tools'
-import type { V2SortOrder } from '@/lib/api/contracts/v2/shared'
-import { listOrderBy, searchFilter } from '@/lib/api/list-query'
+import { type ListSortOrder, listOrderBy, searchFilter } from '@/lib/api/list-query'
 import { generateRequestId } from '@/lib/core/utils/request'
 
 const logger = createLogger('CustomToolsOperations')
+
+export type CustomToolSortBy = 'title' | 'createdAt' | 'updatedAt'
 
 /**
  * Internal function to create/update custom tools
@@ -148,14 +148,14 @@ const CUSTOM_TOOL_SORTS = {
   title: [customTools.title, customTools.id],
   createdAt: [customTools.createdAt, customTools.id],
   updatedAt: [customTools.updatedAt, customTools.id],
-} satisfies Record<V2CustomToolSortBy, readonly Column[]>
+} satisfies Record<CustomToolSortBy, readonly Column[]>
 
 export async function listWorkspaceCustomTools(params: {
   workspaceId: string
   /** Case-insensitive substring match on the tool title. */
   search?: string
-  sortBy?: V2CustomToolSortBy
-  sortOrder?: V2SortOrder
+  sortBy?: CustomToolSortBy
+  sortOrder?: ListSortOrder
 }) {
   const { sortBy = 'createdAt', sortOrder = 'desc' } = params
   return db
@@ -288,6 +288,36 @@ export async function getCustomToolByIdOrTitle(params: {
     .where(and(isNull(customTools.workspaceId), eq(customTools.userId, userId), ...conditions))
     .limit(1)
   return legacyTool[0] || null
+}
+
+export async function updateCustomTool(params: {
+  toolId: string
+  userId: string
+  workspaceId: string
+  title: string
+  schema: unknown
+  code: string
+}) {
+  const workspaceTool = await updateWorkspaceCustomTool(params)
+  if (workspaceTool) return workspaceTool
+
+  const [legacyTool] = await db
+    .update(customTools)
+    .set({
+      title: params.title,
+      schema: params.schema,
+      code: params.code,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(customTools.id, params.toolId),
+        isNull(customTools.workspaceId),
+        eq(customTools.userId, params.userId)
+      )
+    )
+    .returning()
+  return legacyTool ?? null
 }
 
 export async function deleteCustomTool(params: {

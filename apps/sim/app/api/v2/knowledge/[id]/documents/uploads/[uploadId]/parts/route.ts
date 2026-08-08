@@ -1,46 +1,22 @@
-import { NextResponse } from 'next/server'
 import { v2CreateKnowledgeDocumentUploadPartUrlsContract } from '@/lib/api/contracts/v2/knowledge'
-import { createUploadPartUrls } from '@/lib/uploads/upload-session/service'
-import { withPublicApiRouteHandler } from '@/app/api/public-api-route-handler'
-import {
-  getOwnedKnowledgeDocumentUpload,
-  resolveKnowledgeDocumentUploadAccess,
-} from '@/app/api/v2/knowledge/[id]/documents/uploads/utils'
-import { v2CaughtOrchestrationError, v2Data } from '@/app/api/v2/lib/response'
+import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
+import { knowledgeOperations } from '@/lib/knowledge/application/operations'
+import { issueKnowledgeDocumentUploadParts } from '@/lib/knowledge/application/upload-sessions'
+import { v2KnowledgeDocumentUploadError } from '@/app/api/v2/knowledge/[id]/documents/uploads/utils'
 
-export const POST = withPublicApiRouteHandler({
+export const POST = defineV2JsonRoute({
   contract: v2CreateKnowledgeDocumentUploadPartUrlsContract,
-  rateLimitEndpoint: 'knowledge-detail',
-  handler: async ({ request, input, auth: { userId, rateLimit } }) => {
-    try {
-      const { id: knowledgeBaseId, uploadId } = input.params
-      const { workspaceId } = input.query
-
-      const access = await resolveKnowledgeDocumentUploadAccess({
-        knowledgeBaseId,
-        workspaceId,
-        userId,
-        rateLimit,
-      })
-      if (access instanceof NextResponse) return access
-
-      const session = await getOwnedKnowledgeDocumentUpload({
-        knowledgeBaseId,
-        uploadId,
-        workspaceId,
-        userId,
-        uploadToken: input.headers['upload-token'],
-      })
-      const parts = await createUploadPartUrls({
-        session,
-        partNumbers: input.body.partNumbers,
-        localOrigin: request.nextUrl.origin,
-      })
-      return v2Data({ parts }, { rateLimit })
-    } catch (error) {
-      const classified = v2CaughtOrchestrationError(error)
-      if (classified) return classified
-      throw error
-    }
-  },
+  auth: v2ApiKeyAuth,
+  operation: knowledgeOperations.uploadParts,
+  rateLimit: v2RateLimits.publicApi,
+  errorPolicy: { render: v2KnowledgeDocumentUploadError },
+  mapInput: ({ params, query, headers, body }) => ({
+    knowledgeBaseId: params.id,
+    assertedWorkspaceId: query.workspaceId,
+    uploadId: params.uploadId,
+    uploadToken: headers['upload-token'],
+    partNumbers: body.partNumbers,
+  }),
+  useCase: issueKnowledgeDocumentUploadParts,
+  present: ({ parts }) => ({ data: { parts } }),
 })

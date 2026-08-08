@@ -4,28 +4,44 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockHandleResumeExecution, mockResolveV2WorkflowAccess } = vi.hoisted(() => ({
-  mockHandleResumeExecution: vi.fn(),
-  mockResolveV2WorkflowAccess: vi.fn(),
+const mocks = vi.hoisted(() => ({
+  admit: vi.fn(),
+  resume: vi.fn(),
 }))
 
-vi.mock('@/app/api/resume/resume-handler', () => ({
-  handleResumeExecution: mockHandleResumeExecution,
+vi.mock('@/lib/api/server/routes', () => {
+  class V2RouteInfrastructureError extends Error {}
+  return {
+    admitV2Request: mocks.admit,
+    V2RouteInfrastructureError,
+    v2ApiKeyAuth: { kind: 'v2-api-key' },
+    v2RateLimits: { publicApi: { kind: 'public-api' } },
+    v2OrchestrationErrorPolicy: { render: () => null },
+  }
+})
+
+vi.mock('@/lib/workflows/application/resume-run', () => ({
+  resumeWorkflowRun: { execute: mocks.resume },
 }))
 
-vi.mock('@/app/api/v2/workflows/lib/access', () => ({
-  resolveV2WorkflowAccess: mockResolveV2WorkflowAccess,
+vi.mock('@/lib/workflows/executor/resume-execution', () => ({
+  ResumeWorkflowExecutionError: class ResumeWorkflowExecutionError extends Error {},
 }))
 
 vi.mock('@/lib/core/utils/urls', () => ({
   getBaseUrl: () => 'https://test.sim.ai',
+  SITE_URL: 'https://test.sim.ai',
 }))
 
 import { v2ResumeWorkflowContract } from '@/lib/api/contracts/v2/workflows'
+import { PersonalApiKeysDisabledError } from '@/lib/core/application'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { workflowOperations } from '@/lib/workflows/application/operations'
 import { POST } from '@/app/api/v2/workflows/[id]/runs/[runId]/resume/route'
 
 const WORKFLOW_ID = 'workflow-1'
 const RUN_ID = 'run-1'
+const principal = { kind: 'personal_api_key' as const, userId: 'user-1', keyId: 'key-1' }
 
 function makeRequest(body: string) {
   return {
@@ -44,17 +60,12 @@ function makeRequest(body: string) {
 describe('POST /api/v2/workflows/[id]/runs/[runId]/resume', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockResolveV2WorkflowAccess.mockResolvedValue({
-      ok: true,
-      userId: 'user-1',
-      keyType: 'workspace',
-      workflow: { id: WORKFLOW_ID, workspaceId: 'workspace-1' },
-    })
+    mocks.admit.mockResolvedValue({ success: true, auth: { principal } })
   })
 
-  it('authenticates before parsing the request body', async () => {
-    mockResolveV2WorkflowAccess.mockResolvedValueOnce({
-      ok: false,
+  it('runs v2 admission before parsing the bounded request body', async () => {
+    mocks.admit.mockResolvedValueOnce({
+      success: false,
       response: NextResponse.json(
         { error: { code: 'UNAUTHORIZED', message: 'Unauthorized' } },
         { status: 401 }
@@ -68,23 +79,41 @@ describe('POST /api/v2/workflows/[id]/runs/[runId]/resume', () => {
     expect(await response.json()).toEqual({
       error: { code: 'UNAUTHORIZED', message: 'Unauthorized' },
     })
-    expect(mockResolveV2WorkflowAccess).toHaveBeenCalledWith(request, WORKFLOW_ID, 'write')
-    expect(mockHandleResumeExecution).not.toHaveBeenCalled()
+    expect(mocks.admit).toHaveBeenCalledOnce()
+    expect(mocks.admit).toHaveBeenCalledWith(
+      request,
+      workflowOperations.resumeRun,
+      { kind: 'v2-api-key' },
+      { kind: 'public-api' }
+    )
+    expect(mocks.resume).not.toHaveBeenCalled()
   })
 
-  it('resumes a pause context through the run-scoped v2 endpoint', async () => {
-    mockHandleResumeExecution.mockResolvedValueOnce(
-      NextResponse.json(
-        {
-          success: true,
-          async: true,
-          executionId: 'resume-execution-1',
-          message: 'Resume execution queued',
-          statusUrl: 'https://test.sim.ai/api/v2/workflows/workflow-1/runs/resume-execution-1',
-        },
-        { status: 202 }
-      )
+  it('stops at request-rate admission without invoking resume execution controls', async () => {
+    mocks.admit.mockResolvedValueOnce({
+      success: false,
+      response: NextResponse.json(
+        { error: { code: 'RATE_LIMITED', message: 'Rate limit exceeded' } },
+        { status: 429, headers: { 'Retry-After': '7' } }
+      ),
+    })
+    const { request, context } = makeRequest(
+      JSON.stringify({ contextId: 'context-1', input: { approved: true } })
     )
+
+    const response = await POST(request, context)
+
+    expect(response.status).toBe(429)
+    expect(response.headers.get('Retry-After')).toBe('7')
+    expect(mocks.resume).not.toHaveBeenCalled()
+  })
+
+  it('resumes through the authorized run use case and returns a polling receipt', async () => {
+    mocks.resume.mockResolvedValueOnce({
+      kind: 'async',
+      executionId: 'resume-execution-1',
+      jobId: 'resume-job-1',
+    })
     const { request, context } = makeRequest(
       JSON.stringify({ contextId: 'context-1', input: { approved: true } })
     )
@@ -101,57 +130,54 @@ describe('POST /api/v2/workflows/[id]/runs/[runId]/resume', () => {
       },
     })
     expect(v2ResumeWorkflowContract.response.schema.parse(body)).toEqual(body)
-    expect(mockHandleResumeExecution).toHaveBeenCalledWith({
+    expect(mocks.resume).toHaveBeenCalledWith({
+      principal,
+      input: {
+        workflowId: WORKFLOW_ID,
+        runId: RUN_ID,
+        contextId: 'context-1',
+        resumeInput: { approved: true },
+      },
       request,
-      workflowId: WORKFLOW_ID,
-      executionId: RUN_ID,
-      contextId: 'context-1',
-      workspaceId: 'workspace-1',
-      userId: 'user-1',
-      resumeInput: { approved: true },
-      isApiCaller: true,
-      pollingSurface: 'v2',
-      allowStreaming: false,
     })
   })
 
-  it('returns queued resumes as a v2 polling receipt', async () => {
-    mockHandleResumeExecution.mockResolvedValueOnce(
-      NextResponse.json({
-        status: 'queued',
-        executionId: 'resume-execution-2',
-        queuePosition: 2,
-        message: 'Resume queued. It will run after current resumes finish.',
-      })
-    )
+  it('returns queued resumes as the declared v2 receipt', async () => {
+    mocks.resume.mockResolvedValueOnce({
+      kind: 'queued',
+      executionId: 'resume-execution-2',
+      queuePosition: 2,
+    })
     const { request, context } = makeRequest(JSON.stringify({ contextId: 'context-2' }))
 
     const response = await POST(request, context)
+    const body = await response.json()
 
     expect(response.status).toBe(202)
-    expect(await response.json()).toEqual({
+    expect(body).toEqual({
       data: {
         runId: 'resume-execution-2',
         statusUrl: 'https://test.sim.ai/api/v2/workflows/workflow-1/runs/resume-execution-2',
         queuePosition: 2,
       },
     })
+    expect(v2ResumeWorkflowContract.response.schema.parse(body)).toEqual(body)
   })
 
   it('wraps synchronous resume results in the canonical v2 run shape', async () => {
-    mockHandleResumeExecution.mockResolvedValueOnce(
-      NextResponse.json({
-        success: true,
-        status: 'completed',
-        executionId: 'resume-execution-3',
-        output: { approved: true },
-        metadata: {
-          startTime: '2026-08-05T00:00:00.000Z',
-          endTime: '2026-08-05T00:00:01.000Z',
-          duration: 1000,
-        },
-      })
-    )
+    mocks.resume.mockResolvedValueOnce({
+      kind: 'sync',
+      success: true,
+      status: 'completed',
+      executionId: 'resume-execution-3',
+      output: { approved: true },
+      error: undefined,
+      metadata: {
+        startTime: '2026-08-05T00:00:00.000Z',
+        endTime: '2026-08-05T00:00:01.000Z',
+        duration: 1000,
+      },
+    })
     const { request, context } = makeRequest(JSON.stringify({ contextId: 'context-3' }))
 
     const response = await POST(request, context)
@@ -171,5 +197,40 @@ describe('POST /api/v2/workflows/[id]/runs/[runId]/resume', () => {
       },
     })
     expect(v2ResumeWorkflowContract.response.schema.parse(body)).toEqual(body)
+  })
+
+  it('conceals canonical parent-run/workflow mismatches as absence', async () => {
+    mocks.resume.mockRejectedValueOnce(new OrchestrationError('not_found', 'Run not found'))
+    const { request, context } = makeRequest(JSON.stringify({ contextId: 'context-4' }))
+
+    const response = await POST(request, context)
+
+    expect(response.status).toBe(404)
+    expect((await response.json()).error).toMatchObject({
+      code: 'NOT_FOUND',
+      message: 'Run not found',
+    })
+  })
+
+  it('preserves the personal-key-disabled authorization response as forbidden', async () => {
+    mocks.resume.mockRejectedValueOnce(new PersonalApiKeysDisabledError())
+    const { request, context } = makeRequest(JSON.stringify({ contextId: 'context-5' }))
+
+    const response = await POST(request, context)
+
+    expect(response.status).toBe(403)
+    expect((await response.json()).error.code).toBe('FORBIDDEN')
+  })
+
+  it('returns a safe error when the resume manager fails', async () => {
+    mocks.resume.mockRejectedValueOnce(new Error('resume database connection details'))
+    const { request, context } = makeRequest(JSON.stringify({ contextId: 'context-6' }))
+
+    const response = await POST(request, context)
+
+    expect(response.status).toBe(500)
+    expect(await response.json()).toEqual({
+      error: { code: 'INTERNAL_ERROR', message: 'Internal server error' },
+    })
   })
 })

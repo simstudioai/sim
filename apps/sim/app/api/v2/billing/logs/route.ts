@@ -1,38 +1,39 @@
 import { v2ListBillingLogsContract } from '@/lib/api/contracts/v2/billing'
-import { getUsageCreditsByLogId, getUserUsageLogs } from '@/lib/billing/core/usage-log'
+import {
+  defineV2JsonRoute,
+  v2ApiKeyAuth,
+  v2OrchestrationErrorPolicy,
+  v2RateLimits,
+} from '@/lib/api/server/routes'
+import { listBillingLogs } from '@/lib/billing/application/list-billing-logs'
+import { billingOperations } from '@/lib/billing/application/operations'
 import { toBillingUsageLogSource, toInternalUsageLogSources } from '@/lib/billing/usage-sources'
-import { withPublicApiRouteHandler } from '@/app/api/public-api-route-handler'
 import { resolveDateRange } from '@/app/api/users/me/usage-logs/shared'
-import { v2BillingWorkspaceFilter } from '@/app/api/v2/billing/utils'
-import { v2CursorList } from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 /** Cursor-paged, credit-denominated billing ledger. */
-export const GET = withPublicApiRouteHandler({
+export const GET = defineV2JsonRoute({
   contract: v2ListBillingLogsContract,
-  rateLimitEndpoint: 'billing-usage',
-  handler: async ({ input, auth: { userId, rateLimit } }) => {
-    const { source, workspaceId, period, startDate, endDate, limit, cursor } = input.query
-
-    const workspaceFilter = await v2BillingWorkspaceFilter(rateLimit, workspaceId)
-    if (!workspaceFilter.ok) return workspaceFilter.response
-
-    const dateRange = resolveDateRange(period, startDate, endDate)
-    const filter = {
-      source: source ? toInternalUsageLogSources(source) : undefined,
-      workspaceId: workspaceFilter.workspaceId,
+  auth: v2ApiKeyAuth,
+  operation: billingOperations.listLogs,
+  rateLimit: v2RateLimits.publicApi,
+  errorPolicy: v2OrchestrationErrorPolicy,
+  mapInput: ({ query }) => {
+    const dateRange = resolveDateRange(query.period, query.startDate, query.endDate)
+    return {
+      source: query.source ? toInternalUsageLogSources(query.source) : undefined,
+      workspaceId: query.workspaceId,
       startDate: dateRange.startDate,
       endDate: dateRange.endDate,
+      limit: query.limit,
+      cursor: query.cursor,
     }
-
-    const [result, creditsByLogId] = await Promise.all([
-      getUserUsageLogs(userId, { ...filter, limit, cursor, includeSummary: false }),
-      getUsageCreditsByLogId(userId, filter),
-    ])
-
-    const items = result.logs.map((log) => ({
+  },
+  useCase: listBillingLogs,
+  present: ({ usage, creditsByLogId }) => ({
+    data: usage.logs.map((log) => ({
       id: log.id,
       createdAt: log.createdAt,
       source: toBillingUsageLogSource(log.source),
@@ -40,12 +41,7 @@ export const GET = withPublicApiRouteHandler({
       workflow: log.workflowId ? { id: log.workflowId, name: log.workflowName ?? null } : null,
       runId: log.executionId ?? null,
       creditCost: creditsByLogId[log.id] ?? 0,
-    }))
-
-    return v2CursorList(
-      items,
-      result.pagination.hasMore ? (result.pagination.nextCursor ?? null) : null,
-      { rateLimit }
-    )
-  },
+    })),
+    nextCursor: usage.pagination.hasMore ? (usage.pagination.nextCursor ?? null) : null,
+  }),
 })

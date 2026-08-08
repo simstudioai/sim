@@ -135,6 +135,7 @@ export const v2CreateSkillContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: v2DataResponse(v2SkillDataSchema),
+    status: 201,
   },
 })
 

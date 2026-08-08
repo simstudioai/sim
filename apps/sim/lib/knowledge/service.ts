@@ -38,6 +38,10 @@ import {
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import { findActiveFolder, resolveRestoredFolderId } from '@/lib/folders/queries'
+import {
+  MAX_KNOWLEDGE_BASES_PER_WORKSPACE,
+  MAX_KNOWLEDGE_CONNECTOR_TYPE_ROWS_PER_LIST,
+} from '@/lib/knowledge/constants'
 import type {
   ChunkingConfig,
   CreateKnowledgeBaseData,
@@ -133,14 +137,129 @@ const KNOWLEDGE_BASE_SORTS = {
   updatedAt: [knowledgeBase.updatedAt, knowledgeBase.createdAt],
 } satisfies Record<V2KnowledgeBaseSortBy, readonly Column[]>
 
-interface GetKnowledgeBasesOptions {
-  /** Restrict to one knowledge-base folder. */
-  /** `undefined` lists every folder, `null` lists only workspace-root resources. */
+export interface GetKnowledgeBasesOptions {
+  /** Restrict to one knowledge-base folder; `undefined` lists all and `null` lists the root. */
   folderId?: string | null
   /** Case-insensitive substring match on the knowledge base name. */
   search?: string
   sortBy?: V2KnowledgeBaseSortBy
   sortOrder?: V2SortOrder
+}
+
+async function attachConnectorTypes(
+  knowledgeBases: Array<Omit<KnowledgeBaseWithCounts, 'connectorTypes'>>
+): Promise<KnowledgeBaseWithCounts[]> {
+  const kbIds = knowledgeBases.map((kb) => kb.id)
+  const connectorRows =
+    kbIds.length > 0
+      ? await db
+          .select({
+            knowledgeBaseId: knowledgeConnector.knowledgeBaseId,
+            connectorType: knowledgeConnector.connectorType,
+          })
+          .from(knowledgeConnector)
+          .where(
+            and(
+              inArray(knowledgeConnector.knowledgeBaseId, kbIds),
+              isNull(knowledgeConnector.archivedAt),
+              isNull(knowledgeConnector.deletedAt)
+            )
+          )
+          .limit(MAX_KNOWLEDGE_CONNECTOR_TYPE_ROWS_PER_LIST + 1)
+      : []
+  if (connectorRows.length > MAX_KNOWLEDGE_CONNECTOR_TYPE_ROWS_PER_LIST) {
+    throw new Error(
+      `Knowledge connector projection exceeds the ${MAX_KNOWLEDGE_CONNECTOR_TYPE_ROWS_PER_LIST} row limit`
+    )
+  }
+
+  const connectorTypesByKb = new Map<string, string[]>()
+  for (const row of connectorRows) {
+    const types = connectorTypesByKb.get(row.knowledgeBaseId) ?? []
+    if (!types.includes(row.connectorType)) types.push(row.connectorType)
+    connectorTypesByKb.set(row.knowledgeBaseId, types)
+  }
+
+  return knowledgeBases.map((kb) => ({
+    ...kb,
+    connectorTypes: connectorTypesByKb.get(kb.id) ?? [],
+  }))
+}
+
+/**
+ * Lists active knowledge bases in one canonical workspace after application
+ * authorization. Unlike the legacy user-oriented query, this never widens the
+ * scope to workspace-less rows and never depends on a human permission join.
+ */
+export async function getWorkspaceKnowledgeBases(
+  workspaceId: string,
+  scope: KnowledgeBaseScope = 'active',
+  options?: GetKnowledgeBasesOptions
+): Promise<KnowledgeBaseWithCounts[]> {
+  const { folderId, search, sortBy = 'createdAt', sortOrder = 'asc' } = options ?? {}
+  const scopeCondition =
+    scope === 'all'
+      ? undefined
+      : scope === 'archived'
+        ? sql`${knowledgeBase.deletedAt} IS NOT NULL`
+        : isNull(knowledgeBase.deletedAt)
+
+  const rows = await db
+    .select({
+      id: knowledgeBase.id,
+      userId: knowledgeBase.userId,
+      name: knowledgeBase.name,
+      description: knowledgeBase.description,
+      tokenCount: sql<number>`COALESCE(SUM(${document.tokenCount}), 0)`.mapWith(Number),
+      embeddingModel: knowledgeBase.embeddingModel,
+      embeddingDimension: knowledgeBase.embeddingDimension,
+      chunkingConfig: knowledgeBase.chunkingConfig,
+      createdAt: knowledgeBase.createdAt,
+      updatedAt: knowledgeBase.updatedAt,
+      deletedAt: knowledgeBase.deletedAt,
+      workspaceId: knowledgeBase.workspaceId,
+      folderId: knowledgeBase.folderId,
+      docCount: count(document.id),
+    })
+    .from(knowledgeBase)
+    .leftJoin(
+      document,
+      and(
+        eq(document.knowledgeBaseId, knowledgeBase.id),
+        eq(document.userExcluded, false),
+        isNull(document.archivedAt),
+        isNull(document.deletedAt)
+      )
+    )
+    .where(
+      and(
+        eq(knowledgeBase.workspaceId, workspaceId),
+        scopeCondition,
+        folderId === undefined
+          ? undefined
+          : folderId === null
+            ? isNull(knowledgeBase.folderId)
+            : eq(knowledgeBase.folderId, folderId),
+        searchFilter(knowledgeBase.name, search)
+      )
+    )
+    .groupBy(knowledgeBase.id)
+    .orderBy(...listOrderBy(KNOWLEDGE_BASE_SORTS[sortBy], sortOrder))
+    .limit(MAX_KNOWLEDGE_BASES_PER_WORKSPACE + 1)
+
+  if (rows.length > MAX_KNOWLEDGE_BASES_PER_WORKSPACE) {
+    throw new Error(
+      `Knowledge base list exceeds the ${MAX_KNOWLEDGE_BASES_PER_WORKSPACE} row limit`
+    )
+  }
+
+  return attachConnectorTypes(
+    rows.map((kb) => ({
+      ...kb,
+      chunkingConfig: kb.chunkingConfig as ChunkingConfig,
+      docCount: Number(kb.docCount),
+    }))
+  )
 }
 
 /**
@@ -275,15 +394,26 @@ export async function createKnowledgeBase(
   data: CreateKnowledgeBaseData,
   requestId: string
 ): Promise<KnowledgeBaseWithCounts> {
-  const kbId = generateId()
-  const now = new Date()
-
   const hasPermission = await getUserEntityPermissions(data.userId, 'workspace', data.workspaceId)
   if (hasPermission !== 'admin' && hasPermission !== 'write') {
     throw new KnowledgeBasePermissionError(
       'User does not have permission to create knowledge bases in this workspace'
     )
   }
+
+  return createAuthorizedKnowledgeBase(data, requestId)
+}
+
+/**
+ * Persists a knowledge base for an already-authorized application use case.
+ * Callers outside the application layer must use {@link createKnowledgeBase}.
+ */
+export async function createAuthorizedKnowledgeBase(
+  data: CreateKnowledgeBaseData,
+  requestId: string
+): Promise<KnowledgeBaseWithCounts> {
+  const kbId = generateId()
+  const now = new Date()
 
   await assertKnowledgeBaseFolder(data.folderId, data.workspaceId)
 
@@ -368,7 +498,7 @@ export async function updateKnowledgeBase(
     }
   },
   requestId: string,
-  options?: { actorUserId?: string }
+  options?: { actorUserId?: string; assertedWorkspaceId?: string }
 ): Promise<KnowledgeBaseWithCounts> {
   const now = new Date()
   const updateData: Partial<typeof knowledgeBase.$inferInsert> = {
@@ -403,7 +533,15 @@ export async function updateKnowledgeBase(
       const [snapshot] = await db
         .select({ workspaceId: knowledgeBase.workspaceId })
         .from(knowledgeBase)
-        .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+        .where(
+          and(
+            eq(knowledgeBase.id, knowledgeBaseId),
+            isNull(knowledgeBase.deletedAt),
+            options?.assertedWorkspaceId
+              ? eq(knowledgeBase.workspaceId, options.assertedWorkspaceId)
+              : undefined
+          )
+        )
         .limit(1)
       if (!snapshot) {
         throw new KnowledgeBaseNotFoundError(knowledgeBaseId)
@@ -427,7 +565,15 @@ export async function updateKnowledgeBase(
         folderId: knowledgeBase.folderId,
       })
       .from(knowledgeBase)
-      .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+      .where(
+        and(
+          eq(knowledgeBase.id, knowledgeBaseId),
+          isNull(knowledgeBase.deletedAt),
+          options?.assertedWorkspaceId
+            ? eq(knowledgeBase.workspaceId, options.assertedWorkspaceId)
+            : undefined
+        )
+      )
       .limit(1)
     if (!kbSnapshot) {
       throw new KnowledgeBaseNotFoundError(knowledgeBaseId)
@@ -510,7 +656,15 @@ export async function updateKnowledgeBase(
       const [currentKb] = await tx
         .select({ workspaceId: knowledgeBase.workspaceId, userId: knowledgeBase.userId })
         .from(knowledgeBase)
-        .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+        .where(
+          and(
+            eq(knowledgeBase.id, knowledgeBaseId),
+            isNull(knowledgeBase.deletedAt),
+            options?.assertedWorkspaceId
+              ? eq(knowledgeBase.workspaceId, options.assertedWorkspaceId)
+              : undefined
+          )
+        )
         .for('update')
         .limit(1)
 
@@ -632,7 +786,15 @@ export async function updateKnowledgeBase(
       await tx
         .update(knowledgeBase)
         .set(updateData)
-        .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+        .where(
+          and(
+            eq(knowledgeBase.id, knowledgeBaseId),
+            isNull(knowledgeBase.deletedAt),
+            options?.assertedWorkspaceId
+              ? eq(knowledgeBase.workspaceId, options.assertedWorkspaceId)
+              : undefined
+          )
+        )
 
       // When a KB changes workspace, re-point the ownership bindings for its
       // stored files so file authorization (which resolves the owning workspace
@@ -726,7 +888,15 @@ export async function updateKnowledgeBase(
         isNull(document.deletedAt)
       )
     )
-    .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+    .where(
+      and(
+        eq(knowledgeBase.id, knowledgeBaseId),
+        isNull(knowledgeBase.deletedAt),
+        options?.assertedWorkspaceId
+          ? eq(knowledgeBase.workspaceId, options.assertedWorkspaceId)
+          : undefined
+      )
+    )
     .groupBy(knowledgeBase.id)
     .limit(1)
 
@@ -804,12 +974,26 @@ export async function getKnowledgeBaseById(
 export async function deleteKnowledgeBase(
   knowledgeBaseId: string,
   requestId: string,
-  options?: { archivedAt?: Date }
+  options?: { archivedAt?: Date; assertedWorkspaceId?: string }
 ): Promise<void> {
   const now = options?.archivedAt ?? new Date()
 
   await db.transaction(async (tx) => {
-    await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
+    const [locked] = await tx
+      .select({ id: knowledgeBase.id, workspaceId: knowledgeBase.workspaceId })
+      .from(knowledgeBase)
+      .where(
+        and(
+          eq(knowledgeBase.id, knowledgeBaseId),
+          isNull(knowledgeBase.deletedAt),
+          options?.assertedWorkspaceId
+            ? eq(knowledgeBase.workspaceId, options.assertedWorkspaceId)
+            : undefined
+        )
+      )
+      .limit(1)
+      .for('update')
+    if (!locked) throw new KnowledgeBaseNotFoundError(knowledgeBaseId)
 
     await tx
       .update(knowledgeBase)
@@ -817,7 +1001,15 @@ export async function deleteKnowledgeBase(
         deletedAt: now,
         updatedAt: now,
       })
-      .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+      .where(
+        and(
+          eq(knowledgeBase.id, knowledgeBaseId),
+          isNull(knowledgeBase.deletedAt),
+          options?.assertedWorkspaceId
+            ? eq(knowledgeBase.workspaceId, options.assertedWorkspaceId)
+            : undefined
+        )
+      )
 
     await tx
       .update(document)

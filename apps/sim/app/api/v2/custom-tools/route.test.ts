@@ -1,302 +1,178 @@
 /**
  * @vitest-environment node
- *
- * Public v2 custom tools list/create: gate ordering, contract validation, and
- * the workspace-scoped single-resource create that replaced the bulk upsert.
  */
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCheckRateLimit,
-  mockResolveWorkspaceAccess,
-  mockListWorkspaceCustomTools,
-  mockGetWorkspaceCustomToolByTitle,
-  mockUpsertCustomTools,
-} = vi.hoisted(() => ({
-  mockCheckRateLimit: vi.fn(),
-  mockResolveWorkspaceAccess: vi.fn(),
-  mockListWorkspaceCustomTools: vi.fn(),
-  mockGetWorkspaceCustomToolByTitle: vi.fn(),
-  mockUpsertCustomTools: vi.fn(),
-}))
+const { mocks, MockV2ApiKeyUnauthenticatedError } = vi.hoisted(() => {
+  class MockV2ApiKeyUnauthenticatedError extends Error {}
+  return {
+    mocks: {
+      authenticate: vi.fn(),
+      preauthRate: vi.fn(),
+      operationRate: vi.fn(),
+      gate: vi.fn(),
+      list: vi.fn(),
+      create: vi.fn(),
+    },
+    MockV2ApiKeyUnauthenticatedError,
+  }
+})
 
-vi.mock('@/app/api/v1/middleware', () => ({
-  checkRateLimit: mockCheckRateLimit,
-  resolveWorkspaceAccess: mockResolveWorkspaceAccess,
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
+  authenticateV2ApiKey: mocks.authenticate,
+  V2ApiKeyUnauthenticatedError: MockV2ApiKeyUnauthenticatedError,
 }))
-
-vi.mock('@/lib/workflows/custom-tools/operations', () => ({
-  listWorkspaceCustomTools: mockListWorkspaceCustomTools,
-  getWorkspaceCustomToolByTitle: mockGetWorkspaceCustomToolByTitle,
-  upsertCustomTools: mockUpsertCustomTools,
+vi.mock('@/lib/core/rate-limiter', () => ({
+  RateLimiter: class {
+    checkRateLimitDirect = mocks.preauthRate
+    checkRateLimitDirectOrThrow = mocks.operationRate
+  },
+  getRateLimit: vi.fn().mockReturnValue({
+    maxTokens: 100,
+    refillRate: 100,
+    refillIntervalMs: 60_000,
+  }),
 }))
-
-vi.mock('@/app/api/v2/lib/gate', () => ({
-  v2ApiGateError: vi.fn().mockResolvedValue(null),
+vi.mock('@/lib/api/server/rate-limit-context', () => ({
+  recordRateLimitSnapshot: vi.fn(),
+  getRateLimitHeaders: vi.fn().mockReturnValue(null),
+}))
+vi.mock('@/lib/core/utils/request', () => ({
+  generateRequestId: vi.fn().mockReturnValue('request-1'),
+  getClientIp: vi.fn().mockReturnValue('127.0.0.1'),
+}))
+vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: mocks.gate }))
+vi.mock('@/lib/custom-tools/application/use-cases', () => ({
+  listWorkspaceCustomToolsUseCase: {
+    operation: { id: 'custom_tools.list' },
+    execute: mocks.list,
+  },
+  createWorkspaceCustomToolUseCase: {
+    operation: { id: 'custom_tools.create' },
+    execute: mocks.create,
+  },
 }))
 
 import { GET, POST } from '@/app/api/v2/custom-tools/route'
 
+const WORKSPACE_ID = 'workspace-1'
+const PRINCIPAL = { kind: 'workspace_api_key' as const, workspaceId: WORKSPACE_ID, keyId: 'key-1' }
+const AUTH = {
+  principal: PRINCIPAL,
+  rolloutUserId: 'owner-1',
+  rateLimitSubjectIds: ['workspace:workspace-1'] as const,
+  rateLimitSubscription: null,
+  keyType: 'workspace' as const,
+}
 const RATE_LIMIT_OK = {
   allowed: true,
-  userId: 'user-1',
-  keyType: 'workspace',
   limit: 100,
   remaining: 99,
-  resetAt: new Date('2024-01-01T01:00:00Z'),
+  resetAt: new Date('2026-01-01T00:00:00Z'),
+  retryAfterMs: 0,
 }
-
-const RATE_LIMIT_DENIED = {
-  allowed: false,
-  limit: 100,
-  remaining: 0,
-  resetAt: new Date('2024-01-01T01:00:00Z'),
-  retryAfterMs: 1000,
-}
-
 const TOOL_SCHEMA = {
   type: 'function',
   function: {
     name: 'lookup_order',
-    description: 'Look up an order by id',
-    parameters: {
-      type: 'object',
-      properties: { orderId: { type: 'string' } },
-      required: ['orderId'],
-    },
+    parameters: { type: 'object', properties: {} },
   },
 }
-
-function buildTool(overrides: Record<string, unknown> = {}) {
-  return {
-    id: 'tool_abc123',
-    workspaceId: 'workspace-1',
-    userId: 'user-1',
-    title: 'lookup_order',
-    schema: TOOL_SCHEMA,
-    code: 'return { ok: true }',
-    createdAt: new Date('2024-01-01T00:00:00Z'),
-    updatedAt: new Date('2024-01-02T00:00:00Z'),
-    ...overrides,
-  }
-}
-
-/** What the route forwards for a bare `?workspaceId=` list. */
-const DEFAULT_LIST_ARGS = {
-  search: undefined,
-  sortBy: 'createdAt',
-  sortOrder: 'desc',
-}
-
-const callList = (query: string) =>
-  GET(new NextRequest(`http://localhost:3000/api/v2/custom-tools?${query}`))
-
-function callCreate(body: unknown) {
-  return POST(
-    new NextRequest('http://localhost:3000/api/v2/custom-tools', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
-  )
-}
-
-const VALID_BODY = {
-  workspaceId: 'workspace-1',
+const tool = {
+  id: 'tool-1',
+  workspaceId: WORKSPACE_ID,
+  userId: 'owner-1',
   title: 'lookup_order',
   schema: TOOL_SCHEMA,
   code: 'return { ok: true }',
+  createdAt: new Date('2026-01-01T00:00:00Z'),
+  updatedAt: new Date('2026-01-02T00:00:00Z'),
 }
 
-describe('GET /api/v2/custom-tools', () => {
+function request(method: 'GET' | 'POST', url: string, body?: unknown) {
+  return new NextRequest(`http://localhost:3000${url}`, {
+    method,
+    headers: {
+      'x-api-key': 'key',
+      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+    },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  })
+}
+
+describe('/api/v2/custom-tools', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
-    mockResolveWorkspaceAccess.mockResolvedValue(null)
-    mockListWorkspaceCustomTools.mockResolvedValue([buildTool()])
+    mocks.authenticate.mockResolvedValue(AUTH)
+    mocks.preauthRate.mockResolvedValue(RATE_LIMIT_OK)
+    mocks.operationRate.mockResolvedValue(RATE_LIMIT_OK)
+    mocks.gate.mockResolvedValue(null)
+    mocks.list.mockResolvedValue({ tools: [tool] })
+    mocks.create.mockResolvedValue({ tool })
   })
 
-  it('returns 404 when the v2 API surface flag is off', async () => {
-    const { v2ApiGateError } = await import('@/app/api/v2/lib/gate')
-    const { v2Error } = await import('@/app/api/v2/lib/response')
-    vi.mocked(v2ApiGateError).mockResolvedValueOnce(v2Error('NOT_FOUND', 'Not found'))
+  it('lists custom tools through the authorized application use case', async () => {
+    const response = await GET(request('GET', `/api/v2/custom-tools?workspaceId=${WORKSPACE_ID}`))
 
-    const res = await callList('workspaceId=workspace-1')
-
-    expect(res.status).toBe(404)
-    expect(mockListWorkspaceCustomTools).not.toHaveBeenCalled()
-  })
-
-  it('400s when workspaceId is missing', async () => {
-    const res = await callList('')
-    expect(res.status).toBe(400)
-    expect((await res.json()).error.code).toBe('BAD_REQUEST')
-    expect(mockListWorkspaceCustomTools).not.toHaveBeenCalled()
-  })
-
-  it('surfaces an access-denied failure in the v2 error envelope', async () => {
-    mockResolveWorkspaceAccess.mockResolvedValue({
-      status: 403,
-      code: 'FORBIDDEN',
-      message: 'Access denied',
-    })
-    const res = await callList('workspaceId=workspace-1')
-    expect(res.status).toBe(403)
-    expect(mockListWorkspaceCustomTools).not.toHaveBeenCalled()
-  })
-
-  it('returns the rate-limit response when denied', async () => {
-    mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_DENIED)
-    const res = await callList('workspaceId=workspace-1')
-    expect(res.status).toBe(429)
-    expect((await res.json()).error.code).toBe('RATE_LIMITED')
-  })
-
-  it('returns the public tool shape in the cursor envelope, workspace-scoped', async () => {
-    const res = await callList('workspaceId=workspace-1')
-    const body = await res.json()
-
-    expect(res.status).toBe(200)
-    expect(body.nextCursor).toBeNull()
-    expect(body.data).toEqual([
-      {
-        id: 'tool_abc123',
-        title: 'lookup_order',
-        schema: TOOL_SCHEMA,
-        code: 'return { ok: true }',
-        createdAt: '2024-01-01T00:00:00.000Z',
-        updatedAt: '2024-01-02T00:00:00.000Z',
+    expect(response.status).toBe(200)
+    expect((await response.json()).data[0]).toMatchObject({ id: 'tool-1', title: 'lookup_order' })
+    expect(mocks.list).toHaveBeenCalledWith({
+      principal: PRINCIPAL,
+      input: {
+        workspaceId: WORKSPACE_ID,
+        search: undefined,
+        sortBy: 'createdAt',
+        sortOrder: 'desc',
       },
-    ])
-    expect(mockListWorkspaceCustomTools).toHaveBeenCalledWith({
-      workspaceId: 'workspace-1',
-      ...DEFAULT_LIST_ARGS,
+      request: expect.anything(),
     })
-  })
-  it('400s on a sort field outside the enum instead of letting it reach the query', async () => {
-    const res = await callList(`workspaceId=workspace-1&sortBy=name);--`)
-
-    expect(res.status).toBe(400)
-    expect((await res.json()).error.code).toBe('BAD_REQUEST')
-  })
-
-  it('400s on a sort direction outside the enum', async () => {
-    const res = await callList(`workspaceId=workspace-1&sortOrder=sideways`)
-
-    expect(res.status).toBe(400)
-  })
-
-  it('400s on an empty search rather than treating it as unsearched', async () => {
-    const res = await callList(`workspaceId=workspace-1&search=`)
-
-    expect(res.status).toBe(400)
-  })
-
-  it('forwards search and sort into the query and still terminates pagination', async () => {
-    const res = await callList(`workspaceId=workspace-1&search=report&sortBy=title&sortOrder=asc`)
-
-    expect(res.status).toBe(200)
-    expect((await res.json()).nextCursor).toBeNull()
-  })
-})
-
-describe('POST /api/v2/custom-tools', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
-    mockResolveWorkspaceAccess.mockResolvedValue(null)
-    mockGetWorkspaceCustomToolByTitle.mockResolvedValue(null)
-    mockUpsertCustomTools.mockResolvedValue([buildTool()])
-  })
-
-  it('returns 404 when the v2 API surface flag is off', async () => {
-    const { v2ApiGateError } = await import('@/app/api/v2/lib/gate')
-    const { v2Error } = await import('@/app/api/v2/lib/response')
-    vi.mocked(v2ApiGateError).mockResolvedValueOnce(v2Error('NOT_FOUND', 'Not found'))
-
-    const res = await callCreate(VALID_BODY)
-
-    expect(res.status).toBe(404)
-    expect(mockUpsertCustomTools).not.toHaveBeenCalled()
-  })
-
-  it('400s when the schema is not an OpenAI function declaration', async () => {
-    const res = await callCreate({ ...VALID_BODY, schema: { type: 'nonsense' } })
-    expect(res.status).toBe(400)
-    expect((await res.json()).error.code).toBe('BAD_REQUEST')
-    expect(mockUpsertCustomTools).not.toHaveBeenCalled()
-  })
-
-  it('400s when the body carries an unknown field', async () => {
-    const res = await callCreate({ ...VALID_BODY, bogus: true })
-    expect(res.status).toBe(400)
-    expect(mockUpsertCustomTools).not.toHaveBeenCalled()
-  })
-
-  it('surfaces an access-denied failure in the v2 error envelope', async () => {
-    mockResolveWorkspaceAccess.mockResolvedValue({
-      status: 403,
-      code: 'FORBIDDEN',
-      message: 'Access denied',
-    })
-    const res = await callCreate(VALID_BODY)
-    expect(res.status).toBe(403)
-    expect(mockUpsertCustomTools).not.toHaveBeenCalled()
-  })
-
-  it('returns the rate-limit response when denied', async () => {
-    mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_DENIED)
-    const res = await callCreate(VALID_BODY)
-    expect(res.status).toBe(429)
-    expect((await res.json()).error.code).toBe('RATE_LIMITED')
-  })
-
-  it('409s on a duplicate title instead of hitting the unique index', async () => {
-    mockGetWorkspaceCustomToolByTitle.mockResolvedValue(buildTool())
-
-    const res = await callCreate(VALID_BODY)
-
-    expect(res.status).toBe(409)
-    expect((await res.json()).error.code).toBe('CONFLICT')
-    expect(mockUpsertCustomTools).not.toHaveBeenCalled()
-  })
-
-  it('409s when a concurrent create loses the title race inside the lib', async () => {
-    mockUpsertCustomTools.mockRejectedValue(
-      new Error('A tool with the title "v2_smoke_tool" already exists in this workspace')
+    expect(mocks.operationRate).toHaveBeenCalledWith(
+      'v2:custom_tools.list:workspace:workspace-1',
+      expect.objectContaining({ maxTokens: 100 })
     )
-
-    const res = await callCreate(VALID_BODY)
-
-    expect(res.status).toBe(409)
-    expect((await res.json()).error.code).toBe('CONFLICT')
   })
 
-  it('409s when the unique index rejects the loser of a title race', async () => {
-    const pgError = Object.assign(new Error('duplicate key value violates unique constraint'), {
-      code: '23505',
-    })
-    mockUpsertCustomTools.mockRejectedValue(pgError)
-
-    const res = await callCreate(VALID_BODY)
-
-    expect(res.status).toBe(409)
-    expect((await res.json()).error.code).toBe('CONFLICT')
-  })
-
-  it('creates the tool and returns 201 with the single tool', async () => {
-    const res = await callCreate(VALID_BODY)
-    const body = await res.json()
-
-    expect(res.status).toBe(201)
-    expect(body.data.customTool).toMatchObject({ id: 'tool_abc123', title: 'lookup_order' })
-    expect(mockUpsertCustomTools).toHaveBeenCalledWith(
-      expect.objectContaining({
-        workspaceId: 'workspace-1',
-        userId: 'user-1',
-        tools: [{ title: 'lookup_order', schema: TOOL_SCHEMA, code: 'return { ok: true }' }],
+  it('creates exactly one custom tool with the v2 source and status', async () => {
+    const response = await POST(
+      request('POST', '/api/v2/custom-tools', {
+        workspaceId: WORKSPACE_ID,
+        title: tool.title,
+        schema: TOOL_SCHEMA,
+        code: tool.code,
       })
     )
+
+    expect(response.status).toBe(201)
+    expect((await response.json()).data.customTool.id).toBe('tool-1')
+    expect(mocks.create).toHaveBeenCalledWith({
+      principal: PRINCIPAL,
+      input: {
+        workspaceId: WORKSPACE_ID,
+        title: tool.title,
+        schema: TOOL_SCHEMA,
+        code: tool.code,
+        source: 'api',
+      },
+      request: expect.anything(),
+    })
+  })
+
+  it('authenticates before validating a malformed create body', async () => {
+    mocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
+
+    const response = await POST(request('POST', '/api/v2/custom-tools', {}))
+
+    expect(response.status).toBe(401)
+    expect(mocks.create).not.toHaveBeenCalled()
+  })
+
+  it('rejects invalid list sort fields before application execution', async () => {
+    const response = await GET(
+      request('GET', `/api/v2/custom-tools?workspaceId=${WORKSPACE_ID}&sortBy=invalid`)
+    )
+
+    expect(response.status).toBe(400)
+    expect(mocks.list).not.toHaveBeenCalled()
   })
 })

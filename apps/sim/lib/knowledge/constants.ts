@@ -1,5 +1,11 @@
 /** Max character length for a knowledge base description, enforced at every layer (UI, internal API, v1 API). */
 export const KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH = 10_000
+/** Hard bound for full-workspace knowledge-base list projections. */
+export const MAX_KNOWLEDGE_BASES_PER_WORKSPACE = 10_000
+/** Hard bound for path-indexed knowledge folder trees and recursive cascades. */
+export const MAX_KNOWLEDGE_FOLDERS_PER_WORKSPACE = 10_000
+/** Hard bound for connector-type rows projected onto one knowledge-base list. */
+export const MAX_KNOWLEDGE_CONNECTOR_TYPE_ROWS_PER_LIST = 100_000
 
 /**
  * Chunking a knowledge base gets when its creator names no configuration.

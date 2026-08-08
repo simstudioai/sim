@@ -128,6 +128,7 @@ export const v2CreateCustomToolContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: v2DataResponse(v2CustomToolDataSchema),
+    status: 201,
   },
 })
 

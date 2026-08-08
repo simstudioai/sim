@@ -1,157 +1,192 @@
 /**
  * @vitest-environment node
- *
- * Public v2 knowledge-base list: the search/filter/sort convention reaching the
- * lib rather than being applied over its result.
  */
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
+  mockAuthenticate,
+  mockCheckPreAuth,
   mockCheckRateLimit,
-  mockResolveWorkspaceAccess,
-  mockGetKnowledgeBases,
-  mockLoadActiveFolderPathIndex,
+  mockList,
+  mockCreate,
+  mockPlatformCreated,
+  mockCapture,
 } = vi.hoisted(() => ({
+  mockAuthenticate: vi.fn(),
+  mockCheckPreAuth: vi.fn(),
   mockCheckRateLimit: vi.fn(),
-  mockResolveWorkspaceAccess: vi.fn(),
-  mockGetKnowledgeBases: vi.fn(),
-  mockLoadActiveFolderPathIndex: vi.fn(),
+  mockList: vi.fn(),
+  mockCreate: vi.fn(),
+  mockPlatformCreated: vi.fn(),
+  mockCapture: vi.fn(),
 }))
 
-vi.mock('@/app/api/v1/middleware', () => ({
-  checkRateLimit: mockCheckRateLimit,
-  resolveWorkspaceAccess: mockResolveWorkspaceAccess,
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
+  authenticateV2ApiKey: mockAuthenticate,
+  V2ApiKeyUnauthenticatedError: class V2ApiKeyUnauthenticatedError extends Error {},
 }))
 
-vi.mock('@/lib/knowledge/service', () => ({
-  getKnowledgeBases: mockGetKnowledgeBases,
+vi.mock('@/lib/core/rate-limiter', () => ({
+  getRateLimit: () => ({ maxTokens: 100, refillRate: 100, refillIntervalMs: 60_000 }),
+  RateLimiter: class RateLimiter {
+    checkRateLimitDirect(...args: unknown[]) {
+      return mockCheckPreAuth(...args)
+    }
+
+    checkRateLimitDirectOrThrow(...args: unknown[]) {
+      return mockCheckRateLimit(...args)
+    }
+  },
 }))
 
-vi.mock('@/lib/folders/queries', () => ({
-  loadActiveFolderPathIndex: mockLoadActiveFolderPathIndex,
+vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: vi.fn().mockResolvedValue(null) }))
+
+vi.mock('@/lib/knowledge/application/knowledge-bases', () => ({
+  listKnowledgeBases: { operation: { id: 'knowledge.list' }, execute: mockList },
+  createKnowledgeBase: { operation: { id: 'knowledge.create' }, execute: mockCreate },
 }))
 
-vi.mock('@/lib/knowledge/orchestration', () => ({
-  performCreateKnowledgeBase: vi.fn(),
+vi.mock('@/lib/core/telemetry', () => ({
+  PlatformEvents: { knowledgeBaseCreated: mockPlatformCreated },
 }))
 
-vi.mock('@/app/api/v2/lib/gate', () => ({
-  v2ApiGateError: vi.fn().mockResolvedValue(null),
-}))
+vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mockCapture }))
 
-import { GET } from '@/app/api/v2/knowledge/route'
+import { GET, POST } from '@/app/api/v2/knowledge/route'
 
-const WS = 'workspace-1'
-const FOLDER_ID = 'fold_1'
-
+const WORKSPACE_ID = 'workspace-1'
 const RATE_LIMIT_OK = {
   allowed: true,
-  userId: 'user-1',
-  keyType: 'workspace',
-  limit: 100,
   remaining: 99,
   resetAt: new Date('2024-01-01T01:00:00Z'),
+  retryAfterMs: 0,
 }
 
-/** What the route forwards for a bare `?workspaceId=` list. */
-const DEFAULT_LIST_ARGS = {
-  folderId: undefined,
-  search: undefined,
-  sortBy: 'createdAt',
-  sortOrder: 'asc',
-}
-
-function buildKnowledgeBase(overrides: Record<string, unknown> = {}) {
+function buildKnowledgeBase() {
   return {
-    id: 'kb_1',
+    id: 'kb-1',
     userId: 'user-1',
     name: 'Support docs',
     description: null,
     tokenCount: 0,
     embeddingModel: 'text-embedding-3-small',
     embeddingDimension: 1536,
-    chunkingConfig: { maxSize: 1024, minSize: 1, overlap: 200 },
-    workspaceId: WS,
+    chunkingConfig: { maxSize: 1024, minSize: 100, overlap: 200 },
+    workspaceId: WORKSPACE_ID,
     folderId: null,
     docCount: 2,
+    connectorTypes: ['notion'],
     createdAt: new Date('2024-01-01T00:00:00Z'),
     updatedAt: new Date('2024-01-02T00:00:00Z'),
     deletedAt: null,
-    ...overrides,
   }
 }
 
-const callList = (query: string) =>
-  GET(new NextRequest(`http://localhost:3000/api/v2/knowledge?${query}`))
-
-describe('GET /api/v2/knowledge', () => {
+describe('/api/v2/knowledge route composition', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockCheckPreAuth.mockResolvedValue(RATE_LIMIT_OK)
     mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
-    mockResolveWorkspaceAccess.mockResolvedValue(null)
-    mockGetKnowledgeBases.mockResolvedValue([buildKnowledgeBase()])
-    mockLoadActiveFolderPathIndex.mockResolvedValue({
-      rowById: new Map([['fold_1', { id: 'fold_1', name: 'Support', parentId: null }]]),
-      pathById: new Map([['fold_1', '/Support']]),
-      idByPath: new Map([['/Support', 'fold_1']]),
+    mockAuthenticate.mockResolvedValue({
+      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+      rolloutUserId: 'user-1',
+      rateLimitSubjectIds: ['api-key:key-1', 'user:user-1'],
+      rateLimitSubscription: null,
+      keyType: 'personal',
     })
+    mockList.mockResolvedValue({
+      knowledgeBases: [{ knowledgeBase: buildKnowledgeBase(), folderPath: '/' }],
+    })
+    mockCreate.mockResolvedValue({ knowledgeBase: buildKnowledgeBase(), folderPath: '/' })
   })
 
-  it('forwards search, folder, and sort into the query rather than filtering the result', async () => {
-    const res = await callList(
-      `workspaceId=${WS}&search=support&folderPath=${encodeURIComponent('/Support')}&sortBy=name&sortOrder=desc`
+  it('delegates the bounded list query with the authenticated principal', async () => {
+    const request = new NextRequest(
+      `http://localhost/api/v2/knowledge?workspaceId=${WORKSPACE_ID}&search=support&folderPath=%2F&sortBy=name&sortOrder=desc`,
+      { headers: { 'x-api-key': 'secret' } }
     )
 
-    expect(res.status).toBe(200)
-    expect(mockGetKnowledgeBases).toHaveBeenCalledWith('user-1', WS, 'active', {
-      folderId: FOLDER_ID,
-      search: 'support',
-      sortBy: 'name',
-      sortOrder: 'desc',
+    const response = await GET(request)
+
+    expect(response.status).toBe(200)
+    expect(mockList).toHaveBeenCalledWith({
+      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+      input: {
+        workspaceId: WORKSPACE_ID,
+        folderPath: '/',
+        search: 'support',
+        sortBy: 'name',
+        sortOrder: 'desc',
+      },
+      request,
+    })
+    expect(await response.json()).toEqual({
+      data: [
+        expect.objectContaining({
+          id: 'kb-1',
+          folderPath: '/',
+          connectorTypes: ['notion'],
+          createdAt: '2024-01-01T00:00:00.000Z',
+        }),
+      ],
+      nextCursor: null,
     })
   })
 
-  it('defaults to the createdAt ordering when no sort is requested', async () => {
-    await callList(`workspaceId=${WS}`)
-
-    expect(mockGetKnowledgeBases).toHaveBeenCalledWith('user-1', WS, 'active', DEFAULT_LIST_ARGS)
-  })
-
-  it('treats folderPath=/ as root-only while omission lists every folder', async () => {
-    await callList(`workspaceId=${WS}&folderPath=%2F`)
-
-    expect(mockGetKnowledgeBases).toHaveBeenCalledWith('user-1', WS, 'active', {
-      ...DEFAULT_LIST_ARGS,
-      folderId: null,
+  it('returns 201 and keeps human analytics on the personal-key actor', async () => {
+    const request = new NextRequest('http://localhost/api/v2/knowledge', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-api-key': 'secret' },
+      body: JSON.stringify({ workspaceId: WORKSPACE_ID, name: 'Support docs' }),
     })
+
+    const response = await POST(request)
+
+    expect(response.status).toBe(201)
+    expect(mockCreate).toHaveBeenCalledWith({
+      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+      input: {
+        workspaceId: WORKSPACE_ID,
+        name: 'Support docs',
+        description: undefined,
+        chunkingConfig: { maxSize: 1024, minSize: 100, overlap: 200 },
+        folderPath: undefined,
+        source: 'api',
+      },
+      request,
+    })
+    expect(mockPlatformCreated).toHaveBeenCalledWith({
+      knowledgeBaseId: 'kb-1',
+      name: 'Support docs',
+      workspaceId: WORKSPACE_ID,
+    })
+    expect(mockCapture).toHaveBeenCalledWith(
+      'user-1',
+      'knowledge_base_created',
+      expect.objectContaining({ workspace_id: WORKSPACE_ID }),
+      expect.any(Object)
+    )
   })
 
-  it('400s on a sort field outside the enum instead of letting it reach the query', async () => {
-    const res = await callList(`workspaceId=${WS}&sortBy=name);--`)
+  it('does not attribute workspace-key creation analytics to a billing owner', async () => {
+    mockAuthenticate.mockResolvedValue({
+      principal: { kind: 'workspace_api_key', workspaceId: WORKSPACE_ID, keyId: 'key-2' },
+      rolloutUserId: 'billing-owner',
+      rateLimitSubjectIds: ['api-key:key-2', `workspace:${WORKSPACE_ID}`],
+      rateLimitSubscription: null,
+      keyType: 'workspace',
+    })
+    const request = new NextRequest('http://localhost/api/v2/knowledge', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-api-key': 'secret' },
+      body: JSON.stringify({ workspaceId: WORKSPACE_ID, name: 'Support docs' }),
+    })
 
-    expect(res.status).toBe(400)
-    expect((await res.json()).error.code).toBe('BAD_REQUEST')
-    expect(mockGetKnowledgeBases).not.toHaveBeenCalled()
-  })
+    const response = await POST(request)
 
-  it('400s on a sort direction outside the enum', async () => {
-    const res = await callList(`workspaceId=${WS}&sortOrder=sideways`)
-
-    expect(res.status).toBe(400)
-    expect(mockGetKnowledgeBases).not.toHaveBeenCalled()
-  })
-
-  it('400s on an empty search rather than treating it as unsearched', async () => {
-    const res = await callList(`workspaceId=${WS}&search=`)
-
-    expect(res.status).toBe(400)
-    expect(mockGetKnowledgeBases).not.toHaveBeenCalled()
-  })
-
-  it('terminates pagination with a filter applied', async () => {
-    const res = await callList(`workspaceId=${WS}&search=support`)
-
-    expect((await res.json()).nextCursor).toBeNull()
+    expect(response.status).toBe(201)
+    expect(mockPlatformCreated).toHaveBeenCalledOnce()
+    expect(mockCapture).not.toHaveBeenCalled()
   })
 })

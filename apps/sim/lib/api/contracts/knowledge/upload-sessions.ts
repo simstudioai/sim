@@ -21,6 +21,7 @@ export const createKnowledgeDocumentUploadContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: v2DataResponse(v2CreateKnowledgeDocumentUploadDataSchema),
+    status: 201,
   },
 })
 

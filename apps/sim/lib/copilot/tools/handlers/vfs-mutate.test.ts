@@ -33,9 +33,10 @@ const mocks = vi.hoisted(() => ({
   verifyFolderWorkspace: vi.fn(),
   listTables: vi.fn(),
   renameTable: vi.fn(),
-  getKnowledgeBases: vi.fn(),
+  listKnowledgeBases: vi.fn(),
   updateKnowledgeBase: vi.fn(),
-  checkKnowledgeBaseWriteAccess: vi.fn(),
+  deleteKnowledgeBase: vi.fn(),
+  knowledgeBaseDeleted: vi.fn(),
 }))
 
 vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
@@ -151,17 +152,28 @@ vi.mock('@/lib/table/service', () => ({
   renameTable: mocks.renameTable,
 }))
 
-vi.mock('@/lib/knowledge/service', () => ({
-  getKnowledgeBases: mocks.getKnowledgeBases,
-  updateKnowledgeBase: mocks.updateKnowledgeBase,
+vi.mock('@/lib/knowledge/application/knowledge-bases', () => ({
+  listKnowledgeBases: {
+    operation: { id: 'knowledge.list' },
+    execute: mocks.listKnowledgeBases,
+  },
+  updateKnowledgeBaseOperation: {
+    operation: { id: 'knowledge.update' },
+    execute: mocks.updateKnowledgeBase,
+  },
+  deleteKnowledgeBaseOperation: {
+    operation: { id: 'knowledge.delete' },
+    execute: mocks.deleteKnowledgeBase,
+  },
 }))
 
-vi.mock('@/app/api/knowledge/utils', () => ({
-  checkKnowledgeBaseWriteAccess: mocks.checkKnowledgeBaseWriteAccess,
+vi.mock('@/lib/core/telemetry', () => ({
+  PlatformEvents: { knowledgeBaseDeleted: mocks.knowledgeBaseDeleted },
 }))
 
 import type { ExecutionContext } from '@/lib/copilot/request/types'
-import { executeVfsCp, executeVfsMkdir, executeVfsMv } from './vfs-mutate'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { executeVfsCp, executeVfsMkdir, executeVfsMv, executeVfsRm } from './vfs-mutate'
 
 const context = {
   userId: 'user-1',
@@ -594,23 +606,67 @@ describe('vfs mv/cp', () => {
       expect(result.error).toContain('cannot be copied')
     })
 
-    it('renames a knowledge base after a write-access check', async () => {
-      mocks.getKnowledgeBases.mockResolvedValue([{ id: 'kb-1', name: 'Docs' }])
-      mocks.checkKnowledgeBaseWriteAccess.mockResolvedValue({ hasAccess: true })
-      mocks.updateKnowledgeBase.mockResolvedValue({ id: 'kb-1', name: 'Product Docs' })
+    it('renames a knowledge base through trusted application operations', async () => {
+      mocks.listKnowledgeBases.mockResolvedValue({
+        knowledgeBases: [{ knowledgeBase: { id: 'kb-1', name: 'Docs' }, folderPath: '/' }],
+      })
+      mocks.updateKnowledgeBase.mockResolvedValue({
+        knowledgeBase: { id: 'kb-1', name: 'Product Docs' },
+        folderPath: '/',
+      })
 
       const result = await executeVfsMv(
         { sources: ['knowledgebases/Docs'], destination: 'knowledgebases/Product Docs' },
         context
       )
 
-      expect(mocks.checkKnowledgeBaseWriteAccess).toHaveBeenCalledWith('kb-1', 'user-1')
       expect(mocks.updateKnowledgeBase).toHaveBeenCalledWith(
-        'kb-1',
-        { name: 'Product Docs' },
-        expect.any(String)
+        expect.objectContaining({
+          principal: expect.objectContaining({
+            kind: 'delegated',
+            subjectUserId: 'user-1',
+            workspaceId: 'ws-1',
+            delegationId: 'tool-call-1',
+          }),
+          input: {
+            knowledgeBaseId: 'kb-1',
+            assertedWorkspaceId: 'ws-1',
+            name: 'Product Docs',
+            source: 'agent',
+          },
+        })
       )
       expect(result.success).toBe(true)
+    })
+
+    it('propagates knowledge application infrastructure failures', async () => {
+      mocks.listKnowledgeBases.mockRejectedValueOnce(new Error('knowledge database unavailable'))
+
+      await expect(
+        executeVfsMv(
+          { sources: ['knowledgebases/Docs'], destination: 'knowledgebases/Product Docs' },
+          context
+        )
+      ).rejects.toThrow('knowledge database unavailable')
+    })
+
+    it('preserves an actionable knowledge rename conflict', async () => {
+      mocks.listKnowledgeBases.mockResolvedValue({
+        knowledgeBases: [{ knowledgeBase: { id: 'kb-1', name: 'Docs' }, folderPath: '/' }],
+      })
+      mocks.updateKnowledgeBase.mockRejectedValue(
+        new OrchestrationError('conflict', 'A knowledge base named Product Docs already exists')
+      )
+
+      const result = await executeVfsMv(
+        { sources: ['knowledgebases/Docs'], destination: 'knowledgebases/Product Docs' },
+        context
+      )
+
+      expect(result).toMatchObject({
+        success: false,
+        error: 'A knowledge base named Product Docs already exists',
+      })
     })
 
     it('rejects the reserved knowledgebases/connectors name', async () => {
@@ -620,6 +676,55 @@ describe('vfs mv/cp', () => {
       )
       expect(result.success).toBe(false)
       expect(result.error).toContain('reserved')
+    })
+
+    it('deletes a knowledge base through the trusted application operation', async () => {
+      mocks.listKnowledgeBases.mockResolvedValue({
+        knowledgeBases: [{ knowledgeBase: { id: 'kb-1', name: 'Docs' }, folderPath: '/' }],
+      })
+      mocks.deleteKnowledgeBase.mockResolvedValue({ id: 'kb-1', name: 'Docs' })
+
+      const result = await executeVfsRm({ paths: ['knowledgebases/Docs'] }, context)
+
+      expect(result).toMatchObject({
+        success: true,
+        output: { results: [{ from: 'knowledgebases/Docs', id: 'kb-1' }] },
+      })
+      expect(mocks.deleteKnowledgeBase).toHaveBeenCalledWith(
+        expect.objectContaining({
+          principal: expect.objectContaining({ delegationId: 'tool-call-1' }),
+          input: {
+            knowledgeBaseId: 'kb-1',
+            assertedWorkspaceId: 'ws-1',
+            source: 'agent',
+          },
+        })
+      )
+      expect(mocks.knowledgeBaseDeleted).toHaveBeenCalledWith({ knowledgeBaseId: 'kb-1' })
+    })
+
+    it('preserves an actionable knowledge delete failure', async () => {
+      mocks.listKnowledgeBases.mockResolvedValue({
+        knowledgeBases: [{ knowledgeBase: { id: 'kb-1', name: 'Docs' }, folderPath: '/' }],
+      })
+      mocks.deleteKnowledgeBase.mockRejectedValue(
+        new OrchestrationError('not_found', 'Knowledge base no longer exists')
+      )
+
+      const result = await executeVfsRm({ paths: ['knowledgebases/Docs'] }, context)
+
+      expect(result).toMatchObject({
+        success: false,
+        error: 'Knowledge base no longer exists',
+        output: {
+          results: [
+            expect.objectContaining({
+              from: 'knowledgebases/Docs',
+              error: 'Knowledge base no longer exists',
+            }),
+          ],
+        },
+      })
     })
   })
 })

@@ -121,6 +121,24 @@ export type PublicWorkflowLogLookup =
   | { column: 'executionId'; value: string }
 
 /**
+ * Resolves only the canonical resource scope needed to authorize a public run
+ * lookup. Protected log content is loaded separately after authorization.
+ */
+export async function getPublicWorkflowLogScope(executionId: string) {
+  const [scope] = await db
+    .select({
+      executionId: workflowExecutionLogs.executionId,
+      workflowId: workflowExecutionLogs.workflowId,
+      workspaceId: workflowExecutionLogs.workspaceId,
+    })
+    .from(workflowExecutionLogs)
+    .where(eq(workflowExecutionLogs.executionId, executionId))
+    .limit(1)
+
+  return scope ?? null
+}
+
+/**
  * Loads one workflow log and its optional workflow snapshot. The snapshot join
  * is deliberately left-sided: a missing snapshot does not make an otherwise
  * valid execution disappear from the log resource.

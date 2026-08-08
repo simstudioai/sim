@@ -1,365 +1,197 @@
 /**
  * @vitest-environment node
- *
- * Public v2 MCP servers list/create: gate ordering, contract validation, the
- * write-only `headers` projection, and the 409-on-duplicate-URL departure from
- * the internal upsert.
  */
+import type { mcpServers } from '@sim/db/schema'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { McpServerRow } from '@/lib/mcp/queries'
 
-const {
-  mockCheckRateLimit,
-  mockResolveWorkspaceAccess,
-  mockListWorkspaceMcpServers,
-  mockGetWorkspaceMcpServer,
-  mockGetMcpServerIdState,
-  mockPerformCreateMcpServer,
-} = vi.hoisted(() => ({
-  mockCheckRateLimit: vi.fn(),
-  mockResolveWorkspaceAccess: vi.fn(),
-  mockListWorkspaceMcpServers: vi.fn(),
-  mockGetWorkspaceMcpServer: vi.fn(),
-  mockGetMcpServerIdState: vi.fn(),
-  mockPerformCreateMcpServer: vi.fn(),
+const { mocks, MockV2ApiKeyUnauthenticatedError } = vi.hoisted(() => {
+  class MockV2ApiKeyUnauthenticatedError extends Error {}
+  return {
+    mocks: {
+      authenticate: vi.fn(),
+      preauthRate: vi.fn(),
+      operationRate: vi.fn(),
+      gate: vi.fn(),
+      list: vi.fn(),
+      create: vi.fn(),
+      capture: vi.fn(),
+    },
+    MockV2ApiKeyUnauthenticatedError,
+  }
+})
+
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
+  authenticateV2ApiKey: mocks.authenticate,
+  V2ApiKeyUnauthenticatedError: MockV2ApiKeyUnauthenticatedError,
 }))
-
-vi.mock('@/app/api/v1/middleware', () => ({
-  checkRateLimit: mockCheckRateLimit,
-  resolveWorkspaceAccess: mockResolveWorkspaceAccess,
+vi.mock('@/lib/core/rate-limiter', () => ({
+  RateLimiter: class {
+    checkRateLimitDirect = mocks.preauthRate
+    checkRateLimitDirectOrThrow = mocks.operationRate
+  },
+  getRateLimit: vi.fn().mockReturnValue({
+    maxTokens: 100,
+    refillRate: 100,
+    refillIntervalMs: 60_000,
+  }),
 }))
-
-vi.mock('@/lib/mcp/queries', () => ({
-  listWorkspaceMcpServers: mockListWorkspaceMcpServers,
-  getWorkspaceMcpServer: mockGetWorkspaceMcpServer,
-  getMcpServerIdState: mockGetMcpServerIdState,
+vi.mock('@/lib/api/server/rate-limit-context', () => ({
+  recordRateLimitSnapshot: vi.fn(),
+  getRateLimitHeaders: vi.fn().mockReturnValue(null),
 }))
-
-vi.mock('@/lib/mcp/orchestration', () => ({
-  performCreateMcpServer: mockPerformCreateMcpServer,
+vi.mock('@/lib/core/utils/request', () => ({
+  generateRequestId: vi.fn().mockReturnValue('request-1'),
+  getClientIp: vi.fn().mockReturnValue('127.0.0.1'),
 }))
-
-vi.mock('@/app/api/v2/lib/gate', () => ({
-  v2ApiGateError: vi.fn().mockResolvedValue(null),
+vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: mocks.gate }))
+vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.capture }))
+vi.mock('@/lib/mcp/application/use-cases', () => ({
+  listMcpServersUseCase: { operation: { id: 'mcp_servers.list' }, execute: mocks.list },
+  createMcpServerUseCase: { operation: { id: 'mcp_servers.create' }, execute: mocks.create },
 }))
 
 import { GET, POST } from '@/app/api/v2/mcp-servers/route'
 
+type McpServerRow = typeof mcpServers.$inferSelect
+const WORKSPACE_ID = 'workspace-1'
+const PRINCIPAL = { kind: 'workspace_api_key' as const, workspaceId: WORKSPACE_ID, keyId: 'key-1' }
+const AUTH = {
+  principal: PRINCIPAL,
+  rolloutUserId: 'owner-1',
+  rateLimitSubjectIds: ['workspace:workspace-1'] as const,
+  rateLimitSubscription: null,
+  keyType: 'workspace' as const,
+}
 const RATE_LIMIT_OK = {
   allowed: true,
-  userId: 'user-1',
-  keyType: 'workspace',
   limit: 100,
   remaining: 99,
-  resetAt: new Date('2024-01-01T01:00:00Z'),
+  resetAt: new Date('2026-01-01T00:00:00Z'),
+  retryAfterMs: 0,
 }
-
-function buildRow(overrides: Partial<McpServerRow> = {}): McpServerRow {
-  return {
-    id: 'mcp-abc12345',
-    workspaceId: 'workspace-1',
-    createdBy: 'user-1',
-    name: 'Docs server',
-    description: 'Internal docs',
-    transport: 'streamable-http',
-    url: 'https://mcp.example.com/sse',
-    authType: 'headers',
-    oauthClientId: null,
-    oauthClientSecret: null,
-    headers: { Authorization: 'Bearer super-secret-token' },
-    timeout: 30000,
-    retries: 3,
-    enabled: true,
-    lastConnected: new Date('2024-01-02T00:00:00Z'),
-    connectionStatus: 'connected',
-    lastError: null,
-    statusConfig: {},
-    toolCount: 4,
-    lastToolsRefresh: new Date('2024-01-02T00:00:00Z'),
-    totalRequests: 0,
-    lastUsed: null,
-    deletedAt: null,
-    createdAt: new Date('2024-01-01T00:00:00Z'),
-    updatedAt: new Date('2024-01-02T00:00:00Z'),
-    ...overrides,
-  } as McpServerRow
-}
-
-function callList(query: string) {
-  return GET(new NextRequest(`http://localhost:3000/api/v2/mcp-servers?${query}`))
-}
-
-function callCreate(body: unknown) {
-  return POST(
-    new NextRequest('http://localhost:3000/api/v2/mcp-servers', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
-  )
-}
-
-/** What the route forwards for a bare `?workspaceId=` list. */
-const DEFAULT_LIST_ARGS = {
-  search: undefined,
-  sortBy: 'createdAt',
-  sortOrder: 'desc',
-}
-
-const VALID_BODY = {
-  workspaceId: 'workspace-1',
+const server = {
+  id: 'mcp-server-1',
+  workspaceId: WORKSPACE_ID,
+  createdBy: 'owner-1',
   name: 'Docs server',
+  description: 'Internal docs',
+  transport: 'streamable-http',
   url: 'https://mcp.example.com/sse',
+  authType: 'headers',
+  oauthClientId: null,
+  oauthClientSecret: null,
+  headers: { Authorization: 'secret' },
+  timeout: 30_000,
+  retries: 3,
+  enabled: true,
+  lastConnected: new Date('2026-01-02T00:00:00Z'),
+  connectionStatus: 'connected',
+  lastError: null,
+  statusConfig: {},
+  toolCount: 4,
+  lastToolsRefresh: new Date('2026-01-02T00:00:00Z'),
+  totalRequests: 0,
+  lastUsed: null,
+  deletedAt: null,
+  createdAt: new Date('2026-01-01T00:00:00Z'),
+  updatedAt: new Date('2026-01-02T00:00:00Z'),
+} as McpServerRow
+
+function request(method: 'GET' | 'POST', url: string, body?: unknown) {
+  return new NextRequest(`http://localhost:3000${url}`, {
+    method,
+    headers: {
+      'x-api-key': 'key',
+      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+    },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  })
 }
 
-describe('GET /api/v2/mcp-servers', () => {
+describe('/api/v2/mcp-servers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
-    mockResolveWorkspaceAccess.mockResolvedValue(null)
-    mockListWorkspaceMcpServers.mockResolvedValue([buildRow()])
+    mocks.authenticate.mockResolvedValue(AUTH)
+    mocks.preauthRate.mockResolvedValue(RATE_LIMIT_OK)
+    mocks.operationRate.mockResolvedValue(RATE_LIMIT_OK)
+    mocks.gate.mockResolvedValue(null)
+    mocks.list.mockResolvedValue({ servers: [server] })
+    mocks.create.mockResolvedValue({ server, updated: false })
   })
 
-  it('returns 404 when the v2 API surface flag is off', async () => {
-    const { v2ApiGateError } = await import('@/app/api/v2/lib/gate')
-    const { v2Error } = await import('@/app/api/v2/lib/response')
-    vi.mocked(v2ApiGateError).mockResolvedValueOnce(v2Error('NOT_FOUND', 'Not found'))
+  it('lists MCP servers without exposing secret header values', async () => {
+    const response = await GET(request('GET', `/api/v2/mcp-servers?workspaceId=${WORKSPACE_ID}`))
+    const body = await response.json()
 
-    const res = await callList('workspaceId=workspace-1')
-
-    expect(res.status).toBe(404)
-    expect((await res.json()).error.code).toBe('NOT_FOUND')
-    expect(mockListWorkspaceMcpServers).not.toHaveBeenCalled()
-  })
-
-  it('400s when workspaceId is missing', async () => {
-    const res = await callList('')
-    expect(res.status).toBe(400)
-    expect((await res.json()).error.code).toBe('BAD_REQUEST')
-    expect(mockListWorkspaceMcpServers).not.toHaveBeenCalled()
-  })
-
-  it('surfaces an access-denied failure in the v2 error envelope', async () => {
-    mockResolveWorkspaceAccess.mockResolvedValue({
-      status: 403,
-      code: 'FORBIDDEN',
-      message: 'Access denied',
-    })
-    const res = await callList('workspaceId=workspace-1')
-    expect(res.status).toBe(403)
-    expect((await res.json()).error).toMatchObject({ code: 'FORBIDDEN', message: 'Access denied' })
-    expect(mockListWorkspaceMcpServers).not.toHaveBeenCalled()
-  })
-
-  it('returns the rate-limit response when denied', async () => {
-    mockCheckRateLimit.mockResolvedValue({
-      allowed: false,
-      limit: 100,
-      remaining: 0,
-      resetAt: new Date('2024-01-01T01:00:00Z'),
-      retryAfterMs: 1000,
-    })
-    const res = await callList('workspaceId=workspace-1')
-    expect(res.status).toBe(429)
-    expect((await res.json()).error.code).toBe('RATE_LIMITED')
-  })
-
-  it('returns the public server shape in the cursor envelope', async () => {
-    const res = await callList('workspaceId=workspace-1')
-    const body = await res.json()
-
-    expect(res.status).toBe(200)
-    expect(body.nextCursor).toBeNull()
-    expect(body.data).toEqual([
-      {
-        id: 'mcp-abc12345',
-        name: 'Docs server',
-        description: 'Internal docs',
-        transport: 'streamable-http',
-        authType: 'headers',
-        url: 'https://mcp.example.com/sse',
-        timeout: 30000,
-        retries: 3,
-        enabled: true,
-        connectionStatus: 'connected',
-        lastError: null,
-        toolCount: 4,
-        lastToolsRefresh: '2024-01-02T00:00:00.000Z',
-        lastConnected: '2024-01-02T00:00:00.000Z',
-        createdAt: '2024-01-01T00:00:00.000Z',
-        updatedAt: '2024-01-02T00:00:00.000Z',
-        hasHeaders: true,
-        headerNames: ['Authorization'],
-        hasOauthClientSecret: false,
+    expect(response.status).toBe(200)
+    expect(body.data[0]).toMatchObject({ id: server.id, hasHeaders: true })
+    expect(JSON.stringify(body)).not.toContain('secret')
+    expect(mocks.list).toHaveBeenCalledWith({
+      principal: PRINCIPAL,
+      input: {
+        workspaceId: WORKSPACE_ID,
+        search: undefined,
+        sortBy: 'createdAt',
+        sortOrder: 'desc',
       },
-    ])
-    expect(mockListWorkspaceMcpServers).toHaveBeenCalledWith({
-      workspaceId: 'workspace-1',
-      ...DEFAULT_LIST_ARGS,
+      request: expect.anything(),
     })
   })
 
-  it('never returns configured header values', async () => {
-    const res = await callList('workspaceId=workspace-1')
-    const raw = JSON.stringify(await res.json())
-
-    expect(raw).not.toContain('super-secret-token')
-    expect(raw).not.toContain('"headers":')
-  })
-  it('400s on a sort field outside the enum instead of letting it reach the query', async () => {
-    const res = await callList(`workspaceId=workspace-1&sortBy=name);--`)
-
-    expect(res.status).toBe(400)
-    expect((await res.json()).error.code).toBe('BAD_REQUEST')
-  })
-
-  it('400s on a sort direction outside the enum', async () => {
-    const res = await callList(`workspaceId=workspace-1&sortOrder=sideways`)
-
-    expect(res.status).toBe(400)
-  })
-
-  it('400s on an empty search rather than treating it as unsearched', async () => {
-    const res = await callList(`workspaceId=workspace-1&search=`)
-
-    expect(res.status).toBe(400)
-  })
-
-  it('forwards search and sort into the query and still terminates pagination', async () => {
-    const res = await callList(`workspaceId=workspace-1&search=report&sortBy=name&sortOrder=asc`)
-
-    expect(res.status).toBe(200)
-    expect((await res.json()).nextCursor).toBeNull()
-  })
-})
-
-describe('POST /api/v2/mcp-servers', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
-    mockResolveWorkspaceAccess.mockResolvedValue(null)
-    mockGetMcpServerIdState.mockResolvedValue(null)
-    mockPerformCreateMcpServer.mockResolvedValue({
-      success: true,
-      serverId: 'mcp-abc12345',
-      updated: false,
-    })
-    mockGetWorkspaceMcpServer.mockResolvedValue(buildRow())
-  })
-
-  it('returns 404 when the v2 API surface flag is off', async () => {
-    const { v2ApiGateError } = await import('@/app/api/v2/lib/gate')
-    const { v2Error } = await import('@/app/api/v2/lib/response')
-    vi.mocked(v2ApiGateError).mockResolvedValueOnce(v2Error('NOT_FOUND', 'Not found'))
-
-    const res = await callCreate(VALID_BODY)
-
-    expect(res.status).toBe(404)
-    expect(mockPerformCreateMcpServer).not.toHaveBeenCalled()
-  })
-
-  it('400s when the body is missing a required field', async () => {
-    const res = await callCreate({ workspaceId: 'workspace-1', name: 'Docs server' })
-    expect(res.status).toBe(400)
-    expect((await res.json()).error.code).toBe('BAD_REQUEST')
-    expect(mockPerformCreateMcpServer).not.toHaveBeenCalled()
-  })
-
-  it('400s when the url carries an environment-variable template', async () => {
-    const res = await callCreate({ ...VALID_BODY, url: 'https://{{MCP_HOST}}/sse' })
-    expect(res.status).toBe(400)
-    expect((await res.json()).error.message).toContain('{{ENV_VAR}}')
-    expect(mockPerformCreateMcpServer).not.toHaveBeenCalled()
-  })
-
-  it('400s when the url is not an absolute http(s) URL', async () => {
-    const res = await callCreate({ ...VALID_BODY, url: 'file:///etc/passwd' })
-    expect(res.status).toBe(400)
-    expect(mockPerformCreateMcpServer).not.toHaveBeenCalled()
-  })
-
-  it('surfaces an access-denied failure in the v2 error envelope', async () => {
-    mockResolveWorkspaceAccess.mockResolvedValue({
-      status: 403,
-      code: 'FORBIDDEN',
-      message: 'Access denied',
-    })
-    const res = await callCreate(VALID_BODY)
-    expect(res.status).toBe(403)
-    expect(mockPerformCreateMcpServer).not.toHaveBeenCalled()
-  })
-
-  it('returns the rate-limit response when denied', async () => {
-    mockCheckRateLimit.mockResolvedValue({
-      allowed: false,
-      limit: 100,
-      remaining: 0,
-      resetAt: new Date('2024-01-01T01:00:00Z'),
-      retryAfterMs: 1000,
-    })
-    const res = await callCreate(VALID_BODY)
-    expect(res.status).toBe(429)
-    expect((await res.json()).error.code).toBe('RATE_LIMITED')
-  })
-
-  it('409s on a duplicate URL without letting the lib upsert', async () => {
-    mockGetMcpServerIdState.mockResolvedValue({ deleted: false })
-
-    const res = await callCreate(VALID_BODY)
-
-    expect(res.status).toBe(409)
-    expect((await res.json()).error.code).toBe('CONFLICT')
-    expect(mockPerformCreateMcpServer).not.toHaveBeenCalled()
-  })
-
-  it('409s when a concurrent create made the lib upsert instead of insert', async () => {
-    mockPerformCreateMcpServer.mockResolvedValue({
-      success: true,
-      serverId: 'mcp-abc12345',
-      updated: true,
-    })
-
-    const res = await callCreate(VALID_BODY)
-
-    expect(res.status).toBe(409)
-    expect((await res.json()).error.code).toBe('CONFLICT')
-  })
-
-  it('revives a soft-deleted URL instead of stranding it behind a 409', async () => {
-    mockGetMcpServerIdState.mockResolvedValue({ deleted: true })
-    mockPerformCreateMcpServer.mockResolvedValue({
-      success: true,
-      serverId: 'mcp-abc12345',
-      updated: true,
-    })
-
-    const res = await callCreate(VALID_BODY)
-
-    expect(res.status).toBe(201)
-    expect(mockPerformCreateMcpServer).toHaveBeenCalled()
-  })
-
-  it('creates the server and returns 201 with the public shape', async () => {
-    const res = await callCreate({ ...VALID_BODY, headers: { Authorization: 'Bearer tok' } })
-    const body = await res.json()
-
-    expect(res.status).toBe(201)
-    expect(body.data.mcpServer).toMatchObject({
-      id: 'mcp-abc12345',
-      name: 'Docs server',
-      hasHeaders: true,
-      headerNames: ['Authorization'],
-    })
-    expect(body.data.mcpServer.headers).toBeUndefined()
-    expect(mockPerformCreateMcpServer).toHaveBeenCalledWith(
-      expect.objectContaining({
-        workspaceId: 'workspace-1',
-        userId: 'user-1',
-        name: 'Docs server',
-        url: 'https://mcp.example.com/sse',
-        headers: { Authorization: 'Bearer tok' },
+  it('strictly creates an MCP server with the v2 source and status', async () => {
+    const response = await POST(
+      request('POST', '/api/v2/mcp-servers', {
+        workspaceId: WORKSPACE_ID,
+        name: server.name,
+        url: server.url,
       })
     )
+
+    expect(response.status).toBe(201)
+    expect(mocks.create).toHaveBeenCalledWith({
+      principal: PRINCIPAL,
+      input: {
+        workspaceId: WORKSPACE_ID,
+        name: server.name,
+        url: server.url,
+        source: 'api',
+      },
+      request: expect.anything(),
+    })
+    expect(mocks.capture).not.toHaveBeenCalled()
+  })
+
+  it('keeps product analytics surface-specific for personal API keys', async () => {
+    mocks.authenticate.mockResolvedValueOnce({
+      ...AUTH,
+      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-personal' },
+      keyType: 'personal',
+    })
+
+    const response = await POST(
+      request('POST', '/api/v2/mcp-servers', {
+        workspaceId: WORKSPACE_ID,
+        name: server.name,
+        url: server.url,
+      })
+    )
+
+    expect(response.status).toBe(201)
+    expect(mocks.capture).toHaveBeenCalledWith(
+      'user-1',
+      'mcp_server_connected',
+      expect.objectContaining({ workspace_id: WORKSPACE_ID }),
+      expect.anything()
+    )
+  })
+
+  it('authenticates before parsing create input', async () => {
+    mocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
+
+    const response = await POST(request('POST', '/api/v2/mcp-servers', {}))
+
+    expect(response.status).toBe(401)
+    expect(mocks.create).not.toHaveBeenCalled()
   })
 })

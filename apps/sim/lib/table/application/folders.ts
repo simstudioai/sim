@@ -3,9 +3,9 @@ import { resolvePrincipalAttribution } from '@sim/auth/principal'
 import type { V2SortOrder } from '@/lib/api/contracts/v2/shared'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
-  createFolderAtPath,
-  deleteFolderByPath,
-  relocateFolderByPath,
+  createFolderAtPathTransition,
+  deleteFolderByPathTransition,
+  relocateFolderByPathTransition,
 } from '@/lib/folders/orchestration'
 import {
   type FolderSortBy,
@@ -62,12 +62,11 @@ export const createTableFolderUseCase = defineAuthorizedTableUseCase({
     const attribution = resolvePrincipalAttribution(principal, {
       workspaceBillingOwnerUserId: context.billedAccountUserId,
     })
-    const result = await createFolderAtPath({
+    const result = await createFolderAtPathTransition({
       resourceType: 'table',
       workspaceId: context.workspaceId,
       userId: attribution.attributedUserId,
       path: input.path,
-      recordAudit: false,
     })
     if (!result.success || !result.folder) {
       throwTableOperationFailure(result, 'Failed to create folder')
@@ -99,13 +98,12 @@ export const updateTableFolderUseCase = defineAuthorizedTableUseCase({
     const attribution = resolvePrincipalAttribution(principal, {
       workspaceBillingOwnerUserId: context.billedAccountUserId,
     })
-    const result = await relocateFolderByPath({
+    const result = await relocateFolderByPathTransition({
       resourceType: 'table',
       workspaceId: context.workspaceId,
       userId: attribution.attributedUserId,
       path: input.path,
       destinationPath: input.destinationPath,
-      recordAudit: false,
     })
     if (!result.success || !result.folder) {
       throwTableOperationFailure(result, 'Failed to move folder')
@@ -141,15 +139,14 @@ export const deleteTableFolderUseCase = defineAuthorizedTableUseCase({
     const attribution = resolvePrincipalAttribution(principal, {
       workspaceBillingOwnerUserId: context.billedAccountUserId,
     })
-    const result = await deleteFolderByPath({
+    const result = await deleteFolderByPathTransition({
       resourceType: 'table',
       workspaceId: context.workspaceId,
       userId: attribution.attributedUserId,
       path: input.path,
       recursive: input.recursive,
-      recordAudit: false,
     })
-    if (!result.success || !result.deletedItems || !result.deletedFolder) {
+    if (!result.success || !result.deletedItems || !result.folderId || !result.folderName) {
       throwTableOperationFailure(result, 'Failed to delete folder')
     }
     return {
@@ -159,7 +156,7 @@ export const deleteTableFolderUseCase = defineAuthorizedTableUseCase({
         folders: result.deletedItems.folders,
         tables: result.deletedItems.tables ?? 0,
       },
-      folder: result.deletedFolder,
+      folder: { id: result.folderId, name: result.folderName },
     }
   },
   projectAudit({ result }) {

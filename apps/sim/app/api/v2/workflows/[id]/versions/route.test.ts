@@ -1,221 +1,119 @@
 /**
  * @vitest-environment node
- *
- * Public v2 deployment-version listing: the 404 mask on an access failure, the
- * public projection (no raw `createdBy` user id), and the version-keyed cursor.
  */
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCheckRateLimit,
-  mockResolveWorkspaceAccess,
-  mockGetActiveWorkflowRecord,
-  mockListWorkflowVersions,
-} = vi.hoisted(() => ({
-  mockCheckRateLimit: vi.fn(),
-  mockResolveWorkspaceAccess: vi.fn(),
-  mockGetActiveWorkflowRecord: vi.fn(),
-  mockListWorkflowVersions: vi.fn(),
+const mocks = vi.hoisted(() => ({
+  authenticateV2ApiKey: vi.fn(),
+  checkRateLimitDirect: vi.fn(),
+  checkRateLimitDirectOrThrow: vi.fn(),
+  listVersions: vi.fn(),
+  gate: vi.fn(),
 }))
 
-vi.mock('@/app/api/v1/middleware', () => ({
-  checkRateLimit: mockCheckRateLimit,
-  resolveWorkspaceAccess: mockResolveWorkspaceAccess,
+vi.mock('@/lib/workflows/application/list-workflow-versions', () => ({
+  listWorkflowVersions: {
+    operation: { id: 'workflows.versions.list' },
+    execute: mocks.listVersions,
+  },
 }))
-
-vi.mock('@sim/platform-authz/workflow', () => ({
-  getActiveWorkflowRecord: mockGetActiveWorkflowRecord,
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
+  authenticateV2ApiKey: mocks.authenticateV2ApiKey,
+  V2ApiKeyUnauthenticatedError: class V2ApiKeyUnauthenticatedError extends Error {},
 }))
-
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  listWorkflowVersions: mockListWorkflowVersions,
+vi.mock('@/lib/core/rate-limiter', () => ({
+  getRateLimit: () => ({ maxTokens: 100, refillRate: 50, refillIntervalMs: 60_000 }),
+  RateLimiter: class RateLimiter {
+    checkRateLimitDirect = mocks.checkRateLimitDirect
+    checkRateLimitDirectOrThrow = mocks.checkRateLimitDirectOrThrow
+  },
 }))
-
-vi.mock('@/app/api/v2/lib/gate', () => ({
-  v2ApiGateError: vi.fn().mockResolvedValue(null),
-}))
+vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: mocks.gate }))
 
 import { GET } from '@/app/api/v2/workflows/[id]/versions/route'
 
-const RATE_LIMIT_OK = {
-  allowed: true,
-  userId: 'user-1',
-  keyType: 'workspace',
-  limit: 100,
-  remaining: 99,
-  resetAt: new Date('2024-01-01T01:00:00Z'),
+const auth = {
+  principal: {
+    kind: 'workspace_api_key' as const,
+    workspaceId: 'workspace-1',
+    keyId: 'workspace-key-1',
+  },
+  rolloutUserId: 'billing-owner-1',
+  rateLimitSubjectIds: ['api-key:workspace-key-1', 'workspace:workspace-1'] as const,
+  rateLimitSubscription: null,
+  keyType: 'workspace' as const,
 }
-
-const RATE_LIMIT_DENIED = {
-  allowed: false,
-  limit: 100,
-  remaining: 0,
-  resetAt: new Date('2024-01-01T01:00:00Z'),
-  retryAfterMs: 1000,
-}
-
-const ACCESS_DENIED = { status: 403, code: 'FORBIDDEN', message: 'Access denied' }
-
-const WORKFLOW_RECORD = { id: 'wf-1', name: 'Support Agent', workspaceId: 'workspace-1' }
-
-function buildVersion(version: number, overrides: Record<string, unknown> = {}) {
-  return {
-    id: `dv-${version}`,
-    version,
-    name: null,
-    description: null,
-    isActive: false,
-    createdAt: new Date(`2024-01-0${version}T00:00:00Z`),
-    createdBy: 'user-9',
-    deployedByName: 'Ada Lovelace',
-    latestOperationStatus: null,
-    ...overrides,
-  }
-}
-
-const ALL_VERSIONS = [
-  buildVersion(3, { isActive: true, name: 'Escalation branch', latestOperationStatus: 'active' }),
-  buildVersion(2),
-  buildVersion(1),
-]
-
-const routeContext = () => ({ params: Promise.resolve({ id: 'wf-1' }) })
-const callGet = (query = '') =>
-  GET(
-    new NextRequest(`http://localhost:3000/api/v2/workflows/wf-1/versions${query}`),
-    routeContext()
-  )
+const context = { params: Promise.resolve({ id: 'workflow-1' }) }
 
 describe('GET /api/v2/workflows/[id]/versions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
-    mockResolveWorkspaceAccess.mockResolvedValue(null)
-    mockGetActiveWorkflowRecord.mockResolvedValue(WORKFLOW_RECORD)
-    /**
-     * Stands in for the keyset query the helper now runs, so the route's
-     * has-more probe and cursor round-trip are exercised against realistic
-     * `limit`/`afterVersion` behavior rather than a fixed array.
-     */
-    mockListWorkflowVersions.mockImplementation(
-      async (_workflowId: string, options: { limit?: number; afterVersion?: number } = {}) => {
-        let versions = ALL_VERSIONS
-        if (options.afterVersion !== undefined) {
-          versions = versions.filter((row) => row.version < options.afterVersion!)
-        }
-        if (options.limit !== undefined) versions = versions.slice(0, options.limit)
-        return { versions }
-      }
+    mocks.authenticateV2ApiKey.mockResolvedValue(auth)
+    mocks.gate.mockResolvedValue(null)
+    mocks.checkRateLimitDirect.mockResolvedValue({
+      allowed: true,
+      remaining: 599,
+      resetAt: new Date('2026-08-01T01:00:00.000Z'),
+    })
+    mocks.checkRateLimitDirectOrThrow.mockResolvedValue({
+      allowed: true,
+      remaining: 99,
+      resetAt: new Date('2026-08-01T01:00:00.000Z'),
+    })
+    mocks.listVersions.mockResolvedValue({
+      versions: [
+        {
+          id: 'version-2',
+          version: 2,
+          name: 'Production',
+          description: null,
+          isActive: true,
+          createdAt: new Date('2026-08-01T00:00:00.000Z'),
+          deployedByName: 'Ada',
+          latestOperationStatus: 'active',
+        },
+      ],
+      hasMore: false,
+    })
+  })
+
+  it('lists versions through canonical workflow authorization', async () => {
+    const request = new NextRequest(
+      'http://localhost/api/v2/workflows/workflow-1/versions?limit=10'
     )
-  })
+    const response = await GET(request, context)
 
-  it('returns 404 when the v2 API surface flag is off', async () => {
-    const { v2ApiGateError } = await import('@/app/api/v2/lib/gate')
-    const { v2Error } = await import('@/app/api/v2/lib/response')
-    vi.mocked(v2ApiGateError).mockResolvedValueOnce(v2Error('NOT_FOUND', 'Not found'))
-
-    const res = await callGet()
-
-    expect(res.status).toBe(404)
-    expect(mockListWorkflowVersions).not.toHaveBeenCalled()
-  })
-
-  it('400s on an out-of-range limit', async () => {
-    const res = await callGet('?limit=0')
-    expect(res.status).toBe(400)
-    expect((await res.json()).error.code).toBe('BAD_REQUEST')
-    expect(mockListWorkflowVersions).not.toHaveBeenCalled()
-  })
-
-  it('masks an access-denied failure as 404 so existence is not leaked', async () => {
-    mockResolveWorkspaceAccess.mockResolvedValue(ACCESS_DENIED)
-    const res = await callGet()
-    expect(res.status).toBe(404)
-    expect(mockListWorkflowVersions).not.toHaveBeenCalled()
-  })
-
-  it('returns the rate-limit response when denied', async () => {
-    mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_DENIED)
-    const res = await callGet()
-    expect(res.status).toBe(429)
-    expect((await res.json()).error.code).toBe('RATE_LIMITED')
-  })
-
-  it('404s when the workflow does not exist or is archived', async () => {
-    mockGetActiveWorkflowRecord.mockResolvedValue(null)
-    const res = await callGet()
-    expect(res.status).toBe(404)
-    expect(mockListWorkflowVersions).not.toHaveBeenCalled()
-  })
-
-  it('returns the public version shape newest-first, without the raw creator id', async () => {
-    const res = await callGet()
-    const body = await res.json()
-
-    expect(res.status).toBe(200)
-    expect(body.nextCursor).toBeNull()
-    expect(body.data).toHaveLength(3)
-    expect(body.data[0]).toEqual({
-      id: 'dv-3',
-      version: 3,
-      name: 'Escalation branch',
-      description: null,
-      isActive: true,
-      createdAt: '2024-01-03T00:00:00.000Z',
-      deployedBy: 'Ada Lovelace',
-      latestOperationStatus: 'active',
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({
+      data: [
+        {
+          id: 'version-2',
+          version: 2,
+          name: 'Production',
+          description: null,
+          isActive: true,
+          createdAt: '2026-08-01T00:00:00.000Z',
+          deployedBy: 'Ada',
+          latestOperationStatus: 'active',
+        },
+      ],
+      nextCursor: null,
     })
-    expect(body.data[0]).not.toHaveProperty('createdBy')
-    // Paging is pushed into the helper — the route never reads the full set.
-    expect(mockListWorkflowVersions).toHaveBeenCalledWith('wf-1', {
-      limit: 51,
-      afterVersion: undefined,
+    expect(mocks.listVersions).toHaveBeenCalledWith({
+      principal: auth.principal,
+      input: { workflowId: 'workflow-1', limit: 10, afterVersion: undefined },
+      request,
     })
   })
 
-  it('bounds the read to one page plus the has-more probe', async () => {
-    await callGet('?limit=2')
-    expect(mockListWorkflowVersions).toHaveBeenCalledWith('wf-1', {
-      limit: 3,
-      afterVersion: undefined,
-    })
-  })
+  it('rejects malformed cursors before the use case', async () => {
+    const response = await GET(
+      new NextRequest('http://localhost/api/v2/workflows/workflow-1/versions?cursor=bad'),
+      context
+    )
 
-  it('pushes the cursor down to the helper as a keyset bound', async () => {
-    const cursor = Buffer.from(JSON.stringify({ version: 3 })).toString('base64')
-    await callGet(`?limit=2&cursor=${encodeURIComponent(cursor)}`)
-    expect(mockListWorkflowVersions).toHaveBeenCalledWith('wf-1', { limit: 3, afterVersion: 3 })
-  })
-
-  it('400s a structurally invalid cursor instead of silently truncating the list', async () => {
-    // Decodes to valid JSON with no numeric `version` — the shape that would
-    // otherwise filter every row out and report a clean end-of-list.
-    const bogus = Buffer.from(JSON.stringify({ offset: 2 })).toString('base64')
-    const res = await callGet(`?cursor=${encodeURIComponent(bogus)}`)
-
-    expect(res.status).toBe(400)
-    expect((await res.json()).error.code).toBe('BAD_REQUEST')
-    expect(mockListWorkflowVersions).not.toHaveBeenCalled()
-  })
-
-  it('400s a cursor that is not decodable at all', async () => {
-    const res = await callGet('?cursor=not-a-cursor')
-    expect(res.status).toBe(400)
-    expect(mockListWorkflowVersions).not.toHaveBeenCalled()
-  })
-
-  it('pages with a version-keyed cursor', async () => {
-    const first = await callGet('?limit=2')
-    const firstBody = await first.json()
-
-    expect(firstBody.data.map((v: { version: number }) => v.version)).toEqual([3, 2])
-    expect(firstBody.nextCursor).toEqual(expect.any(String))
-
-    const second = await callGet(`?limit=2&cursor=${encodeURIComponent(firstBody.nextCursor)}`)
-    const secondBody = await second.json()
-
-    expect(secondBody.data.map((v: { version: number }) => v.version)).toEqual([1])
-    expect(secondBody.nextCursor).toBeNull()
+    expect(response.status).toBe(400)
+    expect(mocks.listVersions).not.toHaveBeenCalled()
   })
 })

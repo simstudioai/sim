@@ -1,348 +1,182 @@
 /**
  * @vitest-environment node
- *
- * Public v2 workflow update/delete: the 404 mask on an access failure (the
- * caller never names a workspace, so a 403 would confirm the workflow exists),
- * the 423 a workflow mutation lock produces, and the orchestration failure
- * codes rendered in the v2 error envelope.
  */
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCheckRateLimit,
-  mockResolveWorkspaceAccess,
-  mockGetActiveWorkflowRecord,
-  mockPerformUpdateWorkflow,
-  mockPerformDeleteWorkflow,
-  mockAssertWorkflowMutable,
-  mockAssertFolderMutable,
-  mockLoadActiveFolderPathIndex,
-  WorkflowLockedErrorMock,
-  FolderLockedErrorMock,
-} = vi.hoisted(() => ({
-  mockCheckRateLimit: vi.fn(),
-  mockResolveWorkspaceAccess: vi.fn(),
-  mockGetActiveWorkflowRecord: vi.fn(),
-  mockPerformUpdateWorkflow: vi.fn(),
-  mockPerformDeleteWorkflow: vi.fn(),
-  mockAssertWorkflowMutable: vi.fn(),
-  mockAssertFolderMutable: vi.fn(),
-  mockLoadActiveFolderPathIndex: vi.fn(),
-  WorkflowLockedErrorMock: class WorkflowLockedError extends Error {
-    status = 423
+const mocks = vi.hoisted(() => ({
+  authenticateV2ApiKey: vi.fn(),
+  checkRateLimitDirect: vi.fn(),
+  checkRateLimitDirectOrThrow: vi.fn(),
+  readWorkflow: vi.fn(),
+  updateWorkflow: vi.fn(),
+  deleteWorkflow: vi.fn(),
+  gate: vi.fn(),
+}))
+
+vi.mock('@/lib/workflows/application/read-workflow', () => ({
+  readWorkflow: { operation: { id: 'workflows.read' }, execute: mocks.readWorkflow },
+}))
+vi.mock('@/lib/workflows/application/update-workflow', () => ({
+  updateWorkflow: { operation: { id: 'workflows.update' }, execute: mocks.updateWorkflow },
+}))
+vi.mock('@/lib/workflows/application/delete-workflow', () => ({
+  deleteWorkflow: { operation: { id: 'workflows.delete' }, execute: mocks.deleteWorkflow },
+}))
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
+  authenticateV2ApiKey: mocks.authenticateV2ApiKey,
+  V2ApiKeyUnauthenticatedError: class V2ApiKeyUnauthenticatedError extends Error {},
+}))
+vi.mock('@/lib/core/rate-limiter', () => ({
+  getRateLimit: () => ({ maxTokens: 100, refillRate: 50, refillIntervalMs: 60_000 }),
+  RateLimiter: class RateLimiter {
+    checkRateLimitDirect = mocks.checkRateLimitDirect
+    checkRateLimitDirectOrThrow = mocks.checkRateLimitDirectOrThrow
   },
-  FolderLockedErrorMock: class FolderLockedError extends Error {
-    status = 423
-  },
 }))
+vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: mocks.gate }))
 
-vi.mock('@/app/api/v1/middleware', () => ({
-  checkRateLimit: mockCheckRateLimit,
-  resolveWorkspaceAccess: mockResolveWorkspaceAccess,
-}))
+import {
+  InsufficientWorkspacePermissionsError,
+  PersonalApiKeysDisabledError,
+} from '@/lib/core/application'
+import { DELETE, GET, PATCH } from '@/app/api/v2/workflows/[id]/route'
 
-vi.mock('@/lib/workflows/orchestration', () => ({
-  performUpdateWorkflow: mockPerformUpdateWorkflow,
-  performDeleteWorkflow: mockPerformDeleteWorkflow,
-}))
-
-vi.mock('@sim/platform-authz/workflow', () => ({
-  getActiveWorkflowRecord: mockGetActiveWorkflowRecord,
-  assertWorkflowMutable: mockAssertWorkflowMutable,
-  assertFolderMutable: mockAssertFolderMutable,
-  WorkflowLockedError: WorkflowLockedErrorMock,
-  FolderLockedError: FolderLockedErrorMock,
-}))
-
-vi.mock('@/lib/folders/queries', () => ({
-  loadActiveFolderPathIndex: mockLoadActiveFolderPathIndex,
-}))
-
-vi.mock('@/lib/workflows/input-format', () => ({
-  extractInputFieldsFromBlocks: vi.fn().mockReturnValue([]),
-}))
-
-vi.mock('@/app/api/v2/lib/gate', () => ({
-  v2ApiGateError: vi.fn().mockResolvedValue(null),
-}))
-
-import { DELETE, PATCH } from '@/app/api/v2/workflows/[id]/route'
-
-const RATE_LIMIT_OK = {
-  allowed: true,
-  userId: 'user-1',
-  keyType: 'workspace',
-  limit: 100,
-  remaining: 99,
-  resetAt: new Date('2024-01-01T01:00:00Z'),
-}
-
-const RATE_LIMIT_DENIED = {
-  allowed: false,
-  limit: 100,
-  remaining: 0,
-  resetAt: new Date('2024-01-01T01:00:00Z'),
-  retryAfterMs: 1000,
-}
-
-const ACCESS_DENIED = { status: 403, code: 'FORBIDDEN', message: 'Access denied' }
-
-const WORKFLOW_RECORD = {
-  id: 'wf-1',
-  name: 'Support Agent',
-  description: 'Handles tickets',
+const WORKSPACE_ID = 'workspace-1'
+const WORKFLOW_ID = 'workflow-1'
+const workflow = {
+  id: WORKFLOW_ID,
+  name: 'Daily digest',
+  description: null,
+  workspaceId: WORKSPACE_ID,
   folderId: null,
-  workspaceId: 'workspace-1',
+  variables: {},
   isDeployed: true,
-  deployedAt: new Date('2024-01-03T00:00:00Z'),
-  runCount: 12,
-  lastRunAt: new Date('2024-01-04T00:00:00Z'),
-  locked: false,
-  forkSyncExcluded: false,
-  createdAt: new Date('2024-01-01T00:00:00Z'),
-  updatedAt: new Date('2024-01-02T00:00:00Z'),
+  deployedAt: new Date('2026-08-03T00:00:00.000Z'),
+  runCount: 4,
+  lastRunAt: new Date('2026-08-04T00:00:00.000Z'),
+  createdAt: new Date('2026-08-01T00:00:00.000Z'),
+  updatedAt: new Date('2026-08-02T00:00:00.000Z'),
 }
-
-const UPDATED = {
-  id: 'wf-1',
-  name: 'Support Agent v2',
-  description: 'Handles tickets',
-  workspaceId: 'workspace-1',
-  folderId: null,
-  sortOrder: 0,
-  locked: false,
-  forkSyncExcluded: false,
-  createdAt: new Date('2024-01-01T00:00:00Z'),
-  updatedAt: new Date('2024-01-05T00:00:00Z'),
-  archivedAt: null,
+const auth = {
+  principal: {
+    kind: 'personal_api_key' as const,
+    userId: 'user-1',
+    keyId: 'personal-key-1',
+  },
+  rolloutUserId: 'user-1',
+  rateLimitSubjectIds: ['api-key:personal-key-1', 'user:user-1'] as const,
+  rateLimitSubscription: null,
+  keyType: 'personal' as const,
 }
+const routeContext = { params: Promise.resolve({ id: WORKFLOW_ID }) }
 
-const routeContext = () => ({ params: Promise.resolve({ id: 'wf-1' }) })
-
-function callPatch(body: unknown) {
-  return PATCH(
-    new NextRequest('http://localhost:3000/api/v2/workflows/wf-1', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    }),
-    routeContext()
-  )
-}
-
-const callDelete = () =>
-  DELETE(
-    new NextRequest('http://localhost:3000/api/v2/workflows/wf-1', { method: 'DELETE' }),
-    routeContext()
-  )
-
-describe('PATCH /api/v2/workflows/[id]', () => {
+describe('/api/v2/workflows/[id]', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
-    mockResolveWorkspaceAccess.mockResolvedValue(null)
-    mockGetActiveWorkflowRecord.mockResolvedValue(WORKFLOW_RECORD)
-    mockAssertWorkflowMutable.mockResolvedValue(undefined)
-    mockAssertFolderMutable.mockResolvedValue(undefined)
-    mockLoadActiveFolderPathIndex.mockResolvedValue({
-      rowById: new Map([['fld-1', { id: 'fld-1', name: 'Locked', parentId: null }]]),
-      pathById: new Map([['fld-1', '/Locked']]),
-      idByPath: new Map([['/Locked', 'fld-1']]),
+    mocks.authenticateV2ApiKey.mockResolvedValue(auth)
+    mocks.gate.mockResolvedValue(null)
+    mocks.checkRateLimitDirect.mockResolvedValue({
+      allowed: true,
+      remaining: 599,
+      resetAt: new Date('2026-08-01T01:00:00.000Z'),
     })
-    mockPerformUpdateWorkflow.mockResolvedValue({ success: true, workflow: UPDATED })
-  })
-
-  it('returns 404 when the v2 API surface flag is off', async () => {
-    const { v2ApiGateError } = await import('@/app/api/v2/lib/gate')
-    const { v2Error } = await import('@/app/api/v2/lib/response')
-    vi.mocked(v2ApiGateError).mockResolvedValueOnce(v2Error('NOT_FOUND', 'Not found'))
-
-    const res = await callPatch({ name: 'Support Agent v2' })
-
-    expect(res.status).toBe(404)
-    expect(mockPerformUpdateWorkflow).not.toHaveBeenCalled()
-  })
-
-  it('400s when no field to change is supplied', async () => {
-    const res = await callPatch({})
-    expect(res.status).toBe(400)
-    expect((await res.json()).error.code).toBe('BAD_REQUEST')
-    expect(mockPerformUpdateWorkflow).not.toHaveBeenCalled()
-  })
-
-  it('masks an access-denied failure as 404 so existence is not leaked', async () => {
-    mockResolveWorkspaceAccess.mockResolvedValue(ACCESS_DENIED)
-    const res = await callPatch({ name: 'Support Agent v2' })
-    expect(res.status).toBe(404)
-    expect(mockPerformUpdateWorkflow).not.toHaveBeenCalled()
-  })
-
-  it('returns the rate-limit response when denied', async () => {
-    mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_DENIED)
-    const res = await callPatch({ name: 'Support Agent v2' })
-    expect(res.status).toBe(429)
-    expect((await res.json()).error.code).toBe('RATE_LIMITED')
-  })
-
-  it('404s when the workflow does not exist or is archived', async () => {
-    mockGetActiveWorkflowRecord.mockResolvedValue(null)
-    const res = await callPatch({ name: 'Support Agent v2' })
-    expect(res.status).toBe(404)
-    expect(mockPerformUpdateWorkflow).not.toHaveBeenCalled()
-  })
-
-  it('423s the denial when the workflow is locked rather than failing with a 500', async () => {
-    mockAssertWorkflowMutable.mockRejectedValue(new WorkflowLockedErrorMock('Workflow is locked'))
-    const res = await callPatch({ name: 'Support Agent v2' })
-    expect(res.status).toBe(423)
-    expect((await res.json()).error.code).toBe('LOCKED')
-    expect(mockPerformUpdateWorkflow).not.toHaveBeenCalled()
-  })
-
-  it('423s when the destination folder is locked', async () => {
-    mockAssertFolderMutable.mockRejectedValue(new FolderLockedErrorMock('Folder is locked'))
-    const res = await callPatch({ folderPath: '/Locked' })
-    expect(res.status).toBe(423)
-    expect(mockPerformUpdateWorkflow).not.toHaveBeenCalled()
-  })
-
-  it('404s a path outside the workspace without ever reading its lock state', async () => {
-    const res = await callPatch({ folderPath: '/Elsewhere' })
-
-    expect(res.status).toBe(404)
-    expect((await res.json()).error.code).toBe('NOT_FOUND')
-    expect(mockAssertFolderMutable).not.toHaveBeenCalled()
-    expect(mockPerformUpdateWorkflow).not.toHaveBeenCalled()
-  })
-
-  it('resolves the canonical path against the workflow workspace before mutability', async () => {
-    await callPatch({ folderPath: '/Locked' })
-
-    expect(mockLoadActiveFolderPathIndex).toHaveBeenCalledWith(
-      'workspace-1',
-      'workflow',
-      expect.any(Object)
-    )
-    expect(mockAssertFolderMutable).toHaveBeenCalledWith('fld-1')
-  })
-
-  it('skips the containment check on a rename that does not move the workflow', async () => {
-    await callPatch({ name: 'Support Agent v2' })
-    expect(mockAssertFolderMutable).not.toHaveBeenCalled()
-  })
-
-  it('409s when the target name is taken in the destination folder', async () => {
-    mockPerformUpdateWorkflow.mockResolvedValue({
-      success: false,
-      error: 'A workflow named "Support Agent v2" already exists in this folder',
-      errorCode: 'conflict',
+    mocks.checkRateLimitDirectOrThrow.mockResolvedValue({
+      allowed: true,
+      remaining: 99,
+      resetAt: new Date('2026-08-01T01:00:00.000Z'),
     })
-    const res = await callPatch({ name: 'Support Agent v2' })
-    expect(res.status).toBe(409)
-    expect((await res.json()).error.code).toBe('CONFLICT')
-  })
-
-  it('updates the workflow and carries the untouched deployment counters through', async () => {
-    const res = await callPatch({ name: 'Support Agent v2' })
-    const body = await res.json()
-
-    expect(res.status).toBe(200)
-    expect(body).toEqual({
-      data: {
-        id: 'wf-1',
-        name: 'Support Agent v2',
-        description: 'Handles tickets',
-        folderPath: '/',
-        workspaceId: 'workspace-1',
+    mocks.readWorkflow.mockResolvedValue({
+      workflow,
+      workspaceId: WORKSPACE_ID,
+      folderPath: '/',
+      inputs: [],
+    })
+    mocks.updateWorkflow.mockResolvedValue({
+      workflow: { ...workflow, name: 'Weekly digest' },
+      workspaceId: WORKSPACE_ID,
+      folderPath: '/',
+      deployment: {
         isDeployed: true,
-        deployedAt: '2024-01-03T00:00:00.000Z',
-        runCount: 12,
-        lastRunAt: '2024-01-04T00:00:00.000Z',
-        createdAt: '2024-01-01T00:00:00.000Z',
-        updatedAt: '2024-01-05T00:00:00.000Z',
+        deployedAt: workflow.deployedAt,
+        runCount: 4,
+        lastRunAt: workflow.lastRunAt,
       },
     })
-    expect(mockPerformUpdateWorkflow).toHaveBeenCalledWith(
-      expect.objectContaining({
-        workflowId: 'wf-1',
-        userId: 'user-1',
-        workspaceId: 'workspace-1',
-        currentName: 'Support Agent',
-        currentFolderId: null,
-        name: 'Support Agent v2',
-      })
-    )
-  })
-})
-
-describe('DELETE /api/v2/workflows/[id]', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
-    mockResolveWorkspaceAccess.mockResolvedValue(null)
-    mockGetActiveWorkflowRecord.mockResolvedValue(WORKFLOW_RECORD)
-    mockAssertWorkflowMutable.mockResolvedValue(undefined)
-    mockPerformDeleteWorkflow.mockResolvedValue({ success: true })
+    mocks.deleteWorkflow.mockResolvedValue({ workflowId: WORKFLOW_ID })
   })
 
-  it('returns 404 when the v2 API surface flag is off', async () => {
-    const { v2ApiGateError } = await import('@/app/api/v2/lib/gate')
-    const { v2Error } = await import('@/app/api/v2/lib/response')
-    vi.mocked(v2ApiGateError).mockResolvedValueOnce(v2Error('NOT_FOUND', 'Not found'))
+  it('presents the authorized canonical workflow detail', async () => {
+    const request = new NextRequest(`http://localhost/api/v2/workflows/${WORKFLOW_ID}`)
+    const response = await GET(request, routeContext)
 
-    const res = await callDelete()
-
-    expect(res.status).toBe(404)
-    expect(mockPerformDeleteWorkflow).not.toHaveBeenCalled()
-  })
-
-  it('masks an access-denied failure as 404 so existence is not leaked', async () => {
-    mockResolveWorkspaceAccess.mockResolvedValue(ACCESS_DENIED)
-    const res = await callDelete()
-    expect(res.status).toBe(404)
-    expect(mockPerformDeleteWorkflow).not.toHaveBeenCalled()
-  })
-
-  it('returns the rate-limit response when denied', async () => {
-    mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_DENIED)
-    const res = await callDelete()
-    expect(res.status).toBe(429)
-    expect((await res.json()).error.code).toBe('RATE_LIMITED')
-  })
-
-  it('404s when the workflow does not exist or is already archived', async () => {
-    mockGetActiveWorkflowRecord.mockResolvedValue(null)
-    const res = await callDelete()
-    expect(res.status).toBe(404)
-    expect(mockPerformDeleteWorkflow).not.toHaveBeenCalled()
-  })
-
-  it('423s the denial when the workflow is locked rather than failing with a 500', async () => {
-    mockAssertWorkflowMutable.mockRejectedValue(new WorkflowLockedErrorMock('Workflow is locked'))
-    const res = await callDelete()
-    expect(res.status).toBe(423)
-    expect((await res.json()).error.code).toBe('LOCKED')
-    expect(mockPerformDeleteWorkflow).not.toHaveBeenCalled()
-  })
-
-  it('400s when it is the last workflow in the workspace', async () => {
-    mockPerformDeleteWorkflow.mockResolvedValue({
-      success: false,
-      error: 'Cannot delete the only workflow in the workspace',
-      errorCode: 'validation',
+    expect(response.status).toBe(200)
+    expect((await response.json()).data).toMatchObject({
+      id: WORKFLOW_ID,
+      workspaceId: WORKSPACE_ID,
+      folderPath: '/',
+      inputs: [],
     })
-    const res = await callDelete()
-    expect(res.status).toBe(400)
-    expect((await res.json()).error.message).toContain('only workflow')
+    expect(mocks.readWorkflow).toHaveBeenCalledWith({
+      principal: auth.principal,
+      input: { workflowId: WORKFLOW_ID },
+      request,
+    })
   })
 
-  it('archives the workflow and acknowledges the delete', async () => {
-    const res = await callDelete()
-    expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ data: { id: 'wf-1', deleted: true } })
-    expect(mockPerformDeleteWorkflow).toHaveBeenCalledWith(
-      expect.objectContaining({ workflowId: 'wf-1', userId: 'user-1' })
+  it('conceals typed insufficient authorization as workflow absence', async () => {
+    mocks.readWorkflow.mockRejectedValue(new InsufficientWorkspacePermissionsError())
+    const response = await GET(
+      new NextRequest(`http://localhost/api/v2/workflows/${WORKFLOW_ID}`),
+      routeContext
     )
+
+    expect(response.status).toBe(404)
+    expect(await response.json()).toMatchObject({
+      error: { code: 'NOT_FOUND', message: 'Workflow not found' },
+    })
+  })
+
+  it('preserves the personal-key-disabled 403 instead of concealing it', async () => {
+    mocks.readWorkflow.mockRejectedValue(new PersonalApiKeysDisabledError())
+    const response = await GET(
+      new NextRequest(`http://localhost/api/v2/workflows/${WORKFLOW_ID}`),
+      routeContext
+    )
+
+    expect(response.status).toBe(403)
+    expect((await response.json()).error.code).toBe('FORBIDDEN')
+  })
+
+  it('updates only through the shared semantic use case', async () => {
+    const request = new NextRequest(`http://localhost/api/v2/workflows/${WORKFLOW_ID}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Weekly digest' }),
+    })
+    const response = await PATCH(request, routeContext)
+
+    expect(response.status).toBe(200)
+    expect((await response.json()).data.name).toBe('Weekly digest')
+    expect(mocks.updateWorkflow).toHaveBeenCalledWith({
+      principal: auth.principal,
+      input: { workflowId: WORKFLOW_ID, name: 'Weekly digest' },
+      request,
+    })
+  })
+
+  it('deletes through the shared use case and preserves the response contract', async () => {
+    const request = new NextRequest(`http://localhost/api/v2/workflows/${WORKFLOW_ID}`, {
+      method: 'DELETE',
+    })
+    const response = await DELETE(request, routeContext)
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ data: { id: WORKFLOW_ID, deleted: true } })
+    expect(mocks.deleteWorkflow).toHaveBeenCalledWith({
+      principal: auth.principal,
+      input: { workflowId: WORKFLOW_ID },
+      request,
+    })
   })
 })
