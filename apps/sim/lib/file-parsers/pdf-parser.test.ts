@@ -1,0 +1,84 @@
+/**
+ * @vitest-environment node
+ */
+import { deflateSync } from 'zlib'
+import { describe, expect, it } from 'vitest'
+import { MAX_PDF_TEXT_CHARS, PdfParser } from '@/lib/file-parsers/pdf-parser'
+
+/**
+ * Builds a single-page PDF that draws 64 characters per repeat from a
+ * FlateDecode content stream, so a few dozen kilobytes of input yields millions
+ * of extracted characters — what made the unbounded extractor exhaust the heap
+ * and abort the process.
+ *
+ * Hand-assembled rather than built with `pdf-lib` because the fixture's whole
+ * point is the compression ratio of the content stream, which `pdf-lib` gives
+ * no way to control.
+ */
+function buildTextBombPdf(repeats: number): Buffer {
+  const unit = `BT /F1 12 Tf 10 700 Td (${'A'.repeat(64)}) Tj ET\n`
+  const compressed = deflateSync(Buffer.from(unit.repeat(repeats)))
+
+  const objects = [
+    Buffer.from('<< /Type /Catalog /Pages 2 0 R >>'),
+    Buffer.from('<< /Type /Pages /Kids [3 0 R] /Count 1 >>'),
+    Buffer.from(
+      '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>'
+    ),
+    Buffer.concat([
+      Buffer.from(`<< /Length ${compressed.length} /Filter /FlateDecode >>\nstream\n`),
+      compressed,
+      Buffer.from('\nendstream'),
+    ]),
+    Buffer.from('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'),
+  ]
+
+  const chunks: Buffer[] = [Buffer.from('%PDF-1.4\n')]
+  const offsets: number[] = []
+  let offset = chunks[0].length
+
+  objects.forEach((object, index) => {
+    offsets.push(offset)
+    const chunk = Buffer.concat([
+      Buffer.from(`${index + 1} 0 obj\n`),
+      object,
+      Buffer.from('\nendobj\n'),
+    ])
+    chunks.push(chunk)
+    offset += chunk.length
+  })
+
+  const xrefRows = offsets
+    .map((value) => `${value.toString().padStart(10, '0')} 00000 n \n`)
+    .join('')
+  chunks.push(
+    Buffer.from(
+      `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${xrefRows}` +
+        `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${offset}\n%%EOF\n`
+    )
+  )
+
+  return Buffer.concat(chunks)
+}
+
+describe('PdfParser', () => {
+  it('bounds extracted text from a compression-bomb PDF instead of exhausting the heap', async () => {
+    const bomb = buildTextBombPdf(200_000)
+    expect(bomb.length).toBeLessThan(200 * 1024)
+
+    const result = await new PdfParser().parseBuffer(bomb)
+
+    expect(result.metadata?.truncated).toBe(true)
+    expect(result.metadata?.warning).toMatch(/parser limit/i)
+    expect(result.content.length).toBeLessThanOrEqual(MAX_PDF_TEXT_CHARS)
+  }, 120_000)
+
+  it('extracts a small PDF in full and does not flag it as truncated', async () => {
+    const result = await new PdfParser().parseBuffer(buildTextBombPdf(3))
+
+    expect(result.metadata?.truncated).toBe(false)
+    expect(result.metadata?.warning).toBeUndefined()
+    expect(result.metadata?.pageCount).toBe(1)
+    expect(result.content).toContain('AAAA')
+  }, 30_000)
+})
