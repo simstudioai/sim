@@ -5,7 +5,7 @@ import { createTagDefinitionContract } from '@/lib/api/contracts/knowledge'
 import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { SUPPORTED_FIELD_TYPES } from '@/lib/knowledge/constants'
+import { isValidSlotForFieldType } from '@/lib/knowledge/constants'
 import { createTagDefinition, getTagDefinitions } from '@/lib/knowledge/tags/service'
 import { checkKnowledgeBaseAccess, checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
 
@@ -76,9 +76,18 @@ export const POST = withRouteHandler(
       if (!parsed.success) return parsed.response
 
       const validatedData = parsed.data.body
-      if (!(SUPPORTED_FIELD_TYPES as readonly string[]).includes(validatedData.fieldType)) {
+      /**
+       * The contract types `tagSlot` and `fieldType` as plain strings because
+       * tightening them to enums cascades into UI form state types, so the pair is
+       * checked here. Nothing downstream enforces it: the slot column is `text`
+       * (its Drizzle `enum` is types-only) and the service casts before inserting.
+       */
+      if (!isValidSlotForFieldType(validatedData.tagSlot, validatedData.fieldType)) {
         return NextResponse.json(
-          { error: 'Invalid request data', details: 'Invalid field type' },
+          {
+            error: 'Invalid request data',
+            details: `Tag slot "${validatedData.tagSlot}" is not valid for field type "${validatedData.fieldType}"`,
+          },
           { status: 400 }
         )
       }

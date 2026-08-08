@@ -5,7 +5,7 @@ import { saveDocumentTagDefinitionsContract } from '@/lib/api/contracts/knowledg
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { SUPPORTED_FIELD_TYPES } from '@/lib/knowledge/constants'
+import { getFieldTypeForSlot, SUPPORTED_FIELD_TYPES } from '@/lib/knowledge/constants'
 import {
   cleanupUnusedTagDefinitions,
   createOrUpdateTagDefinitionsBulk,
@@ -111,6 +111,16 @@ export const POST = withRouteHandler(
         if (!(SUPPORTED_FIELD_TYPES as readonly string[]).includes(def.fieldType)) {
           return NextResponse.json(
             { error: 'Invalid request data', details: `Unsupported field type: ${def.fieldType}` },
+            { status: 400 }
+          )
+        }
+        /**
+         * Slot validity only, not slot/field-type agreement: this route also renames
+         * existing definitions, which resend whatever pair is already stored.
+         */
+        if (getFieldTypeForSlot(def.tagSlot) === null) {
+          return NextResponse.json(
+            { error: 'Invalid request data', details: `Unsupported tag slot: ${def.tagSlot}` },
             { status: 400 }
           )
         }
