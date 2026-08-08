@@ -1,11 +1,15 @@
 import { readFile } from 'fs/promises'
 import { createLogger } from '@sim/logger'
 import type { FileParseResult, FileParser } from '@/lib/file-parsers/types'
-import { sanitizeTextForUTF8 } from '@/lib/file-parsers/utils'
+import { sanitizeTextForUTF8, truncationNotice } from '@/lib/file-parsers/utils'
 
 const logger = createLogger('PdfParser')
 
-/** Highest page number visited, bounding documents that declare huge page counts. */
+/**
+ * Ceiling on the page loop. The character budget and the deadline already stop
+ * extraction on their own, so this exists purely so the loop bound never comes
+ * straight from the attacker-controlled `numPages` field.
+ */
 const MAX_PDF_PAGES = 10_000
 
 /** Ceiling on extracted characters — roughly 3,000 pages of dense text. */
@@ -35,6 +39,8 @@ interface BoundedExtraction {
   text: string
   /** Page count the document declares, however many pages were actually read. */
   totalPages: number
+  /** Pages actually visited before a budget stopped extraction. */
+  pagesRead: number
   /** True when a budget stopped extraction before the document was exhausted. */
   truncated: boolean
 }
@@ -128,7 +134,12 @@ async function extractTextWithinBudget(pdf: PdfDocumentProxy): Promise<BoundedEx
     }
   }
 
-  return { text: pageTexts.join('\n').replace(/\s+/g, ' '), totalPages, truncated }
+  return {
+    text: pageTexts.join('\n').replace(/\s+/g, ' '),
+    totalPages,
+    pagesRead: pageTexts.length,
+    truncated,
+  }
 }
 
 export class PdfParser implements FileParser {
@@ -162,16 +173,26 @@ export class PdfParser implements FileParser {
       const pdf = await getDocumentProxy(uint8Array)
 
       try {
-        const { text, totalPages, truncated } = await extractTextWithinBudget(pdf)
+        const { text, totalPages, pagesRead, truncated } = await extractTextWithinBudget(pdf)
 
         logger.info('PDF parsed successfully, pages:', totalPages, 'text length:', text.length)
 
         if (truncated) {
-          logger.warn(PDF_TRUNCATION_WARNING, { totalPages, textLength: text.length })
+          logger.warn(PDF_TRUNCATION_WARNING, { totalPages, pagesRead, textLength: text.length })
         }
 
+        // Callers only ever read `content`, so without an inline notice a truncated
+        // document is indistinguishable from a complete one. Empty text yields no
+        // notice, so a text-free PDF still reports as empty rather than as a lone notice.
+        const notice =
+          truncated && text.length > 0
+            ? truncationNotice(
+                `PDF text truncated at parser limits, showing first ${pagesRead} of ${totalPages} pages`
+              )
+            : ''
+
         return {
-          content: sanitizeTextForUTF8(text),
+          content: sanitizeTextForUTF8(text + notice),
           metadata: {
             pageCount: totalPages,
             source: 'unpdf',

@@ -70,7 +70,13 @@ describe('PdfParser', () => {
 
     expect(result.metadata?.truncated).toBe(true)
     expect(result.metadata?.warning).toMatch(/parser limit/i)
-    expect(result.content.length).toBeLessThanOrEqual(MAX_PDF_TEXT_CHARS)
+    expect(result.content.length).toBeLessThanOrEqual(MAX_PDF_TEXT_CHARS + 200)
+  }, 120_000)
+
+  it('marks truncated content inline so callers reading only content can see it', async () => {
+    const result = await new PdfParser().parseBuffer(buildTextBombPdf(200_000))
+
+    expect(result.content).toMatch(/\[\.\.\. PDF text truncated at parser limits.* \.\.\.\]/)
   }, 120_000)
 
   it('extracts a small PDF in full and does not flag it as truncated', async () => {
@@ -80,5 +86,6 @@ describe('PdfParser', () => {
     expect(result.metadata?.warning).toBeUndefined()
     expect(result.metadata?.pageCount).toBe(1)
     expect(result.content).toContain('AAAA')
+    expect(result.content).not.toContain('truncated')
   }, 30_000)
 })
