@@ -222,8 +222,6 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
   },
 } as const
 
-export const RESOURCE_TYPES = Object.values(RESOURCE_REGISTRY)
-
 /**
  * Top-down order for every menu that lists resource families, mirroring the
  * workspace sidebar so a user reads the same sequence in both places. The two
