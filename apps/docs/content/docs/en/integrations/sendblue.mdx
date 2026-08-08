@@ -57,8 +57,6 @@ Send an iMessage or SMS to a single recipient via Sendblue.
 | `send_style` | string | No | iMessage expressive style \(e.g., celebration, fireworks, lasers, confetti, balloons, invisible, slam\). |
 | `seat_id` | string | No | Seat \(user\) the message is attributed to. Accepts the seat UUID or Firebase Auth subject. |
 | `status_callback` | string | No | Webhook URL that Sendblue will POST message status updates to. |
-| `apiKeyId` | string | Yes | Sendblue API Key ID \(sb-api-key-id\) |
-| `apiSecretKey` | string | Yes | Sendblue API Secret Key \(sb-api-secret-key\) |
 
 #### Output
 
@@ -96,8 +94,6 @@ Send an iMessage or SMS to a group of recipients via Sendblue.
 | `seat_id` | string | No | Seat \(user\) the message is attributed to. Accepts the seat UUID or Firebase Auth subject. |
 | `group_id` | string | No | Unique identifier of an existing group to send to. Omit to start a new group. |
 | `status_callback` | string | No | Webhook URL that Sendblue will POST message status updates to. |
-| `apiKeyId` | string | Yes | Sendblue API Key ID \(sb-api-key-id\) |
-| `apiSecretKey` | string | Yes | Sendblue API Secret Key \(sb-api-secret-key\) |
 
 #### Output
 
@@ -130,8 +126,6 @@ Check whether a phone number can receive iMessage or only SMS.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `number` | string | Yes | Phone number to evaluate, in E.164 format \(e.g., +19998887777\) |
-| `apiKeyId` | string | Yes | Sendblue API Key ID \(sb-api-key-id\) |
-| `apiSecretKey` | string | Yes | Sendblue API Secret Key \(sb-api-secret-key\) |
 
 #### Output
 
@@ -152,8 +146,6 @@ Display a typing indicator to a recipient (not supported in group chats).
 | `from_number` | string | No | Your Sendblue line number to send from, in E.164 format. |
 | `state` | string | No | "start" \(default\) shows the indicator; "stop" ends an active indicator before max_duration_ms expires. |
 | `max_duration_ms` | number | No | How long \(ms\) the indicator stays visible before auto-stopping. Defaults to 60000. Must be between 1 and 300000. |
-| `apiKeyId` | string | Yes | Sendblue API Key ID \(sb-api-key-id\) |
-| `apiSecretKey` | string | Yes | Sendblue API Secret Key \(sb-api-secret-key\) |
 
 #### Output
 
@@ -173,8 +165,6 @@ Retrieve a single message and its current status by message handle/ID.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `message_id` | string | Yes | The message handle/ID returned when the message was sent. |
-| `apiKeyId` | string | Yes | Sendblue API Key ID \(sb-api-key-id\) |
-| `apiSecretKey` | string | Yes | Sendblue API Secret Key \(sb-api-secret-key\) |
 
 #### Output
 

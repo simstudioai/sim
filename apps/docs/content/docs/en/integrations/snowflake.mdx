@@ -31,12 +31,6 @@ Execute one parameterized SQL statement through the Snowflake SQL API.
 | `statement` | string | Yes | One Snowflake SQL statement to execute |
 | `bindings` | json | No | Snowflake bindings keyed by 1-based position, each with type and string value |
 | `async` | boolean | No | Return immediately with a statement handle |
-| `host` | string | Yes | Snowflake account host, for example myorg-myaccount.snowflakecomputing.com |
-| `apiKey` | string | Yes | Snowflake programmatic access token |
-| `role` | string | No | Snowflake role to use for this statement |
-| `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
-| `warehouse` | string | No | Warehouse to use for this statement; defaults to the PAT user setting |
-| `maxRows` | number | No | Maximum result rows; defaults to 1000 with a Sim safety limit of 10000 |
 
 #### Output
 
@@ -64,6 +58,7 @@ Execute one parameterized SQL statement through the Snowflake SQL API.
 |   ↳ `rowsDeleted` | number | Rows deleted by the statement |
 |   ↳ `duplicateRowsUpdated` | number | Duplicate rows updated by the statement |
 |   ↳ `rowsAffected` | number | Total inserted, updated, and deleted rows |
+
 ### Snowflake Get Statement
 
 Check a running or completed statement and retrieve exactly one result partition. Canceled or failed statements are returned as errors.
@@ -74,8 +69,6 @@ Check a running or completed statement and retrieve exactly one result partition
 | --------- | ---- | -------- | ----------- |
 | `statementHandle` | string | Yes | Statement handle returned by Snowflake |
 | `partition` | number | No | Zero-based result partition to retrieve; defaults to 0 |
-| `host` | string | Yes | Snowflake account host, for example myorg-myaccount.snowflakecomputing.com |
-| `apiKey` | string | Yes | Snowflake programmatic access token |
 
 #### Output
 
@@ -103,6 +96,7 @@ Check a running or completed statement and retrieve exactly one result partition
 |   ↳ `rowsDeleted` | number | Rows deleted by the statement |
 |   ↳ `duplicateRowsUpdated` | number | Duplicate rows updated by the statement |
 |   ↳ `rowsAffected` | number | Total inserted, updated, and deleted rows |
+
 ### Snowflake Cancel Statement
 
 Cancel a running Snowflake SQL API statement.
@@ -112,8 +106,6 @@ Cancel a running Snowflake SQL API statement.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `statementHandle` | string | Yes | Statement handle returned by Snowflake |
-| `host` | string | Yes | Snowflake account host, for example myorg-myaccount.snowflakecomputing.com |
-| `apiKey` | string | Yes | Snowflake programmatic access token |
 
 #### Output
 
@@ -154,11 +146,6 @@ Insert structured JSON rows using bound values.
 | `schema` | string | Yes | Schema name |
 | `table` | string | Yes | Target Snowflake table name within the selected database and schema context |
 | `rows` | json | Yes | Non-empty JSON array of row objects with matching keys |
-| `host` | string | Yes | Snowflake account host, for example myorg-myaccount.snowflakecomputing.com |
-| `apiKey` | string | Yes | Snowflake programmatic access token |
-| `role` | string | No | Snowflake role to use for this statement |
-| `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
-| `warehouse` | string | No | Warehouse to use for this statement; defaults to the PAT user setting |
 
 #### Output
 
@@ -200,11 +187,6 @@ Update matching rows with a bound MERGE statement without inserting new rows.
 | `table` | string | Yes | Target Snowflake table name within the selected database and schema context |
 | `rows` | json | Yes | Non-empty JSON array of row objects with matching keys |
 | `matchColumns` | array | Yes | Columns used to match target rows |
-| `host` | string | Yes | Snowflake account host, for example myorg-myaccount.snowflakecomputing.com |
-| `apiKey` | string | Yes | Snowflake programmatic access token |
-| `role` | string | No | Snowflake role to use for this statement |
-| `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
-| `warehouse` | string | No | Warehouse to use for this statement; defaults to the PAT user setting |
 
 #### Output
 
@@ -246,11 +228,6 @@ Update matching rows and insert unmatched rows with a bound MERGE statement.
 | `table` | string | Yes | Target Snowflake table name within the selected database and schema context |
 | `rows` | json | Yes | Non-empty JSON array of row objects with matching keys |
 | `matchColumns` | array | Yes | Columns used to match target rows |
-| `host` | string | Yes | Snowflake account host, for example myorg-myaccount.snowflakecomputing.com |
-| `apiKey` | string | Yes | Snowflake programmatic access token |
-| `role` | string | No | Snowflake role to use for this statement |
-| `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
-| `warehouse` | string | No | Warehouse to use for this statement; defaults to the PAT user setting |
 
 #### Output
 
@@ -291,11 +268,6 @@ Delete rows matching a required set of bound equality filters.
 | `schema` | string | Yes | Schema name |
 | `table` | string | Yes | Target Snowflake table name within the selected database and schema context |
 | `filters` | json | Yes | Non-empty JSON object of column equality filters combined with AND |
-| `host` | string | Yes | Snowflake account host, for example myorg-myaccount.snowflakecomputing.com |
-| `apiKey` | string | Yes | Snowflake programmatic access token |
-| `role` | string | No | Snowflake role to use for this statement |
-| `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
-| `warehouse` | string | No | Warehouse to use for this statement; defaults to the PAT user setting |
 
 #### Output
 
@@ -342,12 +314,6 @@ Load files from an existing Snowflake stage with COPY INTO.
 | `purge` | boolean | No | Remove successfully loaded files from the stage |
 | `force` | boolean | No | Reload files even when Snowflake has loaded them before |
 | `matchByColumnName` | string | No | CASE_SENSITIVE, CASE_INSENSITIVE, or NONE |
-| `host` | string | Yes | Snowflake account host, for example myorg-myaccount.snowflakecomputing.com |
-| `apiKey` | string | Yes | Snowflake programmatic access token |
-| `role` | string | No | Snowflake role to use for this statement |
-| `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
-| `warehouse` | string | No | Warehouse to use for this statement; defaults to the PAT user setting |
-| `maxRows` | number | No | Maximum result rows; defaults to 1000 with a Sim safety limit of 10000 |
 
 #### Output
 
@@ -385,11 +351,6 @@ List warehouses visible to the active Snowflake role.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `nameLike` | string | No | Optional SQL LIKE pattern for warehouse names |
-| `host` | string | Yes | Snowflake account host, for example myorg-myaccount.snowflakecomputing.com |
-| `apiKey` | string | Yes | Snowflake programmatic access token |
-| `role` | string | No | Snowflake role to use for this statement |
-| `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
-| `maxRows` | number | No | Maximum result rows; defaults to 1000 with a Sim safety limit of 10000 |
 
 #### Output
 
@@ -427,10 +388,6 @@ Get the full details for a Snowflake virtual warehouse.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `warehouseName` | string | Yes | Warehouse name |
-| `host` | string | Yes | Snowflake account host, for example myorg-myaccount.snowflakecomputing.com |
-| `apiKey` | string | Yes | Snowflake programmatic access token |
-| `role` | string | No | Snowflake role to use for this statement |
-| `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 
 #### Output
 
@@ -468,10 +425,6 @@ Resume a Snowflake virtual warehouse if it is suspended.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `warehouseName` | string | Yes | Warehouse name |
-| `host` | string | Yes | Snowflake account host, for example myorg-myaccount.snowflakecomputing.com |
-| `apiKey` | string | Yes | Snowflake programmatic access token |
-| `role` | string | No | Snowflake role to use for this statement |
-| `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 
 #### Output
 
@@ -509,10 +462,6 @@ Suspend a Snowflake virtual warehouse.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `warehouseName` | string | Yes | Warehouse name |
-| `host` | string | Yes | Snowflake account host, for example myorg-myaccount.snowflakecomputing.com |
-| `apiKey` | string | Yes | Snowflake programmatic access token |
-| `role` | string | No | Snowflake role to use for this statement |
-| `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 
 #### Output
 
@@ -553,10 +502,6 @@ List tasks in a Snowflake schema.
 | `schema` | string | Yes | Schema name |
 | `nameLike` | string | No | Optional SQL LIKE pattern for task names |
 | `limit` | number | No | Maximum task rows, from 1 to 10000 |
-| `host` | string | Yes | Snowflake account host, for example myorg-myaccount.snowflakecomputing.com |
-| `apiKey` | string | Yes | Snowflake programmatic access token |
-| `role` | string | No | Snowflake role to use for this statement |
-| `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 
 #### Output
 
@@ -596,10 +541,6 @@ Describe a Snowflake task.
 | `database` | string | Yes | Database name |
 | `schema` | string | Yes | Schema name |
 | `taskName` | string | Yes | Task name |
-| `host` | string | Yes | Snowflake account host, for example myorg-myaccount.snowflakecomputing.com |
-| `apiKey` | string | Yes | Snowflake programmatic access token |
-| `role` | string | No | Snowflake role to use for this statement |
-| `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 
 #### Output
 
@@ -640,10 +581,6 @@ Run a Snowflake task immediately, optionally retrying its last failed graph.
 | `schema` | string | Yes | Schema name |
 | `taskName` | string | Yes | Task name |
 | `retryLast` | boolean | No | Retry the last failed task graph run |
-| `host` | string | Yes | Snowflake account host, for example myorg-myaccount.snowflakecomputing.com |
-| `apiKey` | string | Yes | Snowflake programmatic access token |
-| `role` | string | No | Snowflake role to use for this statement |
-| `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 
 #### Output
 
@@ -685,11 +622,6 @@ Query up to seven days of Snowflake task history, capped at 10000 rows.
 | `endTime` | string | No | Optional exclusive ISO timestamp within the last seven days |
 | `errorOnly` | boolean | No | Return only failed task runs |
 | `limit` | number | No | Maximum task runs, from 1 to 10000 |
-| `host` | string | Yes | Snowflake account host, for example myorg-myaccount.snowflakecomputing.com |
-| `apiKey` | string | Yes | Snowflake programmatic access token |
-| `role` | string | No | Snowflake role to use for this statement |
-| `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
-| `warehouse` | string | No | Warehouse to use for this statement; defaults to the PAT user setting |
 
 #### Output
 
@@ -730,11 +662,6 @@ Find one task history record by query ID within Snowflake’s seven-day window a
 | `taskName` | string | No | Optional task name used to narrow the 10000-record history window |
 | `startTime` | string | No | Optional inclusive ISO timestamp within the last seven days |
 | `endTime` | string | No | Optional exclusive ISO timestamp within the last seven days |
-| `host` | string | Yes | Snowflake account host, for example myorg-myaccount.snowflakecomputing.com |
-| `apiKey` | string | Yes | Snowflake programmatic access token |
-| `role` | string | No | Snowflake role to use for this statement |
-| `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
-| `warehouse` | string | No | Warehouse to use for this statement; defaults to the PAT user setting |
 
 #### Output
 
@@ -772,11 +699,6 @@ Cancel a running task query with SYSTEM$CANCEL_QUERY.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `queryId` | string | Yes | Running task query ID from TASK_HISTORY |
-| `host` | string | Yes | Snowflake account host, for example myorg-myaccount.snowflakecomputing.com |
-| `apiKey` | string | Yes | Snowflake programmatic access token |
-| `role` | string | No | Snowflake role to use for this statement |
-| `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
-| `warehouse` | string | No | Warehouse to use for this statement; defaults to the PAT user setting |
 
 #### Output
 
@@ -814,12 +736,6 @@ Read a task query result with RESULT_SCAN during Snowflake’s 24-hour retention
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `queryId` | string | Yes | Completed task query ID; task results require the task owner role, while manual query results require the same user |
-| `host` | string | Yes | Snowflake account host, for example myorg-myaccount.snowflakecomputing.com |
-| `apiKey` | string | Yes | Snowflake programmatic access token |
-| `role` | string | No | Snowflake role to use for this statement |
-| `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
-| `warehouse` | string | No | Warehouse to use for this statement; defaults to the PAT user setting |
-| `maxRows` | number | No | Maximum result rows; defaults to 1000 with a Sim safety limit of 10000 |
 
 #### Output
 
@@ -860,12 +776,6 @@ Inspect table and column metadata through Snowflake INFORMATION_SCHEMA views.
 | `schema` | string | No | Optional exact schema name filter |
 | `table` | string | No | Optional exact table name filter |
 | `includeViews` | boolean | No | Include views as well as base tables |
-| `host` | string | Yes | Snowflake account host, for example myorg-myaccount.snowflakecomputing.com |
-| `apiKey` | string | Yes | Snowflake programmatic access token |
-| `role` | string | No | Snowflake role to use for this statement |
-| `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
-| `warehouse` | string | No | Warehouse to use for this statement; defaults to the PAT user setting |
-| `maxRows` | number | No | Maximum result rows; defaults to 1000 with a Sim safety limit of 10000 |
 
 #### Output
 
@@ -906,12 +816,6 @@ Call a stored procedure with explicitly typed Snowflake bindings.
 | `schema` | string | Yes | Schema name |
 | `procedureName` | string | Yes | Stored procedure name |
 | `procedureArguments` | array | No | Ordered argument bindings with a Snowflake type and string value |
-| `host` | string | Yes | Snowflake account host, for example myorg-myaccount.snowflakecomputing.com |
-| `apiKey` | string | Yes | Snowflake programmatic access token |
-| `role` | string | No | Snowflake role to use for this statement |
-| `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
-| `warehouse` | string | No | Warehouse to use for this statement; defaults to the PAT user setting |
-| `maxRows` | number | No | Maximum result rows; defaults to 1000 with a Sim safety limit of 10000 |
 
 #### Output
 

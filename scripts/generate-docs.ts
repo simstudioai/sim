@@ -289,29 +289,13 @@ async function loadTriggerRegistry(): Promise<Record<string, RegistryTrigger>> {
   return module.TRIGGER_REGISTRY as Record<string, RegistryTrigger>
 }
 
-interface GeneratedToolMetadataEntry {
-  name?: string
-  description?: string
-  params?: Record<
-    string,
-    { type?: string; required?: boolean; description?: string; visibility?: string }
-  >
-}
-
-/** Serializable tool contracts keyed by tool id. Kept in sync with the registry by CI. */
-let generatedToolMetadata: Record<string, GeneratedToolMetadataEntry> | null = null
+/** Human-facing tool names, keyed by tool id. Kept in sync with the registry by CI. */
 let toolDisplayNames: Map<string, string> | null = null
-
-async function loadGeneratedToolMetadata(): Promise<Record<string, GeneratedToolMetadataEntry>> {
-  if (generatedToolMetadata) return generatedToolMetadata
-  const module = await import(path.join(rootDir, 'apps/sim/tools/generated/tool-metadata.ts'))
-  generatedToolMetadata = module.default as Record<string, GeneratedToolMetadataEntry>
-  return generatedToolMetadata
-}
 
 async function loadToolDisplayNames(): Promise<Map<string, string>> {
   if (toolDisplayNames) return toolDisplayNames
-  const metadata = await loadGeneratedToolMetadata()
+  const module = await import(path.join(rootDir, 'apps/sim/tools/generated/tool-metadata.ts'))
+  const metadata = module.default as Record<string, { name?: string }>
   toolDisplayNames = new Map(
     Object.entries(metadata).flatMap(([id, entry]) =>
       entry?.name ? [[id, entry.name] as const] : []
@@ -2743,14 +2727,6 @@ function parsePropertiesContent(
   return properties
 }
 
-function hasSpreadParams(content: string): boolean {
-  const paramsStart = content.search(/\bparams\s*:\s*{/)
-  if (paramsStart === -1) return false
-  const openBrace = content.indexOf('{', paramsStart)
-  const closeBrace = findMatchingClose(content, openBrace)
-  return closeBrace !== -1 && content.slice(openBrace + 1, closeBrace - 1).includes('...')
-}
-
 async function getToolInfo(toolName: string): Promise<{
   description: string
   params: Array<{ name: string; type: string; required: boolean; description: string }>
@@ -2880,27 +2856,11 @@ async function getToolInfo(toolName: string): Promise<{
       return null
     }
 
-    const extracted = extractToolInfo(
+    return extractToolInfo(
       toolName,
       toolFileContent,
       resolveFactorySource(toolFileContent, foundFile, rootDir)
     )
-    if (!extracted || !hasSpreadParams(toolFileContent)) return extracted
-
-    const generated = (await loadGeneratedToolMetadata())[toolName]
-    const generatedParams = Object.entries(generated?.params ?? {})
-      .filter(([, param]) => param.visibility !== 'hidden')
-      .map(([name, param]) => ({
-        name,
-        type: param.type ?? 'string',
-        required: param.required === true,
-        description: param.description ?? '',
-      }))
-    const extractedNames = new Set(extracted.params.map((param) => param.name))
-    const missingParams = generatedParams.filter((param) => !extractedNames.has(param.name))
-    return missingParams.length > 0
-      ? { ...extracted, params: [...extracted.params, ...missingParams] }
-      : extracted
   } catch (error) {
     console.error(`Error getting info for tool ${toolName}:`, error)
     return null
