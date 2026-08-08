@@ -483,10 +483,7 @@ export function ConnectionBlockSelector({ id, data }: NodeProps<ConnectionBlockS
               </>
             )}
           </Command.List>
-          <div
-            data-connection-selector-search-frost=''
-            className='nodrag nopan absolute inset-x-[3px] top-[3px] z-20 flex h-12 cursor-text items-center gap-2 rounded-t-[13px] bg-[linear-gradient(to_bottom,var(--surface-2)_0%,color-mix(in_srgb,var(--surface-2)_88%,transparent)_68%,transparent_100%)] px-2.5 pb-2'
-          >
+          <div className='nodrag nopan absolute inset-x-[3px] top-[3px] z-20 flex h-12 cursor-text items-center gap-2 rounded-t-[13px] bg-[linear-gradient(to_bottom,var(--surface-2)_0%,color-mix(in_srgb,var(--surface-2)_88%,transparent)_68%,transparent_100%)] px-2.5 pb-2'>
             <Search className='size-[14px] flex-shrink-0 text-[var(--text-muted)]' />
             <Command.Input
               ref={inputRef}

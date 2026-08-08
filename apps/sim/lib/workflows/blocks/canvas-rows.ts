@@ -13,7 +13,7 @@ import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
  * Selector subblock types whose hydrated value names the block's primary
  * target (table, channel, knowledge base, …) — promoted to a chip.
  */
-export const CHIP_TARGET_SELECTOR_TYPES = new Set<string>([
+const CHIP_TARGET_SELECTOR_TYPES = new Set<string>([
   'table-selector',
   'knowledge-base-selector',
   'workflow-selector',
@@ -29,14 +29,14 @@ export const CHIP_TARGET_SELECTOR_TYPES = new Set<string>([
 ])
 
 /** Maximum fragments in the statement line; remaining candidates fall back to rows. */
-export const MAX_CHIPS = 2
+const MAX_CHIPS = 2
 
 /**
  * Ranks a subblock for promotion into the card's chips row: the operation
  * first, then the primary target selector, then the model. Returns null for
  * subblocks that stay as label/value rows.
  */
-export function chipPriority(subBlock: SubBlockConfig): number | null {
+function chipPriority(subBlock: SubBlockConfig): number | null {
   if (subBlock.id === 'operation') return 0
   if (CHIP_TARGET_SELECTOR_TYPES.has(subBlock.type)) return 1
   if (subBlock.id === 'model') return 2

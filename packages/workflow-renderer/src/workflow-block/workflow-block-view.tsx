@@ -859,8 +859,6 @@ export function WorkflowBlockView({
             }}
             data-nodeid={id}
             data-handleid={cursorSourceHandle.handleId}
-            data-workflow-cursor-edge={cursorSourceHandle.edgeSide}
-            data-workflow-cursor-source-side={cursorSourceHandle.side}
             isConnectableStart={true}
             isConnectableEnd={false}
             onPointerDownCapture={syncCursorSourceHandleBounds}
