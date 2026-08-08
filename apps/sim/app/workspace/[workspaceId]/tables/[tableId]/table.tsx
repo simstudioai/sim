@@ -6,7 +6,6 @@ import { Download, Lock, Pencil, Table as TableIcon, Trash, Upload } from '@sim/
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
-import { useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
 import { PresenceAvatars } from '@/components/presence'
 import {
@@ -35,6 +34,10 @@ import type {
 } from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
 import { TABLE_LIMITS } from '@/lib/table/constants'
+import {
+  ALL_VIEW_PARAM,
+  DEFAULT_TABLE_DETAIL_SORT_DIRECTION,
+} from '@/lib/table/detail-search-params'
 import { LogDetails } from '@/app/workspace/[workspaceId]/logs/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useLogByExecutionId } from '@/hooks/queries/logs'
@@ -54,6 +57,7 @@ import {
 } from '@/hooks/queries/tables'
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
+import { useTableDetailState } from '@/hooks/use-table-detail-state'
 import { hostOwnsUrl, type ResourceHost } from '@/resources'
 import { useLogDetailsUIStore } from '@/stores/logs/store'
 import type { DeletedRowSnapshot } from '@/stores/table/types'
@@ -78,12 +82,6 @@ import {
 } from './components'
 import { useTable, useTableEventStream, useTableRoom } from './hooks'
 import { type BlockedTableAction, describeBlockedAction, lockedNouns } from './lock-copy'
-import {
-  ALL_VIEW_PARAM,
-  DEFAULT_TABLE_DETAIL_SORT_DIRECTION,
-  tableDetailParsers,
-  tableDetailUrlKeys,
-} from './search-params'
 import type { QueryOptions } from './types'
 
 const logger = createLogger('Table')
@@ -293,7 +291,7 @@ export function Table({
   const [hiddenColumns, setHiddenColumns] = useState<string[]>([])
 
   const [{ sort: sortColumn, dir: sortDirection, view: activeViewId }, setTableParams] =
-    useQueryStates(tableDetailParsers, tableDetailUrlKeys)
+    useTableDetailState({ host })
 
   // Read-only mirrors for the resolve effect: it must know whether the user has
   // already applied a filter / hidden columns without re-running when they change.
@@ -551,24 +549,9 @@ export function Table({
     ownerResolvedRef.current = true
 
     if (seededViewIdRef.current === undefined) {
-      // Embedded tables bind these parsers to the HOST page's URL, which the
-      // mothership panel keeps across resource switches. A view id this table
-      // can't resolve was left by the previously-open resource — ignore it so
-      // this table picks its own default. A param it CAN resolve is honoured,
-      // including an explicit All: that is a real bookmark or a remount after
-      // switching resources away and back, not leakage.
-      const inheritedParams =
-        embedded &&
-        activeViewId !== null &&
-        activeViewId !== ALL_VIEW_PARAM &&
-        !views.some((view) => view.id === activeViewId)
-
-      if (activeViewId === null || inheritedParams) {
+      if (activeViewId === null) {
         const defaultView = views.find((view) => view.isDefault)
-        // `sort` rides the same host URL, so when the view id is inherited the
-        // sort beside it is too — not local work, and it must not suppress the
-        // default view's own sort.
-        const keep = inheritedParams ? { ...localWork(), sort: false } : localWork()
+        const keep = localWork()
         if (defaultView) {
           seededViewIdRef.current = defaultView.id
           setTableParams({ view: defaultView.id })
@@ -577,10 +560,8 @@ export function Table({
           return
         }
         // No view to adopt. Deliberately does NOT apply an empty config — that
-        // would clear a deep-linked `?sort=` on mount. Inherited params are the
-        // exception: nothing about them refers to this table, so they're cleared.
+        // would clear a deep-linked `?sort=` on mount.
         seededViewIdRef.current = null
-        if (inheritedParams) setTableParams({ view: ALL_VIEW_PARAM, sort: null, dir: null })
         resolvePendingLayout(false)
         return
       }
@@ -639,7 +620,6 @@ export function Table({
     views,
     activeView,
     activeViewId,
-    embedded,
     sortColumn,
     applyViewConfig,
     setTableParams,

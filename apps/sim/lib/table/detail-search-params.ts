@@ -5,7 +5,13 @@ import { SORT_DIRECTIONS } from '@/lib/url-state'
 export const DEFAULT_TABLE_DETAIL_SORT_DIRECTION = 'asc'
 
 /**
- * Co-located, typed URL query-param definitions for the table-detail view.
+ * Typed URL query-param definitions for the table-detail view.
+ *
+ * In `lib/` rather than co-located with the route because the two halves that
+ * need them sit on opposite sides of a boundary: the table view is a canonical
+ * resource unit, which may not call nuqs at all (see `useTableDetailState`), and
+ * the hook that does own the URL may not import the route tree. A pure,
+ * server-safe parser module is the one thing both may reach for.
  *
  * - `sort` is the active sort column. Columns are user-defined table columns
  *   (not a fixed set), so the column id is stored as a free-form string. A
