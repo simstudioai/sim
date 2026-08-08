@@ -20,6 +20,11 @@ export function knowledgeWorkspaceId(source: ResourceSource<'knowledge'>): strin
   return source.via === 'workspace' ? source.workspaceId : null
 }
 
+/** The knowledge base's own id, or `null` when only a share token reaches it. */
+export function knowledgeResourceId(source: ResourceSource<'knowledge'>): string | null {
+  return source.via === 'workspace' ? source.resourceId : null
+}
+
 /**
  * The in-app route for one document inside this knowledge base, or `null` when
  * there is nowhere to send the viewer.
@@ -30,11 +35,6 @@ export function knowledgeWorkspaceId(source: ResourceSource<'knowledge'>): strin
  * which is why it lives in this per-kind module rather than the shared route
  * table, exactly as `logWorkflowHref` does for a log's workflow.
  */
-/** The knowledge base's own id, or `null` when only a share token reaches it. */
-export function knowledgeResourceId(source: ResourceSource<'knowledge'>): string | null {
-  return source.via === 'workspace' ? source.resourceId : null
-}
-
 export function knowledgeDocumentHref(
   source: ResourceSource<'knowledge'>,
   documentId: string

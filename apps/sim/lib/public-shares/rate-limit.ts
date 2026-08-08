@@ -19,38 +19,75 @@ const CONTENT_RATE_LIMIT: TokenBucketConfig = {
 }
 
 /**
- * Runs cost real money (LLM tokens, tool calls) on the workspace's billing
- * account, so an anonymous visitor gets the tightest per-IP budget of all.
+ * One page view of a shared document fans out to one request per embedded image,
+ * so this budget is expressed as page views rather than requests.
+ *
+ * These were charged against {@link CONTENT_RATE_LIMIT} — 60/min, sized for
+ * whole-file downloads — which meant a thirty-image document spent half a
+ * reader's minute on a single view and the second view inside that minute
+ * returned 429. To the reader that renders as broken images with no stated
+ * reason, so the budget has to be denominated in the thing that actually
+ * happens.
  */
-const EXECUTE_RATE_LIMIT: TokenBucketConfig = {
-  maxTokens: 10,
-  refillRate: 10,
+const INLINE_IMAGES_PER_VIEW = 60
+const INLINE_VIEWS_PER_MINUTE = 5
+
+const INLINE_RATE_LIMIT: TokenBucketConfig = {
+  maxTokens: INLINE_IMAGES_PER_VIEW * INLINE_VIEWS_PER_MINUTE,
+  refillRate: INLINE_IMAGES_PER_VIEW * INLINE_VIEWS_PER_MINUTE,
   refillIntervalMs: 60_000,
 }
+
+/**
+ * How many visitors' worth of a scope's own per-IP budget one share may spend in
+ * aggregate. Ten simultaneous visitors streaming flat out before the link itself
+ * throttles.
+ */
+const PER_SHARE_VISITOR_MULTIPLE = 10
 
 /**
  * Aggregate ceiling for one share across every visitor. The per-IP bucket alone
  * does not bound a link that is passed around, and the per-actor plan limit is
  * shared by every anonymous visitor of the workspace — so a hot link could
  * otherwise drain the whole plan quota. Applied in addition to the per-IP
- * bucket, never instead of it, on every scope that costs the workspace money
- * (`content` S3 egress, `execute` LLM tokens). `metadata` is a single indexed
- * lookup that spends nothing, so it stays per-IP only — an aggregate ceiling
- * tighter than its own per-IP budget would throttle a merely popular link for
- * no benefit.
+ * bucket, never instead of it.
+ *
+ * Derived from the scope's own per-IP budget rather than written out, so the two
+ * can never drift into the state this started in — `content` was given a flat
+ * `60`, exactly its per-IP budget, which made the aggregate strictly worse than
+ * no aggregate at all: one visitor at full rate saturated the link for everyone,
+ * so the ceiling bound before the bucket it exists to backstop and a merely
+ * popular share returned 429 to its second viewer. Multiplying the source of
+ * truth keeps `aggregate > per-IP` true by construction.
+ *
+ * Only scopes that spend the workspace's money get an entry, which is why this
+ * is keyed by {@link CostBearingScope} rather than {@link PublicShareRateScope}:
+ * `metadata` is a single indexed lookup that costs nothing, and giving it an
+ * aggregate could only ever throttle a popular link for no benefit. Passing it
+ * here is a compile error, not a convention.
  */
-const PER_SHARE_RATE_LIMIT: TokenBucketConfig = {
-  maxTokens: 60,
-  refillRate: 60,
-  refillIntervalMs: 60_000,
+function perShareCeiling(perIp: TokenBucketConfig): TokenBucketConfig {
+  return {
+    maxTokens: perIp.maxTokens * PER_SHARE_VISITOR_MULTIPLE,
+    refillRate: perIp.refillRate * PER_SHARE_VISITOR_MULTIPLE,
+    refillIntervalMs: perIp.refillIntervalMs,
+  }
 }
 
-export type PublicShareRateScope = 'metadata' | 'content' | 'execute'
+export type PublicShareRateScope = 'metadata' | 'content' | 'inline'
+
+/** The scopes that spend the workspace's money, and so carry an aggregate ceiling. */
+type CostBearingScope = Extract<PublicShareRateScope, 'content' | 'inline'>
 
 const SCOPE_RATE_LIMITS: Record<PublicShareRateScope, TokenBucketConfig> = {
   metadata: METADATA_RATE_LIMIT,
   content: CONTENT_RATE_LIMIT,
-  execute: EXECUTE_RATE_LIMIT,
+  inline: INLINE_RATE_LIMIT,
+}
+
+const PER_SHARE_RATE_LIMITS: Record<CostBearingScope, TokenBucketConfig> = {
+  content: perShareCeiling(CONTENT_RATE_LIMIT),
+  inline: perShareCeiling(INLINE_RATE_LIMIT),
 }
 
 function tooManyRequests(retryAfterMs: number | undefined): NextResponse {
@@ -89,13 +126,13 @@ export async function enforcePerIpRateLimit(
 /**
  * Consumes one token from the share's aggregate bucket, returning a `429`
  * response when exceeded (or `null` to proceed) — see
- * {@link PER_SHARE_RATE_LIMIT}.
+ * {@link PER_SHARE_RATE_LIMITS}.
  *
  * The share id is only known once the token resolves, so this runs after
  * resolution *and* after the share's auth gate: charging it earlier would let a
  * caller who holds the token but fails the gate drain the ceiling for everyone
- * else. Every cost-bearing scope (`content`, `execute`) must call this in
- * addition to {@link enforcePerIpRateLimit}.
+ * else. Every cost-bearing scope must call this in addition to
+ * {@link enforcePerIpRateLimit}.
  *
  * It is a separate function from {@link enforcePerIpRateLimit}, rather than an
  * optional `shareId` on one combined call, because each token bucket read is a
@@ -107,12 +144,12 @@ export async function enforcePerIpRateLimit(
  * Fails open on storage errors, like {@link enforcePerIpRateLimit}.
  */
 export async function enforcePerShareRateLimit(
-  scope: PublicShareRateScope,
+  scope: CostBearingScope,
   shareId: string
 ): Promise<NextResponse | null> {
   const result = await rateLimiter.checkRateLimitDirect(
     `public-share:${scope}:share:${shareId}`,
-    PER_SHARE_RATE_LIMIT
+    PER_SHARE_RATE_LIMITS[scope]
   )
   return result.allowed ? null : tooManyRequests(result.retryAfterMs)
 }

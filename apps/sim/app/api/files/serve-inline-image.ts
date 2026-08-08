@@ -3,7 +3,11 @@ import type { NextResponse } from 'next/server'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
 import type { ResolvedInlineImage } from '@/lib/uploads/server/inline-image'
 import { sniffImageContentType } from '@/lib/uploads/utils/validation'
-import { createFileResponse, FileNotFoundError } from '@/app/api/files/utils'
+import {
+  createFileResponse,
+  FileNotFoundError,
+  REVALIDATE_CACHE_CONTROL,
+} from '@/app/api/files/utils'
 
 const logger = createLogger('InlineImageServe')
 
@@ -13,7 +17,6 @@ const logger = createLogger('InlineImageServe')
  * server-side deletion/authorization check rather than serving a stale (possibly no-longer-authorized)
  * image from cache. Private so no shared cache/CDN ever stores it.
  */
-const INLINE_CACHE_CONTROL = 'private, no-cache, must-revalidate'
 
 /**
  * Download and respond with an already-workspace-scoped inline image — the single serving tail for both
@@ -41,6 +44,6 @@ export async function serveInlineImage(
     buffer,
     contentType,
     filename: image.filename,
-    cacheControl: INLINE_CACHE_CONTROL,
+    cacheControl: REVALIDATE_CACHE_CONTROL,
   })
 }

@@ -69,6 +69,25 @@ vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 vi.mock('@/lib/uploads/utils/file-utils', () => ({
   inferContextFromKey: mockInferContextFromKey,
+  sanitizeFileKey: (key: string) => key,
+  /**
+   * `getContentType` resolves every extension through here now that the local
+   * 41-entry copy of the MIME table is gone, so the mock has to answer for the
+   * extensions these tests serve.
+   */
+  resolveEffectiveMimeType: (_declared: string | undefined, filename: string) => {
+    const ext = filename.split('.').pop()?.toLowerCase() ?? ''
+    const types: Record<string, string> = {
+      pdf: 'application/pdf',
+      jpg: 'image/jpeg',
+      jpeg: 'image/jpeg',
+      png: 'image/png',
+      txt: 'text/plain',
+      mp4: 'video/mp4',
+      webm: 'video/webm',
+    }
+    return types[ext] ?? 'application/octet-stream'
+  },
 }))
 
 vi.mock('@/lib/uploads/setup.server', () => ({}))
@@ -93,6 +112,7 @@ vi.mock('@/app/api/files/utils', () => ({
   extractStorageKey: vi.fn().mockImplementation((path: string) => path.split('/').pop()),
   extractFilename: vi.fn().mockImplementation((path: string) => path.split('/').pop()),
   findLocalFile: mockFindLocalFile,
+  REVALIDATE_CACHE_CONTROL: 'private, no-cache, must-revalidate',
 }))
 
 import { GET } from '@/app/api/files/serve/[...path]/route'

@@ -125,10 +125,15 @@ describe('GET /api/files/public/[token]/inline', () => {
     expect(mockDownloadFile).not.toHaveBeenCalled()
   })
 
-  it('charges the per-IP content bucket exactly once', async () => {
+  /**
+   * The `inline` scope, not `content`. One page view fans out to one request per
+   * embedded image, so charging these against the whole-file download budget
+   * made the second view of an image-heavy document 429.
+   */
+  it('charges the per-IP inline bucket exactly once', async () => {
     await GET(req(`fileId=${FILE_ID}`), params)
     expect(mockEnforcePerIp).toHaveBeenCalledTimes(1)
-    expect(mockEnforcePerIp).toHaveBeenCalledWith(expect.anything(), 'content')
+    expect(mockEnforcePerIp).toHaveBeenCalledWith(expect.anything(), 'inline')
   })
 
   /**
@@ -136,10 +141,10 @@ describe('GET /api/files/public/[token]/inline', () => {
    * aggregate per-share ceiling matters most here — the per-IP bucket alone does
    * not bound a link that is passed around.
    */
-  it('enforces the per-share content bucket with the resolved share id', async () => {
+  it('enforces the per-share inline bucket with the resolved share id', async () => {
     await GET(req(`fileId=${FILE_ID}`), params)
     expect(mockEnforcePerShare).toHaveBeenCalledTimes(1)
-    expect(mockEnforcePerShare).toHaveBeenCalledWith('content', 'sh_1')
+    expect(mockEnforcePerShare).toHaveBeenCalledWith('inline', 'sh_1')
   })
 
   it('never charges the per-share bucket for a request that fails the auth gate', async () => {

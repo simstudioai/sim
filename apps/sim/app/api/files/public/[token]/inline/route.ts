@@ -1,5 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { getPublicInlineFileContract } from '@/lib/api/contracts/public-shares'
@@ -43,7 +44,7 @@ export const GET = withRouteHandler(
     const requestId = generateRequestId()
 
     try {
-      const limited = await enforcePerIpRateLimit(request, 'content')
+      const limited = await enforcePerIpRateLimit(request, 'inline')
       if (limited) return limited
 
       const parsed = await parseRequest(getPublicInlineFileContract, request, context)
@@ -76,7 +77,7 @@ export const GET = withRouteHandler(
        * storage — one page of a shared document fans out to many inline
        * requests.
        */
-      const shareLimited = await enforcePerShareRateLimit('content', resolved.share.id)
+      const shareLimited = await enforcePerShareRateLimit('inline', resolved.share.id)
       if (shareLimited) return shareLimited
 
       const { file: doc } = resolved
@@ -125,7 +126,7 @@ export const GET = withRouteHandler(
         return createErrorResponse(error)
       }
       logger.error('Error serving public inline image:', error)
-      return createErrorResponse(error instanceof Error ? error : new Error('Failed to serve file'))
+      return createErrorResponse(toError(error))
     }
   }
 )

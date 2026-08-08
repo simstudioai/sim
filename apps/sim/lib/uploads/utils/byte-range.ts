@@ -84,17 +84,6 @@ export function byteRangeLength(range: ByteRange): number {
 }
 
 /**
- * Whether a content type is audio or video.
- *
- * One predicate for the two decisions media drives, because they are the same
- * question asked twice. It is byte-served rather than buffered — media is the
- * only thing a browser seeks within, and the only thing large enough that
- * buffering costs real memory — and it is served `inline` rather than as an
- * attachment, because a media element is a passive decoder with nothing to
- * execute. Everything else keeps the buffered path, which is what the
- * generated-document swap and the download audit are written against.
- */
-/**
  * Whether a request opens a new read of the object rather than continuing one.
  *
  * A media element issues many ranged requests for a single playback — the opening
@@ -110,6 +99,17 @@ export function isReadStart(rangeHeader: string | null | undefined): boolean {
   return !rangeHeader || rangeHeader.trim().startsWith('bytes=0-')
 }
 
+/**
+ * Whether a content type is audio or video.
+ *
+ * One predicate for the two decisions media drives, because they are the same
+ * question asked twice. It is byte-served rather than buffered — media is the
+ * only thing a browser seeks within, and the only thing large enough that
+ * buffering costs real memory — and it is served `inline` rather than as an
+ * attachment, because a media element is a passive decoder with nothing to
+ * execute. Everything else keeps the buffered path, which is what the
+ * generated-document swap and the download audit are written against.
+ */
 export function isMediaContentType(contentType: string | null | undefined): boolean {
   if (!contentType) return false
   const normalized = contentType.toLowerCase()

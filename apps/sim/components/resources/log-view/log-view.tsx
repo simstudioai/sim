@@ -320,11 +320,10 @@ export function LogView({
 }: LogViewProps) {
   const [isExecutionSnapshotOpen, setIsExecutionSnapshotOpen] = useState(false)
   /**
-   * Tab state lives here for every host. A host that owns the URL deep-links it
-   * through `tab`/`onTabChange`; an embedded one keeps it local, so the panel
-   * stops writing an unnamespaced key into its host's address bar.
-   */
-  /**
+   * Tab state lives here for every host: a host that owns the URL deep-links it
+   * through `tab`/`onTabChange`, an embedded one keeps it local so the panel
+   * never writes an unnamespaced key into its host's address bar.
+   *
    * URL-owned only when the host actually wired the controlled pair. A host that
    * owns its URL but passes no `onTabChange` is not deep-linking the tab — it is
    * embedding this view somewhere unaddressable (the tables page's execution

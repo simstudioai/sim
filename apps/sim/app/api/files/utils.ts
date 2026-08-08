@@ -9,7 +9,7 @@ import {
   parseByteRange,
   unsatisfiableContentRangeHeader,
 } from '@/lib/uploads/utils/byte-range'
-import { getMimeTypeFromExtension, sanitizeFileKey } from '@/lib/uploads/utils/file-utils'
+import { resolveEffectiveMimeType, sanitizeFileKey } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('FilesUtils')
 
@@ -44,79 +44,51 @@ export class InvalidRequestError extends Error {
   }
 }
 
-export const contentTypeMap: Record<string, string> = {
-  txt: 'text/plain',
-  csv: 'text/csv',
-  json: 'application/json',
-  xml: 'application/xml',
-  md: 'text/markdown',
-  html: 'text/html',
-  css: 'text/css',
-  js: 'application/javascript',
-  ts: 'application/typescript',
-  pdf: 'application/pdf',
+/**
+ * The pseudo-extensions no real filename ends in, so no MIME table knows them.
+ *
+ * Everything else resolves through {@link resolveEffectiveMimeType}. This map
+ * used to carry 41 entries, 38 of which duplicated `EXTENSION_TO_MIME`
+ * byte-for-byte — and that duplication was the bug: a container present in one
+ * table and missing from the other (`.mkv`, `.flac`, `.aac`, `.opus`, `.avi`)
+ * resolved to `application/octet-stream`, which silently disabled byte-range
+ * serving and left it unseekable. Two tables cannot be kept in agreement by
+ * hand, so there is now one.
+ */
+/**
+ * Cache policy for bytes a viewer must be re-authorized for on every request:
+ * private, and revalidated rather than served from the browser's back-forward
+ * cache after access is revoked.
+ *
+ * One export because it is the caching policy for every authenticated and every
+ * shared byte, and it was previously written out in four places across three
+ * files — kept in agreement only by eye.
+ */
+export const REVALIDATE_CACHE_CONTROL = 'private, no-cache, must-revalidate'
+
+const GOOGLE_PSEUDO_MIME: Record<string, string> = {
   googleDoc: 'application/vnd.google-apps.document',
-  doc: 'application/msword',
-  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  xls: 'application/vnd.ms-excel',
-  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   googleSheet: 'application/vnd.google-apps.spreadsheet',
-  ppt: 'application/vnd.ms-powerpoint',
-  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  png: 'image/png',
-  jpg: 'image/jpeg',
-  jpeg: 'image/jpeg',
-  gif: 'image/gif',
-  svg: 'image/svg+xml',
-  webp: 'image/webp',
-  avif: 'image/avif',
-  bmp: 'image/bmp',
-  ico: 'image/x-icon',
-  mp3: 'audio/mpeg',
-  m4a: 'audio/mp4',
-  wav: 'audio/wav',
-  ogg: 'audio/ogg',
-  flac: 'audio/flac',
-  aac: 'audio/aac',
-  opus: 'audio/opus',
-  mp4: 'video/mp4',
-  mov: 'video/quicktime',
-  avi: 'video/x-msvideo',
-  mkv: 'video/x-matroska',
-  webm: 'video/webm',
-  zip: 'application/zip',
   googleFolder: 'application/vnd.google-apps.folder',
 }
-
-export const binaryExtensions = [
-  'doc',
-  'docx',
-  'xls',
-  'xlsx',
-  'ppt',
-  'pptx',
-  'zip',
-  'png',
-  'jpg',
-  'jpeg',
-  'gif',
-  'webp',
-  'pdf',
-]
 
 /**
  * Content type for a stored file, by extension.
  *
- * {@link contentTypeMap} is consulted first because it carries entries the
- * extension map has no notion of (the Google Workspace pseudo-types), then the
- * canonical {@link getMimeTypeFromExtension} covers everything else — audio and
- * video included. Keeping only the local map meant `.mp4` resolved to
- * `application/octet-stream`, which silently disabled byte-range serving and
- * left media unseekable.
+ * {@link GOOGLE_PSEUDO_MIME} is consulted first for the three Workspace
+ * pseudo-extensions no MIME table knows; everything else goes to
+ * {@link resolveEffectiveMimeType}.
+ *
+ * That resolver rather than the raw extension table because what a response
+ * declares IS presentation, and it is the only one that knows a dual container.
+ * `.webm` holds either audio or video; the extension table answers `audio/webm`
+ * so the speech-to-text route does not send it down an ffmpeg path it does not
+ * need, while the viewer routes it to a `<video>`. Declaring `audio/webm` on the
+ * wire would leave one user-facing surface disagreeing with the rest.
  */
 export function getContentType(filename: string): string {
   const extension = filename.split('.').pop()?.toLowerCase() || ''
-  return contentTypeMap[extension] || getMimeTypeFromExtension(extension)
+  return GOOGLE_PSEUDO_MIME[extension] || resolveEffectiveMimeType(undefined, filename)
 }
 
 export function extractFilename(path: string): string {

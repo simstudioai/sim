@@ -889,6 +889,7 @@ export function KnowledgeView({
           onOpenChange={setShowAddConnectorModal}
           onConnectorTypeChange={setAddConnectorType}
           knowledgeBaseId={id}
+          workspaceId={workspaceId}
           initialConnectorType={addConnectorType || undefined}
         />
       )}

@@ -328,8 +328,18 @@ const SHADOW_NAME_PATTERN =
   /(?:^|\n)\s*(?:export\s+)?(?:function|const)\s+((?:Embedded|Wrapped|ReadOnly|Readonly|Mini|Simple|Basic|Inline)(?:File|Files|Table|Tables|Knowledge|KnowledgeBase|Log|Logs|Folder|ScheduledTask|Schedule|Workflow|Resource)\w*)\b/g
 
 /** Context a canonical unit may not read — that is the host's and source's job. */
+/**
+ * The generic form (`useParams<{ workspaceId: string }>()`) is the dominant
+ * idiom in this repo, so the type argument is matched explicitly. Requiring `(`
+ * immediately after the hook name left a live `useParams<…>()` sitting inside a
+ * canonical unit while this rule reported a clean `0` — the floor this check
+ * advertises as unbreakable was not one.
+ *
+ * `[^(;=]*` keeps the type argument from swallowing a following statement when a
+ * bare `<` appears as a comparison rather than a generic.
+ */
 const UNIT_CONTEXT_LEAK_PATTERN =
-  /\b(useRouter|useParams|useSearchParams|usePathname|useQueryState|useQueryStates|useUserPermissionsContext)\s*\(/g
+  /\b(useRouter|useParams|useSearchParams|usePathname|useQueryState|useQueryStates|useUserPermissionsContext)\s*(?:<[^(;=]*>)?\s*\(/g
 
 const SPREAD_PROPS_PATTERN = /^\{\s*\.\.\.\s*(?:props|rest|restProps)\b/
 

@@ -1,6 +1,7 @@
 import { createReadStream } from 'fs'
 import { readFile, stat } from 'fs/promises'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { fileServeParamsSchema, fileServeQuerySchema } from '@/lib/api/contracts/storage-transfer'
@@ -25,6 +26,7 @@ import {
   FileNotFoundError,
   findLocalFile,
   getContentType,
+  REVALIDATE_CACHE_CONTROL,
 } from '@/app/api/files/utils'
 
 const logger = createLogger('FilesServeAPI')
@@ -103,7 +105,6 @@ function getWorkspaceIdForCompile(key: string): string | undefined {
 }
 
 const IMMUTABLE_CACHE_CONTROL = 'private, max-age=31536000, immutable'
-const WORKSPACE_REVALIDATE_CACHE_CONTROL = 'private, no-cache, must-revalidate'
 /** For the genuinely-public, pre-auth asset routes (avatars, OG images, workspace logos) — these are
  *  intentionally shared-cacheable. Passed EXPLICITLY so the default response cache stays `private`. */
 const PUBLIC_ASSET_CACHE_CONTROL = 'public, max-age=31536000'
@@ -120,7 +121,7 @@ function resolveServeCacheControl(
   context: string | undefined
 ): string | undefined {
   if (versioned) return IMMUTABLE_CACHE_CONTROL
-  return context === 'workspace' ? WORKSPACE_REVALIDATE_CACHE_CONTROL : undefined
+  return context === 'workspace' ? REVALIDATE_CACHE_CONTROL : undefined
 }
 
 export const GET = withRouteHandler(
@@ -217,7 +218,7 @@ export const GET = withRouteHandler(
         return createErrorResponse(error)
       }
 
-      return createErrorResponse(error instanceof Error ? error : new Error('Failed to serve file'))
+      return createErrorResponse(toError(error))
     }
   }
 )
@@ -227,7 +228,7 @@ async function handleLocalFile(
   userId: string,
   options: ServeOptions,
   signal: AbortSignal | undefined,
-  rangeHeader: string | null = null
+  rangeHeader: string | null
 ): Promise<NextResponse> {
   const ownerKey = `user:${userId}`
   try {
@@ -262,14 +263,15 @@ async function handleLocalFile(
      * than a storage key, so it opens its own stream — without this branch the
      * scrubber works against cloud storage and silently dies on a dev machine.
      */
-    if (isMediaContentType(getContentType(displayName))) {
+    const mediaType = getContentType(displayName)
+    if (isMediaContentType(mediaType)) {
       const { size } = await stat(filePath)
       logger.info('Local media served', { userId, filename, size })
 
       return await createByteRangeResponse({
         openStream: (range) => createReadStream(filePath, range),
         size,
-        contentType: getContentType(displayName),
+        contentType: mediaType,
         filename: displayName,
         cacheControl: resolveServeCacheControl(options.versioned, contextParam),
         rangeHeader,
@@ -307,7 +309,7 @@ async function handleCloudProxy(
   userId: string,
   options: ServeOptions,
   signal: AbortSignal | undefined,
-  rangeHeader: string | null = null
+  rangeHeader: string | null
 ): Promise<NextResponse> {
   const ownerKey = `user:${userId}`
   try {
@@ -337,7 +339,8 @@ async function handleCloudProxy(
      * generated-document compile, which no media file is subject to. `copilot`
      * keeps the buffered path — its bytes come from a different reader.
      */
-    if (context !== 'copilot' && isMediaContentType(getContentType(displayName))) {
+    const mediaType = getContentType(displayName)
+    if (context !== 'copilot' && isMediaContentType(mediaType)) {
       const head = await headObject(cloudKey, context)
       if (!head) throw new FileNotFoundError(`File not found: ${cloudKey}`)
 
@@ -346,7 +349,7 @@ async function handleCloudProxy(
       return await createByteRangeResponse({
         openStream: (range) => downloadFileStream({ key: cloudKey, context, range }),
         size: head.size,
-        contentType: getContentType(displayName),
+        contentType: mediaType,
         filename: displayName,
         cacheControl: resolveServeCacheControl(options.versioned, context),
         rangeHeader,

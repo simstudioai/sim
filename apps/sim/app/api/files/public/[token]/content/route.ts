@@ -1,5 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { getPublicFileContentContract } from '@/lib/api/contracts/public-shares'
@@ -19,6 +20,7 @@ import {
   createFileResponse,
   FileNotFoundError,
   getContentType,
+  REVALIDATE_CACHE_CONTROL,
 } from '@/app/api/files/utils'
 
 export const dynamic = 'force-dynamic'
@@ -163,7 +165,7 @@ export const GET = withRouteHandler(
           size: head.size,
           contentType: mediaContentType,
           filename: file.originalName,
-          cacheControl: 'private, no-cache, must-revalidate',
+          cacheControl: REVALIDATE_CACHE_CONTROL,
           rangeHeader,
         })
       }
@@ -231,14 +233,14 @@ export const GET = withRouteHandler(
         buffer,
         contentType,
         filename: file.originalName,
-        cacheControl: 'private, no-cache, must-revalidate',
+        cacheControl: REVALIDATE_CACHE_CONTROL,
       })
     } catch (error) {
       logger.error('Error serving public shared file:', error)
       if (error instanceof FileNotFoundError) {
         return createErrorResponse(error)
       }
-      return createErrorResponse(error instanceof Error ? error : new Error('Failed to serve file'))
+      return createErrorResponse(toError(error))
     }
   }
 )

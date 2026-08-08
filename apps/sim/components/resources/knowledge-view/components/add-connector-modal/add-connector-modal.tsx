@@ -21,7 +21,6 @@ import {
   Search,
 } from '@sim/emcn'
 import { ArrowLeft, Plus } from '@sim/emcn/icons'
-import { useParams } from 'next/navigation'
 import { ConnectOAuthModal } from '@/components/connect-oauth-modal'
 import { ConnectorConfigFields } from '@/components/resources/knowledge-view/components/connector-config-fields'
 import { hasWorkspaceMaxConnectorAccess } from '@/components/resources/knowledge-view/components/connector-entitlements'
@@ -50,6 +49,15 @@ interface AddConnectorModalProps {
   onOpenChange: (open: boolean) => void
   onConnectorTypeChange?: (connectorType: string | null) => void
   knowledgeBaseId: string
+  /**
+   * The workspace the connector is created in.
+   *
+   * A prop rather than `useParams()`: this modal lives inside the knowledge
+   * unit, which the chat panel mounts on `/home` where there is no
+   * `[workspaceId]` segment. Same fix, and the same reason, as
+   * {@link AddDocumentsModal}.
+   */
+  workspaceId: string
   initialConnectorType?: string | null
 }
 
@@ -60,6 +68,7 @@ export function AddConnectorModal({
   onOpenChange,
   onConnectorTypeChange,
   knowledgeBaseId,
+  workspaceId,
   initialConnectorType,
 }: AddConnectorModalProps) {
   const [step, setStep] = useState<Step>(() => (initialConnectorType ? 'configure' : 'select-type'))
@@ -74,7 +83,6 @@ export function AddConnectorModal({
   const [apiKeyFocused, setApiKeyFocused] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
 
-  const { workspaceId } = useParams<{ workspaceId: string }>()
   const { ownerBilling } = useWorkspaceHostContext()
   const { mutate: createConnector, isPending: isCreating } = useCreateConnector()
 
