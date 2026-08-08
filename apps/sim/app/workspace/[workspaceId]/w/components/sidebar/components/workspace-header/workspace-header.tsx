@@ -30,7 +30,7 @@ import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/
 import { CreateWorkspaceModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/create-workspace-modal/create-workspace-modal'
 import { ViewInvitationsMenuItem } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/pending-invitations/view-invitations-menu-item'
 import { ViewInvitationsModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/pending-invitations/view-invitations-modal'
-import { invitationKeys } from '@/hooks/queries/invitations'
+import { invitationKeys } from '@/hooks/queries/utils/invitation-keys'
 import {
   type Workspace,
   type WorkspaceCreationPolicy,
@@ -489,7 +489,7 @@ function WorkspaceHeaderImpl({
               // or a fresh pending invitation, appears without a page refresh
               // (these are app-wide queries with no focus refetch on the web).
               void queryClient.refetchQueries({ queryKey: workspaceKeys.lists(), stale: true })
-              void queryClient.refetchQueries({ queryKey: invitationKeys.mine(), stale: true })
+              void queryClient.refetchQueries({ queryKey: invitationKeys.viewer(), stale: true })
             }
             setIsWorkspaceMenuOpen(open)
             if (open && showSearch) {

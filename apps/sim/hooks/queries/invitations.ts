@@ -11,40 +11,26 @@ import {
   cancelInvitationContract,
   getInvitationContract,
   type InvitationJoinOutcome,
-  listMyInvitationsContract,
+  listViewerInvitationsContract,
   listWorkspaceInvitationsContract,
-  type MyInvitation,
   type PendingInvitationRow,
   rejectInvitationContract,
   removeWorkspaceMemberContract,
   resendInvitationContract,
+  type ViewerInvitation,
 } from '@/lib/api/contracts/invitations'
 import { updateWorkspacePermissionsContract } from '@/lib/api/contracts/workspaces'
 import { organizationKeys } from '@/hooks/queries/organization'
 import { refreshSessionQuery } from '@/hooks/queries/session'
 import { subscriptionKeys } from '@/hooks/queries/subscription'
 import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
+import {
+  INVITATION_DETAILS_STALE_TIME,
+  invitationKeys,
+  VIEWER_INVITATIONS_STALE_TIME,
+  WORKSPACE_INVITATION_LIST_STALE_TIME,
+} from '@/hooks/queries/utils/invitation-keys'
 import { workspaceKeys } from '@/hooks/queries/workspace'
-
-export const invitationKeys = {
-  all: ['invitations'] as const,
-  lists: () => [...invitationKeys.all, 'list'] as const,
-  list: (workspaceId: string) => [...invitationKeys.lists(), workspaceId] as const,
-  details: () => [...invitationKeys.all, 'detail'] as const,
-  /**
-   * Scoped by viewer: the response is viewer-dependent (the join preview is
-   * invitee-only, and authorization differs per account), so a cached entry
-   * must never be reused across a sign-out/sign-in on the same invite link —
-   * doing so would let a stale "nothing moves" preview become the disclosure
-   * basis for a different user.
-   */
-  detail: (invitationId: string, token: string | null, viewerId: string | null) =>
-    [...invitationKeys.details(), invitationId, token ?? '', viewerId ?? ''] as const,
-  mine: () => [...invitationKeys.all, 'mine'] as const,
-}
-
-export const WORKSPACE_INVITATION_LIST_STALE_TIME = 30 * 1000
-export const INVITATION_DETAILS_STALE_TIME = 30 * 1000
 
 async function fetchInvitationDetails(
   invitationId: string,
@@ -123,25 +109,22 @@ export function usePendingInvitations(workspaceId: string | undefined) {
   })
 }
 
-export const MY_INVITATIONS_STALE_TIME = 30 * 1000
-
-async function fetchMyPendingInvitations(signal?: AbortSignal): Promise<MyInvitation[]> {
-  const data = await requestJson(listMyInvitationsContract, { signal })
+async function fetchPendingInvitationsForViewer(signal?: AbortSignal): Promise<ViewerInvitation[]> {
+  const data = await requestJson(listViewerInvitationsContract, { signal })
   return data.invitations
 }
 
 /**
  * Pending invitations addressed to the signed-in account, for the workspace
- * switcher's Invitations section. The switcher menu-item mounts this on
- * dropdown open (so it fetches then); the modal passes `enabled: open` so it
- * does not fetch on every app load for the majority of users who have none.
+ * switcher's Invitations section. Hydrated by the sidebar's server prefetch, so
+ * the switcher's "View invitations" entry is present the moment the menu opens
+ * rather than appearing a beat later; opening the menu only revalidates.
  */
-export function useMyPendingInvitations(enabled = true) {
+export function usePendingInvitationsForViewer() {
   return useQuery({
-    queryKey: invitationKeys.mine(),
-    queryFn: ({ signal }) => fetchMyPendingInvitations(signal),
-    enabled,
-    staleTime: MY_INVITATIONS_STALE_TIME,
+    queryKey: invitationKeys.viewer(),
+    queryFn: ({ signal }) => fetchPendingInvitationsForViewer(signal),
+    staleTime: VIEWER_INVITATIONS_STALE_TIME,
   })
 }
 
@@ -191,7 +174,7 @@ export function useAcceptMyInvitation() {
     // (expired / already-processed since the list loaded) drops instead of
     // lingering as a re-clickable dead row.
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: invitationKeys.mine() })
+      queryClient.invalidateQueries({ queryKey: invitationKeys.viewer() })
     },
   })
 }
@@ -204,7 +187,7 @@ export function useDeclineMyInvitation() {
     mutationFn: async ({ invitationId }: { invitationId: string }) =>
       requestJson(rejectInvitationContract, { params: { id: invitationId }, body: {} }),
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: invitationKeys.mine() })
+      queryClient.invalidateQueries({ queryKey: invitationKeys.viewer() })
     },
   })
 }

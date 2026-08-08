@@ -24,12 +24,13 @@ export default async function HomePage({ params }: { params: Promise<{ workspace
   }
 
   const queryClient = getQueryClient()
-  const listsPrefetch = prefetchHomeLists(queryClient, workspaceId)
-
   const session = await getSession()
   const userId = session?.user?.id
-  const tableViewsEnabled = await resolveTableViewsEnabled(workspaceId, userId)
-  await listsPrefetch
+
+  const [tableViewsEnabled] = await Promise.all([
+    resolveTableViewsEnabled(workspaceId, userId),
+    userId ? prefetchHomeLists(queryClient, workspaceId, userId) : Promise.resolve(),
+  ])
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>

@@ -1,7 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query'
-import type { FolderApi } from '@/lib/api/contracts/folders'
-import type { KnowledgeBaseData } from '@/lib/api/contracts/knowledge'
-import { prefetchInternalJson } from '@/app/workspace/[workspaceId]/lib/prefetch-internal-fetch'
+import { listFoldersForWorkspace } from '@/lib/folders/queries'
+import { listKnowledgeBasesForViewer } from '@/lib/knowledge/queries'
+import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { prefetchResourceListChrome } from '@/app/workspace/[workspaceId]/lib/prefetch-resource-list-chrome'
 import { FOLDER_LIST_STALE_TIME, folderKeys, mapFolder } from '@/hooks/queries/utils/folder-keys'
 import { KNOWLEDGE_BASE_LIST_STALE_TIME, knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
@@ -16,35 +16,32 @@ import { KNOWLEDGE_BASE_LIST_STALE_TIME, knowledgeKeys } from '@/hooks/queries/u
  * beside, so prefetching one without the other still flashes an ungrouped list — and a
  * `?folderId=` deep link renders an empty breadcrumb until the folders arrive.
  *
- * The list carries `Date` fields, so it goes through the `/api/knowledge` route and caches the
- * serialized wire shape — see {@link prefetchInternalJson}. Folders are mapped with the same
- * `mapFolder` the hook applies, so the hydrated entry matches a client fetch exactly.
+ * `listKnowledgeBasesForViewer` is viewer-scoped and returns the contract's wire shape,
+ * and folders go through the same `mapFolder` the hook applies — so both hydrated
+ * entries match a client fetch exactly.
  */
 export async function prefetchKnowledgeBases(
   queryClient: QueryClient,
-  workspaceId: string
+  workspaceId: string,
+  userId: string
 ): Promise<void> {
+  const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
+  if (!permission) return
+
   await Promise.all([
     queryClient.prefetchQuery({
       queryKey: knowledgeKeys.list(workspaceId, 'active'),
-      queryFn: async () => {
-        const result = await prefetchInternalJson<{ data: KnowledgeBaseData[] }>(
-          `/api/knowledge?workspaceId=${workspaceId}&scope=active`
-        )
-        return result.data
-      },
+      queryFn: () => listKnowledgeBasesForViewer(userId, workspaceId, 'active'),
       staleTime: KNOWLEDGE_BASE_LIST_STALE_TIME,
     }),
     queryClient.prefetchQuery({
       queryKey: folderKeys.list(workspaceId, 'active', 'knowledge_base'),
       queryFn: async () => {
-        const { folders } = await prefetchInternalJson<{ folders?: FolderApi[] }>(
-          `/api/folders?workspaceId=${workspaceId}&scope=active&resourceType=knowledge_base`
-        )
-        return (folders ?? []).map(mapFolder)
+        const folders = await listFoldersForWorkspace(workspaceId, 'active', 'knowledge_base')
+        return folders.map(mapFolder)
       },
       staleTime: FOLDER_LIST_STALE_TIME,
     }),
-    prefetchResourceListChrome(queryClient, workspaceId, 'knowledge_base'),
+    prefetchResourceListChrome(queryClient, workspaceId, userId, 'knowledge_base'),
   ])
 }

@@ -11,9 +11,9 @@ import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { EMBEDDING_DIMENSIONS, getConfiguredEmbeddingModel } from '@/lib/knowledge/embeddings'
+import { listKnowledgeBasesForViewer } from '@/lib/knowledge/queries'
 import {
   createKnowledgeBase,
-  getKnowledgeBases,
   KnowledgeBaseConflictError,
   KnowledgeBaseFolderError,
   KnowledgeBasePermissionError,
@@ -46,7 +46,7 @@ export const GET = withRouteHandler(async (req: NextRequest) => {
     }
     const { workspaceId, scope } = query.data
 
-    const knowledgeBasesWithCounts = await getKnowledgeBases(
+    const knowledgeBasesWithCounts = await listKnowledgeBasesForViewer(
       session.user.id,
       workspaceId,
       scope as KnowledgeBaseScope

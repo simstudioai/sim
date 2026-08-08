@@ -242,19 +242,19 @@ export const getInvitationContract = defineRouteContract({
  * when the preview could not be computed; the client then shows the generic
  * notice rather than treating it as "nothing moves".
  */
-export const myInvitationSchema = invitationDetailsSchema.extend({
+export const viewerInvitationSchema = invitationDetailsSchema.extend({
   joinPreview: invitationJoinPreviewSchema.nullable(),
 })
 
-export type MyInvitation = z.output<typeof myInvitationSchema>
+export type ViewerInvitation = z.output<typeof viewerInvitationSchema>
 
-export const listMyInvitationsContract = defineRouteContract({
+export const listViewerInvitationsContract = defineRouteContract({
   method: 'GET',
   path: '/api/invitations',
   response: {
     mode: 'json',
     schema: z.object({
-      invitations: z.array(myInvitationSchema),
+      invitations: z.array(viewerInvitationSchema),
     }),
   },
 })

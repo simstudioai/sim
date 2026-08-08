@@ -1,12 +1,9 @@
 import type { QueryClient } from '@tanstack/react-query'
-import type { PinnedItemApi, PinnedResourceType } from '@/lib/api/contracts/pinned-items'
-import { prefetchInternalJson } from '@/app/workspace/[workspaceId]/lib/prefetch-internal-fetch'
+import type { PinnedResourceType } from '@/lib/api/contracts/pinned-items'
+import { listPinnedItemsForViewer } from '@/lib/pinned-items/queries'
+import { getWorkspaceMemberProfiles } from '@/lib/workspaces/permissions/utils'
 import { PINNED_ITEMS_STALE_TIME, pinnedItemKeys } from '@/hooks/queries/utils/pinned-item-keys'
-import {
-  WORKSPACE_MEMBERS_STALE_TIME,
-  type WorkspaceMember,
-  workspaceKeys,
-} from '@/hooks/queries/workspace'
+import { WORKSPACE_MEMBERS_STALE_TIME, workspaceKeys } from '@/hooks/queries/workspace'
 
 /**
  * Prefetches the two lists every foldered resource page needs to paint a row completely,
@@ -19,21 +16,19 @@ import {
  *
  * Members back the Owner column; without them every owner cell paints empty and fills in
  * after. Both are cheap and shared with the page's own list prefetch in one `Promise.all`.
+ *
+ * The caller has already authorized the viewer against `workspaceId`.
  */
 export async function prefetchResourceListChrome(
   queryClient: QueryClient,
   workspaceId: string,
+  userId: string,
   resourceType: PinnedResourceType
 ): Promise<void> {
   const prefetchPinned = (type: PinnedResourceType) =>
     queryClient.prefetchQuery({
       queryKey: pinnedItemKeys.list(workspaceId, type),
-      queryFn: async () => {
-        const { pinnedItems } = await prefetchInternalJson<{ pinnedItems: PinnedItemApi[] }>(
-          `/api/pinned-items?workspaceId=${workspaceId}&resourceType=${type}`
-        )
-        return pinnedItems
-      },
+      queryFn: () => listPinnedItemsForViewer(userId, workspaceId, type),
       staleTime: PINNED_ITEMS_STALE_TIME,
     })
 
@@ -42,12 +37,7 @@ export async function prefetchResourceListChrome(
     prefetchPinned('folder'),
     queryClient.prefetchQuery({
       queryKey: workspaceKeys.members(workspaceId),
-      queryFn: async () => {
-        const { members } = await prefetchInternalJson<{ members: WorkspaceMember[] }>(
-          `/api/workspaces/${workspaceId}/members`
-        )
-        return members
-      },
+      queryFn: () => getWorkspaceMemberProfiles(workspaceId),
       staleTime: WORKSPACE_MEMBERS_STALE_TIME,
     }),
   ])

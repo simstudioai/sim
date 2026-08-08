@@ -55,7 +55,8 @@ export default async function WorkspaceLayout({
       workspaceId,
       session.user.id,
       hostContext,
-      activeOrganizationId
+      activeOrganizationId,
+      session.user.email ?? null
     ),
   ])
   const initialSidebarCollapsed = cookieStore.get('sidebar_collapsed')?.value === '1'

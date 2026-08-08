@@ -4,12 +4,12 @@ import { Chip, ChipModal, ChipModalBody, ChipModalFooter, ChipModalHeader, toast
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
-import type { MyInvitation } from '@/lib/api/contracts/invitations'
+import type { ViewerInvitation } from '@/lib/api/contracts/invitations'
 import { getInvitationErrorMessage } from '@/lib/invitations/error-messages'
 import {
   useAcceptMyInvitation,
   useDeclineMyInvitation,
-  useMyPendingInvitations,
+  usePendingInvitationsForViewer,
 } from '@/hooks/queries/invitations'
 
 const logger = createLogger('ViewInvitationsModal')
@@ -19,7 +19,7 @@ const logger = createLogger('ViewInvitationsModal')
  * invites are labeled by the org (even when workspace grants ride along);
  * workspace invites by their workspace(s).
  */
-function invitationLabel(inv: MyInvitation): string {
+function invitationLabel(inv: ViewerInvitation): string {
   if (inv.kind === 'organization') {
     return inv.organizationName ?? 'Organization'
   }
@@ -32,7 +32,7 @@ function invitationLabel(inv: MyInvitation): string {
 }
 
 /** Secondary line: who invited, plus role (org) or permission (workspace). */
-function invitationSubLabel(inv: MyInvitation): string {
+function invitationSubLabel(inv: ViewerInvitation): string {
   const invitedBy = inv.inviterName ? `Invited by ${inv.inviterName}` : 'Invited'
   const detail = inv.kind === 'organization' ? inv.role : inv.grants[0]?.permission
   return detail ? `${invitedBy} · ${detail}` : invitedBy
@@ -51,14 +51,14 @@ interface ViewInvitationsModalProps {
  * the joined workspace; declining keeps it open for the remaining rows.
  */
 export function ViewInvitationsModal({ open, onOpenChange }: ViewInvitationsModalProps) {
-  const { data: invitations } = useMyPendingInvitations(open)
+  const { data: invitations } = usePendingInvitationsForViewer()
   const acceptInvitation = useAcceptMyInvitation()
   const declineInvitation = useDeclineMyInvitation()
   const router = useRouter()
 
   const isBusy = acceptInvitation.isPending || declineInvitation.isPending
 
-  const handleAccept = async (inv: MyInvitation) => {
+  const handleAccept = async (inv: ViewerInvitation) => {
     try {
       const result = await acceptInvitation.mutateAsync({
         invitationId: inv.id,
@@ -79,7 +79,7 @@ export function ViewInvitationsModal({ open, onOpenChange }: ViewInvitationsModa
     }
   }
 
-  const handleDecline = async (inv: MyInvitation) => {
+  const handleDecline = async (inv: ViewerInvitation) => {
     try {
       await declineInvitation.mutateAsync({ invitationId: inv.id })
     } catch (error) {

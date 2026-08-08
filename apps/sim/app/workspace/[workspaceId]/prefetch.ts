@@ -3,6 +3,7 @@ import { listWorkspacesContract, type WorkspaceHostContext } from '@/lib/api/con
 import { listMothershipChats } from '@/lib/copilot/chat/list-mothership-chats'
 import { isChatEnabled } from '@/lib/core/config/env-flags'
 import { listFoldersForWorkspace } from '@/lib/folders/queries'
+import { listPendingInvitationsForViewer } from '@/lib/invitations/pending'
 import { getUserProfile } from '@/lib/users/queries'
 import { listWorkflowsForUser } from '@/lib/workflows/queries'
 import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'
@@ -19,6 +20,10 @@ import {
   userProfileKeys,
 } from '@/hooks/queries/user-profile'
 import { FOLDER_LIST_STALE_TIME, folderKeys, mapFolder } from '@/hooks/queries/utils/folder-keys'
+import {
+  invitationKeys,
+  VIEWER_INVITATIONS_STALE_TIME,
+} from '@/hooks/queries/utils/invitation-keys'
 import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
 import { mapWorkflow, WORKFLOW_LIST_STALE_TIME } from '@/hooks/queries/utils/workflow-list-query'
 import {
@@ -49,7 +54,7 @@ export function prefetchWorkspaceHostContext(
 
 /**
  * Prefetches the sidebar's workflow, chat, folder, workspace-permissions,
- * workspace, and viewer-profile reads for a workspace and stores them under the
+ * workspace, viewer-profile, and pending-invitation reads for a workspace and stores them under the
  * same query keys + mappers the client hooks use, so the persistent sidebar
  * (including the workspace switcher header and the footer's profile row) paints
  * populated on the first server render
@@ -69,7 +74,8 @@ export async function prefetchWorkspaceSidebar(
   workspaceId: string,
   userId: string,
   hostContext: WorkspaceHostContext,
-  activeOrganizationId: string | null
+  activeOrganizationId: string | null,
+  userEmail: string | null
 ): Promise<void> {
   if (hostContext.workspace.id !== workspaceId) return
   await Promise.all([
@@ -148,5 +154,19 @@ export async function prefetchWorkspaceSidebar(
       },
       staleTime: USER_PROFILE_STALE_TIME,
     }),
+    /**
+     * The switcher's "View invitations" entry renders only when the viewer has pending
+     * invitations, and it mounts inside the dropdown — fetching on open made the entry
+     * appear a beat after the menu did.
+     */
+    ...(userEmail
+      ? [
+          queryClient.prefetchQuery({
+            queryKey: invitationKeys.viewer(),
+            queryFn: () => listPendingInvitationsForViewer(userId, userEmail),
+            staleTime: VIEWER_INVITATIONS_STALE_TIME,
+          }),
+        ]
+      : []),
   ])
 }
