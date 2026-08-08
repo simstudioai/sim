@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-07",
+  "updatedAt": "2026-08-08",
   "integrations": [
     {
       "type": "onepassword",
@@ -5431,8 +5431,8 @@
       "type": "dynatrace",
       "slug": "dynatrace",
       "name": "Dynatrace",
-      "description": "Query Dynatrace problems, metrics, entities, logs, SLOs, and vulnerabilities",
-      "longDescription": "Integrate Dynatrace into workflows. Investigate and close Davis problems, query metrics and monitored entities, search and ingest logs, push deployment events, track SLO burn rates, review Application Security vulnerabilities, and read the audit log.",
+      "description": "Manage Dynatrace problems, metrics, entities, logs, SLOs, settings, and security",
+      "longDescription": "Integrate Dynatrace into workflows. Investigate and close Davis problems, query metrics and monitored entities, search and ingest logs, push deployment events, manage SLOs and their burn rates, triage and mute Application Security vulnerabilities, review runtime attacks, tag entities, manage settings objects such as maintenance windows and alerting profiles, run synthetic monitors on demand, and read the audit log.",
       "bgColor": "#FFFFFF",
       "iconName": "DynatraceIcon",
       "docsUrl": "https://docs.sim.ai/integrations/dynatrace",
@@ -5522,11 +5522,111 @@
           "description": "Get a single vulnerability with its description, remediation guidance, affected entities, and risk assessment."
         },
         {
+          "name": "Mute Security Problem",
+          "description": "Mute a single Dynatrace vulnerability with a reason, for triaging false positives or accepted risk."
+        },
+        {
+          "name": "Unmute Security Problem",
+          "description": "Unmute a single Dynatrace vulnerability, returning it to the active triage queue."
+        },
+        {
+          "name": "Mute Security Problems (Bulk)",
+          "description": "Mute several Dynatrace vulnerabilities at once with a shared reason, for bulk triage."
+        },
+        {
+          "name": "Unmute Security Problems (Bulk)",
+          "description": "Unmute several Dynatrace vulnerabilities at once, returning them to active triage."
+        },
+        {
+          "name": "List Remediation Items",
+          "description": "List the remediation items of a third-party vulnerability — the components to upgrade, their affected entities, and their mute state."
+        },
+        {
+          "name": "List Attacks",
+          "description": "List runtime attacks Dynatrace Application Protection detected — injection attempts, their source, and whether they were blocked."
+        },
+        {
+          "name": "Get Attack",
+          "description": "Get a single attack with its entry point, payload, attacker, and the vulnerability it exploited."
+        },
+        {
+          "name": "List Tags",
+          "description": "List the custom tags applied to the monitored entities an entity selector matches."
+        },
+        {
+          "name": "Add Tags",
+          "description": "Add custom tags to every monitored entity an entity selector matches. Tags drive selectors, management zones, and alerting."
+        },
+        {
+          "name": "Delete Tag",
+          "description": "Remove a custom tag from every monitored entity an entity selector matches. Deletes one key-value pair, or every tag with the key."
+        },
+        {
+          "name": "List Settings Schemas",
+          "description": "List the settings schemas available in the environment. Use it to find the schema ID for a configuration type such as builtin:alerting.profile."
+        },
+        {
+          "name": "List Settings Objects",
+          "description": "List settings objects — the configuration behind maintenance windows, alerting profiles, management zones, and anomaly detection."
+        },
+        {
+          "name": "Get Settings Object",
+          "description": "Get a single settings object with its value and its update token. Read it before updating so the token can guard against a concurrent change."
+        },
+        {
+          "name": "Create Settings Object",
+          "description": "Create a settings object — a maintenance window, alerting profile, management zone, or any other schema-backed configuration."
+        },
+        {
+          "name": "Update Settings Object",
+          "description": "Update an existing settings object. Pass the update token from Get Settings Object to fail rather than overwrite a concurrent change."
+        },
+        {
+          "name": "Delete Settings Object",
+          "description": "Delete a settings object. Dynatrace cannot undo this."
+        },
+        {
+          "name": "List Synthetic Monitors",
+          "description": "List synthetic monitors and their IDs. Use it to find the monitor IDs to feed into an on-demand execution."
+        },
+        {
+          "name": "Execute Synthetic Monitors",
+          "description": "Trigger an on-demand batch execution of synthetic monitors, for gating a deploy on a smoke test. Returns a batch ID to poll."
+        },
+        {
+          "name": "Get Synthetic Batch",
+          "description": "Get the status and failures of an on-demand synthetic batch execution. Poll it after triggering to gate a deploy on the result."
+        },
+        {
+          "name": "Get Problem Comment",
+          "description": "Get a single comment on a Dynatrace problem."
+        },
+        {
+          "name": "Update Problem Comment",
+          "description": "Replace the text of an existing comment on a Dynatrace problem."
+        },
+        {
+          "name": "Delete Problem Comment",
+          "description": "Delete a comment from a Dynatrace problem."
+        },
+        {
+          "name": "Create SLO",
+          "description": "Create a service-level objective from a metric expression, target, and evaluation timeframe."
+        },
+        {
+          "name": "Update SLO",
+          "description": "Update an existing service-level objective. Every field is replaced, so send the complete definition."
+        },
+        {
+          "name": "Delete SLO",
+          "description": "Delete a service-level objective."
+        },
+        {
           "name": "Get Audit Logs",
           "description": "Read the Dynatrace audit log — who changed which configuration, when, and whether it succeeded."
         }
       ],
-      "operationCount": 22,
+      "operationCount": 47,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",

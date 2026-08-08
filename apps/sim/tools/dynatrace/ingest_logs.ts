@@ -83,7 +83,8 @@ export const ingestLogsTool: ToolConfig<DynatraceIngestLogsParams, DynatraceInge
     },
     details: {
       type: 'json',
-      description: 'Partial-success details, present only when some events were rejected',
+      description:
+        'Partial-success body, present only when some events were rejected. The reference does not document its shape, so it is passed through as-is',
       nullable: true,
     },
   },

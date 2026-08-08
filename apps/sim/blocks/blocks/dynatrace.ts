@@ -16,6 +16,10 @@ const FROM_OPERATIONS = [
   'dynatrace_list_security_problems',
   'dynatrace_get_security_problem',
   'dynatrace_get_audit_logs',
+  'dynatrace_list_attacks',
+  'dynatrace_list_tags',
+  'dynatrace_add_tags',
+  'dynatrace_delete_tag',
 ]
 
 /** Operations that accept the shared `to` timeframe parameter. */
@@ -32,6 +36,8 @@ const PAGINATED_OPERATIONS = [
   'dynatrace_list_slos',
   'dynatrace_list_security_problems',
   'dynatrace_get_audit_logs',
+  'dynatrace_list_attacks',
+  'dynatrace_list_settings_objects',
 ]
 
 /** Operations that accept the shared `entitySelector` parameter. */
@@ -41,14 +47,65 @@ const ENTITY_SELECTOR_OPERATIONS = [
   'dynatrace_list_entities',
   'dynatrace_list_events',
   'dynatrace_ingest_event',
+  'dynatrace_list_tags',
+  'dynatrace_add_tags',
+  'dynatrace_delete_tag',
+]
+
+/**
+ * Operations whose tool declares `entitySelector` as required. The tag endpoints
+ * cannot run without one, so the block must not let them through empty.
+ */
+const ENTITY_SELECTOR_REQUIRED_OPERATIONS = [
+  'dynatrace_list_entities',
+  'dynatrace_list_tags',
+  'dynatrace_add_tags',
+  'dynatrace_delete_tag',
+]
+
+/** Operations that take a problem ID. */
+const PROBLEM_ID_OPERATIONS = [
+  'dynatrace_get_problem',
+  'dynatrace_close_problem',
+  'dynatrace_list_problem_comments',
+  'dynatrace_add_problem_comment',
+  'dynatrace_get_problem_comment',
+  'dynatrace_update_problem_comment',
+  'dynatrace_delete_problem_comment',
+]
+
+/** Operations that take a single security problem ID. */
+const SECURITY_PROBLEM_ID_OPERATIONS = [
+  'dynatrace_get_security_problem',
+  'dynatrace_mute_security_problem',
+  'dynatrace_unmute_security_problem',
+  'dynatrace_list_remediation_items',
+]
+
+/** Operations that write a mute state and therefore take a reason and comment. */
+const MUTE_OPERATIONS = [
+  'dynatrace_mute_security_problem',
+  'dynatrace_unmute_security_problem',
+  'dynatrace_mute_security_problems',
+  'dynatrace_unmute_security_problems',
+]
+
+/** Operations that take the full SLO definition. */
+const SLO_WRITE_OPERATIONS = ['dynatrace_create_slo', 'dynatrace_update_slo']
+
+/** Operations that take a settings object ID. */
+const SETTINGS_OBJECT_ID_OPERATIONS = [
+  'dynatrace_get_settings_object',
+  'dynatrace_update_settings_object',
+  'dynatrace_delete_settings_object',
 ]
 
 export const DynatraceBlock: BlockConfig<DynatraceResponse> = {
   type: 'dynatrace',
   name: 'Dynatrace',
-  description: 'Query Dynatrace problems, metrics, entities, logs, SLOs, and vulnerabilities',
+  description: 'Manage Dynatrace problems, metrics, entities, logs, SLOs, settings, and security',
   longDescription:
-    'Integrate Dynatrace into workflows. Investigate and close Davis problems, query metrics and monitored entities, search and ingest logs, push deployment events, track SLO burn rates, review Application Security vulnerabilities, and read the audit log.',
+    'Integrate Dynatrace into workflows. Investigate and close Davis problems, query metrics and monitored entities, search and ingest logs, push deployment events, manage SLOs and their burn rates, triage and mute Application Security vulnerabilities, review runtime attacks, tag entities, manage settings objects such as maintenance windows and alerting profiles, run synthetic monitors on demand, and read the audit log.',
   docsLink: 'https://docs.sim.ai/integrations/dynatrace',
   category: 'tools',
   integrationType: IntegrationType.Observability,
@@ -83,6 +140,31 @@ export const DynatraceBlock: BlockConfig<DynatraceResponse> = {
         { label: 'Get SLO', id: 'dynatrace_get_slo' },
         { label: 'List Security Problems', id: 'dynatrace_list_security_problems' },
         { label: 'Get Security Problem', id: 'dynatrace_get_security_problem' },
+        { label: 'Mute Security Problem', id: 'dynatrace_mute_security_problem' },
+        { label: 'Unmute Security Problem', id: 'dynatrace_unmute_security_problem' },
+        { label: 'Mute Security Problems (Bulk)', id: 'dynatrace_mute_security_problems' },
+        { label: 'Unmute Security Problems (Bulk)', id: 'dynatrace_unmute_security_problems' },
+        { label: 'List Remediation Items', id: 'dynatrace_list_remediation_items' },
+        { label: 'List Attacks', id: 'dynatrace_list_attacks' },
+        { label: 'Get Attack', id: 'dynatrace_get_attack' },
+        { label: 'List Tags', id: 'dynatrace_list_tags' },
+        { label: 'Add Tags', id: 'dynatrace_add_tags' },
+        { label: 'Delete Tag', id: 'dynatrace_delete_tag' },
+        { label: 'List Settings Schemas', id: 'dynatrace_list_settings_schemas' },
+        { label: 'List Settings Objects', id: 'dynatrace_list_settings_objects' },
+        { label: 'Get Settings Object', id: 'dynatrace_get_settings_object' },
+        { label: 'Create Settings Object', id: 'dynatrace_create_settings_object' },
+        { label: 'Update Settings Object', id: 'dynatrace_update_settings_object' },
+        { label: 'Delete Settings Object', id: 'dynatrace_delete_settings_object' },
+        { label: 'List Synthetic Monitors', id: 'dynatrace_list_synthetic_monitors' },
+        { label: 'Execute Synthetic Monitors', id: 'dynatrace_execute_synthetic_monitors' },
+        { label: 'Get Synthetic Batch', id: 'dynatrace_get_synthetic_batch' },
+        { label: 'Get Problem Comment', id: 'dynatrace_get_problem_comment' },
+        { label: 'Update Problem Comment', id: 'dynatrace_update_problem_comment' },
+        { label: 'Delete Problem Comment', id: 'dynatrace_delete_problem_comment' },
+        { label: 'Create SLO', id: 'dynatrace_create_slo' },
+        { label: 'Update SLO', id: 'dynatrace_update_slo' },
+        { label: 'Delete SLO', id: 'dynatrace_delete_slo' },
         { label: 'Get Audit Logs', id: 'dynatrace_get_audit_logs' },
       ],
       value: () => 'dynatrace_list_problems',
@@ -110,13 +192,20 @@ export const DynatraceBlock: BlockConfig<DynatraceResponse> = {
       type: 'short-input',
       placeholder: '-1234567890123456789_1700000000000V2',
       required: true,
+      condition: { field: 'operation', value: PROBLEM_ID_OPERATIONS },
+    },
+    {
+      id: 'commentId',
+      title: 'Comment ID',
+      type: 'short-input',
+      placeholder: 'Enter the comment ID',
+      required: true,
       condition: {
         field: 'operation',
         value: [
-          'dynatrace_get_problem',
-          'dynatrace_close_problem',
-          'dynatrace_list_problem_comments',
-          'dynatrace_add_problem_comment',
+          'dynatrace_get_problem_comment',
+          'dynatrace_update_problem_comment',
+          'dynatrace_delete_problem_comment',
         ],
       },
     },
@@ -178,7 +267,11 @@ Return ONLY the selector string - no explanations, no surrounding quotes.`,
       required: true,
       condition: {
         field: 'operation',
-        value: ['dynatrace_close_problem', 'dynatrace_add_problem_comment'],
+        value: [
+          'dynatrace_close_problem',
+          'dynatrace_add_problem_comment',
+          'dynatrace_update_problem_comment',
+        ],
       },
     },
     {
@@ -187,7 +280,10 @@ Return ONLY the selector string - no explanations, no surrounding quotes.`,
       type: 'short-input',
       placeholder: 'Sim workflow',
       mode: 'advanced',
-      condition: { field: 'operation', value: 'dynatrace_add_problem_comment' },
+      condition: {
+        field: 'operation',
+        value: ['dynatrace_add_problem_comment', 'dynatrace_update_problem_comment'],
+      },
     },
 
     {
@@ -304,7 +400,7 @@ Return ONLY the selector string - no explanations, no surrounding quotes.`,
       title: 'Entity Selector',
       type: 'short-input',
       placeholder: 'type("HOST"),tag("env:prod")',
-      required: { field: 'operation', value: 'dynatrace_list_entities' },
+      required: { field: 'operation', value: ENTITY_SELECTOR_REQUIRED_OPERATIONS },
       condition: { field: 'operation', value: ENTITY_SELECTOR_OPERATIONS },
       wandConfig: {
         enabled: true,
@@ -570,7 +666,10 @@ Return ONLY the selector string - no explanations, no surrounding quotes.`,
       type: 'short-input',
       placeholder: 'Enter the SLO ID',
       required: true,
-      condition: { field: 'operation', value: 'dynatrace_get_slo' },
+      condition: {
+        field: 'operation',
+        value: ['dynatrace_get_slo', 'dynatrace_update_slo', 'dynatrace_delete_slo'],
+      },
     },
     {
       id: 'timeFrame',
@@ -657,7 +756,7 @@ Return ONLY the selector string - no explanations, no surrounding quotes.`,
       type: 'short-input',
       placeholder: 'Enter the security problem ID',
       required: true,
-      condition: { field: 'operation', value: 'dynatrace_get_security_problem' },
+      condition: { field: 'operation', value: SECURITY_PROBLEM_ID_OPERATIONS },
     },
     {
       id: 'securityFields',
@@ -704,6 +803,490 @@ Return ONLY the selector string - no explanations, no surrounding quotes.`,
       ],
       mode: 'advanced',
       condition: { field: 'operation', value: 'dynatrace_get_audit_logs' },
+    },
+
+    {
+      id: 'securityProblemIds',
+      title: 'Security Problem IDs',
+      type: 'long-input',
+      placeholder: 'S-1234, S-5678',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['dynatrace_mute_security_problems', 'dynatrace_unmute_security_problems'],
+      },
+    },
+    {
+      id: 'muteReason',
+      title: 'Reason',
+      type: 'dropdown',
+      options: [
+        { label: 'False positive', id: 'FALSE_POSITIVE' },
+        { label: 'Configuration not affected', id: 'CONFIGURATION_NOT_AFFECTED' },
+        { label: 'Vulnerable code not in use', id: 'VULNERABLE_CODE_NOT_IN_USE' },
+        { label: 'Ignore', id: 'IGNORE' },
+        { label: 'Other', id: 'OTHER' },
+        { label: 'Affected (unmute only)', id: 'AFFECTED' },
+      ],
+      required: true,
+      condition: { field: 'operation', value: MUTE_OPERATIONS },
+      value: () => 'FALSE_POSITIVE',
+    },
+    {
+      id: 'muteComment',
+      title: 'Comment',
+      type: 'long-input',
+      placeholder: 'Not reachable from the public network',
+      condition: { field: 'operation', value: MUTE_OPERATIONS },
+    },
+    {
+      id: 'remediationItemSelector',
+      title: 'Remediation Item Selector',
+      type: 'short-input',
+      placeholder: 'vulnerabilityState("VULNERABLE"),muted("false")',
+      condition: { field: 'operation', value: 'dynatrace_list_remediation_items' },
+    },
+
+    {
+      id: 'attackSelector',
+      title: 'Attack Selector',
+      type: 'short-input',
+      placeholder: 'state("EXPLOITED"),attackType("SQL_INJECTION")',
+      condition: { field: 'operation', value: 'dynatrace_list_attacks' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Dynatrace attack selector from the user's description.
+
+Criteria are comma-separated and each takes quoted values in parentheses. Common criteria:
+- state("EXPLOITED"|"BLOCKED"|"ALLOWLISTED")
+- attackType("SQL_INJECTION"|"COMMAND_INJECTION"|"JNDI_INJECTION"|"SSRF")
+- technology("JAVA"|"DOTNET"|"GO"|"NODE_JS")
+- sourceIps("1.2.3.4")
+- managementZones("Production")
+
+Examples:
+- "successful SQL injections" -> state("EXPLOITED"),attackType("SQL_INJECTION")
+- "blocked attacks on Java services" -> state("BLOCKED"),technology("JAVA")
+
+Return ONLY the selector string - no explanations, no surrounding quotes.`,
+        placeholder: 'Describe the attacks you want...',
+      },
+    },
+    {
+      id: 'attackId',
+      title: 'Attack ID',
+      type: 'short-input',
+      placeholder: 'Enter the attack ID',
+      required: true,
+      condition: { field: 'operation', value: 'dynatrace_get_attack' },
+    },
+    {
+      id: 'attackFields',
+      title: 'Additional Fields',
+      type: 'short-input',
+      placeholder: '+attackTarget,+request,+attacker',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['dynatrace_list_attacks', 'dynatrace_get_attack'],
+      },
+    },
+    {
+      id: 'attackSort',
+      title: 'Sort',
+      type: 'short-input',
+      placeholder: '-timestamp',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'dynatrace_list_attacks' },
+    },
+
+    {
+      id: 'tags',
+      title: 'Tags',
+      type: 'long-input',
+      placeholder: '[{ "key": "owner", "value": "platform" }]',
+      required: true,
+      condition: { field: 'operation', value: 'dynatrace_add_tags' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a JSON array of Dynatrace tags. Each entry is an object with a required "key" and an optional "value". Return ONLY the JSON array.',
+        generationType: 'json-object',
+        placeholder: 'Describe the tags to add...',
+      },
+    },
+    {
+      id: 'tagKey',
+      title: 'Tag Key',
+      type: 'short-input',
+      placeholder: 'owner',
+      required: true,
+      condition: { field: 'operation', value: 'dynatrace_delete_tag' },
+    },
+    {
+      id: 'tagValue',
+      title: 'Tag Value',
+      type: 'short-input',
+      placeholder: 'platform',
+      condition: { field: 'operation', value: 'dynatrace_delete_tag' },
+    },
+    {
+      id: 'deleteAllWithKey',
+      title: 'Delete Every Value Of This Key',
+      type: 'switch',
+      condition: { field: 'operation', value: 'dynatrace_delete_tag' },
+    },
+
+    {
+      id: 'schemaFields',
+      title: 'Additional Fields',
+      type: 'short-input',
+      placeholder: 'schemaId,displayName,latestSchemaVersion',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'dynatrace_list_settings_schemas' },
+    },
+    {
+      id: 'schemaIds',
+      title: 'Schema IDs',
+      type: 'short-input',
+      placeholder: 'builtin:alerting.profile',
+      condition: { field: 'operation', value: 'dynatrace_list_settings_objects' },
+    },
+    {
+      id: 'scopes',
+      title: 'Scopes',
+      type: 'short-input',
+      placeholder: 'environment',
+      condition: { field: 'operation', value: 'dynatrace_list_settings_objects' },
+    },
+    {
+      id: 'externalIds',
+      title: 'External IDs',
+      type: 'short-input',
+      placeholder: 'Comma-separated external IDs',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'dynatrace_list_settings_objects' },
+    },
+    {
+      id: 'settingsFields',
+      title: 'Additional Fields',
+      type: 'short-input',
+      placeholder: 'objectId,value,schemaId,scope,updateToken',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'dynatrace_list_settings_objects' },
+    },
+    {
+      id: 'settingsFilter',
+      title: 'Filter',
+      type: 'short-input',
+      placeholder: 'modifiedBy("someone@example.com")',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'dynatrace_list_settings_objects' },
+    },
+    {
+      id: 'settingsSort',
+      title: 'Sort',
+      type: 'short-input',
+      placeholder: '-modified',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'dynatrace_list_settings_objects' },
+    },
+    {
+      id: 'objectId',
+      title: 'Settings Object ID',
+      type: 'short-input',
+      placeholder: 'Enter the settings object ID',
+      required: true,
+      condition: { field: 'operation', value: SETTINGS_OBJECT_ID_OPERATIONS },
+    },
+    {
+      id: 'schemaId',
+      title: 'Schema ID',
+      type: 'short-input',
+      placeholder: 'builtin:alerting.maintenance-window',
+      required: true,
+      condition: { field: 'operation', value: 'dynatrace_create_settings_object' },
+    },
+    {
+      id: 'scope',
+      title: 'Scope',
+      type: 'short-input',
+      placeholder: 'environment',
+      required: true,
+      condition: { field: 'operation', value: 'dynatrace_create_settings_object' },
+    },
+    {
+      id: 'settingsValue',
+      title: 'Value',
+      type: 'long-input',
+      placeholder: '{ "enabled": true, "generalProperties": { "name": "Deploy window" } }',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['dynatrace_create_settings_object', 'dynatrace_update_settings_object'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the JSON value of a Dynatrace settings object. The shape is defined by its schema, so mirror the structure of an existing object of the same schema. Return ONLY the JSON object.',
+        generationType: 'json-object',
+        placeholder: 'Describe the configuration...',
+      },
+    },
+    {
+      id: 'schemaVersion',
+      title: 'Schema Version',
+      type: 'short-input',
+      placeholder: 'Defaults to the latest',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['dynatrace_create_settings_object', 'dynatrace_update_settings_object'],
+      },
+    },
+    {
+      id: 'settingsExternalId',
+      title: 'External ID',
+      type: 'short-input',
+      placeholder: 'Correlate with a system outside Dynatrace',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'dynatrace_create_settings_object' },
+    },
+    {
+      id: 'updateToken',
+      title: 'Update Token',
+      type: 'short-input',
+      placeholder: 'From Get Settings Object — guards against a concurrent change',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['dynatrace_update_settings_object', 'dynatrace_delete_settings_object'],
+      },
+    },
+    {
+      id: 'validateOnly',
+      title: 'Validate Only',
+      type: 'switch',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['dynatrace_create_settings_object', 'dynatrace_update_settings_object'],
+      },
+    },
+
+    {
+      id: 'monitorType',
+      title: 'Monitor Type',
+      type: 'dropdown',
+      options: [
+        { label: 'Any', id: '' },
+        { label: 'Browser', id: 'BROWSER' },
+        { label: 'HTTP', id: 'HTTP' },
+      ],
+      condition: { field: 'operation', value: 'dynatrace_list_synthetic_monitors' },
+    },
+    {
+      // A tri-state filter, not a boolean: leaving it unset must send no
+      // `enabled` param at all. A switch would serialize its off position as
+      // `enabled=false` and silently return only the disabled monitors.
+      id: 'monitorEnabled',
+      title: 'Enabled State',
+      type: 'dropdown',
+      options: [
+        { label: 'Any', id: '' },
+        { label: 'Enabled only', id: 'true' },
+        { label: 'Disabled only', id: 'false' },
+      ],
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'dynatrace_list_synthetic_monitors' },
+    },
+    {
+      id: 'monitorLocation',
+      title: 'Location',
+      type: 'short-input',
+      placeholder: 'Synthetic location ID',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'dynatrace_list_synthetic_monitors' },
+    },
+    {
+      id: 'monitorTag',
+      title: 'Tag',
+      type: 'short-input',
+      placeholder: 'tag1, tag2 (comma-separated)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'dynatrace_list_synthetic_monitors' },
+    },
+    {
+      id: 'monitorManagementZone',
+      title: 'Management Zone ID',
+      type: 'short-input',
+      placeholder: 'Numeric management zone ID',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'dynatrace_list_synthetic_monitors' },
+    },
+    {
+      id: 'monitors',
+      title: 'Monitors',
+      type: 'long-input',
+      placeholder: '[{ "monitorId": "SYNTHETIC_TEST-123" }]',
+      required: true,
+      condition: { field: 'operation', value: 'dynatrace_execute_synthetic_monitors' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a JSON array of Dynatrace synthetic monitors to execute. Each entry has a required "monitorId" and optional "locations" (array) and "executionCount" (max 10). Return ONLY the JSON array.',
+        generationType: 'json-object',
+        placeholder: 'Describe the monitors to run...',
+      },
+    },
+    {
+      id: 'processingMode',
+      title: 'Processing Mode',
+      type: 'dropdown',
+      options: [
+        { label: 'Standard', id: 'STANDARD' },
+        { label: 'Disable problem detection', id: 'DISABLE_PROBLEM_DETECTION' },
+        { label: 'Execution details only', id: 'EXECUTIONS_DETAILS_ONLY' },
+      ],
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'dynatrace_execute_synthetic_monitors' },
+    },
+    {
+      id: 'failOnPerformanceIssue',
+      title: 'Fail On Performance Issue',
+      type: 'switch',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'dynatrace_execute_synthetic_monitors' },
+    },
+    {
+      id: 'stopOnProblem',
+      title: 'Stop On Problem',
+      type: 'switch',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'dynatrace_execute_synthetic_monitors' },
+    },
+    {
+      id: 'takeScreenshotsOnSuccess',
+      title: 'Screenshot Successful Runs',
+      type: 'switch',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'dynatrace_execute_synthetic_monitors' },
+    },
+    {
+      id: 'batchMetadata',
+      title: 'Metadata',
+      type: 'long-input',
+      placeholder: '{ "release": "4.12.2" }',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'dynatrace_execute_synthetic_monitors' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a flat JSON object of key-value metadata for a Dynatrace synthetic batch. Max 64 pairs. Return ONLY the JSON object.',
+        generationType: 'json-object',
+        placeholder: 'Describe the metadata...',
+      },
+    },
+    {
+      id: 'batchId',
+      title: 'Batch ID',
+      type: 'short-input',
+      placeholder: 'Batch ID from Execute Synthetic Monitors',
+      required: true,
+      condition: { field: 'operation', value: 'dynatrace_get_synthetic_batch' },
+    },
+
+    {
+      id: 'sloName',
+      title: 'Name',
+      type: 'short-input',
+      placeholder: 'Checkout availability',
+      required: true,
+      condition: { field: 'operation', value: SLO_WRITE_OPERATIONS },
+    },
+    {
+      id: 'sloTarget',
+      title: 'Target (%)',
+      type: 'short-input',
+      placeholder: '99.5',
+      required: true,
+      condition: { field: 'operation', value: SLO_WRITE_OPERATIONS },
+    },
+    {
+      id: 'sloWarning',
+      title: 'Warning (%)',
+      type: 'short-input',
+      placeholder: '99.8',
+      required: true,
+      condition: { field: 'operation', value: SLO_WRITE_OPERATIONS },
+    },
+    {
+      id: 'sloTimeframe',
+      title: 'Timeframe',
+      type: 'short-input',
+      placeholder: '-1w',
+      required: true,
+      condition: { field: 'operation', value: SLO_WRITE_OPERATIONS },
+    },
+    {
+      id: 'sloEvaluationType',
+      title: 'Evaluation Type',
+      type: 'dropdown',
+      options: [{ label: 'Aggregate', id: 'AGGREGATE' }],
+      required: true,
+      condition: { field: 'operation', value: SLO_WRITE_OPERATIONS },
+      value: () => 'AGGREGATE',
+    },
+    {
+      id: 'sloDescription',
+      title: 'Description',
+      type: 'long-input',
+      placeholder: 'What this SLO measures',
+      condition: { field: 'operation', value: SLO_WRITE_OPERATIONS },
+    },
+    {
+      id: 'sloMetricExpression',
+      title: 'Metric Expression',
+      type: 'long-input',
+      placeholder:
+        '(100)*(builtin:service.errors.total.successCount:splitBy())/(builtin:service.requestCount.total:splitBy())',
+      condition: { field: 'operation', value: SLO_WRITE_OPERATIONS },
+    },
+    {
+      id: 'sloFilter',
+      title: 'Entity Filter',
+      type: 'short-input',
+      placeholder: 'type("SERVICE"),tag("env:prod")',
+      condition: { field: 'operation', value: SLO_WRITE_OPERATIONS },
+    },
+    {
+      id: 'sloEnabled',
+      title: 'Enabled',
+      type: 'switch',
+      condition: { field: 'operation', value: SLO_WRITE_OPERATIONS },
+    },
+    {
+      id: 'sloMetricName',
+      title: 'Metric Name',
+      type: 'short-input',
+      placeholder: 'Display name for the SLO metric',
+      mode: 'advanced',
+      condition: { field: 'operation', value: SLO_WRITE_OPERATIONS },
+    },
+    {
+      id: 'burnRateVisualizationEnabled',
+      title: 'Show Burn Rate',
+      type: 'switch',
+      mode: 'advanced',
+      condition: { field: 'operation', value: SLO_WRITE_OPERATIONS },
+    },
+    {
+      id: 'fastBurnThreshold',
+      title: 'Fast Burn Threshold',
+      type: 'short-input',
+      placeholder: '10',
+      mode: 'advanced',
+      condition: { field: 'operation', value: SLO_WRITE_OPERATIONS },
     },
 
     {
@@ -778,6 +1361,31 @@ Return ONLY the selector string - no explanations, no surrounding quotes.`,
       'dynatrace_list_security_problems',
       'dynatrace_get_security_problem',
       'dynatrace_get_audit_logs',
+      'dynatrace_mute_security_problem',
+      'dynatrace_unmute_security_problem',
+      'dynatrace_mute_security_problems',
+      'dynatrace_unmute_security_problems',
+      'dynatrace_list_remediation_items',
+      'dynatrace_list_attacks',
+      'dynatrace_get_attack',
+      'dynatrace_list_tags',
+      'dynatrace_add_tags',
+      'dynatrace_delete_tag',
+      'dynatrace_list_settings_schemas',
+      'dynatrace_list_settings_objects',
+      'dynatrace_get_settings_object',
+      'dynatrace_create_settings_object',
+      'dynatrace_update_settings_object',
+      'dynatrace_delete_settings_object',
+      'dynatrace_list_synthetic_monitors',
+      'dynatrace_execute_synthetic_monitors',
+      'dynatrace_get_synthetic_batch',
+      'dynatrace_get_problem_comment',
+      'dynatrace_update_problem_comment',
+      'dynatrace_delete_problem_comment',
+      'dynatrace_create_slo',
+      'dynatrace_update_slo',
+      'dynatrace_delete_slo',
     ],
     config: {
       tool: (params) => params.operation,
@@ -793,6 +1401,22 @@ Return ONLY the selector string - no explanations, no surrounding quotes.`,
         const pagination = {
           pageSize: toNumber(params.pageSize),
           nextPageKey: params.nextPageKey || undefined,
+        }
+
+        // Create and update SLO take the identical definition.
+        const sloWriteParams = {
+          name: params.sloName,
+          target: toNumber(params.sloTarget),
+          warning: toNumber(params.sloWarning),
+          timeframe: params.sloTimeframe,
+          evaluationType: params.sloEvaluationType || 'AGGREGATE',
+          description: params.sloDescription || undefined,
+          enabled: params.sloEnabled,
+          filter: params.sloFilter || undefined,
+          metricExpression: params.sloMetricExpression || undefined,
+          metricName: params.sloMetricName || undefined,
+          burnRateVisualizationEnabled: params.burnRateVisualizationEnabled,
+          fastBurnThreshold: toNumber(params.fastBurnThreshold),
         }
 
         switch (params.operation) {
@@ -973,6 +1597,174 @@ Return ONLY the selector string - no explanations, no surrounding quotes.`,
               sort: params.auditSort || undefined,
             }
 
+          case 'dynatrace_mute_security_problem':
+          case 'dynatrace_unmute_security_problem':
+            return {
+              ...baseParams,
+              securityProblemId: params.securityProblemId,
+              reason: params.muteReason,
+              comment: params.muteComment || undefined,
+            }
+
+          case 'dynatrace_mute_security_problems':
+          case 'dynatrace_unmute_security_problems':
+            return {
+              ...baseParams,
+              securityProblemIds: params.securityProblemIds,
+              reason: params.muteReason,
+              comment: params.muteComment || undefined,
+            }
+
+          case 'dynatrace_list_remediation_items':
+            return {
+              ...baseParams,
+              securityProblemId: params.securityProblemId,
+              remediationItemSelector: params.remediationItemSelector || undefined,
+            }
+
+          case 'dynatrace_list_attacks':
+            return {
+              ...baseParams,
+              ...pagination,
+              attackSelector: params.attackSelector || undefined,
+              from: params.from || undefined,
+              to: params.to || undefined,
+              fields: params.attackFields || undefined,
+              sort: params.attackSort || undefined,
+            }
+
+          case 'dynatrace_get_attack':
+            return {
+              ...baseParams,
+              attackId: params.attackId,
+              fields: params.attackFields || undefined,
+            }
+
+          case 'dynatrace_list_tags':
+            return {
+              ...baseParams,
+              entitySelector: params.entitySelector,
+              from: params.from || undefined,
+              to: params.to || undefined,
+            }
+
+          case 'dynatrace_add_tags':
+            return {
+              ...baseParams,
+              entitySelector: params.entitySelector,
+              tags: params.tags,
+              from: params.from || undefined,
+              to: params.to || undefined,
+            }
+
+          case 'dynatrace_delete_tag':
+            return {
+              ...baseParams,
+              entitySelector: params.entitySelector,
+              key: params.tagKey,
+              value: params.tagValue || undefined,
+              deleteAllWithKey: params.deleteAllWithKey,
+              from: params.from || undefined,
+              to: params.to || undefined,
+            }
+
+          case 'dynatrace_list_settings_schemas':
+            return { ...baseParams, fields: params.schemaFields || undefined }
+
+          case 'dynatrace_list_settings_objects':
+            return {
+              ...baseParams,
+              ...pagination,
+              schemaIds: params.schemaIds || undefined,
+              scopes: params.scopes || undefined,
+              externalIds: params.externalIds || undefined,
+              fields: params.settingsFields || undefined,
+              filter: params.settingsFilter || undefined,
+              sort: params.settingsSort || undefined,
+            }
+
+          case 'dynatrace_get_settings_object':
+            return { ...baseParams, objectId: params.objectId }
+
+          case 'dynatrace_create_settings_object':
+            return {
+              ...baseParams,
+              schemaId: params.schemaId,
+              scope: params.scope,
+              value: params.settingsValue,
+              schemaVersion: params.schemaVersion || undefined,
+              externalId: params.settingsExternalId || undefined,
+              validateOnly: params.validateOnly,
+            }
+
+          case 'dynatrace_update_settings_object':
+            return {
+              ...baseParams,
+              objectId: params.objectId,
+              value: params.settingsValue,
+              schemaVersion: params.schemaVersion || undefined,
+              updateToken: params.updateToken || undefined,
+              validateOnly: params.validateOnly,
+            }
+
+          case 'dynatrace_delete_settings_object':
+            return {
+              ...baseParams,
+              objectId: params.objectId,
+              updateToken: params.updateToken || undefined,
+            }
+
+          case 'dynatrace_list_synthetic_monitors':
+            return {
+              ...baseParams,
+              type: params.monitorType || undefined,
+              // '' means "any", so send no filter rather than enabled=false.
+              enabled: params.monitorEnabled ? params.monitorEnabled === 'true' : undefined,
+              location: params.monitorLocation || undefined,
+              tag: params.monitorTag || undefined,
+              managementZone: toNumber(params.monitorManagementZone),
+            }
+
+          case 'dynatrace_execute_synthetic_monitors':
+            return {
+              ...baseParams,
+              monitors: params.monitors,
+              processingMode: params.processingMode || undefined,
+              failOnPerformanceIssue: params.failOnPerformanceIssue,
+              stopOnProblem: params.stopOnProblem,
+              takeScreenshotsOnSuccess: params.takeScreenshotsOnSuccess,
+              metadata: params.batchMetadata || undefined,
+            }
+
+          case 'dynatrace_get_synthetic_batch':
+            return { ...baseParams, batchId: params.batchId }
+
+          case 'dynatrace_get_problem_comment':
+          case 'dynatrace_delete_problem_comment':
+            return {
+              ...baseParams,
+              problemId: params.problemId,
+              commentId: params.commentId,
+            }
+
+          case 'dynatrace_update_problem_comment':
+            return {
+              ...baseParams,
+              problemId: params.problemId,
+              commentId: params.commentId,
+              message: params.message,
+              context: params.commentContext || undefined,
+            }
+
+          case 'dynatrace_create_slo':
+            return { ...baseParams, ...sloWriteParams }
+
+          case 'dynatrace_update_slo':
+            return { ...baseParams, ...sloWriteParams, sloId: params.sloId }
+
+          case 'dynatrace_delete_slo':
+            return { ...baseParams, sloId: params.sloId }
+
           default:
             return baseParams
         }
@@ -1038,6 +1830,61 @@ Return ONLY the selector string - no explanations, no surrounding quotes.`,
     to: { type: 'string', description: 'End of the timeframe' },
     pageSize: { type: 'number', description: 'Entries per page' },
     nextPageKey: { type: 'string', description: 'Cursor for the next page' },
+    commentId: { type: 'string', description: 'Comment ID' },
+    securityProblemIds: { type: 'string', description: 'Security problem IDs for a bulk action' },
+    muteReason: { type: 'string', description: 'Reason recorded for a mute or unmute' },
+    muteComment: { type: 'string', description: 'Comment recorded for a mute or unmute' },
+    remediationItemSelector: { type: 'string', description: 'Remediation item selector' },
+    attackSelector: { type: 'string', description: 'Attack selector' },
+    attackId: { type: 'string', description: 'Attack ID' },
+    attackFields: { type: 'string', description: 'Additional attack properties to include' },
+    attackSort: { type: 'string', description: 'Sort order for attacks' },
+    tags: { type: 'json', description: 'Tags to add' },
+    tagKey: { type: 'string', description: 'Key of the tag to delete' },
+    tagValue: { type: 'string', description: 'Value of the tag to delete' },
+    deleteAllWithKey: { type: 'boolean', description: 'Delete every tag carrying the key' },
+    schemaFields: { type: 'string', description: 'Additional schema properties to include' },
+    schemaIds: { type: 'string', description: 'Settings schema IDs to filter by' },
+    scopes: { type: 'string', description: 'Settings scopes to filter by' },
+    externalIds: { type: 'string', description: 'Settings external IDs to filter by' },
+    settingsFields: { type: 'string', description: 'Additional settings properties to include' },
+    settingsFilter: { type: 'string', description: 'Settings object filter expression' },
+    settingsSort: { type: 'string', description: 'Sort order for settings objects' },
+    objectId: { type: 'string', description: 'Settings object ID' },
+    schemaId: { type: 'string', description: 'Schema of the settings object to create' },
+    scope: { type: 'string', description: 'Scope the settings object applies to' },
+    settingsValue: { type: 'json', description: 'Settings object value' },
+    schemaVersion: { type: 'string', description: 'Settings schema version' },
+    settingsExternalId: { type: 'string', description: 'External ID for the settings object' },
+    updateToken: { type: 'string', description: 'Optimistic-concurrency token' },
+    validateOnly: { type: 'boolean', description: 'Validate without saving' },
+    monitorType: { type: 'string', description: 'Synthetic monitor type filter' },
+    monitorEnabled: { type: 'boolean', description: 'Only enabled synthetic monitors' },
+    monitorLocation: { type: 'string', description: 'Synthetic location filter' },
+    monitorTag: { type: 'string', description: 'Synthetic monitor tag filter' },
+    monitorManagementZone: { type: 'number', description: 'Synthetic management zone ID' },
+    monitors: { type: 'json', description: 'Synthetic monitors to execute' },
+    processingMode: { type: 'string', description: 'Synthetic batch processing mode' },
+    failOnPerformanceIssue: {
+      type: 'boolean',
+      description: 'Treat a performance breach as a failure',
+    },
+    stopOnProblem: { type: 'boolean', description: 'Stop the batch on the first problem' },
+    takeScreenshotsOnSuccess: { type: 'boolean', description: 'Screenshot successful runs' },
+    batchMetadata: { type: 'json', description: 'Metadata attached to the synthetic batch' },
+    batchId: { type: 'string', description: 'Synthetic batch ID' },
+    sloName: { type: 'string', description: 'Name of the SLO' },
+    sloTarget: { type: 'number', description: 'SLO target percentage' },
+    sloWarning: { type: 'number', description: 'SLO warning percentage' },
+    sloTimeframe: { type: 'string', description: 'SLO evaluation timeframe' },
+    sloEvaluationType: { type: 'string', description: 'SLO evaluation type' },
+    sloDescription: { type: 'string', description: 'SLO description' },
+    sloMetricExpression: { type: 'string', description: 'Metric expression the SLO evaluates' },
+    sloFilter: { type: 'string', description: 'Entity filter scoping the SLO' },
+    sloEnabled: { type: 'boolean', description: 'Whether the SLO is evaluated' },
+    sloMetricName: { type: 'string', description: 'Display name for the SLO metric' },
+    burnRateVisualizationEnabled: { type: 'boolean', description: 'Show the burn rate' },
+    fastBurnThreshold: { type: 'number', description: 'Fast-burn threshold' },
   },
 
   outputs: {
@@ -1061,7 +1908,10 @@ Return ONLY the selector string - no explanations, no surrounding quotes.`,
     event: { type: 'json', description: 'A single event' },
     reportCount: { type: 'number', description: 'Number of events reported' },
     eventIngestResults: { type: 'json', description: 'Per-event ingestion results' },
-    results: { type: 'json', description: 'Matching log records' },
+    results: {
+      type: 'json',
+      description: 'Matching log records, or the per-object result of a settings write',
+    },
     sliceSize: { type: 'number', description: 'Number of log records in the slice' },
     nextSliceKey: { type: 'string', description: 'Cursor for the next log slice' },
     accepted: { type: 'boolean', description: 'Whether every log event was accepted' },
@@ -1079,6 +1929,47 @@ Return ONLY the selector string - no explanations, no surrounding quotes.`,
     pageSize: { type: 'number', description: 'Number of entries in the page' },
     nextPageKey: { type: 'string', description: 'Cursor for the next page' },
     warnings: { type: 'json', description: 'Warnings returned alongside the result' },
+    alreadyInState: { type: 'boolean', description: 'The problem was already in the target state' },
+    summary: { type: 'json', description: 'Per-problem outcome of a bulk mute or unmute' },
+    changedCount: { type: 'number', description: 'How many problems changed state' },
+    remediationItems: { type: 'json', description: 'Remediation items of a vulnerability' },
+    attacks: { type: 'json', description: 'List of attacks' },
+    attack: { type: 'json', description: 'A single attack' },
+    tags: { type: 'json', description: 'Custom tags on the matched entities' },
+    appliedTags: { type: 'json', description: 'Tags that were applied' },
+    matchedEntitiesCount: { type: 'number', description: 'How many entities the selector matched' },
+    schemas: { type: 'json', description: 'Available settings schemas' },
+    items: { type: 'json', description: 'Matching settings objects' },
+    object: { type: 'json', description: 'A single settings object' },
+    objectId: { type: 'string', description: 'ID of the affected settings object' },
+    code: { type: 'number', description: 'Status Dynatrace reported for a settings write' },
+    monitors: { type: 'json', description: 'Synthetic monitors' },
+    batchId: { type: 'string', description: 'Synthetic batch ID' },
+    batchStatus: { type: 'string', description: 'Status of the synthetic batch' },
+    executedCount: { type: 'number', description: 'Synthetic executions completed' },
+    failedCount: { type: 'number', description: 'Synthetic executions that failed' },
+    failedToExecuteCount: { type: 'number', description: 'Synthetic executions that never ran' },
+    triggeredCount: { type: 'number', description: 'Synthetic executions triggered' },
+    triggeringProblemsCount: {
+      type: 'number',
+      description: 'Synthetic executions that could not be triggered',
+    },
+    triggered: { type: 'json', description: 'Triggered synthetic executions' },
+    triggeringProblemsDetails: {
+      type: 'json',
+      description: 'Why synthetic executions failed to start',
+    },
+    failedExecutions: { type: 'json', description: 'Failed synthetic executions' },
+    failedToExecute: { type: 'json', description: 'Synthetic executions that never started' },
+    triggeringProblems: { type: 'json', description: 'Synthetic triggering problems' },
+    metadata: { type: 'json', description: 'Metadata attached to the synthetic batch' },
+    userId: { type: 'string', description: 'Who triggered the synthetic batch' },
+    commentId: { type: 'string', description: 'ID of the affected comment' },
+    sloId: { type: 'string', description: 'ID of the affected SLO' },
+    name: { type: 'string', description: 'Name of the affected resource' },
+    deleted: { type: 'boolean', description: 'Whether the delete succeeded' },
+    securityProblemId: { type: 'string', description: 'ID of the affected security problem' },
+    reason: { type: 'string', description: 'Reason recorded for a mute or unmute' },
   },
 }
 
@@ -1197,7 +2088,27 @@ export const DynatraceBlockMeta = {
       description:
         'Inventory open Dynatrace vulnerabilities by risk, exposure, and affected service.',
       content:
-        '# Audit Vulnerabilities\n\nTurn Application Security findings into a remediation queue.\n\n## Steps\n1. List security problems with `status("OPEN")` and request the `riskAssessment` and `globalCounts` fields.\n2. Sort by risk score and separate the publicly exposed ones with reachable data assets — those are the ones to fix first.\n3. Get the details of each high-priority finding to read its description, remediation guidance, and vulnerable components.\n4. Group by affected service or package so one upgrade can close several findings.\n\n## Output\nReturn a remediation queue: CVE, risk level and score, exposure, affected services, vulnerable component version, and the recommended fix.',
+        '# Audit Vulnerabilities\n\nTurn Application Security findings into a remediation queue, then act on it.\n\n## Steps\n1. List security problems with `status("OPEN")` and request the `riskAssessment` and `globalCounts` fields.\n2. Sort by risk score and separate the publicly exposed ones with reachable data assets — those are the ones to fix first.\n3. Get the details of each high-priority finding to read its description, remediation guidance, and vulnerable components.\n4. List the remediation items of a third-party finding to see which components to upgrade and which entities each covers.\n5. Mute the findings that do not apply, with a reason — FALSE_POSITIVE, CONFIGURATION_NOT_AFFECTED, or VULNERABLE_CODE_NOT_IN_USE — so the queue reflects real work. Use the bulk mute when triaging many at once.\n\n## Output\nReturn a remediation queue: CVE, risk level and score, exposure, affected services, vulnerable component version, and the recommended fix. List separately what was muted and why.',
+    },
+    {
+      name: 'open-maintenance-window',
+      description:
+        'Create a Dynatrace maintenance window as a settings object so a deploy does not raise problems.',
+      content:
+        '# Open Maintenance Window\n\nSuppress alerting for a planned change, then clean up after it.\n\n## Steps\n1. List settings schemas and find the maintenance window schema (`builtin:alerting.maintenance-window`).\n2. List existing settings objects for that schema to copy the shape of a working window — the `value` is schema-defined, so mirroring a real one beats guessing.\n3. Create a settings object with the window scope, the suppression type, and the schedule covering the change.\n4. Run the deploy, then delete the settings object — or let the schedule close it.\n\n## Output\nReturn the created object ID and the window it covers, so a later step can delete it. Note whether the window suppresses alerting entirely or only problem creation.',
+    },
+    {
+      name: 'gate-deploy-on-synthetic',
+      description:
+        'Run Dynatrace synthetic monitors on demand after a deploy and decide from the batch result.',
+      content:
+        '# Gate Deploy On Synthetic\n\nProve a release works before letting it stand.\n\n## Steps\n1. List synthetic monitors and pick the smoke tests covering the deployed service — the list returns the monitor IDs the execution needs.\n2. Ingest a `CUSTOM_DEPLOYMENT` event so the release is visible on the timeline.\n3. Execute the monitors on demand, attaching the release version as batch metadata.\n4. Poll the batch until its status leaves RUNNING, then read the failed executions.\n5. Roll back or alert when the batch reports failures.\n\n## Output\nReturn the batch ID, its final status, the executed and failed counts, and the failure message of each failed execution. State plainly whether the deploy passed.',
+    },
+    {
+      name: 'tag-entities-from-workflow',
+      description: 'Apply or remove Dynatrace entity tags so selectors and zones stay accurate.',
+      content:
+        '# Tag Entities From Workflow\n\nKeep entity tags in step with what the workflow just learned.\n\n## Steps\n1. List entities with a selector describing the set to change, and confirm it matches what you expect before writing.\n2. Read the current tags on those entities so the change is additive rather than a surprise.\n3. Add the tags, each with a key and an optional value. The response reports how many entities matched.\n4. Delete tags that no longer apply, either one key-value pair or every value of a key.\n\n## Output\nReturn the applied or removed tags and the matched entity count. Flag the case where the selector matched zero entities — that usually means the selector is wrong, not that the work is done.',
     },
   ],
 } as const satisfies BlockMeta

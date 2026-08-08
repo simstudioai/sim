@@ -2,25 +2,40 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { DynatraceBlock } from '@/blocks/blocks/dynatrace'
+import { addTagsTool } from '@/tools/dynatrace/add_tags'
 import { closeProblemTool } from '@/tools/dynatrace/close_problem'
+import { createSettingsObjectTool } from '@/tools/dynatrace/create_settings_object'
+import { createSloTool } from '@/tools/dynatrace/create_slo'
 import { getAuditLogsTool } from '@/tools/dynatrace/get_audit_logs'
 import { getEntityTool } from '@/tools/dynatrace/get_entity'
 import { getMetricTool } from '@/tools/dynatrace/get_metric'
 import { getProblemTool } from '@/tools/dynatrace/get_problem'
 import { getSloTool } from '@/tools/dynatrace/get_slo'
+import { getSyntheticBatchTool } from '@/tools/dynatrace/get_synthetic_batch'
 import { ingestEventTool } from '@/tools/dynatrace/ingest_event'
 import { ingestLogsTool } from '@/tools/dynatrace/ingest_logs'
 import { ingestMetricsTool } from '@/tools/dynatrace/ingest_metrics'
+import { listAttacksTool } from '@/tools/dynatrace/list_attacks'
 import { listEntitiesTool } from '@/tools/dynatrace/list_entities'
 import { listEntityTypesTool } from '@/tools/dynatrace/list_entity_types'
 import { listEventsTool } from '@/tools/dynatrace/list_events'
 import { listMetricsTool } from '@/tools/dynatrace/list_metrics'
 import { listProblemCommentsTool } from '@/tools/dynatrace/list_problem_comments'
 import { listProblemsTool } from '@/tools/dynatrace/list_problems'
+import { listRemediationItemsTool } from '@/tools/dynatrace/list_remediation_items'
 import { listSecurityProblemsTool } from '@/tools/dynatrace/list_security_problems'
+import { listSettingsObjectsTool } from '@/tools/dynatrace/list_settings_objects'
+import { listSettingsSchemasTool } from '@/tools/dynatrace/list_settings_schemas'
 import { listSlosTool } from '@/tools/dynatrace/list_slos'
+import { listSyntheticMonitorsTool } from '@/tools/dynatrace/list_synthetic_monitors'
+import { listTagsTool } from '@/tools/dynatrace/list_tags'
+import { muteSecurityProblemTool } from '@/tools/dynatrace/mute_security_problem'
+import { muteSecurityProblemsTool } from '@/tools/dynatrace/mute_security_problems'
 import { queryMetricsTool } from '@/tools/dynatrace/query_metrics'
 import { searchLogsTool } from '@/tools/dynatrace/search_logs'
+import { updateSettingsObjectTool } from '@/tools/dynatrace/update_settings_object'
+import { updateSloTool } from '@/tools/dynatrace/update_slo'
 import { buildDynatraceUrl, dynatraceHeaders } from '@/tools/dynatrace/utils'
 import { ErrorExtractorId, extractErrorMessageWithId } from '@/tools/error-extractors'
 
@@ -94,6 +109,150 @@ describe('path identifiers', () => {
     expect(
       url(listProblemsTool, { ...base, nextPageKey: 'CURSOR', from: 'now-7d', pageSize: 500 })
     ).toBe(`${ENV}/api/v2/problems?nextPageKey=CURSOR`)
+  })
+})
+
+describe('new-surface request shaping', () => {
+  const base = { environmentUrl: ENV, apiToken: TOKEN }
+
+  it('routes synthetic monitors to Environment API v1, not v2', () => {
+    expect(url(listSyntheticMonitorsTool, base)).toBe(`${ENV}/api/v1/synthetic/monitors`)
+    // ...while executions stay on v2.
+    expect(url(getSyntheticBatchTool, { ...base, batchId: 'B-1' })).toBe(
+      `${ENV}/api/v2/synthetic/executions/batch/B-1`
+    )
+  })
+
+  it('strips a trailing /api/v1 as well as /api/v2 from the environment URL', () => {
+    expect(url(listSyntheticMonitorsTool, { ...base, environmentUrl: `${ENV}/api/v1` })).toBe(
+      `${ENV}/api/v1/synthetic/monitors`
+    )
+  })
+
+  it('treats the synthetic enabled filter as tri-state, not a boolean', () => {
+    const params = (DynatraceBlock.tools.config?.params ?? (() => ({}))) as (
+      p: Record<string, unknown>
+    ) => Record<string, unknown>
+    const call = (monitorEnabled: string | undefined) =>
+      params({
+        operation: 'dynatrace_list_synthetic_monitors',
+        environmentUrl: ENV,
+        apiToken: TOKEN,
+        monitorEnabled,
+      })
+
+    // "Any" must send no filter — `enabled=false` would return only the
+    // disabled monitors, which is the opposite of what the user asked for.
+    expect(call('').enabled).toBeUndefined()
+    expect(call(undefined).enabled).toBeUndefined()
+    expect(call('true').enabled).toBe(true)
+    expect(call('false').enabled).toBe(false)
+
+    expect(url(listSyntheticMonitorsTool, { environmentUrl: ENV, apiToken: TOKEN })).toBe(
+      `${ENV}/api/v1/synthetic/monitors`
+    )
+    expect(
+      url(listSyntheticMonitorsTool, { environmentUrl: ENV, apiToken: TOKEN, enabled: true })
+    ).toBe(`${ENV}/api/v1/synthetic/monitors?enabled=true`)
+  })
+
+  it('keeps every remaining switch a real boolean, since off means false for each', () => {
+    // monitorEnabled was the only tri-state filter. For the rest, Dynatrace's
+    // own default is false, so serializing the off position is correct — this
+    // pins that they stay switches rather than drifting into the same trap.
+    const switches = DynatraceBlock.subBlocks
+      .filter((sb) => sb.type === 'switch')
+      .map((sb) => sb.id)
+    expect(switches).not.toContain('monitorEnabled')
+    expect(switches.sort()).toEqual(
+      [
+        'burnRateVisualizationEnabled',
+        'deleteAllWithKey',
+        'evaluate',
+        'failOnPerformanceIssue',
+        'showGlobalSlos',
+        'sloEnabled',
+        'stopOnProblem',
+        'takeScreenshotsOnSuccess',
+        'validateOnly',
+      ].sort()
+    )
+  })
+
+  it('repeats the synthetic tag param once per value', () => {
+    expect(url(listSyntheticMonitorsTool, { ...base, tag: 'a, b' })).toBe(
+      `${ENV}/api/v1/synthetic/monitors?tag=a&tag=b`
+    )
+  })
+
+  it('accepts bulk security problem IDs as a list, JSON array, or comma string', () => {
+    const read = (ids: unknown) =>
+      (
+        body(muteSecurityProblemsTool, {
+          ...base,
+          securityProblemIds: ids,
+          reason: 'FALSE_POSITIVE',
+        }) as Record<string, unknown>
+      ).securityProblemIds
+
+    expect(read('S-1, S-2')).toEqual(['S-1', 'S-2'])
+    expect(read('["S-1","S-2"]')).toEqual(['S-1', 'S-2'])
+    expect(read(['S-1', 'S-2'])).toEqual(['S-1', 'S-2'])
+  })
+
+  it('refuses a bulk mute with no IDs rather than sending an empty batch', () => {
+    expect(() =>
+      body(muteSecurityProblemsTool, { ...base, securityProblemIds: '', reason: 'IGNORE' })
+    ).toThrow(/at least one ID/)
+  })
+
+  it('wraps a settings object create in the array the endpoint expects', () => {
+    const sent = body(createSettingsObjectTool, {
+      ...base,
+      schemaId: 'builtin:alerting.maintenance-window',
+      scope: 'environment',
+      value: '{"enabled":true}',
+    }) as string
+    expect(JSON.parse(sent)).toEqual([
+      {
+        schemaId: 'builtin:alerting.maintenance-window',
+        scope: 'environment',
+        value: { enabled: true },
+      },
+    ])
+  })
+
+  it('sends the update token so a concurrent settings change is not overwritten', () => {
+    const sent = body(updateSettingsObjectTool, {
+      ...base,
+      objectId: 'O-1',
+      value: { enabled: false },
+      updateToken: 'TOKEN-123',
+    }) as Record<string, unknown>
+    expect(sent.updateToken).toBe('TOKEN-123')
+    expect(sent.value).toEqual({ enabled: false })
+  })
+
+  it('builds the same SLO body for create and update', () => {
+    const fields = {
+      ...base,
+      name: 'Checkout',
+      target: 99.5,
+      warning: 99.8,
+      timeframe: '-1w',
+      evaluationType: 'AGGREGATE',
+      fastBurnThreshold: 10,
+    }
+    const created = body(createSloTool, fields) as Record<string, unknown>
+    const updated = body(updateSloTool, { ...fields, sloId: 'SLO-1' }) as Record<string, unknown>
+    expect(created).toEqual(updated)
+    expect(created.errorBudgetBurnRate).toEqual({ fastBurnThreshold: 10 })
+  })
+
+  it('requires a non-empty tag array before writing tags', () => {
+    expect(() =>
+      body(addTagsTool, { ...base, entitySelector: 'type("HOST")', tags: '[]' })
+    ).toThrow(/non-empty array/)
   })
 })
 
@@ -439,6 +598,102 @@ describe('response mapping', () => {
       new Response(null, { status: 204 })
     )
     expect(created.output.comments).toEqual([])
+  })
+
+  it('reads the documented top-level key of the newer list responses', async () => {
+    const cases: Array<{
+      name: string
+      tool: { transformResponse?: (r: Response) => Promise<{ output: Record<string, never> }> }
+      payload: Record<string, unknown>
+      read: (out: Record<string, never>) => unknown
+    }> = [
+      {
+        name: 'GET /attacks -> attacks',
+        tool: listAttacksTool,
+        payload: { totalCount: 1, attacks: [{ attackId: 'A-1', state: 'EXPLOITED' }] },
+        read: (o) => o.attacks,
+      },
+      {
+        name: 'GET /tags -> tags',
+        tool: listTagsTool,
+        payload: { totalCount: 1, tags: [{ key: 'env', value: 'prod' }] },
+        read: (o) => o.tags,
+      },
+      {
+        name: 'GET /settings/schemas -> items',
+        tool: listSettingsSchemasTool,
+        payload: { totalCount: 1, items: [{ schemaId: 'builtin:alerting.profile' }] },
+        read: (o) => o.schemas,
+      },
+      {
+        name: 'GET /settings/objects -> items',
+        tool: listSettingsObjectsTool,
+        payload: { totalCount: 1, items: [{ objectId: 'O-1', value: { enabled: true } }] },
+        read: (o) => o.items,
+      },
+      {
+        name: 'GET /securityProblems/{id}/remediationItems -> remediationItems',
+        tool: listRemediationItemsTool,
+        payload: { remediationItems: [{ id: 'R-1', vulnerabilityState: 'VULNERABLE' }] },
+        read: (o) => o.remediationItems,
+      },
+      {
+        name: 'GET /api/v1/synthetic/monitors -> monitors',
+        tool: listSyntheticMonitorsTool,
+        payload: { monitors: [{ entityId: 'SYNTHETIC_TEST-1', name: 'checkout', type: 'HTTP' }] },
+        read: (o) => o.monitors,
+      },
+    ]
+
+    for (const { name, tool, payload, read } of cases) {
+      const out = (
+        await tool.transformResponse!(new Response(JSON.stringify(payload), { status: 200 }))
+      ).output
+      expect(read(out), `${name} produced an empty list`).toHaveLength(1)
+    }
+  })
+
+  it('reads a created SLO id from the Location header, since the body is empty', async () => {
+    const created = new Response(null, {
+      status: 201,
+      headers: { location: 'https://abc.live.dynatrace.com/api/v2/slo/1234-5678' },
+    })
+    const out = (
+      await createSloTool.transformResponse!(created, {
+        environmentUrl: ENV,
+        apiToken: TOKEN,
+        name: 'Checkout',
+      } as never)
+    ).output
+    expect(out.sloId).toBe('1234-5678')
+    expect(out.name).toBe('Checkout')
+  })
+
+  it('counts only the security problems whose mute state actually changed', async () => {
+    const body = JSON.stringify({
+      summary: [
+        { securityProblemId: 'S-1', muteStateChangeTriggered: true },
+        { securityProblemId: 'S-2', muteStateChangeTriggered: false, reason: 'ALREADY_MUTED' },
+      ],
+    })
+    const out = (
+      await muteSecurityProblemsTool.transformResponse!(new Response(body, { status: 200 }))
+    ).output
+    expect(out.summary).toHaveLength(2)
+    expect(out.changedCount).toBe(1)
+  })
+
+  it('treats a 204 mute as "already in that state" rather than a fresh change', async () => {
+    const out = (
+      await muteSecurityProblemTool.transformResponse!(new Response(null, { status: 204 }), {
+        environmentUrl: ENV,
+        apiToken: TOKEN,
+        securityProblemId: 'S-1',
+        reason: 'FALSE_POSITIVE',
+      } as never)
+    ).output
+    expect(out.alreadyInState).toBe(true)
+    expect(out.securityProblemId).toBe('S-1')
   })
 
   it('surfaces a 200 partial-success log ingestion body', async () => {
