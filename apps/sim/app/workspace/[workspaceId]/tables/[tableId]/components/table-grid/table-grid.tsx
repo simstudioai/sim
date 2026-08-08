@@ -63,7 +63,6 @@ import type {
 import { getColumnId } from '@/lib/table/column-keys'
 import { columnTypeOf } from '@/lib/table/column-types'
 import { TABLE_LIMITS } from '@/lib/table/constants'
-import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import type { BlockedTableAction } from '@/app/workspace/[workspaceId]/tables/[tableId]/lock-copy'
 import { useTimezone } from '@/hooks/queries/general-settings'
 import {
@@ -83,6 +82,7 @@ import {
 import { useAddToChat } from '@/hooks/use-add-to-chat'
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { extractCreatedRowId, useTableUndo } from '@/hooks/use-table-undo'
+import type { ResourceGrants } from '@/resources'
 import type { ChatContext } from '@/stores/panel'
 import type { DeletedRowSnapshot } from '@/stores/table/types'
 import { useContextMenu, useTable } from '../../hooks'
@@ -171,6 +171,12 @@ interface TableGridProps {
    */
   workspaceId: string
   tableId: string
+  /**
+   * What this viewer may do. `grants.write` replaces every `canEdit` read: it is
+   * `canEdit` exactly, and deliberately NOT `grants.run`, which is
+   * `canEdit || canRead` and would hand a read-only member the run controls.
+   */
+  grants: ResourceGrants
   embedded?: boolean
   /** Remote collaborators' cell selections, rendered as presence overlays. */
   remoteSelections: RemoteTableSelection[]
@@ -425,6 +431,7 @@ async function chunkBatchUpdates(
 export function TableGrid({
   workspaceId,
   tableId,
+  grants,
   embedded,
   remoteSelections,
   emitCellSelection,
@@ -651,27 +658,26 @@ export function TableGrid({
     if (measured > 0 && Math.abs(measured - rowHeight) >= 0.5) setRowHeight(measured)
   }, [isLoadingTable, isLoadingRows, rowHeight])
 
-  const userPermissions = useUserPermissionsContext()
-  const canEditRef = useRef(userPermissions.canEdit)
-  canEditRef.current = userPermissions.canEdit
+  const canEditRef = useRef(grants.write)
+  canEditRef.current = grants.write
 
-  const canEditCell = userPermissions.canEdit && !locks?.updateLocked
-  const canDeleteRow = userPermissions.canEdit && !locks?.deleteLocked
-  const canMutateSchema = userPermissions.canEdit && !locks?.schemaLocked
+  const canEditCell = grants.write && !locks?.updateLocked
+  const canDeleteRow = grants.write && !locks?.deleteLocked
+  const canMutateSchema = grants.write && !locks?.schemaLocked
   // Dropping or retyping a column rewrites every row's data, so `assertColumnDestructive`
   // requires the delete lock clear too — mirror that here or the affordance
   // stays live on an append-only table and only fails on click.
   const canDestroyColumn = canMutateSchema && !locks?.deleteLocked
   // Duplicate inserts a full copied row in one shot, so unlike the blank-row
   // paths it needs the insert lock only — it is valid on an append-only table.
-  const canInsertFullRow = userPermissions.canEdit && !locks?.insertLocked
+  const canInsertFullRow = grants.write && !locks?.insertLocked
   // Manual grid entry is "add an empty row, then type into its cells" — the
   // typing is an update. So a *useful* manual add needs BOTH insert and update
   // unlocked; on an append-only table (update locked) it would leave a blank
   // row the user can't fill. The control stays visible and explains itself via
   // `onBlockedAction`. Full-row inserts still flow through CSV import / API /
   // blocks / Mothership, which the insert lock alone governs server-side.
-  const canManualAddRow = userPermissions.canEdit && !locks?.insertLocked && !locks?.updateLocked
+  const canManualAddRow = grants.write && !locks?.insertLocked && !locks?.updateLocked
   const canEditCellRef = useRef(canEditCell)
   canEditCellRef.current = canEditCell
   const canManualAddRowRef = useRef(canManualAddRow)
@@ -4292,7 +4298,7 @@ export function TableGrid({
                                 groupName={workflowGroupById.get(g.groupId)?.name}
                                 onSelectGroup={handleGroupSelect}
                                 onOpenConfig={() => handleConfigureWorkflowGroup(g.groupId)}
-                                onRunColumn={userPermissions.canEdit ? handleRunColumn : undefined}
+                                onRunColumn={grants.write ? handleRunColumn : undefined}
                                 hasActiveFilter={Boolean(effectiveFilter)}
                                 selectedRowIds={selectedRowIds}
                                 // Every locked action passes its blocked handler rather
@@ -4301,28 +4307,28 @@ export function TableGrid({
                                 // the whole menu — and each item should explain the lock
                                 // rather than silently vanish or fail with a 423 toast.
                                 onInsertLeft={
-                                  !userPermissions.canEdit
+                                  !grants.write
                                     ? undefined
                                     : canMutateSchema
                                       ? handleInsertColumnLeft
                                       : handleBlockedAddColumn
                                 }
                                 onInsertRight={
-                                  !userPermissions.canEdit
+                                  !grants.write
                                     ? undefined
                                     : canMutateSchema
                                       ? handleInsertColumnRight
                                       : handleBlockedAddColumn
                                 }
                                 onDeleteColumn={
-                                  !userPermissions.canEdit
+                                  !grants.write
                                     ? undefined
                                     : canDestroyColumn
                                       ? handleDeleteColumn
                                       : handleBlockedDeleteColumn
                                 }
                                 onDeleteGroup={
-                                  !userPermissions.canEdit
+                                  !grants.write
                                     ? undefined
                                     : canDestroyColumn
                                       ? handleDeleteWorkflowGroup
@@ -4333,21 +4339,13 @@ export function TableGrid({
                                     ? undefined
                                     : handleViewWorkflow
                                 }
-                                readOnly={!userPermissions.canEdit}
-                                onDragStart={
-                                  userPermissions.canEdit ? handleColumnDragStart : undefined
-                                }
-                                onDragOver={
-                                  userPermissions.canEdit ? handleColumnDragOver : undefined
-                                }
-                                onDragEnd={
-                                  userPermissions.canEdit ? handleColumnDragEnd : undefined
-                                }
-                                onDragLeave={
-                                  userPermissions.canEdit ? handleColumnDragLeave : undefined
-                                }
+                                readOnly={!grants.write}
+                                onDragStart={grants.write ? handleColumnDragStart : undefined}
+                                onDragOver={grants.write ? handleColumnDragOver : undefined}
+                                onDragEnd={grants.write ? handleColumnDragEnd : undefined}
+                                onDragLeave={grants.write ? handleColumnDragLeave : undefined}
                                 isPinned={firstCol ? pinnedColumnSet.has(firstCol.key) : false}
-                                onPinToggle={userPermissions.canEdit ? handlePinToggle : undefined}
+                                onPinToggle={grants.write ? handlePinToggle : undefined}
                                 stickyLeft={stickyLeft}
                                 isLastPinned={lastCol?.key === lastPinnedColKey}
                               />
@@ -4370,7 +4368,7 @@ export function TableGrid({
                             />
                           )
                         })}
-                        {userPermissions.canEdit && (
+                        {grants.write && (
                           <th className='border-[var(--border)] border-b bg-[var(--bg)] px-2 py-[5px]' />
                         )}
                       </tr>
@@ -4394,7 +4392,7 @@ export function TableGrid({
                             // open-config — all metadata, not schema. The schema lock is
                             // enforced per-action instead (insert/delete below), and a
                             // rename attempt surfaces the server's 423 as a toast.
-                            readOnly={!userPermissions.canEdit}
+                            readOnly={!grants.write}
                             isRenaming={columnRename.editingId === column.key}
                             isColumnSelected={
                               isColumnSelection &&
@@ -4434,13 +4432,13 @@ export function TableGrid({
                             onOpenConfig={handleConfigureColumn}
                             onViewWorkflow={handleViewWorkflow}
                             isPinned={colIsPinned}
-                            onPinToggle={userPermissions.canEdit ? handlePinToggle : undefined}
+                            onPinToggle={grants.write ? handlePinToggle : undefined}
                             stickyLeft={colStickyLeft}
                             isLastPinned={column.key === lastPinnedColKey}
                           />
                         )
                       })}
-                      {userPermissions.canEdit && (
+                      {grants.write && (
                         <NewColumnDropdown
                           trigger='inline-header'
                           disabled={addColumnMutation.isPending}
@@ -4581,7 +4579,7 @@ export function TableGrid({
               </>
             )}
           </div>
-          {!isLoadingTable && !isLoadingRows && userPermissions.canEdit && (
+          {!isLoadingTable && !isLoadingRows && grants.write && (
             <AddRowButton onClick={handleAddRowClick} />
           )}
         </div>
@@ -4603,17 +4601,17 @@ export function TableGrid({
         canEditCell={!contextMenuIsWorkflowColumn}
         selectedRowCount={selectedRowCount}
         onRunWorkflows={
-          userPermissions.canEdit && hasWorkflowColumns && contextMenuStats.hasIncompleteOrFailed
+          grants.write && hasWorkflowColumns && contextMenuStats.hasIncompleteOrFailed
             ? handleRunWorkflowsOnSelection
             : undefined
         }
         onRefreshWorkflows={
-          userPermissions.canEdit && hasWorkflowColumns && contextMenuStats.hasCompleted
+          grants.write && hasWorkflowColumns && contextMenuStats.hasCompleted
             ? handleRefreshWorkflowsOnSelection
             : undefined
         }
         onStopWorkflows={
-          userPermissions.canEdit && hasWorkflowColumns ? handleStopWorkflowsOnSelection : undefined
+          grants.write && hasWorkflowColumns ? handleStopWorkflowsOnSelection : undefined
         }
         runningInSelectionCount={runningInContextSelection}
         hasWorkflowColumns={hasWorkflowColumns}

@@ -314,6 +314,7 @@ export const ResourceContent = memo(function ResourceContent({
         <Table
           key={resource.id}
           host='panel'
+          grants={grants}
           workspaceId={workspaceId}
           tableId={resource.id}
           viewsEnabled={tableViewsEnabled}

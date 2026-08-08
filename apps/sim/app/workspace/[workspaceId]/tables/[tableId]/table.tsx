@@ -39,7 +39,6 @@ import {
   DEFAULT_TABLE_DETAIL_SORT_DIRECTION,
 } from '@/lib/table/detail-search-params'
 import { LogDetails } from '@/app/workspace/[workspaceId]/logs/components'
-import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useLogByExecutionId } from '@/hooks/queries/logs'
 import {
   downloadTableExport,
@@ -58,7 +57,7 @@ import {
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useTableDetailState } from '@/hooks/use-table-detail-state'
-import { hostOwnsUrl, type ResourceHost } from '@/resources'
+import { hostOwnsUrl, type ResourceGrants, type ResourceHost } from '@/resources'
 import { useLogDetailsUIStore } from '@/stores/logs/store'
 import type { DeletedRowSnapshot } from '@/stores/table/types'
 import {
@@ -101,6 +100,13 @@ interface TableProps {
    * read-only view of this table's view layer rather than this component.
    */
   host: Extract<ResourceHost, 'page' | 'panel'>
+  /**
+   * What this viewer may do. `write` is `canEdit` exactly; `manage` is the
+   * admin-only governance capability that gates lock settings; `settled` says
+   * whether those are final, which the one-shot lock notice must wait for or it
+   * permanently loses its action.
+   */
+  grants: ResourceGrants
   /**
    * The table's address. Required rather than derived: both mounts know it
    * (`page.tsx` from its route params, the panel from the open resource), and a
@@ -225,6 +231,7 @@ function isSameViewConfig(a: TableViewConfig, b: TableViewConfig): boolean {
  */
 export function Table({
   host,
+  grants,
   workspaceId,
   tableId,
   tableLocksEnabled = false,
@@ -310,8 +317,6 @@ export function Table({
     () => ({ filter, sort: sortQuery }),
     [filter, sortQuery]
   )
-
-  const userPermissions = useUserPermissionsContext()
 
   const onOpenColumnConfig = useCallback((config: ColumnConfig) => {
     dispatch({ type: 'OPEN_COLUMN', config })
@@ -502,7 +507,7 @@ export function Table({
       const keys = pendingLayoutKeysRef.current
       pendingLayoutKeysRef.current = null
       if (!keys || keys.size === 0) return
-      if (adoptedView || !userPermissions.canEdit) return
+      if (adoptedView || !grants.write) return
       const live = readLayout()
       const patch: TableMetadata = {}
       if (keys.has('columnWidths') && live.columnWidths) patch.columnWidths = live.columnWidths
@@ -512,7 +517,7 @@ export function Table({
       }
       if (Object.keys(patch).length > 0) updateMetadataMutation.mutate(patch)
     },
-    [userPermissions.canEdit, readLayout]
+    [grants.write, readLayout]
   )
 
   /** What the user has already set by hand, for the first-resolve `keep`. */
@@ -730,7 +735,7 @@ export function Table({
       // The resize grip and drag handles stay live for read-only members, so
       // without this a resize fires a write-gated PATCH and an error toast. Local
       // layout still updates — only the persist is suppressed.
-      if (!userPermissions.canEdit) return
+      if (!grants.write) return
       // `owner` is stamped by the GRID — the layout source it was displaying
       // when the write happened — so routing no longer depends on when the
       // resolve effect ran relative to the grid's own effects. A write stamped
@@ -756,7 +761,7 @@ export function Table({
       }
       updateMetadataMutation.mutate(patch)
     },
-    [userPermissions.canEdit]
+    [grants.write]
   )
 
   const handleSaveView = () => {
@@ -1106,8 +1111,7 @@ export function Table({
               },
               // Reachable with the flag off when something is locked, so an
               // admin can always clear locks (the route allows clearing).
-              ...(userPermissions.canAdmin &&
-              (tableLocksEnabled || lockedNouns(tableData.locks).length > 0)
+              ...(grants.manage && (tableLocksEnabled || lockedNouns(tableData.locks).length > 0)
                 ? [
                     {
                       label: 'Lock settings',
@@ -1120,7 +1124,7 @@ export function Table({
                 label: 'Delete',
                 icon: Trash,
                 onClick: onRequestDeleteTable,
-                disabled: userPermissions.canEdit !== true || tableData.locks.deleteLocked,
+                disabled: !grants.write || tableData.locks.deleteLocked,
               },
             ],
           }
@@ -1128,8 +1132,8 @@ export function Table({
     ],
     [
       handleNavigateBack,
-      userPermissions.canAdmin,
-      userPermissions.canEdit,
+      grants.manage,
+      grants.write,
       tableData,
       tableHeaderRename.editingId,
       tableHeaderRename.editValue,
@@ -1146,7 +1150,7 @@ export function Table({
   // the flag off and nothing locked there is nothing to change, so the toast is
   // a plain notice with no action.
   const canOpenLockSettings =
-    userPermissions.canAdmin === true &&
+    grants.manage &&
     (tableLocksEnabled || (tableData ? lockedNouns(tableData.locks).length > 0 : false))
 
   /**
@@ -1181,12 +1185,12 @@ export function Table({
   // `canAdmin` to settle instead of treating loading as permitted.
   const announcedLockTableIdRef = useRef<string | null>(null)
   useEffect(() => {
-    if (!tableData || userPermissions.isLoading) return
+    if (!tableData || !grants.settled) return
     if (announcedLockTableIdRef.current === tableData.id) return
     announcedLockTableIdRef.current = tableData.id
     if (lockedNouns(tableData.locks).length === 0) return
     showBlockedToast('status')
-  }, [tableData, userPermissions.isLoading, showBlockedToast])
+  }, [tableData, !grants.settled, showBlockedToast])
 
   // A notice must not outlive the table it describes — its action targets
   // whichever table is current. Keyed on `tableId` so an embedded swap that
@@ -1224,7 +1228,7 @@ export function Table({
         onClick: onRequestImportCsv,
         // An import always inserts, so the insert lock disables it outright
         // rather than letting the dialog run to a server-side 423.
-        disabled: userPermissions.canEdit !== true || tableData.locks.insertLocked,
+        disabled: !grants.write || tableData.locks.insertLocked,
       },
       {
         label: 'Export CSV',
@@ -1233,12 +1237,12 @@ export function Table({
         disabled: tableData.rowCount === 0,
       },
     ]
-  }, [tableData, userPermissions.canEdit, handleExportCsv, onRequestImportCsv])
+  }, [tableData, grants.write, handleExportCsv, onRequestImportCsv])
 
   // Adding a column is a schema change. The trigger stays visible when the
   // table is schema-locked and explains itself instead of disappearing.
-  const canMutateSchema = userPermissions.canEdit && !tableData?.locks.schemaLocked
-  const createTrigger = userPermissions.canEdit ? (
+  const canMutateSchema = grants.write && !tableData?.locks.schemaLocked
+  const createTrigger = grants.write ? (
     <NewColumnDropdown
       trigger='header'
       disabled={false}
@@ -1316,7 +1320,7 @@ export function Table({
     ) : null
 
   const saveViewChip =
-    viewsEnabled && isViewDirty && userPermissions.canEdit ? (
+    viewsEnabled && isViewDirty && grants.write ? (
       <Chip onClick={handleSaveView} disabled={updateViewMutation.isPending}>
         {activeView ? 'Save' : 'Save as view'}
       </Chip>
@@ -1382,7 +1386,7 @@ export function Table({
               onRename={handleRenameView}
               onDelete={handleDeleteView}
               onNewView={handleNewView}
-              canEdit={userPermissions.canEdit}
+              canEdit={grants.write}
             />
           ) : undefined
         }
@@ -1417,6 +1421,7 @@ export function Table({
       <TableGrid
         workspaceId={workspaceId}
         tableId={tableId}
+        grants={grants}
         embedded={embedded}
         locks={tableData?.locks}
         onBlockedAction={showBlockedToast}
@@ -1455,7 +1460,7 @@ export function Table({
         confirmDeleteColumnsSinkRef={confirmDeleteColumnsSinkRef}
         pushTableRenameUndoSinkRef={pushTableRenameUndoSinkRef}
       />
-      {userPermissions.canEdit && (
+      {grants.write && (
         <TableActionBar
           selectedCellCount={
             selection.selectedRunScope
@@ -1686,7 +1691,7 @@ export function Table({
           }}
         />
       )}
-      {tableData && userPermissions.canAdmin && (
+      {tableData && grants.manage && (
         <LockSettingsModal
           isOpen={showLockSettings}
           onClose={() => setShowLockSettings(false)}

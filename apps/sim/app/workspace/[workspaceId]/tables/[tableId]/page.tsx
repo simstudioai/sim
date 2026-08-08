@@ -4,7 +4,7 @@ import { getSession } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'
 import TableLoading from '@/app/workspace/[workspaceId]/tables/[tableId]/loading'
-import { Table } from './table'
+import { TableRoute } from './table-route'
 
 export const metadata: Metadata = {
   title: 'Table',
@@ -15,7 +15,7 @@ interface TablePageProps {
 }
 
 /**
- * Table-detail page entry. `Table` reads URL query params via nuqs (which uses
+ * Table-detail page entry. The table reads URL query params via nuqs (which uses
  * `useSearchParams` internally), so it must sit under a Suspense boundary. The
  * fallback renders the real chrome so a suspend never shows a blank frame.
  *
@@ -39,13 +39,7 @@ export default async function TablePage({ params }: TablePageProps) {
 
   return (
     <Suspense fallback={<TableLoading />}>
-      <Table
-        host='page'
-        workspaceId={workspaceId}
-        tableId={tableId}
-        tableLocksEnabled={tableLocksEnabled}
-        viewsEnabled={viewsEnabled}
-      />
+      <TableRoute tableLocksEnabled={tableLocksEnabled} viewsEnabled={viewsEnabled} />
     </Suspense>
   )
 }
