@@ -13,6 +13,7 @@ import {
 } from 'react'
 import { ChevronsDownUp, Expand } from '@sim/emcn/icons'
 import remarkBreaks from 'remark-breaks'
+import remarkGfm from 'remark-gfm'
 import { Streamdown } from 'streamdown'
 import 'streamdown/styles.css'
 import { Button, cn, handleKeyboardActivation, Tooltip } from '@sim/emcn'
@@ -63,9 +64,32 @@ interface NotePointerStart {
 }
 
 /**
- * Compact markdown renderer for note blocks with tight spacing
+ * Compact markdown renderer for note blocks with tight spacing.
+ *
+ * Streamdown's `remarkPlugins` prop REPLACES its defaults rather than extending
+ * them, and GFM is one of those defaults — so passing `remarkBreaks` alone
+ * silently dropped task lists, tables, strikethrough and autolinks from the read
+ * view. The editor writes all four (it has TaskList, TableKit and Strike), so a
+ * note round-tripped through editing came back as raw `- [x]` source.
  */
-const NOTE_REMARK_PLUGINS = [remarkBreaks]
+const NOTE_REMARK_PLUGINS = [remarkGfm, remarkBreaks]
+
+/**
+ * Checkbox chrome for a GFM task item, matching the editor's own
+ * (`.rich-markdown-nodes input[type="checkbox"]`) declaration for declaration —
+ * including the tick's clip-path — because the two render the same note either
+ * side of a click and any difference reads as the card changing shape.
+ *
+ * `disabled` is what remark-gfm emits and what the read view wants: the note is
+ * not interactive until you click into it, and then the editor owns the control.
+ */
+const NOTE_TASK_CHECKBOX_CLASS = [
+  'mt-[3px] inline-grid size-[16px] shrink-0 appearance-none place-content-center',
+  'rounded-[3px] border border-[var(--border-1)] bg-transparent',
+  'checked:border-[var(--text-primary)] checked:bg-[var(--text-primary)]',
+  "checked:after:size-[10px] checked:after:bg-[var(--surface-2)] checked:after:content-['']",
+  'checked:after:[clip-path:polygon(14%_44%,0_65%,50%_100%,100%_16%,80%_0%,43%_62%)]',
+].join(' ')
 
 const NOTE_COMPONENTS = {
   p: ({ children }: { children?: ReactNode }) => (
@@ -91,8 +115,16 @@ const NOTE_COMPONENTS = {
       {children}
     </h4>
   ),
-  ul: ({ children }: { children?: ReactNode }) => (
-    <ul className='mt-1 mb-1 list-disc space-y-1 break-words pl-6 text-current text-sm'>
+  /* A checklist is not a bulleted list: remark-gfm marks it `contains-task-list`,
+     and the disc and left padding have to come off or every checkbox sits behind
+     a bullet. Same rule the editor's shared node chrome applies. */
+  ul: ({ children, className }: { children?: ReactNode; className?: string }) => (
+    <ul
+      className={cn(
+        'mt-1 mb-1 space-y-1 break-words text-current text-sm',
+        className?.includes('contains-task-list') ? 'list-none pl-0' : 'list-disc pl-6'
+      )}
+    >
       {children}
     </ul>
   ),
@@ -101,7 +133,20 @@ const NOTE_COMPONENTS = {
       {children}
     </ol>
   ),
-  li: ({ children }: { children?: ReactNode }) => <li className='break-words'>{children}</li>,
+  li: ({ children, className }: { children?: ReactNode; className?: string }) => (
+    <li
+      className={cn(
+        'break-words',
+        className?.includes('task-list-item') && 'flex items-start gap-2'
+      )}
+    >
+      {children}
+    </li>
+  ),
+  input: ({ type, checked }: ComponentProps<'input'>) =>
+    type === 'checkbox' ? (
+      <input type='checkbox' checked={checked} disabled className={NOTE_TASK_CHECKBOX_CLASS} />
+    ) : null,
   /**
    * `width`/`height` are load-bearing, not decoration: resizing an image in the editor commits the
    * new width to the node and it serializes as `<img width>`, since markdown has no size syntax.
