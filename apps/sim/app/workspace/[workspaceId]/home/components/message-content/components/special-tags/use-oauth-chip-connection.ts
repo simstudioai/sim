@@ -46,30 +46,43 @@ const OAUTH_POPUP_POLL_INTERVAL_MS = 400
 const OAUTH_POPUP_TERMINAL_PATHS = new Set(['/oauth-error', '/workspace'])
 
 /**
- * Whether the popup still owns the flow — i.e. whether the row should keep
- * deferring to it instead of deciding for itself.
+ * What the opener can actually prove about a popup it launched.
  *
- * A provider page that sets COOP `same-origin` severs the handle, making
- * `closed` throw. Treat that as closed: the flow then falls back to the
- * ordinary focus verification rather than waiting on a window we cannot see.
+ * `ended` is reserved for positive evidence — a same-origin page we can read
+ * that is known to publish no verdict. A handle that reports closed is only
+ * `unobservable`: a provider page with COOP `same-origin` disowns the window,
+ * and the disowned handle reports `closed` for a consent screen that is still
+ * running. Treating that as an ending would fail a live flow.
  */
-function isPopupStillOpen(popup: { window: Window } | null): boolean {
-  if (!popup) return false
+type PopupObservation = 'live' | 'ended' | 'unobservable'
+
+function observePopup(popup: { window: Window } | null): PopupObservation {
+  if (!popup) return 'unobservable'
   let closed: boolean
   try {
     closed = popup.window.closed
   } catch {
-    return false
+    return 'unobservable'
   }
-  if (closed) return false
+  if (closed) return 'unobservable'
   try {
     const { origin, pathname } = popup.window.location
-    if (origin === window.location.origin && OAUTH_POPUP_TERMINAL_PATHS.has(pathname)) return false
+    if (origin === window.location.origin && OAUTH_POPUP_TERMINAL_PATHS.has(pathname)) {
+      return 'ended'
+    }
   } catch {
     // Reading `location` across origins throws, which is the signal we want:
     // the popup is still on the provider's pages, so the flow is in flight.
   }
-  return true
+  return 'live'
+}
+
+/**
+ * Whether the popup still owns the flow — i.e. whether the row should keep
+ * deferring to it instead of deciding for itself.
+ */
+function isPopupStillOpen(popup: { window: Window } | null): boolean {
+  return observePopup(popup) === 'live'
 }
 
 interface UseOAuthChipConnectionParams {
@@ -170,6 +183,8 @@ export function useOAuthChipConnection({
   const onConnectedRef = useRef(onConnected)
   const oauthWindowWasAwayRef = useRef(false)
   const popupRef = useRef<{ window: Window; attemptId: string } | null>(null)
+  /** Attempt this row launched in a popup, outliving the window handle so the success toast survives the watcher clearing it. */
+  const launchedAttemptIdRef = useRef<string | null>(null)
   const workspaceCredentialBaselineRef = useRef<{
     scope: string
     baseline: ReturnType<typeof getOAuthCredentialBaseline>
@@ -360,9 +375,18 @@ export function useOAuthChipConnection({
   useEffect(() => {
     if (connectionStatus !== 'pending' || !popupRef.current) return
     const poll = window.setInterval(() => {
-      if (isPopupStillOpen(popupRef.current)) return
+      const observation = observePopup(popupRef.current)
+      if (observation === 'live') return
+      // Stop before settling: the refetch leaves the status `pending` for its
+      // duration, so a running interval would keep firing and a later tick
+      // could resolve an attempt a retry had since replaced.
+      window.clearInterval(poll)
       popupRef.current = null
-      void settleFromCredentials()
+      // Only `ended` is proof the flow finished with nothing published. A
+      // closed-or-disowned handle is not, so this publishes no verdict for it —
+      // closing a popup hands focus back to this tab anyway, and the focus
+      // verification settles it with the same refetch.
+      if (observation === 'ended') void settleFromCredentials()
     }, OAUTH_POPUP_POLL_INTERVAL_MS)
     return () => window.clearInterval(poll)
   }, [connectionStatus, settleFromCredentials])
@@ -379,9 +403,13 @@ export function useOAuthChipConnection({
    * that would read as the flow failing behind the user's back.
    */
   useEffect(() => {
-    const popup = popupRef.current
-    if (connectionStatus !== 'connected' || !popup) return
-    const attempt = readOAuthChatAttempt(popup.attemptId)
+    const launchedAttemptId = launchedAttemptIdRef.current
+    if (connectionStatus !== 'connected' || !launchedAttemptId) return
+    const attempt = readOAuthChatAttempt(launchedAttemptId)
+    // Tracked separately from `popupRef`, which the watcher clears the moment
+    // the window looks finished — often before React has applied the
+    // storage-driven verdict, which would swallow the announcement.
+    launchedAttemptIdRef.current = null
     popupRef.current = null
     // The verdict settles the label, but the lock also waits on the credential
     // being observable. A popup flow never blurs this tab, so nothing else
@@ -473,6 +501,7 @@ export function useOAuthChipConnection({
           event.preventDefault()
           popup.focus?.()
           popupRef.current = { window: popup, attemptId: attempt.id }
+          launchedAttemptIdRef.current = attempt.id
           return
         }
       }

@@ -549,6 +549,39 @@ describe('CredentialDisplay link tag', () => {
     act(() => root.unmount())
   })
 
+  it('does not fail the row when a disowned popup handle reports closed', async () => {
+    // A provider page with COOP `same-origin` disowns the window, and the
+    // disowned handle reports `closed` for a consent screen that is still
+    // running. The watcher must not read that as an ending: publishing 'failed'
+    // here would fight a live flow, and the row would invite a rival retry.
+    vi.useFakeTimers()
+    const popup = { focus: vi.fn(), closed: true }
+    const openSpy = vi
+      .spyOn(window, 'open')
+      .mockReturnValue(popup as unknown as ReturnType<typeof window.open>)
+    const { container, root } = renderCredentialLink({
+      type: 'link',
+      provider: 'google-email',
+      value:
+        'https://sim.test/api/auth/oauth2/authorize?providerId=google-email&callbackURL=https%3A%2F%2Fsim.test%2Fworkspace%2Fworkspace-1%2Fchat%2Fchat-1',
+    })
+
+    await act(async () => {
+      container
+        .querySelector('a')
+        ?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4000)
+    })
+
+    expect(container.textContent).toContain('Waiting for Gmail connection')
+    expect(container.textContent).not.toContain('Not connected')
+    vi.useRealTimers()
+    openSpy.mockRestore()
+    act(() => root.unmount())
+  })
+
   it('focuses the live popup instead of starting a rival attempt on a repeat click', async () => {
     const toastSuccess = vi.spyOn(toast, 'success').mockImplementation(() => '')
     const popup = {
