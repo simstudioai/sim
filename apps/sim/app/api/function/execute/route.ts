@@ -1453,14 +1453,11 @@ async function maybeExportSandboxFileToWorkspace(args: {
   if (!outputSandboxPath) return null
 
   if (!outputPath) {
-    return NextResponse.json(
-      {
-        success: false,
-        error:
-          'outputSandboxPath requires outputPath. Set outputPath to the destination workspace file, e.g. "files/result.csv".',
-        output: { result: null, stdout: cleanStdout(stdout), executionTime },
-      },
-      { status: 400 }
+    return exportFailure(
+      'outputSandboxPath requires outputPath. Set outputPath to the destination workspace file, e.g. "files/result.csv".',
+      400,
+      stdout,
+      executionTime
     )
   }
 
@@ -1480,13 +1477,11 @@ async function maybeExportSandboxFileToWorkspace(args: {
   if (!access) return exportFailure('Workspace access denied', 403, stdout, executionTime)
 
   if (exportedFileContent === undefined) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: `Sandbox file "${outputSandboxPath}" was not found or could not be read`,
-        output: { result: null, stdout: cleanStdout(stdout), executionTime },
-      },
-      { status: 500 }
+    return exportFailure(
+      `Sandbox file "${outputSandboxPath}" was not found or could not be read`,
+      500,
+      stdout,
+      executionTime
     )
   }
 
@@ -1500,13 +1495,11 @@ async function maybeExportSandboxFileToWorkspace(args: {
   const isBinary = !TEXT_MIMES.has(resolvedMimeType)
   const outputBytes = Buffer.byteLength(exportedFileContent, isBinary ? 'base64' : 'utf-8')
   if (outputBytes > MAX_SANDBOX_OUTPUT_BYTES) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: `Sandbox output files exceed ${MAX_SANDBOX_OUTPUT_BYTES} bytes total`,
-        output: { result: null, stdout: cleanStdout(stdout), executionTime },
-      },
-      { status: 400 }
+    return exportFailure(
+      `Sandbox output files exceed ${MAX_SANDBOX_OUTPUT_BYTES} bytes total`,
+      400,
+      stdout,
+      executionTime
     )
   }
   const fileBuffer = isBinary
@@ -1579,13 +1572,11 @@ async function maybeExportSandboxFileToWorkspace(args: {
       resources: [{ type: 'file', id: written.id, title: written.name, path: written.vfsPath }],
     })
   } catch (error) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: getErrorMessage(error, 'Failed to export sandbox file'),
-        output: { result: null, stdout: cleanStdout(stdout), executionTime },
-      },
-      { status: 400 }
+    return exportFailure(
+      getErrorMessage(error, 'Failed to export sandbox file'),
+      400,
+      stdout,
+      executionTime
     )
   }
 }
@@ -1605,17 +1596,11 @@ async function maybeExportSandboxFilesToWorkspace(args: {
   const sandboxFiles = args.outputFiles.filter((file) => file.sandboxPath)
   if (sandboxFiles.length === 0) return null
   if (sandboxFiles.length > MAX_SANDBOX_OUTPUT_FILES) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: `Too many sandbox output files requested (${sandboxFiles.length}). Maximum is ${MAX_SANDBOX_OUTPUT_FILES}.`,
-        output: {
-          result: null,
-          stdout: cleanStdout(args.stdout),
-          executionTime: args.executionTime,
-        },
-      },
-      { status: 400 }
+    return exportFailure(
+      `Too many sandbox output files requested (${sandboxFiles.length}). Maximum is ${MAX_SANDBOX_OUTPUT_FILES}.`,
+      400,
+      args.stdout,
+      args.executionTime
     )
   }
 
@@ -1667,17 +1652,11 @@ async function maybeExportSandboxFilesToWorkspace(args: {
     const sandboxPath = file.sandboxPath!
     const content = args.exportedFiles?.[sandboxPath]
     if (content === undefined) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: `Sandbox file "${sandboxPath}" was not found or could not be read`,
-          output: {
-            result: null,
-            stdout: cleanStdout(args.stdout),
-            executionTime: args.executionTime,
-          },
-        },
-        { status: 500 }
+      return exportFailure(
+        `Sandbox file "${sandboxPath}" was not found or could not be read`,
+        500,
+        args.stdout,
+        args.executionTime
       )
     }
     const outputPath = file.formatPath ?? file.path
@@ -1690,17 +1669,11 @@ async function maybeExportSandboxFilesToWorkspace(args: {
     const size = Buffer.byteLength(content, isBinary ? 'base64' : 'utf-8')
     totalOutputBytes += size
     if (totalOutputBytes > MAX_SANDBOX_OUTPUT_BYTES) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: `Sandbox output files exceed ${MAX_SANDBOX_OUTPUT_BYTES} bytes total`,
-          output: {
-            result: null,
-            stdout: cleanStdout(args.stdout),
-            executionTime: args.executionTime,
-          },
-        },
-        { status: 400 }
+      return exportFailure(
+        `Sandbox output files exceed ${MAX_SANDBOX_OUTPUT_BYTES} bytes total`,
+        400,
+        args.stdout,
+        args.executionTime
       )
     }
     const scanBuffer = isBinary ? Buffer.from(content, 'base64') : Buffer.from(content, 'utf-8')
@@ -1740,34 +1713,22 @@ async function maybeExportSandboxFilesToWorkspace(args: {
     )
     validationPaths = validations.map((validation) => validation.vfsPath)
   } catch (error) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: getErrorMessage(error, 'Invalid sandbox output destination'),
-        output: {
-          result: null,
-          stdout: cleanStdout(args.stdout),
-          executionTime: args.executionTime,
-        },
-      },
-      { status: 400 }
+    return exportFailure(
+      getErrorMessage(error, 'Invalid sandbox output destination'),
+      400,
+      args.stdout,
+      args.executionTime
     )
   }
   const duplicateDestination = validationPaths.find(
     (vfsPath, index) => validationPaths.indexOf(vfsPath) !== index
   )
   if (duplicateDestination) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: `Duplicate sandbox output destination: ${duplicateDestination}`,
-        output: {
-          result: null,
-          stdout: cleanStdout(args.stdout),
-          executionTime: args.executionTime,
-        },
-      },
-      { status: 400 }
+    return exportFailure(
+      `Duplicate sandbox output destination: ${duplicateDestination}`,
+      400,
+      args.stdout,
+      args.executionTime
     )
   }
 
@@ -1815,17 +1776,11 @@ async function maybeExportSandboxFilesToWorkspace(args: {
       })
     }
   } catch (error) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: getErrorMessage(error, 'Failed to export sandbox files'),
-        output: {
-          result: null,
-          stdout: cleanStdout(args.stdout),
-          executionTime: args.executionTime,
-        },
-      },
-      { status: 400 }
+    return exportFailure(
+      getErrorMessage(error, 'Failed to export sandbox files'),
+      400,
+      args.stdout,
+      args.executionTime
     )
   }
 
@@ -1991,7 +1946,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     const workspaceAccess = workspaceId
       ? await checkWorkspaceAccess(workspaceId, auth.userId)
       : undefined
-    if (workspaceAccess && !workspaceAccess.hasAccess) {
+    if (workspaceAccess && (!workspaceAccess.exists || !workspaceAccess.hasAccess)) {
       logger.warn(`[${requestId}] Function execution denied for workspace`, {
         workspaceId,
         userId: auth.userId,
