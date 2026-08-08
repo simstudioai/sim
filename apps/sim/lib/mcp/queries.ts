@@ -1,9 +1,7 @@
 import { db } from '@sim/db'
 import { mcpServers } from '@sim/db/schema'
 import { and, type Column, eq, isNull } from 'drizzle-orm'
-import type { V2McpServerSortBy } from '@/lib/api/contracts/v2/mcp-servers'
-import type { V2SortOrder } from '@/lib/api/contracts/v2/shared'
-import { listOrderBy, searchFilter } from '@/lib/api/list-query'
+import { type ListSortOrder, listOrderBy, searchFilter } from '@/lib/api/list-query'
 
 /**
  * Workspace-scoped MCP server reads. The lifecycle functions in
@@ -12,6 +10,7 @@ import { listOrderBy, searchFilter } from '@/lib/api/list-query'
  */
 
 export type McpServerRow = typeof mcpServers.$inferSelect
+export type McpServerSortBy = 'name' | 'createdAt' | 'updatedAt'
 
 /** Live (non-soft-deleted) MCP servers in a workspace, newest first. */
 /**
@@ -23,14 +22,14 @@ const MCP_SERVER_SORTS = {
   name: [mcpServers.name, mcpServers.id],
   createdAt: [mcpServers.createdAt, mcpServers.id],
   updatedAt: [mcpServers.updatedAt, mcpServers.id],
-} satisfies Record<V2McpServerSortBy, readonly Column[]>
+} satisfies Record<McpServerSortBy, readonly Column[]>
 
 export async function listWorkspaceMcpServers(params: {
   workspaceId: string
   /** Case-insensitive substring match on the server name. */
   search?: string
-  sortBy?: V2McpServerSortBy
-  sortOrder?: V2SortOrder
+  sortBy?: McpServerSortBy
+  sortOrder?: ListSortOrder
 }): Promise<McpServerRow[]> {
   const { sortBy = 'createdAt', sortOrder = 'desc' } = params
   return db

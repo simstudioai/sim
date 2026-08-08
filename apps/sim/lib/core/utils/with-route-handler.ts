@@ -13,6 +13,15 @@ type RouteHandler<T = unknown> = (
   context: T
 ) => Promise<NextResponse | Response> | NextResponse | Response
 
+interface RouteHandlerErrorContext {
+  error: unknown
+  requestId: string
+}
+
+interface RouteHandlerOptions {
+  unhandledErrorResponse?: (context: RouteHandlerErrorContext) => NextResponse | Response
+}
+
 /**
  * Reads a numeric `statusCode` (4xx or 5xx) off an `HttpError` so typed domain
  * errors (e.g. `WorkspaceAccessDeniedError`, `InvalidFieldError`) map to the
@@ -63,10 +72,14 @@ function applyResponseHeaders(
  *   logger in the request lifecycle automatically includes it
  * - Logs all 4xx and 5xx responses with method, path, status, duration
  * - Catches unhandled errors, logs them, and returns a 500 with the request ID
+ * - Supports a route-family-specific unhandled-error response envelope
  * - Attaches `x-request-id`, plus the rate-limit headers when the route
  *   recorded a snapshot for the request
  */
-export function withRouteHandler<T>(handler: RouteHandler<T>): RouteHandler<T> {
+export function withRouteHandler<T>(
+  handler: RouteHandler<T>,
+  options: RouteHandlerOptions = {}
+): RouteHandler<T> {
   return async (request: NextRequest, context: T) => {
     const requestId = generateRequestId()
     const startTime = Date.now()
@@ -81,6 +94,13 @@ export function withRouteHandler<T>(handler: RouteHandler<T>): RouteHandler<T> {
       } catch (error) {
         const duration = Date.now() - startTime
         const message = getErrorMessage(error, 'Unknown error')
+        if (options.unhandledErrorResponse) {
+          logger.error('Unhandled route error', { duration, error: message })
+          response = options.unhandledErrorResponse({ error, requestId })
+          applyResponseHeaders(response, request, requestId)
+          return response
+        }
+
         const typedStatus = readTypedErrorStatus(error)
         if (typedStatus !== undefined) {
           if (typedStatus >= 500) {

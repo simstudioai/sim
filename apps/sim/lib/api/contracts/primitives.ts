@@ -199,6 +199,20 @@ export function requiredFieldSchema(message: string) {
 /** Non-empty `workspaceId` field with a stable, human-readable message. */
 export const workspaceIdSchema = requiredFieldSchema('Workspace ID is required')
 
+/**
+ * A single workspace-file name, not a path. Folder placement is carried by a
+ * separate folder id or path field, so separators and dot segments are invalid.
+ */
+export const workspaceFileNameSchema = z
+  .string({ error: 'Name is required' })
+  .trim()
+  .min(1, 'Name is required')
+  .max(255, 'Name is too long')
+  .refine(
+    (name) => name !== '.' && name !== '..' && !name.includes('/') && !name.includes('\\'),
+    'Name cannot contain path separators or dot segments'
+  )
+
 /** Non-empty `organizationId` field with a stable, human-readable message. */
 export const organizationIdSchema = requiredFieldSchema('Organization ID is required')
 

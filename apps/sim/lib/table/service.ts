@@ -117,7 +117,7 @@ function readLocks(row: {
 export async function withLockedTable<T>(
   tableId: string,
   mutate: (table: TableDefinition, trx: DbTransaction) => Promise<T>,
-  opts?: { includeArchived?: boolean }
+  opts?: { includeArchived?: boolean; expectedWorkspaceId?: string }
 ): Promise<T> {
   return db.transaction(async (trx) => {
     await setTableTxTimeouts(trx)
@@ -125,7 +125,7 @@ export async function withLockedTable<T>(
       sql`SELECT pg_advisory_xact_lock(hashtextextended(${`user_table_schema:${tableId}`}, 0))`
     )
     const table = await getTableById(tableId, { tx: trx, includeArchived: opts?.includeArchived })
-    if (!table) {
+    if (!table || (opts?.expectedWorkspaceId && table.workspaceId !== opts.expectedWorkspaceId)) {
       throw new OrchestrationError('not_found', 'Table not found')
     }
     return mutate(table, trx)
@@ -729,7 +729,12 @@ export async function addTableColumnsWithTx(
   await trx
     .update(userTableDefinitions)
     .set({ schema: updatedSchema, updatedAt: now })
-    .where(eq(userTableDefinitions.id, table.id))
+    .where(
+      and(
+        eq(userTableDefinitions.id, table.id),
+        eq(userTableDefinitions.workspaceId, table.workspaceId)
+      )
+    )
 
   logger.info(
     `[${requestId}] Added ${additions.length} column(s) to table ${table.id}: ${additions.map((c) => c.name).join(', ')}`
@@ -779,7 +784,8 @@ export function auditTableColumnsAdded(
 export async function renameTable(
   tableId: string,
   newName: string,
-  requestId: string
+  requestId: string,
+  options?: { expectedWorkspaceId?: string }
 ): Promise<{ id: string; name: string }> {
   const nameValidation = validateTableName(newName)
   if (!nameValidation.valid) {
@@ -791,7 +797,15 @@ export async function renameTable(
     const result = await db
       .update(userTableDefinitions)
       .set({ name: newName, updatedAt: now })
-      .where(eq(userTableDefinitions.id, tableId))
+      .where(
+        and(
+          eq(userTableDefinitions.id, tableId),
+          options?.expectedWorkspaceId
+            ? eq(userTableDefinitions.workspaceId, options.expectedWorkspaceId)
+            : undefined,
+          isNull(userTableDefinitions.archivedAt)
+        )
+      )
       // `workspaceId` is selected for the live-list notify below, not for an audit —
       // the audit moved up to `performRenameTable`.
       .returning({ id: userTableDefinitions.id, workspaceId: userTableDefinitions.workspaceId })
@@ -1014,7 +1028,7 @@ export async function updateTableMetadata(
 export async function deleteTable(
   tableId: string,
   requestId: string,
-  options?: { archivedAt?: Date; skipNotify?: boolean }
+  options?: { archivedAt?: Date; skipNotify?: boolean; expectedWorkspaceId?: string }
 ): Promise<{ archived: { name: string; workspaceId: string | null } | null }> {
   const now = options?.archivedAt ?? new Date()
   // Archiving destroys access to every row, so it is gated on the delete lock.
@@ -1026,6 +1040,9 @@ export async function deleteTable(
     .where(
       and(
         eq(userTableDefinitions.id, tableId),
+        options?.expectedWorkspaceId
+          ? eq(userTableDefinitions.workspaceId, options.expectedWorkspaceId)
+          : undefined,
         isNull(userTableDefinitions.archivedAt),
         eq(userTableDefinitions.deleteLocked, false)
       )
@@ -1045,7 +1062,14 @@ export async function deleteTable(
         workspaceId: userTableDefinitions.workspaceId,
       })
       .from(userTableDefinitions)
-      .where(eq(userTableDefinitions.id, tableId))
+      .where(
+        and(
+          eq(userTableDefinitions.id, tableId),
+          options?.expectedWorkspaceId
+            ? eq(userTableDefinitions.workspaceId, options.expectedWorkspaceId)
+            : undefined
+        )
+      )
       .limit(1)
     if (existing && !existing.archivedAt && existing.deleteLocked) {
       logger.warn('Table mutation blocked by lock', {

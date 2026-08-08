@@ -6,6 +6,7 @@ import {
   getActiveWorkflowRecord,
 } from '@sim/platform-authz/workflow'
 import { and, eq, isNull } from 'drizzle-orm'
+import { createCopilotChatFilePrincipal } from '@/lib/copilot/auth/file-delegation'
 import { getBlockVisibilityForCopilot } from '@/lib/copilot/block-visibility'
 import {
   MAX_TABLE_SELECTION_CONTENT_LENGTH,
@@ -37,9 +38,9 @@ import { getRowsByIds } from '@/lib/table/rows/service'
 import { getTableById } from '@/lib/table/service'
 import type { ColumnDefinition } from '@/lib/table/types'
 import { getWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
-import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { getSkillById } from '@/lib/workflows/skills/operations'
 import { listFolders } from '@/lib/workflows/utils'
+import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
 import { checkKnowledgeBaseAccess } from '@/app/api/knowledge/utils'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 import { escapeRegExp } from '@/executor/constants'
@@ -233,7 +234,7 @@ export async function processContextsServer(
         }
       }
       if (ctx.kind === 'file' && ctx.fileId && currentWorkspaceId) {
-        const result = await resolveFileResource(ctx.fileId, currentWorkspaceId)
+        const result = await resolveFileResource(ctx.fileId, currentWorkspaceId, userId, chatId)
         if (!result) return null
         return {
           type: 'file',
@@ -249,7 +250,9 @@ export async function processContextsServer(
           ctx.text ?? '',
           ctx.label,
           ctx.startLine,
-          ctx.endLine
+          ctx.endLine,
+          userId,
+          chatId
         )
       }
       if (
@@ -847,7 +850,7 @@ export async function resolveActiveResourceContext(
         return await resolveTableResource(resourceId, workspaceId)
       }
       case 'file': {
-        return await resolveFileResource(resourceId, workspaceId)
+        return await resolveFileResource(resourceId, workspaceId, userId, chatId)
       }
       case 'folder': {
         return await resolveFolderResource(resourceId, workspaceId)
@@ -880,10 +883,19 @@ async function resolveTableResource(
 
 async function resolveFileResource(
   fileId: string,
-  workspaceId: string
+  workspaceId: string,
+  userId: string,
+  chatId?: string
 ): Promise<AgentContext | null> {
-  const record = await getWorkspaceFile(workspaceId, fileId)
-  if (!record) return null
+  const principal = createCopilotChatFilePrincipal({
+    userId,
+    workspaceId,
+    chatId,
+  })
+  const { file: record } = await readWorkspaceFileMetadata.execute({
+    principal,
+    input: { fileId, assertedWorkspaceId: workspaceId },
+  })
   return {
     type: 'active_resource',
     tag: '@active_resource',
@@ -919,10 +931,20 @@ async function resolveFileSelectionResource(
   text: string,
   label: string,
   startLine?: number,
-  endLine?: number
+  endLine?: number,
+  userId?: string,
+  chatId?: string
 ): Promise<AgentContext | null> {
-  const record = await getWorkspaceFile(workspaceId, fileId)
-  if (!record) return null
+  if (!userId) throw new Error('File selection context requires a user ID')
+  const principal = createCopilotChatFilePrincipal({
+    userId,
+    workspaceId,
+    chatId,
+  })
+  const { file: record } = await readWorkspaceFileMetadata.execute({
+    principal,
+    input: { fileId, assertedWorkspaceId: workspaceId },
+  })
   const path = canonicalWorkspaceFilePath({ folderPath: record.folderPath, name: record.name })
   const snippet = truncateSelectionText(text)
   const lineRange =

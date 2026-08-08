@@ -1,72 +1,24 @@
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import type { NextRequest } from 'next/server'
-import { NextResponse } from 'next/server'
 import { v2AbortKnowledgeDocumentUploadContract } from '@/lib/api/contracts/v2/knowledge'
-import { parseRequest } from '@/lib/api/server'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { checkRateLimit } from '@/app/api/v1/middleware'
+import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
+import { knowledgeOperations } from '@/lib/knowledge/application/operations'
+import { cancelKnowledgeDocumentUpload } from '@/lib/knowledge/application/upload-sessions'
 import {
-  abortKnowledgeDocumentUpload,
-  getOwnedKnowledgeDocumentUpload,
-  resolveKnowledgeDocumentUploadAccess,
   toV2KnowledgeDocumentUpload,
+  v2KnowledgeDocumentUploadError,
 } from '@/app/api/v2/knowledge/[id]/documents/uploads/utils'
-import { v2ApiGateError } from '@/app/api/v2/lib/gate'
-import {
-  v2CaughtOrchestrationError,
-  v2Data,
-  v2Error,
-  v2RateLimitError,
-  v2ValidationError,
-} from '@/app/api/v2/lib/response'
 
-const logger = createLogger('V2KnowledgeDocumentUploadAPI')
-
-interface KnowledgeDocumentUploadRouteParams {
-  params: Promise<{ id: string; uploadId: string }>
-}
-
-export const DELETE = withRouteHandler(
-  async (request: NextRequest, context: KnowledgeDocumentUploadRouteParams) => {
-    try {
-      const rateLimit = await checkRateLimit(request, 'knowledge-detail')
-      if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
-      const userId = rateLimit.userId!
-      const gate = await v2ApiGateError(userId)
-      if (gate) return gate
-
-      const parsed = await parseRequest(v2AbortKnowledgeDocumentUploadContract, request, context, {
-        validationErrorResponse: v2ValidationError,
-      })
-      if (!parsed.success) return parsed.response
-      const { id: knowledgeBaseId, uploadId } = parsed.data.params
-      const { workspaceId } = parsed.data.query
-
-      const access = await resolveKnowledgeDocumentUploadAccess({
-        knowledgeBaseId,
-        workspaceId,
-        userId,
-        rateLimit,
-      })
-      if (access instanceof NextResponse) return access
-
-      const session = await getOwnedKnowledgeDocumentUpload({
-        knowledgeBaseId,
-        uploadId,
-        workspaceId,
-        userId,
-        uploadToken: parsed.data.headers['upload-token'],
-      })
-      const aborted = await abortKnowledgeDocumentUpload(session, knowledgeBaseId)
-      return v2Data(toV2KnowledgeDocumentUpload(aborted, null), { rateLimit })
-    } catch (error) {
-      const classified = v2CaughtOrchestrationError(error)
-      if (classified) return classified
-      logger.error('Failed to abort knowledge-document upload session', {
-        error: getErrorMessage(error),
-      })
-      return v2Error('INTERNAL_ERROR', 'Internal server error')
-    }
-  }
-)
+export const DELETE = defineV2JsonRoute({
+  contract: v2AbortKnowledgeDocumentUploadContract,
+  auth: v2ApiKeyAuth,
+  operation: knowledgeOperations.uploadCancel,
+  rateLimit: v2RateLimits.publicApi,
+  errorPolicy: { render: v2KnowledgeDocumentUploadError },
+  mapInput: ({ params, query, headers }) => ({
+    knowledgeBaseId: params.id,
+    assertedWorkspaceId: query.workspaceId,
+    uploadId: params.uploadId,
+    uploadToken: headers['upload-token'],
+  }),
+  useCase: cancelKnowledgeDocumentUpload,
+  present: (session) => ({ data: toV2KnowledgeDocumentUpload(session, null) }),
+})

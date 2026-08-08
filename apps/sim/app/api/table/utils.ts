@@ -320,7 +320,9 @@ export const CreateColumnSchema = createTableColumnBodySchema
 export const UpdateColumnSchema = updateTableColumnBodySchema
 export const DeleteColumnSchema = deleteTableColumnBodySchema
 
-export function normalizeColumn(col: ColumnDefinition): ColumnDefinition {
+export function normalizeColumn(
+  col: ColumnDefinition
+): ColumnDefinition & { required: boolean; unique: boolean } {
   return {
     // Preserve the stable column id — it's the row-data storage key, so dropping
     // it makes clients fall back to `name` and miss id-keyed cell values.

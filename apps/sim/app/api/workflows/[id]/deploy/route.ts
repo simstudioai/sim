@@ -7,15 +7,13 @@ import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { updatePublicApiContract } from '@/lib/api/contracts/deployments'
 import { parseRequest } from '@/lib/api/server'
-import { statusForOrchestrationError } from '@/lib/core/orchestration/types'
+import { InternalUnauthenticatedError, internalSessionAuth } from '@/lib/api/server/routes'
+import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
-import {
-  getWorkflowDeploymentSummary,
-  performFullDeploy,
-  performFullUndeploy,
-} from '@/lib/workflows/orchestration'
+import { deployWorkflow, undeployWorkflow } from '@/lib/workflows/application/deployments'
+import { getWorkflowDeploymentSummary } from '@/lib/workflows/orchestration'
 import { validateWorkflowPermissions } from '@/lib/workflows/utils'
 import {
   checkNeedsRedeployment,
@@ -94,9 +92,11 @@ export const GET = withRouteHandler(
         latestDeploymentAttempt: deploymentSummary.latestDeploymentAttempt,
         warnings: deploymentSummary.warnings,
       })
-    } catch (error: any) {
-      logger.error(`[${requestId}] Error fetching deployment info: ${id}`, error)
-      return createErrorResponse(error.message || 'Failed to fetch deployment information', 500)
+    } catch (error: unknown) {
+      logger.error(`[${requestId}] Error fetching deployment info: ${id}`, {
+        error: getErrorMessage(error, 'Unknown error'),
+      })
+      return createErrorResponse('Failed to fetch deployment information', 500)
     }
   }
 )
@@ -107,34 +107,12 @@ export const POST = withRouteHandler(
     const { id } = await params
 
     try {
-      const {
-        error,
-        session,
-        workflow: workflowData,
-      } = await validateWorkflowPermissions(id, requestId, 'admin')
-      if (error) {
-        return createErrorResponse(error.message, error.status)
-      }
-
-      const actorUserId: string | null = session?.user?.id ?? null
-      if (!actorUserId) {
-        logger.warn(`[${requestId}] Unable to resolve actor user for workflow deployment: ${id}`)
-        return createErrorResponse('Unable to determine deploying user', 400)
-      }
-      await assertWorkflowMutable(id)
-
-      const result = await performFullDeploy({
-        workflowId: id,
-        userId: actorUserId,
-        requestId,
+      const principal = await internalSessionAuth.authenticate()
+      const result = await deployWorkflow.execute({
+        principal,
+        input: { workflowId: id, requestId },
+        request,
       })
-
-      if (!result.success) {
-        return createErrorResponse(
-          result.error || 'Failed to deploy workflow',
-          statusForOrchestrationError(result.errorCode)
-        )
-      }
 
       const isDeployed = Boolean(result.activeDeployment)
       const attemptActivated = result.latestDeploymentAttempt?.status === 'active'
@@ -142,12 +120,18 @@ export const POST = withRouteHandler(
         `[${requestId}] Workflow deployment ${attemptActivated ? 'activated' : 'accepted for preparation'}: ${id}`
       )
 
-      const responseApiKeyInfo = workflowData!.workspaceId
-        ? 'Workspace API keys'
-        : 'Personal API keys'
+      captureServerEvent(
+        principal.userId,
+        'workflow_deployed',
+        { workflow_id: result.workflowId, workspace_id: result.workspaceId },
+        {
+          groups: { workspace: result.workspaceId },
+          setOnce: { first_workflow_deployed_at: new Date().toISOString() },
+        }
+      )
 
       return createSuccessResponse({
-        apiKey: responseApiKeyInfo,
+        apiKey: 'Workspace API keys',
         isDeployed,
         deployedAt: result.deployedAt,
         warnings: result.warnings,
@@ -155,12 +139,20 @@ export const POST = withRouteHandler(
         latestDeploymentAttempt: result.latestDeploymentAttempt,
       })
     } catch (error: unknown) {
-      if (error instanceof WorkflowLockedError) {
-        return createErrorResponse(error.message, error.status)
+      if (error instanceof InternalUnauthenticatedError) {
+        return createErrorResponse(error.message, 401)
       }
-      const message = getErrorMessage(error, 'Failed to deploy workflow')
-      logger.error(`[${requestId}] Error deploying workflow: ${id}`, { error })
-      return createErrorResponse(message, 500)
+      const orchestrationError = asOrchestrationError(error)
+      if (orchestrationError) {
+        return createErrorResponse(
+          orchestrationError.message,
+          statusForOrchestrationError(orchestrationError.code)
+        )
+      }
+      logger.error(`[${requestId}] Error deploying workflow: ${id}`, {
+        error: getErrorMessage(error, 'Unknown error'),
+      })
+      return createErrorResponse('Failed to deploy workflow', 500)
     }
   }
 )
@@ -230,45 +222,31 @@ export const PATCH = withRouteHandler(
       if (error instanceof WorkflowLockedError) {
         return createErrorResponse(error.message, error.status)
       }
-      const message = getErrorMessage(error, 'Failed to update deployment settings')
-      logger.error(`[${requestId}] Error updating deployment settings`, { error })
-      return createErrorResponse(message, 500)
+      logger.error(`[${requestId}] Error updating deployment settings`, {
+        error: getErrorMessage(error, 'Unknown error'),
+      })
+      return createErrorResponse('Failed to update deployment settings', 500)
     }
   }
 )
 
 export const DELETE = withRouteHandler(
-  async (_request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
     const { id } = await params
 
     try {
-      const {
-        error,
-        session,
-        workflow: workflowData,
-      } = await validateWorkflowPermissions(id, requestId, 'admin')
-      if (error) {
-        return createErrorResponse(error.message, error.status)
-      }
-      await assertWorkflowMutable(id)
-
-      const result = await performFullUndeploy({
-        workflowId: id,
-        userId: session!.user.id,
-        requestId,
+      const principal = await internalSessionAuth.authenticate()
+      const result = await undeployWorkflow.execute({
+        principal,
+        input: { workflowId: id, requestId },
+        request,
       })
-
-      if (!result.success) {
-        return createErrorResponse(result.error || 'Failed to undeploy workflow', 500)
-      }
-
-      const wsId = workflowData?.workspaceId
       captureServerEvent(
-        session!.user.id,
+        principal.userId,
         'workflow_undeployed',
-        { workflow_id: id, workspace_id: wsId ?? '' },
-        wsId ? { groups: { workspace: wsId } } : undefined
+        { workflow_id: result.workflowId, workspace_id: result.workspaceId },
+        { groups: { workspace: result.workspaceId } }
       )
 
       return createSuccessResponse({
@@ -278,12 +256,20 @@ export const DELETE = withRouteHandler(
         warnings: result.warnings,
       })
     } catch (error: unknown) {
-      if (error instanceof WorkflowLockedError) {
-        return createErrorResponse(error.message, error.status)
+      if (error instanceof InternalUnauthenticatedError) {
+        return createErrorResponse(error.message, 401)
       }
-      const message = getErrorMessage(error, 'Failed to undeploy workflow')
-      logger.error(`[${requestId}] Error undeploying workflow: ${id}`, { error })
-      return createErrorResponse(message, 500)
+      const orchestrationError = asOrchestrationError(error)
+      if (orchestrationError) {
+        return createErrorResponse(
+          orchestrationError.message,
+          statusForOrchestrationError(orchestrationError.code)
+        )
+      }
+      logger.error(`[${requestId}] Error undeploying workflow: ${id}`, {
+        error: getErrorMessage(error, 'Unknown error'),
+      })
+      return createErrorResponse('Failed to undeploy workflow', 500)
     }
   }
 )

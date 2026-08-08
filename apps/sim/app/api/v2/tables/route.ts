@@ -1,182 +1,58 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import type { NextRequest } from 'next/server'
 import { v2CreateTableContract, v2ListTablesContract } from '@/lib/api/contracts/v2/tables'
-import { isZodError, parseRequest } from '@/lib/api/server'
-import { generateRequestId } from '@/lib/core/utils/request'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
-import { createTable, getWorkspaceTableLimits, queryTables, type TableSchema } from '@/lib/table'
-import { normalizeColumn } from '@/app/api/table/utils'
-import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
-import {
-  folderPathForId,
-  resolveFolderPathId,
-  resolveFolderPathIdentity,
-} from '@/app/api/v2/lib/folders'
-import { v2ApiGateError } from '@/app/api/v2/lib/gate'
-import {
-  cursorSortKey,
-  decodeSortedCursor,
-  encodeSortedCursor,
-  v2CaughtOrchestrationError,
-  v2CursorList,
-  v2CursorSortError,
-  v2Data,
-  v2Error,
-  v2RateLimitError,
-  v2ValidationError,
-  v2WorkspaceAccessError,
-} from '@/app/api/v2/lib/response'
+import { INVALID_CURSOR_MESSAGE } from '@/lib/api/list-query'
+import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { v2TableErrorPolicies } from '@/lib/table/api'
+import { tableOperations } from '@/lib/table/application/operations'
+import { createTableUseCase, listTablesUseCase } from '@/lib/table/application/tables'
+import { cursorSortKey, decodeSortedCursor, encodeSortedCursor } from '@/app/api/v2/lib/response'
 import { toApiTable } from '@/app/api/v2/tables/utils'
-
-const logger = createLogger('V2TablesAPI')
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-/** GET /api/v2/tables — List all tables in a workspace. */
-export const GET = withRouteHandler(async (request: NextRequest) => {
-  const requestId = generateRequestId()
-
-  try {
-    const rateLimit = await checkRateLimit(request, 'tables')
-    if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
-
-    const userId = rateLimit.userId!
-
-    const gate = await v2ApiGateError(userId)
-    if (gate) return gate
-
-    const parsed = await parseRequest(
-      v2ListTablesContract,
-      request,
-      {},
-      {
-        validationErrorResponse: v2ValidationError,
-      }
-    )
-    if (!parsed.success) return parsed.response
-
-    const { workspaceId, folderPath, search, sortBy, sortOrder, limit, cursor } = parsed.data.query
-
-    const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'read')
-    if (access) return v2WorkspaceAccessError(access)
-
-    const folderIndex = await loadActiveFolderPathIndex(workspaceId, 'table')
-    const folderId =
-      folderPath === undefined ? undefined : resolveFolderPathId(folderIndex, folderPath)
-    if (folderPath !== undefined && folderId === undefined) {
-      return v2Error('NOT_FOUND', 'Folder not found')
+export const GET = defineV2JsonRoute({
+  contract: v2ListTablesContract,
+  operation: tableOperations.list,
+  useCase: listTablesUseCase,
+  auth: v2ApiKeyAuth,
+  rateLimit: v2RateLimits.publicApi,
+  errorPolicy: v2TableErrorPolicies.default,
+  mapInput: ({ query }) => {
+    const sort = cursorSortKey(query.sortBy, query.sortOrder)
+    const decoded = decodeSortedCursor(query.cursor, sort)
+    if (decoded.status === 'invalid') {
+      throw new OrchestrationError('validation', INVALID_CURSOR_MESSAGE)
     }
-
-    const sort = cursorSortKey(sortBy, sortOrder)
-    const decoded = decodeSortedCursor(cursor, sort)
-    if (decoded.status === 'invalid') return v2CursorSortError()
-
-    const { tables, nextKeys } = await queryTables(workspaceId, {
-      folderId,
-      search,
-      sortBy,
-      sortOrder,
-      limit,
+    return {
+      workspaceId: query.workspaceId,
+      folderPath: query.folderPath,
+      search: query.search,
+      sortBy: query.sortBy,
+      sortOrder: query.sortOrder,
+      limit: query.limit,
       after: decoded.status === 'ok' ? decoded.keys : undefined,
-    })
-
-    const items = tables.map((table) =>
-      toApiTable(table, folderPathForId(folderIndex, table.folderId))
-    )
-    const nextCursor = nextKeys ? encodeSortedCursor(sort, nextKeys) : null
-
-    return v2CursorList(items, nextCursor, { rateLimit })
-  } catch (error) {
-    logger.error(`[${requestId}] Error listing tables`, {
-      error: getErrorMessage(error, 'Unknown error'),
-    })
-    return v2Error('INTERNAL_ERROR', 'Internal server error')
-  }
+    }
+  },
+  present: ({ tables, nextKeys, sortBy, sortOrder }) => ({
+    data: tables.map(({ table, folderPath }) => toApiTable(table, folderPath)),
+    nextCursor: nextKeys ? encodeSortedCursor(cursorSortKey(sortBy, sortOrder), nextKeys) : null,
+  }),
 })
 
-/** POST /api/v2/tables — Create a new table. */
-export const POST = withRouteHandler(async (request: NextRequest) => {
-  const requestId = generateRequestId()
-
-  try {
-    const rateLimit = await checkRateLimit(request, 'tables')
-    if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
-
-    const userId = rateLimit.userId!
-
-    const gate = await v2ApiGateError(userId)
-    if (gate) return gate
-
-    const parsed = await parseRequest(
-      v2CreateTableContract,
-      request,
-      {},
-      {
-        validationErrorResponse: v2ValidationError,
-      }
-    )
-    if (!parsed.success) return parsed.response
-
-    const params = parsed.data.body
-
-    const access = await resolveWorkspaceAccess(rateLimit, userId, params.workspaceId, 'write')
-    if (access) return v2WorkspaceAccessError(access)
-
-    const planLimits = await getWorkspaceTableLimits(params.workspaceId)
-
-    const normalizedSchema: TableSchema = {
-      columns: params.schema.columns.map(normalizeColumn),
-    }
-
-    const resolution = await resolveFolderPathIdentity({
-      workspaceId: params.workspaceId,
-      resourceType: 'table',
-      path: params.folderPath ?? '/',
-    })
-    if (!resolution.found) return v2Error('NOT_FOUND', 'Folder not found')
-
-    const table = await createTable(
-      {
-        name: params.name,
-        description: params.description,
-        schema: normalizedSchema,
-        workspaceId: params.workspaceId,
-        userId,
-        maxTables: planLimits.maxTables,
-        folderId: resolution.folderId,
-      },
-      requestId
-    )
-
-    recordAudit({
-      workspaceId: params.workspaceId,
-      actorId: userId,
-      action: AuditAction.TABLE_CREATED,
-      resourceType: AuditResourceType.TABLE,
-      resourceId: table.id,
-      resourceName: table.name,
-      description: `Created table "${table.name}" via API`,
-      metadata: { columnCount: params.schema.columns.length },
-      request,
-    })
-
-    return v2Data(
-      { table: toApiTable(table, folderPathForId(resolution.index, table.folderId)) },
-      { rateLimit, status: 201 }
-    )
-  } catch (error) {
-    if (isZodError(error)) return v2ValidationError(error)
-
-    const classified = v2CaughtOrchestrationError(error)
-    if (classified) return classified
-
-    logger.error(`[${requestId}] Error creating table`, {
-      error: getErrorMessage(error, 'Unknown error'),
-    })
-    return v2Error('INTERNAL_ERROR', 'Internal server error')
-  }
+export const POST = defineV2JsonRoute({
+  contract: v2CreateTableContract,
+  operation: tableOperations.create,
+  useCase: createTableUseCase,
+  auth: v2ApiKeyAuth,
+  rateLimit: v2RateLimits.publicApi,
+  errorPolicy: v2TableErrorPolicies.default,
+  mapInput: ({ body }) => ({
+    workspaceId: body.workspaceId,
+    name: body.name,
+    description: body.description,
+    schema: body.schema,
+    folderPath: body.folderPath,
+  }),
+  present: ({ table, folderPath }) => ({ data: { table: toApiTable(table, folderPath) } }),
 })

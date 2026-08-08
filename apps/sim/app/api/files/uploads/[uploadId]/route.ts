@@ -2,8 +2,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { abortInternalFileUploadContract } from '@/lib/api/contracts/upload-sessions'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { abortUploadSession, getOwnedUploadSession } from '@/lib/uploads/upload-session/service'
-import { reauthorizeUploadPurpose } from '@/app/api/files/uploads/purposes'
+import { abortInternalUploadSession } from '@/lib/uploads/upload-session/application'
 import {
   requireUploadUser,
   toInternalUploadSession,
@@ -21,13 +20,10 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Upl
   if (!parsed.success) return parsed.response
 
   try {
-    const session = await getOwnedUploadSession({
+    const aborted = await abortInternalUploadSession(actor.principal, {
       uploadId: parsed.data.params.uploadId,
       uploadToken: parsed.data.headers['upload-token'],
-      userId: actor.id,
     })
-    await reauthorizeUploadPurpose(actor.id, session)
-    const aborted = await abortUploadSession(session)
     return NextResponse.json({ data: toInternalUploadSession(aborted, null) })
   } catch (error) {
     const classified = uploadSessionErrorResponse(error)

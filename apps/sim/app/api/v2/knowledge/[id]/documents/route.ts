@@ -1,6 +1,5 @@
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { type NextRequest, NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
+import { NextResponse } from 'next/server'
 import {
   type V2KnowledgeDocumentSummary,
   v2ListKnowledgeDocumentsContract,
@@ -8,39 +7,35 @@ import {
 } from '@/lib/api/contracts/v2/knowledge'
 import { parseRequest } from '@/lib/api/server'
 import {
-  checkAttributedUsageLimits,
-  resolveBillingAttribution,
-  resolveSystemBillingAttribution,
-} from '@/lib/billing/core/billing-attribution'
-import { generateRequestId } from '@/lib/core/utils/request'
+  defineV2JsonRoute,
+  type V2ErrorPolicy,
+  v2ApiKeyAuth,
+  v2OrchestrationErrorPolicy,
+  v2RateLimits,
+} from '@/lib/api/server/routes'
+import type { JsonRouteContext } from '@/lib/api/server/routes/types'
+import { admitV2Request, V2RouteInfrastructureError } from '@/lib/api/server/routes/v2-json-route'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { PlatformEvents } from '@/lib/core/telemetry'
 import {
   isPayloadSizeLimitError,
   readFileToBufferWithLimit,
   readFormDataWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getDocuments } from '@/lib/knowledge/documents/service'
-import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
-import { performUploadKnowledgeDocument } from '@/lib/knowledge/orchestration'
-import type { KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
+import { KnowledgeUsageLimitExceededError } from '@/lib/knowledge/application/billing'
+import {
+  admitKnowledgeDocumentUpload,
+  listKnowledgeDocuments,
+  uploadKnowledgeDocument,
+} from '@/lib/knowledge/application/documents'
+import { knowledgeOperations } from '@/lib/knowledge/application/operations'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace'
 import { MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { validateFileType } from '@/lib/uploads/utils/validation'
-import { resolveKnowledgeBase, serializeDate } from '@/app/api/v1/knowledge/utils'
-import { checkRateLimit, type RateLimitResult } from '@/app/api/v1/middleware'
-import { v2ApiGateError } from '@/app/api/v2/lib/gate'
-import {
-  decodeCursor,
-  encodeCursor,
-  v2CursorList,
-  v2Data,
-  v2Error,
-  v2ErrorForOrchestration,
-  v2RateLimitError,
-  v2ValidationError,
-} from '@/app/api/v2/lib/response'
-
-const logger = createLogger('V2KnowledgeDocumentsAPI')
+import { serializeDate } from '@/app/api/v1/knowledge/utils'
+import { decodeCursor, encodeCursor, v2Error, v2ValidationError } from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -48,163 +43,109 @@ export const revalidate = 0
 const MAX_FILE_SIZE = MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE
 const MAX_MULTIPART_OVERHEAD_BYTES = 1024 * 1024
 
-interface DocumentsRouteParams {
-  params: Promise<{ id: string }>
-}
+const concealKnowledgeDocumentListAuthorization = {
+  render(error) {
+    const response = v2OrchestrationErrorPolicy.render(error)
+    if (response?.status === 403) return v2Error('NOT_FOUND', 'Knowledge base not found')
+    return response
+  },
+} satisfies V2ErrorPolicy
 
-/**
- * Resolves a knowledge base via the shared v1 ownership invariant
- * ({@link resolveKnowledgeBase}) and renders any failure in the v2 envelope. A
- * `404` is always `NOT_FOUND`; a `403` is masked as `NOT_FOUND` on reads and
- * surfaced as `FORBIDDEN` on writes.
- */
-async function resolveKnowledgeBaseScoped(
-  id: string,
-  workspaceId: string,
-  userId: string,
-  rateLimit: RateLimitResult,
-  level: 'read' | 'write'
-): Promise<{ kb: KnowledgeBaseWithCounts } | NextResponse> {
-  const result = await resolveKnowledgeBase(id, workspaceId, userId, rateLimit, level)
-  if (!(result instanceof NextResponse)) return result
-  if (result.status === 404) return v2Error('NOT_FOUND', 'Knowledge base not found')
-  return level === 'read'
-    ? v2Error('NOT_FOUND', 'Knowledge base not found')
-    : v2Error('FORBIDDEN', 'Access denied')
+function toV2DocumentSummary(document: {
+  id: string
+  knowledgeBaseId: string
+  filename: string
+  fileSize: number
+  mimeType: string
+  processingStatus?: 'pending' | 'processing' | 'completed' | 'failed'
+  chunkCount: number
+  tokenCount: number
+  characterCount: number
+  enabled: boolean
+  uploadedAt: Date
+}): V2KnowledgeDocumentSummary {
+  return {
+    id: document.id,
+    knowledgeBaseId: document.knowledgeBaseId,
+    filename: document.filename,
+    fileSize: document.fileSize,
+    mimeType: document.mimeType,
+    processingStatus: document.processingStatus ?? 'pending',
+    chunkCount: document.chunkCount,
+    tokenCount: document.tokenCount,
+    characterCount: document.characterCount,
+    enabled: document.enabled,
+    createdAt: serializeDate(document.uploadedAt),
+  }
 }
 
 /** GET /api/v2/knowledge/[id]/documents — List documents in a knowledge base. */
-export const GET = withRouteHandler(async (request: NextRequest, context: DocumentsRouteParams) => {
-  const requestId = generateRequestId()
+export const GET = defineV2JsonRoute({
+  contract: v2ListKnowledgeDocumentsContract,
+  auth: v2ApiKeyAuth,
+  operation: knowledgeOperations.listDocuments,
+  rateLimit: v2RateLimits.publicApi,
+  errorPolicy: concealKnowledgeDocumentListAuthorization,
+  mapInput: ({ params, query }) => {
+    const decodedCursor = query.cursor ? decodeCursor<{ offset: number }>(query.cursor) : null
+    if (
+      query.cursor &&
+      (!decodedCursor || !Number.isInteger(decodedCursor.offset) || decodedCursor.offset < 0)
+    ) {
+      throw new OrchestrationError('validation', 'Invalid cursor')
+    }
+    return {
+      knowledgeBaseId: params.id,
+      assertedWorkspaceId: query.workspaceId,
+      enabledFilter: query.enabledFilter,
+      search: query.search,
+      limit: query.limit,
+      offset: decodedCursor?.offset ?? 0,
+      sortBy: query.sortBy,
+      sortOrder: query.sortOrder,
+    }
+  },
+  useCase: listKnowledgeDocuments,
+  present: ({ documents, pagination }) => ({
+    data: documents.map(toV2DocumentSummary),
+    nextCursor: pagination.hasMore
+      ? encodeCursor({ offset: pagination.offset + pagination.limit })
+      : null,
+  }),
+})
 
-  try {
-    const rateLimit = await checkRateLimit(request, 'knowledge-detail')
-    if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
+/** POST /api/v2/knowledge/[id]/documents — Upload a document to a knowledge base. */
+export const POST = withRouteHandler<JsonRouteContext | undefined>(
+  async (request: NextRequest, context) => {
+    if (request.method !== v2UploadKnowledgeDocumentContract.method) {
+      throw new Error(
+        `Route received ${request.method} for ${v2UploadKnowledgeDocumentContract.method} contract ${v2UploadKnowledgeDocumentContract.path}`
+      )
+    }
 
-    const userId = rateLimit.userId!
+    const routeAdmission = await admitV2Request(
+      request,
+      knowledgeOperations.uploadDocument,
+      v2ApiKeyAuth,
+      v2RateLimits.publicApi
+    )
+    if (!routeAdmission.success) return routeAdmission.response
 
-    const gate = await v2ApiGateError(userId)
-    if (gate) return gate
-
-    const parsed = await parseRequest(v2ListKnowledgeDocumentsContract, request, context, {
+    const parsed = await parseRequest(v2UploadKnowledgeDocumentContract, request, context ?? {}, {
       validationErrorResponse: v2ValidationError,
     })
     if (!parsed.success) return parsed.response
 
-    const { workspaceId, limit, cursor, search, enabledFilter, sortBy, sortOrder } =
-      parsed.data.query
+    const { principal } = routeAdmission.auth
     const { id: knowledgeBaseId } = parsed.data.params
-
-    const result = await resolveKnowledgeBaseScoped(
-      knowledgeBaseId,
-      workspaceId,
-      userId,
-      rateLimit,
-      'read'
-    )
-    if (result instanceof NextResponse) return result
-
-    const decodedCursor = cursor ? decodeCursor<{ offset: number }>(cursor) : null
-    if (
-      cursor &&
-      (!decodedCursor || !Number.isInteger(decodedCursor.offset) || decodedCursor.offset < 0)
-    ) {
-      return v2Error('BAD_REQUEST', 'Invalid cursor')
-    }
-    const offset = decodedCursor?.offset ?? 0
-
-    const documentsResult = await getDocuments(
-      knowledgeBaseId,
-      {
-        enabledFilter: enabledFilter === 'all' ? undefined : enabledFilter,
-        search,
-        limit,
-        offset,
-        sortBy: sortBy as DocumentSortField,
-        sortOrder: sortOrder as SortOrder,
-      },
-      requestId
-    )
-
-    const documents: V2KnowledgeDocumentSummary[] = documentsResult.documents.map((doc) => ({
-      id: doc.id,
-      knowledgeBaseId,
-      filename: doc.filename,
-      fileSize: doc.fileSize,
-      mimeType: doc.mimeType,
-      processingStatus: doc.processingStatus,
-      chunkCount: doc.chunkCount,
-      tokenCount: doc.tokenCount,
-      characterCount: doc.characterCount,
-      enabled: doc.enabled,
-      createdAt: serializeDate(doc.uploadedAt),
-    }))
-
-    const nextCursor = documentsResult.pagination.hasMore
-      ? encodeCursor({ offset: offset + limit })
-      : null
-    return v2CursorList(documents, nextCursor, { rateLimit })
-  } catch (error) {
-    logger.error(`[${requestId}] Error listing documents`, {
-      error: getErrorMessage(error, 'Unknown error'),
-    })
-    return v2Error('INTERNAL_ERROR', 'Internal server error')
-  }
-})
-
-/**
- * POST /api/v2/knowledge/[id]/documents — Upload a document to a knowledge base.
- *
- * Authorization runs fully before the multipart body is buffered: the workspace
- * is a contract-validated query param (not a form field as in v1), so an
- * unauthorized caller never streams a file into memory. Order: rate limit →
- * KB ownership (write) → usage gate → buffered multipart read.
- */
-export const POST = withRouteHandler(
-  async (request: NextRequest, context: DocumentsRouteParams) => {
-    const requestId = generateRequestId()
+    const { workspaceId } = parsed.data.query
 
     try {
-      const rateLimit = await checkRateLimit(request, 'knowledge-detail')
-      if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
-
-      const userId = rateLimit.userId!
-
-      const gate = await v2ApiGateError(userId)
-      if (gate) return gate
-
-      const parsed = await parseRequest(v2UploadKnowledgeDocumentContract, request, context, {
-        validationErrorResponse: v2ValidationError,
+      const uploadAdmission = await admitKnowledgeDocumentUpload.execute({
+        principal,
+        input: { knowledgeBaseId, assertedWorkspaceId: workspaceId },
+        request,
       })
-      if (!parsed.success) return parsed.response
-
-      const { id: knowledgeBaseId } = parsed.data.params
-      const { workspaceId } = parsed.data.query
-
-      const result = await resolveKnowledgeBaseScoped(
-        knowledgeBaseId,
-        workspaceId,
-        userId,
-        rateLimit,
-        'write'
-      )
-      if (result instanceof NextResponse) return result
-
-      /**
-       * Gate before storage and indexing. Workspace keys use the billed account
-       * and immutable payer from one read; personal keys preserve their human actor.
-       */
-      const billingAttribution =
-        rateLimit.keyType === 'workspace'
-          ? await resolveSystemBillingAttribution(workspaceId)
-          : await resolveBillingAttribution({ actorUserId: userId, workspaceId })
-      const usage = await checkAttributedUsageLimits(billingAttribution)
-      if (usage.isExceeded) {
-        return v2Error(
-          'USAGE_LIMIT_EXCEEDED',
-          usage.message || 'Usage limit exceeded. Please upgrade your plan to continue.'
-        )
-      }
 
       let formData: FormData
       try {
@@ -221,9 +162,7 @@ export const POST = withRouteHandler(
 
       const rawFile = formData.get('file')
       const file = rawFile instanceof File ? rawFile : null
-      if (!file) {
-        return v2Error('BAD_REQUEST', 'file form field is required')
-      }
+      if (!file) return v2Error('BAD_REQUEST', 'file form field is required')
 
       if (file.size > MAX_FILE_SIZE) {
         return v2Error(
@@ -242,60 +181,80 @@ export const POST = withRouteHandler(
         label: 'knowledge document file',
       })
       const contentType = file.type || 'application/octet-stream'
-
       const uploadedFile = await uploadWorkspaceFile(
-        workspaceId,
-        userId,
+        uploadAdmission.workspaceId,
+        uploadAdmission.storageActorUserId,
         buffer,
         file.name,
         contentType
       )
 
-      const outcome = await performUploadKnowledgeDocument({
-        knowledgeBase: { id: knowledgeBaseId, name: result.kb.name, workspaceId },
-        document: {
-          filename: file.name,
-          fileUrl: uploadedFile.url,
-          fileSize: file.size,
-          mimeType: contentType,
+      const result = await uploadKnowledgeDocument.execute({
+        principal,
+        input: {
+          knowledgeBaseId,
+          assertedWorkspaceId: workspaceId,
+          document: {
+            filename: file.name,
+            fileUrl: uploadedFile.url,
+            fileSize: file.size,
+            mimeType: contentType,
+          },
+          startProcessing: true,
+          usageAdmission: 'pre_admitted',
+          source: 'api',
         },
-        startProcessing: 'queue',
-        billingAttribution,
-        uploadedBy: billingAttribution.actorUserId,
-        userId,
-        source: 'api',
-        requestId,
         request,
       })
-      if (!outcome.success) {
-        return v2ErrorForOrchestration(outcome.errorCode, outcome.error)
-      }
-      const newDocument = outcome.document
 
-      const document: V2KnowledgeDocumentSummary = {
-        id: newDocument.id,
+      PlatformEvents.knowledgeBaseDocumentsUploaded({
         knowledgeBaseId,
-        filename: newDocument.filename,
-        fileSize: newDocument.fileSize,
-        mimeType: newDocument.mimeType,
-        processingStatus: 'pending',
-        chunkCount: 0,
-        tokenCount: 0,
-        characterCount: 0,
-        enabled: newDocument.enabled,
-        createdAt: serializeDate(newDocument.uploadedAt),
+        documentsCount: 1,
+        uploadType: 'single',
+        mimeType: contentType,
+        fileSize: file.size,
+      })
+      if (principal.kind === 'personal_api_key') {
+        captureServerEvent(
+          principal.userId,
+          'knowledge_base_document_uploaded',
+          {
+            knowledge_base_id: knowledgeBaseId,
+            workspace_id: workspaceId,
+            document_count: 1,
+            upload_type: 'single',
+          },
+          {
+            groups: { workspace: workspaceId },
+            setOnce: { first_document_uploaded_at: new Date().toISOString() },
+          }
+        )
       }
 
-      return v2Data({ document }, { rateLimit, status: 201 })
+      const document = toV2DocumentSummary(result.document)
+      const body = v2UploadKnowledgeDocumentContract.response.schema.parse({
+        data: { document },
+      })
+      return NextResponse.json(body, {
+        status: 201,
+        headers: { 'Cache-Control': 'private, no-store' },
+      })
     } catch (error) {
+      if (error instanceof KnowledgeUsageLimitExceededError) {
+        return v2Error('USAGE_LIMIT_EXCEEDED', error.message)
+      }
       if (isPayloadSizeLimitError(error)) {
         return v2Error('PAYLOAD_TOO_LARGE', error.message)
       }
-
-      logger.error(`[${requestId}] Error uploading document`, {
-        error: getErrorMessage(error, 'Unknown error'),
-      })
-      return v2Error('INTERNAL_ERROR', 'Internal server error')
+      const response = v2OrchestrationErrorPolicy.render(error)
+      if (response) return response
+      throw error
     }
+  },
+  {
+    unhandledErrorResponse: ({ error }) =>
+      error instanceof V2RouteInfrastructureError
+        ? v2Error('SERVICE_UNAVAILABLE', 'Service temporarily unavailable')
+        : v2Error('INTERNAL_ERROR', 'Internal server error'),
   }
 )

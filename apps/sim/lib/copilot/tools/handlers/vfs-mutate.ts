@@ -3,12 +3,22 @@ import { createLogger } from '@sim/logger'
 import { assertFolderMutable, assertWorkflowMutable } from '@sim/platform-authz/workflow'
 import { toError } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
-import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import {
-  ensureWorkflowAccess,
-  ensureWorkspaceAccess,
-  getDefaultWorkspaceId,
-} from '@/lib/copilot/tools/handlers/access'
+  executeCopilotFileUseCase,
+  resolveCopilotWorkspaceFileReference,
+} from '@/lib/copilot/application/execute-file-use-case'
+import {
+  executeCopilotKnowledgeUseCase,
+  messageForCopilotKnowledgeError,
+  resolveCopilotKnowledgePrincipal,
+} from '@/lib/copilot/application/execute-knowledge-use-case'
+import { messageForCopilotFileError } from '@/lib/copilot/auth/file-delegation'
+import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
+import { ensureWorkflowAccess, ensureWorkspaceAccess } from '@/lib/copilot/tools/handlers/access'
+import {
+  ensureCopilotFileFolderPath,
+  requireCopilotWorkspace,
+} from '@/lib/copilot/tools/server/files/file-folder-application'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
 import {
   buildVfsFolderPathMap,
@@ -16,34 +26,28 @@ import {
   decodeVfsPathSegments,
   encodeVfsPathSegments,
 } from '@/lib/copilot/vfs/path-utils'
+import { asOrchestrationError } from '@/lib/core/orchestration/types'
+import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { createFolder, deleteFolder, updateFolder } from '@/lib/folders/orchestration'
 import {
-  deleteKnowledgeBase,
-  getKnowledgeBases,
-  updateKnowledgeBase,
-} from '@/lib/knowledge/service'
+  deleteKnowledgeBaseOperation,
+  listKnowledgeBases,
+  updateKnowledgeBaseOperation,
+} from '@/lib/knowledge/application/knowledge-bases'
 import { performDeleteTable, performRenameTable } from '@/lib/table/orchestration'
 import { listTables } from '@/lib/table/service'
-import {
-  ensureWorkspaceFileFolderPath,
-  findWorkspaceFileFolderIdByPath,
-  normalizeWorkspaceFileItemName,
-} from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
-import {
-  getWorkspaceFileByName,
-  resolveWorkspaceFileReference,
-  type WorkspaceFileRecord,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { findWorkspaceFileFolderIdByPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
+import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { performDeleteWorkflow, performUpdateWorkflow } from '@/lib/workflows/orchestration'
 import { duplicateWorkflow } from '@/lib/workflows/persistence/duplicate'
 import { listFolders, verifyFolderWorkspace } from '@/lib/workflows/utils'
-import {
-  performDeleteWorkspaceFileItems,
-  performMoveRenameWorkspaceFile,
-  performUpdateWorkspaceFileFolder,
-} from '@/lib/workspace-files/orchestration'
-import { checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
+import { archiveWorkspaceFileItemsOperation } from '@/lib/workspace-files/application/archive-workspace-file-items'
+import { deleteWorkspaceFileOperation } from '@/lib/workspace-files/application/delete-workspace-file'
+import { moveWorkspaceFileItemsOperation } from '@/lib/workspace-files/application/move-workspace-file-items'
+import { fileOperations } from '@/lib/workspace-files/application/operations'
+import { renameWorkspaceFile } from '@/lib/workspace-files/application/rename-workspace-file'
+import { updateWorkspaceFileFolderOperation } from '@/lib/workspace-files/application/workspace-file-folders'
 
 const logger = createLogger('VfsMutateTools')
 
@@ -77,6 +81,21 @@ interface VfsMutateOutcome {
   kind: 'file' | 'file_folder' | 'workflow' | 'workflow_folder' | 'table' | 'knowledge_base'
   id?: string
   error?: string
+}
+
+class KnowledgeVfsInfrastructureError extends Error {
+  constructor(readonly infrastructureCause: unknown) {
+    super('Knowledge VFS infrastructure failure')
+    this.name = 'KnowledgeVfsInfrastructureError'
+  }
+}
+
+function messageForKnowledgeVfsError(error: unknown, forbiddenMessage: string): string {
+  const classified = asOrchestrationError(error)
+  if (!classified || classified.code === 'internal') {
+    throw new KnowledgeVfsInfrastructureError(error)
+  }
+  return classified.code === 'forbidden' ? forbiddenMessage : messageForCopilotKnowledgeError(error)
 }
 
 /** Top-level VFS segment of a raw (possibly encoded) path. */
@@ -157,7 +176,7 @@ export async function executeVfsMkdir(
       return { success: false, error: 'paths is required (an array of folder VFS paths)' }
     }
 
-    const workspaceId = context.workspaceId || (await getDefaultWorkspaceId(context.userId))
+    const workspaceId = requireCopilotWorkspace(context)
     await ensureWorkspaceAccess(workspaceId, context, 'write')
     assertMutationNotAborted(context)
 
@@ -186,11 +205,7 @@ export async function executeVfsMkdir(
         assertMutationNotAborted(context)
         let folderId: string | null
         if (top === 'files') {
-          folderId = await ensureWorkspaceFileFolderPath({
-            workspaceId,
-            userId: context.userId,
-            pathSegments: segments,
-          })
+          folderId = await ensureCopilotFileFolderPath(context, workspaceId, segments)
         } else {
           ensureWorkflowFolder ??= makeWorkflowFolderEnsurer(
             workspaceId,
@@ -206,13 +221,25 @@ export async function executeVfsMkdir(
           id: folderId ?? undefined,
         })
       } catch (error) {
-        outcomes.push({ from: path, kind, error: toError(error).message })
+        outcomes.push({
+          from: path,
+          kind,
+          error:
+            top === 'files'
+              ? messageForCopilotFileError(error, 'File folder creation failed')
+              : toError(error).message,
+        })
       }
     }
 
     return buildResult('mkdir', outcomes)
   } catch (error) {
-    return { success: false, error: toError(error).message }
+    return {
+      success: false,
+      error: context.abortSignal?.aborted
+        ? 'Request aborted before the mutation could be applied.'
+        : 'Mutation failed',
+    }
   }
 }
 
@@ -231,7 +258,10 @@ async function executeVfsMutate(
       return { success: false, error: 'destination is required' }
     }
 
-    const workspaceId = context.workspaceId || (await getDefaultWorkspaceId(context.userId))
+    const workspaceId = requireCopilotWorkspace(context)
+    if (topLevelSegment(sources[0]) === 'knowledgebases') {
+      resolveCopilotKnowledgePrincipal(context)
+    }
     await ensureWorkspaceAccess(workspaceId, context, 'write')
     assertMutationNotAborted(context)
 
@@ -267,7 +297,15 @@ async function executeVfsMutate(
         return await renameFlatResource(verb, category, sources, destination, context, workspaceId)
     }
   } catch (error) {
-    return { success: false, error: toError(error).message }
+    if (error instanceof KnowledgeVfsInfrastructureError) {
+      throw error.infrastructureCause
+    }
+    return {
+      success: false,
+      error: context.abortSignal?.aborted
+        ? 'Request aborted before the mutation could be applied.'
+        : 'Mutation failed',
+    }
   }
 }
 
@@ -340,15 +378,19 @@ async function planDestination(args: {
  */
 async function resolveFileAtExactPath(
   workspaceId: string,
-  segments: string[]
+  segments: string[],
+  context: ExecutionContext
 ): Promise<WorkspaceFileRecord | null> {
-  const fileName = normalizeWorkspaceFileItemName(segments.at(-1) ?? '', 'File')
-  if (segments.length === 1) {
-    return getWorkspaceFileByName(workspaceId, fileName, { folderId: null })
+  try {
+    return await resolveCopilotWorkspaceFileReference(context, fileOperations.move, {
+      workspaceId,
+      reference: `files/${encodeVfsPathSegments(segments)}`,
+    })
+  } catch (error) {
+    const classified = asOrchestrationError(error)
+    if (classified?.code !== 'not_found') throw error
+    return null
   }
-  const folderId = await findWorkspaceFileFolderIdByPath(workspaceId, segments.slice(0, -1))
-  if (!folderId) return null
-  return getWorkspaceFileByName(workspaceId, fileName, { folderId })
 }
 
 async function mutateWorkspaceFiles(
@@ -368,12 +410,7 @@ async function mutateWorkspaceFiles(
     destination,
     sourceCount: sources.length,
     lookupFolder: (segments) => findWorkspaceFileFolderIdByPath(workspaceId, segments),
-    ensureFolderPath: (segments) =>
-      ensureWorkspaceFileFolderPath({
-        workspaceId,
-        userId: context.userId,
-        pathSegments: segments,
-      }),
+    ensureFolderPath: (segments) => ensureCopilotFileFolderPath(context, workspaceId, segments),
   })
   if ('error' in dest) return { success: false, error: dest.error }
 
@@ -390,7 +427,7 @@ async function mutateWorkspaceFiles(
       refs.push({ source, error: 'Source must name a file or folder under files/' })
       continue
     }
-    const file = await resolveFileAtExactPath(workspaceId, segments)
+    const file = await resolveFileAtExactPath(workspaceId, segments, context)
     if (file) {
       refs.push({ source, file })
       continue
@@ -411,23 +448,67 @@ async function mutateWorkspaceFiles(
       assertMutationNotAborted(context)
       const targetName = dest.dirMode ? ref.file.name : (dest.leafName as string)
       const targetFolderId = await dest.ensureFolderId()
-      const result = await performMoveRenameWorkspaceFile({
-        workspaceId,
-        userId: context.userId,
-        fileId: ref.file.id,
-        targetFolderId,
-        newName: targetName,
-      })
-      outcomes.push(
-        result.success && result.file
-          ? {
-              from: ref.source,
-              to: `files/${encodeVfsPathSegments([...dest.folderSegments, result.file.name])}`,
-              kind: 'file',
-              id: ref.file.id,
-            }
-          : { from: ref.source, kind: 'file', error: result.error || 'Failed to move file' }
-      )
+      if (targetFolderId === ref.file.folderId) {
+        try {
+          const result = await executeCopilotFileUseCase(
+            context,
+            renameWorkspaceFile,
+            {
+              fileId: ref.file.id,
+              assertedWorkspaceId: workspaceId,
+              name: targetName,
+            },
+            { fileId: ref.file.id }
+          )
+          outcomes.push({
+            from: ref.source,
+            to: `files/${encodeVfsPathSegments([...dest.folderSegments, result.file.name])}`,
+            kind: 'file',
+            id: ref.file.id,
+          })
+        } catch (error) {
+          outcomes.push({
+            from: ref.source,
+            kind: 'file',
+            error: messageForCopilotFileError(error),
+          })
+        }
+        continue
+      }
+      try {
+        await executeCopilotFileUseCase(
+          context,
+          moveWorkspaceFileItemsOperation,
+          { workspaceId, fileIds: [ref.file.id], targetFolderId },
+          { fileId: ref.file.id }
+        )
+        let finalName = ref.file.name
+        if (targetName !== ref.file.name) {
+          const renamed = await executeCopilotFileUseCase(
+            context,
+            renameWorkspaceFile,
+            {
+              fileId: ref.file.id,
+              assertedWorkspaceId: workspaceId,
+              name: targetName,
+            },
+            { fileId: ref.file.id }
+          )
+          finalName = renamed.file.name
+        }
+        outcomes.push({
+          from: ref.source,
+          to: `files/${encodeVfsPathSegments([...dest.folderSegments, finalName])}`,
+          kind: 'file',
+          id: ref.file.id,
+        })
+      } catch (error) {
+        outcomes.push({
+          from: ref.source,
+          kind: 'file',
+          error: messageForCopilotFileError(error, 'Failed to move file'),
+        })
+      }
       continue
     }
 
@@ -441,23 +522,26 @@ async function mutateWorkspaceFiles(
       })
       continue
     }
-    const result = await performUpdateWorkspaceFileFolder({
-      workspaceId,
-      folderId: ref.folderId,
-      userId: context.userId,
-      name: dest.dirMode ? undefined : dest.leafName,
-      parentId: targetFolderId,
-    })
-    outcomes.push(
-      result.success && result.folder
-        ? {
-            from: ref.source,
-            to: `files/${encodeVfsPathSegments([...dest.folderSegments, result.folder.name])}`,
-            kind: 'file_folder',
-            id: ref.folderId,
-          }
-        : { from: ref.source, kind: 'file_folder', error: result.error || 'Failed to move folder' }
-    )
+    try {
+      const result = await executeCopilotFileUseCase(context, updateWorkspaceFileFolderOperation, {
+        workspaceId,
+        folderId: ref.folderId,
+        name: dest.dirMode ? undefined : dest.leafName,
+        parentId: targetFolderId,
+      })
+      outcomes.push({
+        from: ref.source,
+        to: `files/${encodeVfsPathSegments([...dest.folderSegments, result.folder.name])}`,
+        kind: 'file_folder',
+        id: ref.folderId,
+      })
+    } catch (error) {
+      outcomes.push({
+        from: ref.source,
+        kind: 'file_folder',
+        error: messageForCopilotFileError(error, 'Failed to move folder'),
+      })
+    }
   }
 
   return buildResult(verb, outcomes)
@@ -779,20 +863,41 @@ async function renameFlatResource(
   if (newName.toLowerCase() === 'connectors') {
     return { success: false, error: '"knowledgebases/connectors" is a reserved path.' }
   }
-  const kbs = await getKnowledgeBases(context.userId, workspaceId)
-  const match = kbs.find((kb) => normalizeVfsSegment(kb.name) === canonicalSource)
+  let knowledgeBases: Awaited<ReturnType<typeof listKnowledgeBases.execute>>['knowledgeBases']
+  try {
+    const result = await executeCopilotKnowledgeUseCase(context, listKnowledgeBases, {
+      workspaceId,
+    })
+    knowledgeBases = result.knowledgeBases
+  } catch (error) {
+    return {
+      success: false,
+      error: messageForKnowledgeVfsError(error, 'Write access required to rename knowledge bases'),
+    }
+  }
+  const match = knowledgeBases
+    .map(({ knowledgeBase }) => knowledgeBase)
+    .find((kb) => normalizeVfsSegment(kb.name) === canonicalSource)
   if (!match) {
     return { success: false, error: `Knowledge base not found at ${sources[0]}` }
   }
-  const access = await checkKnowledgeBaseWriteAccess(match.id, context.userId, workspaceId)
-  if (!access.hasAccess) {
+  assertMutationNotAborted(context)
+  try {
+    await executeCopilotKnowledgeUseCase(context, updateKnowledgeBaseOperation, {
+      knowledgeBaseId: match.id,
+      assertedWorkspaceId: workspaceId,
+      name: newName,
+      source: 'agent',
+    })
+  } catch (error) {
     return {
       success: false,
-      error: `Write access required to rename knowledge base "${match.name}"`,
+      error: messageForKnowledgeVfsError(
+        error,
+        `Write access required to rename knowledge base "${match.name}"`
+      ),
     }
   }
-  assertMutationNotAborted(context)
-  await updateKnowledgeBase(match.id, { name: newName }, generateRequestId())
   logger.info('Renamed knowledge base via mv', { knowledgeBaseId: match.id, workspaceId })
   return buildResult(verb, [
     { from: sources[0], to: `knowledgebases/${normalizeVfsSegment(newName)}`, kind, id: match.id },
@@ -818,7 +923,10 @@ export async function executeVfsRm(
       return { success: false, error: 'paths is required (an array of VFS paths to delete)' }
     }
 
-    const workspaceId = context.workspaceId || (await getDefaultWorkspaceId(context.userId))
+    const workspaceId = requireCopilotWorkspace(context)
+    if (paths.some((path) => topLevelSegment(path) === 'knowledgebases')) {
+      resolveCopilotKnowledgePrincipal(context)
+    }
     await ensureWorkspaceAccess(workspaceId, context, 'write')
     assertMutationNotAborted(context)
 
@@ -839,13 +947,29 @@ export async function executeVfsRm(
           await removeOne(classified.category, path, context, workspaceId, getWorkflowIndex)
         )
       } catch (error) {
-        outcomes.push({ from: path, kind: defaultKindFor(path), error: toError(error).message })
+        if (error instanceof KnowledgeVfsInfrastructureError) throw error
+        outcomes.push({
+          from: path,
+          kind: defaultKindFor(path),
+          error:
+            classified.category === 'files'
+              ? messageForCopilotFileError(error, 'File deletion failed')
+              : toError(error).message,
+        })
       }
     }
 
     return buildResult('rm', outcomes)
   } catch (error) {
-    return { success: false, error: toError(error).message }
+    if (error instanceof KnowledgeVfsInfrastructureError) {
+      throw error.infrastructureCause
+    }
+    return {
+      success: false,
+      error: context.abortSignal?.aborted
+        ? 'Request aborted before the mutation could be applied.'
+        : 'Delete failed',
+    }
   }
 }
 
@@ -893,16 +1017,23 @@ async function removeWorkspaceFilePath(
   context: ExecutionContext,
   workspaceId: string
 ): Promise<VfsMutateOutcome> {
-  const file = await resolveWorkspaceFileReference(workspaceId, path)
-  if (file) {
-    const result = await performDeleteWorkspaceFileItems({
+  let file: WorkspaceFileRecord | undefined
+  try {
+    file = await resolveCopilotWorkspaceFileReference(context, fileOperations.delete, {
       workspaceId,
-      userId: context.userId,
-      fileIds: [file.id],
+      reference: path,
     })
-    if (!result.success) {
-      return { from: path, kind: 'file', id: file.id, error: result.error || 'Failed to delete' }
-    }
+  } catch (error) {
+    const classified = asOrchestrationError(error)
+    if (classified?.code !== 'not_found') throw error
+  }
+  if (file) {
+    await executeCopilotFileUseCase(
+      context,
+      deleteWorkspaceFileOperation,
+      { fileId: file.id, assertedWorkspaceId: workspaceId },
+      { fileId: file.id }
+    )
     logger.info('Deleted workspace file via rm', { fileId: file.id, workspaceId })
     return { from: path, kind: 'file', id: file.id }
   }
@@ -914,21 +1045,21 @@ async function removeWorkspaceFilePath(
   const folderId = await findWorkspaceFileFolderIdByPath(workspaceId, segments)
   if (!folderId) return { from: path, kind: 'file', error: `Not found: ${path}` }
 
-  const result = await performDeleteWorkspaceFileItems({
-    workspaceId,
-    userId: context.userId,
-    folderIds: [folderId],
-  })
-  if (!result.success) {
+  try {
+    const result = await executeCopilotFileUseCase(context, archiveWorkspaceFileItemsOperation, {
+      workspaceId,
+      folderIds: [folderId],
+    })
+    logger.info('Deleted file folder via rm', { folderId, workspaceId })
+    return { from: path, kind: 'file_folder', id: folderId }
+  } catch (error) {
     return {
       from: path,
       kind: 'file_folder',
       id: folderId,
-      error: result.error || 'Failed to delete',
+      error: messageForCopilotFileError(error, 'Failed to delete'),
     }
   }
-  logger.info('Deleted file folder via rm', { folderId, workspaceId })
-  return { from: path, kind: 'file_folder', id: folderId }
 }
 
 interface WorkflowRemoveIndex {
@@ -1062,23 +1193,43 @@ async function removeKnowledgeBasePath(
       error: '"knowledgebases/connectors" is a reserved path, not a knowledge base.',
     }
   }
-  const match = (await getKnowledgeBases(context.userId, workspaceId)).find(
-    (kb) => normalizeVfsSegment(kb.name) === canonical
-  )
+  let knowledgeBases: Awaited<ReturnType<typeof listKnowledgeBases.execute>>['knowledgeBases']
+  try {
+    const result = await executeCopilotKnowledgeUseCase(context, listKnowledgeBases, {
+      workspaceId,
+    })
+    knowledgeBases = result.knowledgeBases
+  } catch (error) {
+    return {
+      from: path,
+      kind: 'knowledge_base',
+      error: messageForKnowledgeVfsError(error, 'Write access required to delete knowledge bases'),
+    }
+  }
+  const match = knowledgeBases
+    .map(({ knowledgeBase }) => knowledgeBase)
+    .find((kb) => normalizeVfsSegment(kb.name) === canonical)
   if (!match)
     return { from: path, kind: 'knowledge_base', error: `Knowledge base not found at ${path}` }
 
-  const access = await checkKnowledgeBaseWriteAccess(match.id, context.userId, workspaceId)
-  if (!access.hasAccess) {
+  try {
+    await executeCopilotKnowledgeUseCase(context, deleteKnowledgeBaseOperation, {
+      knowledgeBaseId: match.id,
+      assertedWorkspaceId: workspaceId,
+      source: 'agent',
+    })
+  } catch (error) {
     return {
       from: path,
       kind: 'knowledge_base',
       id: match.id,
-      error: `Write access required to delete knowledge base "${match.name}"`,
+      error: messageForKnowledgeVfsError(
+        error,
+        `Write access required to delete knowledge base "${match.name}"`
+      ),
     }
   }
-
-  await deleteKnowledgeBase(match.id, generateRequestId())
+  PlatformEvents.knowledgeBaseDeleted({ knowledgeBaseId: match.id })
   logger.info('Deleted knowledge base via rm', { knowledgeBaseId: match.id, workspaceId })
   return { from: path, kind: 'knowledge_base', id: match.id }
 }

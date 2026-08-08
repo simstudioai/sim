@@ -13,7 +13,7 @@ import {
 } from '@/lib/copilot/request/tools/resolved-secret-result'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { decodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
-import { writeWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
+import { writeCopilotWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
 
 const logger = createLogger('CopilotToolResultFiles')
 
@@ -285,9 +285,8 @@ export async function maybeWriteOutputToFile(
             throw new Error('Request aborted before tool mutation could be applied')
           }
 
-          const written = await writeWorkspaceFileByPath({
+          const written = await writeCopilotWorkspaceFileByPath(context, {
             workspaceId: context.workspaceId!,
-            userId: context.userId!,
             target: {
               path: outputFile.path,
               mode: outputFile.mode ?? 'create',

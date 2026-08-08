@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { truncate } from '@sim/utils/string'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
   buildAutoMapping,
@@ -28,7 +29,11 @@ import {
   deleteAllTableRows,
   setTableSchemaForImport,
 } from '@/lib/table/import-data'
-import { markJobFailed, markJobReady, updateJobProgress } from '@/lib/table/jobs/service'
+import {
+  markJobFailedInWorkspace,
+  markJobReadyInWorkspace,
+  updateJobProgressInWorkspace,
+} from '@/lib/table/jobs/service'
 import { assertRowDelete, assertRowInsert, assertSchemaMutable } from '@/lib/table/mutation-locks'
 import type { DbTransaction } from '@/lib/table/planner'
 import { nextImportStartOrderKey, nextImportStartPosition } from '@/lib/table/rows/ordering'
@@ -99,9 +104,13 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
   let source: Readable | undefined
 
   try {
-    if (!(await updateJobProgress(tableId, 0, importId))) throw new ImportSupersededError()
+    if (!(await updateJobProgressInWorkspace(tableId, workspaceId, 0, importId))) {
+      throw new ImportSupersededError()
+    }
     const loaded = await getTableById(tableId, { includeArchived: true })
-    if (!loaded) throw new Error(`Import target table ${tableId} not found`)
+    if (!loaded || loaded.workspaceId !== workspaceId) {
+      throw new Error(`Import target table ${tableId} not found in workspace ${workspaceId}`)
+    }
     const table = loaded
 
     // Every mode ends in row inserts, and `replace` deletes first. Assert both
@@ -118,20 +127,29 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
     // file through. Rows already committed stay — as with an explicit cancel.
     const revalidateInsert = async (trx: DbTransaction) => {
       const fresh = await getTableById(tableId, { tx: trx, includeArchived: true })
-      if (fresh) assertRowInsert(fresh)
-      return fresh ?? undefined
+      if (!fresh || fresh.workspaceId !== workspaceId) {
+        throw new OrchestrationError('not_found', 'Table not found')
+      }
+      assertRowInsert(fresh)
+      return fresh
     }
     /** Same guard for the replace-mode wipe, which lands before the first batch. */
     const revalidateDelete = async (trx: DbTransaction) => {
       const fresh = await getTableById(tableId, { tx: trx, includeArchived: true })
-      if (fresh) assertRowDelete(fresh)
-      return fresh ?? undefined
+      if (!fresh || fresh.workspaceId !== workspaceId) {
+        throw new OrchestrationError('not_found', 'Table not found')
+      }
+      assertRowDelete(fresh)
+      return fresh
     }
     /** Same guard for the inferred-schema write and `createColumns`. */
     const revalidateSchema = async (trx: DbTransaction) => {
       const fresh = await getTableById(tableId, { tx: trx, includeArchived: true })
-      if (fresh) assertSchemaMutable(fresh)
-      return fresh ?? undefined
+      if (!fresh || fresh.workspaceId !== workspaceId) {
+        throw new OrchestrationError('not_found', 'Table not found')
+      }
+      assertSchemaMutable(fresh)
+      return fresh
     }
 
     // Total byte size for the progress estimate — a cheap HEAD, no download. May be null on
@@ -190,7 +208,7 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
      * map onto the existing schema, optionally auto-creating `createColumns` first.
      */
     const resolveSetup = async () => {
-      if (!(await updateJobProgress(tableId, inserted, importId))) {
+      if (!(await updateJobProgressInWorkspace(tableId, workspaceId, inserted, importId))) {
         throw new ImportSupersededError()
       }
       const headers = csvHeaders
@@ -260,7 +278,7 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
       // Ownership gate before every insert: once this run loses the table (cancel/supersede),
       // updateJobProgress returns false and we stop before writing into a table a newer import
       // may own. Runs per batch (not just at the emit cadence) so we stop within one batch.
-      const owns = await updateJobProgress(tableId, inserted, importId)
+      const owns = await updateJobProgressInWorkspace(tableId, workspaceId, inserted, importId)
       if (!owns) throw new ImportSupersededError()
       const coerced = coerceRowsForTable(rows, schema, headerToColumn, {
         timezone: payload.timezone,
@@ -359,7 +377,7 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
       if (sample.length === 0) {
         // No data rows — fail rather than report a successful empty import (matches the sync route).
         const message = 'CSV file has no data rows'
-        await markJobFailed(tableId, importId, message)
+        await markJobFailedInWorkspace(tableId, workspaceId, importId, message)
         void appendTableEvent({
           kind: 'job',
           type: 'import',
@@ -390,10 +408,10 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
       await flush(batch)
     }
 
-    await updateJobProgress(tableId, inserted, importId)
+    await updateJobProgressInWorkspace(tableId, workspaceId, inserted, importId)
     // Only announce success if we actually won the transition — a cancel/supersede that landed
     // right at the end makes this a no-op, and we must not emit a false `ready`.
-    const becameReady = await markJobReady(tableId, importId)
+    const becameReady = await markJobReadyInWorkspace(tableId, workspaceId, importId)
     if (becameReady) {
       void appendTableEvent({
         kind: 'job',
@@ -437,7 +455,16 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
       const message = getErrorMessage(err, 'Import failed')
       logger.error(`[${requestId}] Import failed for table ${tableId}:`, err)
       // Scoped to importId — a no-op if a newer import has taken over.
-      await markJobFailed(tableId, importId, message).catch(() => {})
+      try {
+        await markJobFailedInWorkspace(tableId, workspaceId, importId, message)
+      } catch (failureError) {
+        logger.error(`[${requestId}] Failed to mark import job failed`, {
+          tableId,
+          workspaceId,
+          importId,
+          error: getErrorMessage(failureError, 'Unknown job transition error'),
+        })
+      }
       void appendTableEvent({
         kind: 'job',
         type: 'import',

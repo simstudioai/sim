@@ -4,209 +4,151 @@
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCheckRateLimit,
-  mockResolveWorkspaceAccess,
-  mockCreateUploadSession,
-  mockLoadActiveFolderPathIndex,
-  mockWithFolderTreeLock,
-} = vi.hoisted(() => ({
-  mockCheckRateLimit: vi.fn(),
-  mockResolveWorkspaceAccess: vi.fn(),
-  mockCreateUploadSession: vi.fn(),
-  mockLoadActiveFolderPathIndex: vi.fn(),
-  mockWithFolderTreeLock: vi.fn(),
+const mocks = vi.hoisted(() => ({
+  authenticateV2ApiKey: vi.fn(),
+  checkRateLimitDirect: vi.fn(),
+  checkRateLimitDirectOrThrow: vi.fn(),
+  createUpload: vi.fn(),
+  gate: vi.fn(),
 }))
 
-vi.mock('@/app/api/v1/middleware', () => ({
-  checkRateLimit: mockCheckRateLimit,
-  resolveWorkspaceAccess: mockResolveWorkspaceAccess,
+vi.mock('@/lib/uploads/upload-session/application', () => ({
+  createWorkspaceFileUploadOperation: {
+    operation: { id: 'files.upload.create', minimumRole: 'write', workspaceApiKey: 'allow' },
+    execute: mocks.createUpload,
+  },
 }))
 
-vi.mock('@/app/api/v2/lib/gate', () => ({
-  v2ApiGateError: vi.fn().mockResolvedValue(null),
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
+  authenticateV2ApiKey: mocks.authenticateV2ApiKey,
+  V2ApiKeyUnauthenticatedError: class V2ApiKeyUnauthenticatedError extends Error {},
 }))
 
-vi.mock('@/lib/folders/queries', () => ({
-  loadActiveFolderPathIndex: mockLoadActiveFolderPathIndex,
+vi.mock('@/lib/core/rate-limiter', () => ({
+  getRateLimit: () => ({ maxTokens: 100, refillRate: 50, refillIntervalMs: 60_000 }),
+  RateLimiter: class RateLimiter {
+    checkRateLimitDirect = mocks.checkRateLimitDirect
+    checkRateLimitDirectOrThrow = mocks.checkRateLimitDirectOrThrow
+  },
 }))
 
-vi.mock('@/lib/folders/locks', () => ({
-  withFolderTreeLock: mockWithFolderTreeLock,
-}))
+vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: mocks.gate }))
 
-vi.mock('@/lib/uploads/upload-session/service', () => ({
-  createUploadSession: mockCreateUploadSession,
+vi.mock('@/app/api/v2/files/uploads/utils', () => ({
+  toV2FileUpload: vi.fn(async () => ({
+    id: 'upload-1',
+    status: 'uploading',
+    name: 'file.csv',
+    contentType: 'text/csv',
+    size: 10,
+    expiresAt: '2026-08-04T21:00:00.000Z',
+    error: null,
+    file: null,
+  })),
 }))
 
 import { POST } from '@/app/api/v2/files/uploads/route'
 
 const WORKSPACE_ID = '6fc7631d-88cd-46f8-9f0a-d4764daef7f8'
-const RATE_LIMIT = {
-  allowed: true,
-  userId: 'user-1',
-  keyType: 'workspace',
-  limit: 100,
-  remaining: 99,
-  resetAt: new Date('2026-08-03T22:00:00.000Z'),
+const PRINCIPAL = {
+  kind: 'workspace_api_key' as const,
+  workspaceId: WORKSPACE_ID,
+  keyId: 'key-1',
+}
+const AUTH = {
+  principal: PRINCIPAL,
+  rolloutUserId: 'billing-owner-1',
+  rateLimitSubjectIds: ['api-key:key-1', `workspace:${WORKSPACE_ID}`] as const,
+  rateLimitSubscription: null,
+  keyType: 'workspace' as const,
 }
 const UPLOAD_SESSION = {
   id: 'upload-1',
-  workspaceId: WORKSPACE_ID,
-  userId: 'user-1',
-  knowledgeBaseId: null,
-  workflowId: null,
-  executionId: null,
-  purpose: 'workspace_file',
-  method: 'put',
-  storageContext: 'workspace',
-  storageKey: `${WORKSPACE_ID}/file.csv`,
-  finalKey: `${WORKSPACE_ID}/file.csv`,
-  storageProvider: 's3',
-  providerUploadId: null,
-  providerObjectVersion: null,
-  fileName: 'file.csv',
-  contentType: 'text/csv',
-  fileSize: 10,
-  partSize: null,
-  partCount: null,
-  status: 'uploading',
   uploadToken: 'signed-upload-token',
-  metadata: {},
-  completedFileId: null,
-  error: null,
-  expiresAt: new Date('2026-08-04T21:00:00.000Z'),
-  createdAt: new Date('2026-08-03T21:00:00.000Z'),
-  updatedAt: new Date('2026-08-03T21:00:00.000Z'),
-  completedAt: null,
   transfer: {
-    method: 'put',
+    method: 'put' as const,
     url: 'https://storage.example/upload',
     headers: { 'content-type': 'text/csv' },
   },
 }
 
 function request(body: Record<string, unknown>) {
-  return POST(
-    new NextRequest('http://localhost:3000/api/v2/files/uploads', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
-  )
+  const request = new NextRequest('http://localhost:3000/api/v2/files/uploads', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': 'secret' },
+    body: JSON.stringify(body),
+  })
+  return { request, response: POST(request) }
 }
 
 describe('POST /api/v2/files/uploads', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockCheckRateLimit.mockResolvedValue(RATE_LIMIT)
-    mockResolveWorkspaceAccess.mockResolvedValue(null)
-    mockWithFolderTreeLock.mockImplementation(async (_workspaceId, _resourceType, operation) =>
-      operation({})
-    )
-    mockLoadActiveFolderPathIndex.mockResolvedValue({
-      rowById: new Map(),
-      pathById: new Map(),
-      idByPath: new Map([['/Reports', 'folder-reports']]),
+    mocks.authenticateV2ApiKey.mockResolvedValue(AUTH)
+    mocks.gate.mockResolvedValue(null)
+    mocks.checkRateLimitDirect.mockResolvedValue({
+      allowed: true,
+      remaining: 599,
+      resetAt: new Date('2026-08-04T21:00:00.000Z'),
     })
-    mockCreateUploadSession.mockResolvedValue(UPLOAD_SESSION)
+    mocks.checkRateLimitDirectOrThrow.mockResolvedValue({
+      allowed: true,
+      remaining: 99,
+      resetAt: new Date('2026-08-04T21:00:00.000Z'),
+    })
+    mocks.createUpload.mockResolvedValue(UPLOAD_SESSION)
   })
 
-  it('creates one signed PUT session for a small file', async () => {
-    const response = await request({
+  it('creates a signed upload through the workspace principal pipeline', async () => {
+    const call = request({
       workspaceId: WORKSPACE_ID,
       name: 'file.csv',
       contentType: 'text/csv',
       size: 10,
     })
+    const response = await call.response
 
     expect(response.status).toBe(201)
-    const { data } = await response.json()
-    expect(data).toMatchObject({
-      session: { id: 'upload-1', status: 'uploading', file: null },
-      uploadToken: 'signed-upload-token',
-      transfer: { method: 'put', url: 'https://storage.example/upload' },
+    expect(await response.json()).toMatchObject({
+      data: {
+        session: { id: 'upload-1', status: 'uploading', file: null },
+        uploadToken: 'signed-upload-token',
+        transfer: { method: 'put', url: 'https://storage.example/upload' },
+      },
     })
-    expect(data.session).not.toHaveProperty('uploadToken')
-    expect(data.session).not.toHaveProperty('transfer')
-    expect(data.session).not.toHaveProperty('partSize')
-    expect(data.session).not.toHaveProperty('partCount')
-    expect(mockCreateUploadSession).toHaveBeenCalledWith({
-      workspaceId: WORKSPACE_ID,
-      userId: 'user-1',
-      purpose: 'workspace_file',
-      fileName: 'file.csv',
-      contentType: 'text/csv',
-      fileSize: 10,
-      metadata: { folderId: null },
-      localOrigin: 'http://localhost:3000',
+    expect(mocks.createUpload).toHaveBeenCalledWith({
+      principal: PRINCIPAL,
+      input: {
+        workspaceId: WORKSPACE_ID,
+        name: 'file.csv',
+        contentType: 'text/csv',
+        size: 10,
+        folderPath: '/',
+      },
+      request: call.request,
     })
   })
 
-  it('authorizes workspace write access before creating provider state', async () => {
-    mockResolveWorkspaceAccess.mockResolvedValue({
-      status: 403,
-      code: 'FORBIDDEN',
-      message: 'Access denied',
-    })
+  it('authenticates and rate limits before request validation', async () => {
+    const response = await request({ workspaceId: WORKSPACE_ID }).response
 
-    const response = await request({
-      workspaceId: WORKSPACE_ID,
-      name: 'file.csv',
-      contentType: 'text/csv',
-      size: 10,
-    })
-
-    expect(response.status).toBe(403)
-    expect(mockLoadActiveFolderPathIndex).not.toHaveBeenCalled()
-    expect(mockCreateUploadSession).not.toHaveBeenCalled()
+    expect(response.status).toBe(400)
+    expect(mocks.authenticateV2ApiKey).toHaveBeenCalledTimes(1)
+    expect(mocks.checkRateLimitDirectOrThrow).toHaveBeenCalledTimes(2)
+    expect(mocks.createUpload).not.toHaveBeenCalled()
   })
 
-  it('creates an upload session for an empty workspace file', async () => {
-    const response = await request({
+  it('does not run a second creator-based authentication path', async () => {
+    await request({
       workspaceId: WORKSPACE_ID,
-      name: 'file.csv',
-      contentType: 'text/csv',
+      name: 'empty.txt',
+      contentType: 'text/plain',
       size: 0,
-    })
+    }).response
 
-    expect(response.status).toBe(201)
-    expect(mockCreateUploadSession).toHaveBeenCalledWith(
-      expect.objectContaining({ purpose: 'workspace_file', fileSize: 0 })
-    )
-  })
-
-  it('releases the folder tree lock before creating an upload session', async () => {
-    let lockHeld = false
-    mockWithFolderTreeLock.mockImplementation(async (_workspaceId, _resourceType, operation) => {
-      lockHeld = true
-      try {
-        return await operation({})
-      } finally {
-        lockHeld = false
-      }
-    })
-    mockCreateUploadSession.mockImplementationOnce(async () => {
-      expect(lockHeld).toBe(false)
-      return UPLOAD_SESSION
-    })
-
-    const response = await request({
-      workspaceId: WORKSPACE_ID,
-      name: 'file.csv',
-      contentType: 'text/csv',
-      size: 10,
-      folderPath: '/Reports',
-    })
-
-    expect(response.status).toBe(201)
-    expect(mockLoadActiveFolderPathIndex).toHaveBeenCalledWith(
-      WORKSPACE_ID,
-      'file',
-      expect.any(Object)
-    )
-    expect(mockCreateUploadSession).toHaveBeenCalledWith(
-      expect.objectContaining({ metadata: { folderId: 'folder-reports' } })
+    expect(mocks.authenticateV2ApiKey).toHaveBeenCalledTimes(1)
+    expect(mocks.createUpload).toHaveBeenCalledWith(
+      expect.objectContaining({ principal: PRINCIPAL })
     )
   })
 })

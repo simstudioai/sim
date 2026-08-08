@@ -10,13 +10,24 @@ import {
   v2ExecuteWorkflowContract,
 } from '@/lib/api/contracts/v2/workflows'
 import { parseRequest } from '@/lib/api/server'
+import {
+  admitV2Request,
+  V2RouteInfrastructureError,
+  v2ApiKeyAuth,
+  v2RateLimits,
+} from '@/lib/api/server/routes'
+import type { V2ApiKeyPrincipal } from '@/lib/api/server/routes/v2-api-key-auth'
 import { tryAdmit } from '@/lib/core/admission/gate'
 import { ADMISSION_ERROR_DESCRIPTOR } from '@/lib/core/admission/transient-failure'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { v2WorkflowErrorPolicies } from '@/lib/workflows/api'
+import { executeWorkflowOperation } from '@/lib/workflows/application/execute-workflow'
+import { workflowOperations } from '@/lib/workflows/application/operations'
 import {
   type ExecuteWorkflowServiceFailure,
+  type ExecuteWorkflowServiceResult,
   executeWorkflowService,
 } from '@/lib/workflows/executor/execute-service'
 import {
@@ -25,8 +36,6 @@ import {
   clientAcceptsAgentStreamProtocol,
   hasAgentStreamPolicy,
 } from '@/lib/workflows/streaming/agent-stream-protocol'
-import { getWorkspaceBillingSettings } from '@/lib/workspaces/utils'
-import { authenticateV1Request } from '@/app/api/v1/auth'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import { type V2ErrorCode, v2Data, v2Error, v2ValidationError } from '@/app/api/v2/lib/response'
 import {
@@ -90,9 +99,9 @@ function serviceFailureResponse(failure: ExecuteWorkflowServiceFailure) {
  *   an in-band run failure is `status: 'failed'`, never an HTTP error. A
  *   Response block's declared payload stays inside `output` — v2 never lets a
  *   workflow author control response status or headers on this origin.
- * - Rate limiting: the execution `sync`/`async` buckets via preprocessing —
- *   deliberately NOT the shared `api-endpoint` bucket, and async runs debit
- *   the async bucket (unlike v1's known sync-bucket bug).
+ * - Rate limiting: keyed requests consume the shared request-rate bucket;
+ *   execution preprocessing separately enforces the `sync`/`async` execution
+ *   bucket, quota, billing, and concurrency checks.
  */
 export const POST = withRouteHandler(
   async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {
@@ -101,18 +110,19 @@ export const POST = withRouteHandler(
 
     let userId: string
     let isPublicApiAccess = false
-    let apiKeyType: 'personal' | 'workspace' | undefined
-    let apiKeyWorkspaceId: string | undefined
+    let apiKeyPrincipal: V2ApiKeyPrincipal | undefined
 
-    const auth = await authenticateV1Request(req)
-    if (auth.authenticated && auth.userId) {
-      userId = auth.userId
-      apiKeyType = auth.keyType
-      apiKeyWorkspaceId = auth.workspaceId
+    if (req.headers.has('x-api-key')) {
+      const admission = await admitV2Request(
+        req,
+        workflowOperations.execute,
+        v2ApiKeyAuth,
+        v2RateLimits.publicApi
+      )
+      if (!admission.success) return admission.response
+      apiKeyPrincipal = admission.auth.principal
+      userId = admission.auth.rolloutUserId
     } else {
-      if (req.headers.has('x-api-key')) {
-        return v2Error('UNAUTHORIZED', auth.error || 'Unauthorized')
-      }
       const [wf] = await db
         .select({
           isPublicApi: workflowTable.isPublicApi,
@@ -139,8 +149,10 @@ export const POST = withRouteHandler(
       isPublicApiAccess = true
     }
 
-    const gate = await v2ApiGateError(userId)
-    if (gate) return gate
+    if (isPublicApiAccess) {
+      const gate = await v2ApiGateError(userId)
+      if (gate) return gate
+    }
 
     const ticket = tryAdmit()
     if (!ticket) {
@@ -204,47 +216,55 @@ export const POST = withRouteHandler(
         requestedExecutionId = runIdHeader
       }
 
-      const workflowAuthorization = await authorizeWorkflowByWorkspacePermission({
-        workflowId,
-        userId,
-        action: 'read',
-      })
-      // Mask authorization failures as 404 so cross-workspace existence never leaks.
-      if (!workflowAuthorization.allowed || !workflowAuthorization.workflow) {
-        return v2Error('NOT_FOUND', 'Workflow not found')
-      }
-      const workflowRecord = workflowAuthorization.workflow
-
-      if (apiKeyType === 'workspace' && workflowRecord.workspaceId !== apiKeyWorkspaceId) {
-        return v2Error('NOT_FOUND', 'Workflow not found')
-      }
-      if (apiKeyType === 'personal' && workflowRecord.workspaceId) {
-        const settings = await getWorkspaceBillingSettings(workflowRecord.workspaceId)
-        if (!settings?.allowPersonalApiKeys) {
-          return v2Error('FORBIDDEN', 'Personal API keys are not allowed for this workspace')
+      let result: ExecuteWorkflowServiceResult
+      if (apiKeyPrincipal) {
+        result = await executeWorkflowOperation.execute({
+          principal: apiKeyPrincipal,
+          input: {
+            workflowId,
+            requestId,
+            input: body.input ?? {},
+            executionId: requestedExecutionId,
+            includeFileBase64: body.includeFileBase64,
+            base64MaxBytes: body.base64MaxBytes,
+            selectedOutputs: body.selectedOutputs,
+            requestedTimeoutSeconds: body.executionTimeoutSeconds,
+            abortSignal: req.signal,
+            mode: body.async ? 'async' : body.stream ? 'stream' : 'sync',
+            requestHeaders: req.headers,
+            includeThinking: body.includeThinking,
+            includeToolCalls: body.includeToolCalls,
+          },
+          request: req,
+        })
+      } else {
+        const workflowAuthorization = await authorizeWorkflowByWorkspacePermission({
+          workflowId,
+          userId,
+          action: 'read',
+        })
+        // Mask authorization failures as 404 so cross-workspace existence never leaks.
+        if (!workflowAuthorization.allowed || !workflowAuthorization.workflow) {
+          return v2Error('NOT_FOUND', 'Workflow not found')
         }
+        result = await executeWorkflowService({
+          workflowId,
+          userId,
+          input: body.input ?? {},
+          triggerType: 'api',
+          requestId,
+          workflowRecord: workflowAuthorization.workflow,
+          includeFileBase64: body.includeFileBase64,
+          base64MaxBytes: body.base64MaxBytes,
+          selectedOutputs: body.selectedOutputs,
+          rateLimitCounter: 'sync',
+          abortSignal: req.signal,
+          mode: body.stream ? 'stream' : 'sync',
+          requestHeaders: req.headers,
+          includeThinking: body.includeThinking,
+          includeToolCalls: body.includeToolCalls,
+        })
       }
-
-      const result = await executeWorkflowService({
-        workflowId,
-        userId,
-        input: body.input ?? {},
-        triggerType: 'api',
-        requestId,
-        executionId: requestedExecutionId,
-        useAuthenticatedUserAsActor: apiKeyType === 'personal',
-        workflowRecord,
-        includeFileBase64: body.includeFileBase64,
-        base64MaxBytes: body.base64MaxBytes,
-        selectedOutputs: body.selectedOutputs,
-        rateLimitCounter: body.async ? 'async' : 'sync',
-        requestedTimeoutSeconds: body.executionTimeoutSeconds,
-        abortSignal: req.signal,
-        mode: body.async ? 'async' : body.stream ? 'stream' : 'sync',
-        requestHeaders: req.headers,
-        includeThinking: body.includeThinking,
-        includeToolCalls: body.includeToolCalls,
-      })
 
       if (!result.ok) {
         return serviceFailureResponse(result.failure)
@@ -285,6 +305,8 @@ export const POST = withRouteHandler(
         { headers: { [V2_WORKFLOW_RUN_ID_HEADER]: result.executionId } }
       )
     } catch (error) {
+      const classified = v2WorkflowErrorPolicies.concealWorkflowAuthorization.render(error)
+      if (classified) return classified
       logger.error(`[${requestId}] v2 execute failed`, {
         workflowId,
         error: getErrorMessage(error, 'Unknown error'),
@@ -293,5 +315,11 @@ export const POST = withRouteHandler(
     } finally {
       ticket.release()
     }
+  },
+  {
+    unhandledErrorResponse: ({ error }) =>
+      error instanceof V2RouteInfrastructureError
+        ? v2Error('SERVICE_UNAVAILABLE', 'Service temporarily unavailable')
+        : v2Error('INTERNAL_ERROR', 'Internal server error'),
   }
 )

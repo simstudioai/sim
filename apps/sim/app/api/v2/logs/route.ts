@@ -1,110 +1,60 @@
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
-import type { NextRequest } from 'next/server'
 import { traceSpansSchema } from '@/lib/api/contracts/logs'
 import {
   type V2LogListItem,
   v2ListLogsContract,
   v2LogStatusSchema,
 } from '@/lib/api/contracts/v2/logs'
-import { parseRequest } from '@/lib/api/server'
-import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
-import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
-import { decodePublicLogCursor, listPublicWorkflowLogs } from '@/lib/logs/public-queries'
-import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
-import { resolveFolderPathId } from '@/app/api/v2/lib/folders'
-import { v2ApiGateError } from '@/app/api/v2/lib/gate'
-import {
-  v2CursorList,
-  v2Error,
-  v2RateLimitError,
-  v2ValidationError,
-  v2WorkspaceAccessError,
-} from '@/app/api/v2/lib/response'
-
-const logger = createLogger('V2LogsAPI')
+import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { v2LogErrorPolicies } from '@/lib/logs/api/route-policies'
+import { listPublicLogs } from '@/lib/logs/application/list-public-logs'
+import { logOperations } from '@/lib/logs/application/operations'
+import { decodePublicLogCursor } from '@/lib/logs/public-queries'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-export const GET = withRouteHandler(async (request: NextRequest) => {
-  const requestId = generateId().slice(0, 8)
-
-  try {
-    const rateLimit = await checkRateLimit(request, 'logs')
-    if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
-
-    const userId = rateLimit.userId!
-
-    const gate = await v2ApiGateError(userId)
-    if (gate) return gate
-
-    const parsed = await parseRequest(
-      v2ListLogsContract,
-      request,
-      {},
-      {
-        validationErrorResponse: v2ValidationError,
-      }
-    )
-    if (!parsed.success) return parsed.response
-
-    const params = parsed.data.query
-
-    const access = await resolveWorkspaceAccess(rateLimit, userId, params.workspaceId, 'read')
-    if (access) return v2WorkspaceAccessError(access)
-
-    const folderPaths = params.folderPaths?.split(',').filter(Boolean)
-    const folderIndex = folderPaths
-      ? await loadActiveFolderPathIndex(params.workspaceId, 'workflow')
+export const GET = defineV2JsonRoute({
+  contract: v2ListLogsContract,
+  auth: v2ApiKeyAuth,
+  operation: logOperations.list,
+  rateLimit: v2RateLimits.publicApi,
+  errorPolicy: v2LogErrorPolicies.default,
+  mapInput: ({ query }) => {
+    const decodedCursor = query.cursor
+      ? decodePublicLogCursor(query.cursor, query.order ?? 'desc')
       : null
-    const resolvedFolderIds = folderPaths?.map((path) => resolveFolderPathId(folderIndex!, path))
-    if (resolvedFolderIds?.some((folderId) => folderId === undefined)) {
-      return v2Error('NOT_FOUND', 'Folder not found')
+    if (query.cursor && !decodedCursor) {
+      throw new OrchestrationError('validation', 'Invalid cursor')
     }
-    const nonRootFolderIds = resolvedFolderIds?.filter(
-      (folderId): folderId is string => typeof folderId === 'string'
-    )
-    const includesRoot = resolvedFolderIds?.includes(null) ?? false
-
-    const decodedCursor = params.cursor
-      ? decodePublicLogCursor(params.cursor, params.order ?? 'desc')
-      : null
-    if (params.cursor && !decodedCursor) return v2Error('BAD_REQUEST', 'Invalid cursor')
-    const cursor = decodedCursor ?? undefined
-    const includeFullDetails =
-      params.details === 'full' || params.includeFinalOutput || params.includeTraceSpans
-
-    const filters = {
-      workspaceId: params.workspaceId,
-      workflowIds: params.workflowIds?.split(',').filter(Boolean),
-      folderIds: nonRootFolderIds,
-      triggers: params.triggers?.split(',').filter(Boolean),
-      level: params.level,
-      startDate: params.startDate ? new Date(params.startDate) : undefined,
-      endDate: params.endDate ? new Date(params.endDate) : undefined,
-      executionId: params.runId,
-      minDurationMs: params.minDurationMs,
-      maxDurationMs: params.maxDurationMs,
-      minCost: params.minCost,
-      maxCost: params.maxCost,
-      model: params.model,
-      cursor,
-      order: params.order,
+    return {
+      workspaceId: query.workspaceId,
+      filters: {
+        workflowIds: query.workflowIds?.split(',').filter(Boolean),
+        triggers: query.triggers?.split(',').filter(Boolean),
+        level: query.level,
+        startDate: query.startDate ? new Date(query.startDate) : undefined,
+        endDate: query.endDate ? new Date(query.endDate) : undefined,
+        executionId: query.runId,
+        minDurationMs: query.minDurationMs,
+        maxDurationMs: query.maxDurationMs,
+        minCost: query.minCost,
+        maxCost: query.maxCost,
+        model: query.model,
+        cursor: decodedCursor ?? undefined,
+        order: query.order,
+      },
+      folderPaths: query.folderPaths?.split(',').filter(Boolean),
+      limit: query.limit,
+      includeFullDetails:
+        query.details === 'full' || query.includeFinalOutput || query.includeTraceSpans,
+      includeFinalOutput: query.includeFinalOutput,
+      includeTraceSpans: query.includeTraceSpans,
     }
-
-    const { data, nextCursor } = await listPublicWorkflowLogs({
-      filters,
-      limit: params.limit,
-      includeExecutionData: includeFullDetails,
-      folderScope: folderPaths ? { includesRoot, folderIds: nonRootFolderIds ?? [] } : undefined,
-    })
-
-    type LogRow = (typeof data)[number]
-    const buildItem = (log: LogRow): V2LogListItem => {
+  },
+  useCase: listPublicLogs,
+  present: ({ items, nextCursor, includeFullDetails, includeFinalOutput, includeTraceSpans }) => ({
+    data: items.map(({ log, executionData }): V2LogListItem => {
       const item: V2LogListItem = {
         runId: log.executionId,
         workflowId: log.workflowId,
@@ -126,39 +76,16 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
           deleted: !log.workflowName || log.workflowArchivedAt !== null,
         }
       }
+      if (executionData) {
+        if (includeFinalOutput && executionData.finalOutput !== undefined) {
+          item.finalOutput = executionData.finalOutput
+        }
+        if (includeTraceSpans) {
+          item.traceSpans = traceSpansSchema.parse(executionData.traceSpans ?? [])
+        }
+      }
       return item
-    }
-
-    const needsMaterialize = params.includeFinalOutput || params.includeTraceSpans
-
-    const formattedLogs = needsMaterialize
-      ? await mapWithConcurrency(data, MATERIALIZE_CONCURRENCY, async (log) => {
-          const item = buildItem(log)
-          if (log.executionData) {
-            const execData = (await materializeExecutionData(
-              log.executionData as Record<string, unknown> | null,
-              {
-                workspaceId: log.workspaceId,
-                workflowId: log.workflowId,
-                executionId: log.executionId,
-              }
-            )) as Record<string, unknown>
-            if (params.includeFinalOutput && execData.finalOutput !== undefined) {
-              item.finalOutput = execData.finalOutput
-            }
-            if (params.includeTraceSpans) {
-              item.traceSpans = traceSpansSchema.parse(execData.traceSpans ?? [])
-            }
-          }
-          return item
-        })
-      : data.map(buildItem)
-
-    return v2CursorList(formattedLogs, nextCursor, { rateLimit })
-  } catch (error) {
-    logger.error(`[${requestId}] Logs fetch error`, {
-      error: getErrorMessage(error, 'Unknown error'),
-    })
-    return v2Error('INTERNAL_ERROR', 'Internal server error')
-  }
+    }),
+    nextCursor,
+  }),
 })

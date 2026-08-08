@@ -166,14 +166,16 @@ interface ListActiveFolderRowsOptions {
   search?: string
   sortBy?: Exclude<FolderSortBy, 'position'>
   sortOrder?: V2SortOrder
+  maxRows?: number
 }
 
 export async function loadActiveFolderPathIndex(
   workspaceId: string,
   resourceType: FolderResourceType,
-  tx: DbOrTx = db
+  tx: DbOrTx = db,
+  options?: { maxRows?: number }
 ): Promise<FolderPathIndex<typeof folder.$inferSelect>> {
-  const rows = await tx
+  const query = tx
     .select()
     .from(folder)
     .where(
@@ -183,6 +185,10 @@ export async function loadActiveFolderPathIndex(
         isNull(folder.deletedAt)
       )
     )
+  const rows = options?.maxRows === undefined ? await query : await query.limit(options.maxRows + 1)
+  if (options?.maxRows !== undefined && rows.length > options.maxRows) {
+    throw new Error(`Folder path index exceeds the ${options.maxRows} row limit`)
+  }
 
   return buildFolderPathIndex(rows)
 }
@@ -208,7 +214,7 @@ export async function listActiveFolderRows(
         ? isNull(folder.parentId)
         : eq(folder.parentId, options.parentId)
 
-  return tx
+  const query = tx
     .select()
     .from(folder)
     .where(
@@ -221,6 +227,11 @@ export async function listActiveFolderRows(
       )
     )
     .orderBy(...listOrderBy(FOLDER_SORTS[options.sortBy ?? 'name'], options.sortOrder ?? 'asc'))
+  const rows = options.maxRows === undefined ? await query : await query.limit(options.maxRows + 1)
+  if (options.maxRows !== undefined && rows.length > options.maxRows) {
+    throw new Error(`Folder list exceeds the ${options.maxRows} row limit`)
+  }
+  return rows
 }
 
 /**

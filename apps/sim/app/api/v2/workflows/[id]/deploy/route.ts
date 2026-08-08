@@ -1,176 +1,91 @@
-import { createLogger } from '@sim/logger'
-import { assertWorkflowMutable, WorkflowLockedError } from '@sim/platform-authz/workflow'
-import { getErrorMessage } from '@sim/utils/errors'
-import type { NextRequest } from 'next/server'
-import { v1DeployWorkflowBodySchema } from '@/lib/api/contracts/v1/workflows'
 import {
   v2DeployWorkflowContract,
   v2UndeployWorkflowContract,
 } from '@/lib/api/contracts/v2/workflows'
-import { parseOptionalJsonBody, parseRequest } from '@/lib/api/server'
+import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { performFullDeploy, performFullUndeploy } from '@/lib/workflows/orchestration'
-import { checkRateLimit } from '@/app/api/v1/middleware'
-import { v2ApiGateError } from '@/app/api/v2/lib/gate'
-import { v2Data, v2Error, v2RateLimitError, v2ValidationError } from '@/app/api/v2/lib/response'
-import { resolveV2WorkflowTarget } from '@/app/api/v2/workflows/utils'
-
-const logger = createLogger('V2WorkflowDeployAPI')
+import { v2WorkflowErrorPolicies } from '@/lib/workflows/api'
+import { deployWorkflow, undeployWorkflow } from '@/lib/workflows/application/deployments'
+import { workflowOperations } from '@/lib/workflows/application/operations'
+import { v2Error } from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 export const maxDuration = 120
 
-export const POST = withRouteHandler(
-  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
-    const requestId = generateRequestId()
-
-    try {
-      const rateLimit = await checkRateLimit(request, 'workflow-deploy')
-      if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
-
-      const userId = rateLimit.userId!
-
-      const gate = await v2ApiGateError(userId)
-      if (gate) return gate
-
-      const parsed = await parseRequest(v2DeployWorkflowContract, request, context, {
-        validationErrorResponse: v2ValidationError,
-      })
-      if (!parsed.success) return parsed.response
-
-      const { id } = parsed.data.params
-
-      const rawBody = await parseOptionalJsonBody(request)
-      if (!rawBody.success) {
-        return rawBody.response.status === 413
-          ? v2Error('PAYLOAD_TOO_LARGE', 'Request body is too large')
-          : v2Error('BAD_REQUEST', 'Request body must be valid JSON')
-      }
-      const body = v1DeployWorkflowBodySchema.safeParse(rawBody.data ?? {})
-      if (!body.success) return v2ValidationError(body.error)
-
-      const target = await resolveV2WorkflowTarget(rateLimit, userId, id, 'admin')
-      if (!target) return v2Error('NOT_FOUND', 'Workflow not found')
-      const { workspaceId } = target
-
-      await assertWorkflowMutable(id)
-
-      logger.info(`[${requestId}] Deploying workflow ${id} via v2 API`, { userId })
-
-      const result = await performFullDeploy({
-        workflowId: id,
-        userId,
-        versionName: body.data.name,
-        versionDescription: body.data.description ?? undefined,
-        requestId,
-      })
-
-      if (!result.success) {
-        const code =
-          result.errorCode === 'not_found'
-            ? 'NOT_FOUND'
-            : result.errorCode === 'validation'
-              ? 'BAD_REQUEST'
-              : 'INTERNAL_ERROR'
-        return v2Error(code, result.error || 'Failed to deploy workflow')
-      }
-
-      captureServerEvent(
-        userId,
-        'workflow_deployed',
-        { workflow_id: id, workspace_id: workspaceId },
-        {
-          groups: { workspace: workspaceId },
-          setOnce: { first_workflow_deployed_at: new Date().toISOString() },
-        }
-      )
-
-      return v2Data(
-        {
-          id,
-          isDeployed: true,
-          deployedAt: result.deployedAt?.toISOString() ?? null,
-          version: result.version,
-          warnings: result.warnings ?? [],
-        },
-        { rateLimit }
-      )
-    } catch (error) {
-      if (error instanceof WorkflowLockedError) {
-        return v2Error('LOCKED', error.message)
-      }
-      logger.error(`[${requestId}] Workflow deploy error`, {
-        error: getErrorMessage(error, 'Unknown error'),
-      })
-      return v2Error('INTERNAL_ERROR', 'Internal server error')
+export const POST = defineV2JsonRoute({
+  contract: v2DeployWorkflowContract,
+  auth: v2ApiKeyAuth,
+  operation: workflowOperations.deploy,
+  rateLimit: v2RateLimits.publicApi,
+  errorPolicy: v2WorkflowErrorPolicies.concealWorkflowAuthorization,
+  parseOptions: {
+    optionalJsonBody: true,
+    invalidJsonResponse: () => v2Error('BAD_REQUEST', 'Request body must be valid JSON'),
+    payloadTooLargeResponse: () => v2Error('PAYLOAD_TOO_LARGE', 'Request body is too large'),
+  },
+  mapInput: ({ params, body }) => ({
+    workflowId: params.id,
+    name: body.name,
+    description: body.description ?? undefined,
+    requestId: generateRequestId(),
+  }),
+  useCase: deployWorkflow,
+  present: (result) => ({
+    data: {
+      id: result.workflowId,
+      isDeployed: Boolean(result.activeDeployment),
+      deployedAt: result.deployedAt?.toISOString() ?? null,
+      version: result.version,
+      warnings: result.warnings ?? [],
+      activeDeployment: result.activeDeployment ?? null,
+      latestDeploymentAttempt: result.latestDeploymentAttempt ?? null,
+    },
+  }),
+  onSuccess: ({ principal, result }) => {
+    if (principal.kind !== 'personal_api_key') {
+      throw new Error('Admin deployment unexpectedly admitted a workspace API key')
     }
-  }
-)
-
-export const DELETE = withRouteHandler(
-  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
-    const requestId = generateRequestId()
-
-    try {
-      const rateLimit = await checkRateLimit(request, 'workflow-deploy')
-      if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
-
-      const userId = rateLimit.userId!
-
-      const gate = await v2ApiGateError(userId)
-      if (gate) return gate
-
-      const parsed = await parseRequest(v2UndeployWorkflowContract, request, context, {
-        validationErrorResponse: v2ValidationError,
-      })
-      if (!parsed.success) return parsed.response
-
-      const { id } = parsed.data.params
-
-      const target = await resolveV2WorkflowTarget(rateLimit, userId, id, 'admin')
-      if (!target) return v2Error('NOT_FOUND', 'Workflow not found')
-      const { workflow, workspaceId } = target
-
-      if (!workflow.isDeployed) {
-        return v2Error('BAD_REQUEST', 'Workflow is not deployed')
+    captureServerEvent(
+      principal.userId,
+      'workflow_deployed',
+      { workflow_id: result.workflowId, workspace_id: result.workspaceId },
+      {
+        groups: { workspace: result.workspaceId },
+        setOnce: { first_workflow_deployed_at: new Date().toISOString() },
       }
+    )
+  },
+})
 
-      await assertWorkflowMutable(id)
-
-      logger.info(`[${requestId}] Undeploying workflow ${id} via v2 API`, { userId })
-
-      const result = await performFullUndeploy({ workflowId: id, userId, requestId })
-      if (!result.success) {
-        return v2Error('INTERNAL_ERROR', result.error || 'Failed to undeploy workflow')
-      }
-
-      captureServerEvent(
-        userId,
-        'workflow_undeployed',
-        { workflow_id: id, workspace_id: workspaceId },
-        { groups: { workspace: workspaceId } }
-      )
-
-      return v2Data(
-        {
-          id,
-          isDeployed: false,
-          deployedAt: null,
-          warnings: result.warnings ?? [],
-        },
-        { rateLimit }
-      )
-    } catch (error) {
-      if (error instanceof WorkflowLockedError) {
-        return v2Error('LOCKED', error.message)
-      }
-      logger.error(`[${requestId}] Workflow undeploy error`, {
-        error: getErrorMessage(error, 'Unknown error'),
-      })
-      return v2Error('INTERNAL_ERROR', 'Internal server error')
+export const DELETE = defineV2JsonRoute({
+  contract: v2UndeployWorkflowContract,
+  auth: v2ApiKeyAuth,
+  operation: workflowOperations.undeploy,
+  rateLimit: v2RateLimits.publicApi,
+  errorPolicy: v2WorkflowErrorPolicies.concealWorkflowAuthorization,
+  mapInput: ({ params }) => ({ workflowId: params.id, requestId: generateRequestId() }),
+  useCase: undeployWorkflow,
+  present: (result) => ({
+    data: {
+      id: result.workflowId,
+      isDeployed: false,
+      deployedAt: null,
+      warnings: result.warnings ?? [],
+      activeDeployment: null,
+      latestDeploymentAttempt: null,
+    },
+  }),
+  onSuccess: ({ principal, result }) => {
+    if (principal.kind !== 'personal_api_key') {
+      throw new Error('Admin undeployment unexpectedly admitted a workspace API key')
     }
-  }
-)
+    captureServerEvent(
+      principal.userId,
+      'workflow_undeployed',
+      { workflow_id: result.workflowId, workspace_id: result.workspaceId },
+      { groups: { workspace: result.workspaceId } }
+    )
+  },
+})

@@ -1,61 +1,39 @@
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import type { NextRequest } from 'next/server'
 import { v2CancelWorkflowRunContract } from '@/lib/api/contracts/v2/workflows'
-import { parseRequest } from '@/lib/api/server'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import {
-  cancelWorkflowExecution,
-  WorkflowExecutionNotFoundError,
-} from '@/lib/execution/cancel-workflow-execution'
-import { v2Data, v2Error, v2ValidationError } from '@/app/api/v2/lib/response'
-import { resolveV2WorkflowAccess } from '@/app/api/v2/workflows/lib/access'
-
-const logger = createLogger('V2CancelRunAPI')
+import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
+import { captureServerEvent } from '@/lib/posthog/server'
+import { v2WorkflowErrorPolicies } from '@/lib/workflows/api'
+import { cancelWorkflowRun } from '@/lib/workflows/application/cancel-run'
+import { workflowOperations } from '@/lib/workflows/application/operations'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-export const POST = withRouteHandler(
-  async (req: NextRequest, context: { params: Promise<{ id: string; runId: string }> }) => {
-    const parsed = await parseRequest(v2CancelWorkflowRunContract, req, context, {
-      validationErrorResponse: v2ValidationError,
-    })
-    if (!parsed.success) return parsed.response
-    const { id: workflowId, runId } = parsed.data.params
-
-    const access = await resolveV2WorkflowAccess(req, workflowId, 'write')
-    if (!access.ok) return access.response
-
-    try {
-      logger.info('Cancel run requested', { workflowId, runId, userId: access.userId })
-
-      const result = await cancelWorkflowExecution({
-        executionId: runId,
-        workflowId,
-        userId: access.userId,
-        workspaceId: access.workflow.workspaceId ?? undefined,
-      })
-
-      return v2Data({
-        success: result.success,
-        runId: result.executionId,
-        redisAvailable: result.redisAvailable,
-        durablyRecorded: result.durablyRecorded,
-        locallyAborted: result.locallyAborted,
-        pausedCancelled: result.pausedCancelled,
-        reason: result.reason,
-      })
-    } catch (error) {
-      if (error instanceof WorkflowExecutionNotFoundError) {
-        return v2Error('NOT_FOUND', error.message)
-      }
-      logger.error('Failed to cancel run', {
-        workflowId,
-        runId,
-        error: getErrorMessage(error, 'Unknown error'),
-      })
-      return v2Error('INTERNAL_ERROR', 'Internal server error')
-    }
-  }
-)
+export const POST = defineV2JsonRoute({
+  contract: v2CancelWorkflowRunContract,
+  auth: v2ApiKeyAuth,
+  operation: workflowOperations.cancelRun,
+  rateLimit: v2RateLimits.publicApi,
+  errorPolicy: v2WorkflowErrorPolicies.concealRunAuthorization,
+  mapInput: ({ params }) => ({ workflowId: params.id, runId: params.runId }),
+  useCase: cancelWorkflowRun,
+  present: (result) => ({
+    data: {
+      success: result.success,
+      runId: result.executionId,
+      redisAvailable: result.redisAvailable,
+      durablyRecorded: result.durablyRecorded,
+      locallyAborted: result.locallyAborted,
+      pausedCancelled: result.pausedCancelled,
+      reason: result.reason,
+    },
+  }),
+  onSuccess: ({ principal, result }) => {
+    if (!result.success || principal.kind !== 'personal_api_key') return
+    captureServerEvent(
+      principal.userId,
+      'workflow_execution_cancelled',
+      { workflow_id: result.workflowId, workspace_id: result.workspaceId },
+      { groups: { workspace: result.workspaceId } }
+    )
+  },
+})

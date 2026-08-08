@@ -1,216 +1,79 @@
 /**
  * @vitest-environment node
  */
-import { NextRequest } from 'next/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCheckRateLimit,
-  mockResolveWorkspaceAccess,
-  mockLoadActiveFolderPathIndex,
-  mockListActiveFolderRows,
-  mockCreateFolderAtPath,
-  mockRelocateFolderByPath,
-  mockDeleteFolderByPath,
-} = vi.hoisted(() => ({
-  mockCheckRateLimit: vi.fn(),
-  mockResolveWorkspaceAccess: vi.fn(),
-  mockLoadActiveFolderPathIndex: vi.fn(),
-  mockListActiveFolderRows: vi.fn(),
-  mockCreateFolderAtPath: vi.fn(),
-  mockRelocateFolderByPath: vi.fn(),
-  mockDeleteFolderByPath: vi.fn(),
+const mocks = vi.hoisted(() => ({ defineRoute: vi.fn((definition) => definition) }))
+
+vi.mock('@/lib/api/server/routes', () => ({
+  defineV2JsonRoute: mocks.defineRoute,
+  v2ApiKeyAuth: { kind: 'v2-api-key' },
+  v2RateLimits: { publicApi: { kind: 'public-api' } },
+  v2OrchestrationErrorPolicy: { kind: 'orchestration-errors' },
 }))
 
-vi.mock('@/app/api/v1/middleware', () => ({
-  checkRateLimit: mockCheckRateLimit,
-  resolveWorkspaceAccess: mockResolveWorkspaceAccess,
-}))
-
-vi.mock('@/app/api/v2/lib/gate', () => ({
-  v2ApiGateError: vi.fn().mockResolvedValue(null),
-}))
-
-vi.mock('@/lib/folders/queries', () => ({
-  loadActiveFolderPathIndex: mockLoadActiveFolderPathIndex,
-  listActiveFolderRows: mockListActiveFolderRows,
-}))
-
-vi.mock('@/lib/folders/orchestration', () => ({
-  createFolderAtPath: mockCreateFolderAtPath,
-  relocateFolderByPath: mockRelocateFolderByPath,
-  deleteFolderByPath: mockDeleteFolderByPath,
-}))
-
+import { v2WorkflowErrorPolicies } from '@/lib/workflows/api'
+import { workflowOperations } from '@/lib/workflows/application/operations'
+import {
+  createWorkflowFolder,
+  deleteWorkflowFolder,
+  listWorkflowFolders,
+  relocateWorkflowFolder,
+} from '@/lib/workflows/application/workflow-folders'
 import { DELETE, GET, PATCH, POST } from '@/app/api/v2/workflows/folders/route'
 
-const WORKSPACE_ID = 'workspace-1'
-const FOLDER_ID = 'internal-folder-id'
-const RATE_LIMIT = {
-  allowed: true,
-  userId: 'user-1',
-  keyType: 'workspace',
-  limit: 100,
-  remaining: 99,
-  resetAt: new Date('2024-01-01T01:00:00Z'),
-}
-
-const folder = {
-  id: FOLDER_ID,
-  resourceType: 'workflow' as const,
-  name: 'Reports',
-  userId: 'user-1',
-  workspaceId: WORKSPACE_ID,
-  parentId: null,
-  sortOrder: 0,
-  locked: false,
-  createdAt: new Date('2024-01-01T00:00:00Z'),
-  updatedAt: new Date('2024-01-02T00:00:00Z'),
-  deletedAt: null,
-}
-
-function pathIndex(path = '/Reports') {
-  return {
-    rowById: new Map([[FOLDER_ID, folder]]),
-    pathById: new Map([[FOLDER_ID, path]]),
-    idByPath: new Map([[path, FOLDER_ID]]),
-  }
-}
-
-function request(method: string, path: string, body?: Record<string, unknown>) {
-  return new NextRequest(`http://localhost:3000${path}`, {
-    method,
-    headers: body ? { 'Content-Type': 'application/json' } : undefined,
-    body: body ? JSON.stringify(body) : undefined,
-  })
-}
-
-describe('/api/v2/workflows/folders', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mockCheckRateLimit.mockResolvedValue(RATE_LIMIT)
-    mockResolveWorkspaceAccess.mockResolvedValue(null)
-    mockLoadActiveFolderPathIndex.mockResolvedValue(pathIndex())
-    mockListActiveFolderRows.mockResolvedValue([folder])
-    mockCreateFolderAtPath.mockResolvedValue({
-      success: true,
-      folder,
-      path: '/Reports',
+describe('/api/v2/workflows/folders route definitions', () => {
+  it('binds every method to the matching semantic operation and authorized use case', () => {
+    expect(GET).toMatchObject({
+      operation: workflowOperations.listFolders,
+      useCase: listWorkflowFolders,
+      errorPolicy: v2WorkflowErrorPolicies.default,
     })
-    mockRelocateFolderByPath.mockResolvedValue({
-      success: true,
-      folder,
-      path: '/Reports',
+    expect(POST).toMatchObject({
+      operation: workflowOperations.createFolder,
+      useCase: createWorkflowFolder,
+      errorPolicy: v2WorkflowErrorPolicies.default,
     })
-    mockDeleteFolderByPath.mockResolvedValue({
-      success: true,
-      path: '/Reports',
-      deletedItems: { folders: 1, workflows: 2 },
+    expect(PATCH).toMatchObject({
+      operation: workflowOperations.relocateFolder,
+      useCase: relocateWorkflowFolder,
+      errorPolicy: v2WorkflowErrorPolicies.default,
+    })
+    expect(DELETE).toMatchObject({
+      operation: workflowOperations.deleteFolder,
+      useCase: deleteWorkflowFolder,
+      errorPolicy: v2WorkflowErrorPolicies.default,
     })
   })
 
-  it('lists only root children when parentPath is root and never exposes database ids', async () => {
-    const response = await GET(
-      request('GET', `/api/v2/workflows/folders?workspaceId=${WORKSPACE_ID}&parentPath=%2F`)
-    )
-    const body = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(mockListActiveFolderRows).toHaveBeenCalledWith(WORKSPACE_ID, 'workflow', {
-      parentId: null,
-      search: undefined,
+  it('maps only contract-owned inputs into application inputs', () => {
+    expect(
+      Reflect.get(
+        GET,
+        'mapInput'
+      )({
+        query: {
+          workspaceId: 'ws-1',
+          parentPath: '/',
+          search: 'reports',
+          sortBy: 'name',
+          sortOrder: 'asc',
+        },
+      })
+    ).toEqual({
+      workspaceId: 'ws-1',
+      parentPath: '/',
+      search: 'reports',
       sortBy: 'name',
       sortOrder: 'asc',
     })
-    expect(body.data).toEqual([
-      {
-        name: 'Reports',
-        path: '/Reports',
-        parentPath: '/',
-        locked: false,
-        createdAt: '2024-01-01T00:00:00.000Z',
-        updatedAt: '2024-01-02T00:00:00.000Z',
-      },
-    ])
-  })
-
-  it('omits the parent filter to list folders from the whole tree', async () => {
-    await GET(request('GET', `/api/v2/workflows/folders?workspaceId=${WORKSPACE_ID}`))
-
-    expect(mockListActiveFolderRows).toHaveBeenCalledWith(WORKSPACE_ID, 'workflow', {
-      parentId: undefined,
-      search: undefined,
-      sortBy: 'name',
-      sortOrder: 'asc',
-    })
-  })
-
-  it('creates a folder from a canonical path and rejects internal ids', async () => {
-    const created = await POST(
-      request('POST', '/api/v2/workflows/folders', {
-        workspaceId: WORKSPACE_ID,
-        path: '/Reports',
+    expect(
+      Reflect.get(
+        DELETE,
+        'mapInput'
+      )({
+        query: { workspaceId: 'ws-1', path: '/Reports', recursive: true },
       })
-    )
-
-    expect(created.status).toBe(201)
-    expect(mockCreateFolderAtPath).toHaveBeenCalledWith({
-      resourceType: 'workflow',
-      workspaceId: WORKSPACE_ID,
-      userId: 'user-1',
-      path: '/Reports',
-    })
-
-    const rejected = await POST(
-      request('POST', '/api/v2/workflows/folders', {
-        workspaceId: WORKSPACE_ID,
-        path: '/Reports',
-        folderId: FOLDER_ID,
-      })
-    )
-    expect(rejected.status).toBe(400)
-  })
-
-  it('relocates one folder by source and destination paths', async () => {
-    mockLoadActiveFolderPathIndex.mockResolvedValue(pathIndex('/Archive'))
-    const response = await PATCH(
-      request('PATCH', '/api/v2/workflows/folders', {
-        workspaceId: WORKSPACE_ID,
-        path: '/Reports',
-        destinationPath: '/Archive',
-      })
-    )
-
-    expect(response.status).toBe(200)
-    expect(mockRelocateFolderByPath).toHaveBeenCalledWith({
-      resourceType: 'workflow',
-      workspaceId: WORKSPACE_ID,
-      userId: 'user-1',
-      path: '/Reports',
-      destinationPath: '/Archive',
-    })
-  })
-
-  it('requires an explicit recursive delete choice', async () => {
-    const missing = await DELETE(
-      request('DELETE', `/api/v2/workflows/folders?workspaceId=${WORKSPACE_ID}&path=%2FReports`)
-    )
-    expect(missing.status).toBe(400)
-    expect(mockDeleteFolderByPath).not.toHaveBeenCalled()
-
-    const deleted = await DELETE(
-      request(
-        'DELETE',
-        `/api/v2/workflows/folders?workspaceId=${WORKSPACE_ID}&path=%2FReports&recursive=true`
-      )
-    )
-    expect(deleted.status).toBe(200)
-    expect(await deleted.json()).toEqual({
-      data: {
-        path: '/Reports',
-        deleted: true,
-        deletedItems: { folders: 1, workflows: 2 },
-      },
-    })
+    ).toEqual({ workspaceId: 'ws-1', path: '/Reports', recursive: true })
   })
 })

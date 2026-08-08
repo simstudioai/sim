@@ -8,7 +8,7 @@ const { mockWriteWorkspaceFileByPath } = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/copilot/vfs/resource-writer', () => ({
-  writeWorkspaceFileByPath: mockWriteWorkspaceFileByPath,
+  writeCopilotWorkspaceFileByPath: mockWriteWorkspaceFileByPath,
 }))
 
 vi.mock('@/lib/copilot/request/otel', () => ({
@@ -113,6 +113,8 @@ describe('maybeWriteOutputToFile', () => {
       userId: 'user-1',
       workflowId: 'wf-1',
       workspaceId: 'workspace-1',
+      toolCallId: 'tool-1',
+      copilotToolExecution: true,
       userPermission: 'write',
       resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
       ...overrides,
@@ -195,7 +197,7 @@ describe('maybeWriteOutputToFile', () => {
     )
 
     expect(result.success).toBe(true)
-    const persisted = mockWriteWorkspaceFileByPath.mock.calls[0][0].buffer.toString('utf8')
+    const persisted = mockWriteWorkspaceFileByPath.mock.calls[0][1].buffer.toString('utf8')
     expect(JSON.parse(persisted)).toEqual({
       token: '{{OUTPUT_SECRET}}',
       publicLabel: 'true',

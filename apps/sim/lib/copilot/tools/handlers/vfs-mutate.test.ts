@@ -15,8 +15,14 @@ const mocks = vi.hoisted(() => ({
   ensureWorkflowAccess: vi.fn(),
   getDefaultWorkspaceId: vi.fn(),
   getWorkspaceFileByName: vi.fn(),
+  resolveWorkspaceFileReference: vi.fn(),
   findWorkspaceFileFolderIdByPath: vi.fn(),
   ensureWorkspaceFileFolderPath: vi.fn(),
+  ensureCopilotFileFolderPath: vi.fn(),
+  moveWorkspaceFileItems: vi.fn(),
+  updateWorkspaceFileFolder: vi.fn(),
+  deleteWorkspaceFile: vi.fn(),
+  renameWorkspaceFile: vi.fn(),
   performMoveRenameWorkspaceFile: vi.fn(),
   performUpdateWorkspaceFileFolder: vi.fn(),
   performCreateFolder: vi.fn(),
@@ -27,9 +33,10 @@ const mocks = vi.hoisted(() => ({
   verifyFolderWorkspace: vi.fn(),
   listTables: vi.fn(),
   renameTable: vi.fn(),
-  getKnowledgeBases: vi.fn(),
+  listKnowledgeBases: vi.fn(),
   updateKnowledgeBase: vi.fn(),
-  checkKnowledgeBaseWriteAccess: vi.fn(),
+  deleteKnowledgeBase: vi.fn(),
+  knowledgeBaseDeleted: vi.fn(),
 }))
 
 vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
@@ -44,15 +51,85 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   getWorkspaceFileByName: mocks.getWorkspaceFileByName,
 }))
 
+vi.mock('@/lib/workspace-files/application/resolve-workspace-file-reference', () => ({
+  resolveWorkspaceFileReference: mocks.resolveWorkspaceFileReference,
+}))
+
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-folder-manager', () => ({
   findWorkspaceFileFolderIdByPath: mocks.findWorkspaceFileFolderIdByPath,
-  ensureWorkspaceFileFolderPath: mocks.ensureWorkspaceFileFolderPath,
   normalizeWorkspaceFileItemName: vi.fn((name: string) => name.trim()),
 }))
 
-vi.mock('@/lib/workspace-files/orchestration', () => ({
-  performMoveRenameWorkspaceFile: mocks.performMoveRenameWorkspaceFile,
-  performUpdateWorkspaceFileFolder: mocks.performUpdateWorkspaceFileFolder,
+vi.mock('@/lib/copilot/tools/server/files/file-folder-application', () => ({
+  resolveCopilotFilePrincipal: vi.fn((context, workspaceId, fileId) => ({
+    kind: 'delegated',
+    serviceId: 'copilot',
+    subjectUserId: context.userId,
+    workspaceId,
+    delegationId: `copilot-tool:${context.toolCallId}`,
+    audience: 'sim:workspace-files',
+    issuedAt: new Date(),
+    expiresAt: new Date(Date.now() + 300_000),
+    ...(fileId ? { resourceScope: { fileId } } : {}),
+  })),
+  ensureCopilotFileFolderPath: mocks.ensureCopilotFileFolderPath,
+  requireCopilotWorkspace: vi.fn((context) => context.workspaceId),
+}))
+
+vi.mock('@/lib/workspace-files/application/move-workspace-file-items', () => ({
+  moveWorkspaceFileItemsOperation: {
+    operation: { id: 'files.move', minimumRole: 'write', workspaceApiKey: 'allow' },
+    execute: mocks.moveWorkspaceFileItems,
+  },
+}))
+
+vi.mock('@/lib/workspace-files/application/operations', () => ({
+  fileOperations: {
+    move: { id: 'files.move', minimumRole: 'write', workspaceApiKey: 'allow' },
+    rename: { id: 'files.rename', minimumRole: 'write', workspaceApiKey: 'allow' },
+    delete: { id: 'files.delete', minimumRole: 'write', workspaceApiKey: 'allow' },
+    updateFolder: {
+      id: 'files.folders.update',
+      minimumRole: 'write',
+      workspaceApiKey: 'allow',
+    },
+  },
+}))
+
+vi.mock('@/lib/workspace-files/application/workspace-file-folders', () => ({
+  updateWorkspaceFileFolderOperation: {
+    operation: { id: 'files.folders.update', minimumRole: 'write', workspaceApiKey: 'allow' },
+    execute: mocks.updateWorkspaceFileFolder,
+  },
+}))
+
+vi.mock('@/lib/workspace-files/application/delete-workspace-file', () => ({
+  deleteWorkspaceFileOperation: {
+    operation: { id: 'files.delete', minimumRole: 'write', workspaceApiKey: 'allow' },
+    execute: mocks.deleteWorkspaceFile,
+  },
+}))
+
+vi.mock('@/lib/workspace-files/application/archive-workspace-file-items', () => ({
+  archiveWorkspaceFileItemsOperation: {
+    operation: { id: 'files.delete', minimumRole: 'write', workspaceApiKey: 'allow' },
+    execute: mocks.deleteWorkspaceFile,
+  },
+}))
+
+vi.mock('@/lib/workspace-files/orchestration', () => ({}))
+
+vi.mock('@/lib/workspace-files/application/rename-workspace-file', () => ({
+  renameWorkspaceFile: {
+    operation: { id: 'files.rename', minimumRole: 'write', workspaceApiKey: 'allow' },
+    execute: mocks.renameWorkspaceFile,
+  },
+}))
+
+vi.mock('@/lib/folders/orchestration', () => ({
+  createFolder: mocks.performCreateFolder,
+  deleteFolder: vi.fn(),
+  updateFolder: mocks.performUpdateFolder,
 }))
 
 vi.mock('@/lib/workflows/orchestration', () => ({
@@ -75,19 +152,35 @@ vi.mock('@/lib/table/service', () => ({
   renameTable: mocks.renameTable,
 }))
 
-vi.mock('@/lib/knowledge/service', () => ({
-  getKnowledgeBases: mocks.getKnowledgeBases,
-  updateKnowledgeBase: mocks.updateKnowledgeBase,
+vi.mock('@/lib/knowledge/application/knowledge-bases', () => ({
+  listKnowledgeBases: {
+    operation: { id: 'knowledge.list' },
+    execute: mocks.listKnowledgeBases,
+  },
+  updateKnowledgeBaseOperation: {
+    operation: { id: 'knowledge.update' },
+    execute: mocks.updateKnowledgeBase,
+  },
+  deleteKnowledgeBaseOperation: {
+    operation: { id: 'knowledge.delete' },
+    execute: mocks.deleteKnowledgeBase,
+  },
 }))
 
-vi.mock('@/app/api/knowledge/utils', () => ({
-  checkKnowledgeBaseWriteAccess: mocks.checkKnowledgeBaseWriteAccess,
+vi.mock('@/lib/core/telemetry', () => ({
+  PlatformEvents: { knowledgeBaseDeleted: mocks.knowledgeBaseDeleted },
 }))
 
 import type { ExecutionContext } from '@/lib/copilot/request/types'
-import { executeVfsCp, executeVfsMkdir, executeVfsMv } from './vfs-mutate'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { executeVfsCp, executeVfsMkdir, executeVfsMv, executeVfsRm } from './vfs-mutate'
 
-const context = { userId: 'user-1', workspaceId: 'ws-1' } as ExecutionContext
+const context = {
+  userId: 'user-1',
+  workspaceId: 'ws-1',
+  toolCallId: 'tool-call-1',
+  copilotToolExecution: true,
+} as ExecutionContext
 
 describe('vfs mv/cp', () => {
   beforeEach(() => {
@@ -100,8 +193,29 @@ describe('vfs mv/cp', () => {
     mocks.verifyFolderWorkspace.mockResolvedValue(true)
     mocks.listFolders.mockResolvedValue([])
     mocks.getWorkspaceFileByName.mockResolvedValue(null)
+    mocks.resolveWorkspaceFileReference.mockImplementation(async ({ reference }) => {
+      const segments = reference.split('/').slice(1)
+      const folderSegments = segments.slice(0, -1)
+      if (folderSegments.length > 0) {
+        const folderId = await mocks.findWorkspaceFileFolderIdByPath('ws-1', folderSegments)
+        if (!folderId) return null
+        return mocks.getWorkspaceFileByName('ws-1', segments.at(-1), { folderId })
+      }
+      return mocks.getWorkspaceFileByName('ws-1', segments.at(-1), { folderId: null })
+    })
     mocks.findWorkspaceFileFolderIdByPath.mockResolvedValue(null)
     mocks.ensureWorkspaceFileFolderPath.mockResolvedValue('ensured-folder')
+    mocks.ensureCopilotFileFolderPath.mockResolvedValue('ensured-folder')
+    mocks.moveWorkspaceFileItems.mockResolvedValue({ movedItems: { files: 1, folders: 0 } })
+    mocks.updateWorkspaceFileFolder.mockResolvedValue({ folder: { name: 'Reports 2025' } })
+    mocks.deleteWorkspaceFile.mockResolvedValue({
+      id: 'file-1',
+      workspaceId: 'ws-1',
+      deleted: true,
+    })
+    mocks.renameWorkspaceFile.mockResolvedValue({
+      file: { id: 'file-1', name: 'renamed.md' },
+    })
   })
 
   afterAll(() => {
@@ -150,15 +264,50 @@ describe('vfs mv/cp', () => {
       )
       expect(result.success).toBe(false)
       expect(result.error).toContain('aborted')
-      expect(mocks.performMoveRenameWorkspaceFile).not.toHaveBeenCalled()
+      expect(mocks.moveWorkspaceFileItems).not.toHaveBeenCalled()
     })
   })
 
   describe('files', () => {
+    it('routes a same-folder rename through the delegated file use case', async () => {
+      mocks.getWorkspaceFileByName.mockResolvedValue({
+        id: 'file-1',
+        name: 'draft.md',
+        folderId: null,
+      })
+      mocks.renameWorkspaceFile.mockResolvedValue({
+        file: { id: 'file-1', name: 'final.md' },
+      })
+
+      const result = await executeVfsMv(
+        { sources: ['files/draft.md'], destination: 'files/final.md' },
+        context
+      )
+
+      expect(mocks.renameWorkspaceFile).toHaveBeenCalledWith({
+        principal: expect.objectContaining({
+          kind: 'delegated',
+          subjectUserId: 'user-1',
+          workspaceId: 'ws-1',
+          delegationId: 'copilot-tool:tool-call-1',
+          resourceScope: expect.objectContaining({ fileId: 'file-1' }),
+        }),
+        input: {
+          fileId: 'file-1',
+          assertedWorkspaceId: 'ws-1',
+          name: 'final.md',
+        },
+      })
+      expect(mocks.moveWorkspaceFileItems).not.toHaveBeenCalled()
+      expect(result).toMatchObject({
+        success: true,
+        output: { results: [{ to: 'files/final.md', id: 'file-1' }] },
+      })
+    })
+
     it('moves and renames a file in one call, auto-creating destination folders', async () => {
       mocks.getWorkspaceFileByName.mockResolvedValue({ id: 'file-1', name: 'draft.md' })
-      mocks.performMoveRenameWorkspaceFile.mockResolvedValue({
-        success: true,
+      mocks.renameWorkspaceFile.mockResolvedValue({
         file: { id: 'file-1', name: 'final.md' },
       })
 
@@ -170,18 +319,15 @@ describe('vfs mv/cp', () => {
       expect(mocks.getWorkspaceFileByName).toHaveBeenCalledWith('ws-1', 'draft.md', {
         folderId: null,
       })
-      expect(mocks.ensureWorkspaceFileFolderPath).toHaveBeenCalledWith({
-        workspaceId: 'ws-1',
-        userId: 'user-1',
-        pathSegments: ['Reports', '2026'],
-      })
-      expect(mocks.performMoveRenameWorkspaceFile).toHaveBeenCalledWith({
-        workspaceId: 'ws-1',
-        userId: 'user-1',
-        fileId: 'file-1',
-        targetFolderId: 'ensured-folder',
-        newName: 'final.md',
-      })
+      expect(mocks.ensureCopilotFileFolderPath).toHaveBeenCalledWith(context, 'ws-1', [
+        'Reports',
+        '2026',
+      ])
+      expect(mocks.moveWorkspaceFileItems).toHaveBeenCalledWith(
+        expect.objectContaining({
+          input: expect.objectContaining({ targetFolderId: 'ensured-folder' }),
+        })
+      )
       expect(result.success).toBe(true)
       expect(result.output).toMatchObject({
         results: [{ from: 'files/draft.md', to: 'files/Reports/2026/final.md', kind: 'file' }],
@@ -191,20 +337,18 @@ describe('vfs mv/cp', () => {
     it('moves into an existing folder keeping the name without creating anything', async () => {
       mocks.findWorkspaceFileFolderIdByPath.mockResolvedValue('folder-images')
       mocks.getWorkspaceFileByName.mockResolvedValue({ id: 'file-1', name: 'a.png' })
-      mocks.performMoveRenameWorkspaceFile.mockResolvedValue({
-        success: true,
-        file: { id: 'file-1', name: 'a.png' },
-      })
 
       const result = await executeVfsMv(
         { sources: ['files/a.png'], destination: 'files/Images' },
         context
       )
 
-      expect(mocks.performMoveRenameWorkspaceFile).toHaveBeenCalledWith(
-        expect.objectContaining({ targetFolderId: 'folder-images', newName: 'a.png' })
+      expect(mocks.moveWorkspaceFileItems).toHaveBeenCalledWith(
+        expect.objectContaining({
+          input: expect.objectContaining({ targetFolderId: 'folder-images' }),
+        })
       )
-      expect(mocks.ensureWorkspaceFileFolderPath).not.toHaveBeenCalled()
+      expect(mocks.ensureCopilotFileFolderPath).not.toHaveBeenCalled()
       expect(result.success).toBe(true)
       expect(result.output).toMatchObject({ results: [{ to: 'files/Images/a.png' }] })
     })
@@ -229,8 +373,8 @@ describe('vfs mv/cp', () => {
 
       expect(result.success).toBe(false)
       expect(result.error).toContain('Not found')
-      expect(mocks.performMoveRenameWorkspaceFile).not.toHaveBeenCalled()
-      expect(mocks.ensureWorkspaceFileFolderPath).not.toHaveBeenCalled()
+      expect(mocks.moveWorkspaceFileItems).not.toHaveBeenCalled()
+      expect(mocks.ensureCopilotFileFolderPath).not.toHaveBeenCalled()
     })
 
     it('rejects copying workspace files — cp is workflows-only', async () => {
@@ -243,30 +387,28 @@ describe('vfs mv/cp', () => {
 
       expect(result.success).toBe(false)
       expect(result.error).toContain('cp only duplicates workflows')
-      expect(mocks.ensureWorkspaceFileFolderPath).not.toHaveBeenCalled()
+      expect(mocks.ensureCopilotFileFolderPath).not.toHaveBeenCalled()
     })
 
-    it('moves and renames a file folder via performUpdateWorkspaceFileFolder', async () => {
+    it('moves and renames a file folder via the shared folder operation', async () => {
       mocks.findWorkspaceFileFolderIdByPath
         .mockResolvedValueOnce(null) // destination is not an existing folder
         .mockResolvedValueOnce('folder-src') // source resolves as folder
-      mocks.performUpdateWorkspaceFileFolder.mockResolvedValue({
-        success: true,
-        folder: { name: 'Reports 2025' },
-      })
 
       const result = await executeVfsMv(
         { sources: ['files/Reports'], destination: 'files/Archive/Reports 2025' },
         context
       )
 
-      expect(mocks.performUpdateWorkspaceFileFolder).toHaveBeenCalledWith({
-        workspaceId: 'ws-1',
-        folderId: 'folder-src',
-        userId: 'user-1',
-        name: 'Reports 2025',
-        parentId: 'ensured-folder',
-      })
+      expect(mocks.updateWorkspaceFileFolder).toHaveBeenCalledWith(
+        expect.objectContaining({
+          input: expect.objectContaining({
+            folderId: 'folder-src',
+            name: 'Reports 2025',
+            parentId: 'ensured-folder',
+          }),
+        })
+      )
       expect(result.success).toBe(true)
     })
   })
@@ -380,11 +522,10 @@ describe('vfs mv/cp', () => {
     it('creates a nested file folder chain', async () => {
       const result = await executeVfsMkdir({ paths: ['files/Reports/2026'] }, context)
 
-      expect(mocks.ensureWorkspaceFileFolderPath).toHaveBeenCalledWith({
-        workspaceId: 'ws-1',
-        userId: 'user-1',
-        pathSegments: ['Reports', '2026'],
-      })
+      expect(mocks.ensureCopilotFileFolderPath).toHaveBeenCalledWith(context, 'ws-1', [
+        'Reports',
+        '2026',
+      ])
       expect(result.success).toBe(true)
       expect(result.output).toMatchObject({
         results: [{ from: 'files/Reports/2026', to: 'files/Reports/2026', kind: 'file_folder' }],
@@ -398,6 +539,7 @@ describe('vfs mv/cp', () => {
       const result = await executeVfsMkdir({ paths: ['workflows/Archive'] }, context)
 
       expect(mocks.performCreateFolder).toHaveBeenCalledWith({
+        resourceType: 'workflow',
         workspaceId: 'ws-1',
         userId: 'user-1',
         name: 'Archive',
@@ -415,7 +557,7 @@ describe('vfs mv/cp', () => {
       expect(result.output).toMatchObject({
         results: [{ from: 'tables/CRM', error: expect.stringContaining('flat namespace') }],
       })
-      expect(mocks.ensureWorkspaceFileFolderPath).not.toHaveBeenCalled()
+      expect(mocks.ensureCopilotFileFolderPath).not.toHaveBeenCalled()
     })
 
     it('rejects creation inside a locked workflow folder', async () => {
@@ -464,23 +606,67 @@ describe('vfs mv/cp', () => {
       expect(result.error).toContain('cannot be copied')
     })
 
-    it('renames a knowledge base after a write-access check', async () => {
-      mocks.getKnowledgeBases.mockResolvedValue([{ id: 'kb-1', name: 'Docs' }])
-      mocks.checkKnowledgeBaseWriteAccess.mockResolvedValue({ hasAccess: true })
-      mocks.updateKnowledgeBase.mockResolvedValue({ id: 'kb-1', name: 'Product Docs' })
+    it('renames a knowledge base through trusted application operations', async () => {
+      mocks.listKnowledgeBases.mockResolvedValue({
+        knowledgeBases: [{ knowledgeBase: { id: 'kb-1', name: 'Docs' }, folderPath: '/' }],
+      })
+      mocks.updateKnowledgeBase.mockResolvedValue({
+        knowledgeBase: { id: 'kb-1', name: 'Product Docs' },
+        folderPath: '/',
+      })
 
       const result = await executeVfsMv(
         { sources: ['knowledgebases/Docs'], destination: 'knowledgebases/Product Docs' },
         context
       )
 
-      expect(mocks.checkKnowledgeBaseWriteAccess).toHaveBeenCalledWith('kb-1', 'user-1', 'ws-1')
       expect(mocks.updateKnowledgeBase).toHaveBeenCalledWith(
-        'kb-1',
-        { name: 'Product Docs' },
-        expect.any(String)
+        expect.objectContaining({
+          principal: expect.objectContaining({
+            kind: 'delegated',
+            subjectUserId: 'user-1',
+            workspaceId: 'ws-1',
+            delegationId: 'tool-call-1',
+          }),
+          input: {
+            knowledgeBaseId: 'kb-1',
+            assertedWorkspaceId: 'ws-1',
+            name: 'Product Docs',
+            source: 'agent',
+          },
+        })
       )
       expect(result.success).toBe(true)
+    })
+
+    it('propagates knowledge application infrastructure failures', async () => {
+      mocks.listKnowledgeBases.mockRejectedValueOnce(new Error('knowledge database unavailable'))
+
+      await expect(
+        executeVfsMv(
+          { sources: ['knowledgebases/Docs'], destination: 'knowledgebases/Product Docs' },
+          context
+        )
+      ).rejects.toThrow('knowledge database unavailable')
+    })
+
+    it('preserves an actionable knowledge rename conflict', async () => {
+      mocks.listKnowledgeBases.mockResolvedValue({
+        knowledgeBases: [{ knowledgeBase: { id: 'kb-1', name: 'Docs' }, folderPath: '/' }],
+      })
+      mocks.updateKnowledgeBase.mockRejectedValue(
+        new OrchestrationError('conflict', 'A knowledge base named Product Docs already exists')
+      )
+
+      const result = await executeVfsMv(
+        { sources: ['knowledgebases/Docs'], destination: 'knowledgebases/Product Docs' },
+        context
+      )
+
+      expect(result).toMatchObject({
+        success: false,
+        error: 'A knowledge base named Product Docs already exists',
+      })
     })
 
     it('rejects the reserved knowledgebases/connectors name', async () => {
@@ -490,6 +676,55 @@ describe('vfs mv/cp', () => {
       )
       expect(result.success).toBe(false)
       expect(result.error).toContain('reserved')
+    })
+
+    it('deletes a knowledge base through the trusted application operation', async () => {
+      mocks.listKnowledgeBases.mockResolvedValue({
+        knowledgeBases: [{ knowledgeBase: { id: 'kb-1', name: 'Docs' }, folderPath: '/' }],
+      })
+      mocks.deleteKnowledgeBase.mockResolvedValue({ id: 'kb-1', name: 'Docs' })
+
+      const result = await executeVfsRm({ paths: ['knowledgebases/Docs'] }, context)
+
+      expect(result).toMatchObject({
+        success: true,
+        output: { results: [{ from: 'knowledgebases/Docs', id: 'kb-1' }] },
+      })
+      expect(mocks.deleteKnowledgeBase).toHaveBeenCalledWith(
+        expect.objectContaining({
+          principal: expect.objectContaining({ delegationId: 'tool-call-1' }),
+          input: {
+            knowledgeBaseId: 'kb-1',
+            assertedWorkspaceId: 'ws-1',
+            source: 'agent',
+          },
+        })
+      )
+      expect(mocks.knowledgeBaseDeleted).toHaveBeenCalledWith({ knowledgeBaseId: 'kb-1' })
+    })
+
+    it('preserves an actionable knowledge delete failure', async () => {
+      mocks.listKnowledgeBases.mockResolvedValue({
+        knowledgeBases: [{ knowledgeBase: { id: 'kb-1', name: 'Docs' }, folderPath: '/' }],
+      })
+      mocks.deleteKnowledgeBase.mockRejectedValue(
+        new OrchestrationError('not_found', 'Knowledge base no longer exists')
+      )
+
+      const result = await executeVfsRm({ paths: ['knowledgebases/Docs'] }, context)
+
+      expect(result).toMatchObject({
+        success: false,
+        error: 'Knowledge base no longer exists',
+        output: {
+          results: [
+            expect.objectContaining({
+              from: 'knowledgebases/Docs',
+              error: 'Knowledge base no longer exists',
+            }),
+          ],
+        },
+      })
     })
   })
 })

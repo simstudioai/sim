@@ -1,4 +1,5 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
+import type { PrincipalActor } from '@sim/auth/principal'
 import { db, workflowDeploymentVersion, workflow as workflowTable } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { assertWorkflowMutable, WorkflowLockedError } from '@sim/platform-authz/workflow'
@@ -101,6 +102,8 @@ export interface PerformFullDeployParams {
    * Defaults to `userId`. Use `'admin-api'` for admin-initiated actions.
    */
   actorId?: string
+  actor?: PrincipalActor
+  captureAnalytics?: false
 }
 
 /**
@@ -222,6 +225,8 @@ async function performStableFullDeploy(params: {
         deploymentVersionId: operation.deploymentVersionId,
         version: operation.version,
         userId: params.params.userId,
+        actor: params.params.actor,
+        captureAnalytics: params.params.captureAnalytics,
         requestId: params.requestId,
         checkpoints: {},
       })
@@ -497,6 +502,7 @@ export interface PerformFullUndeployParams {
   requestId?: string
   /** Override the actor ID used in audit logs. Defaults to `userId`. */
   actorId?: string
+  projectLegacyAudit?: boolean
 }
 
 export interface PerformFullUndeployResult {
@@ -558,15 +564,17 @@ export async function performFullUndeploy(
     // Telemetry is best-effort
   }
 
-  recordAudit({
-    workspaceId: (workflowData.workspaceId as string) || null,
-    actorId: actorId,
-    action: AuditAction.WORKFLOW_UNDEPLOYED,
-    resourceType: AuditResourceType.WORKFLOW,
-    resourceId: workflowId,
-    resourceName: (workflowData.name as string) || undefined,
-    description: `Undeployed workflow "${(workflowData.name as string) || workflowId}"`,
-  })
+  if (params.projectLegacyAudit !== false) {
+    recordAudit({
+      workspaceId: (workflowData.workspaceId as string) || null,
+      actorId: actorId,
+      action: AuditAction.WORKFLOW_UNDEPLOYED,
+      resourceType: AuditResourceType.WORKFLOW,
+      resourceId: workflowId,
+      resourceName: (workflowData.name as string) || undefined,
+      description: `Undeployed workflow "${(workflowData.name as string) || workflowId}"`,
+    })
+  }
 
   await notifySocketDeploymentChanged(workflowId)
   const sideEffectWarning = await processDeploymentSideEffectsNow(outboxEventId, requestId)
@@ -593,6 +601,8 @@ export interface PerformActivateVersionParams {
   requestId?: string
   /** Override the actor ID used in audit logs. Defaults to `userId`. */
   actorId?: string
+  actor?: PrincipalActor
+  captureAnalytics?: false
 }
 
 export interface PerformActivateVersionResult {
@@ -709,6 +719,8 @@ export async function performActivateVersion(
       version,
       userId,
       actorId,
+      actor: params.actor,
+      captureAnalytics: params.captureAnalytics,
       requestId,
       idempotencyKey,
     })
@@ -732,6 +744,8 @@ async function performStableVersionActivation(params: {
   version: number
   userId: string
   actorId: string
+  actor?: PrincipalActor
+  captureAnalytics?: false
   requestId: string
   idempotencyKey: string
 }): Promise<PerformActivateVersionResult> {
@@ -762,6 +776,8 @@ async function performStableVersionActivation(params: {
         deploymentVersionId: operation.deploymentVersionId,
         version: operation.version,
         userId: params.userId,
+        actor: params.actor,
+        captureAnalytics: params.captureAnalytics,
         requestId: params.requestId,
         checkpoints: {},
       })

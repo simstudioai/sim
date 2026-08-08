@@ -490,10 +490,7 @@ export async function cancelWorkflowGroupRuns(
   )
 
   const table = await getTableById(tableId)
-  if (!table) {
-    logger.warn(`cancelWorkflowGroupRuns: table ${tableId} not found`)
-    return 0
-  }
+  if (!table) throw new OrchestrationError('not_found', 'Table not found')
 
   // Per-row cancel leaves the dispatcher alone — other rows in the same
   // dispatch keep running. Table-wide cancel must stop it, else the cursor
@@ -581,7 +578,13 @@ export async function cancelWorkflowGroupRuns(
           db
             .select({ id: userTableRowsTable.id })
             .from(userTableRowsTable)
-            .where(and(eq(userTableRowsTable.tableId, tableId), filterClause))
+            .where(
+              and(
+                eq(userTableRowsTable.tableId, tableId),
+                eq(userTableRowsTable.workspaceId, table.workspaceId),
+                filterClause
+              )
+            )
         )
       )
     }
@@ -599,6 +602,7 @@ export async function cancelWorkflowGroupRuns(
     : Promise.resolve()
   let cursor: { rowId: string; groupId: string } | undefined
   let processedCount = 0
+  let cancelledCount = 0
   let reachedEnd = false
   const handledGroupIds = new Set<string>()
 
@@ -711,7 +715,7 @@ export async function cancelWorkflowGroupRuns(
     )
 
     await mapWithConcurrency(mutations, TABLE_CANCELLATION_CONCURRENCY, async (mutation) => {
-      await updateRow(
+      const updated = await updateRow(
         {
           tableId,
           rowId: mutation.rowId,
@@ -721,12 +725,10 @@ export async function cancelWorkflowGroupRuns(
         },
         table,
         `wfgrp-cancel-${mutation.rowId}`
-      ).catch((error) => {
-        logger.error(`Failed to write cancelled state for row ${mutation.rowId}`, {
-          error: toError(error).message,
-        })
-      })
+      )
+      if (!updated) throw new Error('Authoritative cancellation write was rejected')
     })
+    cancelledCount += mutations.reduce((total, mutation) => total + mutation.cancelledCount, 0)
 
     if (inFlightRows.length < pageSize) {
       reachedEnd = true
@@ -740,17 +742,28 @@ export async function cancelWorkflowGroupRuns(
       tableId,
       maxRows: TABLE_CANCELLATION_MAX_ROWS,
     })
-    await db
-      .update(tableRowExecutions)
-      .set({
-        status: 'cancelled',
-        jobId: null,
-        error: 'Cancelled',
-        runningBlockIds: [],
-        cancelledAt: now,
-        updatedAt: now,
-      })
-      .where(and(...inFlightFilters))
+    const rows = await db.execute<{ count: number | string }>(sql`
+      WITH cancelled AS (
+        UPDATE ${tableRowExecutions}
+        SET
+          status = 'cancelled',
+          job_id = NULL,
+          error = 'Cancelled',
+          running_block_ids = ARRAY[]::text[],
+          cancelled_at = ${sql.param(now, tableRowExecutions.cancelledAt)},
+          updated_at = ${sql.param(now, tableRowExecutions.updatedAt)}
+        WHERE ${and(...inFlightFilters)}
+        RETURNING 1
+      )
+      SELECT count(*)::integer AS count FROM cancelled
+    `)
+    const [countRow] = Array.isArray(rows) ? rows : []
+    if (!countRow) throw new Error('Cancellation update did not return an affected count')
+    const remainingCancelled = Number(countRow.count)
+    if (!Number.isSafeInteger(remainingCancelled) || remainingCancelled < 0) {
+      throw new Error('Cancellation update returned an invalid affected count')
+    }
+    cancelledCount += remainingCancelled
   }
 
   await tagSweepPromise
@@ -787,18 +800,12 @@ export async function cancelWorkflowGroupRuns(
             .onConflictDoNothing({
               target: [tableRowExecutions.rowId, tableRowExecutions.groupId],
             })
-            .catch((error) => {
-              logger.error(
-                `Failed to write tombstone for ${tableId}/${rowId}/${tombstone.groupId}`,
-                { error: toError(error).message }
-              )
-            })
         }
       )
     }
   }
 
-  return processedCount
+  return cancelledCount
 }
 
 /**
@@ -832,7 +839,7 @@ export async function runWorkflowColumn(opts: {
    *  callers (row writes, CSV import) → falls back to the workspace billed
    *  account at billing time. */
   triggeredByUserId?: string | null
-}): Promise<{ dispatchId: string | null }> {
+}): Promise<{ dispatchId: string | null; shouldSignalRowsChanged: boolean }> {
   const {
     tableId,
     workspaceId,
@@ -849,7 +856,9 @@ export async function runWorkflowColumn(opts: {
   // Empty `rowIds` array means "scope explicitly empty" — auto-fire callers
   // (CSV import on zero matches, etc.) end up here. Skip the dispatch entirely
   // rather than walk the table with a no-match filter.
-  if (rowIds && rowIds.length === 0) return { dispatchId: null }
+  if (rowIds && rowIds.length === 0) {
+    return { dispatchId: null, shouldSignalRowsChanged: false }
+  }
   // Lazy imports: `./service` and `./dispatcher` both close cycles back to
   // this module; `@trigger.dev/sdk` is heavy and only needed on this op.
   const { getTableById } = await import('@/lib/table/service')
@@ -864,8 +873,11 @@ export async function runWorkflowColumn(opts: {
   // every row write would otherwise produce error-level log spam on every
   // PATCH/insert. Manual run-column callers always pass `groupIds` so they
   // can't reach here with an empty target.
-  if (targetGroups.length === 0) return { dispatchId: null }
+  if (targetGroups.length === 0) {
+    return { dispatchId: null, shouldSignalRowsChanged: false }
+  }
   const targetGroupIds = targetGroups.map((g) => g.id)
+  let shouldSignalRowsChanged = false
 
   const {
     bulkClearWorkflowGroupCells,
@@ -928,18 +940,22 @@ export async function runWorkflowColumn(opts: {
       if (!rowIds || rowIds.length === 0) {
         // Filtered runs cancel only their own scope — a table-wide cancel here
         // would stop unrelated work on rows outside the filter (or on deselected rows).
-        await cancelWorkflowGroupRuns(tableId, undefined, {
+        const cancelled = await cancelWorkflowGroupRuns(tableId, undefined, {
           groupIds: targetGroupIds,
           filter,
           excludeRowIds,
           spareDispatchId: dispatchId,
         })
+        shouldSignalRowsChanged ||= cancelled > 0
       } else {
         // Per-row cancel — sequential so we don't fan out N parallel
         // markActiveDispatchesCancelled calls (it's a no-op when rowId is set,
         // but each call still touches the DB).
         for (const rowId of rowIds) {
-          await cancelWorkflowGroupRuns(tableId, rowId, { groupIds: targetGroupIds })
+          const cancelled = await cancelWorkflowGroupRuns(tableId, rowId, {
+            groupIds: targetGroupIds,
+          })
+          shouldSignalRowsChanged ||= cancelled > 0
         }
       }
     }
@@ -955,13 +971,15 @@ export async function runWorkflowColumn(opts: {
     // filtered scope has none — clearing table-wide would blank rows that don't match the filter. The
     // dispatcher's per-row pre-stamp still provides instant Pending feedback as it walks.
     if (!limit && !filter) {
-      await bulkClearWorkflowGroupCells({
+      const clearedRows = await bulkClearWorkflowGroupCells({
         tableId,
+        workspaceId,
         groups: targetGroups.map((g) => ({ id: g.id, outputs: g.outputs })),
         rowIds,
         excludeRowIds,
         mode,
       })
+      shouldSignalRowsChanged ||= clearedRows
     }
   } catch (err) {
     // Prep failed after the dispatch row was inserted — cancel it so an
@@ -991,7 +1009,7 @@ export async function runWorkflowColumn(opts: {
     logger.info(
       `[Cascade] [${requestId}] dispatch ${dispatchId} cancelled during prep — not firing`
     )
-    return { dispatchId: null }
+    return { dispatchId: null, shouldSignalRowsChanged }
   }
 
   logger.info(
@@ -1023,7 +1041,7 @@ export async function runWorkflowColumn(opts: {
     )
   }
 
-  return { dispatchId }
+  return { dispatchId, shouldSignalRowsChanged: true }
 }
 
 // ───────────────────────────── Validation ─────────────────────────────
@@ -1316,6 +1334,6 @@ export function findSplitGroups(
 export function assertValidSchema(schema: TableSchema, columnOrder: string[] | undefined): void {
   const errs = validateSchema(schema, columnOrder)
   if (errs.length > 0) {
-    throw new Error(`Schema validation failed: ${errs.join('; ')}`)
+    throw new OrchestrationError('validation', `Schema validation failed: ${errs.join('; ')}`)
   }
 }

@@ -1,437 +1,167 @@
 /**
  * @vitest-environment node
- *
- * Public v2 workflow-group listing — a read-only projection of the table's
- * schema, exposed so a caller can discover the group ids the run endpoints
- * take.
  */
+
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCheckRateLimit,
-  mockResolveWorkspaceScope,
-  mockCheckAccess,
-  mockGateError,
-  mockAddWorkflowGroup,
-  mockUpdateWorkflowGroup,
-  mockDeleteWorkflowGroup,
-  mockGetActiveWorkflowContext,
-  mockSignalSchemaChanged,
-} = vi.hoisted(() => ({
-  mockCheckRateLimit: vi.fn(),
-  mockResolveWorkspaceScope: vi.fn(),
-  mockCheckAccess: vi.fn(),
-  mockGateError: vi.fn(),
-  mockAddWorkflowGroup: vi.fn(),
-  mockUpdateWorkflowGroup: vi.fn(),
-  mockDeleteWorkflowGroup: vi.fn(),
-  mockGetActiveWorkflowContext: vi.fn(),
-  mockSignalSchemaChanged: vi.fn(),
+const mocks = vi.hoisted(() => ({
+  authenticate: vi.fn(),
+  preauthRate: vi.fn(),
+  operationRate: vi.fn(),
+  gate: vi.fn(),
+  list: vi.fn(),
+  create: vi.fn(),
+  update: vi.fn(),
+  remove: vi.fn(),
 }))
 
-vi.mock('@/app/api/v1/middleware', () => ({
-  checkRateLimit: mockCheckRateLimit,
-  resolveWorkspaceScope: mockResolveWorkspaceScope,
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
+  authenticateV2ApiKey: mocks.authenticate,
+  V2ApiKeyUnauthenticatedError: class V2ApiKeyUnauthenticatedError extends Error {},
+}))
+vi.mock('@/lib/core/rate-limiter', () => ({
+  RateLimiter: class {
+    checkRateLimitDirect = mocks.preauthRate
+    checkRateLimitDirectOrThrow = mocks.operationRate
+  },
+  getRateLimit: () => ({ maxTokens: 100, refillRate: 100, refillIntervalMs: 60_000 }),
+}))
+vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: mocks.gate }))
+vi.mock('@/lib/table/application/groups', () => ({
+  listTableGroupsUseCase: { operation: { id: 'tables.groups.list' }, execute: mocks.list },
+  createTableGroupUseCase: { operation: { id: 'tables.groups.create' }, execute: mocks.create },
+  updateTableGroupUseCase: { operation: { id: 'tables.groups.update' }, execute: mocks.update },
+  deleteTableGroupUseCase: { operation: { id: 'tables.groups.delete' }, execute: mocks.remove },
 }))
 
-vi.mock('@/app/api/table/utils', () => ({
-  checkAccess: mockCheckAccess,
-  normalizeColumn: (col: Record<string, unknown>) => col,
-  rootErrorMessage: (error: unknown) => String(error),
-  rowWriteErrorResponse: () => null,
-}))
-
-vi.mock('@/lib/table/workflow-groups/service', () => ({
-  addWorkflowGroup: mockAddWorkflowGroup,
-  updateWorkflowGroup: mockUpdateWorkflowGroup,
-  deleteWorkflowGroup: mockDeleteWorkflowGroup,
-}))
-
-vi.mock('@sim/platform-authz/workflow', () => ({
-  getActiveWorkflowContext: mockGetActiveWorkflowContext,
-}))
-
-vi.mock('@/lib/table/events', () => ({ signalTableSchemaChanged: mockSignalSchemaChanged }))
-
-vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: mockGateError }))
-
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { DELETE, GET, PATCH, POST } from '@/app/api/v2/tables/[tableId]/groups/route'
 
-const GROUP = {
-  id: 'group-1',
-  workflowId: 'wf-1',
-  name: 'Enrich',
-  outputs: [{ blockId: 'blk-1', path: 'content', columnName: 'summary' }],
+const WORKSPACE_ID = 'workspace-1'
+const principal = {
+  kind: 'workspace_api_key' as const,
+  workspaceId: WORKSPACE_ID,
+  keyId: 'key-1',
 }
-const TABLE = {
-  id: 'table-1',
-  workspaceId: 'ws-1',
-  schema: { columns: [], workflowGroups: [GROUP] },
+const auth = {
+  principal,
+  rolloutUserId: 'owner-1',
+  rateLimitSubjectIds: [`workspace:${WORKSPACE_ID}`],
+  rateLimitSubscription: null,
+  keyType: 'workspace' as const,
 }
-
-const RATE_LIMIT_OK = {
+const rate = {
   allowed: true,
-  userId: 'user-1',
-  keyType: 'workspace',
-  workspaceId: 'ws-1',
-  limit: 100,
   remaining: 99,
-  resetAt: new Date('2026-01-01T01:00:00Z'),
+  resetAt: new Date('2026-01-01T01:00:00.000Z'),
+  retryAfterMs: 0,
 }
-
-function callGet() {
-  const req = new NextRequest(
-    'http://localhost:3000/api/v2/tables/table-1/groups?workspaceId=ws-1',
-    { method: 'GET' }
-  )
-  return GET(req, { params: Promise.resolve({ tableId: 'table-1' }) })
+const group = {
+  id: 'group-1',
+  workflowId: 'workflow-1',
+  type: 'manual' as const,
+  outputs: [{ blockId: 'block-1', path: 'result', columnName: 'col-1' }],
+  autoRun: false,
 }
-
-describe('GET /api/v2/tables/[tableId]/groups', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
-    mockResolveWorkspaceScope.mockResolvedValue(null)
-    mockCheckAccess.mockResolvedValue({ ok: true, table: TABLE })
-    mockGateError.mockResolvedValue(null)
-  })
-
-  it('returns the schema groups as one full page', async () => {
-    const res = await callGet()
-
-    expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ data: [GROUP], nextCursor: null })
-  })
-
-  it('returns an empty page for a table with no groups', async () => {
-    mockCheckAccess.mockResolvedValue({ ok: true, table: { ...TABLE, schema: { columns: [] } } })
-
-    const res = await callGet()
-
-    expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ data: [], nextCursor: null })
-  })
-
-  it('masks a permission failure as 404 so table existence never leaks', async () => {
-    mockCheckAccess.mockResolvedValue({ ok: false, status: 403 })
-
-    const res = await callGet()
-
-    expect(res.status).toBe(404)
-  })
-
-  it('400s a request with no workspaceId', async () => {
-    const req = new NextRequest('http://localhost:3000/api/v2/tables/table-1/groups', {
-      method: 'GET',
-    })
-    const res = await GET(req, { params: Promise.resolve({ tableId: 'table-1' }) })
-
-    expect(res.status).toBe(400)
-    expect(mockCheckAccess).not.toHaveBeenCalled()
-  })
-
-  it('404s with the gate off, before any work', async () => {
-    mockGateError.mockResolvedValue(
-      new Response(JSON.stringify({ error: { code: 'NOT_FOUND', message: 'Not found' } }), {
-        status: 404,
-      })
-    )
-
-    const res = await callGet()
-
-    expect(res.status).toBe(404)
-    expect(mockCheckAccess).not.toHaveBeenCalled()
-  })
-
-  it('429s a throttled caller', async () => {
-    mockCheckRateLimit.mockResolvedValue({
-      ...RATE_LIMIT_OK,
-      allowed: false,
-      remaining: 0,
-      retryAfterMs: 1000,
-    })
-
-    const res = await callGet()
-
-    expect(res.status).toBe(429)
-    expect(mockCheckAccess).not.toHaveBeenCalled()
-  })
-})
-
-const ADD_BODY = {
-  workspaceId: 'ws-1',
-  group: {
-    workflowId: 'wf-1',
-    outputs: [{ blockId: 'blk-1', path: 'content', columnName: 'summary' }],
-  },
-  outputColumns: [{ name: 'summary', type: 'string' }],
-}
-
-const UPDATED_TABLE = {
+const table = {
   id: 'table-1',
-  workspaceId: 'ws-1',
-  schema: { columns: [{ name: 'summary', type: 'string' }], workflowGroups: [GROUP] },
+  name: 'Contacts',
+  schema: {
+    columns: [
+      {
+        id: 'col-1',
+        name: 'Result',
+        type: 'string' as const,
+        required: false,
+        unique: false,
+        workflowGroupId: 'group-1',
+      },
+    ],
+  },
 }
+const context = { params: Promise.resolve({ tableId: 'table-1' }) }
 
-function callWrite(method: 'POST' | 'PATCH' | 'DELETE', body: unknown) {
-  const req = new NextRequest('http://localhost:3000/api/v2/tables/table-1/groups', {
+function writeRequest(method: 'POST' | 'PATCH' | 'DELETE', body: unknown) {
+  return new NextRequest('http://localhost:3000/api/v2/tables/table-1/groups', {
     method,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'content-type': 'application/json', 'x-api-key': 'secret' },
     body: JSON.stringify(body),
   })
-  const handler = method === 'POST' ? POST : method === 'PATCH' ? PATCH : DELETE
-  return handler(req, { params: Promise.resolve({ tableId: 'table-1' }) })
 }
 
-describe('POST /api/v2/tables/[tableId]/groups', () => {
+describe('/api/v2/tables/[tableId]/groups', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
-    mockResolveWorkspaceScope.mockResolvedValue(null)
-    mockCheckAccess.mockResolvedValue({ ok: true, table: TABLE })
-    mockGateError.mockResolvedValue(null)
-    mockGetActiveWorkflowContext.mockResolvedValue({ workspaceId: 'ws-1' })
-    // Echo back the id the route generated, as the real service does.
-    mockAddWorkflowGroup.mockImplementation(async (data: { group: { id: string } }) => ({
-      ...UPDATED_TABLE,
-      schema: {
-        ...UPDATED_TABLE.schema,
-        workflowGroups: [{ ...GROUP, id: data.group.id }],
+    mocks.authenticate.mockResolvedValue(auth)
+    mocks.preauthRate.mockResolvedValue(rate)
+    mocks.operationRate.mockResolvedValue(rate)
+    mocks.gate.mockResolvedValue(null)
+    mocks.list.mockResolvedValue({ groups: [group] })
+    mocks.create.mockResolvedValue({ table, group })
+    mocks.update.mockResolvedValue({ table, group, changed: true, startAutoRun: false })
+    mocks.remove.mockResolvedValue({ table, groupId: 'group-1' })
+  })
+
+  it('lists the bounded group projection through the read use case', async () => {
+    const req = new NextRequest(
+      `http://localhost:3000/api/v2/tables/table-1/groups?workspaceId=${WORKSPACE_ID}`
+    )
+    const response = await GET(req, context)
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ data: [group], nextCursor: null })
+    expect(mocks.list).toHaveBeenCalledWith({
+      principal,
+      input: { tableId: 'table-1', workspaceId: WORKSPACE_ID },
+      request: req,
+    })
+  })
+
+  it('defaults create autoRun off and delegates all execution initiation to the application layer', async () => {
+    const req = writeRequest('POST', {
+      workspaceId: WORKSPACE_ID,
+      group: {
+        workflowId: 'workflow-1',
+        type: 'manual',
+        outputs: [{ blockId: 'block-1', path: 'result', columnName: 'Result' }],
       },
-    }))
-  })
-
-  it('creates the group and its columns, returning both', async () => {
-    const res = await callWrite('POST', ADD_BODY)
-
-    expect(res.status).toBe(201)
-    const body = await res.json()
-    expect(body.data.group).toMatchObject({ workflowId: 'wf-1', name: 'Enrich' })
-    expect(body.data.columns).toEqual([{ name: 'summary', type: 'string' }])
-    expect(mockSignalSchemaChanged).toHaveBeenCalledWith('table-1')
-  })
-
-  it('500s rather than emitting a body without the group it claims to have written', async () => {
-    // Write reports success but the group is absent — an internal inconsistency
-    // must not surface as a 200 with `group: undefined`.
-    mockAddWorkflowGroup.mockResolvedValue({
-      ...UPDATED_TABLE,
-      schema: { columns: [], workflowGroups: [] },
+      outputColumns: [{ name: 'Result', type: 'string' }],
     })
+    const response = await POST(req, context)
 
-    const res = await callWrite('POST', ADD_BODY)
-
-    expect(res.status).toBe(500)
-    expect((await res.json()).error.code).toBe('INTERNAL_ERROR')
-  })
-
-  it('server-generates the group id and stamps it onto the output columns', async () => {
-    await callWrite('POST', ADD_BODY)
-
-    const call = mockAddWorkflowGroup.mock.calls[0][0]
-    expect(call.group.id).toEqual(expect.any(String))
-    expect(call.group.id).not.toBe('')
-    // The caller never supplies workflowGroupId — it is derived from the group.
-    expect(call.outputColumns[0].workflowGroupId).toBe(call.group.id)
-  })
-
-  it('defaults autoRun to false so one POST cannot fan out a metered backfill', async () => {
-    await callWrite('POST', ADD_BODY)
-    expect(mockAddWorkflowGroup.mock.calls[0][0].autoRun).toBe(false)
-  })
-
-  it('rejects a workflow from another workspace before persisting it', async () => {
-    mockGetActiveWorkflowContext.mockResolvedValue({ workspaceId: 'ws-other' })
-
-    const res = await callWrite('POST', ADD_BODY)
-
-    expect(res.status).toBe(400)
-    expect((await res.json()).error.message).toContain('Workflow not found')
-    expect(mockAddWorkflowGroup).not.toHaveBeenCalled()
-  })
-
-  it('rejects an output column that no group output feeds', async () => {
-    const res = await callWrite('POST', {
-      ...ADD_BODY,
-      outputColumns: [{ name: 'summry', type: 'string' }],
+    expect(response.status).toBe(201)
+    expect((await response.json()).data.group.id).toBe('group-1')
+    expect(mocks.create).toHaveBeenCalledWith({
+      principal,
+      input: expect.objectContaining({
+        tableId: 'table-1',
+        workspaceId: WORKSPACE_ID,
+        autoRun: false,
+      }),
+      request: req,
     })
-
-    expect(res.status).toBe(400)
-    expect((await res.json()).error.message).toContain('summry')
-    expect(mockAddWorkflowGroup).not.toHaveBeenCalled()
   })
 
-  it('400s an enrichment group with no enrichmentId', async () => {
-    const res = await callWrite('POST', {
-      ...ADD_BODY,
-      group: { ...ADD_BODY.group, workflowId: '', type: 'enrichment' },
-    })
+  it('conceals denied table access on group mutations', async () => {
+    mocks.update.mockRejectedValueOnce(new OrchestrationError('forbidden', 'Forbidden'))
 
-    expect(res.status).toBe(400)
-    expect(mockAddWorkflowGroup).not.toHaveBeenCalled()
-  })
-
-  it('400s a workflow group with no workflowId', async () => {
-    const res = await callWrite('POST', {
-      ...ADD_BODY,
-      group: { ...ADD_BODY.group, workflowId: '' },
-    })
-
-    expect(res.status).toBe(400)
-    expect(mockAddWorkflowGroup).not.toHaveBeenCalled()
-  })
-
-  it('masks a permission failure as 404', async () => {
-    mockCheckAccess.mockResolvedValue({ ok: false, status: 403 })
-
-    const res = await callWrite('POST', ADD_BODY)
-
-    expect(res.status).toBe(404)
-    expect(mockAddWorkflowGroup).not.toHaveBeenCalled()
-  })
-
-  it('404s with the gate off, before any work', async () => {
-    mockGateError.mockResolvedValue(
-      new Response(JSON.stringify({ error: { code: 'NOT_FOUND', message: 'Not found' } }), {
-        status: 404,
-      })
+    const response = await PATCH(
+      writeRequest('PATCH', { workspaceId: WORKSPACE_ID, groupId: 'group-1', name: 'Renamed' }),
+      context
     )
 
-    const res = await callWrite('POST', ADD_BODY)
-
-    expect(res.status).toBe(404)
-    expect(mockAddWorkflowGroup).not.toHaveBeenCalled()
+    expect(response.status).toBe(404)
+    expect((await response.json()).error.message).toBe('Table not found')
   })
 
-  it('429s a throttled caller', async () => {
-    mockCheckRateLimit.mockResolvedValue({ ...RATE_LIMIT_OK, allowed: false, retryAfterMs: 1000 })
-
-    const res = await callWrite('POST', ADD_BODY)
-
-    expect(res.status).toBe(429)
-    expect(mockAddWorkflowGroup).not.toHaveBeenCalled()
-  })
-
-  it('surfaces a duplicate-column failure as 400, not 500', async () => {
-    mockAddWorkflowGroup.mockRejectedValue(new Error('Column "summary" already exists'))
-
-    const res = await callWrite('POST', ADD_BODY)
-
-    expect(res.status).toBe(400)
-    expect((await res.json()).error.message).toContain('already exists')
-  })
-})
-
-describe('PATCH /api/v2/tables/[tableId]/groups', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
-    mockResolveWorkspaceScope.mockResolvedValue(null)
-    mockCheckAccess.mockResolvedValue({ ok: true, table: TABLE })
-    mockGateError.mockResolvedValue(null)
-    mockGetActiveWorkflowContext.mockResolvedValue({ workspaceId: 'ws-1' })
-    mockUpdateWorkflowGroup.mockResolvedValue(UPDATED_TABLE)
-  })
-
-  it('updates the group and returns it with the resulting columns', async () => {
-    const res = await callWrite('PATCH', {
-      workspaceId: 'ws-1',
-      groupId: 'group-1',
-      name: 'Renamed',
-    })
-
-    expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(body.data.group).toEqual(GROUP)
-    expect(body.data.columns).toEqual([{ name: 'summary', type: 'string' }])
-    expect(mockUpdateWorkflowGroup).toHaveBeenCalledWith(
-      expect.objectContaining({ tableId: 'table-1', groupId: 'group-1', name: 'Renamed' }),
-      expect.any(String)
+  it('returns authoritative surviving columns after deletion', async () => {
+    const response = await DELETE(
+      writeRequest('DELETE', { workspaceId: WORKSPACE_ID, groupId: 'group-1' }),
+      context
     )
-  })
 
-  it('re-checks workspace containment when the group is re-pointed', async () => {
-    mockGetActiveWorkflowContext.mockResolvedValue({ workspaceId: 'ws-other' })
-
-    const res = await callWrite('PATCH', {
-      workspaceId: 'ws-1',
-      groupId: 'group-1',
-      workflowId: 'wf-elsewhere',
-    })
-
-    expect(res.status).toBe(400)
-    expect(mockUpdateWorkflowGroup).not.toHaveBeenCalled()
-  })
-
-  it('stamps the group id onto any newly added output columns', async () => {
-    await callWrite('PATCH', {
-      workspaceId: 'ws-1',
-      groupId: 'group-1',
-      newOutputColumns: [{ name: 'score', type: 'number' }],
-    })
-
-    expect(mockUpdateWorkflowGroup.mock.calls[0][0].newOutputColumns[0].workflowGroupId).toBe(
-      'group-1'
-    )
-  })
-
-  it('masks a permission failure as 404', async () => {
-    mockCheckAccess.mockResolvedValue({ ok: false, status: 403 })
-
-    const res = await callWrite('PATCH', { workspaceId: 'ws-1', groupId: 'group-1' })
-
-    expect(res.status).toBe(404)
-    expect(mockUpdateWorkflowGroup).not.toHaveBeenCalled()
-  })
-
-  it('404s an unknown group rather than reporting a generic failure', async () => {
-    mockUpdateWorkflowGroup.mockRejectedValue(new Error('Workflow group not found'))
-
-    const res = await callWrite('PATCH', { workspaceId: 'ws-1', groupId: 'nope' })
-
-    expect(res.status).toBe(404)
-  })
-})
-
-describe('DELETE /api/v2/tables/[tableId]/groups', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
-    mockResolveWorkspaceScope.mockResolvedValue(null)
-    mockCheckAccess.mockResolvedValue({ ok: true, table: TABLE })
-    mockGateError.mockResolvedValue(null)
-    mockDeleteWorkflowGroup.mockResolvedValue({
-      ...UPDATED_TABLE,
-      schema: { columns: [], workflowGroups: [] },
-    })
-  })
-
-  it('deletes the group and reports the surviving columns', async () => {
-    const res = await callWrite('DELETE', { workspaceId: 'ws-1', groupId: 'group-1' })
-
-    expect(res.status).toBe(200)
-    // The group's columns go with it — the caller sees what is left, not a bare ack.
-    expect(await res.json()).toEqual({ data: { id: 'group-1', deleted: true, columns: [] } })
-    expect(mockDeleteWorkflowGroup).toHaveBeenCalledWith(
-      { tableId: 'table-1', groupId: 'group-1' },
-      expect.any(String)
-    )
-  })
-
-  it('masks a permission failure as 404', async () => {
-    mockCheckAccess.mockResolvedValue({ ok: false, status: 403 })
-
-    const res = await callWrite('DELETE', { workspaceId: 'ws-1', groupId: 'group-1' })
-
-    expect(res.status).toBe(404)
-    expect(mockDeleteWorkflowGroup).not.toHaveBeenCalled()
-  })
-
-  it('400s a body with no groupId', async () => {
-    const res = await callWrite('DELETE', { workspaceId: 'ws-1' })
-
-    expect(res.status).toBe(400)
-    expect(mockDeleteWorkflowGroup).not.toHaveBeenCalled()
+    expect(response.status).toBe(200)
+    expect((await response.json()).data).toMatchObject({ id: 'group-1', deleted: true })
   })
 })

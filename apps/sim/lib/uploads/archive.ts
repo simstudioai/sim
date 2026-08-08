@@ -1,14 +1,13 @@
 import { Buffer } from 'buffer'
 import type { Readable } from 'stream'
+import type { Principal } from '@sim/auth/principal'
 import JSZip from 'jszip'
 import { readZipCentralDirectoryStats } from '@/lib/file-parsers/zip-guard'
-import { ensureWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
-import {
-  deleteWorkspaceFile,
-  uploadWorkspaceFile,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
+import { createWorkspaceFileFromBuffer } from '@/lib/workspace-files/application/create-workspace-file'
+import { deleteWorkspaceFileOperation } from '@/lib/workspace-files/application/delete-workspace-file'
+import { createWorkspaceFileFolderOperation } from '@/lib/workspace-files/application/workspace-file-folders'
 import type { UserFile } from '@/executor/types'
 
 /**
@@ -261,7 +260,7 @@ export async function decompressArchiveBufferToWorkspaceFiles(
   buffer: Buffer,
   opts: {
     workspaceId: string
-    userId: string
+    principal: Principal
     rootFolderSegments?: string[]
     skipNoiseEntries?: boolean
     secretProvenance?: WorkspaceFileSecretProvenance
@@ -269,7 +268,7 @@ export async function decompressArchiveBufferToWorkspaceFiles(
 ): Promise<DecompressResult> {
   const {
     workspaceId,
-    userId,
+    principal,
     rootFolderSegments = [],
     skipNoiseEntries = false,
     secretProvenance = { status: 'unknown' },
@@ -357,32 +356,50 @@ export async function decompressArchiveBufferToWorkspaceFiles(
       const folderKey = folderSegments.join('/')
       let folderId = folderIdCache.get(folderKey)
       if (folderId === undefined) {
-        folderId = await ensureWorkspaceFileFolderPath({
-          workspaceId,
-          userId,
-          pathSegments: folderSegments,
-        })
+        if (folderSegments.length === 0) {
+          folderId = null
+        } else {
+          const result = await createWorkspaceFileFolderOperation.execute({
+            principal,
+            input: { workspaceId, path: folderSegments.join('/') },
+          })
+          folderId = result.folder.id
+        }
         folderIdCache.set(folderKey, folderId)
       }
 
       const mimeType = getMimeTypeFromExtension(getFileExtension(leafName))
-      const uploaded = await uploadWorkspaceFile(
-        workspaceId,
-        userId,
-        entryBuffer,
-        leafName,
-        mimeType,
-        {
-          folderId,
-          secretProvenance,
-        }
-      )
-      extracted.push(uploaded)
+      const uploaded = (
+        await createWorkspaceFileFromBuffer.execute({
+          principal,
+          input: {
+            workspaceId,
+            content: entryBuffer,
+            name: leafName,
+            contentType: mimeType,
+            folderId,
+            exactName: true,
+            secretProvenance,
+          },
+        })
+      ).file
+      extracted.push({
+        id: uploaded.id,
+        name: uploaded.name,
+        url: uploaded.url ?? uploaded.path,
+        size: uploaded.size,
+        type: uploaded.type,
+        key: uploaded.key,
+        context: 'workspace',
+      })
     }
   } catch (error) {
     for (const file of extracted) {
       try {
-        await deleteWorkspaceFile(workspaceId, file.id)
+        await deleteWorkspaceFileOperation.execute({
+          principal,
+          input: { fileId: file.id, assertedWorkspaceId: workspaceId },
+        })
       } catch {
         // Best-effort: a file whose cleanup fails is still soft-deletable by hand;
         // the original error is what the caller needs to see.

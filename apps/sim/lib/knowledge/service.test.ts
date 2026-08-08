@@ -31,7 +31,32 @@ vi.mock('@/lib/billing/core/usage', () => ({
   ensureUserStatsExists: mockEnsureUserStatsExists,
 }))
 
-import { KnowledgeBasePermissionError, updateKnowledgeBase } from '@/lib/knowledge/service'
+import { MAX_KNOWLEDGE_BASES_PER_WORKSPACE } from '@/lib/knowledge/constants'
+import {
+  getWorkspaceKnowledgeBases,
+  KnowledgeBasePermissionError,
+  updateKnowledgeBase,
+} from '@/lib/knowledge/service'
+
+describe('getWorkspaceKnowledgeBases — bounded reads', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('fails before projecting connector data for an oversized workspace list', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce(
+      Array.from({ length: MAX_KNOWLEDGE_BASES_PER_WORKSPACE + 1 }, (_, index) => ({
+        id: `kb-${index}`,
+      }))
+    )
+
+    await expect(getWorkspaceKnowledgeBases('ws-1')).rejects.toThrow(
+      `Knowledge base list exceeds the ${MAX_KNOWLEDGE_BASES_PER_WORKSPACE} row limit`
+    )
+    expect(dbChainMockFns.limit).toHaveBeenCalledWith(MAX_KNOWLEDGE_BASES_PER_WORKSPACE + 1)
+  })
+})
 
 /**
  * These tests guard the workspace mass-assignment fix:

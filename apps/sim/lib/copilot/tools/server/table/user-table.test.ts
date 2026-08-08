@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 
+import { getErrorMessage } from '@sim/utils/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { TableDefinition } from '@/lib/table'
@@ -33,6 +34,7 @@ const {
   mockRunTableDelete,
   mockRunTableUpdate,
   mockEnsureWorkflowAccess,
+  mockExecuteCopilotTableUseCase,
   fakeEnrichment,
 } = vi.hoisted(() => ({
   mockUpdateColumnType: vi.fn(),
@@ -61,6 +63,7 @@ const {
   mockRunTableDelete: vi.fn(),
   mockRunTableUpdate: vi.fn(),
   mockEnsureWorkflowAccess: vi.fn(),
+  mockExecuteCopilotTableUseCase: vi.fn(),
   fakeEnrichment: {
     id: 'work-email',
     name: 'Work Email',
@@ -87,6 +90,46 @@ vi.mock('@sim/utils/id', () => ({
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   resolveWorkspaceFileReference: mockResolveWorkspaceFileReference,
   fetchWorkspaceFileBuffer: mockDownloadWorkspaceFile,
+}))
+vi.mock('@/lib/workspace-files/application/resolve-workspace-file-reference', () => ({
+  resolveWorkspaceFileReference: mockResolveWorkspaceFileReference,
+}))
+vi.mock('@/lib/workspace-files/application/read-workspace-file-content', () => ({
+  readWorkspaceFileContent: {
+    execute: async () => ({ content: await mockDownloadWorkspaceFile() }),
+  },
+}))
+vi.mock('@/lib/copilot/auth/file-delegation', () => ({
+  resolveCopilotFilePrincipal: vi.fn(() => ({
+    kind: 'delegated',
+    serviceId: 'copilot',
+    subjectUserId: 'user-1',
+    workspaceId: 'workspace-1',
+    delegationId: 'test-tool',
+    audience: 'sim:workspace-files',
+    issuedAt: new Date(0),
+    expiresAt: new Date(Date.now() + 60_000),
+  })),
+}))
+
+vi.mock('@/lib/copilot/auth/table-delegation', () => ({
+  messageForCopilotTableError: (error: unknown) => getErrorMessage(error, 'Table operation failed'),
+  resolveCopilotTablePrincipal: (_context: unknown, tableId?: string) => ({
+    kind: 'delegated',
+    serviceId: 'copilot',
+    subjectUserId: 'user-1',
+    workspaceId: 'workspace-1',
+    delegationId: 'test-tool',
+    audience: 'sim:tables',
+    issuedAt: new Date(0),
+    expiresAt: new Date(Date.now() + 60_000),
+    resourceScope: tableId ? { tableId } : undefined,
+  }),
+}))
+
+vi.mock('@/lib/copilot/application/execute-table-use-case', () => ({
+  admitCopilotTableOperation: vi.fn(),
+  executeCopilotTableUseCase: mockExecuteCopilotTableUseCase,
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
@@ -151,8 +194,8 @@ vi.mock('@/lib/table/rows/service', () => ({
 }))
 
 vi.mock('@/lib/table/jobs/service', () => ({
-  markTableJobRunning: mockMarkTableJobRunning,
-  releaseJobClaim: mockReleaseJobClaim,
+  markTableJobRunningInWorkspace: mockMarkTableJobRunning,
+  releaseJobClaimInWorkspace: mockReleaseJobClaim,
 }))
 
 vi.mock('@/lib/table/import-runner', () => ({
@@ -174,7 +217,79 @@ vi.mock('@/lib/table/billing', () => ({
 }))
 
 import { userTableServerTool } from '@/lib/copilot/tools/server/table/user-table'
-import { encodeCursor } from '@/lib/table/rows/cursor'
+import { decodeCursor, encodeCursor } from '@/lib/table/rows/cursor'
+
+beforeEach(() => {
+  mockExecuteCopilotTableUseCase.mockImplementation(
+    async (
+      _context: unknown,
+      useCase: { operation: { id: string } },
+      input: Record<string, unknown>
+    ) => {
+      const table = await mockGetTableById(input.tableId)
+      switch (useCase.operation.id) {
+        case 'tables.create': {
+          const limits = await mockGetWorkspaceTableLimits(input.workspaceId)
+          const created = await mockCreateTable({ ...input, ...limits })
+          return { table: created }
+        }
+        case 'tables.rows.query': {
+          if (!table) throw new Error('Table not found')
+          if (input.cursor && Array.isArray(input.sort) && input.sort.length > 0) {
+            throw new Error('Cursor is not valid for a sorted query')
+          }
+          const cursor = input.cursor ? decodeCursor(String(input.cursor)) : undefined
+          const result = await mockQueryRows(table, {
+            predicate: input.predicate,
+            sort: input.sort,
+            limit: input.limit,
+            after: cursor?.after,
+            offset: cursor?.offset,
+            includeTotal: input.includeTotal,
+            withExecutions: false,
+          })
+          return { table, ...result }
+        }
+        case 'tables.columns.update': {
+          if (!table) throw new Error('Table not found')
+          const updates = input.updates as Record<string, unknown>
+          const column = table.schema.columns.find(
+            (candidate) => candidate.name === input.columnName
+          )
+          const next =
+            updates.type !== undefined && updates.type !== column?.type
+              ? await mockUpdateColumnType({
+                  tableId: input.tableId,
+                  columnName: input.columnName,
+                  newType: updates.type,
+                })
+              : await mockUpdateColumnOptions({
+                  tableId: input.tableId,
+                  columnName: input.columnName,
+                  options: Array.isArray(updates.options)
+                    ? updates.options.map((option) =>
+                        typeof option === 'string' ? { name: option } : option
+                      )
+                    : column?.options,
+                  multiple: updates.multiple,
+                })
+          return { table: next, changed: true }
+        }
+        case 'tables.read':
+          if (!table) throw new Error('Table not found')
+          return { table }
+        case 'tables.groups.create':
+          return { table: await mockAddWorkflowGroup(input, 'request-id') }
+        case 'tables.groups.update':
+          return { table: await mockUpdateWorkflowGroup(input, 'request-id') }
+        case 'tables.runs.start':
+          return { table, dispatchId: 'dispatch-1', shouldSignalRowsChanged: false }
+        default:
+          throw new Error(`Unexpected application operation ${useCase.operation.id}`)
+      }
+    }
+  )
+})
 
 function buildTable(overrides: Partial<TableDefinition> = {}): TableDefinition {
   return {
@@ -229,7 +344,7 @@ describe('userTableServerTool.import_file', () => {
     mockDownloadWorkspaceFile.mockResolvedValue(Buffer.from('name,age\nAlice,30\nBob,40'))
     mockGetTableById.mockResolvedValue(buildTable())
     mockMarkTableJobRunning.mockResolvedValue(true)
-    mockReleaseJobClaim.mockResolvedValue(undefined)
+    mockReleaseJobClaim.mockResolvedValue(true)
     mockBatchInsertRows.mockImplementation(async (data: { rows: unknown[] }) =>
       data.rows.map((_, i) => ({ id: `row_${i}` }))
     )
@@ -379,10 +494,16 @@ describe('userTableServerTool.import_file', () => {
     )
 
     expect(result.success).toBe(true)
-    expect(mockMarkTableJobRunning).toHaveBeenCalledWith('tbl_1', expect.any(String), 'import')
+    expect(mockMarkTableJobRunning).toHaveBeenCalledWith(
+      'tbl_1',
+      'workspace-1',
+      expect.any(String),
+      'import'
+    )
     expect(mockReleaseJobClaim).toHaveBeenCalledWith(
       'tbl_1',
-      mockMarkTableJobRunning.mock.calls[0][1]
+      'workspace-1',
+      mockMarkTableJobRunning.mock.calls[0][2]
     )
   })
 
@@ -417,7 +538,12 @@ describe('userTableServerTool.import_file', () => {
     expect(result.success).toBe(true)
     expect(result.data?.jobId).toBeDefined()
     expect(result.message).toMatch(/background/i)
-    expect(mockMarkTableJobRunning).toHaveBeenCalledWith('tbl_1', expect.any(String), 'import')
+    expect(mockMarkTableJobRunning).toHaveBeenCalledWith(
+      'tbl_1',
+      'workspace-1',
+      expect.any(String),
+      'import'
+    )
     expect(mockBatchInsertRows).not.toHaveBeenCalled()
     expect(mockReplaceTableRows).not.toHaveBeenCalled()
     expect(mockDownloadWorkspaceFile).not.toHaveBeenCalled()
@@ -669,7 +795,7 @@ describe('userTableServerTool.list_enrichments', () => {
   })
 })
 
-describe('userTableServerTool workspace-key execution billing', () => {
+describe('userTableServerTool table application delegation', () => {
   const context = {
     userId: 'workspace-key-owner',
     workspaceId: 'workspace-1',
@@ -718,7 +844,7 @@ describe('userTableServerTool workspace-key execution billing', () => {
     ])
   })
 
-  it('charges manual workflow-column dispatch to the frozen billing actor', async () => {
+  it('delegates manual workflow-column dispatch to the canonical run operation', async () => {
     const result = await userTableServerTool.execute(
       {
         operation: 'run_column',
@@ -728,17 +854,24 @@ describe('userTableServerTool workspace-key execution billing', () => {
     )
 
     expect(result.success).toBe(true)
-    expect(mockRunWorkflowColumn).toHaveBeenCalledWith(
+    expect(mockExecuteCopilotTableUseCase).toHaveBeenCalledWith(
+      context,
       expect.objectContaining({
+        operation: expect.objectContaining({ id: 'tables.runs.start' }),
+      }),
+      expect.objectContaining({
+        kind: 'selection',
         tableId: 'tbl_1',
-        workspaceId: 'workspace-1',
-        triggeredByUserId: 'workspace-system-actor',
-      })
+        assertedWorkspaceId: 'workspace-1',
+        groupIds: ['group-1'],
+        mode: 'incomplete',
+      }),
+      { tableId: 'tbl_1' }
     )
   })
 
-  it('does not run a table workflow group outside the trusted workspace', async () => {
-    mockEnsureWorkflowAccess.mockRejectedValueOnce(new Error('Workflow workflow-1 not found'))
+  it('surfaces a run admission failure from the application operation', async () => {
+    mockExecuteCopilotTableUseCase.mockRejectedValueOnce(new Error('Workflow workflow-1 not found'))
 
     const result = await userTableServerTool.execute(
       {
@@ -752,10 +885,9 @@ describe('userTableServerTool workspace-key execution billing', () => {
       success: false,
       message: 'Operation failed: Workflow workflow-1 not found',
     })
-    expect(mockRunWorkflowColumn).not.toHaveBeenCalled()
   })
 
-  it('keeps group mutation ownership separate from auto-run billing', async () => {
+  it('delegates group creation without projecting actor or billing identity into input', async () => {
     const result = await userTableServerTool.execute(
       {
         operation: 'add_workflow_group',
@@ -770,17 +902,21 @@ describe('userTableServerTool workspace-key execution billing', () => {
     )
 
     expect(result.success).toBe(true)
-    expect(mockAddWorkflowGroup).toHaveBeenCalledWith(
+    expect(mockExecuteCopilotTableUseCase).toHaveBeenCalledWith(
+      context,
       expect.objectContaining({
-        actorUserId: 'workspace-key-owner',
-        billingActorUserId: 'workspace-system-actor',
+        operation: expect.objectContaining({ id: 'tables.groups.create' }),
+      }),
+      expect.objectContaining({
+        tableId: 'tbl_1',
+        workspaceId: 'workspace-1',
         autoRun: true,
       }),
-      expect.any(String)
+      { tableId: 'tbl_1' }
     )
   })
 
-  it('preserves separate mutation and billing actors when enabling auto-run', async () => {
+  it('delegates group updates without projecting actor or billing identity into input', async () => {
     const result = await userTableServerTool.execute(
       {
         operation: 'update_workflow_group',
@@ -790,13 +926,18 @@ describe('userTableServerTool workspace-key execution billing', () => {
     )
 
     expect(result.success).toBe(true)
-    expect(mockUpdateWorkflowGroup).toHaveBeenCalledWith(
+    expect(mockExecuteCopilotTableUseCase).toHaveBeenCalledWith(
+      context,
       expect.objectContaining({
-        actorUserId: 'workspace-key-owner',
-        billingActorUserId: 'workspace-system-actor',
+        operation: expect.objectContaining({ id: 'tables.groups.update' }),
+      }),
+      expect.objectContaining({
+        tableId: 'tbl_1',
+        workspaceId: 'workspace-1',
+        groupId: 'group-1',
         autoRun: true,
       }),
-      expect.any(String)
+      { tableId: 'tbl_1' }
     )
   })
 })
@@ -1104,7 +1245,7 @@ describe('userTableServerTool.delete_rows_by_filter', () => {
     // target = min(limit 5000, matchCount 20000) = 5000, above the inline cap → background.
     expect(result.data?.doomedCount).toBe(5000)
     expect(mockDeleteRowsByFilter).not.toHaveBeenCalled()
-    const [, , type, payload] = mockMarkTableJobRunning.mock.calls[0]
+    const [, , , type, payload] = mockMarkTableJobRunning.mock.calls[0]
     expect(type).toBe('delete')
     // Bounded delete carries maxRows and omits doomedCount so the mask is skipped and the count
     // isn't double-subtracted.
@@ -1126,7 +1267,12 @@ describe('userTableServerTool.delete_rows_by_filter', () => {
     expect(result.data?.affectedCount).toBe(5)
     expect(mockDeleteRowsByFilter).toHaveBeenCalledTimes(1)
     // Inline delete still claims (and releases) the table's write-job slot.
-    expect(mockMarkTableJobRunning).toHaveBeenCalledWith('tbl_1', expect.any(String), 'delete')
+    expect(mockMarkTableJobRunning).toHaveBeenCalledWith(
+      'tbl_1',
+      'workspace-1',
+      expect.any(String),
+      'delete'
+    )
     expect(mockReleaseJobClaim).toHaveBeenCalled()
   })
 
@@ -1185,8 +1331,9 @@ describe('userTableServerTool.delete_rows_by_filter', () => {
     expect(result.data?.jobId).toBeDefined()
     expect(result.data?.doomedCount).toBe(20000)
     expect(mockDeleteRowsByFilter).not.toHaveBeenCalled()
-    const [tableId, jobId, type, payload] = mockMarkTableJobRunning.mock.calls[0]
+    const [tableId, workspaceId, jobId, type, payload] = mockMarkTableJobRunning.mock.calls[0]
     expect(tableId).toBe('tbl_1')
+    expect(workspaceId).toBe('workspace-1')
     expect(type).toBe('delete')
     expect(payload).toMatchObject({ doomedCount: 20000, cutoff: expect.any(String) })
     // Unbounded delete masks the whole set — no maxRows cap.
@@ -1278,7 +1425,7 @@ describe('userTableServerTool.update_rows_by_filter', () => {
     // target = min(limit 5000, matchCount 20000) = 5000, above the inline cap → background.
     expect(result.data?.affectedCount).toBe(5000)
     expect(mockUpdateRowsByFilter).not.toHaveBeenCalled()
-    const [, , type, payload] = mockMarkTableJobRunning.mock.calls[0]
+    const [, , , type, payload] = mockMarkTableJobRunning.mock.calls[0]
     expect(type).toBe('update')
     expect(payload).toMatchObject({ affectedCount: 5000, maxRows: 5000 })
     expect(mockRunTableUpdate.mock.calls[0][0]).toMatchObject({ maxRows: 5000 })
@@ -1344,8 +1491,9 @@ describe('userTableServerTool.update_rows_by_filter', () => {
     expect(result.data?.jobId).toBeDefined()
     expect(result.data?.affectedCount).toBe(20000)
     expect(mockUpdateRowsByFilter).not.toHaveBeenCalled()
-    const [tableId, jobId, type, payload] = mockMarkTableJobRunning.mock.calls[0]
+    const [tableId, workspaceId, jobId, type, payload] = mockMarkTableJobRunning.mock.calls[0]
     expect(tableId).toBe('tbl_1')
+    expect(workspaceId).toBe('workspace-1')
     expect(type).toBe('update')
     expect(payload).toMatchObject({
       affectedCount: 20000,
@@ -1499,5 +1647,24 @@ describe('userTableServerTool.update_column — select routing', () => {
     const arg = mockUpdateColumnOptions.mock.calls[0][0]
     expect(arg.multiple).toBe(true)
     expect(arg.options).toEqual([{ id: 'opt_open', name: 'Open' }])
+  })
+})
+
+describe('userTableServerTool.delete bounds', () => {
+  it('rejects an unbounded multi-table delete before invoking an application use case', async () => {
+    vi.clearAllMocks()
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'delete',
+        args: { tableIds: Array.from({ length: 101 }, (_, index) => `table-${index}`) },
+      },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result).toEqual({
+      success: false,
+      message: 'Cannot delete more than 100 tables at once',
+    })
+    expect(mockExecuteCopilotTableUseCase).not.toHaveBeenCalled()
   })
 })

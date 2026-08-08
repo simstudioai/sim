@@ -23,9 +23,22 @@ vi.mock('@/lib/copilot/request/session', async () => {
 })
 
 const resolveWorkspaceFileReferenceMock = vi.hoisted(() => vi.fn())
+const listAllWorkspaceFilesMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   resolveWorkspaceFileReference: resolveWorkspaceFileReferenceMock,
+  findWorkspaceFileRecord: (
+    files: Array<{ name: string; folderPath?: string | null }>,
+    path: string
+  ) =>
+    files.find((file) => {
+      const normalized = path.replace(/^files\//, '').replaceAll('%20', ' ')
+      const filePath = file.folderPath ? `${file.folderPath}/${file.name}` : file.name
+      return filePath === normalized
+    }) ?? null,
+}))
+vi.mock('@/lib/workspace-files/application/list-workspace-files', () => ({
+  listAllWorkspaceFiles: { execute: listAllWorkspaceFilesMock },
 }))
 
 vi.mock('@/lib/copilot/tools/server/files/file-preview', async () => {
@@ -121,6 +134,8 @@ describe('copilot go stream helpers', () => {
     vi.stubGlobal('fetch', vi.fn())
     resolveWorkspaceFileReferenceMock.mockReset()
     resolveWorkspaceFileReferenceMock.mockResolvedValue(null)
+    listAllWorkspaceFilesMock.mockReset()
+    listAllWorkspaceFilesMock.mockResolvedValue({ files: [] })
   })
 
   afterEach(() => {
@@ -169,9 +184,8 @@ describe('copilot go stream helpers', () => {
   })
 
   it('hydrates path-based workspace_file edits into file preview events before edit_content streams', async () => {
-    resolveWorkspaceFileReferenceMock.mockResolvedValue({
-      id: 'file-1',
-      name: 'notes.md',
+    listAllWorkspaceFilesMock.mockResolvedValue({
+      files: [{ id: 'file-1', name: 'notes.md', folderPath: null }],
     })
 
     const workspaceFileCall = createEvent({
@@ -274,6 +288,8 @@ describe('copilot go stream helpers', () => {
       workflowId: 'workflow-1',
       workspaceId: 'workspace-1',
       messageId: 'msg-1',
+      copilotToolExecution: true,
+      toolCallId: 'stream-tool-1',
     }
 
     await runStreamLoop('https://example.com/mothership/stream', {}, context, execContext, {
@@ -308,13 +324,24 @@ describe('copilot go stream helpers', () => {
       previewPhase: 'file_preview_complete',
       fileId: 'file-1',
     })
-    expect(resolveWorkspaceFileReferenceMock).toHaveBeenCalledWith('workspace-1', 'files/notes.md')
+    expect(listAllWorkspaceFilesMock).toHaveBeenCalledWith({
+      principal: expect.objectContaining({
+        kind: 'delegated',
+        workspaceId: 'workspace-1',
+      }),
+      input: { workspaceId: 'workspace-1', scope: 'active' },
+    })
   })
 
   it('resolves workflow alias paths to the backing file before streaming previews', async () => {
-    resolveWorkspaceFileReferenceMock.mockResolvedValue({
-      id: 'changelog-file-1',
-      name: 'workflow-1.md',
+    listAllWorkspaceFilesMock.mockResolvedValue({
+      files: [
+        {
+          id: 'changelog-file-1',
+          name: 'changelog.md',
+          folderPath: 'workflows/My Workflow',
+        },
+      ],
     })
 
     const workspaceFileCall = createEvent({
@@ -392,6 +419,8 @@ describe('copilot go stream helpers', () => {
       workflowId: 'workflow-1',
       workspaceId: 'workspace-1',
       messageId: 'msg-1',
+      copilotToolExecution: true,
+      toolCallId: 'stream-tool-2',
     }
 
     await runStreamLoop('https://example.com/mothership/stream', {}, context, execContext, {
@@ -414,7 +443,7 @@ describe('copilot go stream helpers', () => {
     ])
     expect(previewEvents[1].payload).toMatchObject({
       previewPhase: 'file_preview_target',
-      target: { kind: 'file_id', fileId: 'changelog-file-1', fileName: 'workflow-1.md' },
+      target: { kind: 'file_id', fileId: 'changelog-file-1', fileName: 'changelog.md' },
     })
     expect(previewEvents[2].payload).toMatchObject({
       previewPhase: 'file_preview_content',
@@ -426,10 +455,13 @@ describe('copilot go stream helpers', () => {
       previewPhase: 'file_preview_complete',
       fileId: 'changelog-file-1',
     })
-    expect(resolveWorkspaceFileReferenceMock).toHaveBeenCalledWith(
-      'workspace-1',
-      'workflows/My%20Workflow/changelog.md'
-    )
+    expect(listAllWorkspaceFilesMock).toHaveBeenCalledWith({
+      principal: expect.objectContaining({
+        kind: 'delegated',
+        workspaceId: 'workspace-1',
+      }),
+      input: { workspaceId: 'workspace-1', scope: 'active' },
+    })
   })
 
   it('drops duplicate tool_result events before forwarding them', async () => {

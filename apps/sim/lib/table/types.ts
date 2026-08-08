@@ -905,12 +905,16 @@ export interface DeleteColumnData {
 /** Payload for `addWorkflowGroup` — atomic insert of a group + its outputs. */
 export interface AddWorkflowGroupData {
   tableId: string
+  /** Canonical workspace derived from the table by an authorized caller. */
+  workspaceId?: string
   group: WorkflowGroup
   outputColumns: ColumnDefinition[]
   /** When `false`, the post-add row-scheduling pass is skipped. Defaults to
    *  `true` (UI behavior). Mothership passes `false` so groups can be staged
    *  without firing every dep-satisfied row. */
   autoRun?: boolean
+  /** Persist auto-run state without dispatching through the primitive. */
+  suppressAutoRunDispatch?: boolean
   /** The member adding the group, retained for authorization/audit work. */
   actorUserId?: string | null
   /**
@@ -924,6 +928,8 @@ export interface AddWorkflowGroupData {
 /** Payload for `updateWorkflowGroup` — diffs outputs and writes columns. */
 export interface UpdateWorkflowGroupData {
   tableId: string
+  /** Canonical workspace derived from the table by an authorized caller. */
+  workspaceId?: string
   groupId: string
   workflowId?: string
   name?: string
@@ -947,6 +953,8 @@ export interface UpdateWorkflowGroupData {
   type?: WorkflowGroupType
   /** Toggle the group's auto-run flag. Omit to leave it unchanged. */
   autoRun?: boolean
+  /** Skip primitive dispatch when an authorized caller will start the run itself. */
+  suppressAutoRunDispatch?: boolean
   /** The member updating the group, retained for authorization/audit/backfill work. */
   actorUserId?: string | null
   /** Frozen billing actor for a false -> true auto-run transition. */
@@ -955,5 +963,7 @@ export interface UpdateWorkflowGroupData {
 
 export interface DeleteWorkflowGroupData {
   tableId: string
+  /** Canonical workspace derived from the table by an authorized caller. */
+  workspaceId?: string
   groupId: string
 }

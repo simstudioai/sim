@@ -1,94 +1,31 @@
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import type { NextRequest } from 'next/server'
 import { v2UpsertTableRowContract } from '@/lib/api/contracts/v2/tables'
-import { isZodError, parseRequest } from '@/lib/api/server'
-import { generateRequestId } from '@/lib/core/utils/request'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import type { RowData, TableSchema } from '@/lib/table'
-import { buildIdByName, rowDataNameToId, upsertRow } from '@/lib/table'
+import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
+import { v2TableRowsErrorPolicy } from '@/lib/table/api/row-route-policies'
+import { tableOperations } from '@/lib/table/application/operations'
+import { upsertTableRow } from '@/lib/table/application/rows'
 import { namedRowMapper } from '@/lib/table/cell-format'
-import { checkAccess } from '@/app/api/table/utils'
-import { checkRateLimit, resolveWorkspaceScope } from '@/app/api/v1/middleware'
-import { v2ApiGateError } from '@/app/api/v2/lib/gate'
-import {
-  v2CaughtOrchestrationError,
-  v2Data,
-  v2Error,
-  v2RateLimitError,
-  v2ValidationError,
-  v2WorkspaceAccessError,
-} from '@/app/api/v2/lib/response'
-import { toApiRow, v2TableAccessError } from '@/app/api/v2/tables/utils'
-
-const logger = createLogger('V2TableUpsertAPI')
+import { toApiRow } from '@/app/api/v2/tables/utils'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-interface UpsertRouteParams {
-  params: Promise<{ tableId: string }>
-}
-
-/** POST /api/v2/tables/[tableId]/rows/upsert — Insert or update a row based on unique columns. */
-export const POST = withRouteHandler(async (request: NextRequest, context: UpsertRouteParams) => {
-  const requestId = generateRequestId()
-
-  try {
-    const rateLimit = await checkRateLimit(request, 'table-rows')
-    if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
-
-    const userId = rateLimit.userId!
-
-    const gate = await v2ApiGateError(userId)
-    if (gate) return gate
-
-    const parsed = await parseRequest(v2UpsertTableRowContract, request, context, {
-      validationErrorResponse: v2ValidationError,
-    })
-    if (!parsed.success) return parsed.response
-
-    const { tableId } = parsed.data.params
-    const validated = parsed.data.body
-
-    const scopeError = await resolveWorkspaceScope(rateLimit, validated.workspaceId)
-    if (scopeError) return v2WorkspaceAccessError(scopeError)
-
-    const result = await checkAccess(tableId, userId, 'write')
-    if (!result.ok) return v2TableAccessError(result)
-
-    const { table } = result
-    if (table.workspaceId !== validated.workspaceId) {
-      return v2Error('NOT_FOUND', 'Table not found')
-    }
-
-    const idByName = buildIdByName(table.schema as TableSchema)
-    const toNamedRow = namedRowMapper((table.schema as TableSchema).columns)
-    const upsertResult = await upsertRow(
-      {
-        tableId,
-        workspaceId: validated.workspaceId,
-        data: rowDataNameToId(validated.data as RowData, idByName),
-        userId,
-        conflictTarget: validated.conflictTarget,
-      },
-      table,
-      requestId
-    )
-
-    return v2Data(
-      { row: toApiRow(upsertResult.row, toNamedRow), operation: upsertResult.operation },
-      { rateLimit }
-    )
-  } catch (error) {
-    if (isZodError(error)) return v2ValidationError(error)
-
-    const classified = v2CaughtOrchestrationError(error)
-    if (classified) return classified
-
-    logger.error(`[${requestId}] Error upserting row`, {
-      error: getErrorMessage(error, 'Unknown error'),
-    })
-    return v2Error('INTERNAL_ERROR', 'Internal server error')
-  }
+export const POST = defineV2JsonRoute({
+  contract: v2UpsertTableRowContract,
+  operation: tableOperations.upsertRow,
+  auth: v2ApiKeyAuth,
+  rateLimit: v2RateLimits.publicApi,
+  errorPolicy: v2TableRowsErrorPolicy,
+  mapInput: ({ params, body }) => ({
+    tableId: params.tableId,
+    assertedWorkspaceId: body.workspaceId,
+    data: body.data,
+    conflictTarget: body.conflictTarget,
+  }),
+  useCase: upsertTableRow,
+  present: ({ table, row, operation }) => ({
+    data: {
+      row: toApiRow(row, namedRowMapper(table.schema.columns)),
+      operation,
+    },
+  }),
 })

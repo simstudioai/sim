@@ -1,10 +1,11 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
+import { type Principal, resolvePrincipalAuditAttribution } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { workspaceFiles } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { eq, sql } from 'drizzle-orm'
-import type { NextRequest } from 'next/server'
 import type { V2File } from '@/lib/api/contracts/v2/files'
+import type { OrchestrationRequestContext } from '@/lib/core/orchestration/types'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
 import { getServeStoragePrefix } from '@/lib/uploads/config'
@@ -51,7 +52,9 @@ interface FinalizedWorkspaceFile {
 interface FinalizeUploadPurposeParams {
   session: UploadSessionRecord
   actor: UploadActor
-  request: NextRequest
+  request: OrchestrationRequestContext
+  principal: Principal
+  authorizeBeforeRegistration?: () => Promise<void>
 }
 
 interface FinalizedUploadPurpose {
@@ -79,10 +82,18 @@ export async function finalizeUploadPurpose({
   session,
   actor,
   request,
+  principal,
+  authorizeBeforeRegistration,
 }: FinalizeUploadPurposeParams): Promise<FinalizedUploadPurpose> {
   switch (session.purpose) {
     case 'workspace_file':
-      return finalizeInternalWorkspaceFile(session, actor, request)
+      return finalizeInternalWorkspaceFile(
+        session,
+        actor,
+        request,
+        principal,
+        authorizeBeforeRegistration
+      )
     case 'profile_picture':
       return { value: storedAssetResult(session, 'profile-pictures') }
     case 'workspace_logo':
@@ -100,12 +111,30 @@ export async function finalizeUploadPurpose({
   }
 }
 
+export async function loadCompletedUploadPurpose(
+  session: UploadSessionRecord
+): Promise<UploadPurposeResult> {
+  if (session.purpose !== 'workspace_file') {
+    throw new Error(`Upload purpose ${session.purpose} has no durable file result`)
+  }
+  return toV2File(await loadCompletedWorkspaceFileUpload(session))
+}
+
 async function finalizeInternalWorkspaceFile(
   session: UploadSessionRecord,
   actor: UploadActor,
-  request: NextRequest
+  request: OrchestrationRequestContext,
+  principal: Principal,
+  authorizeBeforeRegistration?: () => Promise<void>
 ): Promise<FinalizedUploadPurpose> {
-  const finalized = await finalizeWorkspaceFileUpload({ session, actor, request, source: 'ui' })
+  const finalized = await finalizeWorkspaceFileUpload({
+    session,
+    actor,
+    request,
+    source: 'ui',
+    principal,
+    authorizeBeforeRegistration,
+  })
   return {
     value: await toV2File(finalized.file),
     completedFileId: finalized.file.id,
@@ -119,15 +148,24 @@ async function finalizeInternalWorkspaceFile(
 export async function finalizeWorkspaceFileUpload(params: {
   session: UploadSessionRecord
   actor: UploadActor
-  request: NextRequest
+  request: OrchestrationRequestContext
   source: 'api' | 'ui'
+  principal: Principal
+  authorizeBeforeRegistration?: () => Promise<void>
 }): Promise<FinalizedWorkspaceFile> {
-  const { session, actor, request, source } = params
+  const { session, actor, request, source, principal, authorizeBeforeRegistration } = params
   const workspaceId = requireWorkspaceId(session)
   const metadata = session.metadata as { folderId?: string | null }
+  if (session.completedFileId) {
+    await authorizeBeforeRegistration?.()
+    return { file: await loadCompletedWorkspaceFileUpload(session), created: false }
+  }
+  await authorizeBeforeRegistration?.()
+  const legacyAttributionUserId = principal.kind === 'workspace_api_key' ? actor.id : session.userId
   const registered = await registerUploadedWorkspaceFile({
     workspaceId,
-    userId: session.userId,
+    userId: legacyAttributionUserId,
+    uploadSessionId: session.id,
     key: session.storageKey,
     originalName: session.fileName,
     contentType: session.contentType,
@@ -145,33 +183,56 @@ export async function finalizeWorkspaceFileUpload(params: {
   }
   if (registered.created) {
     await notifyWorkspaceFilesChanged(workspaceId)
-    captureServerEvent(
-      actor.id,
-      'file_uploaded',
-      { workspace_id: workspaceId, file_type: session.contentType },
-      { groups: { workspace: workspaceId } }
-    )
+    if (principal.kind !== 'workspace_api_key') {
+      captureServerEvent(
+        actor.id,
+        'file_uploaded',
+        { workspace_id: workspaceId, file_type: session.contentType },
+        { groups: { workspace: workspaceId } }
+      )
+    }
+    const auditAttribution = resolvePrincipalAuditAttribution(principal)
     recordAudit({
       workspaceId,
-      actorId: actor.id,
-      actorName: actor.name,
+      actorId: auditAttribution.actorId,
+      actorName: auditAttribution.actorName ?? actor.name,
       actorEmail: actor.email,
       action: AuditAction.FILE_UPLOADED,
       resourceType: AuditResourceType.FILE,
       resourceId: file.id,
       resourceName: file.name,
       description: `Uploaded file "${file.name}"${source === 'api' ? ' via API' : ''}`,
-      metadata: { fileSize: file.size, fileType: file.type },
+      metadata: {
+        fileSize: file.size,
+        fileType: file.type,
+        actor: auditAttribution.actor,
+      },
       request,
     })
   }
   return { file, created: registered.created }
 }
 
+export async function loadCompletedWorkspaceFileUpload(
+  session: UploadSessionRecord
+): Promise<WorkspaceFileRecord> {
+  const workspaceId = requireWorkspaceId(session)
+  if (!session.completedFileId) {
+    throw new Error('Workspace upload session has no completed file marker')
+  }
+  const durable = await getWorkspaceFile(workspaceId, session.completedFileId, {
+    includeDeleted: true,
+    throwOnError: true,
+  })
+  if (!durable) throw new UploadSessionError('conflict', 'Completed workspace file not found')
+  if (durable.deletedAt) throw new UploadSessionError('conflict', 'Upload result was deleted')
+  return durable
+}
+
 async function finalizeWorkspaceLogo(
   session: UploadSessionRecord,
   actor: UploadActor,
-  request: NextRequest
+  request: OrchestrationRequestContext
 ): Promise<FinalizedUploadPurpose> {
   const workspaceId = requireWorkspaceId(session)
   const finalized = await insertOrLoadFileMetadata({

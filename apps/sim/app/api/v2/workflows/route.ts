@@ -1,197 +1,88 @@
-import { createLogger } from '@sim/logger'
-import { assertFolderMutable, FolderLockedError } from '@sim/platform-authz/workflow'
-import { getErrorMessage } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
-import type { NextRequest } from 'next/server'
+import type { V2WorkflowListItem } from '@/lib/api/contracts/v2/workflows'
+import { v2CreateWorkflowContract, v2ListWorkflowsContract } from '@/lib/api/contracts/v2/workflows'
+import { INVALID_CURSOR_MESSAGE } from '@/lib/api/list-query'
 import {
-  type V2WorkflowListItem,
-  v2CreateWorkflowContract,
-  v2ListWorkflowsContract,
-} from '@/lib/api/contracts/v2/workflows'
-import { parseRequest } from '@/lib/api/server'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
-import { performCreateWorkflow } from '@/lib/workflows/orchestration'
-import { InvalidWorkflowListCursorError, listWorkspaceWorkflows } from '@/lib/workflows/queries'
-import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
-import {
-  folderPathForId,
-  resolveFolderPathId,
-  resolveFolderPathIdentity,
-} from '@/app/api/v2/lib/folders'
-import { v2ApiGateError } from '@/app/api/v2/lib/gate'
-import {
-  cursorSortKey,
-  decodeSortedCursor,
-  encodeSortedCursor,
-  v2CursorList,
-  v2CursorSortError,
-  v2Data,
-  v2Error,
-  v2ErrorForOrchestration,
-  v2RateLimitError,
-  v2ValidationError,
-  v2WorkspaceAccessError,
-} from '@/app/api/v2/lib/response'
-
-const logger = createLogger('V2WorkflowsAPI')
+  defineV2JsonRoute,
+  v2ApiKeyAuth,
+  v2OrchestrationErrorPolicy,
+  v2RateLimits,
+} from '@/lib/api/server/routes'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { createWorkflow } from '@/lib/workflows/application/create-workflow'
+import { listWorkflows } from '@/lib/workflows/application/list-workflows'
+import { workflowOperations } from '@/lib/workflows/application/operations'
+import { cursorSortKey, decodeSortedCursor, encodeSortedCursor } from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-export const GET = withRouteHandler(async (request: NextRequest) => {
-  const requestId = generateId().slice(0, 8)
-
-  try {
-    const rateLimit = await checkRateLimit(request, 'workflows')
-    if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
-
-    const userId = rateLimit.userId!
-
-    const gate = await v2ApiGateError(userId)
-    if (gate) return gate
-
-    const parsed = await parseRequest(
-      v2ListWorkflowsContract,
-      request,
-      {},
-      {
-        validationErrorResponse: v2ValidationError,
-      }
-    )
-    if (!parsed.success) return parsed.response
-
-    const params = parsed.data.query
-
-    const access = await resolveWorkspaceAccess(rateLimit, userId, params.workspaceId, 'read')
-    if (access) return v2WorkspaceAccessError(access)
-
-    const folderIndex = await loadActiveFolderPathIndex(params.workspaceId, 'workflow')
-    const folderId =
-      params.folderPath === undefined
-        ? undefined
-        : resolveFolderPathId(folderIndex, params.folderPath)
-    if (params.folderPath !== undefined && folderId === undefined) {
-      return v2Error('NOT_FOUND', 'Folder not found')
+export const GET = defineV2JsonRoute({
+  contract: v2ListWorkflowsContract,
+  auth: v2ApiKeyAuth,
+  operation: workflowOperations.list,
+  rateLimit: v2RateLimits.publicApi,
+  errorPolicy: v2OrchestrationErrorPolicy,
+  mapInput: ({ query }) => {
+    const sort = cursorSortKey(query.sortBy, query.sortOrder)
+    const decoded = decodeSortedCursor(query.cursor, sort)
+    if (decoded.status === 'invalid') {
+      throw new OrchestrationError('validation', INVALID_CURSOR_MESSAGE)
     }
-
-    const sortKey = cursorSortKey(params.sortBy, params.sortOrder)
-    const decoded = decodeSortedCursor(params.cursor, sortKey)
-    if (decoded.status === 'invalid') return v2CursorSortError()
-
-    let result
-    try {
-      result = await listWorkspaceWorkflows({
-        workspaceId: params.workspaceId,
-        folderId,
-        deployedOnly: params.deployedOnly,
-        search: params.search,
-        sortBy: params.sortBy,
-        sortOrder: params.sortOrder,
-        cursorKeys: decoded.status === 'ok' ? decoded.keys : undefined,
-        limit: params.limit,
+    return {
+      workspaceId: query.workspaceId,
+      folderPath: query.folderPath,
+      deployedOnly: query.deployedOnly,
+      search: query.search,
+      sortBy: query.sortBy,
+      sortOrder: query.sortOrder,
+      cursorKeys: decoded.status === 'ok' ? decoded.keys : undefined,
+      limit: query.limit,
+    }
+  },
+  useCase: listWorkflows,
+  present: ({ workflows, nextCursorKeys, sortBy, sortOrder }) => ({
+    data: workflows.map(
+      (workflow): V2WorkflowListItem => ({
+        id: workflow.id,
+        name: workflow.name,
+        description: workflow.description,
+        folderPath: workflow.folderPath,
+        workspaceId: workflow.workspaceId,
+        isDeployed: workflow.isDeployed,
+        deployedAt: workflow.deployedAt?.toISOString() ?? null,
+        runCount: workflow.runCount,
+        lastRunAt: workflow.lastRunAt?.toISOString() ?? null,
+        createdAt: workflow.createdAt.toISOString(),
+        updatedAt: workflow.updatedAt.toISOString(),
       })
-    } catch (error) {
-      if (error instanceof InvalidWorkflowListCursorError) return v2CursorSortError()
-      throw error
-    }
-
-    const nextCursor = result.nextCursorKeys
-      ? encodeSortedCursor(sortKey, result.nextCursorKeys)
-      : null
-
-    const formatted: V2WorkflowListItem[] = result.data.map((w) => ({
-      id: w.id,
-      name: w.name,
-      description: w.description,
-      folderPath: folderPathForId(folderIndex, w.folderId),
-      workspaceId: w.workspaceId ?? params.workspaceId,
-      isDeployed: w.isDeployed,
-      deployedAt: w.deployedAt?.toISOString() ?? null,
-      runCount: w.runCount,
-      lastRunAt: w.lastRunAt?.toISOString() ?? null,
-      createdAt: w.createdAt.toISOString(),
-      updatedAt: w.updatedAt.toISOString(),
-    }))
-
-    return v2CursorList(formatted, nextCursor, { rateLimit })
-  } catch (error) {
-    logger.error(`[${requestId}] Workflows fetch error`, {
-      error: getErrorMessage(error, 'Unknown error'),
-    })
-    return v2Error('INTERNAL_ERROR', 'Internal server error')
-  }
+    ),
+    nextCursor: nextCursorKeys
+      ? encodeSortedCursor(cursorSortKey(sortBy, sortOrder), nextCursorKeys)
+      : null,
+  }),
 })
 
-/** POST /api/v2/workflows — Create an empty workflow in a workspace. */
-export const POST = withRouteHandler(async (request: NextRequest) => {
-  const requestId = generateId().slice(0, 8)
-
-  try {
-    const rateLimit = await checkRateLimit(request, 'workflows')
-    if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
-
-    const userId = rateLimit.userId!
-
-    const gate = await v2ApiGateError(userId)
-    if (gate) return gate
-
-    const parsed = await parseRequest(
-      v2CreateWorkflowContract,
-      request,
-      {},
-      { validationErrorResponse: v2ValidationError }
-    )
-    if (!parsed.success) return parsed.response
-
-    const { workspaceId, name, description, folderPath } = parsed.data.body
-
-    const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
-    if (access) return v2WorkspaceAccessError(access)
-
-    const resolution = await resolveFolderPathIdentity({
-      workspaceId,
-      resourceType: 'workflow',
-      path: folderPath ?? '/',
-    })
-    if (!resolution.found) return v2Error('NOT_FOUND', 'Folder not found')
-
-    await assertFolderMutable(resolution.folderId)
-    const result = await performCreateWorkflow({
-      userId,
-      workspaceId,
-      name,
-      description,
-      folderId: resolution.folderId,
-      requestId,
-    })
-
-    if (!result.success || !result.workflow) {
-      return v2ErrorForOrchestration(result.errorCode, result.error ?? 'Failed to create workflow')
-    }
-
-    const created = result.workflow
-    const item: V2WorkflowListItem = {
-      id: created.id,
-      name: created.name,
-      description: created.description ?? null,
-      folderPath: folderPathForId(resolution.index, created.folderId),
-      workspaceId: created.workspaceId,
+export const POST = defineV2JsonRoute({
+  contract: v2CreateWorkflowContract,
+  auth: v2ApiKeyAuth,
+  operation: workflowOperations.create,
+  rateLimit: v2RateLimits.publicApi,
+  errorPolicy: v2OrchestrationErrorPolicy,
+  mapInput: ({ body }) => body,
+  useCase: createWorkflow,
+  present: ({ workflow, folderPath }) => ({
+    data: {
+      id: workflow.id,
+      name: workflow.name,
+      description: workflow.description ?? null,
+      folderPath,
+      workspaceId: workflow.workspaceId,
       isDeployed: false,
       deployedAt: null,
       runCount: 0,
       lastRunAt: null,
-      createdAt: created.createdAt.toISOString(),
-      updatedAt: created.updatedAt.toISOString(),
-    }
-
-    return v2Data(item, { rateLimit, status: 201 })
-  } catch (error) {
-    if (error instanceof FolderLockedError) return v2Error('LOCKED', error.message)
-
-    logger.error(`[${requestId}] Workflow create error`, {
-      error: getErrorMessage(error, 'Unknown error'),
-    })
-    return v2Error('INTERNAL_ERROR', 'Internal server error')
-  }
+      createdAt: workflow.createdAt.toISOString(),
+      updatedAt: workflow.updatedAt.toISOString(),
+    },
+  }),
 })

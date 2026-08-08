@@ -9,7 +9,11 @@ import {
   skillDescriptionSchema,
   skillNameSchema,
 } from '@/lib/api/contracts/skills'
-import type { OrchestrationErrorCode } from '@/lib/core/orchestration/types'
+import {
+  asOrchestrationError,
+  OrchestrationError,
+  type OrchestrationErrorCode,
+} from '@/lib/core/orchestration/types'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { getSkillActorContext } from '@/lib/skills/access'
 import { getBuiltinSkillByName, isBuiltinSkillId } from '@/lib/workflows/skills/builtin-skills'
@@ -18,18 +22,12 @@ import { deleteSkill, getSkillById, upsertSkills } from '@/lib/workflows/skills/
 const logger = createLogger('SkillOrchestration')
 
 /**
- * Single authority for skill create/update/delete.
+ * Shared skill manager primitives and legacy orchestration adapters.
  *
- * Before this module the API route owned the create-vs-update split, the
- * built-in guard, the per-skill editor check, the field limits (which lived
- * only in the route's Zod contract), and the audit — so the copilot's
- * `manage_skill`, which calls `upsertSkills` directly, bypassed all of them.
- * Every caller now goes through these functions and gets the same rules.
- *
- * Workspace-level authorization stays with the caller: each surface has already
- * established workspace access by the time it gets here (session middleware,
- * the v2 `resolveWorkspaceAccess`, the copilot's permission context). What is
- * owned here is everything *per skill*.
+ * The throwing primitives own field validation, built-in guards, conflicts,
+ * and per-skill editor checks. Authorized application use cases own workspace
+ * authorization and semantic audit. The `perform*` adapters preserve internal
+ * route result, audit, and analytics compatibility.
  */
 
 /**
@@ -241,12 +239,47 @@ function recordSkillEvent(params: {
 export async function performCreateSkill(
   params: PerformCreateSkillParams
 ): Promise<PerformSkillResult> {
+  try {
+    const skill = await createSkill(params)
+    recordSkillEvent({
+      action: 'created',
+      workspaceId: params.workspaceId,
+      userId: params.userId,
+      skillId: skill.id,
+      skillName: skill.name,
+      actor: params,
+    })
+    return { success: true, skill }
+  } catch (error) {
+    return skillFailureResult(error, 'Failed to create skill')
+  }
+}
+
+function throwSkillFailure(result: PerformSkillResult): never {
+  throw new OrchestrationError(
+    result.errorCode ?? 'internal',
+    result.error ?? 'Skill operation failed'
+  )
+}
+
+function skillFailureResult(error: unknown, fallback: string): PerformSkillResult {
+  const classified = asOrchestrationError(error)
+  if (classified) {
+    return { success: false, error: classified.message, errorCode: classified.code }
+  }
+  logger.error(fallback, { error: getErrorMessage(error, fallback) })
+  return { success: false, error: fallback, errorCode: 'internal' }
+}
+
+export async function createSkill(
+  params: Omit<PerformCreateSkillParams, keyof ActorMetadata>
+): Promise<SkillRow> {
   const invalid =
     fieldError(skillNameSchema, params.name) ??
     fieldError(skillDescriptionSchema, params.description) ??
     fieldError(skillContentSchema, params.content) ??
     builtinNameCollision(params.name)
-  if (invalid) return validationFailure(invalid)
+  if (invalid) throw new OrchestrationError('validation', invalid)
 
   let created: { id: string; name: string } | undefined
   try {
@@ -258,37 +291,49 @@ export async function performCreateSkill(
     })
     created = touched[0]
   } catch (error) {
-    return classifyUpsertError(error)
+    throwSkillFailure(classifyUpsertError(error))
   }
 
   if (!created) {
-    logger.error('Skill create returned no touched row', { workspaceId: params.workspaceId })
-    return { success: false, error: 'Failed to create skill', errorCode: 'internal' }
+    throw new Error(`Skill create returned no touched row for workspace ${params.workspaceId}`)
   }
 
-  recordSkillEvent({
-    action: 'created',
-    workspaceId: params.workspaceId,
-    userId: params.userId,
-    skillId: created.id,
-    skillName: created.name,
-    actor: params,
-  })
-
   const row = await getSkillById({ skillId: created.id, workspaceId: params.workspaceId })
-  if (!row) return { success: false, error: 'Failed to create skill', errorCode: 'internal' }
-  return { success: true, skill: row }
+  if (!row) throw new Error(`Skill ${created.id} missing after a successful create`)
+  return row
 }
 
 export async function performUpdateSkill(
   params: PerformUpdateSkillParams
 ): Promise<PerformSkillResult> {
+  try {
+    const skill = await updateSkill(params)
+    recordSkillEvent({
+      action: 'updated',
+      workspaceId: params.workspaceId,
+      userId: params.userId,
+      skillId: skill.id,
+      skillName: skill.name,
+      actor: params,
+    })
+    return { success: true, skill }
+  } catch (error) {
+    return skillFailureResult(error, 'Failed to update skill')
+  }
+}
+
+export async function updateSkill(
+  params: Omit<PerformUpdateSkillParams, keyof ActorMetadata>
+): Promise<SkillRow> {
   if (
     params.name === undefined &&
     params.description === undefined &&
     params.content === undefined
   ) {
-    return validationFailure('At least one of name, description, or content is required')
+    throw new OrchestrationError(
+      'validation',
+      'At least one of name, description, or content is required'
+    )
   }
 
   const invalid =
@@ -299,10 +344,10 @@ export async function performUpdateSkill(
       ? fieldError(skillDescriptionSchema, params.description)
       : null) ??
     (params.content !== undefined ? fieldError(skillContentSchema, params.content) : null)
-  if (invalid) return validationFailure(invalid)
+  if (invalid) throw new OrchestrationError('validation', invalid)
 
   const resolved = await resolveEditableSkill(params)
-  if (!resolved.ok) return resolved.result
+  if (!resolved.ok) throwSkillFailure(resolved.result)
 
   try {
     await upsertSkills({
@@ -319,41 +364,40 @@ export async function performUpdateSkill(
       returnSkills: false,
     })
   } catch (error) {
-    return classifyUpsertError(error)
+    throwSkillFailure(classifyUpsertError(error))
   }
 
   const row = await getSkillById({ skillId: params.skillId, workspaceId: params.workspaceId })
-  if (!row) return { success: false, error: 'Skill not found', errorCode: 'not_found' }
-
-  recordSkillEvent({
-    action: 'updated',
-    workspaceId: params.workspaceId,
-    userId: params.userId,
-    skillId: row.id,
-    skillName: row.name,
-    actor: params,
-  })
-
-  return { success: true, skill: row }
+  if (!row) throw new OrchestrationError('not_found', 'Skill not found')
+  return row
 }
 
 export async function performDeleteSkill(
   params: PerformDeleteSkillParams
 ): Promise<PerformSkillResult> {
+  try {
+    const skill = await deleteSkillRecord(params)
+    recordSkillEvent({
+      action: 'deleted',
+      workspaceId: params.workspaceId,
+      userId: params.userId,
+      skillId: skill.id,
+      skillName: skill.name,
+      actor: params,
+    })
+    return { success: true, skill }
+  } catch (error) {
+    return skillFailureResult(error, 'Failed to delete skill')
+  }
+}
+
+export async function deleteSkillRecord(
+  params: Omit<PerformDeleteSkillParams, keyof ActorMetadata>
+): Promise<SkillRow> {
   const resolved = await resolveEditableSkill(params)
-  if (!resolved.ok) return resolved.result
+  if (!resolved.ok) throwSkillFailure(resolved.result)
 
   const deleted = await deleteSkill({ skillId: params.skillId, workspaceId: params.workspaceId })
-  if (!deleted) return { success: false, error: 'Skill not found', errorCode: 'not_found' }
-
-  recordSkillEvent({
-    action: 'deleted',
-    workspaceId: params.workspaceId,
-    userId: params.userId,
-    skillId: params.skillId,
-    skillName: resolved.skill.name,
-    actor: params,
-  })
-
-  return { success: true, skill: resolved.skill }
+  if (!deleted) throw new OrchestrationError('not_found', 'Skill not found')
+  return resolved.skill
 }

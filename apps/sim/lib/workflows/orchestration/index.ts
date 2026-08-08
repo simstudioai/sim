@@ -10,8 +10,13 @@ export {
   performRevertToVersion,
 } from './deploy'
 export {
+  deleteWorkflowRecord,
+  type PerformCreateWorkflowParams,
+  type PerformCreateWorkflowResult,
   performCreateWorkflow,
+  performCreateWorkflowTransition,
   performDeleteWorkflow,
   performRestoreWorkflow,
   performUpdateWorkflow,
+  updateWorkflowRecord,
 } from './workflow-lifecycle'

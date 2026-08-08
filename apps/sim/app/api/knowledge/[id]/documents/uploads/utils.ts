@@ -1,15 +1,12 @@
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
-import {
-  checkAttributedUsageLimits,
-  resolveBillingAttribution,
-} from '@/lib/billing/core/billing-attribution'
-import type { KnowledgeBaseAccessResult } from '@/app/api/knowledge/utils'
-import { checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
+import { KnowledgeUsageLimitExceededError } from '@/lib/knowledge/application/billing'
+import { KnowledgeDocumentUnsupportedMediaTypeError } from '@/lib/knowledge/application/upload-sessions'
+import { uploadSessionErrorResponse } from '@/app/api/files/uploads/utils'
 
 export interface KnowledgeDocumentUploadActor {
   id: string
+  sessionId: string
   name?: string | null
   email?: string | null
 }
@@ -21,53 +18,22 @@ export async function requireKnowledgeDocumentUploadActor(): Promise<
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+  const sessionId = session.session?.id
+  if (!sessionId) throw new Error('Authenticated session is missing its session ID')
   return {
     id: session.user.id,
+    sessionId,
     name: session.user.name,
     email: session.user.email,
   }
 }
 
-export async function requireKnowledgeDocumentUploadAccess(params: {
-  knowledgeBaseId: string
-  workspaceId: string
-  userId: string
-}): Promise<{ knowledgeBase: KnowledgeBaseAccessResult['knowledgeBase'] } | NextResponse> {
-  const access = await checkKnowledgeBaseWriteAccess(params.knowledgeBaseId, params.userId)
-  if (!access.hasAccess) {
-    return 'notFound' in access && access.notFound
-      ? NextResponse.json({ error: 'Knowledge base not found' }, { status: 404 })
-      : NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+export function knowledgeDocumentUploadErrorResponse(error: unknown): NextResponse | null {
+  if (error instanceof KnowledgeDocumentUnsupportedMediaTypeError) {
+    return NextResponse.json({ error: error.message }, { status: 415 })
   }
-  if (access.knowledgeBase.workspaceId !== params.workspaceId) {
-    return NextResponse.json({ error: 'Knowledge base not found' }, { status: 404 })
+  if (error instanceof KnowledgeUsageLimitExceededError) {
+    return NextResponse.json({ error: error.message }, { status: 402 })
   }
-  return { knowledgeBase: access.knowledgeBase }
-}
-
-export async function requireKnowledgeDocumentUploadBilling(params: {
-  workspaceId: string
-  userId: string
-}): Promise<BillingAttributionSnapshot | NextResponse> {
-  const attribution = await resolveKnowledgeDocumentUploadAttribution(params)
-  const usage = await checkAttributedUsageLimits(attribution)
-  if (usage.isExceeded) {
-    return NextResponse.json(
-      {
-        error: usage.message || 'Usage limit exceeded. Please upgrade your plan to continue.',
-      },
-      { status: 402 }
-    )
-  }
-  return attribution
-}
-
-export function resolveKnowledgeDocumentUploadAttribution(params: {
-  workspaceId: string
-  userId: string
-}): Promise<BillingAttributionSnapshot> {
-  return resolveBillingAttribution({
-    actorUserId: params.userId,
-    workspaceId: params.workspaceId,
-  })
+  return uploadSessionErrorResponse(error)
 }

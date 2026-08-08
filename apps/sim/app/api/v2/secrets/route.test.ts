@@ -4,137 +4,134 @@
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCheckRateLimit,
-  mockResolveWorkspaceAccess,
-  mockCheckWorkspaceAccess,
-  mockListVisibleWorkspaceCredentials,
-} = vi.hoisted(() => ({
-  mockCheckRateLimit: vi.fn(),
-  mockResolveWorkspaceAccess: vi.fn(),
-  mockCheckWorkspaceAccess: vi.fn(),
-  mockListVisibleWorkspaceCredentials: vi.fn(),
-}))
+const { mocks, MockV2ApiKeyUnauthenticatedError } = vi.hoisted(() => {
+  class MockV2ApiKeyUnauthenticatedError extends Error {}
+  return {
+    mocks: {
+      authenticate: vi.fn(),
+      preauthRate: vi.fn(),
+      operationRate: vi.fn(),
+      gate: vi.fn(),
+      list: vi.fn(),
+    },
+    MockV2ApiKeyUnauthenticatedError,
+  }
+})
 
-vi.mock('@/app/api/v1/middleware', () => ({
-  checkRateLimit: mockCheckRateLimit,
-  resolveWorkspaceAccess: mockResolveWorkspaceAccess,
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
+  authenticateV2ApiKey: mocks.authenticate,
+  V2ApiKeyUnauthenticatedError: MockV2ApiKeyUnauthenticatedError,
 }))
-
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  checkWorkspaceAccess: mockCheckWorkspaceAccess,
+vi.mock('@/lib/core/rate-limiter', () => ({
+  RateLimiter: class {
+    checkRateLimitDirect = mocks.preauthRate
+    checkRateLimitDirectOrThrow = mocks.operationRate
+  },
+  getRateLimit: vi.fn().mockReturnValue({
+    maxTokens: 100,
+    refillRate: 100,
+    refillIntervalMs: 60_000,
+  }),
 }))
-
-vi.mock('@/lib/credentials/queries', () => ({
-  listVisibleWorkspaceCredentials: mockListVisibleWorkspaceCredentials,
+vi.mock('@/lib/api/server/rate-limit-context', () => ({
+  recordRateLimitSnapshot: vi.fn(),
+  getRateLimitHeaders: vi.fn().mockReturnValue(null),
 }))
-
-vi.mock('@/app/api/v2/lib/gate', () => ({
-  v2ApiGateError: vi.fn().mockResolvedValue(null),
+vi.mock('@/lib/core/utils/request', () => ({
+  generateRequestId: vi.fn().mockReturnValue('request-1'),
+  getClientIp: vi.fn().mockReturnValue('127.0.0.1'),
+}))
+vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: mocks.gate }))
+vi.mock('@/lib/secrets/application/use-cases', () => ({
+  listSecretsUseCase: { operation: { id: 'secrets.list' }, execute: mocks.list },
 }))
 
 import { GET } from '@/app/api/v2/secrets/route'
 
-const WORKSPACE_ID = '11111111-2222-4333-8444-555555555555'
+const WORKSPACE_ID = 'workspace-1'
+const PRINCIPAL = { kind: 'personal_api_key' as const, userId: 'user-1', keyId: 'key-personal' }
+const AUTH = {
+  principal: PRINCIPAL,
+  rolloutUserId: 'user-1',
+  rateLimitSubjectIds: ['user:user-1'] as const,
+  rateLimitSubscription: null,
+  keyType: 'personal' as const,
+}
 const RATE_LIMIT_OK = {
   allowed: true,
-  userId: 'user-1',
-  keyType: 'workspace',
   limit: 100,
   remaining: 99,
-  resetAt: new Date('2024-01-01T01:00:00Z'),
+  resetAt: new Date('2026-01-01T00:00:00Z'),
+  retryAfterMs: 0,
 }
-
-function secretCredential(overrides: Record<string, unknown> = {}) {
-  return {
-    id: 'secret-1',
-    workspaceId: WORKSPACE_ID,
-    type: 'env_workspace' as const,
-    displayName: 'STRIPE_API_KEY',
-    description: null,
-    providerId: null,
-    accountId: null,
-    envKey: 'STRIPE_API_KEY',
-    envOwnerUserId: null,
-    createdBy: 'user-1',
-    createdAt: new Date('2024-01-01T00:00:00Z'),
-    updatedAt: new Date('2024-01-02T00:00:00Z'),
-    hasServiceAccountKey: false,
-    role: 'admin' as const,
-    ...overrides,
-  }
+const secret = {
+  id: 'secret-1',
+  workspaceId: WORKSPACE_ID,
+  type: 'env_workspace' as const,
+  displayName: 'STRIPE_API_KEY',
+  description: null,
+  providerId: null,
+  accountId: null,
+  envKey: 'STRIPE_API_KEY',
+  envOwnerUserId: null,
+  createdBy: 'user-1',
+  createdAt: new Date('2026-01-01T00:00:00Z'),
+  updatedAt: new Date('2026-01-02T00:00:00Z'),
+  hasServiceAccountKey: false,
+  role: 'admin' as const,
 }
-
-const callList = (query: string) =>
-  GET(new NextRequest(`http://localhost:3000/api/v2/secrets?${query}`))
 
 describe('GET /api/v2/secrets', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
-    mockResolveWorkspaceAccess.mockResolvedValue(null)
-    mockCheckWorkspaceAccess.mockResolvedValue({ hasAccess: true, canWrite: true, canAdmin: true })
-    mockListVisibleWorkspaceCredentials.mockResolvedValue([secretCredential()])
+    mocks.authenticate.mockResolvedValue(AUTH)
+    mocks.preauthRate.mockResolvedValue(RATE_LIMIT_OK)
+    mocks.operationRate.mockResolvedValue(RATE_LIMIT_OK)
+    mocks.gate.mockResolvedValue(null)
+    mocks.list.mockResolvedValue({ secrets: [secret], userId: 'user-1' })
   })
 
-  it('lists metadata without a value field', async () => {
-    const res = await callList(`workspaceId=${WORKSPACE_ID}`)
-    const body = await res.json()
+  it('lists secret metadata without exposing values', async () => {
+    const response = await GET(
+      new NextRequest(`http://localhost:3000/api/v2/secrets?workspaceId=${WORKSPACE_ID}`, {
+        headers: { 'x-api-key': 'key' },
+      })
+    )
+    const body = await response.json()
 
-    expect(res.status).toBe(200)
+    expect(response.status).toBe(200)
     expect(body).toEqual({
       data: [
         {
           name: 'STRIPE_API_KEY',
           scope: 'workspace',
           role: 'admin',
-          createdAt: '2024-01-01T00:00:00.000Z',
-          updatedAt: '2024-01-02T00:00:00.000Z',
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-02T00:00:00.000Z',
         },
       ],
       nextCursor: null,
     })
     expect(JSON.stringify(body)).not.toContain('value')
-    expect(mockListVisibleWorkspaceCredentials).toHaveBeenCalledWith(
-      expect.objectContaining({ types: ['env_workspace', 'env_personal'] })
-    )
+    expect(mocks.list).toHaveBeenCalledWith({
+      principal: PRINCIPAL,
+      input: {
+        workspaceId: WORKSPACE_ID,
+        scope: undefined,
+        search: undefined,
+        sortBy: 'name',
+        sortOrder: 'asc',
+      },
+      request: expect.anything(),
+    })
   })
 
-  it('does not expose another user personal secret', async () => {
-    mockListVisibleWorkspaceCredentials.mockResolvedValue([
-      secretCredential({
-        id: 'secret-2',
-        type: 'env_personal',
-        displayName: 'PRIVATE_KEY',
-        envKey: 'PRIVATE_KEY',
-        envOwnerUserId: 'user-2',
-      }),
-    ])
+  it('authenticates before validating list input', async () => {
+    mocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
 
-    const res = await callList(`workspaceId=${WORKSPACE_ID}`)
+    const response = await GET(new NextRequest('http://localhost:3000/api/v2/secrets'))
 
-    expect((await res.json()).data).toEqual([])
-  })
-
-  it('maps scope and sort filters to the credential catalog', async () => {
-    await callList(
-      `workspaceId=${WORKSPACE_ID}&scope=workspace&search=STRIPE&sortBy=name&sortOrder=desc`
-    )
-
-    expect(mockListVisibleWorkspaceCredentials).toHaveBeenCalledWith(
-      expect.objectContaining({
-        types: ['env_workspace'],
-        search: 'STRIPE',
-        sortBy: 'displayName',
-        sortOrder: 'desc',
-      })
-    )
-  })
-
-  it('rejects missing workspace context', async () => {
-    const res = await callList('')
-
-    expect(res.status).toBe(400)
-    expect(mockListVisibleWorkspaceCredentials).not.toHaveBeenCalled()
+    expect(response.status).toBe(401)
+    expect(mocks.list).not.toHaveBeenCalled()
   })
 })

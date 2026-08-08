@@ -65,11 +65,12 @@ When the user runs `/ship`:
     exit 1
   }
   rm -f /tmp/ship-audit-results
-  for s in check:boundaries check:api-validation:strict check:desktop-bridge check:desktop-ipc \
+  for s in check:boundaries check:api-validation:strict check:openapi \
+           check:desktop-bridge check:desktop-ipc \
            check:utils check:zustand-v5 \
            check:react-query check:client-boundary check:bare-icons check:icon-paths \
            check:realtime-prune check:tool-registry-boundary check:tool-request-boundary \
-           tool-metadata:check \
+           check:sql-date-binding tool-metadata:check \
            integration-catalog:check skills:check agent-stream-docs:check; do
     ( bun run "$s" >"/tmp/ship-audit-${s//:/-}.log" 2>&1; echo "$? $s" >>/tmp/ship-audit-results ) &
   done

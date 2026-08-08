@@ -1,75 +1,23 @@
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import type { NextRequest } from 'next/server'
 import { v2MoveFileItemsContract } from '@/lib/api/contracts/v2/files'
-import { parseRequest } from '@/lib/api/server'
-import { messageForOrchestrationError } from '@/lib/core/orchestration/types'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { performMoveWorkspaceFileItems } from '@/lib/workspace-files/orchestration'
-import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
-import { v2ApiGateError } from '@/app/api/v2/lib/gate'
-import {
-  v2Data,
-  v2Error,
-  v2ErrorForOrchestration,
-  v2RateLimitError,
-  v2ValidationError,
-  v2WorkspaceAccessError,
-} from '@/app/api/v2/lib/response'
-
-const logger = createLogger('V2FileMoveAPI')
+import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
+import { v2FileErrorPolicies } from '@/lib/workspace-files/api'
+import { moveWorkspaceFileItemsOperation } from '@/lib/workspace-files/application/move-workspace-file-items'
+import { fileOperations } from '@/lib/workspace-files/application/operations'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-/**
- * POST /api/v2/files/move — Move files into a folder.
- *
- * An omitted `targetFolderPath` moves the selection to the
- * workspace root. The whole selection moves under one advisory lock, so a name
- * collision at the destination fails the request as `CONFLICT` rather than
- * partially applying.
- */
-export const POST = withRouteHandler(async (request: NextRequest) => {
-  try {
-    const rateLimit = await checkRateLimit(request, 'file-move')
-    if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
-
-    const userId = rateLimit.userId!
-
-    const gate = await v2ApiGateError(userId)
-    if (gate) return gate
-
-    const parsed = await parseRequest(
-      v2MoveFileItemsContract,
-      request,
-      {},
-      { validationErrorResponse: v2ValidationError }
-    )
-    if (!parsed.success) return parsed.response
-
-    const { workspaceId, fileIds, targetFolderPath } = parsed.data.body
-
-    const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
-    if (access) return v2WorkspaceAccessError(access)
-
-    const result = await performMoveWorkspaceFileItems({
-      workspaceId,
-      userId,
-      fileIds,
-      targetFolderPath: targetFolderPath ?? '/',
-    })
-
-    if (!result.success || !result.movedItems) {
-      return v2ErrorForOrchestration(
-        result.errorCode,
-        messageForOrchestrationError(result, 'Failed to move file items')
-      )
-    }
-
-    return v2Data({ movedItems: { files: result.movedItems.files } }, { rateLimit })
-  } catch (error) {
-    logger.error('Error moving file items', { error: getErrorMessage(error, 'Unknown error') })
-    return v2Error('INTERNAL_ERROR', 'Internal server error')
-  }
+export const POST = defineV2JsonRoute({
+  contract: v2MoveFileItemsContract,
+  auth: v2ApiKeyAuth,
+  operation: fileOperations.move,
+  rateLimit: v2RateLimits.publicApi,
+  errorPolicy: v2FileErrorPolicies.default,
+  mapInput: ({ body }) => ({
+    workspaceId: body.workspaceId,
+    fileIds: body.fileIds,
+    targetFolderPath: body.targetFolderPath ?? '/',
+  }),
+  useCase: moveWorkspaceFileItemsOperation,
+  present: ({ movedItems }) => ({ data: { movedItems: { files: movedItems.files } } }),
 })

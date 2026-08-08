@@ -94,6 +94,16 @@ export interface AuthorizedRequest {
   rateLimit: RateLimitResult
 }
 
+export function requireRateLimitUserId(rateLimit: RateLimitResult): string {
+  if (!rateLimit.allowed) {
+    throw new Error('Cannot authorize a denied public API request')
+  }
+  if (!rateLimit.userId) {
+    throw new Error('Allowed public API request is missing a user ID')
+  }
+  return rateLimit.userId
+}
+
 export async function checkRateLimit(
   request: NextRequest,
   endpoint: ApiEndpoint = 'logs'
@@ -170,7 +180,7 @@ export async function checkRateLimit(
 }
 
 /**
- * Authenticates and rate-limits a v1 API request.
+ * Authenticates and rate-limits a public API request.
  * Returns NextResponse on failure, AuthorizedRequest on success.
  */
 export async function authenticateRequest(
@@ -182,7 +192,7 @@ export async function authenticateRequest(
   if (!rateLimit.allowed) {
     return createRateLimitResponse(rateLimit)
   }
-  return { requestId, userId: rateLimit.userId!, rateLimit }
+  return { requestId, userId: requireRateLimitUserId(rateLimit), rateLimit }
 }
 
 export function createRateLimitResponse(result: RateLimitResult): NextResponse {

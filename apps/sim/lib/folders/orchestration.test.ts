@@ -72,8 +72,10 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
 import {
   createFolder,
   createFolderAtPath,
+  createFolderAtPathTransition,
   deleteFolder,
   deleteFolderByPath,
+  deleteFolderByPathTransition,
   relocateFolderByPath,
   restoreFolder,
   updateFolder,
@@ -333,6 +335,21 @@ describe('createFolder', () => {
 })
 
 describe('path-owned folder mutations', () => {
+  it('does not project legacy audit from the application transition', async () => {
+    queueTableRows(schemaMock.folder, [{ minSortOrder: 0 }])
+    dbChainMockFns.returning.mockResolvedValueOnce([folderRow()])
+
+    const result = await createFolderAtPathTransition({
+      resourceType: 'workflow',
+      workspaceId: 'ws-1',
+      userId: 'user-1',
+      path: '/Reports',
+    })
+
+    expect(result).toMatchObject({ success: true, path: '/Reports' })
+    expect(auditMock.recordAudit).not.toHaveBeenCalled()
+  })
+
   it('creates only the addressed leaf under an existing canonical parent path', async () => {
     const parent = folderRow({ id: 'parent-1', name: 'Reports' })
     mockLoadActiveFolderPathIndex.mockResolvedValue({
@@ -397,6 +414,32 @@ describe('path-owned folder mutations', () => {
     })
 
     expect(result).toMatchObject({ success: true, path: '/Reports' })
+  })
+
+  it('returns authoritative folder identity without double-auditing for application projection', async () => {
+    const source = folderRow({ id: 'folder-1', name: 'Reports' })
+    mockLoadActiveFolderPathIndex.mockResolvedValue({
+      rowById: new Map([['folder-1', source]]),
+      pathById: new Map([['folder-1', '/Reports']]),
+      idByPath: new Map([['/Reports', 'folder-1']]),
+    })
+    mockArchiveFolderCascade.mockResolvedValueOnce({ folders: 1, children: 2 })
+
+    const result = await deleteFolderByPathTransition({
+      resourceType: 'table',
+      workspaceId: 'ws-1',
+      userId: 'user-1',
+      path: '/Reports',
+      recursive: true,
+    })
+
+    expect(result).toMatchObject({
+      success: true,
+      folderId: 'folder-1',
+      folderName: 'Reports',
+      deletedItems: { folders: 1, tables: 2 },
+    })
+    expect(auditMock.recordAudit).not.toHaveBeenCalled()
   })
 
   it('rejects relocating a folder beneath its own descendant before writing', async () => {

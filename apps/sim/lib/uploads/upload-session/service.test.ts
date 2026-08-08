@@ -1,9 +1,10 @@
 /**
  * @vitest-environment node
  */
+import type { Principal } from '@sim/auth/principal'
 import { sha256Hex } from '@sim/security/hash'
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
-import { inArray } from 'drizzle-orm'
+import { eq, inArray, isNull } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -57,10 +58,14 @@ vi.mock('@/lib/uploads/upload-session/provider', () => ({
 
 import {
   abortUploadSession,
+  assertUploadSessionAuthBinding,
   cleanupExpiredUploadSessions,
   completeUploadSession,
+  createUploadPartUrls,
   createUploadSession,
+  createUploadSessionAuthBinding,
   getOwnedUploadSession,
+  getPrincipalKnowledgeDocumentUploadSession,
   UPLOAD_SESSION_PART_SIZE,
   UPLOAD_SESSION_PUT_MAX_BYTES,
   type UploadSessionRecord,
@@ -110,6 +115,258 @@ describe('upload sessions', () => {
     expect(inserted.tokenHash).toBe(sha256Hex(created.uploadToken))
     expect(inserted.tokenHash).not.toBe(created.uploadToken)
     expect(inserted.finalKey).toBe(FINAL_KEY)
+    expect(inserted.metadata.authBinding).toEqual({
+      version: 1,
+      workspaceId: WORKSPACE_ID,
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+    })
+  })
+
+  it('rejects workspace control access without the matching immutable credential binding', async () => {
+    const row = uploadRow({
+      metadata: {
+        authBinding: {
+          version: 1,
+          workspaceId: WORKSPACE_ID,
+          principal: { kind: 'workspace_api_key', workspaceId: WORKSPACE_ID, keyId: 'key-1' },
+        },
+      },
+    })
+    queueTableRows(schemaMock.uploadSession, [row])
+
+    await expect(
+      getOwnedUploadSession({
+        uploadId: row.id,
+        uploadToken: 'upload-secret',
+        principal: { kind: 'workspace_api_key', workspaceId: WORKSPACE_ID, keyId: 'key-2' },
+      })
+    ).rejects.toMatchObject({ code: 'not_found' })
+  })
+
+  it('binds new knowledge-document sessions to the exact creating credential', async () => {
+    const row = uploadRow({
+      purpose: 'knowledge_document',
+      knowledgeBaseId: 'kb-1',
+      storageContext: 'knowledge-base',
+      finalKey: 'kb/guide.pdf',
+      fileName: 'guide.pdf',
+      contentType: 'application/pdf',
+    })
+    dbChainMockFns.returning.mockResolvedValueOnce([row])
+
+    await createUploadSession({
+      id: row.id,
+      workspaceId: WORKSPACE_ID,
+      knowledgeBaseId: 'kb-1',
+      userId: 'user-1',
+      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+      purpose: 'knowledge_document',
+      fileName: 'guide.pdf',
+      contentType: 'application/pdf',
+      fileSize: 4,
+      localOrigin: 'http://localhost:3000',
+    })
+
+    expect(dbChainMockFns.values.mock.calls[0][0].metadata.authBinding).toEqual({
+      version: 1,
+      workspaceId: WORKSPACE_ID,
+      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+    })
+  })
+
+  it('rejects a different API key on a bound knowledge-document control leg', async () => {
+    const row = uploadRow({
+      purpose: 'knowledge_document',
+      knowledgeBaseId: 'kb-1',
+      storageContext: 'knowledge-base',
+      metadata: {
+        authBinding: {
+          version: 1,
+          workspaceId: WORKSPACE_ID,
+          principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+        },
+      },
+    })
+    queueTableRows(schemaMock.uploadSession, [row])
+
+    await expect(
+      getPrincipalKnowledgeDocumentUploadSession({
+        uploadId: row.id,
+        uploadToken: 'upload-secret',
+        principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-2' },
+        workspaceId: WORKSPACE_ID,
+        knowledgeBaseId: 'kb-1',
+      })
+    ).rejects.toMatchObject({ code: 'not_found' })
+  })
+
+  it.each([
+    {
+      label: 'session',
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      mismatch: { kind: 'session', userId: 'user-1', sessionId: 'session-2' },
+    },
+    {
+      label: 'personal API key',
+      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+      mismatch: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-2' },
+    },
+    {
+      label: 'workspace API key',
+      principal: {
+        kind: 'workspace_api_key',
+        workspaceId: WORKSPACE_ID,
+        keyId: 'workspace-key-1',
+      },
+      mismatch: {
+        kind: 'workspace_api_key',
+        workspaceId: WORKSPACE_ID,
+        keyId: 'workspace-key-2',
+      },
+    },
+  ] satisfies Array<{ label: string; principal: Principal; mismatch: Principal }>)(
+    'requires the exact bound $label credential for knowledge control',
+    ({ principal, mismatch }) => {
+      const session = sessionRecord({
+        purpose: 'knowledge_document',
+        knowledgeBaseId: 'kb-1',
+        metadata: { authBinding: createUploadSessionAuthBinding(principal, WORKSPACE_ID) },
+      })
+
+      expect(() => assertUploadSessionAuthBinding(session, principal)).not.toThrow()
+      expect(() => assertUploadSessionAuthBinding(session, mismatch)).toThrow(
+        'Upload session not found'
+      )
+    }
+  )
+
+  it('preserves legacy unbound sessions under their prior ownership rules', () => {
+    const legacy = sessionRecord({ metadata: {} })
+
+    expect(() =>
+      assertUploadSessionAuthBinding(legacy, {
+        kind: 'session',
+        userId: legacy.userId,
+        sessionId: 'current-session',
+      })
+    ).not.toThrow()
+    expect(() =>
+      assertUploadSessionAuthBinding(legacy, {
+        kind: 'personal_api_key',
+        userId: legacy.userId,
+        keyId: 'current-key',
+      })
+    ).not.toThrow()
+    expect(() =>
+      assertUploadSessionAuthBinding(legacy, {
+        kind: 'workspace_api_key',
+        workspaceId: WORKSPACE_ID,
+        keyId: 'current-workspace-key',
+      })
+    ).not.toThrow()
+
+    expect(() =>
+      assertUploadSessionAuthBinding(legacy, {
+        kind: 'session',
+        userId: 'different-user',
+        sessionId: 'current-session',
+      })
+    ).toThrow('Upload session not found')
+    expect(() =>
+      assertUploadSessionAuthBinding(legacy, {
+        kind: 'workspace_api_key',
+        workspaceId: 'different-workspace',
+        keyId: 'current-workspace-key',
+      })
+    ).toThrow('Upload session not found')
+  })
+
+  it('preserves the explicit missing-binding compatibility path for old knowledge sessions', () => {
+    const legacy = sessionRecord({
+      purpose: 'knowledge_document',
+      knowledgeBaseId: 'kb-1',
+      metadata: {},
+    })
+
+    expect(() =>
+      assertUploadSessionAuthBinding(legacy, {
+        kind: 'personal_api_key',
+        userId: legacy.userId,
+        keyId: 'replacement-key',
+      })
+    ).not.toThrow()
+    expect(() =>
+      assertUploadSessionAuthBinding(legacy, {
+        kind: 'personal_api_key',
+        userId: 'different-user',
+        keyId: 'replacement-key',
+      })
+    ).toThrow('Upload session not found')
+  })
+
+  it('never treats a malformed credential binding as a legacy session', () => {
+    const malformed = sessionRecord({
+      purpose: 'knowledge_document',
+      knowledgeBaseId: 'kb-1',
+      metadata: { authBinding: { version: 1 } },
+    })
+
+    expect(() =>
+      assertUploadSessionAuthBinding(malformed, {
+        kind: 'session',
+        userId: malformed.userId,
+        sessionId: 'current-session',
+      })
+    ).toThrow('Upload session not found')
+  })
+
+  it('requires an exact immutable credential binding for table-import control', async () => {
+    const bound = uploadRow({
+      purpose: 'table_import',
+      storageContext: 'table-import',
+      metadata: {
+        authBinding: {
+          version: 1,
+          workspaceId: WORKSPACE_ID,
+          principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+        },
+      },
+    })
+    queueTableRows(schemaMock.uploadSession, [bound])
+    queueTableRows(schemaMock.uploadSession, [bound])
+
+    await expect(
+      getOwnedUploadSession({
+        uploadId: bound.id,
+        uploadToken: 'upload-secret',
+        purpose: 'table_import',
+        principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+      })
+    ).resolves.toMatchObject({ id: bound.id, purpose: 'table_import' })
+    await expect(
+      getOwnedUploadSession({
+        uploadId: bound.id,
+        uploadToken: 'upload-secret',
+        purpose: 'table_import',
+        principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-2' },
+      })
+    ).rejects.toMatchObject({ code: 'not_found' })
+  })
+
+  it('fails closed for legacy table-import sessions without a binding', () => {
+    const legacyImport = sessionRecord({
+      purpose: 'table_import',
+      storageContext: 'table-import',
+      metadata: {},
+    })
+
+    expect(() =>
+      assertUploadSessionAuthBinding(legacyImport, {
+        kind: 'session',
+        userId: legacyImport.userId,
+        sessionId: 'current-session',
+      })
+    ).toThrow('Upload session not found')
   })
 
   it('initiates multipart storage directly at the final key', async () => {
@@ -134,6 +391,38 @@ describe('upload sessions', () => {
       expect.objectContaining({ key: FINAL_KEY, uploadId: 'upload-1' })
     )
     expect(mockCreatePutTransfer).not.toHaveBeenCalled()
+  })
+
+  it('preserves multipart request bounds before provider signing', async () => {
+    const multipart = sessionRecord({
+      method: 'multipart',
+      providerUploadId: 'provider-upload-1',
+      partSize: UPLOAD_SESSION_PART_SIZE,
+      partCount: 2,
+      fileSize: UPLOAD_SESSION_PART_SIZE + 1,
+    })
+
+    await expect(
+      createUploadPartUrls({
+        session: multipart,
+        partNumbers: [1, 1],
+        localOrigin: 'http://localhost:3000',
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
+    await expect(
+      createUploadPartUrls({
+        session: multipart,
+        partNumbers: Array.from({ length: 101 }, (_, index) => index + 1),
+        localOrigin: 'http://localhost:3000',
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
+    await expect(
+      createUploadPartUrls({
+        session: multipart,
+        partNumbers: [3],
+        localOrigin: 'http://localhost:3000',
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
   })
 
   it('loads ownership from PostgreSQL and rejects a mismatched token', async () => {
@@ -248,6 +537,52 @@ describe('upload sessions', () => {
     ).resolves.toMatchObject({ value: 'recovered', alreadyCompleted: true })
   })
 
+  it('loads a durable finalizing result without re-running the finalizer', async () => {
+    const session = sessionRecord({
+      status: 'finalizing',
+      expiresAt: new Date(Date.now() - 1),
+      providerObjectVersion: 'version-1',
+      completedFileId: 'file-1',
+    })
+    dbChainMockFns.returning
+      .mockResolvedValueOnce([
+        uploadRow({
+          ...rowGeometry(session),
+          status: 'finalizing',
+          completedFileId: 'file-1',
+        }),
+      ])
+      .mockResolvedValueOnce([
+        uploadRow({
+          ...rowGeometry(session),
+          status: 'completed',
+          completedFileId: 'file-1',
+          completedAt: new Date(),
+        }),
+      ])
+    const finalize = vi.fn()
+    const loadCompleted = vi.fn().mockResolvedValue('recovered-file')
+
+    await expect(
+      completeUploadSession({ session, finalize, loadCompleted })
+    ).resolves.toMatchObject({ value: 'recovered-file', alreadyCompleted: true })
+    expect(loadCompleted).toHaveBeenCalledOnce()
+    expect(finalize).not.toHaveBeenCalled()
+    expect(mockHeadObject).not.toHaveBeenCalled()
+  })
+
+  it('loads an already-completed durable result without re-running the finalizer', async () => {
+    const session = sessionRecord({ status: 'completed', completedFileId: 'file-1' })
+    const finalize = vi.fn()
+    const loadCompleted = vi.fn().mockResolvedValue('completed-file')
+
+    await expect(
+      completeUploadSession({ session, finalize, loadCompleted })
+    ).resolves.toMatchObject({ value: 'completed-file', alreadyCompleted: true })
+    expect(loadCompleted).toHaveBeenCalledOnce()
+    expect(finalize).not.toHaveBeenCalled()
+  })
+
   it('deletes a matching completed provider object without aborting its consumed upload id', async () => {
     const session = sessionRecord({
       method: 'multipart',
@@ -295,17 +630,47 @@ describe('upload sessions', () => {
     expect(mockDeleteObjectVersion).not.toHaveBeenCalled()
   })
 
-  it('refuses to abort once domain finalization may have created a resource', async () => {
-    const session = sessionRecord({ status: 'finalizing' })
+  it('refuses to abort once domain finalization has registered a resource', async () => {
+    const session = sessionRecord({ status: 'finalizing', completedFileId: 'file-1' })
 
     await expect(abortUploadSession(session)).rejects.toThrow(
-      'Finalizing upload sessions cannot be aborted'
+      'Finalizing upload sessions with a registered file cannot be aborted'
     )
     expect(mockAbortProviderUpload).not.toHaveBeenCalled()
     expect(mockDeleteObjectVersion).not.toHaveBeenCalled()
   })
 
-  it('cleans expired upload state without selecting sessions that may be finalizing', async () => {
+  it('aborts a finalizing session whose durable registration never committed', async () => {
+    const session = sessionRecord({
+      status: 'finalizing',
+      providerObjectVersion: 'version-1',
+      completedFileId: null,
+    })
+    mockHeadObject.mockResolvedValue(providerObject(session, 'version-1'))
+    dbChainMockFns.returning
+      .mockResolvedValueOnce([
+        uploadRow({
+          ...rowGeometry(session),
+          status: 'aborting',
+          providerObjectVersion: 'version-1',
+        }),
+      ])
+      .mockResolvedValueOnce([
+        uploadRow({
+          ...rowGeometry(session),
+          status: 'aborted',
+          providerObjectVersion: 'version-1',
+          completedAt: new Date(),
+        }),
+      ])
+
+    await expect(abortUploadSession(session)).resolves.toMatchObject({ status: 'aborted' })
+    expect(mockDeleteObjectVersion).toHaveBeenCalledWith(
+      expect.objectContaining({ key: FINAL_KEY, version: 'version-1' })
+    )
+  })
+
+  it('cleans expired upload state including unregistered finalizing sessions', async () => {
     const expired = uploadRow({ expiresAt: new Date(Date.now() - 1) })
     queueTableRows(schemaMock.uploadSession, [expired])
     queueTableRows(schemaMock.uploadSession, [])
@@ -326,7 +691,8 @@ describe('upload sessions', () => {
       .mocked(inArray)
       .mock.calls.find(([, values]) => values.includes('uploading'))?.[1]
     expect(candidateStatuses).toEqual(['uploading', 'completing', 'aborting'])
-    expect(candidateStatuses).not.toContain('finalizing')
+    expect(vi.mocked(eq)).toHaveBeenCalledWith(schemaMock.uploadSession.status, 'finalizing')
+    expect(vi.mocked(isNull)).toHaveBeenCalledWith(schemaMock.uploadSession.completedFileId)
   })
 
   it('deletes a late PUT object before purging an aborted session', async () => {
@@ -355,6 +721,11 @@ async function createWorkspaceUpload(fileSize: number) {
     id: 'upload-1',
     workspaceId: WORKSPACE_ID,
     userId: 'user-1',
+    principal: {
+      kind: 'session',
+      userId: 'user-1',
+      sessionId: 'session-1',
+    },
     purpose: 'workspace_file',
     fileName: 'file.bin',
     contentType: 'application/octet-stream',

@@ -4,62 +4,68 @@
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCheckRateLimit,
-  mockResolveWorkspaceAccess,
-  mockPerformUpdateContent,
-  mockGetUserEmailsByIds,
-} = vi.hoisted(() => ({
-  mockCheckRateLimit: vi.fn(),
-  mockResolveWorkspaceAccess: vi.fn(),
-  mockPerformUpdateContent: vi.fn(),
-  mockGetUserEmailsByIds: vi.fn(),
+const mocks = vi.hoisted(() => ({
+  admit: vi.fn(),
+  updateContent: vi.fn(),
+  authenticateV2ApiKey: vi.fn(),
+  checkRateLimitDirect: vi.fn(),
+  checkRateLimitDirectOrThrow: vi.fn(),
+  getUserEmailsByIds: vi.fn(),
 }))
 
-vi.mock('@/lib/users/queries', () => ({
-  getUserEmailsByIds: mockGetUserEmailsByIds,
-  requireResolvedUserEmail: (emails: Map<string, string>, userId: string) => emails.get(userId)!,
+vi.mock('@/lib/workspace-files/orchestration', () => ({
+  MAX_WORKSPACE_FILE_INLINE_BODY_BYTES: 70 * 1024 * 1024,
 }))
 
-vi.mock('@/app/api/v1/middleware', () => ({
-  checkRateLimit: mockCheckRateLimit,
-  resolveWorkspaceAccess: mockResolveWorkspaceAccess,
+vi.mock('@/lib/workspace-files/application/update-workspace-file-content', () => ({
+  admitUpdateWorkspaceFileContent: mocks.admit,
+  updateWorkspaceFileContent: {
+    operation: { id: 'files.update_content', minimumRole: 'write', workspaceApiKey: 'allow' },
+    execute: mocks.updateContent,
+  },
+}))
+
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
+  authenticateV2ApiKey: mocks.authenticateV2ApiKey,
+  V2ApiKeyUnauthenticatedError: class V2ApiKeyUnauthenticatedError extends Error {},
+}))
+
+vi.mock('@/lib/core/rate-limiter', () => ({
+  getRateLimit: () => ({ maxTokens: 100, refillRate: 50, refillIntervalMs: 60_000 }),
+  RateLimiter: class RateLimiter {
+    checkRateLimitDirect = mocks.checkRateLimitDirect
+    checkRateLimitDirectOrThrow = mocks.checkRateLimitDirectOrThrow
+  },
 }))
 
 vi.mock('@/app/api/v2/lib/gate', () => ({
   v2ApiGateError: vi.fn().mockResolvedValue(null),
 }))
 
-vi.mock('@/lib/workspace-files/orchestration', () => ({
-  MAX_WORKSPACE_FILE_INLINE_BODY_BYTES: 70 * 1024 * 1024,
-  performUpdateWorkspaceFileContent: mockPerformUpdateContent,
+vi.mock('@/lib/users/queries', () => ({
+  getUserEmailsByIds: mocks.getUserEmailsByIds,
+  requireResolvedUserEmail: (emails: Map<string, string>, userId: string) => emails.get(userId)!,
 }))
 
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { PUT } from '@/app/api/v2/files/[fileId]/content/route'
 
-const WS = 'workspace-1'
+const WORKSPACE_ID = 'workspace-1'
 const FILE_ID = 'wf_1'
-
-const RATE_LIMIT_OK = {
-  allowed: true,
-  userId: 'user-1',
-  keyType: 'workspace',
-  limit: 100,
-  remaining: 99,
-  resetAt: new Date('2024-01-01T01:00:00Z'),
+const auth = {
+  principal: {
+    kind: 'workspace_api_key' as const,
+    workspaceId: WORKSPACE_ID,
+    keyId: 'key-1',
+  },
+  rolloutUserId: 'billing-owner-1',
+  rateLimitSubjectIds: ['api-key:key-1', `workspace:${WORKSPACE_ID}`] as const,
+  rateLimitSubscription: null,
+  keyType: 'workspace' as const,
 }
-
-const RATE_LIMIT_DENIED = {
-  allowed: false,
-  limit: 100,
-  remaining: 0,
-  resetAt: new Date('2024-01-01T01:00:00Z'),
-  retryAfterMs: 1000,
-}
-
-const RECORD = {
+const record = {
   id: FILE_ID,
-  workspaceId: WS,
+  workspaceId: WORKSPACE_ID,
   name: 'data.csv',
   key: 'workspace/ws/1-x-data.csv',
   path: '/api/files/serve/x',
@@ -67,7 +73,6 @@ const RECORD = {
   type: 'text/csv',
   uploadedBy: 'user-1',
   folderId: null,
-  folderPath: null,
   uploadedAt: new Date('2024-01-01T00:00:00Z'),
   updatedAt: new Date('2024-01-03T00:00:00Z'),
 }
@@ -88,151 +93,99 @@ const callPut = (body: unknown, contentLength?: number) =>
 describe('PUT /api/v2/files/[fileId]/content', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
-    mockResolveWorkspaceAccess.mockResolvedValue(null)
-    mockPerformUpdateContent.mockResolvedValue({ success: true, file: RECORD })
-    mockGetUserEmailsByIds.mockResolvedValue(new Map([['user-1', 'ada@example.com']]))
+    mocks.authenticateV2ApiKey.mockResolvedValue(auth)
+    mocks.checkRateLimitDirect.mockResolvedValue({
+      allowed: true,
+      remaining: 599,
+      resetAt: new Date('2024-01-01T01:00:00Z'),
+    })
+    mocks.checkRateLimitDirectOrThrow.mockResolvedValue({
+      allowed: true,
+      remaining: 99,
+      resetAt: new Date('2024-01-01T01:00:00Z'),
+    })
+    mocks.admit.mockResolvedValue(undefined)
+    mocks.updateContent.mockResolvedValue({ file: record })
+    mocks.getUserEmailsByIds.mockResolvedValue(new Map([['user-1', 'ada@example.com']]))
   })
 
-  it('returns 404 when the v2 API surface flag is off', async () => {
-    const { v2ApiGateError } = await import('@/app/api/v2/lib/gate')
-    const { v2Error } = await import('@/app/api/v2/lib/response')
-    vi.mocked(v2ApiGateError).mockResolvedValueOnce(v2Error('NOT_FOUND', 'Not found'))
-
-    const res = await callPut({ workspaceId: WS, content: 'id,name\n' })
-
-    expect(res.status).toBe(404)
-    expect(mockPerformUpdateContent).not.toHaveBeenCalled()
-  })
-
-  it('400s when content is missing', async () => {
-    const res = await callPut({ workspaceId: WS })
-    expect(res.status).toBe(400)
-    expect((await res.json()).error.code).toBe('BAD_REQUEST')
-    expect(mockPerformUpdateContent).not.toHaveBeenCalled()
-  })
-
-  it('400s on an encoding outside the enum', async () => {
-    const res = await callPut({ workspaceId: WS, content: 'x', encoding: 'latin1' })
-    expect(res.status).toBe(400)
-    expect(mockPerformUpdateContent).not.toHaveBeenCalled()
-  })
-
-  it('400s malformed base64 in the v2 error envelope', async () => {
-    const res = await callPut({ workspaceId: WS, content: 'not-base64!', encoding: 'base64' })
-    const body = await res.json()
-
-    expect(res.status).toBe(400)
-    expect(body.error.code).toBe('BAD_REQUEST')
-    expect(body.error.message).toBe('content must be valid base64')
-    expect(mockPerformUpdateContent).not.toHaveBeenCalled()
-  })
-
-  it('accepts empty base64 as a zero-byte replacement', async () => {
-    const res = await callPut({ workspaceId: WS, content: '', encoding: 'base64' })
-
-    expect(res.status).toBe(200)
-    expect(mockPerformUpdateContent).toHaveBeenCalledWith(
-      expect.objectContaining({ content: '', encoding: 'base64' })
-    )
-  })
-
-  it('allows JSON bodies above the default 50 MiB cap for base64 expansion', async () => {
-    const res = await callPut(
-      { workspaceId: WS, content: 'TQ==', encoding: 'base64' },
-      60 * 1024 * 1024
+  it('performs authenticated admission before parsing a large or malformed body', async () => {
+    mocks.admit.mockRejectedValue(
+      new OrchestrationError('forbidden', 'Insufficient workspace permissions')
     )
 
-    expect(res.status).toBe(200)
-    expect(mockPerformUpdateContent).toHaveBeenCalled()
+    const response = await callPut('{not-json')
+
+    expect(response.status).toBe(404)
+    expect(mocks.admit).toHaveBeenCalledWith(auth.principal, FILE_ID)
+    expect(mocks.updateContent).not.toHaveBeenCalled()
   })
 
-  it('returns an oversized JSON body in the canonical v2 413 envelope', async () => {
-    const res = await callPut({ workspaceId: WS, content: '' }, 70 * 1024 * 1024 + 1)
+  it('validates body fields after admission', async () => {
+    const response = await callPut({ workspaceId: WORKSPACE_ID })
 
-    expect(res.status).toBe(413)
-    await expect(res.json()).resolves.toEqual({
+    expect(response.status).toBe(400)
+    expect((await response.json()).error.code).toBe('BAD_REQUEST')
+    expect(mocks.updateContent).not.toHaveBeenCalled()
+  })
+
+  it('returns an oversized body in the canonical v2 envelope', async () => {
+    const response = await callPut({ workspaceId: WORKSPACE_ID, content: '' }, 70 * 1024 * 1024 + 1)
+
+    expect(response.status).toBe(413)
+    await expect(response.json()).resolves.toEqual({
       error: { code: 'PAYLOAD_TOO_LARGE', message: 'Request body is too large' },
     })
-    expect(mockPerformUpdateContent).not.toHaveBeenCalled()
+    expect(mocks.admit).toHaveBeenCalled()
+    expect(mocks.updateContent).not.toHaveBeenCalled()
   })
 
-  it('surfaces an access-denied failure in the v2 error envelope', async () => {
-    mockResolveWorkspaceAccess.mockResolvedValue({
-      status: 403,
-      code: 'FORBIDDEN',
-      message: 'Access denied',
+  it('replaces content through the shared use case and returns the v2 projection', async () => {
+    const request = new NextRequest(`http://localhost:3000/api/v2/files/${FILE_ID}/content`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workspaceId: WORKSPACE_ID, content: 'id,name\n' }),
     })
-    const res = await callPut({ workspaceId: WS, content: 'id,name\n' })
-    expect(res.status).toBe(403)
-    expect(mockPerformUpdateContent).not.toHaveBeenCalled()
-  })
+    const response = await PUT(request, { params: Promise.resolve({ fileId: FILE_ID }) })
 
-  it('returns the rate-limit response when denied', async () => {
-    mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_DENIED)
-    const res = await callPut({ workspaceId: WS, content: 'id,name\n' })
-    expect(res.status).toBe(429)
-    expect((await res.json()).error.code).toBe('RATE_LIMITED')
-  })
-
-  it('replaces the content and returns the updated file', async () => {
-    const res = await callPut({ workspaceId: WS, content: 'id,name\n' })
-    const body = await res.json()
-
-    expect(res.status).toBe(200)
-    expect(body.data).toEqual({
-      id: FILE_ID,
-      name: 'data.csv',
-      size: 8,
-      type: 'text/csv',
-      key: 'workspace/ws/1-x-data.csv',
-      folderPath: '/',
-      uploadedByEmail: 'ada@example.com',
-      uploadedAt: '2024-01-01T00:00:00.000Z',
-      updatedAt: '2024-01-03T00:00:00.000Z',
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({
+      data: {
+        id: FILE_ID,
+        name: 'data.csv',
+        size: 8,
+        type: 'text/csv',
+        key: 'workspace/ws/1-x-data.csv',
+        folderPath: '/',
+        uploadedByEmail: 'ada@example.com',
+        uploadedAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-03T00:00:00.000Z',
+      },
     })
-    expect(mockPerformUpdateContent).toHaveBeenCalledWith({
-      workspaceId: WS,
-      fileId: FILE_ID,
-      userId: 'user-1',
-      content: 'id,name\n',
-      encoding: 'utf-8',
-      request: expect.anything(),
+    expect(mocks.updateContent).toHaveBeenCalledWith({
+      principal: auth.principal,
+      input: {
+        fileId: FILE_ID,
+        assertedWorkspaceId: WORKSPACE_ID,
+        content: 'id,name\n',
+        encoding: 'utf-8',
+      },
+      request,
     })
-  })
-
-  it('forwards base64 encoding through to the orchestration', async () => {
-    await callPut({ workspaceId: WS, content: 'aWQsbmFtZQo=', encoding: 'base64' })
-    expect(mockPerformUpdateContent).toHaveBeenCalledWith(
-      expect.objectContaining({ encoding: 'base64' })
+    expect(mocks.checkRateLimitDirectOrThrow).toHaveBeenCalledWith(
+      'v2:files.update_content:api-key:key-1',
+      expect.anything()
     )
   })
 
-  it('maps a payload_too_large errorCode to 413 rather than string-sniffing', async () => {
-    mockPerformUpdateContent.mockResolvedValue({
-      success: false,
-      error: 'Storage limit exceeded. Used: 5.10GB, Limit: 5GB',
-      errorCode: 'payload_too_large',
-    })
+  it('maps typed quota failures to 413', async () => {
+    mocks.updateContent.mockRejectedValue(
+      new OrchestrationError('payload_too_large', 'Storage limit exceeded')
+    )
 
-    const res = await callPut({ workspaceId: WS, content: 'id,name\n' })
-    const body = await res.json()
+    const response = await callPut({ workspaceId: WORKSPACE_ID, content: 'id,name\n' })
 
-    expect(res.status).toBe(413)
-    expect(body.error.code).toBe('PAYLOAD_TOO_LARGE')
-    expect(body.error.message).toContain('Storage limit exceeded')
-  })
-
-  it('maps a not_found errorCode to 404', async () => {
-    mockPerformUpdateContent.mockResolvedValue({
-      success: false,
-      error: 'File not found',
-      errorCode: 'not_found',
-    })
-
-    const res = await callPut({ workspaceId: WS, content: 'id,name\n' })
-
-    expect(res.status).toBe(404)
-    expect((await res.json()).error.code).toBe('NOT_FOUND')
+    expect(response.status).toBe(413)
+    expect((await response.json()).error.code).toBe('PAYLOAD_TOO_LARGE')
   })
 })

@@ -51,6 +51,7 @@ interface RouteContextWithParams {
 export interface ParseRequestOptions {
   validationErrorResponse?: (error: z.ZodError) => NextResponse<unknown>
   invalidJsonResponse?: () => NextResponse<unknown>
+  payloadTooLargeResponse?: () => NextResponse<unknown>
   invalidJson?: 'response' | 'throw'
   /**
    * Maximum number of bytes to read for the JSON body before rejecting with a
@@ -58,6 +59,8 @@ export interface ParseRequestOptions {
    * routes that legitimately accept large JSON payloads (e.g. inline file uploads).
    */
   maxBodyBytes?: number
+  /** Treat an absent or whitespace-only body as `undefined` before contract validation. */
+  optionalJsonBody?: boolean
 }
 
 export function serializeZodIssues(error: z.ZodError): z.core.$ZodIssue[] {
@@ -163,7 +166,12 @@ export async function parseOptionalJsonBody(
   request: Request,
   maxBytes: number = DEFAULT_MAX_JSON_BODY_BYTES
 ): Promise<
-  { success: true; data: unknown } | { success: false; response: NextResponse<{ error: string }> }
+  | { success: true; data: unknown }
+  | {
+      success: false
+      reason: 'too_large' | 'invalid_json'
+      response: NextResponse<{ error: string }>
+    }
 > {
   try {
     assertContentLengthWithinLimit(request.headers, maxBytes, REQUEST_BODY_LABEL)
@@ -183,6 +191,7 @@ export async function parseOptionalJsonBody(
     if (isPayloadSizeLimitError(error)) {
       return {
         success: false,
+        reason: 'too_large',
         response: NextResponse.json(
           { error: `Request body exceeds the maximum allowed size of ${maxBytes} bytes` },
           { status: 413 }
@@ -191,6 +200,7 @@ export async function parseOptionalJsonBody(
     }
     return {
       success: false,
+      reason: 'invalid_json',
       response: NextResponse.json({ error: 'Request body must be valid JSON' }, { status: 400 }),
     }
   }
@@ -243,11 +253,25 @@ export async function parseRequest<C extends AnyApiRouteContract, TContext>(
 
   let body: unknown
   if (shouldReadJsonBody(contract)) {
-    const parsedBody = await parseJsonBody(request, options?.invalidJson, options?.maxBodyBytes)
+    const parsedBody = options?.optionalJsonBody
+      ? await parseOptionalJsonBody(request, options.maxBodyBytes)
+      : await parseJsonBody(request, options?.invalidJson, options?.maxBodyBytes)
     if (!parsedBody.success) {
-      return options?.invalidJsonResponse && parsedBody.reason === 'invalid_json'
-        ? { success: false, response: options.invalidJsonResponse() }
-        : parsedBody
+      if (
+        options?.invalidJsonResponse &&
+        'reason' in parsedBody &&
+        parsedBody.reason === 'invalid_json'
+      ) {
+        return { success: false, response: options.invalidJsonResponse() }
+      }
+      if (
+        options?.payloadTooLargeResponse &&
+        'reason' in parsedBody &&
+        parsedBody.reason === 'too_large'
+      ) {
+        return { success: false, response: options.payloadTooLargeResponse() }
+      }
+      return parsedBody
     }
     body = parsedBody.data
   }
