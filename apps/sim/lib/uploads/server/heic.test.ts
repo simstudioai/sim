@@ -124,4 +124,13 @@ describe('transcodeHeicToJpeg', () => {
     // amount of type-checking establishes for a lazily loaded WebAssembly module.
     expect(await transcodeHeicToJpeg(ftypHeader('heic'))).toBeNull()
   })
+
+  it('exposes `all` as a named export, which the pixel check destructures', async () => {
+    // A CJS `module.exports = one; module.exports.all = all` need not surface `all`
+    // as a named ESM export. If it stopped doing so the pixel check would throw,
+    // get swallowed by the catch, and quietly stop guarding — with mocked tests
+    // still green. Pin the real shape.
+    const { all } = await import('heic-decode')
+    expect(typeof all).toBe('function')
+  })
 })
