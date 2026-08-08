@@ -197,14 +197,15 @@ describe('grep regex safety', () => {
 })
 
 describe('grepReadResult placeholders', () => {
-  const grepPlaceholder = (content: string) =>
-    grepReadResult('files/x.png/content', { content, totalLines: 1 }, 'x', 'files/x.png/content')
+  const grepResult = (result: {
+    content: string
+    totalLines: number
+    placeholder?: 'oversized' | 'unreadable'
+  }) => grepReadResult('files/x.png/content', result, 'x', 'files/x.png/content')
 
   /**
-   * Built from the producers rather than hand-copied: a literal here would only
-   * prove the matcher agrees with this file, which is exactly the drift that let a
-   * gate test for a prefix no producer emitted. Covers every builder, so dropping
-   * one from the shared table fails here.
+   * Built from the producers rather than hand-assembled: covers every builder, so
+   * one that stops tagging itself fails here.
    */
   const everyPlaceholder = Object.entries({
     fileTooLarge: readPlaceholder.fileTooLarge('big.txt', 99, 5),
@@ -218,25 +219,19 @@ describe('grepReadResult placeholders', () => {
 
   it.each(everyPlaceholder)(
     'reports the %s placeholder instead of grepping it',
-    (_name, content) => {
-      expect(() => grepPlaceholder(content)).toThrow(WorkspaceFileGrepError)
-      expect(() => grepPlaceholder(content)).toThrow(content)
+    (_name, result) => {
+      expect(() => grepResult(result)).toThrow(WorkspaceFileGrepError)
+      expect(() => grepResult(result)).toThrow(result.content)
     }
   )
 
   it('still greps ordinary single-line content', () => {
-    expect(grepPlaceholder('x marks the spot')).toHaveLength(1)
+    expect(grepResult({ content: 'x marks the spot', totalLines: 1 })).toHaveLength(1)
   })
 
-  it('greps a real multi-line file that merely opens like a placeholder', () => {
-    // The single-line guard is what keeps this file searchable rather than swallowed.
-    const content = `${readPlaceholder.binaryFile('app.bin', 'text/plain', 10)}\nx marks the spot`
-    const matches = grepReadResult(
-      'files/notes.txt/content',
-      { content, totalLines: 2 },
-      'x',
-      'files/notes.txt/content'
-    )
-    expect(matches.length).toBeGreaterThan(0)
+  it('greps a real file whose content is exactly a placeholder message', () => {
+    // Untagged, so it is content — text alone never makes something a placeholder.
+    const { content } = readPlaceholder.binaryFile('app.bin', 'text/plain', 10)
+    expect(grepResult({ content, totalLines: 1 })).toHaveLength(1)
   })
 })

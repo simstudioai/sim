@@ -1237,14 +1237,14 @@ export class WorkspaceVFS {
           )
         }
         if (compiled.length > MAX_COMPILED_ATTACHMENT_BYTES) {
-          return bindWorkspaceFileResult(record, {
-            content: readPlaceholder.compiledArtifactTooLarge(
+          return bindWorkspaceFileResult(
+            record,
+            readPlaceholder.compiledArtifactTooLarge(
               record.name,
               compiled.length,
               MAX_COMPILED_ATTACHMENT_BYTES
-            ),
-            totalLines: 1,
-          })
+            )
+          )
         }
         return bindWorkspaceFileResult(
           record,

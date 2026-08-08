@@ -1,7 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { truncate } from '@sim/utils/string'
 import micromatch from 'micromatch'
-import { isNonGreppablePlaceholder } from '@/lib/copilot/vfs/read-placeholders'
+import {
+  isNonGreppablePlaceholder,
+  type PlaceholderKind,
+} from '@/lib/copilot/vfs/read-placeholders'
 import {
   compileLinearRegex,
   isPlainText,
@@ -75,7 +78,12 @@ export class WorkspaceFileGrepError extends Error {
  */
 export function grepReadResult(
   path: string,
-  result: { content: string; totalLines: number; attachment?: unknown },
+  result: {
+    content: string
+    totalLines: number
+    placeholder?: PlaceholderKind
+    attachment?: unknown
+  },
   pattern: string,
   readHint: string,
   options?: GrepOptions
@@ -85,7 +93,7 @@ export function grepReadResult(
       `Cannot grep "${path}" — it has no searchable text (image/binary). Use read("${readHint}") to view it.`
     )
   }
-  if (isNonGreppablePlaceholder(result.content, result.totalLines)) {
+  if (isNonGreppablePlaceholder(result)) {
     throw new WorkspaceFileGrepError(result.content)
   }
   return grep(new Map([[path, result.content]]), pattern, undefined, options)
@@ -94,6 +102,7 @@ export function grepReadResult(
 export interface ReadResult {
   content: string
   totalLines: number
+  placeholder?: PlaceholderKind
 }
 
 /**

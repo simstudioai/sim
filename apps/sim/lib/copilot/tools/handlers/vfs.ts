@@ -330,7 +330,7 @@ export async function executeVfsRead(
         const isAttachment = hasModelAttachment(uploadResult)
         if (
           !isAttachment &&
-          (isOversizedReadPlaceholder(uploadResult.content) ||
+          (isOversizedReadPlaceholder(uploadResult) ||
             serializedResultSize(uploadResult) > TOOL_RESULT_MAX_INLINE_CHARS)
         ) {
           logger.warn('Upload read result too large', {
@@ -341,7 +341,7 @@ export async function executeVfsRead(
           })
           return {
             success: false,
-            error: isOversizedReadPlaceholder(uploadResult.content)
+            error: isOversizedReadPlaceholder(uploadResult)
               ? uploadResult.content
               : // Same as the workspace-file branch below: this size gate runs on
                 // the whole upload before any window, so "retry with offset/limit"
@@ -400,7 +400,7 @@ export async function executeVfsRead(
       const isAttachment = hasModelAttachment(fileContent)
       if (
         !isAttachment &&
-        (isOversizedReadPlaceholder(fileContent.content) ||
+        (isOversizedReadPlaceholder(fileContent) ||
           serializedResultSize(fileContent) > TOOL_RESULT_MAX_INLINE_CHARS)
       ) {
         logger.warn('File read result too large', {
@@ -411,7 +411,7 @@ export async function executeVfsRead(
         })
         return {
           success: false,
-          error: isOversizedReadPlaceholder(fileContent.content)
+          error: isOversizedReadPlaceholder(fileContent)
             ? fileContent.content
             : 'Read result too large to return inline. Use grep with a more specific pattern or narrower path to locate the relevant section, then retry read with offset/limit. Avoid catch-all greps or full-file reads because they waste context window.',
         }
@@ -459,7 +459,7 @@ export async function executeVfsRead(
     }
     if (
       !hasModelAttachment(result) &&
-      (isOversizedReadPlaceholder(result.content) ||
+      (isOversizedReadPlaceholder(result) ||
         serializedResultSize(result) > TOOL_RESULT_MAX_INLINE_CHARS)
     ) {
       return {

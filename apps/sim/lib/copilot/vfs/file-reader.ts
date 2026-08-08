@@ -12,7 +12,7 @@ import { TraceEvent } from '@/lib/copilot/generated/trace-events-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { recordFileRead } from '@/lib/copilot/request/metrics'
 import { markSpanForError } from '@/lib/copilot/request/otel'
-import { readPlaceholder } from '@/lib/copilot/vfs/read-placeholders'
+import { type PlaceholderKind, readPlaceholder } from '@/lib/copilot/vfs/read-placeholders'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { fetchWorkspaceFileBuffer } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
@@ -436,6 +436,8 @@ async function prepareImageForVision(
 export interface FileReadResult {
   content: string
   totalLines: number
+  /** Set when `content` stands in for the file rather than being it — see `readPlaceholder`. */
+  placeholder?: PlaceholderKind
   attachment?: {
     type: string
     name?: string
@@ -478,10 +480,7 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
           span.setAttribute(TraceAttr.CopilotVfsReadPath, CopilotVfsReadPath.Image)
           const imageTooLarge = (bytes: number) => {
             span.setAttribute(TraceAttr.CopilotVfsReadOutcome, CopilotVfsReadOutcome.ImageTooLarge)
-            return {
-              content: readPlaceholder.imageTooLarge(record.name, bytes, MAX_IMAGE_SOURCE_BYTES),
-              totalLines: 1,
-            }
+            return readPlaceholder.imageTooLarge(record.name, bytes, MAX_IMAGE_SOURCE_BYTES)
           }
           // The recorded size only skips a doomed download; the cap on the download
           // itself is what bounds the bytes actually read.
@@ -492,16 +491,13 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
           const prepared = await prepareImageForVision(fetched.buffer, record.type)
           if (!prepared.ok) {
             span.setAttribute(TraceAttr.CopilotVfsReadOutcome, CopilotVfsReadOutcome.ImageTooLarge)
-            return {
-              // The fetched buffer, not `record.size`: the bytes are in hand by now,
-              // so there is no reason to quote the client-declared figure back.
-              content: readPlaceholder.imageUnavailable(
-                record.name,
-                fetched.buffer.length,
-                prepared.reason
-              ),
-              totalLines: 1,
-            }
+            // The fetched buffer, not `record.size`: the bytes are in hand by now, so
+            // there is no reason to quote the client-declared figure back.
+            return readPlaceholder.imageUnavailable(
+              record.name,
+              fetched.buffer.length,
+              prepared.reason
+            )
           }
           const { buffer, mediaType, resized } = prepared.image
           const sizeKb = (buffer.length / 1024).toFixed(1)
@@ -531,10 +527,7 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
           span.setAttribute(TraceAttr.CopilotVfsReadPath, CopilotVfsReadPath.Text)
           const textTooLarge = (bytes: number) => {
             span.setAttribute(TraceAttr.CopilotVfsReadOutcome, CopilotVfsReadOutcome.TextTooLarge)
-            return {
-              content: readPlaceholder.fileTooLarge(record.name, bytes, MAX_TEXT_READ_BYTES),
-              totalLines: 1,
-            }
+            return readPlaceholder.fileTooLarge(record.name, bytes, MAX_TEXT_READ_BYTES)
           }
           if (record.size > MAX_TEXT_READ_BYTES) return textTooLarge(record.size)
 
@@ -559,14 +552,7 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
               TraceAttr.CopilotVfsReadOutcome,
               CopilotVfsReadOutcome.DocumentTooLarge
             )
-            return {
-              content: readPlaceholder.documentTooLarge(
-                record.name,
-                bytes,
-                MAX_PARSEABLE_READ_BYTES
-              ),
-              totalLines: 1,
-            }
+            return readPlaceholder.documentTooLarge(record.name, bytes, MAX_PARSEABLE_READ_BYTES)
           }
           if (record.size > MAX_PARSEABLE_READ_BYTES) return documentTooLarge(record.size)
           const fetched = await fetchWithinLimit(record, MAX_PARSEABLE_READ_BYTES)
@@ -594,10 +580,7 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
               [TraceAttr.ErrorMessage]: toError(parseErr).message.slice(0, 500),
             })
             span.setAttribute(TraceAttr.CopilotVfsReadOutcome, CopilotVfsReadOutcome.ParseFailed)
-            return {
-              content: readPlaceholder.couldNotParse(record.name, record.type, record.size),
-              totalLines: 1,
-            }
+            return readPlaceholder.couldNotParse(record.name, record.type, record.size)
           }
         }
 
@@ -605,10 +588,7 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
           [TraceAttr.CopilotVfsReadPath]: CopilotVfsReadPath.Binary,
           [TraceAttr.CopilotVfsReadOutcome]: CopilotVfsReadOutcome.BinaryPlaceholder,
         })
-        return {
-          content: readPlaceholder.binaryFile(record.name, record.type, record.size),
-          totalLines: 1,
-        }
+        return readPlaceholder.binaryFile(record.name, record.type, record.size)
       } catch (err) {
         logger.warn('Failed to read workspace file', {
           fileName: record.name,
