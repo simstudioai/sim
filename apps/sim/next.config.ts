@@ -319,13 +319,9 @@ const nextConfig: NextConfig = {
       {
         // Exclude Vercel internal resources and static assets from strict COOP, Google Drive Picker
         // and the /demo Cal.com booking embed to prevent 'refused to connect' / slow-load issues.
-        // The OAuth popup pages are excluded because `same-origin` moves a document into its own
-        // browsing-context group, disowning it from the opener that launched it: the popup stops
-        // being reliably script-closable and its opener sees `closed` report true for a live window.
-        // That covers the return leg (`oauth/chat-complete`) and both pages a flow can exit on
-        // without reaching it — `oauth-error` and the `workspace` root, which the custom-provider
-        // callbacks bounce to. Bare `workspace` also matches `/workspace` itself, which previously
-        // fell here while every `/workspace/...` route got the permissive policy below.
+        // The pages an OAuth popup can land on are excluded too: `same-origin` would disown the
+        // popup from its opener, leaving it not reliably script-closable and reporting `closed`
+        // for a live window.
         source:
           '/((?!_next|_vercel|api|favicon.ico|w/.*|workspace|api/tools/drive|demo|oauth-error|oauth/chat-complete).*)',
         headers: [
@@ -350,9 +346,9 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        // For main app routes, Google Drive Picker, the /demo Cal.com embed, the pages an OAuth
-        // popup can land on, and Vercel resources - use permissive policies. The popup pages match
-        // their opener's value so the two stay in one browsing-context group.
+        // For main app routes, Google Drive Picker, the /demo Cal.com embed, the OAuth popup pages,
+        // and Vercel resources - use permissive policies. The popup pages match their opener's
+        // value so the two stay in one browsing-context group.
         source:
           '/(w/.*|workspace.*|api/tools/drive|demo.*|oauth-error|oauth/chat-complete|_next/.*|_vercel/.*)',
         headers: [

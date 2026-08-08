@@ -34,32 +34,22 @@ const OAUTH_POPUP_FEATURES = 'width=560,height=720,resizable=yes,scrollbars=yes'
  * polling the handle is the only way to observe it.
  */
 const OAUTH_POPUP_POLL_INTERVAL_MS = 400
-/**
- * How long to keep waiting on a popup whose outcome became unobservable before
- * deciding from the credential list anyway. Matches the MCP OAuth popup's
- * safety timeout — long enough not to cut a slow consent short, short enough
- * that an abandoned flow does not leave the row waiting forever.
- */
+/** Matches the MCP OAuth popup's safety timeout: bounds a flow whose outcome never becomes observable. */
 const OAUTH_POPUP_UNOBSERVABLE_TIMEOUT_MS = 10 * 60 * 1000
 
 /**
- * Same-origin pages an OAuth flow can die on without ever reaching the return
- * leg. Better Auth sends pre-state failures — a denied consent, most often —
- * to its global error page rather than this flow's callback, and the
- * custom-provider callbacks exit to the workspace root with an `error` param.
- * Neither publishes a verdict, so a popup sitting on one is finished, not
- * in flight.
+ * Same-origin pages an OAuth flow can die on without reaching the return leg —
+ * Better Auth sends pre-state failures (usually a denied consent) to its global
+ * error page, and the custom-provider callbacks exit to the workspace root.
+ * Neither publishes a verdict, so a popup sitting on one is finished.
  */
 const OAUTH_POPUP_TERMINAL_PATHS = new Set(['/oauth-error', '/workspace'])
 
 /**
- * What the opener can actually prove about a popup it launched.
- *
- * `ended` is reserved for positive evidence — a same-origin page we can read
- * that is known to publish no verdict. A handle that reports closed is only
- * `unobservable`: a provider page with COOP `same-origin` disowns the window,
- * and the disowned handle reports `closed` for a consent screen that is still
- * running. Treating that as an ending would fail a live flow.
+ * What the opener can actually prove about a popup it launched. `ended` needs
+ * positive evidence: a same-origin page we can read that publishes no verdict.
+ * A handle reporting closed is only `unobservable` — COOP disowns the window
+ * and the disowned handle reports closed for a consent screen still running.
  */
 type PopupObservation = 'live' | 'ended' | 'unobservable'
 
@@ -208,12 +198,10 @@ export function useOAuthChipConnection({
   )
   const verdictConnected = connectionStatus === 'connected'
   const connected = verdictConnected || connectedFromWorkspaceChange
-  // The label trusts the return leg's verdict; the lock does not. A failure to
-  // create the credential from its draft is swallowed server-side, so a flow
-  // can report success with nothing in the workspace to show for it — locking
-  // on the verdict alone would strand the row saying "Connected" with no way
-  // to retry. A reconnect legitimately produces no new credential, so it has
-  // nothing to corroborate against and keeps trusting the verdict.
+  // The label trusts the verdict; the lock does not. A swallowed credential-draft
+  // failure lets a flow report success with nothing in the workspace, and locking
+  // on that would strand the row saying "Connected" with no way to retry. A
+  // reconnect produces no new credential, so it has nothing to corroborate against.
   const connectedFromAttempt =
     verdictConnected && (reconnectCredentialId ? true : connectedFromWorkspaceChange)
 
@@ -222,15 +210,13 @@ export function useOAuthChipConnection({
   }, [onConnected])
 
   /**
-   * A credential for this row can also appear without the row launching it —
-   * the integrations page in another tab, or a desktop flow that never comes
-   * back through the return URL. Diffing the workspace list against the
-   * baseline captured for this scope surfaces that.
+   * A credential can appear without this row launching it — the integrations
+   * page in another tab, or a desktop flow that never returns through the URL.
+   * Diffing the workspace list against this scope's baseline surfaces that.
    *
-   * This signal is workspace-wide, so it cannot be attributed to one row:
-   * sibling chips for the same provider all see the same change. It therefore
-   * only ever *shows* the row as satisfied — {@link connectedFromAttempt} is
-   * what locks it, so a second same-provider row stays clickable.
+   * Workspace-wide, so it cannot be attributed to one row: it only ever *shows*
+   * the row satisfied. {@link connectedFromAttempt} is what locks it, so a
+   * sibling chip for the same provider stays clickable.
    */
   useEffect(() => {
     if (!isFetched) return
@@ -268,12 +254,10 @@ export function useOAuthChipConnection({
   ])
 
   /**
-   * This row's attempt: the one named by the return URL when we came back from
-   * the provider, else the last one stored for this exact row. The stored
-   * lookup is what survives a reload — and what covers the transcript
-   * rendering only after the return hook has already stripped the URL param.
-   * Both are scoped to the row, so a sibling chip for the same provider can
-   * never claim this one's result.
+   * This row's attempt: the one named by the return URL, else the last one
+   * stored for this exact row. The stored lookup survives a reload, and covers
+   * a transcript rendered after the return hook stripped the URL param. Both
+   * are row-scoped, so a sibling chip can never claim this one's result.
    */
   const readRowAttempt = useCallback((): OAuthChatAttempt | null => {
     const active = activeAttemptId ? readOAuthChatAttempt(activeAttemptId) : null
@@ -378,11 +362,9 @@ export function useOAuthChipConnection({
   }, [settleFromCredentials])
 
   /**
-   * Watches a live popup for the endings that publish no verdict — a provider
-   * interstitial exiting to the workspace root, a denied consent landing on the
-   * OAuth error page, or the user closing the window. None reach the completion
-   * page or fire an event here, and the user need never leave this tab for a
-   * focus event either, so polling is the only way the row learns it is over.
+   * Watches a live popup for the endings that publish no verdict. None fire an
+   * event here, and the user need never leave this tab for a focus event
+   * either, so polling is the only way the row learns the flow is over.
    */
   useEffect(() => {
     if (connectionStatus !== 'pending' || !popupRef.current) return
@@ -390,8 +372,7 @@ export function useOAuthChipConnection({
       const observation = observePopup(popupRef.current)
       if (observation === 'live') return
       // Stop before settling: the refetch leaves the status `pending` for its
-      // duration, so a running interval would keep firing and a later tick
-      // could resolve an attempt a retry had since replaced.
+      // duration, so a later tick could resolve an attempt a retry replaced.
       window.clearInterval(poll)
       popupRef.current = null
       // Only `ended` is proof the flow finished with nothing published. A
@@ -402,15 +383,11 @@ export function useOAuthChipConnection({
   }, [connectionStatus, settleFromCredentials])
 
   /**
-   * Backstop deadline for a pending attempt whose outcome never becomes
-   * observable — a closed-or-disowned popup this tab cannot read, with no blur
-   * for the focus verification to work from.
-   *
-   * Bounds every pending attempt rather than only one this mount launched: the
-   * transcript virtualizes, so a row can remount onto an attempt restored from
-   * storage with no window handle at all. The deadline comes from the attempt's
-   * own `requestedAt`, so remounting re-arms with the time remaining instead of
-   * restarting the clock or dropping the bound entirely.
+   * Backstop for a pending attempt whose outcome never becomes observable.
+   * Bounds every pending attempt, not just one this mount launched — the
+   * transcript virtualizes, so a row can remount with no window handle at all.
+   * Dated from the attempt's `requestedAt`, so a remount inherits the time
+   * remaining rather than restarting the clock.
    */
   useEffect(() => {
     if (connectionStatus !== 'pending') return
