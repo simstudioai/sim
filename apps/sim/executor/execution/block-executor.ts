@@ -250,8 +250,16 @@ export class BlockExecutor {
             normalizeStringArray(blockCtx.selectedOutputs)
           )
         } catch (streamError) {
-          blockCtx.resolvedSecretTraceRegistry =
-            blockCtx.resolvedSecretTraceRegistry?.forkForPropagatedEntries()
+          const resultRegistry = blockCtx.resolvedSecretTraceRegistry
+          const diagnosticRegistry = streamingExec.diagnosticResolvedSecretTraceRegistry
+          const errorRegistry = diagnosticRegistry
+            ? diagnosticRegistry.forkForToolCall()
+            : resultRegistry?.forkForToolCall()
+          if (errorRegistry && resultRegistry && resultRegistry !== diagnosticRegistry) {
+            errorRegistry.mergeToolCallRegistry(resultRegistry)
+          }
+          blockCtx.errorResolvedSecretTraceRegistry = errorRegistry
+          blockCtx.resolvedSecretTraceRegistry = resultRegistry?.forkForPropagatedEntries()
           // Timeout / drain failures may still have projected answer text — keep it
           // for the failed block output so logs match what the client already saw.
           streamingPartialOutput = streamingExec.execution?.output
@@ -575,8 +583,8 @@ export class BlockExecutor {
       }
     }
 
-    const errorOutputProvenance =
-      ctx.resolvedSecretTraceRegistry?.exportCommittedProvenanceForValue(errorOutput)
+    const errorRegistry = ctx.errorResolvedSecretTraceRegistry ?? ctx.resolvedSecretTraceRegistry
+    const errorOutputProvenance = errorRegistry?.exportCommittedProvenanceForValue(errorOutput)
     this.setNodeOutput(node, errorOutput, duration, errorOutputProvenance)
 
     if (blockLog) {
@@ -592,8 +600,11 @@ export class BlockExecutor {
       }
     }
 
-    const diagnosticRegistry = inputDisplayRegistry?.forkForToolCall()
+    const diagnosticRegistry = ctx.errorResolvedSecretTraceRegistry
+      ? ctx.errorResolvedSecretTraceRegistry
+      : inputDisplayRegistry?.forkForToolCall()
     if (
+      !ctx.errorResolvedSecretTraceRegistry &&
       diagnosticRegistry &&
       ctx.resolvedSecretTraceRegistry &&
       ctx.resolvedSecretTraceRegistry !== inputDisplayRegistry
@@ -620,7 +631,7 @@ export class BlockExecutor {
         : undefined
       const displayOutput = filterOutputForLog(block.metadata?.id || '', errorOutput, { block })
       const displayInput = this.projectInputsForDisplay(input, block, inputDisplayRegistry)
-      const displayProvenance = ctx.resolvedSecretTraceRegistry?.exportCommittedProvenanceForValue({
+      const displayProvenance = errorRegistry?.exportCommittedProvenanceForValue({
         input: displayInput,
         output: displayOutput,
       })

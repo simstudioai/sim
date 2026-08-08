@@ -1191,30 +1191,38 @@ describe('AgentBlockHandler', () => {
       ).toEqual({ version: 1, complete: true, entries: [] })
     })
 
-    it('keeps input provenance active for provider error diagnostics', async () => {
+    it('keeps only raw provider inputs active for provider error diagnostics', async () => {
       const plaintext = 'provider-credential-secret'
       const registry = new ResolvedSecretTraceRegistry([
-        { name: 'TOKEN', plaintext, encryptedValue: 'encrypted-token' },
+        { name: 'API_KEY', plaintext, encryptedValue: 'encrypted-api-key' },
+        { name: 'PROMPT_TOKEN', plaintext: 'x', encryptedValue: 'encrypted-prompt-token' },
       ])
-      registry.recordResolvedAtInputPath('TOKEN', plaintext, ['systemPrompt'])
-      registry.recordResolvedInputProjection(['systemPrompt'], `Use ${plaintext}`, 'Use {{TOKEN}}')
+      registry.recordResolvedAtInputPath('API_KEY', plaintext, ['apiKey'])
+      registry.recordResolvedInputProjection(['apiKey'], plaintext, '{{API_KEY}}')
+      registry.recordResolvedAtInputPath('PROMPT_TOKEN', 'x', ['systemPrompt'])
+      registry.recordResolvedInputProjection(['systemPrompt'], 'Use x', 'Use {{PROMPT_TOKEN}}')
       mockContext.resolvedSecretTraceRegistry = registry
       mockExecuteProviderRequest.mockRejectedValueOnce(new Error(`Provider rejected ${plaintext}`))
       const inputs = {
         model: 'gpt-4o',
-        systemPrompt: `Use ${plaintext}`,
+        systemPrompt: 'Use x',
         userPrompt: 'Continue',
+        apiKey: plaintext,
       }
 
       await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
         `Provider rejected ${plaintext}`
       )
 
-      expect(inputs.systemPrompt).toBe(`Use ${plaintext}`)
+      expect(inputs).toMatchObject({ systemPrompt: 'Use x', apiKey: plaintext })
       expect(mockContext.resolvedSecretTraceRegistry?.getActiveMatches()).toEqual([])
+      expect(mockContext.errorResolvedSecretTraceRegistry?.getActiveMatches()).toEqual([
+        { plaintext, replacement: '{{API_KEY}}' },
+      ])
       const logged = JSON.stringify(mockAgentLogger.error.mock.calls)
       expect(logged).not.toContain(plaintext)
-      expect(logged).toContain('Provider rejected {{TOKEN}}')
+      expect(logged).toContain('Provider rejected {{API_KEY}}')
+      expect(logged).not.toContain('PROMPT_TOKEN')
     })
 
     it('projects exact message call arguments without mutating protocol structure or raw input', async () => {

@@ -1135,6 +1135,55 @@ describe('BlockExecutor streaming pump', () => {
     expect(registry.getActiveMatches()).toEqual([])
   })
 
+  it('carries echoed raw-boundary secret provenance on terminal errors only', async () => {
+    const promptSecret = 'x'
+    const apiKey = 'provider-credential-secret'
+    const handler: BlockHandler = {
+      canHandle: () => true,
+      execute: async (blockContext) => {
+        const sourceRegistry = blockContext.resolvedSecretTraceRegistry
+        blockContext.errorResolvedSecretTraceRegistry = sourceRegistry?.forkForInputPaths([
+          ['apiKey'],
+        ])
+        blockContext.resolvedSecretTraceRegistry = sourceRegistry?.forkForInputPaths([])
+        throw new Error(`Provider rejected ${apiKey}`)
+      },
+    }
+    const { executor, block, state } = createExecutor(handler)
+    block.config.params = {
+      systemPrompt: '{{PROMPT_TOKEN}}',
+      apiKey: '{{API_KEY}}',
+    }
+    const ctx = createContext(state)
+    const registry = new ResolvedSecretTraceRegistry([
+      {
+        name: 'PROMPT_TOKEN',
+        plaintext: promptSecret,
+        encryptedValue: 'encrypted-prompt-token',
+      },
+      { name: 'API_KEY', plaintext: apiKey, encryptedValue: 'encrypted-api-key' },
+    ])
+    ctx.environmentVariables = { PROMPT_TOKEN: promptSecret, API_KEY: apiKey }
+    ctx.resolvedSecretTraceRegistry = registry
+
+    await expect(executor.execute(ctx, createNode(block), block)).rejects.toThrow(
+      `Agent: Provider rejected ${apiKey}`
+    )
+
+    expect(ctx.blockLogs[0]).toMatchObject({
+      input: { systemPrompt: '{{PROMPT_TOKEN}}', apiKey: '[REDACTED]' },
+      output: { error: `Provider rejected ${apiKey}` },
+    })
+    const expectedProvenance = {
+      version: 1,
+      complete: true,
+      entries: [{ name: 'API_KEY', encryptedValue: 'encrypted-api-key' }],
+    }
+    expect(state.getBlockState(block.id)?.resolvedSecretTraceProvenance).toEqual(expectedProvenance)
+    expect(ctx.blockLogs[0]?.displayResolvedSecretTraceProvenance).toEqual(expectedProvenance)
+    expect(registry.getActiveMatches()).toEqual([])
+  })
+
   it('suppresses an incomplete display input without failing block execution', async () => {
     const handler: BlockHandler = {
       canHandle: () => true,

@@ -505,6 +505,7 @@ function createMothershipStreamingExecution(
   options: {
     onCancel?: (reason?: unknown) => void
     onDone?: () => void
+    onSuccess?: () => void
     registry?: ResolvedSecretTraceRegistry
   } = {}
 ): StreamingExecution {
@@ -588,6 +589,7 @@ function createMothershipStreamingExecution(
         }
 
         if (!cancelled) {
+          options.onSuccess?.()
           controller.close()
         }
       } catch (error) {
@@ -715,6 +717,8 @@ export class MothershipBlockHandler implements BlockHandler {
     inputs: Record<string, any>
   ): Promise<BlockOutput | StreamingExecution> {
     const sourceRegistry = ctx.resolvedSecretTraceRegistry
+    const resultRegistry = sourceRegistry?.forkForInputPaths([])
+    ctx.errorResolvedSecretTraceRegistry = resultRegistry
     const requestSkills = inputs.skills
     const privateSkillSelectors = selectPrivateMothershipSkillSelectors(
       sourceRegistry,
@@ -827,9 +831,14 @@ export class MothershipBlockHandler implements BlockHandler {
     }
 
     const settledInputRegistry = ctx.resolvedSecretTraceRegistry
-    const resultRegistry = settledInputRegistry?.forkForInputPaths(
+    const conversationRegistry = settledInputRegistry?.forkForInputPaths(
       providedConversationId ? [['conversationId']] : []
     )
+    const commitConversationProvenance = (): void => {
+      if (resultRegistry && conversationRegistry) {
+        resultRegistry.mergeToolCallRegistry(conversationRegistry)
+      }
+    }
 
     logger.info('Executing Mothership block', {
       blockId: block.id,
@@ -924,9 +933,10 @@ export class MothershipBlockHandler implements BlockHandler {
             }
           },
           onDone: cleanupAbortListeners,
+          onSuccess: commitConversationProvenance,
           registry: resultRegistry,
         })
-        streamingExecution.diagnosticResolvedSecretTraceRegistry = settledInputRegistry
+        streamingExecution.diagnosticResolvedSecretTraceRegistry = resultRegistry
         if (resultRegistry) ctx.resolvedSecretTraceRegistry = resultRegistry
         cleanupImmediately = false
         return streamingExecution
@@ -934,9 +944,11 @@ export class MothershipBlockHandler implements BlockHandler {
 
       const result = await readMothershipExecuteResponse(response, resultRegistry)
       const output = formatMothershipBlockOutput(result, chatId)
+      commitConversationProvenance()
       if (resultRegistry) ctx.resolvedSecretTraceRegistry = resultRegistry
       return output
     } catch (error) {
+      ctx.errorResolvedSecretTraceRegistry = resultRegistry
       if (resultRegistry) {
         ctx.resolvedSecretTraceRegistry = resultRegistry.forkForPropagatedEntries()
       }

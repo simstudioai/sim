@@ -489,6 +489,43 @@ describe('MothershipBlockHandler', () => {
     expect(registry.markIncomplete).not.toHaveBeenCalled()
   })
 
+  it('keeps declared JSON error provenance separate from normal result provenance', async () => {
+    const registry = createTraceRegistryMock()
+    context.resolvedSecretTraceRegistry = registry
+    mockExtractAPIErrorMessage.mockResolvedValueOnce('secret-backed failure')
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          error: 'secret-backed failure',
+          __resolvedSecretTraceProvenance: PRIVATE_PROVENANCE,
+        }),
+        {
+          status: 502,
+          headers: {
+            'Content-Type': 'application/json',
+            'x-sim-private-tool-metadata': PRIVATE_PROVENANCE_TYPE,
+          },
+        }
+      )
+    )
+
+    await expect(handler.execute(context, block, { prompt: 'Hello' })).rejects.toThrow(
+      'Sim execution failed: secret-backed failure'
+    )
+
+    expect(registry.importProvenanceForValue).toHaveBeenCalledWith(
+      PRIVATE_PROVENANCE,
+      expect.objectContaining({
+        error: 'secret-backed failure',
+        __resolvedSecretTraceProvenance: undefined,
+      }),
+      { trusted: true }
+    )
+    expect(context.errorResolvedSecretTraceRegistry).toBeDefined()
+    expect(context.errorResolvedSecretTraceRegistry).not.toBe(context.resolvedSecretTraceRegistry)
+    expect(context.resolvedSecretTraceRegistry?.getActiveMatches()).toEqual([])
+  })
+
   it('imports provenance from a terminal NDJSON error without forcing structural fallback', async () => {
     const registry = createTraceRegistryMock()
     context.resolvedSecretTraceRegistry = registry
@@ -523,6 +560,8 @@ describe('MothershipBlockHandler', () => {
       { trusted: true }
     )
     expect(registry.markIncomplete).not.toHaveBeenCalled()
+    expect(context.errorResolvedSecretTraceRegistry).toBeDefined()
+    expect(context.errorResolvedSecretTraceRegistry).not.toBe(context.resolvedSecretTraceRegistry)
   })
 
   it('imports final provenance for selected-output streaming without adding it to output', async () => {
@@ -926,6 +965,7 @@ describe('MothershipBlockHandler', () => {
     ).rejects.toThrow('Sim execution failed: Box')
 
     expect(context.resolvedSecretTraceRegistry?.getActiveMatches()).toEqual([])
+    expect(context.errorResolvedSecretTraceRegistry?.getActiveMatches()).toEqual([])
   })
 
   it('forwards only enabled MCP tools and selected skills', async () => {

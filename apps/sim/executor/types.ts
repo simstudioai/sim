@@ -363,6 +363,8 @@ export interface ExecutionContext {
   startRunMetadata?: StartBlockRunMetadata
   environmentVariables: Record<string, string>
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
+  /** Exact candidates that may be carried by this block's terminal error, never its normal output. */
+  errorResolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
   workflowVariables?: Record<string, any>
   workflowVariableResolvedSecretTraceProvenance?: Record<string, ResolvedSecretTraceProvenanceV1>
   workflowInputResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1

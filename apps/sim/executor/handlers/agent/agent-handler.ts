@@ -94,6 +94,26 @@ import { getToolAsync } from '@/tools/utils.server'
 
 const logger = createLogger('AgentBlockHandler')
 const MODEL_SAFE_RESPONSE_FORMAT_NAME = 'response_schema'
+const AGENT_RAW_PROVIDER_ERROR_INPUT_PATHS: readonly ResolvedSecretInputPath[] = [
+  ['model'],
+  ['temperature'],
+  ['maxTokens'],
+  ['apiKey'],
+  ['azureEndpoint'],
+  ['azureApiVersion'],
+  ['vertexProject'],
+  ['vertexLocation'],
+  ['vertexCredential'],
+  ['bedrockAccessKeyId'],
+  ['bedrockSecretKey'],
+  ['bedrockRegion'],
+  ['reasoningEffort'],
+  ['verbosity'],
+  ['thinkingLevel'],
+  ['promptCaching'],
+  ['previousInteractionId'],
+]
+const AGENT_MEMORY_ERROR_INPUT_PATHS: readonly ResolvedSecretInputPath[] = [['conversationId']]
 
 interface IndexedToolInput {
   tool: ToolInput
@@ -193,6 +213,10 @@ export class AgentBlockHandler implements BlockHandler {
     block: SerializedBlock,
     inputs: AgentInputs
   ): Promise<BlockOutput | StreamingExecution> {
+    const providerErrorRegistry = ctx.resolvedSecretTraceRegistry?.forkForInputPaths(
+      AGENT_RAW_PROVIDER_ERROR_INPUT_PATHS
+    )
+    ctx.errorResolvedSecretTraceRegistry = providerErrorRegistry
     const toolIndexByRef = new Map<ToolInput, number>(
       (inputs.tools || []).map((tool, index) => [tool, index] as const)
     )
@@ -371,7 +395,8 @@ export class AgentBlockHandler implements BlockHandler {
         providerRequest,
         block,
         responseFormat,
-        resultRegistry
+        resultRegistry,
+        providerErrorRegistry
       )
       if (resultRegistry) ctx.resolvedSecretTraceRegistry = resultRegistry
 
@@ -385,24 +410,30 @@ export class AgentBlockHandler implements BlockHandler {
 
       if (this.isStreamingExecution(result)) {
         const streamingResult = result as StreamingExecution
-        streamingResult.diagnosticResolvedSecretTraceRegistry = settledInputRegistry
+        streamingResult.diagnosticResolvedSecretTraceRegistry = providerErrorRegistry
+        const memoryErrorRegistry = settledInputRegistry?.forkForInputPaths(
+          AGENT_MEMORY_ERROR_INPUT_PATHS
+        )
         if (filteredInputs.memoryType && filteredInputs.memoryType !== 'none') {
           return this.wrapStreamForMemoryPersistence(
             ctx,
             filteredInputs,
             streamingResult,
-            settledInputRegistry
+            memoryErrorRegistry
           )
         }
         return streamingResult
       }
 
       if (filteredInputs.memoryType && filteredInputs.memoryType !== 'none') {
+        const memoryErrorRegistry = settledInputRegistry?.forkForInputPaths(
+          AGENT_MEMORY_ERROR_INPUT_PATHS
+        )
         await this.persistResponseToMemory(
           ctx,
           filteredInputs,
           result as BlockOutput,
-          settledInputRegistry
+          memoryErrorRegistry
         )
       }
 
@@ -2297,7 +2328,8 @@ export class AgentBlockHandler implements BlockHandler {
     providerRequest: any,
     block: SerializedBlock,
     responseFormat: any,
-    modelRuntimeRegistry: ResolvedSecretTraceRegistry | undefined
+    modelRuntimeRegistry: ResolvedSecretTraceRegistry | undefined,
+    providerErrorRegistry: ResolvedSecretTraceRegistry | undefined
   ): Promise<BlockOutput | StreamingExecution> {
     const providerId = providerRequest.provider
     const model = providerRequest.model
@@ -2369,14 +2401,13 @@ export class AgentBlockHandler implements BlockHandler {
 
       return this.processProviderResponse(response, block, responseFormat, ctx)
     } catch (error) {
-      const sourceRegistry = ctx.resolvedSecretTraceRegistry
-      if (sourceRegistry && modelRuntimeRegistry && sourceRegistry !== modelRuntimeRegistry) {
-        const diagnosticRegistry = sourceRegistry.forkForToolCall()
-        diagnosticRegistry.mergeToolCallRegistry(modelRuntimeRegistry)
-        ctx.resolvedSecretTraceRegistry = diagnosticRegistry
-      }
+      const errorRegistry = this.createErrorRegistry(providerErrorRegistry, modelRuntimeRegistry)
+      ctx.errorResolvedSecretTraceRegistry = errorRegistry
+      const diagnosticCtx = errorRegistry
+        ? { ...ctx, resolvedSecretTraceRegistry: errorRegistry }
+        : ctx
       try {
-        this.handleExecutionError(error, providerStartTime, providerId, model, ctx, block)
+        this.handleExecutionError(error, providerStartTime, providerId, model, diagnosticCtx, block)
       } finally {
         if (modelRuntimeRegistry) {
           ctx.resolvedSecretTraceRegistry = modelRuntimeRegistry.forkForPropagatedEntries()
@@ -2384,6 +2415,17 @@ export class AgentBlockHandler implements BlockHandler {
       }
       throw error
     }
+  }
+
+  private createErrorRegistry(
+    inputRegistry: ResolvedSecretTraceRegistry | undefined,
+    resultRegistry: ResolvedSecretTraceRegistry | undefined
+  ): ResolvedSecretTraceRegistry | undefined {
+    const errorRegistry = inputRegistry?.forkForToolCall() ?? resultRegistry?.forkForToolCall()
+    if (errorRegistry && resultRegistry && resultRegistry !== inputRegistry) {
+      errorRegistry.mergeToolCallRegistry(resultRegistry)
+    }
+    return errorRegistry
   }
 
   private handleExecutionError(
@@ -2452,8 +2494,12 @@ export class AgentBlockHandler implements BlockHandler {
         try {
           await memoryService.appendToMemory(ctx, inputs, { role: 'assistant', content })
         } catch (error) {
-          const diagnosticCtx = diagnosticRegistry
-            ? { ...ctx, resolvedSecretTraceRegistry: diagnosticRegistry }
+          const memoryErrorRegistry = this.createErrorRegistry(
+            diagnosticRegistry,
+            ctx.resolvedSecretTraceRegistry
+          )
+          const diagnosticCtx = memoryErrorRegistry
+            ? { ...ctx, resolvedSecretTraceRegistry: memoryErrorRegistry }
             : ctx
           logger.error(
             'Failed to persist streaming response',
@@ -2485,8 +2531,12 @@ export class AgentBlockHandler implements BlockHandler {
         workflowId: ctx.workflowId,
       })
     } catch (error) {
-      const diagnosticCtx = diagnosticRegistry
-        ? { ...ctx, resolvedSecretTraceRegistry: diagnosticRegistry }
+      const memoryErrorRegistry = this.createErrorRegistry(
+        diagnosticRegistry,
+        ctx.resolvedSecretTraceRegistry
+      )
+      const diagnosticCtx = memoryErrorRegistry
+        ? { ...ctx, resolvedSecretTraceRegistry: memoryErrorRegistry }
         : ctx
       logger.error(
         'Failed to persist response to memory',
