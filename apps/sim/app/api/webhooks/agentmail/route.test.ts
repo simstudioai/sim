@@ -1,53 +1,24 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMock, dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import {
+  dbChainMock,
+  dbChainMockFns,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockVerify, mockTryAdmit, mockRelease, mockEq, mockExecuteInboxTask, tables } = vi.hoisted(
-  () => ({
-    mockVerify: vi.fn(),
-    mockTryAdmit: vi.fn(),
-    mockRelease: vi.fn(),
-    mockEq: vi.fn((left: unknown, right: unknown) => ({ left, right })),
-    mockExecuteInboxTask: vi.fn(),
-    /** Table-qualified column names keep the eq assertions unambiguous. */
-    tables: {
-      workspace: {
-        id: 'workspace.id',
-        inboxEnabled: 'workspace.inboxEnabled',
-        inboxAddress: 'workspace.inboxAddress',
-        inboxProviderId: 'workspace.inboxProviderId',
-      },
-      mothershipInboxWebhook: {
-        workspaceId: 'mothershipInboxWebhook.workspaceId',
-        secret: 'mothershipInboxWebhook.secret',
-      },
-      mothershipInboxTask: {
-        id: 'mothershipInboxTask.id',
-        chatId: 'mothershipInboxTask.chatId',
-        emailMessageId: 'mothershipInboxTask.emailMessageId',
-        responseMessageId: 'mothershipInboxTask.responseMessageId',
-        workspaceId: 'mothershipInboxTask.workspaceId',
-        createdAt: 'mothershipInboxTask.createdAt',
-        status: 'mothershipInboxTask.status',
-      },
-      mothershipInboxAllowedSender: {
-        id: 'mothershipInboxAllowedSender.id',
-        workspaceId: 'mothershipInboxAllowedSender.workspaceId',
-        email: 'mothershipInboxAllowedSender.email',
-      },
-      permissions: {
-        userId: 'permissions.userId',
-        entityType: 'permissions.entityType',
-        entityId: 'permissions.entityId',
-      },
-      user: { id: 'user.id', email: 'user.email' },
-    },
-  })
-)
+const { mockVerify, mockTryAdmit, mockRelease, mockEq, mockExecuteInboxTask } = vi.hoisted(() => ({
+  mockVerify: vi.fn(),
+  mockTryAdmit: vi.fn(),
+  mockRelease: vi.fn(),
+  mockEq: vi.fn((left: unknown, right: unknown) => ({ left, right })),
+  mockExecuteInboxTask: vi.fn(),
+}))
 
-vi.mock('@sim/db', () => ({ ...dbChainMock, ...tables }))
+vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
 
 vi.mock('drizzle-orm', () => ({
   and: vi.fn((...conditions: unknown[]) => conditions),
@@ -100,18 +71,6 @@ const ROUTED_WORKSPACE = {
   webhookSecret: 'whsec_b',
 }
 
-/**
- * The two `mothershipInboxTask` lookups race inside one `Promise.all` and the
- * shared mock dequeues on resolution, so both sets must be queued empty — the
- * hourly count falls back to zero on an empty result either way.
- */
-function queueAcceptedDeliveryLookups(): void {
-  queueTableRows(tables.mothershipInboxTask, [])
-  queueTableRows(tables.mothershipInboxTask, [])
-  queueTableRows(tables.mothershipInboxAllowedSender, [{ id: 'allowed-1' }])
-  queueTableRows(tables.permissions, [])
-}
-
 function envelope(messageOverrides: Record<string, unknown> = {}): string {
   return JSON.stringify({
     event_type: 'message.received',
@@ -156,19 +115,19 @@ describe('POST /api/webhooks/agentmail', () => {
   })
 
   it('checks the signature against only the secret the payload routes to', async () => {
-    queueTableRows(tables.workspace, [ROUTED_WORKSPACE])
+    queueTableRows(schemaMock.workspace, [ROUTED_WORKSPACE])
 
     const response = await POST(webhookRequest(envelope()))
 
     expect(response.status).toBe(401)
-    expect(mockEq).toHaveBeenCalledWith(tables.workspace.inboxProviderId, TARGET_INBOX_ID)
+    expect(mockEq).toHaveBeenCalledWith(schemaMock.workspace.inboxProviderId, TARGET_INBOX_ID)
     expect(dbChainMockFns.limit).toHaveBeenCalledWith(1)
     expect(mockVerify).toHaveBeenCalledTimes(1)
     expect(mockVerify).toHaveBeenCalledWith('whsec_b', expect.any(String), expect.any(Object))
   })
 
   it('rejects a payload naming an inbox no workspace owns, without hashing it', async () => {
-    queueTableRows(tables.workspace, [])
+    queueTableRows(schemaMock.workspace, [])
     mockVerify.mockReturnValue(undefined)
 
     const response = await POST(
@@ -177,6 +136,10 @@ describe('POST /api/webhooks/agentmail', () => {
 
     expect(response.status).toBe(401)
     expect(mockVerify).not.toHaveBeenCalled()
+    expect(mockEq).toHaveBeenCalledWith(
+      schemaMock.workspace.inboxProviderId,
+      'agent-unknown@agentmail.to'
+    )
   })
 
   it('rejects an unroutable body before it reaches the database or the hash', async () => {
@@ -212,7 +175,7 @@ describe('POST /api/webhooks/agentmail', () => {
   })
 
   it('releases the admission ticket once the request settles', async () => {
-    queueTableRows(tables.workspace, [ROUTED_WORKSPACE])
+    queueTableRows(schemaMock.workspace, [ROUTED_WORKSPACE])
 
     await POST(webhookRequest(envelope()))
 
@@ -221,8 +184,8 @@ describe('POST /api/webhooks/agentmail', () => {
 
   it('accepts a delivery whose signature verifies against the routed secret', async () => {
     mockVerify.mockReturnValue(undefined)
-    queueTableRows(tables.workspace, [ROUTED_WORKSPACE])
-    queueAcceptedDeliveryLookups()
+    queueTableRows(schemaMock.workspace, [ROUTED_WORKSPACE])
+    queueTableRows(schemaMock.mothershipInboxAllowedSender, [{ id: 'allowed-1' }])
 
     const response = await POST(webhookRequest(envelope()))
 
