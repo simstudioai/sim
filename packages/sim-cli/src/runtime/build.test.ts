@@ -408,7 +408,7 @@ describe('commands parsed through commander', () => {
       allowedEmails: ['ada@example.com'],
     })
 
-    const [unsharePath, unshareOptions] = await run(['file', 'unshare', 'file_1'])
+    const [unsharePath, unshareOptions] = await run(['file', 'unshare', 'file_1', '--yes'])
     expect(unsharePath).toBe('/api/v2/files/file_1/share')
     expect(unshareOptions.method).toBe('DELETE')
     expect(unshareOptions.query).toEqual({ workspaceId: 'ws_local' })

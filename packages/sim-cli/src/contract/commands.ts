@@ -571,6 +571,7 @@ export const CLI_CONTRACT: CliContract = {
   unshareFile: {
     command: 'files unshare',
     describe: 'Disable sharing for a file',
+    confirm: 'This disables shared access to the file.',
     fields: [{ header: 'shared', path: 'sharing.enabled', format: 'bool' }],
   },
 
