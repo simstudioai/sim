@@ -1624,6 +1624,15 @@ export const workspace = pgTable(
     forkedFromWorkspaceIdx: index('workspace_forked_from_workspace_id_idx').on(
       table.forkedFromWorkspaceId
     ),
+    /**
+     * Routes an unauthenticated AgentMail delivery to exactly one tenant's
+     * webhook secret. Unique so "one signature check per request" is a storage
+     * invariant rather than something the receiver has to defend against, and
+     * partial because only a small fraction of workspaces enable an inbox.
+     */
+    inboxProviderIdIdx: uniqueIndex('workspace_inbox_provider_id_idx')
+      .on(table.inboxProviderId)
+      .where(sql`${table.inboxProviderId} IS NOT NULL`),
   })
 )
 

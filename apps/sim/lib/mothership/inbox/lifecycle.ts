@@ -32,6 +32,11 @@ export async function enableInbox(
 
   let webhook: Awaited<ReturnType<typeof agentmail.createWebhook>> | null = null
   try {
+    /**
+     * The receiver routes a delivery to this workspace by the `message.inbox_id`
+     * in the envelope, so it can only accept event types that carry a message.
+     * Adding one that does not would make those deliveries unroutable.
+     */
     webhook = await agentmail.createWebhook({
       url: `${getBaseUrl()}/api/webhooks/agentmail`,
       eventTypes: ['message.received'],
