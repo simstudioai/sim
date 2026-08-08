@@ -95,6 +95,21 @@ describe('readFileRecord', () => {
     SHARP_TEST_TIMEOUT_MS
   )
 
+  it.each([
+    ['48MP iPhone', 8064, 6048],
+    ['61MP full-frame', 9504, 6336],
+    ['102MP medium format', 11648, 8736],
+  ])('does not refuse a %s frame on pixel count', async (_camera, width, height) => {
+    // Guards the ceiling from being tightened below real hardware. These reach the
+    // resize ladder and fail there on the stub's truncated pixel data — what matters
+    // is that they are not turned away by the pixel budget first.
+    fetchWorkspaceFileBuffer.mockResolvedValue(await makeBombPng(width, height))
+
+    const result = await readFileRecord(imageRecord('photo.png', 4_000_000))
+
+    expect(result?.content).not.toContain('It is too large to decode safely.')
+  })
+
   it('reports the too-large placeholder when an understated record.size hides an oversized object', async () => {
     fetchWorkspaceFileBuffer.mockRejectedValue(
       new PayloadSizeLimitError({

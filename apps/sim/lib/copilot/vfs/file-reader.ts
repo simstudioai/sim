@@ -65,17 +65,20 @@ export const MAX_IMAGE_SOURCE_BYTES = MAX_WORKSPACE_FORMDATA_FILE_SIZE
  * Pixel ceiling on the decoded image, and the actual decompression-bomb defence: a
  * few hundred KB of PNG can declare an arbitrarily large raster.
  *
- * The cost it bounds is CPU, not memory. libvips decodes this pipeline sequentially,
- * so peak RSS stays flat (tens of MB) no matter what the header declares — measured
- * on this exact pipeline, 100MP..1024MP all sat under ~120MB. What scales is time,
- * roughly linearly: ~240ms at 100MP, ~1.35s at 1024MP, once per resize rung. So the
- * budget caps what one read can burn, and the `break` below caps how many rungs a
- * failing image gets.
+ * This is sharp's own default rather than a number of our own — the vulnerability
+ * was disabling it with `limitInputPixels: false`, so restoring it is the fix, and
+ * any tighter value would be us inventing a ceiling the library did not ask for. A
+ * round 100MP looked tidy but lands mid-market: a Fuji GFX 100 frame is 11648x8736,
+ * or 101.7MP, and would have been refused.
  *
- * 100MP clears every single-shot camera (a 48MP iPhone still is 8064x6048) but will
- * refuse a stitched gigapixel panorama, which is the known cost of the ceiling.
+ * The cost it bounds is CPU, not memory. libvips decodes this pipeline sequentially,
+ * so peak RSS stays flat (tens of MB) whatever the header declares — measured here,
+ * 100MP..1024MP all sat under ~120MB. Time scales sublinearly: ~240ms at 100MP,
+ * ~400ms at 256MP, ~1.35s at 1024MP, once per resize rung. So the budget caps the
+ * worst case at roughly 400ms a rung, the `break` below caps a failing image at four
+ * rungs, and an unbounded declaration — which is what `false` allowed — is gone.
  */
-const MAX_IMAGE_INPUT_PIXELS = 100_000_000
+const MAX_IMAGE_INPUT_PIXELS = 268_402_689
 const MAX_IMAGE_DIMENSION = 1568
 const IMAGE_RESIZE_DIMENSIONS = [1568, 1280, 1024, 768]
 const IMAGE_QUALITY_STEPS = [85, 70, 55, 40]
