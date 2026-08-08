@@ -119,9 +119,18 @@ export async function transcodeHeicToJpeg(buffer: Buffer): Promise<Buffer | null
     // ceiling this path exists to enforce, and only on the HEVC fallback.
     const { all } = await import('heic-decode')
     const images = await all({ buffer })
-    const oversized = images.find(
-      (image) => image.width * image.height > MAX_TRANSCODE_INPUT_PIXELS
-    )
+    // `all()` hands back live libheif handles and, unlike the default export, leaves
+    // freeing them to the caller — skipping this leaks the decoder context on the
+    // WebAssembly heap once per preview. The dimensions are plain numbers, so they
+    // outlive the handles safely.
+    let oversized: { width: number; height: number } | undefined
+    try {
+      oversized = images
+        .map(({ width, height }) => ({ width, height }))
+        .find((image) => image.width * image.height > MAX_TRANSCODE_INPUT_PIXELS)
+    } finally {
+      images.dispose()
+    }
     if (oversized) {
       logger.warn('Skipped HEIC transcode above the pixel ceiling', {
         width: oversized.width,
