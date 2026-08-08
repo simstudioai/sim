@@ -22,6 +22,7 @@ import {
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
+import { KNOWLEDGE_TAG_DISPLAY_NAME_MAX_LENGTH } from '@/lib/knowledge/constants'
 import {
   createSingleDocument,
   deleteDocument,
@@ -705,6 +706,12 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
               message: 'tagDisplayName is required for create_tag operation',
             }
           }
+          if (args.tagDisplayName.length > KNOWLEDGE_TAG_DISPLAY_NAME_MAX_LENGTH) {
+            return {
+              success: false,
+              message: `tagDisplayName must be ${KNOWLEDGE_TAG_DISPLAY_NAME_MAX_LENGTH} characters or less`,
+            }
+          }
 
           const writeAccess = await checkKnowledgeBaseWriteAccess(
             args.knowledgeBaseId,
@@ -775,6 +782,15 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             return {
               success: false,
               message: 'At least one of tagDisplayName or tagFieldType is required for update_tag',
+            }
+          }
+          if (
+            updateData.displayName &&
+            updateData.displayName.length > KNOWLEDGE_TAG_DISPLAY_NAME_MAX_LENGTH
+          ) {
+            return {
+              success: false,
+              message: `tagDisplayName must be ${KNOWLEDGE_TAG_DISPLAY_NAME_MAX_LENGTH} characters or less`,
             }
           }
 
