@@ -28,8 +28,8 @@ import { GET, POST } from '@/app/api/knowledge/[id]/tag-definitions/route'
 const KB_ID = 'kb-victim'
 const TAG_DEFINITIONS = [
   { id: 'tag-def-1', tagSlot: 'tag1', displayName: 'Client Name', fieldType: 'text' },
-]
-const CREATE_BODY = { tagSlot: 'tag1', displayName: 'Injected', fieldType: 'text' }
+] as const
+const CREATE_BODY = { tagSlot: 'tag1', displayName: 'Injected', fieldType: 'text' } as const
 
 const params = () => ({ params: Promise.resolve({ id: KB_ID }) })
 
@@ -44,7 +44,7 @@ function authenticateAs(userId?: string, authType = 'internal_jwt') {
   })
 }
 
-const granted = { hasAccess: true, knowledgeBase: { id: KB_ID, userId: 'user-1' } }
+const granted = { hasAccess: true, knowledgeBase: { id: KB_ID, userId: 'user-1' } } as const
 
 describe('Knowledge Base Tag Definitions API Route', () => {
   beforeEach(() => {
