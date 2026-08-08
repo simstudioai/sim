@@ -2,7 +2,15 @@
 
 import { execSync, spawn } from 'child_process'
 import { randomBytes } from 'crypto'
-import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'fs'
+import {
+  chmodSync,
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  writeFileSync,
+} from 'fs'
 import { homedir } from 'os'
 import { join } from 'path'
 import { createInterface } from 'readline'
@@ -16,51 +24,111 @@ const REALTIME_CONTAINER = 'simstudio-realtime'
 const APP_CONTAINER = 'simstudio-app'
 const DEFAULT_PORT = '3000'
 
-const SECRET_KEYS = ['BETTER_AUTH_SECRET', 'ENCRYPTION_KEY', 'INTERNAL_API_SECRET'] as const
+const CONFIG_DIR = join(homedir(), '.simstudio')
+const SECRETS_PATH = join(CONFIG_DIR, 'secrets.env')
+const DATA_DIR = join(CONFIG_DIR, 'data')
 
+const SECRET_KEYS = [
+  'BETTER_AUTH_SECRET',
+  'ENCRYPTION_KEY',
+  'API_ENCRYPTION_KEY',
+  'INTERNAL_API_SECRET',
+] as const
+
+/**
+ * `ENCRYPTION_KEY` and `API_ENCRYPTION_KEY` are read as raw AES-256 material, so the app
+ * requires exactly 64 hex characters and throws on anything else. The rest are HMAC secrets
+ * of no fixed shape, needing only 32 characters — holding those to the hex form would
+ * silently replace a perfectly good secret an operator chose.
+ *
+ * Placeholders are rejected at any length: the repository publishes example values longer
+ * than the 32-character minimum, so a copied `.env.example` would otherwise pass as real.
+ *
+ * Mirrors `isUsableSecret` in `scripts/setup/env-files.ts`.
+ */
 const AES_KEY_PATTERN = /^[0-9a-f]{64}$/i
+const AES_SECRET_KEYS = new Set<string>(['ENCRYPTION_KEY', 'API_ENCRYPTION_KEY'])
+const MIN_SECRET_LENGTH = 32
+const PLACEHOLDER_VALUES = new Set([
+  'dev-secret-at-least-32-characters-long',
+  'dev-encryption-key-at-least-32-chars',
+  'dev-internal-api-secret-min-32-chars',
+])
+
+function isPlaceholder(value: string): boolean {
+  return PLACEHOLDER_VALUES.has(value) || value.startsWith('your_') || value.startsWith('your-')
+}
+
+function isUsableSecret(key: string, value: string | undefined): boolean {
+  if (!value || isPlaceholder(value)) return false
+  return AES_SECRET_KEYS.has(key) ? AES_KEY_PATTERN.test(value) : value.length >= MIN_SECRET_LENGTH
+}
 
 /**
  * Per-install secrets, generated on first run and reused afterwards.
  *
  * They have to persist: `ENCRYPTION_KEY` decrypts credentials already stored in the
  * Postgres volume under `~/.simstudio/data`, so minting a fresh one each launch would
- * leave that data permanently unreadable. Any value that is not a 32-byte hex key is
+ * leave that data permanently unreadable. Only a value that fails its own requirement is
  * replaced.
  *
  * Regenerating one key rewrites the whole file, so the write goes to a temp file and is
  * renamed into place: a plain write truncates first, and a crash mid-write would strand a
- * still-valid `ENCRYPTION_KEY` and orphan the data it protects.
+ * still-valid `ENCRYPTION_KEY` and orphan the data it protects. Discarding a value that was
+ * already there is the one destructive case, so the file is copied aside first and the
+ * replacement is reported rather than logged as a routine generation.
+ *
+ * The file is read the way Docker reads an env file — `KEY=value`, no quote or escape
+ * handling — so that what the CLI accepts and what a container would receive cannot diverge.
  *
  * Permissions are reasserted on every run: `writeFileSync`'s `mode` applies only when it
  * creates the file, so a file left by an earlier run — or one the user created — would
  * otherwise keep whatever mode it already had and stay readable by other local accounts.
  */
 function resolveSecrets(): Record<string, string> {
-  const configDir = join(homedir(), '.simstudio')
-  const secretsPath = join(configDir, 'secrets.env')
   const secrets: Record<string, string> = {}
 
-  if (existsSync(secretsPath)) {
-    for (const line of readFileSync(secretsPath, 'utf8').split('\n')) {
+  if (existsSync(SECRETS_PATH)) {
+    for (const line of readFileSync(SECRETS_PATH, 'utf8').split('\n')) {
+      if (line.trimStart().startsWith('#')) continue
       const separator = line.indexOf('=')
       if (separator > 0) secrets[line.slice(0, separator).trim()] = line.slice(separator + 1).trim()
     }
   }
 
-  const missing = SECRET_KEYS.filter((key) => !AES_KEY_PATTERN.test(secrets[key] ?? ''))
-  for (const key of missing) secrets[key] = randomBytes(32).toString('hex')
-
-  if (missing.length > 0) {
-    mkdirSync(configDir, { recursive: true })
-    const contents = SECRET_KEYS.map((key) => `${key}=${secrets[key]}`).join('\n')
-    const pending = `${secretsPath}.tmp`
-    writeFileSync(pending, `${contents}\n`, { mode: 0o600 })
-    renameSync(pending, secretsPath)
-    console.log(chalk.gray(`🔑 Generated local secrets in ${secretsPath}`))
+  const unusable = SECRET_KEYS.filter((key) => !isUsableSecret(key, secrets[key]))
+  if (unusable.length === 0) {
+    chmodSync(SECRETS_PATH, 0o600)
+    return secrets
   }
 
-  chmodSync(secretsPath, 0o600)
+  const discarded = unusable.filter((key) => secrets[key] !== undefined)
+  for (const key of unusable) secrets[key] = randomBytes(32).toString('hex')
+
+  mkdirSync(CONFIG_DIR, { recursive: true })
+
+  if (discarded.length > 0) {
+    const backup = `${SECRETS_PATH}.bak-${new Date().toISOString().replace(/[:.]/g, '-')}`
+    copyFileSync(SECRETS_PATH, backup)
+    const losesData = discarded.some((key) => AES_SECRET_KEYS.has(key))
+    console.log(
+      chalk.yellow(
+        `⚠️  Replaced unusable ${discarded.join(', ')} in ${SECRETS_PATH}` +
+          (losesData ? ', so data encrypted with the previous value can no longer be read' : '') +
+          `. The previous file is saved at ${backup}.`
+      )
+    )
+  }
+
+  const contents = SECRET_KEYS.map((key) => `${key}=${secrets[key]}`).join('\n')
+  const pending = `${SECRETS_PATH}.tmp`
+  writeFileSync(pending, `${contents}\n`, { mode: 0o600 })
+  renameSync(pending, SECRETS_PATH)
+  chmodSync(SECRETS_PATH, 0o600)
+
+  if (discarded.length < unusable.length) {
+    console.log(chalk.gray(`🔑 Generated local secrets in ${SECRETS_PATH}`))
+  }
 
   return secrets
 }
@@ -137,6 +205,23 @@ async function main() {
 
   console.log(chalk.blue('🚀 Starting Sim...'))
 
+  // An install holding a database but no secrets file predates per-install secrets. Both
+  // reads must happen before Docker creates the volume directory on a first run.
+  const upgradingExistingInstall =
+    existsSync(join(DATA_DIR, 'postgres')) && !existsSync(SECRETS_PATH)
+
+  // Resolved before any container starts so a filesystem problem here does not leave a
+  // half-started stack behind.
+  let secrets: Record<string, string>
+  try {
+    secrets = resolveSecrets()
+  } catch (error) {
+    console.error(chalk.red(`❌ Could not prepare ${SECRETS_PATH}`))
+    console.error(chalk.red(`   ${error instanceof Error ? error.message : String(error)}`))
+    console.error(chalk.yellow('   Check that you own the file and it is readable and writable.'))
+    process.exit(1)
+  }
+
   // Check if Docker is installed and running
   const dockerRunning = await isDockerRunning()
   if (!dockerRunning) {
@@ -167,7 +252,7 @@ async function main() {
   await cleanupExistingContainers()
 
   // Create data directory
-  const dataDir = join(homedir(), '.simstudio', 'data')
+  const dataDir = DATA_DIR
   if (!existsSync(dataDir)) {
     try {
       mkdirSync(dataDir, { recursive: true })
@@ -246,8 +331,6 @@ async function main() {
     process.exit(1)
   }
 
-  const secrets = resolveSecrets()
-
   // Start the realtime server
   console.log(chalk.blue('🔄 Starting Realtime Server...'))
   const realtimeSuccess = await runCommand([
@@ -301,6 +384,10 @@ async function main() {
     '-e',
     `ENCRYPTION_KEY=${secrets.ENCRYPTION_KEY}`,
     '-e',
+    // Without this the app stores workspace API keys in plain text. Adding it is safe on an
+    // existing install: values that predate it lack the encrypted shape and are read as-is.
+    `API_ENCRYPTION_KEY=${secrets.API_ENCRYPTION_KEY}`,
+    '-e',
     `INTERNAL_API_SECRET=${secrets.INTERNAL_API_SECRET}`,
     'ghcr.io/simstudioai/simstudio:latest',
   ])
@@ -311,6 +398,12 @@ async function main() {
   }
 
   console.log(chalk.green(`✅ Sim is now running at ${chalk.bold(`http://localhost:${port}`)}`))
+
+  if (upgradingExistingInstall) {
+    console.log(
+      chalk.yellow('ℹ️  This install now has its own secrets, so any earlier sign-in has expired.')
+    )
+  }
   console.log(
     chalk.yellow(
       `🛑 To stop all containers, run: ${chalk.bold('docker stop simstudio-app simstudio-db simstudio-realtime')}`
