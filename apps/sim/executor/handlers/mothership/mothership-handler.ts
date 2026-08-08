@@ -505,7 +505,6 @@ function createMothershipStreamingExecution(
   options: {
     onCancel?: (reason?: unknown) => void
     onDone?: () => void
-    onSuccess?: () => void
     registry?: ResolvedSecretTraceRegistry
   } = {}
 ): StreamingExecution {
@@ -588,10 +587,7 @@ function createMothershipStreamingExecution(
           throw new Error('Sim execution stream ended without a final result')
         }
 
-        if (!cancelled) {
-          options.onSuccess?.()
-          controller.close()
-        }
+        if (!cancelled) controller.close()
       } catch (error) {
         if (!cancelled) {
           controller.error(error)
@@ -830,16 +826,6 @@ export class MothershipBlockHandler implements BlockHandler {
       ...(ctx.executionId ? { executionId: ctx.executionId } : {}),
     }
 
-    const settledInputRegistry = ctx.resolvedSecretTraceRegistry
-    const conversationRegistry = settledInputRegistry?.forkForInputPaths(
-      providedConversationId ? [['conversationId']] : []
-    )
-    const commitConversationProvenance = (): void => {
-      if (resultRegistry && conversationRegistry) {
-        resultRegistry.mergeToolCallRegistry(conversationRegistry)
-      }
-    }
-
     logger.info('Executing Mothership block', {
       blockId: block.id,
       messageId,
@@ -933,7 +919,6 @@ export class MothershipBlockHandler implements BlockHandler {
             }
           },
           onDone: cleanupAbortListeners,
-          onSuccess: commitConversationProvenance,
           registry: resultRegistry,
         })
         streamingExecution.diagnosticResolvedSecretTraceRegistry = resultRegistry
@@ -944,7 +929,6 @@ export class MothershipBlockHandler implements BlockHandler {
 
       const result = await readMothershipExecuteResponse(response, resultRegistry)
       const output = formatMothershipBlockOutput(result, chatId)
-      commitConversationProvenance()
       if (resultRegistry) ctx.resolvedSecretTraceRegistry = resultRegistry
       return output
     } catch (error) {

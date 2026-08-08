@@ -912,7 +912,7 @@ describe('MothershipBlockHandler', () => {
     expect(logged).not.toContain('__sim_')
   })
 
-  it('retains exact provenance when a resolved conversation ID is echoed to output', async () => {
+  it('does not treat conversation IDs as secret-bearing result content', async () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'CONVERSATION_ID', plaintext: 'x', encryptedValue: 'encrypted-conversation-id' },
     ])
@@ -936,36 +936,12 @@ describe('MothershipBlockHandler', () => {
     expect(JSON.parse(String(options.body)).chatId).toBe('x')
     expect(result).toMatchObject({ conversationId: 'x' })
     expect(inputs.conversationId).toBe('x')
-    expect(context.resolvedSecretTraceRegistry?.getActiveMatches()).toEqual([
-      { plaintext: 'x', replacement: '{{CONVERSATION_ID}}' },
-    ])
+    expect(context.resolvedSecretTraceRegistry?.getActiveMatches()).toEqual([])
     expect(context.resolvedSecretTraceRegistry?.exportCommittedProvenanceForValue(result)).toEqual({
       version: 1,
       complete: true,
-      entries: [{ name: 'CONVERSATION_ID', encryptedValue: 'encrypted-conversation-id' }],
+      entries: [],
     })
-  })
-
-  it('does not carry a low-entropy conversation ID into terminal error provenance', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'CONVERSATION_ID', plaintext: 'x', encryptedValue: 'encrypted-conversation-id' },
-    ])
-    registry.recordResolvedAtInputPath('CONVERSATION_ID', 'x', ['conversationId'])
-    registry.recordResolvedInputProjection(['conversationId'], 'x', '{{CONVERSATION_ID}}')
-    context.resolvedSecretTraceRegistry = registry
-    mockGenerateId.mockReturnValueOnce('message-uuid').mockReturnValueOnce('request-uuid')
-    mockExtractAPIErrorMessage.mockResolvedValueOnce('Box')
-    fetchMock.mockResolvedValue(new Response(JSON.stringify({ error: 'Box' }), { status: 500 }))
-
-    await expect(
-      handler.execute(context, block, {
-        prompt: 'Continue this thread',
-        conversationId: 'x',
-      })
-    ).rejects.toThrow('Sim execution failed: Box')
-
-    expect(context.resolvedSecretTraceRegistry?.getActiveMatches()).toEqual([])
-    expect(context.errorResolvedSecretTraceRegistry?.getActiveMatches()).toEqual([])
   })
 
   it('forwards only enabled MCP tools and selected skills', async () => {

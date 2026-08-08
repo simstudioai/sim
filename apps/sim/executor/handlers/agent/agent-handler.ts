@@ -113,7 +113,6 @@ const AGENT_RAW_PROVIDER_ERROR_INPUT_PATHS: readonly ResolvedSecretInputPath[] =
   ['promptCaching'],
   ['previousInteractionId'],
 ]
-const AGENT_MEMORY_ERROR_INPUT_PATHS: readonly ResolvedSecretInputPath[] = [['conversationId']]
 
 interface IndexedToolInput {
   tool: ToolInput
@@ -411,30 +410,14 @@ export class AgentBlockHandler implements BlockHandler {
       if (this.isStreamingExecution(result)) {
         const streamingResult = result as StreamingExecution
         streamingResult.diagnosticResolvedSecretTraceRegistry = providerErrorRegistry
-        const memoryErrorRegistry = settledInputRegistry?.forkForInputPaths(
-          AGENT_MEMORY_ERROR_INPUT_PATHS
-        )
         if (filteredInputs.memoryType && filteredInputs.memoryType !== 'none') {
-          return this.wrapStreamForMemoryPersistence(
-            ctx,
-            filteredInputs,
-            streamingResult,
-            memoryErrorRegistry
-          )
+          return this.wrapStreamForMemoryPersistence(ctx, filteredInputs, streamingResult)
         }
         return streamingResult
       }
 
       if (filteredInputs.memoryType && filteredInputs.memoryType !== 'none') {
-        const memoryErrorRegistry = settledInputRegistry?.forkForInputPaths(
-          AGENT_MEMORY_ERROR_INPUT_PATHS
-        )
-        await this.persistResponseToMemory(
-          ctx,
-          filteredInputs,
-          result as BlockOutput,
-          memoryErrorRegistry
-        )
+        await this.persistResponseToMemory(ctx, filteredInputs, result as BlockOutput)
       }
 
       return result
@@ -2484,8 +2467,7 @@ export class AgentBlockHandler implements BlockHandler {
   private wrapStreamForMemoryPersistence(
     ctx: ExecutionContext,
     inputs: AgentInputs,
-    streamingExec: StreamingExecution,
-    diagnosticRegistry?: ResolvedSecretTraceRegistry
+    streamingExec: StreamingExecution
   ): StreamingExecution {
     return {
       ...streamingExec,
@@ -2494,17 +2476,10 @@ export class AgentBlockHandler implements BlockHandler {
         try {
           await memoryService.appendToMemory(ctx, inputs, { role: 'assistant', content })
         } catch (error) {
-          const memoryErrorRegistry = this.createErrorRegistry(
-            diagnosticRegistry,
-            ctx.resolvedSecretTraceRegistry
-          )
-          const diagnosticCtx = memoryErrorRegistry
-            ? { ...ctx, resolvedSecretTraceRegistry: memoryErrorRegistry }
-            : ctx
           logger.error(
             'Failed to persist streaming response',
             projectAgentDiagnosticMetadata(
-              diagnosticCtx,
+              ctx,
               getErrorDiagnosticMetadata(error),
               getErrorDiagnosticFallback(error)
             )
@@ -2517,8 +2492,7 @@ export class AgentBlockHandler implements BlockHandler {
   private async persistResponseToMemory(
     ctx: ExecutionContext,
     inputs: AgentInputs,
-    result: BlockOutput,
-    diagnosticRegistry?: ResolvedSecretTraceRegistry
+    result: BlockOutput
   ): Promise<void> {
     const content = (result as any)?.content
     if (!content || typeof content !== 'string') {
@@ -2531,17 +2505,10 @@ export class AgentBlockHandler implements BlockHandler {
         workflowId: ctx.workflowId,
       })
     } catch (error) {
-      const memoryErrorRegistry = this.createErrorRegistry(
-        diagnosticRegistry,
-        ctx.resolvedSecretTraceRegistry
-      )
-      const diagnosticCtx = memoryErrorRegistry
-        ? { ...ctx, resolvedSecretTraceRegistry: memoryErrorRegistry }
-        : ctx
       logger.error(
         'Failed to persist response to memory',
         projectAgentDiagnosticMetadata(
-          diagnosticCtx,
+          ctx,
           getErrorDiagnosticMetadata(error),
           getErrorDiagnosticFallback(error)
         )
