@@ -19,16 +19,15 @@ const HEVC_HEIF_BRANDS = new Set(['heic', 'heix', 'heim', 'heis', 'hevc', 'hevx'
 const HEIF_BRANDS = new Set([...HEVC_HEIF_BRANDS, 'mif1', 'msf1', 'avif', 'avis'])
 
 /**
- * Byte ceiling for a fallback decode. Uploads allow 100MB and the vision path runs
- * sharp with `limitInputPixels: false`, so without this a tenant could push an
- * arbitrarily large HEIF through a single-threaded WebAssembly decode. 20MB leaves
- * generous headroom over any phone photo — a 12MP iPhone HEIC is 1-4MB — while
- * bounding what one read can cost.
+ * Byte ceiling for a fallback decode. Uploads allow 100MB, so without this a tenant
+ * could push an arbitrarily large HEIF through a single-threaded WebAssembly decode.
+ * 20MB leaves generous headroom over any phone photo — a 12MP iPhone HEIC is 1-4MB —
+ * while bounding what one read can cost.
  *
  * This bounds file size, not pixel count. A small file declaring enormous
  * dimensions is rejected during parse by libheif's own security limits.
  */
-const MAX_TRANSCODE_INPUT_BYTES = 20 * 1024 * 1024
+export const MAX_TRANSCODE_INPUT_BYTES = 20 * 1024 * 1024
 
 /** A real `ftyp` box holds a handful of brands; anything larger is malformed or hostile. */
 const MAX_FTYP_BOX_BYTES = 512
