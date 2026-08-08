@@ -11,6 +11,7 @@ import {
 
 const HIGH_LIMITS: OoxmlSizeLimits = {
   maxTotalUncompressedBytes: 1024 * 1024 * 1024,
+  maxEntryUncompressedBytes: 1024 * 1024 * 1024,
   maxCompressionRatio: 10_000,
   ratioCheckFloorBytes: 1024 * 1024 * 1024,
 }
@@ -98,6 +99,7 @@ describe('assertOoxmlArchiveWithinLimits', () => {
     expect(() =>
       assertOoxmlArchiveWithinLimits(buffer, {
         maxTotalUncompressedBytes: 100_000,
+        maxEntryUncompressedBytes: 1024 * 1024 * 1024,
         maxCompressionRatio: 10_000,
         ratioCheckFloorBytes: 1024 * 1024 * 1024,
       })
@@ -109,6 +111,7 @@ describe('assertOoxmlArchiveWithinLimits', () => {
     expect(() =>
       assertOoxmlArchiveWithinLimits(buffer, {
         maxTotalUncompressedBytes: 1024 * 1024 * 1024,
+        maxEntryUncompressedBytes: 1024 * 1024 * 1024,
         maxCompressionRatio: 5,
         ratioCheckFloorBytes: 1000,
       })
@@ -120,6 +123,7 @@ describe('assertOoxmlArchiveWithinLimits', () => {
     expect(() =>
       assertOoxmlArchiveWithinLimits(buffer, {
         maxTotalUncompressedBytes: 1024 * 1024 * 1024,
+        maxEntryUncompressedBytes: 1024 * 1024 * 1024,
         maxCompressionRatio: 5,
         ratioCheckFloorBytes: 1024 * 1024 * 1024,
       })
@@ -131,13 +135,64 @@ describe('assertOoxmlArchiveWithinLimits', () => {
       'a.xml': 'A'.repeat(60_000),
       'b.xml': 'B'.repeat(60_000),
     })
+    // Each entry (60 KB) is under the per-entry cap; only the summed total trips
+    // the limit, so this must fail on the total branch, not the per-entry one.
     expect(() =>
       assertOoxmlArchiveWithinLimits(buffer, {
         maxTotalUncompressedBytes: 100_000,
+        maxEntryUncompressedBytes: 1024 * 1024 * 1024,
         maxCompressionRatio: 10_000,
         ratioCheckFloorBytes: 1024 * 1024 * 1024,
       })
-    ).toThrow(ZipBombError)
+    ).toThrow(/Decompressed size .* exceeds the maximum allowed/)
+  })
+
+  it('rejects an archive whose largest single entry exceeds the per-entry cap', async () => {
+    const buffer = await buildZip({ 'word/document.xml': 'A'.repeat(200_000) })
+    expect(() =>
+      assertOoxmlArchiveWithinLimits(buffer, {
+        maxTotalUncompressedBytes: 1024 * 1024 * 1024,
+        maxEntryUncompressedBytes: 100_000,
+        maxCompressionRatio: 10_000,
+        ratioCheckFloorBytes: 1024 * 1024 * 1024,
+      })
+    ).toThrow(/single part's decompressed size .* exceeds the maximum allowed/)
+  })
+
+  it('rejects a single part larger than the 64 MiB per-entry default before any parser sees it', async () => {
+    // A part declaring 70 MiB expanded passes the old 1 GiB ceiling but drives
+    // the parser's DOM past a modest heap. `underDeclareSizes` is reused in the
+    // over-declaring direction to set the declared size without allocating it.
+    const honest = await buildZip({ 'word/document.xml': 'A'.repeat(200_000) })
+    const oversized = underDeclareSizes(honest, 70 * 1024 * 1024)
+    expect(() => assertOoxmlArchiveWithinLimits(oversized)).toThrow(
+      /single part's decompressed size .* exceeds the maximum allowed 67108864 bytes/
+    )
+  })
+
+  it('does not apply the per-entry cap to binary media parts', async () => {
+    // Media is copied out, not DOM-parsed, so a media part above the per-entry
+    // cap must not trip it — only the total cap bounds media. The XML part stays
+    // under the cap; the media part is larger than it but is not a text part.
+    const buffer = await buildZip({
+      'word/document.xml': '<w:document/>',
+      'word/media/clip.mp4': 'A'.repeat(5000),
+    })
+    expect(() =>
+      assertOoxmlArchiveWithinLimits(buffer, {
+        ...HIGH_LIMITS,
+        maxEntryUncompressedBytes: 1000,
+      })
+    ).not.toThrow()
+  })
+
+  it('accepts an ordinary document under the default limits', async () => {
+    const buffer = await buildZip({
+      '[Content_Types].xml': '<?xml version="1.0"?><Types/>',
+      '_rels/.rels': '<?xml version="1.0"?><Relationships/>',
+      'word/document.xml': `<w:document>${'text '.repeat(5000)}</w:document>`,
+    })
+    expect(() => assertOoxmlArchiveWithinLimits(buffer)).not.toThrow()
   })
 
   it('accepts a well-formed archive that carries a trailing comment', async () => {
@@ -248,6 +303,7 @@ describe('assertOoxmlArchiveWithinLimits', () => {
     expect(() =>
       assertOoxmlArchiveWithinLimits(buffer, {
         maxTotalUncompressedBytes: 100_000,
+        maxEntryUncompressedBytes: 1024 * 1024 * 1024,
         maxCompressionRatio: 10_000,
         ratioCheckFloorBytes: 1024 * 1024 * 1024,
       })
