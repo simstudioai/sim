@@ -8,6 +8,7 @@ import {
   createGeminiAdapter,
   createMistralAdapter,
   createOpenAIAdapter,
+  createOpenRouterAdapter,
 } from '@/lib/embeddings/providers'
 
 const INPUTS = ['alpha', 'beta']
@@ -56,6 +57,45 @@ describe('OpenAI adapter', () => {
       [3, 4],
     ])
     expect(request.parseTokens?.(json)).toBe(7)
+  })
+})
+
+describe('OpenRouter adapter', () => {
+  const adapter = createOpenRouterAdapter({
+    modelName: 'text-embedding-3-small',
+    apiKey: 'or-test',
+    nativeDimensions: 1536,
+  })
+
+  it('uses the OpenRouter endpoint and provider-qualified OpenAI model id', () => {
+    const request = adapter.buildRequest({
+      inputs: INPUTS,
+      taskType: 'document',
+      dimensions: 1536,
+    })
+
+    expect(request.apiUrl).toBe('https://openrouter.ai/api/v1/embeddings')
+    expect(request.headers.Authorization).toBe('Bearer or-test')
+    expect(request.body).toMatchObject({
+      input: INPUTS,
+      model: 'openai/text-embedding-3-small',
+      dimensions: 1536,
+      encoding_format: 'float',
+    })
+  })
+
+  it('parses OpenAI-compatible vectors and usage', () => {
+    const request = adapter.buildRequest({ inputs: INPUTS, taskType: 'query' })
+    const response = {
+      data: [{ embedding: [1, 2] }, { embedding: [3, 4] }],
+      usage: { total_tokens: 9 },
+    }
+
+    expect(request.parse(response)).toEqual([
+      [1, 2],
+      [3, 4],
+    ])
+    expect(request.parseTokens?.(response)).toBe(9)
   })
 })
 

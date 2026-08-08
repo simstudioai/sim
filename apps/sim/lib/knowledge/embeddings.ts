@@ -7,7 +7,7 @@ import {
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billing'
 import { env } from '@/lib/core/config/env'
-import { embed } from '@/lib/embeddings'
+import { embedKnowledge } from '@/lib/embeddings'
 import {
   assertKbEmbeddingModel,
   DEFAULT_EMBEDDING_MODEL,
@@ -65,7 +65,7 @@ export async function generateEmbeddings(
 ): Promise<GenerateEmbeddingsResult> {
   assertKbEmbeddingModel(embeddingModel)
 
-  const result = await embed(texts, {
+  const result = await embedKnowledge(texts, {
     model: embeddingModel,
     workspaceId,
     taskType: 'document',
@@ -89,7 +89,7 @@ export async function generateSearchEmbedding(
 ): Promise<{ embedding: number[]; isBYOK: boolean }> {
   assertKbEmbeddingModel(embeddingModel)
 
-  const result = await embed([query], {
+  const result = await embedKnowledge([query], {
     model: embeddingModel,
     workspaceId,
     taskType: 'query',

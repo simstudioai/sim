@@ -1,6 +1,14 @@
 import { createLogger } from '@sim/logger'
 import { chunkArray } from '@sim/utils/helpers'
+import { getBYOKKey } from '@/lib/api-key/byok'
+import { getRotatingApiKey } from '@/lib/core/config/api-keys'
 import { env, envNumber } from '@/lib/core/config/env'
+import {
+  type FallbackFactories,
+  KNOWLEDGE_EMBEDDINGS_CAPABILITY,
+  wireFallback,
+} from '@/lib/core/config/env-capabilities'
+import { isHosted } from '@/lib/core/config/env-flags'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import {
   DEFAULT_EMBEDDING_MODEL,
@@ -45,6 +53,14 @@ export class EmbeddingAPIError extends Error {
     this.name = 'EmbeddingAPIError'
     this.status = status
   }
+}
+
+export function isTransientEmbeddingError(error: unknown): boolean {
+  if (error instanceof EmbeddingAPIError) {
+    return error.status === 429 || error.status >= 500
+  }
+  if (error instanceof Error && error.name === 'AbortError') return true
+  return isRetryableError(error)
 }
 
 interface ResolvedProvider {
@@ -116,7 +132,7 @@ async function resolveProvider(model: string, options: EmbedOptions): Promise<Re
   }
 }
 
-/** `inputs` are already projected and batched by {@link embed}. */
+/** `inputs` are already projected and batched by the embedding orchestrator. */
 async function callEmbeddingAPI(
   inputs: string[],
   provider: ResolvedProvider,
@@ -175,25 +191,17 @@ async function callEmbeddingAPI(
       maxRetries: 3,
       initialDelayMs: 1000,
       maxDelayMs: 10000,
-      retryCondition: (error: unknown) => {
-        if (error instanceof EmbeddingAPIError) {
-          return error.status === 429 || error.status >= 500
-        }
-        return isRetryableError(error)
-      },
+      retryCondition: isTransientEmbeddingError,
     }
   )
 }
 
-/**
- * Generates embeddings for a batch of texts with token-aware batching,
- * per-provider item caps, bounded concurrency, and retry on transient failures.
- */
-export async function embed(texts: string[], options: EmbedOptions): Promise<EmbedResult> {
-  const model = options.model ?? DEFAULT_EMBEDDING_MODEL
-  const taskType = options.taskType ?? 'document'
-  const provider = await resolveProvider(model, options)
-
+function prepareEmbeddingInputs(
+  texts: string[],
+  model: string,
+  info: EmbeddingModelInfo,
+  projectInputs: EmbedOptions['projectInputs']
+): string[] {
   /**
    * Projected before batching, not after. The projector rewrites resolved-secret
    * plaintext to placeholders, which changes length, and `batchByTokenLimit`
@@ -205,7 +213,7 @@ export async function embed(texts: string[], options: EmbedOptions): Promise<Emb
    * Doing it here also keeps projection to exactly once per call, so no retry
    * can re-project already-projected content.
    */
-  const modelInputs = options.projectInputs ? options.projectInputs(texts) : texts
+  const modelInputs = projectInputs ? projectInputs(texts) : texts
 
   /**
    * Each input is held to the model's own per-input ceiling, exactly as declared.
@@ -218,17 +226,29 @@ export async function embed(texts: string[], options: EmbedOptions): Promise<Emb
    * embedding input is otherwise indistinguishable from a good one, both to the
    * caller and in the vector it produces.
    */
-  const ceiling = provider.info.maxInputTokens
+  const ceiling = info.maxInputTokens
   const boundedInputs = modelInputs.map((text) => {
-    if (estimateTokenCount(text, provider.info.tokenizerProvider).count <= ceiling) return text
+    if (estimateTokenCount(text, info.tokenizerProvider).count <= ceiling) return text
     logger.warn('Embedding input exceeds the model token limit and will be truncated', {
       model,
       maxInputTokens: ceiling,
       chars: text.length,
-      approximateTokenCount: hasApproximateTokenCount(provider.info),
+      approximateTokenCount: hasApproximateTokenCount(info),
     })
     return truncateToTokenLimit(text, ceiling, model)
   })
+
+  return boundedInputs
+}
+
+async function embedWithProvider(
+  boundedInputs: string[],
+  model: string,
+  taskType: EmbeddingTaskType,
+  requestedDimensions: number | undefined,
+  provider: ResolvedProvider
+): Promise<EmbedResult> {
+  const ceiling = provider.info.maxInputTokens
 
   /**
    * How many tokens may share one request — a different limit from the per-input
@@ -260,7 +280,7 @@ export async function embed(texts: string[], options: EmbedOptions): Promise<Emb
     MAX_CONCURRENT_BATCHES,
     async (batch, i) => {
       try {
-        return await callEmbeddingAPI(batch, provider, taskType, options.dimensions)
+        return await callEmbeddingAPI(batch, provider, taskType, requestedDimensions)
       } catch (error) {
         logger.error(`Failed to generate embeddings for batch ${i + 1}/${batches.length}:`, error)
         throw error
@@ -285,4 +305,115 @@ export async function embed(texts: string[], options: EmbedOptions): Promise<Emb
     pricingId: provider.info.pricingId,
     dimensions: provider.dimensions,
   }
+}
+
+/**
+ * Generates embeddings for a batch of texts with token-aware batching,
+ * per-provider item caps, bounded concurrency, and retry on transient failures.
+ */
+export async function embed(texts: string[], options: EmbedOptions): Promise<EmbedResult> {
+  const model = options.model ?? DEFAULT_EMBEDDING_MODEL
+  const taskType = options.taskType ?? 'document'
+  const provider = await resolveProvider(model, options)
+  const boundedInputs = prepareEmbeddingInputs(texts, model, provider.info, options.projectInputs)
+  return embedWithProvider(boundedInputs, model, taskType, options.dimensions, provider)
+}
+
+type KnowledgeEmbedOptions = Omit<EmbedOptions, 'apiKey'>
+
+function resolveEnvironmentOpenAIKey(): string {
+  if (env.OPENAI_API_KEY) return env.OPENAI_API_KEY
+  return getRotatingApiKey('openai')
+}
+
+/** @internal Exported for deterministic hosted/self-hosted routing tests. */
+export async function embedKnowledgeForDeployment(
+  texts: string[],
+  options: KnowledgeEmbedOptions,
+  hosted: boolean
+): Promise<EmbedResult> {
+  const model = options.model ?? DEFAULT_EMBEDDING_MODEL
+  const info = getEmbeddingModelInfo(model)
+  if (hosted || !env.OPENROUTER_API_KEY || info.provider !== 'openai') {
+    return embed(texts, options)
+  }
+
+  const dimensions = resolveDimensions(info, options.dimensions)
+  const taskType = options.taskType ?? 'document'
+  const boundedInputs = prepareEmbeddingInputs(texts, model, info, options.projectInputs)
+  const workspaceKey = options.workspaceId ? await getBYOKKey(options.workspaceId, 'openai') : null
+  const capabilityValues = workspaceKey ? { ...env, OPENAI_API_KEY: workspaceKey.apiKey } : env
+
+  const factories = {
+    'azure-openai': () => {
+      const azure = resolveAzureOverride(info, model)
+      if (!azure) return null
+      return {
+        adapter: getAdapterFactory('azure-openai')({
+          modelName: azure.deployment,
+          apiKey: azure.apiKey,
+          nativeDimensions: info.nativeDimensions,
+          endpoint: azure.endpoint,
+          apiVersion: azure.apiVersion,
+        }),
+        info,
+        modelName: azure.deployment,
+        dimensions,
+        isBYOK: false,
+      }
+    },
+    openai: () => {
+      const apiKey = workspaceKey?.apiKey ?? resolveEnvironmentOpenAIKey()
+      return {
+        adapter: getAdapterFactory('openai')({
+          modelName: model,
+          apiKey,
+          nativeDimensions: info.nativeDimensions,
+        }),
+        info,
+        modelName: model,
+        dimensions,
+        isBYOK: Boolean(workspaceKey),
+      }
+    },
+    openrouter: () => {
+      if (!env.OPENROUTER_API_KEY) return null
+      return {
+        adapter: getAdapterFactory('openrouter')({
+          modelName: model,
+          apiKey: env.OPENROUTER_API_KEY,
+          nativeDimensions: info.nativeDimensions,
+        }),
+        info,
+        modelName: model,
+        dimensions,
+        isBYOK: false,
+      }
+    },
+  } satisfies FallbackFactories<typeof KNOWLEDGE_EMBEDDINGS_CAPABILITY, ResolvedProvider>
+
+  const fallback = wireFallback<typeof KNOWLEDGE_EMBEDDINGS_CAPABILITY, ResolvedProvider>({
+    definition: KNOWLEDGE_EMBEDDINGS_CAPABILITY,
+    values: capabilityValues,
+    factories,
+    shouldFallback: isTransientEmbeddingError,
+    onFailure(providerId, error) {
+      logger.warn('Knowledge embedding provider failed; continuing fallback chain', {
+        providerId,
+        error,
+      })
+    },
+  })
+
+  return fallback.execute((provider) =>
+    embedWithProvider(boundedInputs, model, taskType, options.dimensions, provider)
+  )
+}
+
+/** Generates KB document/query embeddings with opt-in self-hosted OpenRouter fallback. */
+export async function embedKnowledge(
+  texts: string[],
+  options: KnowledgeEmbedOptions
+): Promise<EmbedResult> {
+  return embedKnowledgeForDeployment(texts, options, isHosted)
 }

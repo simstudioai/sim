@@ -9,5 +9,5 @@ export {
   findEmbeddingModelInfo,
   resolveDimensions,
 } from '@/lib/embeddings/catalog'
-export { embed } from '@/lib/embeddings/client'
+export { embed, embedKnowledge } from '@/lib/embeddings/client'
 export type { EmbeddingTaskType, EmbedOptions, EmbedResult } from '@/lib/embeddings/types'

@@ -4,14 +4,20 @@
  * `@/lib/embeddings/providers`.
  */
 
-export type EmbeddingProviderKind = 'openai' | 'azure-openai' | 'gemini' | 'cohere' | 'mistral'
+export type EmbeddingProviderKind =
+  | 'openai'
+  | 'azure-openai'
+  | 'openrouter'
+  | 'gemini'
+  | 'cohere'
+  | 'mistral'
 
 /**
- * Providers a catalog model can belong to. Azure OpenAI is excluded because it
- * is a transport override for OpenAI models rather than a provider users pick:
- * no model is ever catalogued under it, and it resolves its own credentials.
+ * Providers a catalog model can belong to. Azure OpenAI and OpenRouter are
+ * transport overrides for OpenAI models rather than providers users pick, so
+ * no model is catalogued under either transport.
  */
-export type EmbeddingCatalogProvider = Exclude<EmbeddingProviderKind, 'azure-openai'>
+export type EmbeddingCatalogProvider = Exclude<EmbeddingProviderKind, 'azure-openai' | 'openrouter'>
 
 /** Provider id for `estimateTokenCount` so token counts match the embedding provider's tokenization. */
 export type TokenizerProviderId = 'openai' | 'google' | 'cohere' | 'mistral'
