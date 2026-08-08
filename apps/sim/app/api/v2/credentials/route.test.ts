@@ -4,175 +4,152 @@
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCheckRateLimit,
-  mockResolveWorkspaceAccess,
-  mockCheckWorkspaceAccess,
-  mockListVisibleWorkspaceCredentials,
-} = vi.hoisted(() => ({
-  mockCheckRateLimit: vi.fn(),
-  mockResolveWorkspaceAccess: vi.fn(),
-  mockCheckWorkspaceAccess: vi.fn(),
-  mockListVisibleWorkspaceCredentials: vi.fn(),
+const mocks = vi.hoisted(() => ({
+  authenticate: vi.fn(),
+  checkPreauth: vi.fn(),
+  checkOperationRate: vi.fn(),
+  gate: vi.fn(),
+  execute: vi.fn(),
 }))
 
-vi.mock('@/app/api/v1/middleware', () => ({
-  checkRateLimit: mockCheckRateLimit,
-  resolveWorkspaceAccess: mockResolveWorkspaceAccess,
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
+  authenticateV2ApiKey: mocks.authenticate,
+  V2ApiKeyUnauthenticatedError: class V2ApiKeyUnauthenticatedError extends Error {},
 }))
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  checkWorkspaceAccess: mockCheckWorkspaceAccess,
+vi.mock('@/lib/core/rate-limiter', () => ({
+  getRateLimit: () => ({ maxTokens: 100, refillRate: 50, refillIntervalMs: 60_000 }),
+  RateLimiter: class RateLimiter {
+    checkRateLimitDirect = mocks.checkPreauth
+    checkRateLimitDirectOrThrow = mocks.checkOperationRate
+  },
 }))
 
-vi.mock('@/lib/credentials/queries', () => ({
-  listVisibleWorkspaceCredentials: mockListVisibleWorkspaceCredentials,
-}))
+vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: mocks.gate }))
 
-vi.mock('@/app/api/v2/lib/gate', () => ({
-  v2ApiGateError: vi.fn().mockResolvedValue(null),
+vi.mock('@/lib/credentials/application/list-workspace-credentials', () => ({
+  listWorkspaceCredentials: {
+    operation: { id: 'credentials.connections.list' },
+    execute: mocks.execute,
+  },
 }))
 
 import { GET } from '@/app/api/v2/credentials/route'
 
 const WORKSPACE_ID = '11111111-2222-4333-8444-555555555555'
-
-const RATE_LIMIT_OK = {
-  allowed: true,
-  userId: 'user-1',
-  keyType: 'workspace',
-  limit: 100,
-  remaining: 99,
-  resetAt: new Date('2024-01-01T01:00:00Z'),
-}
-
-const RATE_LIMIT_DENIED = {
-  allowed: false,
-  limit: 100,
-  remaining: 0,
-  resetAt: new Date('2024-01-01T01:00:00Z'),
-  retryAfterMs: 1000,
-}
-
-function buildVisible(overrides: Record<string, unknown> = {}) {
-  return {
-    id: 'cred_abc123',
+const auth = {
+  principal: {
+    kind: 'workspace_api_key' as const,
     workspaceId: WORKSPACE_ID,
-    type: 'service_account' as const,
-    displayName: 'Zoom account acct_123',
-    description: null,
-    providerId: 'zoom-service-account',
-    accountId: null,
-    envKey: null,
-    envOwnerUserId: null,
-    createdBy: 'user-1',
-    createdAt: new Date('2024-01-01T00:00:00Z'),
-    updatedAt: new Date('2024-01-02T00:00:00Z'),
-    hasServiceAccountKey: true,
-    role: 'admin' as const,
-    ...overrides,
-  }
+    keyId: 'key-1',
+  },
+  rolloutUserId: 'billing-owner-1',
+  rateLimitSubjectIds: ['api-key:key-1', `workspace:${WORKSPACE_ID}`] as const,
+  rateLimitSubscription: null,
+  keyType: 'workspace' as const,
 }
-
-const callList = (query: string) =>
-  GET(new NextRequest(`http://localhost:3000/api/v2/credentials?${query}`))
+const credential = {
+  id: 'credential-1',
+  workspaceId: WORKSPACE_ID,
+  type: 'service_account' as const,
+  displayName: 'Zoom account',
+  description: null,
+  providerId: 'zoom-service-account',
+  accountId: null,
+  envKey: 'MUST_NOT_LEAK',
+  envOwnerUserId: null,
+  createdBy: 'user-1',
+  createdAt: new Date('2026-01-01T00:00:00Z'),
+  updatedAt: new Date('2026-01-02T00:00:00Z'),
+  hasServiceAccountKey: true,
+  role: 'member' as const,
+}
 
 describe('GET /api/v2/credentials', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
-    mockResolveWorkspaceAccess.mockResolvedValue(null)
-    mockCheckWorkspaceAccess.mockResolvedValue({ hasAccess: true, canWrite: true, canAdmin: true })
-    mockListVisibleWorkspaceCredentials.mockResolvedValue([buildVisible()])
-  })
-
-  it('returns 404 when the v2 API surface flag is off', async () => {
-    const { v2ApiGateError } = await import('@/app/api/v2/lib/gate')
-    const { v2Error } = await import('@/app/api/v2/lib/response')
-    vi.mocked(v2ApiGateError).mockResolvedValueOnce(v2Error('NOT_FOUND', 'Not found'))
-
-    const res = await callList(`workspaceId=${WORKSPACE_ID}`)
-
-    expect(res.status).toBe(404)
-    expect(mockListVisibleWorkspaceCredentials).not.toHaveBeenCalled()
-  })
-
-  it('400s when workspaceId is missing', async () => {
-    const res = await callList('')
-    expect(res.status).toBe(400)
-    expect((await res.json()).error.code).toBe('BAD_REQUEST')
-    expect(mockListVisibleWorkspaceCredentials).not.toHaveBeenCalled()
-  })
-
-  it('surfaces an access-denied failure in the v2 error envelope', async () => {
-    mockResolveWorkspaceAccess.mockResolvedValue({
-      status: 403,
-      code: 'FORBIDDEN',
-      message: 'Access denied',
+    mocks.authenticate.mockResolvedValue(auth)
+    mocks.gate.mockResolvedValue(null)
+    mocks.checkPreauth.mockResolvedValue({
+      allowed: true,
+      remaining: 599,
+      resetAt: new Date('2026-01-01T01:00:00Z'),
     })
-
-    const res = await callList(`workspaceId=${WORKSPACE_ID}`)
-
-    expect(res.status).toBe(403)
-    expect(mockListVisibleWorkspaceCredentials).not.toHaveBeenCalled()
+    mocks.checkOperationRate.mockResolvedValue({
+      allowed: true,
+      remaining: 99,
+      resetAt: new Date('2026-01-01T01:00:00Z'),
+    })
+    mocks.execute.mockResolvedValue({ credentials: [credential] })
   })
 
-  it('returns the rate-limit response when denied', async () => {
-    mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_DENIED)
+  it('authenticates and charges before validating workspace input', async () => {
+    const response = await GET(new NextRequest('http://localhost:3000/api/v2/credentials'))
 
-    const res = await callList(`workspaceId=${WORKSPACE_ID}`)
-
-    expect(res.status).toBe(429)
-    expect((await res.json()).error.code).toBe('RATE_LIMITED')
+    expect(response.status).toBe(400)
+    expect(mocks.authenticate).toHaveBeenCalled()
+    expect(mocks.checkOperationRate).toHaveBeenCalledTimes(2)
+    expect(mocks.execute).not.toHaveBeenCalled()
   })
 
-  it('returns connection metadata without environment-secret fields', async () => {
-    const res = await callList(`workspaceId=${WORKSPACE_ID}`)
-    const body = await res.json()
+  it('calls the application operation with the workspace principal', async () => {
+    const request = new NextRequest(
+      `http://localhost:3000/api/v2/credentials?workspaceId=${WORKSPACE_ID}&type=service_account`
+    )
+    const response = await GET(request)
 
-    expect(res.status).toBe(200)
-    expect(body.nextCursor).toBeNull()
-    expect(body.data).toEqual([
-      {
-        id: 'cred_abc123',
-        type: 'service_account',
-        displayName: 'Zoom account acct_123',
-        description: null,
-        providerId: 'zoom-service-account',
-        accountId: null,
-        hasServiceAccountKey: true,
-        role: 'admin',
-        createdAt: '2024-01-01T00:00:00.000Z',
-        updatedAt: '2024-01-02T00:00:00.000Z',
-      },
-    ])
-    expect(JSON.stringify(body)).not.toContain('envKey')
-    expect(mockListVisibleWorkspaceCredentials).toHaveBeenCalledWith(
-      expect.objectContaining({
+    expect(response.status).toBe(200)
+    expect(mocks.execute).toHaveBeenCalledWith({
+      principal: auth.principal,
+      input: {
         workspaceId: WORKSPACE_ID,
-        userId: 'user-1',
-        types: ['oauth', 'service_account'],
-      })
-    )
+        type: 'service_account',
+        providerId: undefined,
+        search: undefined,
+        sortBy: 'createdAt',
+        sortOrder: 'desc',
+      },
+      request,
+    })
   })
 
-  it('accepts only OAuth and service-account type filters', async () => {
-    await callList(`workspaceId=${WORKSPACE_ID}&type=oauth&providerId=slack`)
-    expect(mockListVisibleWorkspaceCredentials).toHaveBeenCalledWith(
-      expect.objectContaining({ types: ['oauth'], providerId: 'slack' })
+  it('projects credential metadata field by field without secret material', async () => {
+    const response = await GET(
+      new NextRequest(`http://localhost:3000/api/v2/credentials?workspaceId=${WORKSPACE_ID}`)
     )
+    const body = await response.json()
 
-    const invalid = await callList(`workspaceId=${WORKSPACE_ID}&type=env_workspace`)
-    expect(invalid.status).toBe(400)
+    expect(body).toEqual({
+      data: [
+        {
+          id: 'credential-1',
+          type: 'service_account',
+          displayName: 'Zoom account',
+          description: null,
+          providerId: 'zoom-service-account',
+          accountId: null,
+          hasServiceAccountKey: true,
+          role: 'member',
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-02T00:00:00.000Z',
+        },
+      ],
+      nextCursor: null,
+    })
+    expect(JSON.stringify(body)).not.toContain('envKey')
+    expect(JSON.stringify(body)).not.toContain('createdBy')
   })
 
-  it('rejects invalid list controls', async () => {
-    const invalidSort = await callList(`workspaceId=${WORKSPACE_ID}&sortBy=name);--`)
-    const invalidDirection = await callList(`workspaceId=${WORKSPACE_ID}&sortOrder=sideways`)
-    const emptySearch = await callList(`workspaceId=${WORKSPACE_ID}&search=`)
+  it('hides repository errors that may contain secret details', async () => {
+    mocks.execute.mockRejectedValueOnce(new Error('encryptedServiceAccountKey failed'))
 
-    expect(invalidSort.status).toBe(400)
-    expect(invalidDirection.status).toBe(400)
-    expect(emptySearch.status).toBe(400)
+    const response = await GET(
+      new NextRequest(`http://localhost:3000/api/v2/credentials?workspaceId=${WORKSPACE_ID}`)
+    )
+
+    expect(response.status).toBe(500)
+    expect(await response.json()).toMatchObject({
+      error: { code: 'INTERNAL_ERROR', message: 'Internal server error' },
+    })
   })
 })
