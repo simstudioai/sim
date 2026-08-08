@@ -332,7 +332,8 @@ async function runOneShot(
   prompt: string,
   attachments: ChatAttachment[],
   readOnly: boolean,
-  dependencies: ChatDependencies
+  dependencies: ChatDependencies,
+  continuationToken?: string
 ): Promise<void> {
   const controller = new AbortController()
   const cancel = () => controller.abort()
@@ -345,6 +346,7 @@ async function runOneShot(
         workspaceId,
         prompt,
         ...(readOnly ? { readOnly: true } : {}),
+        ...(continuationToken ? { continuationToken } : {}),
         ...(attachments.length ? { attachments } : {}),
       },
       controller.signal
@@ -373,7 +375,7 @@ type UserTurnResult =
       pastes?: ReadonlyMap<number, string>
       contexts?: ChatContext[]
     }
-  | { kind: 'clear'; attachments: ChatAttachment[] }
+  | { kind: 'new'; attachments: ChatAttachment[] }
   | { kind: 'chats'; attachments: ChatAttachment[] }
   | { kind: 'rename'; title: string; attachments: ChatAttachment[] }
   | { kind: 'idle'; attachments: ChatAttachment[] }
@@ -385,7 +387,7 @@ function explainInteractiveCommands(terminal: ChatTerminal): void {
       'Commands:',
       '  ctrl+v           attach the clipboard image or file (or cmd+v on macOS)',
       '  <file path>      drop or type a path to attach the file',
-      '  /clear           start a new conversation',
+      '  /new             start a new chat',
       '  /chats           view and switch chats',
       '  /rename <title>  rename the active chat',
       '  /help            show this help',
@@ -466,7 +468,7 @@ async function readUserTurn(
       explainInteractiveCommands(terminal)
       continue
     }
-    if (trimmed === '/clear') return { kind: 'clear', attachments }
+    if (trimmed === '/new') return { kind: 'new', attachments }
     if (trimmed === '/chats') {
       return { kind: 'chats', attachments }
     }
@@ -1013,11 +1015,11 @@ async function runInteractive(
           nextPromptConflictRetries = 0
           continue
         }
-        if ((input.kind === 'clear' || input.kind === 'chats') && terminal.hasQueuedInput()) {
+        if ((input.kind === 'new' || input.kind === 'chats') && terminal.hasQueuedInput()) {
           terminal.status('Finish queued prompts before changing conversations.')
           continue
         }
-        if (input.kind === 'clear') {
+        if (input.kind === 'new') {
           startNewConversation()
           continue
         }
@@ -1470,17 +1472,29 @@ export function chatCommand(overrides: Partial<ChatDependencies> = {}): Command 
     .description('Ask Sim Chat about the active workspace')
     .argument('[prompt...]', 'Question to ask')
     .option('-p, --print', 'Print the final response and exit')
+    .option('--chat <chatId>', 'Resume an existing chat by ID (print mode only)')
     .option('-f, --file <path>', 'Attach a local file (repeatable)', collectFile, [])
     .option('--read-only', 'Restrict Sim Chat to read-only workspace tools')
     .action(
       async (
         promptParts: string[],
-        options: { print?: boolean; file: string[]; readOnly?: boolean },
+        options: { print?: boolean; chat?: string; file: string[]; readOnly?: boolean },
         command: Command
       ) => {
         const positionalPrompt = promptParts.join(' ')
         const positionalBytes = utf8Bytes(positionalPrompt)
         if (positionalBytes > MAX_CHAT_PROMPT_BYTES) throw inputTooLarge()
+
+        const chatId = options.chat?.trim()
+        if (options.chat !== undefined && !chatId) {
+          throw new SimApiError('Chat ID must not be empty.', 0)
+        }
+        if (chatId && !options.print) {
+          throw new SimApiError(
+            '--chat can only be used with -p/--print. Use /chats in interactive mode.',
+            0
+          )
+        }
 
         const interactive = !options.print && dependencies.isInteractive()
         if (!options.print && !interactive) {
@@ -1515,13 +1529,32 @@ export function chatCommand(overrides: Partial<ChatDependencies> = {}): Command 
           )
           return
         }
+        let continuationToken: string | undefined
+        if (chatId) {
+          const chat = await loadChat(client, workspaceId, chatId, options.readOnly === true)
+          if (!chat.continuationToken) {
+            throw new SimApiError(
+              'Sim Chat did not return a continuation token for the selected chat.',
+              0
+            )
+          }
+          if (chat.active) {
+            throw new SimApiError(
+              'The selected chat is currently active in another client. Wait for it to finish before resuming it.',
+              409,
+              'CONFLICT'
+            )
+          }
+          continuationToken = chat.continuationToken
+        }
         await runOneShot(
           client,
           workspaceId,
           prompt,
           attachments,
           options.readOnly === true,
-          dependencies
+          dependencies,
+          continuationToken
         )
       }
     )

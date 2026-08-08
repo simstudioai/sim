@@ -292,6 +292,37 @@ export const CLI_CONTRACT: CliContract = {
   updateCustomTool: { flags: { schema: { json: true, describe: CUSTOM_TOOL_SCHEMA_HELP } } },
 
   // ─── Output columns for list commands ─────────────────────────────────────
+  listChats: {
+    flags: { search: { describe: 'Filter chats by title' } },
+    columns: [
+      { header: 'id' },
+      { header: 'title' },
+      { header: 'updated', path: 'updatedAt', format: 'timestamp' },
+      { header: 'pinned', format: 'bool' },
+      { header: 'active', format: 'bool' },
+    ],
+  },
+  getChat: {
+    describe: 'Show chat metadata and message count',
+    flags: {
+      readOnly: {
+        boolean: true,
+        describe: 'Bind the returned continuation token to read-only mode',
+      },
+    },
+    fields: [
+      { header: 'id' },
+      { header: 'title' },
+      { header: 'messages', format: 'count' },
+      { header: 'active', format: 'bool' },
+    ],
+  },
+  renameChat: {
+    command: 'chats rename',
+    describe: 'Rename a chat',
+    flags: { title: { describe: 'New chat title' } },
+    fields: [{ header: 'id' }, { header: 'title' }],
+  },
   listTables: {
     flags: { folderPath: FOLDER_PATH_FLAG },
     columns: [

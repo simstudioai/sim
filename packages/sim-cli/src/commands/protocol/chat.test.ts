@@ -280,6 +280,166 @@ describe('chat print mode', () => {
     expect(writeOutput).toHaveBeenCalledWith('Hello world')
   })
 
+  it('resumes an existing chat by ID for one print-mode turn', async () => {
+    mocks.request.mockResolvedValueOnce({
+      data: {
+        id: 'chat-1',
+        title: 'Existing chat',
+        messages: [],
+        continuationToken: 'resume-token',
+        active: false,
+      },
+    })
+    mocks.requestRaw.mockResolvedValue(completed('Continued answer', 'next-token'))
+    const writeOutput = vi.fn()
+
+    await program(async () => '', writeOutput).parseAsync([
+      'node',
+      'sim',
+      'chat',
+      '-p',
+      '--chat',
+      'chat-1',
+      'Continue here',
+    ])
+
+    expect(mocks.request).toHaveBeenCalledWith('/api/v2/chats/chat-1', {
+      query: { workspaceId: 'ws_local' },
+      auth: 'optional',
+    })
+    expect(mocks.requestRaw.mock.calls[0][1].body).toEqual({
+      workspaceId: 'ws_local',
+      prompt: 'Continue here',
+      continuationToken: 'resume-token',
+    })
+    expect(writeOutput).toHaveBeenCalledWith('Continued answer')
+  })
+
+  it('binds a resumed print-mode token to read-only mode', async () => {
+    mocks.request.mockResolvedValueOnce({
+      data: {
+        id: 'chat-1',
+        title: 'Existing chat',
+        messages: [],
+        continuationToken: 'read-only-token',
+        active: false,
+      },
+    })
+    mocks.requestRaw.mockResolvedValue(completed('Read-only answer'))
+
+    await program(async () => '').parseAsync([
+      'node',
+      'sim',
+      'chat',
+      '-p',
+      '--read-only',
+      '--chat',
+      'chat-1',
+      'Continue safely',
+    ])
+
+    expect(mocks.request).toHaveBeenCalledWith('/api/v2/chats/chat-1', {
+      query: { workspaceId: 'ws_local', readOnly: true },
+      auth: 'optional',
+    })
+    expect(mocks.requestRaw.mock.calls[0][1].body).toEqual({
+      workspaceId: 'ws_local',
+      prompt: 'Continue safely',
+      readOnly: true,
+      continuationToken: 'read-only-token',
+    })
+  })
+
+  it('rejects --chat outside print mode', async () => {
+    await expect(
+      program(async () => '', vi.fn(), { isInteractive: () => true }).parseAsync([
+        'node',
+        'sim',
+        'chat',
+        '--chat',
+        'chat-1',
+      ])
+    ).rejects.toThrow('--chat can only be used with -p/--print')
+
+    expect(mocks.request).not.toHaveBeenCalled()
+    expect(mocks.requestRaw).not.toHaveBeenCalled()
+  })
+
+  it('does not race a print-mode turn into a chat active elsewhere', async () => {
+    mocks.request.mockResolvedValueOnce({
+      data: {
+        id: 'chat-1',
+        title: 'Existing chat',
+        messages: [],
+        continuationToken: 'resume-token',
+        active: true,
+      },
+    })
+
+    await expect(
+      program(async () => '').parseAsync([
+        'node',
+        'sim',
+        'chat',
+        '-p',
+        '--chat',
+        'chat-1',
+        'Continue here',
+      ])
+    ).rejects.toThrow('currently active in another client')
+
+    expect(mocks.requestRaw).not.toHaveBeenCalled()
+  })
+
+  it('surfaces a conflict if the chat becomes active after lookup', async () => {
+    mocks.request.mockResolvedValueOnce({
+      data: {
+        id: 'chat-1',
+        title: 'Existing chat',
+        messages: [],
+        continuationToken: 'resume-token',
+        active: false,
+      },
+    })
+    mocks.requestRaw.mockRejectedValueOnce(
+      new SimApiError('A response is already in progress for this chat', 409, 'CONFLICT')
+    )
+    const writeOutput = vi.fn()
+
+    await expect(
+      program(async () => '', writeOutput).parseAsync([
+        'node',
+        'sim',
+        'chat',
+        '-p',
+        '--chat',
+        'chat-1',
+        'Continue here',
+      ])
+    ).rejects.toThrow('A response is already in progress for this chat')
+
+    expect(mocks.requestRaw).toHaveBeenCalledOnce()
+    expect(writeOutput).not.toHaveBeenCalled()
+  })
+
+  it('surfaces an inaccessible chat without starting a new one', async () => {
+    mocks.request.mockRejectedValueOnce(new SimApiError('Chat not found', 404, 'NOT_FOUND'))
+
+    await expect(
+      program(async () => '').parseAsync([
+        'node',
+        'sim',
+        'chat',
+        '-p',
+        '--chat',
+        'missing-chat',
+        'Continue here',
+      ])
+    ).rejects.toThrow('Chat not found')
+
+    expect(mocks.requestRaw).not.toHaveBeenCalled()
+  })
+
   it('keeps the profile shorthand distinct from chat -p', async () => {
     mocks.requestRaw.mockResolvedValue(completed('answer'))
 
@@ -1052,7 +1212,7 @@ describe('interactive chat', () => {
     })
   })
 
-  it('visibly resets the transcript and continuation identity with /clear', async () => {
+  it('visibly resets the transcript and continuation identity with /new', async () => {
     mocks.requestRaw
       .mockResolvedValueOnce(
         sse([
@@ -1062,7 +1222,7 @@ describe('interactive chat', () => {
       )
       .mockResolvedValueOnce(completed('Second', 'token-2'))
     const terminal = new FakeTerminal([
-      { kind: 'line', value: '/clear' },
+      { kind: 'line', value: '/new' },
       { kind: 'line', value: 'Fresh question' },
       { kind: 'line', value: '/exit' },
     ])
@@ -1998,7 +2158,7 @@ describe('interactive chat', () => {
   it('does not move queued prompts into another conversation', async () => {
     const terminal = new FakeTerminal([
       { kind: 'line', value: 'first' },
-      { kind: 'line', value: '/clear', queued: true, display: '/clear' },
+      { kind: 'line', value: '/new', queued: true, display: '/new' },
       { kind: 'line', value: 'second', queued: true, display: 'second' },
       { kind: 'line', value: '/chats', queued: true, display: '/chats' },
       { kind: 'line', value: 'third', queued: true, display: 'third' },
