@@ -152,7 +152,9 @@ export const downloadToWorkspaceFileServerTool: BaseServerTool<
     if (!workspaceId) {
       return { success: false, message: 'Workspace ID is required' }
     }
-    const workspaceAccess = await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
+    // Intentionally not reused for the write below: the download in between can be long, so the
+    // writer re-resolves access at write time and a revocation mid-download blocks the write.
+    await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
 
     try {
       assertServerToolNotAborted(context)
@@ -192,7 +194,6 @@ export const downloadToWorkspaceFileServerTool: BaseServerTool<
       const written = await writeWorkspaceFileByPath({
         workspaceId,
         userId: context.userId,
-        workspaceAccess,
         target: {
           path: outputPath,
           mode: outputFile?.mode ?? 'create',
