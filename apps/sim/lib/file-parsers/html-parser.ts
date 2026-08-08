@@ -69,17 +69,21 @@ function assertHtmlWithinLimits(buffer: Buffer): void {
 
 export class HtmlParser implements FileParser {
   async parseFile(filePath: string): Promise<FileParseResult> {
+    let buffer: Buffer
+
+    /** Scoped to the read alone so `parseBuffer`'s typed rejections reach callers intact. */
     try {
       if (!filePath) {
         throw new Error('No file path provided')
       }
 
-      const buffer = await readFile(filePath)
-      return this.parseBuffer(buffer)
+      buffer = await readFile(filePath)
     } catch (error) {
       logger.error('HTML file error:', error)
       throw new Error(`Failed to parse HTML file: ${getErrorMessage(error, 'Unknown error')}`)
     }
+
+    return this.parseBuffer(buffer)
   }
 
   async parseBuffer(buffer: Buffer): Promise<FileParseResult> {

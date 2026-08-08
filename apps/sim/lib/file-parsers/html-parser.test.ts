@@ -1,6 +1,9 @@
 /**
  * @vitest-environment node
  */
+import { rm, writeFile } from 'fs/promises'
+import { tmpdir } from 'os'
+import { join } from 'path'
 import { describe, expect, it } from 'vitest'
 import { HtmlComplexityError, HtmlParser } from '@/lib/file-parsers/html-parser'
 
@@ -44,6 +47,18 @@ describe('HtmlParser', () => {
      * a resource rejection so callers fail closed rather than fall back to
      * storing the document as raw text.
      */
+    it('preserves the error type through parseFile so callers still fail closed', async () => {
+      const dense = `<html><body>${'<p>a</p>'.repeat(300_000)}</body></html>`
+      const path = join(tmpdir(), `html-parser-limits-${process.pid}.html`)
+      await writeFile(path, dense)
+
+      try {
+        await expect(parser.parseFile(path)).rejects.toBeInstanceOf(HtmlComplexityError)
+      } finally {
+        await rm(path, { force: true })
+      }
+    })
+
     it('classifies a deep-nesting stack overflow as a complexity rejection', async () => {
       const depth = 15_000
       const buffer = Buffer.from(
