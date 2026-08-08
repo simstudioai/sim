@@ -420,6 +420,7 @@ export const CLI_CONTRACT: CliContract = {
   listWorkspaceMembers: {
     command: 'workspaces members',
     describe: 'List workspace members',
+    profileWorkspacePath: true,
     columns: [
       { header: 'email' },
       { header: 'name' },

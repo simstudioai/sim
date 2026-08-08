@@ -135,7 +135,7 @@ sim audit-logs list --organization <organizationId> [--all-workspaces]
 sim audit-logs get <id> --organization <organizationId>
 
 sim workspaces get
-sim workspaces members <workspaceId>
+sim workspaces members
 
 sim tables ls [path] [--search <text>] [--limit <n>]
 sim tables list [--folder <path>]

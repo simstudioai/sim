@@ -449,8 +449,11 @@ describe('commands parsed through commander', () => {
     )
     profileState.workspaceId = 'ws_local'
 
-    const [membersPath, membersOptions] = await run(['workspace', 'members', 'ws_target'])
-    expect(membersPath).toBe('/api/v2/workspaces/ws_target/members')
+    const membersHelp = commandAt('workspaces', 'members').helpInformation()
+    expect(membersHelp).not.toContain('<workspaceId>')
+
+    const [membersPath, membersOptions] = await run(['workspace', 'members'])
+    expect(membersPath).toBe('/api/v2/workspaces/ws_local/members')
     expect(membersOptions.query).toEqual({ limit: 100, cursor: null })
   })
 
