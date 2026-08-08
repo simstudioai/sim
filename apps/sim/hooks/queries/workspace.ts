@@ -1,4 +1,3 @@
-import { useRef } from 'react'
 import type { QueryClient } from '@tanstack/react-query'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiClientError } from '@/lib/api/client/errors'
@@ -122,6 +121,12 @@ export function usePinnedWorkspaceIds(enabled = true) {
   })
 }
 
+/**
+ * Identifies pin toggles in the mutation cache so `onSettled` can tell whether it is
+ * the last one. Doubles as the `scope` id, which is what serializes them.
+ */
+const WORKSPACE_PIN_MUTATION_KEY = ['workspace', 'toggle-pin'] as const
+
 /** Applies one toggle to a pin list. Idempotent, so replaying it cannot double-apply. */
 function applyPinToggle(pinnedWorkspaceIds: string[], workspaceId: string, pinned: boolean) {
   const without = pinnedWorkspaceIds.filter((id) => id !== workspaceId)
@@ -144,10 +149,9 @@ function applyPinToggle(pinnedWorkspaceIds: string[], workspaceId: string, pinne
 export function useToggleWorkspacePin() {
   const queryClient = useQueryClient()
   const queryKey = workspaceKeys.list('active')
-  /** Toggles the user has made that have not settled yet; see `onSettled`. */
-  const outstandingRef = useRef(0)
 
   return useMutation({
+    mutationKey: WORKSPACE_PIN_MUTATION_KEY,
     scope: { id: 'workspace-pin' },
     mutationFn: async ({ workspaceId, pinned }: { workspaceId: string; pinned: boolean }) => {
       try {
@@ -167,7 +171,6 @@ export function useToggleWorkspacePin() {
       }
     },
     onMutate: async ({ workspaceId, pinned }) => {
-      outstandingRef.current += 1
       await queryClient.cancelQueries({ queryKey })
       queryClient.setQueryData<WorkspacesResponse>(queryKey, (old) =>
         old
@@ -197,10 +200,16 @@ export function useToggleWorkspacePin() {
      * so an earlier toggle settles while a later one is still waiting its turn —
      * refetching there would render the server's intermediate state and bounce the
      * row out of the pinned group and back before the last write even leaves.
+     *
+     * Counted off the mutation cache rather than a ref because this module is
+     * server-importable (`workspaceKeys` is read during SSR), so it cannot use hooks.
      */
     onSettled: () => {
-      outstandingRef.current -= 1
-      if (outstandingRef.current > 0) return
+      /**
+       * `onSettled` runs before the mutation leaves `pending`, so it counts itself —
+       * anything above one means a later toggle is still queued behind the scope.
+       */
+      if (queryClient.isMutating({ mutationKey: WORKSPACE_PIN_MUTATION_KEY }) > 1) return
       queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
     },
   })
