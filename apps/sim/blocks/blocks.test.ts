@@ -893,7 +893,7 @@ describe.concurrent('Blocks Module', () => {
 
       expect(providerSubBlock?.commandSearchable).toBe(true)
       expect(providerSubBlock?.value?.()).toBe('openai')
-      expect(providerIds).toEqual(['openai', 'gemini', 'cohere', 'mistral'])
+      expect(providerIds).toEqual(['openai', 'gemini', 'cohere', 'mistral', 'openrouter'])
 
       for (const provider of providerIds) {
         // Each provider routes to its own registered tool...
