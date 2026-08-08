@@ -99,10 +99,14 @@ export function tablePredicateNamesToFilter(
   predicate: TablePredicate,
   table: TableDefinition
 ): Filter {
-  validatePredicateShape(predicate)
-  const translated = predicateToStorage(predicate, table.schema)
-  validateStoragePredicate(translated, table.schema.columns)
-  return predicateToFilter(translated)
+  try {
+    validatePredicateShape(predicate)
+    const translated = predicateToStorage(predicate, table.schema)
+    validateStoragePredicate(translated, table.schema.columns)
+    return predicateToFilter(translated)
+  } catch (error) {
+    rethrowQueryValidation(error)
+  }
 }
 
 async function throwValidationResponse(

@@ -61,6 +61,7 @@ export type StartTableRunInput = StartSelectionRunInput | StartRowEnrichmentInpu
 
 export interface StartTableRunResult extends TableRunResult {
   dispatchId: string | null
+  shouldSignalRowsChanged: boolean
 }
 
 function requireCanonicalGroups(table: TableDefinition, groupIds: string[]): void {
@@ -96,7 +97,11 @@ export const startTableRun = defineAuthorizedTableUseCase({
         requestId: requestId(input),
         triggeredByUserId,
       })
-      return { table: context.table, dispatchId: result.dispatchId }
+      return {
+        table: context.table,
+        dispatchId: result.dispatchId,
+        shouldSignalRowsChanged: result.shouldSignalRowsChanged,
+      }
     }
 
     if (input.rowIds && input.predicate) {
@@ -149,10 +154,14 @@ export const startTableRun = defineAuthorizedTableUseCase({
       requestId: requestId(input),
       triggeredByUserId,
     })
-    return { table: context.table, dispatchId: result.dispatchId }
+    return {
+      table: context.table,
+      dispatchId: result.dispatchId,
+      shouldSignalRowsChanged: result.shouldSignalRowsChanged,
+    }
   },
   afterSuccess: ({ context, result }) => {
-    if (result.dispatchId !== null) signalTableRowsChanged(context.tableId)
+    if (result.shouldSignalRowsChanged) signalTableRowsChanged(context.tableId)
   },
 })
 

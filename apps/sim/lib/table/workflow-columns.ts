@@ -839,7 +839,7 @@ export async function runWorkflowColumn(opts: {
    *  callers (row writes, CSV import) → falls back to the workspace billed
    *  account at billing time. */
   triggeredByUserId?: string | null
-}): Promise<{ dispatchId: string | null }> {
+}): Promise<{ dispatchId: string | null; shouldSignalRowsChanged: boolean }> {
   const {
     tableId,
     workspaceId,
@@ -856,7 +856,9 @@ export async function runWorkflowColumn(opts: {
   // Empty `rowIds` array means "scope explicitly empty" — auto-fire callers
   // (CSV import on zero matches, etc.) end up here. Skip the dispatch entirely
   // rather than walk the table with a no-match filter.
-  if (rowIds && rowIds.length === 0) return { dispatchId: null }
+  if (rowIds && rowIds.length === 0) {
+    return { dispatchId: null, shouldSignalRowsChanged: false }
+  }
   // Lazy imports: `./service` and `./dispatcher` both close cycles back to
   // this module; `@trigger.dev/sdk` is heavy and only needed on this op.
   const { getTableById } = await import('@/lib/table/service')
@@ -871,8 +873,11 @@ export async function runWorkflowColumn(opts: {
   // every row write would otherwise produce error-level log spam on every
   // PATCH/insert. Manual run-column callers always pass `groupIds` so they
   // can't reach here with an empty target.
-  if (targetGroups.length === 0) return { dispatchId: null }
+  if (targetGroups.length === 0) {
+    return { dispatchId: null, shouldSignalRowsChanged: false }
+  }
   const targetGroupIds = targetGroups.map((g) => g.id)
+  let shouldSignalRowsChanged = false
 
   const {
     bulkClearWorkflowGroupCells,
@@ -935,18 +940,22 @@ export async function runWorkflowColumn(opts: {
       if (!rowIds || rowIds.length === 0) {
         // Filtered runs cancel only their own scope — a table-wide cancel here
         // would stop unrelated work on rows outside the filter (or on deselected rows).
-        await cancelWorkflowGroupRuns(tableId, undefined, {
+        const cancelled = await cancelWorkflowGroupRuns(tableId, undefined, {
           groupIds: targetGroupIds,
           filter,
           excludeRowIds,
           spareDispatchId: dispatchId,
         })
+        shouldSignalRowsChanged ||= cancelled > 0
       } else {
         // Per-row cancel — sequential so we don't fan out N parallel
         // markActiveDispatchesCancelled calls (it's a no-op when rowId is set,
         // but each call still touches the DB).
         for (const rowId of rowIds) {
-          await cancelWorkflowGroupRuns(tableId, rowId, { groupIds: targetGroupIds })
+          const cancelled = await cancelWorkflowGroupRuns(tableId, rowId, {
+            groupIds: targetGroupIds,
+          })
+          shouldSignalRowsChanged ||= cancelled > 0
         }
       }
     }
@@ -962,13 +971,15 @@ export async function runWorkflowColumn(opts: {
     // filtered scope has none — clearing table-wide would blank rows that don't match the filter. The
     // dispatcher's per-row pre-stamp still provides instant Pending feedback as it walks.
     if (!limit && !filter) {
-      await bulkClearWorkflowGroupCells({
+      const clearedRows = await bulkClearWorkflowGroupCells({
         tableId,
+        workspaceId,
         groups: targetGroups.map((g) => ({ id: g.id, outputs: g.outputs })),
         rowIds,
         excludeRowIds,
         mode,
       })
+      shouldSignalRowsChanged ||= clearedRows
     }
   } catch (err) {
     // Prep failed after the dispatch row was inserted — cancel it so an
@@ -998,7 +1009,7 @@ export async function runWorkflowColumn(opts: {
     logger.info(
       `[Cascade] [${requestId}] dispatch ${dispatchId} cancelled during prep — not firing`
     )
-    return { dispatchId: null }
+    return { dispatchId: null, shouldSignalRowsChanged }
   }
 
   logger.info(
@@ -1030,7 +1041,7 @@ export async function runWorkflowColumn(opts: {
     )
   }
 
-  return { dispatchId }
+  return { dispatchId, shouldSignalRowsChanged: true }
 }
 
 // ───────────────────────────── Validation ─────────────────────────────

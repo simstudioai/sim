@@ -104,7 +104,10 @@ describe('table run application use cases', () => {
       billedAccountUserId: 'billing-owner-1',
     })
     mockGetRowById.mockResolvedValue({ id: 'row-1' })
-    mockRunWorkflowColumn.mockResolvedValue({ dispatchId: 'dispatch-1' })
+    mockRunWorkflowColumn.mockResolvedValue({
+      dispatchId: 'dispatch-1',
+      shouldSignalRowsChanged: true,
+    })
     mockRequireTableRowIds.mockResolvedValue(undefined)
     mockCancelRuns.mockResolvedValue(1)
     mockTranslatePredicate.mockReturnValue({ all: [] })
@@ -200,7 +203,10 @@ describe('table run application use cases', () => {
   })
 
   it('does not signal when the dispatcher reports a no-op', async () => {
-    mockRunWorkflowColumn.mockResolvedValue({ dispatchId: null })
+    mockRunWorkflowColumn.mockResolvedValue({
+      dispatchId: null,
+      shouldSignalRowsChanged: false,
+    })
 
     await startTableRun.execute({
       principal: PRINCIPAL,
@@ -213,6 +219,25 @@ describe('table run application use cases', () => {
     })
 
     expect(mockSignalRowsChanged).not.toHaveBeenCalled()
+  })
+
+  it('signals a cleared row state when cancellation wins before dispatch', async () => {
+    mockRunWorkflowColumn.mockResolvedValue({
+      dispatchId: null,
+      shouldSignalRowsChanged: true,
+    })
+
+    await startTableRun.execute({
+      principal: PRINCIPAL,
+      input: {
+        kind: 'selection',
+        tableId: TABLE.id,
+        groupIds: ['group-1'],
+        mode: 'all',
+      },
+    })
+
+    expect(mockSignalRowsChanged).toHaveBeenCalledWith(TABLE.id)
   })
 
   it('requires a canonical row for row cancellation', async () => {

@@ -84,6 +84,7 @@ import {
   queryTableRows,
   replaceTableRows,
   TableRowsValidationError,
+  tablePredicateNamesToFilter,
   upsertTableRow,
 } from '@/lib/table/application/rows'
 
@@ -103,6 +104,19 @@ const TABLE: TableDefinition = {
 }
 
 const PRINCIPAL = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
+
+describe('table predicate translation', () => {
+  it('maps invalid run filters to the shared row validation error', () => {
+    expect(() =>
+      tablePredicateNamesToFilter({ all: [{ field: 'missing', op: 'eq', value: 'ready' }] }, TABLE)
+    ).toThrowError(
+      expect.objectContaining({
+        name: 'TableRowsValidationError',
+        details: { code: 'INVALID_FILTER' },
+      })
+    )
+  })
+})
 
 describe('replaceTableRows application use case', () => {
   beforeEach(() => {
