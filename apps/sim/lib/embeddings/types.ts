@@ -108,7 +108,9 @@ export interface EmbedOptions {
 export interface EmbedResult {
   embeddings: number[][]
   totalTokens: number
-  /** True when a workspace-owned key was used, meaning Sim does not bill for it. */
+  /** Tokens processed with a Sim-funded key and therefore eligible for billing. */
+  billableTokens: number
+  /** True when every successful embedding used a caller- or workspace-owned key. */
   isBYOK: boolean
   /** Model name as sent to the provider. */
   modelName: string

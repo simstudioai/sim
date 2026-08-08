@@ -293,6 +293,7 @@ async function embedWithProvider(
   return {
     embeddings,
     totalTokens,
+    billableTokens: provider.isBYOK ? 0 : totalTokens,
     isBYOK: provider.isBYOK,
     modelName: provider.modelName,
     pricingId: provider.info.pricingId,
@@ -472,14 +473,16 @@ export async function embedKnowledgeForDeployment(
   const usedProviders = batchResults.map((batch) => batch.provider)
   const metadataProvider = usedProviders[0] ?? defaultProvider
   const modelNames = new Set(usedProviders.map((provider) => provider.modelName))
+  const billableTokens = batchResults.reduce(
+    (sum, batch) => sum + (batch.provider.isBYOK ? 0 : batch.totalTokens),
+    0
+  )
 
   return {
     embeddings,
     totalTokens,
-    isBYOK:
-      usedProviders.length > 0
-        ? usedProviders.every((provider) => provider.isBYOK)
-        : metadataProvider.isBYOK,
+    billableTokens,
+    isBYOK: usedProviders.length > 0 ? billableTokens === 0 : metadataProvider.isBYOK,
     modelName: modelNames.size > 1 ? model : metadataProvider.modelName,
     pricingId: info.pricingId,
     dimensions,

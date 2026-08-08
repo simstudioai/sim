@@ -46,6 +46,7 @@ export function getConfiguredEmbeddingModel(): string {
 export interface GenerateEmbeddingsResult {
   embeddings: number[][]
   totalTokens: number
+  billableTokens: number
   isBYOK: boolean
   modelName: string
   /** Pricing identifier for use with calculateCost / EMBEDDING_MODEL_PRICING. */
@@ -76,6 +77,7 @@ export async function generateEmbeddings(
   return {
     embeddings: result.embeddings,
     totalTokens: result.totalTokens,
+    billableTokens: result.billableTokens,
     isBYOK: result.isBYOK,
     modelName: result.modelName,
     pricingId: result.pricingId,

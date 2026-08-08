@@ -286,6 +286,7 @@ describe('embed', () => {
     })
 
     expect(result.isBYOK).toBe(true)
+    expect(result.billableTokens).toBe(0)
   })
 
   it('uses OpenRouter as an explicit transport for an OpenAI catalog model', async () => {
@@ -455,6 +456,8 @@ describe('knowledge embedding transport fallback', () => {
     })
     expect(result).toMatchObject({
       embeddings: [[1, 2]],
+      billableTokens: 3,
+      isBYOK: false,
       modelName: 'text-embedding-3-small',
       dimensions: 1536,
     })
@@ -571,6 +574,7 @@ describe('knowledge embedding transport fallback', () => {
   it('falls back only the failed batch and retains successful provider work', async () => {
     vi.useFakeTimers()
     setEnv({ OPENAI_API_KEY: 'openai-test', OPENROUTER_API_KEY: 'or-test' })
+    mockGetBYOKKey.mockResolvedValue({ apiKey: 'workspace-openai-test', isBYOK: true })
     const firstInput = `first ${'word '.repeat(5000)}`
     const secondInput = `second ${'word '.repeat(5000)}`
     fetchMock.mockImplementation(async (url, init) => {
@@ -582,7 +586,11 @@ describe('knowledge embedding transport fallback', () => {
       return jsonResponse(openAIBody([[input.startsWith('first') ? 1 : 2]], 3))
     })
 
-    const pending = embedKnowledgeForDeployment([firstInput, secondInput], options, false)
+    const pending = embedKnowledgeForDeployment(
+      [firstInput, secondInput],
+      { ...options, workspaceId: 'workspace-1' },
+      false
+    )
     await vi.runAllTimersAsync()
     const result = await pending
 
@@ -593,6 +601,8 @@ describe('knowledge embedding transport fallback', () => {
     expect(fetchMock).toHaveBeenCalledTimes(6)
     expect(result.embeddings).toEqual([[1], [2]])
     expect(result.totalTokens).toBe(6)
+    expect(result.billableTokens).toBe(3)
+    expect(result.isBYOK).toBe(false)
   })
 
   it('classifies only transient embedding failures for failover', () => {
