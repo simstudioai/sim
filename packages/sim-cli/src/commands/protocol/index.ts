@@ -16,7 +16,7 @@ function group(program: Command, name: string): Command {
 
 /** Attaches commands whose multi-request or binary protocols cannot be generated. */
 export function attachProtocolCommands(program: Command): void {
-  program.addCommand(chatCommand())
+  chatCommand({}, group(program, 'chat'))
 
   const files = group(program, 'files')
   attachFileUpload(files)

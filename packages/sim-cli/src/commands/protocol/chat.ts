@@ -1,8 +1,11 @@
+import { setTimeout as delay } from 'node:timers/promises'
 import { Command } from 'commander'
+import type { OutputFormat } from '../../config/index.js'
 import { clientFrom } from '../../context.js'
 import type {
   ChatBody,
   GetChatResponse,
+  GetChatRunResponse,
   GetWorkspaceResponse,
   ListChatsResponse,
   ListFilesResponse,
@@ -43,6 +46,7 @@ import {
   type ChatTerminalSelectResult,
   ReadlineChatTerminal,
 } from './chat-terminal.js'
+import { printProtocolResult } from './result.js'
 
 export interface ChatDependencies {
   readInput: (maxBytes: number) => Promise<string>
@@ -53,6 +57,11 @@ export interface ChatDependencies {
   clipboardAttachment: () => Promise<ChatAttachment | null>
   extractAttachmentPaths: (input: string) => Promise<ExtractedAttachments | null>
   formatMarkdown: () => boolean
+  writeStream: (content: string) => void
+  writeProgress: (content: string) => void
+  showProgress: () => boolean
+  pollDelay: (milliseconds: number, signal: AbortSignal) => Promise<void>
+  onInterrupt: (listener: () => void) => () => void
 }
 
 interface ChatEvent {
@@ -62,6 +71,7 @@ interface ChatEvent {
   error?: unknown
   continuationToken?: unknown
   chatId?: unknown
+  runId?: unknown
   title?: unknown
 }
 
@@ -86,10 +96,44 @@ export interface ReadChatTurnOptions {
   onTitle?: (title: string) => void | Promise<void>
 }
 
-type ChatRequest = ChatBody
+interface ChatAcceptance {
+  runId: string
+  chatId: string
+}
+
+interface ChatRunSnapshot {
+  runId: string
+  chatId: string
+  chatTitle?: string | null
+  status: GetChatRunResponse['data']['status']
+  startedAt?: string | null
+  completedAt?: string | null
+  response: string
+  activities: ChatActivityUpdate[]
+}
+
+interface ParsedChatRunSnapshot {
+  /** Sanitized and shape-checked values used by the human renderer. */
+  snapshot: ChatRunSnapshot
+  /** Exact API data used by JSON/YAML, which preserve wire values by convention. */
+  raw: Record<string, unknown>
+}
 
 const MAX_CHAT_PROMPT_BYTES = 10 * 1024 * 1024
 const MAX_LOG_SUGGESTIONS = 50
+const CHAT_RUN_POLL_MS = 3_000
+const CHAT_RUN_STATUSES = new Set<GetChatRunResponse['data']['status']>([
+  ...V2_OPERATIONS.listChatRuns.query.status.values,
+])
+const TERMINAL_CHAT_RUN_STATUSES = new Set<GetChatRunResponse['data']['status']>([
+  'complete',
+  'error',
+  'cancelled',
+])
+const FAILED_CHAT_RUN_STATUSES = new Set<GetChatRunResponse['data']['status']>([
+  'error',
+  'cancelled',
+])
 
 function inputTooLarge(): SimApiError {
   return new SimApiError('Chat input exceeds the 10 MiB limit.', 0)
@@ -189,6 +233,63 @@ function streamError(event: ChatEvent): SimApiError {
   )
 }
 
+function eventString(event: ChatEvent, field: 'runId' | 'chatId'): string | null {
+  const direct = event[field]
+  if (typeof direct === 'string' && direct) return direct
+  if (!event.data || typeof event.data !== 'object') return null
+  const nested = (event.data as Record<string, unknown>)[field]
+  return typeof nested === 'string' && nested ? nested : null
+}
+
+/** Reads only the accepted session for a detached chat run, then closes the HTTP reader. */
+export async function readChatAcceptance(response: Response): Promise<ChatAcceptance> {
+  if (!response.body) throw new SimApiError('Sim Chat returned an empty response.', 0)
+
+  let eventLines: string[] = []
+  let runId: string | null = null
+  let chatId: string | null = null
+
+  const consume = (): ChatAcceptance | null => {
+    const raw = dataFromEvent(eventLines)
+    eventLines = []
+    if (raw === null || raw === '[DONE]') return null
+
+    let parsed: ChatEvent
+    try {
+      parsed = JSON.parse(raw) as ChatEvent
+    } catch {
+      throw new SimApiError('Sim Chat returned malformed streaming data.', 0)
+    }
+
+    if (parsed.type === 'error') throw streamError(parsed)
+    if (parsed.type !== 'session') return null
+    runId = eventString(parsed, 'runId') ?? runId
+    chatId = eventString(parsed, 'chatId') ?? chatId
+    return runId && chatId ? { runId, chatId } : null
+  }
+
+  try {
+    for await (const line of linesOf(response.body)) {
+      if (line !== '') {
+        eventLines.push(line)
+        continue
+      }
+      const accepted = consume()
+      if (accepted) return accepted
+    }
+    if (eventLines.length > 0) {
+      const accepted = consume()
+      if (accepted) return accepted
+    }
+  } catch (error) {
+    if (error instanceof SimApiError) throw error
+    const message = error instanceof Error ? error.message : String(error)
+    throw new SimApiError(`Sim Chat stream failed: ${sanitize(message)}`, 0)
+  }
+
+  throw new SimApiError('Sim Chat ended before accepting the asynchronous run.', 0)
+}
+
 function tokenFrom(value: unknown): string | null {
   if (!value || typeof value !== 'object') return null
   const token = (value as { continuationToken?: unknown }).continuationToken
@@ -220,6 +321,71 @@ function activityFrom(value: unknown): ChatActivityUpdate | null {
         ...(parentId && parentId !== id ? { parentId } : {}),
       }
     : null
+}
+
+function optionalSnapshotString(value: unknown, field: string): string | null | undefined {
+  if (value === undefined) return undefined
+  if (value === null) return null
+  if (typeof value !== 'string') {
+    throw new SimApiError(`Sim Chat returned an invalid ${field}.`, 0)
+  }
+  return sanitize(value)
+}
+
+function parseChatRunSnapshot(value: unknown, expectedRunId: string): ParsedChatRunSnapshot {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new SimApiError('Sim Chat returned an invalid run status.', 0)
+  }
+  const envelope = value as Record<string, unknown>
+  const raw =
+    envelope.data && typeof envelope.data === 'object' && !Array.isArray(envelope.data)
+      ? (envelope.data as Record<string, unknown>)
+      : envelope
+  const runId = optionalSnapshotString(raw.runId, 'run ID')
+  const chatId = optionalSnapshotString(raw.chatId, 'chat ID')
+  const status = optionalSnapshotString(raw.status, 'run status')
+  if (!runId || !chatId || !status) {
+    throw new SimApiError('Sim Chat returned an incomplete run status.', 0)
+  }
+  if (runId !== expectedRunId) {
+    throw new SimApiError('Sim Chat returned status for a different run.', 0)
+  }
+  if (!CHAT_RUN_STATUSES.has(status as GetChatRunResponse['data']['status'])) {
+    throw new SimApiError(`Sim Chat returned unknown run status "${safeOneLine(status)}".`, 0)
+  }
+  if (raw.response !== undefined && raw.response !== null && typeof raw.response !== 'string') {
+    throw new SimApiError('Sim Chat returned an invalid run response.', 0)
+  }
+  if (raw.activities !== undefined && !Array.isArray(raw.activities)) {
+    throw new SimApiError('Sim Chat returned invalid run activity.', 0)
+  }
+
+  return {
+    raw,
+    snapshot: {
+      runId,
+      chatId,
+      status: status as GetChatRunResponse['data']['status'],
+      // The structured stream parser owns human-output sanitization. Retaining
+      // the exact cumulative string here also makes prefix checks meaningful.
+      response: typeof raw.response === 'string' ? raw.response : '',
+      activities: Array.isArray(raw.activities)
+        ? raw.activities.flatMap((activity) => {
+            const parsed = activityFrom(activity)
+            return parsed ? [parsed] : []
+          })
+        : [],
+      ...(raw.chatTitle !== undefined
+        ? { chatTitle: optionalSnapshotString(raw.chatTitle, 'chat title') }
+        : {}),
+      ...(raw.startedAt !== undefined
+        ? { startedAt: optionalSnapshotString(raw.startedAt, 'start time') }
+        : {}),
+      ...(raw.completedAt !== undefined
+        ? { completedAt: optionalSnapshotString(raw.completedAt, 'completion time') }
+        : {}),
+    },
+  }
 }
 
 /** Reads one public chat turn, optionally forwarding raw text deltas to a safe renderer. */
@@ -312,7 +478,7 @@ export async function readChatResponse(response: Response): Promise<string> {
   return (await readChatTurn(response)).content
 }
 
-function requestChat(client: SimClient, body: ChatRequest, signal: AbortSignal): Promise<Response> {
+function requestChat(client: SimClient, body: ChatBody, signal: AbortSignal): Promise<Response> {
   return client.requestRaw(V2_OPERATIONS.chat.path, {
     method: 'POST',
     headers: { accept: 'text/event-stream' },
@@ -320,6 +486,178 @@ function requestChat(client: SimClient, body: ChatRequest, signal: AbortSignal):
     signal,
     auth: 'optional',
   })
+}
+
+function isMachineOutput(format: OutputFormat): boolean {
+  return format === 'json' || format === 'yaml'
+}
+
+function renderRunProgress(
+  snapshot: ChatRunSnapshot,
+  previousStatus: string | undefined,
+  seenActivityUpdates: Set<string>,
+  write: (content: string) => void
+): void {
+  if (snapshot.status !== previousStatus) write(`status: ${safeOneLine(snapshot.status)}\n`)
+
+  snapshot.activities.forEach((activity, index) => {
+    if (activity.kind === 'narration') {
+      const narration = safeOneLine(activity.delta)
+      if (!narration) return
+      const key = `${index}:narration:${activity.parentId}:${narration}`
+      if (seenActivityUpdates.has(key)) return
+      seenActivityUpdates.add(key)
+      write(`  ${narration}\n`)
+      return
+    }
+
+    // The API returns a cumulative, chronological activity snapshot. Include
+    // the stable position and full public transition in the identity so a
+    // running -> complete pair is emitted once each rather than replayed on
+    // every poll.
+    const key = `${index}:${activity.kind}:${activity.id}:${activity.state}:${activity.label}`
+    if (seenActivityUpdates.has(key)) return
+    seenActivityUpdates.add(key)
+    const marker = activity.state === 'running' ? '●' : activity.state === 'complete' ? '✓' : '✗'
+    write(`${marker} ${safeOneLine(activity.label)}\n`)
+  })
+}
+
+async function followChatRun(
+  client: SimClient,
+  workspaceId: string,
+  runId: string,
+  format: OutputFormat,
+  dependencies: ChatDependencies
+): Promise<void> {
+  const controller = new AbortController()
+  let interrupted = false
+  const stopListening = dependencies.onInterrupt(() => {
+    interrupted = true
+    controller.abort()
+  })
+  const machineOutput = isMachineOutput(format)
+  const progressEnabled = !machineOutput && dependencies.showProgress()
+  const seenActivityUpdates = new Set<string>()
+  const responseParser = machineOutput ? null : new ChatStructuredParser()
+  const responseSegments: ChatStructuredSegment[] = []
+  let observedResponse = ''
+  let emittedResponse = ''
+  let renderedProgressStatus: string | undefined
+  let finalSnapshot: ChatRunSnapshot | undefined
+  let finalRawSnapshot: Record<string, unknown> | undefined
+
+  try {
+    while (!interrupted) {
+      let result: GetChatRunResponse
+      try {
+        result = await client.request<GetChatRunResponse>(
+          resolvePath(V2_OPERATIONS.getChatRun.path, { runId }),
+          {
+            query: { workspaceId },
+            signal: controller.signal,
+            auth: 'optional',
+          }
+        )
+      } catch (error) {
+        if (interrupted || controller.signal.aborted) break
+        if (error instanceof SimApiError && (error.status === 429 || error.status >= 500)) {
+          try {
+            await dependencies.pollDelay(CHAT_RUN_POLL_MS, controller.signal)
+          } catch (delayError) {
+            if (interrupted || controller.signal.aborted) break
+            throw delayError
+          }
+          continue
+        }
+        throw error
+      }
+
+      const parsed = parseChatRunSnapshot(result, runId)
+      const { snapshot } = parsed
+      finalSnapshot = snapshot
+      finalRawSnapshot = parsed.raw
+
+      let displayDelta = ''
+      if (!machineOutput) {
+        if (!snapshot.response.startsWith(observedResponse)) {
+          throw new SimApiError('Sim Chat returned a non-monotonic run response.', 0)
+        }
+        const responseDelta = snapshot.response.slice(observedResponse.length)
+        observedResponse = snapshot.response
+        if (responseDelta) responseSegments.push(...responseParser!.push(responseDelta))
+        const terminal = TERMINAL_CHAT_RUN_STATUSES.has(snapshot.status)
+        if (terminal) responseSegments.push(...responseParser!.finish())
+
+        const rendered = sanitize(
+          renderChatStructured(
+            withoutTrailingStandaloneResource(responseSegments),
+            renderContext(false)
+          ).text
+        )
+        // A future structured tag may own the whitespace immediately before
+        // it. Hold that tiny unstable suffix until more content or completion
+        // makes its purpose known, while still streaming all substantive text.
+        const stableRendered = terminal ? rendered : rendered.trimEnd()
+        if (!stableRendered.startsWith(emittedResponse)) {
+          throw new SimApiError('Sim Chat returned non-monotonic rendered output.', 0)
+        }
+        displayDelta = stableRendered.slice(emittedResponse.length)
+        // Progress owns complete lines. Once response prose starts, defer any
+        // later progress until the response has received its final newline so
+        // stdout and stderr cannot concatenate on a shared terminal.
+        if (progressEnabled && !emittedResponse) {
+          renderRunProgress(
+            snapshot,
+            renderedProgressStatus,
+            seenActivityUpdates,
+            dependencies.writeProgress
+          )
+          renderedProgressStatus = snapshot.status
+        }
+        if (displayDelta) dependencies.writeStream(displayDelta)
+        emittedResponse = stableRendered
+      }
+
+      if (TERMINAL_CHAT_RUN_STATUSES.has(snapshot.status)) break
+      try {
+        await dependencies.pollDelay(CHAT_RUN_POLL_MS, controller.signal)
+      } catch (error) {
+        if (interrupted || controller.signal.aborted) break
+        throw error
+      }
+    }
+  } finally {
+    stopListening()
+  }
+
+  if (interrupted) {
+    if (!machineOutput && emittedResponse && !emittedResponse.endsWith('\n')) {
+      dependencies.writeStream('\n')
+    }
+    return
+  }
+  if (!finalSnapshot) return
+  if (machineOutput) {
+    printProtocolResult(format, finalRawSnapshot ?? { ...finalSnapshot })
+  } else {
+    if (emittedResponse && !emittedResponse.endsWith('\n')) dependencies.writeStream('\n')
+    if (progressEnabled && emittedResponse) {
+      renderRunProgress(
+        finalSnapshot,
+        renderedProgressStatus,
+        seenActivityUpdates,
+        dependencies.writeProgress
+      )
+    }
+  }
+  if (FAILED_CHAT_RUN_STATUSES.has(finalSnapshot.status)) {
+    throw new SimApiError(
+      `Sim Chat run ended with status "${safeOneLine(finalSnapshot.status)}".`,
+      0,
+      'CHAT_RUN_FAILED'
+    )
+  }
 }
 
 function renderContext(interactive: boolean) {
@@ -333,7 +671,9 @@ async function runOneShot(
   attachments: ChatAttachment[],
   readOnly: boolean,
   dependencies: ChatDependencies,
-  continuationToken?: string
+  output: OutputFormat,
+  continuationToken?: string,
+  asyncMode = false
 ): Promise<void> {
   const controller = new AbortController()
   const cancel = () => controller.abort()
@@ -345,18 +685,46 @@ async function runOneShot(
       {
         workspaceId,
         prompt,
+        // The server's default persists a normal one-shot chat. Keep the new
+        // field off the blocking wire for compatibility with older strict v2
+        // servers; detached runs must opt in explicitly to both behaviors.
+        ...(asyncMode ? { async: true, persistChat: true } : {}),
         ...(readOnly ? { readOnly: true } : {}),
         ...(continuationToken ? { continuationToken } : {}),
         ...(attachments.length ? { attachments } : {}),
       },
       controller.signal
     )
-    const result = await readChatTurn(response)
+    if (asyncMode) {
+      const accepted = await readChatAcceptance(response)
+      printProtocolResult(output, { ...accepted, status: 'active' })
+      return
+    }
+    let chatId: string | null = null
+    const result = await readChatTurn(response, {
+      onChatId: (acceptedChatId) => {
+        chatId = acceptedChatId
+      },
+    })
     const segments = withoutTrailingStandaloneResource(parseChatStructured(result.content))
     const rendered = renderChatStructured(segments, renderContext(false))
     // Print mode deliberately has no ANSI/OSC of its own, so a final defense at
     // the stdout boundary is safe and preserves shell composability.
-    dependencies.writeOutput(sanitize(rendered.text))
+    const content = sanitize(rendered.text)
+    if (isMachineOutput(output)) {
+      // Machine formats preserve the server's exact completed content. JSON
+      // and YAML encode control bytes safely and are the lossless API surface.
+      printProtocolResult(output, { content: result.content, chatId })
+      return
+    }
+    dependencies.writeOutput(content)
+    if (dependencies.showProgress()) {
+      dependencies.writeProgress(
+        chatId
+          ? `chat: ${safeOneLine(chatId)}\n`
+          : 'chat: not saved (a personal API key is required for resumable history)\n'
+      )
+    }
   } catch (error) {
     if (controller.signal.aborted) throw new SimApiError('Sim Chat cancelled.', 0)
     throw error
@@ -1450,8 +1818,24 @@ function collectFile(value: string, previous: string[] = []): string[] {
   return [...previous, value]
 }
 
-/** Creates print-mode and interactive workspace chat. */
-export function chatCommand(overrides: Partial<ChatDependencies> = {}): Command {
+interface ChatCommandOptions {
+  async?: boolean
+  chat?: string
+  file?: string[]
+  readOnly?: boolean
+}
+
+function addChatInputOptions(command: Command): Command {
+  return command
+    .option('-f, --file <path>', 'Attach a local file (repeatable)', collectFile, [])
+    .option('--read-only', 'Restrict Sim Chat to read-only workspace tools')
+}
+
+/** Creates one-shot and interactive workspace chat. */
+export function chatCommand(
+  overrides: Partial<ChatDependencies> = {},
+  target = new Command('chat')
+): Command {
   const dependencies: ChatDependencies = {
     readInput: readPipedInput,
     writeOutput: writeCompletedAnswer,
@@ -1465,97 +1849,127 @@ export function chatCommand(overrides: Partial<ChatDependencies> = {}): Command 
     // propagated TERM=dumb value must not leave model Markdown visible inside
     // an otherwise fully rendered TUI.
     formatMarkdown: () => Boolean(process.stdout.isTTY),
+    writeStream: (content) => process.stdout.write(content),
+    writeProgress: (content) => process.stderr.write(content),
+    showProgress: () => Boolean(process.stderr.isTTY),
+    pollDelay: (milliseconds, signal) => delay(milliseconds, undefined, { signal }),
+    onInterrupt: (listener) => {
+      process.once('SIGINT', listener)
+      return () => process.removeListener('SIGINT', listener)
+    },
     ...overrides,
   }
 
-  return new Command('chat')
-    .description('Ask Sim Chat about the active workspace')
-    .argument('[prompt...]', 'Question to ask')
-    .option('-p, --print', 'Print the final response and exit')
-    .option('--chat <chatId>', 'Resume an existing chat by ID (print mode only)')
-    .option('-f, --file <path>', 'Attach a local file (repeatable)', collectFile, [])
-    .option('--read-only', 'Restrict Sim Chat to read-only workspace tools')
-    .action(
-      async (
-        promptParts: string[],
-        options: { print?: boolean; chat?: string; file: string[]; readOnly?: boolean },
-        command: Command
-      ) => {
-        const positionalPrompt = promptParts.join(' ')
-        const positionalBytes = utf8Bytes(positionalPrompt)
-        if (positionalBytes > MAX_CHAT_PROMPT_BYTES) throw inputTooLarge()
+  const run = async (promptParts: string[], oneShot: boolean, command: Command): Promise<void> => {
+    const options = command.optsWithGlobals() as ChatCommandOptions
+    const positionalPrompt = promptParts.join(' ')
+    const positionalBytes = utf8Bytes(positionalPrompt)
+    if (positionalBytes > MAX_CHAT_PROMPT_BYTES) throw inputTooLarge()
 
-        const chatId = options.chat?.trim()
-        if (options.chat !== undefined && !chatId) {
-          throw new SimApiError('Chat ID must not be empty.', 0)
-        }
-        if (chatId && !options.print) {
-          throw new SimApiError(
-            '--chat can only be used with -p/--print. Use /chats in interactive mode.',
-            0
-          )
-        }
+    const chatId = options.chat?.trim()
+    if (options.chat !== undefined && !chatId) {
+      throw new SimApiError('Chat ID must not be empty.', 0)
+    }
 
-        const interactive = !options.print && dependencies.isInteractive()
-        if (!options.print && !interactive) {
-          throw new SimApiError(
-            'Interactive Sim Chat requires a terminal. Use sim chat -p for pipelines or redirected output.',
-            0
-          )
-        }
-        const separatorBytes = positionalPrompt ? 1 : 0
-        const pipedInput = interactive
-          ? ''
-          : await dependencies.readInput(MAX_CHAT_PROMPT_BYTES - positionalBytes - separatorBytes)
-        const prompt = composeChatPrompt(promptParts, pipedInput)
-        if (utf8Bytes(prompt) > MAX_CHAT_PROMPT_BYTES) throw inputTooLarge()
+    const interactive = !oneShot && dependencies.isInteractive()
+    if (!oneShot && !interactive) {
+      throw new SimApiError(
+        'Interactive Sim Chat requires a terminal. Use sim chat ask for pipelines or redirected output.',
+        0
+      )
+    }
+    const separatorBytes = positionalPrompt ? 1 : 0
+    const pipedInput = interactive
+      ? ''
+      : await dependencies.readInput(MAX_CHAT_PROMPT_BYTES - positionalBytes - separatorBytes)
+    const prompt = composeChatPrompt(promptParts, pipedInput)
+    if (utf8Bytes(prompt) > MAX_CHAT_PROMPT_BYTES) throw inputTooLarge()
 
-        const attachments = await dependencies.loadAttachments(options.file ?? [])
-        if (!interactive && !prompt.trim() && attachments.length === 0) {
-          throw new SimApiError('Provide a prompt, attach a file, or pipe input to sim chat -p.', 0)
-        }
+    const attachments = await dependencies.loadAttachments(options.file ?? [])
+    if (!interactive && !prompt.trim() && attachments.length === 0) {
+      throw new SimApiError('Provide a prompt, attach a file, or pipe input to sim chat ask.', 0)
+    }
 
-        const { client, profile } = clientFrom(command)
-        const workspaceId = client.requireWorkspace(undefined, { auth: 'optional' })
-        if (interactive) {
-          await runInteractive(
-            client,
-            workspaceId,
-            prompt,
-            attachments,
-            options.readOnly === true,
-            dependencies,
-            profile.name
-          )
-          return
-        }
-        let continuationToken: string | undefined
-        if (chatId) {
-          const chat = await loadChat(client, workspaceId, chatId, options.readOnly === true)
-          if (!chat.continuationToken) {
-            throw new SimApiError(
-              'Sim Chat did not return a continuation token for the selected chat.',
-              0
-            )
-          }
-          if (chat.active) {
-            throw new SimApiError(
-              'The selected chat is currently active in another client. Wait for it to finish before resuming it.',
-              409,
-              'CONFLICT'
-            )
-          }
-          continuationToken = chat.continuationToken
-        }
-        await runOneShot(
-          client,
-          workspaceId,
-          prompt,
-          attachments,
-          options.readOnly === true,
-          dependencies,
-          continuationToken
+    const { client, profile } = clientFrom(command)
+    const workspaceId = client.requireWorkspace(undefined, { auth: 'optional' })
+    if (interactive) {
+      await runInteractive(
+        client,
+        workspaceId,
+        prompt,
+        attachments,
+        options.readOnly === true,
+        dependencies,
+        profile.name
+      )
+      return
+    }
+
+    let continuationToken: string | undefined
+    if (chatId) {
+      const chat = await loadChat(client, workspaceId, chatId, options.readOnly === true)
+      if (!chat.continuationToken) {
+        throw new SimApiError(
+          'Sim Chat did not return a continuation token for the selected chat.',
+          0
         )
       }
+      if (chat.active) {
+        throw new SimApiError(
+          'The selected chat is currently active in another client. Wait for it to finish before resuming it.',
+          409,
+          'CONFLICT'
+        )
+      }
+      continuationToken = chat.continuationToken
+    }
+    await runOneShot(
+      client,
+      workspaceId,
+      prompt,
+      attachments,
+      options.readOnly === true,
+      dependencies,
+      profile.output,
+      continuationToken,
+      options.async === true
     )
+  }
+
+  const chat = addChatInputOptions(target)
+    .description('Ask Sim Chat about the active workspace')
+    .argument('[prompt...]', 'Question to ask')
+    .action((promptParts: string[], _options: ChatCommandOptions, command: Command) =>
+      run(promptParts, false, command)
+    )
+
+  const ask = addChatInputOptions(new Command('ask'))
+    .description('Ask once, save the chat, print the response, and exit')
+    .argument('[prompt...]', 'Question to ask')
+    .option('--chat <chatId>', 'Continue an existing chat by ID')
+    .option('--async', 'Start the chat run and return immediately')
+    .action((promptParts: string[], _options: ChatCommandOptions, command: Command) =>
+      run(promptParts, true, command)
+    )
+
+  const follow = new Command('follow')
+    .description('Follow a chat run until it finishes')
+    .argument('<runId>', 'Chat run ID returned by chat ask --async')
+    .allowExcessArguments(false)
+    .action(async (runId: string, _options: unknown, command: Command) => {
+      const normalizedRunId = runId.trim()
+      if (!normalizedRunId) throw new SimApiError('Run ID must not be empty.', 0)
+      const { client, profile } = clientFrom(command)
+      await followChatRun(
+        client,
+        client.requireWorkspace(undefined, { auth: 'optional' }),
+        normalizedRunId,
+        profile.output,
+        dependencies
+      )
+    })
+
+  chat.addCommand(ask)
+  chat.addCommand(follow)
+  return chat
 }

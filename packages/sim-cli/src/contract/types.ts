@@ -135,6 +135,8 @@ export interface CommandSpec {
   variants?: readonly CommandVariantSpec[]
   /** One-line help. Falls back to the OpenAPI summary for the operation. */
   describe?: string
+  /** Allow an auth-disabled self-hosted route to run without a locally stored API key. */
+  auth?: 'required' | 'optional'
   /** Per-field flag overrides, keyed by the contract's field name. */
   flags?: Record<string, FlagSpec>
   /** Friendly mutually-exclusive flags for an otherwise opaque union body. */

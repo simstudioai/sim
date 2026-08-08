@@ -18,7 +18,7 @@ npm install --global @simai/cli@dev     # dev
 ## Profiles
 
 Profiles work like the AWS CLI: one identity and one set of defaults per named
-profile, selected with `-P`, `--profile`, or `SIM_PROFILE`. This is what lets you keep
+profile, selected with `-p`, `--profile`, or `SIM_PROFILE`. This is what lets you keep
 production and a local dev stack side by side without re-authenticating.
 
 Non-secret settings live in `~/.sim/config`:
@@ -118,7 +118,10 @@ conversation, while `sim chats` manages saved chat resources.
 
 ```bash
 sim chat [prompt...] [-f <path>...] [--read-only]
-sim chat -p [prompt...] [-f <path>...] [--read-only]
+sim chat ask [prompt...] [-f <path>...] [--read-only] [--chat <chatId>] [--async]
+sim chat follow <runId>
+sim chat runs list [--status <status>] [--limit <n>]
+sim chat runs get <runId>
 sim chats list [--search <text>] [--limit <n>]
 sim chats get <chatId> [--read-only]
 sim chats rename <chatId> --title <title>
@@ -234,19 +237,18 @@ sim chat --file screenshot.png "What is failing here?"
 sim chat --read-only "Summarize this workspace without changing it"
 ```
 
-Inside the chat, `/attach <paths>` attaches up to five local images, PDFs, or
-UTF-8 text files to the next turn. A pasted or dragged file path preloads an
-`/attach` command; review it and press Enter before the CLI reads the file. On
-macOS, press Ctrl+V or use `/paste-image` to attach a clipboard image;
-any draft text remains in the prompt. `/chats` loads the chat history and opens
-a searchable picker. Selecting one restores its transcript and continues it
-with a fresh opaque token. The header shows the active chat title and keeps the
-`/chats` switch hint visible; a new chat's generated title appears there as soon
-as the server publishes it. `/rename <title>` retitles the active synced chat in
-both the terminal and Sim Home. `/new` clears the visible transcript and
-starts a new conversation, `/help` lists commands, and `/exit` or Ctrl+D exits.
-Ctrl+C clears idle input or cancels the active generation and returns to the
-prompt.
+Inside the chat, type or drop local paths to attach up to five images, PDFs, or
+UTF-8 text files. Paths are removed from the submitted prompt and the files are
+sent inline; a path-only turn sends just the attachments. Press Ctrl+V (or
+Cmd+V on macOS) to add a clipboard image or file without replacing draft text.
+`/chats` loads the chat history and opens a searchable picker. Selecting one
+restores its transcript and continues it with a fresh opaque token. The header
+shows the active chat title and keeps the `/chats` switch hint visible; a new
+chat's generated title appears there as soon as the server publishes it.
+`/rename <title>` retitles the active synced chat in both the terminal and Sim
+Home. `/new` clears the visible transcript and starts a new conversation,
+`/help` lists commands, and `/exit` or Ctrl+D exits. Ctrl+C clears idle input or
+cancels the active generation and returns to the prompt.
 
 Chats sent with the personal API key issued by `sim login` use the same history
 as Sim Home, so a CLI conversation appears in the web UI and a web conversation
@@ -257,29 +259,58 @@ profile to replace it with a personal key and enable synchronized history and
 `/chats`.
 
 Chat uses the full Mothership toolset by default. Add `--read-only` in either
-interactive or print mode when the conversation must be restricted to
+interactive or one-shot mode when the conversation must be restricted to
 workspace-reading tools.
 
-`sim chat -p` is the non-interactive form. It never opens a prompt: the
-completed, terminal-safe answer is the only thing written to stdout, so it
-composes cleanly with shell tools. Bare `sim chat` requires a real terminal;
-pipelines and redirected output must use `-p`.
+`sim chat ask` is the non-interactive form. It never opens a prompt. With a
+personal API key, each ask creates or continues a saved chat, so the returned
+chat ID can be passed back with `--chat` and the conversation also appears in
+Sim Home. Without `--async`, table and text output keep the completed,
+terminal-safe answer as the only stdout payload, so it composes cleanly with
+shell tools; an interactive terminal shows the chat ID on stderr. JSON and YAML
+return both `content` and `chatId`. Bare `sim chat` requires a real terminal;
+pipelines and redirected output must use `chat ask`.
 
 ```bash
-sim chat -p "Which workflows handle support tickets?"
-sim chat -p --chat <chatId> "Continue this conversation"
-cat incident.txt | sim chat -p "Which workflow is most likely involved?"
-sim chat -p < question.txt
-sim chat -p --file report.pdf "Summarize this in workspace context"
+sim chat ask "Which workflows handle support tickets?"
+sim chat ask --chat <chatId> "Continue this conversation"
+cat incident.txt | sim chat ask "Which workflow is most likely involved?"
+sim chat ask < question.txt
+sim chat ask --file report.pdf "Summarize this in workspace context"
 ```
 
-Pass `--chat <chatId>` to append one print-mode turn to an existing inactive
+Pass `--chat <chatId>` to append one turn to an existing inactive
 chat, print its answer, and exit. The chat must belong to the active workspace,
 and synchronized history requires a personal API key.
 
+```bash
+chat_id=$(sim --output json chat ask "Inspect this workspace" | jq -r .chatId)
+sim chat ask --chat "$chat_id" "Now inspect the deployed workflows"
+```
+
+Add `--async` when the shell should regain control as soon as the run is
+accepted. The receipt contains the `runId`, `chatId`, and initial `active`
+status in the profile's normal output format. Async asks are saved chats, so
+they stay synchronized with Sim Home. `chat runs list` shows recent requests,
+and `chat runs get --output json` or `--output yaml` includes one run's
+accumulated response and activity.
+
+Use `chat follow` to observe a run until it reaches a terminal state. In human
+output it streams only response text that has appeared since the last poll;
+when stderr is a terminal, concise status and tool activity appear there.
+JSON and YAML wait and emit one final snapshot instead. Ctrl+C detaches the
+observer without cancelling the server-side run. A run ending in `error` or
+`cancelled` still emits its safe partial/final result and exits nonzero.
+
+```bash
+run_id=$(sim --output json chat ask --async "Audit this workspace" | jq -r .runId)
+sim chat follow "$run_id"
+sim chat runs get "$run_id"
+```
+
 When both a positional prompt and stdin are present, the positional prompt comes
-first and the piped content follows on the next line. This matches Claude Code's
-print-mode input behavior. Combined input is limited to 10 MiB of UTF-8 text.
+first and the piped content follows on the next line. Combined input is limited
+to 10 MiB of UTF-8 text.
 Files are sent inline by basename only: local paths never cross the API
 boundary. Images and PDFs are limited to 5 MiB each, text files to 200 KiB, and
 all attachments in a turn to 10 MiB total.
@@ -289,7 +320,7 @@ workspace without logging in locally:
 
 ```bash
 sim configure --set-endpoint http://localhost:3000 --set-workspace ws_local
-sim chat -p "What is in this workspace?"
+sim chat ask "What is in this workspace?"
 ```
 
 That deployment must enable `V2_API=true` and set `COPILOT_API_KEY` server-side.

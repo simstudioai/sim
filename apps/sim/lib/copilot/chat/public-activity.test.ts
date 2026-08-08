@@ -2,9 +2,9 @@
  * @vitest-environment node
  */
 import { describe, expect, it, vi } from 'vitest'
+import { ChatActivityProjector } from '@/lib/copilot/chat/public-activity'
 import type { MothershipStreamV1StreamScope } from '@/lib/copilot/generated/mothership-stream-v1'
 import type { StreamEvent } from '@/lib/copilot/request/types'
-import { ChatActivityProjector } from '@/app/api/v2/chat/activity'
 
 vi.mock('@/lib/copilot/tools/client/read-block', () => ({
   getReadTargetBlock: vi.fn((path: string | undefined) =>

@@ -184,6 +184,14 @@ vi.mock('@/lib/core/config/env', () => ({ env: mockEnv }))
 vi.mock('@/lib/core/config/env-flags', () => mockEnvFlags)
 vi.mock('@/lib/core/utils/request', () => ({ generateRequestId: () => 'request-1' }))
 
+vi.mock('@/executor/utils/resolved-secret-trace-registry', () => ({
+  ResolvedSecretTraceRegistry: class MockResolvedSecretTraceRegistry {
+    getModelEgressSnapshot() {
+      return { complete: true }
+    }
+  },
+}))
+
 vi.mock('@sim/utils/id', () => ({ generateId: mockGenerateId }))
 
 import { MAX_V2_CHAT_BODY_BYTES } from '@/lib/api/contracts/v2/chat'
@@ -299,6 +307,55 @@ describe('POST /api/v2/chat', () => {
     })
   })
 
+  /**
+   * The one-off CLI turn (`sim chat ask`) is a command, not a conversation the
+   * workspace accumulates, so it must leave nothing for the chat list or
+   * `sim chats list` to surface — matching the Mothership block, which mints
+   * its own conversation id and never writes a chat row. The turn still gets a
+   * chat id and a continuation token, so the conversation remains continuable.
+   */
+  it('creates no chat row when the caller opts out of persistence', async () => {
+    const response = await callChat({
+      workspaceId: 'workspace-1',
+      prompt: 'What is here?',
+      persistChat: false,
+    })
+    const stream = await response.text()
+
+    expect(response.status).toBe(200)
+    expect(mockResolveOrCreateChat).not.toHaveBeenCalled()
+    expect(mockPersistCopilotUserMessage).not.toHaveBeenCalled()
+    expect(stream).toContain('"type":"complete"')
+    // No Sim-side row, so the token must not claim Sim persistence.
+    expect(mockIssueV2ChatContinuationToken).toHaveBeenCalledWith(
+      expect.not.objectContaining({ persistence: 'sim' })
+    )
+  })
+
+  it('still persists the chat when the caller does not opt out', async () => {
+    await callChat({ workspaceId: 'workspace-1', prompt: 'What is here?' })
+    expect(mockResolveOrCreateChat).toHaveBeenCalled()
+  })
+
+  it('requires persisted chat storage for asynchronous execution', async () => {
+    const response = await callChat({
+      workspaceId: 'workspace-1',
+      prompt: 'What is here?',
+      async: true,
+      persistChat: false,
+    })
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toEqual({
+      error: {
+        code: 'BAD_REQUEST',
+        message: 'Asynchronous chat requires persistChat to be true',
+      },
+    })
+    expect(mockResolveOrCreateChat).not.toHaveBeenCalled()
+    expect(mockRunWorkspaceChat).not.toHaveBeenCalled()
+  })
+
   it('streams a personal-key chat and bills its authenticated actor', async () => {
     const response = await callChat({ workspaceId: 'workspace-1', prompt: 'What is here?' })
     const stream = await response.text()
@@ -309,6 +366,7 @@ describe('POST /api/v2/chat', () => {
     expect(stream).toContain('"type":"session"')
     expect(stream).toContain('"continuationToken":"continuation-new"')
     expect(stream).toContain('"chatId":"chat-1"')
+    expect(stream).not.toContain('"runId":"run-1"')
     expect(stream).toContain('"delta":"Hello from Sim"')
     expect(stream).toContain('"type":"complete"')
     expect(stream).toContain('data: [DONE]')
@@ -403,6 +461,17 @@ describe('POST /api/v2/chat', () => {
         workspaceId: 'workspace-1',
       })
     )
+    /**
+     * Title generation projects its input against the secret-trace registry and
+     * fails closed when none is supplied, so omitting this silently skips every
+     * title on this route — the failure is a missing log line, not an error.
+     * The registry must also report complete, or the projection is still unsafe.
+     */
+    const titleParams = mockFireTitleGeneration.mock.calls[0]![0] as {
+      resolvedSecretTraceRegistry?: { getModelEgressSnapshot(): { complete: boolean } }
+    }
+    expect(titleParams.resolvedSecretTraceRegistry).toBeDefined()
+    expect(titleParams.resolvedSecretTraceRegistry!.getModelEgressSnapshot().complete).toBe(true)
     expect(mockPublisherClose).toHaveBeenCalledTimes(1)
     expect(mockScheduleBufferCleanup).toHaveBeenCalledWith('message-1')
     expect(mockScheduleFilePreviewSessionCleanup).toHaveBeenCalledWith('message-1')
@@ -559,7 +628,7 @@ describe('POST /api/v2/chat', () => {
     })
   })
 
-  it('does not hold the Go leg on run-segment creation but waits before finalizing it', async () => {
+  it('does not hold a synchronous Go leg on run creation but waits before finalizing it', async () => {
     let resolveRunSegment!: () => void
     let resolveChat!: () => void
     mockCreateRunSegment.mockReturnValueOnce(
@@ -593,7 +662,41 @@ describe('POST /api/v2/chat', () => {
     expect(mockFinalizeStream).toHaveBeenCalledTimes(1)
   })
 
-  it('keeps a synced turn working when run-segment creation fails', async () => {
+  it('creates an asynchronous run durably before starting Go or exposing its session', async () => {
+    let resolveRunSegment!: () => void
+    mockCreateRunSegment.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveRunSegment = () => resolve({ id: 'run-1' })
+      })
+    )
+
+    const response = await callChat({
+      workspaceId: 'workspace-1',
+      prompt: 'Continue',
+      async: true,
+    })
+    const reader = response.body!.getReader()
+    let firstReadSettled = false
+    const firstRead = reader.read().then((result) => {
+      firstReadSettled = true
+      return result
+    })
+    await new Promise((resolve) => setImmediate(resolve))
+
+    expect(mockRunWorkspaceChat).not.toHaveBeenCalled()
+    expect(firstReadSettled).toBe(false)
+
+    resolveRunSegment()
+    const first = await firstRead
+    expect(new TextDecoder().decode(first.value)).toContain('"runId":"run-1"')
+    while (!(await reader.read()).done) {
+      // Drain the completion so route cleanup can release its lease.
+    }
+    expect(mockRunWorkspaceChat).toHaveBeenCalledTimes(1)
+    expect(mockFinalizeStream).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps a synchronous synced turn working when run creation fails', async () => {
     mockCreateRunSegment.mockRejectedValueOnce(new Error('run table unavailable'))
 
     const response = await callChat({ workspaceId: 'workspace-1', prompt: 'Continue' })
@@ -601,7 +704,26 @@ describe('POST /api/v2/chat', () => {
 
     expect(response.status).toBe(200)
     expect(stream).toContain('"type":"complete"')
+    expect(stream).not.toContain('"runId":"run-1"')
+    expect(mockRunWorkspaceChat).toHaveBeenCalledTimes(1)
     expect(mockFinalizeStream).toHaveBeenCalledTimes(1)
+  })
+
+  it('fails before acceptance when durable run creation fails', async () => {
+    mockCreateRunSegment.mockRejectedValueOnce(new Error('run table unavailable'))
+
+    const response = await callChat({
+      workspaceId: 'workspace-1',
+      prompt: 'Continue',
+      async: true,
+    })
+    const stream = await response.text()
+
+    expect(response.status).toBe(200)
+    expect(stream).not.toContain('"type":"session"')
+    expect(stream).toContain('"code":"INTERNAL_ERROR"')
+    expect(mockRunWorkspaceChat).not.toHaveBeenCalled()
+    expect(mockFinalizeStream).not.toHaveBeenCalled()
   })
 
   it('surfaces a pre-acceptance failure without exposing a continuation token', async () => {
@@ -679,6 +801,31 @@ describe('POST /api/v2/chat', () => {
     expect(mockStreamWriter).not.toHaveBeenCalled()
     expect(mockPersistCopilotUserMessage).not.toHaveBeenCalled()
     expect(mockPublishStatusChanged).not.toHaveBeenCalled()
+  })
+
+  it('rejects asynchronous continuation of a legacy Go-only chat', async () => {
+    mockVerifyV2ChatContinuationToken.mockReturnValueOnce({
+      valid: true,
+      chatId: 'private-chat-id',
+    })
+
+    const response = await callChat({
+      workspaceId: 'workspace-1',
+      prompt: 'Tell me more',
+      continuationToken: 'continuation-old',
+      async: true,
+    })
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toEqual({
+      error: {
+        code: 'BAD_REQUEST',
+        message: 'Asynchronous chat requires a persisted chat',
+      },
+    })
+    expect(mockResolveBillingAttribution).not.toHaveBeenCalled()
+    expect(mockCreateRunSegment).not.toHaveBeenCalled()
+    expect(mockRunWorkspaceChat).not.toHaveBeenCalled()
   })
 
   it('continues an existing persisted personal chat with UI replay enabled', async () => {
@@ -1213,6 +1360,31 @@ describe('POST /api/v2/chat', () => {
     expect(mockPublishStatusChanged).not.toHaveBeenCalled()
   })
 
+  it('requires a personal API key for asynchronous execution', async () => {
+    mockCheckRateLimit.mockResolvedValue({
+      ...RATE_LIMIT,
+      keyType: 'workspace',
+      workspaceId: 'workspace-1',
+    })
+
+    const response = await callChat({
+      workspaceId: 'workspace-1',
+      prompt: 'Summarize it',
+      async: true,
+    })
+
+    expect(response.status).toBe(403)
+    expect(await response.json()).toEqual({
+      error: {
+        code: 'FORBIDDEN',
+        message: 'Asynchronous chat requires a personal API key',
+      },
+    })
+    expect(mockResolveSystemBillingAttribution).not.toHaveBeenCalled()
+    expect(mockResolveOrCreateChat).not.toHaveBeenCalled()
+    expect(mockRunWorkspaceChat).not.toHaveBeenCalled()
+  })
+
   it('routes a workspace-key abort by its owner while preserving the billing actor body', async () => {
     mockGenerateId
       .mockReset()
@@ -1483,6 +1655,150 @@ describe('POST /api/v2/chat', () => {
     expect(teardownOrder).toEqual(['go-abort', 'release'])
     expect(mockUnregisterActiveStream).toHaveBeenCalledTimes(1)
     expect(mockCleanupAbortMarker).toHaveBeenCalledWith('message-1')
+  })
+
+  it('keeps an accepted asynchronous turn running after its reader disconnects', async () => {
+    let settle!: () => void
+    let lifecycleSignal: AbortSignal | undefined
+    let userStopSignal: AbortSignal | undefined
+    mockRunWorkspaceChat.mockImplementationOnce(
+      (input) =>
+        new Promise((resolve) => {
+          lifecycleSignal = input.abortSignal
+          userStopSignal = input.userStopSignal
+          input.onInitialStreamAccepted?.()
+          settle = () =>
+            resolve({
+              success: true,
+              content: 'Finished in the background',
+              contentBlocks: [],
+              toolCalls: [],
+            })
+        })
+    )
+
+    const response = await callChat({
+      workspaceId: 'workspace-1',
+      prompt: 'keep going',
+      async: true,
+    })
+    const reader = response.body!.getReader()
+    const acceptedSession = new TextDecoder().decode((await reader.read()).value)
+    expect(acceptedSession).toContain('"runId":"run-1"')
+
+    await reader.cancel('async_receipt_received')
+    await new Promise((resolve) => setImmediate(resolve))
+
+    expect(mockRequestExplicitStreamAbort).not.toHaveBeenCalled()
+    expect(lifecycleSignal?.aborted).toBe(false)
+    expect(userStopSignal?.aborted).toBe(false)
+    expect(mockReleasePendingChatStream).not.toHaveBeenCalled()
+
+    settle()
+    await vi.waitFor(() => expect(mockReleasePendingChatStream).toHaveBeenCalledTimes(1))
+    expect(mockFinalizeStream).toHaveBeenCalledWith(
+      expect.objectContaining({ success: true, content: 'Finished in the background' }),
+      expect.any(Object),
+      'run-1',
+      'success',
+      'request-1'
+    )
+  })
+
+  it('does not classify an accepted asynchronous turn as cancelled when its request aborts', async () => {
+    const requestAbortController = new AbortController()
+    let settle!: () => void
+    let userStopSignal: AbortSignal | undefined
+    mockRunWorkspaceChat.mockImplementationOnce(
+      (input) =>
+        new Promise((resolve) => {
+          userStopSignal = input.userStopSignal
+          input.onInitialStreamAccepted?.()
+          settle = () =>
+            resolve({
+              success: true,
+              content: 'Finished after request disconnect',
+              contentBlocks: [],
+              toolCalls: [],
+            })
+        })
+    )
+    const request = new NextRequest('http://localhost:3000/api/v2/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': 'caller-platform-key',
+      },
+      body: JSON.stringify({
+        workspaceId: 'workspace-1',
+        prompt: 'keep going',
+        async: true,
+      }),
+      signal: requestAbortController.signal,
+    })
+
+    const response = await POST(request)
+    const reader = response.body!.getReader()
+    expect(new TextDecoder().decode((await reader.read()).value)).toContain('"runId":"run-1"')
+
+    requestAbortController.abort()
+    await new Promise((resolve) => setImmediate(resolve))
+    expect(mockRequestExplicitStreamAbort).not.toHaveBeenCalled()
+    expect(userStopSignal?.aborted).toBe(false)
+
+    settle()
+    while (!(await reader.read()).done) {
+      // Drain the completion so route cleanup can release its lease.
+    }
+    await vi.waitFor(() => expect(mockReleasePendingChatStream).toHaveBeenCalledTimes(1))
+    expect(mockFinalizeStream).toHaveBeenCalledWith(
+      expect.objectContaining({ success: true, content: 'Finished after request disconnect' }),
+      expect.any(Object),
+      'run-1',
+      'success',
+      'request-1'
+    )
+  })
+
+  it('still stops an asynchronous turn when the reader disconnects before acceptance', async () => {
+    let settle!: () => void
+    let userStopSignal: AbortSignal | undefined
+    mockRunWorkspaceChat.mockImplementationOnce(
+      (input) =>
+        new Promise((resolve) => {
+          userStopSignal = input.userStopSignal
+          settle = () =>
+            resolve({
+              success: false,
+              cancelled: true,
+              content: '',
+              contentBlocks: [],
+              toolCalls: [],
+            })
+        })
+    )
+
+    const response = await callChat({
+      workspaceId: 'workspace-1',
+      prompt: 'keep going',
+      async: true,
+    })
+    await vi.waitFor(() => expect(mockRunWorkspaceChat).toHaveBeenCalledTimes(1))
+    await response.body!.cancel('pre_accept_disconnect')
+
+    await vi.waitFor(() => expect(mockRequestExplicitStreamAbort).toHaveBeenCalledTimes(1))
+    expect(userStopSignal?.aborted).toBe(true)
+    expect(userStopSignal?.reason).toBe('user_stop:abortActiveStream')
+
+    settle()
+    await vi.waitFor(() => expect(mockReleasePendingChatStream).toHaveBeenCalledTimes(1))
+    expect(mockFinalizeStream).toHaveBeenCalledWith(
+      expect.objectContaining({ cancelled: true }),
+      expect.any(Object),
+      'run-1',
+      'cancelled',
+      'request-1'
+    )
   })
 
   it('does not start a lifecycle when Stop wins before workspace chat begins', async () => {

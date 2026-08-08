@@ -158,6 +158,41 @@ describe('commands parsed through commander', () => {
     })
   })
 
+  it('exposes pollable chat runs under the manual chat command group', async () => {
+    expect(
+      commandAt('chat', 'runs')
+        .commands.map((command) => command.name())
+        .sort()
+    ).toEqual(['get', 'list'])
+
+    const listHelp = commandAt('chat', 'runs', 'list').helpInformation()
+    expect(listHelp).toContain('--status <value>')
+    expect(listHelp).toContain('--limit <n>')
+    const [listPath, listOptions] = await run([
+      'chat',
+      'runs',
+      'list',
+      '--status',
+      'active',
+      '--limit',
+      '5',
+    ])
+    expect(listPath).toBe('/api/v2/chat/runs')
+    expect(listOptions.query).toMatchObject({
+      workspaceId: 'ws_local',
+      status: 'active',
+      limit: 5,
+    })
+    expect(listOptions.auth).toBe('optional')
+
+    const get = commandAt('chat', 'runs', 'get')
+    expect(get.description()).toContain('response and activity')
+    const [getPath, getOptions] = await run(['chat', 'runs', 'get', 'run_1'])
+    expect(getPath).toBe('/api/v2/chat/runs/run_1')
+    expect(getOptions.query).toEqual({ workspaceId: 'ws_local' })
+    expect(getOptions.auth).toBe('optional')
+  })
+
   it('describes generated resource and sub-resource groups', () => {
     expect(commandAt('tables').description()).toBe('Manage tables')
     expect(commandAt('tables', 'rows').description()).toBe('Manage table rows')

@@ -358,6 +358,8 @@ export type ChatBody = {
   prompt: string
   continuationToken?: string
   readOnly?: boolean
+  async?: boolean
+  persistChat?: boolean
   attachments?: Array<{
     name: string
     mediaType: string
@@ -1661,6 +1663,11 @@ export type DeployWorkflowParams = {
   id: string
 }
 
+export type DeployWorkflowBody = {
+  name?: string
+  description?: string | null
+}
+
 export type DeployWorkflowResponse = {
   data: {
     id: string
@@ -1975,6 +1982,41 @@ export type GetChatResponse = {
     }>
     continuationToken: string
     active: boolean
+  }
+}
+
+/** `GET /api/v2/chat/runs/[runId]` */
+export type GetChatRunParams = {
+  runId: string
+}
+
+export type GetChatRunQuery = {
+  workspaceId: string
+}
+
+export type GetChatRunResponse = {
+  data: {
+    runId: string
+    chatId: string
+    chatTitle: string | null
+    status: 'active' | 'paused_waiting_for_tool' | 'resuming' | 'complete' | 'error' | 'cancelled'
+    startedAt: string
+    completedAt: string | null
+    response: string
+    activities: Array<
+      | {
+          kind: 'subagent' | 'tool'
+          id: string
+          parentId?: string
+          label: string
+          state: 'running' | 'complete' | 'error'
+        }
+      | {
+          kind: 'narration'
+          parentId: string
+          delta: string
+        }
+    >
   }
 }
 
@@ -2659,6 +2701,26 @@ export type ListBillingLogsResponse = {
     } | null
     runId: string | null
     creditCost: number
+  }>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/chat/runs` */
+export type ListChatRunsQuery = {
+  workspaceId: string
+  status?: 'active' | 'paused_waiting_for_tool' | 'resuming' | 'complete' | 'error' | 'cancelled'
+  limit?: number
+  cursor?: string
+}
+
+export type ListChatRunsResponse = {
+  data: Array<{
+    runId: string
+    chatId: string
+    chatTitle: string | null
+    status: 'active' | 'paused_waiting_for_tool' | 'resuming' | 'complete' | 'error' | 'cancelled'
+    startedAt: string
+    completedAt: string | null
   }>
   nextCursor: string | null
 }
@@ -3548,6 +3610,10 @@ export type RollbackWorkflowParams = {
   id: string
 }
 
+export type RollbackWorkflowBody = {
+  version?: number
+}
+
 export type RollbackWorkflowResponse = {
   data: {
     id: string
@@ -4432,6 +4498,8 @@ export const V2_OPERATIONS = {
       prompt: { kind: 'string', required: true },
       continuationToken: { kind: 'string' },
       readOnly: { kind: 'boolean', default: false },
+      async: { kind: 'boolean', default: false },
+      persistChat: { kind: 'boolean', default: true },
       attachments: { kind: 'array' },
       contexts: { kind: 'array' },
     },
@@ -4933,6 +5001,10 @@ export const V2_OPERATIONS = {
     pathParams: ['id'] as const,
     responseMode: 'json',
     summary: 'Deploy Workflow',
+    body: {
+      name: { kind: 'string' },
+      description: { kind: 'string' },
+    },
   },
   downloadFile: {
     method: 'GET',
@@ -5011,6 +5083,16 @@ export const V2_OPERATIONS = {
     query: {
       workspaceId: { kind: 'string', required: true },
       readOnly: { kind: 'boolean' },
+    },
+  },
+  getChatRun: {
+    method: 'GET',
+    path: '/api/v2/chat/runs/[runId]',
+    pathParams: ['runId'] as const,
+    responseMode: 'json',
+    summary: 'Get Sim Chat Run',
+    query: {
+      workspaceId: { kind: 'string', required: true },
     },
   },
   getCustomTool: {
@@ -5236,6 +5318,29 @@ export const V2_OPERATIONS = {
       startDate: { kind: 'string' },
       endDate: { kind: 'string' },
       limit: { kind: 'integer', default: 50 },
+      cursor: { kind: 'string' },
+    },
+  },
+  listChatRuns: {
+    method: 'GET',
+    path: '/api/v2/chat/runs',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'List Sim Chat Runs',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+      status: {
+        kind: 'enum',
+        values: [
+          'active',
+          'paused_waiting_for_tool',
+          'resuming',
+          'complete',
+          'error',
+          'cancelled',
+        ] as const,
+      },
+      limit: { kind: 'number', default: 30 },
       cursor: { kind: 'string' },
     },
   },
@@ -5737,6 +5842,9 @@ export const V2_OPERATIONS = {
     pathParams: ['id'] as const,
     responseMode: 'json',
     summary: 'Rollback Workflow',
+    body: {
+      version: { kind: 'integer' },
+    },
   },
   runRowEnrichment: {
     method: 'POST',
