@@ -125,6 +125,44 @@ describe('transcodeHeicToJpeg', () => {
     expect(await transcodeHeicToJpeg(ftypHeader('heic'))).toBeNull()
   })
 
+  it('reports dimensions from `all()` without decoding, which the pixel check relies on', async () => {
+    // The guard is only worth anything if `all()` exposes the declared size up front:
+    // were dimensions to move behind `decode()` (as they are on the default export),
+    // `width * height` would silently become NaN and the check would never reject.
+    // Driven with a stub libheif so the real mapping runs without a HEVC encoder.
+    const buildDecoder = (await import('heic-decode/lib.js')).default as (lib: unknown) => {
+      all: (options: {
+        buffer: Buffer
+      }) => Promise<Array<{ width: number; height: number }> & { dispose: () => void }>
+    }
+    let decoded = false
+    const { all } = buildDecoder({
+      ready: Promise.resolve(),
+      HeifDecoder: class {
+        decoder = { delete: () => {} }
+        decode() {
+          return [
+            {
+              get_width: () => 30_000,
+              get_height: () => 20_000,
+              free: () => {},
+              display: (target: unknown, cb: (t: unknown) => void) => {
+                decoded = true
+                cb(target)
+              },
+            },
+          ]
+        }
+      },
+    })
+
+    const handles = await all({ buffer: ftypHeader('heic') })
+
+    expect(handles[0].width * handles[0].height).toBe(600_000_000)
+    expect(typeof handles.dispose).toBe('function')
+    expect(decoded).toBe(false)
+  })
+
   it('exposes `all` as a named export, which the pixel check destructures', async () => {
     // A CJS `module.exports = one; module.exports.all = all` need not surface `all`
     // as a named ESM export. If it stopped doing so the pixel check would throw,
