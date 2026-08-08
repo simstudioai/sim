@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { DynatraceBlock } from '@/blocks/blocks/dynatrace'
 import { addTagsTool } from '@/tools/dynatrace/add_tags'
 import { closeProblemTool } from '@/tools/dynatrace/close_problem'
 import { createSettingsObjectTool } from '@/tools/dynatrace/create_settings_object'
@@ -125,6 +126,56 @@ describe('new-surface request shaping', () => {
   it('strips a trailing /api/v1 as well as /api/v2 from the environment URL', () => {
     expect(url(listSyntheticMonitorsTool, { ...base, environmentUrl: `${ENV}/api/v1` })).toBe(
       `${ENV}/api/v1/synthetic/monitors`
+    )
+  })
+
+  it('treats the synthetic enabled filter as tri-state, not a boolean', () => {
+    const params = (DynatraceBlock.tools.config?.params ?? (() => ({}))) as (
+      p: Record<string, unknown>
+    ) => Record<string, unknown>
+    const call = (monitorEnabled: string | undefined) =>
+      params({
+        operation: 'dynatrace_list_synthetic_monitors',
+        environmentUrl: ENV,
+        apiToken: TOKEN,
+        monitorEnabled,
+      })
+
+    // "Any" must send no filter — `enabled=false` would return only the
+    // disabled monitors, which is the opposite of what the user asked for.
+    expect(call('').enabled).toBeUndefined()
+    expect(call(undefined).enabled).toBeUndefined()
+    expect(call('true').enabled).toBe(true)
+    expect(call('false').enabled).toBe(false)
+
+    expect(url(listSyntheticMonitorsTool, { environmentUrl: ENV, apiToken: TOKEN })).toBe(
+      `${ENV}/api/v1/synthetic/monitors`
+    )
+    expect(
+      url(listSyntheticMonitorsTool, { environmentUrl: ENV, apiToken: TOKEN, enabled: true })
+    ).toBe(`${ENV}/api/v1/synthetic/monitors?enabled=true`)
+  })
+
+  it('keeps every remaining switch a real boolean, since off means false for each', () => {
+    // monitorEnabled was the only tri-state filter. For the rest, Dynatrace's
+    // own default is false, so serializing the off position is correct — this
+    // pins that they stay switches rather than drifting into the same trap.
+    const switches = DynatraceBlock.subBlocks
+      .filter((sb) => sb.type === 'switch')
+      .map((sb) => sb.id)
+    expect(switches).not.toContain('monitorEnabled')
+    expect(switches.sort()).toEqual(
+      [
+        'burnRateVisualizationEnabled',
+        'deleteAllWithKey',
+        'evaluate',
+        'failOnPerformanceIssue',
+        'showGlobalSlos',
+        'sloEnabled',
+        'stopOnProblem',
+        'takeScreenshotsOnSuccess',
+        'validateOnly',
+      ].sort()
     )
   })
 

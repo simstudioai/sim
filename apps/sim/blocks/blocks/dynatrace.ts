@@ -1086,9 +1086,17 @@ Return ONLY the selector string - no explanations, no surrounding quotes.`,
       condition: { field: 'operation', value: 'dynatrace_list_synthetic_monitors' },
     },
     {
+      // A tri-state filter, not a boolean: leaving it unset must send no
+      // `enabled` param at all. A switch would serialize its off position as
+      // `enabled=false` and silently return only the disabled monitors.
       id: 'monitorEnabled',
-      title: 'Enabled Only',
-      type: 'switch',
+      title: 'Enabled State',
+      type: 'dropdown',
+      options: [
+        { label: 'Any', id: '' },
+        { label: 'Enabled only', id: 'true' },
+        { label: 'Disabled only', id: 'false' },
+      ],
       mode: 'advanced',
       condition: { field: 'operation', value: 'dynatrace_list_synthetic_monitors' },
     },
@@ -1710,7 +1718,8 @@ Return ONLY the selector string - no explanations, no surrounding quotes.`,
             return {
               ...baseParams,
               type: params.monitorType || undefined,
-              enabled: params.monitorEnabled,
+              // '' means "any", so send no filter rather than enabled=false.
+              enabled: params.monitorEnabled ? params.monitorEnabled === 'true' : undefined,
               location: params.monitorLocation || undefined,
               tag: params.monitorTag || undefined,
               managementZone: toNumber(params.monitorManagementZone),
