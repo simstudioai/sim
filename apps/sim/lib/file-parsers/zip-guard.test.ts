@@ -3,11 +3,8 @@
  */
 import JSZip from 'jszip'
 import { describe, expect, it } from 'vitest'
-import {
-  assertOoxmlArchiveWithinLimits,
-  type OoxmlSizeLimits,
-  ZipBombError,
-} from '@/lib/file-parsers/zip-guard'
+import { ZipBombError } from '@/lib/file-parsers/ooxml-limits'
+import { assertOoxmlArchiveWithinLimits, type OoxmlSizeLimits } from '@/lib/file-parsers/zip-guard'
 
 const HIGH_LIMITS: OoxmlSizeLimits = {
   maxTotalUncompressedBytes: 1024 * 1024 * 1024,

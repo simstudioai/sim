@@ -5,6 +5,7 @@ import { cn } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { sanitizeRenderedHyperlinks, stripEmbeddedFrames } from '@/lib/core/security/url-safety'
+import { assertOoxmlPreviewWithinLimits } from '@/lib/file-parsers/ooxml-preview-guard'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { PREVIEW_LOADING_OVERLAY, PreviewError, resolvePreviewError } from './preview-shared'
 import { PreviewToolbar } from './preview-toolbar'
@@ -195,16 +196,18 @@ export const DocxPreview = memo(function DocxPreview({
   useEffect(() => {
     if (!containerRef.current || !fileData) return
 
+    const data = fileData
     let cancelled = false
 
     async function render() {
       try {
         setRendering(true)
+        await assertOoxmlPreviewWithinLimits(data)
         const { renderAsync } = await import('docx-preview')
         if (cancelled || !containerRef.current) return
         setRenderError(null)
         containerRef.current.innerHTML = ''
-        await renderAsync(fileData, containerRef.current, undefined, {
+        await renderAsync(data, containerRef.current, undefined, {
           inWrapper: true,
           ignoreWidth: false,
           ignoreHeight: false,
