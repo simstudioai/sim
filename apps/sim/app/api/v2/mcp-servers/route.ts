@@ -2,107 +2,56 @@ import {
   v2CreateMcpServerContract,
   v2ListMcpServersContract,
 } from '@/lib/api/contracts/v2/mcp-servers'
-import { performCreateMcpServer } from '@/lib/mcp/orchestration'
 import {
-  getMcpServerIdState,
-  getWorkspaceMcpServer,
-  listWorkspaceMcpServers,
-} from '@/lib/mcp/queries'
-import { generateMcpServerId } from '@/lib/mcp/utils'
-import { withPublicApiRouteHandler } from '@/app/api/public-api-route-handler'
-import { resolveWorkspaceAccess } from '@/app/api/v1/middleware'
-import { v2CursorList, v2Data, v2Error, v2WorkspaceAccessError } from '@/app/api/v2/lib/response'
-import { toV2McpServer, v2McpOrchestrationError } from '@/app/api/v2/mcp-servers/utils'
+  defineV2JsonRoute,
+  v2ApiKeyAuth,
+  v2OrchestrationErrorPolicy,
+  v2RateLimits,
+} from '@/lib/api/server/routes'
+import { mcpServerOperations } from '@/lib/mcp/application/operations'
+import { createMcpServerUseCase, listMcpServersUseCase } from '@/lib/mcp/application/use-cases'
+import { captureServerEvent } from '@/lib/posthog/server'
+import { toV2McpServer } from '@/app/api/v2/mcp-servers/utils'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 /** GET /api/v2/mcp-servers — List MCP servers in a workspace. */
-export const GET = withPublicApiRouteHandler({
+export const GET = defineV2JsonRoute({
   contract: v2ListMcpServersContract,
-  rateLimitEndpoint: 'mcp-servers',
-  handler: async ({ input, auth: { userId, rateLimit } }) => {
-    const { workspaceId, search, sortBy, sortOrder } = input.query
-
-    const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'read')
-    if (access) return v2WorkspaceAccessError(access)
-
-    const rows = await listWorkspaceMcpServers({ workspaceId, search, sortBy, sortOrder })
-
-    // The per-workspace server set is small and bounded → a single full page.
-    return v2CursorList(rows.map(toV2McpServer), null, { rateLimit })
-  },
+  operation: mcpServerOperations.list,
+  auth: v2ApiKeyAuth,
+  rateLimit: v2RateLimits.publicApi,
+  errorPolicy: v2OrchestrationErrorPolicy,
+  mapInput: ({ query }) => query,
+  useCase: listMcpServersUseCase,
+  present: ({ servers }) => ({ data: servers.map(toV2McpServer), nextCursor: null }),
 })
 
 /** POST /api/v2/mcp-servers — Register a new MCP server. */
-export const POST = withPublicApiRouteHandler({
+export const POST = defineV2JsonRoute({
   contract: v2CreateMcpServerContract,
-  rateLimitEndpoint: 'mcp-servers',
-  handler: async ({ request, input, auth: { userId, rateLimit } }) => {
-    const { workspaceId, ...body } = input.body
-
-    const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
-    if (access) return v2WorkspaceAccessError(access)
-
-    /**
-     * The server id is a deterministic hash of workspace + normalized URL, and
-     * `performCreateMcpServer` upserts onto it — a second registration of the
-     * same URL silently overwrites the first. The internal surface and the
-     * copilot rely on that; a public create must not, so the collision is
-     * detected here, before the lib is given a chance to clobber the row.
-     *
-     * Only a *live* row is a conflict. A soft-deleted one is revived by the lib
-     * rather than inserted alongside, and reporting it as a duplicate would
-     * strand that URL for good: the detail routes resolve live rows only, so it
-     * could be neither fetched, patched, nor re-created.
-     */
-    const serverId = generateMcpServerId(workspaceId, body.url)
-    const idState = await getMcpServerIdState({ workspaceId, serverId })
-    if (idState && !idState.deleted) {
-      return v2Error(
-        'CONFLICT',
-        'An MCP server with this URL already exists in this workspace. Update it with PATCH /api/v2/mcp-servers/{id}.'
-      )
-    }
-    const revivingSoftDeleted = idState?.deleted === true
-
-    const result = await performCreateMcpServer({
-      workspaceId,
-      userId,
-      name: body.name,
-      description: body.description,
-      transport: body.transport,
-      url: body.url,
-      headers: body.headers,
-      timeout: body.timeout,
-      retries: body.retries,
-      enabled: body.enabled,
-      authType: body.authType,
-      oauthClientId: body.oauthClientId ?? null,
-      oauthClientIdProvided: body.oauthClientId !== undefined,
-      oauthClientSecret: body.oauthClientSecret,
-      oauthClientSecretProvided: body.oauthClientSecret !== undefined,
-      request,
-    })
-
-    if (!result.success || !result.serverId) {
-      return v2McpOrchestrationError(result.errorCode, result.error ?? 'Failed to register server')
-    }
-
-    /**
-     * `updated` means the lib wrote onto an existing row. Reviving the
-     * soft-deleted row we already saw is the intended outcome; otherwise a
-     * concurrent create won the id race between the check above and the write.
-     */
-    if (result.updated && !revivingSoftDeleted) {
-      return v2Error('CONFLICT', 'An MCP server with this URL already exists in this workspace.')
-    }
-
-    const created = await getWorkspaceMcpServer({ workspaceId, serverId: result.serverId })
-    if (!created) {
-      throw new Error(`MCP server ${result.serverId} missing after a successful registration`)
-    }
-
-    return v2Data({ mcpServer: toV2McpServer(created) }, { rateLimit, status: 201 })
+  operation: mcpServerOperations.create,
+  auth: v2ApiKeyAuth,
+  rateLimit: v2RateLimits.publicApi,
+  errorPolicy: v2OrchestrationErrorPolicy,
+  mapInput: ({ body }) => ({ ...body, source: 'api' as const }),
+  useCase: createMcpServerUseCase,
+  onSuccess: ({ principal, input, result }) => {
+    if (principal.kind !== 'personal_api_key' || result.updated) return
+    captureServerEvent(
+      principal.userId,
+      'mcp_server_connected',
+      {
+        workspace_id: input.workspaceId,
+        server_name: result.server.name,
+        transport: result.server.transport,
+      },
+      {
+        groups: { workspace: input.workspaceId },
+        setOnce: { first_mcp_connected_at: new Date().toISOString() },
+      }
+    )
   },
+  present: ({ server }) => ({ data: { mcpServer: toV2McpServer(server) } }),
 })

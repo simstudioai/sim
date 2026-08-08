@@ -108,6 +108,7 @@ describe('MCP server lifecycle orchestration', () => {
         lastError: null,
       })
     )
+    expect(result.configurationChanged).toBe(true)
     expect(mockClearCache).toHaveBeenCalledWith('workspace-1')
   })
 
@@ -162,6 +163,16 @@ describe('MCP server lifecycle orchestration', () => {
         authType: 'oauth',
         oauthClientId: 'client-1',
         oauthClientSecret: 'secret-1',
+      },
+    ])
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        id: 'server-1',
+        workspaceId: 'workspace-1',
+        name: 'Example',
+        transport: 'streamable-http',
+        url: 'https://example.com/mcp',
+        authType: 'headers',
       },
     ])
 

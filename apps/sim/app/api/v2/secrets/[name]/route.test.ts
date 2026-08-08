@@ -4,227 +4,187 @@
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCheckRateLimit,
-  mockResolveWorkspaceAccess,
-  mockCheckWorkspaceAccess,
-  mockGetWorkspaceEnvKeyAdminAccess,
-  mockListVisibleWorkspaceCredentials,
-  mockSetWorkspaceSecret,
-  mockSetPersonalSecret,
-  mockDeleteWorkspaceSecret,
-  mockDeletePersonalSecret,
-  mockRecordAudit,
-} = vi.hoisted(() => ({
-  mockCheckRateLimit: vi.fn(),
-  mockResolveWorkspaceAccess: vi.fn(),
-  mockCheckWorkspaceAccess: vi.fn(),
-  mockGetWorkspaceEnvKeyAdminAccess: vi.fn(),
-  mockListVisibleWorkspaceCredentials: vi.fn(),
-  mockSetWorkspaceSecret: vi.fn(),
-  mockSetPersonalSecret: vi.fn(),
-  mockDeleteWorkspaceSecret: vi.fn(),
-  mockDeletePersonalSecret: vi.fn(),
-  mockRecordAudit: vi.fn(),
-}))
-
-vi.mock('@sim/audit', () => ({
-  AuditAction: {
-    ENVIRONMENT_UPDATED: 'environment.updated',
-    ENVIRONMENT_DELETED: 'environment.deleted',
-  },
-  AuditResourceType: { ENVIRONMENT: 'environment' },
-  recordAudit: mockRecordAudit,
-}))
-
-vi.mock('@/app/api/v1/middleware', () => ({
-  checkRateLimit: mockCheckRateLimit,
-  resolveWorkspaceAccess: mockResolveWorkspaceAccess,
-}))
-
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  checkWorkspaceAccess: mockCheckWorkspaceAccess,
-}))
-
-vi.mock('@/lib/credentials/environment', () => ({
-  getWorkspaceEnvKeyAdminAccess: mockGetWorkspaceEnvKeyAdminAccess,
-}))
-
-vi.mock('@/lib/credentials/queries', () => ({
-  listVisibleWorkspaceCredentials: mockListVisibleWorkspaceCredentials,
-}))
-
-vi.mock('@/lib/credentials/secret-values', () => ({
-  setWorkspaceSecret: mockSetWorkspaceSecret,
-  setPersonalSecret: mockSetPersonalSecret,
-  deleteWorkspaceSecret: mockDeleteWorkspaceSecret,
-  deletePersonalSecret: mockDeletePersonalSecret,
-}))
-
-vi.mock('@/app/api/v2/lib/gate', () => ({
-  v2ApiGateError: vi.fn().mockResolvedValue(null),
-}))
-
-import { DELETE, PUT } from '@/app/api/v2/secrets/[name]/route'
-
-const WORKSPACE_ID = '11111111-2222-4333-8444-555555555555'
-const RATE_LIMIT_OK = {
-  allowed: true,
-  userId: 'user-1',
-  keyType: 'workspace',
-  limit: 100,
-  remaining: 99,
-  resetAt: new Date('2024-01-01T01:00:00Z'),
-}
-
-function secretCredential(scope: 'workspace' | 'personal') {
+const { mocks, MockV2ApiKeyUnauthenticatedError } = vi.hoisted(() => {
+  class MockV2ApiKeyUnauthenticatedError extends Error {}
   return {
-    id: 'secret-1',
-    workspaceId: WORKSPACE_ID,
-    type: scope === 'workspace' ? ('env_workspace' as const) : ('env_personal' as const),
-    displayName: 'STRIPE_API_KEY',
-    description: null,
-    providerId: null,
-    accountId: null,
-    envKey: 'STRIPE_API_KEY',
-    envOwnerUserId: scope === 'personal' ? 'user-1' : null,
-    createdBy: 'user-1',
-    createdAt: new Date('2024-01-01T00:00:00Z'),
-    updatedAt: new Date('2024-01-02T00:00:00Z'),
-    hasServiceAccountKey: false,
-    role: 'admin' as const,
+    mocks: {
+      authenticate: vi.fn(),
+      preauthRate: vi.fn(),
+      operationRate: vi.fn(),
+      gate: vi.fn(),
+      set: vi.fn(),
+      remove: vi.fn(),
+    },
+    MockV2ApiKeyUnauthenticatedError,
   }
-}
-
-const context = { params: Promise.resolve({ name: 'STRIPE_API_KEY' }) }
-
-function callSet(scope: 'workspace' | 'personal', value = 'super-secret-value') {
-  mockListVisibleWorkspaceCredentials.mockResolvedValue([secretCredential(scope)])
-  return PUT(
-    new NextRequest('http://localhost:3000/api/v2/secrets/STRIPE_API_KEY', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ workspaceId: WORKSPACE_ID, scope, value }),
-    }),
-    context
-  )
-}
-
-function callDelete(scope: 'workspace' | 'personal') {
-  return DELETE(
-    new NextRequest(
-      `http://localhost:3000/api/v2/secrets/STRIPE_API_KEY?workspaceId=${WORKSPACE_ID}&scope=${scope}`,
-      { method: 'DELETE' }
-    ),
-    context
-  )
-}
-
-describe('PUT /api/v2/secrets/[name]', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
-    mockResolveWorkspaceAccess.mockResolvedValue(null)
-    mockCheckWorkspaceAccess.mockResolvedValue({ hasAccess: true, canWrite: true, canAdmin: false })
-    mockGetWorkspaceEnvKeyAdminAccess.mockResolvedValue({
-      adminKeys: new Set<string>(),
-      knownKeys: new Set<string>(),
-    })
-    mockSetWorkspaceSecret.mockResolvedValue({ created: true, updatedAt: new Date() })
-    mockSetPersonalSecret.mockResolvedValue({ created: true, updatedAt: new Date() })
-  })
-
-  it('sets a workspace secret and never echoes its value', async () => {
-    const res = await callSet('workspace')
-    const body = await res.json()
-
-    expect(res.status).toBe(201)
-    expect(body.data.secret).toMatchObject({ name: 'STRIPE_API_KEY', scope: 'workspace' })
-    expect(JSON.stringify(body)).not.toContain('super-secret-value')
-    expect(mockSetWorkspaceSecret).toHaveBeenCalledWith({
-      workspaceId: WORKSPACE_ID,
-      name: 'STRIPE_API_KEY',
-      value: 'super-secret-value',
-      userId: 'user-1',
-    })
-  })
-
-  it('updates an existing workspace secret only for a secret admin', async () => {
-    mockGetWorkspaceEnvKeyAdminAccess.mockResolvedValue({
-      adminKeys: new Set<string>(),
-      knownKeys: new Set(['STRIPE_API_KEY']),
-    })
-
-    const forbidden = await callSet('workspace')
-    expect(forbidden.status).toBe(403)
-    expect(mockSetWorkspaceSecret).not.toHaveBeenCalled()
-
-    mockGetWorkspaceEnvKeyAdminAccess.mockResolvedValue({
-      adminKeys: new Set(['STRIPE_API_KEY']),
-      knownKeys: new Set(['STRIPE_API_KEY']),
-    })
-    mockSetWorkspaceSecret.mockResolvedValue({ created: false, updatedAt: new Date() })
-
-    const updated = await callSet('workspace')
-    expect(updated.status).toBe(200)
-  })
-
-  it('sets only the caller-owned personal secret catalog', async () => {
-    const res = await callSet('personal')
-
-    expect(res.status).toBe(201)
-    expect(mockSetPersonalSecret).toHaveBeenCalledWith({
-      userId: 'user-1',
-      name: 'STRIPE_API_KEY',
-      value: 'super-secret-value',
-    })
-    expect(mockSetWorkspaceSecret).not.toHaveBeenCalled()
-  })
-
-  it('rejects invalid names and empty values before storage', async () => {
-    const invalidContext = { params: Promise.resolve({ name: 'not-valid' }) }
-    const res = await PUT(
-      new NextRequest('http://localhost:3000/api/v2/secrets/not-valid', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workspaceId: WORKSPACE_ID, scope: 'workspace', value: '' }),
-      }),
-      invalidContext
-    )
-
-    expect(res.status).toBe(400)
-    expect(mockSetWorkspaceSecret).not.toHaveBeenCalled()
-  })
 })
 
-describe('DELETE /api/v2/secrets/[name]', () => {
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
+  authenticateV2ApiKey: mocks.authenticate,
+  V2ApiKeyUnauthenticatedError: MockV2ApiKeyUnauthenticatedError,
+}))
+vi.mock('@/lib/core/rate-limiter', () => ({
+  RateLimiter: class {
+    checkRateLimitDirect = mocks.preauthRate
+    checkRateLimitDirectOrThrow = mocks.operationRate
+  },
+  getRateLimit: vi.fn().mockReturnValue({
+    maxTokens: 100,
+    refillRate: 100,
+    refillIntervalMs: 60_000,
+  }),
+}))
+vi.mock('@/lib/api/server/rate-limit-context', () => ({
+  recordRateLimitSnapshot: vi.fn(),
+  getRateLimitHeaders: vi.fn().mockReturnValue(null),
+}))
+vi.mock('@/lib/core/utils/request', () => ({
+  generateRequestId: vi.fn().mockReturnValue('request-1'),
+  getClientIp: vi.fn().mockReturnValue('127.0.0.1'),
+}))
+vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: mocks.gate }))
+vi.mock('@/lib/secrets/application/use-cases', () => ({
+  setSecretUseCase: { operation: { id: 'secrets.set' }, execute: mocks.set },
+  deleteSecretUseCase: { operation: { id: 'secrets.delete' }, execute: mocks.remove },
+}))
+
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { DELETE, PUT } from '@/app/api/v2/secrets/[name]/route'
+
+const WORKSPACE_ID = 'workspace-1'
+const SECRET_NAME = 'STRIPE_API_KEY'
+const PRINCIPAL = { kind: 'personal_api_key' as const, userId: 'user-1', keyId: 'key-personal' }
+const AUTH = {
+  principal: PRINCIPAL,
+  rolloutUserId: 'user-1',
+  rateLimitSubjectIds: ['user:user-1'] as const,
+  rateLimitSubscription: null,
+  keyType: 'personal' as const,
+}
+const RATE_LIMIT_OK = {
+  allowed: true,
+  limit: 100,
+  remaining: 99,
+  resetAt: new Date('2026-01-01T00:00:00Z'),
+  retryAfterMs: 0,
+}
+const secret = {
+  id: 'secret-1',
+  workspaceId: WORKSPACE_ID,
+  type: 'env_workspace' as const,
+  displayName: SECRET_NAME,
+  description: null,
+  providerId: null,
+  accountId: null,
+  envKey: SECRET_NAME,
+  envOwnerUserId: null,
+  createdBy: 'user-1',
+  createdAt: new Date('2026-01-01T00:00:00Z'),
+  updatedAt: new Date('2026-01-02T00:00:00Z'),
+  hasServiceAccountKey: false,
+  role: 'admin' as const,
+}
+const context = { params: Promise.resolve({ name: SECRET_NAME }) }
+
+function request(method: 'PUT' | 'DELETE', body?: unknown) {
+  const scope = method === 'DELETE' ? '&scope=workspace' : ''
+  return new NextRequest(
+    `http://localhost:3000/api/v2/secrets/${SECRET_NAME}?workspaceId=${WORKSPACE_ID}${scope}`,
+    {
+      method,
+      headers: {
+        'x-api-key': 'key',
+        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+      },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    }
+  )
+}
+
+describe('/api/v2/secrets/[name]', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
-    mockResolveWorkspaceAccess.mockResolvedValue(null)
-    mockCheckWorkspaceAccess.mockResolvedValue({ hasAccess: true, canWrite: true, canAdmin: true })
-    mockGetWorkspaceEnvKeyAdminAccess.mockResolvedValue({
-      adminKeys: new Set(['STRIPE_API_KEY']),
-      knownKeys: new Set(['STRIPE_API_KEY']),
+    mocks.authenticate.mockResolvedValue(AUTH)
+    mocks.preauthRate.mockResolvedValue(RATE_LIMIT_OK)
+    mocks.operationRate.mockResolvedValue(RATE_LIMIT_OK)
+    mocks.gate.mockResolvedValue(null)
+    mocks.set.mockResolvedValue({ secret, userId: 'user-1', created: true })
+    mocks.remove.mockResolvedValue({ name: SECRET_NAME, scope: 'workspace' })
+  })
+
+  it('creates a write-only secret with a dynamic 201 status', async () => {
+    const response = await PUT(
+      request('PUT', { workspaceId: WORKSPACE_ID, scope: 'workspace', value: 'secret-value' }),
+      context
+    )
+
+    expect(response.status).toBe(201)
+    expect(JSON.stringify(await response.json())).not.toContain('secret-value')
+    expect(mocks.set).toHaveBeenCalledWith({
+      principal: PRINCIPAL,
+      input: {
+        workspaceId: WORKSPACE_ID,
+        name: SECRET_NAME,
+        scope: 'workspace',
+        value: 'secret-value',
+      },
+      request: expect.anything(),
     })
-    mockDeleteWorkspaceSecret.mockResolvedValue(true)
-    mockDeletePersonalSecret.mockResolvedValue(true)
   })
 
-  it('deletes workspace secret metadata without returning a value', async () => {
-    const res = await callDelete('workspace')
-    const body = await res.json()
+  it('returns 200 when replacing an existing secret', async () => {
+    mocks.set.mockResolvedValueOnce({ secret, userId: 'user-1', created: false })
 
-    expect(res.status).toBe(200)
-    expect(body.data).toEqual({ name: 'STRIPE_API_KEY', scope: 'workspace', deleted: true })
-    expect(JSON.stringify(body)).not.toContain('value')
+    const response = await PUT(
+      request('PUT', { workspaceId: WORKSPACE_ID, scope: 'workspace', value: 'replacement' }),
+      context
+    )
+
+    expect(response.status).toBe(200)
   })
 
-  it('returns 404 when the scoped secret does not exist', async () => {
-    mockDeletePersonalSecret.mockResolvedValue(false)
+  it('deletes a secret through the semantic delete operation', async () => {
+    const response = await DELETE(request('DELETE'), context)
 
-    const res = await callDelete('personal')
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({
+      data: { name: SECRET_NAME, scope: 'workspace', deleted: true },
+    })
+    expect(mocks.remove).toHaveBeenCalledWith({
+      principal: PRINCIPAL,
+      input: { workspaceId: WORKSPACE_ID, name: SECRET_NAME, scope: 'workspace' },
+      request: expect.anything(),
+    })
+  })
 
-    expect(res.status).toBe(404)
+  it('renders typed application errors without leaking raw errors', async () => {
+    mocks.remove.mockRejectedValueOnce(new OrchestrationError('not_found', 'stored detail'))
+
+    const response = await DELETE(request('DELETE'), context)
+
+    expect(response.status).toBe(404)
+    expect(await response.json()).toEqual({
+      error: { code: 'NOT_FOUND', message: 'stored detail' },
+    })
+  })
+
+  it('conceals unclassified application errors', async () => {
+    mocks.remove.mockRejectedValueOnce(new Error('database connection detail'))
+
+    const response = await DELETE(request('DELETE'), context)
+    const body = await response.json()
+
+    expect(response.status).toBe(500)
+    expect(body).toEqual({ error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } })
+    expect(JSON.stringify(body)).not.toContain('database connection detail')
+  })
+
+  it('authenticates before parsing a malformed set request', async () => {
+    mocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
+
+    const response = await PUT(request('PUT', {}), context)
+
+    expect(response.status).toBe(401)
+    expect(mocks.set).not.toHaveBeenCalled()
   })
 })

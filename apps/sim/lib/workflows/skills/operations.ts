@@ -3,9 +3,7 @@ import { skill, skillMember } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId, generateShortId } from '@sim/utils/id'
 import { and, type Column, desc, eq, ne } from 'drizzle-orm'
-import type { V2SortOrder } from '@/lib/api/contracts/v2/shared'
-import type { V2SkillSortBy } from '@/lib/api/contracts/v2/skills'
-import { listOrderBy, searchFilter } from '@/lib/api/list-query'
+import { type ListSortOrder, listOrderBy, searchFilter } from '@/lib/api/list-query'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getEditableSkillIds } from '@/lib/skills/access'
 import {
@@ -36,6 +34,7 @@ function builtinSkillRow(workspaceId: string, builtin: BuiltinSkill): typeof ski
 }
 
 type SkillRow = typeof skill.$inferSelect
+export type SkillSortBy = 'name' | 'createdAt' | 'updatedAt'
 
 /**
  * Orderings for the public list's sortable fields, made total over the contract
@@ -46,15 +45,15 @@ const SKILL_SORTS = {
   name: [skill.name, skill.id],
   createdAt: [skill.createdAt, skill.id],
   updatedAt: [skill.updatedAt, skill.id],
-} satisfies Record<V2SkillSortBy, readonly Column[]>
+} satisfies Record<SkillSortBy, readonly Column[]>
 
 /** The sort key {@link SKILL_SORTS} orders on, for one row. */
-function skillSortKey(row: SkillRow, sortBy: V2SkillSortBy): [string | number, string] {
+function skillSortKey(row: SkillRow, sortBy: SkillSortBy): [string | number, string] {
   if (sortBy === 'name') return [row.name, row.id]
   return [(sortBy === 'createdAt' ? row.createdAt : row.updatedAt).getTime(), row.id]
 }
 
-function compareSkills(a: SkillRow, b: SkillRow, sortBy: V2SkillSortBy): number {
+function compareSkills(a: SkillRow, b: SkillRow, sortBy: SkillSortBy): number {
   const [aKey, aId] = skillSortKey(a, sortBy)
   const [bKey, bId] = skillSortKey(b, sortBy)
   if (aKey !== bKey) return aKey < bKey ? -1 : 1
@@ -86,7 +85,7 @@ export async function listSkills(params: {
   includeBuiltins?: boolean
   /** Case-insensitive substring match on the skill name. */
   search?: string
-  sort?: { sortBy: V2SkillSortBy; sortOrder: V2SortOrder }
+  sort?: { sortBy: SkillSortBy; sortOrder: ListSortOrder }
 }): Promise<SkillRow[]> {
   const sortBy = params.sort?.sortBy ?? 'createdAt'
   const sortOrder = params.sort?.sortOrder ?? 'desc'
