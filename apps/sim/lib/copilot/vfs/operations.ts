@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { truncate } from '@sim/utils/string'
 import micromatch from 'micromatch'
+import { isNonGreppablePlaceholder } from '@/lib/copilot/vfs/read-placeholders'
 import {
   compileLinearRegex,
   isPlainText,
@@ -62,18 +63,6 @@ export class WorkspaceFileGrepError extends Error {
     super(message)
     this.name = 'WorkspaceFileGrepError'
   }
-}
-
-/**
- * True when file content is one of `readFileRecord`'s non-text placeholders
- * (binary, unparseable, or over the inline read cap) — these carry no searchable
- * content, so grepping them should report the placeholder instead.
- */
-function isNonGreppablePlaceholder(content: string, totalLines: number): boolean {
-  if (totalLines !== 1) return false
-  return /^\[(File too large|Image too large|Document too large|Could not parse|Binary file|Compiled artifact too large)/.test(
-    content.trim()
-  )
 }
 
 /**

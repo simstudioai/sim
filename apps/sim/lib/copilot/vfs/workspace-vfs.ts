@@ -62,6 +62,7 @@ import {
   canonicalWorkspaceFilePath,
   encodeVfsPathSegments,
 } from '@/lib/copilot/vfs/path-utils'
+import { readPlaceholder } from '@/lib/copilot/vfs/read-placeholders'
 import type {
   DeploymentData,
   KbTagDefinitionSummary,
@@ -1237,7 +1238,11 @@ export class WorkspaceVFS {
         }
         if (compiled.length > MAX_COMPILED_ATTACHMENT_BYTES) {
           return bindWorkspaceFileResult(record, {
-            content: `[Compiled artifact too large: ${record.name} (${compiled.length} bytes, limit ${MAX_COMPILED_ATTACHMENT_BYTES})]`,
+            content: readPlaceholder.compiledArtifactTooLarge(
+              record.name,
+              compiled.length,
+              MAX_COMPILED_ATTACHMENT_BYTES
+            ),
             totalLines: 1,
           })
         }

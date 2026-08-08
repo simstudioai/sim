@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { glob, grep } from '@/lib/copilot/vfs/operations'
+import { glob, grep, grepReadResult, WorkspaceFileGrepError } from '@/lib/copilot/vfs/operations'
 
 function vfsFromEntries(entries: [string, string][]): Map<string, string> {
   return new Map(entries)
@@ -192,5 +192,29 @@ describe('grep regex safety', () => {
     const files = vfsFromEntries([['log.txt', 'Alpha\nALPHA\nalpha']])
     expect(grep(files, 'alpha', undefined, { ignoreCase: true })).toHaveLength(3)
     expect(grep(files, 'alpha')).toHaveLength(1)
+  })
+})
+
+describe('grepReadResult placeholders', () => {
+  const grepPlaceholder = (content: string) =>
+    grepReadResult('files/x.png/content', { content, totalLines: 1 }, 'x', 'files/x.png/content')
+
+  /**
+   * Every `readFileRecord` placeholder carries no searchable text, so grep must
+   * report the placeholder rather than matching against its own prose.
+   */
+  it.each([
+    '[Image unavailable: bomb.png (90 Bytes). It is too large to decode safely.]',
+    '[Image too large to read inline: huge.png (26214401 bytes, limit 26214400)]',
+    '[File too large to display inline: big.txt (99 bytes, limit 5)]',
+    '[Document too large to parse inline: big.pdf (99 bytes, limit 5)]',
+    '[Binary file: app.bin (application/octet-stream, 10 bytes). Cannot display as text.]',
+  ])('reports %s instead of grepping it', (content) => {
+    expect(() => grepPlaceholder(content)).toThrow(WorkspaceFileGrepError)
+    expect(() => grepPlaceholder(content)).toThrow(content)
+  })
+
+  it('still greps ordinary single-line content', () => {
+    expect(grepPlaceholder('x marks the spot')).toHaveLength(1)
   })
 })

@@ -196,6 +196,24 @@ describe('vfs handlers oversize policy', () => {
     expect(result.error).toContain('too large')
   })
 
+  it('returns an undecodable image placeholder as content, not as a size failure', async () => {
+    const vfs = makeVfs()
+    // Not a size problem — the bytes were read fine and the reason is already in the
+    // message, so the model should see it rather than a "too large, use grep" error.
+    vfs.readFileContent.mockResolvedValue({
+      content: '[Image unavailable: bomb.png (90 Bytes). It is too large to decode safely.]',
+      totalLines: 1,
+    })
+    getOrMaterializeVFS.mockResolvedValue(vfs)
+
+    const result = await executeVfsRead(
+      { path: 'files/bomb.png/content' },
+      { userId: 'user-1', workflowId: 'wf-1', workspaceId: 'ws-1' }
+    )
+
+    expect(result.success).toBe(true)
+  })
+
   it('reads canonical file leaf metadata without fetching dynamic content', async () => {
     const vfs = makeVfs()
     vfs.read.mockReturnValue({

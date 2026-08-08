@@ -8,6 +8,7 @@ import { getOrMaterializeVFS } from '@/lib/copilot/vfs'
 import type { GrepCountEntry, GrepMatch } from '@/lib/copilot/vfs/operations'
 import { WorkspaceFileGrepError } from '@/lib/copilot/vfs/operations'
 import { encodeVfsSegment } from '@/lib/copilot/vfs/path-utils'
+import { isOversizedReadPlaceholder } from '@/lib/copilot/vfs/read-placeholders'
 import {
   importWorkspaceFileSecretProvenanceForModelView,
   type WorkspaceFileSecretProvenanceIdentity,
@@ -74,14 +75,6 @@ function serializedResultSize(value: unknown): number {
   } catch {
     return String(value).length
   }
-}
-
-function isOversizedReadPlaceholder(content: string): boolean {
-  return (
-    content.startsWith('[File too large to display inline:') ||
-    content.startsWith('[Image too large to read inline:') ||
-    content.startsWith('[Compiled artifact too large:')
-  )
 }
 
 function hasModelAttachment(result: unknown): boolean {

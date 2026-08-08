@@ -14,11 +14,13 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   fetchWorkspaceFileBuffer,
 }))
 
-import { readFileRecord } from '@/lib/copilot/vfs/file-reader'
+import {
+  MAX_IMAGE_READ_BYTES,
+  MAX_IMAGE_SOURCE_BYTES,
+  readFileRecord,
+} from '@/lib/copilot/vfs/file-reader'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
-
-const MAX_IMAGE_READ_BYTES = 5 * 1024 * 1024
-const MAX_IMAGE_SOURCE_BYTES = 25 * 1024 * 1024
+import { MAX_TRANSCODE_INPUT_BYTES } from '@/lib/uploads/server/heic'
 
 async function makeNoisePng(width: number, height: number): Promise<Buffer> {
   const sharp = (await import('sharp')).default
@@ -89,17 +91,34 @@ describe('readFileRecord', () => {
     SHARP_TEST_TIMEOUT_MS
   )
 
-  it('reports the too-large placeholder when a understated record.size hides an oversized object', async () => {
-    // `record.size` is client-declared, so the download cap is the check that holds —
-    // and breaching it must still read as "too large", not as a failed read.
+  it('reports the too-large placeholder when an understated record.size hides an oversized object', async () => {
     fetchWorkspaceFileBuffer.mockRejectedValue(
-      new PayloadSizeLimitError({ label: 'workspace file', maxBytes: MAX_IMAGE_SOURCE_BYTES })
+      new PayloadSizeLimitError({
+        label: 'workspace file',
+        maxBytes: MAX_IMAGE_SOURCE_BYTES,
+        observedBytes: MAX_IMAGE_SOURCE_BYTES + 5_000,
+      })
     )
 
     const result = await readFileRecord(imageRecord('understated.png', 1024))
 
     expect(result?.attachment).toBeUndefined()
     expect(result?.content).toContain('Image too large to read inline')
+    // The observed size, not the understated 1024 the cap exists to distrust.
+    expect(result?.content).toContain(`${MAX_IMAGE_SOURCE_BYTES + 5_000} bytes`)
+  })
+
+  it('reports an oversized HEIF as a size refusal, not as a corrupt file', async () => {
+    // `ftyp`+`heic` brand, past the WebAssembly transcoder's own tighter ceiling.
+    const heif = Buffer.alloc(MAX_TRANSCODE_INPUT_BYTES + 1)
+    heif.write('ftypheic', 4, 'ascii')
+    fetchWorkspaceFileBuffer.mockResolvedValue(heif)
+
+    const result = await readFileRecord(imageRecord('photo.heic', heif.length, 'image/heic'))
+
+    expect(result?.attachment).toBeUndefined()
+    expect(result?.content).toContain('It is too large to decode safely.')
+    expect(result?.content).not.toContain('It could not be decoded.')
   })
 
   it('rejects an oversized image on its stored size before fetching it', async () => {

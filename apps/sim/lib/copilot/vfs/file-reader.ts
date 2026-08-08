@@ -12,10 +12,16 @@ import { TraceEvent } from '@/lib/copilot/generated/trace-events-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { recordFileRead } from '@/lib/copilot/request/metrics'
 import { markSpanForError } from '@/lib/copilot/request/otel'
+import { readPlaceholder } from '@/lib/copilot/vfs/read-placeholders'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { fetchWorkspaceFileBuffer } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { isHeifContainer, transcodeHeicToJpeg } from '@/lib/uploads/server/heic'
+import {
+  isHeifContainer,
+  MAX_TRANSCODE_INPUT_BYTES,
+  transcodeHeicToJpeg,
+} from '@/lib/uploads/server/heic'
+import { MAX_WORKSPACE_FORMDATA_FILE_SIZE } from '@/lib/uploads/shared/types'
 import {
   formatFileSize,
   isImageFileType,
@@ -36,13 +42,25 @@ const logger = createLogger('FileReader')
 
 /** Inline text-read cap — exported so callers can align their own byte-sniff budgets with what read() can actually display. */
 export const MAX_TEXT_READ_BYTES = 5 * 1024 * 1024 // 5 MB
-const MAX_IMAGE_READ_BYTES = 5 * 1024 * 1024 // 5 MB
+/** Vision-attachment cap: what the prepared image must fit into after resizing. */
+export const MAX_IMAGE_READ_BYTES = 5 * 1024 * 1024 // 5 MB
 // Parseable-document byte cap. Large office/PDF files can still
 // produce huge extracted text; reject up front to avoid wasting a
 // download + parse only to blow past the tool-result budget.
 const MAX_PARSEABLE_READ_BYTES = 5 * 1024 * 1024 // 5 MB
-/** Source-image byte ceiling. Sits above the 20MB HEIC transcode ceiling, so a HEIF is bounded by the tighter of the two. */
-const MAX_IMAGE_SOURCE_BYTES = 25 * 1024 * 1024
+/**
+ * Source-image byte ceiling, checked before the download and enforced by it. A
+ * workspace file may be up to {@link MAX_WORKSPACE_FILE_SIZE}, and buffering one of
+ * those whole would exhaust memory on its own — the pixel budget below bounds the
+ * decode, not the transfer.
+ *
+ * Deliberately the FormData upload ceiling rather than a number of its own: that cap
+ * exists for exactly this failure mode (a route holding an entire file in worker
+ * memory), so anything a user could upload through it stays readable here. Picking
+ * something tighter would refuse images that read fine today for no security gain —
+ * a decompression bomb is small, and it is the pixel budget that stops it.
+ */
+export const MAX_IMAGE_SOURCE_BYTES = MAX_WORKSPACE_FORMDATA_FILE_SIZE
 /**
  * Pixel ceiling on the decoded raster. libvips materialises the whole raster, and
  * an allocation this large OOM-kills the process rather than throwing, so it has to
@@ -81,25 +99,31 @@ function getExtension(filename: string): string {
 }
 
 /**
- * Download a record under an authoritative byte cap, returning null when the stored
- * object breaches it. `record.size` is client-declared, so a caller's own size check
- * can pass while the real bytes do not — this is the check that actually holds, and
- * null lets the caller answer with its too-large placeholder rather than a read failure.
+ * Download a record under an authoritative byte cap. `record.size` is client-declared,
+ * so a caller's own size check can pass while the real bytes do not — this is the
+ * check that actually holds.
+ *
+ * On a breach it reports the observed size when the error carries one, because the
+ * recorded size is exactly the figure this cap exists to distrust: quoting it back
+ * would print a tiny number beside a much larger limit.
  */
+type CappedFetch = { buffer: Buffer } | { tooLarge: true; observedBytes?: number }
+
 async function fetchWithinLimit(
   record: WorkspaceFileRecord,
   maxBytes: number
-): Promise<Buffer | null> {
+): Promise<CappedFetch> {
   try {
-    return await fetchWorkspaceFileBuffer(record, { maxBytes })
+    return { buffer: await fetchWorkspaceFileBuffer(record, { maxBytes }) }
   } catch (err) {
     if (!isPayloadSizeLimitError(err)) throw err
     logger.warn('Workspace file exceeded its read cap', {
       fileName: record.name,
       recordedSize: record.size,
+      observedBytes: err.observedBytes,
       maxBytes,
     })
-    return null
+    return { tooLarge: true, observedBytes: err.observedBytes }
   }
 }
 
@@ -119,19 +143,14 @@ interface PreparedVisionImage {
   resized: boolean
 }
 
-/**
- * Shown to the model verbatim in the read placeholder, so each value names the one
- * thing that actually failed rather than a disjunction of everything that might have.
- */
+/** Shown to the model verbatim, so each value names the one thing that failed. */
 const VisionImageRejection = {
   Undecodable: 'It could not be decoded.',
-  TooManyPixels: 'It is too large to decode safely.',
-  TooLargeAfterResize: 'It still exceeded the 5MB vision limit after resizing.',
-} as const
+  TooLargeToDecode: 'It is too large to decode safely.',
+  TooLargeAfterResize: `It still exceeded the ${formatFileSize(MAX_IMAGE_READ_BYTES)} vision limit after resizing.`,
+}
 
-type VisionImageResult =
-  | { ok: true; image: PreparedVisionImage }
-  | { ok: false; reason: (typeof VisionImageRejection)[keyof typeof VisionImageRejection] }
+type VisionImageResult = { ok: true; image: PreparedVisionImage } | { ok: false; reason: string }
 
 /**
  * Prepare an image for vision models: detect media type, optionally
@@ -174,7 +193,9 @@ async function prepareImageForVision(
             sourceBuffer.length <= MAX_IMAGE_READ_BYTES
           span.setAttribute(
             TraceAttr.CopilotVfsOutcome,
-            fitsWithoutSharp ? 'passthrough_no_sharp' : 'rejected_no_sharp'
+            fitsWithoutSharp
+              ? CopilotVfsOutcome.PassthroughNoSharp
+              : CopilotVfsOutcome.RejectedNoSharp
           )
           if (!fitsWithoutSharp) return { ok: false, reason: VisionImageRejection.Undecodable }
           return {
@@ -207,6 +228,16 @@ async function prepareImageForVision(
         let metadata = await readMetadata(sourceBuffer)
 
         if (!metadata && isHeifContainer(sourceBuffer)) {
+          // The WebAssembly fallback is single-threaded and holds its own ceiling,
+          // well under the source cap above. Say so rather than letting the transcode
+          // decline and report the file as corrupt.
+          if (sourceBuffer.length > MAX_TRANSCODE_INPUT_BYTES) {
+            logger.warn('Rejected HEIF above the transcode ceiling', {
+              bytes: sourceBuffer.length,
+              ceiling: MAX_TRANSCODE_INPUT_BYTES,
+            })
+            return { ok: false, reason: VisionImageRejection.TooLargeToDecode }
+          }
           const transcoded = await transcodeHeicToJpeg(sourceBuffer)
           if (transcoded) {
             buffer = transcoded
@@ -223,7 +254,9 @@ async function prepareImageForVision(
             MODEL_SUPPORTED_IMAGE_MIME_TYPES.has(mediaType) && buffer.length <= MAX_IMAGE_READ_BYTES
           span.setAttribute(
             TraceAttr.CopilotVfsOutcome,
-            passthroughViable ? 'passthrough_no_metadata' : 'rejected_no_metadata'
+            passthroughViable
+              ? CopilotVfsOutcome.PassthroughNoMetadata
+              : CopilotVfsOutcome.RejectedNoMetadata
           )
           if (!passthroughViable) return { ok: false, reason: VisionImageRejection.Undecodable }
           return { ok: true, image: { buffer, mediaType, resized: false } }
@@ -246,8 +279,11 @@ async function prepareImageForVision(
             budget: MAX_IMAGE_INPUT_PIXELS,
             bytes: buffer.length,
           })
-          span.setAttribute(TraceAttr.CopilotVfsOutcome, 'rejected_pixel_budget')
-          return { ok: false, reason: VisionImageRejection.TooManyPixels }
+          // No `CopilotVfsOutcome` member covers a pre-decode refusal, and that
+          // vocabulary is generated from a contract this repo does not own — emitting
+          // an unlisted value would just be dropped downstream. The dimensions are on
+          // the span above and the reason is in the warning.
+          return { ok: false, reason: VisionImageRejection.TooLargeToDecode }
         }
 
         // A format the model cannot decode has to be re-encoded even when it is
@@ -277,9 +313,7 @@ async function prepareImageForVision(
         span.setAttribute(TraceAttr.CopilotVfsHasAlpha, hasAlpha)
 
         let attempts = 0
-        // Whether any rung got as far as producing an encoded buffer. That, not
-        // "did anything throw", is what separates "cannot be decoded at all" from
-        // "decodes fine, just never small enough".
+        // Separates "cannot be decoded at all" from "decodes fine, never small enough".
         let encodedAny = false
         for (const dimension of IMAGE_RESIZE_DIMENSIONS) {
           for (const quality of IMAGE_QUALITY_STEPS) {
@@ -347,10 +381,9 @@ async function prepareImageForVision(
                 }
               }
             } catch (err) {
-              // Move to the next dimension rather than the next quality: the quality
-              // rungs re-decode the identical source and only change the encoder, so
-              // repeating a failed decode there is pure waste. A smaller dimension is
-              // worth trying — libvips shrinks JPEG on load, so it decodes less.
+              // Next dimension, not next quality: the quality rungs re-decode the
+              // identical source, so repeating a failed decode there is pure waste.
+              // A smaller dimension is worth trying — libvips shrinks JPEG on load.
               logger.warn('Failed image resize attempt for VFS read', {
                 mediaType,
                 dimension,
@@ -370,9 +403,7 @@ async function prepareImageForVision(
         span.setAttributes({
           [TraceAttr.CopilotVfsResized]: false,
           [TraceAttr.CopilotVfsResizeAttempts]: attempts,
-          [TraceAttr.CopilotVfsOutcome]: encodedAny
-            ? CopilotVfsOutcome.RejectedTooLargeAfterResize
-            : 'rejected_resize_failed',
+          [TraceAttr.CopilotVfsOutcome]: CopilotVfsOutcome.RejectedTooLargeAfterResize,
         })
         return {
           ok: false,
@@ -433,27 +464,24 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
         // image down the binary path where the model never sees it.
         if (isImageFileType(resolveEffectiveMimeType(record.type, record.name))) {
           span.setAttribute(TraceAttr.CopilotVfsReadPath, CopilotVfsReadPath.Image)
-          // `record.size` is client-declared, so it only skips a doomed download; the
-          // download's own `maxBytes` is what actually bounds the bytes read. Both
-          // answer with the same placeholder.
-          const imageTooLarge = {
-            content: `[Image too large to read inline: ${record.name} (${record.size} bytes, limit ${MAX_IMAGE_SOURCE_BYTES})]`,
-            totalLines: 1,
-          }
-          if (record.size > MAX_IMAGE_SOURCE_BYTES) {
+          const imageTooLarge = (bytes: number) => {
             span.setAttribute(TraceAttr.CopilotVfsReadOutcome, CopilotVfsReadOutcome.ImageTooLarge)
-            return imageTooLarge
+            return {
+              content: readPlaceholder.imageTooLarge(record.name, bytes, MAX_IMAGE_SOURCE_BYTES),
+              totalLines: 1,
+            }
           }
-          const originalBuffer = await fetchWithinLimit(record, MAX_IMAGE_SOURCE_BYTES)
-          if (!originalBuffer) {
-            span.setAttribute(TraceAttr.CopilotVfsReadOutcome, CopilotVfsReadOutcome.ImageTooLarge)
-            return imageTooLarge
-          }
-          const prepared = await prepareImageForVision(originalBuffer, record.type)
+          // The recorded size only skips a doomed download; the cap on the download
+          // itself is what bounds the bytes actually read.
+          if (record.size > MAX_IMAGE_SOURCE_BYTES) return imageTooLarge(record.size)
+          const fetched = await fetchWithinLimit(record, MAX_IMAGE_SOURCE_BYTES)
+          if ('tooLarge' in fetched) return imageTooLarge(fetched.observedBytes ?? record.size)
+
+          const prepared = await prepareImageForVision(fetched.buffer, record.type)
           if (!prepared.ok) {
             span.setAttribute(TraceAttr.CopilotVfsReadOutcome, CopilotVfsReadOutcome.ImageTooLarge)
             return {
-              content: `[Image unavailable: ${record.name} (${formatFileSize(record.size, { includeBytes: true })}). ${prepared.reason}]`,
+              content: readPlaceholder.imageUnavailable(record.name, record.size, prepared.reason),
               totalLines: 1,
             }
           }
@@ -483,20 +511,18 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
 
         if (isReadableFileType(record.type)) {
           span.setAttribute(TraceAttr.CopilotVfsReadPath, CopilotVfsReadPath.Text)
-          const textTooLarge = {
-            content: `[File too large to display inline: ${record.name} (${record.size} bytes, limit ${MAX_TEXT_READ_BYTES})]`,
-            totalLines: 1,
-          }
-          if (record.size > MAX_TEXT_READ_BYTES) {
+          const textTooLarge = (bytes: number) => {
             span.setAttribute(TraceAttr.CopilotVfsReadOutcome, CopilotVfsReadOutcome.TextTooLarge)
-            return textTooLarge
+            return {
+              content: readPlaceholder.fileTooLarge(record.name, bytes, MAX_TEXT_READ_BYTES),
+              totalLines: 1,
+            }
           }
+          if (record.size > MAX_TEXT_READ_BYTES) return textTooLarge(record.size)
 
-          const buffer = await fetchWithinLimit(record, MAX_TEXT_READ_BYTES)
-          if (!buffer) {
-            span.setAttribute(TraceAttr.CopilotVfsReadOutcome, CopilotVfsReadOutcome.TextTooLarge)
-            return textTooLarge
-          }
+          const fetched = await fetchWithinLimit(record, MAX_TEXT_READ_BYTES)
+          if ('tooLarge' in fetched) return textTooLarge(fetched.observedBytes ?? record.size)
+          const buffer = fetched.buffer
           const content = buffer.toString('utf-8')
           const lines = content.split('\n').length
           span.setAttributes({
@@ -510,28 +536,28 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
         const ext = getExtension(record.name)
         if (PARSEABLE_EXTENSIONS.has(ext)) {
           span.setAttribute(TraceAttr.CopilotVfsReadPath, CopilotVfsReadPath.ParseableDocument)
-          const documentTooLarge = {
-            content: `[Document too large to parse inline: ${record.name} (${record.size} bytes, limit ${MAX_PARSEABLE_READ_BYTES})]`,
-            totalLines: 1,
-          }
-          if (record.size > MAX_PARSEABLE_READ_BYTES) {
+          const documentTooLarge = (bytes: number) => {
             span.setAttribute(
               TraceAttr.CopilotVfsReadOutcome,
               CopilotVfsReadOutcome.DocumentTooLarge
             )
-            return documentTooLarge
+            return {
+              content: readPlaceholder.documentTooLarge(
+                record.name,
+                bytes,
+                MAX_PARSEABLE_READ_BYTES
+              ),
+              totalLines: 1,
+            }
           }
-          const buffer = await fetchWithinLimit(record, MAX_PARSEABLE_READ_BYTES)
-          if (!buffer) {
-            span.setAttribute(
-              TraceAttr.CopilotVfsReadOutcome,
-              CopilotVfsReadOutcome.DocumentTooLarge
-            )
-            return documentTooLarge
+          if (record.size > MAX_PARSEABLE_READ_BYTES) return documentTooLarge(record.size)
+          const fetched = await fetchWithinLimit(record, MAX_PARSEABLE_READ_BYTES)
+          if ('tooLarge' in fetched) {
+            return documentTooLarge(fetched.observedBytes ?? record.size)
           }
           try {
             const { parseBuffer } = await import('@/lib/file-parsers')
-            const result = await parseBuffer(buffer, ext)
+            const result = await parseBuffer(fetched.buffer, ext)
             const content = result.content || ''
             const lines = content.split('\n').length
             span.setAttributes({
@@ -551,7 +577,7 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
             })
             span.setAttribute(TraceAttr.CopilotVfsReadOutcome, CopilotVfsReadOutcome.ParseFailed)
             return {
-              content: `[Could not parse ${record.name} (${record.type}, ${record.size} bytes)]`,
+              content: readPlaceholder.couldNotParse(record.name, record.type, record.size),
               totalLines: 1,
             }
           }
@@ -562,7 +588,7 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
           [TraceAttr.CopilotVfsReadOutcome]: CopilotVfsReadOutcome.BinaryPlaceholder,
         })
         return {
-          content: `[Binary file: ${record.name} (${record.type}, ${record.size} bytes). Cannot display as text.]`,
+          content: readPlaceholder.binaryFile(record.name, record.type, record.size),
           totalLines: 1,
         }
       } catch (err) {
