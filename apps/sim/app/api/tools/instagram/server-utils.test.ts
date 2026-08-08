@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import type { Logger } from '@sim/logger'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockHasCloudStorage, mockResolveFileInputToUrl } = vi.hoisted(() => ({
   mockHasCloudStorage: vi.fn(),
@@ -18,10 +18,13 @@ vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
 }))
 
 import {
+  createMediaContainer,
   INSTAGRAM_MEDIA_URL_TTL_SECONDS,
+  publishMediaContainer,
+  resolveIgUserId,
   resolveInstagramCarouselMedia,
   resolveInstagramMedia,
-} from '@/app/api/tools/instagram/resolve-media'
+} from '@/app/api/tools/instagram/server-utils'
 
 const logger = {} as Logger
 const context = {
@@ -44,40 +47,26 @@ function uploadedFile(overrides: Record<string, unknown> = {}) {
 beforeEach(() => {
   vi.clearAllMocks()
   mockHasCloudStorage.mockReturnValue(true)
-  mockResolveFileInputToUrl.mockImplementation(
-    async ({ file, filePath }: { file?: { name?: string }; filePath?: string }) => ({
-      fileUrl: filePath || `https://signed.example.com/${file?.name || 'media'}`,
-    })
-  )
+  mockResolveFileInputToUrl.mockImplementation(async ({ file }: { file?: { name?: string } }) => ({
+    fileUrl: `https://signed.example.com/${file?.name || 'media'}`,
+  }))
+})
+
+afterEach(() => {
+  vi.unstubAllGlobals()
 })
 
 describe('resolveInstagramMedia', () => {
-  it('accepts a public HTTPS media URL', async () => {
+  it('rejects non-file inputs before resolving them', async () => {
     const result = await resolveInstagramMedia({
       ...context,
       input: 'https://cdn.example.com/photo.jpg',
       role: 'image',
     })
 
-    expect(result).toEqual({
-      media: expect.objectContaining({
-        url: 'https://cdn.example.com/photo.jpg',
-        kind: 'image',
-        mimeType: 'image/jpeg',
-      }),
-    })
-  })
-
-  it('rejects a public HTTP media URL before resolving it', async () => {
-    const result = await resolveInstagramMedia({
-      ...context,
-      input: 'http://cdn.example.com/photo.jpg',
-      role: 'image',
-    })
-
     expect(result.error).toEqual({
       status: 400,
-      message: 'Instagram media URLs must use HTTPS so Meta can download them',
+      message: 'Media must be a Sim file',
     })
     expect(mockResolveFileInputToUrl).not.toHaveBeenCalled()
   })
@@ -95,22 +84,19 @@ describe('resolveInstagramMedia', () => {
     })
     expect(mockResolveFileInputToUrl).toHaveBeenCalledWith({
       file,
-      filePath: undefined,
       ...context,
       presignExpirySeconds: INSTAGRAM_MEDIA_URL_TTL_SECONDS,
     })
   })
 
-  it('requires cloud storage for uploaded files and internal URLs', async () => {
+  it('requires cloud storage for publishing files', async () => {
     mockHasCloudStorage.mockReturnValue(false)
 
-    for (const input of [uploadedFile(), '/api/files/serve/execution/photo.jpg']) {
-      const result = await resolveInstagramMedia({ ...context, input, role: 'image' })
-      expect(result.error).toEqual({
-        status: 400,
-        message: expect.stringContaining('Cloud storage is required'),
-      })
-    }
+    const result = await resolveInstagramMedia({ ...context, input: uploadedFile(), role: 'image' })
+    expect(result.error).toEqual({
+      status: 400,
+      message: expect.stringContaining('Cloud storage is required'),
+    })
     expect(mockResolveFileInputToUrl).not.toHaveBeenCalled()
   })
 
@@ -164,71 +150,40 @@ describe('resolveInstagramMedia', () => {
 })
 
 describe('resolveInstagramCarouselMedia', () => {
-  it('parses JSON input and infers image and video item types sequentially', async () => {
+  it('resolves canonical files in order and infers image and video types sequentially', async () => {
     let activeResolutions = 0
     let maxActiveResolutions = 0
-    mockResolveFileInputToUrl.mockImplementation(async ({ filePath }: { filePath?: string }) => {
+    mockResolveFileInputToUrl.mockImplementation(async ({ file }: { file?: { name?: string } }) => {
       activeResolutions += 1
       maxActiveResolutions = Math.max(maxActiveResolutions, activeResolutions)
       await Promise.resolve()
       activeResolutions -= 1
-      return { fileUrl: filePath }
+      return { fileUrl: `https://signed.example.com/${file?.name}` }
     })
 
     const result = await resolveInstagramCarouselMedia(
-      JSON.stringify([
-        'https://cdn.example.com/carousel-1.jpg',
-        'https://cdn.example.com/carousel-2.mp4',
-      ]),
-      context.userId,
-      context.requestId,
-      logger
-    )
-
-    expect(result.items?.map(({ url, kind }) => ({ url, kind }))).toEqual([
-      { url: 'https://cdn.example.com/carousel-1.jpg', kind: 'image' },
-      { url: 'https://cdn.example.com/carousel-2.mp4', kind: 'video' },
-    ])
-    expect(maxActiveResolutions).toBe(1)
-  })
-
-  it('supports legacy comma-separated URLs with an explicit video prefix', async () => {
-    const result = await resolveInstagramCarouselMedia(
-      'https://cdn.example.com/carousel-1.jpg, video:https://cdn.example.com/carousel-2.mp4',
-      context.userId,
-      context.requestId,
-      logger
-    )
-
-    expect(result.items?.map(({ kind }) => kind)).toEqual(['image', 'video'])
-  })
-
-  it('infers media types for uploaded file arrays', async () => {
-    const result = await resolveInstagramCarouselMedia(
       [
-        uploadedFile(),
-        uploadedFile({
-          id: 'file-2',
-          key: 'execution/workflow-1/execution-1/video.mov',
-          name: 'video.mov',
-          type: 'video/quicktime',
-        }),
+        uploadedFile({ name: 'carousel-1.jpg' }),
+        uploadedFile({ name: 'carousel-2.mp4', type: 'video/mp4' }),
       ],
       context.userId,
       context.requestId,
       logger
     )
 
-    expect(result.items?.map(({ kind }) => kind)).toEqual(['image', 'video'])
+    expect(result.items?.map(({ url, kind }) => ({ url, kind }))).toEqual([
+      { url: 'https://signed.example.com/carousel-1.jpg', kind: 'image' },
+      { url: 'https://signed.example.com/carousel-2.mp4', kind: 'video' },
+    ])
+    expect(maxActiveResolutions).toBe(1)
   })
 
   it.each([
     { count: 1, label: 'too few' },
     { count: 11, label: 'too many' },
   ])('rejects $label carousel items before resolving them', async ({ count }) => {
-    const input = Array.from(
-      { length: count },
-      (_, index) => `https://cdn.example.com/carousel-${index + 1}.jpg`
+    const input = Array.from({ length: count }, (_, index) =>
+      uploadedFile({ id: `file-${index + 1}`, name: `carousel-${index + 1}.jpg` })
     )
 
     const result = await resolveInstagramCarouselMedia(
@@ -245,14 +200,46 @@ describe('resolveInstagramCarouselMedia', () => {
     expect(mockResolveFileInputToUrl).not.toHaveBeenCalled()
   })
 
-  it('rejects malformed carousel JSON', async () => {
+  it('rejects non-file string inputs', async () => {
     const result = await resolveInstagramCarouselMedia(
-      '[not-json',
+      'https://example.com/one.jpg,https://example.com/two.jpg',
       context.userId,
       context.requestId,
       logger
     )
 
-    expect(result.error).toEqual({ status: 400, message: 'Carousel media JSON is invalid' })
+    expect(result.error).toEqual({ status: 400, message: 'Carousel media is required' })
+  })
+})
+
+describe('Instagram publishing requests', () => {
+  it('resolves the connected account when no override is supplied', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(Response.json({ user_id: 123 }, { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(resolveIgUserId('token')).resolves.toBe('123')
+    expect(fetchMock).toHaveBeenCalledOnce()
+  })
+
+  it('creates and publishes form-encoded containers', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json({ id: 'container-1' }, { status: 200 }))
+      .mockResolvedValueOnce(Response.json({ id: 'media-1' }, { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      createMediaContainer('token', 'user-1', { image_url: 'https://signed.example/image.jpg' })
+    ).resolves.toBe('container-1')
+    await expect(publishMediaContainer('token', 'user-1', 'container-1')).resolves.toBe('media-1')
+
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({
+      method: 'POST',
+      body: 'image_url=https%3A%2F%2Fsigned.example%2Fimage.jpg',
+    })
+    expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({
+      method: 'POST',
+      body: 'creation_id=container-1',
+    })
   })
 })
