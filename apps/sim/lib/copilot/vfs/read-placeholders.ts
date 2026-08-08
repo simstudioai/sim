@@ -57,8 +57,23 @@ const OVERSIZED_PREFIXES = [
 /** Every placeholder — none of them carry text worth searching. */
 const NON_GREPPABLE_PREFIXES = Object.values(PREFIX)
 
+function escapeRegex(literal: string): string {
+  return literal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/**
+ * Matches a size refusal in full rather than by prefix. Every builder above emits the
+ * same `… (N bytes, limit M)]` tail, so requiring it costs nothing and stops a real
+ * one-line file that merely opens with this text from being turned into a tool error
+ * instead of being returned. Built from {@link OVERSIZED_PREFIXES} so it cannot drift
+ * from the producers. One unnested `.+` against a fixed suffix — no backtracking.
+ */
+const OVERSIZED_PATTERN = new RegExp(
+  `^(?:${OVERSIZED_PREFIXES.map(escapeRegex).join('|')}) .+ \\(\\d+ bytes, limit \\d+\\)\\]$`
+)
+
 export function isOversizedReadPlaceholder(content: string): boolean {
-  return OVERSIZED_PREFIXES.some((prefix) => content.startsWith(prefix))
+  return OVERSIZED_PATTERN.test(content)
 }
 
 /**

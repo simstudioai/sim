@@ -205,6 +205,23 @@ describe('vfs handlers oversize policy', () => {
     expect(result.error).toBe(content)
   })
 
+  it('returns a real file that merely opens like a size refusal', async () => {
+    // Prefix-only matching would turn this user's file into a tool error. The
+    // refusal is recognised by its whole shape, which real prose does not have.
+    const vfs = makeVfs()
+    const content = '[Document too large to parse inline: is the message we emit here]'
+    vfs.readFileContent.mockResolvedValue({ content, totalLines: 1 })
+    getOrMaterializeVFS.mockResolvedValue(vfs)
+
+    const result = await executeVfsRead(
+      { path: 'files/notes.md/content' },
+      { userId: 'user-1', workflowId: 'wf-1', workspaceId: 'ws-1' }
+    )
+
+    expect(result.success).toBe(true)
+    expect((result.output as { content?: string })?.content).toBe(content)
+  })
+
   it('returns an undecodable image placeholder as content, not as a size failure', async () => {
     const vfs = makeVfs()
     // Not a size problem — the bytes were read fine and the reason is already in the
