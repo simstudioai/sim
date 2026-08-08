@@ -86,6 +86,13 @@ export const agentMailEnvelopeSchema = z
   })
   .passthrough()
 
+/** Unverified view of an AgentMail envelope, read only to pick which secret to check. */
+export const agentMailRoutingSchema = z.object({
+  message: z.object({
+    inbox_id: z.string().min(1, 'message.inbox_id cannot be empty').max(320),
+  }),
+})
+
 const agentMailAttachmentSchema = z
   .object({
     attachment_id: z.string(),

@@ -10,3 +10,11 @@ import { env } from '@/lib/core/config/env'
  */
 export const WEBHOOK_MAX_BODY_BYTES =
   Number.parseInt(env.WEBHOOK_MAX_REQUEST_BYTES, 10) || 10 * 1024 * 1024
+
+/**
+ * Bounds the body an unauthenticated caller can make the AgentMail receiver
+ * buffer, parse and HMAC. AgentMail delivers attachments by reference, so an
+ * envelope is headers plus the text/HTML parts; 4 MB still fits rich HTML with
+ * inline `data:` images, which a tighter cap would reject as lost mail.
+ */
+export const AGENTMAIL_WEBHOOK_MAX_BODY_BYTES = Math.min(WEBHOOK_MAX_BODY_BYTES, 4 * 1024 * 1024)
