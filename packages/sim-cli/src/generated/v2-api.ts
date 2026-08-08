@@ -1661,6 +1661,11 @@ export type DeployWorkflowParams = {
   id: string
 }
 
+export type DeployWorkflowBody = {
+  name?: string
+  description?: string | null
+}
+
 export type DeployWorkflowResponse = {
   data: {
     id: string
@@ -1697,16 +1702,38 @@ export type DeployWorkflowResponse = {
 }
 
 /** `GET /api/v2/files/[fileId]` */
-export type DownloadFileParams = {
+export type DescribeFileParams = {
   fileId: string
 }
 
-export type DownloadFileQuery = {
+export type DescribeFileQuery = {
   workspaceId: string
 }
 
-/** Non-JSON response (`binary`). */
-export type DownloadFileResponse = never
+export type DescribeFileResponse = {
+  data: {
+    id: string
+    name: string
+    size: number
+    type: string
+    key: string
+    folderPath: string
+    uploadedByEmail: string
+    uploadedAt: string
+    updatedAt: string
+    sharing:
+      | {
+          enabled: false
+        }
+      | {
+          enabled: true
+          url: string
+          authType: 'public' | 'password' | 'email' | 'sso'
+          hasPassword: boolean
+          allowedEmails: Array<string>
+        }
+  }
+}
 
 /** `POST /api/v2/workflows/[id]/execute` */
 export type ExecuteWorkflowParams = {
@@ -2011,53 +2038,17 @@ export type GetCustomToolResponse = {
   }
 }
 
-/** `GET /api/v2/files/[fileId]/metadata` */
-export type GetFileParams = {
+/** `GET /api/v2/files/[fileId]/content` */
+export type GetFileContentParams = {
   fileId: string
 }
 
-export type GetFileQuery = {
+export type GetFileContentQuery = {
   workspaceId: string
 }
 
-export type GetFileResponse = {
-  data: {
-    id: string
-    name: string
-    size: number
-    type: string
-    key: string
-    folderPath: string
-    uploadedByEmail: string
-    uploadedAt: string
-    updatedAt: string
-  }
-}
-
-/** `GET /api/v2/files/[fileId]/share` */
-export type GetFileShareParams = {
-  fileId: string
-}
-
-export type GetFileShareQuery = {
-  workspaceId: string
-}
-
-export type GetFileShareResponse = {
-  data: {
-    share: {
-      id: string
-      token: string
-      url: string
-      isActive: boolean
-      resourceType: 'file' | 'folder'
-      resourceId: string
-      authType: 'public' | 'password' | 'email' | 'sso'
-      hasPassword: boolean
-      allowedEmails: Array<string>
-    } | null
-  }
-}
+/** Non-JSON response (`binary`). */
+export type GetFileContentResponse = never
 
 /** `GET /api/v2/knowledge/[id]` */
 export type GetKnowledgeBaseParams = {
@@ -3548,6 +3539,10 @@ export type RollbackWorkflowParams = {
   id: string
 }
 
+export type RollbackWorkflowBody = {
+  version?: number
+}
+
 export type RollbackWorkflowResponse = {
   data: {
     id: string
@@ -3681,6 +3676,30 @@ export type SetSecretResponse = {
   }
 }
 
+/** `PUT /api/v2/files/[fileId]/share` */
+export type ShareFileParams = {
+  fileId: string
+}
+
+export type ShareFileBody = {
+  workspaceId: string
+  authType?: 'public' | 'password' | 'email' | 'sso'
+  password?: string
+  allowedEmails?: Array<string>
+}
+
+export type ShareFileResponse = {
+  data: {
+    sharing: {
+      enabled: true
+      url: string
+      authType: 'public' | 'password' | 'email' | 'sso'
+      hasPassword: boolean
+      allowedEmails: Array<string>
+    }
+  }
+}
+
 /** `GET /api/v2/tables/exports/[exportId]/download` */
 export type TableExportDownloadParams = {
   exportId: string
@@ -3734,6 +3753,23 @@ export type UndeployWorkflowResponse = {
         retryable: boolean
       } | null
     } | null
+  }
+}
+
+/** `DELETE /api/v2/files/[fileId]/share` */
+export type UnshareFileParams = {
+  fileId: string
+}
+
+export type UnshareFileQuery = {
+  workspaceId: string
+}
+
+export type UnshareFileResponse = {
+  data: {
+    sharing: {
+      enabled: false
+    }
   }
 }
 
@@ -4256,35 +4292,6 @@ export type UploadKnowledgeDocumentResponse = {
       characterCount: number
       enabled: boolean
       createdAt: string | null
-    }
-  }
-}
-
-/** `PUT /api/v2/files/[fileId]/share` */
-export type UpsertFileShareParams = {
-  fileId: string
-}
-
-export type UpsertFileShareBody = {
-  workspaceId: string
-  isActive: boolean
-  authType?: 'public' | 'password' | 'email' | 'sso'
-  password?: string
-  allowedEmails?: Array<string>
-}
-
-export type UpsertFileShareResponse = {
-  data: {
-    share: {
-      id: string
-      token: string
-      url: string
-      isActive: boolean
-      resourceType: 'file' | 'folder'
-      resourceId: string
-      authType: 'public' | 'password' | 'email' | 'sso'
-      hasPassword: boolean
-      allowedEmails: Array<string>
     }
   }
 }
@@ -4933,13 +4940,17 @@ export const V2_OPERATIONS = {
     pathParams: ['id'] as const,
     responseMode: 'json',
     summary: 'Deploy Workflow',
+    body: {
+      name: { kind: 'string' },
+      description: { kind: 'string' },
+    },
   },
-  downloadFile: {
+  describeFile: {
     method: 'GET',
     path: '/api/v2/files/[fileId]',
     pathParams: ['fileId'] as const,
-    responseMode: 'binary',
-    summary: 'Download File',
+    responseMode: 'json',
+    summary: 'Describe File',
     query: {
       workspaceId: { kind: 'string', required: true },
     },
@@ -5023,22 +5034,12 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true },
     },
   },
-  getFile: {
+  getFileContent: {
     method: 'GET',
-    path: '/api/v2/files/[fileId]/metadata',
+    path: '/api/v2/files/[fileId]/content',
     pathParams: ['fileId'] as const,
-    responseMode: 'json',
-    summary: 'Get File Metadata',
-    query: {
-      workspaceId: { kind: 'string', required: true },
-    },
-  },
-  getFileShare: {
-    method: 'GET',
-    path: '/api/v2/files/[fileId]/share',
-    pathParams: ['fileId'] as const,
-    responseMode: 'json',
-    summary: 'Get File Share',
+    responseMode: 'binary',
+    summary: 'Get File Content',
     query: {
       workspaceId: { kind: 'string', required: true },
     },
@@ -5737,6 +5738,9 @@ export const V2_OPERATIONS = {
     pathParams: ['id'] as const,
     responseMode: 'json',
     summary: 'Rollback Workflow',
+    body: {
+      version: { kind: 'integer' },
+    },
   },
   runRowEnrichment: {
     method: 'POST',
@@ -5791,6 +5795,19 @@ export const V2_OPERATIONS = {
       value: { kind: 'string', required: true },
     },
   },
+  shareFile: {
+    method: 'PUT',
+    path: '/api/v2/files/[fileId]/share',
+    pathParams: ['fileId'] as const,
+    responseMode: 'json',
+    summary: 'Share File',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      authType: { kind: 'enum', values: ['public', 'password', 'email', 'sso'] as const },
+      password: { kind: 'string' },
+      allowedEmails: { kind: 'array' },
+    },
+  },
   tableExportDownload: {
     method: 'GET',
     path: '/api/v2/tables/exports/[exportId]/download',
@@ -5807,6 +5824,16 @@ export const V2_OPERATIONS = {
     pathParams: ['id'] as const,
     responseMode: 'json',
     summary: 'Undeploy Workflow',
+  },
+  unshareFile: {
+    method: 'DELETE',
+    path: '/api/v2/files/[fileId]/share',
+    pathParams: ['fileId'] as const,
+    responseMode: 'json',
+    summary: 'Unshare File',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+    },
   },
   updateCustomTool: {
     method: 'PATCH',
@@ -5985,20 +6012,6 @@ export const V2_OPERATIONS = {
     summary: 'Upload Document',
     query: {
       workspaceId: { kind: 'string', required: true },
-    },
-  },
-  upsertFileShare: {
-    method: 'PUT',
-    path: '/api/v2/files/[fileId]/share',
-    pathParams: ['fileId'] as const,
-    responseMode: 'json',
-    summary: 'Enable or Disable File Share',
-    body: {
-      workspaceId: { kind: 'string', required: true },
-      isActive: { kind: 'boolean', required: true },
-      authType: { kind: 'enum', values: ['public', 'password', 'email', 'sso'] as const },
-      password: { kind: 'string' },
-      allowedEmails: { kind: 'array' },
     },
   },
   upsertTableRow: {

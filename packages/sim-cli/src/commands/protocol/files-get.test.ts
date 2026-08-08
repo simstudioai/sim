@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildGeneratedCommands } from '../../runtime/build.js'
-import { streamToFile } from './files-download.js'
+import { streamToFile } from './files-get.js'
 import { attachProtocolCommands } from './index.js'
 
 const { output, requestRaw } = vi.hoisted(() => ({
@@ -87,29 +87,21 @@ describe('streamToFile', () => {
   )
 })
 
-describe('files download', () => {
+describe('files get', () => {
   it('prints a normalized machine-readable result', async () => {
     const target = join(dir, 'download.txt')
     requestRaw.mockResolvedValue(new Response('downloaded', { status: 200 }))
     const logged: string[] = []
     vi.spyOn(console, 'log').mockImplementation((line: string) => logged.push(line))
 
-    await program().parseAsync([
-      'node',
-      'sim',
-      'file',
-      'download',
-      'file_1',
-      '--output-file',
-      target,
-    ])
+    await program().parseAsync(['node', 'sim', 'file', 'get', 'file_1', '--output-file', target])
 
     expect(JSON.parse(logged[0])).toEqual({
       id: 'file_1',
       path: target,
       status: 'saved',
     })
-    expect(requestRaw).toHaveBeenCalledWith('/api/v2/files/file_1', {
+    expect(requestRaw).toHaveBeenCalledWith('/api/v2/files/file_1/content', {
       method: 'GET',
       query: { workspaceId: 'ws_local' },
     })
@@ -124,7 +116,7 @@ describe('files download', () => {
     })
     const logged = vi.spyOn(console, 'log').mockImplementation(() => {})
 
-    await program().parseAsync(['node', 'sim', 'file', 'download', 'file_1', '-o', '-'])
+    await program().parseAsync(['node', 'sim', 'file', 'get', 'file_1', '-o', '-'])
 
     expect(Buffer.concat(chunks).toString('utf8')).toBe('downloaded')
     expect(logged).not.toHaveBeenCalled()
@@ -132,7 +124,7 @@ describe('files download', () => {
 
   it('rejects overwrite semantics for stdout', async () => {
     await expect(
-      program().parseAsync(['node', 'sim', 'file', 'download', 'file_1', '-o', '-', '--force'])
+      program().parseAsync(['node', 'sim', 'file', 'get', 'file_1', '-o', '-', '--force'])
     ).rejects.toThrow(/--force cannot be used/)
     expect(requestRaw).not.toHaveBeenCalled()
   })

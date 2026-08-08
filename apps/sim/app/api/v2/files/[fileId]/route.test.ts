@@ -5,7 +5,7 @@ import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  download: vi.fn(),
+  describeFile: vi.fn(),
   rename: vi.fn(),
   deleteFile: vi.fn(),
   authenticateV2ApiKey: vi.fn(),
@@ -14,10 +14,10 @@ const mocks = vi.hoisted(() => ({
   getUserEmailsByIds: vi.fn(),
 }))
 
-vi.mock('@/lib/workspace-files/application/download-workspace-file', () => ({
-  downloadWorkspaceFileStream: {
-    operation: { id: 'files.download', minimumRole: 'read', workspaceApiKey: 'allow' },
-    execute: mocks.download,
+vi.mock('@/lib/workspace-files/application/describe-workspace-file', () => ({
+  describeWorkspaceFile: {
+    operation: { id: 'files.read_metadata', minimumRole: 'read', workspaceApiKey: 'allow' },
+    execute: mocks.describeFile,
   },
 }))
 
@@ -90,6 +90,18 @@ function fileRecord(overrides: Record<string, unknown> = {}) {
   }
 }
 
+const SHARE = {
+  id: 'shr_1',
+  token: 'existing-token-abcd',
+  url: 'https://www.sim.ai/f/existing-token-abcd',
+  isActive: true,
+  resourceType: 'file' as const,
+  resourceId: FILE_ID,
+  authType: 'email' as const,
+  hasPassword: false,
+  allowedEmails: ['ada@example.com'],
+}
+
 describe('v2 single-file routes', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -104,10 +116,7 @@ describe('v2 single-file routes', () => {
       remaining: 99,
       resetAt: new Date('2024-01-01T01:00:00Z'),
     })
-    mocks.download.mockResolvedValue({
-      file: fileRecord(),
-      stream: new Blob(['id,name\n']).stream(),
-    })
+    mocks.describeFile.mockResolvedValue({ file: fileRecord(), share: SHARE })
     mocks.rename.mockResolvedValue({ file: fileRecord({ name: 'renamed.csv' }) })
     mocks.deleteFile.mockResolvedValue({
       id: FILE_ID,
@@ -117,26 +126,53 @@ describe('v2 single-file routes', () => {
     mocks.getUserEmailsByIds.mockResolvedValue(new Map([['user-1', 'ada@example.com']]))
   })
 
-  it('downloads bytes through the binary adapter with operation rate headers', async () => {
+  it('describes the file and its sharing state', async () => {
     const response = await GET(
       new NextRequest(`http://localhost:3000/api/v2/files/${FILE_ID}?workspaceId=${WORKSPACE_ID}`),
       context
     )
 
     expect(response.status).toBe(200)
-    expect(response.headers.get('Content-Type')).toBe('text/csv')
-    expect(response.headers.get('Content-Disposition')).toContain('data.csv')
-    expect(response.headers.get('X-RateLimit-Remaining')).toBe('99')
-    expect(await response.text()).toBe('id,name\n')
-    expect(mocks.download).toHaveBeenCalledWith({
+    expect(await response.json()).toEqual({
+      data: {
+        id: FILE_ID,
+        name: 'data.csv',
+        size: 8,
+        type: 'text/csv',
+        key: 'workspace/ws/1-x-data.csv',
+        folderPath: '/',
+        uploadedByEmail: 'ada@example.com',
+        uploadedAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-03T00:00:00.000Z',
+        sharing: {
+          enabled: true,
+          url: SHARE.url,
+          authType: 'email',
+          hasPassword: false,
+          allowedEmails: ['ada@example.com'],
+        },
+      },
+    })
+    expect(mocks.describeFile).toHaveBeenCalledWith({
       principal: auth.principal,
       input: { fileId: FILE_ID, assertedWorkspaceId: WORKSPACE_ID },
       request: expect.anything(),
     })
   })
 
-  it('conceals download authorization failures', async () => {
-    mocks.download.mockRejectedValue(
+  it('returns an explicit disabled sharing state', async () => {
+    mocks.describeFile.mockResolvedValueOnce({ file: fileRecord(), share: null })
+
+    const response = await GET(
+      new NextRequest(`http://localhost:3000/api/v2/files/${FILE_ID}?workspaceId=${WORKSPACE_ID}`),
+      context
+    )
+
+    expect((await response.json()).data.sharing).toEqual({ enabled: false })
+  })
+
+  it('conceals description authorization failures', async () => {
+    mocks.describeFile.mockRejectedValue(
       new OrchestrationError('forbidden', 'Insufficient workspace permissions')
     )
 

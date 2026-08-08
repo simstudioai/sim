@@ -348,10 +348,35 @@ describe('commands parsed through commander', () => {
     })
   })
 
-  it('exposes the v2 file metadata route as files get', async () => {
-    const [path, options] = await run(['file', 'get', 'file_1'], { data: { id: 'file_1' } })
-    expect(path).toBe('/api/v2/files/file_1/metadata')
+  it('describes file metadata and sharing without fetching content', async () => {
+    const [path, options] = await run(['file', 'describe', 'file_1'], {
+      data: { id: 'file_1', sharing: { enabled: false } },
+    })
+    expect(path).toBe('/api/v2/files/file_1')
     expect(options.query).toEqual({ workspaceId: 'ws_local' })
+  })
+
+  it('exposes sharing as direct file actions', async () => {
+    const [sharePath, shareOptions] = await run([
+      'file',
+      'share',
+      'file_1',
+      '--auth-type',
+      'email',
+      '--allowed-emails',
+      'ada@example.com',
+    ])
+    expect(sharePath).toBe('/api/v2/files/file_1/share')
+    expect(shareOptions.body).toEqual({
+      workspaceId: 'ws_local',
+      authType: 'email',
+      allowedEmails: ['ada@example.com'],
+    })
+
+    const [unsharePath, unshareOptions] = await run(['file', 'unshare', 'file_1'])
+    expect(unsharePath).toBe('/api/v2/files/file_1/share')
+    expect(unshareOptions.method).toBe('DELETE')
+    expect(unshareOptions.query).toEqual({ workspaceId: 'ws_local' })
   })
 
   it('moves space-separated file ids to a folder path', async () => {
@@ -1092,35 +1117,6 @@ describe('rows whose content sits in a wrapper', () => {
 })
 
 describe('boolean flags', () => {
-  it('takes an explicit value when the field is required', async () => {
-    // As a presence-only flag this could only ever send `true`: `--is-active
-    // false` turned sharing ON and reported success, with the `false` dropped
-    // as a stray argument.
-    const [, options] = await run([
-      'files',
-      'share',
-      'set',
-      'f_1',
-      '--is-active',
-      'false',
-      '--auth-type',
-      'public',
-    ])
-    expect(options.body).toMatchObject({ isActive: false })
-
-    const [, on] = await run([
-      'files',
-      'share',
-      'set',
-      'f_1',
-      '--is-active',
-      'true',
-      '--auth-type',
-      'public',
-    ])
-    expect(on.body).toMatchObject({ isActive: true })
-  })
-
   it('negates an optional boolean, which omitting it cannot do', async () => {
     // Omitting `enabled` means "leave it alone"; there was no way to say false,
     // so an MCP server could not be disabled or a folder unlocked.

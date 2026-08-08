@@ -1,47 +1,35 @@
 import {
   v2DeleteFileContract,
-  v2DownloadFileContract,
+  v2DescribeFileContract,
   v2RenameFileContract,
 } from '@/lib/api/contracts/v2/files'
-import {
-  defineV2BinaryRoute,
-  defineV2JsonRoute,
-  v2ApiKeyAuth,
-  v2RateLimits,
-} from '@/lib/api/server/routes'
+import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import { v2FileErrorPolicies } from '@/lib/workspace-files/api'
 import { deleteWorkspaceFileOperation } from '@/lib/workspace-files/application/delete-workspace-file'
-import { downloadWorkspaceFileStream } from '@/lib/workspace-files/application/download-workspace-file'
+import { describeWorkspaceFile } from '@/lib/workspace-files/application/describe-workspace-file'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { renameWorkspaceFile } from '@/lib/workspace-files/application/rename-workspace-file'
-import { toV2File } from '@/app/api/v2/files/utils'
+import { toV2File, toV2FileSharing } from '@/app/api/v2/files/utils'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 /**
- * GET /api/v2/files/[fileId] — Download file content (binary).
- *
- * The response carries no JSON envelope, so rate-limit state is surfaced via
- * `X-RateLimit-*` headers. Errors still render the canonical v2 JSON error body.
- * Lookups are workspace-scoped (IDOR-safe): a file in another workspace 404s.
+ * GET /api/v2/files/[fileId] — Describe one file and its sharing state.
  */
-export const GET = defineV2BinaryRoute({
-  contract: v2DownloadFileContract,
+export const GET = defineV2JsonRoute({
+  contract: v2DescribeFileContract,
   auth: v2ApiKeyAuth,
-  operation: fileOperations.download,
+  operation: fileOperations.readMetadata,
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2FileErrorPolicies.concealResourceAuthorization,
   mapInput: ({ params, query }) => ({
     fileId: params.fileId,
     assertedWorkspaceId: query.workspaceId,
   }),
-  useCase: downloadWorkspaceFileStream,
-  present: ({ file, stream }) => ({
-    body: stream,
-    contentType: file.type || 'application/octet-stream',
-    contentDisposition: `attachment; filename="${file.name.replace(/[^\w.-]/g, '_')}"; filename*=UTF-8''${encodeURIComponent(file.name)}`,
-    contentLength: file.size,
+  useCase: describeWorkspaceFile,
+  present: async ({ file, share }) => ({
+    data: { ...(await toV2File(file)), sharing: toV2FileSharing(share) },
   }),
 })
 

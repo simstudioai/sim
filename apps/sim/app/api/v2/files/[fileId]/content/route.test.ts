@@ -6,11 +6,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   admit: vi.fn(),
+  download: vi.fn(),
   updateContent: vi.fn(),
   authenticateV2ApiKey: vi.fn(),
   checkRateLimitDirect: vi.fn(),
   checkRateLimitDirectOrThrow: vi.fn(),
   getUserEmailsByIds: vi.fn(),
+}))
+
+vi.mock('@/lib/workspace-files/application/download-workspace-file', () => ({
+  downloadWorkspaceFileStream: {
+    operation: { id: 'files.download', minimumRole: 'read', workspaceApiKey: 'allow' },
+    execute: mocks.download,
+  },
 }))
 
 vi.mock('@/lib/workspace-files/orchestration', () => ({
@@ -48,7 +56,7 @@ vi.mock('@/lib/users/queries', () => ({
 }))
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { PUT } from '@/app/api/v2/files/[fileId]/content/route'
+import { GET, PUT } from '@/app/api/v2/files/[fileId]/content/route'
 
 const WORKSPACE_ID = 'workspace-1'
 const FILE_ID = 'wf_1'
@@ -76,6 +84,15 @@ const record = {
   uploadedAt: new Date('2024-01-01T00:00:00Z'),
   updatedAt: new Date('2024-01-03T00:00:00Z'),
 }
+const context = { params: Promise.resolve({ fileId: FILE_ID }) }
+
+const callGet = () =>
+  GET(
+    new NextRequest(
+      `http://localhost:3000/api/v2/files/${FILE_ID}/content?workspaceId=${WORKSPACE_ID}`
+    ),
+    context
+  )
 
 const callPut = (body: unknown, contentLength?: number) =>
   PUT(
@@ -87,8 +104,54 @@ const callPut = (body: unknown, contentLength?: number) =>
       },
       body: typeof body === 'string' ? body : JSON.stringify(body),
     }),
-    { params: Promise.resolve({ fileId: FILE_ID }) }
+    context
   )
+
+describe('GET /api/v2/files/[fileId]/content', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.authenticateV2ApiKey.mockResolvedValue(auth)
+    mocks.checkRateLimitDirect.mockResolvedValue({
+      allowed: true,
+      remaining: 599,
+      resetAt: new Date('2024-01-01T01:00:00Z'),
+    })
+    mocks.checkRateLimitDirectOrThrow.mockResolvedValue({
+      allowed: true,
+      remaining: 99,
+      resetAt: new Date('2024-01-01T01:00:00Z'),
+    })
+    mocks.download.mockResolvedValue({
+      file: record,
+      stream: new Blob(['id,name\n']).stream(),
+    })
+  })
+
+  it('streams bytes through the binary adapter', async () => {
+    const response = await callGet()
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('Content-Type')).toBe('text/csv')
+    expect(response.headers.get('Content-Disposition')).toContain('data.csv')
+    expect(await response.text()).toBe('id,name\n')
+    expect(mocks.download).toHaveBeenCalledWith({
+      principal: auth.principal,
+      input: { fileId: FILE_ID, assertedWorkspaceId: WORKSPACE_ID },
+      request: expect.anything(),
+    })
+  })
+
+  it('conceals content authorization failures', async () => {
+    mocks.download.mockRejectedValue(
+      new OrchestrationError('forbidden', 'Insufficient workspace permissions')
+    )
+
+    const response = await callGet()
+
+    expect(response.status).toBe(404)
+    expect((await response.json()).error.code).toBe('NOT_FOUND')
+  })
+})
 
 describe('PUT /api/v2/files/[fileId]/content', () => {
   beforeEach(() => {

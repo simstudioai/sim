@@ -467,16 +467,16 @@
     },
     "/api/v2/files/{fileId}": {
       "get": {
-        "operationId": "downloadFile",
-        "summary": "Download File",
-        "description": "Download the raw bytes of a file. The success response body is the file content itself — there is no JSON envelope. The actual `Content-Type` reflects the stored file's MIME type (shown here as `application/octet-stream`); `Content-Disposition` and `Content-Length` describe the attachment, and rate-limit state is returned in the `X-RateLimit-*` headers. Lookups are workspace-scoped: a file that belongs to another workspace returns `404`. Error responses still use the canonical v2 JSON error envelope.",
+        "operationId": "describeFile",
+        "summary": "Describe File",
+        "description": "Return one workspace file's metadata and current sharing state without downloading its content. Lookups are workspace-scoped: a file that belongs to another workspace returns `404`.",
         "tags": ["Files"],
         "x-codeSamples": [
           {
             "id": "curl",
             "label": "cURL",
             "lang": "bash",
-            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v2/files/{fileId}?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -o downloaded-file.csv"
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v2/files/{fileId}?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
           }
         ],
         "parameters": [
@@ -489,26 +489,8 @@
         ],
         "responses": {
           "200": {
-            "description": "The raw file content as binary data. The `Content-Type` header reflects the file's stored MIME type.",
+            "description": "The file metadata and sharing state.",
             "headers": {
-              "Content-Type": {
-                "description": "MIME type of the file. Varies per file; defaults to application/octet-stream when unknown.",
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Content-Disposition": {
-                "description": "Attachment disposition carrying the (sanitized and RFC 5987 encoded) filename.",
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Content-Length": {
-                "description": "Size of the file in bytes.",
-                "schema": {
-                  "type": "string"
-                }
-              },
               "X-RateLimit-Limit": {
                 "$ref": "#/components/headers/X-RateLimit-Limit"
               },
@@ -520,10 +502,9 @@
               }
             },
             "content": {
-              "application/octet-stream": {
+              "application/json": {
                 "schema": {
-                  "type": "string",
-                  "format": "binary"
+                  "$ref": "#/components/schemas/V2FileDescriptionResponse"
                 }
               }
             }
@@ -698,71 +679,6 @@
           },
           "409": {
             "$ref": "#/components/responses/Conflict"
-          },
-          "429": {
-            "$ref": "#/components/responses/RateLimited"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalError"
-          }
-        }
-      }
-    },
-    "/api/v2/files/{fileId}/metadata": {
-      "get": {
-        "operationId": "getFile",
-        "summary": "Get File Metadata",
-        "description": "Return one workspace file's metadata without downloading its content. Lookups are workspace-scoped: a file that belongs to another workspace returns `404`.",
-        "tags": ["Files"],
-        "x-codeSamples": [
-          {
-            "id": "curl",
-            "label": "cURL",
-            "lang": "bash",
-            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v2/files/{fileId}/metadata?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
-          }
-        ],
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/FileIdPath"
-          },
-          {
-            "$ref": "#/components/parameters/WorkspaceIdQuery"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "The file metadata.",
-            "headers": {
-              "X-RateLimit-Limit": {
-                "$ref": "#/components/headers/X-RateLimit-Limit"
-              },
-              "X-RateLimit-Remaining": {
-                "$ref": "#/components/headers/X-RateLimit-Remaining"
-              },
-              "X-RateLimit-Reset": {
-                "$ref": "#/components/headers/X-RateLimit-Reset"
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/V2FileResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -1152,95 +1068,17 @@
       }
     },
     "/api/v2/files/{fileId}/share": {
-      "get": {
-        "operationId": "getFileShare",
-        "summary": "Get File Share",
-        "description": "Read a file's public share state. `share` is `null` when the file has never been shared. The encrypted password is never returned — `hasPassword` is the only password signal.\n\n**Disabling is not revoking.** Setting `isActive: false` preserves the token and the stored password / allow-list, so re-enabling later resurrects the identical URL. To make a link permanently unreachable, delete the file instead.",
-        "tags": ["Files"],
-        "x-codeSamples": [
-          {
-            "id": "curl",
-            "label": "cURL",
-            "lang": "bash",
-            "source": "curl -X GET \\\\\n  \"https://www.sim.ai/api/v2/files/wf_V1StGXR8z5jdHi6BmyT91/share?workspaceId=YOUR_WORKSPACE_ID\" \\\\\n  -H \"X-API-Key: YOUR_API_KEY\""
-          }
-        ],
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/FileIdPath"
-          },
-          {
-            "$ref": "#/components/parameters/WorkspaceIdQuery"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "The file's share state.",
-            "headers": {
-              "X-RateLimit-Limit": {
-                "$ref": "#/components/headers/X-RateLimit-Limit"
-              },
-              "X-RateLimit-Remaining": {
-                "$ref": "#/components/headers/X-RateLimit-Remaining"
-              },
-              "X-RateLimit-Reset": {
-                "$ref": "#/components/headers/X-RateLimit-Reset"
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/V2GetFileShareResponse"
-                },
-                "example": {
-                  "data": {
-                    "share": {
-                      "id": "shr_8Hf3kL9wQ2mNpXr6Tz1Vb",
-                      "token": "share-token-example",
-                      "url": "https://www.sim.ai/f/share-token-example",
-                      "isActive": true,
-                      "resourceType": "file",
-                      "resourceId": "wf_V1StGXR8z5jdHi6BmyT91",
-                      "authType": "public",
-                      "hasPassword": false,
-                      "allowedEmails": []
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          },
-          "429": {
-            "$ref": "#/components/responses/RateLimited"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalError"
-          }
-        }
-      },
       "put": {
-        "operationId": "upsertFileShare",
-        "summary": "Enable or Disable File Share",
-        "description": "Enable or disable a file's public share. Requires workspace `write`.\n\nThe share token is always server-generated; there is no way to supply one. `authType` selects how the link is gated: `public` (anyone with the link), `password` (requires `password` on first enable), or `email` / `sso` (requires a non-empty `allowedEmails`). Omitting `authType` on a re-enable keeps the stored mode, and the org access-control policy is evaluated against that stored mode rather than against `public`. Disabling is never blocked by the policy.\n\n**Disabling is not revoking.** Setting `isActive: false` preserves the token and the stored password / allow-list, so re-enabling later resurrects the identical URL. To make a link permanently unreachable, delete the file instead.",
+        "operationId": "shareFile",
+        "summary": "Share File",
+        "description": "Enable a file's public share or update its access settings. Requires workspace `write`. The share token is always server-generated. Omitting `authType` on a re-enable keeps the stored mode.",
         "tags": ["Files"],
         "x-codeSamples": [
           {
             "id": "curl",
             "label": "cURL",
             "lang": "bash",
-            "source": "curl -X PUT \\\\\n  \"https://www.sim.ai/api/v2/files/wf_V1StGXR8z5jdHi6BmyT91/share\" \\\\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\\\n  -H \"Content-Type: application/json\" \\\\\n  -d '{\"workspaceId\": \"YOUR_WORKSPACE_ID\", \"isActive\": true, \"authType\": \"public\"}'"
+            "source": "curl -X PUT \\\\\n  \"https://www.sim.ai/api/v2/files/wf_V1StGXR8z5jdHi6BmyT91/share\" \\\\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\\\n  -H \"Content-Type: application/json\" \\\\\n  -d '{\"workspaceId\": \"YOUR_WORKSPACE_ID\", \"authType\": \"public\"}'"
           }
         ],
         "parameters": [
@@ -1254,16 +1092,12 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["workspaceId", "isActive"],
+                "required": ["workspaceId"],
                 "properties": {
                   "workspaceId": {
                     "type": "string",
                     "description": "The workspace that owns the file.",
                     "example": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64"
-                  },
-                  "isActive": {
-                    "type": "boolean",
-                    "description": "Whether the share should resolve. `false` disables without revoking."
                   },
                   "authType": {
                     "type": "string",
@@ -1293,7 +1127,6 @@
                   "summary": "Enable a public link",
                   "value": {
                     "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-                    "isActive": true,
                     "authType": "public"
                   }
                 },
@@ -1301,16 +1134,8 @@
                   "summary": "Enable a password-protected link",
                   "value": {
                     "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-                    "isActive": true,
                     "authType": "password",
                     "password": "EXAMPLE_PASSWORD"
-                  }
-                },
-                "disable": {
-                  "summary": "Disable (keeps the token and stored config)",
-                  "value": {
-                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-                    "isActive": false
                   }
                 }
               }
@@ -1319,7 +1144,7 @@
         },
         "responses": {
           "200": {
-            "description": "The share after the update.",
+            "description": "The enabled sharing state.",
             "headers": {
               "X-RateLimit-Limit": {
                 "$ref": "#/components/headers/X-RateLimit-Limit"
@@ -1334,17 +1159,13 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/V2UpsertFileShareResponse"
+                  "$ref": "#/components/schemas/V2ShareFileResponse"
                 },
                 "example": {
                   "data": {
-                    "share": {
-                      "id": "shr_8Hf3kL9wQ2mNpXr6Tz1Vb",
-                      "token": "share-token-example",
+                    "sharing": {
+                      "enabled": true,
                       "url": "https://www.sim.ai/f/share-token-example",
-                      "isActive": true,
-                      "resourceType": "file",
-                      "resourceId": "wf_V1StGXR8z5jdHi6BmyT91",
                       "authType": "public",
                       "hasPassword": false,
                       "allowedEmails": []
@@ -1373,9 +1194,133 @@
             "$ref": "#/components/responses/InternalError"
           }
         }
+      },
+      "delete": {
+        "operationId": "unshareFile",
+        "summary": "Unshare File",
+        "description": "Disable a file's public share while preserving its token and stored access settings for a future re-enable. The operation is idempotent.",
+        "tags": ["Files"],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/FileIdPath"
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceIdQuery"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sharing is disabled.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2UnshareFileResponse"
+                },
+                "example": {
+                  "data": {
+                    "sharing": {
+                      "enabled": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
       }
     },
     "/api/v2/files/{fileId}/content": {
+      "get": {
+        "operationId": "getFileContent",
+        "summary": "Get File Content",
+        "description": "Stream the raw bytes of a file. The success response is the content itself, without a JSON envelope. Errors still use the canonical v2 JSON envelope.",
+        "tags": ["Files"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v2/files/{fileId}/content?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -o downloaded-file.csv"
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/FileIdPath"
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceIdQuery"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The raw file content as binary data.",
+            "headers": {
+              "Content-Type": {
+                "description": "The file's stored MIME type.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Content-Disposition": {
+                "description": "Attachment disposition carrying the filename.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Content-Length": {
+                "description": "Size of the file in bytes.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
       "put": {
         "operationId": "updateFileContent",
         "summary": "Replace File Content",
@@ -2196,6 +2141,16 @@
           }
         }
       },
+      "V2FileDescriptionResponse": {
+        "type": "object",
+        "description": "A single file with its current sharing state.",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/V2FileDescription"
+          }
+        }
+      },
       "V2DeleteFileResponse": {
         "type": "object",
         "description": "The result of archiving a file.",
@@ -2258,68 +2213,72 @@
           }
         }
       },
-      "V2FileShare": {
+      "V2DisabledFileSharing": {
         "type": "object",
-        "description": "A file's public share. Never carries the storage key or the encrypted password — `hasPassword` is the only password signal exposed.",
-        "required": [
-          "id",
-          "token",
-          "url",
-          "isActive",
-          "resourceType",
-          "resourceId",
-          "authType",
-          "hasPassword",
-          "allowedEmails"
-        ],
+        "required": ["enabled"],
         "properties": {
-          "id": {
-            "type": "string",
-            "description": "Unique share identifier.",
-            "example": "shr_8Hf3kL9wQ2mNpXr6Tz1Vb"
-          },
-          "token": {
-            "type": "string",
-            "description": "The public token embedded in the share URL. Always server-generated.",
-            "example": "share-token-example"
+          "enabled": {
+            "type": "boolean",
+            "const": false
+          }
+        }
+      },
+      "V2EnabledFileSharing": {
+        "type": "object",
+        "required": ["enabled", "url", "authType", "hasPassword", "allowedEmails"],
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "const": true
           },
           "url": {
             "type": "string",
-            "format": "uri",
-            "description": "The public share URL.",
-            "example": "https://www.sim.ai/f/share-token-example"
-          },
-          "isActive": {
-            "type": "boolean",
-            "description": "Whether the share currently resolves. Disabling does not revoke — see the endpoint description."
-          },
-          "resourceType": {
-            "type": "string",
-            "enum": ["file", "folder"],
-            "description": "The kind of resource shared. Always `file` on this surface."
-          },
-          "resourceId": {
-            "type": "string",
-            "description": "The shared resource id.",
-            "example": "wf_V1StGXR8z5jdHi6BmyT91"
+            "format": "uri"
           },
           "authType": {
             "type": "string",
-            "enum": ["public", "password", "email", "sso"],
-            "description": "How the share is gated."
+            "enum": ["public", "password", "email", "sso"]
           },
           "hasPassword": {
-            "type": "boolean",
-            "description": "Whether a password is stored for this share."
+            "type": "boolean"
           },
           "allowedEmails": {
             "type": "array",
+            "maxItems": 200,
             "items": {
-              "type": "string"
-            },
-            "description": "Allow-list of addresses or `@domain` patterns for `email`/`sso` shares. Empty otherwise."
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 320
+            }
           }
         }
+      },
+      "V2FileSharing": {
+        "description": "The file's current sharing state. Disabled sharing carries no stale access details.",
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/V2DisabledFileSharing"
+          },
+          {
+            "$ref": "#/components/schemas/V2EnabledFileSharing"
+          }
+        ]
+      },
+      "V2FileDescription": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/V2File"
+          },
+          {
+            "type": "object",
+            "required": ["sharing"],
+            "properties": {
+              "sharing": {
+                "$ref": "#/components/schemas/V2FileSharing"
+              }
+            }
+          }
+        ]
       },
       "V2MoveFileItemsResult": {
         "type": "object",
@@ -2337,31 +2296,23 @@
           }
         }
       },
-      "V2GetFileShareResult": {
+      "V2ShareFileResult": {
         "type": "object",
-        "description": "The file's share state, or null when the file has never been shared.",
-        "required": ["share"],
+        "description": "The enabled file sharing state.",
+        "required": ["sharing"],
         "properties": {
-          "share": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/V2FileShare"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "The share, or null when the file has never been shared."
+          "sharing": {
+            "$ref": "#/components/schemas/V2EnabledFileSharing"
           }
         }
       },
-      "V2UpsertFileShareResult": {
+      "V2UnshareFileResult": {
         "type": "object",
-        "description": "The share after the upsert.",
-        "required": ["share"],
+        "description": "The disabled file sharing state.",
+        "required": ["sharing"],
         "properties": {
-          "share": {
-            "$ref": "#/components/schemas/V2FileShare"
+          "sharing": {
+            "$ref": "#/components/schemas/V2DisabledFileSharing"
           }
         }
       },
@@ -2375,23 +2326,23 @@
           }
         }
       },
-      "V2GetFileShareResponse": {
+      "V2ShareFileResponse": {
         "type": "object",
-        "description": "The file's public share state.",
+        "description": "The enabled sharing state.",
         "required": ["data"],
         "properties": {
           "data": {
-            "$ref": "#/components/schemas/V2GetFileShareResult"
+            "$ref": "#/components/schemas/V2ShareFileResult"
           }
         }
       },
-      "V2UpsertFileShareResponse": {
+      "V2UnshareFileResponse": {
         "type": "object",
-        "description": "The share after enabling or disabling it.",
+        "description": "The disabled sharing state.",
         "required": ["data"],
         "properties": {
           "data": {
-            "$ref": "#/components/schemas/V2UpsertFileShareResult"
+            "$ref": "#/components/schemas/V2UnshareFileResult"
           }
         }
       },

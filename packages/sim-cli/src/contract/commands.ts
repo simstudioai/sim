@@ -478,8 +478,7 @@ export const CLI_CONTRACT: CliContract = {
   // ─── The expanded files surface ───────────────────────────────────────────
   // Every one of these derives badly. `/files/move` and `/files/bulk-delete`
   // are verbs sitting where the deriver expects a sub-resource, so it made them
-  // groups holding a lone `create`; and `GET /files/[id]/share` fetches one
-  // share, which the deriver read as a collection and named `list`.
+  // groups holding a lone `create`.
   bulkDeleteFiles: {
     // `batch-` for the bulk form, matching `tables rows batch-delete`.
     command: 'files batch-delete',
@@ -489,9 +488,23 @@ export const CLI_CONTRACT: CliContract = {
     },
     confirm: 'This deletes every listed file.',
   },
-  getFile: {
-    command: 'files get',
-    describe: 'Show file metadata',
+  describeFile: {
+    command: 'files describe',
+    describe: 'Show file metadata and sharing status',
+    fields: [
+      { header: 'id' },
+      { header: 'name' },
+      { header: 'size', format: 'bytes' },
+      { header: 'type' },
+      { header: 'folder', path: 'folderPath' },
+      { header: 'uploaded by', path: 'uploadedByEmail' },
+      { header: 'uploaded', path: 'uploadedAt', format: 'timestamp' },
+      { header: 'updated', path: 'updatedAt', format: 'timestamp' },
+      { header: 'shared', path: 'sharing.enabled', format: 'bool' },
+      { header: 'share URL', path: 'sharing.url' },
+      { header: 'share auth', path: 'sharing.authType' },
+      { header: 'allowed emails', path: 'sharing.allowedEmails', format: 'count' },
+    ],
   },
   moveFileItems: {
     command: 'files move',
@@ -518,16 +531,23 @@ export const CLI_CONTRACT: CliContract = {
       encoding: { choices: ['utf-8', 'base64'], describe: 'Content encoding' },
     },
   },
-  getFileShare: {
-    command: 'files share get',
-    describe: 'Show a file’s share settings',
-  },
-  upsertFileShare: {
-    command: 'files share set',
-    describe: 'Enable or disable sharing for a file',
+  shareFile: {
+    command: 'files share',
+    describe: 'Share a file or update its access settings',
     flags: {
       allowedEmails: { list: true },
     },
+    fields: [
+      { header: 'shared', path: 'sharing.enabled', format: 'bool' },
+      { header: 'URL', path: 'sharing.url' },
+      { header: 'auth', path: 'sharing.authType' },
+      { header: 'allowed emails', path: 'sharing.allowedEmails', format: 'count' },
+    ],
+  },
+  unshareFile: {
+    command: 'files unshare',
+    describe: 'Disable sharing for a file',
+    fields: [{ header: 'shared', path: 'sharing.enabled', format: 'bool' }],
   },
 
   // ─── Resource-scoped, path-addressed folders ──────────────────────────────

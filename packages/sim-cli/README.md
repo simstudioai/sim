@@ -110,7 +110,7 @@ Settings → API keys.
 
 Plural resource names are canonical, but most plural top-level resource groups
 also accept their singular form: for example, `sim table list`,
-`sim file download`, and `sim workflow get` are equivalent to their plural
+`sim file get`, and `sim workflow get` are equivalent to their plural
 spellings. Chats deliberately keep separate names: `sim chat` is the terminal
 conversation, while `sim chats` manages saved chat resources.
 
@@ -160,10 +160,12 @@ sim tables rows batch-delete <tableId> (--row <id>… | --filter <json>) --yes
 
 sim files ls [path] [--search <text>] [--limit <n>]
 sim files list [--folder <path>]
-sim files get <fileId>
+sim files describe <fileId>
+sim files get <fileId> [-o <path|->]
 sim files create --name <name> [--folder <path>] [--content <value>] [--encoding utf-8|base64]
 sim files upload <path> [--name <name>] [--folder <path>]
-sim files download <fileId> [-o <path|->]
+sim files share <fileId> [--auth-type public|password|email|sso]
+sim files unshare <fileId>
 sim files mv --file-ids <id>… [--to <path>]
 sim files batch-delete --file-ids <id>… --yes
 sim files delete <fileId> --yes

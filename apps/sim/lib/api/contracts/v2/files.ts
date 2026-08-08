@@ -5,7 +5,7 @@ import {
   workspaceFileNameSchema,
   workspaceIdSchema,
 } from '@/lib/api/contracts/primitives'
-import { shareAuthTypeSchema, shareRecordSchema } from '@/lib/api/contracts/public-shares'
+import { shareAuthTypeSchema } from '@/lib/api/contracts/public-shares'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   v2CreateFolderBodySchema,
@@ -60,6 +60,32 @@ export const v2FileSchema = z.object({
 })
 
 export type V2File = z.output<typeof v2FileSchema>
+
+export const v2DisabledFileSharingSchema = z.object({ enabled: z.literal(false) })
+
+export const v2EnabledFileSharingSchema = z.object({
+  enabled: z.literal(true),
+  url: z.string().url(),
+  authType: shareAuthTypeSchema,
+  hasPassword: z.boolean(),
+  allowedEmails: z.array(z.string().min(1).max(320)),
+})
+
+export const v2FileSharingSchema = z.discriminatedUnion('enabled', [
+  v2DisabledFileSharingSchema,
+  v2EnabledFileSharingSchema,
+])
+
+export type V2DisabledFileSharing = z.output<typeof v2DisabledFileSharingSchema>
+export type V2EnabledFileSharing = z.output<typeof v2EnabledFileSharingSchema>
+export type V2FileSharing = z.output<typeof v2FileSharingSchema>
+
+/** A single file's canonical description, including its current sharing state. */
+export const v2FileDescriptionSchema = v2FileSchema.extend({
+  sharing: v2FileSharingSchema,
+})
+
+export type V2FileDescription = z.output<typeof v2FileDescriptionSchema>
 
 export const v2FileUploadParamsSchema = z.object({ uploadId: z.string().min(1) })
 export type V2FileUploadParams = z.output<typeof v2FileUploadParamsSchema>
@@ -259,28 +285,11 @@ export const v2DeleteFileFolderContract = defineRouteContract({
   response: { mode: 'json', schema: v2DataResponse(v2DeleteFileFolderDataSchema) },
 })
 
-/**
- * Public share state. Reuses the internal {@link shareRecordSchema}, which is
- * already public-safe — `hasPassword` is a boolean and neither the ciphertext
- * nor the storage key is carried — with `url` tightened to a real URL.
- */
-export const v2FileShareSchema = shareRecordSchema.extend({
-  url: z.string().url(),
-})
+export const v2ShareFileResultSchema = z.object({ sharing: v2EnabledFileSharingSchema })
+export const v2UnshareFileResultSchema = z.object({ sharing: v2DisabledFileSharingSchema })
 
-export type V2FileShare = z.output<typeof v2FileShareSchema>
-
-export const v2GetFileShareResultSchema = z.object({
-  share: v2FileShareSchema.nullable(),
-})
-
-export type V2GetFileShareResult = z.output<typeof v2GetFileShareResultSchema>
-
-export const v2UpsertFileShareResultSchema = z.object({
-  share: v2FileShareSchema,
-})
-
-export type V2UpsertFileShareResult = z.output<typeof v2UpsertFileShareResultSchema>
+export type V2ShareFileResult = z.output<typeof v2ShareFileResultSchema>
+export type V2UnshareFileResult = z.output<typeof v2UnshareFileResultSchema>
 
 /**
  * Share upsert body. The internal surface accepts a caller-supplied `token` so
@@ -288,10 +297,9 @@ export type V2UpsertFileShareResult = z.output<typeof v2UpsertFileShareResultSch
  * let a caller mint predictable public URLs, and a token collision surfaces as
  * an unhandled unique-index violation. v2 tokens are always server-generated.
  */
-export const v2UpsertFileShareBodySchema = z
+export const v2ShareFileBodySchema = z
   .object({
     workspaceId: workspaceIdSchema,
-    isActive: z.boolean(),
     authType: shareAuthTypeSchema.optional(),
     password: z
       .string()
@@ -305,7 +313,7 @@ export const v2UpsertFileShareBodySchema = z
   })
   .strict()
 
-export type V2UpsertFileShareBody = z.input<typeof v2UpsertFileShareBodySchema>
+export type V2ShareFileBody = z.input<typeof v2ShareFileBodySchema>
 
 /**
  * Content replace body. `content` is the whole new body of the file — this is a
@@ -386,24 +394,14 @@ export const v2CompleteFileUploadContract = defineRouteContract({
   response: { mode: 'json', schema: v2DataResponse(v2FileUploadSchema) },
 })
 
-export const v2DownloadFileContract = defineRouteContract({
+export const v2DescribeFileContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/files/[fileId]',
   params: v2FileParamsSchema,
   query: v2FileWorkspaceQuerySchema,
   response: {
-    mode: 'binary',
-  },
-})
-
-export const v2GetFileContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/v2/files/[fileId]/metadata',
-  params: v2FileParamsSchema,
-  query: v2FileWorkspaceQuerySchema,
-  response: {
     mode: 'json',
-    schema: v2DataResponse(v2FileSchema),
+    schema: v2DataResponse(v2FileDescriptionSchema),
   },
 })
 
@@ -450,25 +448,35 @@ export const v2BulkDeleteFilesContract = defineRouteContract({
   },
 })
 
-export const v2GetFileShareContract = defineRouteContract({
-  method: 'GET',
+export const v2ShareFileContract = defineRouteContract({
+  method: 'PUT',
+  path: '/api/v2/files/[fileId]/share',
+  params: v2FileParamsSchema,
+  body: v2ShareFileBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2ShareFileResultSchema),
+  },
+})
+
+export const v2UnshareFileContract = defineRouteContract({
+  method: 'DELETE',
   path: '/api/v2/files/[fileId]/share',
   params: v2FileParamsSchema,
   query: v2FileWorkspaceQuerySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2GetFileShareResultSchema),
+    schema: v2DataResponse(v2UnshareFileResultSchema),
   },
 })
 
-export const v2UpsertFileShareContract = defineRouteContract({
-  method: 'PUT',
-  path: '/api/v2/files/[fileId]/share',
+export const v2GetFileContentContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/files/[fileId]/content',
   params: v2FileParamsSchema,
-  body: v2UpsertFileShareBodySchema,
+  query: v2FileWorkspaceQuerySchema,
   response: {
-    mode: 'json',
-    schema: v2DataResponse(v2UpsertFileShareResultSchema),
+    mode: 'binary',
   },
 })
 

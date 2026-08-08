@@ -65,10 +65,10 @@ export async function streamToStdout(
   }
 }
 
-export function attachFileDownload(files: Command): void {
+export function attachFileGet(files: Command): void {
   files
-    .command('download <fileId>')
-    .description('Download a file')
+    .command('get <fileId>')
+    .description('Get a file’s content')
     .option('-o, --output-file <path>', 'Where to write it (default: file name; -: stdout)')
     .option('--force', 'Overwrite the destination if it already exists')
     .action(
@@ -83,13 +83,13 @@ export function attachFileDownload(files: Command): void {
 
         const { client, profile } = clientFrom(command)
         const workspaceId = client.requireWorkspace()
-        const operation = V2_OPERATIONS.downloadFile
+        const operation = V2_OPERATIONS.getFileContent
         const response = await client.requestRaw(resolvePath(operation.path, { fileId }), {
           method: operation.method,
           query: { workspaceId },
         })
         if (!response.body) {
-          throw new SimApiError('Download returned an empty response.', response.status)
+          throw new SimApiError('File content response was empty.', response.status)
         }
 
         if (options.outputFile === '-') {
