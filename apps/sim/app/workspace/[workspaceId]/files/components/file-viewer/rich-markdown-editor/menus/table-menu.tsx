@@ -38,14 +38,13 @@ export function TableBubbleMenu({ editor, scrollContainerRef }: TableBubbleMenuP
     }),
   })
 
-  const { resolveAnchor, options, appendTo } = useBubbleMenuFloating(editor, scrollContainerRef)
+  const { resolveAnchor, appendTo } = useBubbleMenuFloating(editor, scrollContainerRef)
 
   return (
     <BubbleMenu
       editor={editor}
       pluginKey={menuKey}
       getReferencedVirtualElement={resolveAnchor}
-      options={options}
       appendTo={appendTo}
       role='toolbar'
       aria-label='Table editing'

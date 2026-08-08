@@ -179,14 +179,13 @@ export function EditorBubbleMenu({
     setLinkValue(null)
   }
 
-  const { resolveAnchor, options, appendTo } = useBubbleMenuFloating(editor, scrollContainerRef)
+  const { resolveAnchor, appendTo } = useBubbleMenuFloating(editor, scrollContainerRef)
 
   return (
     <BubbleMenu
       editor={editor}
       pluginKey={bubbleMenuKey}
       getReferencedVirtualElement={resolveAnchor}
-      options={options}
       appendTo={appendTo}
       role='toolbar'
       aria-label='Text formatting'
