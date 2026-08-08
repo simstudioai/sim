@@ -10,6 +10,8 @@
  * the wire format.
  */
 
+import { isSafeHttpUrl } from '@/lib/core/utils/urls'
+
 export interface OptionsItemData {
   title: string
   description: string
@@ -31,6 +33,12 @@ export interface UsageUpgradeTagData {
   message: string
 }
 
+/**
+ * Kept out of the chat's initial chunk — it pulls in three provider-specific
+ * setup forms and is only mounted once a message actually offers a service
+ * account.
+ */
+
 export const CREDENTIAL_TAG_TYPES = [
   'env_key',
   'oauth_key',
@@ -50,7 +58,7 @@ export const SECRET_INPUT_SCOPES = ['personal', 'workspace'] as const
 
 export type SecretInputScope = (typeof SECRET_INPUT_SCOPES)[number]
 
-export interface CredentialTagData {
+export interface CredentialItemData {
   value?: string
   type: CredentialTagType
   provider?: string
@@ -67,6 +75,120 @@ export interface CredentialTagData {
    * rotate the secret on this credential; absent = create a new one.
    */
   credentialId?: string
+}
+
+/**
+ * Normalized `<credential>` payload. A singleton object remains valid for old
+ * messages, while an array lets one terminal tag render several controls as
+ * rows in a single card.
+ */
+export type CredentialTagData = CredentialItemData[]
+
+export interface CredentialSubmissionProgress {
+  connectedIntegrationIndexes: ReadonlySet<number>
+  savedSecretIndexes: ReadonlySet<number>
+}
+
+export interface CredentialSubmissionPayload {
+  integrations: Array<{ name: string; status: 'connected' | 'skipped' }>
+  secrets: Array<{ name: string; status: 'saved' | 'skipped' }>
+}
+
+/**
+ * Safe user-turn payload emitted by the credential question card. It carries
+ * only the requested provider and environment-variable names; secret values
+ * remain in Sim's credential stores and never enter the transcript.
+ */
+export function formatCredentialSubmissionMessage(
+  data: CredentialTagData,
+  progress?: CredentialSubmissionProgress
+): string {
+  const integrations = data
+    .filter((item) => item.type === 'link' || item.type === 'service_account')
+    .map((item) => item.provider?.trim())
+    .filter((provider): provider is string => Boolean(provider))
+  const secrets = data
+    .filter((item) => item.type === 'secret_input')
+    .map((item) => item.name?.trim())
+    .filter((name): name is string => Boolean(name))
+  const payload: CredentialSubmissionPayload = {
+    integrations: integrations.map((name, index) => ({
+      name,
+      status:
+        !progress || progress.connectedIntegrationIndexes.has(index) ? 'connected' : 'skipped',
+    })),
+    secrets: secrets.map((name, index) => ({
+      name,
+      status: !progress || progress.savedSecretIndexes.has(index) ? 'saved' : 'skipped',
+    })),
+  }
+  return `Credential setup submitted — ${JSON.stringify(payload)}`
+}
+
+export function parseCredentialSubmissionProgress(
+  data: CredentialTagData,
+  content: string
+): CredentialSubmissionPayload | null {
+  const legacyIntegrations = data
+    .filter((item) => item.type === 'link' || item.type === 'service_account')
+    .map((item) => item.provider?.trim())
+    .filter((provider): provider is string => Boolean(provider))
+  const legacySecrets = data
+    .filter((item) => item.type === 'secret_input')
+    .map((item) => item.name?.trim())
+    .filter((name): name is string => Boolean(name))
+  const legacyParts = [
+    legacyIntegrations.length > 0 ? `integrations: ${legacyIntegrations.join(', ')}` : null,
+    legacySecrets.length > 0 ? `secrets: ${legacySecrets.join(', ')}` : null,
+  ].filter((part): part is string => part !== null)
+  const legacyMessage = `Credential setup complete${legacyParts.length > 0 ? ` — ${legacyParts.join('; ')}` : ''}`
+  if (content === legacyMessage) {
+    return {
+      integrations: legacyIntegrations.map((name) => ({ name, status: 'connected' })),
+      secrets: legacySecrets.map((name) => ({ name, status: 'saved' })),
+    }
+  }
+
+  const prefix = 'Credential setup submitted — '
+  if (!content.startsWith(prefix)) return null
+
+  try {
+    const payload = JSON.parse(content.slice(prefix.length)) as CredentialSubmissionPayload
+    const expectedIntegrations = data
+      .filter((item) => item.type === 'link' || item.type === 'service_account')
+      .map((item) => item.provider?.trim())
+      .filter((provider): provider is string => Boolean(provider))
+    const expectedSecrets = data
+      .filter((item) => item.type === 'secret_input')
+      .map((item) => item.name?.trim())
+      .filter((name): name is string => Boolean(name))
+
+    const valid =
+      Array.isArray(payload.integrations) &&
+      payload.integrations.length === expectedIntegrations.length &&
+      payload.integrations.every(
+        (item, index) =>
+          item.name === expectedIntegrations[index] &&
+          (item.status === 'connected' || item.status === 'skipped')
+      ) &&
+      Array.isArray(payload.secrets) &&
+      payload.secrets.length === expectedSecrets.length &&
+      payload.secrets.every(
+        (item, index) =>
+          item.name === expectedSecrets[index] &&
+          (item.status === 'saved' || item.status === 'skipped')
+      )
+    return valid ? payload : null
+  } catch {
+    return null
+  }
+}
+
+export function parseCredentialSubmissionMessage(
+  data: CredentialTagData,
+  content: string
+): boolean {
+  return parseCredentialSubmissionProgress(data, content) !== null
 }
 
 export interface MothershipErrorTagData {
@@ -189,7 +311,7 @@ function isUsageUpgradeTagData(value: unknown): value is UsageUpgradeTagData {
   )
 }
 
-function isCredentialTagData(value: unknown): value is CredentialTagData {
+function isCredentialItemData(value: unknown): value is CredentialItemData {
   if (!isRecord(value)) return false
   if (
     typeof value.type !== 'string' ||
@@ -239,6 +361,28 @@ function isCredentialTagData(value: unknown): value is CredentialTagData {
   // type (e.g. link) needs a string value to render.
   if (value.type === 'sim_key') return true
   return typeof value.value === 'string'
+}
+
+/**
+ * Parses a `<credential>` body and normalizes a singleton object to one row.
+ * Empty arrays and arrays containing one invalid control reject the whole card.
+ */
+export function parseCredentialTagBody(body: string): CredentialTagData | null {
+  try {
+    const parsed = JSON.parse(body) as unknown
+    const items = Array.isArray(parsed) ? parsed : [parsed]
+    return items.length > 0 && items.every(isCredentialItemData) ? items : null
+  } catch {
+    return null
+  }
+}
+
+/** Last complete credential batch, used to pair its Submit turn on reload. */
+export function parseLastCredentialTag(content: string): CredentialTagData | null {
+  const matches = content.match(/<credential>([\s\S]*?)<\/credential>/g)
+  if (!matches || matches.length === 0) return null
+  const last = matches[matches.length - 1]
+  return parseCredentialTagBody(last.slice('<credential>'.length, -'</credential>'.length))
 }
 
 function isMothershipErrorTagData(value: unknown): value is MothershipErrorTagData {
@@ -454,7 +598,7 @@ function parseSpecialTagData(
   }
 
   if (tagName === 'credential') {
-    const data = parseJsonTagBody(body, isCredentialTagData)
+    const data = parseCredentialTagBody(body)
     return data ? { type: 'credential', data } : null
   }
 
@@ -1233,4 +1377,29 @@ export function parseSpecialTags(content: string, isStreaming: boolean): ParsedS
   }
 
   return { segments, hasPendingTag }
+}
+
+const CREDENTIAL_CARD_TYPES: ReadonlySet<CredentialTagType> = new Set([
+  'secret_input',
+  'link',
+  'service_account',
+  'sim_key',
+])
+
+/** Whether one credential row is worth drawing for this viewer. */
+export function isCredentialCardItemVisible(item: CredentialItemData, canEdit: boolean): boolean {
+  if (item.type === 'sim_key') return true
+  if (item.type === 'secret_input') return item.scope === 'personal' || canEdit
+  if (item.type === 'link') {
+    return canEdit && Boolean(item.provider) && Boolean(item.value && isSafeHttpUrl(item.value))
+  }
+  return canEdit
+}
+
+export function credentialTagHasVisibleCard(data: CredentialTagData, canEdit: boolean): boolean {
+  return (
+    data.length > 0 &&
+    data.every((item) => CREDENTIAL_CARD_TYPES.has(item.type)) &&
+    data.some((item) => isCredentialCardItemVisible(item, canEdit))
+  )
 }

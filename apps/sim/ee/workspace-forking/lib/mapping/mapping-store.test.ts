@@ -5,6 +5,8 @@ import { describe, expect, it } from 'vitest'
 import {
   buildForkResolver,
   type ForkMappingRow,
+  type ForkMappingUpsert,
+  orientCopiedResourceMappings,
 } from '@/ee/workspace-forking/lib/mapping/mapping-store'
 
 const credentialRow: ForkMappingRow = {
@@ -14,6 +16,40 @@ const credentialRow: ForkMappingRow = {
   parentResourceId: 'cred-parent',
   childResourceId: 'cred-child',
 }
+
+const copiedEntry: ForkMappingUpsert = {
+  resourceType: 'knowledge_document',
+  parentResourceId: 'runtime-source-doc',
+  childResourceId: 'runtime-target-doc',
+}
+
+describe('orientCopiedResourceMappings', () => {
+  it('keeps fork/pull source-parent mappings in canonical orientation', () => {
+    expect(orientCopiedResourceMappings(true, [copiedEntry])).toEqual({
+      entries: [copiedEntry],
+      deleteKeys: [],
+    })
+  })
+
+  it('swaps push source-child mappings and removes the prior row keyed by that child', () => {
+    expect(orientCopiedResourceMappings(false, [copiedEntry])).toEqual({
+      entries: [
+        {
+          resourceType: 'knowledge_document',
+          parentResourceId: 'runtime-target-doc',
+          childResourceId: 'runtime-source-doc',
+        },
+      ],
+      deleteKeys: [{ resourceType: 'knowledge_document', childResourceId: 'runtime-source-doc' }],
+    })
+  })
+
+  it('does not produce a push mapping for an unmapped null target', () => {
+    expect(
+      orientCopiedResourceMappings(false, [{ ...copiedEntry, childResourceId: null }])
+    ).toEqual({ entries: [], deleteKeys: [] })
+  })
+})
 
 describe('buildForkResolver', () => {
   it('resolves source->target for a pull (source is parent)', () => {

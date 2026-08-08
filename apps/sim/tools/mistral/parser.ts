@@ -3,8 +3,8 @@ import { toError } from '@sim/utils/errors'
 import { generateRandomString } from '@sim/utils/random'
 import { isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
 import {
-  selectModelBoundFileInput,
-  selectPreferredModelBoundFileInput,
+  selectModelBoundFileInputPaths,
+  selectPreferredModelBoundFileInputPaths,
 } from '@/lib/uploads/utils/model-input'
 import type {
   MistralParserInput,
@@ -126,10 +126,12 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
   request: {
     modelInput: {
       mode: 'private-provenance',
-      select: (params) =>
-        selectPreferredModelBoundFileInput({
+      inputPaths: (params) =>
+        selectPreferredModelBoundFileInputPaths({
           file: params.file && typeof params.file === 'object' ? params.file : params.fileUpload,
           filePath: params.filePath,
+          fileInputPath: params.file && typeof params.file === 'object' ? ['file'] : ['fileUpload'],
+          filePathInputPath: ['filePath'],
           prefer: 'path',
           includeInlineBase64: true,
         }),
@@ -565,8 +567,8 @@ export const mistralParserV3Tool: ToolConfig<MistralParserV2Input, MistralParser
   request: {
     modelInput: {
       mode: 'private-provenance',
-      select: (params) =>
-        selectModelBoundFileInput(params.file, {
+      inputPaths: (params) =>
+        selectModelBoundFileInputPaths(params.file, ['file'], {
           includeInlineBase64: true,
         }),
     },

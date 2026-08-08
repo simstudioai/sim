@@ -1,5 +1,7 @@
 export type {
   ContentSegment,
+  CredentialItemData,
+  CredentialSubmissionPayload,
   CredentialTagData,
   CredentialTagType,
   FileTagData,
@@ -18,8 +20,14 @@ export type {
 } from '@/components/chat/special-tags/parse'
 export {
   CREDENTIAL_TAG_TYPES,
+  credentialTagHasVisibleCard,
+  formatCredentialSubmissionMessage,
+  parseCredentialSubmissionMessage,
+  parseCredentialSubmissionProgress,
+  parseCredentialTagBody,
   parseFileTag,
   parseJsonTagBody,
+  parseLastCredentialTag,
   parseLastQuestionTag,
   parseQuestionTagBody,
   parseSpecialTags,
@@ -31,6 +39,7 @@ export {
 } from '@/components/chat/special-tags/parse'
 export {
   CredentialDisplay,
+  PendingTagIndicator,
   SpecialTags,
   WorkspaceResourceDisplay,
 } from './special-tags'

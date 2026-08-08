@@ -148,24 +148,35 @@ export function useWorkspaceFiles(
 }
 
 /**
- * Back the file content source's image-dimension capability with workspace file metadata. Reads intrinsic
- * dimensions synchronously from the already-loaded active file list (so a stored image reserves its box on
- * the first render), and persists the browser's measured dimensions when they're absent or disagree with
- * what's stored — an overwrite, so a stale value (left over after a content swap, or a non-EXIF-corrected
- * one) self-corrects rather than sticking. The write is fire-and-forget and de-duped (an exact-match cache
- * check plus mismatch-only reporting from the caller), so it never storms, never blocks render, and never
- * touches the collaborative document.
+ * Back the file content source's image-dimension capability with workspace file metadata. Subscribes to
+ * the active file list ({@link useWorkspaceFiles}) and reads each image's stored intrinsic dimensions from
+ * it, so a stored image reserves its box before it downloads. A reactive read (not a one-shot
+ * `getQueryData`), so it also works on a cold direct file-view load where the list isn't cached until after
+ * the image first renders: the subscription re-runs the node view's dimension read once the list resolves.
+ * Persists the browser's measured dimensions when they're absent or disagree with what's stored — an
+ * overwrite, so a stale value (left over after a content swap, or a non-EXIF-corrected one) self-corrects
+ * rather than sticking. The write is fire-and-forget and de-duped (an exact-match cache check plus
+ * mismatch-only reporting from the caller), so it never storms, never blocks render, and never touches the
+ * collaborative document.
+ *
+ * A `null` workspace id turns the subscription off entirely and yields the no-op capability: that is a
+ * share source, which has no workspace file list to read and no write it may make. (Upstream expressed
+ * the same carve-out as an `enabled` option, because its caller passed a share token through the
+ * `workspaceId` slot — the axes make that unrepresentable.)
  */
 export function useWorkspaceImageDimensionsAdapter(
   workspaceId: string | null
 ): ImageDimensionsSource {
   const queryClient = useQueryClient()
+  const { data: files } = useWorkspaceFiles(workspaceId ?? '', 'active', {
+    enabled: Boolean(workspaceId),
+  })
   return useMemo<ImageDimensionsSource>(() => {
     // A share source has no workspace file list to read and no write it may make.
     if (!workspaceId) return NO_IMAGE_DIMENSIONS
     const listKey = workspaceFilesKeys.list(workspaceId, 'active')
     const findRecord = (src: string | undefined): WorkspaceFileRecord | undefined =>
-      findWorkspaceFileBySrc(queryClient.getQueryData<WorkspaceFileRecord[]>(listKey), src)
+      findWorkspaceFileBySrc(files, src)
     return {
       getImageDimensions: (src) => {
         const record = findRecord(src)
@@ -204,7 +215,7 @@ export function useWorkspaceImageDimensionsAdapter(
           .catch(() => {})
       },
     }
-  }, [queryClient, workspaceId])
+  }, [files, queryClient, workspaceId])
 }
 
 /**

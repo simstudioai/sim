@@ -8,11 +8,34 @@ import {
   OPAQUE_RESOLVED_SECRET_REPLACEMENT,
   sanitizeResolvedSecretPrimitive,
   sanitizeResolvedSecretString,
+  scanResolvedSecretString,
 } from '@/executor/utils/resolved-secret-matcher'
 
 const PRESERVE_NAMED_PROVENANCE = { preserveNamedProvenanceLabels: true } as const
 
 describe('resolved secret matcher', () => {
+  it('reports each matched literal once across large repeated content', () => {
+    const matcher = createResolvedSecretMatcher([
+      { plaintext: 'x', replacement: '{{SHORT}}' },
+      { plaintext: 'xx', replacement: '{{OVERLAP}}' },
+      { plaintext: 'abc', replacement: '{{PREFIX}}' },
+      { plaintext: 'bc', replacement: '{{SUFFIX}}' },
+    ])
+    const matches: string[] = []
+
+    expect(matcher).toBeDefined()
+    if (!matcher) return
+    expect(
+      scanResolvedSecretString(
+        `${'x'.repeat(1_000_001)}abcabc`,
+        matcher,
+        (match) => matches.push(match),
+        4
+      )
+    ).toBe(4)
+    expect(matches).toEqual(['x', 'xx', 'abc', 'bc'])
+  })
+
   it('uses exact matching for typed primitive renderings', () => {
     const matcher = createResolvedSecretMatcher([{ plaintext: '23', replacement: '{{TOKEN}}' }])
 

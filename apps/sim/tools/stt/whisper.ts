@@ -1,4 +1,4 @@
-import { selectSttAudioModelInput } from '@/tools/stt/model-input'
+import { selectSttAudioModelInputPaths } from '@/tools/stt/model-input'
 import type { SttParams, SttResponse, SttV2Params } from '@/tools/stt/types'
 import { STT_SEGMENT_OUTPUT_PROPERTIES } from '@/tools/stt/types'
 import type { ToolConfig } from '@/tools/types'
@@ -103,7 +103,7 @@ export const whisperSttTool: ToolConfig<WhisperSttParams, SttResponse> = {
         language: params.language,
         prompt: params.prompt,
       }),
-      privateProvenance: (params) => selectSttAudioModelInput(params, { includeName: true }),
+      privateInputPaths: (params) => selectSttAudioModelInputPaths(params, { includeName: true }),
     },
     url: '/api/tools/stt',
     method: 'POST',

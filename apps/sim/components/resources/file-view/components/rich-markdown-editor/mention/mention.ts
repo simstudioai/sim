@@ -25,7 +25,7 @@ export interface MentionStorage {
 
 declare module '@tiptap/core' {
   interface Storage {
-    mention: MentionStorage
+    mentionMenu: MentionStorage
   }
 }
 
@@ -35,10 +35,10 @@ declare module '@tiptap/core' {
  * entity inserts it as a portable `sim:<kind>/<id>` markdown link (same wire format as the chat
  * composer's `chip-clipboard-codec`), so it round-trips natively through the editor's link + markdown
  * machinery. The plugin's `items` is an empty gate; the real list is sourced reactively from the store
- * inside {@link MentionList}, populated by the host via the extension's `mention` storage.
+ * inside {@link MentionList}, populated by the host via the extension's `mentionMenu` storage.
  */
 export const Mention = Extension.create<Record<string, never>, MentionStorage>({
-  name: 'mention',
+  name: 'mentionMenu',
 
   addStorage() {
     return { store: createMentionStore(), onOpen: null, enabled: true, navigable: false }
@@ -53,7 +53,7 @@ export const Mention = Extension.create<Record<string, never>, MentionStorage>({
         allowSpaces: false,
         startOfLine: false,
         allow: ({ editor, range }) => {
-          if (!editor.storage.mention.enabled) return false
+          if (!editor.storage.mentionMenu.enabled) return false
           if (editor.isActive('codeBlock') || editor.isActive('link') || editor.isActive('code')) {
             return false
           }
@@ -78,10 +78,10 @@ export const Mention = Extension.create<Record<string, never>, MentionStorage>({
           mapProps: (props) => ({
             query: props.query,
             command: props.command,
-            store: props.editor.storage.mention.store,
+            store: props.editor.storage.mentionMenu.store,
             editor: props.editor,
           }),
-          onOpen: (props) => props.editor.storage.mention?.onOpen?.(),
+          onOpen: (props) => props.editor.storage.mentionMenu?.onOpen?.(),
         }),
       }),
     ]

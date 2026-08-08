@@ -27,6 +27,11 @@ export const loggingSessionMockFns = {
   mockWaitForPostExecution: vi.fn().mockResolvedValue(undefined),
   mockSetTrustedExecutionCorrelation: vi.fn(),
   mockSetExecutionDeadlineAt: vi.fn(),
+  mockExportResolvedSecretTraceProvenanceForValue: vi.fn().mockReturnValue({
+    version: 1,
+    complete: false,
+    entries: [],
+  }),
   mockProjectBlockLogsForDisplay: vi.fn(async (logs: unknown) => logs),
   mockProjectDisplayContent: vi.fn(async (content: unknown) => content),
   mockProjectLiveDisplayText: vi.fn(async (_field: string, value: string) => ({ value })),
@@ -59,6 +64,8 @@ function buildLoggingSessionInstance() {
     waitForPostExecution: loggingSessionMockFns.mockWaitForPostExecution,
     setTrustedExecutionCorrelation: loggingSessionMockFns.mockSetTrustedExecutionCorrelation,
     setExecutionDeadlineAt: loggingSessionMockFns.mockSetExecutionDeadlineAt,
+    exportResolvedSecretTraceProvenanceForValue:
+      loggingSessionMockFns.mockExportResolvedSecretTraceProvenanceForValue,
     projectBlockLogsForDisplay: loggingSessionMockFns.mockProjectBlockLogsForDisplay,
     projectDisplayContent: loggingSessionMockFns.mockProjectDisplayContent,
     projectLiveDisplayText: loggingSessionMockFns.mockProjectLiveDisplayText,

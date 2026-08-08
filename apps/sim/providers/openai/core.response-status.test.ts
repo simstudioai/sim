@@ -32,7 +32,6 @@ const { mockExecuteProviderTool } = vi.hoisted(() => ({
 
 vi.mock('@/providers/runtime-context', () => ({
   executeProviderTool: mockExecuteProviderTool,
-  projectProviderAttachmentFilenameForModel: (filename: string) => filename,
 }))
 
 function jsonResponse(body: unknown) {

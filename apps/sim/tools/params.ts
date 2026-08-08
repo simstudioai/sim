@@ -834,13 +834,16 @@ export function createExecutionToolSchema(toolConfig: ToolConfig): ToolSchema {
   return schema
 }
 
-/**
- * Filters out user-provided parameters from tool schema for LLM
- */
-export function filterSchemaForLLM(
-  originalSchema: ToolSchema,
+interface FilterableToolSchema {
+  properties?: Record<string, unknown>
+  required?: string[]
+}
+
+/** Filters user-provided parameters from any object-shaped tool schema sent to an LLM. */
+export function filterSchemaForLLM<T extends FilterableToolSchema>(
+  originalSchema: T,
   userProvidedParams: Record<string, unknown>
-): ToolSchema {
+): T {
   if (!originalSchema || !originalSchema.properties) {
     return originalSchema
   }
@@ -859,11 +862,10 @@ export function filterSchemaForLLM(
     }
   })
 
-  return {
-    ...originalSchema,
+  return Object.assign({}, originalSchema, {
     properties: filteredProperties,
     required: filteredRequired,
-  }
+  })
 }
 
 /**

@@ -433,7 +433,6 @@ export function createOpenAICompatStreamingToolLoopStream(
                   executionParams,
                   {
                     signal: loopAbortController.signal,
-                    toolInput: toolParams,
                   }
                 )
                 const toolCallEndTime = Date.now()

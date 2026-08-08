@@ -41,7 +41,7 @@ export const workflowExecutorTool: ToolConfig<
       request: (params) => [
         {
           key: WORKFLOW_EXECUTOR_INPUT_PROVENANCE_KEY,
-          value: normalizeWorkflowExecutorInput(params.inputMapping),
+          inputPaths: [['inputMapping']],
         },
       ],
       response: { incomplete: 'reject' },

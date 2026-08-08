@@ -158,12 +158,7 @@ import type {
   IterationContext,
   SerializableExecutionState,
 } from '@/executor/execution/types'
-import type {
-  BlockLog,
-  ExecutionResult,
-  NormalizedBlockOutput,
-  StreamingExecution,
-} from '@/executor/types'
+import type { BlockLog, NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
 import { getExecutionErrorStatus, hasExecutionResult } from '@/executor/utils/errors'
 import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
 import { Serializer } from '@/serializer'
@@ -203,7 +198,7 @@ function createExecutionJsonResponse(
   body: Record<string, unknown>,
   init: ResponseInit | undefined,
   includePrivateProvenance: boolean,
-  result?: ExecutionResult
+  loggingSession?: LoggingSession
 ): NextResponse {
   if (!includePrivateProvenance) {
     return NextResponse.json(body, init)
@@ -214,11 +209,12 @@ function createExecutionJsonResponse(
   return NextResponse.json(
     {
       ...body,
-      [RESOLVED_SECRET_PROVENANCE_FIELD]: result?.executionState?.resolvedSecretTraceProvenance ?? {
-        version: 1,
-        complete: false,
-        entries: [],
-      },
+      [RESOLVED_SECRET_PROVENANCE_FIELD]:
+        loggingSession?.exportResolvedSecretTraceProvenanceForValue(body) ?? {
+          version: 1,
+          complete: false,
+          entries: [],
+        },
     },
     { ...init, headers }
   )
@@ -1617,7 +1613,7 @@ async function handleExecutePost(
             },
             { status: 408 },
             includePrivateTraceProvenance,
-            result
+            loggingSession
           )
         }
 
@@ -1688,7 +1684,7 @@ async function handleExecutePost(
           filteredResult,
           undefined,
           includePrivateTraceProvenance,
-          result
+          loggingSession
         )
       } catch (error: unknown) {
         const executionTimedOut = didExecutionTimeOut(error)
@@ -1750,7 +1746,7 @@ async function handleExecutePost(
           },
           { status },
           includePrivateTraceProvenance,
-          executionResult
+          loggingSession
         )
       } finally {
         requestAbort.cleanup()

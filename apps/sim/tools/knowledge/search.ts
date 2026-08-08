@@ -89,7 +89,7 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
     method: 'POST',
     modelInput: {
       mode: 'private-provenance',
-      select: (params) => params.query,
+      inputPaths: () => [['query']],
     },
     secretProvenance: { response: { incomplete: 'reject' } },
     headers: () => ({

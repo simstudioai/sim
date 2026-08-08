@@ -210,4 +210,86 @@ describe('QuestionDisplay', () => {
     act(() => root.unmount())
     container.remove()
   })
+
+  it('uses Continue before the final multi-select page and Submit on the last page', () => {
+    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    const finalQuestion: QuestionItem = {
+      type: 'multi_select',
+      prompt: 'Which format should the report use?',
+      options: [{ id: 'pdf', label: 'PDF' }],
+    }
+
+    act(() => {
+      root.render(
+        createElement(QuestionDisplay, {
+          data: [QUESTIONS[2], finalQuestion],
+          onSelect: () => undefined,
+        })
+      )
+    })
+
+    const firstOption = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'EST'
+    )
+    act(() => firstOption?.click())
+
+    const continueButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Continue'
+    )
+    expect(continueButton).toBeDefined()
+    act(() => continueButton?.click())
+
+    expect(container.textContent).toContain(finalQuestion.prompt)
+    expect(
+      Array.from(container.querySelectorAll('button')).some(
+        (button) => button.textContent === 'Submit'
+      )
+    ).toBe(true)
+
+    act(() => root.unmount())
+    container.remove()
+  })
+
+  it('uses Continue before the final single-select page instead of advancing on selection', () => {
+    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    const onSelect = vi.fn()
+
+    act(() => {
+      root.render(
+        createElement(QuestionDisplay, {
+          data: QUESTIONS.slice(0, 2),
+          onSelect,
+        })
+      )
+    })
+
+    const firstOption = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Keep the newest entry'
+    )
+    act(() => firstOption?.click())
+
+    expect(container.textContent).toContain(QUESTIONS[0].prompt)
+    expect(onSelect).not.toHaveBeenCalled()
+    const continueButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Continue'
+    )
+    expect(continueButton?.disabled).toBe(false)
+    act(() => continueButton?.click())
+
+    expect(container.textContent).toContain(QUESTIONS[1].prompt)
+    expect(
+      Array.from(container.querySelectorAll('button')).some(
+        (button) => button.textContent === 'Submit'
+      )
+    ).toBe(true)
+
+    act(() => root.unmount())
+    container.remove()
+  })
 })

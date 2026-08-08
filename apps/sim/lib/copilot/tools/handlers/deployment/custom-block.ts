@@ -68,7 +68,6 @@ async function resolveIconUrl(
   if (record.size > MAX_ICON_BYTES) {
     throw new CustomBlockValidationError('Icon file must be 5MB or smaller')
   }
-
   const buffer = await fetchWorkspaceFileBuffer(record)
   const safeFileName = record.name.replace(/[^a-zA-Z0-9.-]/g, '_')
   const uploaded = await uploadFile({

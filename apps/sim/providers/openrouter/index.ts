@@ -20,10 +20,7 @@ import {
   createReadableStreamFromOpenAIStream,
   supportsNativeStructuredOutputs,
 } from '@/providers/openrouter/utils'
-import {
-  executeProviderTool,
-  projectProviderAttachmentFilenameForModel,
-} from '@/providers/runtime-context'
+import { executeProviderTool } from '@/providers/runtime-context'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
 import { isAbortError, parseToolArguments } from '@/providers/streaming-tool-loop-shared'
@@ -135,11 +132,7 @@ export const openRouterProvider: ProviderConfig = {
     if (request.messages) {
       allMessages.push(...request.messages)
     }
-    const formattedMessages = formatMessagesForProvider(
-      allMessages,
-      'openrouter',
-      projectProviderAttachmentFilenameForModel
-    ) as Message[]
+    const formattedMessages = formatMessagesForProvider(allMessages, 'openrouter') as Message[]
 
     const tools = request.tools?.length
       ? request.tools.map((tool) => adaptOpenAIChatToolSchema(tool))
@@ -319,7 +312,6 @@ export const openRouterProvider: ProviderConfig = {
               executionParams,
               {
                 signal: request.abortSignal,
-                toolInput: toolParams,
               }
             )
             const toolCallEndTime = Date.now()

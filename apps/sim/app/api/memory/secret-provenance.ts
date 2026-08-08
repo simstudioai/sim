@@ -57,18 +57,20 @@ export function resolveMemoryWriteSecretProvenance(options: {
   if (inspection.status !== 'verified' || options.authType !== AuthType.INTERNAL_JWT) {
     return { success: false, response: invalidMemoryProvenanceResponse() }
   }
-  if (
-    !isPrivateSecretProvenanceBundleV1(inspection.value) ||
-    !inspection.value.complete ||
-    inspection.value.selections.length !== 1
-  ) {
+  if (!isPrivateSecretProvenanceBundleV1(inspection.value)) {
+    return { success: false, response: invalidMemoryProvenanceResponse() }
+  }
+  if (!inspection.value.complete) {
+    return { success: true, provenance: { status: 'unknown' } }
+  }
+  if (inspection.value.selections.length !== 1) {
     return { success: false, response: invalidMemoryProvenanceResponse() }
   }
   const provenance = durableSecretProvenanceFromPrivateBundle(inspection.value, 'data', {
     userId: options.userId,
     workspaceId: options.workspaceId,
   })
-  return provenance?.status === 'exact'
+  return provenance
     ? { success: true, provenance }
     : { success: false, response: invalidMemoryProvenanceResponse() }
 }

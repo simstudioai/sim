@@ -31,7 +31,7 @@ import { assemblyaiSttTool, assemblyaiSttV2Tool } from '@/tools/stt/assemblyai'
 import { deepgramSttTool, deepgramSttV2Tool } from '@/tools/stt/deepgram'
 import { elevenLabsSttTool, elevenLabsSttV2Tool } from '@/tools/stt/elevenlabs'
 import { geminiSttTool, geminiSttV2Tool } from '@/tools/stt/gemini'
-import { selectSttAudioModelInput } from '@/tools/stt/model-input'
+import { selectSttAudioModelInputPaths } from '@/tools/stt/model-input'
 import { whisperSttTool, whisperSttV2Tool } from '@/tools/stt/whisper'
 import { crawlTool as tavilyCrawlTool } from '@/tools/tavily/crawl'
 import { mapTool as tavilyMapTool } from '@/tools/tavily/map'
@@ -42,25 +42,28 @@ import type { ToolConfig } from '@/tools/types'
 import { runwayVideoTool } from '@/tools/video/runway'
 import { visionTool } from '@/tools/vision/tool'
 
-function selectOpaqueModelInput(tool: ToolConfig, params: Record<string, unknown>): unknown {
+function selectOpaqueModelInputPaths(
+  tool: ToolConfig,
+  params: Record<string, unknown>
+): readonly (readonly string[])[] {
   const modelInput = tool.request.modelInput
   if (!modelInput) throw new Error(`Missing model-input descriptor for ${tool.id}`)
 
-  if (modelInput.mode === 'private-provenance') return modelInput.select(params)
-  if (!modelInput.privateProvenance) {
+  if (modelInput.mode === 'private-provenance') return modelInput.inputPaths(params)
+  if (!modelInput.privateInputPaths) {
     throw new Error(`Missing private provenance selector for ${tool.id}`)
   }
-  return modelInput.privateProvenance(params)
+  return modelInput.privateInputPaths(params)
 }
 
-function selectRejectedOpaqueModelInput(
+function selectRejectedOpaqueModelInputPaths(
   tool: ToolConfig,
   params: Record<string, unknown>
-): unknown {
+): readonly (readonly string[])[] {
   const opaqueModelInput = tool.request.opaqueModelInput
   if (!opaqueModelInput) throw new Error(`Missing opaque model-input descriptor for ${tool.id}`)
   expect(opaqueModelInput.mode).toBe('reject-resolved-secrets')
-  return opaqueModelInput.select(params)
+  return opaqueModelInput.inputPaths(params)
 }
 
 describe('opaque model-input selectors', () => {
@@ -72,19 +75,19 @@ describe('opaque model-input selectors', () => {
     textractParserTool,
   ])('%s mirrors legacy path-first input precedence', (tool) => {
     expect(
-      selectOpaqueModelInput(tool, {
+      selectOpaqueModelInputPaths(tool, {
         filePath: '  https://example.com/effective.pdf  ',
         file: { key: 'unused-file', metadata: 'unused-secret' },
         fileUpload: { key: 'unused-upload', metadata: 'unused-secret' },
       })
-    ).toBe('https://example.com/effective.pdf')
+    ).toEqual([['filePath']])
   })
 
   it.each([extendParserV2Tool, pulseParserV2Tool, reductoParserV2Tool, textractParserV2Tool])(
     '%s selects only the effective locator from normalized files',
     (tool) => {
       expect(
-        selectOpaqueModelInput(tool, {
+        selectOpaqueModelInputPaths(tool, {
           file: {
             key: 'effective-key',
             path: 'unused-path',
@@ -92,13 +95,13 @@ describe('opaque model-input selectors', () => {
             metadata: 'unused-secret',
           },
         })
-      ).toBeUndefined()
+      ).toEqual([])
     }
   )
 
   it('selects inline Mistral bytes without unrelated locators or metadata', () => {
     expect(
-      selectOpaqueModelInput(mistralParserV3Tool, {
+      selectOpaqueModelInputPaths(mistralParserV3Tool, {
         file: {
           base64: 'effective-bytes',
           key: 'unused-key',
@@ -106,52 +109,50 @@ describe('opaque model-input selectors', () => {
           metadata: 'unused-secret',
         },
       })
-    ).toEqual({ base64: 'effective-bytes' })
+    ).toEqual([['file', 'base64']])
   })
 
   it('selects only the active Textract source for sync and async requests', () => {
     expect(
-      selectOpaqueModelInput(textractParserTool, {
+      selectOpaqueModelInputPaths(textractParserTool, {
         processingMode: 'async',
         s3Uri: '  s3://bucket/effective.pdf  ',
         filePath: 'https://example.com/unused.pdf',
         file: { key: 'unused-key', metadata: 'unused-secret' },
       })
-    ).toBe('s3://bucket/effective.pdf')
+    ).toEqual([['s3Uri']])
 
     expect(
-      selectOpaqueModelInput(textractAnalyzeExpenseTool, {
+      selectOpaqueModelInputPaths(textractAnalyzeExpenseTool, {
         processingMode: 'sync',
         file: { key: 'effective-key', metadata: 'unused-secret' },
         filePath: 'https://example.com/unused.pdf',
         s3Uri: 's3://bucket/unused.pdf',
       })
-    ).toBeUndefined()
+    ).toEqual([])
 
     expect(
-      selectOpaqueModelInput(textractAnalyzeExpenseTool, {
+      selectOpaqueModelInputPaths(textractAnalyzeExpenseTool, {
         processingMode: 'async',
         s3Uri: '  s3://bucket/effective.pdf  ',
         file: { key: 'unused-key', metadata: 'unused-secret' },
       })
-    ).toBe('s3://bucket/effective.pdf')
+    ).toEqual([['s3Uri']])
   })
 
   it('mirrors independent front and back precedence for Textract Analyze ID', () => {
     expect(
-      selectOpaqueModelInput(textractAnalyzeIdTool, {
+      selectOpaqueModelInputPaths(textractAnalyzeIdTool, {
         file: { key: 'front-key', metadata: 'unused-secret' },
         filePath: 'https://example.com/unused-front.png',
         filePathBack: '  https://example.com/back.png  ',
       })
-    ).toEqual({
-      back: 'https://example.com/back.png',
-    })
+    ).toEqual([['filePathBack']])
   })
 
   it('selects only the image source actually used by Vision', () => {
     expect(
-      selectOpaqueModelInput(visionTool, {
+      selectOpaqueModelInputPaths(visionTool, {
         imageFile: {
           base64: 'effective-bytes',
           key: 'unused-key',
@@ -160,12 +161,12 @@ describe('opaque model-input selectors', () => {
         },
         imageUrl: 'https://example.com/unused.png',
       })
-    ).toEqual({ base64: 'effective-bytes' })
+    ).toEqual([['imageFile', 'base64']])
   })
 
   it('keeps A2A attachment metadata that is transmitted and drops everything else', () => {
     expect(
-      selectOpaqueModelInput(a2aSendMessageTool, {
+      selectOpaqueModelInputPaths(a2aSendMessageTool, {
         files: [
           {
             key: 'effective-key',
@@ -176,12 +177,12 @@ describe('opaque model-input selectors', () => {
           },
         ],
       })
-    ).toEqual([{ name: 'report.pdf' }])
+    ).toEqual([['files', '0', 'name']])
   })
 
   it('keeps Firecrawl upload metadata that is transmitted and drops passthrough fields', () => {
     expect(
-      selectOpaqueModelInput(firecrawlParseTool, {
+      selectOpaqueModelInputPaths(firecrawlParseTool, {
         file: {
           key: 'effective-key',
           path: 'unused-path',
@@ -190,7 +191,7 @@ describe('opaque model-input selectors', () => {
           metadata: 'unused-secret',
         },
       })
-    ).toEqual({ name: 'report.pdf' })
+    ).toEqual([['file', 'name']])
   })
 
   it('mirrors Fireflies source precedence without selecting unused file metadata', () => {
@@ -211,7 +212,7 @@ describe('opaque model-input selectors', () => {
     })
 
     expect(
-      selectOpaqueModelInput(firefliesUploadAudioTool, {
+      selectOpaqueModelInputPaths(firefliesUploadAudioTool, {
         audioFile: {
           key: 'effective-key',
           url: 'https://example.com/unused.mp3',
@@ -220,10 +221,10 @@ describe('opaque model-input selectors', () => {
         },
         audioUrl: 'https://example.com/unused-fallback.mp3',
       })
-    ).toBeUndefined()
+    ).toEqual([])
 
     expect(
-      selectOpaqueModelInput(firefliesUploadAudioTool, {
+      selectOpaqueModelInputPaths(firefliesUploadAudioTool, {
         audioFile: {
           url: 'https://example.com/effective.mp3',
           path: '/api/files/serve/unused.mp3',
@@ -231,13 +232,13 @@ describe('opaque model-input selectors', () => {
         },
         audioUrl: 'https://example.com/unused-fallback.mp3',
       })
-    ).toEqual({ url: 'https://example.com/effective.mp3' })
+    ).toEqual([['audioFile', 'url']])
 
     expect(
-      selectOpaqueModelInput(firefliesUploadAudioTool, {
+      selectOpaqueModelInputPaths(firefliesUploadAudioTool, {
         audioUrl: 'https://example.com/fallback.mp3',
       })
-    ).toBe('https://example.com/fallback.mp3')
+    ).toEqual([['audioUrl']])
   })
 
   it('normalizes Quiver file objects in both structured and serialized forms', () => {
@@ -247,17 +248,17 @@ describe('opaque model-input selectors', () => {
       metadata: 'unused-secret',
     })
 
-    expect(selectOpaqueModelInput(quiverImageToSvgTool, { image: serialized })).toBeUndefined()
+    expect(selectOpaqueModelInputPaths(quiverImageToSvgTool, { image: serialized })).toEqual([])
     expect(
-      selectOpaqueModelInput(quiverTextToSvgTool, {
+      selectOpaqueModelInputPaths(quiverTextToSvgTool, {
         references: [serialized, { path: 'effective-path', metadata: 'unused-secret' }],
       })
-    ).toEqual([{ path: 'effective-path' }])
+    ).toEqual([['references', '1', 'path']])
   })
 
   it('selects only STT source metadata that the target provider transmits', () => {
     expect(
-      selectSttAudioModelInput({
+      selectSttAudioModelInputPaths({
         audioFile: {
           key: 'uploaded-key',
           name: 'uploaded.mp3',
@@ -267,10 +268,10 @@ describe('opaque model-input selectors', () => {
         audioFileReference: { key: 'unused-reference' },
         audioUrl: 'https://example.com/unused.mp3',
       })
-    ).toBeUndefined()
+    ).toEqual([])
 
     expect(
-      selectSttAudioModelInput({
+      selectSttAudioModelInputPaths({
         audioFileReference: {
           key: 'reference-key',
           name: 'reference.wav',
@@ -279,10 +280,10 @@ describe('opaque model-input selectors', () => {
         },
         audioUrl: 'https://example.com/unused.mp3',
       })
-    ).toBeUndefined()
+    ).toEqual([])
 
     expect(
-      selectSttAudioModelInput(
+      selectSttAudioModelInputPaths(
         {
           audioFile: {
             key: 'uploaded-key',
@@ -294,11 +295,11 @@ describe('opaque model-input selectors', () => {
         },
         { includeName: true }
       )
-    ).toEqual({ name: 'uploaded.mp3' })
+    ).toEqual([['audioFile', 'name']])
 
-    expect(selectSttAudioModelInput({ audioUrl: '  https://example.com/audio.mp3  ' })).toBe(
-      'https://example.com/audio.mp3'
-    )
+    expect(
+      selectSttAudioModelInputPaths({ audioUrl: '  https://example.com/audio.mp3  ' })
+    ).toEqual([['audioUrl']])
   })
 
   it.each([
@@ -318,9 +319,9 @@ describe('opaque model-input selectors', () => {
     if (modelInput?.mode !== 'project') {
       throw new Error(`Missing shared STT metadata projection for ${tool.id}`)
     }
-    expect(modelInput.privateProvenance).toBeDefined()
+    expect(modelInput.privateInputPaths).toBeDefined()
     expect(
-      modelInput.privateProvenance?.({
+      modelInput.privateInputPaths?.({
         audioFileReference: {
           key: 'effective-key',
           name: 'audio.mp3',
@@ -329,7 +330,7 @@ describe('opaque model-input selectors', () => {
         },
         audioUrl: 'https://example.com/unused.mp3',
       })
-    ).toEqual(tool.id.startsWith('stt_whisper') ? { name: 'audio.mp3' } : undefined)
+    ).toEqual(tool.id.startsWith('stt_whisper') ? [['audioFileReference', 'name']] : [])
     expect(modelInput.select({ language: 'en', prompt: 'Proper noun' })).toEqual(
       tool.id.startsWith('stt_whisper')
         ? { language: 'en', prompt: 'Proper noun' }
@@ -350,7 +351,7 @@ describe('opaque model-input selectors', () => {
     geminiSttV2Tool,
   ])('$id selects only opaque STT metadata transmitted upstream', (tool) => {
     expect(
-      selectOpaqueModelInput(tool, {
+      selectOpaqueModelInputPaths(tool, {
         audioFileReference: {
           key: 'effective-key',
           name: 'audio.mp3',
@@ -359,12 +360,12 @@ describe('opaque model-input selectors', () => {
         },
         audioUrl: 'https://example.com/unused.mp3',
       })
-    ).toEqual(tool.id.startsWith('stt_whisper') ? { name: 'audio.mp3' } : undefined)
+    ).toEqual(tool.id.startsWith('stt_whisper') ? [['audioFileReference', 'name']] : [])
   })
 
   it('selects only the Runway visual reference fields consumed by the provider', () => {
     expect(
-      selectOpaqueModelInput(runwayVideoTool, {
+      selectOpaqueModelInputPaths(runwayVideoTool, {
         visualReference: {
           key: 'effective-key',
           type: 'image/png',
@@ -372,14 +373,14 @@ describe('opaque model-input selectors', () => {
           metadata: 'unused-secret',
         },
       })
-    ).toBeUndefined()
+    ).toEqual([])
   })
 
   it.each([elevenLabsSpeechToSpeechTool, elevenLabsAudioIsolationTool])(
     '$id selects only the audio source consumed by ElevenLabs',
     (tool) => {
       expect(
-        selectOpaqueModelInput(tool, {
+        selectOpaqueModelInputPaths(tool, {
           audioFile: {
             key: 'effective-key',
             name: 'audio.wav',
@@ -387,127 +388,115 @@ describe('opaque model-input selectors', () => {
             metadata: 'unused-secret',
           },
         })
-      ).toEqual({ name: 'audio.wav' })
+      ).toEqual([['audioFile', 'name']])
     }
   )
 
   it.each([
-    [
-      exaFindSimilarLinksTool,
-      { url: 'https://example.com/similar' },
-      'https://example.com/similar',
-    ],
-    [firecrawlAgentTool, { urls: ['https://example.com/agent'] }, ['https://example.com/agent']],
-    [
-      firecrawlExtractTool,
-      { urls: ['https://example.com/extract'] },
-      ['https://example.com/extract'],
-    ],
-    [contextDevExtractTool, { url: 'https://example.com/extract' }, 'https://example.com/extract'],
-    [
-      contextDevExtractProductTool,
-      { url: 'https://example.com/product' },
-      'https://example.com/product',
-    ],
-    [contextDevExtractProductsTool, { domain: 'example.com' }, 'example.com'],
-    [browserUseRunTaskTool, { startUrl: 'https://example.com/start' }, 'https://example.com/start'],
+    [exaFindSimilarLinksTool, { url: 'https://example.com/similar' }, [['url']]],
+    [firecrawlAgentTool, { urls: ['https://example.com/agent'] }, [['urls']]],
+    [firecrawlExtractTool, { urls: ['https://example.com/extract'] }, [['urls']]],
+    [contextDevExtractTool, { url: 'https://example.com/extract' }, [['url']]],
+    [contextDevExtractProductTool, { url: 'https://example.com/product' }, [['url']]],
+    [contextDevExtractProductsTool, { domain: 'example.com' }, [['domain']]],
+    [browserUseRunTaskTool, { startUrl: 'https://example.com/start' }, [['startUrl']]],
   ])('$id selects its exact always-model-bound opaque input', (tool, params, expected) => {
-    expect(selectRejectedOpaqueModelInput(tool, params)).toStrictEqual(expected)
+    expect(selectRejectedOpaqueModelInputPaths(tool, params)).toStrictEqual(expected)
   })
 
   it('selects Exa content URLs only when summaries are model-generated', () => {
     expect(
-      selectRejectedOpaqueModelInput(exaGetContentsTool, {
+      selectRejectedOpaqueModelInputPaths(exaGetContentsTool, {
         urls: 'https://example.com/plain',
         summary: false,
       })
-    ).toBeUndefined()
+    ).toEqual([])
     expect(
-      selectRejectedOpaqueModelInput(exaGetContentsTool, {
+      selectRejectedOpaqueModelInputPaths(exaGetContentsTool, {
         urls: 'https://example.com/summary',
         summary: true,
       })
-    ).toBe('https://example.com/summary')
+    ).toEqual([['urls']])
     expect(
-      selectRejectedOpaqueModelInput(exaGetContentsTool, {
+      selectRejectedOpaqueModelInputPaths(exaGetContentsTool, {
         urls: 'https://example.com/query',
         summaryQuery: 'Summarize this',
       })
-    ).toBe('https://example.com/query')
+    ).toEqual([['urls']])
   })
 
   it('selects Firecrawl URLs only for formats or prompts that invoke models', () => {
     expect(
-      selectRejectedOpaqueModelInput(firecrawlScrapeTool, {
+      selectRejectedOpaqueModelInputPaths(firecrawlScrapeTool, {
         url: 'https://example.com/plain',
         formats: ['markdown'],
       })
-    ).toBeUndefined()
+    ).toEqual([])
     expect(
-      selectRejectedOpaqueModelInput(firecrawlScrapeTool, {
+      selectRejectedOpaqueModelInputPaths(firecrawlScrapeTool, {
         url: 'https://example.com/json',
         formats: [{ type: 'json', schema: { type: 'object' } }],
       })
-    ).toBe('https://example.com/json')
+    ).toEqual([['url']])
     expect(
-      selectRejectedOpaqueModelInput(firecrawlScrapeTool, {
+      selectRejectedOpaqueModelInputPaths(firecrawlScrapeTool, {
         url: 'https://example.com/string-json',
         formats: ['json'],
       })
-    ).toBe('https://example.com/string-json')
+    ).toEqual([['url']])
     expect(
-      selectRejectedOpaqueModelInput(firecrawlBatchScrapeTool, {
+      selectRejectedOpaqueModelInputPaths(firecrawlBatchScrapeTool, {
         urls: ['https://example.com/question'],
         scrapeOptions: { formats: [{ type: 'question', question: 'What changed?' }] },
       })
-    ).toStrictEqual(['https://example.com/question'])
+    ).toStrictEqual([['urls']])
     expect(
-      selectRejectedOpaqueModelInput(firecrawlCrawlTool, {
+      selectRejectedOpaqueModelInputPaths(firecrawlCrawlTool, {
         url: 'https://example.com/plain-crawl',
         formats: ['markdown'],
       })
-    ).toBeUndefined()
+    ).toEqual([])
     expect(
-      selectRejectedOpaqueModelInput(firecrawlCrawlTool, {
+      selectRejectedOpaqueModelInputPaths(firecrawlCrawlTool, {
         url: 'https://example.com/prompted-crawl',
         prompt: 'Focus on pricing',
       })
-    ).toBe('https://example.com/prompted-crawl')
+    ).toEqual([['url']])
   })
 
   it.each([tavilyCrawlTool, tavilyMapTool])(
     '$id selects its URL only when natural-language instructions are active',
     (tool) => {
       expect(
-        selectRejectedOpaqueModelInput(tool, {
+        selectRejectedOpaqueModelInputPaths(tool, {
           url: 'https://example.com/plain',
         })
-      ).toBeUndefined()
+      ).toEqual([])
       expect(
-        selectRejectedOpaqueModelInput(tool, {
+        selectRejectedOpaqueModelInputPaths(tool, {
           url: 'https://example.com/instructed',
           instructions: 'Find pricing',
         })
-      ).toBe('https://example.com/instructed')
+      ).toEqual([['url']])
     }
   )
 
   it('selects Jina Reader URLs only for ReaderLM or generated-alt processing', () => {
     expect(
-      selectRejectedOpaqueModelInput(jinaReadUrlTool, { url: 'https://example.com/plain' })
-    ).toBeUndefined()
+      selectRejectedOpaqueModelInputPaths(jinaReadUrlTool, { url: 'https://example.com/plain' })
+    ).toEqual([])
     expect(
-      selectRejectedOpaqueModelInput(jinaReadUrlTool, {
+      selectRejectedOpaqueModelInputPaths(jinaReadUrlTool, {
         url: 'https://example.com/readerlm',
         useReaderLMv2: true,
       })
-    ).toBe('https://example.com/readerlm')
+    ).toEqual([['url']])
     expect(
-      selectRejectedOpaqueModelInput(jinaReadUrlTool, {
+      selectRejectedOpaqueModelInputPaths(jinaReadUrlTool, {
         url: 'https://example.com/alt',
         withGeneratedAlt: true,
       })
-    ).toBe('https://example.com/alt')
+    ).toEqual([['url']])
   })
 
   it.each([launchAgentTool, launchAgentV2Tool, addFollowupTool, addFollowupV2Tool])(
@@ -516,10 +505,12 @@ describe('opaque model-input selectors', () => {
       const promptImages = JSON.stringify([
         { data: 'quote" slash\\ newline\n123 true', dimension: { width: 10, height: 20 } },
       ])
-      expect(selectRejectedOpaqueModelInput(tool, { promptImages })).toStrictEqual([
-        { data: 'quote" slash\\ newline\n123 true', dimension: { width: 10, height: 20 } },
+      expect(selectRejectedOpaqueModelInputPaths(tool, { promptImages })).toStrictEqual([
+        ['promptImages'],
       ])
-      expect(selectRejectedOpaqueModelInput(tool, { promptImages: 'not-json' })).toStrictEqual([])
+      expect(selectRejectedOpaqueModelInputPaths(tool, { promptImages: 'not-json' })).toStrictEqual(
+        []
+      )
     }
   )
 })

@@ -632,7 +632,7 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     ])
   })
 
-  it('reconstructs current catalog provenance for a trusted legacy resume', async () => {
+  it('keeps configured secrets inert for a trusted legacy resume without a provenance checkpoint', async () => {
     getPersonalAndWorkspaceEnvMock.mockResolvedValue({
       personalEncrypted: {},
       workspaceEncrypted: { LEGACY_SECRET: 'old-secret-ciphertext' },
@@ -672,9 +672,7 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
 
     const registry = setResolvedSecretTraceRegistryMock.mock.calls[0]?.[0]
     expect(registry.isComplete()).toBe(true)
-    expect(registry.getActiveMatches()).toEqual([
-      { plaintext: 'old-secret-value', replacement: '{{LEGACY_SECRET}}' },
-    ])
+    expect(registry.getActiveMatches()).toEqual([])
   })
 
   it('accepts an empty trusted legacy resume after bounded reconstruction', async () => {
@@ -1311,7 +1309,13 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     }
 
     Object.assign(error, { executionResult })
-    executorExecuteMock.mockRejectedValue(error)
+    executorExecuteMock.mockImplementation(async () => {
+      const registry =
+        executorConstructorMock.mock.calls.at(-1)?.[0]?.contextExtensions
+          ?.resolvedSecretTraceRegistry
+      expect(registry.recordResolved('API_KEY', secret)).toBe(true)
+      throw error
+    })
 
     await expect(
       executeWorkflowCore({

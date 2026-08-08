@@ -256,8 +256,7 @@ interface WorkflowExecutionProvenance {
 
 async function consumeWorkflowExecutionProvenance(
   response: Response,
-  value: unknown,
-  scope: { userId: string; workspaceId: string }
+  value: unknown
 ): Promise<WorkflowExecutionProvenance> {
   const inspection = inspectPrivateToolMetadataEnvelope(
     response.headers,
@@ -265,8 +264,7 @@ async function consumeWorkflowExecutionProvenance(
     RESOLVED_SECRET_PROVENANCE_METADATA_V1
   )
   if (inspection.status === 'unsupported') {
-    if (!response.ok) return { value, hasPrivateProvenance: false }
-    throw new Error('MCP workflow execution provenance is unavailable')
+    return { value, hasPrivateProvenance: false }
   }
   if (inspection.status === 'invalid' || !isJsonObject(value)) {
     throw new Error('MCP workflow execution provenance is invalid')
@@ -912,10 +910,7 @@ async function handleToolsCall(
     })
 
     const rawExecuteResult = await readWorkflowExecutionResult(response, abortSignal.signal)
-    const provenance = await consumeWorkflowExecutionProvenance(response, rawExecuteResult, {
-      userId: actorUserId,
-      workspaceId: wf.workspaceId,
-    })
+    const provenance = await consumeWorkflowExecutionProvenance(response, rawExecuteResult)
     const executeResult = provenance.value
     const executeResultObject = isJsonObject(executeResult) ? executeResult : null
 
@@ -959,17 +954,12 @@ async function handleToolsCall(
         : executeResultObject && hasResponseField(executeResultObject, 'output')
           ? executeResultObject.output
           : executeResult
-    if (!provenance.hasPrivateProvenance) {
-      throw new Error('MCP workflow execution provenance is unavailable')
-    }
-    const projectedToolOutput = await projectWorkflowMcpModelContent(
-      toolOutput,
-      provenance.privateProvenance,
-      {
-        userId: actorUserId,
-        workspaceId: wf.workspaceId,
-      }
-    )
+    const projectedToolOutput = provenance.hasPrivateProvenance
+      ? await projectWorkflowMcpModelContent(toolOutput, provenance.privateProvenance, {
+          userId: actorUserId,
+          workspaceId: wf.workspaceId,
+        })
+      : toolOutput
     const result: CallToolResult = {
       content: [{ type: 'text', text: serializeToolText(projectedToolOutput) }],
       isError: executeResultObject?.success === false,

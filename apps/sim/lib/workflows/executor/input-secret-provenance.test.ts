@@ -74,6 +74,49 @@ describe('resolveWorkflowInputSecretProvenance', () => {
     ).resolves.toEqual({ success: true })
   })
 
+  it('propagates an authenticated incomplete bundle without rejecting the workflow input', async () => {
+    await expect(
+      resolveWorkflowInputSecretProvenance({
+        headers: createHeaders(),
+        payload: {
+          input: { token: 'secret-value' },
+          [PRIVATE_SECRET_PROVENANCE_FIELD]: {
+            version: 1,
+            complete: false,
+            selections: [],
+          },
+        },
+        input: { input: { token: 'secret-value' } },
+        isInternalJwt: true,
+        workspaceId: 'workspace-1',
+      })
+    ).resolves.toEqual({
+      success: true,
+      provenance: { version: 1, complete: false, entries: [] },
+    })
+  })
+
+  it('propagates an authenticated incomplete input selection without decrypting secrets', async () => {
+    await expect(
+      resolveWorkflowInputSecretProvenance({
+        headers: createHeaders(),
+        payload: createPayload({
+          version: 1,
+          complete: false,
+          entries: [],
+          scope: { userId: 'parent-owner', workspaceId: 'workspace-1' },
+        }),
+        input: { input: { token: 'secret-value' } },
+        isInternalJwt: true,
+        workspaceId: 'workspace-1',
+      })
+    ).resolves.toEqual({
+      success: true,
+      provenance: { version: 1, complete: false, entries: [] },
+    })
+    expect(encryptionMockFns.mockDecryptSecret).not.toHaveBeenCalled()
+  })
+
   it.each([
     {
       name: 'marker without a sidecar',
@@ -122,21 +165,6 @@ describe('resolveWorkflowInputSecretProvenance', () => {
       input: { input: { token: 'secret-value' } },
       isInternalJwt: true,
       workspaceId: '',
-    },
-    {
-      name: 'incomplete bundle',
-      headers: createHeaders(),
-      payload: {
-        input: { token: 'secret-value' },
-        [PRIVATE_SECRET_PROVENANCE_FIELD]: {
-          version: 1,
-          complete: false,
-          selections: [],
-        },
-      },
-      input: { input: { token: 'secret-value' } },
-      isInternalJwt: true,
-      workspaceId: 'workspace-1',
     },
     {
       name: 'provenance not present in the selected input',
