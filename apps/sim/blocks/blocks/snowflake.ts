@@ -24,7 +24,7 @@ const sqlSubmissionOperations = [
   'get_task_run_output',
   'introspect_schema',
   'call_procedure',
-]
+] as const
 
 const computeOperations = [
   'execute_sql',
@@ -39,7 +39,7 @@ const computeOperations = [
   'get_task_run_output',
   'introspect_schema',
   'call_procedure',
-]
+] as const
 
 const maxRowsOperations = [
   'execute_sql',
@@ -48,12 +48,21 @@ const maxRowsOperations = [
   'get_task_run_output',
   'introspect_schema',
   'call_procedure',
-]
+] as const
 
-const dataOperations = ['insert_rows', 'update_rows', 'upsert_rows', 'delete_rows', 'load_data']
-const taskDefinitionOperations = ['list_tasks', 'get_task', 'run_task']
+const dataOperations = [
+  'insert_rows',
+  'update_rows',
+  'upsert_rows',
+  'delete_rows',
+  'load_data',
+] as const
+const taskDefinitionOperations = ['list_tasks', 'get_task', 'run_task'] as const
 
-function copyOnError(value: unknown, threshold: unknown): string | undefined {
+const sqlSubmissionOperationSet: ReadonlySet<string> = new Set(sqlSubmissionOperations)
+const maxRowsOperationSet: ReadonlySet<string> = new Set(maxRowsOperations)
+
+function resolveCopyOnError(value: unknown, threshold: unknown): string | undefined {
   if (value === undefined || value === null || value === '') return undefined
   if (value !== 'SKIP_FILE_NUMBER' && value !== 'SKIP_FILE_PERCENT') return String(value)
 
@@ -80,7 +89,7 @@ export const SnowflakeBlock: BlockConfig<SnowflakeStatementResponse> = {
   docsLink: 'https://docs.sim.ai/integrations/snowflake',
   category: 'tools',
   integrationType: IntegrationType.Databases,
-  bgColor: '#F7FBFD',
+  bgColor: '#FFFFFF',
   icon: SnowflakeIcon,
   subBlocks: [
     {
@@ -105,7 +114,7 @@ export const SnowflakeBlock: BlockConfig<SnowflakeStatementResponse> = {
         { label: 'Run Task', id: 'run_task' },
         { label: 'List Task Runs', id: 'list_task_runs' },
         { label: 'Get Task Run', id: 'get_task_run' },
-        { label: 'Cancel Task Run', id: 'cancel_task_run' },
+        { label: 'Cancel Task Query', id: 'cancel_task_run' },
         { label: 'Get Task Run Output', id: 'get_task_run_output' },
         { label: 'Introspect Schema', id: 'introspect_schema' },
         { label: 'Call Procedure', id: 'call_procedure' },
@@ -154,6 +163,14 @@ export const SnowflakeBlock: BlockConfig<SnowflakeStatementResponse> = {
       title: 'Result Partition',
       type: 'short-input',
       placeholder: '0',
+      condition: { field: 'operation', value: 'get_statement' },
+      mode: 'advanced',
+    },
+    {
+      id: 'partitionCount',
+      title: 'Total Partitions',
+      type: 'short-input',
+      placeholder: 'partitionCount from the first partition',
       condition: { field: 'operation', value: 'get_statement' },
       mode: 'advanced',
     },
@@ -208,7 +225,7 @@ export const SnowflakeBlock: BlockConfig<SnowflakeStatementResponse> = {
       type: 'short-input',
       placeholder: 'EVENTS',
       condition: { field: 'operation', value: [...dataOperations, 'introspect_schema'] },
-      required: { field: 'operation', value: dataOperations },
+      required: { field: 'operation', value: [...dataOperations] },
     },
     {
       id: 'rows',
@@ -240,15 +257,15 @@ export const SnowflakeBlock: BlockConfig<SnowflakeStatementResponse> = {
     },
     {
       id: 'filters',
-      title: 'Equality Filters',
+      title: 'Match Filters',
       type: 'code',
-      placeholder: '{"status":"expired","tenant_id":42}',
+      placeholder: '{"status":"expired","tenant_id":42,"archived_at":null}',
       condition: { field: 'operation', value: 'delete_rows' },
       required: { field: 'operation', value: 'delete_rows' },
       wandConfig: {
         enabled: true,
         prompt:
-          'Generate a non-empty JSON object of column equality filters. All filters are combined with AND. Return ONLY the JSON object - no explanations, no extra text.',
+          'Generate a non-empty JSON object of column filters. All filters are combined with AND. A null value matches rows where that column IS NULL; every other value is matched for equality. Return ONLY the JSON object - no explanations, no extra text.',
         placeholder: 'Describe the exact rows to delete...',
       },
     },
@@ -275,6 +292,12 @@ export const SnowflakeBlock: BlockConfig<SnowflakeStatementResponse> = {
       placeholder: '.*[.]csv',
       condition: { field: 'operation', value: 'load_data' },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a single regular expression that COPY INTO uses to select staged file paths, for example .*[.]csv or .*/2026/08/.*[.]json[.]gz. Use only regular expression syntax and no quotes. Return ONLY the pattern - no explanations, no extra text.',
+        placeholder: 'Describe which staged files to load...',
+      },
     },
     {
       id: 'onError',
@@ -356,12 +379,18 @@ export const SnowflakeBlock: BlockConfig<SnowflakeStatementResponse> = {
       placeholder: 'ETL%',
       condition: { field: 'operation', value: ['list_warehouses', 'list_tasks'] },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a single SQL LIKE pattern that matches Snowflake object names, using % for any sequence and _ for one character, for example ETL%. Use only the pattern and no quotes. Return ONLY the pattern - no explanations, no extra text.',
+        placeholder: 'Describe which object names to match...',
+      },
     },
     {
       id: 'taskName',
       title: 'Task Name',
       type: 'short-input',
-      placeholder: 'DAILY_LOAD',
+      placeholder: 'DAILY_LOAD (name only, not DB.SCHEMA.TASK)',
       condition: {
         field: 'operation',
         value: ['get_task', 'run_task', 'list_task_runs', 'get_task_run'],
@@ -415,7 +444,7 @@ export const SnowflakeBlock: BlockConfig<SnowflakeStatementResponse> = {
     },
     {
       id: 'errorOnly',
-      title: 'Errors Only',
+      title: 'Failed and Cancelled Only',
       type: 'switch',
       condition: { field: 'operation', value: 'list_task_runs' },
       mode: 'advanced',
@@ -468,7 +497,7 @@ export const SnowflakeBlock: BlockConfig<SnowflakeStatementResponse> = {
       title: 'Execution Warehouse',
       type: 'short-input',
       placeholder: 'COMPUTE_WH',
-      condition: { field: 'operation', value: computeOperations },
+      condition: { field: 'operation', value: [...computeOperations] },
       mode: 'advanced',
     },
     {
@@ -476,7 +505,7 @@ export const SnowflakeBlock: BlockConfig<SnowflakeStatementResponse> = {
       title: 'Execution Role',
       type: 'short-input',
       placeholder: 'ANALYST',
-      condition: { field: 'operation', value: sqlSubmissionOperations },
+      condition: { field: 'operation', value: [...sqlSubmissionOperations] },
       mode: 'advanced',
     },
     {
@@ -484,7 +513,7 @@ export const SnowflakeBlock: BlockConfig<SnowflakeStatementResponse> = {
       title: 'Timeout (seconds)',
       type: 'short-input',
       placeholder: '60',
-      condition: { field: 'operation', value: sqlSubmissionOperations },
+      condition: { field: 'operation', value: [...sqlSubmissionOperations] },
       mode: 'advanced',
     },
     {
@@ -494,7 +523,7 @@ export const SnowflakeBlock: BlockConfig<SnowflakeStatementResponse> = {
       placeholder: '1000',
       condition: {
         field: 'operation',
-        value: maxRowsOperations,
+        value: [...maxRowsOperations],
       },
       mode: 'advanced',
     },
@@ -544,13 +573,13 @@ export const SnowflakeBlock: BlockConfig<SnowflakeStatementResponse> = {
         const operation = String(params.operation)
         const result: Record<string, unknown> = {}
 
-        if (sqlSubmissionOperations.includes(operation)) {
+        if (sqlSubmissionOperationSet.has(operation)) {
           result.statementTimeoutSeconds = parseOptionalNumberInput(
             params.statementTimeoutSeconds,
             'Statement timeout'
           )
         }
-        if (maxRowsOperations.includes(operation)) {
+        if (maxRowsOperationSet.has(operation)) {
           result.maxRows = parseOptionalNumberInput(params.maxRows, 'Maximum result rows')
         }
 
@@ -560,6 +589,10 @@ export const SnowflakeBlock: BlockConfig<SnowflakeStatementResponse> = {
             break
           case 'get_statement':
             result.partition = parseOptionalNumberInput(params.partition, 'Partition')
+            result.partitionCount = parseOptionalNumberInput(
+              params.partitionCount,
+              'Total partitions'
+            )
             break
           case 'insert_rows':
             result.rows = parseOptionalJsonInput(params.rows, 'Rows')
@@ -573,7 +606,8 @@ export const SnowflakeBlock: BlockConfig<SnowflakeStatementResponse> = {
             result.filters = parseOptionalJsonInput(params.filters, 'Filters')
             break
           case 'load_data':
-            result.onError = copyOnError(params.onError, params.onErrorThreshold)
+            result.onError = resolveCopyOnError(params.onError, params.onErrorThreshold)
+            result.onErrorThreshold = undefined
             break
           case 'list_tasks':
             result.limit = parseOptionalNumberInput(params.limit, 'Task limit')
@@ -604,12 +638,29 @@ export const SnowflakeBlock: BlockConfig<SnowflakeStatementResponse> = {
     async: { type: 'boolean', description: 'Run the SQL statement asynchronously' },
     statementHandle: { type: 'string', description: 'Snowflake SQL API statement handle' },
     partition: { type: 'number', description: 'Zero-based result partition' },
+    partitionCount: {
+      type: 'number',
+      description:
+        'Total result partitions, taken from the first partition. Required for accurate truncation reporting when fetching partition 1 or higher',
+    },
     database: { type: 'string', description: 'Snowflake database name' },
     schema: { type: 'string', description: 'Snowflake schema name' },
     table: { type: 'string', description: 'Snowflake table name' },
-    rows: { type: 'string', description: 'Structured rows as a JSON array' },
-    matchColumns: { type: 'string', description: 'Match columns as a JSON array' },
-    filters: { type: 'string', description: 'Equality filters as a JSON object' },
+    rows: {
+      type: 'string',
+      description:
+        'Structured rows as a JSON array. Max 1000 rows and 1 MB of bound data per call - stage the files and use Load Data for bulk ingest.',
+    },
+    matchColumns: {
+      type: 'string',
+      description:
+        'Match columns as a JSON array. Match values must be non-null and unique across the submitted rows.',
+    },
+    filters: {
+      type: 'string',
+      description:
+        'Column filters as a JSON object. A null value matches rows where that column IS NULL; every other value is matched for equality',
+    },
     stagePath: { type: 'string', description: 'Existing Snowflake stage path' },
     fileFormat: { type: 'string', description: 'Named Snowflake file format' },
     pattern: { type: 'string', description: 'COPY file selection pattern' },
@@ -620,14 +671,27 @@ export const SnowflakeBlock: BlockConfig<SnowflakeStatementResponse> = {
     matchByColumnName: { type: 'string', description: 'COPY column-name matching policy' },
     warehouseName: { type: 'string', description: 'Warehouse to retrieve or change' },
     nameLike: { type: 'string', description: 'SQL LIKE pattern for object names' },
-    taskName: { type: 'string', description: 'Snowflake task name' },
+    taskName: {
+      type: 'string',
+      description:
+        'Snowflake task name without a database or schema qualifier, for example DAILY_LOAD',
+    },
     retryLast: { type: 'boolean', description: 'Retry the last failed task graph' },
     limit: { type: 'number', description: 'Maximum list results' },
-    startTime: { type: 'string', description: 'Task history start timestamp' },
-    endTime: { type: 'string', description: 'Task history end timestamp' },
-    errorOnly: { type: 'boolean', description: 'Only return failed task runs' },
-    queryId: { type: 'string', description: 'Task run query UUID' },
-    includeViews: { type: 'boolean', description: 'Include views in schema introspection' },
+    startTime: { type: 'string', description: 'Task history scheduled-time range start' },
+    endTime: { type: 'string', description: 'Task history scheduled-time range end' },
+    errorOnly: {
+      type: 'boolean',
+      description: 'Only return task runs that failed or were cancelled',
+    },
+    queryId: {
+      type: 'string',
+      description: 'Task run query UUID. Cancel Task Query cancels only this single query',
+    },
+    includeViews: {
+      type: 'boolean',
+      description: 'Include views and materialized views alongside tables',
+    },
     procedureName: { type: 'string', description: 'Stored procedure name' },
     procedureArguments: {
       type: 'string',
@@ -645,7 +709,7 @@ export const SnowflakeBlock: BlockConfig<SnowflakeStatementResponse> = {
     result: {
       type: 'json',
       description:
-        'Completed result partition ({columns, rows, totalRows, currentPartition, nextPartition, truncated})',
+        'Completed result partition ({columns, rows, totalRows, currentPartition, partitionCount, nextPartition, truncated}). columns, totalRows and truncated are null when Snowflake returned a metadata-less partition response and partitionCount was not supplied',
     },
     dml: {
       type: 'json',

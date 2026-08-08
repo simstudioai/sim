@@ -18157,7 +18157,7 @@
       "name": "Snowflake",
       "description": "Query data and manage warehouses and tasks in Snowflake",
       "longDescription": "Connect with a Snowflake programmatic access token to execute SQL, synchronize structured rows, load staged data, manage warehouses and tasks, inspect schemas, and call stored procedures.",
-      "bgColor": "#F7FBFD",
+      "bgColor": "#FFFFFF",
       "iconName": "SnowflakeIcon",
       "docsUrl": "https://docs.sim.ai/integrations/snowflake",
       "operations": [
@@ -18187,7 +18187,7 @@
         },
         {
           "name": "Delete Rows",
-          "description": "Delete rows matching a required set of bound equality filters."
+          "description": "Delete rows matching a required set of bound column filters."
         },
         {
           "name": "Load Data",
@@ -18230,8 +18230,8 @@
           "description": "Find one task history record by query ID within Snowflake’s seven-day window and 10000 most recent records after optional filters."
         },
         {
-          "name": "Cancel Task Run",
-          "description": "Cancel a running task query with SYSTEM$CANCEL_QUERY."
+          "name": "Cancel Task Query",
+          "description": "Cancel one running task query by query ID with SYSTEM$CANCEL_QUERY. Other tasks in the same task graph keep running and must be cancelled separately."
         },
         {
           "name": "Get Task Run Output",

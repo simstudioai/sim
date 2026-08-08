@@ -3,13 +3,21 @@ import type { SnowflakeLoadDataParams, SnowflakeStatementResponse } from '@/tool
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   buildSnowflakeStatementBody,
-  snowflakeBaseParams,
-  snowflakeComputeParams,
-  snowflakeMaxRowsParam,
   snowflakeStatementRequest,
   transformSnowflakeResult,
 } from '@/tools/snowflake/utils'
 import type { ToolConfig } from '@/tools/types'
+
+/**
+ * COPY INTO omits PURGE and FORCE entirely when the value is absent, which is how
+ * Snowflake's FALSE defaults are inherited. A direct tool call can still supply the
+ * string `"false"`, which is truthy, so only a real `true` or the exact string
+ * `"true"` may enable an irreversible purge.
+ */
+function optionalCopyFlag(value: unknown): boolean | undefined {
+  if (value === undefined || value === null || value === '') return undefined
+  return value === true || value === 'true'
+}
 
 export const loadDataTool: ToolConfig<SnowflakeLoadDataParams, SnowflakeStatementResponse> = {
   id: 'snowflake_load_data',
@@ -17,9 +25,42 @@ export const loadDataTool: ToolConfig<SnowflakeLoadDataParams, SnowflakeStatemen
   name: 'Snowflake Load Data',
   description: 'Load files from an existing Snowflake stage with COPY INTO.',
   params: {
-    ...snowflakeBaseParams,
-    ...snowflakeComputeParams,
-    ...snowflakeMaxRowsParam,
+    host: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Snowflake account host, for example myorg-myaccount.snowflakecomputing.com',
+    },
+    apiKey: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Snowflake programmatic access token',
+    },
+    role: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Snowflake role to use for this statement',
+    },
+    statementTimeoutSeconds: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds',
+    },
+    warehouse: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Warehouse to use for this statement; defaults to the PAT user setting',
+    },
+    maxRows: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Maximum result rows; defaults to 1000 with a Sim safety limit of 10000',
+    },
     database: {
       type: 'string',
       required: true,
@@ -83,10 +124,18 @@ export const loadDataTool: ToolConfig<SnowflakeLoadDataParams, SnowflakeStatemen
     },
   },
   request: snowflakeStatementRequest((params) =>
-    buildSnowflakeStatementBody(params, buildLoadData(params), {
-      warehouse: params.warehouse,
-      maxRows: params.maxRows,
-    })
+    buildSnowflakeStatementBody(
+      params,
+      buildLoadData({
+        ...params,
+        purge: optionalCopyFlag(params.purge),
+        force: optionalCopyFlag(params.force),
+      }),
+      {
+        warehouse: params.warehouse,
+        maxRows: params.maxRows,
+      }
+    )
   ),
   transformResponse: transformSnowflakeResult(),
   outputs: SNOWFLAKE_STATEMENT_OUTPUTS,

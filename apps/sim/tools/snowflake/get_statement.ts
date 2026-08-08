@@ -6,7 +6,6 @@ import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   getSnowflakeHeaders,
   normalizeSnowflakeHost,
-  snowflakeBaseParams,
   transformSnowflakeResult,
 } from '@/tools/snowflake/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -19,6 +18,19 @@ function partitionNumber(value?: number): number {
   return partition
 }
 
+/**
+ * Snowflake attaches result metadata only to the first partition's response, so the
+ * partition count has to be carried forward by the caller to make a later partition's
+ * continuation state knowable.
+ */
+function partitionCountNumber(value?: number): number | undefined {
+  if (value === undefined) return undefined
+  if (!Number.isInteger(value) || value < 1) {
+    throw new Error('partitionCount must be a positive integer')
+  }
+  return value
+}
+
 export const getStatementTool: ToolConfig<SnowflakeGetStatementParams, SnowflakeStatementResponse> =
   {
     id: 'snowflake_get_statement',
@@ -27,7 +39,18 @@ export const getStatementTool: ToolConfig<SnowflakeGetStatementParams, Snowflake
       'Check a running or completed statement and retrieve exactly one result partition. Canceled or failed statements are returned as errors.',
     version: '1.0.0',
     params: {
-      ...snowflakeBaseParams,
+      host: {
+        type: 'string',
+        required: true,
+        visibility: 'user-only',
+        description: 'Snowflake account host, for example myorg-myaccount.snowflakecomputing.com',
+      },
+      apiKey: {
+        type: 'string',
+        required: true,
+        visibility: 'user-only',
+        description: 'Snowflake programmatic access token',
+      },
       statementHandle: {
         type: 'string',
         required: true,
@@ -40,6 +63,13 @@ export const getStatementTool: ToolConfig<SnowflakeGetStatementParams, Snowflake
         visibility: 'user-or-llm',
         description: 'Zero-based result partition to retrieve; defaults to 0',
       },
+      partitionCount: {
+        type: 'number',
+        required: false,
+        visibility: 'user-or-llm',
+        description:
+          'Total number of result partitions, taken from the partitionCount of the first partition. Snowflake omits metadata from every later partition response, so supply this when fetching partition 1 or higher to keep truncated and nextPartition accurate',
+      },
     },
     request: {
       url: (params) => {
@@ -51,6 +81,7 @@ export const getStatementTool: ToolConfig<SnowflakeGetStatementParams, Snowflake
     },
     transformResponse: transformSnowflakeResult((params) => ({
       currentPartition: partitionNumber(params?.partition),
+      partitionCount: partitionCountNumber(params?.partitionCount),
       fallbackStatementHandle: params?.statementHandle.trim(),
     })),
     outputs: SNOWFLAKE_STATEMENT_OUTPUTS,

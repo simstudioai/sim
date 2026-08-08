@@ -3,12 +3,34 @@ import type { SnowflakeStatementResponse, SnowflakeUpdateRowsParams } from '@/to
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   buildSnowflakeStatementBody,
-  snowflakeBaseParams,
-  snowflakeComputeParams,
   snowflakeStatementRequest,
   transformSnowflakeResult,
 } from '@/tools/snowflake/utils'
 import type { ToolConfig } from '@/tools/types'
+
+/**
+ * The block resolves `rows` to JSON before execution, but a direct tool call can still
+ * deliver the raw JSON string. Values that already arrive parsed pass straight through
+ * to the builder's own shape validation.
+ */
+function parseRows(value: unknown): Array<Record<string, unknown>> {
+  if (typeof value !== 'string') return value as Array<Record<string, unknown>>
+  try {
+    return JSON.parse(value) as Array<Record<string, unknown>>
+  } catch {
+    throw new Error('rows must be a JSON array of row objects')
+  }
+}
+
+/** Accepts `matchColumns` as a JSON string from a direct tool call. */
+function parseMatchColumns(value: unknown): string[] {
+  if (typeof value !== 'string') return value as string[]
+  try {
+    return JSON.parse(value) as string[]
+  } catch {
+    throw new Error('matchColumns must be a JSON array of column names')
+  }
+}
 
 export const updateRowsTool: ToolConfig<SnowflakeUpdateRowsParams, SnowflakeStatementResponse> = {
   id: 'snowflake_update_rows',
@@ -16,8 +38,36 @@ export const updateRowsTool: ToolConfig<SnowflakeUpdateRowsParams, SnowflakeStat
   name: 'Snowflake Update Rows',
   description: 'Update matching rows with a bound MERGE statement without inserting new rows.',
   params: {
-    ...snowflakeBaseParams,
-    ...snowflakeComputeParams,
+    host: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Snowflake account host, for example myorg-myaccount.snowflakecomputing.com',
+    },
+    apiKey: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Snowflake programmatic access token',
+    },
+    role: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Snowflake role to use for this statement',
+    },
+    statementTimeoutSeconds: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds',
+    },
+    warehouse: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Warehouse to use for this statement; defaults to the PAT user setting',
+    },
     database: {
       type: 'string',
       required: true,
@@ -40,18 +90,28 @@ export const updateRowsTool: ToolConfig<SnowflakeUpdateRowsParams, SnowflakeStat
       type: 'json',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Non-empty JSON array of row objects with matching keys',
+      description:
+        'Non-empty JSON array of row objects with matching keys. Max 1000 rows and 1 MB of bound data per call - stage the files and use Load Data for bulk ingest.',
     },
     matchColumns: {
       type: 'array',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Columns used to match target rows',
+      description:
+        'Columns used to match target rows. Match values must be non-null and unique across the submitted rows.',
       items: { type: 'string' },
     },
   },
   request: snowflakeStatementRequest((params) =>
-    buildSnowflakeStatementBody(params, buildUpdateRows(params), { warehouse: params.warehouse })
+    buildSnowflakeStatementBody(
+      params,
+      buildUpdateRows({
+        ...params,
+        rows: parseRows(params.rows),
+        matchColumns: parseMatchColumns(params.matchColumns),
+      }),
+      { warehouse: params.warehouse }
+    )
   ),
   transformResponse: transformSnowflakeResult(),
   outputs: SNOWFLAKE_STATEMENT_OUTPUTS,

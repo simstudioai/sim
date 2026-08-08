@@ -6,9 +6,6 @@ import type {
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   buildSnowflakeStatementBody,
-  snowflakeBaseParams,
-  snowflakeMaxRowsParam,
-  snowflakeStatementParams,
   snowflakeStatementRequest,
   transformSnowflakeResult,
 } from '@/tools/snowflake/utils'
@@ -23,9 +20,36 @@ export const listWarehousesTool: ToolConfig<
   name: 'Snowflake List Warehouses',
   description: 'List warehouses visible to the active Snowflake role.',
   params: {
-    ...snowflakeBaseParams,
-    ...snowflakeStatementParams,
-    ...snowflakeMaxRowsParam,
+    host: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Snowflake account host, for example myorg-myaccount.snowflakecomputing.com',
+    },
+    apiKey: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Snowflake programmatic access token',
+    },
+    role: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Snowflake role to use for this statement',
+    },
+    statementTimeoutSeconds: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds',
+    },
+    maxRows: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Maximum result rows; defaults to 1000 with a Sim safety limit of 10000',
+    },
     nameLike: {
       type: 'string',
       required: false,

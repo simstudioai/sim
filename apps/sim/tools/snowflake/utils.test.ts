@@ -14,6 +14,7 @@ import {
   normalizeMaxRows,
   normalizeSnowflakeHost,
   readSnowflakeResult,
+  SNOWFLAKE_MAX_RESPONSE_BYTES,
 } from '@/tools/snowflake/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -71,15 +72,83 @@ describe('Snowflake integration contracts', () => {
     }
   })
 
-  it('only returns coercions used by the selected operation', () => {
+  it('declares every shared connection and session param identically across tools', () => {
+    /**
+     * Each tool inlines these params rather than spreading a shared object, matching
+     * the convention used by every other integration. Duplication is only safe while
+     * the definitions stay byte-identical, so pin them here.
+     */
+    const shared = {
+      host: {
+        type: 'string',
+        required: true,
+        visibility: 'user-only',
+        description: 'Snowflake account host, for example myorg-myaccount.snowflakecomputing.com',
+      },
+      apiKey: {
+        type: 'string',
+        required: true,
+        visibility: 'user-only',
+        description: 'Snowflake programmatic access token',
+      },
+      role: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Snowflake role to use for this statement',
+      },
+      statementTimeoutSeconds: {
+        type: 'number',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds',
+      },
+      warehouse: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Warehouse to use for this statement; defaults to the PAT user setting',
+      },
+      maxRows: {
+        type: 'number',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Maximum result rows; defaults to 1000 with a Sim safety limit of 10000',
+      },
+    } as const
+
+    const seen: Record<string, number> = {}
+    for (const tool of registeredSnowflakeTools()) {
+      for (const [name, expected] of Object.entries(shared)) {
+        const param = tool.params[name]
+        if (!param) continue
+        seen[name] = (seen[name] ?? 0) + 1
+        expect(param, `${tool.id}.${name}`).toEqual(expected)
+      }
+    }
+
+    expect(seen).toEqual({
+      host: 21,
+      apiKey: 21,
+      role: 19,
+      statementTimeoutSeconds: 19,
+      warehouse: 12,
+      maxRows: 6,
+    })
+  })
+
+  it('coerces every non-string tool param of the selected operation and nothing else', () => {
     const mapParams = SnowflakeBlock.tools.config.params
     if (!mapParams) throw new Error('Snowflake block must map tool parameters')
     const operationBlock = SnowflakeBlock.subBlocks.find((block) => block.id === 'operation')
     const operationIds = operationBlock?.options?.map((option) => String(option.id)) ?? []
-    const inputs = {
+    /** Param types the block must convert from the string a text sub-block emits. */
+    const coercedTypes = new Set(['number', 'json', 'array', 'object'])
+    const inputs: Record<string, unknown> = {
       statementTimeoutSeconds: '60',
       maxRows: '100',
       partition: '1',
+      partitionCount: '2',
       limit: '10',
       async: true,
       retryLast: true,
@@ -96,13 +165,34 @@ describe('Snowflake integration contracts', () => {
       onErrorThreshold: '1',
     }
 
+    let coveredCoercions = 0
     for (const operation of operationIds) {
       const toolId = `snowflake_${operation}`
       const tool = registeredSnowflakeTools().find((candidate) => candidate.id === toolId)
       if (!tool) throw new Error(`Missing Snowflake tool ${toolId}`)
       const mapped = mapParams({ operation, ...inputs })
-      expect(Object.keys(mapped).every((key) => key in tool.params)).toBe(true)
+
+      const unexpected = Object.entries(mapped)
+        .filter(([key, value]) => !(key in tool.params) && value !== undefined)
+        .map(([key]) => key)
+      expect(unexpected, `${toolId} returned params the tool does not accept`).toEqual([])
+
+      const expectedCoercions = Object.entries(tool.params)
+        .filter(([key, param]) => coercedTypes.has(param.type) && typeof inputs[key] === 'string')
+        .map(([key]) => key)
+      coveredCoercions += expectedCoercions.length
+      for (const key of expectedCoercions) {
+        expect(mapped, `${toolId}.${key} must be coerced by the block`).toHaveProperty(key)
+        expect(typeof mapped[key], `${toolId}.${key} must not stay a raw string`).not.toBe('string')
+        expect(mapped[key], `${toolId}.${key} must not be dropped`).toBeDefined()
+      }
     }
+
+    expect(coveredCoercions, 'coercion fixture must exercise every coerced tool param').toBe(37)
+
+    expect(
+      mapParams({ operation: 'load_data', onError: 'SKIP_FILE_PERCENT', onErrorThreshold: '5' })
+    ).toMatchObject({ onError: 'SKIP_FILE_5%', onErrorThreshold: undefined })
   })
 
   it('uses native boolean switches and scopes the COPY threshold to Load Data', () => {
@@ -317,20 +407,66 @@ describe('Snowflake SQL API transport', () => {
       rows: [['1'], ['2'], ['3']],
       totalRows: 5,
       currentPartition: 0,
+      partitionCount: 2,
       nextPartition: 1,
       truncated: true,
     })
     expect(transformed?.output.result).not.toHaveProperty('partitions')
+  })
 
-    const capped = await readSnowflakeResult(
-      jsonResponse({
-        code: '391908',
-        statementHandle: 'capped-handle',
-        data: [['1']],
-        resultSetMetaData: { numRows: 1, partitionInfo: [{ rowCount: 1 }] },
-      })
+  it('never claims completeness for a metadata-less partition response', async () => {
+    const metadatalessPartition = { statementHandle: 'handle', data: [['2']] }
+
+    const unknown = await readSnowflakeResult(jsonResponse(metadatalessPartition), {
+      currentPartition: 1,
+    })
+    expect(unknown.result).toEqual({
+      columns: null,
+      rows: [['2']],
+      totalRows: null,
+      currentPartition: 1,
+      partitionCount: null,
+      nextPartition: null,
+      truncated: null,
+    })
+
+    const middle = await readSnowflakeResult(jsonResponse(metadatalessPartition), {
+      currentPartition: 1,
+      partitionCount: 3,
+    })
+    expect(middle.result).toMatchObject({
+      currentPartition: 1,
+      partitionCount: 3,
+      nextPartition: 2,
+      truncated: true,
+    })
+
+    const last = await readSnowflakeResult(jsonResponse(metadatalessPartition), {
+      currentPartition: 2,
+      partitionCount: 3,
+    })
+    expect(last.result).toMatchObject({
+      currentPartition: 2,
+      partitionCount: 3,
+      nextPartition: null,
+      truncated: false,
+    })
+  })
+
+  it('derives truncation only from partitionInfo, ignoring the deprecated SQL API signals', async () => {
+    const linked = await readSnowflakeResult(
+      jsonResponse(
+        {
+          code: '391908',
+          statementHandle: 'single-partition',
+          data: [['1']],
+          resultSetMetaData: { numRows: 1, partitionInfo: [{ rowCount: 1 }] },
+        },
+        200,
+        { Link: '</api/v2/statements/single-partition?partition=1>; rel="next"' }
+      )
     )
-    expect(capped.result).toMatchObject({ nextPartition: null, truncated: true })
+    expect(linked.result).toMatchObject({ nextPartition: null, truncated: false })
   })
 
   it('handles pending statements, documented DML stats, and Snowflake failures', async () => {
@@ -373,6 +509,26 @@ describe('Snowflake SQL API transport', () => {
       })
     )
     expect(dml.dml).toEqual({
+      rowsInserted: 2,
+      rowsUpdated: 1,
+      rowsDeleted: 3,
+      duplicateRowsUpdated: 1,
+      rowsAffected: 6,
+    })
+
+    const topLevelDml = await readSnowflakeResult(
+      jsonResponse({
+        statementHandle: 'dml',
+        stats: {
+          numRowsInserted: 2,
+          numRowsUpdated: 1,
+          numRowsDeleted: 3,
+          numDuplicateRowsUpdated: 1,
+        },
+        resultSetMetaData: { rowType: [{ name: 'number of rows inserted', type: 'fixed' }] },
+      })
+    )
+    expect(topLevelDml.dml).toEqual({
       rowsInserted: 2,
       rowsUpdated: 1,
       rowsDeleted: 3,
@@ -450,6 +606,122 @@ describe('Snowflake SQL API transport', () => {
         }
       )
     ).rejects.toThrow('SQLSTATE 42000')
+
+    const alreadyFinished = await cancelStatementTool.transformResponse?.(
+      jsonResponse({
+        statementHandle: 'cancel-handle',
+        code: '000000',
+        sqlState: '00000',
+        message: 'Statement executed successfully',
+      }),
+      {
+        host: 'acme.snowflakecomputing.com',
+        apiKey: 'secret',
+        statementHandle: 'cancel-handle',
+      }
+    )
+    expect(alreadyFinished?.output).toMatchObject({
+      statementHandle: 'cancel-handle',
+      status: 'SUCCEEDED',
+    })
+  })
+
+  it('rejects error bodies without a SQLSTATE and never lets a SQLSTATE launder an error status', async () => {
+    await expect(
+      readSnowflakeResult(
+        jsonResponse({ code: '390318', message: 'Authentication token has expired' }, 401)
+      )
+    ).rejects.toThrow('Snowflake statement failed (HTTP 401, 390318)')
+
+    await expect(
+      readSnowflakeResult(
+        jsonResponse(
+          {
+            statementHandle: 'timed-out',
+            code: '000000',
+            sqlState: '00000',
+            message: 'The execution of the statement was cancelled',
+          },
+          408
+        )
+      )
+    ).rejects.toThrow('Snowflake statement failed (HTTP 408, SQLSTATE 00000, 000000)')
+
+    await expect(
+      readSnowflakeResult(jsonResponse({ statementHandle: 'server-error', sqlState: '' }, 500))
+    ).rejects.toThrow('Snowflake statement failed (HTTP 500, SQLSTATE )')
+
+    await expect(
+      cancelStatementTool.transformResponse?.(
+        jsonResponse({ statementHandle: 'cancel-handle', sqlState: '57014' }, 408),
+        {
+          host: 'acme.snowflakecomputing.com',
+          apiKey: 'secret',
+          statementHandle: 'cancel-handle',
+        }
+      )
+    ).rejects.toThrow('Snowflake statement failed (HTTP 408, SQLSTATE 57014)')
+  })
+
+  it('caps the response body size on both the declared and streamed paths', async () => {
+    /**
+     * Pinned to a literal: every other assertion here derives its fixture from the
+     * constant, so raising the ceiling would otherwise leave the suite green.
+     */
+    expect(SNOWFLAKE_MAX_RESPONSE_BYTES).toBe(10 * 1024 * 1024)
+
+    await expect(
+      readSnowflakeResult(
+        jsonResponse({ statementHandle: 'huge' }, 200, {
+          'Content-Length': String(SNOWFLAKE_MAX_RESPONSE_BYTES + 1),
+        })
+      )
+    ).rejects.toThrow('Snowflake response body exceeds maximum size')
+
+    let emittedBytes = 0
+    let canceled = false
+    const chunk = new Uint8Array(1024 * 1024)
+    chunk.fill(0x20)
+    const chunked = new Response(
+      new ReadableStream<Uint8Array>({
+        pull(controller) {
+          if (emittedBytes >= SNOWFLAKE_MAX_RESPONSE_BYTES * 1.5) {
+            controller.close()
+            return
+          }
+          emittedBytes += chunk.byteLength
+          controller.enqueue(chunk)
+        },
+        cancel() {
+          canceled = true
+        },
+      }),
+      { headers: { 'Content-Type': 'application/json' } }
+    )
+    expect(chunked.headers.get('content-length')).toBeNull()
+
+    await expect(readSnowflakeResult(chunked)).rejects.toThrow(
+      'Snowflake response body exceeds maximum size'
+    )
+    expect(canceled).toBe(true)
+    expect(emittedBytes).toBeLessThan(SNOWFLAKE_MAX_RESPONSE_BYTES * 2)
+  })
+
+  it('rejects session-context names that are not Snowflake identifiers', () => {
+    const auth = { host: 'acme.snowflakecomputing.com', apiKey: 'secret' }
+    const spec = { statement: 'SELECT 1' }
+    expect(() => buildSnowflakeStatementBody({ ...auth, role: 'ACCOUNTADMIN; --' }, spec)).toThrow(
+      'Snowflake role must be an unquoted identifier'
+    )
+    expect(() => buildSnowflakeStatementBody(auth, spec, { warehouse: 'compute wh' })).toThrow(
+      'Snowflake warehouse must be an unquoted identifier'
+    )
+    expect(() =>
+      buildSnowflakeStatementBody(auth, spec, { context: { database: 'ANALYTICS.PUBLIC' } })
+    ).toThrow('Snowflake database must be an unquoted identifier')
+    expect(() =>
+      buildSnowflakeStatementBody(auth, spec, { context: { schema: '"unterminated' } })
+    ).toThrow('Snowflake schema must be an unquoted identifier')
   })
 })
 
@@ -487,6 +759,7 @@ describe('Snowflake common result contract', () => {
         rows,
         totalRows: 3,
         currentPartition: 0,
+        partitionCount: 2,
         nextPartition: 1,
         truncated: true,
       },

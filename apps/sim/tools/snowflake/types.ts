@@ -50,6 +50,12 @@ export interface SnowflakeExecuteSqlParams extends SnowflakeResultParams {
 export interface SnowflakeGetStatementParams extends SnowflakeBaseParams {
   statementHandle: string
   partition?: number
+  /**
+   * Total partition count reported by the first partition. Snowflake omits all
+   * metadata from later partition responses, so continuation is only knowable
+   * when this is carried forward from the partition-0 result.
+   */
+  partitionCount?: number
 }
 
 export interface SnowflakeCancelStatementParams extends SnowflakeBaseParams {
@@ -162,12 +168,28 @@ export interface SnowflakeColumn {
 export type SnowflakeStatementStatus = 'SUCCEEDED' | 'RUNNING' | 'CANCELED'
 
 export interface SnowflakeResultOutput {
-  columns: SnowflakeColumn[]
+  /**
+   * Result column metadata, or null when it is unknown because Snowflake sent a
+   * metadata-less partition response.
+   */
+  columns: SnowflakeColumn[] | null
   rows: Array<Array<string | null>>
   totalRows: number | null
   currentPartition: number
+  /**
+   * Total number of partitions in the result set, or null when unknown.
+   * Snowflake reports this only on the first partition.
+   */
+  partitionCount: number | null
   nextPartition: number | null
-  truncated: boolean
+  /**
+   * True when more result partitions remain, false when the result set is
+   * complete, and null when Snowflake sent a metadata-less partition response
+   * and the total partition count was not supplied by the caller. Snowflake
+   * reports no signal for a `rows_per_resultset` cap, so a server-side row cap
+   * is never reflected here.
+   */
+  truncated: boolean | null
 }
 
 export interface SnowflakeDmlStats {
@@ -201,7 +223,9 @@ export const SNOWFLAKE_STATEMENT_OUTPUTS = {
     properties: {
       columns: {
         type: 'array',
-        description: 'Documented Snowflake result column metadata',
+        description:
+          'Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response',
+        nullable: true,
         items: {
           type: 'object',
           properties: {
@@ -221,12 +245,23 @@ export const SNOWFLAKE_STATEMENT_OUTPUTS = {
       },
       totalRows: { type: 'number', description: 'Total result rows', nullable: true },
       currentPartition: { type: 'number', description: 'Zero-based partition returned' },
+      partitionCount: {
+        type: 'number',
+        description:
+          'Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions',
+        nullable: true,
+      },
       nextPartition: {
         type: 'number',
         description: 'Next partition to request with Get Statement, if one exists',
         nullable: true,
       },
-      truncated: { type: 'boolean', description: 'Whether additional result data remains' },
+      truncated: {
+        type: 'boolean',
+        description:
+          'Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here',
+        nullable: true,
+      },
     },
   },
   dml: {

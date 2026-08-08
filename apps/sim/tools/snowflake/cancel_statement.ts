@@ -6,7 +6,6 @@ import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   getSnowflakeHeaders,
   normalizeSnowflakeHost,
-  snowflakeBaseParams,
   transformSnowflakeResult,
 } from '@/tools/snowflake/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -20,7 +19,18 @@ export const cancelStatementTool: ToolConfig<
   description: 'Cancel a running Snowflake SQL API statement.',
   version: '1.0.0',
   params: {
-    ...snowflakeBaseParams,
+    host: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Snowflake account host, for example myorg-myaccount.snowflakecomputing.com',
+    },
+    apiKey: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Snowflake programmatic access token',
+    },
     statementHandle: {
       type: 'string',
       required: true,

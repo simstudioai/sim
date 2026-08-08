@@ -1,15 +1,36 @@
 import { normalizeBindings } from '@/tools/snowflake/sql'
-import type { SnowflakeExecuteSqlParams, SnowflakeStatementResponse } from '@/tools/snowflake/types'
+import type {
+  SnowflakeBinding,
+  SnowflakeExecuteSqlParams,
+  SnowflakeStatementResponse,
+} from '@/tools/snowflake/types'
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   buildSnowflakeStatementBody,
-  snowflakeBaseParams,
-  snowflakeComputeParams,
-  snowflakeMaxRowsParam,
   snowflakeStatementRequest,
   transformSnowflakeResult,
 } from '@/tools/snowflake/utils'
 import type { ToolConfig } from '@/tools/types'
+
+/**
+ * The block resolves `bindings` to JSON before execution, but a direct tool call can
+ * still deliver the raw JSON string.
+ */
+function parseBindings(value: unknown): Record<string, SnowflakeBinding> | undefined {
+  if (typeof value !== 'string') return value as Record<string, SnowflakeBinding> | undefined
+  const trimmed = value.trim()
+  if (!trimmed) return undefined
+  try {
+    return JSON.parse(trimmed) as Record<string, SnowflakeBinding>
+  } catch {
+    throw new Error('bindings must be a JSON object keyed by 1-based positions')
+  }
+}
+
+/** Only a real `true` or the exact string `"true"` submits the statement asynchronously. */
+function isAsync(value: unknown): boolean {
+  return value === true || value === 'true'
+}
 
 export const executeSqlTool: ToolConfig<SnowflakeExecuteSqlParams, SnowflakeStatementResponse> = {
   id: 'snowflake_execute_sql',
@@ -17,9 +38,42 @@ export const executeSqlTool: ToolConfig<SnowflakeExecuteSqlParams, SnowflakeStat
   name: 'Snowflake Execute SQL',
   description: 'Execute one parameterized SQL statement through the Snowflake SQL API.',
   params: {
-    ...snowflakeBaseParams,
-    ...snowflakeComputeParams,
-    ...snowflakeMaxRowsParam,
+    host: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Snowflake account host, for example myorg-myaccount.snowflakecomputing.com',
+    },
+    apiKey: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Snowflake programmatic access token',
+    },
+    role: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Snowflake role to use for this statement',
+    },
+    statementTimeoutSeconds: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds',
+    },
+    warehouse: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Warehouse to use for this statement; defaults to the PAT user setting',
+    },
+    maxRows: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Maximum result rows; defaults to 1000 with a Sim safety limit of 10000',
+    },
     database: {
       type: 'string',
       required: false,
@@ -57,7 +111,7 @@ export const executeSqlTool: ToolConfig<SnowflakeExecuteSqlParams, SnowflakeStat
         params,
         {
           statement: params.statement,
-          bindings: normalizeBindings(params.bindings),
+          bindings: normalizeBindings(parseBindings(params.bindings)),
         },
         {
           context: { database: params.database, schema: params.schema },
@@ -65,7 +119,7 @@ export const executeSqlTool: ToolConfig<SnowflakeExecuteSqlParams, SnowflakeStat
           maxRows: params.maxRows,
         }
       ),
-    (params) => params.async === true
+    (params) => isAsync(params.async)
   ),
   transformResponse: transformSnowflakeResult(),
   outputs: SNOWFLAKE_STATEMENT_OUTPUTS,

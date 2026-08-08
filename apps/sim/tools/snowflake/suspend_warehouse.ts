@@ -3,8 +3,6 @@ import type { SnowflakeStatementResponse, SnowflakeWarehouseParams } from '@/too
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   buildSnowflakeStatementBody,
-  snowflakeBaseParams,
-  snowflakeStatementParams,
   snowflakeStatementRequest,
   transformSnowflakeResult,
 } from '@/tools/snowflake/utils'
@@ -19,8 +17,30 @@ export const suspendWarehouseTool: ToolConfig<
   name: 'Snowflake Suspend Warehouse',
   description: 'Suspend a Snowflake virtual warehouse.',
   params: {
-    ...snowflakeBaseParams,
-    ...snowflakeStatementParams,
+    host: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Snowflake account host, for example myorg-myaccount.snowflakecomputing.com',
+    },
+    apiKey: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Snowflake programmatic access token',
+    },
+    role: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Snowflake role to use for this statement',
+    },
+    statementTimeoutSeconds: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds',
+    },
     warehouseName: {
       type: 'string',
       required: true,

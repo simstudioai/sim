@@ -6,9 +6,6 @@ import type {
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   buildSnowflakeStatementBody,
-  snowflakeBaseParams,
-  snowflakeComputeParams,
-  snowflakeMaxRowsParam,
   snowflakeStatementRequest,
   transformSnowflakeResult,
 } from '@/tools/snowflake/utils'
@@ -24,9 +21,42 @@ export const getTaskRunOutputTool: ToolConfig<
   description:
     'Read a task query result with RESULT_SCAN during Snowflake’s 24-hour retention window using the task owner role.',
   params: {
-    ...snowflakeBaseParams,
-    ...snowflakeComputeParams,
-    ...snowflakeMaxRowsParam,
+    host: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Snowflake account host, for example myorg-myaccount.snowflakecomputing.com',
+    },
+    apiKey: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Snowflake programmatic access token',
+    },
+    role: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Snowflake role to use for this statement',
+    },
+    statementTimeoutSeconds: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds',
+    },
+    warehouse: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Warehouse to use for this statement; defaults to the PAT user setting',
+    },
+    maxRows: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Maximum result rows; defaults to 1000 with a Sim safety limit of 10000',
+    },
     queryId: {
       type: 'string',
       required: true,
