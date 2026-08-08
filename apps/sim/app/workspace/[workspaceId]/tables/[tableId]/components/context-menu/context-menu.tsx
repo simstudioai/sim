@@ -146,17 +146,22 @@ export function ContextMenu({
           aria-hidden
         />
       </DropdownMenuTrigger>
+      {/* Wider than the 220px menu default: the row-scoped workflow labels name
+          both the action and the selected row count ("Run empty or failed cells
+          on 2 rows"), which wrapped — and so overlapped the rows beneath — at
+          the default width. */}
       <DropdownMenuContent
         align='start'
         side='bottom'
         sideOffset={4}
+        className='max-w-[320px]'
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
         {onAddToChat && (
           <>
             <DropdownMenuItem onSelect={onAddToChat}>
               <Blimp />
-              {addToChatLabel}
+              <span>{addToChatLabel}</span>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
           </>
@@ -179,19 +184,19 @@ export function ContextMenu({
         {hasWorkflowColumns && onRunWorkflows && (
           <DropdownMenuItem onSelect={onRunWorkflows}>
             <PlayOutline />
-            {runLabel}
+            <span>{runLabel}</span>
           </DropdownMenuItem>
         )}
         {hasWorkflowColumns && onRefreshWorkflows && (
           <DropdownMenuItem onSelect={onRefreshWorkflows}>
             <RefreshCw />
-            {refreshLabel}
+            <span>{refreshLabel}</span>
           </DropdownMenuItem>
         )}
         {hasWorkflowColumns && onStopWorkflows && runningInSelectionCount > 0 && (
           <DropdownMenuItem onSelect={onStopWorkflows}>
             <Square className='size-[14px] text-[var(--text-icon)]' />
-            {stopLabel}
+            <span>{stopLabel}</span>
           </DropdownMenuItem>
         )}
         <DropdownMenuItem disabled={disableInsert} onSelect={onInsertAbove}>
@@ -212,7 +217,7 @@ export function ContextMenu({
         <DropdownMenuSeparator />
         <DropdownMenuItem disabled={disableDelete} onSelect={onDelete}>
           <Trash />
-          {deleteLabel}
+          <span>{deleteLabel}</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

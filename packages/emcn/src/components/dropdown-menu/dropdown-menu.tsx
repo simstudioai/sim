@@ -41,6 +41,14 @@ const MENU_ROW_HEIGHT_CLASS = 'h-[28px]'
 const MENU_ROW_RADIUS_CLASS = 'rounded-lg'
 
 /**
+ * Rows are a fixed height, so a label that wraps overflows its row and paints
+ * over its neighbours instead of growing the row. Keep every row on one line:
+ * a bare text label is clipped at the surface edge, and a label wrapped in a
+ * `<span>` (the shape long or count-bearing labels should use) ellipsizes.
+ */
+const MENU_ROW_SINGLE_LINE_CLASS = 'whitespace-nowrap [&>span]:min-w-0 [&>span]:truncate'
+
+/**
  * Surface corner, shared by the root menu and submenus — they previously
  * disagreed, at 12px and 8px.
  *
@@ -110,7 +118,7 @@ const DropdownMenuSubTrigger = React.forwardRef<
     <DropdownMenuPrimitive.SubTrigger
       ref={ref}
       className={cn(
-        `flex ${MENU_ROW_HEIGHT_CLASS} min-w-0 cursor-default select-none items-center gap-2 ${MENU_ROW_RADIUS_CLASS} px-2 text-[var(--text-body)] text-small outline-none transition-colors focus:bg-[var(--surface-active)] data-[state=open]:bg-[var(--surface-active)] [&>span]:min-w-0 [&>span]:truncate [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)]`,
+        `flex ${MENU_ROW_HEIGHT_CLASS} min-w-0 cursor-default select-none items-center gap-2 ${MENU_ROW_RADIUS_CLASS} px-2 text-[var(--text-body)] text-small outline-none transition-colors focus:bg-[var(--surface-active)] data-[state=open]:bg-[var(--surface-active)] ${MENU_ROW_SINGLE_LINE_CLASS} [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)]`,
         inset && 'pl-7',
         className
       )}
@@ -172,7 +180,7 @@ const DropdownMenuContent = React.forwardRef<
 ))
 DropdownMenuContent.displayName = DropdownMenuPrimitive.Content.displayName
 
-const DROPDOWN_MENU_ITEM_BASE_CLASSES = `relative flex ${MENU_ROW_HEIGHT_CLASS} min-w-0 cursor-pointer select-none items-center gap-2 ${MENU_ROW_RADIUS_CLASS} px-2 text-[var(--text-body)] text-small outline-none transition-colors focus:bg-[var(--surface-active)] data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&>span]:min-w-0 [&>span]:truncate [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)]`
+const DROPDOWN_MENU_ITEM_BASE_CLASSES = `relative flex ${MENU_ROW_HEIGHT_CLASS} min-w-0 cursor-pointer select-none items-center gap-2 ${MENU_ROW_RADIUS_CLASS} px-2 text-[var(--text-body)] text-small outline-none transition-colors focus:bg-[var(--surface-active)] data-[disabled]:pointer-events-none data-[disabled]:opacity-50 ${MENU_ROW_SINGLE_LINE_CLASS} [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)]`
 
 const DropdownMenuItem = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.Item>,
@@ -252,7 +260,7 @@ const DropdownMenuCheckboxItem = React.forwardRef<
   <DropdownMenuPrimitive.CheckboxItem
     ref={ref}
     className={cn(
-      `relative flex ${MENU_ROW_HEIGHT_CLASS} cursor-default select-none items-center ${MENU_ROW_RADIUS_CLASS} pr-2 pl-7 text-[var(--text-body)] text-small outline-none transition-colors focus:bg-[var(--surface-active)] data-[disabled]:pointer-events-none data-[disabled]:opacity-50`,
+      `relative flex ${MENU_ROW_HEIGHT_CLASS} cursor-default select-none items-center ${MENU_ROW_RADIUS_CLASS} whitespace-nowrap pr-2 pl-7 text-[var(--text-body)] text-small outline-none transition-colors focus:bg-[var(--surface-active)] data-[disabled]:pointer-events-none data-[disabled]:opacity-50`,
       className
     )}
     checked={checked}
@@ -275,7 +283,7 @@ const DropdownMenuRadioItem = React.forwardRef<
   <DropdownMenuPrimitive.RadioItem
     ref={ref}
     className={cn(
-      `relative flex ${MENU_ROW_HEIGHT_CLASS} cursor-default select-none items-center ${MENU_ROW_RADIUS_CLASS} pr-2 pl-7 text-[var(--text-body)] text-small outline-none transition-colors focus:bg-[var(--surface-active)] data-[disabled]:pointer-events-none data-[disabled]:opacity-50`,
+      `relative flex ${MENU_ROW_HEIGHT_CLASS} cursor-default select-none items-center ${MENU_ROW_RADIUS_CLASS} whitespace-nowrap pr-2 pl-7 text-[var(--text-body)] text-small outline-none transition-colors focus:bg-[var(--surface-active)] data-[disabled]:pointer-events-none data-[disabled]:opacity-50`,
       className
     )}
     {...props}
