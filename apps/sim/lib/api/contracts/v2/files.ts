@@ -2,6 +2,7 @@ import { z } from 'zod'
 import {
   isCanonicalBase64,
   workspaceFileIdSchema,
+  workspaceFileNameSchema,
   workspaceIdSchema,
 } from '@/lib/api/contracts/primitives'
 import { shareAuthTypeSchema, shareRecordSchema } from '@/lib/api/contracts/public-shares'
@@ -66,7 +67,7 @@ export type V2FileUploadParams = z.output<typeof v2FileUploadParamsSchema>
 export const v2CreateFileUploadBodySchema = z
   .object({
     workspaceId: workspaceIdSchema,
-    name: z.string().trim().min(1, 'name is required').max(255, 'name is too long'),
+    name: workspaceFileNameSchema,
     contentType: z.string().trim().min(1, 'contentType is required').max(255),
     size: z.number().int().nonnegative().max(MAX_WORKSPACE_FILE_SIZE),
     folderPath: v2FolderPathInputSchema.optional(),
@@ -111,25 +112,10 @@ export const v2FileParamsSchema = z.object({
 
 export type V2FileParams = z.output<typeof v2FileParamsSchema>
 
-/**
- * A file-folder name becomes a path segment, so path separators and dot
- * segments are rejected rather than normalized. Mirrors
- * `normalizeWorkspaceFileItemName`, which enforces the same rule in the manager.
- */
-const v2FileItemNameSchema = z
-  .string()
-  .trim()
-  .min(1, 'name is required')
-  .max(255, 'name is too long')
-  .refine(
-    (name) => name !== '.' && name !== '..' && !name.includes('/') && !name.includes('\\'),
-    'name cannot contain path separators or dot segments'
-  )
-
 export const v2CreateFileBodySchema = z
   .object({
     workspaceId: workspaceIdSchema,
-    name: v2FileItemNameSchema,
+    name: workspaceFileNameSchema,
     contentType: z
       .string()
       .trim()
@@ -195,7 +181,7 @@ export type V2FileWorkspaceQuery = z.output<typeof v2FileWorkspaceQuerySchema>
 export const v2RenameFileBodySchema = z
   .object({
     workspaceId: workspaceIdSchema,
-    name: v2FileItemNameSchema,
+    name: workspaceFileNameSchema,
   })
   .strict()
 

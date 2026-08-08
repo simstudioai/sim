@@ -3,6 +3,7 @@ import {
   folderIdSchema,
   inlineFileRefQuerySchema,
   isCanonicalBase64,
+  workspaceFileNameSchema,
   workspaceIdSchema,
 } from '@/lib/api/contracts/primitives'
 import { shareRecordSchema } from '@/lib/api/contracts/public-shares'
@@ -42,16 +43,6 @@ export const getInlineWorkspaceFileContract = defineRouteContract({
     mode: 'binary',
   },
 })
-
-export const workspaceFileNameSchema = z
-  .string({ error: 'Name is required' })
-  .trim()
-  .min(1, 'Name is required')
-  .max(255, 'Name is too long')
-  .refine(
-    (name) => name !== '.' && name !== '..' && !name.includes('/') && !name.includes('\\'),
-    'Name cannot contain path separators or dot segments'
-  )
 
 export const renameWorkspaceFileBodySchema = z.object({
   name: workspaceFileNameSchema,
