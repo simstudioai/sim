@@ -381,7 +381,6 @@ export function useOAuthChipConnection({
    */
   useEffect(() => {
     if (connectionStatus !== 'pending' || !popupRef.current) return
-    let unobservableTimer: number | undefined
     const poll = window.setInterval(() => {
       const observation = observePopup(popupRef.current)
       if (observation === 'live') return
@@ -390,25 +389,40 @@ export function useOAuthChipConnection({
       // could resolve an attempt a retry had since replaced.
       window.clearInterval(poll)
       popupRef.current = null
-      // Only `ended` is proof the flow finished with nothing published.
-      if (observation === 'ended') {
-        void settleFromCredentials()
-        return
-      }
-      // A closed handle and a disowned one are indistinguishable, so neither
-      // deciding now nor waiting forever is right. Closing a popup normally
-      // hands focus back and the focus verification settles it; this bounds the
-      // case where that never arrives — the opener was never blurred, or the
-      // flow completed somewhere this tab cannot see.
-      unobservableTimer = window.setTimeout(() => {
-        void settleFromCredentials()
-      }, OAUTH_POPUP_UNOBSERVABLE_TIMEOUT_MS)
+      // Only `ended` is proof the flow finished with nothing published. A
+      // closed-or-disowned handle is not — the deadline below bounds that.
+      if (observation === 'ended') void settleFromCredentials()
     }, OAUTH_POPUP_POLL_INTERVAL_MS)
-    return () => {
-      window.clearInterval(poll)
-      if (unobservableTimer !== undefined) window.clearTimeout(unobservableTimer)
-    }
+    return () => window.clearInterval(poll)
   }, [connectionStatus, settleFromCredentials])
+
+  /**
+   * Backstop deadline for a pending attempt whose outcome never becomes
+   * observable — a closed-or-disowned popup this tab cannot read, with no blur
+   * for the focus verification to work from.
+   *
+   * Bounds every pending attempt rather than only one this mount launched: the
+   * transcript virtualizes, so a row can remount onto an attempt restored from
+   * storage with no window handle at all. The deadline comes from the attempt's
+   * own `requestedAt`, so remounting re-arms with the time remaining instead of
+   * restarting the clock or dropping the bound entirely.
+   */
+  useEffect(() => {
+    if (connectionStatus !== 'pending') return
+    const attempt = readRowAttempt()
+    if (!attempt) return
+    const remaining = Math.max(
+      0,
+      OAUTH_POPUP_UNOBSERVABLE_TIMEOUT_MS - (Date.now() - attempt.requestedAt)
+    )
+    const deadline = window.setTimeout(() => {
+      // A popup still demonstrably running owns the flow; the watcher settles
+      // it the moment it ends, so there is nothing to bound here.
+      if (isPopupStillOpen(popupRef.current)) return
+      void settleFromCredentials()
+    }, remaining)
+    return () => window.clearTimeout(deadline)
+  }, [connectionStatus, readRowAttempt, settleFromCredentials])
 
   useEffect(() => {
     if (connected) onConnectedRef.current?.()

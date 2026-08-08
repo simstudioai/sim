@@ -591,6 +591,48 @@ describe('CredentialDisplay link tag', () => {
     act(() => root.unmount())
   })
 
+  it('keeps the unobservable deadline across a remount', async () => {
+    // The transcript virtualizes, so a row can scroll away mid-connect and come
+    // back with no window handle and no blur behind it. The deadline is derived
+    // from the attempt's requestedAt rather than held in the effect, so the
+    // remounted row inherits the remaining time instead of waiting forever.
+    vi.useFakeTimers()
+    const popup = { focus: vi.fn(), closed: false }
+    const openSpy = vi
+      .spyOn(window, 'open')
+      .mockReturnValue(popup as unknown as ReturnType<typeof window.open>)
+    const data: CredentialItemData = {
+      type: 'link',
+      provider: 'google-email',
+      value:
+        'https://sim.test/api/auth/oauth2/authorize?providerId=google-email&callbackURL=https%3A%2F%2Fsim.test%2Fworkspace%2Fworkspace-1%2Fchat%2Fchat-1',
+    }
+    const first = renderCredentialLink(data)
+
+    await act(async () => {
+      first.container
+        .querySelector('a')
+        ?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+    })
+    popup.closed = true
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60 * 1000)
+    })
+    act(() => first.root.unmount())
+
+    const second = renderCredentialLink(data)
+    expect(second.container.textContent).toContain('Waiting for Gmail connection')
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10 * 60 * 1000)
+    })
+
+    expect(second.container.textContent).toContain('Not connected — connect Gmail')
+    vi.useRealTimers()
+    openSpy.mockRestore()
+    act(() => second.root.unmount())
+  })
+
   it('still announces the connection when the watcher released the popup first', async () => {
     // The watcher drops the window handle as soon as it stops being observable,
     // which routinely happens before React applies the storage-driven verdict.
