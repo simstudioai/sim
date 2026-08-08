@@ -5,7 +5,10 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts'
-import { requireJsonRouteDefinition } from '@/lib/api/server/routes/definition'
+import {
+  requireBinaryRouteDefinition,
+  requireJsonRouteDefinition,
+} from '@/lib/api/server/routes/definition'
 
 const renameOperation = {
   id: 'files.rename',
@@ -68,5 +71,42 @@ describe('declarative route definition invariants', () => {
         renameOperation
       )
     ).toThrow('must declare one success status')
+  })
+
+  it('accepts binary contracts and rejects JSON contracts at the binary boundary', () => {
+    const binary = defineRouteContract({
+      method: 'GET',
+      path: '/files/[fileId]',
+      response: { mode: 'binary' },
+    })
+    expect(requireBinaryRouteDefinition(binary, renameOperation, renameOperation)).toEqual({
+      successStatus: 200,
+    })
+
+    expect(() =>
+      requireBinaryRouteDefinition(
+        defineRouteContract({
+          method: 'GET',
+          path: '/files/[fileId]',
+          response: { mode: 'json', schema: z.object({ ok: z.literal(true) }) },
+        }),
+        renameOperation,
+        renameOperation
+      )
+    ).toThrow('requires a binary response contract')
+  })
+
+  it('rejects operation mismatches at the binary boundary', () => {
+    expect(() =>
+      requireBinaryRouteDefinition(
+        defineRouteContract({
+          method: 'GET',
+          path: '/files/[fileId]',
+          response: { mode: 'binary' },
+        }),
+        renameOperation,
+        { ...renameOperation, id: 'files.download' }
+      )
+    ).toThrow('does not match')
   })
 })

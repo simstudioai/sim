@@ -26,6 +26,10 @@ const {
   mockFetchServableWorkspaceFileBuffer,
   mockGetSandboxWorkspaceFilePath,
   mockListWorkspaceFileFolders,
+  mockListAllWorkspaceFiles,
+  mockListWorkspaceFileFoldersOperation,
+  mockDownloadWorkspaceFileRecord,
+  mockReadWorkspaceFileContent,
   mockMaterializeCopilotCodeSecrets,
   mockHasWorkspaceSandboxAccess,
   mockImportWorkspaceFileSecretProvenanceForRuntime,
@@ -47,6 +51,10 @@ const {
   mockFetchServableWorkspaceFileBuffer: vi.fn(),
   mockGetSandboxWorkspaceFilePath: vi.fn(),
   mockListWorkspaceFileFolders: vi.fn(),
+  mockListAllWorkspaceFiles: vi.fn(),
+  mockListWorkspaceFileFoldersOperation: vi.fn(),
+  mockDownloadWorkspaceFileRecord: vi.fn(),
+  mockReadWorkspaceFileContent: vi.fn(),
   mockMaterializeCopilotCodeSecrets: vi.fn(),
   mockHasWorkspaceSandboxAccess: vi.fn(),
   mockImportWorkspaceFileSecretProvenanceForRuntime: vi.fn(),
@@ -85,6 +93,18 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-folder-manager', () => ({
   listWorkspaceFileFolders: mockListWorkspaceFileFolders,
 }))
+vi.mock('@/lib/workspace-files/application/list-workspace-files', () => ({
+  listAllWorkspaceFiles: { execute: mockListAllWorkspaceFiles },
+}))
+vi.mock('@/lib/workspace-files/application/workspace-file-folders', () => ({
+  listWorkspaceFileFoldersOperation: { execute: mockListWorkspaceFileFoldersOperation },
+}))
+vi.mock('@/lib/workspace-files/application/read-workspace-file-record', () => ({
+  downloadWorkspaceFileRecord: { execute: mockDownloadWorkspaceFileRecord },
+}))
+vi.mock('@/lib/workspace-files/application/read-workspace-file-content', () => ({
+  readWorkspaceFileContent: { execute: mockReadWorkspaceFileContent },
+}))
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
   importWorkspaceFileSecretProvenanceForRuntime: mockImportWorkspaceFileSecretProvenanceForRuntime,
 }))
@@ -115,7 +135,12 @@ const table = {
   schema: { columns: [{ id: 'col_name', name: 'name', type: 'string' }] },
 }
 
-const context = { workspaceId: 'ws_1', userId: 'u1' }
+const context = {
+  workspaceId: 'ws_1',
+  userId: 'u1',
+  copilotToolExecution: true,
+  toolCallId: 'function-execute-test',
+}
 
 function mountedFiles() {
   const params = mockExecuteTool.mock.calls[0][1] as {
@@ -138,6 +163,37 @@ function resetExecutionMocks(): void {
     entries: [],
   })
   mockIsTableSnapshotSafeForModelMount.mockResolvedValue(true)
+  mockListWorkspaceFiles.mockResolvedValue([])
+  mockListWorkspaceFileFolders.mockResolvedValue([])
+  mockListAllWorkspaceFiles.mockImplementation(async () => {
+    const files = await mockListWorkspaceFiles()
+    if (files.length > 0) return { files }
+    const fallback = mockFindWorkspaceFileRecord()
+    return { files: fallback ? [fallback] : [] }
+  })
+  mockListWorkspaceFileFoldersOperation.mockImplementation(async () => ({
+    folders: await mockListWorkspaceFileFolders(),
+  }))
+  mockDownloadWorkspaceFileRecord.mockImplementation(
+    async ({ input }: { input: { fileId: string } }) => {
+      const files = await mockListWorkspaceFiles()
+      const file =
+        files.find((candidate: { id: string }) => candidate.id === input.fileId) ??
+        mockFindWorkspaceFileRecord()
+      if (!file) throw new Error('File not found')
+      return { file }
+    }
+  )
+  mockReadWorkspaceFileContent.mockImplementation(
+    async ({ input }: { input: { fileId: string } }) => {
+      const files = await mockListWorkspaceFiles()
+      const file =
+        files.find((candidate: { id: string }) => candidate.id === input.fileId) ??
+        mockFindWorkspaceFileRecord()
+      if (!file) throw new Error('File not found')
+      return { file, content: await mockFetchWorkspaceFileBuffer(file) }
+    }
+  )
 }
 
 describe('executeFunctionExecute trace-secret provenance', () => {
@@ -891,7 +947,9 @@ describe('executeFunctionExecute file mounts', () => {
   })
 
   it('cloud storage: throws when a file exceeds the per-file URL mount limit', async () => {
-    mockFindWorkspaceFileRecord.mockReturnValue({ ...fileRecord, size: 600 * 1024 * 1024 })
+    const oversized = { ...fileRecord, size: 600 * 1024 * 1024 }
+    mockFindWorkspaceFileRecord.mockReturnValue(oversized)
+    mockListWorkspaceFiles.mockResolvedValue([oversized])
 
     await expect(
       executeFunctionExecute({ inputFiles: ['files/data.csv'] }, context as never)
@@ -901,7 +959,15 @@ describe('executeFunctionExecute file mounts', () => {
 
   it('cloud storage: throws when mounts exceed the aggregate URL mount limit', async () => {
     // Each file is at the 500MB per-file cap; the 5th pushes the running total past 2GB.
-    mockFindWorkspaceFileRecord.mockReturnValue({ ...fileRecord, size: 500 * 1024 * 1024 })
+    const oversized = { ...fileRecord, size: 500 * 1024 * 1024 }
+    mockFindWorkspaceFileRecord.mockReturnValue(oversized)
+    mockListWorkspaceFiles.mockResolvedValue(
+      Array.from({ length: 5 }, (_, i) => ({
+        ...oversized,
+        id: `file_${i}`,
+        name: `big-${i}.csv`,
+      }))
+    )
     const paths = Array.from({ length: 5 }, (_, i) => `files/big-${i}.csv`)
 
     await expect(executeFunctionExecute({ inputFiles: paths }, context as never)).rejects.toThrow(

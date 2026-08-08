@@ -113,6 +113,8 @@ describe('maybeWriteOutputToFile', () => {
       userId: 'user-1',
       workflowId: 'wf-1',
       workspaceId: 'workspace-1',
+      toolCallId: 'tool-1',
+      copilotToolExecution: true,
       userPermission: 'write',
       resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
       ...overrides,

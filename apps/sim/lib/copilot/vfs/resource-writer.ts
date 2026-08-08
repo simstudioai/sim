@@ -1,20 +1,18 @@
-import { canonicalWorkspaceFilePath, decodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
-import {
-  ensureWorkspaceFileFolderPath,
-  findWorkspaceFileFolderIdByPath,
-  normalizeWorkspaceFileItemName,
-} from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
+import type { Principal } from '@sim/auth/principal'
+import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
+import { findWorkspaceFileFolderIdByPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
   getWorkspaceFileByName,
-  resolveWorkspaceFileReference,
-  updateWorkspaceFileContent,
-  uploadWorkspaceFile,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { fileOperations } from '@/lib/workspace-files/application/operations'
+import { resolveWorkspaceFileReference } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
 import {
-  EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE,
-  type WorkspaceFileSecretProvenance,
-} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+  createWorkspaceFileBufferByPath,
+  updateWorkspaceFileContentBufferByPath,
+} from '@/lib/workspace-files/application/write-workspace-file-by-path'
+import { parseWorkspaceFileCreatePath } from '@/lib/workspace-files/workspace-file-path'
 
 export type WorkspaceFileWriteMode = 'create' | 'overwrite'
 
@@ -54,68 +52,20 @@ export type WorkspaceFileWriteValidation =
       existingFileId: string
     }
 
-function displayFolderPath(segments: string[]): string {
-  return segments.length > 0 ? `files/${segments.join('/')}` : 'files/'
-}
-
-export function parseWorkspaceFileCreatePath(path: string): {
-  folderSegments: string[]
-  fileName: string
-  vfsPath: string
-} {
-  const trimmed = path.trim().replace(/^\/+/, '')
-  if (!trimmed.startsWith('files/')) {
-    throw new Error('Workspace file paths must start with "files/"')
-  }
-
-  const decoded = decodeVfsPathSegments(trimmed.slice('files/'.length))
-  if (decoded.length === 0) {
-    throw new Error('Workspace file path must include a file name')
-  }
-
-  const fileName = normalizeWorkspaceFileItemName(decoded.at(-1) ?? '', 'File')
-  const folderSegments = decoded
-    .slice(0, -1)
-    .map((segment) => normalizeWorkspaceFileItemName(segment, 'Folder'))
-
-  return {
-    folderSegments,
-    fileName,
-    vfsPath: canonicalWorkspaceFilePath({ folderPath: folderSegments.join('/'), name: fileName }),
-  }
-}
-
-/**
- * Resolve a create-mode write target. Pass `createFolders` (the write path) to
- * create missing parent folders; without it (the validation path) resolution
- * is read-only — a missing parent chain yields `folderId: null`, since the
- * folders are created at write time and nothing can conflict there yet.
- */
+/** Resolves a create-mode target without mutating missing parent folders. */
 async function resolveCreateTarget(
   workspaceId: string,
-  path: string,
-  createFolders?: { userId: string }
+  path: string
 ): Promise<ResolvedCreateTarget> {
   const parsed = parseWorkspaceFileCreatePath(path)
   let folderId: string | null = null
   if (parsed.folderSegments.length > 0) {
-    if (createFolders) {
-      folderId = await ensureWorkspaceFileFolderPath({
-        workspaceId,
-        userId: createFolders.userId,
-        pathSegments: parsed.folderSegments,
-      })
-      if (!folderId) {
-        throw new Error(`Failed to create directory: ${displayFolderPath(parsed.folderSegments)}`)
-      }
-    } else {
-      folderId = await findWorkspaceFileFolderIdByPath(workspaceId, parsed.folderSegments)
-      if (!folderId) {
-        return {
-          fileName: parsed.fileName,
-          folderId: null,
-          vfsPath: parsed.vfsPath,
-        }
+    folderId = await findWorkspaceFileFolderIdByPath(workspaceId, parsed.folderSegments)
+    if (!folderId) {
+      return {
+        fileName: parsed.fileName,
+        folderId: null,
+        vfsPath: parsed.vfsPath,
       }
     }
   }
@@ -138,14 +88,16 @@ function vfsPathForRecord(record: WorkspaceFileRecord): string {
 
 export async function validateWorkspaceFileWriteTarget(args: {
   workspaceId: string
-  userId?: string
+  principal: Principal
   target: WorkspaceFileWriteTarget
 }): Promise<WorkspaceFileWriteValidation> {
   if (args.target.mode === 'overwrite') {
-    const existing = await resolveWorkspaceFileReference(args.workspaceId, args.target.path)
-    if (!existing) {
-      throw new Error(`File not found for overwrite: ${args.target.path}`)
-    }
+    const existing = await resolveWorkspaceFileReference({
+      principal: args.principal,
+      operation: fileOperations.updateContent,
+      workspaceId: args.workspaceId,
+      reference: args.target.path,
+    })
     return {
       mode: 'overwrite',
       vfsPath: vfsPathForRecord(existing),
@@ -164,7 +116,7 @@ export async function validateWorkspaceFileWriteTarget(args: {
 
 export async function writeWorkspaceFileByPath(args: {
   workspaceId: string
-  userId: string
+  principal: Principal
   target: WorkspaceFileWriteTarget
   buffer: Buffer
   inferredMimeType: string
@@ -179,59 +131,50 @@ export async function writeWorkspaceFileByPath(args: {
 }): Promise<WorkspaceFileWriteResult> {
   const contentType = args.target.mimeType || args.inferredMimeType
   if (args.target.mode === 'overwrite') {
-    const existing = await resolveWorkspaceFileReference(args.workspaceId, args.target.path)
-    if (!existing) {
-      throw new Error(`File not found for overwrite: ${args.target.path}`)
-    }
-
-    const updated = await updateWorkspaceFileContent(
-      args.workspaceId,
-      existing.id,
-      args.userId,
-      args.buffer,
-      contentType || existing.type,
-      {
+    const updated = await updateWorkspaceFileContentBufferByPath.execute({
+      principal: args.principal,
+      input: {
+        workspaceId: args.workspaceId,
+        path: args.target.path,
+        mode: 'overwrite',
+        content: args.buffer,
+        contentType,
         syncLiveDoc: args.syncLiveDoc,
-        secretProvenancePolicy: {
-          mode: 'replace',
-          provenance: args.secretProvenance ?? { status: 'exact', entries: [] },
-        },
-      }
-    )
+        secretProvenance: args.secretProvenance,
+      },
+    })
 
     return {
       id: updated.id,
       name: updated.name,
       size: updated.size,
-      contentType: updated.type,
-      downloadUrl: updated.url,
-      vfsPath: vfsPathForRecord(updated),
+      contentType: updated.contentType,
+      downloadUrl: updated.downloadUrl,
+      vfsPath: updated.vfsPath,
       mode: 'overwrite',
     }
   }
 
-  const createTarget = await resolveCreateTarget(args.workspaceId, args.target.path, {
-    userId: args.userId,
+  const created = await createWorkspaceFileBufferByPath.execute({
+    principal: args.principal,
+    input: {
+      workspaceId: args.workspaceId,
+      path: args.target.path,
+      mode: 'create',
+      content: args.buffer,
+      contentType,
+      exactName: true,
+      secretProvenance: args.secretProvenance,
+    },
   })
-  const uploaded = await uploadWorkspaceFile(
-    args.workspaceId,
-    args.userId,
-    args.buffer,
-    createTarget.fileName,
-    contentType,
-    {
-      folderId: createTarget.folderId,
-      secretProvenance: args.secretProvenance ?? EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE,
-    }
-  )
 
   return {
-    id: uploaded.id,
-    name: uploaded.name,
-    size: uploaded.size,
-    contentType: uploaded.type,
-    downloadUrl: uploaded.url,
-    vfsPath: createTarget.vfsPath,
+    id: created.id,
+    name: created.name,
+    size: created.size,
+    contentType: created.contentType,
+    downloadUrl: created.downloadUrl,
+    vfsPath: created.vfsPath,
     mode: 'create',
   }
 }

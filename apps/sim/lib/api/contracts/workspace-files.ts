@@ -175,6 +175,7 @@ export const createWorkspaceFileContract = defineRouteContract({
     schema: workspaceFileSuccessSchema.extend({
       file: workspaceFileRecordSchema,
     }),
+    status: 201,
   },
 })
 
@@ -234,6 +235,22 @@ export const updateWorkspaceFileContentContract = defineRouteContract({
     mode: 'json',
     schema: workspaceFileSuccessSchema.extend({
       file: workspaceFileRecordSchema,
+    }),
+  },
+})
+
+export const downloadWorkspaceFileUrlContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/workspaces/[id]/files/[fileId]/download',
+  params: workspaceFileParamsSchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
+      downloadUrl: z.string().min(1),
+      viewerUrl: z.string().min(1),
+      fileName: z.string().min(1),
+      expiresIn: z.null(),
     }),
   },
 })

@@ -125,6 +125,16 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   uploadWorkspaceFile: vi.fn(),
 }))
 
+vi.mock('@/lib/workspace-files/application/resolve-workspace-file-reference', () => ({
+  resolveWorkspaceFileReference: mockResolveWorkspaceFileReference,
+}))
+
+vi.mock('@/lib/workspace-files/application/read-workspace-file-content', () => ({
+  readWorkspaceFileContent: {
+    execute: vi.fn(async () => ({ content: await mockFetchWorkspaceFileBuffer() })),
+  },
+}))
+
 vi.mock('@/lib/uploads', () => ({
   StorageService: {
     uploadFile: mockUploadFile,
@@ -183,7 +193,13 @@ describe('Function Execute API Route', () => {
       url: '/api/files/view/existing',
       key: 'workspace/existing.png',
     })
-    mockResolveWorkspaceFileReference.mockResolvedValue(null)
+    mockResolveWorkspaceFileReference.mockResolvedValue({
+      id: 'wf_existing',
+      workspaceId: 'workspace-1',
+      name: 'existing.txt',
+      size: 0,
+      key: 'workspace/existing.txt',
+    })
     mockFetchWorkspaceFileBuffer.mockResolvedValue(Buffer.alloc(0))
     mockValidateWorkspaceFileWriteTarget.mockImplementation(async ({ target }) => ({
       mode: target.mode,

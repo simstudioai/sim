@@ -1,29 +1,19 @@
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { type NextRequest, NextResponse } from 'next/server'
 import {
+  deleteWorkspaceFileContract,
   renameWorkspaceFileContract,
-  workspaceFileParamsSchema,
 } from '@/lib/api/contracts/workspace-files'
-import { getValidationErrorMessage } from '@/lib/api/server'
 import {
   defineInternalJsonRoute,
   internalFileErrorPolicy,
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
-import { getSession } from '@/lib/auth'
-import { generateRequestId } from '@/lib/core/utils/request'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { deleteWorkspaceFileOperation } from '@/lib/workspace-files/application/delete-workspace-file'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { renameWorkspaceFile } from '@/lib/workspace-files/application/rename-workspace-file'
-import { performDeleteWorkspaceFileItems } from '@/lib/workspace-files/orchestration'
-import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 export const dynamic = 'force-dynamic'
-
-const logger = createLogger('WorkspaceFileAPI')
 
 /**
  * PATCH /api/workspaces/[id]/files/[fileId]
@@ -56,76 +46,21 @@ export const PATCH = defineInternalJsonRoute({
  * DELETE /api/workspaces/[id]/files/[fileId]
  * Archive a workspace file (requires write permission)
  */
-export const DELETE = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string; fileId: string }> }) => {
-    const requestId = generateRequestId()
-    const paramsResult = workspaceFileParamsSchema.safeParse(await params)
-    if (!paramsResult.success) {
-      return NextResponse.json(
-        { error: getValidationErrorMessage(paramsResult.error, 'Invalid route parameters') },
-        { status: 400 }
-      )
-    }
-    const { id: workspaceId, fileId } = paramsResult.data
-
-    try {
-      const session = await getSession()
-      if (!session?.user?.id) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-
-      // Check workspace permissions (requires write)
-      const userPermission = await getUserEntityPermissions(
-        session.user.id,
-        'workspace',
-        workspaceId
-      )
-      if (userPermission !== 'admin' && userPermission !== 'write') {
-        logger.warn(
-          `[${requestId}] User ${session.user.id} lacks write permission for workspace ${workspaceId}`
-        )
-        return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
-      }
-
-      const result = await performDeleteWorkspaceFileItems({
-        workspaceId,
-        userId: session.user.id,
-        fileIds: [fileId],
-      })
-      if (!result.success) {
-        return NextResponse.json(
-          { success: false, error: result.error },
-          {
-            status:
-              result.errorCode === 'validation'
-                ? 400
-                : result.errorCode === 'not_found'
-                  ? 404
-                  : 500,
-          }
-        )
-      }
-
-      logger.info(`[${requestId}] Archived workspace file: ${fileId}`)
-
-      captureServerEvent(
-        session.user.id,
-        'file_deleted',
-        { workspace_id: workspaceId },
-        { groups: { workspace: workspaceId } }
-      )
-      return NextResponse.json({
-        success: true,
-      })
-    } catch (error) {
-      logger.error(`[${requestId}] Error deleting workspace file:`, error)
-      return NextResponse.json(
-        {
-          success: false,
-          error: getErrorMessage(error, 'Failed to delete file'),
-        },
-        { status: 500 }
-      )
-    }
-  }
-)
+export const DELETE = defineInternalJsonRoute({
+  contract: deleteWorkspaceFileContract,
+  auth: internalSessionAuth,
+  operation: fileOperations.delete,
+  rateLimit: internalRateLimits.none({ reason: 'Preserve existing internal delete behavior' }),
+  errorPolicy: internalFileErrorPolicy,
+  mapInput: ({ params }) => ({ fileId: params.fileId, assertedWorkspaceId: params.id }),
+  useCase: deleteWorkspaceFileOperation,
+  onSuccess: ({ principal, result }) => {
+    captureServerEvent(
+      principal.userId,
+      'file_deleted',
+      { workspace_id: result.workspaceId },
+      { groups: { workspace: result.workspaceId } }
+    )
+  },
+  present: ({ deleted }) => ({ success: deleted }),
+})

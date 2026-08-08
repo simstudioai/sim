@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { createCopilotFilePrincipal } from '@/lib/copilot/auth/file-delegation'
 import { MothershipStreamV1EventType } from '@/lib/copilot/generated/mothership-stream-v1'
 import {
   createFilePreviewSession,
@@ -25,7 +26,8 @@ import {
   loadWorkspaceFileTextForPreview,
   type WorkspaceFilePreviewBase,
 } from '@/lib/copilot/tools/server/files/file-preview'
-import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { findWorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { listAllWorkspaceFiles } from '@/lib/workspace-files/application/list-workspace-files'
 
 const logger = createLogger('CopilotFilePreviewAdapter')
 
@@ -65,14 +67,22 @@ function toPreviewTargetKind(kind: string | undefined): FilePreviewTargetKind | 
 }
 
 async function resolvePreviewTarget(args: {
+  context: ExecutionContext
   workspaceId?: string
   target: FileIntent['target']
 }): Promise<FileIntent['target']> {
   if (args.target.kind !== 'path' || !args.workspaceId || !args.target.path) {
     return args.target
   }
+  if (!args.context.copilotToolExecution || !args.context.toolCallId) {
+    throw new Error('Workspace file preview requires a trusted Copilot execution context')
+  }
 
-  const file = await resolveWorkspaceFileReference(args.workspaceId, args.target.path)
+  const { files } = await listAllWorkspaceFiles.execute({
+    principal: createCopilotFilePrincipal(args.context, args.workspaceId),
+    input: { workspaceId: args.workspaceId, scope: 'active' },
+  })
+  const file = findWorkspaceFileRecord(files, args.target.path)
   if (!file) {
     return args.target
   }
@@ -366,6 +376,7 @@ export async function processFilePreviewStreamEvent(input: {
     if (toolCallId && parsedArgs) {
       const { operation, title, contentType, edit } = parsedArgs
       const target = await resolvePreviewTarget({
+        context: execContext,
         workspaceId: execContext.workspaceId,
         target: parsedArgs.target,
       })
@@ -393,7 +404,11 @@ export async function processFilePreviewStreamEvent(input: {
           fileId &&
           (operation === 'append' || operation === 'patch')
         ) {
-          previewBase = await loadWorkspaceFileTextForPreview(execContext.workspaceId, fileId)
+          previewBase = await loadWorkspaceFileTextForPreview(
+            execContext,
+            execContext.workspaceId,
+            fileId
+          )
         }
 
         let session = buildPreviewSessionFromIntent(streamId, intent)
@@ -464,7 +479,11 @@ export async function processFilePreviewStreamEvent(input: {
         execContext.workspaceId &&
         (intent.operation === 'append' || intent.operation === 'patch')
       ) {
-        previewBase = await loadWorkspaceFileTextForPreview(execContext.workspaceId, result.fileId)
+        previewBase = await loadWorkspaceFileTextForPreview(
+          execContext,
+          execContext.workspaceId,
+          result.fileId
+        )
       }
 
       let session = buildPreviewSessionFromIntent(streamId, intent)

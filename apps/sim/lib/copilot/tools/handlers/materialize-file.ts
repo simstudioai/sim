@@ -1,4 +1,5 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
+import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { folder as folderTable, workflow, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -16,6 +17,7 @@ import {
   maybeNotifyStorageLimitForBillingContext,
   resolveStorageBillingContext,
 } from '@/lib/billing/storage'
+import { createCopilotFilePrincipal } from '@/lib/copilot/auth/file-delegation'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { ensureWorkspaceAccess } from '@/lib/copilot/tools/handlers/access'
 import { findMothershipUploadRowByChatAndName } from '@/lib/copilot/tools/handlers/upload-file-reader'
@@ -31,7 +33,6 @@ import { findWorkspaceFileFolderIdByPath } from '@/lib/uploads/contexts/workspac
 import {
   allocateUniqueWorkspaceFileName,
   fetchWorkspaceFileBuffer,
-  getWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { getBoundWorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { hasCloudStorage, headObject } from '@/lib/uploads/core/storage-service'
@@ -39,6 +40,8 @@ import { isArchiveFileName } from '@/lib/uploads/utils/file-utils'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { deduplicateWorkflowName } from '@/lib/workflows/utils'
+import { createWorkspaceFile } from '@/lib/workspace-files/application/create-workspace-file'
+import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
 import { extractWorkflowMetadata } from '@/app/api/v1/admin/types'
 
 const logger = createLogger('MaterializeFile')
@@ -80,7 +83,8 @@ function uploadBelongsToWorkspace(
 async function executeSave(
   fileName: string,
   chatId: string,
-  workspaceId: string
+  workspaceId: string,
+  principal: Principal
 ): Promise<ToolCallResult> {
   const row = await findMothershipUploadRowByChatAndName(chatId, fileName)
   if (!row) {
@@ -183,7 +187,12 @@ async function executeSave(
 
   const replayedFile = transition
     ? null
-    : await getWorkspaceFile(workspaceId, row.id, { throwOnError: true })
+    : (
+        await readWorkspaceFileMetadata.execute({
+          principal,
+          input: { fileId: row.id, assertedWorkspaceId: workspaceId },
+        })
+      ).file
   const updated =
     transition?.updated ??
     (replayedFile ? { id: replayedFile.id, originalName: replayedFile.name } : null)
@@ -371,7 +380,8 @@ async function executeExtract(
   fileName: string,
   chatId: string,
   workspaceId: string,
-  userId: string
+  userId: string,
+  principal: Principal
 ): Promise<ToolCallResult> {
   const row = await findMothershipUploadRowByChatAndName(chatId, fileName)
   if (!row) {
@@ -461,7 +471,7 @@ async function executeExtract(
     })
     result = await decompressArchiveBufferToWorkspaceFiles(buffer, {
       workspaceId,
-      userId,
+      principal,
       rootFolderSegments: [baseName],
       // The agent-facing extract drops macOS/Windows filesystem cruft so the
       // unpacked files/ tree only contains meaningful entries.
@@ -543,6 +553,8 @@ export async function executeMaterializeFile(
     return { success: false, error: 'No workspace context available for materialize_file' }
   }
 
+  const principal = createCopilotFilePrincipal(context, context.workspaceId)
+
   const operation = (params.operation as string | undefined) || 'save'
   // save (promote upload → workspace file), import (JSON → workflow), and extract
   // (decompress a .zip upload → workspace files/) are implemented. Reject anything
@@ -554,10 +566,12 @@ export async function executeMaterializeFile(
     }
   }
 
-  // Every operation writes: save/extract create files, import creates a workflow.
-  // The handler-map path has no central permission gate.
   try {
-    await ensureWorkspaceAccess(context.workspaceId, context.userId, 'write')
+    if (operation === 'import') {
+      await ensureWorkspaceAccess(context.workspaceId, context.userId, 'write')
+    } else {
+      await createWorkspaceFile.admit(principal, context.workspaceId)
+    }
   } catch (error) {
     return { success: false, error: getErrorMessage(error, 'Workspace write access required') }
   }
@@ -572,9 +586,15 @@ export async function executeMaterializeFile(
       if (operation === 'import') {
         result = await executeImport(fileName, context.chatId, context.workspaceId, context.userId)
       } else if (operation === 'extract') {
-        result = await executeExtract(fileName, context.chatId, context.workspaceId, context.userId)
+        result = await executeExtract(
+          fileName,
+          context.chatId,
+          context.workspaceId,
+          context.userId,
+          principal
+        )
       } else {
-        result = await executeSave(fileName, context.chatId, context.workspaceId)
+        result = await executeSave(fileName, context.chatId, context.workspaceId, principal)
       }
 
       if (result.success) {

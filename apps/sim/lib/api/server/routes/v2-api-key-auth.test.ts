@@ -91,6 +91,28 @@ describe('v2 API key authentication', () => {
     expect(mocks.getHighestPrioritySubscription).not.toHaveBeenCalled()
   })
 
+  it('does not couple a workspace key to its creator ban state', async () => {
+    queueTableRows(schemaMock.apiKey, [
+      {
+        id: 'key-1',
+        userId: 'creator-1',
+        workspaceId: 'workspace-1',
+        type: 'workspace',
+        expiresAt: null,
+        userBanned: true,
+      },
+    ])
+    mocks.resolveWorkspaceBillingPayer.mockResolvedValue({
+      billedAccountUserId: 'billing-owner-1',
+      organizationId: null,
+      payerSubscription: null,
+    })
+
+    await expect(authenticateV2ApiKey('secret')).resolves.toMatchObject({
+      principal: { kind: 'workspace_api_key', workspaceId: 'workspace-1', keyId: 'key-1' },
+    })
+  })
+
   it('treats missing, banned, and expired credentials as unauthenticated', async () => {
     await expect(authenticateV2ApiKey('missing')).rejects.toBeInstanceOf(
       V2ApiKeyUnauthenticatedError

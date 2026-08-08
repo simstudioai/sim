@@ -12,6 +12,7 @@ import {
   type BillingAttributionSnapshot,
   checkAttributedUsageLimits,
 } from '@/lib/billing/core/billing-attribution'
+import { createCopilotFilePrincipal } from '@/lib/copilot/auth/file-delegation'
 import { KnowledgeBase } from '@/lib/copilot/generated/tool-catalog-v1'
 import { projectToolErrorMessageForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
 import {
@@ -50,8 +51,9 @@ import {
   updateTagDefinition,
 } from '@/lib/knowledge/tags/service'
 import { StorageService } from '@/lib/uploads'
-import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { getBoundWorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { fileOperations } from '@/lib/workspace-files/application/operations'
+import { resolveWorkspaceFileReference } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
 import { getCredential } from '@/app/api/auth/oauth/utils'
 import {
   checkDocumentWriteAccess,
@@ -395,10 +397,18 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
 
           const added: Array<{ documentId: string; filename: string }> = []
           const failedFiles: string[] = []
+          const filePrincipal = createCopilotFilePrincipal(context, kbWorkspaceId)
 
           for (const fileRef of fileRefs) {
-            const fileRecord = await resolveWorkspaceFileReference(kbWorkspaceId, fileRef)
-            if (!fileRecord) {
+            let fileRecord
+            try {
+              fileRecord = await resolveWorkspaceFileReference({
+                principal: filePrincipal,
+                operation: fileOperations.readContent,
+                workspaceId: kbWorkspaceId,
+                reference: fileRef,
+              })
+            } catch {
               failedFiles.push(fileRef)
               continue
             }

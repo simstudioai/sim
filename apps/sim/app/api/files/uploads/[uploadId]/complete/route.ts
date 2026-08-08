@@ -2,9 +2,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { completeInternalFileUploadContract } from '@/lib/api/contracts/upload-sessions'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { completeUploadSession, getOwnedUploadSession } from '@/lib/uploads/upload-session/service'
-import { finalizeUploadPurpose } from '@/app/api/files/uploads/finalizers'
-import { reauthorizeUploadPurpose } from '@/app/api/files/uploads/purposes'
+import { completeInternalUploadSession } from '@/lib/uploads/upload-session/application'
 import {
   requireUploadUser,
   toInternalUploadSession,
@@ -22,16 +20,15 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Uploa
   if (!parsed.success) return parsed.response
 
   try {
-    const session = await getOwnedUploadSession({
-      uploadId: parsed.data.params.uploadId,
-      uploadToken: parsed.data.headers['upload-token'],
-      userId: actor.id,
-    })
-    await reauthorizeUploadPurpose(actor.id, session)
-    const completed = await completeUploadSession({
-      session,
-      finalize: (claimed) => finalizeUploadPurpose({ session: claimed, actor, request }),
-    })
+    const completed = await completeInternalUploadSession(
+      actor.principal,
+      {
+        uploadId: parsed.data.params.uploadId,
+        uploadToken: parsed.data.headers['upload-token'],
+        actor,
+      },
+      request
+    )
     return NextResponse.json({
       data: toInternalUploadSession(completed.session, completed.value),
     })

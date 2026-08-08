@@ -3,13 +3,10 @@ import { toError } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { isAllowedCustomBlockIconUrl } from '@/lib/api/contracts/custom-blocks'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing'
+import { createCopilotFilePrincipal } from '@/lib/copilot/auth/file-delegation'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
-import { canonicalizeVfsPath, canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
+import { canonicalizeVfsPath } from '@/lib/copilot/vfs/path-utils'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
-import {
-  fetchWorkspaceFileBuffer,
-  listWorkspaceFiles,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { uploadFile } from '@/lib/uploads/core/storage-service'
 import { isImageFileType } from '@/lib/uploads/utils/file-utils'
 import {
@@ -20,6 +17,9 @@ import {
   publishCustomBlock,
   updateCustomBlock,
 } from '@/lib/workflows/custom-blocks/operations'
+import { fileOperations } from '@/lib/workspace-files/application/operations'
+import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
+import { resolveWorkspaceFileReference } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import { ensureWorkflowAccess } from '../access'
 import type { DeployCustomBlockParams } from '../param-types'
@@ -38,7 +38,7 @@ const MAX_OUTPUT_ENTRIES = 50
  */
 async function resolveIconUrl(
   raw: string | undefined,
-  userId: string,
+  context: ExecutionContext,
   workspaceId: string
 ): Promise<string | undefined> {
   const value = raw?.trim()
@@ -53,13 +53,15 @@ async function resolveIconUrl(
   }
 
   const canonical = canonicalizeVfsPath(value)
-  const files = await listWorkspaceFiles(workspaceId, { hydrateFolderPaths: true })
-  const record = files.find(
-    (f) => canonicalWorkspaceFilePath({ folderPath: f.folderPath, name: f.name }) === canonical
-  )
-  if (!record) {
+  const principal = createCopilotFilePrincipal(context, workspaceId)
+  const record = await resolveWorkspaceFileReference({
+    principal,
+    operation: fileOperations.readContent,
+    workspaceId,
+    reference: canonical,
+  }).catch(() => {
     throw new CustomBlockValidationError(`Icon file not found in this workspace: ${value}`)
-  }
+  })
   if (!isImageFileType(record.type)) {
     throw new CustomBlockValidationError(
       'Icon file must be an image (PNG, JPEG, GIF, WebP, or SVG)'
@@ -69,7 +71,10 @@ async function resolveIconUrl(
     throw new CustomBlockValidationError('Icon file must be 5MB or smaller')
   }
 
-  const buffer = await fetchWorkspaceFileBuffer(record)
+  const { content: buffer } = await readWorkspaceFileContent.execute({
+    principal,
+    input: { fileId: record.id, assertedWorkspaceId: workspaceId, maxBytes: MAX_ICON_BYTES },
+  })
   const safeFileName = record.name.replace(/[^a-zA-Z0-9.-]/g, '_')
   const uploaded = await uploadFile({
     file: buffer,
@@ -78,7 +83,7 @@ async function resolveIconUrl(
     context: 'workspace-logos',
     customKey: `workspace-logos/${Date.now()}-${generateShortId()}-${safeFileName}`,
     preserveKey: true,
-    metadata: { workspaceId, userId, originalName: record.name },
+    metadata: { workspaceId, userId: context.userId, originalName: record.name },
   })
   return uploaded.path
 }
@@ -218,7 +223,7 @@ export async function executeDeployCustomBlock(
     if (params.exposedOutputs?.some((entry) => entry.name.length > 60)) {
       return { success: false, error: 'exposed output names must be 60 characters or fewer' }
     }
-    const iconUrl = await resolveIconUrl(params.iconUrl, context.userId, workspaceId)
+    const iconUrl = await resolveIconUrl(params.iconUrl, context, workspaceId)
 
     if (existing) {
       await updateCustomBlock(existing.id, {

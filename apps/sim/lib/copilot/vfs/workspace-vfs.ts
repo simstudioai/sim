@@ -1,4 +1,5 @@
 import { trace } from '@opentelemetry/api'
+import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
   chat as chatTable,
@@ -48,7 +49,11 @@ import {
 } from '@/lib/copilot/tools/server/workflow/edit-workflow/lint'
 import { UNRESOLVABLE_AT_LINT_NOTE } from '@/lib/copilot/tools/server/workflow/edit-workflow/validation'
 import { extractDocumentStyle } from '@/lib/copilot/vfs/document-style'
-import { type FileReadResult, readFileRecord } from '@/lib/copilot/vfs/file-reader'
+import {
+  type FileReadResult,
+  MAX_TEXT_READ_BYTES,
+  readFileRecord,
+} from '@/lib/copilot/vfs/file-reader'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
 import type { GrepMatch, GrepOptions, ReadResult } from '@/lib/copilot/vfs/operations'
 import * as ops from '@/lib/copilot/vfs/operations'
@@ -117,15 +122,9 @@ import { getKnowledgeBases } from '@/lib/knowledge/service'
 import { validateMermaidSource } from '@/lib/mermaid/validate'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
-import { getWorkspaceShares } from '@/lib/public-shares/share-manager'
 import { listTables } from '@/lib/table/service'
-import { listWorkspaceFileFolders } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
-import {
-  fetchWorkspaceFileBuffer,
-  findWorkspaceFileRecord,
-  listWorkspaceFiles,
-  type WorkspaceFileRecord,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { findWorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import type { WorkspaceFileSecretProvenanceEnvelope } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { listCustomBlocksWithInputsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
@@ -133,6 +132,9 @@ import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/ut
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import { getSkillById } from '@/lib/workflows/skills/operations'
 import { listFolders, listWorkflows } from '@/lib/workflows/utils'
+import { listAllWorkspaceFiles } from '@/lib/workspace-files/application/list-workspace-files'
+import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
+import { listWorkspaceFileFoldersOperation } from '@/lib/workspace-files/application/workspace-file-folders'
 import {
   assertActiveWorkspaceAccess,
   getUsersWithPermissions,
@@ -563,6 +565,7 @@ function getStaticComponentFiles(): Map<string, string> {
  *   components/triggers/{provider}/{id}.json           (external triggers: github, slack, etc.)
  */
 export class WorkspaceVFS {
+  private readonly filePrincipal?: Principal
   // Eagerly-materialized, cheap content (structure + metadata): folder markers,
   // per-resource meta.json, WORKSPACE.md/WORKSPACE_CONTEXT.md, static components.
   private files: Map<string, string> = new Map()
@@ -594,6 +597,10 @@ export class WorkspaceVFS {
    * means the org genuinely has no custom blocks, so any placed one IS deleted.
    */
   private _customBlockTypes: Set<string> | null = null
+
+  constructor(filePrincipal?: Principal) {
+    this.filePrincipal = filePrincipal
+  }
 
   get workspaceId(): string {
     return this._workspaceId
@@ -1035,8 +1042,21 @@ export class WorkspaceVFS {
     const canonicalMatch = path.match(new RegExp(`^files/(.+)/${suffix}$`))
     if (!canonicalMatch?.[1]) return null
 
-    const files = await listWorkspaceFiles(this._workspaceId)
+    if (!this.filePrincipal) {
+      throw new Error('Workspace file reads require a trusted Copilot principal')
+    }
+    const { files } = await listAllWorkspaceFiles.execute({
+      principal: this.filePrincipal,
+      input: { workspaceId: this._workspaceId, scope: 'active' },
+    })
     return findWorkspaceFileRecord(files, `files/${canonicalMatch[1]}`)
+  }
+
+  private requireFilePrincipal(): Principal {
+    if (!this.filePrincipal) {
+      throw new Error('Workspace file reads require a trusted Copilot principal')
+    }
+    return this.filePrincipal
   }
 
   /**
@@ -1059,7 +1079,14 @@ export class WorkspaceVFS {
         totalLines: 1,
       }
     }
-    const buffer = await fetchWorkspaceFileBuffer(record)
+    const { content: buffer } = await readWorkspaceFileContent.execute({
+      principal: this.requireFilePrincipal(),
+      input: {
+        fileId: record.id,
+        assertedWorkspaceId: this._workspaceId,
+        maxBytes: MAX_DOC_READ_INPUT_BYTES,
+      },
+    })
     if (buffer.length > MAX_DOC_READ_INPUT_BYTES) {
       return {
         content: JSON.stringify({ ok: false, error: 'File is too large to render' }),
@@ -1082,7 +1109,12 @@ export class WorkspaceVFS {
       }
       if (isDocSandboxEnabled && (await getE2BDocFormat(record.name))) {
         bin = (
-          await compileDoc({ source: code, fileName: record.name, workspaceId: this._workspaceId })
+          await compileDoc({
+            source: code,
+            fileName: record.name,
+            workspaceId: this._workspaceId,
+            filePrincipal: this.requireFilePrincipal(),
+          })
         ).buffer
       } else {
         const taskId = BINARY_DOC_TASKS[ext]
@@ -1172,7 +1204,14 @@ export class WorkspaceVFS {
           })
         }
 
-        const buffer = await fetchWorkspaceFileBuffer(record)
+        const { content: buffer } = await readWorkspaceFileContent.execute({
+          principal: this.requireFilePrincipal(),
+          input: {
+            fileId: record.id,
+            assertedWorkspaceId: this._workspaceId,
+            maxBytes: MAX_DOC_READ_INPUT_BYTES,
+          },
+        })
         const code = buffer.toString('utf-8')
         if (Buffer.byteLength(code, 'utf-8') > MAX_DOCUMENT_PREVIEW_CODE_BYTES) {
           return bindWorkspaceFileResult(record, {
@@ -1186,6 +1225,7 @@ export class WorkspaceVFS {
                 source: code,
                 fileName: record.name,
                 workspaceId: this._workspaceId,
+                filePrincipal: this.requireFilePrincipal(),
               })
             ).buffer
           : await runSandboxTask(taskId, { code, workspaceId: this._workspaceId })
@@ -1296,7 +1336,14 @@ export class WorkspaceVFS {
             totalLines: 1,
           })
         }
-        const buffer = await fetchWorkspaceFileBuffer(record)
+        const { content: buffer } = await readWorkspaceFileContent.execute({
+          principal: this.requireFilePrincipal(),
+          input: {
+            fileId: record.id,
+            assertedWorkspaceId: this._workspaceId,
+            maxBytes: MAX_DOC_READ_INPUT_BYTES,
+          },
+        })
         if (buffer.length > MAX_DOC_READ_INPUT_BYTES) {
           return bindWorkspaceFileResult(record, {
             content: JSON.stringify({ ok: false, error: 'File is too large to extract' }),
@@ -1348,7 +1395,14 @@ export class WorkspaceVFS {
         const taskId = BINARY_DOC_TASKS[ext]
         const isMermaidFile = ext === 'mmd' || ext === 'mermaid'
         if (!e2bFmt && !taskId && !isMermaidFile) return null
-        const buffer = await fetchWorkspaceFileBuffer(record)
+        const { content: buffer } = await readWorkspaceFileContent.execute({
+          principal: this.requireFilePrincipal(),
+          input: {
+            fileId: record.id,
+            assertedWorkspaceId: this._workspaceId,
+            maxBytes: MAX_DOC_READ_INPUT_BYTES,
+          },
+        })
         const code = buffer.toString('utf-8')
         if (Buffer.byteLength(code, 'utf-8') > MAX_DOCUMENT_PREVIEW_CODE_BYTES) {
           return bindWorkspaceFileResult(record, {
@@ -1371,6 +1425,7 @@ export class WorkspaceVFS {
             fileName: record.name,
             workspaceId: this._workspaceId,
             ext,
+            principal: this.requireFilePrincipal(),
           })
         } else {
           try {
@@ -1407,7 +1462,20 @@ export class WorkspaceVFS {
         const rawExt = record.name.split('.').pop()?.toLowerCase()
         if (rawExt !== 'docx' && rawExt !== 'pptx' && rawExt !== 'pdf') return null
         const ext: 'docx' | 'pptx' | 'pdf' = rawExt
-        const buffer = await fetchWorkspaceFileBuffer(record)
+        if (typeof record.size === 'number' && record.size > MAX_DOC_READ_INPUT_BYTES) {
+          return bindWorkspaceFileResult(record, {
+            content: JSON.stringify({ ok: false, error: 'File is too large to extract style' }),
+            totalLines: 1,
+          })
+        }
+        const { content: buffer } = await readWorkspaceFileContent.execute({
+          principal: this.requireFilePrincipal(),
+          input: {
+            fileId: record.id,
+            assertedWorkspaceId: this._workspaceId,
+            maxBytes: MAX_DOC_READ_INPUT_BYTES,
+          },
+        })
         const summary = await extractDocumentStyle(buffer, ext)
         if (!summary) return null
         const json = JSON.stringify(summary, null, 2)
@@ -1440,11 +1508,23 @@ export class WorkspaceVFS {
     const scope = deletedMatch ? 'archived' : 'active'
 
     try {
-      const files = await listWorkspaceFiles(this._workspaceId, { scope })
+      const { files } = await listAllWorkspaceFiles.execute({
+        principal: this.requireFilePrincipal(),
+        input: { workspaceId: this._workspaceId, scope },
+      })
       const record = findWorkspaceFileRecord(files, fileReference)
       if (!record) return null
-      const result = await readFileRecord(record)
-      return result ? bindWorkspaceFileResult(record, result) : null
+      const { file, content } = await readWorkspaceFileContent.execute({
+        principal: this.requireFilePrincipal(),
+        input: {
+          fileId: record.id,
+          assertedWorkspaceId: this._workspaceId,
+          includeDeleted: scope === 'archived',
+          maxBytes: MAX_TEXT_READ_BYTES,
+        },
+      })
+      const result = await readFileRecord(file, content)
+      return result ? bindWorkspaceFileResult(file, result) : null
     } catch (err) {
       logger.warn('Failed to list workspace files for readFileContent', {
         workspaceId: this._workspaceId,
@@ -1861,22 +1941,14 @@ export class WorkspaceVFS {
    */
   private async materializeFiles(workspaceId: string): Promise<WorkspaceMdData['files']> {
     try {
-      const folders = await listWorkspaceFileFolders(workspaceId)
-      const files = await listWorkspaceFiles(workspaceId, { folders, throwOnError: true })
-      // Batch-load public share state so each file's metadata carries an ambient
-      // `shared` flag (mirrors how the files-list UI enriches rows) — no N+1.
-      // Fail soft: share state is only metadata enrichment, so a lookup failure
-      // must not drop the whole file tree (the outer catch returns []) — fall back
-      // to no shares, and files still materialize with `shared: false`.
-      let shareByFileId: Awaited<ReturnType<typeof getWorkspaceShares>> = new Map()
-      try {
-        shareByFileId = await getWorkspaceShares('file', workspaceId)
-      } catch (error) {
-        logger.warn('Failed to load file share state; file metadata will show shared: false', {
-          workspaceId,
-          error: toError(error).message,
-        })
-      }
+      const principal = this.requireFilePrincipal()
+      const [{ folders }, { files }] = await Promise.all([
+        listWorkspaceFileFoldersOperation.execute({
+          principal,
+          input: { workspaceId, scope: 'active' },
+        }),
+        listAllWorkspaceFiles.execute({ principal, input: { workspaceId, scope: 'active' } }),
+      ])
       for (const folder of folders) {
         this.files.set(`files/${encodeVfsPathSegments(folder.path.split('/'))}/.folder`, '')
       }
@@ -1886,7 +1958,7 @@ export class WorkspaceVFS {
           folderPath: file.folderPath,
           name: file.name,
         })
-        const share = shareByFileId.get(file.id)
+        const share = file.share
         const shared = share?.isActive ?? false
         this.files.set(
           filePath,
@@ -2259,8 +2331,18 @@ export class WorkspaceVFS {
             )
           ),
         listTables(workspaceId, { scope: 'archived' }),
-        listWorkspaceFiles(workspaceId, { scope: 'archived' }),
-        listWorkspaceFileFolders(workspaceId, { scope: 'archived' }),
+        listAllWorkspaceFiles
+          .execute({
+            principal: this.requireFilePrincipal(),
+            input: { workspaceId, scope: 'archived' },
+          })
+          .then(({ files }) => files),
+        listWorkspaceFileFoldersOperation
+          .execute({
+            principal: this.requireFilePrincipal(),
+            input: { workspaceId, scope: 'archived' },
+          })
+          .then(({ folders }) => folders),
         getKnowledgeBases(userId, workspaceId, 'archived'),
       ])
 
@@ -2488,10 +2570,10 @@ export class WorkspaceVFS {
 export async function getOrMaterializeVFS(
   workspaceId: string,
   userId: string,
-  options?: { secretMountPolicy?: SecretMountPolicy }
+  options?: { secretMountPolicy?: SecretMountPolicy; filePrincipal?: Principal }
 ): Promise<WorkspaceVFS> {
   await assertActiveWorkspaceAccess(workspaceId, userId)
-  const vfs = new WorkspaceVFS()
+  const vfs = new WorkspaceVFS(options?.filePrincipal)
   await vfs.materialize(workspaceId, userId, options)
   return vfs
 }

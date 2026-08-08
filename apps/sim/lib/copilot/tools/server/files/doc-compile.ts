@@ -1,3 +1,4 @@
+import type { Principal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -9,10 +10,8 @@ import {
   type SandboxFile,
 } from '@/lib/execution/remote-sandbox'
 import { runSandboxTask } from '@/lib/execution/sandbox/run-task'
-import {
-  fetchWorkspaceFileBuffer,
-  getWorkspaceFile,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
+import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
 import { getContentType } from '@/app/api/files/utils'
 import type { SandboxTaskId } from '@/sandbox-tasks/registry'
 import { loadCompiledDoc, storeCompiledDoc } from './doc-compiled-store'
@@ -140,7 +139,11 @@ export function collectReferencedFileIds(source: string): Set<string> {
   return ids
 }
 
-async function stageReferencedImages(source: string, workspaceId: string): Promise<SandboxFile[]> {
+async function stageReferencedImages(
+  source: string,
+  workspaceId: string,
+  principal: Principal
+): Promise<SandboxFile[]> {
   const ids = collectReferencedFileIds(source)
   if (ids.size > MAX_STAGED_INPUTS) {
     throw new Error(
@@ -150,9 +153,13 @@ async function stageReferencedImages(source: string, workspaceId: string): Promi
   const files: SandboxFile[] = []
   let totalBytes = 0
   for (const fileId of ids) {
-    let record: Awaited<ReturnType<typeof getWorkspaceFile>>
+    let record: Awaited<ReturnType<typeof readWorkspaceFileMetadata.execute>>['file']
     try {
-      record = await getWorkspaceFile(workspaceId, fileId)
+      const metadata = await readWorkspaceFileMetadata.execute({
+        principal,
+        input: { fileId, assertedWorkspaceId: workspaceId },
+      })
+      record = metadata.file
     } catch (err) {
       logger.warn('Failed to resolve referenced image for doc compile', {
         workspaceId,
@@ -177,7 +184,15 @@ async function stageReferencedImages(source: string, workspaceId: string): Promi
     }
     let buffer: Buffer
     try {
-      buffer = await fetchWorkspaceFileBuffer(record)
+      const content = await readWorkspaceFileContent.execute({
+        principal,
+        input: {
+          fileId: record.id,
+          assertedWorkspaceId: workspaceId,
+          maxBytes: MAX_STAGED_FILE_BYTES,
+        },
+      })
+      buffer = content.content
     } catch (err) {
       logger.warn('Failed to stage referenced image for doc compile', {
         workspaceId,
@@ -241,6 +256,7 @@ interface CompileArgs {
   source: string
   fileName: string
   workspaceId: string
+  filePrincipal: Principal
 }
 
 /**
@@ -250,10 +266,10 @@ interface CompileArgs {
  * Internal — callers use compileDoc (load-or-build + store).
  */
 async function compileDocViaE2BPython(
-  { source, workspaceId }: CompileArgs,
+  { source, workspaceId, filePrincipal }: CompileArgs,
   fmt: E2BDocFormat
 ): Promise<Buffer> {
-  const sandboxFiles = await stageReferencedImages(source, workspaceId)
+  const sandboxFiles = await stageReferencedImages(source, workspaceId, filePrincipal)
   const outputSandboxPath = `/home/user/output.${fmt.ext}`
 
   // openpyxl writes formula strings but no cached values, so a web viewer (SheetJS)
@@ -331,10 +347,10 @@ fs.writeFileSync('/home/user/output.docx', __buf);
  * engines. Throws DocCompileUserError on a script error.
  */
 async function compileDocViaE2BNode(
-  { source, fileName, workspaceId }: CompileArgs,
+  { source, fileName, workspaceId, filePrincipal }: CompileArgs,
   ext: 'pptx' | 'docx'
 ): Promise<Buffer> {
-  const sandboxFiles = await stageReferencedImages(source, workspaceId)
+  const sandboxFiles = await stageReferencedImages(source, workspaceId, filePrincipal)
   const outputSandboxPath = `/home/user/output.${ext}`
   const preamble = ext === 'pptx' ? PPTX_NODE_PREAMBLE : DOCX_NODE_PREAMBLE
   const finalize = ext === 'pptx' ? PPTX_NODE_FINALIZE : DOCX_NODE_FINALIZE
@@ -394,7 +410,7 @@ ${finalize}
 export async function compileDoc(
   args: CompileArgs
 ): Promise<{ buffer: Buffer; contentType: string }> {
-  const { source, fileName, workspaceId } = args
+  const { source, fileName, workspaceId, filePrincipal } = args
   const fmt = await getE2BDocFormat(fileName)
   if (!fmt) throw new Error(`Unsupported document format: ${fileName}`)
 
@@ -403,8 +419,11 @@ export async function compileDoc(
 
   const buffer =
     fmt.engine === 'node'
-      ? await compileDocViaE2BNode({ source, fileName, workspaceId }, fmt.ext as 'pptx' | 'docx')
-      : await compileDocViaE2BPython({ source, fileName, workspaceId }, fmt)
+      ? await compileDocViaE2BNode(
+          { source, fileName, workspaceId, filePrincipal },
+          fmt.ext as 'pptx' | 'docx'
+        )
+      : await compileDocViaE2BPython({ source, fileName, workspaceId, filePrincipal }, fmt)
   await storeCompiledDoc(workspaceId, source, fmt.ext, fmt.contentType, buffer)
   return { buffer, contentType: fmt.contentType }
 }

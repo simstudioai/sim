@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { createCopilotFilePrincipal } from '@/lib/copilot/auth/file-delegation'
 import { GenerateVideo } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   assertServerToolNotAborted,
@@ -11,11 +12,11 @@ import {
   projectServerToolModelInput,
 } from '@/lib/copilot/tools/server/model-input'
 import { writeWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
+import { MAX_MEDIA_BYTES } from '@/lib/media/falai'
 import { generateFalVideo } from '@/lib/media/falai-video'
-import {
-  fetchWorkspaceFileBuffer,
-  resolveWorkspaceFileReference,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { fileOperations } from '@/lib/workspace-files/application/operations'
+import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
+import { resolveWorkspaceFileReference } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
 
 const logger = createLogger('GenerateVideoTool')
 
@@ -70,12 +71,22 @@ export const generateVideoServerTool: BaseServerTool<GenerateVideoArgs, Generate
       let imageDataUri: string | undefined
       const refPath = params.inputs?.files?.[0]?.path
       if (refPath) {
-        const fileRecord = await resolveWorkspaceFileReference(workspaceId, refPath)
-        if (!fileRecord) {
-          return { success: false, message: `Reference image not found: ${refPath}` }
-        }
+        const principal = createCopilotFilePrincipal(context, workspaceId)
+        const fileRecord = await resolveWorkspaceFileReference({
+          principal,
+          operation: fileOperations.readContent,
+          workspaceId,
+          reference: refPath,
+        })
         await assertOpaqueWorkspaceFileModelSafe({ workspaceId, file: fileRecord, context })
-        const buffer = await fetchWorkspaceFileBuffer(fileRecord)
+        const { content: buffer } = await readWorkspaceFileContent.execute({
+          principal,
+          input: {
+            fileId: fileRecord.id,
+            assertedWorkspaceId: workspaceId,
+            maxBytes: MAX_MEDIA_BYTES,
+          },
+        })
         const mime = fileRecord.type || 'image/png'
         imageDataUri = `data:${mime};base64,${buffer.toString('base64')}`
       }
@@ -103,9 +114,10 @@ export const generateVideoServerTool: BaseServerTool<GenerateVideoArgs, Generate
       const mode = outputFile?.mode ?? 'create'
 
       assertServerToolNotAborted(context)
+      const principal = createCopilotFilePrincipal(context, workspaceId)
       const written = await writeWorkspaceFileByPath({
         workspaceId,
-        userId: context.userId,
+        principal,
         target: { path: outputPath, mode, mimeType: outputFile?.mimeType },
         buffer: result.buffer,
         inferredMimeType: result.contentType,

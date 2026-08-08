@@ -13,7 +13,7 @@ import {
   type V2ApiKeyAuthContext,
   V2ApiKeyUnauthenticatedError,
 } from '@/lib/api/server/routes/v2-api-key-auth'
-import { parseRequest } from '@/lib/api/server/validation'
+import { type ParseRequestOptions, parseRequest } from '@/lib/api/server/validation'
 import { getRateLimit, RateLimiter, type SubscriptionPlan } from '@/lib/core/rate-limiter'
 import { getClientIp } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -33,7 +33,7 @@ const V2_PREAUTH_IP_LIMIT = {
   refillIntervalMs: 60_000,
 } as const
 
-class V2RouteInfrastructureError extends Error {
+export class V2RouteInfrastructureError extends Error {
   constructor(stage: 'authentication' | 'rollout_gate' | 'rate_limit', cause: unknown) {
     super(`V2 ${stage} infrastructure failed`, { cause })
     this.name = 'V2RouteInfrastructureError'
@@ -46,7 +46,7 @@ export const v2ApiKeyAuth = {
   },
 } as const
 
-interface V2RateLimitPolicy {
+export interface V2RateLimitPolicy {
   readonly kind: 'public_api'
   enforce(
     request: NextRequest,
@@ -105,6 +105,11 @@ export interface V2ErrorPolicy {
 }
 
 export const v2FileErrorPolicies = {
+  default: {
+    render(error) {
+      return v2CaughtOrchestrationError(error)
+    },
+  } satisfies V2ErrorPolicy,
   concealResourceAuthorization: {
     render(error) {
       const response = v2CaughtOrchestrationError(error)
@@ -115,11 +120,60 @@ export const v2FileErrorPolicies = {
   } satisfies V2ErrorPolicy,
 } as const
 
+export async function admitV2Request(
+  request: NextRequest,
+  operation: WorkspaceOperation,
+  authPolicy: typeof v2ApiKeyAuth,
+  rateLimitPolicy: V2RateLimitPolicy
+): Promise<
+  { success: true; auth: V2ApiKeyAuthContext } | { success: false; response: NextResponse }
+> {
+  const ip = getClientIp(request)
+  const abuseLimit = await rateLimiter.checkRateLimitDirect(
+    `v2:preauth:ip:${ip}`,
+    V2_PREAUTH_IP_LIMIT,
+    { failClosed: true }
+  )
+  if (!abuseLimit.allowed) {
+    return {
+      success: false,
+      response: v2RateLimitError({ ...abuseLimit, limit: V2_PREAUTH_IP_LIMIT.maxTokens }),
+    }
+  }
+
+  let auth: V2ApiKeyAuthContext
+  try {
+    auth = await authPolicy.authenticate(request)
+  } catch (error) {
+    if (error instanceof V2ApiKeyUnauthenticatedError) {
+      return { success: false, response: v2Error('UNAUTHORIZED', error.message) }
+    }
+    throw new V2RouteInfrastructureError('authentication', error)
+  }
+
+  let gate
+  try {
+    gate = await v2ApiGateError(auth.rolloutUserId)
+  } catch (error) {
+    throw new V2RouteInfrastructureError('rollout_gate', error)
+  }
+  if (gate) return { success: false, response: gate }
+
+  const limited = await rateLimitPolicy.enforce(request, auth, operation)
+  return limited ? { success: false, response: limited } : { success: true, auth }
+}
+
 interface V2JsonRouteOptions<C extends JsonApiRouteContract, O extends WorkspaceOperation, I, R>
   extends JsonRouteDefinition<C, O, I, R> {
   auth: typeof v2ApiKeyAuth
   rateLimit: V2RateLimitPolicy
   errorPolicy: V2ErrorPolicy
+  parseOptions?: Omit<ParseRequestOptions, 'validationErrorResponse'>
+  beforeParse?(args: {
+    request: NextRequest
+    principal: V2ApiKeyAuthContext['principal']
+    params: Record<string, string | string[] | undefined>
+  }): void | Promise<void>
 }
 
 export function defineV2JsonRoute<
@@ -142,37 +196,28 @@ export function defineV2JsonRoute<
         )
       }
 
-      const ip = getClientIp(request)
-      const abuseLimit = await rateLimiter.checkRateLimitDirect(
-        `v2:preauth:ip:${ip}`,
-        V2_PREAUTH_IP_LIMIT,
-        { failClosed: true }
+      const admission = await admitV2Request(
+        request,
+        options.operation,
+        options.auth,
+        options.rateLimit
       )
-      if (!abuseLimit.allowed) {
-        return v2RateLimitError({ ...abuseLimit, limit: V2_PREAUTH_IP_LIMIT.maxTokens })
-      }
+      if (!admission.success) return admission.response
+      const { auth } = admission
 
-      let auth: V2ApiKeyAuthContext
-      try {
-        auth = await options.auth.authenticate(request)
-      } catch (error) {
-        if (error instanceof V2ApiKeyUnauthenticatedError) {
-          return v2Error('UNAUTHORIZED', error.message)
+      if (options.beforeParse) {
+        const rawParams = context?.params ? await context.params : {}
+        try {
+          await options.beforeParse({ request, principal: auth.principal, params: rawParams })
+        } catch (error) {
+          const response = options.errorPolicy.render(error)
+          if (response) return response
+          throw error
         }
-        throw new V2RouteInfrastructureError('authentication', error)
       }
-
-      let gate
-      try {
-        gate = await v2ApiGateError(auth.rolloutUserId)
-      } catch (error) {
-        throw new V2RouteInfrastructureError('rollout_gate', error)
-      }
-      if (gate) return gate
-      const limited = await options.rateLimit.enforce(request, auth, options.operation)
-      if (limited) return limited
 
       const parsed = await parseRequest(options.contract, request, context ?? {}, {
+        ...options.parseOptions,
         validationErrorResponse: v2ValidationError,
       })
       if (!parsed.success) return parsed.response

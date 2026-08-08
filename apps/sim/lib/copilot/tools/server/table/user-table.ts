@@ -2,6 +2,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { createCopilotFilePrincipal } from '@/lib/copilot/auth/file-delegation'
 import { UserTable } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   assertServerToolNotAborted,
@@ -95,16 +96,15 @@ import {
   deleteWorkflowGroupOutput,
   updateWorkflowGroup,
 } from '@/lib/table/workflow-groups/service'
-import {
-  fetchWorkspaceFileBuffer,
-  resolveWorkspaceFileReference,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { getBoundWorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import {
   type FlattenedBlockOutput,
   flattenWorkflowOutputs,
 } from '@/lib/workflows/blocks/flatten-outputs'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
+import { fileOperations } from '@/lib/workspace-files/application/operations'
+import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
+import { resolveWorkspaceFileReference } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
 
 const logger = createLogger('UserTableServerTool')
 
@@ -120,13 +120,35 @@ type UserTableResult = {
 }
 
 const MAX_BATCH_SIZE = CSV_MAX_BATCH_SIZE
+const MAX_INLINE_FILE_BYTES = 50 * 1024 * 1024
 
-async function resolveWorkspaceFileRecordOrThrow(fileReference: string, workspaceId: string) {
-  const record = await resolveWorkspaceFileReference(workspaceId, fileReference)
-  if (!record) {
+async function resolveWorkspaceFileRecordOrThrow(
+  fileReference: string,
+  workspaceId: string,
+  principal: ReturnType<typeof createCopilotFilePrincipal>
+) {
+  let record
+  try {
+    record = await resolveWorkspaceFileReference({
+      principal,
+      operation: fileOperations.readContent,
+      workspaceId,
+      reference: fileReference,
+    })
+  } catch {
     // Only workspace files resolve here. A chat upload is a real, correctly-copied
     // path, so pointing it at glob("files/**") would send the agent looking for a
     // file that is not in that tree until materialize_file moves it there.
+    if (fileReference.replace(/^\/+/, '').startsWith('uploads/')) {
+      throw new Error(
+        `Cannot import "${fileReference}": chat uploads are not workspace files. Use materialize_file to save it to a files/... path first, then pass that canonical path.`
+      )
+    }
+    throw new Error(
+      `File not found: "${fileReference}". Use glob("files/**") and read the canonical file path metadata to find workspace files.`
+    )
+  }
+  if (!record) {
     if (fileReference.replace(/^\/+/, '').startsWith('uploads/')) {
       throw new Error(
         `Cannot import "${fileReference}": chat uploads are not workspace files. Use materialize_file to save it to a files/... path first, then pass that canonical path.`
@@ -1250,7 +1272,12 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: 'Workspace ID is required' }
           }
 
-          const record = await resolveWorkspaceFileRecordOrThrow(fileReference, workspaceId)
+          const filePrincipal = createCopilotFilePrincipal(context, workspaceId)
+          const record = await resolveWorkspaceFileRecordOrThrow(
+            fileReference,
+            workspaceId,
+            filePrincipal
+          )
 
           // Large CSV/TSV: create a placeholder table whose creation claims the
           // job slot, then let the streaming import worker infer the schema and
@@ -1311,7 +1338,16 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
 
           const file = {
-            buffer: await fetchWorkspaceFileBuffer(record),
+            buffer: (
+              await readWorkspaceFileContent.execute({
+                principal: filePrincipal,
+                input: {
+                  fileId: record.id,
+                  assertedWorkspaceId: workspaceId,
+                  maxBytes: MAX_INLINE_FILE_BYTES,
+                },
+              })
+            ).content,
             name: record.name,
             type: record.type,
           }
@@ -1438,7 +1474,12 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: `Table is archived: ${tableId}` }
           }
 
-          const record = await resolveWorkspaceFileRecordOrThrow(fileReference, workspaceId)
+          const filePrincipal = createCopilotFilePrincipal(context, workspaceId)
+          const record = await resolveWorkspaceFileRecordOrThrow(
+            fileReference,
+            workspaceId,
+            filePrincipal
+          )
 
           // Large CSV/TSV: claim the table's one-write-job slot and hand the
           // file to the streaming import worker (mirrors
@@ -1481,7 +1522,16 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
           try {
             const file = {
-              buffer: await fetchWorkspaceFileBuffer(record),
+              buffer: (
+                await readWorkspaceFileContent.execute({
+                  principal: filePrincipal,
+                  input: {
+                    fileId: record.id,
+                    assertedWorkspaceId: workspaceId,
+                    maxBytes: MAX_INLINE_FILE_BYTES,
+                  },
+                })
+              ).content,
               name: record.name,
               type: record.type,
             }

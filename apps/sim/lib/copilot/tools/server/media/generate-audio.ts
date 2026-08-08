@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { createCopilotFilePrincipal } from '@/lib/copilot/auth/file-delegation'
 import { GenerateAudio } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   assertServerToolNotAborted,
@@ -11,11 +12,11 @@ import {
   projectServerToolModelInput,
 } from '@/lib/copilot/tools/server/model-input'
 import { writeWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
+import { MAX_MEDIA_BYTES } from '@/lib/media/falai'
 import { type AudioType, generateFalAudio } from '@/lib/media/falai-audio'
-import {
-  fetchWorkspaceFileBuffer,
-  resolveWorkspaceFileReference,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { fileOperations } from '@/lib/workspace-files/application/operations'
+import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
+import { resolveWorkspaceFileReference } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
 
 const logger = createLogger('GenerateAudioTool')
 
@@ -94,12 +95,18 @@ export const generateAudioServerTool: BaseServerTool<GenerateAudioArgs, Generate
       let voiceSampleDataUri: string | undefined
       const samplePath = params.inputs?.files?.[0]?.path
       if (samplePath) {
-        const sample = await resolveWorkspaceFileReference(workspaceId, samplePath)
-        if (!sample) {
-          return { success: false, message: `Voice sample not found: ${samplePath}` }
-        }
+        const principal = createCopilotFilePrincipal(context, workspaceId)
+        const sample = await resolveWorkspaceFileReference({
+          principal,
+          operation: fileOperations.readContent,
+          workspaceId,
+          reference: samplePath,
+        })
         await assertOpaqueWorkspaceFileModelSafe({ workspaceId, file: sample, context })
-        const sampleBuffer = await fetchWorkspaceFileBuffer(sample)
+        const { content: sampleBuffer } = await readWorkspaceFileContent.execute({
+          principal,
+          input: { fileId: sample.id, assertedWorkspaceId: workspaceId, maxBytes: MAX_MEDIA_BYTES },
+        })
         const sampleMime = sample.type || 'audio/mpeg'
         voiceSampleDataUri = `data:${sampleMime};base64,${sampleBuffer.toString('base64')}`
       }
@@ -128,9 +135,10 @@ export const generateAudioServerTool: BaseServerTool<GenerateAudioArgs, Generate
       const mode = outputFile?.mode ?? 'create'
 
       assertServerToolNotAborted(context)
+      const principal = createCopilotFilePrincipal(context, workspaceId)
       const written = await writeWorkspaceFileByPath({
         workspaceId,
-        userId: context.userId,
+        principal,
         target: { path: outputPath, mode, mimeType: outputFile?.mimeType },
         buffer: result.buffer,
         inferredMimeType: result.contentType,

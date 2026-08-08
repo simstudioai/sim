@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { createCopilotFilePrincipal } from '@/lib/copilot/auth/file-delegation'
 import { Ffmpeg } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   assertServerToolNotAborted,
@@ -7,11 +8,11 @@ import {
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
 import { writeWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
+import { MAX_MEDIA_BYTES } from '@/lib/media/falai'
 import { type FfmpegOperation, type MediaFile, runFfmpegOperation } from '@/lib/media/ffmpeg'
-import {
-  fetchWorkspaceFileBuffer,
-  resolveWorkspaceFileReference,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { fileOperations } from '@/lib/workspace-files/application/operations'
+import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
+import { resolveWorkspaceFileReference } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
 
 const logger = createLogger('FfmpegTool')
 
@@ -82,12 +83,27 @@ export const ffmpegServerTool: BaseServerTool<FfmpegArgs, FfmpegResult> = {
 
     try {
       const mediaFiles: MediaFile[] = []
+      let totalInputBytes = 0
+      const principal = createCopilotFilePrincipal(context, workspaceId)
       for (const filePath of inputPaths) {
-        const fileRecord = await resolveWorkspaceFileReference(workspaceId, filePath)
-        if (!fileRecord) {
-          return { success: false, message: `Input file not found: ${filePath}` }
+        const fileRecord = await resolveWorkspaceFileReference({
+          principal,
+          operation: fileOperations.readContent,
+          workspaceId,
+          reference: filePath,
+        })
+        const { content: buffer } = await readWorkspaceFileContent.execute({
+          principal,
+          input: {
+            fileId: fileRecord.id,
+            assertedWorkspaceId: workspaceId,
+            maxBytes: MAX_MEDIA_BYTES,
+          },
+        })
+        totalInputBytes += buffer.length
+        if (totalInputBytes > MAX_MEDIA_BYTES) {
+          throw new Error(`Input files exceed the ${MAX_MEDIA_BYTES} byte limit`)
         }
-        const buffer = await fetchWorkspaceFileBuffer(fileRecord)
         mediaFiles.push({
           buffer,
           mimeType: fileRecord.type || 'application/octet-stream',
@@ -130,7 +146,7 @@ export const ffmpegServerTool: BaseServerTool<FfmpegArgs, FfmpegResult> = {
       assertServerToolNotAborted(context)
       const written = await writeWorkspaceFileByPath({
         workspaceId,
-        userId: context.userId,
+        principal,
         target: { path: outputPath, mode, mimeType: outputFile?.mimeType },
         buffer: result.buffer,
         inferredMimeType: result.contentType || 'application/octet-stream',

@@ -1,13 +1,21 @@
+import type { Principal } from '@sim/auth/principal'
+import { db } from '@sim/db'
+import { workspace } from '@sim/db/schema'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
+import { and, eq, isNull } from 'drizzle-orm'
 import type { CreateInternalFileUploadBody } from '@/lib/api/contracts/upload-sessions'
 import { assertWorkspaceFileFolderTarget } from '@/lib/uploads/contexts/workspace'
 import {
+  assertUploadSessionAuthBinding,
   createUploadSession,
   UploadSessionError,
   type UploadSessionRecord,
 } from '@/lib/uploads/upload-session/service'
 import { isImageFileType } from '@/lib/uploads/utils/file-utils'
 import { validateAttachmentFileType } from '@/lib/uploads/utils/validation'
+import { authorizeWorkspaceOperation } from '@/lib/workspace-files/application/authorization'
+import type { WorkspaceOperation } from '@/lib/workspace-files/application/operations'
+import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 export type InternalUploadPurpose = CreateInternalFileUploadBody['purpose']
@@ -21,15 +29,21 @@ const INTERNAL_UPLOAD_PURPOSES = new Set<InternalUploadPurpose>([
 ])
 
 export async function createPurposeUploadSession(
-  userId: string,
+  principal: Principal,
   body: CreateInternalFileUploadBody,
   localOrigin: string
 ) {
+  const userId = await principalUserId(
+    principal,
+    'workspaceId' in body ? body.workspaceId : undefined
+  )
   validatePurposeFile(body)
 
   switch (body.purpose) {
     case 'workspace_file': {
-      await requireWorkspacePermission(userId, body.workspaceId, 'write')
+      const context = await loadWorkspaceAuthorizationContext(body.workspaceId)
+      if (!context) throw new UploadSessionError('not_found', 'Workspace not found')
+      await authorizeWorkspaceOperation(principal, fileOperations.uploadCreate, context)
       const folderId = await assertWorkspaceFileFolderTarget(body.workspaceId, body.folderId)
       return createUploadSession({
         purpose: body.purpose,
@@ -39,6 +53,7 @@ export async function createPurposeUploadSession(
         contentType: body.contentType,
         fileSize: body.size,
         metadata: { folderId },
+        principal,
         localOrigin,
       })
     }
@@ -120,8 +135,39 @@ export async function reauthorizeUploadPurpose(
   }
 }
 
+/**
+ * Re-authorizes a workspace-file control leg against the current principal and
+ * current workspace policy. Session metadata is only accepted after the
+ * immutable, server-authored credential binding matches.
+ */
+export async function reauthorizeWorkspaceUploadPurpose(
+  principal: Principal,
+  session: UploadSessionRecord,
+  operation: WorkspaceOperation = fileOperations.uploadComplete
+): Promise<void> {
+  if (session.purpose !== 'workspace_file' || !session.workspaceId) {
+    throw new UploadSessionError('not_found', 'Upload session not found')
+  }
+  assertUploadSessionAuthBinding(session, principal)
+  const context = await loadWorkspaceAuthorizationContext(session.workspaceId)
+  if (!context) throw new UploadSessionError('not_found', 'Upload session not found')
+  await authorizeWorkspaceOperation(principal, operation, {
+    workspaceId: context.workspaceId,
+    workspaceOrganizationId: context.workspaceOrganizationId,
+    allowPersonalApiKeys: context.allowPersonalApiKeys,
+  })
+}
+
 export function isInternalUploadPurpose(purpose: string): purpose is InternalUploadPurpose {
   return INTERNAL_UPLOAD_PURPOSES.has(purpose as InternalUploadPurpose)
+}
+
+/** Resolves the current billing owner only for legacy upload attribution fields. */
+export async function resolveUploadAttributionUserId(
+  principal: Principal,
+  workspaceId: string
+): Promise<string> {
+  return principalUserId(principal, workspaceId)
 }
 
 function validatePurposeFile(body: CreateInternalFileUploadBody): void {
@@ -185,4 +231,44 @@ function requireSessionScope(value: string | null, label = 'scope'): string {
     throw new UploadSessionError('forbidden', `Upload session is missing its ${label}`)
   }
   return value
+}
+
+async function principalUserId(principal: Principal, workspaceId?: string): Promise<string> {
+  switch (principal.kind) {
+    case 'session':
+    case 'personal_api_key':
+      return principal.userId
+    case 'workspace_api_key':
+      if (!workspaceId || principal.workspaceId !== workspaceId) {
+        throw new UploadSessionError('forbidden', 'Workspace API key cannot access this workspace')
+      }
+      {
+        const context = await loadWorkspaceAuthorizationContext(workspaceId)
+        if (!context?.billedAccountUserId) {
+          throw new Error('Workspace upload attribution requires a billing owner')
+        }
+        return context.billedAccountUserId
+      }
+    case 'delegated':
+      throw new UploadSessionError('forbidden', 'Delegated principals cannot create uploads')
+  }
+}
+
+async function loadWorkspaceAuthorizationContext(workspaceId: string): Promise<{
+  workspaceId: string
+  workspaceOrganizationId: string | null
+  allowPersonalApiKeys: boolean
+  billedAccountUserId: string
+} | null> {
+  const [row] = await db
+    .select({
+      workspaceId: workspace.id,
+      workspaceOrganizationId: workspace.organizationId,
+      allowPersonalApiKeys: workspace.allowPersonalApiKeys,
+      billedAccountUserId: workspace.billedAccountUserId,
+    })
+    .from(workspace)
+    .where(and(eq(workspace.id, workspaceId), isNull(workspace.archivedAt)))
+    .limit(1)
+  return row ?? null
 }

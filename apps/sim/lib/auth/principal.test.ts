@@ -1,10 +1,50 @@
 /**
  * @vitest-environment node
  */
-import { resolvePrincipalAttribution, toPrincipalActor } from '@sim/auth/principal'
+import {
+  resolvePrincipalAttribution,
+  resolvePrincipalAuditAttribution,
+  toPrincipalActor,
+} from '@sim/auth/principal'
 import { describe, expect, it } from 'vitest'
 
 describe('principal actors', () => {
+  it('maps every principal to an audit actor without billing-owner substitution', () => {
+    expect(
+      resolvePrincipalAuditAttribution({
+        kind: 'session',
+        userId: 'user-1',
+        sessionId: 'session-1',
+      })
+    ).toEqual({
+      actor: { kind: 'session', userId: 'user-1' },
+      actorId: 'user-1',
+    })
+    expect(
+      resolvePrincipalAuditAttribution({
+        kind: 'delegated',
+        serviceId: 'copilot',
+        subjectUserId: 'user-2',
+        workspaceId: 'workspace-1',
+        delegationId: 'delegation-1',
+        audience: 'sim:workspace-files',
+        issuedAt: new Date('2026-01-01T00:00:00Z'),
+        expiresAt: new Date('2026-01-01T00:05:00Z'),
+      })
+    ).toMatchObject({ actorId: 'user-2' })
+    expect(
+      resolvePrincipalAuditAttribution({
+        kind: 'workspace_api_key',
+        keyId: 'key-1',
+        workspaceId: 'workspace-1',
+      })
+    ).toEqual({
+      actor: { kind: 'workspace_api_key', keyId: 'key-1', workspaceId: 'workspace-1' },
+      actorId: null,
+      actorName: 'Workspace API key',
+    })
+  })
+
   it('projects principals into their shared actor identity', () => {
     expect(
       toPrincipalActor({ kind: 'personal_api_key', keyId: 'key-1', userId: 'user-1' })

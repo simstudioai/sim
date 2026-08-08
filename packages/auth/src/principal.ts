@@ -54,6 +54,20 @@ export interface PrincipalAttribution {
   attributedUserId: string
 }
 
+/**
+ * The audit actor for an authenticated operation.
+ *
+ * `actorId` is only populated when the principal represents a real user. A
+ * workspace API key is deliberately actor-less in the audit table: its key and
+ * workspace identity remain available in `actor`, while `actorName` keeps the
+ * row readable without pretending the billing owner performed the action.
+ */
+export interface PrincipalAuditAttribution {
+  actor: PrincipalActor
+  actorId: string | null
+  actorName?: string
+}
+
 export interface PrincipalAttributionContext {
   workspaceBillingOwnerUserId?: string
 }
@@ -77,6 +91,21 @@ export function toPrincipalActor(principal: Principal): PrincipalActor {
         subjectUserId: principal.subjectUserId,
         delegationId: principal.delegationId,
       }
+  }
+}
+
+export function resolvePrincipalAuditAttribution(principal: Principal): PrincipalAuditAttribution {
+  const actor = toPrincipalActor(principal)
+
+  switch (actor.kind) {
+    case 'session':
+      return { actor, actorId: actor.userId }
+    case 'personal_api_key':
+      return { actor, actorId: actor.userId }
+    case 'delegated':
+      return { actor, actorId: actor.subjectUserId }
+    case 'workspace_api_key':
+      return { actor, actorId: null, actorName: 'Workspace API key' }
   }
 }
 

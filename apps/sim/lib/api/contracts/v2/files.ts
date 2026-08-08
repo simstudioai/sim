@@ -361,6 +361,7 @@ export const v2CreateFileContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: v2DataResponse(v2FileSchema),
+    status: 201,
   },
 })
 
@@ -368,7 +369,7 @@ export const v2CreateFileUploadContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/files/uploads',
   body: v2CreateFileUploadBodySchema,
-  response: { mode: 'json', schema: v2DataResponse(v2CreateFileUploadDataSchema) },
+  response: { mode: 'json', schema: v2DataResponse(v2CreateFileUploadDataSchema), status: 201 },
 })
 
 export const v2AbortFileUploadContract = defineRouteContract({

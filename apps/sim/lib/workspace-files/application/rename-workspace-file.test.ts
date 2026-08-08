@@ -68,7 +68,7 @@ describe('renameWorkspaceFile application service', () => {
     })
 
     expect(result).toEqual({ file: mappedFile })
-    expect(mocks.loadContext).toHaveBeenCalledWith('file-1')
+    expect(mocks.loadContext).toHaveBeenCalledWith('file-1', { includeDeleted: undefined })
     expect(mocks.authorize).toHaveBeenCalledWith(
       expect.objectContaining({ kind: 'session', userId: 'user-1' }),
       expect.objectContaining({ id: 'files.rename' }),
@@ -96,7 +96,7 @@ describe('renameWorkspaceFile application service', () => {
     expect(mocks.recordAudit).not.toHaveBeenCalled()
   })
 
-  it('attributes a workspace-key audit to the billing owner', async () => {
+  it('keeps workspace-key audit attribution non-human', async () => {
     await renameWorkspaceFile.execute({
       principal: { kind: 'workspace_api_key', workspaceId: 'workspace-1', keyId: 'key-1' },
       input: { fileId: 'file-1', assertedWorkspaceId: 'workspace-1', name: 'new.csv' },
@@ -104,7 +104,8 @@ describe('renameWorkspaceFile application service', () => {
 
     expect(mocks.recordAudit).toHaveBeenCalledWith(
       expect.objectContaining({
-        actorId: 'billing-owner-1',
+        actorId: null,
+        actorName: 'Workspace API key',
         metadata: expect.objectContaining({
           actor: {
             kind: 'workspace_api_key',

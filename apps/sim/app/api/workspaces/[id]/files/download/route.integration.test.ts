@@ -20,13 +20,13 @@ const run = promisify(execFile)
 
 const {
   mockGetSession,
-  mockVerifyWorkspaceMembership,
+  mockAuthorizeWorkspaceFileOperation,
   mockListWorkspaceFiles,
   mockListFolders,
   mockDownloadFileStream,
 } = vi.hoisted(() => ({
   mockGetSession: vi.fn(),
-  mockVerifyWorkspaceMembership: vi.fn(),
+  mockAuthorizeWorkspaceFileOperation: vi.fn(),
   mockListWorkspaceFiles: vi.fn(),
   mockListFolders: vi.fn(),
   mockDownloadFileStream: vi.fn(),
@@ -36,8 +36,8 @@ vi.mock('@/lib/auth', () => ({
   auth: { api: { getSession: vi.fn() } },
   getSession: mockGetSession,
 }))
-vi.mock('@/app/api/workflows/utils', () => ({
-  verifyWorkspaceMembership: mockVerifyWorkspaceMembership,
+vi.mock('@/lib/workspace-files/application/workspace-operation-context', () => ({
+  authorizeWorkspaceFileOperation: mockAuthorizeWorkspaceFileOperation,
 }))
 vi.mock('@/lib/uploads/contexts/workspace', () => ({
   listWorkspaceFiles: mockListWorkspaceFiles,
@@ -88,8 +88,10 @@ afterAll(async () => {
 describe('workspace files download — real archive', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
-    mockVerifyWorkspaceMembership.mockResolvedValue({ role: 'member' })
+    mockGetSession.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })
+    mockAuthorizeWorkspaceFileOperation.mockResolvedValue({
+      context: { workspaceId: WORKSPACE_ID },
+    })
     mockListFolders.mockResolvedValue([{ id: 'folder-1', name: 'Reports', parentId: null }])
     // A real fs stream, not a single pre-made buffer.
     mockDownloadFileStream.mockImplementation(async () => createReadStream(bigPath))

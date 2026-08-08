@@ -37,6 +37,15 @@ describe('Copilot file delegation', () => {
     expect(principal.expiresAt.getTime()).toBeGreaterThan(principal.issuedAt.getTime())
   })
 
+  it('creates a workspace-scoped principal for file creation', () => {
+    const principal = createCopilotFilePrincipal(trustedContext, 'workspace-1')
+
+    expect(principal.resourceScope).toEqual({
+      chatId: 'chat-1',
+      executionId: 'execution-1',
+    })
+  })
+
   it('rejects contexts that were not issued by the Copilot execution pipeline', () => {
     expect(() =>
       createCopilotFilePrincipal(
@@ -64,8 +73,11 @@ describe('Copilot file delegation', () => {
     expect(messageForCopilotFileError(new OrchestrationError('conflict', 'Name exists'))).toBe(
       'Name exists'
     )
-    expect(messageForCopilotFileError(new Error('update workspace_files set ...'))).toBe(
-      'Failed to rename file'
-    )
+    expect(
+      messageForCopilotFileError(
+        new Error('update workspace_files set ...'),
+        'Failed to rename file'
+      )
+    ).toBe('Failed to rename file')
   })
 })

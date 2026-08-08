@@ -14,6 +14,8 @@ const mocks = vi.hoisted(() => {
     resolveWorkspaceFileReference: vi.fn(),
     updateWorkspaceFileContent: vi.fn(),
     uploadWorkspaceFile: vi.fn(),
+    createWorkspaceFileBufferByPath: { execute: vi.fn() },
+    updateWorkspaceFileContentBufferByPath: { execute: vi.fn() },
   }
 })
 
@@ -26,9 +28,16 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-folder-manager', () => 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   FileConflictError: mocks.FileConflictError,
   getWorkspaceFileByName: mocks.getWorkspaceFileByName,
-  resolveWorkspaceFileReference: mocks.resolveWorkspaceFileReference,
   updateWorkspaceFileContent: mocks.updateWorkspaceFileContent,
   uploadWorkspaceFile: mocks.uploadWorkspaceFile,
+}))
+
+vi.mock('@/lib/workspace-files/application/write-workspace-file-by-path', () => ({
+  createWorkspaceFileBufferByPath: mocks.createWorkspaceFileBufferByPath,
+  updateWorkspaceFileContentBufferByPath: mocks.updateWorkspaceFileContentBufferByPath,
+}))
+vi.mock('@/lib/workspace-files/application/resolve-workspace-file-reference', () => ({
+  resolveWorkspaceFileReference: mocks.resolveWorkspaceFileReference,
 }))
 
 import { validateWorkspaceFileWriteTarget, writeWorkspaceFileByPath } from './resource-writer'
@@ -41,18 +50,19 @@ describe('resource writer', () => {
 
   it('auto-creates missing parent folders for plain workspace file creates', async () => {
     mocks.ensureWorkspaceFileFolderPath.mockResolvedValue('folder-nested')
-    mocks.getWorkspaceFileByName.mockResolvedValue(null)
-    mocks.uploadWorkspaceFile.mockResolvedValue({
+    mocks.createWorkspaceFileBufferByPath.execute.mockResolvedValue({
       id: 'file-report',
       name: 'summary.csv',
       size: 7,
-      type: 'text/csv',
-      url: '/download',
+      contentType: 'text/csv',
+      downloadUrl: '/download',
+      vfsPath: 'files/Reports/2026/summary.csv',
+      mode: 'create',
     })
 
     const result = await writeWorkspaceFileByPath({
       workspaceId: 'workspace-1',
-      userId: 'user-1',
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
       target: {
         path: 'files/Reports/2026/summary.csv',
         mode: 'create',
@@ -61,23 +71,15 @@ describe('resource writer', () => {
       inferredMimeType: 'text/csv',
     })
 
-    expect(mocks.ensureWorkspaceFileFolderPath).toHaveBeenCalledWith({
-      workspaceId: 'workspace-1',
-      userId: 'user-1',
-      pathSegments: ['Reports', '2026'],
+    expect(mocks.createWorkspaceFileBufferByPath.execute).toHaveBeenCalledWith({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: expect.objectContaining({
+        workspaceId: 'workspace-1',
+        path: 'files/Reports/2026/summary.csv',
+        content: Buffer.from('content'),
+        contentType: 'text/csv',
+      }),
     })
-    expect(mocks.findWorkspaceFileFolderIdByPath).not.toHaveBeenCalled()
-    expect(mocks.uploadWorkspaceFile).toHaveBeenCalledWith(
-      'workspace-1',
-      'user-1',
-      Buffer.from('content'),
-      'summary.csv',
-      'text/csv',
-      {
-        folderId: 'folder-nested',
-        secretProvenance: { status: 'exact', entries: [] },
-      }
-    )
     expect(result).toMatchObject({
       id: 'file-report',
       vfsPath: 'files/Reports/2026/summary.csv',
@@ -91,7 +93,7 @@ describe('resource writer', () => {
 
     const validation = await validateWorkspaceFileWriteTarget({
       workspaceId: 'workspace-1',
-      userId: 'user-1',
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
       target: {
         path: 'files/Reports/2026/summary.csv',
         mode: 'create',
@@ -112,7 +114,7 @@ describe('resource writer', () => {
 
     const validation = await validateWorkspaceFileWriteTarget({
       workspaceId: 'workspace-1',
-      userId: 'user-1',
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
       target: {
         path: 'files/Reports/2026/summary.csv',
         mode: 'create',
@@ -126,6 +128,35 @@ describe('resource writer', () => {
       vfsPath: 'files/Reports/2026/summary.csv',
       fileName: 'summary.csv',
       folderId: null,
+    })
+  })
+
+  it('authorizes overwrite target resolution through the shared application resolver', async () => {
+    mocks.resolveWorkspaceFileReference.mockResolvedValue({
+      id: 'file-report',
+      name: 'summary.csv',
+      size: 7,
+      type: 'text/csv',
+      folderPath: 'Reports/2026',
+    })
+
+    const principal = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
+    const validation = await validateWorkspaceFileWriteTarget({
+      workspaceId: 'workspace-1',
+      principal,
+      target: { path: 'files/Reports/2026/summary.csv', mode: 'overwrite' },
+    })
+
+    expect(mocks.resolveWorkspaceFileReference).toHaveBeenCalledWith({
+      principal,
+      operation: expect.objectContaining({ id: 'files.update_content' }),
+      workspaceId: 'workspace-1',
+      reference: 'files/Reports/2026/summary.csv',
+    })
+    expect(validation).toMatchObject({
+      mode: 'overwrite',
+      existingFileId: 'file-report',
+      vfsPath: 'files/Reports/2026/summary.csv',
     })
   })
 })

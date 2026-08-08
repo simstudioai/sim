@@ -8,11 +8,11 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
-import {
-  getWorkspaceFile,
-  resolveWorkspaceFileReference,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { asOrchestrationError } from '@/lib/core/orchestration/types'
+import { fileOperations } from '@/lib/workspace-files/application/operations'
+import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
 import { renameWorkspaceFile } from '@/lib/workspace-files/application/rename-workspace-file'
+import { resolveWorkspaceFileReference } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
 import { validateFlatWorkspaceFileName } from './workspace-file'
 
 const logger = createLogger('RenameFileServerTool')
@@ -59,9 +59,27 @@ export const renameFileServerTool: BaseServerTool<RenameFileArgs, RenameFileResu
     const nameError = validateFlatWorkspaceFileName(newName)
     if (nameError) return { success: false, message: nameError }
 
-    const existingFile = path
-      ? await resolveWorkspaceFileReference(workspaceId, path)
-      : await getWorkspaceFile(workspaceId, legacyFileId)
+    const principal = createCopilotFilePrincipal(context, workspaceId)
+    let existingFile
+    try {
+      existingFile = path
+        ? await resolveWorkspaceFileReference({
+            principal,
+            operation: fileOperations.rename,
+            workspaceId,
+            reference: path,
+          })
+        : (
+            await readWorkspaceFileMetadata.execute({
+              principal,
+              input: { fileId: legacyFileId, assertedWorkspaceId: workspaceId },
+            })
+          ).file
+    } catch (error) {
+      const classified = asOrchestrationError(error)
+      if (classified?.code !== 'not_found') throw error
+      return { success: false, message: `File not found: ${targetRef}` }
+    }
     if (!existingFile) {
       return { success: false, message: `File not found: ${targetRef}` }
     }
@@ -74,7 +92,7 @@ export const renameFileServerTool: BaseServerTool<RenameFileArgs, RenameFileResu
         input: { fileId, assertedWorkspaceId: workspaceId, name: newName },
       })
     } catch (error) {
-      return { success: false, message: messageForCopilotFileError(error) }
+      return { success: false, message: messageForCopilotFileError(error, 'Failed to rename file') }
     }
 
     logger.info('File renamed via rename_file', {

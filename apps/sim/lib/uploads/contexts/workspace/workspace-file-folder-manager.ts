@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { folder as folderTable, workspaceFiles } from '@sim/db/schema'
+import { folder as folderTable, workspaceFiles, workspace as workspaceTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -16,6 +16,7 @@ import {
   requireNonRootFolderPath,
 } from '@/lib/folders/paths'
 import { collectDescendantFolderIds } from '@/lib/folders/subtree'
+import { MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS } from '@/lib/workspace-files/limits'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceFileFolders')
@@ -72,6 +73,36 @@ export interface WorkspaceFileFolderRecord {
   updatedAt: Date
 }
 
+export interface WorkspaceFileOperationContext {
+  workspaceId: string
+  workspaceOrganizationId: string | null
+  allowPersonalApiKeys: boolean
+  billedAccountUserId: string
+}
+
+/**
+ * Loads the active workspace authorization context for folder and bulk-file operations.
+ * The workspace row is the canonical scope; callers must not authorize from a caller-supplied
+ * folder or file workspace id.
+ */
+export async function loadWorkspaceFileOperationContext(
+  workspaceId: string
+): Promise<WorkspaceFileOperationContext | null> {
+  const workspace = await getWorkspaceWithOwner(workspaceId)
+  if (!workspace) return null
+  const [settings] = await db
+    .select({ allowPersonalApiKeys: workspaceTable.allowPersonalApiKeys })
+    .from(workspaceTable)
+    .where(eq(workspaceTable.id, workspaceId))
+    .limit(1)
+  return {
+    workspaceId: workspace.id,
+    workspaceOrganizationId: workspace.organizationId,
+    allowPersonalApiKeys: settings?.allowPersonalApiKeys ?? false,
+    billedAccountUserId: workspace.billedAccountUserId,
+  }
+}
+
 interface RawWorkspaceFileFolder {
   id: string
   workspaceId: string
@@ -87,6 +118,64 @@ interface RawWorkspaceFileFolder {
 export interface WorkspaceFileArchiveResult {
   folders: number
   files: number
+}
+
+function assertBulkAffectedItemsWithinLimit(count: number): void {
+  if (count > MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS) {
+    throw new OrchestrationError(
+      'validation',
+      `File operation affects more than ${MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS} items`
+    )
+  }
+}
+
+/**
+ * Verifies every requested active file/folder belongs to this workspace before a bulk mutation.
+ * This prevents the bulk archive primitive's workspace predicate from silently turning an
+ * out-of-scope id into a successful zero-row operation.
+ */
+export async function assertWorkspaceFileItemsBelongToWorkspace(params: {
+  workspaceId: string
+  fileIds?: string[]
+  folderIds?: string[]
+}): Promise<void> {
+  const fileIds = Array.from(new Set(params.fileIds ?? []))
+  const folderIds = Array.from(new Set(params.folderIds ?? []))
+  const [files, folders] = await Promise.all([
+    fileIds.length === 0
+      ? Promise.resolve([])
+      : db
+          .select({ id: workspaceFiles.id })
+          .from(workspaceFiles)
+          .where(
+            and(
+              inArray(workspaceFiles.id, fileIds),
+              eq(workspaceFiles.workspaceId, params.workspaceId),
+              eq(workspaceFiles.context, 'workspace'),
+              isNull(workspaceFiles.deletedAt)
+            )
+          ),
+    folderIds.length === 0
+      ? Promise.resolve([])
+      : db
+          .select({ id: folderTable.id })
+          .from(folderTable)
+          .where(
+            and(
+              inArray(folderTable.id, folderIds),
+              eq(folderTable.workspaceId, params.workspaceId),
+              isFileFolder,
+              isNull(folderTable.deletedAt)
+            )
+          ),
+  ])
+  const foundFiles = new Set(files.map((file) => file.id))
+  const foundFolders = new Set(folders.map((folder) => folder.id))
+  const missingFiles = fileIds.filter((id) => !foundFiles.has(id))
+  const missingFolders = folderIds.filter((id) => !foundFolders.has(id))
+  if (missingFiles.length > 0 || missingFolders.length > 0) {
+    throw new WorkspaceFileItemsNotFoundError(missingFiles, missingFolders)
+  }
 }
 
 export interface WorkspaceFileFolderRestoreResult {
@@ -777,15 +866,40 @@ export async function moveWorkspaceFileItems(params: {
             isNull(folderTable.deletedAt)
           )
         )
+        .limit(MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS + 1)
+
+      assertBulkAffectedItemsWithinLimit(activeFolders.length)
+
+      const affectedFolderIds = new Set<string>()
 
       for (const folderId of folderIds) {
         const descendants = collectDescendantFolderIds(activeFolders, folderId)
+        affectedFolderIds.add(folderId)
+        for (const descendantId of descendants) affectedFolderIds.add(descendantId)
         if (targetFolderId && descendants.includes(targetFolderId)) {
           throw new OrchestrationError(
             'validation',
             'Cannot move a folder into one of its descendants'
           )
         }
+      }
+
+      assertBulkAffectedItemsWithinLimit(affectedFolderIds.size + fileIds.length)
+      if (affectedFolderIds.size > 0) {
+        const descendantFiles = await tx
+          .select({ id: workspaceFiles.id })
+          .from(workspaceFiles)
+          .where(
+            and(
+              inArray(workspaceFiles.folderId, [...affectedFolderIds]),
+              eq(workspaceFiles.workspaceId, params.workspaceId),
+              eq(workspaceFiles.context, 'workspace'),
+              isNull(workspaceFiles.deletedAt)
+            )
+          )
+          .limit(MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS + 1)
+        const affectedFileIds = new Set([...fileIds, ...descendantFiles.map((file) => file.id)])
+        assertBulkAffectedItemsWithinLimit(affectedFolderIds.size + affectedFileIds.size)
       }
     }
 
@@ -943,7 +1057,24 @@ export async function archiveWorkspaceFileFolderRecursive(
       .where(
         and(eq(folderTable.workspaceId, workspaceId), isFileFolder, isNull(folderTable.deletedAt))
       )
+      .limit(MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS + 1)
+    assertBulkAffectedItemsWithinLimit(activeFolders.length)
     const folderIds = [folderId, ...collectDescendantFolderIds(activeFolders, folderId)]
+    assertBulkAffectedItemsWithinLimit(folderIds.length)
+
+    const affectedFiles = await tx
+      .select({ id: workspaceFiles.id })
+      .from(workspaceFiles)
+      .where(
+        and(
+          inArray(workspaceFiles.folderId, folderIds),
+          eq(workspaceFiles.workspaceId, workspaceId),
+          eq(workspaceFiles.context, 'workspace'),
+          isNull(workspaceFiles.deletedAt)
+        )
+      )
+      .limit(MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS + 1)
+    assertBulkAffectedItemsWithinLimit(folderIds.length + affectedFiles.length)
 
     const archivedFiles = await tx
       .update(workspaceFiles)
@@ -1069,6 +1200,7 @@ export async function restoreWorkspaceFileFolder(
         )
         .returning({ id: workspaceFiles.id })
       stats.files += restoredFiles.length
+      assertBulkAffectedItemsWithinLimit(stats.files + stats.folders)
 
       const archivedChildren = await tx
         .select({ id: folderTable.id })
@@ -1081,6 +1213,8 @@ export async function restoreWorkspaceFileFolder(
             eq(folderTable.deletedAt, folderDeletedAt)
           )
         )
+        .limit(MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS + 1)
+      assertBulkAffectedItemsWithinLimit(stats.files + stats.folders + archivedChildren.length)
 
       for (const child of archivedChildren) {
         const [restoredChild] = await tx
@@ -1098,6 +1232,7 @@ export async function restoreWorkspaceFileFolder(
 
         if (!restoredChild) continue
         stats.folders += 1
+        assertBulkAffectedItemsWithinLimit(stats.files + stats.folders)
         await restoreFolderSubtree(child.id)
       }
     }
@@ -1116,6 +1251,7 @@ export async function restoreWorkspaceFileFolder(
       .returning()
 
     stats.folders += 1
+    assertBulkAffectedItemsWithinLimit(stats.files + stats.folders)
     await restoreFolderSubtree(folderId)
 
     return { restored: row, restoredItems: stats }
@@ -1160,11 +1296,32 @@ export async function bulkArchiveWorkspaceFileItems(params: {
                 isNull(folderTable.deletedAt)
               )
             )
+            .limit(MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS + 1)
         : []
+    assertBulkAffectedItemsWithinLimit(activeFolders.length)
     const descendantFolderIds = explicitFolderIds.flatMap((folderId) =>
       collectDescendantFolderIds(activeFolders, folderId)
     )
     const allFolderIds = Array.from(new Set([...explicitFolderIds, ...descendantFolderIds]))
+    assertBulkAffectedItemsWithinLimit(allFolderIds.length + explicitFileIds.length)
+
+    const descendantFiles =
+      allFolderIds.length > 0
+        ? await tx
+            .select({ id: workspaceFiles.id })
+            .from(workspaceFiles)
+            .where(
+              and(
+                inArray(workspaceFiles.folderId, allFolderIds),
+                eq(workspaceFiles.workspaceId, params.workspaceId),
+                eq(workspaceFiles.context, 'workspace'),
+                isNull(workspaceFiles.deletedAt)
+              )
+            )
+            .limit(MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS + 1)
+        : []
+    const affectedFileIds = new Set([...explicitFileIds, ...descendantFiles.map((file) => file.id)])
+    assertBulkAffectedItemsWithinLimit(allFolderIds.length + affectedFileIds.size)
 
     const archivedExplicitFiles =
       explicitFileIds.length > 0

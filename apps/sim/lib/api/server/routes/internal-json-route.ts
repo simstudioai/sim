@@ -1,4 +1,4 @@
-import type { Principal, SessionPrincipal } from '@sim/auth/principal'
+import type { DelegatedPrincipal, Principal, SessionPrincipal } from '@sim/auth/principal'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { requireJsonRouteDefinition } from '@/lib/api/server/routes/definition'
@@ -8,15 +8,17 @@ import type {
   JsonRouteContext,
   JsonRouteDefinition,
 } from '@/lib/api/server/routes/types'
-import { parseRequest } from '@/lib/api/server/validation'
+import { type ParseRequestOptions, parseRequest } from '@/lib/api/server/validation'
 import { getSession } from '@/lib/auth'
+import { verifyInternalToken } from '@/lib/auth/internal'
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { createWorkspaceFileDelegatedPrincipal } from '@/lib/workspace-files/application/delegated-principal'
 import type { WorkspaceOperation } from '@/lib/workspace-files/application/operations'
 
-class InternalUnauthenticatedError extends Error {
-  constructor() {
-    super('Unauthorized')
+export class InternalUnauthenticatedError extends Error {
+  constructor(message = 'Unauthorized') {
+    super(message)
     this.name = 'InternalUnauthenticatedError'
   }
 }
@@ -28,6 +30,36 @@ export const internalSessionAuth = {
     const sessionId = session.session?.id
     if (!sessionId) throw new Error('Authenticated session is missing its session ID')
     return { kind: 'session', userId: session.user.id, sessionId }
+  },
+} as const
+
+export const internalSessionOrServiceAuth = {
+  async authenticate(
+    request: NextRequest,
+    params: Record<string, string | string[] | undefined>
+  ): Promise<SessionPrincipal | DelegatedPrincipal> {
+    if (request.headers.has('x-api-key')) {
+      throw new InternalUnauthenticatedError('Authentication required')
+    }
+
+    const authorization = request.headers.get('authorization')
+    if (!authorization?.startsWith('Bearer ')) return internalSessionAuth.authenticate()
+
+    const verification = await verifyInternalToken(authorization.slice('Bearer '.length))
+    if (!verification.valid || !verification.userId) {
+      throw new InternalUnauthenticatedError('Authentication required')
+    }
+    const workspaceId = params.id
+    if (typeof workspaceId !== 'string' || !workspaceId) {
+      throw new Error('Internal file delegation requires a workspace route parameter')
+    }
+    return createWorkspaceFileDelegatedPrincipal({
+      serviceId: 'executor',
+      subjectUserId: verification.userId,
+      workspaceId,
+      delegationId: `internal-file:${verification.userId}`,
+      fileId: typeof params.fileId === 'string' ? params.fileId : undefined,
+    })
   },
 } as const
 
@@ -50,6 +82,7 @@ export const internalRateLimits = {
 
 export interface InternalErrorPolicy {
   render(error: unknown): NextResponse | null
+  unhandled?(): NextResponse
 }
 
 export const internalFileErrorPolicy: InternalErrorPolicy = {
@@ -63,16 +96,45 @@ export const internalFileErrorPolicy: InternalErrorPolicy = {
   },
 }
 
+export const internalPlainFileErrorPolicy: InternalErrorPolicy = {
+  render(error) {
+    const classified = asOrchestrationError(error)
+    if (!classified) return null
+    return NextResponse.json(
+      { error: classified.message },
+      { status: statusForOrchestrationError(classified.code) }
+    )
+  },
+  unhandled() {
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  },
+}
+
+interface InternalAuthPolicy<P extends Principal> {
+  authenticate(
+    request: NextRequest,
+    params: Record<string, string | string[] | undefined>
+  ): Promise<P>
+}
+
 interface InternalJsonRouteOptions<
   C extends JsonApiRouteContract,
   O extends WorkspaceOperation,
   I,
   R,
+  P extends Principal,
 > extends JsonRouteDefinition<C, O, I, R> {
-  auth: typeof internalSessionAuth
+  auth: InternalAuthPolicy<P>
   rateLimit: InternalRateLimitPolicy
   errorPolicy: InternalErrorPolicy
-  onSuccess?(args: { principal: SessionPrincipal; input: I; result: R }): void | Promise<void>
+  parseOptions?: Omit<ParseRequestOptions, 'validationErrorResponse'>
+  beforeParse?(args: {
+    request: NextRequest
+    principal: P
+    params: Record<string, string | string[] | undefined>
+  }): void | Promise<void>
+  onSuccess?(args: { principal: P; input: I; result: R }): void | Promise<void>
+  responseHeaders?(args: { principal: P; input: I; result: R }): HeadersInit
 }
 
 export function defineInternalJsonRoute<
@@ -80,7 +142,8 @@ export function defineInternalJsonRoute<
   O extends WorkspaceOperation,
   I,
   R,
->(options: InternalJsonRouteOptions<C, O, I, R>): JsonNextRouteHandler {
+  P extends Principal,
+>(options: InternalJsonRouteOptions<C, O, I, R, P>): JsonNextRouteHandler {
   const { successStatus } = requireJsonRouteDefinition(
     options.contract,
     options.operation,
@@ -95,9 +158,10 @@ export function defineInternalJsonRoute<
         )
       }
 
-      let principal: SessionPrincipal
+      const rawParams = context?.params ? await context.params : {}
+      let principal: P
       try {
-        principal = await options.auth.authenticate()
+        principal = await options.auth.authenticate(request, rawParams)
       } catch (error) {
         if (error instanceof InternalUnauthenticatedError) {
           return NextResponse.json({ error: error.message }, { status: 401 })
@@ -106,7 +170,21 @@ export function defineInternalJsonRoute<
       }
 
       await options.rateLimit.enforce(request, principal)
-      const parsed = await parseRequest(options.contract, request, context ?? {})
+      if (options.beforeParse) {
+        try {
+          await options.beforeParse({ request, principal, params: rawParams })
+        } catch (error) {
+          const response = options.errorPolicy.render(error)
+          if (response) return response
+          throw error
+        }
+      }
+      const parsed = await parseRequest(
+        options.contract,
+        request,
+        context ?? {},
+        options.parseOptions
+      )
       if (!parsed.success) return parsed.response
 
       try {
@@ -123,7 +201,10 @@ export function defineInternalJsonRoute<
           throw new Error('Internal JSON route response mode changed after initialization')
         }
         const validatedBody = responseSchema.schema.parse(body)
-        return NextResponse.json(validatedBody, { status: successStatus })
+        return NextResponse.json(validatedBody, {
+          status: successStatus,
+          headers: options.responseHeaders?.({ principal, input, result }),
+        })
       } catch (error) {
         const response = options.errorPolicy.render(error)
         if (response) return response
@@ -132,6 +213,7 @@ export function defineInternalJsonRoute<
     },
     {
       unhandledErrorResponse: () =>
+        options.errorPolicy.unhandled?.() ??
         NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 }),
     }
   )

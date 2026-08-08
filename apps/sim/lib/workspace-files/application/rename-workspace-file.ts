@@ -1,15 +1,13 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
-import { type Principal, resolvePrincipalAttribution } from '@sim/auth/principal'
+import { type Principal, resolvePrincipalAuditAttribution } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import type { OrchestrationRequestContext } from '@/lib/core/orchestration/types'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
 import {
-  loadActiveWorkspaceFileContext,
   renameWorkspaceFile as renameStoredWorkspaceFile,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { authorizeWorkspaceOperation } from '@/lib/workspace-files/application/authorization'
+import { loadAuthorizedWorkspaceFile } from '@/lib/workspace-files/application/load-authorized-workspace-file'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 
 const logger = createLogger('RenameWorkspaceFile')
@@ -35,24 +33,14 @@ async function executeRenameWorkspaceFile({
   input,
   request,
 }: RenameWorkspaceFileArguments): Promise<RenameWorkspaceFileResult> {
-  const canonical = await loadActiveWorkspaceFileContext(input.fileId)
-  if (
-    !canonical ||
-    (input.assertedWorkspaceId !== undefined && input.assertedWorkspaceId !== canonical.workspaceId)
-  ) {
-    throw new OrchestrationError('not_found', 'File not found')
-  }
-
-  await authorizeWorkspaceOperation(principal, fileOperations.rename, {
-    workspaceId: canonical.workspaceId,
-    workspaceOrganizationId: canonical.workspaceOrganizationId,
-    allowPersonalApiKeys: canonical.allowPersonalApiKeys,
-    fileId: canonical.fileId,
+  const canonical = await loadAuthorizedWorkspaceFile({
+    principal,
+    operation: fileOperations.rename,
+    fileId: input.fileId,
+    assertedWorkspaceId: input.assertedWorkspaceId,
   })
 
-  const attribution = resolvePrincipalAttribution(principal, {
-    workspaceBillingOwnerUserId: canonical.billedAccountUserId,
-  })
+  const auditAttribution = resolvePrincipalAuditAttribution(principal)
   const file = await renameStoredWorkspaceFile(canonical.workspaceId, canonical.fileId, input.name)
   const workspaceId = canonical.workspaceId
 
@@ -64,7 +52,8 @@ async function executeRenameWorkspaceFile({
   })
   recordAudit({
     workspaceId,
-    actorId: attribution.attributedUserId,
+    actorId: auditAttribution.actorId,
+    actorName: auditAttribution.actorName,
     action: AuditAction.FILE_UPDATED,
     resourceType: AuditResourceType.FILE,
     resourceId: file.id,
@@ -72,7 +61,7 @@ async function executeRenameWorkspaceFile({
     description: `Renamed file to "${file.name}"`,
     metadata: {
       operation: fileOperations.rename.id,
-      actor: attribution.actor,
+      actor: auditAttribution.actor,
     },
     request,
   })

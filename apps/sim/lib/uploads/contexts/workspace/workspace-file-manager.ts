@@ -5,7 +5,7 @@
 
 import { randomBytes } from 'crypto'
 import { db } from '@sim/db'
-import { workspace, workspaceFiles } from '@sim/db/schema'
+import { uploadSession, workspace, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import {
   describeError,
@@ -137,6 +137,17 @@ export interface UploadedWorkspaceFileRecord extends WorkspaceFileRecord {
 
 export interface ActiveWorkspaceFileContext {
   fileId: string
+  workspaceId: string
+  workspaceOrganizationId: string | null
+  allowPersonalApiKeys: boolean
+  billedAccountUserId: string
+}
+
+export interface WorkspaceFileLifecycleContext extends ActiveWorkspaceFileContext {
+  deletedAt: Date | null
+}
+
+export interface ActiveWorkspaceContext {
   workspaceId: string
   workspaceOrganizationId: string | null
   allowPersonalApiKeys: boolean
@@ -559,6 +570,7 @@ export async function registerUploadedWorkspaceFile(params: {
   originalName: string
   contentType: string
   folderId?: string | null
+  uploadSessionId?: string
 }): Promise<RegisterUploadedWorkspaceFileResult> {
   const { workspaceId, userId, key, originalName, contentType } = params
   const normalizedOriginalName = normalizeWorkspaceFileItemName(originalName, 'File')
@@ -600,6 +612,7 @@ export async function registerUploadedWorkspaceFile(params: {
         EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE
       )
     }
+    await markUploadSessionFileRegistered(tx, params.uploadSessionId, workspaceId, found.id)
     return found
   })
   if (existing) {
@@ -658,6 +671,12 @@ export async function registerUploadedWorkspaceFile(params: {
             EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE
           )
         }
+        await markUploadSessionFileRegistered(
+          tx,
+          params.uploadSessionId,
+          workspaceId,
+          raceWinner.id
+        )
         return { kind: 'existing', file: raceWinner } as const
       }
 
@@ -672,6 +691,7 @@ export async function registerUploadedWorkspaceFile(params: {
         inserted.contentUpdatedAt,
         EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE
       )
+      await markUploadSessionFileRegistered(tx, params.uploadSessionId, workspaceId, inserted.id)
       return { kind: 'created', file: inserted, updatedUsage } as const
     })
 
@@ -702,6 +722,29 @@ export async function registerUploadedWorkspaceFile(params: {
   }
 
   throw new FileConflictError(normalizedOriginalName)
+}
+
+async function markUploadSessionFileRegistered(
+  tx: DbOrTx,
+  uploadSessionId: string | undefined,
+  workspaceId: string,
+  fileId: string
+): Promise<void> {
+  if (!uploadSessionId) return
+  const [marked] = await tx
+    .update(uploadSession)
+    .set({ completedFileId: fileId, updatedAt: new Date() })
+    .where(
+      and(
+        eq(uploadSession.id, uploadSessionId),
+        eq(uploadSession.workspaceId, workspaceId),
+        eq(uploadSession.purpose, 'workspace_file'),
+        eq(uploadSession.status, 'finalizing'),
+        or(isNull(uploadSession.completedFileId), eq(uploadSession.completedFileId, fileId))
+      )
+    )
+    .returning({ id: uploadSession.id })
+  if (!marked) throw new Error('Workspace upload registration marker could not be persisted')
 }
 
 function assertActiveWorkspaceFileRegistration(file: typeof workspaceFiles.$inferSelect): void {
@@ -1333,7 +1376,7 @@ export async function resolveWorkspaceFileReference(
 ): Promise<WorkspaceFileRecord | null> {
   const normalizedReference = normalizeWorkspaceFileReference(fileReference)
   if (normalizedReference.startsWith('wf_')) {
-    const file = await getWorkspaceFile(workspaceId, normalizedReference)
+    const file = await getWorkspaceFile(workspaceId, normalizedReference, { throwOnError: true })
     if (file) return file
   }
 
@@ -1352,7 +1395,8 @@ export async function resolveWorkspaceFileReference(
  * Database failures propagate so callers never confuse unavailable state with a missing file.
  */
 export async function loadActiveWorkspaceFileContext(
-  fileId: string
+  fileId: string,
+  options?: { includeDeleted?: boolean }
 ): Promise<ActiveWorkspaceFileContext | null> {
   const [context] = await db
     .select({
@@ -1368,10 +1412,58 @@ export async function loadActiveWorkspaceFileContext(
       and(
         eq(workspaceFiles.id, fileId),
         eq(workspaceFiles.context, 'workspace'),
-        isNull(workspaceFiles.deletedAt),
+        ...(options?.includeDeleted ? [] : [isNull(workspaceFiles.deletedAt)]),
         isNull(workspace.archivedAt)
       )
     )
+    .limit(1)
+
+  return context ?? null
+}
+
+/**
+ * Load a workspace file for a lifecycle transition, including archived files.
+ * The workspace archive state is returned by the canonical workspace record and is enforced by
+ * the operation's manager primitive where the transition requires an active workspace.
+ */
+export async function loadWorkspaceFileLifecycleContext(
+  fileId: string
+): Promise<WorkspaceFileLifecycleContext | null> {
+  const [context] = await db
+    .select({
+      fileId: workspaceFiles.id,
+      workspaceId: workspace.id,
+      workspaceOrganizationId: workspace.organizationId,
+      allowPersonalApiKeys: workspace.allowPersonalApiKeys,
+      billedAccountUserId: workspace.billedAccountUserId,
+      deletedAt: workspaceFiles.deletedAt,
+    })
+    .from(workspaceFiles)
+    .innerJoin(workspace, eq(workspaceFiles.workspaceId, workspace.id))
+    .where(and(eq(workspaceFiles.id, fileId), eq(workspaceFiles.context, 'workspace')))
+    .limit(1)
+
+  return context ?? null
+}
+
+/**
+ * Load the canonical authorization context for an active workspace.
+ *
+ * The query deliberately throws database failures so callers cannot mistake an unavailable
+ * workspace for a missing one. Authentication and authorization remain the caller's concern.
+ */
+export async function loadActiveWorkspaceContext(
+  workspaceId: string
+): Promise<ActiveWorkspaceContext | null> {
+  const [context] = await db
+    .select({
+      workspaceId: workspace.id,
+      workspaceOrganizationId: workspace.organizationId,
+      allowPersonalApiKeys: workspace.allowPersonalApiKeys,
+      billedAccountUserId: workspace.billedAccountUserId,
+    })
+    .from(workspace)
+    .where(and(eq(workspace.id, workspaceId), isNull(workspace.archivedAt)))
     .limit(1)
 
   return context ?? null
@@ -1919,7 +2011,7 @@ export async function deleteWorkspaceFile(workspaceId: string, fileId: string): 
     logger.info(`Successfully archived workspace file: ${archived.originalName}`)
   } catch (error) {
     logger.error(`Failed to delete workspace file ${fileId}:`, error)
-    throw new Error(`Failed to delete file: ${getErrorMessage(error, 'Unknown error')}`)
+    throw error
   }
 }
 

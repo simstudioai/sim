@@ -2,6 +2,7 @@ import type { Principal } from '@sim/auth/principal'
 import type { NextRequest } from 'next/server'
 import type {
   AnyApiRouteContract,
+  BinaryResponseMode,
   ContractJsonResponse,
   JsonResponseMode,
 } from '@/lib/api/contracts'
@@ -28,6 +29,18 @@ export type JsonApiRouteContract = AnyApiRouteContract & {
   response: JsonResponseMode
 }
 
+export type BinaryApiRouteContract = AnyApiRouteContract & {
+  response: BinaryResponseMode
+}
+
+export interface BinaryResponseDescriptor {
+  body: BodyInit
+  contentType: string
+  contentDisposition?: string
+  contentLength?: number
+  headers?: HeadersInit
+}
+
 export interface JsonRouteDefinition<
   C extends JsonApiRouteContract,
   O extends WorkspaceOperation,
@@ -45,3 +58,16 @@ export type JsonNextRouteHandler = (
   request: NextRequest,
   context?: JsonRouteContext
 ) => Promise<Response>
+
+export interface BinaryRouteDefinition<
+  C extends BinaryApiRouteContract,
+  O extends WorkspaceOperation,
+  I,
+  R,
+> {
+  contract: C
+  operation: O
+  mapInput(input: ParsedRequest<C>): I
+  useCase: OperationUseCase<NoInfer<O>, I, R>
+  present(result: R): BinaryResponseDescriptor | Promise<BinaryResponseDescriptor>
+}

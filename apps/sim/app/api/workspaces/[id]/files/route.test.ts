@@ -5,59 +5,50 @@ import { authMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockGetUserEntityPermissions,
-  mockGetWorkspaceShares,
-  mockListWorkspaceFiles,
-  mockPerformCreateWorkspaceFile,
-} = vi.hoisted(() => ({
-  mockGetUserEntityPermissions: vi.fn(),
-  mockGetWorkspaceShares: vi.fn(),
-  mockListWorkspaceFiles: vi.fn(),
-  mockPerformCreateWorkspaceFile: vi.fn(),
+const mocks = vi.hoisted(() => ({
+  admitCreate: vi.fn(),
+  createFile: vi.fn(),
+  listFiles: vi.fn(),
+  captureServerEvent: vi.fn(),
 }))
 
-vi.mock('@/lib/public-shares/share-manager', () => ({
-  getWorkspaceShares: mockGetWorkspaceShares,
+vi.mock('@/lib/workspace-files/application/create-workspace-file', () => ({
+  createWorkspaceFile: {
+    operation: { id: 'files.create', minimumRole: 'write', workspaceApiKey: 'allow' },
+    admit: mocks.admitCreate,
+    execute: mocks.createFile,
+  },
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  listWorkspaceFiles: mockListWorkspaceFiles,
+vi.mock('@/lib/workspace-files/application/list-workspace-files', () => ({
+  listAllWorkspaceFiles: {
+    operation: { id: 'files.list', minimumRole: 'read', workspaceApiKey: 'allow' },
+    execute: mocks.listFiles,
+  },
 }))
 
-vi.mock('@/lib/workspace-files/orchestration', () => ({
-  MAX_WORKSPACE_FILE_INLINE_BODY_BYTES: 70 * 1024 * 1024,
-  performCreateWorkspaceFile: mockPerformCreateWorkspaceFile,
-}))
+vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.captureServerEvent }))
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUserEntityPermissions: mockGetUserEntityPermissions,
-}))
-vi.mock('@/app/api/workflows/utils', () => ({
-  verifyWorkspaceMembership: vi.fn().mockResolvedValue('write'),
-}))
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { GET, POST } from '@/app/api/workspaces/[id]/files/route'
 
-import { POST } from '@/app/api/workspaces/[id]/files/route'
-
-const WORKSPACE_ID = '7727ef3f-8cf6-4686-b063-2bb006a10785'
+const WORKSPACE_ID = 'workspace-1'
 const USER = { id: 'user-1', name: 'Test User', email: 'test@sim.ai' }
-const CREATED_FILE = {
-  id: 'wf_created',
+const PRINCIPAL = { kind: 'session' as const, userId: USER.id, sessionId: 'session-1' }
+const FILE = {
+  id: 'wf_1',
   workspaceId: WORKSPACE_ID,
-  name: 'untitled.md',
-  key: `workspace/${WORKSPACE_ID}/untitled.md`,
-  path: '/api/files/serve/untitled.md?context=workspace',
+  name: 'notes.md',
+  key: `workspace/${WORKSPACE_ID}/notes.md`,
+  path: '/api/files/serve/notes.md?context=workspace',
   size: 0,
   type: 'text/markdown',
   uploadedBy: USER.id,
   folderId: null,
-  folderPath: null,
-  deletedAt: null,
   uploadedAt: new Date('2026-08-04T00:00:00.000Z'),
   updatedAt: new Date('2026-08-04T00:00:00.000Z'),
 }
-
-const routeContext = { params: Promise.resolve({ id: WORKSPACE_ID }) }
+const context = { params: Promise.resolve({ id: WORKSPACE_ID }) }
 
 function createRequest(body: unknown): NextRequest {
   return new NextRequest(`http://localhost:3000/api/workspaces/${WORKSPACE_ID}/files`, {
@@ -67,187 +58,102 @@ function createRequest(body: unknown): NextRequest {
   })
 }
 
-describe('POST /api/workspaces/[id]/files', () => {
+describe('/api/workspaces/[id]/files', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    authMockFns.mockGetSession.mockResolvedValue({ user: USER })
-    mockGetUserEntityPermissions.mockResolvedValue('write')
-    mockGetWorkspaceShares.mockResolvedValue(new Map())
-    mockListWorkspaceFiles.mockResolvedValue([])
-    mockPerformCreateWorkspaceFile.mockResolvedValue({ success: true, file: CREATED_FILE })
+    authMockFns.mockGetSession.mockResolvedValue({ user: USER, session: { id: 'session-1' } })
+    mocks.admitCreate.mockResolvedValue(undefined)
+    mocks.createFile.mockResolvedValue({ file: FILE })
+    mocks.listFiles.mockResolvedValue({ files: [FILE] })
   })
 
-  it('authenticates before parsing an invalid request body', async () => {
+  it('lists files through the shared read operation', async () => {
+    const request = new NextRequest(
+      `http://localhost:3000/api/workspaces/${WORKSPACE_ID}/files?scope=archived`
+    )
+    const response = await GET(request, context)
+
+    expect(response.status).toBe(200)
+    expect((await response.json()).files).toHaveLength(1)
+    expect(mocks.listFiles).toHaveBeenCalledWith({
+      principal: PRINCIPAL,
+      input: { workspaceId: WORKSPACE_ID, scope: 'archived' },
+      request,
+    })
+  })
+
+  it('authenticates before create admission or body parsing', async () => {
     authMockFns.mockGetSession.mockResolvedValue(null)
 
-    const response = await POST(createRequest('{not-json'), routeContext)
+    const response = await POST(createRequest('{not-json'), context)
 
     expect(response.status).toBe(401)
-    await expect(response.json()).resolves.toEqual({ error: 'Unauthorized' })
-    expect(mockGetUserEntityPermissions).not.toHaveBeenCalled()
-    expect(mockPerformCreateWorkspaceFile).not.toHaveBeenCalled()
+    expect(mocks.admitCreate).not.toHaveBeenCalled()
+    expect(mocks.createFile).not.toHaveBeenCalled()
   })
 
-  it('authorizes the workspace before parsing the request body', async () => {
-    mockGetUserEntityPermissions.mockResolvedValue('read')
+  it('authorizes the asserted workspace before buffering the create body', async () => {
+    mocks.admitCreate.mockRejectedValue(
+      new OrchestrationError('forbidden', 'Insufficient workspace permissions')
+    )
 
-    const response = await POST(createRequest({ content: 'missing a name' }), routeContext)
+    const response = await POST(createRequest('{not-json'), context)
 
     expect(response.status).toBe(403)
-    await expect(response.json()).resolves.toEqual({ error: 'Insufficient permissions' })
-    expect(mockGetUserEntityPermissions).toHaveBeenCalledWith(USER.id, 'workspace', WORKSPACE_ID)
-    expect(mockPerformCreateWorkspaceFile).not.toHaveBeenCalled()
+    expect(mocks.admitCreate).toHaveBeenCalledWith(PRINCIPAL, WORKSPACE_ID)
+    expect(mocks.createFile).not.toHaveBeenCalled()
   })
 
-  it('rejects an invalid body after workspace authorization', async () => {
-    const response = await POST(createRequest({ content: 'missing a name' }), routeContext)
-    const body = await response.json()
+  it('rejects malformed base64 after admission', async () => {
+    const response = await POST(
+      createRequest({ name: 'notes.md', content: 'not-base64!', encoding: 'base64' }),
+      context
+    )
 
     expect(response.status).toBe(400)
-    expect(body.error).toBe('Validation error')
-    expect(mockGetUserEntityPermissions).toHaveBeenCalledWith(USER.id, 'workspace', WORKSPACE_ID)
-    expect(mockPerformCreateWorkspaceFile).not.toHaveBeenCalled()
+    expect(mocks.admitCreate).toHaveBeenCalled()
+    expect(mocks.createFile).not.toHaveBeenCalled()
   })
 
-  it.each(['read', null])(
-    'requires write or admin permission (%s is rejected)',
-    async (permission) => {
-      mockGetUserEntityPermissions.mockResolvedValue(permission)
+  it('creates through the shared use case and preserves internal analytics', async () => {
+    const request = createRequest({ name: 'notes.md', content: 'TQ==', encoding: 'base64' })
+    const response = await POST(request, context)
 
-      const response = await POST(createRequest({ name: 'untitled.md' }), routeContext)
-
-      expect(response.status).toBe(403)
-      await expect(response.json()).resolves.toEqual({ error: 'Insufficient permissions' })
-      expect(mockPerformCreateWorkspaceFile).not.toHaveBeenCalled()
-    }
-  )
-
-  it.each(['write', 'admin'])(
-    'creates an empty file with defaults for %s users',
-    async (permission) => {
-      mockGetUserEntityPermissions.mockResolvedValue(permission)
-      const request = createRequest({ name: 'untitled.md' })
-
-      const response = await POST(request, routeContext)
-      const body = await response.json()
-
-      expect(response.status).toBe(201)
-      expect(body).toMatchObject({ success: true, file: { id: CREATED_FILE.id } })
-      expect(mockPerformCreateWorkspaceFile).toHaveBeenCalledTimes(1)
-      const params = mockPerformCreateWorkspaceFile.mock.calls[0][0]
-      expect(params).toMatchObject({
+    expect(response.status).toBe(201)
+    expect((await response.json()).file.id).toBe(FILE.id)
+    expect(mocks.createFile).toHaveBeenCalledWith({
+      principal: PRINCIPAL,
+      input: {
         workspaceId: WORKSPACE_ID,
-        userId: USER.id,
-        actorName: USER.name,
-        actorEmail: USER.email,
-        name: 'untitled.md',
+        name: 'notes.md',
         contentType: 'text/markdown',
+        content: 'TQ==',
+        encoding: 'base64',
+        folderId: undefined,
         exactName: false,
-      })
-      expect(params.folderId).toBeUndefined()
-      expect(params.content).toEqual(Buffer.alloc(0))
-      expect(params.request).toBe(request)
-    }
-  )
-
-  it('decodes initialized base64 content and preserves folder and content type', async () => {
-    const content = Buffer.from([0, 1, 2, 255])
-    const request = createRequest({
-      name: 'data.bin',
-      contentType: 'application/octet-stream',
-      folderId: 'folder-1',
-      content: content.toString('base64'),
-      encoding: 'base64',
-    })
-    mockPerformCreateWorkspaceFile.mockResolvedValue({
-      success: true,
-      file: {
-        ...CREATED_FILE,
-        name: 'data.bin',
-        type: 'application/octet-stream',
-        size: content.length,
-        folderId: 'folder-1',
       },
+      request,
     })
-
-    const response = await POST(request, routeContext)
-
-    expect(response.status).toBe(201)
-    expect(mockPerformCreateWorkspaceFile).toHaveBeenCalledWith(
-      expect.objectContaining({
-        workspaceId: WORKSPACE_ID,
-        name: 'data.bin',
-        contentType: 'application/octet-stream',
-        folderId: 'folder-1',
-        content,
-        exactName: false,
-      })
+    expect(mocks.captureServerEvent).toHaveBeenCalledWith(
+      USER.id,
+      'file_uploaded',
+      { workspace_id: WORKSPACE_ID, file_type: 'text/markdown' },
+      { groups: { workspace: WORKSPACE_ID } }
     )
   })
 
-  it('rejects malformed base64 after authorization and before orchestration', async () => {
-    const response = await POST(
-      createRequest({ name: 'data.bin', content: 'not-base64!', encoding: 'base64' }),
-      routeContext
-    )
+  it('renders typed create conflicts without exposing unknown errors', async () => {
+    mocks.createFile.mockRejectedValueOnce(new OrchestrationError('conflict', 'Name exists'))
+    const conflict = await POST(createRequest({ name: 'notes.md' }), context)
+    expect(conflict.status).toBe(409)
+    expect(await conflict.json()).toEqual({ success: false, error: 'Name exists' })
 
-    expect(response.status).toBe(400)
-    await expect(response.json()).resolves.toMatchObject({ error: 'Validation error' })
-    expect(mockGetUserEntityPermissions).toHaveBeenCalledWith(USER.id, 'workspace', WORKSPACE_ID)
-    expect(mockPerformCreateWorkspaceFile).not.toHaveBeenCalled()
-  })
-
-  it('accepts empty base64 as a zero-byte file', async () => {
-    const response = await POST(
-      createRequest({ name: 'empty.bin', content: '', encoding: 'base64' }),
-      routeContext
-    )
-
-    expect(response.status).toBe(201)
-    expect(mockPerformCreateWorkspaceFile).toHaveBeenCalledWith(
-      expect.objectContaining({ content: Buffer.alloc(0) })
-    )
-  })
-
-  it.each([
-    ['validation', 400, 'Invalid file name'],
-    ['not_found', 404, 'Target folder not found'],
-    ['conflict', 409, 'A file with this name already exists'],
-    ['payload_too_large', 413, 'File size exceeds 50MB limit'],
-  ] as const)('maps a %s orchestration failure to %i', async (errorCode, expectedStatus, error) => {
-    mockPerformCreateWorkspaceFile.mockResolvedValue({ success: false, error, errorCode })
-
-    const response = await POST(createRequest({ name: 'untitled.md' }), routeContext)
-
-    expect(response.status).toBe(expectedStatus)
-    await expect(response.json()).resolves.toEqual({ success: false, error })
-  })
-
-  it('does not expose an internal orchestration error', async () => {
-    mockPerformCreateWorkspaceFile.mockResolvedValue({
+    mocks.createFile.mockRejectedValueOnce(new Error('database details'))
+    const unexpected = await POST(createRequest({ name: 'notes.md' }), context)
+    expect(unexpected.status).toBe(500)
+    expect(await unexpected.json()).toEqual({
       success: false,
-      error: 'update workspace_files set ... failed',
-      errorCode: 'internal',
-    })
-
-    const response = await POST(createRequest({ name: 'untitled.md' }), routeContext)
-
-    expect(response.status).toBe(500)
-    await expect(response.json()).resolves.toEqual({
-      success: false,
-      error: 'Failed to create file',
-    })
-  })
-
-  it('maps an unexpected throw to a 500 response', async () => {
-    mockPerformCreateWorkspaceFile.mockRejectedValue(new Error('storage unavailable'))
-
-    const response = await POST(createRequest({ name: 'untitled.md' }), routeContext)
-
-    expect(response.status).toBe(500)
-    await expect(response.json()).resolves.toEqual({
-      success: false,
-      error: 'Failed to create file',
+      error: 'Internal server error',
     })
   })
 })

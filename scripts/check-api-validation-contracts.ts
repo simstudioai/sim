@@ -150,9 +150,9 @@ const PUBLIC_API_ROUTE_HANDLER_IMPORT_PATTERN =
   /\bimport\s*\{[^}]*\bwithPublicApiRouteHandler\b[^}]*\}\s*from\s*['"]@\/app\/api\/public-api-route-handler['"]/
 const PUBLIC_API_ROUTE_HANDLER_USAGE_PATTERN = /\bwithPublicApiRouteHandler\s*\(/
 const DECLARATIVE_ROUTE_BUILDER_IMPORT_PATTERN =
-  /\bimport\s*\{[^}]*(?:\bdefineInternalJsonRoute\b|\bdefineV2JsonRoute\b)[^}]*\}\s*from\s*['"]@\/lib\/api\/server\/routes['"]/
+  /\bimport\s*\{[^}]*(?:\bdefineInternalJsonRoute\b|\bdefineV2JsonRoute\b|\bdefineInternalBinaryRoute\b|\bdefineV2BinaryRoute\b)[^}]*\}\s*from\s*['"]@\/lib\/api\/server\/routes['"]/
 const DECLARATIVE_ROUTE_BUILDER_USAGE_PATTERN =
-  /\b(?:defineInternalJsonRoute|defineV2JsonRoute)\s*\(/
+  /\b(?:defineInternalJsonRoute|defineV2JsonRoute|defineInternalBinaryRoute|defineV2BinaryRoute)\s*\(/
 const SERVER_VALIDATION_IMPORT_PATTERN = /\bfrom\s+['"]@\/lib\/api\/server(?:\/validation)?['"]/
 const SCHEMA_PARSE_PATTERN = /\b\w+Schema\.(?:safeParse|parse)\(/
 const CONTRACT_SERVER_HELPER_PATTERN = /\bparseToolRequest\(/

@@ -44,13 +44,16 @@ interface ApiKeyRow {
 }
 
 function requireValidRow(row: ApiKeyRow | undefined): ApiKeyRow {
-  if (!row || row.userBanned || (row.expiresAt && row.expiresAt < new Date())) {
+  if (!row || (row.expiresAt && row.expiresAt < new Date())) {
     throw new V2ApiKeyUnauthenticatedError()
   }
-  if (row.userBanned === null) {
-    throw new Error(`API key ${row.id} is missing its credential owner`)
+  if (row.type === 'personal' && row.workspaceId === null) {
+    if (row.userBanned === null) {
+      throw new Error(`Personal API key ${row.id} is missing its credential owner`)
+    }
+    if (row.userBanned) throw new V2ApiKeyUnauthenticatedError()
+    return row
   }
-  if (row.type === 'personal' && row.workspaceId === null) return row
   if (row.type === 'workspace' && row.workspaceId) return row
   throw new Error(`API key ${row.id} has an invalid persisted type/workspace combination`)
 }
