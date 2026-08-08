@@ -4,6 +4,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import type { ZodError } from 'zod'
 import { getValidationErrorMessage, isZodError, validationErrorResponse } from '@/lib/api/server'
 import { buildRateLimitHeaders, recordRateLimitSnapshot } from '@/lib/api/server/rate-limit-context'
+import { PERSONAL_KEY_DENIED, WORKSPACE_KEY_SCOPE_DENIED } from '@/lib/api-key/policy-messages'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import type { SubscriptionPlan } from '@/lib/core/rate-limiter'
 import { getRateLimit, RateLimiter } from '@/lib/core/rate-limiter'
@@ -197,8 +198,8 @@ export function createRateLimitResponse(result: RateLimitResult): NextResponse {
  * Enforces two policies:
  * - A workspace-scoped key may only target its own workspace.
  * - A personal key is rejected when the workspace has disabled personal API
- *   keys (`allowPersonalApiKeys = false`), matching the workflow-execution
- *   surface in `app/api/workflows/middleware.ts`.
+ *   keys (`allowPersonalApiKeys = false`). Other surfaces enforcing the same
+ *   policy share `PERSONAL_KEY_DENIED`.
  */
 export async function checkWorkspaceScope(
   rateLimit: RateLimitResult,
@@ -209,19 +210,13 @@ export async function checkWorkspaceScope(
     rateLimit.workspaceId &&
     rateLimit.workspaceId !== requestedWorkspaceId
   ) {
-    return NextResponse.json(
-      { error: 'API key is not authorized for this workspace' },
-      { status: 403 }
-    )
+    return NextResponse.json({ error: WORKSPACE_KEY_SCOPE_DENIED }, { status: 403 })
   }
 
   if (rateLimit.keyType === 'personal') {
     const settings = await getWorkspaceBillingSettings(requestedWorkspaceId)
     if (!settings?.allowPersonalApiKeys) {
-      return NextResponse.json(
-        { error: 'Personal API keys are not allowed for this workspace' },
-        { status: 403 }
-      )
+      return NextResponse.json({ error: PERSONAL_KEY_DENIED }, { status: 403 })
     }
   }
 

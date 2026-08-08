@@ -13,6 +13,7 @@ import { PluginKey } from '@tiptap/pm/state'
 import type { Editor } from '@tiptap/react'
 import { useEditorState } from '@tiptap/react'
 import { BubbleMenu } from '@tiptap/react/menus'
+import { BUBBLE_MENU_CLASS } from './bubble-menu-chrome'
 import { ToolbarButton, ToolbarDivider } from './toolbar-button'
 import { useBubbleMenuFloating } from './use-bubble-menu-floating'
 
@@ -21,6 +22,9 @@ interface TableBubbleMenuProps {
   /** The editor's scrollable viewport, so the toolbar repositions with the cell as the pane scrolls. */
   scrollContainerRef: React.RefObject<HTMLDivElement | null>
 }
+
+const shouldShowTableMenu = ({ editor }: { editor: Editor }) =>
+  editor.isEditable && editor.isActive('table')
 
 /**
  * Floating toolbar shown whenever the selection is inside a table: row/column insert-before/after,
@@ -49,8 +53,8 @@ export function TableBubbleMenu({ editor, scrollContainerRef }: TableBubbleMenuP
       role='toolbar'
       aria-label='Table editing'
       updateDelay={0}
-      shouldShow={({ editor: e }) => e.isEditable && e.isActive('table')}
-      className='fade-in-0 z-[var(--z-popover)] flex animate-in items-center gap-0.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] p-1 shadow-sm duration-150 ease-out motion-reduce:animate-none'
+      shouldShow={shouldShowTableMenu}
+      className={BUBBLE_MENU_CLASS}
     >
       <ToolbarButton
         icon={ArrowUp}

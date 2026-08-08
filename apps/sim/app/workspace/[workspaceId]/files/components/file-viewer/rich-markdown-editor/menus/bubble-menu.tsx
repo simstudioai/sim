@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Blimp,
   Bold,
@@ -20,6 +20,7 @@ import { PluginKey } from '@tiptap/pm/state'
 import type { Editor } from '@tiptap/react'
 import { useEditorState } from '@tiptap/react'
 import { BubbleMenu } from '@tiptap/react/menus'
+import { BUBBLE_MENU_CLASS } from './bubble-menu-chrome'
 import { applyLink, LinkUrlInput } from './link-editing'
 import { ToolbarButton, ToolbarDivider } from './toolbar-button'
 import { useBubbleMenuFloating } from './use-bubble-menu-floating'
@@ -181,6 +182,18 @@ export function EditorBubbleMenu({
 
   const { resolveAnchor, appendTo } = useBubbleMenuFloating(editor, scrollContainerRef)
 
+  const shouldShow = useCallback(
+    ({ editor: e, from, to }: { editor: Editor; from: number; to: number }) => {
+      // Read-only never shows the menu — even mid-link-edit (e.g. a stream starting) — so a link
+      // can't be applied to a doc that must not mutate.
+      if (!e.isEditable) return false
+      if (isEditingLink) return true
+      if (isPointerDownRef.current) return false
+      return hasFormattableSelection(e, from, to)
+    },
+    [isEditingLink]
+  )
+
   return (
     <BubbleMenu
       editor={editor}
@@ -190,15 +203,8 @@ export function EditorBubbleMenu({
       role='toolbar'
       aria-label='Text formatting'
       updateDelay={0}
-      shouldShow={({ editor: e, from, to }) => {
-        // Read-only never shows the menu — even mid-link-edit (e.g. a stream starting) — so a link
-        // can't be applied to a doc that must not mutate.
-        if (!e.isEditable) return false
-        if (isEditingLink) return true
-        if (isPointerDownRef.current) return false
-        return hasFormattableSelection(e, from, to)
-      }}
-      className='fade-in-0 z-[var(--z-popover)] flex animate-in items-center gap-0.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] p-1 shadow-sm duration-150 ease-out motion-reduce:animate-none'
+      shouldShow={shouldShow}
+      className={BUBBLE_MENU_CLASS}
     >
       {isEditingLink ? (
         <>
