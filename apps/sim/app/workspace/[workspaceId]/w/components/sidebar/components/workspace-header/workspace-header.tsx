@@ -747,33 +747,41 @@ function WorkspaceHeaderImpl({
                             <span className='min-w-0 flex-1 truncate text-[var(--text-body)] text-sm'>
                               {workspace.name}
                             </span>
-                            {pinnedWorkspaceIds.has(workspace.id) && (
-                              <Pin
-                                aria-hidden={false}
-                                role='img'
-                                aria-label='Pinned'
-                                className='size-[12px] flex-shrink-0 text-[var(--text-icon)]'
-                              />
-                            )}
-                            <button
-                              type='button'
-                              aria-label='Workspace options'
-                              onMouseDown={() => {
-                                isContextMenuOpeningRef.current = true
-                              }}
-                              onClick={(e) => {
-                                e.preventDefault()
-                                e.stopPropagation()
-                                const rect = e.currentTarget.getBoundingClientRect()
-                                openContextMenuAt(workspace, rect.right, rect.top)
-                              }}
-                              className={cn(
-                                'flex size-[18px] flex-shrink-0 items-center justify-center rounded-sm opacity-0 transition-opacity group-hover:opacity-100',
-                                isMenuOpen && 'opacity-100'
+                            {/* Pin and options share one fixed slot, as the chat rows do:
+                                the trailing width never changes, so pinning cannot re-truncate
+                                the name under the user's cursor. */}
+                            <div className='relative flex size-[18px] flex-shrink-0 items-center justify-center'>
+                              {pinnedWorkspaceIds.has(workspace.id) && (
+                                <Pin
+                                  aria-hidden={false}
+                                  role='img'
+                                  aria-label='Pinned'
+                                  className={cn(
+                                    'absolute size-[12px] text-[var(--text-icon)] transition-opacity',
+                                    isMenuOpen ? 'opacity-0' : 'group-hover:opacity-0'
+                                  )}
+                                />
                               )}
-                            >
-                              <MoreHorizontal className='size-[14px] text-[var(--text-tertiary)]' />
-                            </button>
+                              <button
+                                type='button'
+                                aria-label='Workspace options'
+                                onMouseDown={() => {
+                                  isContextMenuOpeningRef.current = true
+                                }}
+                                onClick={(e) => {
+                                  e.preventDefault()
+                                  e.stopPropagation()
+                                  const rect = e.currentTarget.getBoundingClientRect()
+                                  openContextMenuAt(workspace, rect.right, rect.top)
+                                }}
+                                className={cn(
+                                  'absolute inset-0 flex items-center justify-center rounded-sm opacity-0 transition-opacity group-hover:opacity-100',
+                                  isMenuOpen && 'opacity-100'
+                                )}
+                              >
+                                <MoreHorizontal className='size-[14px] text-[var(--text-icon)]' />
+                              </button>
+                            </div>
                           </div>
                         )}
                       </div>
