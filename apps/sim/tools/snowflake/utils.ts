@@ -12,9 +12,7 @@ import type { ToolConfig } from '@/tools/types'
 
 export const DEFAULT_MAX_ROWS = 1_000
 export const MAX_RESULT_ROWS = 10_000
-export const MAX_WRITE_ROWS = 1_000
-export const MAX_REQUEST_BYTES = 1024 * 1024
-export const MAX_RESPONSE_BYTES = 32 * 1024 * 1024
+export const MAX_RESPONSE_BYTES = 10 * 1024 * 1024
 
 const SNOWFLAKE_HOST_SUFFIXES = ['.snowflakecomputing.com', '.snowflakecomputing.cn']
 
@@ -38,7 +36,6 @@ interface SnowflakeApiResponse {
   sqlState?: string
   message?: string
   statementHandle?: string
-  statementStatusUrl?: string
   data?: Array<Array<string | null>>
   resultSetMetaData?: {
     numRows?: number
@@ -200,45 +197,11 @@ function normalizeContextName(value: string): string {
   return trimmed
 }
 
-export function addSnowflakeRequestBytes(total: number, ...values: string[]): number {
-  let next = total
-  for (const value of values) {
-    const remaining = MAX_REQUEST_BYTES - next
-    if (remaining < 0 || value.length > remaining) {
-      throw new Error(`Snowflake request body exceeds ${MAX_REQUEST_BYTES} bytes`)
-    }
-    next += new TextEncoder().encode(value).byteLength
-    if (next > MAX_REQUEST_BYTES) {
-      throw new Error(`Snowflake request body exceeds ${MAX_REQUEST_BYTES} bytes`)
-    }
-  }
-  return next
-}
-
-export function addSnowflakeRequestOverhead(total: number, bytes: number): number {
-  if (total > MAX_REQUEST_BYTES - bytes) {
-    throw new Error(`Snowflake request body exceeds ${MAX_REQUEST_BYTES} bytes`)
-  }
-  return total + bytes
-}
-
 export function buildSnowflakeStatementBody(
   params: SnowflakeContextParams,
   spec: SnowflakeStatementSpec
 ): Record<string, unknown> {
   if (!/\S/.test(spec.statement)) throw new Error('Snowflake statement is required')
-  let requestBytes = addSnowflakeRequestBytes(256, spec.statement)
-  for (const value of [params.warehouse, params.database, params.schema, params.role]) {
-    if (value !== undefined) requestBytes = addSnowflakeRequestBytes(requestBytes, value)
-  }
-  let hasBindings = false
-  for (const position in spec.bindings) {
-    if (!Object.hasOwn(spec.bindings, position)) continue
-    hasBindings = true
-    const binding = spec.bindings[position]
-    requestBytes = addSnowflakeRequestOverhead(requestBytes, 32)
-    requestBytes = addSnowflakeRequestBytes(requestBytes, position, binding.type, binding.value)
-  }
 
   const body: Record<string, unknown> = {
     statement: spec.statement,
@@ -250,12 +213,7 @@ export function buildSnowflakeStatementBody(
   if (params.database?.trim()) body.database = normalizeContextName(params.database)
   if (params.schema?.trim()) body.schema = normalizeContextName(params.schema)
   if (params.role?.trim()) body.role = normalizeContextName(params.role)
-  if (hasBindings) body.bindings = spec.bindings
-
-  const size = new TextEncoder().encode(JSON.stringify(body)).byteLength
-  if (size > MAX_REQUEST_BYTES) {
-    throw new Error(`Snowflake request body exceeds ${MAX_REQUEST_BYTES} bytes`)
-  }
+  if (spec.bindings && Object.keys(spec.bindings).length > 0) body.bindings = spec.bindings
   return body
 }
 

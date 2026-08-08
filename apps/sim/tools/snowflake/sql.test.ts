@@ -23,7 +23,6 @@ import {
   normalizeBindings,
   qualifiedIdentifier,
 } from '@/tools/snowflake/sql'
-import { MAX_REQUEST_BYTES, MAX_WRITE_ROWS } from '@/tools/snowflake/utils'
 
 const context = { host: 'acme.snowflakecomputing.com', apiKey: 'secret' }
 const table = { ...context, database: 'ANALYTICS', schema: 'PUBLIC', table: 'EVENTS' }
@@ -45,31 +44,25 @@ describe('Snowflake SQL builders', () => {
     expect(() => normalizeBindings({ '1': { type: 'NOPE', value: 'x' } } as never)).toThrow(
       'Unsupported'
     )
-    expect(() =>
-      normalizeBindings({ '1': { type: 'TEXT', value: 'x'.repeat(MAX_REQUEST_BYTES) } })
-    ).toThrow('exceeds')
+    const largeValue = 'x'.repeat(1024 * 1024 + 1)
+    expect(
+      normalizeBindings({ '1': { type: 'TEXT', value: largeValue } })?.['1'].value
+    ).toHaveLength(largeValue.length)
     expect(SnowflakeBlock.inputs.bindings.description).toContain(
       'object keyed by 1-based positions'
     )
     expect(SnowflakeBlock.inputs.procedureArguments.description).toContain('ordered JSON array')
   })
 
-  it('rejects oversized JSON block inputs before parsing', () => {
+  it('parses JSON block inputs above the former Snowflake-specific byte limit', () => {
     const mapParams = SnowflakeBlock.tools.config.params
     if (!mapParams) throw new Error('Snowflake block must map tool parameters')
-    expect(() =>
-      mapParams({
-        operation: 'insert_rows',
-        rows: `[{"payload":"${'x'.repeat(MAX_REQUEST_BYTES)}"}]`,
-      })
-    ).toThrow('exceeds')
-    expect(() =>
-      mapParams({
-        operation: 'update_rows',
-        rows: `[{"payload":"${'x'.repeat(MAX_REQUEST_BYTES / 2)}"}]`,
-        matchColumns: `["${'x'.repeat(MAX_REQUEST_BYTES / 2)}"]`,
-      })
-    ).toThrow('exceeds')
+    const payload = 'x'.repeat(1024 * 1024 + 1)
+    const result = mapParams({
+      operation: 'insert_rows',
+      rows: `[{"payload":"${payload}"}]`,
+    }) as { rows: Array<{ payload: string }> }
+    expect(result.rows[0].payload).toHaveLength(payload.length)
   })
 
   it('only coerces fields used by the selected block operation', () => {
@@ -171,23 +164,11 @@ describe('Snowflake SQL builders', () => {
     )
   })
 
-  it('rejects malformed or oversized structured writes', () => {
+  it('rejects malformed structured writes', () => {
     expect(() => buildInsertRows({ ...table, rows: [] })).toThrow('non-empty')
     expect(() => buildInsertRows({ ...table, rows: [{ id: 1 }, { other: 2 }] })).toThrow(
       'same columns'
     )
-    expect(() =>
-      buildInsertRows({
-        ...table,
-        rows: Array.from({ length: MAX_WRITE_ROWS + 1 }, (_, id) => ({ id })),
-      })
-    ).toThrow('cannot exceed')
-    expect(() =>
-      buildInsertRows({
-        ...table,
-        rows: [{ payload: { value: 'x'.repeat(MAX_REQUEST_BYTES) } }],
-      })
-    ).toThrow('exceeds')
     expect(() => buildInsertRows({ ...table, rows: [{ id: 1 }, { ID: 2 }] })).toThrow(
       'same columns'
     )
@@ -202,11 +183,17 @@ describe('Snowflake SQL builders', () => {
     ).toThrow('safe integers')
   })
 
+  it('builds structured writes above the former 1000-row limit', () => {
+    const result = buildInsertRows({
+      ...table,
+      rows: Array.from({ length: 1001 }, (_, id) => ({ id })),
+    })
+    expect(Object.keys(result.bindings ?? {})).toHaveLength(1001)
+    expect(result.statement).toContain('VALUES (?)')
+  })
+
   it('requires delete filters and binds every filter value', () => {
     expect(() => buildDeleteRows({ ...table, filters: {} })).toThrow('cannot be empty')
-    expect(() =>
-      buildDeleteRows({ ...table, filters: { payload: 'x'.repeat(MAX_REQUEST_BYTES) } })
-    ).toThrow('exceeds')
     expect(buildDeleteRows({ ...table, filters: { id: 7, deleted_at: null } })).toEqual({
       statement: 'DELETE FROM ANALYTICS.PUBLIC.EVENTS WHERE id = ? AND deleted_at IS NULL',
       bindings: { '1': { type: 'FIXED', value: '7' } },
@@ -380,14 +367,5 @@ describe('Snowflake SQL builders', () => {
         procedureArguments: { type: 'TEXT', value: 'x' } as never,
       })
     ).toThrow('JSON array')
-    expect(() =>
-      buildCallProcedure({
-        ...context,
-        database: 'ANALYTICS',
-        schema: 'PUBLIC',
-        procedureName: 'REFRESH_MODEL',
-        procedureArguments: [{ type: 'TEXT', value: 'x'.repeat(MAX_REQUEST_BYTES) }],
-      })
-    ).toThrow('exceeds')
   })
 })

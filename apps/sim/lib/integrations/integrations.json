@@ -18175,7 +18175,7 @@
         },
         {
           "name": "Insert Rows",
-          "description": "Insert up to 1000 structured JSON rows using bound values."
+          "description": "Insert structured JSON rows using bound values."
         },
         {
           "name": "Update Rows",

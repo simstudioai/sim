@@ -9,7 +9,6 @@ import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   buildSnowflakeStatementBody,
   getSnowflakeHeaders,
-  MAX_REQUEST_BYTES,
   MAX_RESPONSE_BYTES,
   normalizeMaxRows,
   normalizeSnowflakeHost,
@@ -181,19 +180,20 @@ describe('Snowflake SQL API transport', () => {
     )
   })
 
-  it('enforces result row and request byte limits', () => {
+  it('enforces result row limits without a Snowflake-specific request cap', () => {
     expect(normalizeMaxRows()).toBe(1000)
     expect(normalizeMaxRows(10_000)).toBe(10_000)
     expect(() => normalizeMaxRows(10_001)).toThrow('between 1 and 10000')
-    expect(() =>
+    const statement = 'x'.repeat(1024 * 1024 + 1)
+    expect(
       buildSnowflakeStatementBody(
         { host: 'acme.snowflakecomputing.com', apiKey: 'secret' },
-        { statement: 'x'.repeat(MAX_REQUEST_BYTES) }
-      )
-    ).toThrow('exceeds')
+        { statement }
+      ).statement
+    ).toBe(statement)
   })
 
-  it('builds a bounded SQL API request body with execution context and bindings', () => {
+  it('builds a SQL API request body with execution context and bindings', () => {
     expect(
       buildSnowflakeStatementBody(
         {
@@ -442,6 +442,7 @@ describe('Snowflake SQL API transport', () => {
   })
 
   it('rejects HTTP and SQL-level failures', async () => {
+    expect(MAX_RESPONSE_BYTES).toBe(10 * 1024 * 1024)
     await expect(
       transformSnowflakeResponse(jsonResponse({ message: 'Forbidden', code: '390100' }, 401))
     ).rejects.toThrow('Forbidden')

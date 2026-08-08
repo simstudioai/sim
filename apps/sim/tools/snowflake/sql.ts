@@ -14,13 +14,7 @@ import {
   type SnowflakeUpdateRowsParams,
   type SnowflakeWarehouseParams,
 } from '@/tools/snowflake/types'
-import {
-  addSnowflakeRequestBytes,
-  addSnowflakeRequestOverhead,
-  MAX_WRITE_ROWS,
-  normalizeMaxRows,
-  type SnowflakeStatementSpec,
-} from '@/tools/snowflake/utils'
+import { normalizeMaxRows, type SnowflakeStatementSpec } from '@/tools/snowflake/utils'
 
 const UNQUOTED_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_$]*$/
 const QUOTED_IDENTIFIER = /^"(?:[^"]|"")+"$/
@@ -96,7 +90,6 @@ export function normalizeBindings(
     throw new Error('bindings must be a JSON object keyed by 1-based positions')
   }
   const normalized: Record<string, SnowflakeBinding> = {}
-  let requestBytes = 0
   let hasBindings = false
   for (const position in input) {
     if (!Object.hasOwn(input, position)) continue
@@ -114,8 +107,6 @@ export function normalizeBindings(
     if (typeof binding.value !== 'string') {
       throw new Error(`binding ${position} value must be a string`)
     }
-    requestBytes = addSnowflakeRequestOverhead(requestBytes, 32)
-    requestBytes = addSnowflakeRequestBytes(requestBytes, position, binding.type, binding.value)
     normalized[position] = { type: binding.type, value: binding.value }
   }
   return hasBindings ? normalized : undefined
@@ -124,13 +115,10 @@ export function normalizeBindings(
 class BindingsBuilder {
   readonly bindings: Record<string, SnowflakeBinding> = {}
   private position = 0
-  private requestBytes = 0
 
   private addBinding(type: SnowflakeBinding['type'], value: string): string {
     this.position += 1
     const key = String(this.position)
-    this.requestBytes = addSnowflakeRequestOverhead(this.requestBytes, 32)
-    this.requestBytes = addSnowflakeRequestBytes(this.requestBytes, key, type, value)
     this.bindings[key] = { type, value }
     return '?'
   }
@@ -153,7 +141,6 @@ class BindingsBuilder {
       return this.addBinding('TEXT', value)
     }
     if (Array.isArray(value) || (typeof value === 'object' && value !== null)) {
-      assertJsonValueWithinRequestBudget(value)
       this.addBinding('TEXT', JSON.stringify(value))
       return 'PARSE_JSON(?)'
     }
@@ -161,51 +148,8 @@ class BindingsBuilder {
   }
 }
 
-function assertJsonValueWithinRequestBudget(value: unknown): void {
-  const pending: Array<{ value: unknown; leave?: boolean }> = [{ value }]
-  const active = new WeakSet<object>()
-  let requestBytes = 0
-  while (pending.length > 0) {
-    const item = pending.pop()
-    const current = item?.value
-    if (item?.leave && current && typeof current === 'object') {
-      active.delete(current)
-      continue
-    }
-    if (typeof current === 'string') {
-      requestBytes = addSnowflakeRequestOverhead(requestBytes, 4)
-      requestBytes = addSnowflakeRequestBytes(requestBytes, current)
-      continue
-    }
-    if (!current || typeof current !== 'object') {
-      requestBytes = addSnowflakeRequestOverhead(requestBytes, 2)
-      requestBytes = addSnowflakeRequestBytes(requestBytes, String(current))
-      continue
-    }
-    if (active.has(current)) throw new Error('Snowflake row JSON values cannot be circular')
-    active.add(current)
-    pending.push({ value: current, leave: true })
-    requestBytes = addSnowflakeRequestOverhead(requestBytes, 2)
-    if (Array.isArray(current)) {
-      for (const nestedValue of current) {
-        requestBytes = addSnowflakeRequestOverhead(requestBytes, 1)
-        pending.push({ value: nestedValue })
-      }
-      continue
-    }
-    for (const key in current) {
-      if (!Object.hasOwn(current, key)) continue
-      requestBytes = addSnowflakeRequestOverhead(requestBytes, 4)
-      requestBytes = addSnowflakeRequestBytes(requestBytes, key)
-      pending.push({ value: (current as Record<string, unknown>)[key] })
-    }
-  }
-}
-
 function validateRows(rows: Array<Record<string, unknown>>): string[] {
   if (!Array.isArray(rows) || rows.length === 0) throw new Error('rows must be a non-empty array')
-  if (rows.length > MAX_WRITE_ROWS) throw new Error(`rows cannot exceed ${MAX_WRITE_ROWS} items`)
-  assertJsonValueWithinRequestBudget(rows)
   const columns = Object.keys(rows[0] ?? {})
   if (columns.length === 0) throw new Error('rows must contain at least one column')
   const signature = [...columns].sort().join('\u0000')
@@ -305,7 +249,6 @@ export function buildDeleteRows(params: SnowflakeDeleteRowsParams): SnowflakeSta
   if (!params.filters || Array.isArray(params.filters) || typeof params.filters !== 'object') {
     throw new Error('filters must be a JSON object')
   }
-  assertJsonValueWithinRequestBudget(params.filters)
   const filters = Object.entries(params.filters)
   if (filters.length === 0) throw new Error('filters cannot be empty')
   const binds = new BindingsBuilder()
@@ -503,7 +446,6 @@ export function buildCallProcedure(params: SnowflakeCallProcedureParams): Snowfl
   if (!Array.isArray(procedureArguments)) {
     throw new Error('procedureArguments must be a JSON array')
   }
-  assertJsonValueWithinRequestBudget(procedureArguments)
   const bindings: Record<string, SnowflakeBinding> = {}
   const placeholders = procedureArguments.map((argument, index) => {
     if (!SNOWFLAKE_BINDING_TYPES.includes(argument.type)) {

@@ -2,7 +2,6 @@ import { SnowflakeIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { SnowflakeStatementResponse } from '@/tools/snowflake/types'
-import { addSnowflakeRequestBytes } from '@/tools/snowflake/utils'
 
 const statementOperations = [
   'execute_sql',
@@ -41,10 +40,9 @@ const contextOnlyOperations = [
 const dataOperations = ['insert_rows', 'update_rows', 'upsert_rows', 'delete_rows', 'load_data']
 const taskDefinitionOperations = ['list_tasks', 'get_task', 'run_task']
 
-function parseJson(value: unknown, label: string, budget: { bytes: number }): unknown {
+function parseJson(value: unknown, label: string): unknown {
   if (value === undefined || value === null || value === '') return undefined
   if (typeof value !== 'string') return value
-  budget.bytes = addSnowflakeRequestBytes(budget.bytes, value)
   try {
     return JSON.parse(value)
   } catch {
@@ -236,7 +234,7 @@ export const SnowflakeBlock: BlockConfig<SnowflakeStatementResponse> = {
       wandConfig: {
         enabled: true,
         prompt:
-          'Generate a non-empty JSON array of flat row objects. Every row must have the same keys and the batch must contain at most 1000 rows. Return ONLY the JSON array - no explanations, no extra text.',
+          'Generate a non-empty JSON array of flat row objects. Every row must have the same keys. Use Load Data instead for bulk ingestion from staged files. Return ONLY the JSON array - no explanations, no extra text.',
         placeholder: 'Describe the records to write...',
       },
     },
@@ -598,7 +596,6 @@ export const SnowflakeBlock: BlockConfig<SnowflakeStatementResponse> = {
     config: {
       tool: (params) => `snowflake_${params.operation}`,
       params: (params) => {
-        const jsonBudget = { bytes: 0 }
         const statementParams = () => ({
           timeout: optionalNumber(params.timeout),
           maxRows: optionalNumber(params.maxRows),
@@ -619,7 +616,7 @@ export const SnowflakeBlock: BlockConfig<SnowflakeStatementResponse> = {
             return {
               ...contextParams(),
               async: optionalBoolean(params.async),
-              bindings: parseJson(params.bindings, 'Bindings', jsonBudget),
+              bindings: parseJson(params.bindings, 'Bindings'),
             }
           case 'get_statement':
             return {
@@ -629,19 +626,19 @@ export const SnowflakeBlock: BlockConfig<SnowflakeStatementResponse> = {
           case 'insert_rows':
             return {
               ...objectParams(),
-              rows: parseJson(params.rows, 'Rows', jsonBudget),
+              rows: parseJson(params.rows, 'Rows'),
             }
           case 'update_rows':
           case 'upsert_rows':
             return {
               ...objectParams(),
-              rows: parseJson(params.rows, 'Rows', jsonBudget),
-              matchColumns: parseJson(params.matchColumns, 'Match columns', jsonBudget),
+              rows: parseJson(params.rows, 'Rows'),
+              matchColumns: parseJson(params.matchColumns, 'Match columns'),
             }
           case 'delete_rows':
             return {
               ...objectParams(),
-              filters: parseJson(params.filters, 'Filters', jsonBudget),
+              filters: parseJson(params.filters, 'Filters'),
             }
           case 'load_data':
             return {
@@ -689,11 +686,7 @@ export const SnowflakeBlock: BlockConfig<SnowflakeStatementResponse> = {
           case 'call_procedure':
             return {
               ...objectParams(),
-              procedureArguments: parseJson(
-                params.procedureArguments,
-                'Procedure arguments',
-                jsonBudget
-              ),
+              procedureArguments: parseJson(params.procedureArguments, 'Procedure arguments'),
             }
           default:
             return {}
@@ -853,7 +846,7 @@ export const SnowflakeBlockMeta = {
       name: 'sync-snowflake-rows',
       description: 'Insert, update, or upsert structured records safely in Snowflake.',
       content:
-        '# Synchronize Snowflake Rows\n\n## Steps\n1. Confirm the target table and record keys.\n2. Keep batches at or below 1000 records.\n3. Choose insert, update, or upsert and provide match columns when needed.\n4. Report Snowflake DML statistics.\n\n## Output\nReturn inserted, updated, deleted, and total affected row counts.',
+        '# Synchronize Snowflake Rows\n\n## Steps\n1. Confirm the target table and record keys.\n2. Keep the structured request within Sim’s request-size limit, and use Load Data for bulk ingestion.\n3. Choose insert, update, or upsert and provide match columns when needed.\n4. Report Snowflake DML statistics.\n\n## Output\nReturn inserted, updated, deleted, and total affected row counts.',
     },
     {
       name: 'load-snowflake-stage',

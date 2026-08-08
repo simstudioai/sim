@@ -18,7 +18,7 @@ export const insertRowsTool: ToolConfig<SnowflakeInsertRowsParams, SnowflakeInse
   id: 'snowflake_insert_rows',
   version: '1.0.0',
   name: 'Snowflake Insert Rows',
-  description: 'Insert up to 1000 structured JSON rows using bound values.',
+  description: 'Insert structured JSON rows using bound values.',
   params: {
     ...snowflakeBaseParams,
     ...snowflakeContextParams,
