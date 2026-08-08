@@ -47,25 +47,33 @@ export const MAX_IMAGE_READ_BYTES = 5 * 1024 * 1024 // 5 MB
 // Parseable-document byte cap. Large office/PDF files can still
 // produce huge extracted text; reject up front to avoid wasting a
 // download + parse only to blow past the tool-result budget.
-const MAX_PARSEABLE_READ_BYTES = 5 * 1024 * 1024 // 5 MB
+export const MAX_PARSEABLE_READ_BYTES = 5 * 1024 * 1024 // 5 MB
 /**
- * Source-image byte ceiling, checked before the download and enforced by it. A
- * workspace file may be up to {@link MAX_WORKSPACE_FILE_SIZE}, and buffering one of
- * those whole would exhaust memory on its own — the pixel budget below bounds the
- * decode, not the transfer.
+ * Source-image byte ceiling, checked before the download and enforced by it. This
+ * route holds the whole file in worker memory, so it reuses the ceiling the FormData
+ * upload route set for that same failure mode rather than inventing a number.
  *
- * Deliberately the FormData upload ceiling rather than a number of its own: that cap
- * exists for exactly this failure mode (a route holding an entire file in worker
- * memory), so anything a user could upload through it stays readable here. Picking
- * something tighter would refuse images that read fine today for no security gain —
- * a decompression bomb is small, and it is the pixel budget that stops it.
+ * It does NOT cover everything a user can store: presigned and multipart uploads
+ * accept up to `MAX_WORKSPACE_FILE_SIZE` (gigabytes), so an image above this ceiling
+ * is stored fine and simply cannot be read inline. That is a deliberate trade — the
+ * alternative is buffering a multi-gigabyte file to answer one read — and it is a
+ * memory budget, not part of the decompression-bomb defence, which is the pixel
+ * budget below. A bomb is small; no byte cap would catch it.
  */
 export const MAX_IMAGE_SOURCE_BYTES = MAX_WORKSPACE_FORMDATA_FILE_SIZE
 /**
- * Pixel ceiling on the decoded raster. libvips materialises the whole raster, and
- * an allocation this large OOM-kills the process rather than throwing, so it has to
- * be refused up front. 100MP caps the decode near 400MB while clearing every real
- * camera — a 48MP iPhone still is 8064x6048.
+ * Pixel ceiling on the decoded image, and the actual decompression-bomb defence: a
+ * few hundred KB of PNG can declare an arbitrarily large raster.
+ *
+ * The cost it bounds is CPU, not memory. libvips decodes this pipeline sequentially,
+ * so peak RSS stays flat (tens of MB) no matter what the header declares — measured
+ * on this exact pipeline, 100MP..1024MP all sat under ~120MB. What scales is time,
+ * roughly linearly: ~240ms at 100MP, ~1.35s at 1024MP, once per resize rung. So the
+ * budget caps what one read can burn, and the `break` below caps how many rungs a
+ * failing image gets.
+ *
+ * 100MP clears every single-shot camera (a 48MP iPhone still is 8064x6048) but will
+ * refuse a stitched gigapixel panorama, which is the known cost of the ceiling.
  */
 const MAX_IMAGE_INPUT_PIXELS = 100_000_000
 const MAX_IMAGE_DIMENSION = 1568
@@ -381,9 +389,13 @@ async function prepareImageForVision(
                 }
               }
             } catch (err) {
-              // Next dimension, not next quality: the quality rungs re-decode the
-              // identical source, so repeating a failed decode there is pure waste.
-              // A smaller dimension is worth trying — libvips shrinks JPEG on load.
+              // Next dimension, not next quality: every quality rung re-decodes the
+              // same source and only varies the encoder, so a failure here almost
+              // always repeats. Dropping a dimension is the one thing that can change
+              // the outcome (JPEG shrinks on load), and it bounds a bomb at 4 decodes
+              // instead of 16. A genuinely encoder-only failure would lose its lower
+              // quality rungs at that dimension — no such failure mode is known, and
+              // 4 attempts is the deliberate ceiling.
               logger.warn('Failed image resize attempt for VFS read', {
                 mediaType,
                 dimension,

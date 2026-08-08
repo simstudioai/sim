@@ -3,6 +3,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { glob, grep, grepReadResult, WorkspaceFileGrepError } from '@/lib/copilot/vfs/operations'
+import { readPlaceholder } from '@/lib/copilot/vfs/read-placeholders'
 
 function vfsFromEntries(entries: [string, string][]): Map<string, string> {
   return new Map(entries)
@@ -200,21 +201,42 @@ describe('grepReadResult placeholders', () => {
     grepReadResult('files/x.png/content', { content, totalLines: 1 }, 'x', 'files/x.png/content')
 
   /**
-   * Every `readFileRecord` placeholder carries no searchable text, so grep must
-   * report the placeholder rather than matching against its own prose.
+   * Built from the producers rather than hand-copied: a literal here would only
+   * prove the matcher agrees with this file, which is exactly the drift that let a
+   * gate test for a prefix no producer emitted. Covers every builder, so dropping
+   * one from the shared table fails here.
    */
-  it.each([
-    '[Image unavailable: bomb.png (90 Bytes). It is too large to decode safely.]',
-    '[Image too large to read inline: huge.png (26214401 bytes, limit 26214400)]',
-    '[File too large to display inline: big.txt (99 bytes, limit 5)]',
-    '[Document too large to parse inline: big.pdf (99 bytes, limit 5)]',
-    '[Binary file: app.bin (application/octet-stream, 10 bytes). Cannot display as text.]',
-  ])('reports %s instead of grepping it', (content) => {
-    expect(() => grepPlaceholder(content)).toThrow(WorkspaceFileGrepError)
-    expect(() => grepPlaceholder(content)).toThrow(content)
+  const everyPlaceholder = Object.entries({
+    fileTooLarge: readPlaceholder.fileTooLarge('big.txt', 99, 5),
+    imageTooLarge: readPlaceholder.imageTooLarge('huge.png', 99, 5),
+    imageUnavailable: readPlaceholder.imageUnavailable('bomb.png', 90, 'It could not be decoded.'),
+    documentTooLarge: readPlaceholder.documentTooLarge('big.pdf', 99, 5),
+    compiledArtifactTooLarge: readPlaceholder.compiledArtifactTooLarge('app.js', 99, 5),
+    couldNotParse: readPlaceholder.couldNotParse('x.pdf', 'application/pdf', 10),
+    binaryFile: readPlaceholder.binaryFile('app.bin', 'application/octet-stream', 10),
   })
+
+  it.each(everyPlaceholder)(
+    'reports the %s placeholder instead of grepping it',
+    (_name, content) => {
+      expect(() => grepPlaceholder(content)).toThrow(WorkspaceFileGrepError)
+      expect(() => grepPlaceholder(content)).toThrow(content)
+    }
+  )
 
   it('still greps ordinary single-line content', () => {
     expect(grepPlaceholder('x marks the spot')).toHaveLength(1)
+  })
+
+  it('greps a real multi-line file that merely opens like a placeholder', () => {
+    // The single-line guard is what keeps this file searchable rather than swallowed.
+    const content = `${readPlaceholder.binaryFile('app.bin', 'text/plain', 10)}\nx marks the spot`
+    const matches = grepReadResult(
+      'files/notes.txt/content',
+      { content, totalLines: 2 },
+      'x',
+      'files/notes.txt/content'
+    )
+    expect(matches.length).toBeGreaterThan(0)
   })
 })

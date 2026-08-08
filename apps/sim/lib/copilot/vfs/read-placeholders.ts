@@ -3,8 +3,6 @@
  * predicates that classify them. Producers and matchers live in different modules;
  * hand-written copies of the same prefix are how an oversized image once slipped past
  * the read-size gate, which tested for a prefix no producer emitted.
- *
- * Keep free of heavy imports — the tool handlers pull it in without wanting the VFS.
  */
 
 import { formatFileSize } from '@/lib/uploads/utils/file-utils'
@@ -39,16 +37,15 @@ export const readPlaceholder = {
 } as const
 
 /**
- * Placeholders standing in for content that exists but exceeded a read cap; the read
- * handler turns these into a tool error.
+ * Placeholders meaning "the file is there, but reading it was refused on size"; the
+ * read handler turns these into a tool error rather than a one-line success.
  *
- * Every size refusal belongs here — a document that breaches its cap is the same
- * kind of answer as a file or an image that does, and reporting one of the three as
- * a successful read was an inconsistency, not a distinction.
+ * File, image, document and compiled artifact all belong here — reporting one of
+ * the four as a successful read was an inconsistency, not a distinction.
  *
- * Deliberately narrower than {@link isNonGreppablePlaceholder}: a parse failure or
- * a binary file is not a size problem, and `[Image unavailable:` covers undecodable
- * images as well as oversized ones, so neither belongs on the size path.
+ * `[Image unavailable:` is excluded even though one of its reasons is a size, because
+ * its other reasons are not: it also covers an undecodable or unsupported image, and
+ * those are answers rather than refusals. Callers get it as content.
  */
 const OVERSIZED_PREFIXES = [
   PREFIX.fileTooLarge,

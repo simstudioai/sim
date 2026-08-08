@@ -17,6 +17,8 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
 import {
   MAX_IMAGE_READ_BYTES,
   MAX_IMAGE_SOURCE_BYTES,
+  MAX_PARSEABLE_READ_BYTES,
+  MAX_TEXT_READ_BYTES,
   readFileRecord,
 } from '@/lib/copilot/vfs/file-reader'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
@@ -108,7 +110,40 @@ describe('readFileRecord', () => {
     expect(result?.content).toContain('Image too large to read inline')
     // The observed size, not the understated 1024 the cap exists to distrust.
     expect(result?.content).toContain(`${MAX_IMAGE_SOURCE_BYTES + 5_000} bytes`)
+    // And the cap was actually handed to the download — the placeholder alone would
+    // still appear if the argument were dropped, since the mock rejects regardless.
+    expect(fetchWorkspaceFileBuffer).toHaveBeenCalledWith(expect.anything(), {
+      maxBytes: MAX_IMAGE_SOURCE_BYTES,
+    })
   })
+
+  it.each([
+    ['text', 'notes.txt', 'text/plain', MAX_TEXT_READ_BYTES, 'File too large to display inline'],
+    [
+      'document',
+      'report.pdf',
+      'application/pdf',
+      MAX_PARSEABLE_READ_BYTES,
+      'Document too large to parse inline',
+    ],
+  ])(
+    'caps the %s download and reports the observed size when it breaches',
+    async (_kind, name, type, cap, expected) => {
+      fetchWorkspaceFileBuffer.mockRejectedValue(
+        new PayloadSizeLimitError({
+          label: 'workspace file',
+          maxBytes: cap,
+          observedBytes: cap + 7_000,
+        })
+      )
+
+      const result = await readFileRecord(imageRecord(name, 1024, type))
+
+      expect(result?.content).toContain(expected)
+      expect(result?.content).toContain(`${cap + 7_000} bytes`)
+      expect(fetchWorkspaceFileBuffer).toHaveBeenCalledWith(expect.anything(), { maxBytes: cap })
+    }
+  )
 
   it('reports an oversized HEIF as a size refusal, not as a corrupt file', async () => {
     // `ftyp`+`heic` brand, past the WebAssembly transcoder's own tighter ceiling.
