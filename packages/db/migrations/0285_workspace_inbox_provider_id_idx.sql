@@ -43,6 +43,6 @@ SET lock_timeout = 0;--> statement-breakpoint
 -- rebuilds it instead of skipping it.
 DROP INDEX CONCURRENTLY IF EXISTS "workspace_inbox_provider_id_idx";--> statement-breakpoint
 
-CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "workspace_inbox_provider_id_idx" ON "workspace" USING btree ("inbox_provider_id") WHERE "inbox_provider_id" IS NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "workspace_inbox_provider_id_idx" ON "workspace" USING btree ("inbox_provider_id") WHERE "workspace"."inbox_provider_id" IS NOT NULL;--> statement-breakpoint
 
 SET lock_timeout = '5s';

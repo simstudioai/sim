@@ -1,5 +1,5 @@
 {
-  "id": "1cede183-c425-4ab2-bb40-54b249dae535",
+  "id": "632d8df2-05eb-4bd5-91ed-b725d9e4e095",
   "prevId": "9943bd0b-ca7d-4903-ac02-8ef292d2a00d",
   "version": "7",
   "dialect": "postgresql",
@@ -17047,6 +17047,7 @@
             }
           ],
           "isUnique": true,
+          "where": "\"workspace\".\"inbox_provider_id\" IS NOT NULL",
           "concurrently": false,
           "method": "btree",
           "with": {}
