@@ -282,7 +282,7 @@ export function SettingsHeaderShell({ children }: { children: ReactNode }) {
         <div className='mx-auto flex w-full max-w-[48rem] flex-col gap-7 pb-6'>
           {(title || description) && (
             <div className='flex flex-col gap-1'>
-              {title && <h1 className='font-medium text-[var(--text-body)] text-lg'>{title}</h1>}
+              {title && <h1 className='text-[var(--text-body)] text-lg'>{title}</h1>}
               {description && <p className='text-[var(--text-muted)] text-md'>{description}</p>}
             </div>
           )}

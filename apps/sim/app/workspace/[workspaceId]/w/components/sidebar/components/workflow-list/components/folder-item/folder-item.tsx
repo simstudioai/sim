@@ -502,7 +502,7 @@ export const FolderItem = memo(function FolderItem({ workspaceId, folder }: Fold
       >
         <ChevronRight
           className={clsx(
-            'size-[16px] flex-shrink-0 text-[var(--text-icon)] transition-transform duration-100',
+            'size-[14px] flex-shrink-0 text-[var(--text-icon)] transition-transform duration-150',
             isExpanded && 'rotate-90'
           )}
           aria-hidden='true'

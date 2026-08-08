@@ -249,32 +249,6 @@ export const MessageActions = memo(function MessageActions({
       >
         <ChipModalHeader onClose={() => handleModalClose(false)}>Give feedback</ChipModalHeader>
         <ChipModalBody>
-          <div className='flex items-start justify-between gap-2 px-2'>
-            <p className='font-medium text-[var(--text-secondary)] text-sm'>
-              {pendingFeedback === 'up' ? 'What did you like?' : 'What could be improved?'}
-            </p>
-            {pendingFeedback === 'down' && requestId && (
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <button
-                    type='button'
-                    aria-label='Copy request ID'
-                    onClick={copyRequestId}
-                    className='flex size-[22px] shrink-0 items-center justify-center rounded-full text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-hover)] focus-visible:outline-none'
-                  >
-                    {copiedRequestId ? (
-                      <Check className='size-[14px]' />
-                    ) : (
-                      <Duplicate className='size-[14px]' />
-                    )}
-                  </button>
-                </Tooltip.Trigger>
-                <Tooltip.Content side='top'>
-                  {copiedRequestId ? 'Copied request ID' : 'Copy request ID'}
-                </Tooltip.Content>
-              </Tooltip.Root>
-            )}
-          </div>
           <ChipModalField
             type='textarea'
             title='Feedback'
@@ -292,6 +266,11 @@ export const MessageActions = memo(function MessageActions({
         </ChipModalBody>
         <ChipModalFooter
           onCancel={() => handleModalClose(false)}
+          secondaryActions={
+            pendingFeedback === 'down' && requestId
+              ? [{ label: copiedRequestId ? 'Copied' : 'Copy ID', onClick: copyRequestId }]
+              : undefined
+          }
           primaryAction={{
             label: 'Submit',
             onClick: handleSubmitFeedback,

@@ -243,7 +243,7 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
                   >
                     <div className='flex items-center justify-between bg-[var(--surface-4)] px-2.5 py-[5px]'>
                       <div className='flex min-w-0 flex-1 items-center gap-2'>
-                        <span className='block truncate font-medium text-[var(--text-tertiary)] text-sm'>
+                        <span className='block truncate text-[var(--text-tertiary)] text-sm'>
                           {field.name}
                         </span>
                         <Badge variant='type' size='sm'>

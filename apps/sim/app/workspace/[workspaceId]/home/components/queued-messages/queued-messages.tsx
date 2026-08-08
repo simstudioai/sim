@@ -61,7 +61,7 @@ export function QueuedMessages({
         ) : (
           <ChevronRight className='size-[14px] text-[var(--text-icon)]' />
         )}
-        <span className='font-medium text-[var(--text-secondary)] text-small'>
+        <span className='text-[var(--text-secondary)] text-small'>
           {messageQueue.length} Queued
         </span>
       </button>

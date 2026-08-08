@@ -205,8 +205,7 @@ function ForkSyncDetailView({
         {controller.archivedWorkflowNames.length > 0 ? (
           <div className='flex flex-col gap-1 px-2'>
             <p className='break-words text-[var(--text-primary)] text-sm'>
-              Will be archived in <span className='font-medium'>{targetWorkspaceName}</span>{' '}
-              (deleted in the source):
+              Will be archived in <span>{targetWorkspaceName}</span> (deleted in the source):
             </p>
             {controller.archivedWorkflowNames
               .slice(0, ARCHIVED_PREVIEW_LIMIT)
@@ -231,9 +230,9 @@ function ForkSyncDetailView({
           <div className='flex flex-col gap-1 px-2'>
             <p className='break-words text-[var(--text-primary)] text-sm'>
               {controller.triggerUrlChanges.length === 1 ? 'A webhook URL' : 'Webhook URLs'} in{' '}
-              <span className='font-medium'>{targetWorkspaceName}</span> will stop being served —
-              anything calling {controller.triggerUrlChanges.length === 1 ? 'it' : 'them'} breaks
-              until you re-register:
+              <span>{targetWorkspaceName}</span> will stop being served — anything calling{' '}
+              {controller.triggerUrlChanges.length === 1 ? 'it' : 'them'} breaks until you
+              re-register:
             </p>
             {controller.triggerUrlChanges.slice(0, ARCHIVED_PREVIEW_LIMIT).map((change) => (
               // Naming the URL, not just its workflow: several URLs in one workflow would render
