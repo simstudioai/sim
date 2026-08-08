@@ -94,7 +94,6 @@ export async function executeOAuthGetAuthLink(
   }
 }
 
-/** Compatibility executor for older Mothership calls and persisted checkpoints. */
 export async function executeOAuthRequestAccess(
   rawParams: Record<string, unknown>,
   _context: ExecutionContext
@@ -207,9 +206,7 @@ async function generateOAuthLink(
         : `${baseUrl}/workspace/${workspaceId}`
 
   if (providerId === 'trello') {
-    const authorizeUrl = new URL(`${baseUrl}/api/auth/trello/authorize`)
-    authorizeUrl.searchParams.set('returnUrl', callbackURL)
-    return { url: authorizeUrl.toString(), providerId, serviceName }
+    return { url: `${baseUrl}/api/auth/trello/authorize`, providerId, serviceName }
   }
   if (providerId === 'instagram') {
     const authorizeUrl = new URL(`${baseUrl}/api/auth/instagram/authorize`)

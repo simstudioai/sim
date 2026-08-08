@@ -614,11 +614,6 @@ export interface DesktopOAuthConnectResult {
   ok: boolean
   /** OAuth error slug forwarded from the provider callback, when the flow failed. */
   error?: string
-  /**
-   * Chat attempt correlated by the desktop handoff, or null for a non-chat
-   * connect. Absent only on older desktop shells that predate correlation.
-   */
-  chatAttemptId?: string | null
 }
 
 /**
@@ -630,8 +625,6 @@ export interface DesktopOAuthConnectResult {
 export interface DesktopOAuthConnectScope {
   workspaceId?: string
   credentialId?: string
-  /** Mothership credential-chip attempt to echo on desktop completion. */
-  chatAttemptId?: string
 }
 
 export interface TerminalThemePalette {

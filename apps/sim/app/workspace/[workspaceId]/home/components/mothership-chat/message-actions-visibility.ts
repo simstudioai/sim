@@ -3,20 +3,20 @@ import type { MessagePhase } from '@/app/workspace/[workspaceId]/home/components
 interface AssistantMessageActionsVisibility {
   phase: MessagePhase
   hasContent: boolean
-  endsWithInteraction: boolean
+  endsWithQuestion: boolean
   questionDismissed: boolean
 }
 
 /**
- * Terminal question and credential cards replace the normal message actions
- * while active or answered. Dismissing a question restores those actions for
- * the settled assistant message underneath it.
+ * Question cards replace the normal message actions while they are active or
+ * answered. Dismissing an active card restores those actions for the settled
+ * assistant message underneath it.
  */
 export function shouldShowAssistantMessageActions({
   phase,
   hasContent,
-  endsWithInteraction,
+  endsWithQuestion,
   questionDismissed,
 }: AssistantMessageActionsVisibility): boolean {
-  return phase === 'settled' && hasContent && (!endsWithInteraction || questionDismissed)
+  return phase === 'settled' && hasContent && (!endsWithQuestion || questionDismissed)
 }

@@ -46,7 +46,7 @@ interface TokenServiceAccountModalProps {
   credentialId?: string
   initialDisplayName?: string
   initialDescription?: string
-  /** Called with the credential id after a successful create or reconnect. */
+  /** Called with the new credential id after a successful create (not reconnect). */
   onCreated?: (credentialId: string) => void
 }
 
@@ -115,7 +115,6 @@ export function TokenServiceAccountModal({
           displayName: displayName.trim() || undefined,
           description: description.trim() || undefined,
         })
-        onCreated?.(credentialId)
       } else {
         const created = await createCredential.mutateAsync({
           workspaceId,

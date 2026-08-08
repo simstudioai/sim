@@ -21,7 +21,6 @@ import {
   humanizeToolName,
 } from '@/lib/copilot/tools/tool-display'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
-import type { CredentialSubmissionPayload } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import type { ContentBlock, OptionItem, ToolCallData } from '../../types'
 import { SUBAGENT_LABELS } from '../../types'
 import type { AgentGroupItem } from './components'
@@ -790,7 +789,6 @@ export function deriveThinkingLabel(blocks: ContentBlock[]): string | null {
 interface MessageContentProps {
   blocks: ContentBlock[]
   fallbackContent: string
-  messageId?: string
   isStreaming: boolean
   /**
    * True for the last message in the transcript. The last turn keeps a
@@ -800,8 +798,6 @@ interface MessageContentProps {
   isLast?: boolean
   /** Transcript-derived answers for this message's question card (renders the recap). */
   questionAnswers?: string[]
-  /** Transcript-derived status payload for this message's credential card. */
-  credentialSubmission?: CredentialSubmissionPayload
   onOptionSelect?: (id: string) => void
   onQuestionDismiss?: () => void
   onPhaseChange?: (phase: MessagePhase) => void
@@ -818,11 +814,9 @@ interface MessageContentProps {
 function MessageContentInner({
   blocks,
   fallbackContent,
-  messageId,
   isStreaming = false,
   isLast = false,
   questionAnswers,
-  credentialSubmission,
   onOptionSelect,
   onQuestionDismiss,
   onPhaseChange,
@@ -918,14 +912,12 @@ function MessageContentInner({
                 <ChatContent
                   key={segment.id}
                   content={segment.content}
-                  messageId={messageId}
                   isStreaming={shouldSmoothTextSegment({
                     isStreaming,
                     segmentIndex: i,
                     segmentCount: segments.length,
                   })}
                   questionAnswers={questionAnswers}
-                  credentialSubmission={credentialSubmission}
                   onOptionSelect={onOptionSelect}
                   onQuestionDismiss={onQuestionDismiss}
                   onWorkspaceResourceSelect={onWorkspaceResourceSelect}

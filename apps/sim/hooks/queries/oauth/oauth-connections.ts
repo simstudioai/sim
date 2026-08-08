@@ -140,8 +140,7 @@ export function useConnectOAuthService() {
   return useMutation({
     mutationFn: async ({ providerId, callbackURL }: ConnectServiceParams) => {
       if (providerId === 'trello') {
-        const returnUrl = encodeURIComponent(callbackURL)
-        window.location.href = `/api/auth/trello/authorize?returnUrl=${returnUrl}`
+        window.location.href = '/api/auth/trello/authorize'
         return { success: true }
       }
 

@@ -17,7 +17,6 @@ import { extractTextContent } from '@/lib/core/utils/react-node-text'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
 import {
   type ContentSegment,
-  type CredentialSubmissionPayload,
   parseSpecialTags,
   SpecialTags,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
@@ -395,12 +394,9 @@ const MARKDOWN_COMPONENTS = {
 
 interface ChatContentProps {
   content: string
-  messageId?: string
   isStreaming?: boolean
   /** Transcript-derived answers for this message's question card (renders the recap). */
   questionAnswers?: string[]
-  /** Transcript-derived status payload for this message's credential card. */
-  credentialSubmission?: CredentialSubmissionPayload
   onOptionSelect?: (id: string) => void
   onQuestionDismiss?: () => void
   onWorkspaceResourceSelect?: (resource: WorkspaceResourceRef) => void
@@ -416,10 +412,8 @@ interface ChatContentProps {
 
 function ChatContentInner({
   content,
-  messageId,
   isStreaming = false,
   questionAnswers,
-  credentialSubmission,
   onOptionSelect,
   onQuestionDismiss,
   onWorkspaceResourceSelect,
@@ -642,9 +636,7 @@ function ChatContentInner({
           <SpecialTags
             key={`special-${group.index}`}
             segment={group.segment}
-            interactionId={`${messageId ?? 'message'}:${group.index}`}
             questionAnswers={questionAnswers}
-            credentialSubmission={credentialSubmission}
             onOptionSelect={onOptionSelect}
             onQuestionDismiss={onQuestionDismiss}
           />

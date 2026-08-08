@@ -6,7 +6,6 @@ import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { env } from '@/lib/core/config/env'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { isSameOrigin } from '@/lib/core/utils/validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
 
@@ -15,7 +14,6 @@ const logger = createLogger('TrelloAuthorize')
 export const dynamic = 'force-dynamic'
 
 const TRELLO_STATE_COOKIE = 'trello_oauth_state'
-const TRELLO_RETURN_URL_COOKIE = 'trello_return_url'
 const TRELLO_STATE_COOKIE_PATH = '/api/auth/trello'
 const TRELLO_STATE_COOKIE_MAX_AGE_SECONDS = 60 * 10
 
@@ -28,7 +26,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     const parsed = await parseRequest(authorizeTrelloContract, request, {})
     if (!parsed.success) return parsed.response
-    const { returnUrl: requestedReturnUrl } = parsed.data.query
 
     const apiKey = env.TRELLO_API_KEY
 
@@ -60,20 +57,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       maxAge: TRELLO_STATE_COOKIE_MAX_AGE_SECONDS,
       path: TRELLO_STATE_COOKIE_PATH,
     })
-    if (requestedReturnUrl && isSameOrigin(requestedReturnUrl)) {
-      response.cookies.set(TRELLO_RETURN_URL_COOKIE, requestedReturnUrl, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: TRELLO_STATE_COOKIE_MAX_AGE_SECONDS,
-        path: TRELLO_STATE_COOKIE_PATH,
-      })
-    } else {
-      response.cookies.delete({
-        name: TRELLO_RETURN_URL_COOKIE,
-        path: TRELLO_STATE_COOKIE_PATH,
-      })
-    }
     return response
   } catch (error) {
     logger.error('Error initiating Trello authorization:', error)

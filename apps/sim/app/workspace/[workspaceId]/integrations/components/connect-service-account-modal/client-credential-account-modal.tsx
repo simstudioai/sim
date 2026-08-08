@@ -75,8 +75,6 @@ interface ClientCredentialAccountModalProps {
   credentialId?: string
   initialDisplayName?: string
   initialDescription?: string
-  /** Called with the credential id after a successful create or reconnect. */
-  onCreated?: (credentialId: string) => void
 }
 
 /**
@@ -98,7 +96,6 @@ export function ClientCredentialAccountModal({
   credentialId,
   initialDisplayName,
   initialDescription,
-  onCreated,
 }: ClientCredentialAccountModalProps) {
   const [clientId, setClientId] = useState('')
   const [clientSecret, setClientSecret] = useState('')
@@ -147,7 +144,6 @@ export function ClientCredentialAccountModal({
     setError(null)
     if (isDisabled) return
     try {
-      let connectedCredentialId = credentialId
       const secretFields = {
         clientId: trimmedClientId,
         clientSecret: trimmedClientSecret,
@@ -162,7 +158,7 @@ export function ClientCredentialAccountModal({
           description: description.trim() || undefined,
         })
       } else {
-        const created = await createCredential.mutateAsync({
+        await createCredential.mutateAsync({
           workspaceId,
           type: 'service_account',
           providerId: descriptor.providerId,
@@ -170,9 +166,7 @@ export function ClientCredentialAccountModal({
           displayName: displayName.trim() || undefined,
           description: description.trim() || undefined,
         })
-        connectedCredentialId = created.credential.id
       }
-      if (connectedCredentialId) onCreated?.(connectedCredentialId)
       onOpenChange(false)
     } catch (err: unknown) {
       setError(messageForClientCredentialError(err, descriptor))

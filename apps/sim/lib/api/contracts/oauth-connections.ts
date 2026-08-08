@@ -47,13 +47,7 @@ export const trelloTokenBodySchema = z.object({
   state: z.string().min(1, 'state is required'),
 })
 
-export const trelloAuthorizeQuerySchema = z.object({
-  returnUrl: z
-    .string()
-    .min(1, 'Return URL cannot be empty')
-    .max(2048, 'Return URL is too long')
-    .optional(),
-})
+const emptyTrelloAuthQuerySchema = z.object({}).passthrough()
 
 const trelloCallbackQuerySchema = z
   .object({
@@ -189,7 +183,7 @@ export const storeTrelloTokenContract = defineRouteContract({
 export const authorizeTrelloContract = defineRouteContract({
   method: 'GET',
   path: '/api/auth/trello/authorize',
-  query: trelloAuthorizeQuerySchema,
+  query: emptyTrelloAuthQuerySchema,
   response: { mode: 'redirect' },
 })
 

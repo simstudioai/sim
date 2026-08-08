@@ -35,20 +35,12 @@ interface CredentialTagBody {
   value?: unknown
 }
 
-function parseCredentialBody(body: string): unknown | null {
+function parseCredentialBody(body: string): CredentialTagBody | null {
   try {
-    return JSON.parse(body) as unknown
+    return JSON.parse(body) as CredentialTagBody
   } catch {
     return null
   }
-}
-
-function isSimKeyBody(value: unknown): value is CredentialTagBody {
-  return isRecordLike(value) && value.type === SIM_KEY_TYPE
-}
-
-function credentialBodies(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : [value]
 }
 
 /**
@@ -62,9 +54,7 @@ function hasFillableSimKeyTag(content: string | undefined): boolean {
   if (typeof content !== 'string' || !content.includes('<credential>')) return false
   for (const match of content.matchAll(CREDENTIAL_TAG_PATTERN)) {
     const parsed = parseCredentialBody(match[1])
-    if (credentialBodies(parsed).some((item) => isSimKeyBody(item) && item.value === undefined)) {
-      return true
-    }
+    if (parsed?.type === SIM_KEY_TYPE && parsed.value === undefined) return true
   }
   return false
 }
@@ -80,16 +70,7 @@ export function redactSensitiveContent<T extends string | undefined>(content: T)
   if (typeof content !== 'string' || !content.includes('<credential>')) return content
   return content.replace(CREDENTIAL_TAG_PATTERN, (match, body: string) => {
     const parsed = parseCredentialBody(body)
-    if (isSimKeyBody(parsed)) return VALUELESS_SIM_KEY_TAG
-    if (!Array.isArray(parsed)) return match
-
-    let changed = false
-    const next = parsed.map((item) => {
-      if (!isSimKeyBody(item)) return item
-      changed = true
-      return { type: SIM_KEY_TYPE }
-    })
-    return changed ? `<credential>${JSON.stringify(next)}</credential>` : match
+    return parsed?.type === SIM_KEY_TYPE ? VALUELESS_SIM_KEY_TAG : match
   }) as T
 }
 
@@ -224,10 +205,8 @@ export function extractRevealedSimKeys(content: string): string[] {
   const values: string[] = []
   for (const match of content.matchAll(CREDENTIAL_TAG_PATTERN)) {
     const parsed = parseCredentialBody(match[1])
-    for (const item of credentialBodies(parsed)) {
-      if (isSimKeyBody(item) && typeof item.value === 'string') {
-        values.push(item.value)
-      }
+    if (parsed?.type === SIM_KEY_TYPE && typeof parsed.value === 'string') {
+      values.push(parsed.value)
     }
   }
   return values
@@ -312,28 +291,18 @@ function restoreInString(
   let changed = false
   const next = content.replace(CREDENTIAL_TAG_PATTERN, (match, body: string) => {
     const parsed = parseCredentialBody(body)
-    let tagChanged = false
-    const restoreItem = (item: unknown): unknown => {
-      if (!isSimKeyBody(item) || item.value !== undefined) return item
+    // Any value-less sim_key tag is a fill slot — the model's placeholder, the
+    // persisted form, or a legacy `{"redacted":true}` tag. Already-filled tags
+    // carry a `value` and are left untouched (idempotent).
+    if (parsed?.type === SIM_KEY_TYPE && parsed.value === undefined) {
       const value = revealedValues[cursor]
       cursor += 1
       if (typeof value === 'string') {
         changed = true
-        tagChanged = true
-        return { value, type: SIM_KEY_TYPE }
+        return `<credential>${JSON.stringify({ value, type: SIM_KEY_TYPE })}</credential>`
       }
-      return item
     }
-
-    // Any value-less sim_key object is a fill slot — the model's placeholder,
-    // the persisted form, or a legacy `{"redacted":true}` object. Already-filled
-    // objects carry a `value` and are left untouched (idempotent).
-    if (Array.isArray(parsed)) {
-      const restored = parsed.map(restoreItem)
-      return tagChanged ? `<credential>${JSON.stringify(restored)}</credential>` : match
-    }
-    const restored = restoreItem(parsed)
-    return tagChanged ? `<credential>${JSON.stringify(restored)}</credential>` : match
+    return match
   })
   return { next, changed, cursor }
 }

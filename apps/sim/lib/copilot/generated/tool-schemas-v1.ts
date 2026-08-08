@@ -3662,7 +3662,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         providerName: {
           type: 'string',
           description:
-            "The OAuth provider to connect. Pass the integration's provider value (e.g. `google-email`, `slack`).",
+            "The OAuth provider to connect. Pass the integration's provider value (e.g. `google-email`, `slack`); the service display name or providerId resolves case-insensitively/fuzzily, so avoid bare base providers like `google`.",
         },
       },
       required: ['providerName'],

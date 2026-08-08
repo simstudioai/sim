@@ -3,7 +3,6 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { trelloCallbackContract } from '@/lib/api/contracts/oauth-connections'
 import { parseRequest } from '@/lib/api/server'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { isSameOrigin } from '@/lib/core/utils/validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('TrelloCallback')
@@ -11,8 +10,6 @@ const logger = createLogger('TrelloCallback')
 export const dynamic = 'force-dynamic'
 
 const TRELLO_STATE_COOKIE = 'trello_oauth_state'
-const TRELLO_RETURN_URL_COOKIE = 'trello_return_url'
-const TRELLO_COOKIE_PATH = '/api/auth/trello'
 
 function escapeForJsString(value: string): string {
   return value.replace(/[\\'"<>&\r\n\u2028\u2029]/g, (ch) => {
@@ -20,15 +17,9 @@ function escapeForJsString(value: string): string {
   })
 }
 
-function withResultParam(returnUrl: string, key: string, value: string): string {
-  const url = new URL(returnUrl)
-  url.searchParams.set(key, value)
-  return url.toString()
-}
-
-function renderErrorPage(redirectUrl: string) {
+function renderErrorPage(baseUrl: string, redirectQuery: string) {
   return new NextResponse(
-    `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Trello connection failed</title></head><body><script>window.location.href=${JSON.stringify(redirectUrl).replace(/</g, '\\u003c')};</script><p>Trello connection failed. Redirecting...</p></body></html>`,
+    `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Trello connection failed</title></head><body><script>window.location.href=${JSON.stringify(`${baseUrl}/workspace?${redirectQuery}`)};</script><p>Trello connection failed. Redirecting...</p></body></html>`,
     {
       status: 400,
       headers: {
@@ -44,11 +35,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   if (!parsed.success) return parsed.response
 
   const baseUrl = getBaseUrl()
-  const requestedReturnUrl = request.cookies.get(TRELLO_RETURN_URL_COOKIE)?.value
-  const returnUrl =
-    requestedReturnUrl && isSameOrigin(requestedReturnUrl)
-      ? requestedReturnUrl
-      : `${baseUrl}/workspace`
   const queryState = parsed.data.query.state
   const cookieState = request.cookies.get(TRELLO_STATE_COOKIE)?.value
 
@@ -57,20 +43,12 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       hasQueryState: Boolean(queryState),
       hasCookieState: Boolean(cookieState),
     })
-    const response = renderErrorPage(withResultParam(returnUrl, 'error', 'trello_state_mismatch'))
-    response.cookies.delete({ name: TRELLO_STATE_COOKIE, path: TRELLO_COOKIE_PATH })
-    response.cookies.delete({ name: TRELLO_RETURN_URL_COOKIE, path: TRELLO_COOKIE_PATH })
+    const response = renderErrorPage(baseUrl, 'error=trello_state_mismatch')
+    response.cookies.delete({ name: TRELLO_STATE_COOKIE, path: '/api/auth/trello' })
     return response
   }
 
   const safeState = escapeForJsString(queryState)
-  const successReturnUrl = escapeForJsString(withResultParam(returnUrl, 'trello_connected', 'true'))
-  const storeFailureReturnUrl = escapeForJsString(
-    withResultParam(returnUrl, 'error', 'trello_failed')
-  )
-  const authFailureReturnUrl = escapeForJsString(
-    withResultParam(returnUrl, 'error', 'trello_auth_failed')
-  )
 
   return new NextResponse(
     `<!DOCTYPE html>
@@ -164,7 +142,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
             if (data.success) {
               statusEl.textContent = 'Success! Redirecting...';
               setTimeout(function() {
-                window.location.href = '${successReturnUrl}';
+                window.location.href = '${baseUrl}/workspace?trello_connected=true';
               }, 500);
             } else {
               throw new Error(data.error || 'Failed to save connection');
@@ -175,7 +153,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
             errorEl.style.display = 'block';
             statusEl.textContent = 'Connection failed';
             setTimeout(function() {
-              window.location.href = '${storeFailureReturnUrl}';
+              window.location.href = '${baseUrl}/workspace?error=trello_failed';
             }, 3000);
           });
 
@@ -184,7 +162,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
           errorEl.style.display = 'block';
           statusEl.textContent = 'Connection failed';
           setTimeout(function() {
-            window.location.href = '${authFailureReturnUrl}';
+            window.location.href = '${baseUrl}/workspace?error=trello_auth_failed';
           }, 3000);
         }
       })();

@@ -1,7 +1,5 @@
 export type {
   ContentSegment,
-  CredentialItemData,
-  CredentialSubmissionPayload,
   CredentialTagData,
   CredentialTagType,
   FileTagData,
@@ -21,15 +19,9 @@ export type {
 export {
   CREDENTIAL_TAG_TYPES,
   CredentialDisplay,
-  credentialTagHasVisibleCard,
-  formatCredentialSubmissionMessage,
   PendingTagIndicator,
-  parseCredentialSubmissionMessage,
-  parseCredentialSubmissionProgress,
-  parseCredentialTagBody,
   parseFileTag,
   parseJsonTagBody,
-  parseLastCredentialTag,
   parseLastQuestionTag,
   parseQuestionTagBody,
   parseSpecialTags,
