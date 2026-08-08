@@ -6,7 +6,7 @@ import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, min } from 'drizzle-orm'
 import type { FolderCascadeCountsApi, FolderResourceType } from '@/lib/api/contracts/folders'
-import type { OrchestrationErrorCode } from '@/lib/core/orchestration/types'
+import { asOrchestrationError, type OrchestrationErrorCode } from '@/lib/core/orchestration/types'
 import { withTransactionRetry } from '@/lib/db/transaction'
 import type { DbOrTx } from '@/lib/db/types'
 import {
@@ -142,6 +142,8 @@ function isEffectivelyLocked(index: FolderPathIndex<typeof folderTable.$inferSel
 
 function pathMutationError(error: unknown): FolderPathMutationResult {
   const message = getErrorMessage(error, 'Internal server error')
+  const classified = asOrchestrationError(error)
+  if (classified) return { success: false, error: classified.message, errorCode: classified.code }
   if (message === 'Folder not found' || message === 'Parent folder not found') {
     return { success: false, error: message, errorCode: 'not_found' }
   }
@@ -261,7 +263,10 @@ export async function createFolderAtPath(
 
 /** Applies the authoritative mutation without projecting legacy audit. */
 export async function createFolderAtPathTransition(
-  params: Omit<CreateFolderParams, 'name' | 'parentId' | 'sortOrder' | 'id'> & { path: string }
+  params: Omit<CreateFolderParams, 'name' | 'parentId' | 'sortOrder' | 'id'> & {
+    path: string
+    maxFolderRows?: number
+  }
 ): Promise<FolderPathMutationResult> {
   return executeCreateFolderAtPath(params, false)
 }

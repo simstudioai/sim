@@ -3,14 +3,9 @@ import {
   v2GetKnowledgeBaseContract,
   v2UpdateKnowledgeBaseContract,
 } from '@/lib/api/contracts/v2/knowledge'
-import {
-  defineV2JsonRoute,
-  type V2ErrorPolicy,
-  v2ApiKeyAuth,
-  v2OrchestrationErrorPolicy,
-  v2RateLimits,
-} from '@/lib/api/server/routes'
+import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import { PlatformEvents } from '@/lib/core/telemetry'
+import { v2KnowledgeErrorPolicies } from '@/lib/knowledge/api/route-policies'
 import {
   deleteKnowledgeBaseOperation,
   readKnowledgeBase,
@@ -53,21 +48,13 @@ function toV2KnowledgeBase(knowledgeBase: KnowledgeBaseWithCounts, folderPath: s
   }
 }
 
-const concealKnowledgeBaseReadAuthorization = {
-  render(error) {
-    const response = v2OrchestrationErrorPolicy.render(error)
-    if (response?.status === 403) return v2Error('NOT_FOUND', 'Knowledge base not found')
-    return response
-  },
-} satisfies V2ErrorPolicy
-
 /** GET /api/v2/knowledge/[id] — Get knowledge base details. */
 export const GET = defineV2JsonRoute({
   contract: v2GetKnowledgeBaseContract,
   auth: v2ApiKeyAuth,
   operation: knowledgeOperations.read,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: concealKnowledgeBaseReadAuthorization,
+  errorPolicy: v2KnowledgeErrorPolicies.concealKnowledgeBaseAuthorization,
   mapInput: ({ params, query }) => ({
     knowledgeBaseId: params.id,
     assertedWorkspaceId: query.workspaceId,
@@ -84,7 +71,7 @@ export const PUT = defineV2JsonRoute({
   auth: v2ApiKeyAuth,
   operation: knowledgeOperations.update,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2OrchestrationErrorPolicy,
+  errorPolicy: v2KnowledgeErrorPolicies.default,
   parseOptions: {
     invalidJsonResponse: () => v2Error('BAD_REQUEST', 'Request body must be valid JSON'),
   },
@@ -109,7 +96,7 @@ export const DELETE = defineV2JsonRoute({
   auth: v2ApiKeyAuth,
   operation: knowledgeOperations.delete,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2OrchestrationErrorPolicy,
+  errorPolicy: v2KnowledgeErrorPolicies.default,
   mapInput: ({ params, query }) => ({
     knowledgeBaseId: params.id,
     assertedWorkspaceId: query.workspaceId,

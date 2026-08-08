@@ -1,13 +1,13 @@
 /**
  * @vitest-environment node
  *
- * Tests for the enterprise audit-log tenant boundary. The global drizzle-orm
+ * Verifies the enterprise audit-log tenant boundary. The global drizzle-orm
  * mock returns structured operator objects, so these tests assert directly on
  * the predicate tree.
  */
 import { dbChainMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { buildOrgScopeCondition, getOrgWorkspaceIds } from '@/app/api/v1/audit-logs/query'
+import { buildOrgScopeCondition, getOrgWorkspaceIds } from '@/lib/audit-logs/query'
 
 const ORG_ID = 'org-1'
 const MEMBER_IDS = ['user-1', 'user-2']

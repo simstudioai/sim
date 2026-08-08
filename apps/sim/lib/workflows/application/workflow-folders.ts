@@ -3,6 +3,7 @@ import { resolvePrincipalAttribution } from '@sim/auth/principal'
 import type { folder } from '@sim/db/schema'
 import type { OrchestrationErrorCode } from '@/lib/core/orchestration/types'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { withFolderTreeLock } from '@/lib/folders/locks'
 import {
   createFolderAtPathTransition,
@@ -84,7 +85,9 @@ export async function resolveWorkflowFolderPath(
   path: string
 ): Promise<{ folderId: string | null; index: WorkflowFolderIndex }> {
   const resolution = await withFolderTreeLock(workspaceId, 'workflow', async (tx) => {
-    const index = await loadActiveFolderPathIndex(workspaceId, 'workflow', tx)
+    const index = await loadActiveFolderPathIndex(workspaceId, 'workflow', tx, {
+      maxRows: MAX_FOLDERS_PER_WORKSPACE,
+    })
     const folderId = resolveFolderPathFromIndex(index, path)
     return folderId === undefined
       ? { found: false as const }
@@ -109,7 +112,9 @@ export const listWorkflowFolders = defineAuthorizedWorkflowUseCase({
   resolveContext: ({ input }: { input: ListWorkflowFoldersInput }) =>
     resolveActiveWorkspaceApplicationContext(input.workspaceId),
   async execute({ input, context }): Promise<ListWorkflowFoldersResult> {
-    const index = await loadActiveFolderPathIndex(context.workspaceId, 'workflow')
+    const index = await loadActiveFolderPathIndex(context.workspaceId, 'workflow', undefined, {
+      maxRows: MAX_FOLDERS_PER_WORKSPACE,
+    })
     const parentId =
       input.parentPath === undefined
         ? undefined
@@ -122,6 +127,7 @@ export const listWorkflowFolders = defineAuthorizedWorkflowUseCase({
       search: input.search,
       sortBy: input.sortBy,
       sortOrder: input.sortOrder,
+      maxRows: MAX_FOLDERS_PER_WORKSPACE,
     })
     return { folders, index }
   },
@@ -140,9 +146,12 @@ export const createWorkflowFolder = defineAuthorizedWorkflowUseCase({
       workspaceId: context.workspaceId,
       userId: attribution.attributedUserId,
       path: input.path,
+      maxFolderRows: MAX_FOLDERS_PER_WORKSPACE,
     })
     if (!result.success || !result.folder || !result.path) throwFolderMutationFailure(result)
-    const index = await loadActiveFolderPathIndex(context.workspaceId, 'workflow')
+    const index = await loadActiveFolderPathIndex(context.workspaceId, 'workflow', undefined, {
+      maxRows: MAX_FOLDERS_PER_WORKSPACE,
+    })
     return { folder: result.folder, index }
   },
   projectAudit({ input, result }) {
@@ -171,9 +180,12 @@ export const relocateWorkflowFolder = defineAuthorizedWorkflowUseCase({
       userId: attribution.attributedUserId,
       path: input.path,
       destinationPath: input.destinationPath,
+      maxFolderRows: MAX_FOLDERS_PER_WORKSPACE,
     })
     if (!result.success || !result.folder || !result.path) throwFolderMutationFailure(result)
-    const index = await loadActiveFolderPathIndex(context.workspaceId, 'workflow')
+    const index = await loadActiveFolderPathIndex(context.workspaceId, 'workflow', undefined, {
+      maxRows: MAX_FOLDERS_PER_WORKSPACE,
+    })
     return { folder: result.folder, index }
   },
   projectAudit({ input, result }) {
@@ -206,6 +218,7 @@ export const deleteWorkflowFolder = defineAuthorizedWorkflowUseCase({
       userId: attribution.attributedUserId,
       path: input.path,
       recursive: input.recursive,
+      maxFolderRows: MAX_FOLDERS_PER_WORKSPACE,
     })
     if (
       !result.success ||

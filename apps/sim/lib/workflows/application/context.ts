@@ -1,26 +1,17 @@
 import { db } from '@sim/db'
-import {
-  pausedExecutions,
-  resumeQueue,
-  workflow,
-  workflowExecutionLogs,
-  workspace,
-} from '@sim/db/schema'
+import { pausedExecutions, resumeQueue, workflow, workflowExecutionLogs } from '@sim/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
 import { getJobQueue } from '@/lib/core/async-jobs'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { WORKFLOW_EXECUTION_JOB_ID_PREFIX } from '@/lib/workflows/executor/execution-job-ids'
+import {
+  type ActiveWorkspaceApplicationContext,
+  loadActiveWorkspaceApplicationContext,
+} from '@/lib/workspaces/application/workspace-context'
 
 export interface ActiveWorkflowApplicationContext {
   workflowId: string
   workflow: typeof workflow.$inferSelect
-  workspaceId: string
-  workspaceOrganizationId: string | null
-  allowPersonalApiKeys: boolean
-  billedAccountUserId: string
-}
-
-export interface ActiveWorkspaceApplicationContext {
   workspaceId: string
   workspaceOrganizationId: string | null
   allowPersonalApiKeys: boolean
@@ -34,17 +25,7 @@ export interface ActiveWorkflowRunApplicationContext extends ActiveWorkflowAppli
 export async function resolveActiveWorkspaceApplicationContext(
   workspaceId: string
 ): Promise<ActiveWorkspaceApplicationContext> {
-  const [context] = await db
-    .select({
-      workspaceId: workspace.id,
-      workspaceOrganizationId: workspace.organizationId,
-      allowPersonalApiKeys: workspace.allowPersonalApiKeys,
-      billedAccountUserId: workspace.billedAccountUserId,
-    })
-    .from(workspace)
-    .where(and(eq(workspace.id, workspaceId), isNull(workspace.archivedAt)))
-    .limit(1)
-
+  const context = await loadActiveWorkspaceApplicationContext(workspaceId)
   if (!context) throw new OrchestrationError('not_found', 'Workspace not found')
   return context
 }
@@ -53,33 +34,28 @@ export async function resolveActiveWorkflowApplicationContext(input: {
   workflowId: string
   assertedWorkspaceId?: string
 }): Promise<ActiveWorkflowApplicationContext> {
-  const [context] = await db
+  const [canonicalWorkflow] = await db
     .select({
       workflowId: workflow.id,
       workflow,
-      workspaceId: workspace.id,
-      workspaceOrganizationId: workspace.organizationId,
-      allowPersonalApiKeys: workspace.allowPersonalApiKeys,
-      billedAccountUserId: workspace.billedAccountUserId,
+      workspaceId: workflow.workspaceId,
     })
     .from(workflow)
-    .innerJoin(workspace, eq(workflow.workspaceId, workspace.id))
-    .where(
-      and(
-        eq(workflow.id, input.workflowId),
-        isNull(workflow.archivedAt),
-        isNull(workspace.archivedAt)
-      )
-    )
+    .where(and(eq(workflow.id, input.workflowId), isNull(workflow.archivedAt)))
     .limit(1)
 
   if (
-    !context ||
-    (input.assertedWorkspaceId !== undefined && input.assertedWorkspaceId !== context.workspaceId)
+    !canonicalWorkflow?.workspaceId ||
+    (input.assertedWorkspaceId !== undefined &&
+      input.assertedWorkspaceId !== canonicalWorkflow.workspaceId)
   ) {
     throw new OrchestrationError('not_found', 'Workflow not found')
   }
-  return context
+  const workspaceContext = await loadActiveWorkspaceApplicationContext(
+    canonicalWorkflow.workspaceId
+  )
+  if (!workspaceContext) throw new OrchestrationError('not_found', 'Workflow not found')
+  return { ...workspaceContext, ...canonicalWorkflow, workspaceId: workspaceContext.workspaceId }
 }
 
 async function resolveCanonicalRunWorkflowId(runId: string): Promise<string | null> {

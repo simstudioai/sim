@@ -13,6 +13,7 @@ import {
   toCascadeCounts,
 } from '@/lib/folders/cascade'
 import { FOLDER_RESOURCES, type FolderResourceConfig } from '@/lib/folders/config'
+import { FolderCollectionLimitExceededError } from '@/lib/folders/errors'
 import { folderMutationStatus } from '@/lib/folders/status'
 
 interface SelectCall {
@@ -155,9 +156,14 @@ describe('collectCascadeSubtreeIds', () => {
       ],
     })
 
-    await expect(
+    const rejection = expect(
       collectCascadeSubtreeIds(tx, 'ws-1', 'knowledge_base', 'root', TIMESTAMP, 2)
-    ).rejects.toThrow('Folder cascade exceeds the 2 row limit')
+    ).rejects
+    await rejection.toBeInstanceOf(FolderCollectionLimitExceededError)
+    await rejection.toMatchObject({
+      code: 'payload_too_large',
+      message: 'Folder cascade exceeds the 2 row limit',
+    })
   })
 })
 

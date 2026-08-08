@@ -1,7 +1,9 @@
 import type { Edge } from 'reactflow'
-import type { V1WorkflowExportPayload } from '@/lib/api/contracts/v1/workflows'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
-import { sanitizeForExport } from '@/lib/workflows/sanitization/json-sanitizer'
+import {
+  type ExportWorkflowState,
+  sanitizeForExport,
+} from '@/lib/workflows/sanitization/json-sanitizer'
 import { parseWorkflowVariables } from '@/lib/workflows/variables/parse'
 
 /**
@@ -39,7 +41,38 @@ export interface ExportableWorkflowRecord {
   variables: unknown
 }
 
-type ExportedEdge = V1WorkflowExportPayload['state']['edges'][number]
+export interface WorkflowExportEdge {
+  id: string
+  source: string
+  target: string
+  sourceHandle: string | undefined
+  targetHandle: string | undefined
+  type?: string
+  animated?: boolean
+  style?: Record<string, unknown>
+  data?: Record<string, unknown>
+  label?: string
+  labelStyle?: Record<string, unknown>
+  labelShowBg?: boolean
+  labelBgStyle?: Record<string, unknown>
+  labelBgPadding?: [number, number]
+  labelBgBorderRadius?: number
+  markerStart?: string
+  markerEnd?: string
+}
+
+export interface WorkflowExportPayload {
+  version: '1.0'
+  exportedAt: string
+  workflow: {
+    id: string
+    name: string
+    description: string | null
+    workspaceId: string | null
+    folderId: string | null
+  }
+  state: Omit<ExportWorkflowState['state'], 'edges'> & { edges: WorkflowExportEdge[] }
+}
 
 /**
  * Projects a persisted ReactFlow edge onto the wire shape declared by the
@@ -50,7 +83,7 @@ type ExportedEdge = V1WorkflowExportPayload['state']['edges'][number]
  * object. Non-serializable values in those slots are dropped rather than
  * emitted as `{}`.
  */
-function toExportedEdge(edge: Edge): ExportedEdge {
+function toExportedEdge(edge: Edge): WorkflowExportEdge {
   return {
     id: edge.id,
     source: edge.source,
@@ -79,7 +112,7 @@ function toExportedEdge(edge: Edge): ExportedEdge {
  */
 export async function buildWorkflowExportPayload(
   workflowData: ExportableWorkflowRecord
-): Promise<V1WorkflowExportPayload | null> {
+): Promise<WorkflowExportPayload | null> {
   const normalizedData = await loadWorkflowFromNormalizedTables(workflowData.id)
   if (!normalizedData) return null
 

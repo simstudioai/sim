@@ -1,10 +1,10 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { resolvePrincipalAttribution } from '@sim/auth/principal'
-import type { V2SortOrder } from '@/lib/api/contracts/v2/shared'
 import type { V2TableSortBy } from '@/lib/api/contracts/v2/tables'
-import type { CursorKey } from '@/lib/api/list-query'
+import type { CursorKey, ListSortOrder } from '@/lib/api/list-query'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
 import {
   createTable,
@@ -32,7 +32,7 @@ export interface ListTablesInput {
   folderPath?: string
   search?: string
   sortBy: V2TableSortBy
-  sortOrder: V2SortOrder
+  sortOrder: ListSortOrder
   limit: number
   after?: CursorKey[]
 }
@@ -42,7 +42,9 @@ export const listTablesUseCase = defineAuthorizedTableUseCase({
   resolveContext: ({ input }: { input: ListTablesInput }) =>
     resolveTableWorkspaceContext(input.workspaceId),
   async execute({ input, context }) {
-    const folderIndex = await loadActiveFolderPathIndex(context.workspaceId, 'table')
+    const folderIndex = await loadActiveFolderPathIndex(context.workspaceId, 'table', undefined, {
+      maxRows: MAX_FOLDERS_PER_WORKSPACE,
+    })
     const folderId =
       input.folderPath === undefined
         ? undefined
@@ -139,7 +141,9 @@ export const readTableUseCase = defineAuthorizedTableUseCase({
       assertedWorkspaceId: input.workspaceId,
     }),
   async execute({ context }) {
-    const index = await loadActiveFolderPathIndex(context.workspaceId, 'table')
+    const index = await loadActiveFolderPathIndex(context.workspaceId, 'table', undefined, {
+      maxRows: MAX_FOLDERS_PER_WORKSPACE,
+    })
     return {
       table: context.table,
       folderPath: tableFolderPathForId(index, context.table.folderId),
@@ -223,7 +227,10 @@ export const updateTableUseCase = defineAuthorizedTableUseCase({
         throw new OrchestrationError('not_found', 'Table not found')
       }
       const index =
-        resolution?.index ?? (await loadActiveFolderPathIndex(context.workspaceId, 'table'))
+        resolution?.index ??
+        (await loadActiveFolderPathIndex(context.workspaceId, 'table', undefined, {
+          maxRows: MAX_FOLDERS_PER_WORKSPACE,
+        }))
       return {
         table,
         folderPath: tableFolderPathForId(index, table.folderId),

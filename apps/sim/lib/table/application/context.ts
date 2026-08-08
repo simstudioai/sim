@@ -1,9 +1,7 @@
-import { db } from '@sim/db'
-import { workspace } from '@sim/db/schema'
-import { and, eq, isNull } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getTableById, type TableDefinition } from '@/lib/table'
 import type { TableAuthorizationContext } from '@/lib/table/application/authorization'
+import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 
 export type TableWorkspaceContext = TableAuthorizationContext
 
@@ -15,17 +13,7 @@ export interface ActiveTableContext extends TableWorkspaceContext {
 export async function resolveTableWorkspaceContext(
   workspaceId: string
 ): Promise<TableWorkspaceContext> {
-  const [canonical] = await db
-    .select({
-      workspaceId: workspace.id,
-      workspaceOrganizationId: workspace.organizationId,
-      allowPersonalApiKeys: workspace.allowPersonalApiKeys,
-      billedAccountUserId: workspace.billedAccountUserId,
-    })
-    .from(workspace)
-    .where(and(eq(workspace.id, workspaceId), isNull(workspace.archivedAt)))
-    .limit(1)
-
+  const canonical = await loadActiveWorkspaceApplicationContext(workspaceId)
   if (!canonical) throw new OrchestrationError('not_found', 'Workspace not found')
   return canonical
 }

@@ -7,6 +7,7 @@ import {
   WorkflowLockedError,
 } from '@sim/platform-authz/workflow'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
@@ -68,7 +69,10 @@ export const updateWorkflow = defineAuthorizedWorkflowUseCase({
     if (!transition.workflow) throw new Error('Successful workflow update returned no workflow')
 
     const folderIndex =
-      resolution?.index ?? (await loadActiveFolderPathIndex(context.workspaceId, 'workflow'))
+      resolution?.index ??
+      (await loadActiveFolderPathIndex(context.workspaceId, 'workflow', undefined, {
+        maxRows: MAX_FOLDERS_PER_WORKSPACE,
+      }))
     logger.info('Updated workflow', {
       workspaceId: context.workspaceId,
       workflowId: context.workflowId,

@@ -7,6 +7,7 @@ import type {
 } from '@/lib/api/contracts/v2/tables'
 import { authorizeWorkspaceOperation } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { withFolderTreeLock } from '@/lib/folders/locks'
 import { ROOT_FOLDER_PATH } from '@/lib/folders/paths'
 import { loadActiveFolderPathIndex, resolveFolderPathFromIndex } from '@/lib/folders/queries'
@@ -140,7 +141,9 @@ async function resolveImportFolderId(
   if (body.target.type !== 'new') return undefined
   const path = body.target.folderPath ?? ROOT_FOLDER_PATH
   return withFolderTreeLock(workspaceId, 'table', async (tx) => {
-    const index = await loadActiveFolderPathIndex(workspaceId, 'table', tx)
+    const index = await loadActiveFolderPathIndex(workspaceId, 'table', tx, {
+      maxRows: MAX_FOLDERS_PER_WORKSPACE,
+    })
     const folderId = resolveFolderPathFromIndex(index, path)
     if (folderId === undefined) {
       throw new OrchestrationError('not_found', 'Folder not found')

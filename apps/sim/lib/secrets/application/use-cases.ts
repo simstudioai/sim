@@ -1,6 +1,6 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import type { Principal } from '@sim/auth/principal'
-import type { V2SortOrder } from '@/lib/api/contracts/v2/shared'
+import type { ListSortOrder } from '@/lib/api/list-query'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getWorkspaceEnvKeyAdminAccess } from '@/lib/credentials/environment'
@@ -52,7 +52,7 @@ async function listSecretMetadata(params: {
   scope?: SecretScope
   search?: string
   sortBy: SecretSortBy
-  sortOrder: V2SortOrder
+  sortOrder: ListSortOrder
 }): Promise<VisibleWorkspaceCredential[]> {
   const workspaceAccess = await checkWorkspaceAccess(params.workspaceId, params.userId)
   const rows = await listVisibleWorkspaceCredentials({
@@ -125,7 +125,7 @@ export interface ListSecretsInput {
   scope?: SecretScope
   search?: string
   sortBy: SecretSortBy
-  sortOrder: V2SortOrder
+  sortOrder: ListSortOrder
 }
 
 export const listSecretsUseCase = defineAuthorizedWorkspaceUseCase({

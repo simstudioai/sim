@@ -14,8 +14,8 @@ import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, type Column, count, eq, isNotNull, isNull, type SQL, sql } from 'drizzle-orm'
-import type { V2SortOrder } from '@/lib/api/contracts/v2/shared'
 import type { V2TableSortBy } from '@/lib/api/contracts/v2/tables'
+import type { ListSortOrder } from '@/lib/api/list-query'
 import {
   type CursorKey,
   encodeKeyset,
@@ -291,7 +291,7 @@ interface ListTablesOptions {
   /** Case-insensitive substring match on the table name. */
   search?: string
   sortBy?: V2TableSortBy
-  sortOrder?: V2SortOrder
+  sortOrder?: ListSortOrder
 }
 
 /**
@@ -377,7 +377,7 @@ export interface QueryTablesOptions {
   /** Case-insensitive substring match on the table name. */
   search?: string
   sortBy: V2TableSortBy
-  sortOrder: V2SortOrder
+  sortOrder: ListSortOrder
   limit: number
   /** Keyset values from a cursor, in the sort's key order. */
   after?: CursorKey[]

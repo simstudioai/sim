@@ -1,6 +1,7 @@
 import type { Principal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
@@ -30,7 +31,12 @@ export const readWorkflow = defineAuthorizedWorkflowUseCase({
     if (!workflow || workflow.archivedAt || workflow.workspaceId !== context.workspaceId) {
       throw new OrchestrationError('not_found', 'Workflow not found')
     }
-    const folderIndex = await loadActiveFolderPathIndex(context.workspaceId, 'workflow')
+    const folderIndex = await loadActiveFolderPathIndex(
+      context.workspaceId,
+      'workflow',
+      undefined,
+      { maxRows: MAX_FOLDERS_PER_WORKSPACE }
+    )
     const inputs = extractInputFieldsFromBlocks(snapshot.normalizedData?.blocks ?? {})
     logger.info('Read workflow', {
       workspaceId: context.workspaceId,

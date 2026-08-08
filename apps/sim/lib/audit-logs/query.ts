@@ -69,9 +69,7 @@ export function buildFilterConditions(params: AuditLogFilterParams): SQL<unknown
   return conditions
 }
 
-/**
- * Returns the IDs of all workspaces attached to the organization.
- */
+/** Returns the IDs of all workspaces attached to the organization. */
 export async function getOrgWorkspaceIds(organizationId: string): Promise<string[]> {
   const rows = await db
     .select({ id: workspace.id })
@@ -87,14 +85,7 @@ export interface OrgScopeParams {
   includeDeparted: boolean
 }
 
-/**
- * Builds the tenant-boundary predicate for organization audit log access:
- * rows in org-attached workspaces, plus org-level rows (`workspace_id IS
- * NULL`) tied to the org via `metadata.organizationId` or the organization
- * resource itself. Actor membership is never a standalone boundary — when
- * `includeDeparted` is false it only narrows the org scope to current members
- * and system events (null actor).
- */
+/** Builds the tenant-boundary predicate for organization audit log access. */
 export function buildOrgScopeCondition(params: OrgScopeParams): SQL<unknown> {
   const { organizationId, orgWorkspaceIds, orgMemberIds, includeDeparted } = params
 
@@ -114,9 +105,7 @@ export function buildOrgScopeCondition(params: OrgScopeParams): SQL<unknown> {
       ? or(inArray(auditLog.workspaceId, orgWorkspaceIds), orgLevelCondition)!
       : orgLevelCondition
 
-  if (includeDeparted) {
-    return orgScope
-  }
+  if (includeDeparted) return orgScope
 
   const currentActorCondition =
     orgMemberIds.length > 0
@@ -150,7 +139,6 @@ export async function queryAuditLogs(
   cursor?: string
 ): Promise<CursorPaginatedResult> {
   const allConditions = [...conditions]
-
   if (cursor) {
     const cursorCondition = buildCursorCondition(cursor)
     if (cursorCondition) allConditions.push(cursorCondition)
@@ -165,15 +153,12 @@ export async function queryAuditLogs(
 
   const hasMore = rows.length > limit
   const data = rows.slice(0, limit)
-
-  let nextCursor: string | undefined
-  if (hasMore && data.length > 0) {
-    const last = data[data.length - 1]
-    nextCursor = encodeCursor({
-      createdAt: last.createdAt.toISOString(),
-      id: last.id,
-    })
+  const last = data.at(-1)
+  return {
+    data,
+    nextCursor:
+      hasMore && last
+        ? encodeCursor({ createdAt: last.createdAt.toISOString(), id: last.id })
+        : undefined,
   }
-
-  return { data, nextCursor }
 }

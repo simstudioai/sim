@@ -8,7 +8,6 @@ import {
 import { parseRequest } from '@/lib/api/server'
 import {
   defineV2JsonRoute,
-  type V2ErrorPolicy,
   v2ApiKeyAuth,
   v2OrchestrationErrorPolicy,
   v2RateLimits,
@@ -23,6 +22,7 @@ import {
   readFormDataWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { v2KnowledgeErrorPolicies } from '@/lib/knowledge/api/route-policies'
 import { KnowledgeUsageLimitExceededError } from '@/lib/knowledge/application/billing'
 import {
   admitKnowledgeDocumentUpload,
@@ -42,14 +42,6 @@ export const revalidate = 0
 
 const MAX_FILE_SIZE = MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE
 const MAX_MULTIPART_OVERHEAD_BYTES = 1024 * 1024
-
-const concealKnowledgeDocumentListAuthorization = {
-  render(error) {
-    const response = v2OrchestrationErrorPolicy.render(error)
-    if (response?.status === 403) return v2Error('NOT_FOUND', 'Knowledge base not found')
-    return response
-  },
-} satisfies V2ErrorPolicy
 
 function toV2DocumentSummary(document: {
   id: string
@@ -85,7 +77,7 @@ export const GET = defineV2JsonRoute({
   auth: v2ApiKeyAuth,
   operation: knowledgeOperations.listDocuments,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: concealKnowledgeDocumentListAuthorization,
+  errorPolicy: v2KnowledgeErrorPolicies.concealKnowledgeBaseAuthorization,
   mapInput: ({ params, query }) => {
     const decodedCursor = query.cursor ? decodeCursor<{ offset: number }>(query.cursor) : null
     if (

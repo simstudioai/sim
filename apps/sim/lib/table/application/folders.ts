@@ -1,7 +1,8 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { resolvePrincipalAttribution } from '@sim/auth/principal'
-import type { V2SortOrder } from '@/lib/api/contracts/v2/shared'
+import type { ListSortOrder } from '@/lib/api/list-query'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import {
   createFolderAtPathTransition,
   deleteFolderByPathTransition,
@@ -23,7 +24,7 @@ export interface ListTableFoldersInput {
   parentPath?: string
   search?: string
   sortBy?: Exclude<FolderSortBy, 'position'>
-  sortOrder?: V2SortOrder
+  sortOrder?: ListSortOrder
 }
 
 export const listTableFoldersUseCase = defineAuthorizedTableUseCase({
@@ -31,7 +32,9 @@ export const listTableFoldersUseCase = defineAuthorizedTableUseCase({
   resolveContext: ({ input }: { input: ListTableFoldersInput }) =>
     resolveTableWorkspaceContext(input.workspaceId),
   async execute({ input, context }) {
-    const index = await loadActiveFolderPathIndex(context.workspaceId, 'table')
+    const index = await loadActiveFolderPathIndex(context.workspaceId, 'table', undefined, {
+      maxRows: MAX_FOLDERS_PER_WORKSPACE,
+    })
     const parentId =
       input.parentPath === undefined
         ? undefined
@@ -44,6 +47,7 @@ export const listTableFoldersUseCase = defineAuthorizedTableUseCase({
       search: input.search,
       sortBy: input.sortBy,
       sortOrder: input.sortOrder,
+      maxRows: MAX_FOLDERS_PER_WORKSPACE,
     })
     return { folders, index }
   },
@@ -67,11 +71,14 @@ export const createTableFolderUseCase = defineAuthorizedTableUseCase({
       workspaceId: context.workspaceId,
       userId: attribution.attributedUserId,
       path: input.path,
+      maxFolderRows: MAX_FOLDERS_PER_WORKSPACE,
     })
     if (!result.success || !result.folder) {
       throwTableOperationFailure(result, 'Failed to create folder')
     }
-    const index = await loadActiveFolderPathIndex(context.workspaceId, 'table')
+    const index = await loadActiveFolderPathIndex(context.workspaceId, 'table', undefined, {
+      maxRows: MAX_FOLDERS_PER_WORKSPACE,
+    })
     return { folder: result.folder, index, path: input.path }
   },
   projectAudit({ result }) {
@@ -104,11 +111,14 @@ export const updateTableFolderUseCase = defineAuthorizedTableUseCase({
       userId: attribution.attributedUserId,
       path: input.path,
       destinationPath: input.destinationPath,
+      maxFolderRows: MAX_FOLDERS_PER_WORKSPACE,
     })
     if (!result.success || !result.folder) {
       throwTableOperationFailure(result, 'Failed to move folder')
     }
-    const index = await loadActiveFolderPathIndex(context.workspaceId, 'table')
+    const index = await loadActiveFolderPathIndex(context.workspaceId, 'table', undefined, {
+      maxRows: MAX_FOLDERS_PER_WORKSPACE,
+    })
     return { folder: result.folder, index, path: input.destinationPath, sourcePath: input.path }
   },
   projectAudit({ result }) {
@@ -145,6 +155,7 @@ export const deleteTableFolderUseCase = defineAuthorizedTableUseCase({
       userId: attribution.attributedUserId,
       path: input.path,
       recursive: input.recursive,
+      maxFolderRows: MAX_FOLDERS_PER_WORKSPACE,
     })
     if (!result.success || !result.deletedItems || !result.folderId || !result.folderName) {
       throwTableOperationFailure(result, 'Failed to delete folder')
