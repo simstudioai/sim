@@ -19,16 +19,30 @@ const HEVC_HEIF_BRANDS = new Set(['heic', 'heix', 'heim', 'heis', 'hevc', 'hevx'
 const HEIF_BRANDS = new Set([...HEVC_HEIF_BRANDS, 'mif1', 'msf1', 'avif', 'avis'])
 
 /**
- * Byte ceiling for a fallback decode. Uploads allow 100MB and the vision path runs
- * sharp with `limitInputPixels: false`, so without this a tenant could push an
- * arbitrarily large HEIF through a single-threaded WebAssembly decode. 20MB leaves
- * generous headroom over any phone photo — a 12MP iPhone HEIC is 1-4MB — while
- * bounding what one read can cost.
+ * Byte ceiling for a fallback decode. Uploads allow 100MB, so without this a tenant
+ * could push an arbitrarily large HEIF through a single-threaded WebAssembly decode.
+ * 20MB leaves generous headroom over any phone photo — a 12MP iPhone HEIC is 1-4MB —
+ * while bounding what one read can cost.
  *
- * This bounds file size, not pixel count. A small file declaring enormous
- * dimensions is rejected during parse by libheif's own security limits.
+ * This bounds file size only; {@link MAX_TRANSCODE_INPUT_PIXELS} bounds the raster,
+ * which a small file can still declare to be enormous.
  */
-const MAX_TRANSCODE_INPUT_BYTES = 20 * 1024 * 1024
+export const MAX_TRANSCODE_INPUT_BYTES = 20 * 1024 * 1024
+
+/**
+ * Pixel ceiling for the fallback decode, checked against the container's declared
+ * dimensions before any raster exists.
+ *
+ * Needed because the decoder allocates `width * height * 4` up front — the size is
+ * taken straight from the `ispe` box and the buffer is built before the codec is
+ * asked for anything, so a malformed file never has to decode to cost the memory.
+ * libheif's own default ceiling is ~1.07e9 pixels (~4.3GB as RGBA), which is far too
+ * loose to be the only guard.
+ *
+ * 100MP caps that allocation near 400MB and clears every phone camera — a 48MP
+ * iPhone still is 8064x6048.
+ */
+const MAX_TRANSCODE_INPUT_PIXELS = 100_000_000
 
 /** A real `ftyp` box holds a handful of brands; anything larger is malformed or hostile. */
 const MAX_FTYP_BOX_BYTES = 512
@@ -97,6 +111,36 @@ export async function transcodeHeicToJpeg(buffer: Buffer): Promise<Buffer | null
   }
 
   try {
+    // Read the declared dimensions first. `all()` parses the container and reports
+    // each image's size while leaving the decode — and therefore the allocation —
+    // for `decode()`, which is what makes refusing an oversized one cheap. The
+    // container gets parsed twice as a result; that is a header parse against a
+    // ceiling this path exists to enforce, and only on the HEVC fallback.
+    const { all } = await import('heic-decode')
+    const images = await all({ buffer })
+    // `all()` hands back live libheif handles and, unlike the default export, leaves
+    // freeing them to the caller — skipping this leaks the decoder context on the
+    // WebAssembly heap once per preview. The dimensions are plain numbers, so they
+    // outlive the handles safely.
+    let oversized: { width: number; height: number } | undefined
+    try {
+      oversized = images
+        .map(({ width, height }) => ({ width, height }))
+        .find((image) => image.width * image.height > MAX_TRANSCODE_INPUT_PIXELS)
+    } finally {
+      images.dispose()
+    }
+    if (oversized) {
+      logger.warn('Skipped HEIC transcode above the pixel ceiling', {
+        width: oversized.width,
+        height: oversized.height,
+        pixels: oversized.width * oversized.height,
+        ceiling: MAX_TRANSCODE_INPUT_PIXELS,
+        bytes: buffer.length,
+      })
+      return null
+    }
+
     const convert = (await import('heic-convert')).default
     const jpeg = await convert({ buffer, format: 'JPEG' })
     logger.info('Transcoded HEIC image', {

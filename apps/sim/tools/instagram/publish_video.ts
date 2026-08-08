@@ -13,7 +13,7 @@ export const instagramPublishVideoTool: ToolConfig<
   id: 'instagram_publish_video',
   name: 'Instagram Publish Video',
   description:
-    'Create and publish a feed video from an uploaded file or public HTTPS URL (published as a Reel shared to the feed; polls until ready)',
+    'Create and publish a feed video from a Sim file (published as a Reel shared to the feed; polls until ready)',
   version: '1.0.0',
 
   oauth: {
@@ -38,7 +38,7 @@ export const instagramPublishVideoTool: ToolConfig<
       type: 'file',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Video file or public HTTPS URL',
+      description: 'Video uploaded to Sim or referenced from a previous block',
     },
     caption: {
       type: 'string',
@@ -50,7 +50,7 @@ export const instagramPublishVideoTool: ToolConfig<
       type: 'file',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Optional JPEG cover image file or public HTTPS URL',
+      description: 'Optional JPEG cover uploaded to Sim or referenced from a previous block',
     },
   },
 

@@ -28,7 +28,9 @@ export {
   chipFilledFillTokens,
   chipFilledSurfaceTokens,
   chipGeometryClass,
+  chipIconSlotClass,
   chipPrimaryFillTokens,
+  disclosureChevronClass,
 } from './chip/chip-chrome'
 export { ChipCombobox } from './chip-combobox/chip-combobox'
 export {

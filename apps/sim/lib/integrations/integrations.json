@@ -12832,6 +12832,97 @@
       "tags": ["enrichment", "sales-engagement"]
     },
     {
+      "type": "mintlify",
+      "slug": "mintlify",
+      "name": "Mintlify",
+      "description": "Deploy, edit, search, and measure Mintlify documentation",
+      "longDescription": "Integrate Mintlify into your workflow. Trigger production and preview deployments, run scheduled automations, launch documentation agent jobs, detect AI-sounding prose, search your docs and read page content, ask the docs assistant, and export feedback, conversation, search, view, and visitor analytics.",
+      "bgColor": "#000000",
+      "iconName": "MintlifyIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/mintlify",
+      "operations": [
+        {
+          "name": "Trigger Update",
+          "description": "Queue a deployment update for a Mintlify documentation project from its configured deployment branch. Returns a status ID for tracking progress."
+        },
+        {
+          "name": "Get Update Status",
+          "description": "Get the status of a Mintlify deployment update from its status ID, including logs, commit details, and screenshots."
+        },
+        {
+          "name": "Trigger Preview Deployment",
+          "description": "Create or update a Mintlify preview deployment for a Git branch. Redeploys when a preview already exists for the branch."
+        },
+        {
+          "name": "Trigger Automation",
+          "description": "Run a scheduled Mintlify automation immediately instead of waiting for its next scheduled time. Only automations with a custom schedule can be triggered."
+        },
+        {
+          "name": "Create Agent Job",
+          "description": "Create a background Mintlify agent job that edits your documentation from a prompt. Opens a pull request when the agent successfully edits files."
+        },
+        {
+          "name": "Get Agent Job",
+          "description": "Retrieve the current status and details of a Mintlify agent job, including the pull request link once the agent opens one."
+        },
+        {
+          "name": "Send Agent Message",
+          "description": "Send a follow-up instruction to an existing Mintlify agent job. The message is processed asynchronously."
+        },
+        {
+          "name": "Detect AI-Sounding Prose",
+          "description": "Analyze a documentation page for AI-generated prose and return flagged passages with suggested human rewrites. Consumes one AI credit per checked page."
+        },
+        {
+          "name": "Search Documentation",
+          "description": "Run a semantic and keyword search across a Mintlify documentation site, with optional version, language, tag, and group filters."
+        },
+        {
+          "name": "Get Page Content",
+          "description": "Retrieve the full text content of a Mintlify documentation page by its path. Use it after a search to fetch the complete page."
+        },
+        {
+          "name": "Ask Assistant",
+          "description": "Ask the Mintlify assistant, trained on your documentation, a question and get the assembled answer with its cited sources. Consumes the deployment's assistant credits."
+        },
+        {
+          "name": "Get Feedback",
+          "description": "Export paginated user feedback from a Mintlify documentation project, with optional date-range, source, and status filters."
+        },
+        {
+          "name": "Get Feedback By Page",
+          "description": "Export Mintlify feedback counts aggregated by documentation page path, broken down into thumbs up, thumbs down, and code snippet feedback."
+        },
+        {
+          "name": "Get Assistant Conversations",
+          "description": "Export paginated Mintlify AI assistant conversation history, including the query, response, cited sources, and whether the question was answered."
+        },
+        {
+          "name": "Get Assistant Caller Stats",
+          "description": "Get a breakdown of Mintlify assistant query counts by caller type — web, API, and other — for a date range."
+        },
+        {
+          "name": "Get Search Queries",
+          "description": "Export Mintlify documentation search terms for a date range, ordered by hit count, with click-through rate and the most-clicked result path."
+        },
+        {
+          "name": "Get Page Views",
+          "description": "Export Mintlify per-path and site-wide content view counts for a date range, split by human and AI bot traffic."
+        },
+        {
+          "name": "Get Unique Visitors",
+          "description": "Export Mintlify per-path and site-wide approximate distinct visitor counts for a date range, split by human and AI bot traffic."
+        }
+      ],
+      "operationCount": 18,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "documents",
+      "tags": ["content-management", "knowledge-base", "automation"]
+    },
+    {
       "type": "mistral_parse_v3",
       "slug": "mistral-parser",
       "name": "Mistral Parser",
@@ -18150,6 +18241,109 @@
       "category": "tools",
       "integrationType": "email",
       "tags": ["messaging", "automation"]
+    },
+    {
+      "type": "snowflake",
+      "slug": "snowflake",
+      "name": "Snowflake",
+      "description": "Query data and manage warehouses and tasks in Snowflake",
+      "longDescription": "Connect with a Snowflake programmatic access token to execute SQL, synchronize structured rows, load staged data, manage warehouses and tasks, inspect schemas, and call stored procedures.",
+      "bgColor": "#FFFFFF",
+      "iconName": "SnowflakeIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/snowflake",
+      "operations": [
+        {
+          "name": "Execute SQL",
+          "description": "Execute one parameterized SQL statement through the Snowflake SQL API."
+        },
+        {
+          "name": "Get Statement",
+          "description": "Check a running or completed statement and retrieve exactly one result partition. Canceled or failed statements are returned as errors."
+        },
+        {
+          "name": "Cancel Statement",
+          "description": "Cancel a running Snowflake SQL API statement."
+        },
+        {
+          "name": "Insert Rows",
+          "description": "Insert structured JSON rows using bound values."
+        },
+        {
+          "name": "Update Rows",
+          "description": "Update matching rows with a bound MERGE statement without inserting new rows."
+        },
+        {
+          "name": "Upsert Rows",
+          "description": "Update matching rows and insert unmatched rows with a bound MERGE statement."
+        },
+        {
+          "name": "Delete Rows",
+          "description": "Delete rows matching a required set of bound column filters."
+        },
+        {
+          "name": "Load Data",
+          "description": "Load files from an existing Snowflake stage with COPY INTO."
+        },
+        {
+          "name": "List Warehouses",
+          "description": "List warehouses visible to the active Snowflake role."
+        },
+        {
+          "name": "Get Warehouse",
+          "description": "Get the full details for a Snowflake virtual warehouse."
+        },
+        {
+          "name": "Resume Warehouse",
+          "description": "Resume a Snowflake virtual warehouse if it is suspended."
+        },
+        {
+          "name": "Suspend Warehouse",
+          "description": "Suspend a Snowflake virtual warehouse."
+        },
+        {
+          "name": "List Tasks",
+          "description": "List tasks in a Snowflake schema."
+        },
+        {
+          "name": "Get Task",
+          "description": "Describe a Snowflake task."
+        },
+        {
+          "name": "Run Task",
+          "description": "Run a Snowflake task immediately, optionally retrying its last failed graph."
+        },
+        {
+          "name": "List Task Runs",
+          "description": "Query up to seven days of Snowflake task history, capped at 10000 rows."
+        },
+        {
+          "name": "Get Task Run",
+          "description": "Find one task history record by query ID within Snowflake’s seven-day window and 10000 most recent records after optional filters."
+        },
+        {
+          "name": "Cancel Task Query",
+          "description": "Cancel one running task query by query ID with SYSTEM$CANCEL_QUERY. Task runs already in flight are unaffected and must be cancelled individually; a cancelled child marks the task graph run failed, so downstream tasks are skipped."
+        },
+        {
+          "name": "Get Task Run Output",
+          "description": "Read a task query result with RESULT_SCAN during Snowflake’s 24-hour retention window using the task owner role."
+        },
+        {
+          "name": "Introspect Schema",
+          "description": "Inspect table and column metadata through Snowflake INFORMATION_SCHEMA views."
+        },
+        {
+          "name": "Call Procedure",
+          "description": "Call a stored procedure with explicitly typed Snowflake bindings."
+        }
+      ],
+      "operationCount": 21,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "databases",
+      "tags": ["data-warehouse", "data-analytics", "cloud"]
     },
     {
       "type": "sportmonks",

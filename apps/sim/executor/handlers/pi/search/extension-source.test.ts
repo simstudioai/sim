@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { PI_SEARCH_PROVIDERS, type PiSearchProvider } from '@/executor/handlers/pi/keys'
+import { PI_SEARCH_PROVIDERS, type PiSearchProvider } from '@/executor/handlers/pi/core/keys'
 import {
   PI_SEARCH_API_KEY_ENV_VAR,
   PI_SEARCH_EXTENSION_PATH,

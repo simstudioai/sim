@@ -18,7 +18,7 @@ vi.mock('@/lib/core/config/env', async (importOriginal) => {
 
 import { evaluateSubBlockCondition } from '@/lib/workflows/subblocks/visibility'
 import { PiBlock } from '@/blocks/blocks/pi'
-import { PI_SEARCH_PROVIDERS } from '@/executor/handlers/pi/keys'
+import { PI_SEARCH_PROVIDERS } from '@/executor/handlers/pi/core/keys'
 
 const searchProviderField = PiBlock.subBlocks.find((subBlock) => subBlock.id === 'searchProvider')
 const searchApiKeyField = PiBlock.subBlocks.find((subBlock) => subBlock.id === 'searchApiKey')

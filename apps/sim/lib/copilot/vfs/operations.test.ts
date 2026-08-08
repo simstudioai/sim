@@ -2,7 +2,8 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { glob, grep } from '@/lib/copilot/vfs/operations'
+import { glob, grep, grepReadResult, WorkspaceFileGrepError } from '@/lib/copilot/vfs/operations'
+import { readPlaceholder } from '@/lib/copilot/vfs/read-placeholders'
 
 function vfsFromEntries(entries: [string, string][]): Map<string, string> {
   return new Map(entries)
@@ -192,5 +193,45 @@ describe('grep regex safety', () => {
     const files = vfsFromEntries([['log.txt', 'Alpha\nALPHA\nalpha']])
     expect(grep(files, 'alpha', undefined, { ignoreCase: true })).toHaveLength(3)
     expect(grep(files, 'alpha')).toHaveLength(1)
+  })
+})
+
+describe('grepReadResult placeholders', () => {
+  const grepResult = (result: {
+    content: string
+    totalLines: number
+    placeholder?: 'oversized' | 'unreadable'
+  }) => grepReadResult('files/x.png/content', result, 'x', 'files/x.png/content')
+
+  /**
+   * Built from the producers rather than hand-assembled: covers every builder, so
+   * one that stops tagging itself fails here.
+   */
+  const everyPlaceholder = Object.entries({
+    fileTooLarge: readPlaceholder.fileTooLarge('big.txt', 99, 5),
+    imageTooLarge: readPlaceholder.imageTooLarge('huge.png', 99, 5),
+    imageUnavailable: readPlaceholder.imageUnavailable('bomb.png', 90, 'It could not be decoded.'),
+    documentTooLarge: readPlaceholder.documentTooLarge('big.pdf', 99, 5),
+    compiledArtifactTooLarge: readPlaceholder.compiledArtifactTooLarge('app.js', 99, 5),
+    couldNotParse: readPlaceholder.couldNotParse('x.pdf', 'application/pdf', 10),
+    binaryFile: readPlaceholder.binaryFile('app.bin', 'application/octet-stream', 10),
+  })
+
+  it.each(everyPlaceholder)(
+    'reports the %s placeholder instead of grepping it',
+    (_name, result) => {
+      expect(() => grepResult(result)).toThrow(WorkspaceFileGrepError)
+      expect(() => grepResult(result)).toThrow(result.content)
+    }
+  )
+
+  it('still greps ordinary single-line content', () => {
+    expect(grepResult({ content: 'x marks the spot', totalLines: 1 })).toHaveLength(1)
+  })
+
+  it('greps a real file whose content is exactly a placeholder message', () => {
+    // Untagged, so it is content — text alone never makes something a placeholder.
+    const { content } = readPlaceholder.binaryFile('app.bin', 'text/plain', 10)
+    expect(grepResult({ content, totalLines: 1 })).toHaveLength(1)
   })
 })

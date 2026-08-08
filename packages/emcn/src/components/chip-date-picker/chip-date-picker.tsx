@@ -6,7 +6,7 @@ import { ChevronDown } from '../../icons'
 import { cn } from '../../lib/cn'
 import { Calendar, formatDateLabel, formatDateRangeLabel } from '../calendar/calendar'
 import { chipVariants, TRIGGER_BORDER_CLASS } from '../chip/chip'
-import { chipContentLabelClass } from '../chip/chip-chrome'
+import { chipContentLabelClass, chipIconSlotClass } from '../chip/chip-chrome'
 import { POPOVER_ANIMATION_CLASSES } from '../popover/popover-animation'
 
 interface ChipDatePickerBaseProps {
@@ -120,10 +120,7 @@ const ChipDatePicker = forwardRef<HTMLButtonElement, ChipDatePickerProps>(
               {triggerText || placeholder}
             </span>
             {variant === 'filled' && (
-              <span
-                aria-hidden
-                className='inline-flex size-[16px] flex-shrink-0 items-center justify-center text-[var(--text-icon)]'
-              >
+              <span aria-hidden className={cn(chipIconSlotClass, 'text-[var(--text-icon)]')}>
                 <ChevronDown className='size-[14px]' />
               </span>
             )}

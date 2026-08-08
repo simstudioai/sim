@@ -175,13 +175,10 @@ export function ContextMenu({
             Edit cell
           </DropdownMenuItem>
         )}
-        {canViewExecution && onViewExecution && (
-          <DropdownMenuItem onSelect={onViewExecution}>
-            <Eye />
-            View execution
-          </DropdownMenuItem>
-        )}
-        {/* Not gated on `disableEdit`: these write only workflow-output columns,
+        {/* Run, Re-run, Stop, then View execution — the order the action bar
+            presents the same four, so the user reads one sequence in both.
+
+            Not gated on `disableEdit`: these write only workflow-output columns,
             which the update lock exempts, and Stop is a cancel rather than a
             write. Their handlers are already withheld without edit permission. */}
         {hasWorkflowColumns && onRunWorkflows && (
@@ -200,6 +197,12 @@ export function ContextMenu({
           <DropdownMenuItem onSelect={onStopWorkflows}>
             <Square className='size-[14px] text-[var(--text-icon)]' />
             {stopLabel}
+          </DropdownMenuItem>
+        )}
+        {canViewExecution && onViewExecution && (
+          <DropdownMenuItem onSelect={onViewExecution}>
+            <Eye />
+            View execution
           </DropdownMenuItem>
         )}
         <DropdownMenuItem disabled={disableInsert} onSelect={onInsertAbove}>
