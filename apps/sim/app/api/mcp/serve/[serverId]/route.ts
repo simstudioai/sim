@@ -363,6 +363,7 @@ async function getServer(serverId: string) {
       workspaceId: workflowMcpServer.workspaceId,
       isPublic: workflowMcpServer.isPublic,
       createdBy: workflowMcpServer.createdBy,
+      workspaceAllowsPersonalApiKeys: workspace.allowPersonalApiKeys,
     })
     .from(workflowMcpServer)
     .innerJoin(workspace, eq(workflowMcpServer.workspaceId, workspace.id))
@@ -424,11 +425,25 @@ async function authorizeMcpServeRequest(
     return { response: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
   }
 
+  /**
+   * Not redundant with the same check in `/api/workflows/{id}/execute`: tool
+   * calls bridge to that route with an internal JWT, so its API-key branch
+   * never sees this request.
+   */
+  const isPersonalApiKey = auth.authType === AuthType.API_KEY && auth.apiKeyType === 'personal'
+  if (isPersonalApiKey && !server.workspaceAllowsPersonalApiKeys) {
+    return {
+      response: NextResponse.json(
+        { error: 'Personal API keys are not allowed for this workspace' },
+        { status: 403 }
+      ),
+    }
+  }
+
   return {
     executeAuthContext: {
       userId: auth.userId,
-      useAuthenticatedUserAsActor:
-        auth.authType === AuthType.API_KEY && auth.apiKeyType === 'personal',
+      useAuthenticatedUserAsActor: isPersonalApiKey,
     },
   }
 }
