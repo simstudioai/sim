@@ -12,7 +12,6 @@ const GROUP_ALIASES: Readonly<Record<string, string>> = {
   'audit-logs': 'audit-log',
   credentials: 'credential',
   'custom-tools': 'custom-tool',
-  documents: 'document',
   files: 'file',
   knowledge: 'kb',
   logs: 'log',
@@ -76,6 +75,15 @@ function configureOperation(
     }
   }
 
+  for (const param of Object.keys(spec.pathArgumentNames ?? {})) {
+    if (!operationSpec.pathParams.includes(param)) {
+      throw new Error(`${operation}.${param} is not a path parameter`)
+    }
+    if (spec.pathFlags?.[param]) {
+      throw new Error(`${operation}.${param} cannot be both a path argument and a path flag`)
+    }
+  }
+
   if (spec.profileWorkspacePath) {
     if (!operationSpec.pathParams.includes(PROFILE_INJECTED_FIELD)) {
       throw new Error(`${operation}.profileWorkspacePath requires a workspaceId path parameter`)
@@ -87,7 +95,7 @@ function configureOperation(
 
   for (const param of operationSpec.pathParams) {
     if (spec.pathFlags?.[param] || isProfileWorkspacePath(spec, param)) continue
-    command.argument(`<${param}>`)
+    command.argument(`<${spec.pathArgumentNames?.[param] ?? param}>`)
   }
 
   if (spec.allWorkspaces) {

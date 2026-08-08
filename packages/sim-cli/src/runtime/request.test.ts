@@ -72,8 +72,8 @@ describe('buildRequest', () => {
     )
   })
 
-  it('combines a named parent scope with a positional resource id in route order', () => {
-    expect(buildRequest('getKnowledgeDocument', ['doc_1'], { kb: 'kb_1' }, WORKSPACE)).toEqual({
+  it('combines nested resource path arguments in route order', () => {
+    expect(buildRequest('getKnowledgeDocument', ['kb_1', 'doc_1'], {}, WORKSPACE)).toEqual({
       path: '/api/v2/knowledge/kb_1/documents/doc_1',
       query: { workspaceId: WORKSPACE },
       body: undefined,
@@ -97,9 +97,9 @@ describe('buildRequest', () => {
       )
     })
 
-    it('rejects a missing named path scope', () => {
-      expect(() => buildRequest('getKnowledgeDocument', ['doc_1'], {}, WORKSPACE)).toThrow(
-        '--kb is required'
+    it('names a missing nested parent path argument clearly', () => {
+      expect(() => buildRequest('getKnowledgeDocument', [], {}, WORKSPACE)).toThrow(
+        'Missing <knowledgeBaseId>'
       )
     })
 

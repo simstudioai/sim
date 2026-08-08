@@ -18,13 +18,7 @@ const FOLDER_DELETE_FLAGS = {
   path: FOLDER_PATH_INPUT,
   recursive: { boolean: true, describe: 'Delete the folder and its descendants' },
 } as const
-const KNOWLEDGE_DOCUMENT_SCOPE = {
-  id: {
-    name: 'kb',
-    placeholder: 'knowledgeBaseId',
-    describe: 'Knowledge base ID',
-  },
-} as const
+const KNOWLEDGE_DOCUMENT_PATH_ARGUMENTS = { id: 'knowledgeBaseId' } as const
 const WORKFLOW_RUN_SCOPE = {
   id: {
     name: 'workflow',
@@ -57,7 +51,7 @@ function moveResource(command: string, resource: string): CommandVariantSpec {
  *
  * Derived by default:
  *   listTables            → sim tables list
- *   getKnowledgeDocument  → sim documents get <documentId> --kb <knowledgeBaseId>
+ *   getKnowledgeDocument  → sim knowledge documents get <knowledgeBaseId> <documentId>
  *   upsertTableRow        → sim tables upsert <tableId>
  */
 export const CLI_CONTRACT: CliContract = {
@@ -138,8 +132,7 @@ export const CLI_CONTRACT: CliContract = {
   },
   deleteKnowledgeBase: { confirm: 'This deletes the knowledge base and every document in it.' },
   deleteKnowledgeDocument: {
-    command: 'documents delete',
-    pathFlags: KNOWLEDGE_DOCUMENT_SCOPE,
+    pathArgumentNames: KNOWLEDGE_DOCUMENT_PATH_ARGUMENTS,
     confirm: 'This deletes the document and its embeddings.',
   },
   deleteFile: { confirm: 'This archives the file.' },
@@ -346,13 +339,9 @@ export const CLI_CONTRACT: CliContract = {
       { header: 'model', path: 'embeddingModel' },
     ],
   },
-  getKnowledgeDocument: {
-    command: 'documents get',
-    pathFlags: KNOWLEDGE_DOCUMENT_SCOPE,
-  },
+  getKnowledgeDocument: { pathArgumentNames: KNOWLEDGE_DOCUMENT_PATH_ARGUMENTS },
   listKnowledgeDocuments: {
-    command: 'documents list',
-    pathFlags: KNOWLEDGE_DOCUMENT_SCOPE,
+    pathArgumentNames: KNOWLEDGE_DOCUMENT_PATH_ARGUMENTS,
     columns: [
       { header: 'id' },
       { header: 'filename' },
@@ -787,7 +776,7 @@ export const CLI_CONTRACT: CliContract = {
   },
 
   // ─── Not a terminal-shaped operation ──────────────────────────────────────
-  // Multipart upload; `sim documents upload <path> --kb <id>` needs its
+  // Multipart upload; `sim knowledge documents upload <id> <path>` needs its
   // own file-reading command rather than a generated flag surface.
   uploadKnowledgeDocument: { hidden: true },
   createKnowledgeDocumentUpload: { hidden: true },

@@ -87,7 +87,6 @@ describe('commands parsed through commander', () => {
       'audit-logs': 'audit-log',
       credentials: 'credential',
       'custom-tools': 'custom-tool',
-      documents: 'document',
       files: 'file',
       knowledge: 'kb',
       logs: 'log',
@@ -146,52 +145,38 @@ describe('commands parsed through commander', () => {
     expect(knowledgePath).toBe('/api/v2/knowledge')
   })
 
-  it('uses top-level document commands with a named knowledge-base scope', async () => {
-    expect(commandAt('knowledge').commands.map((command) => command.name())).not.toContain(
-      'documents'
-    )
+  it('nests document commands under their knowledge base', async () => {
+    expect(program().commands.map((command) => command.name())).not.toContain('documents')
 
-    const help = commandAt('documents', 'get').helpInformation()
-    expect(help).toContain('<documentId>')
-    expect(help).toMatch(/--kb <knowledgeBaseId>.*required/s)
-    expect(help).not.toContain('<id> <documentId>')
+    const help = commandAt('knowledge', 'documents', 'get').helpInformation()
+    expect(help).toContain('<knowledgeBaseId> <documentId>')
+    expect(help).not.toContain('--kb')
 
-    const [listPath, listOptions] = await run(['documents', 'list', '--kb', 'kb_1'])
+    const [listPath, listOptions] = await run(['kb', 'documents', 'list', 'kb_1'])
     expect(listPath).toBe('/api/v2/knowledge/kb_1/documents')
     expect(listOptions.query).toMatchObject({ workspaceId: 'ws_local' })
 
-    const [getPathBefore, getOptionsBefore] = await run([
-      'documents',
-      'get',
-      '--kb',
-      'kb_1',
-      'doc_1',
-    ])
-    expect(getPathBefore).toBe('/api/v2/knowledge/kb_1/documents/doc_1')
-    expect(getOptionsBefore.query).toEqual({ workspaceId: 'ws_local' })
+    const [getPath, getOptions] = await run(['kb', 'documents', 'get', 'kb_1', 'doc_1'])
+    expect(getPath).toBe('/api/v2/knowledge/kb_1/documents/doc_1')
+    expect(getOptions.query).toEqual({ workspaceId: 'ws_local' })
 
-    const [getPathAfter] = await run(['document', 'get', 'doc_1', '--kb', 'kb_1'])
-    expect(getPathAfter).toBe('/api/v2/knowledge/kb_1/documents/doc_1')
-
-    await expect(run(['documents', 'delete', 'doc_1', '--kb', 'kb_1'])).rejects.toThrow(
+    await expect(run(['kb', 'documents', 'delete', 'kb_1', 'doc_1'])).rejects.toThrow(
       /document and its embeddings/
     )
     expect(mockRequest).not.toHaveBeenCalled()
 
     const [deletePath, deleteOptions] = await run([
+      'kb',
       'documents',
       'delete',
-      'doc_1',
-      '--kb',
       'kb_1',
+      'doc_1',
       '--yes',
     ])
     expect(deletePath).toBe('/api/v2/knowledge/kb_1/documents/doc_1')
     expect(deleteOptions.query).toEqual({ workspaceId: 'ws_local' })
 
-    await expect(run(['documents', 'get', 'doc_1'])).rejects.toThrow(
-      /required option '--kb <knowledgeBaseId>'/
-    )
+    await expect(run(['kb', 'documents', 'get', 'kb_1'])).rejects.toThrow(/documentId/)
     expect(mockRequest).not.toHaveBeenCalled()
   })
 

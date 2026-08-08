@@ -112,8 +112,7 @@ also accepts its singular form: for example, `sim table list`,
 `sim file download`, and `sim workflow get` are equivalent to their plural
 spellings.
 
-`knowledge` also accepts the shorter `kb` alias, and `documents` accepts
-`document`.
+`knowledge` also accepts the shorter `kb` alias.
 
 ```bash
 sim workflows ls [path] [--search <text>] [--limit <n>]
@@ -168,10 +167,10 @@ sim knowledge update <id> [--name <name>] [--description <text>] [--folder <path
 sim knowledge mv <id> <folder>
 sim knowledge search --query <text> --kb <id>… [--search-mode vector|hybrid]
 
-sim documents list --kb <knowledgeBaseId> [--search <text>]
-sim documents get <documentId> --kb <knowledgeBaseId>
-sim documents upload <path> --kb <knowledgeBaseId> [--tag <value>...]
-sim documents delete <documentId> --kb <knowledgeBaseId> --yes
+sim knowledge documents list <knowledgeBaseId> [--search <text>]
+sim knowledge documents get <knowledgeBaseId> <documentId>
+sim knowledge documents upload <knowledgeBaseId> <path> [--tag <value>...]
+sim knowledge documents delete <knowledgeBaseId> <documentId> --yes
 
 sim billing status [--all-workspaces]
 sim billing logs [--period 7d] [--source sim-chat] [--limit <n>] [--all-workspaces]

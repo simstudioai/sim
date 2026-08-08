@@ -272,6 +272,7 @@ export function buildRequest(
     const pathFlag = commandSpec.pathFlags?.[param]
     const profileWorkspacePath = isProfileWorkspacePath(commandSpec, param)
     const flagName = pathFlagNameFor(commandSpec, param)
+    const argumentName = commandSpec.pathArgumentNames?.[param] ?? param
     const value = profileWorkspacePath
       ? workspaceId
       : pathFlag
@@ -284,11 +285,11 @@ export function buildRequest(
           0
         )
       }
-      throw new SimApiError(pathFlag ? `--${flagName} is required` : `Missing <${param}>`, 0)
+      throw new SimApiError(pathFlag ? `--${flagName} is required` : `Missing <${argumentName}>`, 0)
     }
     if (typeof value !== 'string' || value.length === 0) {
       throw new SimApiError(
-        pathFlag ? `--${flagName} cannot be empty` : `<${param}> cannot be empty`,
+        pathFlag ? `--${flagName} cannot be empty` : `<${argumentName}> cannot be empty`,
         0
       )
     }
