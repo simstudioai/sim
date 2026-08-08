@@ -15,6 +15,7 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
 }))
 
 import { readFileRecord } from '@/lib/copilot/vfs/file-reader'
+import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 
 const MAX_IMAGE_READ_BYTES = 5 * 1024 * 1024
 const MAX_IMAGE_SOURCE_BYTES = 25 * 1024 * 1024
@@ -84,6 +85,19 @@ describe('readFileRecord', () => {
     },
     SHARP_TEST_TIMEOUT_MS
   )
+
+  it('reports the too-large placeholder when a understated record.size hides an oversized object', async () => {
+    // `record.size` is client-declared, so the download cap is the check that holds —
+    // and breaching it must still read as "too large", not as a failed read.
+    fetchWorkspaceFileBuffer.mockRejectedValue(
+      new PayloadSizeLimitError({ label: 'workspace file', maxBytes: MAX_IMAGE_SOURCE_BYTES })
+    )
+
+    const result = await readFileRecord(imageRecord('understated.png', 1024))
+
+    expect(result?.attachment).toBeUndefined()
+    expect(result?.content).toContain('Image too large to read inline')
+  })
 
   it('rejects an oversized image on its stored size before fetching it', async () => {
     const result = await readFileRecord(imageRecord('huge.png', MAX_IMAGE_SOURCE_BYTES + 1))

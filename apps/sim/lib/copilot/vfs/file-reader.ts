@@ -12,6 +12,7 @@ import { TraceEvent } from '@/lib/copilot/generated/trace-events-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { recordFileRead } from '@/lib/copilot/request/metrics'
 import { markSpanForError } from '@/lib/copilot/request/otel'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { fetchWorkspaceFileBuffer } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { isHeifContainer, transcodeHeicToJpeg } from '@/lib/uploads/server/heic'
@@ -77,6 +78,29 @@ export function isReadableFileType(contentType: string): boolean {
 function getExtension(filename: string): string {
   const dot = filename.lastIndexOf('.')
   return dot >= 0 ? filename.slice(dot + 1).toLowerCase() : ''
+}
+
+/**
+ * Download a record under an authoritative byte cap, returning null when the stored
+ * object breaches it. `record.size` is client-declared, so a caller's own size check
+ * can pass while the real bytes do not — this is the check that actually holds, and
+ * null lets the caller answer with its too-large placeholder rather than a read failure.
+ */
+async function fetchWithinLimit(
+  record: WorkspaceFileRecord,
+  maxBytes: number
+): Promise<Buffer | null> {
+  try {
+    return await fetchWorkspaceFileBuffer(record, { maxBytes })
+  } catch (err) {
+    if (!isPayloadSizeLimitError(err)) throw err
+    logger.warn('Workspace file exceeded its read cap', {
+      fileName: record.name,
+      recordedSize: record.size,
+      maxBytes,
+    })
+    return null
+  }
 }
 
 function detectImageMime(buf: Buffer, claimed: string): string {
@@ -404,18 +428,22 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
         // image down the binary path where the model never sees it.
         if (isImageFileType(resolveEffectiveMimeType(record.type, record.name))) {
           span.setAttribute(TraceAttr.CopilotVfsReadPath, CopilotVfsReadPath.Image)
-          // `record.size` is client-declared, so it only buys the friendly placeholder;
-          // the download's own `maxBytes` is what actually bounds the bytes read.
+          // `record.size` is client-declared, so it only skips a doomed download; the
+          // download's own `maxBytes` is what actually bounds the bytes read. Both
+          // answer with the same placeholder.
+          const imageTooLarge = {
+            content: `[Image too large to read inline: ${record.name} (${record.size} bytes, limit ${MAX_IMAGE_SOURCE_BYTES})]`,
+            totalLines: 1,
+          }
           if (record.size > MAX_IMAGE_SOURCE_BYTES) {
             span.setAttribute(TraceAttr.CopilotVfsReadOutcome, CopilotVfsReadOutcome.ImageTooLarge)
-            return {
-              content: `[Image too large to read inline: ${record.name} (${record.size} bytes, limit ${MAX_IMAGE_SOURCE_BYTES})]`,
-              totalLines: 1,
-            }
+            return imageTooLarge
           }
-          const originalBuffer = await fetchWorkspaceFileBuffer(record, {
-            maxBytes: MAX_IMAGE_SOURCE_BYTES,
-          })
+          const originalBuffer = await fetchWithinLimit(record, MAX_IMAGE_SOURCE_BYTES)
+          if (!originalBuffer) {
+            span.setAttribute(TraceAttr.CopilotVfsReadOutcome, CopilotVfsReadOutcome.ImageTooLarge)
+            return imageTooLarge
+          }
           const prepared = await prepareImageForVision(originalBuffer, record.type)
           if (!prepared.ok) {
             span.setAttribute(TraceAttr.CopilotVfsReadOutcome, CopilotVfsReadOutcome.ImageTooLarge)
@@ -450,15 +478,20 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
 
         if (isReadableFileType(record.type)) {
           span.setAttribute(TraceAttr.CopilotVfsReadPath, CopilotVfsReadPath.Text)
+          const textTooLarge = {
+            content: `[File too large to display inline: ${record.name} (${record.size} bytes, limit ${MAX_TEXT_READ_BYTES})]`,
+            totalLines: 1,
+          }
           if (record.size > MAX_TEXT_READ_BYTES) {
             span.setAttribute(TraceAttr.CopilotVfsReadOutcome, CopilotVfsReadOutcome.TextTooLarge)
-            return {
-              content: `[File too large to display inline: ${record.name} (${record.size} bytes, limit ${MAX_TEXT_READ_BYTES})]`,
-              totalLines: 1,
-            }
+            return textTooLarge
           }
 
-          const buffer = await fetchWorkspaceFileBuffer(record, { maxBytes: MAX_TEXT_READ_BYTES })
+          const buffer = await fetchWithinLimit(record, MAX_TEXT_READ_BYTES)
+          if (!buffer) {
+            span.setAttribute(TraceAttr.CopilotVfsReadOutcome, CopilotVfsReadOutcome.TextTooLarge)
+            return textTooLarge
+          }
           const content = buffer.toString('utf-8')
           const lines = content.split('\n').length
           span.setAttributes({
@@ -472,19 +505,25 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
         const ext = getExtension(record.name)
         if (PARSEABLE_EXTENSIONS.has(ext)) {
           span.setAttribute(TraceAttr.CopilotVfsReadPath, CopilotVfsReadPath.ParseableDocument)
+          const documentTooLarge = {
+            content: `[Document too large to parse inline: ${record.name} (${record.size} bytes, limit ${MAX_PARSEABLE_READ_BYTES})]`,
+            totalLines: 1,
+          }
           if (record.size > MAX_PARSEABLE_READ_BYTES) {
             span.setAttribute(
               TraceAttr.CopilotVfsReadOutcome,
               CopilotVfsReadOutcome.DocumentTooLarge
             )
-            return {
-              content: `[Document too large to parse inline: ${record.name} (${record.size} bytes, limit ${MAX_PARSEABLE_READ_BYTES})]`,
-              totalLines: 1,
-            }
+            return documentTooLarge
           }
-          const buffer = await fetchWorkspaceFileBuffer(record, {
-            maxBytes: MAX_PARSEABLE_READ_BYTES,
-          })
+          const buffer = await fetchWithinLimit(record, MAX_PARSEABLE_READ_BYTES)
+          if (!buffer) {
+            span.setAttribute(
+              TraceAttr.CopilotVfsReadOutcome,
+              CopilotVfsReadOutcome.DocumentTooLarge
+            )
+            return documentTooLarge
+          }
           try {
             const { parseBuffer } = await import('@/lib/file-parsers')
             const result = await parseBuffer(buffer, ext)
