@@ -782,7 +782,7 @@ Return ONLY the selector string - no explanations, no surrounding quotes.`,
     config: {
       tool: (params) => params.operation,
       params: (params) => {
-        const baseParams: Record<string, any> = {
+        const baseParams: Record<string, unknown> = {
           environmentUrl: params.environmentUrl,
           apiToken: params.apiToken,
         }
