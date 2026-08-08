@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { readFileSync } from 'node:fs'
 import chalk from 'chalk'
 import { Command, Option } from 'commander'
 import { loginCommand, logoutCommand, profilesCommand, whoamiCommand } from './commands/auth.js'
@@ -12,10 +13,25 @@ import { buildGeneratedCommands } from './runtime/build.js'
 
 const program = new Command()
 
+function readPackageVersion(): string {
+  const metadata: unknown = JSON.parse(
+    readFileSync(new URL('../package.json', import.meta.url), 'utf8')
+  )
+  if (
+    typeof metadata !== 'object' ||
+    metadata === null ||
+    !('version' in metadata) ||
+    typeof metadata.version !== 'string'
+  ) {
+    throw new Error('CLI package metadata is missing a valid version')
+  }
+  return metadata.version
+}
+
 program
   .name('sim')
   .description('Talk to the Sim API from your terminal')
-  .version('0.1.0')
+  .version(readPackageVersion())
   .option('-P, --profile <name>', 'Profile to use (env: SIM_PROFILE)')
   .option('--endpoint <url>', 'Sim deployment to talk to (env: SIM_ENDPOINT)')
   .option('-w, --workspace <id>', 'Workspace to target (env: SIM_WORKSPACE)')

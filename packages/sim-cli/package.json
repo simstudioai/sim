@@ -1,5 +1,5 @@
 {
-  "name": "@sim/cli",
+  "name": "@simai/cli",
   "version": "0.1.0",
   "description": "Sim CLI - talk to the Sim API from your terminal",
   "type": "module",
@@ -7,7 +7,9 @@
     "sim": "dist/index.js"
   },
   "scripts": {
-    "build": "tsc",
+    "prebuild": "bun run clean",
+    "build": "tsc --project tsconfig.build.json",
+    "clean": "bun -e \"import { rmSync } from 'node:fs'; rmSync('dist', { recursive: true, force: true })\"",
     "type-check": "tsc --noEmit",
     "lint": "biome check --write --unsafe .",
     "lint:check": "biome check .",
@@ -28,6 +30,18 @@
   ],
   "author": "Sim",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/simstudioai/sim.git",
+    "directory": "packages/sim-cli"
+  },
+  "homepage": "https://github.com/simstudioai/sim/tree/main/packages/sim-cli#readme",
+  "bugs": {
+    "url": "https://github.com/simstudioai/sim/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "engines": {
     "node": ">=20"
   },
