@@ -370,7 +370,7 @@ describe('knowledge-document upload application lifecycle', () => {
         }>
       }) => ({
         session: { ...params.session, status: 'completed' as const },
-        value: (await params.finalize(params.session)).value,
+        value: (await params.finalize({ ...params.session, error: null })).value,
         alreadyCompleted: true,
       })
     )
@@ -445,7 +445,7 @@ describe('knowledge-document upload application lifecycle', () => {
         }>
       }) => ({
         session: { ...params.session, status: 'completed' as const },
-        value: (await params.finalize(params.session)).value,
+        value: (await params.finalize({ ...params.session, error: null })).value,
         alreadyCompleted: true,
       })
     )

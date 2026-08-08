@@ -260,7 +260,7 @@ export const completeKnowledgeDocumentUpload = defineAuthorizedKnowledgeUseCase(
         }
         if (bound.status === 'bound') {
           if (
-            claimed.error === PROCESSING_DISPATCH_FAILURE_MESSAGE &&
+            session.error === PROCESSING_DISPATCH_FAILURE_MESSAGE &&
             bound.document.processingStatus === 'pending'
           ) {
             const billingAttribution = await resolveKnowledgeBillingAttribution(

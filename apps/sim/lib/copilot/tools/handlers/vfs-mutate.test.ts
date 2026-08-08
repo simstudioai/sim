@@ -172,6 +172,7 @@ vi.mock('@/lib/core/telemetry', () => ({
 }))
 
 import type { ExecutionContext } from '@/lib/copilot/request/types'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { executeVfsCp, executeVfsMkdir, executeVfsMv, executeVfsRm } from './vfs-mutate'
 
 const context = {
@@ -649,6 +650,25 @@ describe('vfs mv/cp', () => {
       ).rejects.toThrow('knowledge database unavailable')
     })
 
+    it('preserves an actionable knowledge rename conflict', async () => {
+      mocks.listKnowledgeBases.mockResolvedValue({
+        knowledgeBases: [{ knowledgeBase: { id: 'kb-1', name: 'Docs' }, folderPath: '/' }],
+      })
+      mocks.updateKnowledgeBase.mockRejectedValue(
+        new OrchestrationError('conflict', 'A knowledge base named Product Docs already exists')
+      )
+
+      const result = await executeVfsMv(
+        { sources: ['knowledgebases/Docs'], destination: 'knowledgebases/Product Docs' },
+        context
+      )
+
+      expect(result).toMatchObject({
+        success: false,
+        error: 'A knowledge base named Product Docs already exists',
+      })
+    })
+
     it('rejects the reserved knowledgebases/connectors name', async () => {
       const result = await executeVfsMv(
         { sources: ['knowledgebases/Docs'], destination: 'knowledgebases/connectors' },
@@ -681,6 +701,30 @@ describe('vfs mv/cp', () => {
         })
       )
       expect(mocks.knowledgeBaseDeleted).toHaveBeenCalledWith({ knowledgeBaseId: 'kb-1' })
+    })
+
+    it('preserves an actionable knowledge delete failure', async () => {
+      mocks.listKnowledgeBases.mockResolvedValue({
+        knowledgeBases: [{ knowledgeBase: { id: 'kb-1', name: 'Docs' }, folderPath: '/' }],
+      })
+      mocks.deleteKnowledgeBase.mockRejectedValue(
+        new OrchestrationError('not_found', 'Knowledge base no longer exists')
+      )
+
+      const result = await executeVfsRm({ paths: ['knowledgebases/Docs'] }, context)
+
+      expect(result).toMatchObject({
+        success: false,
+        error: 'Knowledge base no longer exists',
+        output: {
+          results: [
+            expect.objectContaining({
+              from: 'knowledgebases/Docs',
+              error: 'Knowledge base no longer exists',
+            }),
+          ],
+        },
+      })
     })
   })
 })

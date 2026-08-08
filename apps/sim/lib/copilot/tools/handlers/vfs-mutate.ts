@@ -9,6 +9,7 @@ import {
 } from '@/lib/copilot/application/execute-file-use-case'
 import {
   executeCopilotKnowledgeUseCase,
+  messageForCopilotKnowledgeError,
   resolveCopilotKnowledgePrincipal,
 } from '@/lib/copilot/application/execute-knowledge-use-case'
 import { messageForCopilotFileError } from '@/lib/copilot/auth/file-delegation'
@@ -87,6 +88,14 @@ class KnowledgeVfsInfrastructureError extends Error {
     super('Knowledge VFS infrastructure failure')
     this.name = 'KnowledgeVfsInfrastructureError'
   }
+}
+
+function messageForKnowledgeVfsError(error: unknown, forbiddenMessage: string): string {
+  const classified = asOrchestrationError(error)
+  if (!classified || classified.code === 'internal') {
+    throw new KnowledgeVfsInfrastructureError(error)
+  }
+  return classified.code === 'forbidden' ? forbiddenMessage : messageForCopilotKnowledgeError(error)
 }
 
 /** Top-level VFS segment of a raw (possibly encoded) path. */
@@ -861,11 +870,10 @@ async function renameFlatResource(
     })
     knowledgeBases = result.knowledgeBases
   } catch (error) {
-    const classified = asOrchestrationError(error)
-    if (classified && classified.code !== 'internal') {
-      return { success: false, error: 'Write access required to rename knowledge bases' }
+    return {
+      success: false,
+      error: messageForKnowledgeVfsError(error, 'Write access required to rename knowledge bases'),
     }
-    throw new KnowledgeVfsInfrastructureError(error)
   }
   const match = knowledgeBases
     .map(({ knowledgeBase }) => knowledgeBase)
@@ -882,14 +890,13 @@ async function renameFlatResource(
       source: 'agent',
     })
   } catch (error) {
-    const classified = asOrchestrationError(error)
-    if (classified && classified.code !== 'internal') {
-      return {
-        success: false,
-        error: `Write access required to rename knowledge base "${match.name}"`,
-      }
+    return {
+      success: false,
+      error: messageForKnowledgeVfsError(
+        error,
+        `Write access required to rename knowledge base "${match.name}"`
+      ),
     }
-    throw new KnowledgeVfsInfrastructureError(error)
   }
   logger.info('Renamed knowledge base via mv', { knowledgeBaseId: match.id, workspaceId })
   return buildResult(verb, [
@@ -1193,15 +1200,11 @@ async function removeKnowledgeBasePath(
     })
     knowledgeBases = result.knowledgeBases
   } catch (error) {
-    const classified = asOrchestrationError(error)
-    if (classified && classified.code !== 'internal') {
-      return {
-        from: path,
-        kind: 'knowledge_base',
-        error: 'Write access required to delete knowledge bases',
-      }
+    return {
+      from: path,
+      kind: 'knowledge_base',
+      error: messageForKnowledgeVfsError(error, 'Write access required to delete knowledge bases'),
     }
-    throw new KnowledgeVfsInfrastructureError(error)
   }
   const match = knowledgeBases
     .map(({ knowledgeBase }) => knowledgeBase)
@@ -1216,16 +1219,15 @@ async function removeKnowledgeBasePath(
       source: 'agent',
     })
   } catch (error) {
-    const classified = asOrchestrationError(error)
-    if (classified && classified.code !== 'internal') {
-      return {
-        from: path,
-        kind: 'knowledge_base',
-        id: match.id,
-        error: `Write access required to delete knowledge base "${match.name}"`,
-      }
+    return {
+      from: path,
+      kind: 'knowledge_base',
+      id: match.id,
+      error: messageForKnowledgeVfsError(
+        error,
+        `Write access required to delete knowledge base "${match.name}"`
+      ),
     }
-    throw new KnowledgeVfsInfrastructureError(error)
   }
   PlatformEvents.knowledgeBaseDeleted({ knowledgeBaseId: match.id })
   logger.info('Deleted knowledge base via rm', { knowledgeBaseId: match.id, workspaceId })
