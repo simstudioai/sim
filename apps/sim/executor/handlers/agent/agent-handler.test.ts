@@ -3497,6 +3497,42 @@ describe('AgentBlockHandler', () => {
         expect(tools[0].parameters.required).toContain('format')
       })
 
+      it('resolves a secret-backed customToolId without exposing it to the provider', async () => {
+        const toolId = 'custom-tool-123'
+        mockDBForCustomTool(toolId)
+        const registry = new ResolvedSecretTraceRegistry([
+          {
+            name: 'CANARY_CUSTOM_TOOL_ID',
+            plaintext: toolId,
+            encryptedValue: 'encrypted-custom-tool-id',
+          },
+        ])
+        const inputPath = ['tools', '0', 'customToolId'] as const
+        registry.recordResolvedAtInputPath('CANARY_CUSTOM_TOOL_ID', toolId, inputPath)
+        registry.recordResolvedInputProjection(inputPath, toolId, '{{CANARY_CUSTOM_TOOL_ID}}')
+        mockContext.resolvedSecretTraceRegistry = registry
+
+        await handler.execute(mockContext, mockBlock, {
+          model: 'gpt-4o',
+          userPrompt: 'Format a report',
+          apiKey: 'test-api-key',
+          tools: [
+            {
+              type: 'custom-tool',
+              customToolId: toolId,
+              usageControl: 'auto',
+            },
+          ],
+        })
+
+        expect(mockGetCustomToolById).toHaveBeenCalledWith(expect.objectContaining({ toolId }))
+        const providerRequest = mockExecuteProviderRequest.mock.calls[0][1]
+        expect(providerRequest.tools).toHaveLength(1)
+        expect(providerRequest.tools[0].name).toBe('formatReport')
+        expect(JSON.stringify(providerRequest.tools)).not.toContain(toolId)
+        expect(JSON.stringify(providerRequest.tools)).not.toContain('CANARY_CUSTOM_TOOL_ID')
+      })
+
       it('should fall back to inline schema when DB fetch fails and inline exists', async () => {
         mockDBFailure()
 

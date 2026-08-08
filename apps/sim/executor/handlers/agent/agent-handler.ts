@@ -628,7 +628,6 @@ export class AgentBlockHandler implements BlockHandler {
         const root = ['tools', String(toolIndex)] as const
         const paths: ResolvedSecretInputPath[] = [[...root, 'type']]
         if (tool.operation !== undefined) paths.push([...root, 'operation'])
-        if (tool.customToolId !== undefined) paths.push([...root, 'customToolId'])
         if (tool.type === 'mcp') {
           paths.push([...root, 'params', 'serverId'], [...root, 'params', 'toolName'])
         }
