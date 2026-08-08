@@ -457,7 +457,7 @@ function WorkspaceHeaderImpl({
                   />
                 ) : (
                   <div
-                    className='flex size-[16px] items-center justify-center rounded-sm font-medium text-[9px] text-white leading-none group-hover:invisible'
+                    className='flex size-[16px] items-center justify-center rounded-sm text-[9px] text-white leading-none group-hover:invisible'
                     style={{
                       backgroundColor: activeWorkspaceFull.color ?? 'var(--brand-accent)',
                     }}
@@ -518,7 +518,7 @@ function WorkspaceHeaderImpl({
                   />
                 ) : (
                   <div
-                    className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-sm font-medium text-[9px] text-white leading-none'
+                    className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-sm text-[9px] text-white leading-none'
                     style={{
                       backgroundColor: activeWorkspaceFull.color ?? 'var(--brand-accent)',
                     }}
@@ -553,7 +553,7 @@ function WorkspaceHeaderImpl({
             onCloseAutoFocus={(e) => e.preventDefault()}
           >
             {isWorkspacesLoading ? (
-              <div className='px-2 py-[5px] font-medium text-[var(--text-secondary)] text-caption'>
+              <div className='px-2 py-[5px] text-[var(--text-secondary)] text-caption'>
                 Loading workspaces...
               </div>
             ) : (
@@ -644,7 +644,7 @@ function WorkspaceHeaderImpl({
                               />
                             ) : (
                               <div
-                                className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-sm font-medium text-[9px] text-white leading-none'
+                                className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-sm text-[9px] text-white leading-none'
                                 style={{
                                   backgroundColor: workspace.color ?? 'var(--brand-accent)',
                                 }}
@@ -736,7 +736,7 @@ function WorkspaceHeaderImpl({
                               />
                             ) : (
                               <div
-                                className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-sm font-medium text-[9px] text-white leading-none'
+                                className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-sm text-[9px] text-white leading-none'
                                 style={{
                                   backgroundColor: workspace.color ?? 'var(--brand-accent)',
                                 }}
@@ -853,7 +853,7 @@ function WorkspaceHeaderImpl({
               />
             ) : (
               <div
-                className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-sm font-medium text-[9px] text-white leading-none'
+                className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-sm text-[9px] text-white leading-none'
                 style={{ backgroundColor: activeWorkspaceFull.color ?? 'var(--brand-accent)' }}
               >
                 {workspaceInitial}

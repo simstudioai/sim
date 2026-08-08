@@ -99,9 +99,7 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
         </div>
         <div className='flex min-h-0 flex-1 items-center justify-center px-6'>
           <div className='flex max-w-md flex-col items-center gap-3 text-center'>
-            <h1 className='font-medium text-[var(--text-body)] text-lg'>
-              Workspace plans unavailable
-            </h1>
+            <h1 className='text-[var(--text-body)] text-lg'>Workspace plans unavailable</h1>
             <p className='text-[var(--text-muted)] text-sm'>{description}</p>
           </div>
         </div>

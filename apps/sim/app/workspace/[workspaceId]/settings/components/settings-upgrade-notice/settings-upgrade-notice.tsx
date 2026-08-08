@@ -41,7 +41,7 @@ export function SettingsUpgradeNotice({
       className={cn('flex flex-col items-center justify-center gap-4', compact ? 'py-10' : 'py-20')}
     >
       <div className='text-center'>
-        <h3 className='font-medium text-[var(--text-primary)] text-md'>{title}</h3>
+        <h3 className='text-[var(--text-primary)] text-md'>{title}</h3>
         <p className='mt-1.5 text-[var(--text-muted)] text-sm'>{description}</p>
       </div>
       {canUpgrade && (

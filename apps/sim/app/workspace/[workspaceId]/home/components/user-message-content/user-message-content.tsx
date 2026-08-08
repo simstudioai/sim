@@ -147,10 +147,7 @@ export function UserMessageContent({
 
     if (plainMentions) {
       elements.push(
-        <span
-          key={`mention-${i}-${range.start}`}
-          className='font-medium text-[var(--text-primary)]'
-        >
+        <span key={`mention-${i}-${range.start}`} className='text-[var(--text-primary)]'>
           {content.slice(range.start, range.end)}
         </span>
       )

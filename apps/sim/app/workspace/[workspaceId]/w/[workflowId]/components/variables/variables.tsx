@@ -118,7 +118,7 @@ function VariableHeader({
       aria-controls={`variable-content-${variable.id}`}
     >
       <div className='flex min-w-0 flex-1 items-center gap-2'>
-        <span className='block truncate font-medium text-[var(--text-tertiary)] text-sm'>
+        <span className='block truncate text-[var(--text-tertiary)] text-sm'>
           {variable.name || `Variable ${index + 1}`}
         </span>
         {variable.name && (
@@ -170,7 +170,7 @@ function VariableValueInput({ variable, onUpdate, readOnly }: VariableValueInput
           {Array.from({ length: lineCount }, (_, i) => (
             <div
               key={i}
-              className='font-medium font-mono text-[var(--text-muted)] text-xs'
+              className='font-mono text-[var(--text-muted)] text-xs'
               style={{ height: `${LINE_HEIGHT}px`, lineHeight: `${LINE_HEIGHT}px` }}
             >
               {i + 1}
@@ -453,9 +453,7 @@ export function Variables({ readOnly = false }: VariablesProps) {
         onMouseDown={handleMouseDown}
       >
         <div className='flex items-center'>
-          <span className='flex-shrink-0 font-medium text-[var(--text-primary)] text-sm'>
-            Variables
-          </span>
+          <span className='flex-shrink-0 text-[var(--text-primary)] text-sm'>Variables</span>
         </div>
         <div className='flex items-center gap-2'>
           <Button

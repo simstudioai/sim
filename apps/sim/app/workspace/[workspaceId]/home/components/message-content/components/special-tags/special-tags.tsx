@@ -2591,7 +2591,7 @@ function UsageUpgradeDisplay({ data }: { data: UsageUpgradeTagData }) {
           <path d='M8 6.5v3' stroke='currentColor' strokeWidth='1.3' strokeLinecap='round' />
           <circle cx='8' cy='11.5' r='0.75' fill='currentColor' />
         </svg>
-        <span className='font-medium text-amber-800 text-sm leading-5 dark:text-amber-300'>
+        <span className='text-amber-800 text-sm leading-5 dark:text-amber-300'>
           Usage Limit Reached
         </span>
       </div>
@@ -2604,15 +2604,13 @@ function UsageUpgradeDisplay({ data }: { data: UsageUpgradeTagData }) {
           target={isHosted ? undefined : '_blank'}
           rel={isHosted ? undefined : 'noopener noreferrer'}
           aria-label={isHosted ? undefined : `${buttonLabel} (opens in a new tab)`}
-          className='mt-2 inline-flex items-center gap-1 font-medium text-amber-700 text-small underline decoration-dashed underline-offset-2 transition-colors hover-hover:text-amber-900 dark:text-amber-300 dark:hover-hover:text-amber-200'
+          className='mt-2 inline-flex items-center gap-1 text-amber-700 text-small underline decoration-dashed underline-offset-2 transition-colors hover-hover:text-amber-900 dark:text-amber-300 dark:hover-hover:text-amber-200'
         >
           {buttonLabel}
           {isHosted ? <ArrowRight className='size-3' /> : <SquareArrowUpRight className='size-3' />}
         </a>
       ) : (
-        <p className='mt-2 font-medium text-amber-700 text-small dark:text-amber-300'>
-          {unavailableMessage}
-        </p>
+        <p className='mt-2 text-amber-700 text-small dark:text-amber-300'>{unavailableMessage}</p>
       )}
     </div>
   )

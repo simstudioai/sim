@@ -257,7 +257,7 @@ function LineChartComponent({
     >
       {!hasExternalWrapper && (
         <div className='mb-3 flex items-center gap-3'>
-          <h4 className='font-medium text-[var(--text-primary)] text-sm'>{label}</h4>
+          <h4 className='text-[var(--text-primary)] text-sm'>{label}</h4>
           {allSeries.length > 1 && (
             <div className='flex items-center gap-2'>
               {scaledSeries.slice(1).map((s) => {
@@ -671,7 +671,7 @@ function LineChartComponent({
             const top = Math.min(Math.max(anchorY - 26, padding.top), height - padding.bottom - 18)
             return (
               <div
-                className='pointer-events-none absolute rounded-lg border border-[var(--border-1)] bg-[var(--surface-1)] px-2 py-1.5 font-medium text-xs shadow-lg'
+                className='pointer-events-none absolute rounded-lg border border-[var(--border-1)] bg-[var(--surface-1)] px-2 py-1.5 text-xs shadow-lg'
                 style={{ left, top }}
               >
                 {currentHoverDate && (
