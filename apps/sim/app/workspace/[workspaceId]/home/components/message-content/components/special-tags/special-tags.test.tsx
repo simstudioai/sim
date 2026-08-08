@@ -505,6 +505,133 @@ describe('CredentialDisplay link tag', () => {
     act(() => root.unmount())
   })
 
+  it('settles the row from the popup watcher when the flow ends with no event in this tab', async () => {
+    // A provider interstitial (Trello parks on one for ~3s) bounces to the
+    // workspace root without ever reaching the completion page. Neither page
+    // publishes a verdict, and a user who never leaves this tab gets no focus
+    // event either — only the watcher can end the wait.
+    vi.useFakeTimers()
+    const popup = {
+      focus: vi.fn(),
+      closed: false,
+      location: { origin: 'https://sim.test', pathname: '/api/auth/trello/callback' },
+    }
+    const openSpy = vi
+      .spyOn(window, 'open')
+      .mockReturnValue(popup as unknown as ReturnType<typeof window.open>)
+    const { container, root } = renderCredentialLink({
+      type: 'link',
+      provider: 'google-email',
+      value:
+        'https://sim.test/api/auth/oauth2/authorize?providerId=google-email&callbackURL=https%3A%2F%2Fsim.test%2Fworkspace%2Fworkspace-1%2Fchat%2Fchat-1',
+    })
+
+    await act(async () => {
+      container
+        .querySelector('a')
+        ?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000)
+    })
+
+    // The interstitial is not terminal, so the row is still deferring.
+    expect(container.textContent).toContain('Waiting for Gmail connection')
+
+    popup.location.pathname = '/workspace'
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000)
+    })
+
+    expect(container.textContent).toContain('Not connected — connect Gmail')
+    vi.useRealTimers()
+    openSpy.mockRestore()
+    act(() => root.unmount())
+  })
+
+  it('focuses the live popup instead of starting a rival attempt on a repeat click', async () => {
+    const toastSuccess = vi.spyOn(toast, 'success').mockImplementation(() => '')
+    const popup = {
+      focus: vi.fn(),
+      closed: false,
+      // Still on the provider's pages: reading location across origins throws.
+      get location(): Location {
+        throw new DOMException('cross-origin', 'SecurityError')
+      },
+    }
+    const openSpy = vi
+      .spyOn(window, 'open')
+      .mockReturnValue(popup as unknown as ReturnType<typeof window.open>)
+    const { container, root } = renderCredentialLink({
+      type: 'link',
+      provider: 'google-email',
+      value:
+        'https://sim.test/api/auth/oauth2/authorize?providerId=google-email&callbackURL=https%3A%2F%2Fsim.test%2Fworkspace%2Fworkspace-1%2Fchat%2Fchat-1',
+    })
+    const link = container.querySelector('a')
+
+    await act(async () => {
+      link?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+    })
+    const attemptId = new URL(
+      new URL(openSpy.mock.calls[0][0] as string).searchParams.get('callbackURL') ?? ''
+    ).searchParams.get('oauthAttempt') as string
+    await act(async () => {
+      link?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+    })
+
+    // No second window, and no second attempt to strand the first one's verdict.
+    expect(openSpy).toHaveBeenCalledOnce()
+    expect(popup.focus).toHaveBeenCalledTimes(2)
+
+    await act(async () => {
+      setOAuthChatAttemptStatus(attemptId, 'connected')
+    })
+
+    expect(container.textContent).toContain('Connected Gmail')
+    openSpy.mockRestore()
+    toastSuccess.mockRestore()
+    act(() => root.unmount())
+  })
+
+  it('locks the row once the popup verdict is corroborated by a refetched credential', async () => {
+    const toastSuccess = vi.spyOn(toast, 'success').mockImplementation(() => '')
+    const popup = { focus: vi.fn(), closed: false }
+    const openSpy = vi
+      .spyOn(window, 'open')
+      .mockReturnValue(popup as unknown as ReturnType<typeof window.open>)
+    mockRefetchWorkspaceCredentials.mockResolvedValue({
+      data: [{ id: 'new-gmail', providerId: 'google', updatedAt: '2026-08-07T10:05:00Z' }],
+    })
+    const { container, root } = renderCredentialLink({
+      type: 'link',
+      provider: 'google-email',
+      value:
+        'https://sim.test/api/auth/oauth2/authorize?providerId=google-email&callbackURL=https%3A%2F%2Fsim.test%2Fworkspace%2Fworkspace-1%2Fchat%2Fchat-1',
+    })
+
+    await act(async () => {
+      container
+        .querySelector('a')
+        ?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+    })
+    const attemptId = new URL(
+      new URL(openSpy.mock.calls[0][0] as string).searchParams.get('callbackURL') ?? ''
+    ).searchParams.get('oauthAttempt') as string
+    await act(async () => {
+      setOAuthChatAttemptStatus(attemptId, 'connected')
+    })
+
+    // The popup flow never blurs this tab, so this refetch is the only one that
+    // can corroborate the verdict and let the control lock.
+    expect(mockRefetchWorkspaceCredentials).toHaveBeenCalled()
+    expect(container.textContent).toContain('Connected Gmail')
+    expect(container.querySelector('a')?.getAttribute('aria-disabled')).toBe('true')
+    openSpy.mockRestore()
+    toastSuccess.mockRestore()
+    act(() => root.unmount())
+  })
+
   it('navigates the tab through the same completion page when the popup is blocked', () => {
     const openSpy = vi.spyOn(window, 'open').mockReturnValue(null)
     const { container, root } = renderCredentialLink({
@@ -814,6 +941,76 @@ describe('CredentialDisplay link tag', () => {
     expect(container.textContent).toContain('GmailConnected')
     expect(container.textContent).toContain('OPENAI_API_KEYSkipped')
     expect(container.querySelector('input')).toBeNull()
+    act(() => root.unmount())
+  })
+
+  it('keeps a typed secret while a sibling row runs its OAuth connect', async () => {
+    // The card's secret drafts live in component state until its Submit, so a
+    // connect that navigates this tab away discards whatever the user already
+    // typed into a sibling row. Running the flow in a popup is what makes the
+    // mixed card safe: this tab is never unloaded, so the draft outlives the
+    // connect — including the re-render its verdict and refetch trigger.
+    const toastSuccess = vi.spyOn(toast, 'success').mockImplementation(() => '')
+    const popup = { focus: vi.fn(), closed: false }
+    const openSpy = vi
+      .spyOn(window, 'open')
+      .mockReturnValue(popup as unknown as ReturnType<typeof window.open>)
+    const container = document.createElement('div')
+    const root: Root = createRoot(container)
+    const onOptionSelect = vi.fn()
+    const data: CredentialItemData[] = [
+      {
+        type: 'link',
+        provider: 'google-email',
+        value:
+          'https://sim.test/api/auth/oauth2/authorize?providerId=google-email&callbackURL=https%3A%2F%2Fsim.test%2Fworkspace%2Fworkspace-1%2Fchat%2Fchat-1',
+      },
+      { type: 'secret_input', name: 'OPENAI_API_KEY' },
+    ]
+    act(() => {
+      root.render(
+        <SpecialTags segment={{ type: 'credential', data }} onOptionSelect={onOptionSelect} />
+      )
+    })
+
+    const secretInput = container.querySelector('input')
+    act(() => {
+      if (!secretInput) return
+      const valueSetter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype,
+        'value'
+      )?.set
+      valueSetter?.call(secretInput, 'sk-test-key')
+      secretInput.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+
+    await act(async () => {
+      container
+        .querySelector('a')
+        ?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+    })
+    const attemptId = new URL(
+      new URL(openSpy.mock.calls[0][0] as string).searchParams.get('callbackURL') ?? ''
+    ).searchParams.get('oauthAttempt') as string
+    await act(async () => {
+      setOAuthChatAttemptStatus(attemptId, 'connected')
+    })
+
+    // The field masks while unfocused, so assert on what the draft is actually
+    // for: submitting it. A mask of the right length is not proof it survived.
+    const submitButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Submit'
+    )
+    await act(async () => {
+      submitButton?.click()
+    })
+
+    expect(mockUpsertWorkspaceEnvironment).toHaveBeenCalledWith({
+      workspaceId: 'workspace-1',
+      variables: { OPENAI_API_KEY: 'sk-test-key' },
+    })
+    openSpy.mockRestore()
+    toastSuccess.mockRestore()
     act(() => root.unmount())
   })
 })

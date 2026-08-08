@@ -28,6 +28,12 @@ import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 const OAUTH_POPUP_WINDOW_NAME = 'sim-oauth-connect'
 /** Matches the MCP OAuth popup (`hooks/mcp/use-mcp-oauth-popup.ts`) so the two consent windows open alike. */
 const OAUTH_POPUP_FEATURES = 'width=560,height=720,resizable=yes,scrollbars=yes'
+/**
+ * How often to re-examine a live popup. Matches the MCP OAuth popup's own
+ * watcher: a closed or terminal window fires no event in the opener, so
+ * polling the handle is the only way to observe it.
+ */
+const OAUTH_POPUP_POLL_INTERVAL_MS = 400
 
 /**
  * Same-origin pages an OAuth flow can die on without ever reaching the return
@@ -266,6 +272,44 @@ export function useOAuthChipConnection({
     })
   }, [activeAttemptId, controlId, providerId, reconnectCredentialId, workspaceId])
 
+  /**
+   * Refetches the workspace credentials and settles this row's pending attempt
+   * against them. Shared by the two endings the completion page cannot cover: a
+   * return to this tab, and a popup seen closed or parked on a terminal page.
+   * Idempotent — an attempt is only rewritten while still `pending`.
+   */
+  const settleFromCredentials = useCallback(async () => {
+    const result = await refetchWorkspaceOAuthCredentials()
+    const credentials = result.data ?? []
+
+    // Also covers a credential connected from another tab, which this row never
+    // launched and query state alone would surface only on its next fetch.
+    const storedBaseline = workspaceCredentialBaselineRef.current
+    if (!reconnectCredentialId && storedBaseline?.scope === credentialScope) {
+      setConnectedFromWorkspaceChange(
+        hasOAuthCredentialChanged({ ...credentialTarget, ...storedBaseline.baseline }, credentials)
+      )
+    }
+
+    // Read after the await: a snapshot taken before it goes stale the moment the
+    // popup publishes its verdict mid-refetch, and that stale 'pending' would
+    // license the very overwrite the guard below exists to prevent.
+    const attempt = readRowAttempt()
+    if (!attempt || attempt.status !== 'pending') return
+    // Only the callback path can prove a reconnect returned — an unrelated edit
+    // to the credential is indistinguishable from one here.
+    const attemptConnected = reconnectCredentialId
+      ? false
+      : hasOAuthCredentialChanged(attempt, credentials)
+    setOAuthChatAttemptStatus(attempt.id, attemptConnected ? 'connected' : 'failed')
+  }, [
+    credentialScope,
+    credentialTarget,
+    readRowAttempt,
+    reconnectCredentialId,
+    refetchWorkspaceOAuthCredentials,
+  ])
+
   useEffect(() => {
     const syncStatus = () => setConnectionStatus(readRowAttempt()?.status ?? null)
     window.addEventListener(OAUTH_CHAT_ATTEMPT_EVENT, syncStatus)
@@ -281,47 +325,19 @@ export function useOAuthChipConnection({
     const markAway = () => {
       oauthWindowWasAwayRef.current = true
     }
-    const verifyAfterReturn = async () => {
+    const verifyAfterReturn = () => {
       if (!oauthWindowWasAwayRef.current || document.visibilityState !== 'visible') return
-      oauthWindowWasAwayRef.current = false
-      const result = await refetchWorkspaceOAuthCredentials()
-      const credentials = result.data ?? []
-
-      // Refetching on every return closes the other-tab gap even when this row
-      // did not launch the connection. Query state normally drives the effect
-      // above; updating here as well makes the result immediate and deterministic.
-      const storedBaseline = workspaceCredentialBaselineRef.current
-      if (!reconnectCredentialId && storedBaseline?.scope === credentialScope) {
-        setConnectedFromWorkspaceChange(
-          hasOAuthCredentialChanged(
-            { ...credentialTarget, ...storedBaseline.baseline },
-            credentials
-          )
-        )
-      }
-
-      // Read the attempt only after the await. A snapshot taken before it goes
-      // stale the moment the popup publishes its verdict mid-refetch, and the
-      // stale 'pending' would license the overwrite this check exists to stop —
-      // deterministically to 'failed' on the reconnect branch below.
-      const attempt = readRowAttempt()
-      if (!attempt || attempt.status !== 'pending') return
-      // Clicking back to this tab while the popup is still on the provider's
-      // consent screen is not a verdict — the flow it owns has not returned
-      // yet, and settling here would flash "not connected" under a connect the
-      // user is midway through. Its own return leg publishes the result.
+      // A live popup still owns the flow; settling now would flash "not
+      // connected" mid-connect. The away flag deliberately survives this bail —
+      // consuming it would spend the only signal a later return has to work
+      // with, and no second focus event is guaranteed to arrive.
       if (isPopupStillOpen(popupRef.current)) return
-      // A reconnect is verified by the callback path, which has proof that the
-      // OAuth flow returned. A plain focus event cannot distinguish it from an
-      // unrelated edit to the same credential.
-      const attemptConnected = reconnectCredentialId
-        ? false
-        : hasOAuthCredentialChanged(attempt, credentials)
-      setOAuthChatAttemptStatus(attempt.id, attemptConnected ? 'connected' : 'failed')
+      oauthWindowWasAwayRef.current = false
+      void settleFromCredentials()
     }
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden') markAway()
-      else void verifyAfterReturn()
+      else verifyAfterReturn()
     }
 
     window.addEventListener('blur', markAway)
@@ -332,13 +348,24 @@ export function useOAuthChipConnection({
       window.removeEventListener('focus', verifyAfterReturn)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
-  }, [
-    credentialScope,
-    credentialTarget,
-    readRowAttempt,
-    reconnectCredentialId,
-    refetchWorkspaceOAuthCredentials,
-  ])
+  }, [settleFromCredentials])
+
+  /**
+   * Watches a live popup for the endings that publish no verdict — a provider
+   * interstitial exiting to the workspace root, a denied consent landing on the
+   * OAuth error page, or the user closing the window. None reach the completion
+   * page or fire an event here, and the user need never leave this tab for a
+   * focus event either, so polling is the only way the row learns it is over.
+   */
+  useEffect(() => {
+    if (connectionStatus !== 'pending' || !popupRef.current) return
+    const poll = window.setInterval(() => {
+      if (isPopupStillOpen(popupRef.current)) return
+      popupRef.current = null
+      void settleFromCredentials()
+    }, OAUTH_POPUP_POLL_INTERVAL_MS)
+    return () => window.clearInterval(poll)
+  }, [connectionStatus, settleFromCredentials])
 
   useEffect(() => {
     if (connected) onConnectedRef.current?.()
@@ -356,10 +383,14 @@ export function useOAuthChipConnection({
     if (connectionStatus !== 'connected' || !popup) return
     const attempt = readOAuthChatAttempt(popup.attemptId)
     popupRef.current = null
+    // The verdict settles the label, but the lock also waits on the credential
+    // being observable. A popup flow never blurs this tab, so nothing else
+    // refetches here and the row would read "Connected" yet stay clickable.
+    void settleFromCredentials()
     if (attempt?.status === 'connected') {
       toast.success(`${attempt.displayName} connected successfully.`)
     }
-  }, [connectionStatus])
+  }, [connectionStatus, settleFromCredentials])
 
   /**
    * Desktop app: OAuth cannot run in an embedded window — not in the app
@@ -374,6 +405,20 @@ export function useOAuthChipConnection({
     (event: React.MouseEvent<HTMLAnchorElement>) => {
       if (!connectUrl || !isFetched || connectedFromAttempt) {
         event.preventDefault()
+        return
+      }
+      // A second click would replace both the active attempt and the window
+      // handle, orphaning the first flow — its verdict lands on an attempt id
+      // the row no longer reads, so a successful connect waits forever. The
+      // live window is the flow; surface it instead of starting a rival one.
+      const livePopup = popupRef.current
+      if (isPopupStillOpen(livePopup)) {
+        event.preventDefault()
+        try {
+          livePopup?.window.focus?.()
+        } catch {
+          // A COOP-severed handle refuses focus, but still owns the flow.
+        }
         return
       }
       const attempt = createOAuthChatAttempt({
