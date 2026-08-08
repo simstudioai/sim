@@ -301,6 +301,11 @@ export function useOAuthChipConnection({
    * Idempotent — an attempt is only rewritten while still `pending`.
    */
   const settleFromCredentials = useCallback(async () => {
+    // Identity is captured up front so the verdict below can only land on the
+    // attempt this settle was started for. A retry during the refetch installs
+    // a replacement, and resolving that one from a run it never triggered would
+    // fail a connect whose popup is still going.
+    const targetAttemptId = readRowAttempt()?.id
     const result = await refetchWorkspaceOAuthCredentials()
     const credentials = result.data ?? []
 
@@ -313,11 +318,11 @@ export function useOAuthChipConnection({
       )
     }
 
-    // Read after the await: a snapshot taken before it goes stale the moment the
-    // popup publishes its verdict mid-refetch, and that stale 'pending' would
-    // license the very overwrite the guard below exists to prevent.
+    // Status is re-read after the await: the snapshot above goes stale the
+    // moment the popup publishes its verdict mid-refetch, and that stale
+    // 'pending' would license the very overwrite this guard exists to prevent.
     const attempt = readRowAttempt()
-    if (!attempt || attempt.status !== 'pending') return
+    if (!attempt || attempt.id !== targetAttemptId || attempt.status !== 'pending') return
     // Only the callback path can prove a reconnect returned — an unrelated edit
     // to the credential is indistinguishable from one here.
     const attemptConnected = reconnectCredentialId
@@ -415,12 +420,18 @@ export function useOAuthChipConnection({
       0,
       OAUTH_POPUP_UNOBSERVABLE_TIMEOUT_MS - (Date.now() - attempt.requestedAt)
     )
-    const deadline = window.setTimeout(() => {
-      // A popup still demonstrably running owns the flow; the watcher settles
-      // it the moment it ends, so there is nothing to bound here.
-      if (isPopupStillOpen(popupRef.current)) return
+    let deadline: number
+    const settleUnlessPopupOwnsIt = () => {
+      // A popup still demonstrably running owns the flow, so the deadline waits
+      // rather than expiring: giving up here would spend the bound on a live
+      // window that can still die unobservably long afterwards.
+      if (isPopupStillOpen(popupRef.current)) {
+        deadline = window.setTimeout(settleUnlessPopupOwnsIt, OAUTH_POPUP_POLL_INTERVAL_MS)
+        return
+      }
       void settleFromCredentials()
-    }, remaining)
+    }
+    deadline = window.setTimeout(settleUnlessPopupOwnsIt, remaining)
     return () => window.clearTimeout(deadline)
   }, [connectionStatus, readRowAttempt, settleFromCredentials])
 

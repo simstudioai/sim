@@ -591,6 +591,53 @@ describe('CredentialDisplay link tag', () => {
     act(() => root.unmount())
   })
 
+  it('holds the deadline open while the popup is live, then settles once it is not', async () => {
+    // A consent screen can outlive the safety timeout. Expiring against a live
+    // window would spend the bound early and leave nothing to catch the popup
+    // dying unobservably later, so the deadline waits instead of firing.
+    vi.useFakeTimers()
+    const popup = {
+      focus: vi.fn(),
+      closed: false,
+      // Still on the provider's pages: reading location across origins throws.
+      get location(): Location {
+        throw new DOMException('cross-origin', 'SecurityError')
+      },
+    }
+    const openSpy = vi
+      .spyOn(window, 'open')
+      .mockReturnValue(popup as unknown as ReturnType<typeof window.open>)
+    const { container, root } = renderCredentialLink({
+      type: 'link',
+      provider: 'google-email',
+      value:
+        'https://sim.test/api/auth/oauth2/authorize?providerId=google-email&callbackURL=https%3A%2F%2Fsim.test%2Fworkspace%2Fworkspace-1%2Fchat%2Fchat-1',
+    })
+
+    await act(async () => {
+      container
+        .querySelector('a')
+        ?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(11 * 60 * 1000)
+    })
+
+    expect(container.textContent).toContain('Waiting for Gmail connection')
+
+    // Dies unobservably well after the original deadline — the watcher releases
+    // the handle without a verdict, so only a still-armed deadline can settle.
+    popup.closed = true
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000)
+    })
+
+    expect(container.textContent).toContain('Not connected — connect Gmail')
+    vi.useRealTimers()
+    openSpy.mockRestore()
+    act(() => root.unmount())
+  })
+
   it('keeps the unobservable deadline across a remount', async () => {
     // The transcript virtualizes, so a row can scroll away mid-connect and come
     // back with no window handle and no blur behind it. The deadline is derived
