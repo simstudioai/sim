@@ -256,7 +256,9 @@ export function BlockMenu({
             Add Image
           </PopoverItem>
         )}
-        {isSingleBlock && (
+        {/* Not for a note: the panel editor renders nothing for one and clears
+            it again, so the item would open an empty editor. */}
+        {isSingleBlock && !allNoteBlocks && (
           <PopoverItem
             onClick={() => {
               onOpenEditor()

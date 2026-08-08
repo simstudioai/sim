@@ -11,11 +11,12 @@ import {
 } from '@sim/workflow-renderer'
 import dynamic from 'next/dynamic'
 import { type NodeProps, useReactFlow } from 'reactflow'
+import { appendNoteImageMarkdown } from '@/lib/workflows/notes/add-image'
 import {
-  appendNoteImageMarkdown,
   NOTE_ADD_IMAGE_EVENT,
-  type NoteAddImageDetail,
-} from '@/lib/workflows/notes/add-image'
+  NOTE_RENAME_EVENT,
+  type NoteBlockRequestDetail,
+} from '@/lib/workflows/notes/canvas-requests'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ActionBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/action-bar/action-bar'
 import { useNoteImageUpload } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/note-block/use-note-image-upload'
@@ -111,6 +112,7 @@ export const NoteBlock = memo(function NoteBlock({
   const [blockHeight, setBlockHeight] = useState(() => estimateNoteBlockHeight(content))
   const [isExpanded, setIsExpanded] = useState(false)
   const [externalContentWrites, setExternalContentWrites] = useState(0)
+  const [renameRequests, setRenameRequests] = useState(0)
   const isFocused = selected
 
   /* Collapsed during render rather than in an effect: losing edit rights while
@@ -149,7 +151,7 @@ export const NoteBlock = memo(function NoteBlock({
   useEffect(() => {
     if (!canEditNote) return
     const handleAddImage = (event: Event) => {
-      const detail = (event as CustomEvent<NoteAddImageDetail>).detail
+      const detail = (event as CustomEvent<NoteBlockRequestDetail>).detail
       if (detail?.blockId !== id) return
       imageInputRef.current?.click()
     }
@@ -222,6 +224,24 @@ export const NoteBlock = memo(function NoteBlock({
   )
 
   /**
+   * "Rename" from the canvas context menu. The panel editor is not an option —
+   * it clears any note put in front of it and renders nothing — so the card's
+   * own title is the rename surface. That title is only reachable once the card
+   * is expanded, which is why this expands first and asks second.
+   */
+  useEffect(() => {
+    if (!canEditNote) return
+    const handleRename = (event: Event) => {
+      const detail = (event as CustomEvent<NoteBlockRequestDetail>).detail
+      if (detail?.blockId !== id) return
+      handleExpandedChange(true)
+      setRenameRequests((count) => count + 1)
+    }
+    window.addEventListener(NOTE_RENAME_EVENT, handleRename)
+    return () => window.removeEventListener(NOTE_RENAME_EVENT, handleRename)
+  }, [canEditNote, handleExpandedChange, id])
+
+  /**
    * Calculate deterministic dimensions based on content structure. Uses fixed
    * width and computed height to avoid ResizeObserver jitter.
    */
@@ -267,6 +287,7 @@ export const NoteBlock = memo(function NoteBlock({
         onNameChange={handleNameChange}
         onContentChange={handleContentChange}
         externalContentWrites={externalContentWrites}
+        externalRenameRequests={renameRequests}
         onHeightChange={setBlockHeight}
         onExpandedChange={handleExpandedChange}
         onImageFilesDrop={(files) => void insertImages(files)}

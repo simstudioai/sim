@@ -1,12 +1,11 @@
 /**
  * @vitest-environment jsdom
  *
- * The two halves of "drag an image from Finder onto a note".
+ * What the card has to handle itself, because nothing else can.
  *
- * Picking a file up in another app blurs the browser window, and the note's exit-on-blur read that
- * as a decision to stop editing — so the editor was already gone by the time the drop landed. The
- * card itself then had no drop handling at all, so the file fell through to the canvas, which
- * swallows it. Either one alone is enough to make the gesture do nothing.
+ * A note has no panel editor — one put in front of it is cleared and nothing renders — so every
+ * action the canvas offers has to land on the card, and every one of these was reaching a surface
+ * that had already gone away by the time it arrived.
  */
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
@@ -51,32 +50,46 @@ afterEach(() => {
 interface RenderOptions {
   onImageFilesDrop?: (files: File[]) => void
   canEdit?: boolean
+  isExpanded?: boolean
+  renameRequests?: number
 }
 
-function renderNote({ onImageFilesDrop, canEdit = true }: RenderOptions = {}): HTMLDivElement {
+function noteElement({
+  onImageFilesDrop,
+  canEdit = true,
+  isExpanded = true,
+  renameRequests = 0,
+}: RenderOptions) {
+  return (
+    <NoteBlockView
+      name='Note'
+      content='hello'
+      isEnabled
+      isFocused
+      isExpanded={isExpanded}
+      canEdit={canEdit}
+      hasRing={false}
+      ringStyles=''
+      onSelect={() => undefined}
+      onContentChange={() => undefined}
+      onImageFilesDrop={onImageFilesDrop}
+      externalRenameRequests={renameRequests}
+      renderContentEditor={renderTestContentEditor}
+    />
+  )
+}
+
+function renderNote(options: RenderOptions = {}): HTMLDivElement {
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   host = document.createElement('div')
   document.body.appendChild(host)
   root = createRoot(host)
-  act(() =>
-    root?.render(
-      <NoteBlockView
-        name='Note'
-        content='hello'
-        isEnabled
-        isFocused
-        isExpanded
-        canEdit={canEdit}
-        hasRing={false}
-        ringStyles=''
-        onSelect={() => undefined}
-        onContentChange={() => undefined}
-        onImageFilesDrop={onImageFilesDrop}
-        renderContentEditor={renderTestContentEditor}
-      />
-    )
-  )
+  act(() => root?.render(noteElement(options)))
   return host
+}
+
+function rerenderNote(options: RenderOptions): void {
+  act(() => root?.render(noteElement(options)))
 }
 
 function noteCard(container: HTMLDivElement): HTMLElement {
@@ -177,6 +190,35 @@ describe('note image drop', () => {
     })
 
     expect(onImageFilesDrop).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * The canvas context menu's "Rename" used to run through the panel editor, which clears any note
+ * put in front of it and renders nothing — so the rename latched onto a block that editor never
+ * showed, and the name landed on whatever was selected next. The card renames itself instead.
+ */
+describe('note rename requested from the canvas', () => {
+  it('opens the title for editing', () => {
+    renderNote({ renameRequests: 0 })
+    rerenderNote({ renameRequests: 1 })
+
+    const title = host?.querySelector<HTMLInputElement>('[aria-label="Note title"]')
+    expect(title).not.toBeNull()
+    expect(title?.value).toBe('Note')
+  })
+
+  it('does not reopen the title on an unrelated re-render', () => {
+    renderNote({ renameRequests: 1 })
+
+    expect(host?.querySelector('[aria-label="Note title"]')).toBeNull()
+  })
+
+  it('ignores the request without edit permission', () => {
+    renderNote({ canEdit: false, renameRequests: 0 })
+    rerenderNote({ canEdit: false, renameRequests: 1 })
+
+    expect(host?.querySelector('[aria-label="Note title"]')).toBeNull()
   })
 })
 

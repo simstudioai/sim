@@ -352,6 +352,22 @@ export function Editor() {
   }, [registerRenameCallback, handleStartRename])
 
   /**
+   * Drops a rename whose block the panel is no longer showing.
+   *
+   * `renamingBlockIdRef` decides what {@link handleSaveRename} writes, and the
+   * header keeps rendering the input regardless of which block is selected — so
+   * a rename left running across a selection change puts one block's name in
+   * front of another and saves it to the first. Nothing else ends a rename on
+   * selection: the input's blur only fires if it held focus.
+   */
+  useEffect(() => {
+    if (!renamingBlockIdRef.current || renamingBlockIdRef.current === currentBlockId) return
+    renamingBlockIdRef.current = null
+    setIsRenaming(false)
+    setEditedName('')
+  }, [currentBlockId])
+
+  /**
    * Handles opening documentation link in a new secure tab.
    */
   const handleOpenDocs = useCallback(() => {

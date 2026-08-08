@@ -348,6 +348,14 @@ export interface NoteBlockViewProps {
    * that stale document straight over the host's write.
    */
   externalContentWrites?: number
+  /**
+   * A count of rename requests the host has made from outside the card — the
+   * canvas context menu's "Rename" is the only one today. The card is the only
+   * surface that can rename a note (the panel editor renders nothing for one),
+   * and its title is only clickable once expanded, so the host expands the card
+   * and bumps this together.
+   */
+  externalRenameRequests?: number
   /** Publishes the measured, clamped canvas height to the editor container. */
   onHeightChange?: (height: number) => void
   onExpandedChange?: (expanded: boolean) => void
@@ -388,6 +396,7 @@ export function NoteBlockView({
   onNameChange,
   onContentChange,
   externalContentWrites = 0,
+  externalRenameRequests = 0,
   onHeightChange,
   onExpandedChange,
   onImageFilesDrop,
@@ -438,6 +447,21 @@ export function NoteBlockView({
   useEffect(() => {
     setEditingField((field) => (field === 'content' ? null : field))
   }, [externalContentWrites])
+
+  /*
+   * Opens the title on the host's request. Declared after the guard above so it
+   * wins within the same commit: the host expands the card and bumps the count
+   * together, and the guard would otherwise clear the field it just set. The
+   * zero check skips the mount run, which is not a request.
+   */
+  const requestedRenameRef = useRef(externalRenameRequests)
+  useEffect(() => {
+    if (externalRenameRequests === requestedRenameRef.current) return
+    requestedRenameRef.current = externalRenameRequests
+    if (!isInlineEditable) return
+    setDraftName(name ?? '')
+    setEditingField('title')
+  }, [externalRenameRequests, isInlineEditable, name])
 
   useEffect(() => {
     if (!isExpanded || !onExpandedChange) return

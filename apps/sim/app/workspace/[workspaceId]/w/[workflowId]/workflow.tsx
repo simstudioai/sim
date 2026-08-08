@@ -41,7 +41,7 @@ import type { OAuthConnectEventDetail } from '@/lib/copilot/tools/client/base-to
 import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import type { OAuthProvider } from '@/lib/oauth'
 import { getDefaultBlockName } from '@/lib/workflows/blocks/canvas-presentation'
-import { requestNoteImage } from '@/lib/workflows/notes/add-image'
+import { requestNoteImage, requestNoteRename } from '@/lib/workflows/notes/canvas-requests'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -1441,10 +1441,17 @@ const WorkflowContent = React.memo(
     }, [contextMenuBlocks])
 
     const handleContextRename = useCallback(() => {
-      if (contextMenuBlocks.length === 1) {
-        usePanelEditorStore.getState().setCurrentBlockId(contextMenuBlocks[0].id)
-        usePanelEditorStore.getState().triggerRename()
+      if (contextMenuBlocks.length !== 1) return
+      const block = contextMenuBlocks[0]
+      /* A note renames itself on the card. Routing it through the panel editor
+         would latch that editor's rename onto a block it refuses to show, and
+         the name would then be applied over whatever was selected next. */
+      if (block.type === 'note') {
+        requestNoteRename(block.id)
+        return
       }
+      usePanelEditorStore.getState().setCurrentBlockId(block.id)
+      usePanelEditorStore.getState().triggerRename()
     }, [contextMenuBlocks])
 
     const handleContextRunFromBlock = useCallback(() => {
