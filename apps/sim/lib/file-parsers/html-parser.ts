@@ -135,6 +135,20 @@ export class HtmlParser implements FileParser {
         },
       }
     } catch (error) {
+      /**
+       * Every `RangeError` reachable here is resource exhaustion the pre-parse
+       * caps cannot predict: a stack overflow inside cheerio's recursive
+       * `.text()` on deeply nested markup, or an over-long string from joining
+       * the extracted parts. Both must stay fail-closed rather than degrade to
+       * the route's raw-text fallback.
+       */
+      if (error instanceof RangeError) {
+        logger.warn('HTML document exhausted parser resources:', error)
+        throw new HtmlComplexityError(
+          `HTML document could not be extracted within resource limits: ${error.message}`
+        )
+      }
+
       logger.error('HTML buffer parsing error:', error)
       throw new Error(`Failed to parse HTML buffer: ${getErrorMessage(error, 'Unknown error')}`)
     }

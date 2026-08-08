@@ -40,16 +40,17 @@ describe('HtmlParser', () => {
 
     /**
      * Deep nesting overflows the stack inside cheerio's own recursive `.text()`,
-     * which the caps cannot pre-empt. A `RangeError` is catchable, so it must
-     * surface as a rejected promise rather than take the process down.
+     * which the pre-parse caps cannot predict. It still has to be classified as
+     * a resource rejection so callers fail closed rather than fall back to
+     * storing the document as raw text.
      */
-    it('surfaces deeply nested markup as a catchable error, not a crash', async () => {
+    it('classifies a deep-nesting stack overflow as a complexity rejection', async () => {
       const depth = 15_000
       const buffer = Buffer.from(
         `<html><body>${'<div>'.repeat(depth)}deep${'</div>'.repeat(depth)}</body></html>`
       )
 
-      await expect(parser.parseBuffer(buffer)).rejects.toThrow(/Failed to parse HTML buffer/)
+      await expect(parser.parseBuffer(buffer)).rejects.toThrow(HtmlComplexityError)
     })
   })
 
