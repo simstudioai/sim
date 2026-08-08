@@ -1,36 +1,20 @@
 import { Readable } from 'node:stream'
 import { createLogger } from '@sim/logger'
 import { ZipArchive } from 'archiver'
-import { NextResponse } from 'next/server'
 import { downloadWorkspaceFileItemsContract } from '@/lib/api/contracts/workspace-file-folders'
 import {
   defineInternalBinaryRoute,
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
-import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { nodeReadableToWebStream } from '@/lib/core/utils/node-stream'
-import { captureServerEvent } from '@/lib/posthog/server'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { downloadFileStream } from '@/lib/uploads/core/storage-service'
 import { buildZipEntryPaths } from '@/lib/uploads/zip-entry-path'
+import { internalFileAnalytics, internalFileErrorPolicies } from '@/lib/workspace-files/api'
 import { downloadWorkspaceFileItems } from '@/lib/workspace-files/application/download-workspace-file-items'
 
 const logger = createLogger('WorkspaceFilesDownloadAPI')
-
-const downloadErrorPolicy = {
-  render(error: unknown): NextResponse | null {
-    const classified = asOrchestrationError(error)
-    if (classified) {
-      return NextResponse.json(
-        { error: classified.message },
-        { status: statusForOrchestrationError(classified.code) }
-      )
-    }
-    logger.error('Failed to download workspace file selection', { error })
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-  },
-}
 
 function lazyWorkspaceFileStream(file: WorkspaceFileRecord): Readable {
   return Readable.from(
@@ -49,21 +33,14 @@ export const GET = defineInternalBinaryRoute({
   auth: internalSessionAuth,
   operation: downloadWorkspaceFileItems.operation,
   rateLimit: internalRateLimits.none({ reason: 'Internal workspace zip download' }),
-  errorPolicy: downloadErrorPolicy,
+  errorPolicy: internalFileErrorPolicies.downloadArchive,
   mapInput: ({ params, query }) => ({
     workspaceId: params.id,
     fileIds: query.fileIds,
     folderIds: query.folderIds,
   }),
   useCase: downloadWorkspaceFileItems,
-  onSuccess: ({ principal, input, result }) => {
-    captureServerEvent(
-      principal.userId,
-      'file_downloaded',
-      { workspace_id: input.workspaceId, is_bulk: true, file_count: result.filesToZip.length },
-      { groups: { workspace: input.workspaceId } }
-    )
-  },
+  onSuccess: internalFileAnalytics.bulkDownloaded,
   present: ({ filesToZip, folderPaths, renderedDocuments }) => {
     const entryPaths = buildZipEntryPaths(
       filesToZip.map((file) => ({

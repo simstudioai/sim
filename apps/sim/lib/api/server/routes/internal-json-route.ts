@@ -1,17 +1,22 @@
 import type { DelegatedPrincipal, Principal, SessionPrincipal } from '@sim/auth/principal'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
+import type { ContractJsonResponse } from '@/lib/api/contracts'
 import { requireJsonRouteDefinition } from '@/lib/api/server/routes/definition'
 import type {
   JsonApiRouteContract,
+  JsonErrorResponseDescriptor,
   JsonNextRouteHandler,
   JsonRouteContext,
-  JsonRouteDefinition,
 } from '@/lib/api/server/routes/types'
-import { type ParseRequestOptions, parseRequest } from '@/lib/api/server/validation'
+import {
+  type ParsedRequest,
+  type ParseRequestOptions,
+  parseRequest,
+} from '@/lib/api/server/validation'
 import { getSession } from '@/lib/auth'
 import { verifyInternalToken } from '@/lib/auth/internal'
-import type { ApplicationOperation } from '@/lib/core/application'
+import type { ApplicationOperation, OperationUseCase } from '@/lib/core/application'
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
@@ -74,34 +79,65 @@ export const internalRateLimits = {
 } as const
 
 export interface InternalErrorPolicy {
-  render(error: unknown): NextResponse | null
-  unhandled?(): NextResponse
+  project(error: unknown): JsonErrorResponseDescriptor | null
+  unhandled?(): JsonErrorResponseDescriptor
 }
 
 export const internalOrchestrationErrorPolicy: InternalErrorPolicy = {
-  render(error) {
+  project(error) {
     const classified = asOrchestrationError(error)
     if (!classified) return null
-    return NextResponse.json(
-      { success: false, error: classified.message },
-      { status: statusForOrchestrationError(classified.code) }
-    )
+    return internalErrorResponse(statusForOrchestrationError(classified.code), {
+      success: false,
+      error: classified.message,
+    })
   },
 }
 
 export const internalPlainOrchestrationErrorPolicy: InternalErrorPolicy = {
-  render(error) {
+  project(error) {
     const classified = asOrchestrationError(error)
     if (!classified) return null
-    return NextResponse.json(
-      { error: classified.message },
-      { status: statusForOrchestrationError(classified.code) }
-    )
+    return internalErrorResponse(statusForOrchestrationError(classified.code), {
+      error: classified.message,
+    })
   },
   unhandled() {
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return internalErrorResponse(500, { error: 'Internal server error' })
   },
 }
+
+export function internalErrorResponse(
+  status: number,
+  body: unknown,
+  headers?: HeadersInit
+): JsonErrorResponseDescriptor {
+  if (!Number.isInteger(status) || status < 400 || status >= 600) {
+    throw new Error(`Internal error responses require a 4xx or 5xx status, received ${status}`)
+  }
+  return { body, status, headers }
+}
+
+export function extendInternalErrorPolicy(
+  base: InternalErrorPolicy,
+  project: (error: unknown) => JsonErrorResponseDescriptor | null
+): InternalErrorPolicy {
+  return {
+    project(error) {
+      return project(error) ?? base.project(error)
+    },
+    unhandled: base.unhandled,
+  }
+}
+
+export const internalJsonPresenters = {
+  withSuccess<R extends object>(result: R) {
+    return { ...result, success: true as const }
+  },
+  successFrom<K extends string>(key: K) {
+    return <R extends Record<K, boolean>>(result: R) => ({ success: result[key] })
+  },
+} as const
 
 export interface InternalAuthPolicy<P extends Principal> {
   authenticate(
@@ -110,13 +146,27 @@ export interface InternalAuthPolicy<P extends Principal> {
   ): Promise<P>
 }
 
-interface InternalJsonRouteOptions<
+type InternalJsonPresenter<C extends JsonApiRouteContract, R> = [R] extends [
+  ContractJsonResponse<C>,
+]
+  ? {
+      present?(result: NoInfer<R>): ContractJsonResponse<C> | Promise<ContractJsonResponse<C>>
+    }
+  : {
+      present(result: NoInfer<R>): ContractJsonResponse<C> | Promise<ContractJsonResponse<C>>
+    }
+
+type InternalJsonRouteOptions<
   C extends JsonApiRouteContract,
   O extends ApplicationOperation,
   I,
   R,
   P extends Principal,
-> extends JsonRouteDefinition<C, O, I, R> {
+> = {
+  contract: C
+  operation: O
+  mapInput(input: ParsedRequest<C>): I
+  useCase: OperationUseCase<NoInfer<O>, I, R>
   auth: InternalAuthPolicy<P>
   rateLimit: InternalRateLimitPolicy
   errorPolicy: InternalErrorPolicy
@@ -126,8 +176,15 @@ interface InternalJsonRouteOptions<
     principal: P
     params: Record<string, string | string[] | undefined>
   }): void | Promise<void>
-  onSuccess?(args: { principal: P; input: I; result: R }): void | Promise<void>
-  responseHeaders?(args: { principal: P; input: I; result: R }): HeadersInit
+  onSuccess?(args: { principal: P; input: NoInfer<I>; result: NoInfer<R> }): void | Promise<void>
+  responseHeaders?(args: { principal: P; input: NoInfer<I>; result: NoInfer<R> }): HeadersInit
+} & InternalJsonPresenter<C, R>
+
+function createJsonErrorResponse(descriptor: JsonErrorResponseDescriptor): NextResponse {
+  return NextResponse.json(descriptor.body, {
+    status: descriptor.status,
+    headers: descriptor.headers,
+  })
 }
 
 export function defineInternalJsonRoute<
@@ -167,8 +224,8 @@ export function defineInternalJsonRoute<
         try {
           await options.beforeParse({ request, principal, params: rawParams })
         } catch (error) {
-          const response = options.errorPolicy.render(error)
-          if (response) return response
+          const response = options.errorPolicy.project(error)
+          if (response) return createJsonErrorResponse(response)
           throw error
         }
       }
@@ -188,7 +245,7 @@ export function defineInternalJsonRoute<
           request,
         })
         await options.onSuccess?.({ principal, input, result })
-        const body = await options.present(result)
+        const body = options.present ? await options.present(result) : result
         const responseSchema = options.contract.response
         if (responseSchema.mode !== 'json') {
           throw new Error('Internal JSON route response mode changed after initialization')
@@ -199,15 +256,20 @@ export function defineInternalJsonRoute<
           headers: options.responseHeaders?.({ principal, input, result }),
         })
       } catch (error) {
-        const response = options.errorPolicy.render(error)
-        if (response) return response
+        const response = options.errorPolicy.project(error)
+        if (response) return createJsonErrorResponse(response)
         throw error
       }
     },
     {
       unhandledErrorResponse: () =>
-        options.errorPolicy.unhandled?.() ??
-        NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 }),
+        createJsonErrorResponse(
+          options.errorPolicy.unhandled?.() ??
+            internalErrorResponse(500, {
+              success: false,
+              error: 'Internal server error',
+            })
+        ),
     }
   )
 

@@ -1,37 +1,23 @@
-import { NextResponse } from 'next/server'
 import { workspaceFileStyleContract } from '@/lib/api/contracts/workspace-files'
 import {
   defineInternalJsonRoute,
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
-import { internalPlainFileErrorPolicy } from '@/lib/workspace-files/api'
-import {
-  StyleExtractionUnsupportedError,
-  styleWorkspaceFile,
-} from '@/lib/workspace-files/application/style-workspace-file'
+import { internalFileErrorPolicies, internalFilePresenters } from '@/lib/workspace-files/api'
+import { styleWorkspaceFile } from '@/lib/workspace-files/application/style-workspace-file'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
-
-const styleErrorPolicy = {
-  ...internalPlainFileErrorPolicy,
-  render(error: unknown) {
-    if (error instanceof StyleExtractionUnsupportedError) {
-      return NextResponse.json({ error: error.message }, { status: 422 })
-    }
-    return internalPlainFileErrorPolicy.render(error)
-  },
-}
 
 export const GET = defineInternalJsonRoute({
   contract: workspaceFileStyleContract,
   auth: internalSessionAuth,
   operation: styleWorkspaceFile.operation,
   rateLimit: internalRateLimits.none({ reason: 'Preserve existing internal style behavior' }),
-  errorPolicy: styleErrorPolicy,
+  errorPolicy: internalFileErrorPolicies.style,
   mapInput: ({ params }) => ({ fileId: params.fileId, assertedWorkspaceId: params.id }),
   useCase: styleWorkspaceFile,
-  present: (result) => workspaceFileStyleContract.response.schema.parse(result),
+  present: internalFilePresenters.style,
   responseHeaders: () => ({ 'Cache-Control': 'private, max-age=300' }),
 })

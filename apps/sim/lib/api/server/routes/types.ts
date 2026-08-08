@@ -30,6 +30,12 @@ export interface BinaryResponseDescriptor {
   headers?: HeadersInit
 }
 
+export interface JsonErrorResponseDescriptor {
+  body: unknown
+  status: number
+  headers?: HeadersInit
+}
+
 export interface JsonRouteDefinition<
   C extends JsonApiRouteContract,
   O extends ApplicationOperation,

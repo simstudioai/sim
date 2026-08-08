@@ -1,45 +1,14 @@
-import { createLogger } from '@sim/logger'
-import type { NextResponse } from 'next/server'
 import { getInlineWorkspaceFileContract } from '@/lib/api/contracts/workspace-files'
 import {
   defineInternalBinaryRoute,
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
-import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
+import { internalFileErrorPolicies } from '@/lib/workspace-files/api'
 import { readWorkspaceInlineFile } from '@/lib/workspace-files/application/read-workspace-inline-file'
-import {
-  createErrorResponse,
-  encodeFilenameForHeader,
-  FileNotFoundError,
-  getSecureFileHeaders,
-} from '@/app/api/files/utils'
+import { encodeFilenameForHeader, getSecureFileHeaders } from '@/app/api/files/utils'
 
 export const dynamic = 'force-dynamic'
-
-const logger = createLogger('WorkspaceInlineFileAPI')
-
-const inlineFileErrorPolicy: { render(error: unknown): NextResponse | null } = {
-  render(error): NextResponse | null {
-    const classified = asOrchestrationError(error)
-    if (classified) {
-      if (classified.code === 'not_found' || classified.code === 'forbidden') {
-        return createErrorResponse(new FileNotFoundError('Not found'))
-      }
-      return createErrorResponse(
-        new Error(classified.message),
-        statusForOrchestrationError(classified.code)
-      )
-    }
-    if (error instanceof Error) {
-      logger.error('Error serving workspace inline image', { error })
-      return createErrorResponse(error)
-    }
-    const fallback = new Error('Failed to serve file')
-    logger.error('Error serving workspace inline image', { error })
-    return createErrorResponse(fallback)
-  },
-}
 
 /**
  * GET /api/workspaces/[id]/files/inline?key=<cloudKey>|fileId=<id>
@@ -53,7 +22,7 @@ export const GET = defineInternalBinaryRoute({
   auth: internalSessionAuth,
   operation: readWorkspaceInlineFile.operation,
   rateLimit: internalRateLimits.none({ reason: 'Internal workspace inline image delivery' }),
-  errorPolicy: inlineFileErrorPolicy,
+  errorPolicy: internalFileErrorPolicies.inline,
   mapInput: ({ params, query }) => ({
     workspaceId: params.id,
     key: query.key,

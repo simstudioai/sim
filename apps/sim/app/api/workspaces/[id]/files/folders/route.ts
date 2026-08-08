@@ -4,11 +4,11 @@ import {
 } from '@/lib/api/contracts/workspace-file-folders'
 import {
   defineInternalJsonRoute,
+  internalJsonPresenters,
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
-import { captureServerEvent } from '@/lib/posthog/server'
-import { internalFileErrorPolicy } from '@/lib/workspace-files/api'
+import { internalFileAnalytics, internalFileErrorPolicies } from '@/lib/workspace-files/api'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import {
   createWorkspaceFileFolderOperation,
@@ -22,10 +22,10 @@ export const GET = defineInternalJsonRoute({
   rateLimit: internalRateLimits.none({
     reason: 'Preserve existing internal folder listing behavior',
   }),
-  errorPolicy: internalFileErrorPolicy,
+  errorPolicy: internalFileErrorPolicies.default,
   mapInput: ({ params, query }) => ({ workspaceId: params.id, scope: query.scope }),
   useCase: listWorkspaceFileFoldersOperation,
-  present: ({ folders }) => ({ success: true, folders }),
+  present: internalJsonPresenters.withSuccess,
 })
 
 export const POST = defineInternalJsonRoute({
@@ -35,20 +35,13 @@ export const POST = defineInternalJsonRoute({
   rateLimit: internalRateLimits.none({
     reason: 'Preserve existing internal folder creation behavior',
   }),
-  errorPolicy: internalFileErrorPolicy,
+  errorPolicy: internalFileErrorPolicies.default,
   mapInput: ({ params, body }) => ({
     workspaceId: params.id,
     name: body.name,
     parentId: body.parentId,
   }),
   useCase: createWorkspaceFileFolderOperation,
-  onSuccess: ({ principal, input }) => {
-    captureServerEvent(
-      principal.userId,
-      'folder_created',
-      { workspace_id: input.workspaceId },
-      { groups: { workspace: input.workspaceId } }
-    )
-  },
-  present: ({ folder }) => ({ success: true, folder }),
+  onSuccess: internalFileAnalytics.folderCreated,
+  present: internalJsonPresenters.withSuccess,
 })

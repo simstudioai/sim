@@ -1,7 +1,5 @@
 import {
   createInternalSessionOrServiceAuth,
-  internalOrchestrationErrorPolicy,
-  internalPlainOrchestrationErrorPolicy,
   type V2ErrorPolicy,
   v2OrchestrationErrorPolicy,
 } from '@/lib/api/server/routes'
@@ -23,9 +21,6 @@ export const internalSessionOrServiceAuth = createInternalSessionOrServiceAuth(
     })
   }
 )
-
-export const internalFileErrorPolicy = internalOrchestrationErrorPolicy
-export const internalPlainFileErrorPolicy = internalPlainOrchestrationErrorPolicy
 
 export const v2FileErrorPolicies = {
   default: v2OrchestrationErrorPolicy,

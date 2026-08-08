@@ -4,11 +4,11 @@ import {
 } from '@/lib/api/contracts/workspace-file-folders'
 import {
   defineInternalJsonRoute,
+  internalJsonPresenters,
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
-import { captureServerEvent } from '@/lib/posthog/server'
-import { internalFileErrorPolicy } from '@/lib/workspace-files/api'
+import { internalFileAnalytics, internalFileErrorPolicies } from '@/lib/workspace-files/api'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import {
   deleteWorkspaceFileFolderOperation,
@@ -22,18 +22,11 @@ export const PATCH = defineInternalJsonRoute({
   rateLimit: internalRateLimits.none({
     reason: 'Preserve existing internal folder update behavior',
   }),
-  errorPolicy: internalFileErrorPolicy,
+  errorPolicy: internalFileErrorPolicies.default,
   mapInput: ({ params, body }) => ({ workspaceId: params.id, folderId: params.folderId, ...body }),
   useCase: updateWorkspaceFileFolderOperation,
-  onSuccess: ({ principal, input }) => {
-    captureServerEvent(
-      principal.userId,
-      'folder_renamed',
-      { workspace_id: input.workspaceId },
-      { groups: { workspace: input.workspaceId } }
-    )
-  },
-  present: ({ folder }) => ({ success: true, folder }),
+  onSuccess: internalFileAnalytics.folderRenamed,
+  present: internalJsonPresenters.withSuccess,
 })
 
 export const DELETE = defineInternalJsonRoute({
@@ -43,16 +36,9 @@ export const DELETE = defineInternalJsonRoute({
   rateLimit: internalRateLimits.none({
     reason: 'Preserve existing internal folder deletion behavior',
   }),
-  errorPolicy: internalFileErrorPolicy,
+  errorPolicy: internalFileErrorPolicies.default,
   mapInput: ({ params }) => ({ workspaceId: params.id, folderId: params.folderId }),
   useCase: deleteWorkspaceFileFolderOperation,
-  onSuccess: ({ principal, input }) => {
-    captureServerEvent(
-      principal.userId,
-      'folder_deleted',
-      { workspace_id: input.workspaceId },
-      { groups: { workspace: input.workspaceId } }
-    )
-  },
-  present: ({ deletedItems }) => ({ success: true, deletedItems }),
+  onSuccess: internalFileAnalytics.folderDeleted,
+  present: internalJsonPresenters.withSuccess,
 })

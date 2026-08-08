@@ -7,9 +7,12 @@ import {
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
-import { captureServerEvent } from '@/lib/posthog/server'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
-import { internalFileErrorPolicy } from '@/lib/workspace-files/api'
+import {
+  internalFileAnalytics,
+  internalFileErrorPolicies,
+  internalFilePresenters,
+} from '@/lib/workspace-files/api'
 import { createWorkspaceFile } from '@/lib/workspace-files/application/create-workspace-file'
 import { listAllWorkspaceFiles } from '@/lib/workspace-files/application/list-workspace-files'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
@@ -23,13 +26,10 @@ export const GET = defineInternalJsonRoute({
   auth: internalSessionAuth,
   operation: fileOperations.list,
   rateLimit: internalRateLimits.none({ reason: 'Preserve existing internal file-list behavior' }),
-  errorPolicy: internalFileErrorPolicy,
+  errorPolicy: internalFileErrorPolicies.default,
   mapInput: ({ params, query }) => ({ workspaceId: params.id, scope: query.scope }),
   useCase: listAllWorkspaceFiles,
-  present: ({ files }) => ({
-    success: true,
-    files: files.map((file) => ({ ...file, folderId: file.folderId ?? null })),
-  }),
+  present: internalFilePresenters.successFiles,
 })
 
 /** POST /api/workspaces/[id]/files — Create an authored workspace file. */
@@ -38,7 +38,7 @@ export const POST = defineInternalJsonRoute({
   auth: internalSessionAuth,
   operation: fileOperations.create,
   rateLimit: internalRateLimits.none({ reason: 'Preserve existing internal file-create behavior' }),
-  errorPolicy: internalFileErrorPolicy,
+  errorPolicy: internalFileErrorPolicies.default,
   parseOptions: { maxBodyBytes: MAX_WORKSPACE_FILE_INLINE_BODY_BYTES },
   beforeParse: async ({ principal, params }) => {
     if (typeof params.id === 'string') await createWorkspaceFile.admit(principal, params.id)
@@ -53,13 +53,6 @@ export const POST = defineInternalJsonRoute({
     exactName: false,
   }),
   useCase: createWorkspaceFile,
-  onSuccess: ({ principal, result }) => {
-    captureServerEvent(
-      principal.userId,
-      'file_uploaded',
-      { workspace_id: result.file.workspaceId, file_type: result.file.type },
-      { groups: { workspace: result.file.workspaceId } }
-    )
-  },
-  present: ({ file }) => ({ success: true, file: { ...file, folderId: file.folderId ?? null } }),
+  onSuccess: internalFileAnalytics.uploaded,
+  present: internalFilePresenters.successFile,
 })

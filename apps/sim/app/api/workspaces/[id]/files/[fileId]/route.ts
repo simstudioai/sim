@@ -4,11 +4,15 @@ import {
 } from '@/lib/api/contracts/workspace-files'
 import {
   defineInternalJsonRoute,
+  internalJsonPresenters,
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
-import { captureServerEvent } from '@/lib/posthog/server'
-import { internalFileErrorPolicy } from '@/lib/workspace-files/api'
+import {
+  internalFileAnalytics,
+  internalFileErrorPolicies,
+  internalFilePresenters,
+} from '@/lib/workspace-files/api'
 import { deleteWorkspaceFileOperation } from '@/lib/workspace-files/application/delete-workspace-file'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { renameWorkspaceFile } from '@/lib/workspace-files/application/rename-workspace-file'
@@ -24,22 +28,15 @@ export const PATCH = defineInternalJsonRoute({
   auth: internalSessionAuth,
   operation: fileOperations.rename,
   rateLimit: internalRateLimits.none({ reason: 'Preserve existing internal rename behavior' }),
-  errorPolicy: internalFileErrorPolicy,
+  errorPolicy: internalFileErrorPolicies.default,
   mapInput: ({ params, body }) => ({
     fileId: params.fileId,
     assertedWorkspaceId: params.id,
     name: body.name,
   }),
   useCase: renameWorkspaceFile,
-  onSuccess: ({ principal, result }) => {
-    captureServerEvent(
-      principal.userId,
-      'file_renamed',
-      { workspace_id: result.file.workspaceId },
-      { groups: { workspace: result.file.workspaceId } }
-    )
-  },
-  present: ({ file }) => ({ success: true, file: { ...file, folderId: file.folderId ?? null } }),
+  onSuccess: internalFileAnalytics.renamed,
+  present: internalFilePresenters.successFile,
 })
 
 /**
@@ -51,16 +48,9 @@ export const DELETE = defineInternalJsonRoute({
   auth: internalSessionAuth,
   operation: fileOperations.delete,
   rateLimit: internalRateLimits.none({ reason: 'Preserve existing internal delete behavior' }),
-  errorPolicy: internalFileErrorPolicy,
+  errorPolicy: internalFileErrorPolicies.default,
   mapInput: ({ params }) => ({ fileId: params.fileId, assertedWorkspaceId: params.id }),
   useCase: deleteWorkspaceFileOperation,
-  onSuccess: ({ principal, result }) => {
-    captureServerEvent(
-      principal.userId,
-      'file_deleted',
-      { workspace_id: result.workspaceId },
-      { groups: { workspace: result.workspaceId } }
-    )
-  },
-  present: ({ deleted }) => ({ success: deleted }),
+  onSuccess: internalFileAnalytics.deleted,
+  present: internalJsonPresenters.successFrom('deleted'),
 })

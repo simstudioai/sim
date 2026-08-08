@@ -4,7 +4,7 @@ import {
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
-import { internalFileErrorPolicy } from '@/lib/workspace-files/api'
+import { internalFileErrorPolicies, internalFilePresenters } from '@/lib/workspace-files/api'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { updateWorkspaceFileContent } from '@/lib/workspace-files/application/update-workspace-file-content'
 import { MAX_WORKSPACE_FILE_INLINE_BODY_BYTES } from '@/lib/workspace-files/orchestration'
@@ -19,7 +19,7 @@ export const PUT = defineInternalJsonRoute({
   rateLimit: internalRateLimits.none({
     reason: 'Preserve existing internal content-update behavior',
   }),
-  errorPolicy: internalFileErrorPolicy,
+  errorPolicy: internalFileErrorPolicies.default,
   parseOptions: { maxBodyBytes: MAX_WORKSPACE_FILE_INLINE_BODY_BYTES },
   beforeParse: async ({ principal, params }) => {
     if (typeof params.fileId === 'string') {
@@ -33,5 +33,5 @@ export const PUT = defineInternalJsonRoute({
     encoding: body.encoding === 'base64' ? ('base64' as const) : ('utf-8' as const),
   }),
   useCase: updateWorkspaceFileContent,
-  present: ({ file }) => ({ success: true, file: { ...file, folderId: file.folderId ?? null } }),
+  present: internalFilePresenters.successFile,
 })

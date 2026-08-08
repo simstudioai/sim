@@ -52,7 +52,7 @@ Keep responsibilities in these layers:
 1. Route/tool adapter: authenticate, construct a `Principal`, select the operation and rate policy, parse the surface contract, call the use case, and render the surface response.
 2. Application use case: load the canonical resource, compare any asserted workspace, authorize the operation, run the business operation, record semantic audit, and trigger shared domain notifications.
 3. Manager/repository: execute storage and database reads/writes. Accept canonical IDs and workspace scope, not credentials or principals.
-4. Presenter: return the contract success body only. Never return `NextResponse`, rate metadata, or errors.
+4. Presenter: return the contract success body only. Omit it when the use-case result already matches the contract. Never return `NextResponse`, rate metadata, or errors.
 
 Use this order for ordinary JSON routes:
 
@@ -147,9 +147,9 @@ Use `defineInternalJsonRoute` and explicitly declare:
 - `mapInput`
 - `useCase`
 - optional `onSuccess` only to preserve surface-specific behavior
-- `present`
+- `present` when the surface wire body differs from the use-case result
 
-Keep the existing internal success and error envelope. The builder owns `withRouteHandler`, authentication-before-parse ordering, response validation, and `NextResponse` creation.
+Keep the existing internal success and error envelope. Error policies project typed status/body descriptors rather than constructing responses. The builder owns `withRouteHandler`, authentication-before-parse ordering, response validation, and `NextResponse` creation.
 
 ### V2 JSON
 

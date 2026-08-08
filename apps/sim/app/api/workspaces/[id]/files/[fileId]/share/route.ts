@@ -4,7 +4,7 @@ import {
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
-import { internalFileErrorPolicy } from '@/lib/workspace-files/api'
+import { internalFileErrorPolicies } from '@/lib/workspace-files/api'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import {
   getWorkspaceFileShare,
@@ -18,10 +18,9 @@ export const GET = defineInternalJsonRoute({
   auth: internalSessionAuth,
   operation: fileOperations.readShare,
   rateLimit: internalRateLimits.none({ reason: 'Preserve existing internal share-read behavior' }),
-  errorPolicy: internalFileErrorPolicy,
+  errorPolicy: internalFileErrorPolicies.default,
   mapInput: ({ params }) => ({ fileId: params.fileId, assertedWorkspaceId: params.id }),
   useCase: getWorkspaceFileShare,
-  present: ({ share }) => ({ share }),
 })
 
 export const PUT = defineInternalJsonRoute({
@@ -31,7 +30,7 @@ export const PUT = defineInternalJsonRoute({
   rateLimit: internalRateLimits.none({
     reason: 'Preserve existing internal share-update behavior',
   }),
-  errorPolicy: internalFileErrorPolicy,
+  errorPolicy: internalFileErrorPolicies.default,
   mapInput: ({ params, body }) => ({
     fileId: params.fileId,
     assertedWorkspaceId: params.id,
@@ -42,5 +41,4 @@ export const PUT = defineInternalJsonRoute({
     token: body.token,
   }),
   useCase: updateWorkspaceFileShare,
-  present: ({ share }) => ({ share }),
 })

@@ -4,7 +4,7 @@ import {
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
-import { internalFileErrorPolicy } from '@/lib/workspace-files/api'
+import { internalFileErrorPolicies } from '@/lib/workspace-files/api'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { updateWorkspaceFileDimensionsOperation } from '@/lib/workspace-files/application/update-workspace-file-dimensions'
 
@@ -13,7 +13,7 @@ export const PATCH = defineInternalJsonRoute({
   auth: internalSessionAuth,
   operation: fileOperations.updateMetadata,
   rateLimit: internalRateLimits.none({ reason: 'Preserve existing internal dimensions behavior' }),
-  errorPolicy: internalFileErrorPolicy,
+  errorPolicy: internalFileErrorPolicies.default,
   mapInput: ({ params, body }) => ({
     fileId: params.fileId,
     assertedWorkspaceId: params.id,
@@ -22,5 +22,4 @@ export const PATCH = defineInternalJsonRoute({
     height: body.height,
   }),
   useCase: updateWorkspaceFileDimensionsOperation,
-  present: ({ success }) => ({ success }),
 })

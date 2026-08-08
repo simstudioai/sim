@@ -2,9 +2,12 @@ export { defineInternalBinaryRoute } from '@/lib/api/server/routes/internal-bina
 export {
   createInternalSessionOrServiceAuth,
   defineInternalJsonRoute,
+  extendInternalErrorPolicy,
   type InternalAuthPolicy,
   type InternalErrorPolicy,
   InternalUnauthenticatedError,
+  internalErrorResponse,
+  internalJsonPresenters,
   internalOrchestrationErrorPolicy,
   internalPlainOrchestrationErrorPolicy,
   internalRateLimits,

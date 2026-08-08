@@ -3,12 +3,14 @@ import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { requireBinaryRouteDefinition } from '@/lib/api/server/routes/definition'
 import {
+  type InternalErrorPolicy,
   InternalUnauthenticatedError,
   type internalSessionAuth,
 } from '@/lib/api/server/routes/internal-json-route'
 import type {
   BinaryApiRouteContract,
   BinaryResponseDescriptor,
+  JsonErrorResponseDescriptor,
   JsonNextRouteHandler,
   JsonRouteContext,
 } from '@/lib/api/server/routes/types'
@@ -21,10 +23,6 @@ interface InternalBinaryRateLimitPolicy {
   readonly kind: 'none'
   readonly reason: string
   enforce(request: NextRequest, principal: Principal): Promise<void>
-}
-
-interface InternalBinaryErrorPolicy {
-  render(error: unknown): NextResponse | null
 }
 
 interface InternalBinaryRouteDefinition<
@@ -48,7 +46,7 @@ interface InternalBinaryRouteOptions<
 > extends InternalBinaryRouteDefinition<C, O, I, R> {
   auth: typeof internalSessionAuth
   rateLimit: InternalBinaryRateLimitPolicy
-  errorPolicy: InternalBinaryErrorPolicy
+  errorPolicy: InternalErrorPolicy
   onSuccess?(args: { principal: SessionPrincipal; input: I; result: R }): void | Promise<void>
 }
 
@@ -107,8 +105,8 @@ export function defineInternalBinaryRoute<
         }
         return new NextResponse(descriptor.body, { status: successStatus, headers })
       } catch (error) {
-        const response = options.errorPolicy.render(error)
-        if (response) return response
+        const response = options.errorPolicy.project(error)
+        if (response) return createJsonErrorResponse(response)
         throw error
       }
     },
@@ -119,4 +117,11 @@ export function defineInternalBinaryRoute<
   )
 
   return async (request, context) => wrapped(request, context)
+}
+
+function createJsonErrorResponse(descriptor: JsonErrorResponseDescriptor): NextResponse {
+  return NextResponse.json(descriptor.body, {
+    status: descriptor.status,
+    headers: descriptor.headers,
+  })
 }
