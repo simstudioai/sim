@@ -11,8 +11,14 @@ import {
 } from '@sim/workflow-renderer'
 import dynamic from 'next/dynamic'
 import { type NodeProps, useReactFlow } from 'reactflow'
+import {
+  appendNoteImageMarkdown,
+  NOTE_ADD_IMAGE_EVENT,
+  type NoteAddImageDetail,
+} from '@/lib/workflows/notes/add-image'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ActionBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/action-bar/action-bar'
+import { useNoteImageUpload } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/note-block/use-note-image-upload'
 import type { WorkflowBlockProps } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/types'
 import { useBlockVisual } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { useBlockDimensions } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-dimensions'
@@ -100,8 +106,11 @@ export const NoteBlock = memo(function NoteBlock({
   )
   const clearCurrentBlock = usePanelEditorStore((state) => state.clearCurrentBlock)
   const canEditNote = canEditWorkflow && !data.isPreview && !isProtected
+  const uploadNoteImage = useNoteImageUpload()
+  const imageInputRef = useRef<HTMLInputElement>(null)
   const [blockHeight, setBlockHeight] = useState(() => estimateNoteBlockHeight(content))
   const [isExpanded, setIsExpanded] = useState(false)
+  const [externalContentWrites, setExternalContentWrites] = useState(0)
   const isFocused = selected
 
   /* Collapsed during render rather than in an effect: losing edit rights while
@@ -129,6 +138,42 @@ export const NoteBlock = memo(function NoteBlock({
   const handleContentChange = (nextContent: string) => {
     if (!canEditNote) return
     collaborativeSetSubblockValue(id, 'content', nextContent)
+  }
+
+  /**
+   * "Add image" from the canvas context menu. The picker, the upload and the
+   * write all live here because the note's content is the thing being changed —
+   * the editor may not even be mounted, and routing through it would mean
+   * opening one just to insert.
+   */
+  useEffect(() => {
+    if (!canEditNote) return
+    const handleAddImage = (event: Event) => {
+      const detail = (event as CustomEvent<NoteAddImageDetail>).detail
+      if (detail?.blockId !== id) return
+      imageInputRef.current?.click()
+    }
+    window.addEventListener(NOTE_ADD_IMAGE_EVENT, handleAddImage)
+    return () => window.removeEventListener(NOTE_ADD_IMAGE_EVENT, handleAddImage)
+  }, [canEditNote, id])
+
+  /**
+   * Uploads then appends, one image at a time so a multi-file pick lands in
+   * order. Each write goes to the store rather than to a mounted editor, so it
+   * counts as an external one: bumping `externalContentWrites` hands the
+   * document back to `content` first, or an open editor's next keystroke would
+   * serialize its own stale document over the appended image.
+   */
+  const insertImages = async (files: File[]) => {
+    for (const file of files) {
+      const image = await uploadNoteImage(file)
+      if (!image) continue
+      /* Re-read per image: each append has to build on the previous one, and on
+         anything a collaborator wrote while the upload was in flight. */
+      const current = getNoteStringValue(useSubBlockStore.getState().getValue(id, 'content')) ?? ''
+      setExternalContentWrites((count) => count + 1)
+      collaborativeSetSubblockValue(id, 'content', appendNoteImageMarkdown(current, image))
+    }
   }
 
   const handleColorChange = useCallback(
@@ -189,34 +234,52 @@ export const NoteBlock = memo(function NoteBlock({
   })
 
   return (
-    <NoteBlockView
-      name={name}
-      content={content}
-      noteColor={noteColor}
-      isEnabled={isEnabled}
-      isFocused={isFocused}
-      isExpanded={isExpanded}
-      canEdit={canEditNote}
-      hasRing={hasRing}
-      ringStyles={ringStyles}
-      onSelect={handleNoteSelect}
-      onNameChange={handleNameChange}
-      onContentChange={handleContentChange}
-      onHeightChange={setBlockHeight}
-      onExpandedChange={handleExpandedChange}
-      renderContentEditor={renderNoteContentEditor}
-      actionBar={
-        <ActionBar
-          blockId={id}
-          blockType={type}
-          disabled={!canEditWorkflow}
-          variant='swell'
-          isWorkflowRunning={isWorkflowRunning}
-          noteColor={noteColor}
-          onNoteColorChange={handleColorChange}
-          onNoteColorMenuOpen={handleNoteSelect}
-        />
-      }
-    />
+    <>
+      <input
+        ref={imageInputRef}
+        type='file'
+        accept='image/*'
+        multiple
+        hidden
+        onChange={(event) => {
+          const input = event.currentTarget
+          const images = Array.from(input.files ?? []).filter((file) =>
+            file.type.startsWith('image/')
+          )
+          input.value = ''
+          if (images.length > 0) void insertImages(images)
+        }}
+      />
+      <NoteBlockView
+        name={name}
+        content={content}
+        noteColor={noteColor}
+        isEnabled={isEnabled}
+        isFocused={isFocused}
+        isExpanded={isExpanded}
+        canEdit={canEditNote}
+        hasRing={hasRing}
+        ringStyles={ringStyles}
+        onSelect={handleNoteSelect}
+        onNameChange={handleNameChange}
+        onContentChange={handleContentChange}
+        externalContentWrites={externalContentWrites}
+        onHeightChange={setBlockHeight}
+        onExpandedChange={handleExpandedChange}
+        renderContentEditor={renderNoteContentEditor}
+        actionBar={
+          <ActionBar
+            blockId={id}
+            blockType={type}
+            disabled={!canEditWorkflow}
+            variant='swell'
+            isWorkflowRunning={isWorkflowRunning}
+            noteColor={noteColor}
+            onNoteColorChange={handleColorChange}
+            onNoteColorMenuOpen={handleNoteSelect}
+          />
+        }
+      />
+    </>
   )
 })

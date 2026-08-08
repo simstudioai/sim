@@ -40,8 +40,6 @@ export const defaultEdgeOptions = { type: 'custom' } as const
 
 export const reactFlowStyles = [
   '[&_.react-flow__handle]:!z-[30]',
-  '[&_.react-flow__edge-labels]:!z-[1001]',
-  String.raw`[&_.react-flow\_\_connectionline]:!z-[0]`,
   '[&_.react-flow__pane]:select-none',
   '[&_.react-flow__selectionpane]:select-none',
   String.raw`[&_.react-flow\_\_selection]:!border-[var(--text-secondary)]`,

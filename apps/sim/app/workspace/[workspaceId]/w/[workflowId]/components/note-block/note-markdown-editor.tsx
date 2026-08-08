@@ -3,9 +3,13 @@
 import { cn } from '@sim/emcn'
 import type { NoteContentEditorProps } from '@sim/workflow-renderer'
 import { RichMarkdownField } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/rich-markdown-field'
+import { useNoteImageUpload } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/note-block/use-note-image-upload'
 
 export const NOTE_EDITOR_PROSE_CLASS_NAME = [
   'min-h-full w-full text-current',
+  /* The height the shared node chrome centres a checklist's checkbox against —
+     the note's own line box, not the file editor's taller default. */
+  '[--rich-markdown-line-height:1.25rem]',
   /* Mirrors NOTE_MARKDOWN_FLOW, the rhythm Streamdown paints in the read view.
      Tailwind's JIT only sees literal class strings, so this cannot be composed
      from that constant — the note view exports it, and the parity test pins the
@@ -25,6 +29,12 @@ export const NOTE_EDITOR_PROSE_CLASS_NAME = [
   '[&_.ProseMirror_pre]:my-2 [&_.ProseMirror_pre]:whitespace-pre-wrap [&_.ProseMirror_pre]:break-words [&_.ProseMirror_pre]:rounded [&_.ProseMirror_pre]:bg-black/15 [&_.ProseMirror_pre]:p-2 [&_.ProseMirror_pre]:text-xs',
   '[&_.ProseMirror_pre_code]:block [&_.ProseMirror_pre_code]:bg-transparent [&_.ProseMirror_pre_code]:p-0',
   '[&_.ProseMirror_a]:break-all [&_.ProseMirror_a]:font-medium [&_.ProseMirror_a]:underline [&_.ProseMirror_a]:underline-offset-2',
+  /* The shared node chrome frames an image for a document surface — an 8px radius and a
+     `--border` hairline. A note paints a coloured card and draws every other edge from
+     `currentColor`, and its read view frames images this way, so matching here is what keeps the
+     image from changing shape as editing opens. Sizing (`max-width`/`height: auto`) still comes
+     from the shared chrome; only the frame is the note's. */
+  '[&_.ProseMirror_img]:rounded-md [&_.ProseMirror_img]:border-0',
   '[&_.ProseMirror_strong]:font-semibold',
   '[&_.ProseMirror_em]:opacity-80',
   '[&_.ProseMirror_blockquote]:my-4 [&_.ProseMirror_blockquote]:border-current/25 [&_.ProseMirror_blockquote]:border-l-2 [&_.ProseMirror_blockquote]:pl-4 [&_.ProseMirror_blockquote]:italic',
@@ -38,24 +48,36 @@ export const NOTE_EDITOR_PROSE_CLASS_NAME = [
  * The Note card's skin over the platform markdown field.
  *
  * Everything behind the surface — the TipTap extension set, frontmatter held
- * out-of-band, the round-trip safety gate and its raw-source fallback, markdown
- * paste — is {@link RichMarkdownField}'s. This module only supplies the Note's
- * type scale and its per-colour selection tint, which have to match the
- * Streamdown render underneath so the card does not jump when editing opens.
+ * out-of-band, the round-trip safety gate and its raw-source fallback, the
+ * formatting bar, `/` commands, markdown paste — is {@link RichMarkdownField}'s.
+ * This module supplies the Note's own chrome: the type scale and per-colour
+ * selection/caret tints, which have to match the Streamdown render underneath so
+ * the card does not jump when editing opens, and the workspace it uploads into.
+ *
+ * Every field of {@link NoteContentEditorProps} is forwarded. A prop the view
+ * passes and this skin quietly drops type-checks clean and fails silently on the
+ * canvas, so `note-markdown-editor.test.tsx` pins the forwarding.
  */
 export function NoteMarkdownEditor({
   value,
   selectionClassName,
+  caretClassName,
+  openedAt,
   onChange,
 }: NoteContentEditorProps) {
+  const uploadImage = useNoteImageUpload()
+
   return (
     <RichMarkdownField
       value={value}
       onChange={onChange}
       surface='bare'
       autoFocus
-      placeholder='Add note…'
+      autoFocusAt={openedAt}
+      placeholder="Add note, or press '/' for commands…"
       proseClassName={cn(NOTE_EDITOR_PROSE_CLASS_NAME, selectionClassName)}
+      editorClassName={caretClassName}
+      uploadImage={uploadImage}
     />
   )
 }

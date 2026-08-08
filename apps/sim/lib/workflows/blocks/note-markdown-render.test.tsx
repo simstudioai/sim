@@ -1,0 +1,93 @@
+/**
+ * @vitest-environment jsdom
+ *
+ * A resized image has to look the same read as it does while editing.
+ *
+ * Markdown has no size syntax, so resizing an image in the editor serializes it as
+ * `<img src… width…>`. The note's read view rendered that through a component that forwarded only
+ * `src` and `alt`, so every image came back at its natural size the moment editing closed — the
+ * image visibly changed size each time the editor opened and shut.
+ *
+ * Lives in apps/sim because the renderer package has no test runner (same as the border mount test).
+ */
+import { act } from 'react'
+import { NoteBlockView, type NoteContentEditorProps } from '@sim/workflow-renderer'
+import { createRoot, type Root } from 'react-dom/client'
+import { afterEach, beforeAll, describe, expect, it } from 'vitest'
+
+const SRC = '/api/workspaces/ws-1/files/inline?fileId=f1'
+
+/* Assigned rather than `vi.stubGlobal`ed: the suite runs with `unstubGlobals`, which restores stubs
+   before every test and would strip these back out after the first one. */
+beforeAll(() => {
+  globalThis.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as unknown as typeof ResizeObserver
+  window.matchMedia = ((query: string) => ({
+    matches: false,
+    media: query,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    addListener: () => {},
+    removeListener: () => {},
+    onchange: null,
+    dispatchEvent: () => false,
+  })) as unknown as typeof window.matchMedia
+})
+
+function renderTestContentEditor(_props: NoteContentEditorProps) {
+  return null
+}
+
+let host: HTMLDivElement | null = null
+let root: Root | null = null
+
+afterEach(() => {
+  if (root) act(() => root?.unmount())
+  host?.remove()
+  host = null
+  root = null
+})
+
+function renderNote(content: string): HTMLImageElement | null {
+  ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+  host = document.createElement('div')
+  document.body.appendChild(host)
+  root = createRoot(host)
+  act(() =>
+    root?.render(
+      <NoteBlockView
+        name='Note'
+        content={content}
+        isEnabled
+        isFocused={false}
+        hasRing={false}
+        ringStyles=''
+        onSelect={() => undefined}
+        renderContentEditor={renderTestContentEditor}
+      />
+    )
+  )
+  return host.querySelector('img')
+}
+
+describe('note markdown image rendering', () => {
+  it('renders a plain markdown image', () => {
+    const image = renderNote(`![shot](${SRC})`)
+    expect(image?.getAttribute('src')).toBe(SRC)
+    expect(image?.getAttribute('alt')).toBe('shot')
+  })
+
+  it('keeps the width a resize committed', () => {
+    const image = renderNote(`<img src="${SRC}" alt="shot" width="640">`)
+    expect(image?.getAttribute('width')).toBe('640')
+  })
+
+  it('lets the height follow the aspect ratio when the card is narrower than the image', () => {
+    const image = renderNote(`<img src="${SRC}" alt="shot" width="640" height="480">`)
+    expect(image?.className).toContain('h-auto')
+    expect(image?.className).toContain('max-w-full')
+  })
+})

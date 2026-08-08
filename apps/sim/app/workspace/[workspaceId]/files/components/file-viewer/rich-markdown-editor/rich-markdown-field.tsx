@@ -5,7 +5,8 @@ import { ChipTextarea, chipFieldSurfaceClass, cn } from '@sim/emcn'
 import type { JSONContent } from '@tiptap/core'
 import { EditorContent, useEditor } from '@tiptap/react'
 import { createMarkdownEditorExtensions } from './editor-extensions'
-import { extractImageFiles } from './image-paste'
+import { moveDraggedImageNode } from './image-drag-move'
+import { extractImageFiles, isInlineRouteSrc, shouldSkipFileUpload } from './image-paste'
 import {
   applyFrontmatter,
   postProcessSerializedMarkdown,
@@ -77,8 +78,7 @@ interface RichMarkdownFieldProps {
    * drops the box, its padding and its default height so a host that already
    * owns a surface — the canvas Note card, which paints its own fill and text
    * colour — renders the editor inline instead of nesting a second field
-   * inside it. Bare also omits the floating menus, which assume a bounded
-   * scroll container to position against.
+   * inside it. Both surfaces get the same editor and the same floating menus.
    */
   surface?: 'field' | 'bare'
   /**
@@ -143,6 +143,13 @@ function LoadedRichMarkdownField({
   const editorInstanceRef = useRef<ReturnType<typeof useEditor>>(null)
 
   /**
+   * The `/Image` slash command opens this hidden picker; `pendingImagePosRef` holds the caret
+   * position captured when the command ran, so the upload inserts where `/Image` was typed.
+   */
+  const imageInputRef = useRef<HTMLInputElement>(null)
+  const pendingImagePosRef = useRef<number | null>(null)
+
+  /**
    * Sequential upload-then-insert, mirroring the file editor's own image flow:
    * each image inserts at the evolving position so a multi-image paste lands in
    * order, and a failed upload skips its insert without aborting the rest. The
@@ -199,20 +206,27 @@ function LoadedRichMarkdownField({
     editorProps: {
       attributes: {
         /*
-         * The shared prose classes pin the field's own ink and type ramp on
-         * the ProseMirror root — `--text-primary` at 15px/25px, then 14px/22px
-         * from the field layer. A bare host owns typography (the Note card
-         * matches its rendered view via `proseClassName`), so on that surface
-         * the root classes would recolor the text and shift its metrics the
+         * `rich-markdown-nodes` carries the editor's node chrome and is not the
+         * host's to own, so both surfaces take it. The prose classes pin the
+         * field's ink and type ramp — `--text-primary` at 15px/25px, then
+         * 14px/22px from the field layer — which a bare host supplies itself
+         * (the Note card matches its rendered view via `proseClassName`), so on
+         * that surface they would recolor the text and shift its metrics the
          * moment editing opens.
          */
-        class: isBare ? (editorClassName ?? '') : 'rich-markdown-prose rich-markdown-field-prose',
+        class: cn(
+          'rich-markdown-nodes',
+          isBare ? editorClassName : 'rich-markdown-prose rich-markdown-field-prose'
+        ),
         // Claim ⌘K so the bubble-menu link editor wins over the global search palette.
         'data-owned-shortcuts': 'Mod+K',
       },
       handlePaste: (view, event) => {
         const images = uploadImageRef.current ? extractImageFiles(event.clipboardData) : []
-        if (images.length > 0) {
+        /* Copying an image already in the document puts its file on the clipboard too. Let the
+           html through instead of uploading a second copy of something already hosted. */
+        const clipboardHtml = event.clipboardData?.getData('text/html') ?? ''
+        if (images.length > 0 && !shouldSkipFileUpload(images, clipboardHtml, isInlineRouteSrc)) {
           event.preventDefault()
           void insertImagesRef.current(images, view.state.selection.from)
           return true
@@ -224,13 +238,19 @@ function LoadedRichMarkdownField({
         return handler(text)
       },
       /**
-       * The field has no image upload; swallow any file drop so the browser doesn't navigate to the
-       * dropped file and tear down the modal. Internal text drags carry no files and fall through.
+       * Mirrors the file editor's order: reposition an image dragged from inside the document, then
+       * bail on a same-page copy of an already-hosted one so ProseMirror inserts it from the html
+       * instead of uploading a duplicate, then upload anything genuinely new. Any remaining file drop
+       * is swallowed so the browser doesn't navigate to it and tear down the host; internal text drags
+       * carry no files and fall through.
        */
       handleDrop: (view, event) => {
+        const html = event.dataTransfer?.getData('text/html') ?? ''
+        const images = uploadImageRef.current ? extractImageFiles(event.dataTransfer) : []
+        if (moveDraggedImageNode(view, event, { images, html })) return true
+        if (shouldSkipFileUpload(images, html, isInlineRouteSrc)) return false
         if (event.dataTransfer?.files.length) {
           event.preventDefault()
-          const images = uploadImageRef.current ? extractImageFiles(event.dataTransfer) : []
           if (images.length > 0) {
             const dropPos = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos
             void insertImagesRef.current(images, dropPos ?? view.state.selection.from)
@@ -292,6 +312,22 @@ function LoadedRichMarkdownField({
     if (editor.isEditable !== !disabled) editor.setEditable(!disabled)
   }, [editor, value, isStreaming, disabled])
 
+  /**
+   * Wires the `/Image` slash command to the hidden picker, but only for a host that gave us an
+   * uploader — the command hides itself when this storage slot stays null, which is what keeps it
+   * out of the modal field editors that have nowhere to put an image.
+   */
+  useEffect(() => {
+    if (!editor || !uploadImage) return
+    editor.storage.slashCommand.insertImage = (at: number) => {
+      pendingImagePosRef.current = at
+      imageInputRef.current?.click()
+    }
+    return () => {
+      editor.storage.slashCommand.insertImage = null
+    }
+  }, [editor, uploadImage])
+
   useEditorMentions(editor, workspaceId, { disableTagging })
 
   return (
@@ -316,8 +352,28 @@ function LoadedRichMarkdownField({
       )}
       style={{ minHeight: boxMinHeight, maxHeight }}
     >
-      {editor && !isBare && <EditorBubbleMenu editor={editor} scrollContainerRef={containerRef} />}
-      {editor && !isBare && <LinkHoverCard editor={editor} />}
+      {editor && <EditorBubbleMenu editor={editor} scrollContainerRef={containerRef} />}
+      {editor && <LinkHoverCard editor={editor} />}
+      {uploadImage && (
+        <input
+          ref={imageInputRef}
+          type='file'
+          accept='image/*'
+          multiple
+          hidden
+          onChange={(event) => {
+            const input = event.currentTarget
+            const images = Array.from(input.files ?? []).filter((file) =>
+              file.type.startsWith('image/')
+            )
+            const at =
+              pendingImagePosRef.current ?? editorInstanceRef.current?.state.selection.from ?? 0
+            pendingImagePosRef.current = null
+            input.value = ''
+            if (images.length > 0) void insertImagesRef.current(images, at)
+          }}
+        />
+      )}
       <EditorContent
         editor={editor}
         className={cn(
@@ -437,6 +493,12 @@ function RawMarkdownField({
  * Mirrors the file editor's safety gate (decided once from the initial value):
  * round-trip-safe content opens in the WYSIWYG editor, while lossy markdown (raw HTML, footnotes,
  * comments) falls back to raw-text editing so an edit can't silently drop those constructs.
+ *
+ * Blast radius, since this sits under the file editor's directory but is NOT the file editor:
+ * `RichMarkdownEditor` (the workspace file editor) does not render this component at all. Changing
+ * it reaches the canvas Note, the skill modal, skill fields, and the deploy version description —
+ * and nothing else. The shared base both editors DO have in common is everything else in this
+ * folder: the extension set, the markdown parse/serialize, the menus, and the stylesheet.
  */
 export function RichMarkdownField(props: RichMarkdownFieldProps) {
   const [isSafe] = useState(() => isRoundTripSafe(props.value))

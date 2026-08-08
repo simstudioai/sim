@@ -102,11 +102,22 @@ const NOTE_COMPONENTS = {
     </ol>
   ),
   li: ({ children }: { children?: ReactNode }) => <li className='break-words'>{children}</li>,
-  img: ({ src, alt }: ComponentProps<'img'>) => (
+  /**
+   * `width`/`height` are load-bearing, not decoration: resizing an image in the editor commits the
+   * new width to the node and it serializes as `<img width>`, since markdown has no size syntax.
+   * Dropping them here rendered every image at its natural size in the read view, so a resized note
+   * flipped between two sizes as editing opened and closed.
+   *
+   * `h-auto` keeps the aspect ratio when `max-w-full` shrinks a wide image below its stated width —
+   * the same pairing the editor's node view uses, so both views agree at every card width.
+   */
+  img: ({ src, alt, width, height }: ComponentProps<'img'>) => (
     <img
       src={typeof src === 'string' ? src : undefined}
       alt={alt ?? ''}
-      className='my-2 block max-w-full rounded-md'
+      width={width}
+      height={height}
+      className='my-2 block h-auto max-w-full rounded-md'
     />
   ),
   inlineCode: ({ children }: { children?: ReactNode }) => (
@@ -268,6 +279,14 @@ export interface NoteBlockViewProps {
   onNameChange?: (name: string) => boolean
   /** Persists inline note content as the user types. */
   onContentChange?: (content: string) => void
+  /**
+   * A count of writes the host has made to `content` from outside the editor —
+   * the canvas "Add image" action is the only one today. Each one ends any
+   * in-progress content editing, because the editor seeds its document once when
+   * editing opens: left running, its next keystroke would serialize that stale
+   * document straight over the host's write.
+   */
+  externalContentWrites?: number
   /** Publishes the measured, clamped canvas height to the editor container. */
   onHeightChange?: (height: number) => void
   onExpandedChange?: (expanded: boolean) => void
@@ -299,6 +318,7 @@ export function NoteBlockView({
   onSelect,
   onNameChange,
   onContentChange,
+  externalContentWrites = 0,
   onHeightChange,
   onExpandedChange,
   renderContentEditor,
@@ -341,6 +361,12 @@ export function NoteBlockView({
   useEffect(() => {
     if (!isInlineEditable) setEditingField(null)
   }, [isInlineEditable])
+
+  /* Hands the document back to `content`. Idempotent, so the mount-time run and
+     any repeat are both no-ops when nothing is being edited. */
+  useEffect(() => {
+    setEditingField((field) => (field === 'content' ? null : field))
+  }, [externalContentWrites])
 
   useEffect(() => {
     if (!isExpanded || !onExpandedChange) return
@@ -762,7 +788,12 @@ export function NoteBlockView({
           >
             {editingField === 'content' ? (
               <div
-                className='nodrag nopan nowheel min-h-full w-full'
+                /* The card is `select-none` so dragging it around the canvas
+                   never highlights its text. Editing has to opt back in, or the
+                   caret is all you get — no word double-click, no drag-select,
+                   and so nothing the formatting bar can act on. The title input
+                   opts back in the same way. */
+                className='nodrag nopan nowheel min-h-full w-full select-text'
                 onClick={(event) => event.stopPropagation()}
                 onPointerDown={(event) => event.stopPropagation()}
                 /* Leaving edit mode is the card's concern, not the injected
@@ -775,10 +806,15 @@ export function NoteBlockView({
                   event.preventDefault()
                   setEditingField(null)
                 }}
-                /* Focus moving inside the editor (a menu, a code block's
-                   language select) is not an exit. */
+                /* Focus moving inside the editor is not an exit — and neither is
+                   focus moving into the editor's own floating UI. The formatting
+                   bar, the link editor, the `/` menu and a code block's language
+                   menu all portal to the document body, outside the canvas, so
+                   only a move that stays inside the canvas ends editing. */
                 onBlur={(event) => {
-                  if (!event.currentTarget.contains(event.relatedTarget)) setEditingField(null)
+                  const nextFocus = event.relatedTarget
+                  if (nextFocus instanceof Element && !nextFocus.closest('.react-flow')) return
+                  if (!event.currentTarget.contains(nextFocus)) setEditingField(null)
                 }}
               >
                 {renderContentEditor({

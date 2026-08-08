@@ -35,6 +35,7 @@ import type { OAuthConnectEventDetail } from '@/lib/copilot/tools/client/base-to
 import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import type { OAuthProvider } from '@/lib/oauth'
 import { getDefaultBlockName } from '@/lib/workflows/blocks/canvas-presentation'
+import { requestNoteImage } from '@/lib/workflows/notes/add-image'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -152,36 +153,38 @@ const CONNECTION_LINE_STYLE = {
 }
 
 /**
- * Puts the in-flight drag line at the top of the canvas z-scale this file owns
- * (cards 21/22, selected 31, container children 1000, selected children 1010).
+ * The canvas z-scale, bottom to top. Every entry is a React Flow `zIndex` on a
+ * node or an edge, and React Flow's viewport is the one stacking context they
+ * all resolve in, so the numbers are directly comparable.
  *
- * React Flow ships `.react-flow__connectionline { z-index: 1001 }`, which is
- * both below a selected container child and a stylesheet rule rather than
- * something our scale accounts for — the line rendered under subflow bodies,
- * which paint an opaque fill. Declaring it here is the seam React Flow provides
- * for this, and it keeps every layer of the canvas readable in one place.
- */
-const CONNECTION_LINE_CONTAINER_STYLE = { zIndex: 1500 }
-
-/**
- * Edges occupy their own band, above every container and below every card.
+ * - `0, 1, 2 …` — subflow containers, by nesting depth
+ * - {@link EDGE_Z_BASE}`…`{@link EDGE_Z_MAX} — edges, and the in-flight drag line
+ * - {@link BLOCK_Z_BASE} — cards (+1 last interacted, +10 selected)
+ * - {@link CONTAINER_CHILD_Z_BASE} — cards inside a container (same +1 / +10 steps)
+ * - `2000` — the connection block picker
  *
- * Containers are z-indexed by nesting depth (0, 1, 2, …) and cards start at 21.
- * An edge used to derive its z from its parent container — `+1`, or 0 with no
- * parent — which put a root-level edge at exactly the z of a root-level
- * subflow. Equal z-index falls back to DOM order, and React Flow paints the
- * nodes layer after the edges layer, so any edge crossing a top-level subflow
- * was drawn behind its opaque body. Basing the band above the container scale
- * keeps the deeper-container-wins ordering while removing the collision; the
- * ceiling holds the band below cards, so a line still passes behind card
- * chrome as it always has.
+ * Containers and edges must occupy separate bands. A container paints an opaque
+ * body, so an edge sharing its z loses the equal-z tiebreak to DOM order — React
+ * Flow renders the nodes layer after the edges layer — and is drawn *behind* the
+ * container. That is what hid every line crossing a top-level subflow, whether
+ * in flight or persisted. Cards then sit above the edge band, so a line still
+ * passes behind card chrome, knobs, and the action-bar swell.
  */
 const EDGE_Z_BASE = 10
 const EDGE_Z_MAX = 20
+const BLOCK_Z_BASE = 21
+const CONTAINER_CHILD_Z_BASE = 1000
 
-/** Places an edge in {@link EDGE_Z_BASE}'s band, relative to its container. */
+/** Places an edge in the edge band, ordered by its container's nesting depth. */
 const getEdgeZIndex = (containerZIndex: number | undefined) =>
   Math.min(EDGE_Z_BASE + (containerZIndex === undefined ? 0 : containerZIndex + 1), EDGE_Z_MAX)
+
+/**
+ * The in-flight drag line is an edge, so it belongs at the top of the edge band
+ * rather than at React Flow's stylesheet default of 1001 — which sits above
+ * every card and even above a selected container child.
+ */
+const CONNECTION_LINE_CONTAINER_STYLE = { zIndex: EDGE_Z_MAX }
 
 const getRegularBlockWidth = (type: string) =>
   type === 'note' || type === 'noteBlock'
@@ -1454,6 +1457,10 @@ const WorkflowContent = React.memo(
       }
     }, [contextMenuBlocks])
 
+    const handleContextAddImage = useCallback(() => {
+      if (contextMenuBlocks.length === 1) requestNoteImage(contextMenuBlocks[0].id)
+    }, [contextMenuBlocks])
+
     const handleContextRename = useCallback(() => {
       if (contextMenuBlocks.length === 1) {
         usePanelEditorStore.getState().setCurrentBlockId(contextMenuBlocks[0].id)
@@ -1859,7 +1866,7 @@ const WorkflowContent = React.memo(
      * drops and for drops forwarded from the empty-workflow command list overlay.
      *
      * @param data - Drag data from the toolbar (type + optional trigger mode).
-     * @param position - Drop position in ReactFlow coordinates.
+     * @param position - The point that was dropped on, in ReactFlow coordinates.
      */
     const handleToolbarDrop = useCallback(
       (
@@ -1912,6 +1919,29 @@ const WorkflowContent = React.memo(
         }
 
         try {
+          /** The new block's footprint — centres the drop, and clamps it in a container. */
+          const blockDimensions =
+            data.type === 'loop' || data.type === 'parallel'
+              ? {
+                  width: CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
+                  height: CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
+                }
+              : estimateBlockDimensions(data.type)
+
+          /**
+           * Where the block's top-left lands. A toolbar drop puts it under the
+           * cursor; a drag-release puts it over the picker box it replaces,
+           * which is centred on the release point.
+           *
+           * `position` stays the point the user dropped on, and that is what
+           * resolves the container below. Resolving it from the top-left corner
+           * instead placed a block released over a subflow's header — or
+           * anywhere within half a block of its top edge — outside that subflow.
+           */
+          const placement = forcedSource
+            ? { x: position.x, y: position.y - blockDimensions.height / 2 }
+            : position
+
           const containerInfo = isPointInLoopNode(position)
 
           clearDragHighlights()
@@ -1923,17 +1953,14 @@ const WorkflowContent = React.memo(
 
             if (containerInfo) {
               const rawPosition = {
-                x: position.x - containerInfo.loopPosition.x,
-                y: position.y - containerInfo.loopPosition.y,
+                x: placement.x - containerInfo.loopPosition.x,
+                y: placement.y - containerInfo.loopPosition.y,
               }
 
               const relativePosition = clampPositionToContainer(
                 rawPosition,
                 containerInfo.dimensions,
-                {
-                  width: CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
-                  height: CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
-                }
+                blockDimensions
               )
 
               const existingChildBlocks = Object.values(blocks)
@@ -1968,7 +1995,7 @@ const WorkflowContent = React.memo(
               resizeLoopNodesWrapper()
             } else {
               const autoConnectEdge = resolveEdge(id, null, () =>
-                tryCreateAutoConnectEdge(position, id, {
+                tryCreateAutoConnectEdge(placement, id, {
                   targetParentId: null,
                 })
               )
@@ -1977,7 +2004,7 @@ const WorkflowContent = React.memo(
                 id,
                 data.type,
                 name,
-                position,
+                placement,
                 {
                   width: CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
                   height: CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
@@ -2020,15 +2047,15 @@ const WorkflowContent = React.memo(
 
             // Calculate raw position relative to container origin
             const rawPosition = {
-              x: position.x - containerInfo.loopPosition.x,
-              y: position.y - containerInfo.loopPosition.y,
+              x: placement.x - containerInfo.loopPosition.x,
+              y: placement.y - containerInfo.loopPosition.y,
             }
 
             // Clamp position to keep block inside container's content area
             const relativePosition = clampPositionToContainer(
               rawPosition,
               containerInfo.dimensions,
-              estimateBlockDimensions(data.type)
+              blockDimensions
             )
 
             // Capture existing child blocks for auto-connect
@@ -2069,7 +2096,7 @@ const WorkflowContent = React.memo(
             if (checkTriggerConstraints(data.type)) return
 
             const autoConnectEdge = resolveEdge(id, null, () =>
-              tryCreateAutoConnectEdge(position, id, {
+              tryCreateAutoConnectEdge(placement, id, {
                 targetParentId: null,
               })
             )
@@ -2081,7 +2108,7 @@ const WorkflowContent = React.memo(
               id,
               data.type,
               name,
-              position,
+              placement,
               undefined,
               undefined,
               undefined,
@@ -2121,13 +2148,11 @@ const WorkflowContent = React.memo(
         /**
          * A genuine edge drag-release carries `pendingConnect`. Delegating to
          * `handleToolbarDrop` preserves container-aware placement and connects
-         * from the exact released handle.
+         * from the exact released handle — the release point goes through
+         * verbatim, and the drop handler owns both the container hit-test and
+         * the centring the picker box implies.
          */
         if (pendingConnect) {
-          const blockHeight =
-            type === 'loop' || type === 'parallel'
-              ? CONTAINER_DIMENSIONS.DEFAULT_HEIGHT
-              : estimateBlockDimensions(type).height
           handleToolbarDrop(
             {
               type,
@@ -2135,10 +2160,7 @@ const WorkflowContent = React.memo(
               presetOperation: typeof presetOperation === 'string' ? presetOperation : undefined,
               forcedSource: pendingConnect.source,
             },
-            {
-              x: pendingConnect.position.x,
-              y: pendingConnect.position.y - blockHeight / 2,
-            }
+            pendingConnect.position
           )
           return
         }
@@ -2683,11 +2705,12 @@ const WorkflowContent = React.memo(
         const nodeType = block.type === 'note' ? 'noteBlock' : 'workflowBlock'
         const dragHandle = block.type === 'note' ? '.note-drag-handle' : '.workflow-drag-handle'
 
-        // Compute zIndex for blocks inside containers so they render above the
-        // parent subflow's interactive body area (which needs pointer-events for
-        // click-to-select). Container nodes use zIndex: depth (0, 1, 2...),
-        // so child blocks use a baseline that is always above any container.
-        const childZIndex = block.data?.parentId ? 1000 : undefined
+        // A card carries its place in the canvas z-scale from the start: React
+        // Flow reads a missing zIndex as 0, which would sit a card at the same
+        // level as a subflow container and below the edge band. A card inside a
+        // container starts higher still, so it clears the parent's interactive
+        // body area (which needs pointer-events for click-to-select).
+        const cardZIndex = block.data?.parentId ? CONTAINER_CHILD_Z_BASE : BLOCK_Z_BASE
 
         // Create stable node object - React Flow will handle shallow comparison
         nodeArray.push({
@@ -2697,7 +2720,7 @@ const WorkflowContent = React.memo(
           parentId: block.data?.parentId,
           dragHandle,
           draggable: !workflowReadOnly && !isBlockProtected(block.id, blocks),
-          ...(childZIndex !== undefined && { zIndex: childZIndex }),
+          zIndex: cardZIndex,
           extent: (() => {
             // Clamp children to subflow body (exclude header)
             const parentId = block.data?.parentId as string | undefined
@@ -3209,13 +3232,10 @@ const WorkflowContent = React.memo(
       (_event, params) => {
         useSearchModalStore.getState().close()
         closeConnectionBlockSelector()
-        const handleId = params.handleId ?? undefined
-        const isSelectedSource = Boolean(
-          getNodes().find((node) => node.id === params?.nodeId)?.selected
+        canvasContainerRef.current?.setAttribute(
+          'data-connection-line',
+          params.handleId === 'error' ? 'error' : 'default'
         )
-        const connectionLineVariant =
-          handleId === 'error' ? 'error' : isSelectedSource ? 'selected' : 'default'
-        canvasContainerRef.current?.setAttribute('data-connection-line', connectionLineVariant)
         canvasContainerRef.current?.setAttribute('data-connection-active', 'true')
         connectionSourceRef.current = {
           nodeId: params?.nodeId,
@@ -3223,7 +3243,7 @@ const WorkflowContent = React.memo(
         }
         connectionCompletedRef.current = false
       },
-      [closeConnectionBlockSelector, getNodes]
+      [closeConnectionBlockSelector]
     )
 
     /** Handles new edge connections with container boundary validation. */
@@ -4407,29 +4427,25 @@ const WorkflowContent = React.memo(
       [removeEdge, edges, blocks]
     )
 
-    // Elevate nodes using React Flow's native zIndex so selected/recent blocks
-    // always sit above edges and other blocks.
-    //
-    // Z-index layers (regular blocks):
-    //   21 — default
-    //   22 — last interacted (dragged/selected, now deselected) so it stays on
-    //        top of siblings until another block is touched
-    //   31 — currently selected (above connected edges at z-22 and handles at z-30)
-    //
-    // Subflow container nodes are skipped — they use depth-based zIndex for
-    // correct parent/child layering and must not be bumped.
-    // Child blocks inside containers already carry zIndex 1000 and are bumped by
-    // +10 when selected so they stay above their sibling child blocks.
+    /*
+     * Lifts a card off the baseline it was built with: +1 for the last
+     * interacted card so it stays above its siblings until another is touched,
+     * +10 while selected. A card inside a container takes the same steps from
+     * its own higher baseline.
+     *
+     * Subflow containers are skipped: their depth-based zIndex is what orders
+     * them against their own children, and bumping it would break that.
+     */
     const nodesForRender = useMemo(() => {
       const elevatedNodes = displayNodes.map((node) => {
         if (node.type === 'subflowNode') return node
-        const base = node.zIndex ?? 21
+        const base = node.zIndex ?? BLOCK_Z_BASE
         const target = node.selected
           ? base + 10
           : node.id === lastInteractedNodeId
-            ? Math.max(base + 1, 22)
+            ? base + 1
             : base
-        if (target === (node.zIndex ?? 21)) return node
+        if (target === node.zIndex) return node
         return { ...node, zIndex: target }
       })
 
@@ -4474,11 +4490,10 @@ const WorkflowContent = React.memo(
         const parentLoopId = sourceNode?.parentId || targetNode?.parentId
         const edgeContextId = `${edge.id}${parentLoopId ? `-${parentLoopId}` : ''}`
 
-        // Edges inside subflows need a z-index above the container's body area
-        // (which has pointer-events: auto) so they're directly clickable.
-        // Derive from the container's depth-based zIndex (+1) so the edge sits
-        // just above its parent container but below canvas blocks (z-21+) and
-        // child blocks (z-1000).
+        // Ordered within the edge band by its container's depth, so an edge is
+        // always above the container body it crosses (which is opaque, and takes
+        // pointer events, so the edge has to be above it to stay clickable) and
+        // still below that container's own children.
         //
         // Edges are NEVER elevated above cards — not even when an endpoint is
         // selected. A line always passes behind cards, knobs, and the action
@@ -4646,7 +4661,10 @@ const WorkflowContent = React.memo(
           <div
             ref={canvasContainerRef}
             onPointerDownCapture={handleCanvasPointerDownCapture}
-            className='relative flex-1 overflow-hidden [--connection-line-stroke:var(--text-secondary)] data-[connection-line=error]:[--connection-line-stroke:var(--text-error)] data-[connection-line=selected]:[--connection-line-stroke:var(--text-secondary)] data-[connection-active=true]:[&_.react-flow__handle.source]:pointer-events-none'
+            /* The in-flight line reads `--text-secondary`, not the `--workflow-edge`
+               grey a resting edge uses: it has to stay legible over a subflow body
+               as well as the canvas, and that grey is ~1.1:1 against one. */
+            className='relative flex-1 overflow-hidden [--connection-line-stroke:var(--text-secondary)] data-[connection-line=error]:[--connection-line-stroke:var(--text-error)] data-[connection-active=true]:[&_.react-flow__handle.source]:pointer-events-none'
           >
             {!isWorkflowReady && (
               <div className='absolute inset-0 z-[5] flex items-center justify-center bg-[var(--bg)]'>
@@ -4793,6 +4811,7 @@ const WorkflowContent = React.memo(
                       onRemoveFromSubflow={handleContextRemoveFromSubflow}
                       onOpenEditor={handleContextOpenEditor}
                       onRename={handleContextRename}
+                      onAddImage={handleContextAddImage}
                       onRunFromBlock={handleContextRunFromBlock}
                       onRunUntilBlock={handleContextRunUntilBlock}
                       hasClipboard={hasClipboard()}
